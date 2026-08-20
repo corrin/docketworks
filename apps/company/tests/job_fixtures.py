@@ -101,15 +101,19 @@ def make_job(
     *,
     name: str = "Test Job",
     pricing_methodology: str = "time_materials",
+    status: str | None = None,
 ) -> Job:
     """Create a Job through the real save path.
 
     ``Job.save()`` generates the job number and cost sets itself, reading the
     CompanyDefaults and Ordinary Time pay item the root conftest seeds.
-    Methodology is set at construction so the change-tracking handler
-    (which fires on later edits) stays out of the picture.
+    Methodology and status are set at construction so the change-tracking
+    handler (which fires on later edits) stays out of the picture — the same
+    order ``create_shop_jobs`` uses when it creates the special jobs.
     """
     job = Job(name=name, company=company, pricing_methodology=pricing_methodology)
+    if status is not None:
+        job.status = status
     job.save(staff=staff)
     return job
 

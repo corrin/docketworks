@@ -69,6 +69,19 @@ it; a second attribute for the same concept is a sibling implementation.
 // job/JobCreatePage.tsx — frozen v1 prefix
 <input data-automation-id="JobCreateView-name-input" />
 <button data-automation-id="JobCreateView-submit">Create</button>
+
+// timesheet/WeeklyOverviewPage.tsx — the grid is keyed by staff AND day, so a
+// cell id carries both; the day headers are keyed by date alone because they
+// drill into the whole day.
+<th><button data-automation-id={`WeeklyOverview-dayHeader-${day}`}>…</button></th>
+<tr data-automation-id={`WeeklyOverview-row-${staff.staff_id}`}>
+  <button data-automation-id={`WeeklyOverview-cell-${staff.staff_id}-${day.day}`}>…</button>
+</tr>
+
+// timesheet/PayrollPanel.tsx
+<span data-automation-id="PayrollPanel-status">Pay run ready for posting</span>
+<button data-automation-id="PayrollPanel-postAll">Post All Staff to Xero</button>
+<li data-automation-id={`PayrollPanel-result-${staffId}`}>…</li>
 ```
 
 ## Rules

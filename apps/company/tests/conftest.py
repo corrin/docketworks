@@ -28,7 +28,7 @@ def authenticate(client: Client, staff: Staff) -> None:
 def office_staff() -> Staff:
     """An office staff member (may use the people/data-quality endpoints)."""
     return Staff.objects.create_user(
-        email="office@example.com",
+        office_email="office@example.com",
         password=PASSWORD,
         first_name="Office",
         last_name="Staff",
@@ -40,7 +40,7 @@ def office_staff() -> Staff:
 def workshop_staff() -> Staff:
     """A non-office staff member (rejected by office-only endpoints)."""
     return Staff.objects.create_user(
-        email="workshop@example.com",
+        office_email="workshop@example.com",
         password=PASSWORD,
         first_name="Workshop",
         last_name="Staff",

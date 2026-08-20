@@ -12,8 +12,6 @@ from django.test import Client
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.company.models import Company
-from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job
 from apps.timesheet.tests.conftest import (
     WEEK_START,
@@ -35,8 +33,6 @@ MANAGEMENT_ENDPOINTS = (
     ("get", "/api/timesheets/jobs/"),
     ("get", "/api/timesheets/weekly/"),
     ("get", "/api/timesheets/payroll/pay-runs/"),
-    ("post", "/api/timesheets/payroll/pay-runs/create"),
-    ("post", "/api/timesheets/payroll/pay-runs/refresh"),
     ("post", "/api/timesheets/payroll/post-staff-week/"),
 )
 
@@ -217,18 +213,18 @@ class TestJobsListEndpoint:
 
         assert manage_client.get("/api/timesheets/jobs/").json()["jobs"] == []
 
-    def test_leave_jobs_expose_their_leave_type(
-        self, manage_client: Client, company: Company, superuser: Staff
+    def test_a_search_term_reaches_a_job_the_default_list_drops(
+        self, manage_client: Client, job: Job
     ) -> None:
-        from django.apps import apps as django_apps  # noqa: PLC0415
+        """The picker holds the default list and asks with ?q= only for the rest."""
+        self._archive(job, methodology="time_materials", days_ago=2)
+        assert manage_client.get("/api/timesheets/jobs/").json()["jobs"] == []
 
-        leave_job = make_job(company, superuser, name="Annual Leave")
-        leave_job.default_xero_pay_item = django_apps.get_model(
-            "xero", "XeroPayItem"
-        )._default_manager.get(name="Annual Leave", uses_leave_api=True)
-        leave_job.save(staff=superuser, update_fields=["default_xero_pay_item", "updated_at"])
+        body = manage_client.get("/api/timesheets/jobs/?q=Timesheet").json()
 
-        body = manage_client.get("/api/timesheets/jobs/").json()
+        assert [entry["id"] for entry in body["jobs"]] == [str(job.id)]
+        # Still the full row shape, so a pick needs no second fetch to price it.
+        assert body["jobs"][0]["labour_rates"] != []
 
-        entry = next(item for item in body["jobs"] if item["id"] == str(leave_job.id))
-        assert entry["leave_type"] == "Annual Leave"
+    def test_a_search_term_below_the_minimum_is_a_400(self, manage_client: Client) -> None:
+        assert manage_client.get("/api/timesheets/jobs/?q=ab").status_code == 400

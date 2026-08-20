@@ -82,6 +82,15 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      - id: check-disposition-paths
+        name: check-disposition-paths (every "ported" path in v1-disposition.md exists)
+        entry: uv run python -m scripts.checks.check_disposition_paths
+        language: system
+        # Deliberately unfiltered. Scoping it to the document would miss the
+        # likelier staleness: a rename ANYWHERE in the tree it describes. At
+        # 0.2s (no Django) the whole-tree run costs less than the filter saves.
+        always_run: true
+        pass_filenames: false
       - id: deptry
         name: deptry (dependency hygiene)
         entry: uv run deptry .

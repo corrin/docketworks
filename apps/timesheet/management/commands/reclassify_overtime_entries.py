@@ -27,11 +27,11 @@ from django.db import transaction
 from apps.job.models.costing import CostLine
 from apps.job.services.time_entry_rates import PayItem
 from apps.timesheet.services.xero_hours import (
-    LEAVE_JOB_NAMES,
     XeroWeekRow,
     build_staff_lookup,
     get_jm_hours_for_staff_week,
     get_xero_hours_by_staff_week,
+    leave_job_ids,
 )
 
 from ._repair_shared import (
@@ -394,7 +394,7 @@ class Command(BaseCommand):
                 accounting_date__lte=week_end,
                 staff_id=staff_id,
             )
-            .exclude(cost_set__job__name__in=LEAVE_JOB_NAMES)
+            .exclude(cost_set__job_id__in=leave_job_ids())
             # Entries already at an overtime rate are not reclassification fodder.
             .exclude(xero_pay_item__multiplier__gt=Decimal("1"))
             .select_related("cost_set", "cost_set__job")

@@ -14,18 +14,10 @@ from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
+from apps.timesheet.services import hour_categories
 
 logger = logging.getLogger(__name__)
 
-# Status vocabulary and the CSS class each value maps to.
-STATUS_CLASSES = {
-    "Complete": "success",
-    "Partial": "warning",
-    "No Entry": "danger",
-    "Weekend": "secondary",
-    "Weekend Work": "info",
-}
-PARTIAL_THRESHOLD = Decimal("0.9")
 LOW_HOURS_THRESHOLD = Decimal("0.5")
 OVERTIME_THRESHOLD = Decimal("1.2")
 
@@ -56,8 +48,7 @@ class StaffDailyData(TypedDict):
     non_billable_hours: float
     total_revenue: float
     total_cost: float
-    status: str
-    status_class: str
+    day_status: str
     billable_percentage: float
     completion_percentage: float
     job_breakdown: list[JobBreakdownData]
@@ -118,27 +109,13 @@ def _percentage(part: Decimal | float, total: Decimal | float) -> float:
 
 
 def _scheduled_hours(staff: Staff, target_date: date, weekend_enabled: bool) -> Decimal:
-    """Scheduled hours for the staff member on the date (0 on a 5-day-week weekend)."""
-    if not weekend_enabled and target_date.weekday() >= 5:
-        return Decimal("0.0")
-    return Decimal(str(staff.get_scheduled_hours(target_date)))
+    """Scheduled hours for the staff member on the date — the shared rule.
 
-
-def _determine_status(
-    actual_hours: Decimal, scheduled_hours: Decimal, weekend_enabled: bool
-) -> str:
-    """Status ladder: weekend, no entry, partial (<90%), then complete."""
-    if scheduled_hours == 0:
-        if weekend_enabled and actual_hours > 0:
-            return "Weekend Work"
-        return "Weekend"
-    if actual_hours == 0:
-        return "No Entry"
-    if actual_hours < scheduled_hours * PARTIAL_THRESHOLD:
-        return "Partial"
-    if actual_hours >= scheduled_hours:
-        return "Complete"
-    return "Partial"
+    Opus: Kept as a local name because several call sites read better with the
+    positional flag, but the rule itself lives in hour_categories so the weekly
+    grid cannot answer differently.
+    """
+    return hour_categories.scheduled_hours(staff, target_date, weekend_enabled=weekend_enabled)
 
 
 def _job_breakdown(cost_lines: list[CostLine]) -> list[JobBreakdownData]:
@@ -166,7 +143,7 @@ def _job_breakdown(cost_lines: list[CostLine]) -> list[JobBreakdownData]:
                 "hours": 0.0,
                 "revenue": 0.0,
                 "cost": 0.0,
-                "is_billable": bool(line.meta.get("is_billable", True)),
+                "is_billable": hour_categories.is_billable(line),
             }
             hours_by_job[job_id] = Decimal("0")
             revenue_by_job[job_id] = Decimal("0")
@@ -201,26 +178,40 @@ def _staff_alerts(
 
 
 def get_staff_timesheet_data(
-    staff: Staff, target_date: date, weekend_enabled: bool
+    staff: Staff,
+    target_date: date,
+    weekend_enabled: bool,
+    catalogue: hour_categories.LeaveCatalogue | None = None,
 ) -> StaffDailyData:
-    """Build one staff member's daily row."""
+    """Build one staff member's daily row.
+
+    Opus: ``catalogue`` is passed by the day loop so five rows are read once for
+    the page rather than once per staff member.
+    """
+    if catalogue is None:
+        catalogue = hour_categories.LeaveCatalogue.load()
     cost_lines = list(
         CostLine.objects.filter(
+            # Opus: Only actual lines are worked time; an estimate or quote line
+            # describes hypothetical hours. The weekly overview has always
+            # filtered this way, and reading the same lines is what lets the
+            # two screens agree.
+            cost_set__kind="actual",
             kind="time",
             staff=staff,
             accounting_date=target_date,
-        ).select_related("cost_set__job__company")
+        ).select_related("cost_set__job__company", "xero_pay_item")
     )
 
-    total_hours = sum((line.quantity for line in cost_lines), Decimal("0"))
-    billable_hours = sum(
-        (line.quantity for line in cost_lines if line.meta.get("is_billable", True)),
-        Decimal("0"),
-    )
+    categories = hour_categories.categorise(cost_lines, catalogue)
+    total_hours = categories.total
+    billable_hours = categories.billable
     total_revenue = sum((line.total_rev for line in cost_lines), Decimal("0"))
     total_cost = sum((line.total_cost for line in cost_lines), Decimal("0"))
     scheduled_hours = _scheduled_hours(staff, target_date, weekend_enabled)
-    status = _determine_status(total_hours, scheduled_hours, weekend_enabled)
+    status = hour_categories.day_status(
+        total_hours, scheduled_hours, has_leave=categories.leave > 0
+    )
 
     logger.info(
         "Processed timesheet for %s %s: %sh (%d entries)",
@@ -240,8 +231,7 @@ def get_staff_timesheet_data(
         "non_billable_hours": float(total_hours - billable_hours),
         "total_revenue": float(total_revenue),
         "total_cost": float(total_cost),
-        "status": status,
-        "status_class": STATUS_CLASSES.get(status, "secondary"),
+        "day_status": status,
         # Use Decimal throughout the hour-ratio calculation.
         "billable_percentage": _percentage(billable_hours, total_hours),
         "completion_percentage": _percentage(total_hours, scheduled_hours),
@@ -263,6 +253,7 @@ def _staff_daily_rows(target_date: date, weekend_enabled: bool) -> list[StaffDai
     """
     is_weekend = target_date.weekday() >= 5
     rows: list[StaffDailyData] = []
+    catalogue = hour_categories.LeaveCatalogue.load()
     for staff in get_displayable_staff(target_date=target_date):
         if staff.get_scheduled_hours(target_date) <= 0 and not (weekend_enabled and is_weekend):
             logger.debug(
@@ -271,7 +262,7 @@ def _staff_daily_rows(target_date: date, weekend_enabled: bool) -> list[StaffDai
                 target_date.strftime("%A"),
             )
             continue
-        rows.append(get_staff_timesheet_data(staff, target_date, weekend_enabled))
+        rows.append(get_staff_timesheet_data(staff, target_date, weekend_enabled, catalogue))
     return rows
 
 
@@ -297,12 +288,12 @@ def _daily_totals(staff_data: list[StaffDailyData]) -> DailyTotalsData:
 def _summary_stats(staff_data: list[StaffDailyData]) -> SummaryStatsData:
     """Staff counts by completion status."""
     total_staff = len(staff_data)
-    complete_staff = len([row for row in staff_data if row["status"] == "Complete"])
+    complete_staff = len([row for row in staff_data if row["day_status"] == "Complete"])
     return {
         "total_staff": total_staff,
         "complete_staff": complete_staff,
-        "partial_staff": len([row for row in staff_data if row["status"] == "Partial"]),
-        "missing_staff": len([row for row in staff_data if row["status"] == "No Entry"]),
+        "partial_staff": len([row for row in staff_data if row["day_status"] == "Partial"]),
+        "missing_staff": len([row for row in staff_data if row["day_status"] == "No Entry"]),
         "completion_rate": _percentage(complete_staff, total_staff),
     }
 

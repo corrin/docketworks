@@ -30,7 +30,7 @@ from apps.company.services.contact_methods import (
     clear_company_primary_phone,
     set_primary_phone,
 )
-from apps.core.errors import AppErrorContext, persist_app_error
+from apps.core.errors import AppErrorContext, ConflictError, persist_app_error
 
 if TYPE_CHECKING:
     from django_stubs_ext import WithAnnotations
@@ -38,11 +38,11 @@ if TYPE_CHECKING:
 COMPANY_SEARCH_TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 
-class DuplicateContactError(ValueError):
+class DuplicateContactError(ConflictError):
     """The accounting provider already holds a contact with this name.
 
     Typed (rather than v1's parse-the-message-back-out-of-str(exc)) so the
-    endpoint can map it to 409 without string surgery.
+    shared application boundary maps it to 409 without string surgery.
     """
 
     def __init__(self, name: str, external_id: str | None) -> None:
@@ -699,7 +699,7 @@ class CompanyRestService:
             "path": getattr(request, "path", None),
             "query_string": (request.META.get("QUERY_STRING", "") if request is not None else ""),
             "user_id": str(getattr(user, "id", "")) if user else None,
-            "user_email": getattr(user, "email", None) if user else None,
+            "user_email": getattr(user, "office_email", None) if user else None,
             "result_count": total_count,
             "returned_count": len(companies),
             "results": [

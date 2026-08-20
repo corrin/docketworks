@@ -123,26 +123,23 @@ class CostLine(models.Model):
         - source (str): Origin of adjustment ('manual_adjustment' for user-created)
     """
 
-    # CHECKLIST - when adding a new field or property to CostLine, check these locations:
+    # Opus: CHECKLIST - when adding a new field or property to CostLine, check these locations.
+    # Verified against the tree 2026-08-16; six v1 entries naming files this repo
+    # does not have (apps/job/serializers/, apps/job/diff.py, apps/job/services/
+    # job_rest_service.py, workshop_service.py, quote_sync_service.py, and
+    # apps/workflow/api/xero/sync.py) were removed rather than left to read as
+    # coverage that exists.
     #   1. COSTLINE_API_FIELDS or COSTLINE_INTERNAL_FIELDS below (if it's a model field)
-    #   2. CostLineSerializer in apps/job/serializers/costing_serializer.py
-    #      (uses COSTLINE_API_FIELDS)
-    #   3. TimesheetCostLineSerializer in apps/job/serializers/costing_serializer.py
-    #      (extends API fields)
-    #   4. CostLineCreateUpdateSerializer in apps/job/serializers/costing_serializer.py
-    #      (write fields)
-    #   5. _get_staff_timesheet_data() in apps/timesheet/services/daily_timesheet_service.py
-    #   6. _create_costline_from_allocation()
-    #      in apps/purchasing/services/delivery_receipt_service.py
+    #   2. cost_line_data() in apps/job/services/job_service.py (the read shape)
+    #   3. _apply_costline_fields() / create_cost_line() / update_cost_line()
+    #      in apps/job/services/job_service.py (the write path)
+    #   4. get_staff_timesheet_data() in apps/timesheet/services/daily_timesheet_service.py
+    #   5. _process_daily_lines() in apps/timesheet/services/weekly_timesheet_service.py
+    #   6. categorise() in apps/timesheet/services/hour_categories.py, if the field
+    #      changes how a line is bucketed for payroll
     #   7. consume_stock() in apps/purchasing/services/stock_service.py
     #   8. get_allocation_details() in apps/purchasing/services/allocation_service.py (subset)
-    #   9. _process_time_entries() in apps/timesheet/services/weekly_timesheet_service.py
-    #  10. sync_time_entries_from_xero() in apps/workflow/api/xero/sync.py (Xero format)
-    #  11. JobRestService.create_job() in apps/job/services/job_rest_service.py
-    #      (estimate time lines)
-    #  12. WorkshopTimesheetService.create_entry() in apps/job/services/workshop_service.py
-    #  13. _create_cost_line_from_draft() and _copy_cost_line() in apps/job/diff.py
-    #  14. _copy_estimate_to_quote_costset() in apps/job/services/quote_sync_service.py
+    #   9. create_entry() in apps/timesheet/services/workshop_timesheet_service.py
     #
     # Fields exposed via API serializers
     COSTLINE_API_FIELDS: ClassVar[list[str]] = [
@@ -171,6 +168,7 @@ class CostLine(models.Model):
     # Internal fields not exposed in API
     COSTLINE_INTERNAL_FIELDS: ClassVar[list[str]] = [
         "cost_set",
+        "managed_by",
     ]
 
     # All CostLine model fields (derived)
@@ -261,6 +259,14 @@ class CostLine(models.Model):
         help_text="The labour subtype for time lines (Workshop, Admin, Onsite, ...)",
     )
 
+    managed_by = models.CharField(  # noqa: DJ001 -- NULL means no owning workflow
+        max_length=20,
+        choices=[("leave", "Leave")],
+        null=True,
+        blank=True,
+        help_text="Workflow that owns this line; owned lines are changed through that workflow.",
+    )
+
     class Meta:
         indexes: ClassVar[list[models.Index]] = [
             models.Index(fields=["cost_set_id", "kind"]),
@@ -290,6 +296,9 @@ class CostLine(models.Model):
                 condition=~Q(xero_expense_id=""), name="xero_expense_id_not_blank"
             ),
             models.CheckConstraint(condition=~Q(xero_time_id=""), name="xero_time_id_not_blank"),
+            models.CheckConstraint(
+                condition=~Q(managed_by=""), name="costline_managed_by_not_blank"
+            ),
         ]
         ordering: ClassVar[list[str]] = ["-created_at", "-id"]
 
@@ -330,8 +339,8 @@ class CostLine(models.Model):
         if self.quantity < 0:
             logger.warning("CostLine has negative quantity: %s for %s", self.quantity, self.desc)
 
-        if self.kind == "time" and self.cost_set.kind == "actual" and self.xero_pay_item is None:
-            raise ValidationError("Actual time entries must have xero_pay_item set.")
+        if self.kind == "time" and self.cost_set.kind == "actual":
+            self._clean_actual_time_pay_item()
 
         if self.kind == "time" and self.cost_set.kind == "actual":
             if self.staff_id is None:
@@ -346,6 +355,33 @@ class CostLine(models.Model):
 
         validate_costline_meta(self.meta, self.kind)
         validate_costline_ext_refs(self.ext_refs)
+
+    def _clean_actual_time_pay_item(self) -> None:
+        """Require a Xero pay item, except where Xero pays the category itself.
+
+        Opus: Both directions, because both are wrong in the same expensive way.
+        Xero Payroll NZ computes public-holiday pay from the employee's working
+        pattern and offers no endpoint to suppress it, so a pay item on such a
+        line is what routes those hours to the Timesheets API on top of what
+        Xero already pays (ADR 0007). Enforced here rather than only in the
+        payroll push because this is the boundary every write crosses — the
+        leave workflow, the workshop screen and the cost-line API all reach it,
+        and the push cannot un-write a line it is handed.
+        """
+        # Local import: apps.timesheet is a sibling domain app reached through the
+        # registry, and importing it at module scope would run at app-ready.
+        from apps.timesheet.models import LeaveType, PostingSurface  # noqa: PLC0415
+
+        leave_type = LeaveType.objects.filter(job_id=self.cost_set.job_id).first()
+        if leave_type is not None and leave_type.posting_surface is PostingSurface.XERO_COMPUTED:
+            if self.xero_pay_item_id is not None:
+                raise ValidationError(
+                    f"{leave_type.display_name} is paid by Xero's own calculation, so its "
+                    "time entries must not name a Xero pay item."
+                )
+            return
+        if self.xero_pay_item is None:
+            raise ValidationError("Actual time entries must have xero_pay_item set.")
 
     def _actual_time_entry_requires_sequence(self) -> bool:
         if self.kind != "time":

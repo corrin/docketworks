@@ -135,6 +135,7 @@ convention = "pep257"
 # Tests: asserts are the point; fixtures use hardcoded creds; docstrings optional.
 "apps/*/tests/*" = ["S101", "S105", "S106", "D"]
 "config/tests/*" = ["S101", "S105", "S106", "D"]
+"scripts/tests/*" = ["S101", "S105", "S106", "D"]
 # Test harness: imports are deferred until Django's app registry is ready
 # (PLC0415), and the fixture password is a literal like every other test
 # credential (S105).
@@ -207,7 +208,9 @@ django_settings_module = "config.settings_test"
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings_test"
-testpaths = ["apps", "config"]
+# `scripts` is here because the gates live there and a gate nobody tests is
+# an assertion about the codebase that has never itself been asserted.
+testpaths = ["apps", "config", "scripts"]
 # Coverage is NOT here on purpose. It costs ~23% on every run and enforces a
 # `fail_under` gate that only has to hold once, so CI passes the flags
 # explicitly (see .github/workflows/ci.yml) and the dev loop stays fast. v1
@@ -220,12 +223,19 @@ testpaths = ["apps", "config"]
 # DB fixtures build once per worker instead of once per test. xdist gives each
 # worker its own database (gw0, gw1, …), so this is safe; what is NOT safe is
 # two SEPARATE pytest sessions at once, which still need distinct DB_NAMEs.
-addopts = "-q -n auto --dist loadscope"
+#
+# `-m "not integration"` keeps the default suite hermetic. Integration tests
+# call real vendors (ADR 0050) and need sandbox credentials CI does not have,
+# so they are deselected here and run deliberately via
+# ./scripts/ops/run_integration_tests.sh. Deselected is NOT optional: they are
+# a merge gate.
+addopts = "-q -n auto --dist loadscope -m 'not integration'"
 # Registered so a typo'd marker is an error rather than a silent no-op —
 # a bare_install test that quietly kept its seeded baseline would assert
 # against a world it was meant to exclude.
 markers = [
     "bare_install: start from an empty database (instance provisioning only)",
+    "integration: calls a real external system (ADR 0050); never runs in CI",
 ]
 
 [tool.coverage.run]
@@ -239,6 +249,16 @@ omit = ["apps/*/migrations/*", "apps/*/tests/*", "config/tests/*"]
 # coverage ratchet — the status table states it rather than storing a measured
 # percentage, so raising it here is the whole ceremony.
 fail_under = 88.4
+# Opus: without this the floor above is not the floor that runs. coverage.py
+# rounds the total to `precision` before comparing, so at the default 0 a real
+# 88.49% became 88, failed against 88.4, and reported "total of 88 is less than
+# fail-under=88" — a gate whose own message says 88 is under 88. The effective
+# floor was silently 88.5, and it only bit once coverage fell between the two.
+# pytest-cov compares unrounded and passed the same run, so the two gates
+# disagreed on identical data. Rejected: lowering fail_under (hides a real
+# number behind a rounder one) and padding with filler tests (buys a decimal,
+# not a check). This changes what is compared, never the floor.
+precision = 2
 
 [tool.importlinter]
 root_packages = ["apps", "config"]

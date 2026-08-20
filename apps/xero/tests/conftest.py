@@ -101,7 +101,7 @@ def set_active_quota(
 def non_office_api() -> Client:
     """An authenticated client whose staff member is NOT office staff."""
     staff: Staff = Staff.objects.create_user(
-        email="floor@example.test",
+        office_email="floor@example.test",
         password="s3cret-Pass!",
         first_name="Floor",
         last_name="Staff",

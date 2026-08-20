@@ -20,8 +20,14 @@
 # grow: export_openapi.py pins dissolved v1 app names at zero, so every called
 # `workflow_*` operation must be renamed when it ports.
 #
-# `introduced` lists v2 operations that never existed in v1. Both keys are
-# hand-maintained and survive regeneration; the two lists do not.
+# `introduced` lists v2 operations that never existed in v1.
+#
+# `dropped` maps a v1 operationId to the reason v2 deliberately serves no
+# equivalent — "this is DONE by not existing". A drop the schema contradicts
+# (v2 serves the name anyway) fails the check rather than shrinking the count.
+#
+# All three keys are hand-maintained and survive regeneration; the two lists
+# do not.
 e2e_spec_files: 40
 operations:
 - accounting_reports_calendar_retrieve
@@ -577,4 +583,44 @@ renamed:
   workflow_xero_apps_list: xero_apps_list
   workflow_xero_apps_partial_update: xero_apps_partial_update
   workflow_xero_pay_items_list: xero_pay_items_list
-introduced: []
+introduced:
+# Specified by ADR 0007 and the payroll UI contract but never built in v1:
+# what Xero holds for a week, read live, beside what the timesheet recorded.
+# Its own endpoint so the weekly grid still renders when Xero is unreachable.
+- timesheets_payroll_week_status_retrieve
+# v1's payroll reconciliation could only read the synced XeroPaySlip mirror, so
+# it answered nothing until the run was Posted and a sync had mirrored it — by
+# which time a wrong week has been paid. This reads the week's run live, and is
+# driven from Xero's pay slips rather than our staff list so the costliest case
+# surfaces: an employee Xero pays that DocketWorks posted nothing for.
+- accounting_reports_payroll_week_reconciliation_retrieve
+# The state of the payroll posting run, polled. v1 posted synchronously and
+# reported through the response body, so a reload lost the run and a second post
+# could start over a live one. ADR 0047's contract needs a GET whose schema is
+# what generates the frontend types; the SSE stream pushes this same document.
+- timesheets_payroll_runs_retrieve
+# Admin-created leave is a new v2 workflow; v1 only had raw timesheet lines.
+- timesheets_leave_balance_retrieve
+- timesheets_leave_office_closure_create
+- timesheets_leave_office_closure_preview_create
+- timesheets_leave_preview_create
+- timesheets_leave_requests_create
+- timesheets_leave_requests_delete
+- timesheets_leave_requests_list
+- timesheets_leave_requests_update
+- timesheets_leave_settings_retrieve
+- timesheets_leave_settings_update
+# One narrow job list for the admin screens that map a fixed kind of job. v1 had
+# no such screen, and its pickers were fed by whichever domain list the page
+# already loaded — which is how v2 briefly grew a third job-option schema.
+- job_jobs_options_list
+dropped:
+  timesheets_payroll_pay_runs_create_create: >-
+    Creating the Draft pay run is a step of posting, not an operator intent:
+    posting reconciles leave BEFORE creating the run because Xero locks leave
+    once the employee is in a draft (KAN-326), and a standalone create invited
+    exactly that early creation. ensure_pay_run_for_week runs inside the post.
+  timesheets_payroll_pay_runs_refresh_create: >-
+    Mirror hygiene is the server's job, not a button: the posting preflight
+    refreshes the mirror before judging the week, and the hourly sync keeps it
+    roughly current for reads. The panel's postable-week banner is advisory.

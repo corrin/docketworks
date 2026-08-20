@@ -209,13 +209,23 @@ class TestSyncXeroPayItems:
         payroll_api.get_leave_types.return_value = SimpleNamespace(leave_types=leave_types)
         payroll_api.get_earnings_rates.return_value = SimpleNamespace(earnings_rates=earnings_rates)
 
-    def test_creates_and_updates_rows_with_inferred_multipliers(self, payroll_api: Mock) -> None:
+    def test_a_leave_type_carries_no_multiplier_whatever_it_is_called(
+        self, payroll_api: Mock
+    ) -> None:
+        """A leave type has no multiplier; only earnings rates do.
+
+        Opus: These three names are the ones the deleted rule keyed on — it read
+        "unpaid" or "annual" out of the Xero NAME and wrote 0.00, the last
+        surviving copy of the rule ADR 0007 lists under "Do not". Whether leave
+        is paid comes from its Docketworks category, so the guess answered a
+        question nothing asked while silently costing renamed leave wrongly.
+        """
         self._set_responses(
             payroll_api,
             leave_types=[
-                _leave_type("Unpaid Special Leave"),  # new: unpaid -> 0
-                _leave_type("Annual Leave"),  # seeded: annual -> 0
-                _leave_type("Jury Service"),  # new: ordinary leave -> 1
+                _leave_type("Unpaid Special Leave"),
+                _leave_type("Annual Leave"),
+                _leave_type("Jury Service"),
             ],
             earnings_rates=[
                 _earnings_rate("Ordinary Time", "RatePerUnit"),  # seeded -> 1.0
@@ -238,9 +248,9 @@ class TestSyncXeroPayItems:
             assert item.xero_id is not None
             return item.multiplier
 
-        assert multiplier("Unpaid Special Leave", uses_leave_api=True) == Decimal("0.00")
-        assert multiplier("Annual Leave", uses_leave_api=True) == Decimal("0.00")
-        assert multiplier("Jury Service", uses_leave_api=True) == Decimal("1.00")
+        assert multiplier("Unpaid Special Leave", uses_leave_api=True) is None
+        assert multiplier("Annual Leave", uses_leave_api=True) is None
+        assert multiplier("Jury Service", uses_leave_api=True) is None
         assert multiplier("Ordinary Time", uses_leave_api=False) == Decimal("1.00")
         assert multiplier("Triple Time", uses_leave_api=False) == Decimal("3.00")
         assert multiplier("Christmas Bonus", uses_leave_api=False) is None

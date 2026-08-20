@@ -47,7 +47,10 @@ def main() -> int:
 
     print(f"FAIL: {len(pending)} staff carry an employee id from another organisation:")
     for staff in pending[:10]:
-        print(f"  {staff.email}: employee {staff.xero_user_id} in {staff.xero_tenant_id or 'none'}")
+        print(
+            f"  {staff.office_email}: employee {staff.xero_user_id} "
+            f"in {staff.xero_tenant_id or 'none'}"
+        )
     if len(pending) > 10:
         print(f"  ... and {len(pending) - 10} more")
     print("Run: uv run python manage.py seed_xero_from_database --only employees")

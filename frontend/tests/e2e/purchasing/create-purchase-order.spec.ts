@@ -118,25 +118,26 @@ test.describe.serial('purchase order operations', () => {
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(1000)
 
-    // Target the saved PO line; the phantom row also has a JobSelect.
-    const jobSearchInput = autoId(page, 'DataTable-row-0').locator(
-      '[data-automation-id="JobSelect-job-search"]',
+    // Target the saved PO line; the phantom row also has a job picker.
+    const jobTrigger = autoId(page, 'DataTable-row-0').locator(
+      '[data-automation-id="JobSelect-trigger"]',
     )
-    await jobSearchInput.waitFor({ timeout: 10000 })
+    await jobTrigger.waitFor({ timeout: 10000 })
 
-    // Click to focus and open dropdown
-    await jobSearchInput.click()
-    await page.waitForTimeout(300)
+    // Open the picker; the search lives inside the popover.
+    await jobTrigger.click()
+    const jobSearchInput = autoId(page, 'JobSelect-search')
+    await jobSearchInput.waitFor({ timeout: 5000 })
 
     // Type the job number to search
     await jobSearchInput.fill(jobNumber)
     await page.waitForTimeout(500)
 
-    // Wait for dropdown to appear and show options
-    const dropdown = autoId(page, 'JobSelect-dropdown')
+    // Wait for the list to appear and show options
+    const dropdown = autoId(page, 'JobSelect-list')
     await dropdown.waitFor({ timeout: 5000 })
 
-    // Select the job from the dropdown (autosave waiter armed first — see
+    // Select the job from the list (autosave waiter armed first — see
     // the header deviations note)
     const jobOption = autoId(page, `JobSelect-option-${jobNumber}`)
     await jobOption.waitFor({ timeout: 5000 })
@@ -147,9 +148,8 @@ test.describe.serial('purchase order operations', () => {
     // Wait for autosave
     await autosavePromise
 
-    // Verify job was selected - input should show job number
-    const inputValue = await jobSearchInput.inputValue()
-    expect(inputValue).toContain(jobNumber)
+    // Verify job was selected - the trigger should show the job number
+    await expect(jobTrigger).toContainText(jobNumber)
 
     log(`Assigned job ${jobNumber} to PO line`)
   })

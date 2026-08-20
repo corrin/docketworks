@@ -15,7 +15,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.test import override_settings
 from django.utils import timezone
-from pytest_django.fixtures import SettingsWrapper
 from xero_python.accounting import Account, AccountType
 
 from apps.accounting.models import Invoice, InvoiceLineItem
@@ -293,7 +292,7 @@ class TestSalesAccountCode:
 @pytest.fixture
 def staff() -> Staff:
     return Staff.objects.create_user(
-        email="seed@example.com",
+        office_email="seed@example.com",
         password="s3cret-Pass!",
         first_name="Seed",
         last_name="Runner",
@@ -714,10 +713,6 @@ class TestRunSeedRefusals:
     entry point, so the refusal is pinned here rather than five times over.
     """
 
-    @pytest.fixture(autouse=True)
-    def _writes_enabled(self, settings: SettingsWrapper) -> None:
-        settings.XERO_READONLY = False
-
     @staticmethod
     def _dry_run() -> None:
         run_seed(set(), dry_run=True, report=lambda _line: None)
@@ -833,7 +828,7 @@ class TestSeedConvergence:
         convergence = seed_convergence(TENANT)
 
         assert convergence.companies_without_contacts == 1
-        assert convergence.remaining == {"contacts": 1}
+        assert convergence.remaining == {"contacts": 1, "employees": 1}
         assert convergence.converged is False
 
     def test_counts_pending_and_orphaned_invoices(self, staff: Staff) -> None:
@@ -856,7 +851,7 @@ class TestSeedConvergence:
         company = make_company("Quoted Ltd", xero_contact_id="c-2", xero_tenant_id=TENANT)
         make_quote(company, job=make_job(company, staff), number="QU-1")
 
-        assert seed_convergence(TENANT).remaining == {"quotes": 1}
+        assert seed_convergence(TENANT).remaining == {"quotes": 1, "employees": 1}
 
     def test_counts_active_stock_with_no_xero_id(self) -> None:
         Stock.objects.create(
@@ -874,7 +869,7 @@ class TestSeedConvergence:
         make_job(make_company("Jobbing Ltd", xero_contact_id="c-3", xero_tenant_id=TENANT), staff)
         XeroPayItem.objects.filter(name="Ordinary Time").update(xero_tenant_id="prod-tenant")
 
-        assert seed_convergence(TENANT).remaining == {"pay items": 1}
+        assert seed_convergence(TENANT).remaining == {"pay items": 1, "employees": 1}
 
     def test_ignores_an_unreferenced_pay_item_with_no_xero_id(self) -> None:
         # Nothing posts through it, so demanding a re-link would ask for work

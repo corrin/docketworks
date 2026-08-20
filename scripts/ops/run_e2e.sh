@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
+#
+# The unattended E2E gate: owns the full service stack, resets recognised E2E
+# data, runs the suite, and stops only what it started.
+#
+# E2E_XERO_PAYROLL is deliberately NOT set here. Tests tagged
+# @xero-payroll-write post a real week to Xero payroll, and Xero Payroll NZ has
+# no API to post or delete a pay run (ADR 0007) — so each such run leaves a
+# draft only a human can clear in the Xero UI, and an unattended gate must not
+# accumulate that. Run them on purpose instead:
+#
+#   npm --prefix frontend run test:e2e:payroll
+#
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

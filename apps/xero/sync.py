@@ -20,6 +20,7 @@ from xero_python.accounting import AccountingApi
 
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.accounting.registry import is_accounting_enabled
+from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.errors import persist_app_error
 from apps.core.models import CompanyDefaults
@@ -35,6 +36,11 @@ from apps.xero.constants import SLEEP_TIME
 from apps.xero.e2e_artifacts import drop_e2e_artifacts
 from apps.xero.models import XeroAccount, XeroPayRun, XeroPaySlip, XeroSyncCursor
 from apps.xero.operator_guards import is_production_tenant
+from apps.xero.payroll_employees import (
+    PayrollEmployeeSnapshot,
+    get_employees_for_sync,
+    sync_employees,
+)
 from apps.xero.payroll_sync import (
     get_all_pay_slips_for_sync,
     get_pay_runs_for_sync,
@@ -325,6 +331,17 @@ EntityConfig = tuple[
     str,
 ]
 
+
+def _sync_employee_items(items: list[Any]) -> None:
+    """Validate the generic registry boundary, then call the exact employee contract."""
+    snapshots: list[PayrollEmployeeSnapshot] = []
+    for item in items:
+        if not isinstance(item, PayrollEmployeeSnapshot):
+            raise TypeError("Employee sync registry returned an unexpected item type")
+        snapshots.append(item)
+    sync_employees(snapshots)
+
+
 ENTITY_CONFIGS: dict[str, EntityConfig] = {
     "accounts": (
         "accounts",
@@ -343,6 +360,15 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         sync_companies,
         {"include_archived": True},
         "page",
+    ),
+    "employees": (
+        "employees",
+        "employees",
+        Staff,
+        "get_employees_for_sync",
+        _sync_employee_items,
+        None,
+        "single",
     ),
     "invoices": (
         "invoices",
@@ -434,6 +460,8 @@ def _resolve_api_method(api_method: str) -> Callable[..., Any]:
         return get_pay_runs_for_sync
     if api_method == "get_all_pay_slips_for_sync":
         return get_all_pay_slips_for_sync
+    if api_method == "get_employees_for_sync":
+        return get_employees_for_sync
     method: Callable[..., Any] = getattr(AccountingApi(get_api_client()), api_method)
     return method
 
@@ -443,6 +471,7 @@ def sync_all_xero_data(
     days_back: int = 30,
     entities: Sequence[str] | None = None,
     force: bool = False,
+    xero_tenant_id: str | None = None,
 ) -> Iterator[XeroSyncEvent]:
     """Sync Xero data - either using latest timestamps or looking back N days."""
     # Safety net: don't sync until setup is complete. Targeted syncs during
@@ -497,6 +526,7 @@ def sync_all_xero_data(
             additional_params=params,
             pagination_mode=pagination,
             entity_key=entity if use_latest_timestamps else None,
+            xero_tenant_id=xero_tenant_id,
         )
 
     # After syncing from Xero, sync local stock items back to Xero (bidirectional)
@@ -570,10 +600,17 @@ def sync_local_stock_to_xero() -> Iterator[XeroSyncEvent]:
 
 
 def one_way_sync_all_xero_data(
-    entities: Sequence[str] | None = None, force: bool = False
+    entities: Sequence[str] | None = None,
+    force: bool = False,
+    xero_tenant_id: str | None = None,
 ) -> Iterator[XeroSyncEvent]:
     """Run a normal sync using the latest cursor timestamps."""
-    yield from sync_all_xero_data(use_latest_timestamps=True, entities=entities, force=force)
+    yield from sync_all_xero_data(
+        use_latest_timestamps=True,
+        entities=entities,
+        force=force,
+        xero_tenant_id=xero_tenant_id,
+    )
 
 
 def deep_sync_xero_data(

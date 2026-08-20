@@ -24,18 +24,20 @@ class StaffManager(BaseUserManager["Staff"]):
     creation, and proper defaults for staff-specific fields.
     """
 
-    def create_user(self, email: str, password: str | None = None, **extra_fields: Any) -> "Staff":
+    def create_user(
+        self, office_email: str, password: str | None = None, **extra_fields: Any
+    ) -> "Staff":
         """Create and save a Staff user with a normalised email address."""
-        if not email:
+        if not office_email:
             raise ValueError("The Email field must be set")
 
-        email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
+        office_email = self.normalize_email(office_email)
+        user = self.model(office_email=office_email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email: str, password: str, **extra_fields: Any) -> "Staff":
+    def create_superuser(self, office_email: str, password: str, **extra_fields: Any) -> "Staff":
         """Create a superuser, requiring office-staff and superuser flags."""
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("wage_rate", 0)  # Default wage rate for superusers
@@ -46,11 +48,11 @@ class StaffManager(BaseUserManager["Staff"]):
         if extra_fields.get("is_superuser") is not True:
             raise ValueError("Superuser must have is_superuser=True.")
 
-        return self.create_user(email, password, **extra_fields)
+        return self.create_user(office_email, password, **extra_fields)
 
     def active_on_date(self, target_date: date) -> "models.QuerySet[Staff]":
         """Get staff members who were employed on a specific date."""
-        return self.filter(date_joined__date__lte=target_date).filter(
+        return self.filter(employment_start_date__lte=target_date).filter(
             models.Q(date_left__isnull=True) | models.Q(date_left__gt=target_date)
         )
 
@@ -60,7 +62,7 @@ class StaffManager(BaseUserManager["Staff"]):
 
     def active_between_dates(self, start_date: date, end_date: date) -> "models.QuerySet[Staff]":
         """Get staff members who were employed at any point during the date range."""
-        return self.filter(date_joined__date__lte=end_date).filter(
+        return self.filter(employment_start_date__lte=end_date).filter(
             models.Q(date_left__isnull=True) | models.Q(date_left__gte=start_date)
         )
 
@@ -75,7 +77,8 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     icon = models.ImageField(upload_to="staff_icons/", null=True, blank=True)
     password_needs_reset = models.BooleanField(default=False)
-    email = models.EmailField(unique=True)
+    office_email = models.EmailField(unique=True)
+    payroll_email = models.EmailField(unique=True, null=True, blank=True)
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
     preferred_name = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
@@ -97,6 +100,14 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     xero_tenant_id = models.CharField(  # noqa: DJ001 -- NULL means "not linked to any organisation"
         max_length=255, null=True, blank=True
     )
+    xero_last_modified = models.DateTimeField(null=True, blank=True)
+    employment_start_date = models.DateField(default=timezone.localdate)
+    pay_basis = models.CharField(  # noqa: DJ001 -- NULL means not classified by payroll
+        max_length=10,
+        choices=(("hourly", "Hourly"), ("salary", "Salary")),
+        null=True,
+        blank=True,
+    )
     date_left = models.DateField(
         null=True,
         blank=True,
@@ -115,7 +126,6 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             "Auto-set from is_workshop_staff when blank."
         ),
     )
-    date_joined = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -166,7 +176,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
 
     objects = StaffManager()
 
-    USERNAME_FIELD: str = "email"
+    USERNAME_FIELD: str = "office_email"
     REQUIRED_FIELDS: ClassVar[list[str]] = [
         "first_name",
         "last_name",
@@ -185,6 +195,12 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             ),
             models.CheckConstraint(
                 condition=~models.Q(xero_tenant_id=""), name="staff_xero_tenant_id_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(payroll_email=""), name="staff_payroll_email_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(pay_basis=""), name="staff_pay_basis_not_blank"
             ),
         ]
 
@@ -233,8 +249,13 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     def __str__(self) -> str:
         return f"{self.first_name} {self.last_name}"
 
-    def get_scheduled_hours(self, target_date: date) -> float:
-        """Get expected working hours for a specific date."""
+    def get_scheduled_hours(self, target_date: date) -> Decimal:
+        """Get expected working hours for a specific date.
+
+        Opus: Decimal because the columns are: returning float here meant the daily
+        service parsed it straight back with ``Decimal(str(...))``, a round
+        trip whose only effect was the chance of losing a digit on the way.
+        """
         weekday = target_date.weekday()
         hours_by_day = [
             self.hours_mon,
@@ -245,7 +266,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             self.hours_sat,
             self.hours_sun,
         ]
-        return float(hours_by_day[weekday])
+        return Decimal(hours_by_day[weekday])
 
     def get_display_name(self) -> str:
         """Return the first word of the preferred name, falling back to first_name."""
@@ -269,7 +290,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         member isn't on the call stack. Seeded by data migration.
         """
         try:
-            return cls.objects.get(email=SYSTEM_AUTOMATION_EMAIL)
+            return cls.objects.get(office_email=SYSTEM_AUTOMATION_EMAIL)
         except cls.DoesNotExist as exc:
             raise RuntimeError(
                 f"System Automation staff ({SYSTEM_AUTOMATION_EMAIL}) is missing. "
@@ -280,3 +301,75 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     def is_currently_active(self) -> bool:
         """Check if staff member is currently active."""
         return self.date_left is None or self.date_left > timezone.localdate()
+
+    def is_active_on(self, target_date: date) -> bool:
+        """Whether this staff member was employed on the date.
+
+        Fable: The per-object twin of ``StaffManager.active_on_date``, kept
+        beside the manager so the boundary rule cannot fork: employment starts
+        ON ``employment_start_date`` and ends strictly BEFORE ``date_left``.
+        ``leave_service`` and the payroll push each restated this in Python,
+        one edit away from disagreeing with the queryset filters.
+        """
+        if self.employment_start_date > target_date:
+            return False
+        return self.date_left is None or self.date_left > target_date
+
+    def is_active_between(self, start_date: date, end_date: date) -> bool:
+        """Whether this staff member was employed at any point in the range.
+
+        Fable: The per-object twin of ``StaffManager.active_between_dates``.
+        Unlike ``is_active_on``, ``date_left`` compares INCLUSIVELY here
+        (``>= start_date``) — that is the manager's own boundary, mirrored
+        exactly rather than re-derived.
+        """
+        if self.employment_start_date > end_date:
+            return False
+        return self.date_left is None or self.date_left >= start_date
+
+
+class StaffPayrollTerm(models.Model):
+    """One effective-dated salary/wage and working-pattern snapshot from Xero."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    staff = models.ForeignKey(Staff, on_delete=models.CASCADE, related_name="payroll_terms")
+    effective_from = models.DateField()
+    pay_basis = models.CharField(
+        max_length=10, choices=(("hourly", "Hourly"), ("salary", "Salary"))
+    )
+    annual_salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # One to thirteen repeating weeks, each with monday..sunday numeric hours.
+    working_weeks = models.JSONField(default=list)
+    # Xero may omit either identity; ADR 0040 requires NULL rather than a blank sentinel.
+    xero_salary_wage_id = models.CharField(  # noqa: DJ001
+        max_length=255, null=True, blank=True
+    )
+    xero_working_pattern_id = models.CharField(  # noqa: DJ001
+        max_length=255, null=True, blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["staff_id", "effective_from"]
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.UniqueConstraint(
+                fields=["staff", "effective_from"], name="unique_staff_payroll_term_date"
+            ),
+            # Opus: ADR 0040's layer 1. The comment above the columns cited the ADR
+            # and stopped there, which left the rule enforced nowhere: these are
+            # written by the Xero employee sync, and a non-API writer is exactly
+            # the case the constraint exists for.
+            models.CheckConstraint(
+                condition=~models.Q(xero_salary_wage_id=""),
+                name="payroll_term_salary_wage_id_not_blank",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(xero_working_pattern_id=""),
+                name="payroll_term_working_pattern_id_not_blank",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.staff} from {self.effective_from} ({self.pay_basis})"

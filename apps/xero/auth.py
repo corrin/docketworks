@@ -19,7 +19,7 @@ from typing import Any, TypedDict
 from urllib.parse import quote, urlencode
 
 import requests
-from django.core.cache import cache, caches
+from django.core.cache import caches
 from xero_python.api_client import ApiClient, Configuration
 from xero_python.api_client.oauth2 import OAuth2Token, TokenApi
 from xero_python.identity import IdentityApi
@@ -27,7 +27,7 @@ from xero_python.identity import IdentityApi
 from apps.core.errors import persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.xero.client import RateLimitedRESTClient
-from apps.xero.constants import TENANT_ID_CACHE_KEY, XERO_SCOPES
+from apps.xero.constants import TENANT_ID_CACHE_KEY, XERO_SCOPES, tenant_cache
 from apps.xero.models import XeroApp
 
 logger = logging.getLogger(__name__)
@@ -398,7 +398,7 @@ def get_tenant_id() -> str:
     Source of truth is CompanyDefaults.xero_tenant_id; the cache only avoids
     re-reading it. An unset value is a configuration error, not a fallback case.
     """
-    tenant_id = cache.get(TENANT_ID_CACHE_KEY)
+    tenant_id = tenant_cache().get(TENANT_ID_CACHE_KEY)
 
     payload = get_valid_token()
     if not payload:
@@ -417,6 +417,6 @@ def get_tenant_id() -> str:
         raise exc
 
     resolved: str = company_defaults.xero_tenant_id
-    cache.set(TENANT_ID_CACHE_KEY, resolved)
+    tenant_cache().set(TENANT_ID_CACHE_KEY, resolved)
     logger.info("Xero tenant ID resolved from CompanyDefaults and cached")
     return resolved

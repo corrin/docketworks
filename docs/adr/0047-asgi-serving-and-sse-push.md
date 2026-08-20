@@ -22,7 +22,38 @@ concurrency. What does bound it is database connections — `CONN_MAX_AGE` is 0,
 so a request holds one while it queries — and process memory. What the ASGI
 move buys is that a stream costs an event-loop task rather than a request slot:
 a worker holds many open streams at once, and the arbiter's `--timeout`
-watchdog never sees a worker that looks hung mid-request. Nothing here has
+watchdog never sees a worker that looks hung mid-request.
+
+**A stream must yield from an `async` generator, or it is not a stream.**
+`StreamingHttpResponse` decides `is_async` by whether `iter()` accepts what it
+was given (`django/http/response.py`), and a sync generator makes `__aiter__`
+fall back to `for part in await sync_to_async(list)(...)` — draining the whole
+response into a list before the first byte, and holding a thread-sensitive
+worker thread for the duration. Nothing else detects it: the response still has
+the right status, content type and headers, and an E2E that waits for content to
+appear is satisfied by the blob that arrives at the end. The payroll progress
+stream shipped that defect. Both streams now assert `response.is_async`, which
+is the only check that sees it.
+
+**The trap is symmetric, so the generator and the server are chosen together.**
+`__iter__` has the mirror-image fallback: an ASYNC iterator served over WSGI is
+drained by `async_to_sync(to_list)` exactly as a SYNC one is under ASGI. Async
+generators are correct here only because every environment serves
+`config.asgi:application` under uvicorn — production via
+`gunicorn -k uvicorn_worker.UvicornWorker`, the E2E harness in
+`scripts/ops/run_e2e.sh`, and local development through the documented
+`python -m uvicorn` task. `manage.py runserver` is WSGI and would silently
+reintroduce the buffering, so do not reach for it to debug a stream. Note that
+`response.is_async` cannot see this half — it stays true under WSGI while the
+stream buffers — so the assertion pins the generator and this paragraph pins the
+server.
+
+Measured 2026-08-20 by driving `config.asgi:application` directly and timing the
+ASGI `http.response.body` messages, publishing the second event 2s after the
+first: the sync generator delivered both at t=2.27, the async generator
+delivered the first at t=0.77 and the second at t=2.28.
+
+Nothing here has
 measured the load, so sizing `--workers` against observed connection and memory
 use is an operations question, not a number this ADR sets.
 

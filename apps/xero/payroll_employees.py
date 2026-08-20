@@ -20,16 +20,22 @@ own invented constraint over a mechanism that already handles it.
 """
 
 import logging
-from collections.abc import Iterator
-from contextlib import contextmanager
+import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Literal, cast
 
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.db import transaction
+from django.utils import timezone
 from xero_python.payrollnz import (
     Address,
     BankAccount,
     Employee,
     EmployeeLeaveSetup,
+    EmployeeLeaveType,
     EmployeeTax,
     EmployeeWorkingPatternWithWorkingWeeksRequest,
     Employment,
@@ -40,90 +46,21 @@ from xero_python.payrollnz import (
     WorkingWeek,
 )
 
-from apps.accounting.types import NewPayrollEmployee, PayrollEmployeeRef
+from apps.accounting.types import NewPayrollEmployee, PayrollEmployeeRef, PayrollLeaveBalance
+from apps.accounts.models import Staff, StaffPayrollTerm
+from apps.accounts.services.payroll_terms import WEEKDAYS
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
+from apps.timesheet.services.leave_settings import employee_leave_mappings
+from apps.xero import payroll_sdk  # imported for its side effect too: applies the v1 SDK fixes
 from apps.xero.auth import get_api_client, get_tenant_id
+from apps.xero.helpers import as_date
 from apps.xero.models import XeroPayItem
+from apps.xero.operator_guards import is_production_tenant
 from apps.xero.payroll_setup import get_payroll_calendars
+from apps.xero.validation import XeroValidationError
 
 logger = logging.getLogger(__name__)
-
-
-# --- SDK null tolerance, one field at a time --------------------------------
-#
-# The Xero SDK enforces required-ness client-side, on the way IN as well as on
-# the way out, so a field the live product legitimately leaves empty is
-# unusable without relaxing its setter. v1 relaxed four of them permanently at
-# import; each window below relaxes exactly the field its call site needs, for
-# exactly one call, and restores it in a ``finally``. That is what keeps the
-# SDK's validation — the last check between a malformed Staff row and Xero —
-# switched on everywhere else.
-#
-# Three distinct reasons, and the scope differs with the reason:
-#
-# - ``Employee.date_of_birth`` (READ): Xero's demo organisation ships
-#   contractor records with none, and its REST API refuses to accept one for a
-#   contractor, so the field can be neither read nor repaired. Without this the
-#   FIRST call of the employees phase, listing what the organisation already
-#   holds, raises before anything has been matched or created. Our own employee
-#   payloads are built OUTSIDE the window, so a missing date of birth of ours
-#   is still a hard error.
-# - ``SalaryAndWage.annual_salary`` / ``.status`` (READ): meaningless for an
-#   hourly employee and absent from Xero's reply. We send real values for both,
-#   built outside the window.
-# - ``Employment.engagement_type`` (WRITE): the demo organisation REJECTS an
-#   engagement type, so ours must go without one — and the SDK's ``__init__``
-#   assigns the field unconditionally, so the object cannot even be built
-#   otherwise. This is the one deliberate omission from a payload of ours, and
-#   it is scoped to that single field: ``payroll_calendar_id`` and
-#   ``start_date`` on the same object stay enforced.
-#
-# Class attributes are process-global, so a window relaxes any concurrent
-# construction for its duration. Accepted: every caller is an operator-run
-# management command with the Xero sync gate closed, the same condition the
-# rest of the seed already runs under.
-_EMPLOYEE_DOB = ((Employee, "date_of_birth"),)
-_HOURLY_SALARY_GAPS = ((SalaryAndWage, "annual_salary"), (SalaryAndWage, "status"))
-_EMPLOYMENT_ENGAGEMENT = ((Employment, "engagement_type"),)
-
-
-@contextmanager
-def _sdk_null_tolerance(fields: "tuple[tuple[type, str], ...]") -> Iterator[None]:
-    """Let the named SDK fields hold None, for this block only.
-
-    Refuses when a property is missing rather than relaxing nothing: an SDK
-    upgrade that renamed or dropped one would otherwise turn this into a
-    silent no-op, and the failure would resurface as an unreadable employee
-    list at the start of a seed.
-    """
-    originals: list[tuple[type, str, property]] = []
-    for model, field in fields:
-        descriptor = getattr(model, field, None)
-        if not isinstance(descriptor, property):
-            raise TypeError(
-                f"{model.__name__}.{field} is not a property in this xero-python build; "
-                "the null-tolerance this call site needs no longer applies. Re-check the SDK."
-            )
-        originals.append((model, field, descriptor))
-
-    for model, field, descriptor in originals:
-        private_name = f"_{field}"
-
-        def _accept_anything(instance: object, value: object, _name: str = private_name) -> None:
-            object.__setattr__(instance, _name, value)
-
-        # setattr rather than assignment: this replaces a descriptor the type
-        # stubs declare as a plain attribute, inexpressible to the checker.
-        setattr(model, field, descriptor.setter(_accept_anything))
-
-    try:
-        yield
-    finally:
-        # finally, not a plain restore: a failing Xero call must not leave the
-        # process with validation permanently disabled.
-        for model, field, descriptor in originals:
-            setattr(model, field, descriptor)
 
 
 # NZ standard entitlements: 4 weeks annual leave, 10 days sick leave.
@@ -138,6 +75,63 @@ KIWISAVER_CONTRIBUTION_PERCENTAGE = 3.0
 # An NZ bank account is BB-bbbb-AAAAAAA-SSS. Xero wants the bank+branch as a
 # 6-digit sort code and the whole thing, undashed, as the account number.
 _BANK_ACCOUNT_PARTS = 4
+
+# User decision 2026-08-18: Xero's NZ Demo Company ships these immutable
+# sample employees. They are not valid Docketworks staff and cannot be repaired
+# or deleted in Xero. The only non-production payroll organisation this project
+# connects is that demo org; production tenant ids are explicitly excluded below.
+DEMO_EMPLOYEE_NAMES = frozenset(
+    {
+        "company director",
+        "general manager",
+        "permanent worker",
+        "part time",
+        "dairy milker",
+        "part-time worker",
+        "casual worker",
+        "gst contractor",
+    }
+)
+
+
+PayBasis = Literal["hourly", "salary"]
+
+
+@dataclass(frozen=True, slots=True)
+class PayrollTermSnapshot:
+    """One Xero pay/work-pattern combination effective from a date."""
+
+    effective_from: date
+    pay_basis: PayBasis
+    annual_salary: Decimal | None
+    hourly_rate: Decimal | None
+    working_weeks: list[dict[str, float]]
+    salary_wage_id: str | None
+    working_pattern_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class PayrollEmployeeSnapshot:
+    """Employee and current pay data consumed by the generic sync engine."""
+
+    tenant_id: str
+    employee_id: str
+    first_name: str
+    last_name: str
+    email: str
+    start_date: date
+    end_date: date | None
+    pay_basis: PayBasis
+    hourly_rate: Decimal | None
+    updated_date_utc: datetime
+    payroll_terms: tuple[PayrollTermSnapshot, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class EmployeesForSync:
+    """Collection shape expected by ``sync_xero_data``."""
+
+    employees: list[PayrollEmployeeSnapshot]
 
 
 class PartiallyCreatedEmployeeError(RuntimeError):
@@ -180,8 +174,36 @@ def _to_ref(employee: Employee) -> PayrollEmployeeRef | None:
     )
 
 
+def _raw_employees(payroll_api: PayrollNzApi, tenant_id: str) -> list[Employee]:
+    """Fetch every active employee, following Xero's explicit page count."""
+    employees: list[Employee] = []
+    page = 1
+    while True:
+        response = payroll_api.get_employees(xero_tenant_id=tenant_id, page=page)
+        if response is None:
+            raise ValueError("Xero returned no response listing payroll employees")
+
+        employees.extend(response.employees or [])
+        page_count = response.pagination.page_count if response.pagination else None
+        if page_count is None:
+            raise ValueError(
+                "Xero returned a payroll employee page with no pagination block; "
+                "cannot tell whether the list is complete."
+            )
+
+        logger.info(
+            "Fetched payroll employee page %d of %d (total %d)",
+            page,
+            page_count,
+            len(employees),
+        )
+        if page >= page_count:
+            return employees
+        page += 1
+
+
 def get_employees() -> list[PayrollEmployeeRef]:
-    """Every payroll employee in the connected organisation.
+    """Every active payroll employee in the connected organisation.
 
     Paged to exhaustion, which v1 did not do: it read page one and stopped.
     A missed page reads as "no such employee" to the matcher, and the seed's
@@ -196,38 +218,438 @@ def get_employees() -> list[PayrollEmployeeRef]:
     page size.
     """
     tenant_id = get_tenant_id()
-    payroll_api = PayrollNzApi(get_api_client())
-
-    refs: list[PayrollEmployeeRef] = []
-    page = 1
-    while True:
-        with _sdk_null_tolerance(_EMPLOYEE_DOB):
-            response = payroll_api.get_employees(xero_tenant_id=tenant_id, page=page)
-        if response is None:
-            raise ValueError("Xero returned no response listing payroll employees")
-
-        refs.extend(ref for ref in map(_to_ref, response.employees or []) if ref is not None)
-
-        # Refused rather than defaulted (ADR 0015): without a page count there
-        # is no way to tell "that was everything" from "that was page one of
-        # four", and guessing the first duplicates every employee we did not
-        # read.
-        page_count = response.pagination.page_count if response.pagination else None
-        if page_count is None:
-            raise ValueError(
-                "Xero returned a payroll employee page with no pagination block; "
-                "cannot tell whether the list is complete."
-            )
-
-        logger.info(
-            "Fetched payroll employee page %d of %d (total %d)", page, page_count, len(refs)
-        )
-        if page >= page_count:
-            break
-        page += 1
+    raw = [
+        employee
+        for employee in _raw_employees(PayrollNzApi(get_api_client()), tenant_id)
+        if not _demo_stub(employee, tenant_id)
+    ]
+    refs = [ref for ref in map(_to_ref, raw) if ref is not None]
 
     logger.info("Retrieved %d payroll employees from Xero", len(refs))
     return refs
+
+
+def _salary_and_wages(
+    payroll_api: PayrollNzApi, tenant_id: str, employee_id: str
+) -> list[SalaryAndWage]:
+    """Fetch every salary/wage record for one employee."""
+    records: list[SalaryAndWage] = []
+    page = 1
+    while True:
+        response = payroll_api.get_employee_salary_and_wages(
+            xero_tenant_id=tenant_id,
+            employee_id=employee_id,
+            page=page,
+        )
+        if response is None:
+            raise ValueError(f"Xero returned no salary/wage response for employee {employee_id}")
+        records.extend(response.salary_and_wages or [])
+        page_count = response.pagination.page_count if response.pagination else 1
+        if page_count is None:
+            raise ValueError(
+                f"Xero returned salary/wage pagination with no page count for {employee_id}"
+            )
+        if page >= page_count:
+            return records
+        page += 1
+
+
+def _current_pay(
+    records: list[SalaryAndWage],
+    *,
+    employee_id: str,
+    effective_on: date,
+    require_active: bool,
+) -> tuple[PayBasis, Decimal | None]:
+    """Select the latest effective valid pay record."""
+    candidates: list[tuple[SalaryAndWage, date]] = []
+    for row in records:
+        effective_from = as_date(row.effective_from)
+        if effective_from is None or effective_from > effective_on:
+            continue
+        if require_active and (row.status is None or row.status.lower() != "active"):
+            continue
+        candidates.append((row, effective_from))
+    if not candidates:
+        raise XeroValidationError(["current_salary_and_wage"], "employee", employee_id)
+    current = max(candidates, key=lambda candidate: candidate[1])[0]
+    if current.payment_type is None:
+        raise XeroValidationError(["payment_type"], "employee", employee_id)
+    payment_type = current.payment_type.lower()
+    if payment_type == "hourly":
+        if current.rate_per_unit is None or Decimal(str(current.rate_per_unit)) <= 0:
+            raise XeroValidationError(["rate_per_unit"], "employee", employee_id)
+        return "hourly", Decimal(str(current.rate_per_unit))
+    if payment_type == "salary":
+        if current.annual_salary is None or Decimal(str(current.annual_salary)) <= 0:
+            raise XeroValidationError(["annual_salary"], "employee", employee_id)
+        return "salary", None
+    raise XeroValidationError(["payment_type"], "employee", employee_id)
+
+
+def _working_patterns(
+    payroll_api: PayrollNzApi, tenant_id: str, employee_id: str
+) -> list[tuple[date, str | None, list[dict[str, float]]]]:
+    """Fetch every effective Xero working pattern with its repeating weeks."""
+    response = payroll_api.get_employee_working_patterns(
+        xero_tenant_id=tenant_id, employee_id=employee_id
+    )
+    patterns: list[tuple[date, str | None, list[dict[str, float]]]] = []
+    for summary in (response.payee_working_patterns or []) if response else []:
+        pattern_id = summary.payee_working_pattern_id
+        if not pattern_id:
+            raise XeroValidationError(["payee_working_pattern_id"], "employee", employee_id)
+        detail_response = payroll_api.get_employee_working_pattern(
+            xero_tenant_id=tenant_id,
+            employee_id=employee_id,
+            employee_working_pattern_id=pattern_id,
+        )
+        detail = detail_response.payee_working_pattern if detail_response else None
+        effective_from = as_date(detail.effective_from) if detail else None
+        if detail is None or effective_from is None or not detail.working_weeks:
+            raise XeroValidationError(["working_pattern"], "employee", employee_id)
+        weeks: list[dict[str, float]] = []
+        for week in detail.working_weeks:
+            weeks.append({day: float(getattr(week, day) or 0) for day in WEEKDAYS})
+        patterns.append((effective_from, str(pattern_id), weeks))
+    return sorted(patterns, key=lambda item: item[0])
+
+
+def _term_snapshots(
+    pay_records: list[SalaryAndWage],
+    patterns: list[tuple[date, str | None, list[dict[str, float]]]],
+    employee_id: str,
+) -> tuple[PayrollTermSnapshot, ...]:
+    """Join independently effective pay and work-pattern records into snapshots."""
+    pays: list[tuple[SalaryAndWage, date]] = []
+    for row in pay_records:
+        effective = as_date(row.effective_from)
+        if effective is not None and str(row.status or "").lower() == "active":
+            pays.append((row, effective))
+    if not pays:
+        return ()
+    dates = sorted({effective for _row, effective in pays} | {row[0] for row in patterns})
+    snapshots: list[PayrollTermSnapshot] = []
+    for effective in dates:
+        eligible_pay = [(row, start) for row, start in pays if start <= effective]
+        eligible_pattern = [row for row in patterns if row[0] <= effective]
+        if not eligible_pay:
+            continue
+        pay = max(eligible_pay, key=lambda item: item[1])[0]
+        payment_type = str(pay.payment_type or "").lower()
+        if payment_type not in {"hourly", "salary"}:
+            raise XeroValidationError(["payment_type"], "employee", employee_id)
+        pattern = max(eligible_pattern, key=lambda item: item[0]) if eligible_pattern else None
+        if payment_type == "salary" and pattern is None:
+            raise XeroValidationError(["working_pattern"], "employee", employee_id)
+        annual = Decimal(str(pay.annual_salary)) if pay.annual_salary else None
+        hourly = Decimal(str(pay.rate_per_unit)) if pay.rate_per_unit else None
+        if payment_type == "salary" and (annual is None or annual <= 0):
+            raise XeroValidationError(["annual_salary"], "employee", employee_id)
+        snapshots.append(
+            PayrollTermSnapshot(
+                effective_from=effective,
+                pay_basis=cast("PayBasis", payment_type),
+                annual_salary=annual,
+                hourly_rate=hourly,
+                working_weeks=pattern[2] if pattern else [],
+                salary_wage_id=str(pay.salary_and_wages_id) if pay.salary_and_wages_id else None,
+                working_pattern_id=pattern[1] if pattern else None,
+            )
+        )
+    return tuple(snapshots)
+
+
+def _demo_stub(employee: Employee, tenant_id: str) -> bool:
+    """Whether this is one of Xero's known immutable demo employees."""
+    if is_production_tenant(tenant_id):
+        return False
+    name = f"{employee.first_name or ''} {employee.last_name or ''}".strip().casefold()
+    return name in DEMO_EMPLOYEE_NAMES
+
+
+def _snapshot(
+    payroll_api: PayrollNzApi, tenant_id: str, employee: Employee
+) -> PayrollEmployeeSnapshot:
+    """Enrich one employee with the pay data Docketworks needs."""
+    missing = [
+        name
+        for name, value in (
+            ("employee_id", employee.employee_id),
+            ("first_name", employee.first_name),
+            ("last_name", employee.last_name),
+            ("email", employee.email),
+            ("start_date", employee.start_date),
+            ("updated_date_utc", employee.updated_date_utc),
+        )
+        if value is None
+    ]
+    if missing:
+        raise XeroValidationError(missing, "employee", str(employee.employee_id or "unknown"))
+    employee_id = cast("str", employee.employee_id)
+    first_name = cast("str", employee.first_name).strip()
+    last_name = cast("str", employee.last_name).strip()
+    email = cast("str", employee.email).strip().lower()
+    start_date = as_date(employee.start_date)
+    if start_date is None:
+        raise XeroValidationError(["start_date"], "employee", employee_id)
+    updated_date_utc = cast("datetime", employee.updated_date_utc)
+    blank = [
+        name
+        for name, value in (
+            ("first_name", first_name),
+            ("last_name", last_name),
+            ("email", email),
+        )
+        if not value
+    ]
+    if blank:
+        raise XeroValidationError(blank, "employee", employee_id)
+    try:
+        validate_email(email)
+    except ValidationError as exc:
+        raise XeroValidationError(["email"], "employee", employee_id) from exc
+    if len(first_name) > 30 or len(last_name) > 30:
+        raise ValueError(
+            f"Xero employee {employee_id} has a legal name longer than "
+            "Docketworks' 30-character Staff fields."
+        )
+    end_date = as_date(employee.end_date) if employee.end_date is not None else None
+    effective_on = (
+        min(end_date, timezone.localdate()) if end_date is not None else timezone.localdate()
+    )
+    pay_records = _salary_and_wages(payroll_api, tenant_id, employee_id)
+    pay_basis, hourly_rate = _current_pay(
+        pay_records,
+        employee_id=employee_id,
+        effective_on=effective_on,
+        require_active=end_date is None or end_date > timezone.localdate(),
+    )
+    patterns = _working_patterns(payroll_api, tenant_id, employee_id)
+    return PayrollEmployeeSnapshot(
+        tenant_id=tenant_id,
+        employee_id=employee_id,
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        start_date=start_date,
+        end_date=end_date,
+        pay_basis=pay_basis,
+        hourly_rate=hourly_rate,
+        updated_date_utc=updated_date_utc,
+        payroll_terms=_term_snapshots(pay_records, patterns, employee_id),
+    )
+
+
+def get_employees_for_sync(*, xero_tenant_id: str, if_modified_since: str) -> EmployeesForSync:
+    """Fetch the complete employee batch for the generic entity sync."""
+    del if_modified_since  # Xero Payroll NZ exposes no employee modified-since filter.
+    tenant_id = xero_tenant_id
+    payroll_api = PayrollNzApi(get_api_client())
+    active = [
+        employee
+        for employee in _raw_employees(payroll_api, tenant_id)
+        if not _demo_stub(employee, tenant_id)
+    ]
+
+    active_ids = {str(employee.employee_id) for employee in active if employee.employee_id}
+    linked_ids = Staff.objects.filter(
+        xero_tenant_id=tenant_id, xero_user_id__isnull=False
+    ).values_list("xero_user_id", flat=True)
+    for linked_id in linked_ids:
+        if linked_id is None:
+            raise AssertionError("xero_user_id__isnull=False returned a null employee id")
+        if linked_id in active_ids:
+            continue
+        response = payroll_api.get_employee(xero_tenant_id=tenant_id, employee_id=linked_id)
+        employee = response.employee if response else None
+        if employee is None:
+            raise ValueError(f"Xero returned no employee for linked Staff employee id {linked_id}")
+        active.append(employee)
+
+    return EmployeesForSync(
+        employees=[_snapshot(payroll_api, tenant_id, employee) for employee in active]
+    )
+
+
+def _email_index(staff_rows: list[Staff]) -> dict[str, set[Staff]]:
+    """Index both login addresses without treating one row as a collision with itself."""
+    index: dict[str, set[Staff]] = {}
+    for staff in staff_rows:
+        for address in (staff.office_email, staff.payroll_email):
+            if not address:
+                continue
+            index.setdefault(address.casefold(), set()).add(staff)
+    return index
+
+
+def _match_staff(
+    snapshot: PayrollEmployeeSnapshot,
+    by_xero_id: dict[str, Staff],
+    by_email: dict[str, set[Staff]],
+) -> Staff | None:
+    """Resolve one employee identity without choosing through an ambiguity."""
+    email_matches = by_email.get(snapshot.email.casefold(), set())
+    staff = by_xero_id.get(snapshot.employee_id)
+    if staff is not None:
+        if any(match.pk != staff.pk for match in email_matches):
+            raise ValueError(
+                f"Xero payroll email {snapshot.email} belongs to another Staff account"
+            )
+        return staff
+    if len(email_matches) > 1:
+        raise ValueError(f"Xero payroll email {snapshot.email} matches multiple Staff accounts")
+    staff = next(iter(email_matches), None)
+    if staff is not None and staff.xero_user_id:
+        raise ValueError(
+            f"Staff {staff.id} is linked to Xero employee {staff.xero_user_id}, "
+            f"not {snapshot.employee_id}"
+        )
+    return staff
+
+
+def _plan_employee_changes(
+    snapshots: list[PayrollEmployeeSnapshot], staff_rows: list[Staff]
+) -> list[tuple[PayrollEmployeeSnapshot, Staff | None]]:
+    """Match the complete batch and reject duplicate claims before any write."""
+    by_xero_id = {str(staff.xero_user_id): staff for staff in staff_rows if staff.xero_user_id}
+    by_email = _email_index(staff_rows)
+    planned: list[tuple[PayrollEmployeeSnapshot, Staff | None]] = []
+    claimed_staff: set[uuid.UUID] = set()
+    claimed_xero_ids: set[str] = set()
+    claimed_emails: set[str] = set()
+    for snapshot in snapshots:
+        email = snapshot.email.casefold()
+        if snapshot.employee_id in claimed_xero_ids:
+            raise ValueError(f"Xero returned employee {snapshot.employee_id} more than once")
+        if email in claimed_emails:
+            raise ValueError(f"Multiple Xero employees use payroll email {snapshot.email}")
+        claimed_xero_ids.add(snapshot.employee_id)
+        claimed_emails.add(email)
+        staff = _match_staff(snapshot, by_xero_id, by_email)
+        if staff is not None and staff.pk in claimed_staff:
+            raise ValueError(f"Multiple Xero employees match Staff {staff.id}")
+        if staff is not None:
+            claimed_staff.add(staff.pk)
+        planned.append((snapshot, staff))
+    return planned
+
+
+def _apply_employee_change(
+    snapshot: PayrollEmployeeSnapshot, staff: Staff | None, tenant_id: str
+) -> Staff:
+    """Apply one already-validated and already-matched employee change."""
+    base_wage_rate = snapshot.hourly_rate if snapshot.hourly_rate is not None else Decimal("0")
+    if staff is None:
+        return Staff.objects.create_user(
+            office_email=snapshot.email,
+            password=None,
+            payroll_email=snapshot.email,
+            first_name=snapshot.first_name,
+            last_name=snapshot.last_name,
+            employment_start_date=snapshot.start_date,
+            date_left=snapshot.end_date,
+            pay_basis=snapshot.pay_basis,
+            base_wage_rate=base_wage_rate,
+            xero_user_id=snapshot.employee_id,
+            xero_tenant_id=tenant_id,
+            xero_last_modified=snapshot.updated_date_utc,
+        )
+
+    staff.first_name = snapshot.first_name
+    staff.last_name = snapshot.last_name
+    staff.payroll_email = snapshot.email
+    staff.employment_start_date = snapshot.start_date
+    staff.xero_user_id = snapshot.employee_id
+    staff.xero_tenant_id = tenant_id
+    staff.xero_last_modified = snapshot.updated_date_utc
+    staff.pay_basis = snapshot.pay_basis
+    staff.base_wage_rate = base_wage_rate
+    updated_fields = [
+        "first_name",
+        "last_name",
+        "payroll_email",
+        "employment_start_date",
+        "xero_user_id",
+        "xero_tenant_id",
+        "xero_last_modified",
+        "pay_basis",
+        "base_wage_rate",
+        "wage_rate",
+        "updated_at",
+    ]
+    # Set-only, never cleared. Ending someone in Xero needs a final pay run, so
+    # an employee who left months ago stays ACTIVE there with no end_date until
+    # that happens — and NZ payroll exposes no termination endpoint to do it
+    # with (see payroll_employee_sync). A null from Xero therefore means "Xero
+    # has not been told", not "they came back", and honouring it would put a
+    # departed employee back on the weekly grid and make them postable.
+    # date_left is the Docketworks judgement "I do not expect this person
+    # back"; reinstating someone is a deliberate local edit.
+    if snapshot.end_date is not None:
+        staff.date_left = snapshot.end_date
+        updated_fields.append("date_left")
+    staff.save(update_fields=updated_fields)
+    return staff
+
+
+def _replace_payroll_terms(staff: Staff, snapshot: PayrollEmployeeSnapshot) -> None:
+    """Replace the complete Xero-owned term history for one employee."""
+    staff.payroll_terms.all().delete()
+    StaffPayrollTerm.objects.bulk_create(
+        [
+            StaffPayrollTerm(
+                staff=staff,
+                effective_from=term.effective_from,
+                pay_basis=term.pay_basis,
+                annual_salary=term.annual_salary,
+                hourly_rate=term.hourly_rate,
+                working_weeks=term.working_weeks,
+                xero_salary_wage_id=term.salary_wage_id,
+                xero_working_pattern_id=term.working_pattern_id,
+            )
+            for term in snapshot.payroll_terms
+        ]
+    )
+
+
+def sync_employees(snapshots: list[PayrollEmployeeSnapshot]) -> None:
+    """Atomically create or update Staff from one complete Xero employee batch."""
+    if not snapshots:
+        return
+    tenant_id = snapshots[0].tenant_id
+    if any(snapshot.tenant_id != tenant_id for snapshot in snapshots):
+        raise ValueError("An employee sync batch cannot contain multiple Xero tenants")
+    with transaction.atomic():
+        planned = _plan_employee_changes(snapshots, list(Staff.objects.select_for_update()))
+        for snapshot, staff in planned:
+            changed = _apply_employee_change(snapshot, staff, tenant_id)
+            _replace_payroll_terms(changed, snapshot)
+
+
+def get_employee_leave_balances(employee_id: str) -> list[PayrollLeaveBalance]:
+    """Read one employee's current leave balances through the NZ Payroll API."""
+    response = PayrollNzApi(get_api_client()).get_employee_leave_balances(
+        xero_tenant_id=get_tenant_id(), employee_id=employee_id
+    )
+    if response is None:
+        raise ValueError(f"Xero returned no leave balances for employee {employee_id}")
+
+    balances: list[PayrollLeaveBalance] = []
+    for row in response.leave_balances or []:
+        if not row.leave_type_id or not row.name or row.balance is None or not row.type_of_units:
+            raise ValueError(
+                f"Xero returned an incomplete leave balance for employee {employee_id}"
+            )
+        balances.append(
+            PayrollLeaveBalance(
+                leave_type_external_id=str(row.leave_type_id),
+                name=str(row.name),
+                balance=Decimal(str(row.balance)),
+                unit=str(row.type_of_units),
+            )
+        )
+    return balances
 
 
 def _payroll_defaults() -> _PayrollDefaults:
@@ -245,7 +667,11 @@ def _payroll_defaults() -> _PayrollDefaults:
 
     target = calendar_name.strip().lower()
     calendar_id = next(
-        (cal.id for cal in get_payroll_calendars() if cal.name.strip().lower() == target),
+        (
+            cal.id
+            for cal in get_payroll_calendars(tenant_id=payroll_sdk.connected_tenant())
+            if cal.name.strip().lower() == target
+        ),
         None,
     )
     if not calendar_id:
@@ -280,19 +706,13 @@ def _create_employment(
     create a pay run for that calendar at all. ``engagement_type`` is omitted:
     the demo organisation rejects it.
     """
-    # Construction is INSIDE the window here, unlike every other payload: the
-    # demo organisation rejects an engagement type, so ours must carry none,
-    # and the SDK assigns that field unconditionally in __init__. Only
-    # engagement_type is relaxed — payroll_calendar_id and start_date below
-    # are still validated, which is the whole point of naming the field.
-    with _sdk_null_tolerance(_EMPLOYMENT_ENGAGEMENT):
-        employment = Employment(
-            payroll_calendar_id=defaults.payroll_calendar_id,
-            start_date=start,
-        )
-        payroll_api.create_employment(
-            xero_tenant_id=tenant_id, employee_id=employee_id, employment=employment
-        )
+    employment = Employment(
+        payroll_calendar_id=defaults.payroll_calendar_id,
+        start_date=start,
+    )
+    payroll_api.create_employment(
+        xero_tenant_id=tenant_id, employee_id=employee_id, employment=employment
+    )
     logger.info("Created employment for payroll employee %s", employee_id)
 
 
@@ -317,9 +737,6 @@ def _create_salary_and_wage(
             "a payroll employee needs at least one."
         )
 
-    # Built outside the tolerance window: annual_salary and status are
-    # supplied, not omitted, so the SDK's own validation still proves this
-    # payload complete. The window covers only Xero's reply, which omits both.
     salary_and_wage = SalaryAndWage(
         earnings_rate_id=defaults.ordinary_earnings_rate_id,
         number_of_units_per_week=total_hours,
@@ -331,10 +748,9 @@ def _create_salary_and_wage(
         effective_from=spec.start_date,
         payment_type="Hourly",
     )
-    with _sdk_null_tolerance(_HOURLY_SALARY_GAPS):
-        payroll_api.create_employee_salary_and_wage(
-            xero_tenant_id=tenant_id, employee_id=employee_id, salary_and_wage=salary_and_wage
-        )
+    payroll_api.create_employee_salary_and_wage(
+        xero_tenant_id=tenant_id, employee_id=employee_id, salary_and_wage=salary_and_wage
+    )
     logger.info(
         "Created salary for payroll employee %s (%s/hr, %.1f hrs/week)",
         employee_id,
@@ -428,6 +844,80 @@ def _create_employee_leave_setup(
     logger.info("Set leave entitlements for payroll employee %s", employee_id)
 
 
+def employee_leave_type_ids(employee_id: str) -> set[str]:
+    """Return the leave type ids currently assigned to one Xero employee."""
+    response = PayrollNzApi(get_api_client()).get_employee_leave_types(
+        xero_tenant_id=get_tenant_id(), employee_id=employee_id
+    )
+    if response is None:
+        raise ValueError(f"Xero returned no leave types for employee {employee_id}")
+    return {
+        str(leave_type.leave_type_id)
+        for leave_type in (response.leave_types or [])
+        if leave_type.leave_type_id
+    }
+
+
+def missing_employee_leave_types(employee_id: str) -> list[str]:
+    """Name the Docketworks leave types not assigned to one employee."""
+    required = employee_leave_mappings()
+    assigned = employee_leave_type_ids(employee_id)
+    return [row.display_name for row in required if row.external_id not in assigned]
+
+
+def ensure_employee_leave_types(employee_id: str) -> set[str]:
+    """Make an employee eligible for every leave type Docketworks posts.
+
+    Xero's standard leave setup owns Annual and Sick accrual rules. Unpaid and
+    Bereavement are explicitly assigned with no accrual and zero opening
+    balance; inventing accrual rules for either would change payroll policy.
+    The final read-back is the readiness check used by both creation and seed
+    repair.
+    """
+    tenant_id = str(get_tenant_id())
+    required = employee_leave_mappings()
+    assigned = employee_leave_type_ids(employee_id)
+
+    missing_standard = [
+        row.display_name
+        for row in required
+        if row.standard_entitlement and row.external_id not in assigned
+    ]
+    if missing_standard:
+        raise ValueError(
+            f"Xero employee {employee_id} is missing standard leave setup for "
+            + ", ".join(sorted(missing_standard))
+            + "; repair the employee's standard leave setup in Xero."
+        )
+
+    api = PayrollNzApi(get_api_client())
+    for mapping in required:
+        if mapping.standard_entitlement or mapping.external_id in assigned:
+            continue
+        response = api.create_employee_leave_type(
+            xero_tenant_id=tenant_id,
+            employee_id=employee_id,
+            employee_leave_type=EmployeeLeaveType(
+                leave_type_id=mapping.external_id,
+                schedule_of_accrual="NoAccruals",
+                opening_balance=0.0,
+            ),
+        )
+        returned = response.leave_type if response else None
+        if returned is None or str(returned.leave_type_id) != mapping.external_id:
+            raise ValueError(
+                f"Xero did not confirm {mapping.display_name} "
+                f"({mapping.external_id}) for employee {employee_id}"
+            )
+        assigned.add(mapping.external_id)
+
+    assigned = employee_leave_type_ids(employee_id)
+    missing = [row.display_name for row in required if row.external_id not in assigned]
+    if missing:
+        raise ValueError(f"Xero employee {employee_id} is not eligible for: " + ", ".join(missing))
+    return assigned
+
+
 def create_payroll_employee(spec: NewPayrollEmployee) -> PayrollEmployeeRef:
     """Create a payroll employee and everything a pay run needs from it.
 
@@ -444,10 +934,9 @@ def create_payroll_employee(spec: NewPayrollEmployee) -> PayrollEmployeeRef:
     defaults = _payroll_defaults()
 
     try:
-        # Built outside the tolerance window: the SDK's required-field checks
-        # are the last thing standing between a malformed Staff row and Xero,
-        # so an employee WE create is validated in full even though reading
-        # the demo organisation's own records requires relaxing them.
+        # Only the seven fields proven nullable in Xero responses are relaxed
+        # by payroll_sdk. The employee's other required fields are still the
+        # last validation between a malformed Staff row and Xero.
         employee = Employee(
             first_name=spec.first_name,
             last_name=spec.last_name,
@@ -465,8 +954,7 @@ def create_payroll_employee(spec: NewPayrollEmployee) -> PayrollEmployeeRef:
                 country_name=spec.address.country_name,
             ),
         )
-        with _sdk_null_tolerance(_EMPLOYEE_DOB):
-            response = payroll_api.create_employee(xero_tenant_id=tenant_id, employee=employee)
+        response = payroll_api.create_employee(xero_tenant_id=tenant_id, employee=employee)
         created = response.employee if response else None
         if created is None:
             raise ValueError(f"Xero accepted the create for {spec.email} but returned no employee")
@@ -490,6 +978,7 @@ def create_payroll_employee(spec: NewPayrollEmployee) -> PayrollEmployeeRef:
                 payroll_api, tenant_id, employee_id, spec.bank_account_number
             )
             _create_employee_leave_setup(payroll_api, tenant_id, employee_id)
+            ensure_employee_leave_types(employee_id)
         except Exception as exc:
             raise PartiallyCreatedEmployeeError(
                 f"Xero employee {employee_id} was created for {spec.email} but its setup "
@@ -524,26 +1013,19 @@ def update_employee_name(external_id: str, first_name: str, last_name: str) -> N
     tenant_id = get_tenant_id()
     payroll_api = PayrollNzApi(get_api_client())
 
-    # The one place the whole read-modify-write sits inside the window, and it
-    # has to: the object being sent back is Xero's own record, so if it is a
-    # demo contractor with no date of birth it must go back without one — the
-    # REST API refuses to accept a date of birth for a contractor at all. This
-    # is a round trip of THEIR data, not a payload of ours, which is what makes
-    # the wider scope correct here rather than a shortcut.
-    with _sdk_null_tolerance(_EMPLOYEE_DOB):
-        response = payroll_api.get_employee(xero_tenant_id=tenant_id, employee_id=external_id)
-        existing = response.employee if response else None
-        if existing is None:
-            raise ValueError(f"Xero payroll employee {external_id} not found")
+    response = payroll_api.get_employee(xero_tenant_id=tenant_id, employee_id=external_id)
+    existing = response.employee if response else None
+    if existing is None:
+        raise ValueError(f"Xero payroll employee {external_id} not found")
 
-        # Xero's demo organisation serialises an unset gender as the literal
-        # string "None", which its own update endpoint then rejects.
-        if existing.gender == "None":
-            existing.gender = None
+    # Xero's demo organisation serialises an unset gender as the literal
+    # string "None", which its own update endpoint then rejects.
+    if existing.gender == "None":
+        existing.gender = None
 
-        existing.first_name = first_name
-        existing.last_name = last_name
-        payroll_api.update_employee(
-            xero_tenant_id=tenant_id, employee_id=external_id, employee=existing
-        )
+    existing.first_name = first_name
+    existing.last_name = last_name
+    payroll_api.update_employee(
+        xero_tenant_id=tenant_id, employee_id=external_id, employee=existing
+    )
     logger.info("Renamed payroll employee %s to %s %s", external_id, first_name, last_name)

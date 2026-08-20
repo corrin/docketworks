@@ -39,6 +39,11 @@ pg_dump -Fc --data-only "$@" "$V1_DB" \
   --file="$DUMP"
 
 echo "==> Clearing migration-seeded rows (v1's dump supplies them)"
+# v1's accounts_staff rows use the pre-0005 columns (`email` and
+# `date_joined`). Restore into that historical schema, then let the real
+# migration rename and backfill those restored rows. This deliberately avoids
+# maintaining a second translation implementation in this script (ADR 0039).
+DB_NAME="$V2_DB" uv run python manage.py migrate accounts 0004 --no-input
 # `manage.py migrate` seeds rows a FRESH install needs: the system automation
 # Staff row (accounts/0003) and the labour-subtype catalogue (job/0002). v1's
 # dump carries those same rows under different primary keys, and both collide
@@ -81,6 +86,10 @@ psql "$@" -d "$V2_DB" <<'SQL'
 SQL
 
 echo "==> Re-running the data-normalising migrations now the data exists"
+# accounts/0005 was deliberately unapplied before the restore so pg_restore
+# saw the exact v1 Staff columns. Reapply it now to rename `email`, copy
+# `date_joined` into `employment_start_date`, and add the payroll identity.
+DB_NAME="$V2_DB" uv run python manage.py migrate accounts 0005 --no-input
 # quoting/0002 decodes v1's double-encoded ProductParsingMapping.input_data.
 # It already ran during `migrate` — against an EMPTY database, where it had
 # nothing to do — and v1's rows arrived afterwards, in the restore above. The
@@ -103,6 +112,19 @@ DB_NAME="$V2_DB" uv run python manage.py migrate quoting 0002 --no-input
 # rows exist.
 DB_NAME="$V2_DB" uv run python manage.py migrate accounting 0002 --no-input
 DB_NAME="$V2_DB" uv run python manage.py migrate accounting 0003 --no-input
+# timesheet/0002 creates the five fixed leave types during the initial empty-DB
+# migrate, but it can only bind them after v1's shop Jobs and Xero pay items are
+# restored. Its reverse is deliberately a no-op, so replaying it converges the
+# rows without deleting any future leave data.
+DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0001 --no-input
+DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0002 --no-input
+# timesheet/0004 clears the Xero pay item from public-holiday time lines, which
+# stops those hours being posted on top of the line Xero computes itself. The
+# lines it fixes arrive with the restore, so running it against the empty
+# database finds nothing; its reverse is a no-op, so replaying it here is the
+# same tested code against the rows that now exist.
+DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0003 --no-input
+DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0004 --no-input
 
 echo "==> NOTE: formerly-encrypted credential columns"
 cat <<'NOTE'

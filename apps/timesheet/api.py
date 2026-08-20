@@ -15,10 +15,11 @@ Authorization is split by sensitivity:
   member, reading and writing ONLY their own entries. Ownership is enforced in
   the service on every write (``meta.staff_id``), never by the router.
 
-Phase 4 (Xero) seams: creating and refreshing pay runs, the postable-week rule
-when a calendar has no pay runs yet, and the SSE stream that actually posts a
-week to Xero Payroll (``payroll/post-staff-week/stream/{task_id}/`` — not
-routed here; ``post-staff-week/`` still registers the task).
+Posting a week is one POST (``post-staff-week/``): the server derives the
+roster, refreshes the pay-run mirror, enforces Xero's post-in-order rule, and
+dispatches the Celery task that does the writing. The SSE stream that reports
+the run lives at ``payroll/runs/stream/`` (config/urls.py, ADR 0047) and only
+reads — a GET never writes.
 
 Integration wiring (config/api.py): ``api.add_router("/", router)`` — the paths
 below carry their own prefixes.
@@ -40,18 +41,17 @@ from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.timesheet.schemas import (
-    CreatePayRunRequest,
-    CreatePayRunResponse,
     DailyTimesheetSummaryOut,
     JobsListResponse,
+    PayrollRunsOut,
     PayRunListResponse,
-    PayRunSyncResponse,
     PostWeekToXeroRequest,
     PostWeekToXeroStartResponse,
     StaffDailyDataOut,
     StaffListResponse,
     TimesheetEntriesOut,
     WeeklyTimesheetDataOut,
+    WeekPostingStatusResponse,
     WorkshopTimesheetEntryOut,
     WorkshopTimesheetEntryRequest,
     WorkshopTimesheetEntryUpdateRequest,
@@ -65,7 +65,6 @@ from apps.timesheet.services import (
     workshop_timesheet_service,
 )
 from apps.timesheet.services.workshop_timesheet_service import (
-    EntryOwnershipError,
     WorkshopEntryCreateData,
     WorkshopEntryUpdateData,
 )
@@ -95,8 +94,13 @@ def _validation_message(exc: DjangoValidationError) -> str:
     return "; ".join(exc.messages)
 
 
-def _staff(request: HttpRequest) -> Staff:
-    """Return the authenticated staff member (the auth class guarantees one)."""
+def authenticated_staff(request: HttpRequest) -> Staff:
+    """Return the authenticated staff member (the auth class guarantees one).
+
+    Fable: Public rather than module-private: ``leave_api`` carried a verbatim
+    copy named ``_actor``, and one router's guard drifting from the other's is
+    exactly the sibling-implementation failure ADR 0039 exists to prevent.
+    """
     user = request.user
     if not isinstance(user, Staff):  # pragma: no cover - guaranteed by the auth class
         raise HttpError(401, "Authentication credentials were not provided.")
@@ -220,9 +224,14 @@ def job_timesheet_entries_retrieve(
     summary="Get list of active jobs for timesheet entries using CostSet system",
     tags=["timesheets"],
 )
-def timesheets_jobs_retrieve(request: HttpRequest) -> timesheet_entry_options.TimesheetJobListData:
-    """Jobs available for time entry (active, plus recently archived fixed-price)."""
-    return timesheet_entry_options.get_jobs_for_entry()
+def timesheets_jobs_retrieve(
+    request: HttpRequest, q: str = ""
+) -> timesheet_entry_options.TimesheetJobListData:
+    """Jobs available for time entry (active, plus recently archived fixed-price).
+
+    With `q`, searches the whole table so a picker can reach an archived job.
+    """
+    return timesheet_entry_options.get_jobs_for_entry(q)
 
 
 # ── Xero Payroll pay runs ────────────────────────────────────────────────
@@ -241,38 +250,29 @@ def timesheets_payroll_pay_runs_retrieve(request: HttpRequest) -> payroll_servic
     return payroll_service.list_pay_runs()
 
 
-@router.post(
-    "/timesheets/payroll/pay-runs/create",
+@router.get(
+    "/timesheets/payroll/week-status/",
     auth=manage_auth,
-    operation_id="timesheets_payroll_pay_runs_create_create",
-    response={201: CreatePayRunResponse},
-    summary="Create pay run for a week",
+    operation_id="timesheets_payroll_week_status_retrieve",
+    response=WeekPostingStatusResponse,
+    summary="What Xero holds for the week, beside what was recorded",
     tags=["timesheets"],
 )
-def timesheets_payroll_pay_runs_create_create(
-    request: HttpRequest, payload: CreatePayRunRequest
-) -> Status[payroll_service.CreatedPayRunData]:
-    """Create a new pay run for the specified week (Phase 4 seam: Xero write)."""
-    try:
-        created = payroll_service.create_pay_run(payload.week_start_date)
-    except ValueError as exc:
-        raise HttpError(400, str(exc)) from exc
-    return Status(201, created)
+def timesheets_payroll_week_status_retrieve(
+    request: HttpRequest, week_start_date: str
+) -> payroll_service.WeekPostingStatusData:
+    """Ask Xero what it holds for each staff member's week.
 
+    Opus: Separate from the weekly overview on purpose (ADR 0007): this one calls
+    Xero, and the grid must keep rendering when Xero is unreachable.
 
-@router.post(
-    "/timesheets/payroll/pay-runs/refresh",
-    auth=manage_auth,
-    operation_id="timesheets_payroll_pay_runs_refresh_create",
-    response=PayRunSyncResponse,
-    summary="Refresh cached pay runs from Xero",
-    tags=["timesheets"],
-)
-def timesheets_payroll_pay_runs_refresh_create(
-    request: HttpRequest,
-) -> payroll_service.PayRunSyncData:
-    """Synchronise the local pay-run mirror with Xero (Phase 4 seam)."""
-    return payroll_service.refresh_pay_runs()
+    ``week_start_date`` is required rather than defaulting to this week. A
+    default would make a bare GET call Xero, and the one caller always knows
+    which week it is showing.
+    """
+    # Opus: NotAPayrollWeekError is a typed InvalidInputError; every other provider
+    # or data-shape failure remains unexpected and reaches the 500 handler.
+    return payroll_service.posting_status_for_week(_parse_date(week_start_date))
 
 
 @router.post(
@@ -286,11 +286,44 @@ def timesheets_payroll_pay_runs_refresh_create(
 def timesheets_payroll_post_staff_week_create(
     request: HttpRequest, payload: PostWeekToXeroRequest
 ) -> payroll_service.PostWeekStartData:
-    """Register the posting task and return its SSE stream URL."""
+    """Claim the calendar, dispatch the run, and return its opening document.
+
+    Opus: A run already in progress raises ``PayrollRunInProgressError``, a typed
+    ConflictError the envelope answers 409 with — so a duplicate click is
+    refused here rather than handed a run id whose only content is a fabricated
+    failure the client must open a stream to read.
+
+    Fable: The request names only the week. The staff are the server's to
+    derive and the postable-week rule is the server's to enforce, on a mirror
+    this POST refreshes itself — the panel's read may be an hour stale, and a
+    stale banner must be able to cost at most a clear refusal, never a wrong
+    posting.
+    """
     try:
-        return payroll_service.start_post_week_task(payload.staff_ids, payload.week_start_date)
+        return payroll_service.start_post_week_task(payload.week_start_date)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
+
+
+@router.get(
+    "/timesheets/payroll/runs/",
+    auth=manage_auth,
+    operation_id="timesheets_payroll_runs_retrieve",
+    response=PayrollRunsOut,
+    summary="The payroll runs this organisation currently has state for",
+    tags=["timesheets"],
+)
+def timesheets_payroll_runs_retrieve(request: HttpRequest) -> PayrollRunsOut:
+    """Return the current run document, which the stream also pushes.
+
+    Opus: The polling sibling of the SSE channel, and the reason the run document
+    has generated frontend types at all — a stream cannot be a ninja operation
+    (ADR 0047), so without this the wire contract existed only as hand-written
+    TypeScript. It is also what makes a reload rejoin a live run, and what tells
+    an expired run (404-shaped: an absent slot) apart from a lapsed session
+    (401), which the stream cannot express.
+    """
+    return payroll_service.current_runs()
 
 
 # ── Workshop "my time" self-service (/api/job/) ──────────────────────────
@@ -312,7 +345,7 @@ def job_workshop_timesheets_retrieve(
         entry_date = workshop_timesheet_service.resolve_entry_date(date)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
-    return workshop_timesheet_service.list_entries(_staff(request), entry_date)
+    return workshop_timesheet_service.list_entries(authenticated_staff(request), entry_date)
 
 
 def _create_payload(payload: WorkshopTimesheetEntryRequest) -> WorkshopEntryCreateData:
@@ -347,7 +380,9 @@ def job_workshop_timesheets_create(
 ) -> Status[workshop_timesheet_service.WorkshopEntryData]:
     """Create a time entry owned by the authenticated staff member."""
     try:
-        entry = workshop_timesheet_service.create_entry(_staff(request), _create_payload(payload))
+        entry = workshop_timesheet_service.create_entry(
+            authenticated_staff(request), _create_payload(payload)
+        )
     except Job.DoesNotExist as exc:
         raise HttpError(404, "Job not found.") from exc
     except DjangoValidationError as exc:
@@ -400,13 +435,11 @@ def job_workshop_timesheets_partial_update(
     if len(data) <= 1:
         raise HttpError(400, "At least one field besides entry_id must be provided.")
     try:
-        return workshop_timesheet_service.update_entry(_staff(request), data)
+        return workshop_timesheet_service.update_entry(authenticated_staff(request), data)
     except CostLine.DoesNotExist as exc:
         raise HttpError(404, "Timesheet entry not found.") from exc
     except Job.DoesNotExist as exc:
         raise HttpError(404, "Job not found.") from exc
-    except EntryOwnershipError as exc:
-        raise HttpError(403, str(exc)) from exc
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
     except ValueError as exc:
@@ -424,9 +457,7 @@ def job_workshop_timesheets_partial_update(
 def job_workshop_timesheets_destroy(request: HttpRequest, entry_id: UUID) -> Status[None]:
     """Delete one of the authenticated staff member's own entries."""
     try:
-        workshop_timesheet_service.delete_entry(_staff(request), entry_id)
+        workshop_timesheet_service.delete_entry(authenticated_staff(request), entry_id)
     except CostLine.DoesNotExist as exc:
         raise HttpError(404, "Timesheet entry not found.") from exc
-    except EntryOwnershipError as exc:
-        raise HttpError(403, str(exc)) from exc
     return Status(204, None)

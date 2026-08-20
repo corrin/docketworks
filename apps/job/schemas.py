@@ -361,6 +361,28 @@ class JobStatusChoicesResponse(Schema):
     statuses: dict[str, str]
 
 
+class JobOptionOut(Schema):
+    """A job as a picker draws it, and nothing more.
+
+    The narrow list the admin mapping screens need. The domain job lists
+    (JobForPurchasing, TimesheetJobOut) stay separate on purpose: they carry
+    the stock-holding flag and labour rates their own screens price work with,
+    which no picker renders.
+    """
+
+    id: UUID
+    job_number: int
+    name: str
+    company_name: str | None
+    status: str
+
+
+class JobOptionsResponse(Schema):
+    """Wire contract for JobOptionsResponse."""
+
+    jobs: list[JobOptionOut]
+
+
 # ── Events / timeline ────────────────────────────────────────────────────
 
 
@@ -457,7 +479,7 @@ class JobDeltaRejectionOut(Schema):
     @staticmethod
     def resolve_staff_email(obj: "JobDeltaRejection") -> str | None:
         """Return the submitting staff member's email, when known."""
-        return obj.staff.email if obj.staff else None
+        return obj.staff.office_email if obj.staff else None
 
     @staticmethod
     def resolve_detail(obj: "JobDeltaRejection") -> object:

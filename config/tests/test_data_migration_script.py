@@ -47,10 +47,21 @@ SEEDING_MIGRATIONS = {
 # double-encoded rows landed, 500ing the product-mappings listing. The script
 # must re-apply each one after the restore.
 DATA_MIGRATIONS_RERUN_AFTER_RESTORE = {
+    # The v1 dump has the old Staff columns (`email` and `date_joined`). The
+    # cutover script rolls this migration back before pg_restore and reapplies
+    # it afterwards, when it can also backfill the employment start date.
+    ("accounts", "0005_staff_payroll_identity_and_employment"),
     ("quoting", "0002_normalise_input_data"),
     # Backfills Quote.number from raw_json's _quote_number (a v1 sync era
     # never wrote the column; the Xero seeding refuses numberless documents).
     ("accounting", "0003_backfill_quote_numbers_from_raw_json"),
+    # The five fixed rows exist before restore, but their Job/pay-item bindings
+    # cannot resolve until v1's shop jobs and payroll catalogue have landed.
+    ("timesheet", "0002_seed_leave_types"),
+    # Clears the Xero pay item from public-holiday time lines so they stop being
+    # posted on top of the line Xero computes itself. The lines it fixes arrive
+    # with the restore, so the empty-database run finds none.
+    ("timesheet", "0004_public_holiday_posts_nowhere"),
 }
 
 
@@ -72,7 +83,7 @@ def test_seed_migrations_actually_write_rows() -> None:
     If this fails the seeds stopped writing, and the script's clearing step
     became dead weight — the collision it defends against cannot happen.
     """
-    assert Staff.objects.filter(email=SYSTEM_AUTOMATION_EMAIL).exists()
+    assert Staff.objects.filter(office_email=SYSTEM_AUTOMATION_EMAIL).exists()
     assert apps.get_model("job", "LabourSubtype")._default_manager.exists()
 
 
@@ -149,7 +160,7 @@ def test_restoring_v1s_row_collides_until_the_seed_is_cleared() -> None:
     v1_row_id = "ce2f4c1a-04cc-4871-988c-9092f4cb154e"  # the id in the real restore
     fields = Staff._meta.local_fields
     values = list(
-        Staff.objects.filter(email=SYSTEM_AUTOMATION_EMAIL).values_list(
+        Staff.objects.filter(office_email=SYSTEM_AUTOMATION_EMAIL).values_list(
             *[f.attname for f in fields]
         )[0]
     )
@@ -165,7 +176,7 @@ def test_restoring_v1s_row_collides_until_the_seed_is_cleared() -> None:
         cur.execute(insert, values)
 
     # The script's clearing step, verbatim in intent.
-    Staff.objects.filter(email=SYSTEM_AUTOMATION_EMAIL).delete()
+    Staff.objects.filter(office_email=SYSTEM_AUTOMATION_EMAIL).delete()
     with connection.cursor() as cur:
         cur.execute(insert, values)
     assert Staff.objects.filter(id=v1_row_id).exists()

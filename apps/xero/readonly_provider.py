@@ -10,8 +10,12 @@ AppError.
 
 import logging
 import uuid
+from collections import defaultdict
+from collections.abc import Iterator, Sequence
+from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from apps.accounting.types import (
     ContactResult,
@@ -20,11 +24,17 @@ from apps.accounting.types import (
     InvoicePayload,
     NewPayrollEmployee,
     PayrollEmployeeRef,
+    PayrollMirrorScope,
+    PayRunSyncResult,
     POPayload,
     QuotePayload,
     QuotePdfDocument,
+    StaffWeekPostResult,
 )
 from apps.core.models import CompanyDefaults
+from apps.job.models.costing import CostLine
+from apps.xero import payroll_push
+from apps.xero.payroll_leave import require_pay_item
 from apps.xero.provider import XeroAccountingProvider
 
 if TYPE_CHECKING:
@@ -266,6 +276,48 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
         _log_suppressed("add_history_note_to_quote", quote_external_id)
         return True
 
+    # --- Payroll ---------------------------------------------------------
+    #
+    # Opus: Reads are real; writes are suppressed. Only the SUPPRESSED members are
+    # listed — the reads (the calendar anchor, the week posting status, the
+    # connection id) are inherited unchanged, because an override whose body is
+    # identical to the one it overrides restates intent in a docstring and
+    # nothing else (ADR 0045).
+    #
+    # Payroll writes matter more than most: a suppressed post must still look
+    # like a post to the caller, or the weekly screen's progress and result UI
+    # cannot be exercised at all under XERO_READONLY.
+
+    supports_payroll = True
+
+    @staticmethod
+    def refresh_pay_runs() -> PayRunSyncResult:
+        """Report a mirror refresh that never ran."""
+        _log_suppressed("refresh_pay_runs", "no pay runs fetched")
+        return PayRunSyncResult(fetched=0, created=0, updated=0)
+
+    @staticmethod
+    def sync_payroll_mirror(connection_id: str, scope: PayrollMirrorScope) -> None:
+        """Suppress the immediate payroll mirror refresh in read-only mode."""
+        _log_suppressed("sync_payroll_mirror", f"{connection_id}:{scope.value}")
+
+    @staticmethod
+    def post_payroll_week(
+        connection_id: str, staff_ids: Sequence[UUID], week_start_date: date
+    ) -> Iterator[StaffWeekPostResult]:
+        """Report every staff week as posted without touching Xero.
+
+        Opus: The hour figures come from the same CostLines a real post would read,
+        so the screen shows true numbers against a fake timesheet id.
+        """
+        # Opus: The dispatched tenant is not checked here because nothing is written;
+        # the real provider refuses on a mismatch (payroll_push.require_dispatched_tenant).
+        del connection_id
+        _log_suppressed(
+            "post_payroll_week", f"{len(staff_ids)} staff, week {week_start_date.isoformat()}"
+        )
+        return _suppressed_week_posts(staff_ids, week_start_date)
+
     # --- Payroll employees ---
     #
     # The only writes here that REFUSE rather than fake. Every other override
@@ -294,4 +346,90 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
             f"XERO_READONLY: refusing to rename payroll employee {external_id} "
             f"to {first_name} {last_name}. Reporting success would leave the "
             "mirror claiming a name the organisation does not hold."
+        )
+
+
+def _suppressed_week_posts(
+    staff_ids: "Sequence[UUID]", week_start_date: date
+) -> "Iterator[StaffWeekPostResult]":
+    """Yield the result a real post would report per staff member, reading real hours.
+
+    Opus: Split by the same classifier the real provider posts through, not summed
+    into ``work_hours``. Every hour landed in the work bucket, so a week
+    containing any leave reported figures no run could produce — while the
+    docstring claimed "the screen shows true numbers". A read-only provider that
+    lies about the shape of a result is worse than one that refuses, because the
+    screen it feeds is exactly where an operator checks what a post would do.
+
+    Fable: The lines come from ``payroll_push._week_time_lines`` — the query the
+    real run reads — not a local restatement of it, and the salary/hourly split
+    mirrors ``payroll_push._post_one_staff_week`` field for field: a salaried
+    staff member is a skip in ``posting_mode="salary"`` with no timesheet id,
+    because the real provider never posts them a timesheet.
+    ``salary_timesheet_removed`` stays False rather than asking Xero whether a
+    sheet exists: a suppressed post removes nothing, and the read would be this
+    module's only payroll call to the tenant.
+    """
+    # Opus: Call-time import: these are loaded through the app registry, and this
+    # module is imported at app-ready.
+    from apps.accounts.models import Staff  # noqa: PLC0415
+    from apps.timesheet.services import hour_categories  # noqa: PLC0415
+
+    week = payroll_push._WeekWindow.of(week_start_date)
+    catalogue = hour_categories.LeaveCatalogue.load()
+    lines_by_staff: dict[str, list[CostLine]] = defaultdict(list)
+    for line in payroll_push._week_time_lines(week, staff_ids):
+        lines_by_staff[str(line.staff_id)].append(line)
+
+    week_end = week.end
+    for staff in Staff.objects.filter(id__in=list(staff_ids)):
+        staff_lines = lines_by_staff.get(str(staff.id), [])
+        # Fable: The same two guards the real provider answers with, in the
+        # same order — the fidelity claim below is only true if a suppressed
+        # week reports the departures and unlinked employees a real one would.
+        if not staff.is_active_between(week.start, week_end):
+            yield payroll_push._skip_result(
+                staff, "Not employed during this week", bool(staff_lines)
+            )
+            continue
+        if not staff.xero_user_id:
+            yield payroll_push._failure_result(
+                staff,
+                f"{staff.get_display_full_name()} is not linked to a Xero employee. "
+                "Ask an administrator to link them, then post again.",
+                bool(staff_lines),
+            )
+            continue
+        split = payroll_push._split_by_surface(staff_lines, catalogue)
+        leave_hours = sum((line.quantity for line in split.leave_api), Decimal("0"))
+        if staff.pay_basis == "salary":
+            yield StaffWeekPostResult(
+                staff_id=str(staff.id),
+                staff_name=staff.get_display_full_name(),
+                success=True,
+                skipped=True,
+                reason=payroll_push.SALARY_SKIP_REASON,
+                work_hours=sum((line.quantity for line in split.timesheet), Decimal("0")),
+                leave_hours=leave_hours,
+                has_entries=bool(staff_lines),
+                posting_mode="salary",
+                salary_timesheet_removed=False,
+            )
+            continue
+        work_lines = [
+            line for line in split.timesheet if require_pay_item(line).multiplier is not None
+        ]
+        other_leave_lines = [
+            line for line in split.timesheet if require_pay_item(line).multiplier is None
+        ]
+        yield StaffWeekPostResult(
+            staff_id=str(staff.id),
+            staff_name=staff.get_display_full_name(),
+            success=True,
+            timesheet_id=_fake_id(),
+            entries_posted=len(staff_lines),
+            work_hours=sum((line.quantity for line in work_lines), Decimal("0")),
+            other_leave_hours=sum((line.quantity for line in other_leave_lines), Decimal("0")),
+            leave_hours=leave_hours,
+            has_entries=bool(staff_lines),
         )

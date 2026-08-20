@@ -14,7 +14,7 @@ def staff() -> Staff:
     plain IsAuthenticated, so no office/superuser flags are needed.
 
     Reuses the timesheet make_staff (ADR 0039): its xero_user_id and
-    backdated date_joined also keep the member visible to the reports that
+    explicit employment start also keeps the member visible to reports that
     filter through get_displayable_staff.
     """
     return make_staff("reports@example.com")

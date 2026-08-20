@@ -16,6 +16,7 @@ domain apps, so it is resolved through Django's app registry behind the
 
 import logging
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Protocol, cast
 from uuid import UUID
@@ -23,7 +24,10 @@ from uuid import UUID
 from django.apps import apps as django_apps
 from django.core.exceptions import ValidationError
 
+from apps.accounts.models import Staff, StaffPayrollTerm
+from apps.accounts.services.payroll_terms import salary_cost_rate, salary_term_on
 from apps.job.models import Job, JobLabourRate, LabourSubtype
+from apps.timesheet.models import LeaveType, PostingSurface
 
 logger = logging.getLogger(__name__)
 
@@ -67,9 +71,23 @@ class _PayItemCatalogue(Protocol):
         """Return the earnings rate for a multiplier, or None."""
 
 
-def _pay_item_catalogue() -> _PayItemCatalogue:
+class _PayItemManager(Protocol):
+    def get(self, *, id: UUID) -> PayItem:
+        """Return a pay item by its local identifier."""
+
+
+class _PayItemModel(_PayItemCatalogue, Protocol):
+    objects: _PayItemManager
+
+
+def _pay_item_catalogue() -> _PayItemModel:
     """Resolve the XeroPayItem class through the app registry (layer contract)."""
-    return cast("_PayItemCatalogue", django_apps.get_model("xero", "XeroPayItem"))
+    return cast("_PayItemModel", django_apps.get_model("xero", "XeroPayItem"))
+
+
+def pay_item_by_id(pay_item_id: UUID) -> PayItem:
+    """Resolve a local Xero payroll item without importing the integration app."""
+    return _pay_item_catalogue().objects.get(id=pay_item_id)
 
 
 def rate_from_meta(meta: dict[str, object], key: str) -> Decimal | None:
@@ -149,18 +167,47 @@ def is_leave_pay_item(pay_item: PayItem | None) -> bool:
 
 
 def leave_wage_rate_multiplier(pay_item: PayItem) -> Decimal:
-    """Leave is paid at 1x unless the pay item is an unpaid-leave type."""
-    if "unpaid" in pay_item.name.lower():
-        return ZERO_MULTIPLIER
-    return DEFAULT_MULTIPLIER
+    """Whether leave on this pay item is paid, from its configured Docketworks category.
+
+    Opus: Read from ``LeaveType``, never from the pay item's NAME. The match this
+    replaces (``"unpaid" in pay_item.name.lower()``) meant an admin renaming the
+    Xero item — which the leave-settings screen invites — turned unpaid leave
+    into paid leave at full cost, silently (ADR 0007's "Do not").
+
+    Opus: An unmapped leave item is refused rather than assumed paid. The connected
+    organisation holds 18 leave-API pay items and Docketworks maps four; the
+    other fourteen have no job and no cost line, so refusing costs nothing
+    today — and two of them ("Unpaid Sick Leave", "Unpaid Domestic Violence
+    Leave") are UNPAID, so assuming paid would reintroduce the same
+    overpayment this function exists to prevent, for the next category anyone
+    configures (ADR 0015).
+    """
+    leave_type = LeaveType.for_pay_item(pay_item.id)
+    if leave_type is None:
+        raise ValidationError(
+            f"Xero leave type '{pay_item.name}' is not mapped to a Docketworks leave "
+            "category, so whether it is paid is unknown. Map it under "
+            "Timesheets -> Leave settings before booking time against it."
+        )
+    return DEFAULT_MULTIPLIER if leave_type.is_paid else ZERO_MULTIPLIER
 
 
-def resolve_xero_pay_item_for_job(*, job: Job, wage_rate_multiplier: Decimal) -> PayItem:
+def resolve_xero_pay_item_for_job(*, job: Job, wage_rate_multiplier: Decimal) -> PayItem | None:
     """Resolve the job's leave pay item or the staff member's earnings rate.
 
     Leave jobs (``default_xero_pay_item.uses_leave_api``) always post through
     the Leave API, so their pay item wins over the multiplier lookup.
+
+    Opus: Returns None for a category Xero pays from its own calculation. Its job
+    still carries Ordinary Time as a dropdown default — the column is NOT NULL
+    — and returning that would put public-holiday hours on the Timesheets API
+    on top of the line Xero computes itself, which is the day paid twice.
     """
+    # Opus: The reverse side of the OneToOne, not a query per priced line: this
+    # runs for every time entry, including every ordinary work line.
+    leave_type = getattr(job, "leave_type_configuration", None)
+    if leave_type is not None and leave_type.posting_surface is PostingSurface.XERO_COMPUTED:
+        return None
     job_pay_item: PayItem | None = job.default_xero_pay_item
     if is_leave_pay_item(job_pay_item):
         # Narrowing for the type checker: is_leave_pay_item is None-safe.
@@ -222,6 +269,10 @@ class WageBearingStaff(Protocol):
         """The staff member's loaded hourly cost rate."""
 
     @property
+    def pay_basis(self) -> str | None:
+        """Whether Xero pays this staff member hourly or by salary."""
+
+    @property
     def default_labour_subtype(self) -> LabourSubtype | None:
         """The subtype new time entries default to."""
 
@@ -240,18 +291,34 @@ class TimeEntryPricing:
     wage_rate_multiplier: Decimal
     bill_rate_multiplier: Decimal
     is_billable: bool
-    pay_item: PayItem
+    #: Opus: None for a category Xero pays from its own calculation — there is no
+    #: Xero object to name, and the line is posted nowhere.
+    pay_item: PayItem | None
     labour_subtype: LabourSubtype
+    salary_term_id: str | None = None
+
+    @property
+    def pay_item_id(self) -> "UUID | None":
+        """The pay item's id, or None where Xero pays the category from its own calculation.
+
+        Opus: One reader for the three write sites, so a nullable pay item cannot be
+        handled correctly in two of them and crash in the third.
+        """
+        return self.pay_item.id if self.pay_item is not None else None
 
     def meta_updates(self) -> dict[str, object]:
         """Build the metadata stored on a priced timesheet line."""
-        return {
+        updates: dict[str, object] = {
             "wage_rate_multiplier": float(self.wage_rate_multiplier),
             "bill_rate_multiplier": float(self.bill_rate_multiplier),
             "is_billable": self.is_billable,
             "wage_rate": float(self.wage_rate),
             "charge_out_rate": float(self.charge_out_rate),
         }
+        if self.salary_term_id is not None:
+            updates["salary_term_id"] = self.salary_term_id
+            updates["pay_basis"] = "salary"
+        return updates
 
 
 def resolve_labour_subtype(
@@ -280,7 +347,12 @@ def job_charge_out_rate(job: Job, labour_subtype: LabourSubtype) -> Decimal:
     return rate.charge_out_rate
 
 
-def staff_wage_rate(staff: WageBearingStaff, override: Decimal | None = None) -> Decimal:
+def staff_wage_rate(
+    staff: WageBearingStaff,
+    override: Decimal | None = None,
+    *,
+    salary_term: StaffPayrollTerm | None = None,
+) -> Decimal:
     """Return the hourly cost rate to price a staff member's time at; fail early if unset.
 
     No implicit global-default or zero-cost fallback is allowed (ADR 0015): the
@@ -288,7 +360,18 @@ def staff_wage_rate(staff: WageBearingStaff, override: Decimal | None = None) ->
     pipeline costed the time at 0.00, so an unconfigured staff member silently
     produced wrong job costs instead of an obvious error. The message names the
     staff member so the fix is a single edit on their record (ADR 0038).
+
+    Opus: Takes the already-resolved salary term rather than a date to resolve one
+    from: its only caller needs the term itself as well, and looking it up here
+    too made one condition cost two queries and two different messages.
     """
+    if staff.pay_basis == "salary" and override is None:
+        if salary_term is None:
+            raise ValidationError(
+                f"Salaried time for {staff.get_display_full_name()} cannot be costed "
+                "without their Xero payroll terms."
+            )
+        return salary_cost_rate(salary_term)
     wage_rate = override if override is not None else staff.wage_rate
     if not wage_rate:
         raise ValidationError(
@@ -298,13 +381,14 @@ def staff_wage_rate(staff: WageBearingStaff, override: Decimal | None = None) ->
     return wage_rate
 
 
-def price_time_entry(
+def price_time_entry(  # noqa: PLR0913 -- the canonical pipeline's independent pricing inputs
     *,
     job: Job,
     staff: WageBearingStaff,
     meta: dict[str, object],
     labour_subtype: LabourSubtype | None = None,
     wage_rate_override: Decimal | None = None,
+    pay_item_override: PayItem | None = None,
 ) -> TimeEntryPricing:
     """Price one time entry — the single rate-resolution path for the whole app.
 
@@ -319,15 +403,48 @@ def price_time_entry(
             "Rate multiplier must be provided when creating a new timesheet entry."
         )
 
+    salary_term: StaffPayrollTerm | None = None
+    if staff.pay_basis == "salary":
+        raw_date = meta.get("date")
+        try:
+            target_date = date.fromisoformat(str(raw_date))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("Timesheet metadata must contain an ISO work date.") from exc
+        salary_term = salary_term_on(cast("Staff", staff), target_date)
+
     subtype = resolve_labour_subtype(staff=staff, explicit=labour_subtype)
-    wage_rate = staff_wage_rate(staff, wage_rate_override)
-    wage_rate_multiplier = normalize_multiplier(raw_multiplier)
-    pay_item = resolve_xero_pay_item_for_job(job=job, wage_rate_multiplier=wage_rate_multiplier)
-    if is_leave_pay_item(pay_item):
+    wage_rate = staff_wage_rate(staff, wage_rate_override, salary_term=salary_term)
+    requested_wage_multiplier = normalize_multiplier(raw_multiplier)
+    # Salary hours allocate a fixed cost; they never create 1.5x/2x payroll
+    # earnings. Customer billing remains independently selectable below.
+    wage_rate_multiplier = (
+        DEFAULT_MULTIPLIER if staff.pay_basis == "salary" else requested_wage_multiplier
+    )
+    pay_item = pay_item_override or resolve_xero_pay_item_for_job(
+        job=job, wage_rate_multiplier=wage_rate_multiplier
+    )
+    if pay_item is None:
+        # Opus: A category Xero pays from its own calculation. The hours are still
+        # costed at the staff member's ordinary rate — the business incurs the
+        # wage — but no Xero object is named, so the line posts nowhere and the
+        # day is paid once rather than twice.
+        wage_rate_multiplier = DEFAULT_MULTIPLIER
+        bill_rate_multiplier = ZERO_MULTIPLIER
+    elif not pay_item.xero_id:
+        raise ValidationError(f"Xero pay item '{pay_item.name}' has no xero_id.")
+    elif is_leave_pay_item(pay_item):
         wage_rate_multiplier = leave_wage_rate_multiplier(pay_item)
         bill_rate_multiplier = ZERO_MULTIPLIER
     else:
-        bill_rate_multiplier = get_bill_rate_multiplier(meta, wage_rate_multiplier)
+        if pay_item_override is not None:
+            if pay_item.multiplier is None:
+                raise ValidationError(f"Xero earnings rate '{pay_item.name}' has no multiplier.")
+            wage_rate_multiplier = normalize_multiplier(pay_item.multiplier)
+        bill_rate_multiplier = (
+            ZERO_MULTIPLIER
+            if pay_item_override is not None
+            else get_bill_rate_multiplier(meta, requested_wage_multiplier)
+        )
 
     rates = calculate_time_unit_rates(
         wage_rate=wage_rate,
@@ -345,4 +462,5 @@ def price_time_entry(
         is_billable=bill_rate_multiplier > ZERO_MULTIPLIER,
         pay_item=pay_item,
         labour_subtype=subtype,
+        salary_term_id=str(salary_term.id) if salary_term is not None else None,
     )

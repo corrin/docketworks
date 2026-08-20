@@ -15,7 +15,7 @@ from django.utils import timezone
 
 from apps.accounting.types import ContactResult
 from apps.company.models import Company, ContactMethod
-from apps.company.services.company_rest_service import CompanyRestService
+from apps.company.services.company_rest_service import CompanyRestService, DuplicateContactError
 from apps.company.tests.conftest import make_company
 
 pytestmark = [
@@ -104,7 +104,9 @@ class TestCreateCompanyProviderAtomicity:
             success=True, external_id="existing-id", name="New Company"
         )
 
-        with pytest.raises(ValueError, match="already exists in the accounting provider"):
+        with pytest.raises(
+            DuplicateContactError, match="already exists in the accounting provider"
+        ):
             _create(provider)
 
         assert not Company.objects.filter(name="New Company").exists()

@@ -3,15 +3,17 @@
 The week starts on the given Monday and runs 5 or 7 days depending on
 ``CompanyDefaults.weekend_timesheets_enabled``.
 
-Two tempting alternatives are deliberately rejected:
+Leave identity, the billable rule and the day-status words all come from
+``hour_categories`` — the vocabulary this screen shares with the daily
+overview, so a weekly cell means exactly what the daily row for that staff
+member and day means (ADR 0039).
 
-- Missing ``meta.is_billable`` means billable, matching every other timesheet
-  surface; a local non-billable default would make summaries disagree (ADR 0039).
-- Metric failures surface instead of becoming plausible zeroes (ADR 0038).
-  Metrics absent from the wire are not computed as dead work.
+Metric failures surface instead of becoming plausible zeroes (ADR 0038):
+metrics absent from the wire are not computed as dead work.
 """
 
 import logging
+from collections.abc import Iterable
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import TypedDict
@@ -22,72 +24,73 @@ from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
+from apps.timesheet.services import hour_categories
 from apps.timesheet.services.daily_timesheet_service import SummaryStatsData
 
 logger = logging.getLogger(__name__)
 
-COMPLETE_WEEK_HOURS = 35.0
-PARTIAL_WEEK_HOURS = 20.0
-OVERTIME_1_5X = Decimal("1.50")
-OVERTIME_2X = Decimal("2.00")
-# Leave pay items whose hours are reported separately in the payroll columns.
-LEAVE_PAY_ITEM_FIELDS = {
-    "Sick Leave": "sick_leave_hours",
-    "Annual Leave": "annual_leave_hours",
-    "Bereavement Leave": "bereavement_leave_hours",
-}
+#: Opus: Money is held to cents; hours keep their own precision.
+CENTS = Decimal("0.01")
+
+COMPLETE_WEEK_HOURS = Decimal("35")
+PARTIAL_WEEK_HOURS = Decimal("20")
 
 
 class WeeklyDayData(TypedDict):
     """Data contract for WeeklyDayData."""
 
     day: str
-    hours: float
-    billable_hours: float
-    scheduled_hours: float
-    status: str
+    hours: Decimal
+    billable_hours: Decimal
+    scheduled_hours: Decimal
+    day_status: str
     leave_type: str | None
     has_leave: bool
-    billed_hours: float
-    unbilled_hours: float
-    overtime_1_5x_hours: float
-    overtime_2x_hours: float
-    sick_leave_hours: float
-    annual_leave_hours: float
-    bereavement_leave_hours: float
-    daily_cost: float
-    daily_base_cost: float
+    billed_hours: Decimal
+    unbilled_hours: Decimal
+    overtime_1_5x_hours: Decimal
+    overtime_2x_hours: Decimal
+    sick_leave_hours: Decimal
+    annual_leave_hours: Decimal
+    bereavement_leave_hours: Decimal
+    other_leave_hours: Decimal
+    daily_cost: Decimal
+    daily_base_cost: Decimal
 
 
 class WeeklyStaffData(TypedDict):
     """Data contract for WeeklyStaffData."""
 
     staff_id: str
-    name: str
+    staff_name: str
     weekly_hours: list[WeeklyDayData]
-    total_hours: float
-    total_billable_hours: float
-    total_scheduled_hours: float
-    billable_percentage: float
-    status: str
-    total_billed_hours: float
-    total_unbilled_hours: float
-    total_overtime_hours: float
-    total_overtime_1_5x_hours: float
-    total_overtime_2x_hours: float
-    total_sick_leave_hours: float
-    total_annual_leave_hours: float
-    total_bereavement_leave_hours: float
-    weekly_cost: float
-    weekly_base_cost: float
+    total_hours: Decimal
+    total_billable_hours: Decimal
+    total_scheduled_hours: Decimal
+    billable_percentage: Decimal
+    week_status: str
+    total_billed_hours: Decimal
+    total_unbilled_hours: Decimal
+    total_overtime_hours: Decimal
+    total_overtime_1_5x_hours: Decimal
+    total_overtime_2x_hours: Decimal
+    total_sick_leave_hours: Decimal
+    total_annual_leave_hours: Decimal
+    total_bereavement_leave_hours: Decimal
+    total_other_leave_hours: Decimal
+    weekly_cost: Decimal
+    weekly_base_cost: Decimal
+    pay_basis: str | None
+    expected_hours: Decimal
+    variance_hours: Decimal
 
 
 class WeeklySummaryData(TypedDict):
     """Data contract for WeeklySummaryData."""
 
-    total_hours: float
+    total_hours: Decimal
     staff_count: int
-    billable_percentage: float
+    billable_percentage: Decimal
 
 
 class JobMetricsData(TypedDict):
@@ -123,39 +126,45 @@ class WeeklyTimesheetData(TypedDict):
     week_type: str
 
 
+#: Opus: A payroll week is Monday to Sunday, always — `payroll_push._WeekWindow.of`
+#: posts that range whatever this screen displays.
+PAYROLL_WEEK_DAYS = 7
+
+
 def week_days(start_date: date, weekend_enabled: bool) -> list[date]:
     """Return the 5 (Mon-Fri) or 7 (Mon-Sun) days of the configured week shape."""
-    day_count = 7 if weekend_enabled else 5
+    day_count = PAYROLL_WEEK_DAYS if weekend_enabled else 5
     return [start_date + timedelta(days=i) for i in range(day_count)]
 
 
-def _is_billable(line: CostLine) -> bool:
-    """Whether a time line bills the customer (missing key means billable)."""
-    return bool(line.meta.get("is_billable", True))
+def _displayed_days(
+    payroll_days: list[date],
+    grouped: dict[tuple[str, date], list[CostLine]],
+    *,
+    weekend_enabled: bool,
+) -> list[date]:
+    """Choose the days this screen shows: never fewer than the days that carry hours.
+
+    Opus: This screen is where a week is reviewed before it is posted, and posting
+    always covers Monday to Sunday. Showing Mon-Fri because the weekend flag is
+    off therefore hid Saturday and Sunday hours that were transmitted and paid —
+    absent from the columns, from `total_hours`, and from the summary. The
+    reconciliation could not catch it either: it reads the same Mon-Sun window,
+    so posted and recorded agreed and the panel reported a match.
+
+    The flag still earns its keep — an ordinary week stays five columns wide
+    rather than carrying two permanently empty ones — but it can only hide days
+    that are empty.
+    """
+    if weekend_enabled:
+        return payroll_days
+    weekend_has_hours = any(
+        day.weekday() >= 5 and lines for (_staff_id, day), lines in grouped.items()
+    )
+    return payroll_days if weekend_has_hours else payroll_days[:5]
 
 
-def _wage_rate_multiplier(line: CostLine) -> Decimal:
-    """Read the line's wage multiplier from meta, defaulting to 1x."""
-    raw = line.meta.get("wage_rate_multiplier")
-    if raw is None:
-        return Decimal("1.0")
-    return Decimal(str(raw))
-
-
-def _day_status(daily_hours: float, scheduled_hours: float, has_leave: bool) -> str:
-    """v1's single-character day marker (leave / off / short / met)."""
-    if has_leave:
-        return "Leave"
-    if scheduled_hours == 0:
-        return "Off"
-    if daily_hours == 0:
-        return "⚠"
-    if daily_hours >= scheduled_hours:
-        return "✓"
-    return "⚠"
-
-
-def _staff_status(total_hours: float) -> str:
+def _week_status(total_hours: Decimal) -> str:
     """v1's weekly completeness banding for a staff member."""
     if total_hours >= COMPLETE_WEEK_HOURS:
         return "Complete"
@@ -166,100 +175,67 @@ def _staff_status(total_hours: float) -> str:
     return "Missing"
 
 
-def _split_work_and_leave(cost_lines: list[CostLine]) -> tuple[list[CostLine], list[CostLine]]:
-    """Split a day's lines into work and leave by the job's name."""
-    work: list[CostLine] = []
-    leave: list[CostLine] = []
-    for line in cost_lines:
-        job = line.cost_set.job if line.cost_set else None
-        if job is not None and "Leave" in job.name:
-            leave.append(line)
-        else:
-            work.append(line)
-    return work, leave
+def _leave_type(
+    cost_lines: list[CostLine], catalogue: hour_categories.LeaveCatalogue
+) -> str | None:
+    """Name the leave category the day was booked against, if any.
 
-
-def _work_hour_categories(work_lines: list[CostLine]) -> dict[str, Decimal]:
-    """Billed/unbilled/overtime hour splits for a day's work lines (v1).
-
-    Lines on a 0x multiplier (unpaid) count towards neither payroll bucket.
+    Opus: The category CODE, not the Xero pay item's name. An admin can rename the
+    Xero item from the leave-settings screen, and the name went onto the wire —
+    so a rename changed what this screen said a day was.
     """
-    totals = {
-        "billed_hours": Decimal("0"),
-        "unbilled_hours": Decimal("0"),
-        "overtime_1_5x_hours": Decimal("0"),
-        "overtime_2x_hours": Decimal("0"),
-        "weighted_hours": Decimal("0"),
-    }
-    for line in work_lines:
-        multiplier = _wage_rate_multiplier(line)
-        hours = line.quantity
-        totals["weighted_hours"] += hours * multiplier
-        if multiplier == Decimal("0.0"):
-            continue
-        if _is_billable(line):
-            totals["billed_hours"] += hours
-        else:
-            totals["unbilled_hours"] += hours
-        if multiplier == OVERTIME_1_5X:
-            totals["overtime_1_5x_hours"] += hours
-        elif multiplier == OVERTIME_2X:
-            totals["overtime_2x_hours"] += hours
-    return totals
+    for line in cost_lines:
+        leave = hour_categories.leave_type(line, catalogue)
+        if leave is not None:
+            return leave
+    return None
 
 
-def _leave_hour_categories(leave_lines: list[CostLine]) -> dict[str, Decimal]:
-    """Sick/annual/bereavement hour splits for a day's leave lines."""
-    totals = {field: Decimal("0") for field in LEAVE_PAY_ITEM_FIELDS.values()}
-    totals["weighted_hours"] = Decimal("0")
-    for line in leave_lines:
-        job = line.cost_set.job if line.cost_set else None
-        pay_item = job.default_xero_pay_item if job is not None else None
-        if pay_item is None:
-            continue
-        field = LEAVE_PAY_ITEM_FIELDS.get(pay_item.name)
-        if field is None:
-            continue
-        totals[field] += line.quantity
-        totals["weighted_hours"] += line.quantity
-    return totals
-
-
-def _process_daily_lines(
-    staff_member: Staff, day: date, cost_lines: list[CostLine], loading_multiplier: Decimal
+def _process_daily_lines(  # noqa: PLR0913 -- Opus: one argument per input the day needs; the catalogue is passed rather than loaded so a week costs one read, not one per staff-day
+    staff_member: Staff,
+    day: date,
+    cost_lines: list[CostLine],
+    loading_multiplier: Decimal,
+    catalogue: hour_categories.LeaveCatalogue,
+    *,
+    weekend_enabled: bool,
 ) -> WeeklyDayData:
     """Aggregate one staff member's lines for one day into the payroll columns."""
-    scheduled_hours = staff_member.get_scheduled_hours(day)
-    work_lines, leave_lines = _split_work_and_leave(cost_lines)
+    # Opus: The shared rule, not the roster read directly: this screen now renders
+    # weekend days that carry hours, so reading the roster raw would give the
+    # same booked Saturday a different status here than on the daily page.
+    scheduled_hours = hour_categories.scheduled_hours(
+        staff_member, day, weekend_enabled=weekend_enabled
+    )
+    categories = hour_categories.categorise(cost_lines, catalogue)
+    daily_hours = categories.total
+    leave_type = _leave_type(cost_lines, catalogue)
 
-    daily_hours = sum((line.quantity for line in cost_lines), Decimal("0"))
-    billable_hours = sum((line.quantity for line in cost_lines if _is_billable(line)), Decimal("0"))
-    leave_job = leave_lines[0].cost_set.job if leave_lines and leave_lines[0].cost_set else None
-
-    work = _work_hour_categories(work_lines)
-    leave = _leave_hour_categories(leave_lines)
     # v1 rounds the base cost to cents FIRST and applies the leave loading to the
     # rounded figure, so an operator can reconcile daily_base_cost * loading
     # against daily_cost. Loading the unrounded sum drifts by a cent.
-    daily_base_cost = round(float(sum((line.total_cost for line in cost_lines), Decimal("0"))), 2)
+    daily_base_cost = _total(line.total_cost for line in cost_lines).quantize(CENTS)
 
     return {
         "day": day.strftime("%Y-%m-%d"),
-        "hours": float(daily_hours),
-        "billable_hours": float(billable_hours),
+        "hours": daily_hours,
+        "billable_hours": categories.billable,
         "scheduled_hours": scheduled_hours,
-        "status": _day_status(float(daily_hours), scheduled_hours, bool(leave_lines)),
-        "leave_type": leave_job.name if leave_job is not None else None,
-        "has_leave": bool(leave_lines),
-        "billed_hours": float(work["billed_hours"]),
-        "unbilled_hours": float(work["unbilled_hours"]),
-        "overtime_1_5x_hours": float(work["overtime_1_5x_hours"]),
-        "overtime_2x_hours": float(work["overtime_2x_hours"]),
-        "sick_leave_hours": float(leave["sick_leave_hours"]),
-        "annual_leave_hours": float(leave["annual_leave_hours"]),
-        "bereavement_leave_hours": float(leave["bereavement_leave_hours"]),
+        "day_status": hour_categories.day_status(
+            daily_hours, scheduled_hours, has_leave=leave_type is not None
+        ),
+        "leave_type": leave_type,
+        "has_leave": leave_type is not None,
+        "billed_hours": categories.billed,
+        "unbilled_hours": categories.unbilled,
+        "overtime_1_5x_hours": categories.overtime_1_5x,
+        "overtime_2x_hours": categories.overtime_2x,
+        "sick_leave_hours": categories.sick_leave,
+        "annual_leave_hours": categories.annual_leave,
+        "bereavement_leave_hours": categories.bereavement_leave,
+        "other_leave_hours": categories.other_leave,
         "daily_base_cost": daily_base_cost,
-        "daily_cost": round(daily_base_cost * float(loading_multiplier), 2),
+        "daily_cost": (daily_base_cost * loading_multiplier).quantize(CENTS),
     }
 
 
@@ -274,77 +250,108 @@ def _lines_by_staff_day(days: list[date]) -> dict[tuple[str, date], list[CostLin
         kind="time",
         accounting_date__gte=days[0],
         accounting_date__lte=days[-1],
-    ).select_related("cost_set__job", "cost_set__job__default_xero_pay_item")
+    ).select_related("cost_set__job", "xero_pay_item")
     for line in lines:
         grouped.setdefault((str(line.staff_id), line.accounting_date), []).append(line)
     return grouped
 
 
-def _staff_week(
+def _total(values: "Iterable[Decimal]") -> Decimal:
+    """Sum a column of Decimals, starting from Decimal rather than int 0.
+
+    Opus: Named rather than inlined because the sums it replaces were the aggregation
+    defect: each day's value had been cast to float on the way out, so a week's
+    total accumulated binary rounding error and the figure an operator
+    reconciled against Xero was not the figure the lines held. The explicit
+    zero also keeps an empty week a Decimal instead of the int ``0``.
+    """
+    return sum(values, Decimal("0"))
+
+
+def _staff_week(  # noqa: PLR0913 -- Opus: one argument per input the row needs; the catalogue is threaded so a week costs one read
     staff_member: Staff,
     days: list[date],
     grouped: dict[tuple[str, date], list[CostLine]],
     loading_multiplier: Decimal,
+    catalogue: hour_categories.LeaveCatalogue,
+    *,
+    weekend_enabled: bool,
 ) -> WeeklyStaffData:
     """Build one staff member's weekly row from the pre-grouped lines."""
     staff_id = str(staff_member.id)
     daily_rows = [
         _process_daily_lines(
-            staff_member, day, grouped.get((staff_id, day), []), loading_multiplier
+            staff_member,
+            day,
+            grouped.get((staff_id, day), []),
+            loading_multiplier,
+            catalogue,
+            weekend_enabled=weekend_enabled,
         )
         for day in days
     ]
 
-    total_hours = sum(row["hours"] for row in daily_rows)
-    total_billable_hours = sum(row["billable_hours"] for row in daily_rows)
-    overtime_1_5x = sum(row["overtime_1_5x_hours"] for row in daily_rows)
-    overtime_2x = sum(row["overtime_2x_hours"] for row in daily_rows)
-    billable_percentage = (total_billable_hours / total_hours * 100) if total_hours > 0 else 0.0
+    total_hours = _total(row["hours"] for row in daily_rows)
+    total_billable_hours = _total(row["billable_hours"] for row in daily_rows)
+    overtime_1_5x = _total(row["overtime_1_5x_hours"] for row in daily_rows)
+    overtime_2x = _total(row["overtime_2x_hours"] for row in daily_rows)
+    billable_percentage = (
+        (total_billable_hours / total_hours * 100) if total_hours > 0 else Decimal("0")
+    )
+    expected_hours = _total(row["scheduled_hours"] for row in daily_rows)
 
     return {
         "staff_id": staff_id,
-        "name": staff_member.get_display_full_name(),
+        "staff_name": staff_member.get_display_full_name(),
         "weekly_hours": daily_rows,
         "total_hours": total_hours,
         "total_billable_hours": total_billable_hours,
-        "total_scheduled_hours": sum(row["scheduled_hours"] for row in daily_rows),
-        "billable_percentage": round(billable_percentage, 1),
-        "status": _staff_status(total_hours),
-        "total_billed_hours": sum(row["billed_hours"] for row in daily_rows),
-        "total_unbilled_hours": sum(row["unbilled_hours"] for row in daily_rows),
+        "total_scheduled_hours": expected_hours,
+        "billable_percentage": billable_percentage.quantize(Decimal("0.1")),
+        "week_status": _week_status(total_hours),
+        "total_billed_hours": _total(row["billed_hours"] for row in daily_rows),
+        "total_unbilled_hours": _total(row["unbilled_hours"] for row in daily_rows),
         "total_overtime_hours": overtime_1_5x + overtime_2x,
         "total_overtime_1_5x_hours": overtime_1_5x,
         "total_overtime_2x_hours": overtime_2x,
-        "total_sick_leave_hours": sum(row["sick_leave_hours"] for row in daily_rows),
-        "total_annual_leave_hours": sum(row["annual_leave_hours"] for row in daily_rows),
-        "total_bereavement_leave_hours": sum(row["bereavement_leave_hours"] for row in daily_rows),
-        "weekly_cost": round(sum(row["daily_cost"] for row in daily_rows), 2),
-        "weekly_base_cost": round(sum(row["daily_base_cost"] for row in daily_rows), 2),
+        "total_sick_leave_hours": _total(row["sick_leave_hours"] for row in daily_rows),
+        "total_annual_leave_hours": _total(row["annual_leave_hours"] for row in daily_rows),
+        "total_bereavement_leave_hours": _total(
+            row["bereavement_leave_hours"] for row in daily_rows
+        ),
+        "total_other_leave_hours": _total(row["other_leave_hours"] for row in daily_rows),
+        "weekly_cost": _total(row["daily_cost"] for row in daily_rows).quantize(CENTS),
+        "weekly_base_cost": _total(row["daily_base_cost"] for row in daily_rows).quantize(CENTS),
+        "pay_basis": staff_member.pay_basis,
+        "expected_hours": expected_hours,
+        "variance_hours": (total_hours - expected_hours).quantize(Decimal("0.01")),
     }
 
 
 def _weekly_totals(staff_data: list[WeeklyStaffData]) -> WeeklySummaryData:
     """Week totals across all staff."""
-    total_hours = sum(row["total_hours"] for row in staff_data)
-    total_billable_hours = sum(row["total_billable_hours"] for row in staff_data)
-    billable_percentage = (total_billable_hours / total_hours * 100) if total_hours > 0 else 0.0
+    total_hours = sum((row["total_hours"] for row in staff_data), Decimal("0"))
+    total_billable_hours = sum((row["total_billable_hours"] for row in staff_data), Decimal("0"))
+    billable_percentage = (
+        (total_billable_hours / total_hours * 100) if total_hours > 0 else Decimal("0")
+    )
     return {
-        "total_hours": round(total_hours, 1),
+        "total_hours": total_hours.quantize(Decimal("0.1")),
         "staff_count": len(staff_data),
-        "billable_percentage": round(billable_percentage, 1),
+        "billable_percentage": billable_percentage.quantize(Decimal("0.1")),
     }
 
 
 def _summary_stats(staff_data: list[WeeklyStaffData]) -> SummaryStatsData:
     """Staff counts by weekly completeness."""
     total_staff = len(staff_data)
-    complete_staff = len([row for row in staff_data if row["status"] == "Complete"])
+    complete_staff = len([row for row in staff_data if row["week_status"] == "Complete"])
     completion_rate = (complete_staff / total_staff * 100) if total_staff > 0 else 0.0
     return {
         "total_staff": total_staff,
         "complete_staff": complete_staff,
-        "partial_staff": len([row for row in staff_data if row["status"] == "Partial"]),
-        "missing_staff": len([row for row in staff_data if row["status"] == "Missing"]),
+        "partial_staff": len([row for row in staff_data if row["week_status"] == "Partial"]),
+        "missing_staff": len([row for row in staff_data if row["week_status"] == "Missing"]),
         "completion_rate": round(completion_rate, 1),
     }
 
@@ -398,12 +405,28 @@ def get_weekly_overview(start_date: date) -> WeeklyTimesheetData:
     weekend_enabled = company_defaults.weekend_timesheets_enabled
     loading_multiplier = Decimal("1") + company_defaults.annual_leave_loading / Decimal("100")
 
-    days = week_days(start_date, weekend_enabled)
+    # Opus: Built over the PAYROLL week regardless of the flag, so nothing that will
+    # be posted can be missing from what is reviewed.
+    payroll_days = week_days(start_date, weekend_enabled=True)
+    grouped = _lines_by_staff_day(payroll_days)
+    days = _displayed_days(payroll_days, grouped, weekend_enabled=weekend_enabled)
     end_date = days[-1]
-    grouped = _lines_by_staff_day(days)
-    staff_members = get_displayable_staff(date_range=(days[0], days[-1]))
+    # Opus: The payroll window, not the displayed one: this is the same range
+    # `week_posting_status` asks for, so the grid and the reconciliation cannot
+    # disagree about who belongs in the week.
+    staff_members = get_displayable_staff(date_range=(payroll_days[0], payroll_days[-1]))
+    # Opus: Loaded once for the grid: five rows that cannot change mid-request,
+    # against a loop that would otherwise query them per staff member per day.
+    catalogue = hour_categories.LeaveCatalogue.load()
     staff_data = [
-        _staff_week(staff_member, days, grouped, loading_multiplier)
+        _staff_week(
+            staff_member,
+            days,
+            grouped,
+            loading_multiplier,
+            catalogue,
+            weekend_enabled=weekend_enabled,
+        )
         for staff_member in staff_members
     ]
 

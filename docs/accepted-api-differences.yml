@@ -959,3 +959,140 @@
     test_company_name refusal points at the field the seed matches on
     instead of creating an unmatchable company. User ruling 2026-08-15:
     keep.
+
+- operation: timesheets_weekly_retrieve / getDailyTimesheetSummaryByDate
+  change: "The weekly and daily overviews share one day-status vocabulary: Complete, Partial, No Entry, Leave, Off, Unscheduled. The weekly payload no longer carries the glyphs '✓' and '⚠'; the daily payload no longer carries 'Weekend' and 'Weekend Work'"
+  reason: >
+    v1 answered the same question — how did this staff member's day go — in
+    two vocabularies, so a weekly cell and the daily row for the same person
+    and day could not be compared. One implementation now serves both
+    (apps/timesheet/services/hour_categories.py, ADR 0039), which is what
+    makes a weekly cell mean the daily status of that day. Glyphs on the wire
+    were also presentation in the payload and unreadable in a status column.
+    Two daily values were renamed rather than dropped: 'Weekend' is 'Off'
+    (nothing rostered, nothing booked) and 'Weekend Work' is 'Unscheduled'.
+    'Unscheduled' is now reported whenever hours land on an unrostered day
+    rather than only when weekend timesheets are enabled — v1 hid Saturday
+    hours behind a plain 'Weekend' whenever the flag was off.
+
+- operation: getDailyTimesheetSummaryByDate
+  change: "A day booked entirely to leave reports day_status 'Leave' (was 'Complete'), which moves summary_stats.complete_staff and completion_rate"
+  reason: >
+    v1's daily service never looked for leave: it saw eight hours and called
+    the day Complete, while the weekly screen called the same day Leave.
+    Counting someone on approved annual leave towards the day's completion
+    rate overstates it. The weekly banding (Complete/Partial/Minimal/Missing
+    over a week's hours) is unchanged and now travels as week_status, so the
+    day concept and the week concept no longer share a field name.
+
+- operation: timesheets_weekly_retrieve
+  change: "Leave is identified by the line's own xero_pay_item.uses_leave_api — a public holiday, which names no pay item, by its LeaveType job FK — not by 'Leave' appearing in the job name; leave columns are keyed on the fixed category code (hour_categories.COLUMN_BY_CODE)"
+  reason: >
+    v1 split work from leave on a job-name substring and then bucketed by the
+    JOB's default pay item, so a renamed job silently reclassified paid leave
+    and a line whose own pay item disagreed with its job was misfiled. The
+    pay item is what payroll actually posts against (ADR 0007), and it is the
+    only unambiguous source: 'Holiday Pay' exists in Xero both as an earnings
+    rate and as a leave type, so the name alone cannot answer the question.
+
+- operation: timesheets_weekly_retrieve
+  change: "Adds other_leave_hours / total_other_leave_hours"
+  reason: >
+    v1 reported sick, annual and bereavement and silently dropped every other
+    leave type — parental, domestic violence, alternative holidays, unpaid
+    leave. Those hours still counted in the day total, so the leave columns
+    did not sum to it and payroll reconciliation carried an unexplained gap.
+
+- operation: getDailyTimesheetSummaryByDate
+  change: "Only actual cost-set time lines are counted (v1 counted time lines from any cost set)"
+  reason: >
+    An estimate or quote time line describes hypothetical hours, not worked
+    ones. The weekly overview always filtered this way; the daily one did not,
+    so the two could disagree. No row in the database is affected — no
+    non-actual time line carries both a staff member and an accounting date —
+    but the filter is what stops one appearing.
+
+- operation: (timesheet reads — meta defaults)
+  change: "meta.is_billable and meta.wage_rate_multiplier are read directly; a line missing either is refused instead of defaulting to billable ordinary time"
+  reason: >
+    Both are denormalised onto the line at write time and every actual time
+    line in the database carries them, so the v1 `meta.get(key, default)`
+    reads were dead fallbacks that could only ever mask bad data (ADR 0015,
+    ADR 0028). A missing key now names the line instead of quietly moving
+    hours between payroll buckets.
+
+- operation: timesheets_payroll_post_staff_week_create
+  change: "The POST dispatches a Celery task that does the posting; the SSE stream only replays the progress that task publishes. v1 performed every Xero write inside the stream's GET handler"
+  reason: >
+    v1's shape made fetching a URL write payroll, which the repo's first
+    coding standard forbids outright, and it made the client's connection the
+    thing doing the work — so a disconnect mid-batch destroyed the only record
+    of which staff had succeeded, leaving re-posting everyone as the sole
+    recovery. The task rewrites ONE run document in place and every push
+    carries the whole of it, so a client that connects late, reconnects or
+    reloads needs the present rather than a replayed history (ADR 0047). The
+    POST answers that opening document ({run: ...}); the same document is
+    served by GET /timesheets/payroll/runs/ and pushed on the payroll SSE
+    channel.
+
+- operation: (payroll posting — leave and work routing)
+  change: "Lines are routed to Xero's two payroll APIs by the line's own xero_pay_item; v1 pattern-matched the job name via Job.get_leave_type()"
+  reason: >
+    Renaming a leave job silently reclassified paid leave in v1, and the job's
+    default pay item could disagree with what the line actually carried. The
+    name is also ambiguous — "Holiday Pay" is both an earnings rate and a
+    leave type in Xero — so only the line's own pay item can answer it. v1
+    expressed this chain three different ways (job-name substring in the
+    weekly service, LEAVE_JOB_NAMES in xero_hours, multiplier__gt=1
+    elsewhere); v2 has one.
+
+- operation: (payroll posting — staff window)
+  change: "A staff member outside the posted week is reported as skipped with has_entries, rather than silently omitted"
+  reason: >
+    Someone who joined after the week or left before it must not be posted,
+    but hours booked against them still need to be visible — otherwise the
+    operator sees a total that does not match what reached Xero and has no
+    way to find out why.
+
+- operation: (payroll posting — per-staff failures)
+  change: "One staff member's failure is reported against that staff member and the batch continues; only preflight failures abort the run"
+  reason: >
+    An employee not yet linked to Xero should not strand everyone else's
+    hours. Preflight failures (unlinked pay items, a blocking draft pay run)
+    still refuse the whole week before anything is posted, because those are
+    conditions no individual post can succeed under.
+
+- operation: timesheets_payroll_pay_runs_retrieve
+  change: "next_postable_week_* now falls back to the payroll calendar's anchor period when the calendar holds no pay runs (previously null with a logged warning)"
+  reason: >
+    Supersedes the earlier entry recording that gap. The calendar fetch is now
+    reachable through the accounting provider registry, so v1's third case is
+    implemented. It stays a read that degrades rather than fails: if the
+    provider is unreachable the field is still null. Null means the server
+    could not name the week — the client renders no banner and invents
+    nothing; the POST enforces the postable-week rule itself on a mirror it
+    refreshes, so a wrong week costs a refusal naming the right one.
+
+- operation: accounting_reports_payroll_reconciliation_retrieve
+  change: "The payroll reports (reconciliation, its /week/ sibling, and the date-range helper) now require superuser, where v1 served every report to any authenticated staff member"
+  reason: >
+    Per-employee gross pay is superuser data on every other surface of this
+    application - the /api/timesheets/ management endpoints, the leave admin
+    and the payroll SSE channel are all gated for exactly that reason - so
+    serving the same names-and-pay document to any workshop cookie on the
+    accounting router was a hole, not a contract. The only page that links to
+    these reports is itself superuser-only.
+
+- operation: timesheets_payroll_post_staff_week_create
+  change: "The request names only the week: the server derives the roster from the same filter the weekly grid uses, and enforces Xero's post-in-order rule on a mirror it refreshes inside the POST; v1 (and the first cut here) took staff_ids from the client and gated postability client-side"
+  reason: >
+    The client's staff list was the grid's payload relayed back at the server,
+    so a grid loaded before a staff change posted a stale roster; and the
+    postable-week gate read a mirror refreshed hourly, so a stale banner could
+    lock the truly-postable week behind a disabled button with no recovery.
+    Deriving both server-side, on data refreshed inside the POST, makes the
+    worst case a clear 400 naming the postable week. The pay-run create and
+    mirror-refresh operations are dropped with this (see
+    scripts/v1-frontend-operations.yml): creating the run is a step of posting
+    (leave reconciles before the draft exists, KAN-326), and mirror hygiene is
+    not an operator job.

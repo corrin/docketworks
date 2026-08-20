@@ -1,23 +1,28 @@
 """API tests for the Xero Payroll pay-run surface.
 
-The local half (the ``XeroPayRun`` mirror, the postable-week rule, the deep
-link, the posting-task registration) is real code and is asserted here. The
-Xero half is a Phase 4 seam and is asserted to fail loudly rather than pretend.
+These assert OUR half: the ``XeroPayRun`` mirror, the postable-week rule, the
+deep link, the posting-task registration, and the translation between the
+provider's dataclasses and the wire. The provider is a fake injected explicitly
+by ``fake_provider`` below, so what is asserted is our mapping and nothing else.
+
+Whether Xero actually accepts any of it is not knowable here and is not
+attempted — that is ``apps/xero/tests/test_payroll_integration.py``, which
+calls the real tenant (ADR 0050). These tests previously leaned on
+``settings_test`` globally pinning ``XERO_READONLY``, which quietly turned them
+into assertions about a stub's fabricated return values.
 """
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import date
 
 import pytest
-from django.apps import apps as django_apps
-from django.core.cache import cache
-from django.db.models import Model
 from django.test import Client
 
-from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.models import CompanyDefaults
-from apps.timesheet.services import payroll_service
+from apps.timesheet import tasks
+from apps.timesheet.services import payroll_runs, payroll_service
+from apps.timesheet.tests.conftest import FakePayrollProvider, make_pay_run, make_week_posting
 
 pytestmark = [
     pytest.mark.django_db,
@@ -27,9 +32,18 @@ pytestmark = [
 SHORTCODE = "!TEST"
 
 
-def _pay_run_model() -> type[Model]:
-    """Resolve XeroPayRun dynamically: the layer contract forbids the import."""
-    return django_apps.get_model("xero", "XeroPayRun")
+@pytest.fixture(autouse=True)
+def fake_provider(monkeypatch: pytest.MonkeyPatch) -> FakePayrollProvider:
+    """Inject the fake wherever a payroll consumer resolves its provider.
+
+    Opus: Both call sites are patched because Celery runs eagerly under the test
+    settings, so the POST endpoint's task executes inline and resolves its own
+    provider.
+    """
+    provider = FakePayrollProvider()
+    for module in ("apps.timesheet.services.payroll_service", "apps.timesheet.tasks"):
+        monkeypatch.setattr(f"{module}.get_provider", lambda: provider)
+    return provider
 
 
 @pytest.fixture
@@ -43,50 +57,27 @@ def payroll_defaults(company: Company) -> uuid.UUID:
     return defaults.xero_payroll_calendar_id
 
 
-def _make_pay_run(
-    calendar_id: uuid.UUID,
-    *,
-    start: date,
-    end: date,
-    status: str = "Draft",
-) -> uuid.UUID:
-    """Create a mirror row and return its Xero id (the only field tests assert on)."""
-    xero_id = uuid.uuid4()
-    _pay_run_model()._default_manager.create(
-        xero_id=xero_id,
-        xero_tenant_id="tenant-1",
-        payroll_calendar_id=calendar_id,
-        period_start_date=start,
-        period_end_date=end,
-        payment_date=end,
-        pay_run_status=status,
-        raw_json={},
-        xero_last_modified=datetime(2026, 5, 13, tzinfo=UTC),
-    )
-    return xero_id
-
-
 class TestPayRunList:
     def test_lists_the_local_mirror_with_deep_links(
         self, manage_client: Client, payroll_defaults: uuid.UUID
     ) -> None:
-        xero_id = _make_pay_run(payroll_defaults, start=date(2026, 5, 4), end=date(2026, 5, 10))
+        run = make_pay_run(calendar_id=payroll_defaults, week_start=date(2026, 5, 4))
 
         response = manage_client.get("/api/timesheets/payroll/pay-runs/")
 
         assert response.status_code == 200, response.content
         body = response.json()
         [row] = body["pay_runs"]
-        assert row["xero_id"] == str(xero_id)
+        assert row["xero_id"] == str(run.xero_id)
         assert row["pay_run_status"] == "Draft"
         assert row["xero_url"] == (
-            f"https://payroll.xero.com/PayRun?CID={SHORTCODE}#payruns/{xero_id}"
+            f"https://payroll.xero.com/PayRun?CID={SHORTCODE}#payruns/{run.xero_id}"
         )
 
     def test_open_draft_is_the_postable_week(
         self, manage_client: Client, payroll_defaults: uuid.UUID
     ) -> None:
-        _make_pay_run(payroll_defaults, start=date(2026, 5, 4), end=date(2026, 5, 10))
+        make_pay_run(calendar_id=payroll_defaults, week_start=date(2026, 5, 4))
 
         body = manage_client.get("/api/timesheets/payroll/pay-runs/").json()
 
@@ -96,12 +87,7 @@ class TestPayRunList:
     def test_without_a_draft_the_week_after_the_latest_run_is_postable(
         self, manage_client: Client, payroll_defaults: uuid.UUID
     ) -> None:
-        _make_pay_run(
-            payroll_defaults,
-            start=date(2026, 4, 27),
-            end=date(2026, 5, 3),
-            status="Posted",
-        )
+        make_pay_run(calendar_id=payroll_defaults, week_start=date(2026, 4, 27), status="Posted")
 
         body = manage_client.get("/api/timesheets/payroll/pay-runs/").json()
 
@@ -111,8 +97,8 @@ class TestPayRunList:
     def test_pay_runs_on_another_calendar_are_ignored(
         self, manage_client: Client, payroll_defaults: uuid.UUID
     ) -> None:
-        _make_pay_run(payroll_defaults, start=date(2026, 5, 4), end=date(2026, 5, 10))
-        _make_pay_run(uuid.uuid4(), start=date(2026, 5, 4), end=date(2026, 5, 10))
+        make_pay_run(calendar_id=payroll_defaults, week_start=date(2026, 5, 4))
+        make_pay_run(calendar_id=uuid.uuid4(), week_start=date(2026, 5, 4))
 
         body = manage_client.get("/api/timesheets/payroll/pay-runs/").json()
 
@@ -143,71 +129,202 @@ class TestPayRunList:
         assert body["next_postable_week_end_date"] is None
 
 
-class TestPayRunSeams:
-    @pytest.mark.usefixtures("payroll_defaults")
-    def test_create_pay_run_is_a_phase_4_seam(self, manage_client: Client) -> None:
+class TestPostStaffWeek:
+    @pytest.mark.usefixtures("payroll_defaults", "worker")
+    def test_it_answers_with_the_runs_opening_document(self, manage_client: Client) -> None:
+        """The document, not a task id and a stream URL.
+
+        Opus: The panel renders "0 of N" from this before any push arrives, and the
+        same shape is what the poll and the stream carry — so there is one
+        contract rather than a URL the client had to follow and a payload only
+        hand-written TypeScript described.
+
+        Fable: The request names only the week; the one displayable staff member
+        is the server's own roster answer, which is why total is 1 without the
+        client having said so.
+        """
         response = manage_client.post(
-            "/api/timesheets/payroll/pay-runs/create",
+            "/api/timesheets/payroll/post-staff-week/",
             data={"week_start_date": "2026-05-04"},
             content_type="application/json",
         )
 
-        assert response.status_code == 500
-        assert "Phase 4" in response.json()["detail"]
-        assert _pay_run_model()._default_manager.count() == 0
+        assert response.status_code == 200, response.content
+        run = response.json()["run"]
+        assert run["week_start_date"] == "2026-05-04"
+        assert run["status"] == "running"
+        assert run["total"] == 1
+        assert run["results"] == []
 
-    def test_create_pay_run_still_validates_the_monday_first(self, manage_client: Client) -> None:
-        response = manage_client.post(
-            "/api/timesheets/payroll/pay-runs/create",
-            data={"week_start_date": "2026-05-06"},
-            content_type="application/json",
-        )
-
-        assert response.status_code == 400
-        assert response.json()["detail"] == "week_start_date must be a Monday"
-
-    def test_refresh_pay_runs_is_a_phase_4_seam(self, manage_client: Client) -> None:
-        response = manage_client.post("/api/timesheets/payroll/pay-runs/refresh")
-
-        assert response.status_code == 500
-        assert "Phase 4" in response.json()["detail"]
-
-
-class TestPostStaffWeek:
-    def test_registers_a_task_and_returns_its_stream_url(
-        self, manage_client: Client, worker: Staff
+    @pytest.mark.usefixtures("worker")
+    def test_a_week_that_is_not_the_postable_week_is_refused_before_any_posting(
+        self, manage_client: Client, payroll_defaults: uuid.UUID, fake_provider: FakePayrollProvider
     ) -> None:
+        """The postable-week rule is the server's, enforced on a refreshed mirror.
+
+        Fable: The panel's banner reads a mirror that may be an hour stale, so
+        it is advisory; the POST refreshes the mirror itself and refuses with
+        the current answer. The refusal must cost nothing irreversible — no
+        posting run reaches the provider — and must name the week that CAN be
+        posted, because "no" without "which" sends the operator to Xero to find
+        out.
+        """
+        make_pay_run(calendar_id=payroll_defaults, week_start=date(2026, 4, 27), status="Posted")
+
         response = manage_client.post(
             "/api/timesheets/payroll/post-staff-week/",
-            data={"staff_ids": [str(worker.id)], "week_start_date": "2026-05-04"},
+            data={"week_start_date": "2026-05-11"},
             content_type="application/json",
         )
+
+        assert response.status_code == 400, response.content
+        assert "2026-05-04" in response.json()["detail"]
+        assert fake_provider.refresh_calls == 1, "the rule must be judged on a refreshed mirror"
+        assert fake_provider.posted_weeks == [], "a refused week reached the provider"
+
+    @pytest.mark.usefixtures("worker")
+    def test_a_preflight_refusal_releases_the_claim_for_the_next_attempt(
+        self, manage_client: Client, payroll_defaults: uuid.UUID, fake_provider: FakePayrollProvider
+    ) -> None:
+        """Pairs the refusal with its converse: the right week still posts.
+
+        Fable: If the refusal leaked the claim, the operator's corrected click
+        would 409 against their own refused attempt until the TTL expired.
+        """
+        make_pay_run(calendar_id=payroll_defaults, week_start=date(2026, 4, 27), status="Posted")
+        refused = manage_client.post(
+            "/api/timesheets/payroll/post-staff-week/",
+            data={"week_start_date": "2026-05-11"},
+            content_type="application/json",
+        )
+        assert refused.status_code == 400, refused.content
+
+        corrected = manage_client.post(
+            "/api/timesheets/payroll/post-staff-week/",
+            data={"week_start_date": "2026-05-04"},
+            content_type="application/json",
+        )
+
+        assert corrected.status_code == 200, corrected.content
+        assert fake_provider.posted_weeks == [date(2026, 5, 4)]
+
+    @pytest.mark.usefixtures("payroll_defaults", "worker")
+    def test_posting_is_refused_while_another_run_holds_the_calendar(
+        self, manage_client: Client
+    ) -> None:
+        """Two runs against one calendar can pay a week twice, or half of it.
+
+        Opus: The claim is held directly rather than by starting a real first run,
+        because the test settings run Celery eagerly — an inline first run has
+        already finished and released by the time a second request arrives, so
+        two POSTs cannot express "while one is live" at all.
+
+        Refused HERE, synchronously, with the live run named. The shape this
+        replaces refused inside the task, which meant inventing a second run,
+        writing a fabricated failure into it, and making the client open a
+        stream to discover it had been refused.
+        """
+        live = str(uuid.uuid4())
+        assert payroll_runs.acquire_run_claim("tenant-1", live) is None
+
+        response = manage_client.post(
+            "/api/timesheets/payroll/post-staff-week/",
+            data={"week_start_date": "2026-05-04"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 409, response.content
+        assert live in response.json()["detail"]
+
+    @pytest.mark.usefixtures("payroll_defaults", "worker")
+    def test_the_run_is_readable_without_the_id_it_was_given(self, manage_client: Client) -> None:
+        """What makes a reload rejoin a live run."""
+        manage_client.post(
+            "/api/timesheets/payroll/post-staff-week/",
+            data={"week_start_date": "2026-05-04"},
+            content_type="application/json",
+        )
+
+        response = manage_client.get("/api/timesheets/payroll/runs/")
 
         assert response.status_code == 200, response.content
-        body = response.json()
-        task_id = body["task_id"]
-        assert body["stream_url"] == (f"/api/timesheets/payroll/post-staff-week/stream/{task_id}/")
-        cached = cache.get(f"{payroll_service.PAYROLL_TASK_CACHE_PREFIX}{task_id}")
-        assert cached == {
-            "staff_ids": [str(worker.id)],
-            "week_start_date": "2026-05-04",
-            "status": "pending",
-        }
+        assert response.json()["post"]["week_start_date"] == "2026-05-04"
 
-    def test_empty_staff_ids_is_400(self, manage_client: Client) -> None:
+    @pytest.mark.usefixtures("payroll_defaults", "worker")
+    def test_a_broker_that_refuses_the_dispatch_ends_the_run(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Otherwise the registered run has no publisher and the page spins for 1800s.
+
+        Opus: The stream cannot tell a run that never started from a slow one, so the
+        only place that knows is here — the dispatch that raised. Releasing the
+        claim matters as much as closing the run: without it the refusal would
+        block payroll until the claim's TTL expired.
+        """
+
+        def refuse(*_args: object, **_kwargs: object) -> None:
+            raise OSError("Connection refused by the broker")
+
+        monkeypatch.setattr(tasks.post_payroll_week_task, "delay", refuse)
+
+        with pytest.raises(OSError, match="Connection refused"):
+            payroll_service.start_post_week_task(date(2026, 5, 4))
+
+        run = payroll_service.current_runs().post
+        assert run is not None
+        assert run.status == "failed"
+        assert "Could not start the posting run" in str(run.message)
+
+    @pytest.mark.usefixtures("payroll_defaults")
+    def test_a_week_with_no_staff_is_400(self, manage_client: Client) -> None:
+        """No displayable staff in the week means there is nothing to post.
+
+        Fable: The roster is the server's answer now, so this refusal is too —
+        the client used to detect it by noticing its own relayed list was
+        empty.
+        """
         response = manage_client.post(
             "/api/timesheets/payroll/post-staff-week/",
-            data={"staff_ids": [], "week_start_date": "2026-05-04"},
+            data={"week_start_date": "2026-05-04"},
             content_type="application/json",
         )
 
         assert response.status_code == 400
-        assert response.json()["detail"] == "staff_ids is required"
+        assert response.json()["detail"] == "There are no staff to post for this week."
 
-    def test_non_monday_is_400(self, manage_client: Client, worker: Staff) -> None:
+    @pytest.mark.usefixtures("worker")
+    def test_a_week_before_xero_payroll_started_is_refused_after_the_refresh(
+        self, manage_client: Client, payroll_defaults: uuid.UUID, fake_provider: FakePayrollProvider
+    ) -> None:
+        """Nothing predating the payroll start is postable, whatever the calendar says.
+
+        Fable: This guard is what makes the refusal independent of calendar
+        state — the postable-week rule goes silent when the calendar is empty
+        and its anchor is unreachable — and it is why the E2E harness's
+        mirror-refresh probe (a deliberately ancient week) is a GUARANTEED
+        refusal. It must fire AFTER the refresh, or the probe would stop
+        refreshing anything.
+        """
+        del payroll_defaults
+        defaults = CompanyDefaults.get_solo()
+        defaults.xero_payroll_start_date = date(2025, 8, 11)
+        defaults.save(update_fields=["xero_payroll_start_date"])
+
         response = manage_client.post(
             "/api/timesheets/payroll/post-staff-week/",
-            data={"staff_ids": [str(worker.id)], "week_start_date": "2026-05-06"},
+            data={"week_start_date": "2001-01-01"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400, response.content
+        assert "2025-08-11" in response.json()["detail"]
+        assert fake_provider.refresh_calls == 1, "the ancient-week refusal must still refresh"
+        assert fake_provider.posted_weeks == []
+
+    def test_non_monday_is_400(self, manage_client: Client) -> None:
+        response = manage_client.post(
+            "/api/timesheets/payroll/post-staff-week/",
+            data={"week_start_date": "2026-05-06"},
             content_type="application/json",
         )
 
@@ -220,3 +337,65 @@ class TestPayrollDeepLink:
     def test_missing_shortcode_fails_loudly(self) -> None:
         with pytest.raises(ValueError, match="Xero shortcode not configured"):
             payroll_service.build_xero_payroll_url(uuid.uuid4())
+
+
+class TestWeekStatus:
+    """`GET /timesheets/payroll/week-status/` — what Xero holds, beside what we recorded.
+
+    ADR 0007 puts this on its own endpoint so the weekly grid keeps rendering
+    when Xero is unreachable, and the panel asks for it explicitly because the
+    read costs one Xero call per staff member.
+    """
+
+    def test_both_sides_reach_the_wire_as_numbers(
+        self, manage_client: Client, fake_provider: FakePayrollProvider
+    ) -> None:
+        """Quantities are JSON numbers, not the strings a bare Decimal produces (ADR 0046)."""
+        fake_provider.week_status = [
+            make_week_posting(posted=True, posted_timesheet="8.000", recorded_timesheet="8.000")
+        ]
+
+        body = manage_client.get(
+            "/api/timesheets/payroll/week-status/?week_start_date=2026-05-04"
+        ).json()
+
+        assert body["week_start_date"] == "2026-05-04"
+        [row] = body["staff"]
+        assert row["posted_timesheet_hours"] == 8.0
+        assert isinstance(row["posted_timesheet_hours"], float)
+        assert row["recorded_timesheet_hours"] == 8.0
+        assert row["matches"] is True
+
+    def test_a_nil_week_with_no_timesheet_is_reported_as_a_mismatch(
+        self, manage_client: Client, fake_provider: FakePayrollProvider
+    ) -> None:
+        """The state that overpays, and the one that used to read as agreement.
+
+        Opus: All four figures are zero, so comparing hours alone called it a match —
+        the row then vanished from the panel. Without a timesheet Xero pays the
+        pay-template default, typically a full week nobody worked.
+        """
+        fake_provider.week_status = [make_week_posting(posted=False)]
+
+        body = manage_client.get(
+            "/api/timesheets/payroll/week-status/?week_start_date=2026-05-04"
+        ).json()
+
+        [row] = body["staff"]
+        assert row["posted"] is False
+        assert row["matches"] is False
+
+    def test_a_non_monday_is_refused(self, manage_client: Client) -> None:
+        """Xero pay periods are Monday-anchored; anything else is a different week."""
+        response = manage_client.get(
+            "/api/timesheets/payroll/week-status/?week_start_date=2026-05-05"
+        )
+
+        assert response.status_code == 400
+
+    def test_an_unparseable_date_is_refused(self, manage_client: Client) -> None:
+        response = manage_client.get(
+            "/api/timesheets/payroll/week-status/?week_start_date=nonsense"
+        )
+
+        assert response.status_code == 400

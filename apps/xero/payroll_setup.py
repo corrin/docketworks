@@ -27,14 +27,19 @@ from xero_python.payrollnz import (
     PayRunCalendar,
 )
 
-from apps.xero.auth import get_api_client, get_tenant_id
+from apps.xero import payroll_sdk
+from apps.xero.auth import get_api_client
+from apps.xero.helpers import as_date
 from apps.xero.payroll_sync import get_earnings_rates, get_leave_types
 
 logger = logging.getLogger(__name__)
 
+#: Opus: The one demo leave type Xero must not treat as paid. Used only when
+#: CREATING the demo object, never to classify a line (see create_missing_pay_items).
+UNPAID_LEAVE_NAME = "Unpaid Leave"
+
 # Xero's demo data seeds an unpaid leave type under this exact name; every
 # other leave type we create is paid.
-UNPAID_LEAVE_NAME = "Unpaid Leave"
 
 # A freshly restored dev/demo org has full timesheet data for recent COMPLETE
 # weeks and little for the current in-progress one, so the first postable pay
@@ -87,9 +92,14 @@ def _required[T](value: T | None, field: str, calendar_name: object) -> T:
     return value
 
 
-def get_payroll_calendars() -> list[PayrollCalendar]:
-    """List the pay run calendars configured in the connected Xero org."""
-    tenant_id = get_tenant_id()
+def get_payroll_calendars(*, tenant_id: str) -> list[PayrollCalendar]:
+    """List the pay run calendars the given Xero organisation holds.
+
+    Fable: The tenant is the caller's to resolve — required, no default, for
+    the same reason every function on the posting path takes it: a fresh
+    singleton read mid-run can answer with the previous organisation for up
+    to five minutes after a swap (constants.tenant_cache).
+    """
     payroll_api = PayrollNzApi(get_api_client())
 
     logger.info("Fetching Xero Payroll calendars")
@@ -103,9 +113,18 @@ def get_payroll_calendars() -> list[PayrollCalendar]:
                 id=str(_required(cal.payroll_calendar_id, "payroll_calendar_id", cal.name)),
                 name=str(_required(cal.name, "name", cal.name)),
                 calendar_type=str(calendar_type.value),
-                period_start_date=_required(cal.period_start_date, "period_start_date", cal.name),
-                period_end_date=_required(cal.period_end_date, "period_end_date", cal.name),
-                payment_date=_required(cal.payment_date, "payment_date", cal.name),
+                # Opus: as_date, not the raw SDK value: Xero returns datetimes for
+                # these date fields, and datetime is a SUBCLASS of date — so
+                # the annotation below is satisfied while the value serialises
+                # as "2026-07-13T00:00:00". A client comparing it against a
+                # "2026-07-13" week start never matches.
+                period_start_date=_required(
+                    as_date(cal.period_start_date), "period_start_date", cal.name
+                ),
+                period_end_date=_required(
+                    as_date(cal.period_end_date), "period_end_date", cal.name
+                ),
+                payment_date=_required(as_date(cal.payment_date), "payment_date", cal.name),
             )
         )
 
@@ -132,7 +151,9 @@ def _create_demo_calendar(payroll_api: PayrollNzApi, calendar_name: str, tenant_
     # Confirm Xero honoured the Monday anchor. If it didn't, payroll posting
     # (which hard-requires period_start.weekday() == 0) breaks weeks later —
     # fail the setup run now instead.
-    created = next((c for c in get_payroll_calendars() if c.name == calendar_name), None)
+    created = next(
+        (c for c in get_payroll_calendars(tenant_id=tenant_id) if c.name == calendar_name), None
+    )
     if created is None or created.period_start_date.weekday() != 0:
         got = (
             created.period_start_date.strftime("%A %Y-%m-%d")
@@ -166,7 +187,7 @@ def ensure_demo_pay_items_exist(calendar_name: str, tenant_id: str) -> DemoPayIt
     payroll_api = PayrollNzApi(get_api_client())
 
     calendar_created: str | None = None
-    if not any(c.name == calendar_name for c in get_payroll_calendars()):
+    if not any(c.name == calendar_name for c in get_payroll_calendars(tenant_id=tenant_id)):
         _create_demo_calendar(payroll_api, calendar_name, tenant_id)
         calendar_created = calendar_name
 
@@ -202,6 +223,18 @@ def ensure_demo_pay_items_exist(calendar_name: str, tenant_id: str) -> DemoPayIt
             if item.name in existing_leave:
                 continue
             logger.info("Leave type %r not found - creating it", item.name)
+            # Opus: Derived from the name we are about to give the object, and that
+            # is acceptable HERE where it is not elsewhere. This creates a leave
+            # type in a DEMO organisation from our own seeded catalogue — it does
+            # not classify existing data — and Xero's `isPaidLeave` is never read
+            # back: `get_leave_types` returns id and name only, and whether leave
+            # is paid comes from `LeaveType.is_paid` (171ef64).
+            #
+            # Rejected: resolving the category with `LeaveType.for_pay_item` and
+            # refusing when none claims the item. It reads as the stricter rule
+            # and inverts the bootstrap order — categories bind to jobs, which
+            # need pay items, which this function is creating — so it fails demo
+            # setup for a value nothing consumes.
             payroll_api.create_leave_type(
                 xero_tenant_id=tenant_id,
                 leave_type=LeaveType(
@@ -244,7 +277,8 @@ def validate_production_pay_items(calendar_name: str) -> None:
     if not calendar_name:
         raise ValueError("Production requires xero_payroll_calendar_name.")
 
-    if not any(c.name == calendar_name for c in get_payroll_calendars()):
+    calendars = get_payroll_calendars(tenant_id=payroll_sdk.connected_tenant())
+    if not any(c.name == calendar_name for c in calendars):
         raise ValueError(
             f"Payroll calendar '{calendar_name}' does not exist in the production Xero tenant."
         )

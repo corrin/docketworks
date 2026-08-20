@@ -7,14 +7,17 @@ pipeline (ADR 0004), event dedup responses, and delta-rejection triage.
 """
 
 import hashlib
-from typing import TYPE_CHECKING
+from collections.abc import Iterator
+from pathlib import Path
+from typing import TYPE_CHECKING, cast
 from uuid import uuid4
 
 import pytest
 from django.core.cache import cache
-from django.test import Client
+from django.test import Client, override_settings
 
 if TYPE_CHECKING:
+    from django.http import FileResponse
     from django.test.client import _MonkeyPatchedWSGIResponse
 
 from apps.accounts.models import Staff
@@ -23,6 +26,7 @@ from apps.company.tests.conftest import authenticate
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job, JobDeltaRejection
 from apps.job.services.delta_checksum import compute_job_delta_checksum
+from apps.job.tests._pdf_golden_fixtures import _seed_company_defaults
 
 pytestmark = [
     pytest.mark.django_db,
@@ -365,6 +369,49 @@ class TestTimelineAndBasicInfo:
         assert response.status_code == 200
         assert response.json()["statuses"]["draft"] == "Draft"
 
+    def test_job_summary_returns_cost_set_totals_without_the_lines(
+        self, client: Client, job: Job
+    ) -> None:
+        """The cheap read behind the job header: totals, not the whole cost set."""
+        response = client.get(f"/api/job/jobs/{job.id}/summary/")
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["job"]["id"] == str(job.id)
+        # What makes it a summary: the cost sets keep their totals while the
+        # lines and the event history — the expensive parts — are left out.
+        assert data["job"]["latest_estimate"]["summary"] is not None
+        assert data["job"]["latest_estimate"]["cost_lines"] == []
+        assert data["events"] == []
+
+    def test_job_summary_answers_304_when_the_caller_already_has_it(
+        self, client: Client, job: Job
+    ) -> None:
+        first = client.get(f"/api/job/jobs/{job.id}/summary/")
+        etag = first.headers["ETag"]
+
+        second = client.get(f"/api/job/jobs/{job.id}/summary/", HTTP_IF_NONE_MATCH=etag)
+
+        assert second.status_code == 304
+
+    def test_job_summary_for_an_unknown_job_is_a_400(self, client: Client) -> None:
+        assert client.get(f"/api/job/jobs/{uuid4()}/summary/").status_code == 400
+
+    def test_job_options_returns_one_status_narrowed_to_picker_fields(
+        self, client: Client, job: Job
+    ) -> None:
+        response = client.get(f"/api/job/jobs/options/?status={job.status}")
+
+        assert response.status_code == 200
+        [row] = [entry for entry in response.json()["jobs"] if entry["id"] == str(job.id)]
+        assert row.keys() == {"id", "job_number", "name", "company_name", "status"}
+
+    def test_job_options_refuses_a_status_that_is_not_a_choice(self, client: Client) -> None:
+        response = client.get("/api/job/jobs/options/?status=not_a_status")
+
+        assert response.status_code == 400
+        assert "Unknown job status" in response.json()["detail"]
+
 
 class TestQuoteAccept:
     def test_accept_quote_moves_job_to_approved(self, client: Client, job: Job) -> None:
@@ -487,3 +534,69 @@ class TestDeltaRejectionEndpoints:
 
         assert response.status_code == 200
         assert response.json()["count"] == 2
+
+
+class TestJobPdfEndpoints:
+    """The handlers around the PDF services, which the golden tests do not reach.
+
+    The documents themselves are pinned by the golden fixtures; what is unpinned
+    is the HTTP wrapper — inline disposition (these open for printing rather
+    than downloading), the filename, the 404, and the auth split.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _workflow_folder(self, tmp_path: Path) -> Iterator[Path]:
+        folder = tmp_path / "workflow"
+        folder.mkdir()
+        with override_settings(DROPBOX_WORKFLOW_FOLDER=str(folder)):
+            yield folder
+
+    def _pdf_bytes(self, response: "_MonkeyPatchedWSGIResponse") -> bytes:
+        return b"".join(cast("Iterator[bytes]", cast("FileResponse", response).streaming_content))
+
+    def test_the_workshop_pdf_opens_inline_for_printing(self, client: Client, job: Job) -> None:
+        _seed_company_defaults()
+
+        response = client.get(f"/api/job/jobs/{job.id}/workshop-pdf/")
+
+        assert response.status_code == 200
+        assert response["Content-Type"] == "application/pdf"
+        # inline, not attachment: the workshop prints these straight from the tab.
+        assert response["Content-Disposition"].startswith("inline;")
+        assert f"workshop_{job.job_number}.pdf" in response["Content-Disposition"]
+        assert self._pdf_bytes(response).startswith(b"%PDF")
+
+    def test_the_workshop_pdf_is_readable_by_any_staff(
+        self, job: Job, workshop_staff: Staff
+    ) -> None:
+        """Unlike the docket: the people printing it are not office staff."""
+        _seed_company_defaults()
+        workshop_client = Client()
+        authenticate(workshop_client, workshop_staff)
+
+        response = workshop_client.get(f"/api/job/jobs/{job.id}/workshop-pdf/")
+
+        assert response.status_code == 200
+
+    def test_the_delivery_docket_is_returned_and_kept_on_the_job(
+        self, client: Client, job: Job
+    ) -> None:
+        """It is a record as well as a printout, so the file is persisted."""
+        _seed_company_defaults()
+
+        response = client.get(f"/api/job/jobs/{job.id}/delivery-docket/")
+
+        assert response.status_code == 200
+        assert response["Content-Disposition"].startswith("inline;")
+        assert self._pdf_bytes(response).startswith(b"%PDF")
+        assert job.files.filter(filename__endswith=".pdf").exists()
+
+    def test_the_delivery_docket_is_office_only(self, job: Job, workshop_staff: Staff) -> None:
+        _seed_company_defaults()
+        workshop_client = Client()
+        authenticate(workshop_client, workshop_staff)
+
+        assert workshop_client.get(f"/api/job/jobs/{job.id}/delivery-docket/").status_code == 403
+
+    def test_an_unknown_job_has_no_pdf(self, client: Client) -> None:
+        assert client.get(f"/api/job/jobs/{uuid4()}/workshop-pdf/").status_code == 404

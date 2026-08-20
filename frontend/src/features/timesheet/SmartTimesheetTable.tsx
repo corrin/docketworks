@@ -17,6 +17,7 @@ import type {
 } from '@/api'
 import { formatCurrency } from '@/lib/format'
 import { DataTable } from '@/features/shared/DataTable'
+import { JobPicker } from '@/features/shared/JobPicker'
 import { editableGridFeatures } from '@/features/shared/editableGridTable'
 import { SaveFailedBadge } from '@/features/shared/SaveFailedBadge'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
@@ -31,7 +32,7 @@ import {
 import { formatHoursDisplay, parseHoursInput } from './hours'
 import { rateForSubtype, subtypeName } from './labourRates'
 import { lineBillMultiplier, lineIsBillable, lineMeta, lineWageMultiplier } from './lineMeta'
-import { TimesheetJobPicker } from './TimesheetJobPicker'
+import { useTimesheetJobSearch } from './useTimesheetJobSearch'
 import {
   applyJobPick,
   draftIsEmpty,
@@ -40,6 +41,10 @@ import {
   type TimesheetDraft,
 } from './timesheetDraft'
 import type { TimesheetCreateBody } from './useTimesheetEntries'
+
+// A typed search caps at 15 because this grid lists every active job; the
+// blank-search list stays uncapped so the whole workload is still browsable.
+const TYPED_SEARCH_LIMIT = 15
 
 type TimesheetGridRow =
   | { type: 'server'; line: TimesheetCostLineOut }
@@ -58,6 +63,8 @@ export interface SmartTimesheetTableProps {
   date: string
   /** The staff member's loaded hourly rate (drafts price hours × this). */
   staffWageRate: number
+  /** How the staff member is paid; salaried rows do not offer rate editing. */
+  payBasis: string | null
   patchLine: (lineId: string, body: CostLineUpdateRequest) => void
   createLine: (job: TimesheetJobOut, body: TimesheetCreateBody, cb: CreateEntryCallbacks) => void
   deleteLine: (lineId: string) => void
@@ -68,6 +75,7 @@ interface TimesheetCellContext {
   jobs: readonly TimesheetJobOut[]
   payItems: readonly XeroPayItemOut[]
   staffWageRate: number
+  payBasis: string | null
   patchLine: SmartTimesheetTableProps['patchLine']
   deleteLine: SmartTimesheetTableProps['deleteLine']
   approveLine: SmartTimesheetTableProps['approveLine']
@@ -214,13 +222,40 @@ function JobPickerCell({ row, table }: CellProps) {
   }
 
   return (
-    <TimesheetJobPicker
+    <JobPicker
       automationIdPrefix={`SmartTimesheetTable-jobPicker-${row.index}`}
+      ariaLabel={`Job for row ${row.index + 1}`}
       jobs={context.jobs}
       selected={selected}
       disabled={disabled}
+      loading={false}
+      placeholder="Select job…"
+      triggerLabel={(job) => (job === null ? '' : `#${job.job_number}`)}
+      renderTriggerBadge={(job) =>
+        job.is_urgent ? (
+          <span className="ml-1 inline-block rounded bg-red-50 px-1 text-[10px] font-bold text-red-600">
+            !
+          </span>
+        ) : null
+      }
+      renderOptionDetail={(job) => (
+        <>
+          {job.is_urgent && (
+            <span className="mt-0.5 inline-block rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-600">
+              URGENT
+            </span>
+          )}
+          <div className="text-[11px] leading-tight text-slate-400">
+            Rate: ${rateForSubtype(job.labour_rates, null)}/hr
+          </div>
+        </>
+      )}
+      typedSearchLimit={TYPED_SEARCH_LIMIT}
+      // Tab is this grid's forward-commit key: the row chains job → hours →
+      // description by Tab alone, so the picker must commit and hand focus on.
+      commitOnTab
+      useJobSearch={useTimesheetJobSearch}
       entrySeq={gridRow.type === 'server' ? gridRow.line.entry_seq : null}
-      gridRow={row.index}
       onSelect={(job) => {
         if (gridRow.type !== 'draft') return
         context.updateDraft(gridRow.localId, applyJobPick(gridRow.draft, job))
@@ -441,6 +476,10 @@ function RateCell({ row, table }: CellProps) {
       : gridRow.draft.wage_rate_multiplier
   const disabled = gridRow.type === 'draft' && context.isPersisting(gridRow.localId)
 
+  if (context.payBasis === 'salary') {
+    return <span className="text-xs font-medium text-slate-600">Salary</span>
+  }
+
   return (
     <RateSelect
       automationId={`SmartTimesheetTable-rate-${row.index}`}
@@ -640,7 +679,18 @@ const COLUMNS: ColumnDef<typeof editableGridFeatures, TimesheetGridRow>[] = [
   { id: 'actions', header: '', cell: ActionsCell },
 ]
 
-const EDITABLE_COLUMNS = new Set(['hours', 'description', 'labourType', 'rate', 'billRate'])
+// 'jobNumber' is here so DataTable — the one owner of the editable-grid E2E
+// contract — emits data-grid-nav-cell/row/col on the cell. The picker used to
+// carry its own copy on the trigger; nothing read it, and two emitters of one
+// contract is the duplication this grid exists to avoid.
+const EDITABLE_COLUMNS = new Set([
+  'jobNumber',
+  'hours',
+  'description',
+  'labourType',
+  'rate',
+  'billRate',
+])
 
 /**
  * The timesheet entry grid — CostLineGrid's sibling over the shared draft
@@ -656,6 +706,7 @@ export function SmartTimesheetTable({
   staffId,
   date,
   staffWageRate,
+  payBasis,
   patchLine,
   createLine,
   deleteLine,
@@ -715,6 +766,7 @@ export function SmartTimesheetTable({
     jobs,
     payItems,
     staffWageRate,
+    payBasis,
     patchLine,
     deleteLine,
     approveLine,

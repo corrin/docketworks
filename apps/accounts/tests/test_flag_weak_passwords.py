@@ -19,13 +19,13 @@ def _run() -> str:
 @pytest.fixture
 def two_staff() -> tuple[Staff, Staff]:
     first = Staff.objects.create_user(
-        email="first@example.test",
+        office_email="first@example.test",
         password="password-one",
         first_name="First",
         last_name="Person",
     )
     second = Staff.objects.create_user(
-        email="second@example.test",
+        office_email="second@example.test",
         password="password-two",
         first_name="Second",
         last_name="Person",

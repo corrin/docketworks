@@ -29,7 +29,7 @@ from django.db import transaction
 from django.db.models import F
 
 from apps.accounts.models import Staff
-from apps.core.errors import AppErrorContext, persist_app_error
+from apps.core.errors import AppErrorContext, InvalidInputError, persist_app_error
 from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.services.allocation_service import (
@@ -47,7 +47,7 @@ RECEIPTABLE_STATUSES = ("submitted", "partially_received", "fully_received")
 ALLOCATION_TOLERANCE = Decimal("0.001")
 
 
-class DeliveryReceiptValidationError(ValueError):
+class DeliveryReceiptValidationError(InvalidInputError):
     """Raised when receipt allocation validation fails."""
 
 

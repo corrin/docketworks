@@ -82,37 +82,33 @@ The command's contract
    calendar, pay items and selected branding theme against the organisation;
    store the tenant, shortcode, theme and calendar ids.
 3. Sync pay items, then accounts.
-4. Create the nine canonical shop jobs.
-5. Import active staff from Xero — deliberately LAST among the legs, unlike
-   v1's staff-before-shop-jobs order: this leg refuses until the payroll
-   employee API lands, and running it last means everything portable has
-   already completed before the refusal. After that refusal the shop jobs
-   exist; do not expect an empty job table.
-6. Validate completion and set `enable_xero_sync=true` — only after every
-   previous step succeeds.
+4. Create the eleven canonical shop jobs.
+5. Link the fixed leave types to their shop jobs.
+6. Import staff through the normal Xero employee entity sync, deliberately
+   last so payroll configuration exists first.
+7. Set `enable_xero_sync=true` — the sequence's only re-open, reached only
+   after every previous leg succeeds. There is no separate completion
+   validation: each leg enforces its own contract.
 
 Any failure exits non-zero, persists the error, and leaves automated Xero sync
 disabled. Fix the source configuration and rerun the same command; it is
-rerunnable. The staff-import leg refuses loudly until the payroll employee API
-is ported (a recorded Phase 4 deferral; see
-[`v1-disposition.md`](v1-disposition.md)).
+rerunnable.
 
 ## 5. Verify and hand over
 
-- Staff list contains the expected Xero Payroll employees (blocked on the
-  payroll employee API port, as above).
-- Exactly nine shop jobs are present.
+- Staff list contains the expected Xero Payroll employees.
+- Exactly eleven shop jobs are present.
 - Admin > Xero reports connected.
 - A normal Xero sync completes without errors.
 - Test quote and invoice PDFs use the selected branding theme.
 - A DocketWorks-created quote PDF contains the configured quote terms.
 - DocketWorks **Xero quote terms** and Xero **Terms (Quotes)** contain the
   same approved wording.
-- Password reset email works. **Blocked today**: no password-reset email flow
-  exists yet — login reports `password_needs_reset` but nothing sends a reset
-  email — so this item waits on that port.
+- Give each imported staff member a Docketworks password. Imported employees
+  have an unusable password until an administrator sets one; there is no
+  self-service reset flow in this slice.
 - Change the admin password if the one chosen at `createsuperuser` was shared
-  during setup, and have imported staff reset theirs on first login.
+  during setup.
 
 ## Reconfigure is not repair
 

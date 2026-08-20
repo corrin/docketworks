@@ -1,7 +1,11 @@
-"""Error persistence: every exception becomes exactly one ``AppError`` row.
+"""Application error categories and persistence into ``AppError``.
 
-ADR 0019 requires every ``except`` block to persist; ADR 0001 makes marking
+Opus: ADR 0019 requires every ``except`` block to persist; ADR 0001 makes marking
 idempotent so one failure produces one row across all handlers.
+
+Expected domain refusals inherit one of the semantic categories below and
+propagate to the API boundary.  The categories deliberately carry no HTTP
+status: ``apps.core.envelope`` owns that transport mapping.
 
 Integration-specific persistence, job context extraction, and diagnostics
 browsing belong to their owning apps rather than this bottom layer.
@@ -24,6 +28,22 @@ from apps.core.models import AppError
 # metadata *about* the exception, deliberately not a wrapper type — wrapping
 # would destroy the type the HTTP boundary needs to choose a status code.
 _APP_ERROR_ATTR = "__app_error__"
+
+
+class ApplicationError(Exception):
+    """Base for expected domain failures mapped at an application boundary."""
+
+
+class InvalidInputError(ApplicationError):
+    """The requested operation is invalid for the supplied input."""
+
+
+class AccessDeniedError(ApplicationError):
+    """The authenticated principal may not perform the requested operation."""
+
+
+class ConflictError(ApplicationError):
+    """The request conflicts with the current state of another resource."""
 
 
 class _CallerContext(TypedDict):
@@ -188,6 +208,19 @@ def persist_app_error(
         return already_persisted
 
     ctx = context if context is not None else AppErrorContext()
+
+    # Opus: Logged BEFORE the row is written, and unconditionally. This is the
+    # one function every unexpected handler is required to call, and it used to
+    # record the traceback only into the database — so wherever that write does
+    # not survive, the traceback did not exist anywhere. Under pytest the row is
+    # rolled back with the test, which is how a failing payroll integration test
+    # reported `Invalid value for 'date', must not be 'None'` with no stack to
+    # locate it, and diagnosis meant re-querying the vendor. It is placed first
+    # because the write itself can fail (see the deliberate-swallow below), and
+    # the log line is what has to outlive that.
+    logging.getLogger(__name__).log(
+        ctx.severity, "Persisting %s: %s", type(exception).__name__, exception, exc_info=exception
+    )
 
     # Auto-extract caller context if not provided
     caller_context = _extract_caller_context()

@@ -1,6 +1,9 @@
 """Xero accounting provider — delegates to apps/xero auth and contact push."""
 
 import logging
+from collections.abc import Iterator, Sequence
+from datetime import date
+from decimal import Decimal
 from operator import itemgetter
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -25,12 +28,18 @@ from apps.accounting.types import (
     InvoicePayload,
     NewPayrollEmployee,
     PayrollEmployeeRef,
+    PayrollLeaveBalance,
+    PayrollMirrorScope,
+    PayrollSlip,
+    PayRunSyncResult,
     POPayload,
     QuotePayload,
     QuotePdfDocument,
+    StaffWeekPosting,
+    StaffWeekPostResult,
 )
 from apps.core.errors import persist_app_error
-from apps.xero import payroll_employees
+from apps.xero import payroll_employees, payroll_push, payroll_sync
 from apps.xero.active_app import NoActiveXeroAppError, get_active_app, wipe_tokens_and_quota
 from apps.xero.auth import TokenPayload, get_api_client, get_tenant_id, get_valid_token
 from apps.xero.constants import ZERO_UUID
@@ -40,9 +49,31 @@ from apps.xero.models import XeroAccount
 from apps.xero.transforms import process_xero_data
 
 if TYPE_CHECKING:
+    from xero_python.payrollnz import EarningsLine, PaySlip
+
     from apps.company.models import Company
 
 logger = logging.getLogger(__name__)
+
+
+def _slip_units(lines: "list[EarningsLine] | None") -> Decimal:
+    """Total units across one side of a pay slip's earnings lines.
+
+    Xero splits its computed earnings by the API the hours arrived through, so
+    summing the two sides separately is what lets the reconciliation see leave
+    posted as worked time — which pays the same gross and silently fails to
+    debit the leave balance.
+    """
+    return sum(
+        (Decimal(str(line.number_of_units)) for line in lines or [] if line.number_of_units),
+        Decimal("0"),
+    )
+
+
+def _slip_name(slip: "PaySlip") -> str | None:
+    """Xero's denormalised name for the slip's employee, or None if it holds neither part."""
+    parts = [part for part in (slip.first_name, slip.last_name) if part]
+    return " ".join(parts) if parts else None
 
 
 class XeroAccountingProvider:
@@ -615,6 +646,63 @@ class XeroAccountingProvider:
             raise ValueError(f"Xero account '{account_name}' has no account code")
         return account.account_code
 
+    # --- Payroll ---------------------------------------------------------
+    #
+    # Thin delegations to payroll_push/payroll_leave, which hold the Xero
+    # specifics. They live here so apps.timesheet can reach payroll through
+    # the registry without importing apps.xero (ADR 0012).
+
+    supports_payroll = True
+
+    @staticmethod
+    def payroll_calendar_anchor_week() -> tuple[date, date] | None:
+        """Return the calendar's own first postable period, when it has no pay runs yet."""
+        tenant_id = XeroAccountingProvider.payroll_connection_id()
+        return payroll_push.payroll_calendar_anchor_week(tenant_id=tenant_id)
+
+    # Fable: Each payroll delegation below resolves the connected tenant ONCE
+    # (via payroll_connection_id) and threads it down, because the resolution
+    # can answer with the previous organisation for up to five minutes after a
+    # swap (constants.tenant_cache) — one resolution per call means one
+    # organisation per call, never a mix (ADR 0024).
+
+    @staticmethod
+    def refresh_pay_runs() -> PayRunSyncResult:
+        """Re-sync the local pay-run mirror from Xero."""
+        tenant_id = XeroAccountingProvider.payroll_connection_id()
+        return payroll_push.refresh_pay_runs(tenant_id=tenant_id)
+
+    @staticmethod
+    def payroll_connection_id() -> str:
+        """Return the connected Xero tenant id."""
+        return get_tenant_id()
+
+    @staticmethod
+    def sync_payroll_mirror(connection_id: str, scope: PayrollMirrorScope) -> None:
+        """Run the scope's payroll entities through the generic Xero sync engine."""
+        # Call-time import avoids provider -> sync -> provider initialization.
+        from apps.xero.sync import one_way_sync_all_xero_data  # noqa: PLC0415
+
+        entities = {
+            PayrollMirrorScope.AFTER_POST: ("pay_runs",),
+            PayrollMirrorScope.AFTER_SETTLE: ("pay_runs", "pay_slips"),
+        }[scope]
+        for _event in one_way_sync_all_xero_data(entities=entities, xero_tenant_id=connection_id):
+            pass
+
+    @staticmethod
+    def week_posting_status(week_start_date: date) -> list[StaffWeekPosting]:
+        """Report what Xero currently holds for each staff member's week."""
+        tenant_id = XeroAccountingProvider.payroll_connection_id()
+        return payroll_push.week_posting_status(week_start_date, tenant_id=tenant_id)
+
+    @staticmethod
+    def post_payroll_week(
+        connection_id: str, staff_ids: Sequence[UUID], week_start_date: date
+    ) -> Iterator[StaffWeekPostResult]:
+        """Post a week of hours for the given staff, yielding each one's result."""
+        return payroll_push.post_payroll_week(connection_id, staff_ids, week_start_date)
+
     # --- Payroll employees ---
     #
     # Thin delegations to payroll_employees, which holds the Xero specifics.
@@ -625,6 +713,45 @@ class XeroAccountingProvider:
     def list_payroll_employees() -> list[PayrollEmployeeRef]:
         """See AccountingProvider.list_payroll_employees."""
         return payroll_employees.get_employees()
+
+    @staticmethod
+    def get_payroll_leave_balances(employee_external_id: str) -> list[PayrollLeaveBalance]:
+        """See AccountingProvider.get_payroll_leave_balances."""
+        return payroll_employees.get_employee_leave_balances(employee_external_id)
+
+    @staticmethod
+    def get_pay_slips_for_week(week_start_date: date) -> list[PayrollSlip]:
+        """See AccountingProvider.get_pay_slips_for_week."""
+        # Opus: Asked of Xero, not of the local XeroPayRun mirror. The mirror is
+        # only as fresh as the last refresh, and a stale one makes this report
+        # "Xero has no pay run" — which reads as "Xero paid nobody" on a page
+        # whose entire job is spotting people Xero paid. Refreshing the mirror
+        # here is not the alternative: this is a GET, and refresh_pay_runs
+        # deletes and recreates rows.
+        tenant_id = XeroAccountingProvider.payroll_connection_id()
+        pay_run = payroll_push.find_live_pay_run_for_week(week_start_date, tenant_id=tenant_id)
+        if pay_run is None:
+            return []
+        slips: list[PayrollSlip] = []
+        for slip in payroll_sync.get_pay_slips_for_run(
+            pay_run.pay_run_id, xero_tenant_id=tenant_id
+        ):
+            # Opus: Hours and gross come from the SDK object rather than
+            # transform_pay_slip, which writes a XeroPaySlip mirror row. A live
+            # read of a Draft run must not overwrite the mirror the Posted-run
+            # reconciliation reads.
+            timesheet_hours = _slip_units(slip.timesheet_earnings_lines)
+            leave_hours = _slip_units(slip.leave_earnings_lines)
+            slips.append(
+                PayrollSlip(
+                    employee_external_id=str(slip.employee_id),
+                    employee_name=_slip_name(slip),
+                    timesheet_hours=timesheet_hours,
+                    leave_hours=leave_hours,
+                    gross_earnings=Decimal(str(slip.gross_earnings or 0)),
+                )
+            )
+        return slips
 
     @staticmethod
     def create_payroll_employee(spec: NewPayrollEmployee) -> PayrollEmployeeRef:

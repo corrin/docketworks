@@ -2031,54 +2031,6 @@ export type CostSetSummaryOut = {
 };
 
 /**
- * CreatePayRunRequest
- *
- * Wire contract for CreatePayRunRequest.
- */
-export type CreatePayRunRequest = {
-    /**
-     * Week Start Date
-     */
-    week_start_date: string;
-};
-
-/**
- * CreatePayRunResponse
- *
- * Wire contract for CreatePayRunResponse.
- */
-export type CreatePayRunResponse = {
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Payment Date
-     */
-    payment_date: string;
-    /**
-     * Period End Date
-     */
-    period_end_date: string;
-    /**
-     * Period Start Date
-     */
-    period_start_date: string;
-    /**
-     * Status
-     */
-    status: string;
-    /**
-     * Xero Id
-     */
-    xero_id: string;
-    /**
-     * Xero Url
-     */
-    xero_url: string;
-};
-
-/**
  * DailyTimesheetSummaryOut
  *
  * Daily timesheet summary returned by the API.
@@ -4192,6 +4144,51 @@ export type JobMetricsOut = {
 };
 
 /**
+ * JobOptionOut
+ *
+ * A job as a picker draws it, and nothing more.
+ *
+ * The narrow list the admin mapping screens need. The domain job lists
+ * (JobForPurchasing, TimesheetJobOut) stay separate on purpose: they carry
+ * the stock-holding flag and labour rates their own screens price work with,
+ * which no picker renders.
+ */
+export type JobOptionOut = {
+    /**
+     * Company Name
+     */
+    company_name: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Job Number
+     */
+    job_number: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Status
+     */
+    status: string;
+};
+
+/**
+ * JobOptionsResponse
+ *
+ * Wire contract for JobOptionsResponse.
+ */
+export type JobOptionsResponse = {
+    /**
+     * Jobs
+     */
+    jobs: Array<JobOptionOut>;
+};
+
+/**
  * JobQuoteAcceptanceResponse
  *
  * Wire contract for JobQuoteAcceptanceResponse.
@@ -5180,6 +5177,411 @@ export type LabourSubtypeOut = {
 };
 
 /**
+ * LeaveBalanceOut
+ *
+ * Live provider leave balance.
+ */
+export type LeaveBalanceOut = {
+    /**
+     * Balance
+     */
+    balance: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Unit
+     */
+    unit: string;
+};
+
+export type LeaveCodeOut = 'annual_leave' | 'sick_leave' | 'unpaid_leave' | 'bereavement_leave' | 'public_holiday';
+
+/**
+ * LeaveDayInput
+ *
+ * Operator-selected hours for one proposed date.
+ */
+export type LeaveDayInput = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Hours
+     */
+    hours: number;
+};
+
+/**
+ * LeaveDayOut
+ *
+ * Persisted leave day and payroll-line identity.
+ */
+export type LeaveDayOut = {
+    /**
+     * Cost Line Id
+     */
+    cost_line_id: string;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Hours
+     */
+    hours: number;
+    /**
+     * Id
+     */
+    id: string;
+};
+
+/**
+ * LeaveListOut
+ *
+ * Current or history leave listing.
+ */
+export type LeaveListOut = {
+    /**
+     * Requests
+     */
+    requests: Array<LeaveRequestOut>;
+    /**
+     * Scope
+     */
+    scope: 'current' | 'history';
+    summary: LeaveSummaryOut;
+};
+
+/**
+ * LeavePreviewDayOut
+ *
+ * Scheduled date availability.
+ */
+export type LeavePreviewDayOut = {
+    /**
+     * Available
+     */
+    available: boolean;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Hours
+     */
+    hours: number;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * Scheduled Hours
+     */
+    scheduled_hours: number;
+};
+
+/**
+ * LeavePreviewOut
+ *
+ * One employee's range preview.
+ */
+export type LeavePreviewOut = {
+    /**
+     * Available Hours
+     */
+    available_hours: number;
+    /**
+     * Days
+     */
+    days: Array<LeavePreviewDayOut>;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+};
+
+/**
+ * LeavePreviewRequest
+ *
+ * Employee and inclusive range to preview.
+ */
+export type LeavePreviewRequest = {
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+};
+
+/**
+ * LeaveRequestOut
+ *
+ * Persisted leave request.
+ */
+export type LeaveRequestOut = {
+    /**
+     * Batch Id
+     */
+    batch_id: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Days
+     */
+    days: Array<LeaveDayOut>;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Leave Type Code
+     */
+    leave_type_code: string;
+    /**
+     * Leave Type Name
+     */
+    leave_type_name: string;
+    /**
+     * Note
+     */
+    note: string | null;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * Total Hours
+     */
+    total_hours: number;
+};
+
+/**
+ * LeaveRequestUpdate
+ *
+ * Replace an existing leave request.
+ */
+export type LeaveRequestUpdate = {
+    /**
+     * Days
+     */
+    days: Array<LeaveDayInput>;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Leave Type Code
+     */
+    leave_type_code: string;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Start Date
+     */
+    start_date: string;
+};
+
+/**
+ * LeaveRequestWrite
+ *
+ * Create a first-class leave request.
+ */
+export type LeaveRequestWrite = {
+    /**
+     * Days
+     */
+    days: Array<LeaveDayInput>;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Leave Type Code
+     */
+    leave_type_code: string;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+};
+
+/**
+ * LeaveSaveOut
+ *
+ * Saved request and any conflicts skipped at commit.
+ */
+export type LeaveSaveOut = {
+    request: LeaveRequestOut;
+    /**
+     * Skipped Days
+     */
+    skipped_days: Array<LeavePreviewDayOut>;
+};
+
+/**
+ * LeaveSettingsOut
+ *
+ * Leave mapping administration data.
+ */
+export type LeaveSettingsOut = {
+    /**
+     * Leave Types
+     */
+    leave_types: Array<LeaveTypeOut>;
+};
+
+/**
+ * LeaveSettingsUpdate
+ *
+ * Every mapping the settings page changed, saved as one transaction.
+ */
+export type LeaveSettingsUpdate = {
+    /**
+     * Leave Types
+     */
+    leave_types: Array<LeaveTypeUpdate>;
+};
+
+/**
+ * LeaveSummaryOut
+ *
+ * Quick figures over the filtered request set.
+ */
+export type LeaveSummaryOut = {
+    /**
+     * Away Today
+     */
+    away_today: number;
+    /**
+     * Upcoming Hours
+     */
+    upcoming_hours: number;
+    /**
+     * Upcoming Requests
+     */
+    upcoming_requests: number;
+};
+
+/**
+ * LeaveTypeOut
+ *
+ * Fixed Docketworks type and its effective mapping.
+ */
+export type LeaveTypeOut = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Configured
+     */
+    configured: boolean;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Job Id
+     */
+    job_id: string | null;
+    /**
+     * Job Name
+     */
+    job_name: string | null;
+    posting_surface: PostingSurfaceOut;
+    /**
+     * Xero Pay Item Id
+     */
+    xero_pay_item_id: string | null;
+    /**
+     * Xero Pay Item Name
+     */
+    xero_pay_item_name: string | null;
+};
+
+/**
+ * LeaveTypeUpdate
+ *
+ * Editable fields for one fixed leave code.
+ *
+ * Fable: ``xero_pay_item_id`` is required-but-nullable, not optional: null is
+ * a statement, and it is the only truthful one for the ``xero_computed``
+ * surface, which has no Xero object to name. Requiring a UUID here made every
+ * save containing a public-holiday edit fail validation for a field the row
+ * cannot have, and the atomic batch took the other rows down with it. The
+ * service still refuses the two dishonest combinations (a pay item on
+ * ``xero_computed``, null on a surface that posts).
+ */
+export type LeaveTypeUpdate = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Xero Pay Item Id
+     */
+    xero_pay_item_id: string | null;
+};
+
+/**
  * LoginRequest
  *
  * Wire contract for LoginRequest.
@@ -5402,6 +5804,74 @@ export type NotebookLmLinkOut = {
      * Url
      */
     url: string;
+};
+
+/**
+ * OfficeClosureOut
+ *
+ * Batched requests created for an office closure.
+ */
+export type OfficeClosureOut = {
+    /**
+     * Batch Id
+     */
+    batch_id: string;
+    /**
+     * Requests
+     */
+    requests: Array<LeaveRequestOut>;
+    /**
+     * Skipped Days
+     */
+    skipped_days: Array<LeavePreviewDayOut>;
+};
+
+/**
+ * OfficeClosurePreviewOut
+ *
+ * Staff and hours affected by an office closure.
+ */
+export type OfficeClosurePreviewOut = {
+    /**
+     * Available Hours
+     */
+    available_hours: number;
+    /**
+     * Available Staff
+     */
+    available_staff: number;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Staff
+     */
+    staff: Array<LeavePreviewOut>;
+    /**
+     * Start Date
+     */
+    start_date: string;
+};
+
+/**
+ * OfficeClosureWrite
+ *
+ * Inclusive closure range and optional note.
+ */
+export type OfficeClosureWrite = {
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Start Date
+     */
+    start_date: string;
 };
 
 /**
@@ -5800,30 +6270,6 @@ export type PayRunListResponse = {
 };
 
 /**
- * PayRunSyncResponse
- *
- * Wire contract for PayRunSyncResponse.
- */
-export type PayRunSyncResponse = {
-    /**
-     * Created
-     */
-    created: number;
-    /**
-     * Fetched
-     */
-    fetched: number;
-    /**
-     * Synced
-     */
-    synced: boolean;
-    /**
-     * Updated
-     */
-    updated: number;
-};
-
-/**
  * PayrollDateRangeResponse
  *
  * Wire contract for PayrollDateRangeResponse.
@@ -5864,25 +6310,41 @@ export type PayrollGrandTotalsOut = {
 };
 
 /**
+ * PayrollHeatmapColumnOut
+ *
+ * One staff column: the join key and the display name.
+ */
+export type PayrollHeatmapColumnOut = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
  * PayrollHeatmapOut
  *
  * Wire contract for PayrollHeatmapOut.
  */
 export type PayrollHeatmapOut = {
     /**
+     * Columns
+     */
+    columns: Array<PayrollHeatmapColumnOut>;
+    /**
      * Rows
      */
     rows: Array<PayrollHeatmapRowOut>;
-    /**
-     * Staff Names
-     */
-    staff_names: Array<string>;
 };
 
 /**
  * PayrollHeatmapRowOut
  *
- * Wire contract for PayrollHeatmapRowOut.
+ * Wire contract for PayrollHeatmapRowOut. Cells are keyed by staff key.
  */
 export type PayrollHeatmapRowOut = {
     /**
@@ -5896,6 +6358,67 @@ export type PayrollHeatmapRowOut = {
      */
     week_start: string;
 };
+
+/**
+ * PayrollPostRunOut
+ *
+ * The whole state of a payroll posting run.
+ *
+ * Opus: Latest-state-wins, the contract ADR 0047 already proves with
+ * data-versions: every push carries the complete current document, so a client
+ * that connects late, reconnects, or reloads needs no replay and no offset —
+ * it needs the present. The append-only event log this replaces existed to
+ * make replay exact, which is a problem this shape does not have.
+ *
+ * `updated_at` is the ordering guard. A catch-up read can be in flight when a
+ * push lands, and the older answer would otherwise overwrite a finished run
+ * with a running one, leaving a panel spinning forever.
+ */
+export type PayrollPostRunOut = {
+    /**
+     * Completed
+     */
+    completed: number;
+    /**
+     * Current Staff Name
+     */
+    current_staff_name: string | null;
+    /**
+     * Failed
+     */
+    failed: number;
+    /**
+     * Message
+     */
+    message: string | null;
+    /**
+     * Results
+     */
+    results: Array<StaffWeekPostResultOut>;
+    /**
+     * Run Id
+     */
+    run_id: string;
+    status: PayrollRunStatus;
+    /**
+     * Successful
+     */
+    successful: number;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Week Start Date
+     */
+    week_start_date: string;
+};
+
+export type PayrollPostingMode = 'timesheet' | 'salary';
 
 /**
  * PayrollReconciliationResponse
@@ -5913,6 +6436,24 @@ export type PayrollReconciliationResponse = {
      * Weeks
      */
     weeks: Array<PayrollWeekOut>;
+};
+
+export type PayrollRowStatus = 'ok' | 'mismatch' | 'jm_only' | 'xero_only_salaried' | 'xero_only_departed' | 'xero_only_unposted' | 'xero_only_unknown';
+
+export type PayrollRunStatus = 'running' | 'succeeded' | 'failed';
+
+/**
+ * PayrollRunsOut
+ *
+ * Every payroll run this organisation currently has state for.
+ *
+ * Opus: A named slot rather than a discriminated union: the slot IS the kind, so
+ * TypeScript narrows by field access with no ceremony. A second kind — the
+ * comparison run — becomes a second slot, and the frontend's exhaustiveness
+ * check makes forgetting to handle it a compile error.
+ */
+export type PayrollRunsOut = {
+    post: PayrollPostRunOut | null;
 };
 
 /**
@@ -5941,6 +6482,10 @@ export type PayrollStaffSummaryOut = {
      * Jm Hours
      */
     jm_hours: number;
+    /**
+     * Key
+     */
+    key: string;
     /**
      * Name
      */
@@ -5986,6 +6531,10 @@ export type PayrollStaffWeekRowOut = {
      */
     hours_diff: number;
     /**
+     * Jm Base Pay
+     */
+    jm_base_pay: number;
+    /**
      * Jm Cost
      */
     jm_cost: number;
@@ -5998,17 +6547,22 @@ export type PayrollStaffWeekRowOut = {
      */
     jm_rate: number;
     /**
+     * Key
+     */
+    key: string;
+    /**
      * Name
      */
     name: string;
     /**
+     * Pay Diff
+     */
+    pay_diff: number;
+    /**
      * Rate Cost Impact
      */
     rate_cost_impact: number;
-    /**
-     * Status
-     */
-    status: string;
+    status: PayrollRowStatus;
     /**
      * Xero Gross
      */
@@ -6065,6 +6619,20 @@ export type PayrollWeekOut = {
 };
 
 /**
+ * PayrollWeekReconciliationResponse
+ *
+ * One payroll week reconciled live against the provider.
+ */
+export type PayrollWeekReconciliationResponse = {
+    /**
+     * Unposted Count
+     */
+    unposted_count: number;
+    week: PayrollWeekOut;
+    xero_source: PayrollXeroSource;
+};
+
+/**
  * PayrollWeekTotalsOut
  *
  * Wire contract for PayrollWeekTotalsOut.
@@ -6075,6 +6643,10 @@ export type PayrollWeekTotalsOut = {
      */
     diff: number;
     /**
+     * Jm Base Pay
+     */
+    jm_base_pay: number;
+    /**
      * Jm Cost
      */
     jm_cost: number;
@@ -6082,6 +6654,10 @@ export type PayrollWeekTotalsOut = {
      * Jm Hours
      */
     jm_hours: number;
+    /**
+     * Pay Diff
+     */
+    pay_diff: number;
     /**
      * Xero Gross
      */
@@ -6091,6 +6667,8 @@ export type PayrollWeekTotalsOut = {
      */
     xero_hours: number;
 };
+
+export type PayrollXeroSource = 'live_run' | 'no_pay_run';
 
 /**
  * PeriodSummaryOut
@@ -7313,12 +7891,14 @@ export type PipelineWarningOut = {
  * PostWeekToXeroRequest
  *
  * Wire contract for PostWeekToXeroRequest.
+ *
+ * Fable: The week alone. The staff are derived server-side from the same
+ * filter the weekly grid answers from, and the postable-week rule is
+ * enforced server-side on a freshly refreshed mirror — a client that named
+ * the roster could relay a stale grid, and one that judged postability
+ * judged it from an hour-old read.
  */
 export type PostWeekToXeroRequest = {
-    /**
-     * Staff Ids
-     */
-    staff_ids: Array<string>;
     /**
      * Week Start Date
      */
@@ -7329,17 +7909,16 @@ export type PostWeekToXeroRequest = {
  * PostWeekToXeroStartResponse
  *
  * Wire contract for PostWeekToXeroStartResponse.
+ *
+ * Opus: Returns the run's opening document rather than a `stream_url`. The panel
+ * can render "0 of N" before any push arrives, and the stream path is a client
+ * constant like `data-versions-stream.ts`'s — a URL is not a contract.
  */
 export type PostWeekToXeroStartResponse = {
-    /**
-     * Stream Url
-     */
-    stream_url: string;
-    /**
-     * Task Id
-     */
-    task_id: string;
+    run: PayrollPostRunOut;
 };
+
+export type PostingSurfaceOut = 'timesheet' | 'leave_api' | 'xero_computed';
 
 /**
  * ProductMapping
@@ -8632,6 +9211,10 @@ export type StaffDailyDataOut = {
      */
     completion_percentage: number;
     /**
+     * Day Status
+     */
+    day_status: string;
+    /**
      * Entry Count
      */
     entry_count: number;
@@ -8667,14 +9250,6 @@ export type StaffDailyDataOut = {
      * Staff Name
      */
     staff_name: string;
-    /**
-     * Status
-     */
-    status: string;
-    /**
-     * Status Class
-     */
-    status_class: string;
     /**
      * Total Cost
      */
@@ -8756,9 +9331,9 @@ export type StaffListItemOut = {
      */
     date_left: string | null;
     /**
-     * Email
+     * Employment Start Date
      */
-    email: string;
+    employment_start_date: string;
     /**
      * First Name
      */
@@ -8775,6 +9350,18 @@ export type StaffListItemOut = {
      * Last Name
      */
     last_name: string;
+    /**
+     * Office Email
+     */
+    office_email: string;
+    /**
+     * Pay Basis
+     */
+    pay_basis: string | null;
+    /**
+     * Payroll Email
+     */
+    payroll_email: string | null;
     /**
      * Wage Rate
      */
@@ -8865,6 +9452,115 @@ export type StaffPerformanceResponse = {
      */
     staff: Array<StaffMetricsOut>;
     team_averages: TeamAveragesOut;
+};
+
+/**
+ * StaffWeekPostResultOut
+ *
+ * One staff member's outcome, as the run reports it.
+ *
+ * Opus: Built by `model_validate` off the frozen `StaffWeekPostResult` dataclass
+ * rather than a hand-written flattening step. The flattening was a second
+ * declaration of these fields, and a third lived in TypeScript.
+ */
+export type StaffWeekPostResultOut = {
+    /**
+     * Entries Posted
+     */
+    entries_posted: number;
+    /**
+     * Error
+     */
+    error: string | null;
+    /**
+     * Has Entries
+     */
+    has_entries: boolean;
+    /**
+     * Leave Hours
+     */
+    leave_hours: number;
+    /**
+     * Other Leave Hours
+     */
+    other_leave_hours: number;
+    posting_mode: PayrollPostingMode;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * Salary Timesheet Removed
+     */
+    salary_timesheet_removed: boolean;
+    /**
+     * Skipped
+     */
+    skipped: boolean;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+    /**
+     * Success
+     */
+    success: boolean;
+    /**
+     * Timesheet Id
+     */
+    timesheet_id: string | null;
+    /**
+     * Work Hours
+     */
+    work_hours: number;
+};
+
+/**
+ * StaffWeekPostingOut
+ *
+ * Wire contract for StaffWeekPostingOut.
+ */
+export type StaffWeekPostingOut = {
+    /**
+     * Matches
+     */
+    matches: boolean;
+    /**
+     * Pay Basis
+     */
+    pay_basis: string | null;
+    /**
+     * Posted
+     */
+    posted: boolean;
+    /**
+     * Posted Leave Hours
+     */
+    posted_leave_hours: number;
+    /**
+     * Posted Timesheet Hours
+     */
+    posted_timesheet_hours: number;
+    /**
+     * Recorded Leave Hours
+     */
+    recorded_leave_hours: number;
+    /**
+     * Recorded Timesheet Hours
+     */
+    recorded_timesheet_hours: number;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Timesheet Status
+     */
+    timesheet_status: string | null;
 };
 
 /**
@@ -9850,10 +10546,6 @@ export type TimesheetJobOut = {
      */
     labour_rates: Array<JobLabourRateOut>;
     /**
-     * Leave Type
-     */
-    leave_type: string | null;
-    /**
      * Name
      */
     name: string;
@@ -9874,10 +10566,6 @@ export type TimesheetJobOut = {
  */
 export type TimesheetStaffOut = {
     /**
-     * Email
-     */
-    email: string;
-    /**
      * Firstname
      */
     firstName: string;
@@ -9897,6 +10585,14 @@ export type TimesheetStaffOut = {
      * Name
      */
     name: string;
+    /**
+     * Office Email
+     */
+    office_email: string;
+    /**
+     * Pay Basis
+     */
+    pay_basis: string | null;
     /**
      * Wagerate
      */
@@ -9936,10 +10632,6 @@ export type TokenRefreshResponse = {
  */
 export type UserProfile = {
     /**
-     * Email
-     */
-    email: string;
-    /**
      * First Name
      */
     first_name: string;
@@ -9964,13 +10656,17 @@ export type UserProfile = {
      */
     last_name: string;
     /**
+     * Office Email
+     */
+    office_email: string;
+    /**
+     * Payroll Email
+     */
+    payroll_email: string | null;
+    /**
      * Preferred Name
      */
     preferred_name: string | null;
-    /**
-     * Username
-     */
-    username: string;
 };
 
 /**
@@ -10115,6 +10811,22 @@ export type WipSummaryOut = {
 };
 
 /**
+ * WeekPostingStatusResponse
+ *
+ * Wire contract for WeekPostingStatusResponse.
+ */
+export type WeekPostingStatusResponse = {
+    /**
+     * Staff
+     */
+    staff: Array<StaffWeekPostingOut>;
+    /**
+     * Week Start Date
+     */
+    week_start_date: string;
+};
+
+/**
  * WeeklyNavigationOut
  *
  * Previous, next, and current week links in the weekly payload.
@@ -10145,17 +10857,21 @@ export type WeeklyStaffDataOut = {
      */
     billable_percentage: number;
     /**
-     * Name
+     * Expected Hours
      */
-    name: string;
+    expected_hours: number;
+    /**
+     * Pay Basis
+     */
+    pay_basis: string | null;
     /**
      * Staff Id
      */
     staff_id: string;
     /**
-     * Status
+     * Staff Name
      */
-    status: string;
+    staff_name: string;
     /**
      * Total Annual Leave Hours
      */
@@ -10176,6 +10892,10 @@ export type WeeklyStaffDataOut = {
      * Total Hours
      */
     total_hours: number;
+    /**
+     * Total Other Leave Hours
+     */
+    total_other_leave_hours: number;
     /**
      * Total Overtime 1 5X Hours
      */
@@ -10200,6 +10920,14 @@ export type WeeklyStaffDataOut = {
      * Total Unbilled Hours
      */
     total_unbilled_hours: number;
+    /**
+     * Variance Hours
+     */
+    variance_hours: number;
+    /**
+     * Week Status
+     */
+    week_status: string;
     /**
      * Weekly Base Cost
      */
@@ -10249,6 +10977,10 @@ export type WeeklyStaffDayOut = {
      */
     day: string;
     /**
+     * Day Status
+     */
+    day_status: string;
+    /**
      * Has Leave
      */
     has_leave: boolean;
@@ -10256,10 +10988,11 @@ export type WeeklyStaffDayOut = {
      * Hours
      */
     hours: number;
+    leave_type: LeaveCodeOut | null;
     /**
-     * Leave Type
+     * Other Leave Hours
      */
-    leave_type: string | null;
+    other_leave_hours: number;
     /**
      * Overtime 1 5X Hours
      */
@@ -10276,10 +11009,6 @@ export type WeeklyStaffDayOut = {
      * Sick Leave Hours
      */
     sick_leave_hours: number;
-    /**
-     * Status
-     */
-    status: string;
     /**
      * Unbilled Hours
      */
@@ -11240,6 +11969,27 @@ export type AccountingReportsPayrollReconciliationRetrieveResponses = {
 };
 
 export type AccountingReportsPayrollReconciliationRetrieveResponse = AccountingReportsPayrollReconciliationRetrieveResponses[keyof AccountingReportsPayrollReconciliationRetrieveResponses];
+
+export type AccountingReportsPayrollWeekReconciliationRetrieveData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Week Start Date
+         */
+        week_start_date: string;
+    };
+    url: '/api/accounting/reports/payroll-reconciliation/week/';
+};
+
+export type AccountingReportsPayrollWeekReconciliationRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: PayrollWeekReconciliationResponse;
+};
+
+export type AccountingReportsPayrollWeekReconciliationRetrieveResponse = AccountingReportsPayrollWeekReconciliationRetrieveResponses[keyof AccountingReportsPayrollWeekReconciliationRetrieveResponses];
 
 export type AccountingReportsProfitAndLossRetrieveData = {
     body?: never;
@@ -13174,6 +13924,27 @@ export type GetKanbanChangesResponses = {
 
 export type GetKanbanChangesResponse = GetKanbanChangesResponses[keyof GetKanbanChangesResponses];
 
+export type JobJobsOptionsListData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Status
+         */
+        status: string;
+    };
+    url: '/api/job/jobs/options/';
+};
+
+export type JobJobsOptionsListResponses = {
+    /**
+     * OK
+     */
+    200: JobOptionsResponse;
+};
+
+export type JobJobsOptionsListResponse = JobJobsOptionsListResponses[keyof JobJobsOptionsListResponses];
+
 export type JobJobsStatusChoicesRetrieveData = {
     body?: never;
     path?: never;
@@ -14518,7 +15289,12 @@ export type PeopleContactMethodsPartialUpdateResponse = PeopleContactMethodsPart
 export type PurchasingAllJobsRetrieveData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string;
+    };
     url: '/api/purchasing/all-jobs/';
 };
 
@@ -15193,7 +15969,12 @@ export type GetDailyTimesheetSummaryByDateResponse = GetDailyTimesheetSummaryByD
 export type TimesheetsJobsRetrieveData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string;
+    };
     url: '/api/timesheets/jobs/';
 };
 
@@ -15205,6 +15986,194 @@ export type TimesheetsJobsRetrieveResponses = {
 };
 
 export type TimesheetsJobsRetrieveResponse = TimesheetsJobsRetrieveResponses[keyof TimesheetsJobsRetrieveResponses];
+
+export type TimesheetsLeaveSettingsRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/leave-settings/';
+};
+
+export type TimesheetsLeaveSettingsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: LeaveSettingsOut;
+};
+
+export type TimesheetsLeaveSettingsRetrieveResponse = TimesheetsLeaveSettingsRetrieveResponses[keyof TimesheetsLeaveSettingsRetrieveResponses];
+
+export type TimesheetsLeaveSettingsUpdateData = {
+    body: LeaveSettingsUpdate;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/leave-settings/';
+};
+
+export type TimesheetsLeaveSettingsUpdateResponses = {
+    /**
+     * OK
+     */
+    200: LeaveSettingsOut;
+};
+
+export type TimesheetsLeaveSettingsUpdateResponse = TimesheetsLeaveSettingsUpdateResponses[keyof TimesheetsLeaveSettingsUpdateResponses];
+
+export type TimesheetsLeaveBalanceRetrieveData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Staff Id
+         */
+        staff_id: string;
+        /**
+         * Leave Type Code
+         */
+        leave_type_code: string;
+    };
+    url: '/api/timesheets/leave/balance/';
+};
+
+export type TimesheetsLeaveBalanceRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: LeaveBalanceOut;
+};
+
+export type TimesheetsLeaveBalanceRetrieveResponse = TimesheetsLeaveBalanceRetrieveResponses[keyof TimesheetsLeaveBalanceRetrieveResponses];
+
+export type TimesheetsLeaveOfficeClosureCreateData = {
+    body: OfficeClosureWrite;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/leave/office-closure/';
+};
+
+export type TimesheetsLeaveOfficeClosureCreateResponses = {
+    /**
+     * OK
+     */
+    200: OfficeClosureOut;
+};
+
+export type TimesheetsLeaveOfficeClosureCreateResponse = TimesheetsLeaveOfficeClosureCreateResponses[keyof TimesheetsLeaveOfficeClosureCreateResponses];
+
+export type TimesheetsLeaveOfficeClosurePreviewCreateData = {
+    body: OfficeClosureWrite;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/leave/office-closure/preview/';
+};
+
+export type TimesheetsLeaveOfficeClosurePreviewCreateResponses = {
+    /**
+     * OK
+     */
+    200: OfficeClosurePreviewOut;
+};
+
+export type TimesheetsLeaveOfficeClosurePreviewCreateResponse = TimesheetsLeaveOfficeClosurePreviewCreateResponses[keyof TimesheetsLeaveOfficeClosurePreviewCreateResponses];
+
+export type TimesheetsLeavePreviewCreateData = {
+    body: LeavePreviewRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/leave/preview/';
+};
+
+export type TimesheetsLeavePreviewCreateResponses = {
+    /**
+     * OK
+     */
+    200: LeavePreviewOut;
+};
+
+export type TimesheetsLeavePreviewCreateResponse = TimesheetsLeavePreviewCreateResponses[keyof TimesheetsLeavePreviewCreateResponses];
+
+export type TimesheetsLeaveRequestsListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Scope
+         */
+        scope?: 'current' | 'history';
+        /**
+         * Search
+         */
+        search?: string;
+    };
+    url: '/api/timesheets/leave/requests/';
+};
+
+export type TimesheetsLeaveRequestsListResponses = {
+    /**
+     * OK
+     */
+    200: LeaveListOut;
+};
+
+export type TimesheetsLeaveRequestsListResponse = TimesheetsLeaveRequestsListResponses[keyof TimesheetsLeaveRequestsListResponses];
+
+export type TimesheetsLeaveRequestsCreateData = {
+    body: LeaveRequestWrite;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/leave/requests/';
+};
+
+export type TimesheetsLeaveRequestsCreateResponses = {
+    /**
+     * OK
+     */
+    200: LeaveSaveOut;
+};
+
+export type TimesheetsLeaveRequestsCreateResponse = TimesheetsLeaveRequestsCreateResponses[keyof TimesheetsLeaveRequestsCreateResponses];
+
+export type TimesheetsLeaveRequestsDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Request Id
+         */
+        request_id: string;
+    };
+    query?: never;
+    url: '/api/timesheets/leave/requests/{request_id}/';
+};
+
+export type TimesheetsLeaveRequestsDeleteResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type TimesheetsLeaveRequestsDeleteResponse = TimesheetsLeaveRequestsDeleteResponses[keyof TimesheetsLeaveRequestsDeleteResponses];
+
+export type TimesheetsLeaveRequestsUpdateData = {
+    body: LeaveRequestUpdate;
+    path: {
+        /**
+         * Request Id
+         */
+        request_id: string;
+    };
+    query?: never;
+    url: '/api/timesheets/leave/requests/{request_id}/';
+};
+
+export type TimesheetsLeaveRequestsUpdateResponses = {
+    /**
+     * OK
+     */
+    200: LeaveSaveOut;
+};
+
+export type TimesheetsLeaveRequestsUpdateResponse = TimesheetsLeaveRequestsUpdateResponses[keyof TimesheetsLeaveRequestsUpdateResponses];
 
 export type TimesheetsPayrollPayRunsRetrieveData = {
     body?: never;
@@ -15222,38 +16191,6 @@ export type TimesheetsPayrollPayRunsRetrieveResponses = {
 
 export type TimesheetsPayrollPayRunsRetrieveResponse = TimesheetsPayrollPayRunsRetrieveResponses[keyof TimesheetsPayrollPayRunsRetrieveResponses];
 
-export type TimesheetsPayrollPayRunsCreateCreateData = {
-    body: CreatePayRunRequest;
-    path?: never;
-    query?: never;
-    url: '/api/timesheets/payroll/pay-runs/create';
-};
-
-export type TimesheetsPayrollPayRunsCreateCreateResponses = {
-    /**
-     * Created
-     */
-    201: CreatePayRunResponse;
-};
-
-export type TimesheetsPayrollPayRunsCreateCreateResponse = TimesheetsPayrollPayRunsCreateCreateResponses[keyof TimesheetsPayrollPayRunsCreateCreateResponses];
-
-export type TimesheetsPayrollPayRunsRefreshCreateData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/timesheets/payroll/pay-runs/refresh';
-};
-
-export type TimesheetsPayrollPayRunsRefreshCreateResponses = {
-    /**
-     * OK
-     */
-    200: PayRunSyncResponse;
-};
-
-export type TimesheetsPayrollPayRunsRefreshCreateResponse = TimesheetsPayrollPayRunsRefreshCreateResponses[keyof TimesheetsPayrollPayRunsRefreshCreateResponses];
-
 export type TimesheetsPayrollPostStaffWeekCreateData = {
     body: PostWeekToXeroRequest;
     path?: never;
@@ -15269,6 +16206,43 @@ export type TimesheetsPayrollPostStaffWeekCreateResponses = {
 };
 
 export type TimesheetsPayrollPostStaffWeekCreateResponse = TimesheetsPayrollPostStaffWeekCreateResponses[keyof TimesheetsPayrollPostStaffWeekCreateResponses];
+
+export type TimesheetsPayrollRunsRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/payroll/runs/';
+};
+
+export type TimesheetsPayrollRunsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: PayrollRunsOut;
+};
+
+export type TimesheetsPayrollRunsRetrieveResponse = TimesheetsPayrollRunsRetrieveResponses[keyof TimesheetsPayrollRunsRetrieveResponses];
+
+export type TimesheetsPayrollWeekStatusRetrieveData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Week Start Date
+         */
+        week_start_date: string;
+    };
+    url: '/api/timesheets/payroll/week-status/';
+};
+
+export type TimesheetsPayrollWeekStatusRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: WeekPostingStatusResponse;
+};
+
+export type TimesheetsPayrollWeekStatusRetrieveResponse = TimesheetsPayrollWeekStatusRetrieveResponses[keyof TimesheetsPayrollWeekStatusRetrieveResponses];
 
 export type TimesheetsStaffRetrieveData = {
     body?: never;

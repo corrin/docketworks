@@ -15,7 +15,6 @@ calendar).
 import logging
 from uuid import UUID
 
-from django.core.cache import cache
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from xero_python.accounting import AccountingApi
 from xero_python.identity import IdentityApi
@@ -28,7 +27,7 @@ from apps.accounting.services.document_theme import (
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.xero.auth import get_api_client, get_valid_token
-from apps.xero.constants import TENANT_ID_CACHE_KEY
+from apps.xero.constants import TENANT_ID_CACHE_KEY, tenant_cache
 from apps.xero.operator_guards import assert_not_production_target, assert_xero_writes_enabled
 from apps.xero.payroll_setup import (
     ensure_demo_pay_items_exist,
@@ -155,7 +154,7 @@ class Command(BaseCommand):
         # on the unset-after-restore theme. Only the cache is pointed at the
         # new tenant (the resolvers below resolve through it), and it is
         # dropped on any failure so the next call re-resolves from the DB.
-        cache.set(TENANT_ID_CACHE_KEY, tenant_id)
+        tenant_cache().set(TENANT_ID_CACHE_KEY, tenant_id)
         try:
             calendar_name = company.xero_payroll_calendar_name
             self._configure_payroll_items(
@@ -163,9 +162,9 @@ class Command(BaseCommand):
             )
             shortcode = self._fetch_shortcode(tenant_id)
             theme_id, theme_name = self._resolve_theme(company, seed_xero=seed_xero)
-            calendar_id = self._resolve_calendar_id(calendar_name)
+            calendar_id = self._resolve_calendar_id(calendar_name, tenant_id)
         except BaseException:
-            cache.delete(TENANT_ID_CACHE_KEY)
+            tenant_cache().delete(TENANT_ID_CACHE_KEY)
             raise
 
         company.xero_tenant_id = tenant_id
@@ -255,11 +254,11 @@ class Command(BaseCommand):
             )
         return UUID(theme.external_id), theme.name
 
-    def _resolve_calendar_id(self, calendar_name: str | None) -> UUID:
+    def _resolve_calendar_id(self, calendar_name: str | None, tenant_id: str) -> UUID:
         """Resolve the configured payroll calendar name to its id in this org."""
         if not calendar_name:
             raise CommandError("xero_payroll_calendar_name is required.")
-        calendars = get_payroll_calendars()
+        calendars = get_payroll_calendars(tenant_id=tenant_id)
         matching = next((c for c in calendars if c.name == calendar_name), None)
         if matching is None:
             raise CommandError(

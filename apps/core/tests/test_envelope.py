@@ -20,13 +20,23 @@ from apps.core.envelope import (
     PERMISSION_DENIED_DETAIL,
     register_exception_handlers,
 )
-from apps.core.errors import AppErrorContext, persist_app_error
+from apps.core.errors import (
+    AccessDeniedError,
+    AppErrorContext,
+    ConflictError,
+    InvalidInputError,
+    persist_app_error,
+)
 from apps.core.models import AppError
 
 api = NinjaAPI(urls_namespace="core-envelope-tests")
 register_exception_handlers(api)
 
 router = Router(auth=lambda _request: "trusted-staff")
+
+
+class FeatureInputError(InvalidInputError):
+    """Feature-specific subtype proving category handlers apply through MRO."""
 
 
 # ninja requires every view's first parameter to be named exactly ``request``;
@@ -85,6 +95,36 @@ def conflict(request: HttpRequest) -> dict[str, str]:
 def public_conflict(request: HttpRequest) -> dict[str, str]:
     del request
     raise HttpError(409, "private provider account 123 conflicted")
+
+
+@router.get("/application-input")
+def application_input(request: HttpRequest) -> dict[str, str]:
+    del request
+    raise FeatureInputError("week_start_date must be a Monday")
+
+
+@router.get("/application-denied")
+def application_denied(request: HttpRequest) -> dict[str, str]:
+    del request
+    raise AccessDeniedError("You can only update your own timesheet entries.")
+
+
+@router.get("/application-conflict")
+def application_conflict(request: HttpRequest) -> dict[str, str]:
+    del request
+    raise ConflictError("Company already exists in the accounting provider")
+
+
+@router.get("/public-application-conflict", auth=None)
+def public_application_conflict(request: HttpRequest) -> dict[str, str]:
+    del request
+    raise ConflictError("private provider account 123 conflicted")
+
+
+@router.get("/plain-value-error")
+def plain_value_error(request: HttpRequest) -> dict[str, str]:
+    del request
+    raise ValueError("malformed provider data")
 
 
 @router.get("/private", auth=lambda _request: None)
@@ -173,8 +213,49 @@ class TestEnvelopeShape:
         assert body["detail"] == "job was modified by someone else"
         _single_row_matching(body["error_id"])
 
+    @pytest.mark.parametrize(
+        ("path", "status", "detail"),
+        [
+            ("/application-input", 400, "week_start_date must be a Monday"),
+            (
+                "/application-denied",
+                403,
+                "You can only update your own timesheet entries.",
+            ),
+            (
+                "/application-conflict",
+                409,
+                "Company already exists in the accounting provider",
+            ),
+        ],
+    )
+    def test_application_error_uses_standard_envelope(
+        self, path: str, status: int, detail: str
+    ) -> None:
+        response = client.get(path)
+
+        assert response.status_code == status
+        body = response.json()
+        assert body["detail"] == detail
+        _single_row_matching(body["error_id"])
+
+    def test_plain_value_error_remains_an_unexpected_500(self) -> None:
+        response = client.get("/plain-value-error")
+
+        assert response.status_code == 500
+        assert response.json()["detail"] == "malformed provider data"
+        _single_row_matching(response.json()["error_id"])
+
     def test_anonymous_http_error_masks_domain_detail(self) -> None:
         response = client.get("/public-conflict")
+
+        assert response.status_code == 409
+        body = response.json()
+        assert body["detail"] == "Request conflict."
+        _single_row_matching(body["error_id"])
+
+    def test_anonymous_application_error_masks_domain_detail(self) -> None:
+        response = client.get("/public-application-conflict")
 
         assert response.status_code == 409
         body = response.json()

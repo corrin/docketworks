@@ -83,3 +83,24 @@ export function weekdayAdjusted(isoDate: string, weekendEnabled: boolean): strin
   }
   return toIso(date)
 }
+
+/**
+ * The Monday of the week containing the given date.
+ *
+ * Opus: Payroll weeks are Monday-anchored, so every week-based screen needs this.
+ * It lives here rather than privately in a page so there is one answer to
+ * "which week is this date in" (ADR 0039).
+ */
+export function mondayOf(isoDate: string): string {
+  const date = parseLocal(isoDate)
+  const day = date.getDay()
+  // Opus: getDay() is 0 for Sunday, which belongs to the week that started six days
+  // earlier, not the one starting tomorrow.
+  date.setDate(date.getDate() - day + (day === 0 ? -6 : 1))
+  return toIso(date)
+}
+
+/** The (start, end) of the `days`-long span beginning at a date, inclusive. */
+export function spanFrom(isoDate: string, days: number): { startDate: string; endDate: string } {
+  return { startDate: isoDate, endDate: shiftDate(isoDate, days - 1) }
+}

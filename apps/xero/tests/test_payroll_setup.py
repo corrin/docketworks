@@ -44,9 +44,9 @@ def _api_returning(*calendar_pages: list[MagicMock]) -> MagicMock:
 
 @pytest.fixture
 def _tenant() -> object:
-    """Stub the auth seam: no token row, no api client, a fixed tenant."""
+    """Stub the auth seam: no token row, no api client; the tenant is an argument now."""
     with (
-        patch("apps.xero.payroll_setup.get_tenant_id", return_value=TENANT),
+        patch("apps.xero.payroll_sdk.connected_tenant", return_value=TENANT),
         patch("apps.xero.payroll_setup.get_api_client", return_value=MagicMock()),
     ):
         yield
@@ -60,7 +60,7 @@ class TestGetPayrollCalendars:
         api = _api_returning([_sdk_calendar("Weekly Demo", date(2026, 7, 6))])
 
         with patch("apps.xero.payroll_setup.PayrollNzApi", return_value=api):
-            calendars = get_payroll_calendars()
+            calendars = get_payroll_calendars(tenant_id="tenant-1")
 
         assert len(calendars) == 1
         assert calendars[0].name == "Weekly Demo"
@@ -72,7 +72,7 @@ class TestGetPayrollCalendars:
         api = _api_returning([])
 
         with patch("apps.xero.payroll_setup.PayrollNzApi", return_value=api):
-            assert get_payroll_calendars() == []
+            assert get_payroll_calendars(tenant_id="tenant-1") == []
 
     def test_calendar_missing_a_period_start_is_rejected(self) -> None:
         broken = _sdk_calendar("Weekly Demo", date(2026, 7, 6))
@@ -83,7 +83,7 @@ class TestGetPayrollCalendars:
             patch("apps.xero.payroll_setup.PayrollNzApi", return_value=api),
             pytest.raises(ValueError, match="period_start_date"),
         ):
-            get_payroll_calendars()
+            get_payroll_calendars(tenant_id="tenant-1")
 
 
 @pytest.fixture

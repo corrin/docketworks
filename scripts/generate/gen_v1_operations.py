@@ -103,6 +103,7 @@ def main() -> int:
     existing = yaml.safe_load(OUTPUT_PATH.read_text()) if OUTPUT_PATH.is_file() else None
     renamed = (existing or {}).get("renamed") or {}
     introduced = (existing or {}).get("introduced") or []
+    dropped = (existing or {}).get("dropped") or {}
 
     body = yaml.safe_dump(
         {
@@ -111,6 +112,7 @@ def main() -> int:
             "called": called,
             "renamed": renamed,
             "introduced": introduced,
+            "dropped": dropped,
         },
         sort_keys=False,
         default_flow_style=False,

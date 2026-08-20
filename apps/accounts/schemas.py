@@ -61,19 +61,14 @@ class UserProfile(ResponseSchema):
     """
 
     id: UUID
-    username: str
-    email: str
+    office_email: str
+    payroll_email: str | None
     first_name: str
     last_name: str
     preferred_name: str | None = None
     full_name: str = Field(serialization_alias="fullName")
     is_office_staff: bool
     is_superuser: bool
-
-    @staticmethod
-    def resolve_username(obj: Staff) -> str:
-        """Expose email as the API's username value."""
-        return obj.email
 
     @staticmethod
     def resolve_full_name(obj: Staff) -> str:
@@ -87,7 +82,10 @@ class StaffListItemOut(Schema):
     id: UUID
     first_name: str
     last_name: str
-    email: str
+    office_email: str
+    payroll_email: str | None
+    employment_start_date: date
+    pay_basis: str | None
     wage_rate: Decimal
     base_wage_rate: Decimal
     date_left: date | None

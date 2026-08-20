@@ -7,8 +7,8 @@ import { resolveSession, retryUnavailableSession, safeInternalRedirect } from '.
 
 const USER: UserProfile = {
   id: '11111111-1111-1111-1111-111111111111',
-  username: 'staff@example.com',
-  email: 'staff@example.com',
+  office_email: 'staff@example.com',
+  payroll_email: 'staff.payroll@example.com',
   first_name: 'Staff',
   last_name: 'Member',
   preferred_name: null,

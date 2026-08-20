@@ -46,7 +46,7 @@ REGEN_HINT = (
 def golden_job() -> Iterator[tuple[Job, Staff]]:
     """The deterministic golden job under frozen time and invariant ReportLab."""
     test_staff = Staff.objects.create_user(
-        email="base-test-staff@example.com",
+        office_email="base-test-staff@example.com",
         password="testpass",
         first_name="Test",
         last_name="Staff",

@@ -25,7 +25,7 @@ PASSWORD = "s3cret-Pass!"
 
 def make_staff(email: str, **extra: object) -> Staff:
     return Staff.objects.create_user(
-        email=email,
+        office_email=email,
         password=PASSWORD,
         first_name=str(extra.pop("first_name", "Test")),
         last_name=str(extra.pop("last_name", "Person")),
@@ -63,7 +63,7 @@ class TestList:
 
         assert response.status_code == 200
         body = response.json()
-        by_email = {row["email"]: row for row in body}
+        by_email = {row["office_email"]: row for row in body}
         # Containment, not equality: global fixtures may seed system staff rows.
         assert {"super@example.com", "current@example.com", "departed@example.com"} <= set(by_email)
         assert by_email["departed@example.com"]["date_left"] == "2025-12-31"
@@ -79,6 +79,6 @@ class TestList:
 
         body = client_for(superuser).get(URL).json()
 
-        row = next(item for item in body if item["email"] == "paid@example.com")
+        row = next(item for item in body if item["office_email"] == "paid@example.com")
         assert Decimal(row["base_wage_rate"]) == Decimal("40.00")
         assert Decimal(row["wage_rate"]) == worker.wage_rate

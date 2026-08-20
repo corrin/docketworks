@@ -6,8 +6,10 @@ declares only the operations a ported consumer actually calls, so an entry
 here is a promise some v2 code exercises it.
 """
 
-from collections.abc import Mapping
+import datetime
+from collections.abc import Iterator, Mapping, Sequence
 from typing import TYPE_CHECKING, Protocol
+from uuid import UUID
 
 if TYPE_CHECKING:
     from apps.company.models import Company
@@ -19,9 +21,15 @@ if TYPE_CHECKING:
         InvoicePayload,
         NewPayrollEmployee,
         PayrollEmployeeRef,
+        PayrollLeaveBalance,
+        PayrollMirrorScope,
+        PayrollSlip,
+        PayRunSyncResult,
         POPayload,
         QuotePayload,
         QuotePdfDocument,
+        StaffWeekPosting,
+        StaffWeekPostResult,
     )
 
 
@@ -114,6 +122,61 @@ class AccountingProvider(Protocol):
         """Resolve an account name to its code; raises when unknown."""
         ...
 
+    # --- Payroll ---------------------------------------------------------
+    #
+    # The weekly timesheets screen reaches payroll through here rather than
+    # importing the integration: apps.xero sits ABOVE the domain apps in the
+    # import contract, so apps.timesheet cannot call it directly.
+
+    #: Opus: Whether this backend implements the payroll operations below.
+    supports_payroll: bool
+
+    def payroll_calendar_anchor_week(self) -> "tuple[datetime.date, datetime.date] | None":
+        """Return the calendar's own first postable period, when it has no pay runs yet.
+
+        Opus: Only reached in that one case; once any pay run exists the postable
+        week is derived from the local mirror without touching the provider.
+        """
+        ...
+
+    def refresh_pay_runs(self) -> "PayRunSyncResult":
+        """Re-sync the local pay-run mirror from the provider."""
+        ...
+
+    def payroll_connection_id(self) -> str:
+        """Return the payroll organisation identifier for an async task argument."""
+        ...
+
+    def sync_payroll_mirror(self, connection_id: str, scope: "PayrollMirrorScope") -> None:
+        """Refresh payroll through the provider's normal sync implementation."""
+        ...
+
+    def week_posting_status(self, week_start_date: datetime.date) -> "list[StaffWeekPosting]":
+        """Report what the provider currently holds for each staff member's week."""
+        ...
+
+    def post_payroll_week(
+        self,
+        connection_id: str,
+        staff_ids: "Sequence[UUID]",
+        week_start_date: datetime.date,
+    ) -> "Iterator[StaffWeekPostResult]":
+        """Post a week of hours for the given staff, yielding each one's result.
+
+        Opus: A generator so the caller can report progress as it goes; the
+        provider owns the order of operations, which is load-bearing and
+        provider-specific (ADR 0007). Preflight failures raise before the
+        first result is yielded, so nothing is half-posted by a bad
+        configuration.
+
+        Opus: ``connection_id`` is the organisation the run was dispatched for, and
+        the provider REFUSES when it is no longer the connected one. ADR 0024
+        makes the tenant an explicit argument; carrying it without checking it
+        left the mirror sync and the posting itself free to target different
+        organisations.
+        """
+        ...
+
     # --- Payroll employees -----------------------------------------------
     #
     # apps.timesheet owns the Staff-to-employee matching and reaches the
@@ -122,6 +185,24 @@ class AccountingProvider(Protocol):
 
     def list_payroll_employees(self) -> "list[PayrollEmployeeRef]":
         """Every payroll employee the connected organisation holds."""
+        ...
+
+    def get_payroll_leave_balances(self, employee_external_id: str) -> "list[PayrollLeaveBalance]":
+        """Return the employee's current leave balances from the provider."""
+        ...
+
+    def get_pay_slips_for_week(self, week_start_date: "datetime.date") -> "list[PayrollSlip]":
+        """Every pay slip the provider computed for the week's pay run.
+
+        Read live from the run rather than from the synced mirror, so the
+        reconciliation can answer in the minutes after posting — when a mistake
+        is still cheap to fix — instead of waiting for the run to be Posted and
+        a sync to have mirrored it.
+
+        Driven by the provider's slips rather than our staff list, which is the
+        whole point: an employee the provider pays that we posted nothing for
+        can only appear if the provider's side is the one being iterated.
+        """
         ...
 
     def create_payroll_employee(self, spec: "NewPayrollEmployee") -> "PayrollEmployeeRef":

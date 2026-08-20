@@ -52,11 +52,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if Staff.objects.filter(email=ADMIN_EMAIL).exists():
+    if Staff.objects.filter(office_email=ADMIN_EMAIL).exists():
         print(f"Admin user already exists: {ADMIN_EMAIL}")
     else:
         user = Staff.objects.create_user(
-            email=ADMIN_EMAIL,
+            office_email=ADMIN_EMAIL,
             password=ADMIN_PASSWORD,
             first_name="Default",
             last_name="Admin",
@@ -64,7 +64,7 @@ def main() -> None:
         user.is_office_staff = True
         user.is_superuser = True
         user.save()
-        print(f"Created admin user: {user.email}")
+        print(f"Created admin user: {user.office_email}")
 
     if args.admin_only:
         print()
@@ -75,7 +75,7 @@ def main() -> None:
     print()
     print("Resetting all staff passwords...")
     staff_count = 0
-    for staff in Staff.objects.exclude(email=ADMIN_EMAIL):
+    for staff in Staff.objects.exclude(office_email=ADMIN_EMAIL):
         staff.set_password(STAFF_PASSWORD)
         staff.password_needs_reset = True
         staff.save()

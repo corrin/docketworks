@@ -21,6 +21,7 @@ from apps.job.models.costing import CostLine
 from apps.timesheet.tests.conftest import (
     WEEK_START,
     authenticated_client,
+    make_leave_job,
     make_time_line,
 )
 
@@ -153,13 +154,10 @@ class TestCreate:
         self, worker_client: Client, company: Company, superuser: Staff
     ) -> None:
         """The canonical job-aware pipeline treats leave as non-billable."""
-        from django.apps import apps as django_apps  # noqa: PLC0415
-
-        leave_job = make_job(company, superuser, name="Sick Leave")
-        leave_job.default_xero_pay_item = django_apps.get_model(
-            "xero", "XeroPayItem"
-        )._default_manager.get(name="Sick Leave", uses_leave_api=True)
-        leave_job.save(staff=superuser, update_fields=["default_xero_pay_item", "updated_at"])
+        # Opus: Claimed by its category, as an onboarded instance has it: whether leave
+        # is paid comes from the LeaveType now, not from the pay item's name, and
+        # an unmapped leave item is refused rather than assumed paid.
+        leave_job = make_leave_job(company, superuser, "Sick Leave")
 
         body = _create(worker_client, leave_job, wage_rate_multiplier="1.5")
 

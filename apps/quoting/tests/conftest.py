@@ -59,7 +59,7 @@ def llm_reply(*rows: dict[str, Any]) -> str:
 def office_staff() -> Staff:
     """An office staff member — the quoting endpoints are office-only."""
     return Staff.objects.create_user(
-        email="quoting-office@example.com",
+        office_email="quoting-office@example.com",
         password=PASSWORD,
         first_name="Olive",
         last_name="Office",
@@ -72,7 +72,7 @@ def office_staff() -> Staff:
 def workshop_staff() -> Staff:
     """A non-office staff member (rejected by the quoting router's auth)."""
     return Staff.objects.create_user(
-        email="quoting-workshop@example.com",
+        office_email="quoting-workshop@example.com",
         password=PASSWORD,
         first_name="Wes",
         last_name="Workshop",

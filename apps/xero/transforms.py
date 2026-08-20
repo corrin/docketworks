@@ -41,19 +41,48 @@ from apps.xero.validation import (
 logger = logging.getLogger(__name__)
 
 
+#: Opus: Written on every sync and therefore never evidence that anything differed —
+#: they record that we looked. Every transform puts ``xero_last_synced:
+#: timezone.now()`` in its tracked fields, so counting it made EVERY row report
+#: as changed: a re-sync of an unmodified organisation answered "19 fetched, 0
+#: created, 19 updated", and every entity's sync log read "1 fields incl
+#: xero_last_synced". The rows are still written, because the sync-info page
+#: reads that column as "last synced" — it is the reporting that was wrong, not
+#: the persistence.
+_BOOKKEEPING_COLUMNS = frozenset({"xero_last_synced"})
+
+
 def _build_sync_status(created: bool, changed_fields: list[str]) -> str:
     """Build a status string describing what changed during sync."""
     if created:
         return "created"
-    if changed_fields:
-        return f"{len(changed_fields)} fields incl {changed_fields[0]}"
+    meaningful = [field for field in changed_fields if field not in _BOOKKEEPING_COLUMNS]
+    if meaningful:
+        return f"{len(meaningful)} fields incl {meaningful[0]}"
     return "unchanged"
 
 
-def _track_and_apply_changes(instance: Any, fields: dict[str, Any]) -> list[str]:
-    """Compare fields against instance, apply changes, return changed field names."""
+def _track_and_apply_changes(
+    instance: Any, fields: dict[str, Any], *, invented: "frozenset[str]" = frozenset()
+) -> list[str]:
+    """Compare fields against instance, apply changes, return changed field names.
+
+    Opus: ``invented`` names fields this sync made up rather than read from Xero. On
+    an existing row they are neither compared nor applied, so the value from
+    the first sight of the row survives.
+
+    Pay runs and pay slips carry no modification timestamp of their own, so
+    ``xero_last_modified`` was being synthesised as ``now()`` and written on
+    every pass — a field that differs by construction every time. The mirror
+    then reported every unchanged row as updated ("19 fetched, 0 created, 19
+    updated"), which is what the operator was shown after pressing Refresh.
+    Keeping the first-sight value is also the truthful reading: we do not know
+    when Xero last modified a Draft, only when we first saw it.
+    """
     changed = []
     for key, value in fields.items():
+        if key in invented and not instance._state.adding:
+            continue
         if getattr(instance, key, None) != value:
             setattr(instance, key, value)
             changed.append(key)
@@ -671,8 +700,18 @@ def transform_purchase_order(  # noqa: C901, PLR0915 -- ported v1 shape; header 
     return po, _build_sync_status(created, changed_fields)
 
 
-def transform_pay_run(xero_pay_run: Any, xero_id: UUID | str) -> tuple[XeroPayRun, str]:
-    """Convert a Xero pay run into a XeroPayRun instance."""
+def transform_pay_run(
+    xero_pay_run: Any, xero_id: UUID | str, *, tenant_id: str
+) -> tuple[XeroPayRun, str]:
+    """Convert a Xero pay run into a XeroPayRun instance.
+
+    Fable: The tenant stamped on the mirror row is the CALLER'S resolved
+    tenant, never re-read from the singleton here: a posting run threads its
+    dispatched organisation through every call, and a fresh read during the
+    documented five-minute swap window stamped rows fetched from one
+    organisation with the other's id — misfiling them out of every
+    tenant-filtered preflight query.
+    """
     payroll_calendar_id = getattr(xero_pay_run, "payroll_calendar_id", None)
     period_start_date = getattr(xero_pay_run, "period_start_date", None)
     period_end_date = getattr(xero_pay_run, "period_end_date", None)
@@ -713,7 +752,7 @@ def transform_pay_run(xero_pay_run: Any, xero_id: UUID | str) -> tuple[XeroPayRu
     )
 
     defaults: dict[str, Any] = {
-        "xero_tenant_id": get_tenant_id(),
+        "xero_tenant_id": tenant_id,
         "payroll_calendar_id": payroll_calendar_id,
         "period_start_date": period_start_date,
         "period_end_date": period_end_date,
@@ -727,7 +766,12 @@ def transform_pay_run(xero_pay_run: Any, xero_id: UUID | str) -> tuple[XeroPayRu
         "raw_json": raw_json,
     }
     pay_run, created = XeroPayRun.objects.get_or_create(xero_id=xero_id, defaults=defaults)
-    changed_fields = _track_and_apply_changes(pay_run, defaults) if not created else []
+    # Opus: A Draft has no timestamp in Xero, so the one above is ours; a Posted run
+    # reports posted_date_time and that IS observed.
+    invented = frozenset() if posted_date_time else frozenset({"xero_last_modified"})
+    changed_fields = (
+        _track_and_apply_changes(pay_run, defaults, invented=invented) if not created else []
+    )
     if changed_fields:
         pay_run.save()
 
@@ -803,7 +847,13 @@ def transform_pay_slip(xero_pay_slip: Any, xero_id: UUID | str) -> tuple[XeroPay
         "raw_json": raw_json,
     }
     pay_slip, created = XeroPaySlip.objects.get_or_create(xero_id=xero_id, defaults=defaults)
-    changed_fields = _track_and_apply_changes(pay_slip, defaults) if not created else []
+    # Opus: Xero reports no modification timestamp for a pay slip at all, so the one
+    # above is always ours and never a reason to call the row changed.
+    changed_fields = (
+        _track_and_apply_changes(pay_slip, defaults, invented=frozenset({"xero_last_modified"}))
+        if not created
+        else []
+    )
     if changed_fields:
         pay_slip.save()
 

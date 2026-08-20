@@ -31,25 +31,45 @@ from apps.job.models.costing import CostLine
 # Earliest week to process (pre-Xero payroll data is unreliable).
 CUTOFF_DATE = date(2025, 8, 11)
 
-# Mapping from Xero leave display-name prefix to the local leave job name.
+# Opus: Xero leave display-name prefix -> the Docketworks category CODE.
+#
+# A name table is unavoidable on THIS side and only this side: a pay slip's
+# earnings line names its leave type in free text ("Sick Leave (22 Sep 2025)")
+# and carries no id to join on, so the name is the only key Xero gives. The
+# local side no longer matches on names at all — it groups by the
+# LeaveType->Job binding — so this maps Xero's vocabulary onto ours once,
+# rather than two name sets meeting in the middle and drifting.
+#
+# The aliases are real payroll facts, not guesses: Stand Down Leave is recorded
+# against bereavement locally, and Alternative Holidays and Holiday Pay are both
+# annual-leave balances Xero pays under their own labels.
 LEAVE_TYPE_MAP = {
-    "Sick Leave": "Sick Leave",
-    "Annual Leave": "Annual Leave",
-    "Unpaid Leave": "Unpaid Leave",
-    "Bereavement Leave": "Bereavement Leave",
-    "Stand Down Leave": "Bereavement Leave",  # logged as bereavement locally
-    "Alternative Holidays": "Annual Leave",
-    "Holiday Pay": "Annual Leave",
+    "Sick Leave": "sick_leave",
+    "Annual Leave": "annual_leave",
+    "Unpaid Leave": "unpaid_leave",
+    "Bereavement Leave": "bereavement_leave",
+    "Stand Down Leave": "bereavement_leave",
+    "Alternative Holidays": "annual_leave",
+    "Holiday Pay": "annual_leave",
 }
 
-# The special jobs that hold leave time entries.
-LEAVE_JOB_NAMES = {
-    "Annual Leave",
-    "Sick Leave",
-    "Bereavement Leave",
-    "Unpaid Leave",
-    "Statutory holiday",
-}
+
+def leave_job_ids() -> list[UUID]:
+    """Return the ids of the jobs that hold leave time entries.
+
+    Opus: Read from the ``LeaveType``->``Job`` binding rather than a hard-coded set
+    of five job NAMES. The set silently omitted any leave job not in it, and a
+    rename moved a job's hours out of every report that used it — the same
+    failure ADR 0007 lists under "Do not", one layer up. A foreign key cannot
+    be moved by renaming anything.
+    """
+    from apps.timesheet.models import LeaveType  # noqa: PLC0415
+
+    return [
+        row.job_id
+        for row in LeaveType.objects.exclude(job=None).only("job_id")
+        if row.job_id is not None
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +105,7 @@ class _PayRunRow(Protocol):
 
     @property
     def period_start_date(self) -> date:
-        """First day of the pay period (a Sunday on the weekly calendar)."""
+        """First day of the pay period — a Monday on the weekly calendar."""
 
     @property
     def pay_slips(self) -> _PaySlipSet:
@@ -150,13 +170,13 @@ class JmWeekHours(TypedDict):
 
 
 def _extract_leave_type(display_name: str) -> str:
-    """Map a Xero leave display name like 'Sick Leave (22 Sep 2025)' to a job name."""
+    """Map a Xero leave display name like 'Sick Leave (22 Sep 2025)' to a category code."""
     # Strip the date suffix in parentheses; prefix-match so variants like
     # "Annual Leave - Cash Up" still resolve.
     base = display_name.partition("(")[0].strip()
-    for prefix, job_name in LEAVE_TYPE_MAP.items():
+    for prefix, code in LEAVE_TYPE_MAP.items():
         if base.startswith(prefix):
-            return job_name
+            return code
     # v1 silently defaulted unknown leave lines to "Sick Leave", misfiling
     # them; an unmapped Xero leave name is a data question for the operator,
     # so it raises instead (ADR 0015).
@@ -263,9 +283,11 @@ def get_xero_hours_by_staff_week() -> list[XeroWeekRow]:
         .order_by("period_start_date")
     )
     for pay_run in posted_runs:
-        # Align to Monday (Xero's period_start_date is a Sunday).
-        monday = pay_run.period_start_date + timedelta(days=1)
-        monday = monday - timedelta(days=monday.weekday())
+        # The period IS the week: the payroll calendar is Monday-anchored and
+        # payroll_setup fails setup if Xero does not honour it. This used to
+        # add a day first, compensating for a belief that periods start on
+        # Sunday — idempotent under a Monday anchor, so harmless and invisible.
+        monday = pay_run.period_start_date
         if monday < CUTOFF_DATE:
             continue
         for slip in pay_run.pay_slips.all():
@@ -290,14 +312,19 @@ def get_jm_hours_for_staff_week(staff_id: str, week_start: date) -> JmWeekHours:
         xero_pay_item__multiplier__gt=Decimal("1"),
     ).aggregate(total=Sum("quantity"))["total"] or Decimal("0")
 
+    # Opus: Grouped by the configured category, not by the job's NAME. The name
+    # set this replaces was a hard-coded five, so a leave line on any other job
+    # was silently omitted from the breakdown while still counting in the total —
+    # and renaming a leave job moved its hours out of the report. The binding is
+    # a foreign key, which no rename can move (ADR 0007's "Do not", ADR 0039).
     jm_leave_by_type: dict[str, Decimal] = {}
     leave_lines = (
-        jm_lines.filter(cost_set__job__name__in=LEAVE_JOB_NAMES)
-        .values("cost_set__job__name")
+        jm_lines.filter(cost_set__job__leave_type_configuration__isnull=False)
+        .values("cost_set__job__leave_type_configuration__code")
         .annotate(total=Sum("quantity"))
     )
     for row in leave_lines:
-        jm_leave_by_type[row["cost_set__job__name"]] = row["total"]
+        jm_leave_by_type[row["cost_set__job__leave_type_configuration__code"]] = row["total"]
 
     return JmWeekHours(
         jm_total=jm_total,

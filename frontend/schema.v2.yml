@@ -2329,56 +2329,6 @@ components:
       - profitMargin
       title: CostSetSummaryOut
       type: object
-    CreatePayRunRequest:
-      description: Wire contract for CreatePayRunRequest.
-      properties:
-        week_start_date:
-          format: date
-          title: Week Start Date
-          type: string
-      required:
-      - week_start_date
-      title: CreatePayRunRequest
-      type: object
-    CreatePayRunResponse:
-      description: Wire contract for CreatePayRunResponse.
-      properties:
-        id:
-          format: uuid
-          title: Id
-          type: string
-        payment_date:
-          format: date
-          title: Payment Date
-          type: string
-        period_end_date:
-          format: date
-          title: Period End Date
-          type: string
-        period_start_date:
-          format: date
-          title: Period Start Date
-          type: string
-        status:
-          title: Status
-          type: string
-        xero_id:
-          format: uuid
-          title: Xero Id
-          type: string
-        xero_url:
-          title: Xero Url
-          type: string
-      required:
-      - id
-      - xero_id
-      - status
-      - period_start_date
-      - period_end_date
-      - payment_date
-      - xero_url
-      title: CreatePayRunResponse
-      type: object
     DailyTimesheetSummaryOut:
       description: 'Daily timesheet summary returned by the API.
 
@@ -4768,6 +4718,56 @@ components:
       - total_profit
       title: JobMetricsOut
       type: object
+    JobOptionOut:
+      description: 'A job as a picker draws it, and nothing more.
+
+
+        The narrow list the admin mapping screens need. The domain job lists
+
+        (JobForPurchasing, TimesheetJobOut) stay separate on purpose: they carry
+
+        the stock-holding flag and labour rates their own screens price work with,
+
+        which no picker renders.'
+      properties:
+        company_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Company Name
+        id:
+          format: uuid
+          title: Id
+          type: string
+        job_number:
+          title: Job Number
+          type: integer
+        name:
+          title: Name
+          type: string
+        status:
+          title: Status
+          type: string
+      required:
+      - id
+      - job_number
+      - name
+      - company_name
+      - status
+      title: JobOptionOut
+      type: object
+    JobOptionsResponse:
+      description: Wire contract for JobOptionsResponse.
+      properties:
+        jobs:
+          items:
+            $ref: '#/components/schemas/JobOptionOut'
+          title: Jobs
+          type: array
+      required:
+      - jobs
+      title: JobOptionsResponse
+      type: object
     JobQuoteAcceptanceResponse:
       description: Wire contract for JobQuoteAcceptanceResponse.
       properties:
@@ -5788,6 +5788,460 @@ components:
       - default_charge_out_rate
       title: LabourSubtypeOut
       type: object
+    LeaveBalanceOut:
+      description: Live provider leave balance.
+      properties:
+        balance:
+          title: Balance
+          type: number
+        name:
+          title: Name
+          type: string
+        unit:
+          title: Unit
+          type: string
+      required:
+      - balance
+      - name
+      - unit
+      title: LeaveBalanceOut
+      type: object
+    LeaveCodeOut:
+      enum:
+      - annual_leave
+      - sick_leave
+      - unpaid_leave
+      - bereavement_leave
+      - public_holiday
+      type: string
+    LeaveDayInput:
+      description: Operator-selected hours for one proposed date.
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        hours:
+          title: Hours
+          type: number
+      required:
+      - date
+      - hours
+      title: LeaveDayInput
+      type: object
+    LeaveDayOut:
+      description: Persisted leave day and payroll-line identity.
+      properties:
+        cost_line_id:
+          title: Cost Line Id
+          type: string
+        date:
+          format: date
+          title: Date
+          type: string
+        hours:
+          title: Hours
+          type: number
+        id:
+          title: Id
+          type: string
+      required:
+      - cost_line_id
+      - date
+      - hours
+      - id
+      title: LeaveDayOut
+      type: object
+    LeaveListOut:
+      description: Current or history leave listing.
+      properties:
+        requests:
+          items:
+            $ref: '#/components/schemas/LeaveRequestOut'
+          title: Requests
+          type: array
+        scope:
+          enum:
+          - current
+          - history
+          title: Scope
+          type: string
+        summary:
+          $ref: '#/components/schemas/LeaveSummaryOut'
+      required:
+      - requests
+      - scope
+      - summary
+      title: LeaveListOut
+      type: object
+    LeavePreviewDayOut:
+      description: Scheduled date availability.
+      properties:
+        available:
+          title: Available
+          type: boolean
+        date:
+          format: date
+          title: Date
+          type: string
+        hours:
+          title: Hours
+          type: number
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        scheduled_hours:
+          title: Scheduled Hours
+          type: number
+      required:
+      - available
+      - date
+      - hours
+      - reason
+      - scheduled_hours
+      title: LeavePreviewDayOut
+      type: object
+    LeavePreviewOut:
+      description: One employee's range preview.
+      properties:
+        available_hours:
+          title: Available Hours
+          type: number
+        days:
+          items:
+            $ref: '#/components/schemas/LeavePreviewDayOut'
+          title: Days
+          type: array
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        staff_id:
+          title: Staff Id
+          type: string
+        staff_name:
+          title: Staff Name
+          type: string
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+      required:
+      - available_hours
+      - days
+      - end_date
+      - staff_id
+      - staff_name
+      - start_date
+      title: LeavePreviewOut
+      type: object
+    LeavePreviewRequest:
+      description: Employee and inclusive range to preview.
+      properties:
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        staff_id:
+          format: uuid
+          title: Staff Id
+          type: string
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+      required:
+      - staff_id
+      - start_date
+      - end_date
+      title: LeavePreviewRequest
+      type: object
+    LeaveRequestOut:
+      description: Persisted leave request.
+      properties:
+        batch_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Batch Id
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        days:
+          items:
+            $ref: '#/components/schemas/LeaveDayOut'
+          title: Days
+          type: array
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        id:
+          title: Id
+          type: string
+        leave_type_code:
+          title: Leave Type Code
+          type: string
+        leave_type_name:
+          title: Leave Type Name
+          type: string
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        source:
+          title: Source
+          type: string
+        staff_id:
+          title: Staff Id
+          type: string
+        staff_name:
+          title: Staff Name
+          type: string
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+        total_hours:
+          title: Total Hours
+          type: number
+      required:
+      - batch_id
+      - created_at
+      - days
+      - end_date
+      - id
+      - leave_type_code
+      - leave_type_name
+      - note
+      - source
+      - staff_id
+      - staff_name
+      - start_date
+      - total_hours
+      title: LeaveRequestOut
+      type: object
+    LeaveRequestUpdate:
+      description: Replace an existing leave request.
+      properties:
+        days:
+          items:
+            $ref: '#/components/schemas/LeaveDayInput'
+          minItems: 1
+          title: Days
+          type: array
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        leave_type_code:
+          title: Leave Type Code
+          type: string
+        note:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Note
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+      required:
+      - leave_type_code
+      - start_date
+      - end_date
+      - days
+      title: LeaveRequestUpdate
+      type: object
+    LeaveRequestWrite:
+      description: Create a first-class leave request.
+      properties:
+        days:
+          items:
+            $ref: '#/components/schemas/LeaveDayInput'
+          minItems: 1
+          title: Days
+          type: array
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        leave_type_code:
+          title: Leave Type Code
+          type: string
+        note:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Note
+        staff_id:
+          format: uuid
+          title: Staff Id
+          type: string
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+      required:
+      - staff_id
+      - leave_type_code
+      - start_date
+      - end_date
+      - days
+      title: LeaveRequestWrite
+      type: object
+    LeaveSaveOut:
+      description: Saved request and any conflicts skipped at commit.
+      properties:
+        request:
+          $ref: '#/components/schemas/LeaveRequestOut'
+        skipped_days:
+          items:
+            $ref: '#/components/schemas/LeavePreviewDayOut'
+          title: Skipped Days
+          type: array
+      required:
+      - request
+      - skipped_days
+      title: LeaveSaveOut
+      type: object
+    LeaveSettingsOut:
+      description: Leave mapping administration data.
+      properties:
+        leave_types:
+          items:
+            $ref: '#/components/schemas/LeaveTypeOut'
+          title: Leave Types
+          type: array
+      required:
+      - leave_types
+      title: LeaveSettingsOut
+      type: object
+    LeaveSettingsUpdate:
+      description: Every mapping the settings page changed, saved as one transaction.
+      properties:
+        leave_types:
+          items:
+            $ref: '#/components/schemas/LeaveTypeUpdate'
+          minItems: 1
+          title: Leave Types
+          type: array
+      required:
+      - leave_types
+      title: LeaveSettingsUpdate
+      type: object
+    LeaveSummaryOut:
+      description: Quick figures over the filtered request set.
+      properties:
+        away_today:
+          title: Away Today
+          type: integer
+        upcoming_hours:
+          title: Upcoming Hours
+          type: number
+        upcoming_requests:
+          title: Upcoming Requests
+          type: integer
+      required:
+      - away_today
+      - upcoming_hours
+      - upcoming_requests
+      title: LeaveSummaryOut
+      type: object
+    LeaveTypeOut:
+      description: Fixed Docketworks type and its effective mapping.
+      properties:
+        code:
+          title: Code
+          type: string
+        configured:
+          title: Configured
+          type: boolean
+        display_name:
+          title: Display Name
+          type: string
+        job_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Job Id
+        job_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Job Name
+        posting_surface:
+          $ref: '#/components/schemas/PostingSurfaceOut'
+        xero_pay_item_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Xero Pay Item Id
+        xero_pay_item_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Xero Pay Item Name
+      required:
+      - code
+      - configured
+      - display_name
+      - job_id
+      - job_name
+      - posting_surface
+      - xero_pay_item_id
+      - xero_pay_item_name
+      title: LeaveTypeOut
+      type: object
+    LeaveTypeUpdate:
+      description: 'Editable fields for one fixed leave code.
+
+
+        Fable: ``xero_pay_item_id`` is required-but-nullable, not optional: null is
+
+        a statement, and it is the only truthful one for the ``xero_computed``
+
+        surface, which has no Xero object to name. Requiring a UUID here made every
+
+        save containing a public-holiday edit fail validation for a field the row
+
+        cannot have, and the atomic batch took the other rows down with it. The
+
+        service still refuses the two dishonest combinations (a pay item on
+
+        ``xero_computed``, null on a surface that posts).'
+      properties:
+        code:
+          title: Code
+          type: string
+        display_name:
+          maxLength: 100
+          minLength: 1
+          title: Display Name
+          type: string
+        job_id:
+          format: uuid
+          title: Job Id
+          type: string
+        xero_pay_item_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Xero Pay Item Id
+      required:
+      - code
+      - display_name
+      - job_id
+      - xero_pay_item_id
+      title: LeaveTypeUpdate
+      type: object
     LoginRequest:
       description: Wire contract for LoginRequest.
       properties:
@@ -6017,6 +6471,80 @@ components:
       - restriction
       - order
       title: NotebookLmLinkOut
+      type: object
+    OfficeClosureOut:
+      description: Batched requests created for an office closure.
+      properties:
+        batch_id:
+          title: Batch Id
+          type: string
+        requests:
+          items:
+            $ref: '#/components/schemas/LeaveRequestOut'
+          title: Requests
+          type: array
+        skipped_days:
+          items:
+            $ref: '#/components/schemas/LeavePreviewDayOut'
+          title: Skipped Days
+          type: array
+      required:
+      - batch_id
+      - requests
+      - skipped_days
+      title: OfficeClosureOut
+      type: object
+    OfficeClosurePreviewOut:
+      description: Staff and hours affected by an office closure.
+      properties:
+        available_hours:
+          title: Available Hours
+          type: number
+        available_staff:
+          title: Available Staff
+          type: integer
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        staff:
+          items:
+            $ref: '#/components/schemas/LeavePreviewOut'
+          title: Staff
+          type: array
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+      required:
+      - available_hours
+      - available_staff
+      - end_date
+      - staff
+      - start_date
+      title: OfficeClosurePreviewOut
+      type: object
+    OfficeClosureWrite:
+      description: Inclusive closure range and optional note.
+      properties:
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        note:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Note
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+      required:
+      - start_date
+      - end_date
+      title: OfficeClosureWrite
       type: object
     OperationErrorOut:
       description: Wire contract for OperationErrorOut.
@@ -6450,28 +6978,6 @@ components:
       - next_postable_week_end_date
       title: PayRunListResponse
       type: object
-    PayRunSyncResponse:
-      description: Wire contract for PayRunSyncResponse.
-      properties:
-        created:
-          title: Created
-          type: integer
-        fetched:
-          title: Fetched
-          type: integer
-        synced:
-          title: Synced
-          type: boolean
-        updated:
-          title: Updated
-          type: integer
-      required:
-      - synced
-      - fetched
-      - created
-      - updated
-      title: PayRunSyncResponse
-      type: object
     PayrollDateRangeResponse:
       description: Wire contract for PayrollDateRangeResponse.
       properties:
@@ -6510,26 +7016,40 @@ components:
       - diff_pct
       title: PayrollGrandTotalsOut
       type: object
+    PayrollHeatmapColumnOut:
+      description: 'One staff column: the join key and the display name.'
+      properties:
+        key:
+          title: Key
+          type: string
+        name:
+          title: Name
+          type: string
+      required:
+      - key
+      - name
+      title: PayrollHeatmapColumnOut
+      type: object
     PayrollHeatmapOut:
       description: Wire contract for PayrollHeatmapOut.
       properties:
+        columns:
+          items:
+            $ref: '#/components/schemas/PayrollHeatmapColumnOut'
+          title: Columns
+          type: array
         rows:
           items:
             $ref: '#/components/schemas/PayrollHeatmapRowOut'
           title: Rows
           type: array
-        staff_names:
-          items:
-            type: string
-          title: Staff Names
-          type: array
       required:
-      - staff_names
+      - columns
       - rows
       title: PayrollHeatmapOut
       type: object
     PayrollHeatmapRowOut:
-      description: Wire contract for PayrollHeatmapRowOut.
+      description: Wire contract for PayrollHeatmapRowOut. Cells are keyed by staff key.
       properties:
         cells:
           additionalProperties:
@@ -6547,6 +7067,75 @@ components:
       - cells
       title: PayrollHeatmapRowOut
       type: object
+    PayrollPostRunOut:
+      description: "The whole state of a payroll posting run.\n\nOpus: Latest-state-wins, the contract\
+        \ ADR 0047 already proves with\ndata-versions: every push carries the complete current document,\
+        \ so a client\nthat connects late, reconnects, or reloads needs no replay and no offset \u2014\
+        \nit needs the present. The append-only event log this replaces existed to\nmake replay exact,\
+        \ which is a problem this shape does not have.\n\n`updated_at` is the ordering guard. A catch-up\
+        \ read can be in flight when a\npush lands, and the older answer would otherwise overwrite a finished\
+        \ run\nwith a running one, leaving a panel spinning forever."
+      properties:
+        completed:
+          title: Completed
+          type: integer
+        current_staff_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Staff Name
+        failed:
+          title: Failed
+          type: integer
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+        results:
+          items:
+            $ref: '#/components/schemas/StaffWeekPostResultOut'
+          title: Results
+          type: array
+        run_id:
+          format: uuid
+          title: Run Id
+          type: string
+        status:
+          $ref: '#/components/schemas/PayrollRunStatus'
+        successful:
+          title: Successful
+          type: integer
+        total:
+          title: Total
+          type: integer
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+        week_start_date:
+          format: date
+          title: Week Start Date
+          type: string
+      required:
+      - completed
+      - current_staff_name
+      - failed
+      - message
+      - results
+      - run_id
+      - status
+      - successful
+      - total
+      - updated_at
+      - week_start_date
+      title: PayrollPostRunOut
+      type: object
+    PayrollPostingMode:
+      enum:
+      - timesheet
+      - salary
+      type: string
     PayrollReconciliationResponse:
       description: Wire contract for PayrollReconciliationResponse.
       properties:
@@ -6571,6 +7160,36 @@ components:
       - grand_totals
       title: PayrollReconciliationResponse
       type: object
+    PayrollRowStatus:
+      enum:
+      - ok
+      - mismatch
+      - jm_only
+      - xero_only_salaried
+      - xero_only_departed
+      - xero_only_unposted
+      - xero_only_unknown
+      type: string
+    PayrollRunStatus:
+      enum:
+      - running
+      - succeeded
+      - failed
+      type: string
+    PayrollRunsOut:
+      description: "Every payroll run this organisation currently has state for.\n\nOpus: A named slot\
+        \ rather than a discriminated union: the slot IS the kind, so\nTypeScript narrows by field access\
+        \ with no ceremony. A second kind \u2014 the\ncomparison run \u2014 becomes a second slot, and\
+        \ the frontend's exhaustiveness\ncheck makes forgetting to handle it a compile error."
+      properties:
+        post:
+          anyOf:
+          - $ref: '#/components/schemas/PayrollPostRunOut'
+          - type: 'null'
+      required:
+      - post
+      title: PayrollRunsOut
+      type: object
     PayrollStaffSummaryOut:
       description: Wire contract for PayrollStaffSummaryOut.
       properties:
@@ -6589,6 +7208,9 @@ components:
         jm_hours:
           title: Jm Hours
           type: number
+        key:
+          title: Key
+          type: string
         name:
           title: Name
           type: string
@@ -6608,6 +7230,7 @@ components:
           title: Xero Hours
           type: number
       required:
+      - key
       - name
       - xero_hours
       - xero_gross
@@ -6633,6 +7256,9 @@ components:
         hours_diff:
           title: Hours Diff
           type: number
+        jm_base_pay:
+          title: Jm Base Pay
+          type: number
         jm_cost:
           title: Jm Cost
           type: number
@@ -6642,15 +7268,20 @@ components:
         jm_rate:
           title: Jm Rate
           type: number
+        key:
+          title: Key
+          type: string
         name:
           title: Name
           type: string
+        pay_diff:
+          title: Pay Diff
+          type: number
         rate_cost_impact:
           title: Rate Cost Impact
           type: number
         status:
-          title: Status
-          type: string
+          $ref: '#/components/schemas/PayrollRowStatus'
         xero_gross:
           title: Xero Gross
           type: number
@@ -6667,6 +7298,7 @@ components:
           title: Xero Timesheet Hours
           type: number
       required:
+      - key
       - name
       - xero_hours
       - xero_timesheet_hours
@@ -6676,6 +7308,8 @@ components:
       - jm_hours
       - jm_cost
       - jm_rate
+      - jm_base_pay
+      - pay_diff
       - hours_diff
       - cost_diff
       - hours_cost_impact
@@ -6728,17 +7362,39 @@ components:
       - staff
       title: PayrollWeekOut
       type: object
+    PayrollWeekReconciliationResponse:
+      description: One payroll week reconciled live against the provider.
+      properties:
+        unposted_count:
+          title: Unposted Count
+          type: integer
+        week:
+          $ref: '#/components/schemas/PayrollWeekOut'
+        xero_source:
+          $ref: '#/components/schemas/PayrollXeroSource'
+      required:
+      - week
+      - xero_source
+      - unposted_count
+      title: PayrollWeekReconciliationResponse
+      type: object
     PayrollWeekTotalsOut:
       description: Wire contract for PayrollWeekTotalsOut.
       properties:
         diff:
           title: Diff
           type: number
+        jm_base_pay:
+          title: Jm Base Pay
+          type: number
         jm_cost:
           title: Jm Cost
           type: number
         jm_hours:
           title: Jm Hours
+          type: number
+        pay_diff:
+          title: Pay Diff
           type: number
         xero_gross:
           title: Xero Gross
@@ -6752,8 +7408,15 @@ components:
       - diff
       - xero_hours
       - jm_hours
+      - jm_base_pay
+      - pay_diff
       title: PayrollWeekTotalsOut
       type: object
+    PayrollXeroSource:
+      enum:
+      - live_run
+      - no_pay_run
+      type: string
     PeriodSummaryOut:
       description: Wire contract for PeriodSummaryOut.
       properties:
@@ -8166,38 +8829,37 @@ components:
       title: PipelineWarningOut
       type: object
     PostWeekToXeroRequest:
-      description: Wire contract for PostWeekToXeroRequest.
+      description: "Wire contract for PostWeekToXeroRequest.\n\nFable: The week alone. The staff are derived\
+        \ server-side from the same\nfilter the weekly grid answers from, and the postable-week rule is\n\
+        enforced server-side on a freshly refreshed mirror \u2014 a client that named\nthe roster could\
+        \ relay a stale grid, and one that judged postability\njudged it from an hour-old read."
       properties:
-        staff_ids:
-          items:
-            format: uuid
-            type: string
-          title: Staff Ids
-          type: array
         week_start_date:
           format: date
           title: Week Start Date
           type: string
       required:
-      - staff_ids
       - week_start_date
       title: PostWeekToXeroRequest
       type: object
     PostWeekToXeroStartResponse:
-      description: Wire contract for PostWeekToXeroStartResponse.
+      description: "Wire contract for PostWeekToXeroStartResponse.\n\nOpus: Returns the run's opening\
+        \ document rather than a `stream_url`. The panel\ncan render \"0 of N\" before any push arrives,\
+        \ and the stream path is a client\nconstant like `data-versions-stream.ts`'s \u2014 a URL is not\
+        \ a contract."
       properties:
-        stream_url:
-          title: Stream Url
-          type: string
-        task_id:
-          format: uuid
-          title: Task Id
-          type: string
+        run:
+          $ref: '#/components/schemas/PayrollPostRunOut'
       required:
-      - task_id
-      - stream_url
+      - run
       title: PostWeekToXeroStartResponse
       type: object
+    PostingSurfaceOut:
+      enum:
+      - timesheet
+      - leave_api
+      - xero_computed
+      type: string
     ProductMapping:
       description: Wire contract for ProductMapping.
       properties:
@@ -9700,6 +10362,9 @@ components:
         completion_percentage:
           title: Completion Percentage
           type: number
+        day_status:
+          title: Day Status
+          type: string
         entry_count:
           title: Entry Count
           type: integer
@@ -9731,12 +10396,6 @@ components:
         staff_name:
           title: Staff Name
           type: string
-        status:
-          title: Status
-          type: string
-        status_class:
-          title: Status Class
-          type: string
         total_cost:
           title: Total Cost
           type: number
@@ -9757,8 +10416,7 @@ components:
       - non_billable_hours
       - total_revenue
       - total_cost
-      - status
-      - status_class
+      - day_status
       - billable_percentage
       - completion_percentage
       - job_breakdown
@@ -9831,8 +10489,9 @@ components:
             type: string
           - type: 'null'
           title: Date Left
-        email:
-          title: Email
+        employment_start_date:
+          format: date
+          title: Employment Start Date
           type: string
         first_name:
           title: First Name
@@ -9847,6 +10506,19 @@ components:
         last_name:
           title: Last Name
           type: string
+        office_email:
+          title: Office Email
+          type: string
+        pay_basis:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pay Basis
+        payroll_email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Payroll Email
         wage_rate:
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Wage Rate
@@ -9855,7 +10527,10 @@ components:
       - id
       - first_name
       - last_name
-      - email
+      - office_email
+      - payroll_email
+      - employment_start_date
+      - pay_basis
       - wage_rate
       - base_wage_rate
       - date_left
@@ -9953,6 +10628,126 @@ components:
       - staff
       - period_summary
       title: StaffPerformanceResponse
+      type: object
+    StaffWeekPostResultOut:
+      description: 'One staff member''s outcome, as the run reports it.
+
+
+        Opus: Built by `model_validate` off the frozen `StaffWeekPostResult` dataclass
+
+        rather than a hand-written flattening step. The flattening was a second
+
+        declaration of these fields, and a third lived in TypeScript.'
+      properties:
+        entries_posted:
+          title: Entries Posted
+          type: integer
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+        has_entries:
+          title: Has Entries
+          type: boolean
+        leave_hours:
+          title: Leave Hours
+          type: number
+        other_leave_hours:
+          title: Other Leave Hours
+          type: number
+        posting_mode:
+          $ref: '#/components/schemas/PayrollPostingMode'
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        salary_timesheet_removed:
+          title: Salary Timesheet Removed
+          type: boolean
+        skipped:
+          title: Skipped
+          type: boolean
+        staff_id:
+          title: Staff Id
+          type: string
+        staff_name:
+          title: Staff Name
+          type: string
+        success:
+          title: Success
+          type: boolean
+        timesheet_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Timesheet Id
+        work_hours:
+          title: Work Hours
+          type: number
+      required:
+      - entries_posted
+      - error
+      - has_entries
+      - leave_hours
+      - other_leave_hours
+      - posting_mode
+      - reason
+      - salary_timesheet_removed
+      - skipped
+      - staff_id
+      - staff_name
+      - success
+      - timesheet_id
+      - work_hours
+      title: StaffWeekPostResultOut
+      type: object
+    StaffWeekPostingOut:
+      description: Wire contract for StaffWeekPostingOut.
+      properties:
+        matches:
+          title: Matches
+          type: boolean
+        pay_basis:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pay Basis
+        posted:
+          title: Posted
+          type: boolean
+        posted_leave_hours:
+          title: Posted Leave Hours
+          type: number
+        posted_timesheet_hours:
+          title: Posted Timesheet Hours
+          type: number
+        recorded_leave_hours:
+          title: Recorded Leave Hours
+          type: number
+        recorded_timesheet_hours:
+          title: Recorded Timesheet Hours
+          type: number
+        staff_id:
+          title: Staff Id
+          type: string
+        timesheet_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Timesheet Status
+      required:
+      - staff_id
+      - posted
+      - timesheet_status
+      - posted_timesheet_hours
+      - posted_leave_hours
+      - recorded_timesheet_hours
+      - recorded_leave_hours
+      - pay_basis
+      - matches
+      title: StaffWeekPostingOut
       type: object
     StockConsumeRequest:
       description: Wire contract for StockConsumeRequest.
@@ -11094,11 +11889,6 @@ components:
             $ref: '#/components/schemas/JobLabourRateOut'
           title: Labour Rates
           type: array
-        leave_type:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Leave Type
         name:
           title: Name
           type: string
@@ -11116,7 +11906,6 @@ components:
       - status
       - labour_rates
       - has_actual_costset
-      - leave_type
       - estimated_hours
       - default_xero_pay_item_id
       - default_xero_pay_item_name
@@ -11127,9 +11916,6 @@ components:
     TimesheetStaffOut:
       description: Wire contract for TimesheetStaffOut.
       properties:
-        email:
-          title: Email
-          type: string
         firstName:
           title: Firstname
           type: string
@@ -11147,6 +11933,14 @@ components:
         name:
           title: Name
           type: string
+        office_email:
+          title: Office Email
+          type: string
+        pay_basis:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pay Basis
         wageRate:
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Wagerate
@@ -11156,9 +11950,10 @@ components:
       - name
       - firstName
       - lastName
-      - email
+      - office_email
       - icon_url
       - wageRate
+      - pay_basis
       title: TimesheetStaffOut
       type: object
     TokenRefreshRequest:
@@ -11187,9 +11982,6 @@ components:
 
         alias; the /me/ endpoint therefore serialises with ``by_alias=True``.'
       properties:
-        email:
-          title: Email
-          type: string
         first_name:
           title: First Name
           type: string
@@ -11209,24 +12001,29 @@ components:
         last_name:
           title: Last Name
           type: string
+        office_email:
+          title: Office Email
+          type: string
+        payroll_email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Payroll Email
         preferred_name:
           anyOf:
           - type: string
           - type: 'null'
           title: Preferred Name
-        username:
-          title: Username
-          type: string
       required:
-      - email
       - first_name
       - fullName
       - id
       - is_office_staff
       - is_superuser
       - last_name
+      - office_email
+      - payroll_email
       - preferred_name
-      - username
       title: UserProfile
       type: object
     WIPJobRowOut:
@@ -11370,6 +12167,23 @@ components:
       - by_status
       title: WIPSummaryOut
       type: object
+    WeekPostingStatusResponse:
+      description: Wire contract for WeekPostingStatusResponse.
+      properties:
+        staff:
+          items:
+            $ref: '#/components/schemas/StaffWeekPostingOut'
+          title: Staff
+          type: array
+        week_start_date:
+          format: date
+          title: Week Start Date
+          type: string
+      required:
+      - week_start_date
+      - staff
+      title: WeekPostingStatusResponse
+      type: object
     WeeklyNavigationOut:
       description: Previous, next, and current week links in the weekly payload.
       properties:
@@ -11394,15 +12208,20 @@ components:
         billable_percentage:
           title: Billable Percentage
           type: number
-        name:
-          title: Name
-          type: string
+        expected_hours:
+          title: Expected Hours
+          type: number
+        pay_basis:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pay Basis
         staff_id:
           format: uuid
           title: Staff Id
           type: string
-        status:
-          title: Status
+        staff_name:
+          title: Staff Name
           type: string
         total_annual_leave_hours:
           title: Total Annual Leave Hours
@@ -11418,6 +12237,9 @@ components:
           type: number
         total_hours:
           title: Total Hours
+          type: number
+        total_other_leave_hours:
+          title: Total Other Leave Hours
           type: number
         total_overtime_1_5x_hours:
           title: Total Overtime 1 5X Hours
@@ -11437,6 +12259,12 @@ components:
         total_unbilled_hours:
           title: Total Unbilled Hours
           type: number
+        variance_hours:
+          title: Variance Hours
+          type: number
+        week_status:
+          title: Week Status
+          type: string
         weekly_base_cost:
           title: Weekly Base Cost
           type: number
@@ -11450,13 +12278,13 @@ components:
           type: array
       required:
       - staff_id
-      - name
+      - staff_name
       - weekly_hours
       - total_hours
       - total_billable_hours
       - total_scheduled_hours
       - billable_percentage
-      - status
+      - week_status
       - total_billed_hours
       - total_unbilled_hours
       - total_overtime_hours
@@ -11465,8 +12293,12 @@ components:
       - total_sick_leave_hours
       - total_annual_leave_hours
       - total_bereavement_leave_hours
+      - total_other_leave_hours
       - weekly_cost
       - weekly_base_cost
+      - pay_basis
+      - expected_hours
+      - variance_hours
       title: WeeklyStaffDataOut
       type: object
     WeeklyStaffDayOut:
@@ -11493,6 +12325,9 @@ components:
         day:
           title: Day
           type: string
+        day_status:
+          title: Day Status
+          type: string
         has_leave:
           title: Has Leave
           type: boolean
@@ -11501,9 +12336,11 @@ components:
           type: number
         leave_type:
           anyOf:
-          - type: string
+          - $ref: '#/components/schemas/LeaveCodeOut'
           - type: 'null'
-          title: Leave Type
+        other_leave_hours:
+          title: Other Leave Hours
+          type: number
         overtime_1_5x_hours:
           title: Overtime 1 5X Hours
           type: number
@@ -11516,9 +12353,6 @@ components:
         sick_leave_hours:
           title: Sick Leave Hours
           type: number
-        status:
-          title: Status
-          type: string
         unbilled_hours:
           title: Unbilled Hours
           type: number
@@ -11527,7 +12361,7 @@ components:
       - hours
       - billable_hours
       - scheduled_hours
-      - status
+      - day_status
       - leave_type
       - has_leave
       - billed_hours
@@ -11537,6 +12371,7 @@ components:
       - sick_leave_hours
       - annual_leave_hours
       - bereavement_leave_hours
+      - other_leave_hours
       - daily_cost
       - daily_base_cost
       title: WeeklyStaffDayOut
@@ -12645,7 +13480,7 @@ paths:
                 $ref: '#/components/schemas/PayrollDateRangeResponse'
           description: OK
       security:
-      - CookieJWTAuth: []
+      - SuperuserCookieJWTAuth: []
       summary: Pay-period-aligned week boundaries
       tags:
       - accounting
@@ -12676,8 +13511,41 @@ paths:
                 $ref: '#/components/schemas/PayrollReconciliationResponse'
           description: OK
       security:
-      - CookieJWTAuth: []
+      - SuperuserCookieJWTAuth: []
       summary: 'Weekly payroll reconciliation: Xero pay runs vs JM time'
+      tags:
+      - accounting
+  /api/accounting/reports/payroll-reconciliation/week/:
+    get:
+      description: 'Reconcile one week live, without waiting for the run to be Posted and synced.
+
+
+        Its own endpoint rather than a parameter on the date-range report: that one
+
+        reads the synced pay-slip mirror and answers a costing question over a
+
+        window, while this reads the week''s run directly so it can answer in the
+
+        minutes after posting, when a mistake is still cheap to fix.'
+      operationId: accounting_reports_payroll_week_reconciliation_retrieve
+      parameters:
+      - in: query
+        name: week_start_date
+        required: true
+        schema:
+          format: date
+          title: Week Start Date
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayrollWeekReconciliationResponse'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: 'One payroll week: what we expect Xero to pay, beside what Xero computed'
       tags:
       - accounting
   /api/accounting/reports/profit-and-loss/:
@@ -15154,6 +16022,29 @@ paths:
       summary: Fetch changed kanban cards after a dataset version
       tags:
       - job
+  /api/job/jobs/options/:
+    get:
+      description: Jobs of one status, for the admin screens that map a fixed kind of job.
+      operationId: job_jobs_options_list
+      parameters:
+      - in: query
+        name: status
+        required: true
+        schema:
+          title: Status
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobOptionsResponse'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: List one status's jobs, narrowed to what a picker renders
+      tags:
+      - Jobs
   /api/job/jobs/status-choices/:
     get:
       description: Return the status choices available for jobs.
@@ -16847,9 +17738,19 @@ paths:
       - people
   /api/purchasing/all-jobs/:
     get:
-      description: All non-archived jobs, flagging which one holds general stock.
+      description: "All non-archived jobs, flagging which one holds general stock.\n\nWith `q`, searches\
+        \ the WHOLE table instead \u2014 the picker holds the\nnon-archived set already and asks for this\
+        \ only to reach what that set\nexcludes, which in practice is archived jobs. Booking against one\
+        \ is rare\nbut legitimate, and without this it is impossible."
       operationId: purchasing_all_jobs_retrieve
-      parameters: []
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          default: ''
+          title: Q
+          type: string
       responses:
         '200':
           content:
@@ -17691,9 +18592,19 @@ paths:
       - timesheets
   /api/timesheets/jobs/:
     get:
-      description: Jobs available for time entry (active, plus recently archived fixed-price).
+      description: 'Jobs available for time entry (active, plus recently archived fixed-price).
+
+
+        With `q`, searches the whole table so a picker can reach an archived job.'
       operationId: timesheets_jobs_retrieve
-      parameters: []
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          default: ''
+          title: Q
+          type: string
       responses:
         '200':
           content:
@@ -17706,6 +18617,249 @@ paths:
       summary: Get list of active jobs for timesheet entries using CostSet system
       tags:
       - timesheets
+  /api/timesheets/leave-settings/:
+    get:
+      description: Return the fixed types and their editable mappings.
+      operationId: timesheets_leave_settings_retrieve
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveSettingsOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Get Settings
+      tags:
+      - leave
+    patch:
+      description: Save every changed leave mapping, or none of them.
+      operationId: timesheets_leave_settings_update
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveSettingsUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveSettingsOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Update Settings
+      tags:
+      - leave
+  /api/timesheets/leave/balance/:
+    get:
+      description: Read the employee's selected balance live from payroll.
+      operationId: timesheets_leave_balance_retrieve
+      parameters:
+      - in: query
+        name: staff_id
+        required: true
+        schema:
+          format: uuid
+          title: Staff Id
+          type: string
+      - in: query
+        name: leave_type_code
+        required: true
+        schema:
+          title: Leave Type Code
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveBalanceOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Leave Balance
+      tags:
+      - leave
+  /api/timesheets/leave/office-closure/:
+    post:
+      description: Create Public Holiday leave for all affected staff.
+      operationId: timesheets_leave_office_closure_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfficeClosureWrite'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfficeClosureOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Create Office Closure Endpoint
+      tags:
+      - leave
+  /api/timesheets/leave/office-closure/preview/:
+    post:
+      description: Preview the active scheduled staff affected by a closure.
+      operationId: timesheets_leave_office_closure_preview_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfficeClosureWrite'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfficeClosurePreviewOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Preview Office Closure Endpoint
+      tags:
+      - leave
+  /api/timesheets/leave/preview/:
+    post:
+      description: Preview one employee's scheduled and conflicting dates.
+      operationId: timesheets_leave_preview_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeavePreviewRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeavePreviewOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Preview Leave Endpoint
+      tags:
+      - leave
+  /api/timesheets/leave/requests/:
+    get:
+      description: List current or historical leave with filtered summary figures.
+      operationId: timesheets_leave_requests_list
+      parameters:
+      - in: query
+        name: scope
+        required: false
+        schema:
+          default: current
+          enum:
+          - current
+          - history
+          title: Scope
+          type: string
+      - in: query
+        name: search
+        required: false
+        schema:
+          default: ''
+          title: Search
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveListOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: List Requests
+      tags:
+      - leave
+    post:
+      description: Create a leave request and daily payroll lines.
+      operationId: timesheets_leave_requests_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveRequestWrite'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveSaveOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Create Request
+      tags:
+      - leave
+  /api/timesheets/leave/requests/{request_id}/:
+    delete:
+      description: Cancel leave and remove its daily payroll lines.
+      operationId: timesheets_leave_requests_delete
+      parameters:
+      - in: path
+        name: request_id
+        required: true
+        schema:
+          format: uuid
+          title: Request Id
+          type: string
+      responses:
+        '204':
+          description: No Content
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Delete Request
+      tags:
+      - leave
+    patch:
+      description: Replace an existing request and its daily payroll lines.
+      operationId: timesheets_leave_requests_update
+      parameters:
+      - in: path
+        name: request_id
+        required: true
+        schema:
+          format: uuid
+          title: Request Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveRequestUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveSaveOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Update Request
+      tags:
+      - leave
   /api/timesheets/payroll/pay-runs/:
     get:
       description: All pay runs for the configured payroll calendar (local mirror).
@@ -17723,49 +18877,16 @@ paths:
       summary: List pay runs
       tags:
       - timesheets
-  /api/timesheets/payroll/pay-runs/create:
-    post:
-      description: 'Create a new pay run for the specified week (Phase 4 seam: Xero write).'
-      operationId: timesheets_payroll_pay_runs_create_create
-      parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreatePayRunRequest'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CreatePayRunResponse'
-          description: Created
-      security:
-      - SuperuserCookieJWTAuth: []
-      summary: Create pay run for a week
-      tags:
-      - timesheets
-  /api/timesheets/payroll/pay-runs/refresh:
-    post:
-      description: Synchronise the local pay-run mirror with Xero (Phase 4 seam).
-      operationId: timesheets_payroll_pay_runs_refresh_create
-      parameters: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PayRunSyncResponse'
-          description: OK
-      security:
-      - SuperuserCookieJWTAuth: []
-      summary: Refresh cached pay runs from Xero
-      tags:
-      - timesheets
   /api/timesheets/payroll/post-staff-week/:
     post:
-      description: Register the posting task and return its SSE stream URL.
+      description: "Claim the calendar, dispatch the run, and return its opening document.\n\nOpus: A\
+        \ run already in progress raises ``PayrollRunInProgressError``, a typed\nConflictError the envelope\
+        \ answers 409 with \u2014 so a duplicate click is\nrefused here rather than handed a run id whose\
+        \ only content is a fabricated\nfailure the client must open a stream to read.\n\nFable: The request\
+        \ names only the week. The staff are the server's to\nderive and the postable-week rule is the\
+        \ server's to enforce, on a mirror\nthis POST refreshes itself \u2014 the panel's read may be\
+        \ an hour stale, and a\nstale banner must be able to cost at most a clear refusal, never a wrong\n\
+        posting."
       operationId: timesheets_payroll_post_staff_week_create
       parameters: []
       requestBody:
@@ -17784,6 +18905,63 @@ paths:
       security:
       - SuperuserCookieJWTAuth: []
       summary: Start posting weekly timesheets to Xero Payroll
+      tags:
+      - timesheets
+  /api/timesheets/payroll/runs/:
+    get:
+      description: "Return the current run document, which the stream also pushes.\n\nOpus: The polling\
+        \ sibling of the SSE channel, and the reason the run document\nhas generated frontend types at\
+        \ all \u2014 a stream cannot be a ninja operation\n(ADR 0047), so without this the wire contract\
+        \ existed only as hand-written\nTypeScript. It is also what makes a reload rejoin a live run,\
+        \ and what tells\nan expired run (404-shaped: an absent slot) apart from a lapsed session\n(401),\
+        \ which the stream cannot express."
+      operationId: timesheets_payroll_runs_retrieve
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayrollRunsOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: The payroll runs this organisation currently has state for
+      tags:
+      - timesheets
+  /api/timesheets/payroll/week-status/:
+    get:
+      description: 'Ask Xero what it holds for each staff member''s week.
+
+
+        Opus: Separate from the weekly overview on purpose (ADR 0007): this one calls
+
+        Xero, and the grid must keep rendering when Xero is unreachable.
+
+
+        ``week_start_date`` is required rather than defaulting to this week. A
+
+        default would make a bare GET call Xero, and the one caller always knows
+
+        which week it is showing.'
+      operationId: timesheets_payroll_week_status_retrieve
+      parameters:
+      - in: query
+        name: week_start_date
+        required: true
+        schema:
+          title: Week Start Date
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeekPostingStatusResponse'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: What Xero holds for the week, beside what was recorded
       tags:
       - timesheets
   /api/timesheets/staff/:

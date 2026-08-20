@@ -17,7 +17,7 @@ from apps.company.tests.conftest import authenticate, make_company
 def office_staff() -> Staff:
     """An authenticated-capable office staff member."""
     return Staff.objects.create_user(
-        email="operations-office@example.com",
+        office_email="operations-office@example.com",
         password="s3cret-Pass!",
         first_name="Office",
         last_name="Staff",

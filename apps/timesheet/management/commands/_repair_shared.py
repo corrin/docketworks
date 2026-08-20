@@ -27,7 +27,6 @@ from apps.accounts.models import Staff
 from apps.core.xero_registry import xero_model_manager
 from apps.job.models.costing import CostLine, CostSet
 from apps.job.services.time_entry_rates import PayItem
-from apps.timesheet.services.xero_hours import LEAVE_JOB_NAMES
 
 
 class _PayItemQuery(Protocol):
@@ -66,12 +65,30 @@ def get_ordinary_pay_item() -> PayItem:
 
 
 def get_leave_pay_items() -> dict[str, PayItem]:
-    """Return leave job name -> leave-API pay item for every leave type that has one."""
+    """Return leave category CODE -> leave-API pay item, for the categories that post one.
+
+    Opus: Keyed by the category code, the same key the Xero side of the comparison
+    resolves to and the same one the repair CSV's ``entry_type`` column now
+    carries. The old version keyed by job NAME and found the pay item whose Xero
+    name equalled it, silently omitting any that did not match — so a CSV row
+    naming that category failed later with "no pay item found" rather than here.
+
+    Categories Xero pays from its own calculation are absent by construction:
+    they post no pay item at all, so a row naming one is refused by the caller
+    rather than costed against a rate Xero never charged.
+    """
+    from apps.timesheet.models import LeaveType  # noqa: PLC0415
+
     result: dict[str, PayItem] = {}
-    for name in LEAVE_JOB_NAMES:
-        pay_item = _pay_items().filter(name=name, uses_leave_api=True).first()
-        if pay_item is not None:
-            result[name] = pay_item
+    for leave_type in LeaveType.objects.exclude(job=None).select_related(
+        "job__default_xero_pay_item"
+    ):
+        job = leave_type.job
+        if job is None:
+            continue
+        pay_item = job.default_xero_pay_item
+        if pay_item is not None and pay_item.uses_leave_api:
+            result[leave_type.code] = pay_item
     return result
 
 

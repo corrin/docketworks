@@ -7,7 +7,24 @@ the SDK serializer sends them, and Xero rejects explicit nulls on some fields.
 """
 
 import json
+from datetime import date, datetime
 from typing import Any
+
+
+def as_date(value: Any) -> date | None:
+    """Narrow a Xero date-or-datetime field to a plain date.
+
+    Opus: The SDK returns datetimes for some date fields and dates for others
+    depending on the endpoint, so every payroll comparison has to normalise
+    before it can compare.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    raise TypeError(f"Expected a Xero date or datetime, got {type(value).__name__}: {value!r}")
 
 
 def sanitize_for_xero(text: str) -> str:

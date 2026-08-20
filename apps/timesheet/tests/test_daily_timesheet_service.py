@@ -53,14 +53,13 @@ class TestStaffDailyRow:
         # Scheduled 8h by default; 8h booked is Complete.
         make_time_line(job, worker, accounting_date=WEDNESDAY, hours="8.000")
         assert (
-            daily_timesheet_service.get_staff_timesheet_data(worker, WEDNESDAY, False)["status"]
+            daily_timesheet_service.get_staff_timesheet_data(worker, WEDNESDAY, False)["day_status"]
             == "Complete"
         )
 
     def test_no_entries_is_no_entry_with_an_alert(self, worker: Staff) -> None:
         row = daily_timesheet_service.get_staff_timesheet_data(worker, WEDNESDAY, False)
-        assert row["status"] == "No Entry"
-        assert row["status_class"] == "danger"
+        assert row["day_status"] == "No Entry"
         assert row["alerts"] == ["No timesheet entries"]
 
     def test_short_day_is_partial_and_flags_low_hours(self, job: Job, worker: Staff) -> None:
@@ -68,7 +67,7 @@ class TestStaffDailyRow:
 
         row = daily_timesheet_service.get_staff_timesheet_data(worker, WEDNESDAY, False)
 
-        assert row["status"] == "Partial"
+        assert row["day_status"] == "Partial"
         assert "Low hours recorded" in row["alerts"]
 
     def test_long_day_flags_overtime(self, job: Job, worker: Staff) -> None:
@@ -76,26 +75,32 @@ class TestStaffDailyRow:
 
         row = daily_timesheet_service.get_staff_timesheet_data(worker, WEDNESDAY, False)
 
-        assert row["status"] == "Complete"
+        assert row["day_status"] == "Complete"
         assert "Overtime recorded" in row["alerts"]
 
-    def test_weekend_is_off_the_clock_when_weekends_are_disabled(
-        self, job: Job, worker: Staff
-    ) -> None:
-        make_time_line(job, worker, accounting_date=SATURDAY, hours="4.000")
-
+    def test_an_unrostered_day_with_nothing_booked_is_off(self, worker: Staff) -> None:
         row = daily_timesheet_service.get_staff_timesheet_data(worker, SATURDAY, False)
 
         assert row["scheduled_hours"] == 0.0
-        assert row["status"] == "Weekend"
+        assert row["day_status"] == "Off"
 
-    def test_weekend_work_is_named_when_weekends_are_enabled(self, job: Job, worker: Staff) -> None:
+    def test_hours_booked_on_an_unrostered_day_are_flagged_unscheduled(
+        self, job: Job, worker: Staff
+    ) -> None:
+        """Saturday hours are visible even with weekend timesheets turned off.
+
+        v1 reported this day as plain "Weekend" whenever the weekend flag was
+        off, hiding the fact that someone had booked four hours on it.
+        """
         make_time_line(job, worker, accounting_date=SATURDAY, hours="4.000")
 
-        row = daily_timesheet_service.get_staff_timesheet_data(worker, SATURDAY, True)
+        for weekend_enabled in (False, True):
+            row = daily_timesheet_service.get_staff_timesheet_data(
+                worker, SATURDAY, weekend_enabled
+            )
 
-        assert row["status"] == "Weekend Work"
-        assert row["status_class"] == "info"
+            assert row["scheduled_hours"] == 0.0
+            assert row["day_status"] == "Unscheduled"
 
 
 class TestJobBreakdown:

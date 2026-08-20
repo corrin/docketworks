@@ -17,6 +17,7 @@ from xero_python.accounting import AccountingApi
 
 from apps.accounting.models import Bill, Invoice
 from apps.company.models import Company
+from apps.xero import payroll_sdk
 from apps.xero.auth import get_api_client
 from apps.xero.constants import SLEEP_TIME
 from apps.xero.models import XeroPayRun
@@ -115,6 +116,11 @@ def sync_single_pay_run(pay_run_id: str) -> XeroPayRun:
     if not xero_pay_run:
         raise ValueError(f"No pay run found with ID {pay_run_id}")
 
-    pay_run, status = transform_pay_run(xero_pay_run, pay_run_id)
+    # Fable: Resolved once at this entry point and passed down, matching the
+    # provider methods: the transform must stamp the organisation the fetch
+    # answered for, not whatever the singleton says at write time.
+    pay_run, status = transform_pay_run(
+        xero_pay_run, pay_run_id, tenant_id=payroll_sdk.connected_tenant()
+    )
     logger.info("Synced pay run %s: %s", pay_run_id, status)
     return pay_run

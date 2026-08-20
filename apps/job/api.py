@@ -29,12 +29,13 @@ Integration wiring (config/api.py): ``api.add_router("/", router)`` — the
 paths below carry their own ``/job/`` prefix.
 """
 
+import hashlib
 import logging
 import mimetypes
 from pathlib import Path
 from uuid import UUID
 
-from django.core.cache import cache
+from django.core.cache import BaseCache, caches
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.http.response import HttpResponseBase
@@ -92,6 +93,7 @@ from apps.job.schemas import (
     JobInvoicesResponse,
     JobLabourRateOut,
     JobLabourRatesUpdateRequest,
+    JobOptionsResponse,
     JobQuoteAcceptanceResponse,
     JobQuoteResponse,
     JobReorderRequest,
@@ -112,7 +114,13 @@ from apps.job.schemas import (
     QuoteRevisionResponse,
     QuoteRevisionsListResponse,
 )
-from apps.job.services import file_service, job_service, kanban_service, month_end_service
+from apps.job.services import (
+    file_service,
+    job_search,
+    job_service,
+    kanban_service,
+    month_end_service,
+)
 from apps.job.services.delivery_docket_service import generate_delivery_docket
 from apps.job.services.job_service import CostLineWriteData, JobCreateData
 from apps.job.services.kanban_service import KanbanService
@@ -233,6 +241,22 @@ def job_jobs_create(
 def job_jobs_status_choices_retrieve(request: HttpRequest) -> dict[str, dict[str, str]]:
     """Return the status choices available for jobs."""
     return {"statuses": dict(Job.JOB_STATUS_CHOICES)}
+
+
+@router.get(
+    "/job/jobs/options/",
+    auth=auth,
+    operation_id="job_jobs_options_list",
+    response=JobOptionsResponse,
+    summary="List one status's jobs, narrowed to what a picker renders",
+    tags=["Jobs"],
+)
+def job_jobs_options_list(request: HttpRequest, status: str) -> dict[str, object]:
+    """Jobs of one status, for the admin screens that map a fixed kind of job."""
+    try:
+        return {"jobs": job_search.job_options(status)}
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
 
 
 @router.get(
@@ -415,15 +439,40 @@ def job_jobs_events_retrieve(request: HttpRequest, job_id: UUID) -> dict[str, ob
     return {"events": [job_service.job_event_data(event) for event in events]}
 
 
+def _dedup_cache() -> BaseCache:
+    """Return the cache duplicate suppression consults.
+
+    Opus: Shared, because suppression only suppresses while every process reads the
+    same record: on the per-process default the second of two identical
+    requests is caught when it lands on the same gunicorn worker and sails
+    through when it does not, which is a coin toss rather than a guard.
+
+    Resolved per call because Django's handler is per-thread and drops its
+    instances on teardown.
+    """
+    return caches["shared"]
+
+
+def _stable_key(text: str) -> str:
+    """Derive a key for `text` that is identical in every process, and after a restart.
+
+    Opus: ``hash()`` is not: Python salts str hashing per process, so two workers
+    derive different keys for identical text and neither sees the other's
+    entry — the duplicate check silently passed everything it was meant to
+    catch.
+    """
+    return hashlib.sha256(text.encode()).hexdigest()[:32]
+
+
 def _check_request_debounce(
     request: HttpRequest, operation_key: str, debounce_seconds: int
 ) -> bool:
     """Return True when the request falls inside the debounce window."""
     user = _staff(request)
     cache_key = f"debounce:{operation_key}:{user.id}"
-    if cache.get(cache_key):
+    if _dedup_cache().get(cache_key):
         return True
-    cache.set(cache_key, True, debounce_seconds)
+    _dedup_cache().set(cache_key, True, debounce_seconds)
     return False
 
 
@@ -444,15 +493,17 @@ def job_rest_jobs_events_create(
 
     # Debounce check - prevent rapid requests
     if _check_request_debounce(request, f"add_event:{job_id}", debounce_seconds=2):
-        logger.warning("Request debounced for user %s on job %s", user.email, job_id)
+        logger.warning("Request debounced for user %s on job %s", user.office_email, job_id)
         raise HttpError(429, "Request too frequent. Please wait before adding another event.")
 
     # Additional duplicate check via cache
     description = payload.description.strip()
-    duplicate_check_key = f"event_duplicate:{job_id}:{user.id}:{hash(description)}"
-    if cache.get(duplicate_check_key):
+    duplicate_check_key = f"event_duplicate:{job_id}:{user.id}:{_stable_key(description)}"
+    if _dedup_cache().get(duplicate_check_key):
         logger.warning(
-            "Duplicate event prevented via cache for user %s on job %s", user.email, job_id
+            "Duplicate event prevented via cache for user %s on job %s",
+            user.office_email,
+            job_id,
         )
         raise HttpError(409, "Duplicate event detected. An identical event was recently created.")
 
@@ -462,7 +513,7 @@ def job_rest_jobs_events_create(
         raise HttpError(400, str(exc)) from exc
 
     # Set duplicate prevention cache (5 minutes)
-    cache.set(duplicate_check_key, True, 300)
+    _dedup_cache().set(duplicate_check_key, True, 300)
 
     _set_job_etag(response, job_id)
     body: dict[str, object] = {
@@ -878,7 +929,10 @@ def job_cost_lines_delete_destroy(request: HttpRequest, cost_line_id: UUID) -> S
     line = get_object_or_404(CostLine, id=cost_line_id)
     if line.cost_set.kind != "actual" and not _staff(request).is_office_staff:
         raise HttpError(403, "Only office staff can delete non-actual cost lines")
-    job_service.delete_cost_line(line)
+    try:
+        job_service.delete_cost_line(line)
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
     return Status(204, None)
 
 

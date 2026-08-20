@@ -6,6 +6,9 @@ Every test states what regression it catches and why the assertion would fail if
 
 - Every test carries a docstring (or nearby comment) answering: **what change could a teammate make that this test would catch, and why would this assertion fail then?** "Tests that inactive staff are excluded" is not enough; the expected shape is "A query refactor could drop the leave-date predicate, and this test catches it by creating a staff member who left before the target date." A class-level docstring suffices only when every test in the class guards the same regression surface.
 - If the answer is "Python/Django/the framework breaks", delete the test — we test our code only.
+- **Deciding the regression is half the work; ADR 0052 is the other half** — the assertion must
+  fail when the guarantee is removed and survive a rewrite that keeps it, however well the
+  docstring this ADR requires describes the risk.
 - Test the algorithm's contract — inputs and observable outputs — not implementation internals. Asserting internals (`CaptureQueriesContext`, private method calls) is allowed only when the internal is itself the regression risk (an accidental N+1) and no contract-level test covers the same risk.
 - A real bug that escaped the suite owes its regression test at the contract boundary that failed — the strict consumer that enforces the shape, not the easiest internal side effect. The classic miss: the write-path test passes while a strict reader cannot parse what was stored; the owed test exercises that reader.
 - Temporary operational code with a planned deletion point gets no permanent regression tests — validate with rehearsal, dry-run, runbook, or operator evidence. Durable contracts the work leaves behind (data shape, deploy semantics, systemd/Celery setup, API behaviour, permissions, user-facing code) are tested even when the rollout that introduced them was one-off.

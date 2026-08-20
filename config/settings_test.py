@@ -27,10 +27,19 @@ os.environ.setdefault("DB_PASSWORD", "postgres")
 os.environ.setdefault("DB_HOST", "localhost")
 os.environ.setdefault("DB_PORT", "5432")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/1")
-# Tests must never write to a Xero tenant — hard-set, not setdefault: an
-# inherited XERO_READONLY=false from a dev shell would silently run the
-# suite against the writable provider.
-os.environ["XERO_READONLY"] = "true"
+# Opus: XERO_READONLY is a production hotfix valve — it exists so an operator running
+# a local process against PRODUCTION cannot emit real side effects (ADR 0050).
+# It is NOT a test mechanism, and this file used to hard-set it to "true",
+# which silently ran the entire suite against the write-suppressing provider
+# and would have done the same to the integration suite — a green run that
+# proved nothing.
+#
+# What keeps unit tests off the network is the autouse guard in the root
+# conftest, which fails a test that reaches a vendor instead of quietly faking
+# it. Integration tests (ADR 0050) deliberately DO reach the dev tenant, which
+# exists for exactly that. A test of the valve itself sets it locally with
+# override_settings.
+os.environ.setdefault("XERO_READONLY", "false")
 os.environ.setdefault("FRONT_END_URL", "http://localhost:5173")
 os.environ.setdefault(
     "DROPBOX_WORKFLOW_FOLDER",

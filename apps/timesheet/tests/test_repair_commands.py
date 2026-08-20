@@ -30,7 +30,12 @@ from apps.timesheet.management.commands import create_overtime_entries as overti
 from apps.timesheet.management.commands import (
     reclassify_overtime_entries as reclassify_command_module,
 )
-from apps.timesheet.tests.conftest import make_staff, make_time_line
+from apps.timesheet.tests.conftest import (
+    PayRunRow,
+    make_pay_run,
+    make_staff,
+    make_time_line,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -39,9 +44,9 @@ MONDAY = date(2026, 5, 4)
 TUESDAY = date(2026, 5, 5)
 WEDNESDAY = date(2026, 5, 6)
 FRIDAY = date(2026, 5, 8)
-# Xero weekly pay periods run Sunday-Saturday; this period maps onto MONDAY's week.
-XERO_PERIOD_START = date(2026, 5, 3)
-XERO_PERIOD_END = date(2026, 5, 9)
+# The pay period IS the Monday-Sunday week: payroll_setup creates the calendar
+# Monday-anchored and fails setup if Xero returns anything else.
+XERO_PERIOD_START = date(2026, 5, 4)
 SYNC_TIME = datetime(2026, 5, 13, tzinfo=UTC)
 
 
@@ -76,23 +81,7 @@ def _make_shop_time_line(
     )
 
 
-def _make_pay_run(*, status: str = "Posted") -> Model:
-    return cast(
-        "Model",
-        django_apps.get_model("xero", "XeroPayRun")._default_manager.create(
-            xero_id=uuid.uuid4(),
-            xero_tenant_id="tenant-1",
-            period_start_date=XERO_PERIOD_START,
-            period_end_date=XERO_PERIOD_END,
-            payment_date=XERO_PERIOD_END,
-            pay_run_status=status,
-            raw_json={},
-            xero_last_modified=SYNC_TIME,
-        ),
-    )
-
-
-def _make_pay_slip(pay_run: Model, staff: Staff, raw_json: dict[str, object]) -> Model:
+def _make_pay_slip(pay_run: PayRunRow, staff: Staff, raw_json: dict[str, object]) -> Model:
     if staff.xero_user_id is None:
         raise ValueError("test staff must carry a xero_user_id")
     return cast(
@@ -133,7 +122,7 @@ class TestCreateOvertimeEntries:
         staff = make_staff("ot-w@example.com", first_name="Overta", last_name="Worker")
         shop_job = _make_special_job("Shop Time", creator)
         _make_shop_time_line(shop_job, staff, accounting_date=TUESDAY)
-        pay_run = _make_pay_run()
+        pay_run = make_pay_run(status="Posted", week_start=XERO_PERIOD_START)
         _make_pay_slip(
             pay_run,
             staff,
@@ -168,7 +157,7 @@ class TestCreateOvertimeEntries:
         staff = make_staff("ot-d@example.com", first_name="Double", last_name="Worker")
         shop_job = _make_special_job("Shop Time", creator)
         _make_shop_time_line(shop_job, staff, accounting_date=TUESDAY)
-        pay_run = _make_pay_run()
+        pay_run = make_pay_run(status="Posted", week_start=XERO_PERIOD_START)
         _make_pay_slip(
             pay_run,
             staff,
@@ -187,7 +176,7 @@ class TestCreateOvertimeEntries:
         staff = make_staff("ot-m@example.com", first_name="Matcha", last_name="Worker")
         shop_job = _make_special_job("Shop Time", creator)
         _make_shop_time_line(shop_job, staff, accounting_date=TUESDAY)
-        pay_run = _make_pay_run()
+        pay_run = make_pay_run(status="Posted", week_start=XERO_PERIOD_START)
         _make_pay_slip(
             pay_run,
             staff,
@@ -292,7 +281,7 @@ class TestReclassifyOvertimeEntries:
         staff = make_staff("rc-p@example.com", first_name="Recla", last_name="Worker")
         shop_job = _make_special_job("Shop Time", creator)
         line = _make_shop_time_line(shop_job, staff, accounting_date=TUESDAY)
-        pay_run = _make_pay_run()
+        pay_run = make_pay_run(status="Posted", week_start=XERO_PERIOD_START)
         _make_pay_slip(
             pay_run,
             staff,

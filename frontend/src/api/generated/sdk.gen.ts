@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AccountingReportsCalendarRetrieveData, AccountingReportsCalendarRetrieveResponses, AccountingReportsJobAgingRetrieveData, AccountingReportsJobAgingRetrieveResponses, AccountingReportsJobMovementRetrieveData, AccountingReportsJobMovementRetrieveResponses, AccountingReportsPayrollDateRangeRetrieveData, AccountingReportsPayrollDateRangeRetrieveResponses, AccountingReportsPayrollReconciliationRetrieveData, AccountingReportsPayrollReconciliationRetrieveResponses, AccountingReportsProfitAndLossRetrieveData, AccountingReportsProfitAndLossRetrieveErrors, AccountingReportsRdtiSpendRetrieveData, AccountingReportsRdtiSpendRetrieveResponses, AccountingReportsSalesPipelineRetrieveData, AccountingReportsSalesPipelineRetrieveResponses, AccountingReportsStaffPerformanceRetrieveData, AccountingReportsStaffPerformanceRetrieveResponses, AccountingReportsStaffPerformanceSummaryRetrieveData, AccountingReportsStaffPerformanceSummaryRetrieveResponses, AccountingReportsWipRetrieveData, AccountingReportsWipRetrieveResponses, AccountsLogoutCreateData, AccountsLogoutCreateResponses, AccountsMeRetrieveData, AccountsMeRetrieveErrors, AccountsMeRetrieveResponses, AccountsStaffAllListData, AccountsStaffAllListResponses, AccountsStaffListData, AccountsStaffListResponses, AccountsTokenCreateData, AccountsTokenCreateErrors, AccountsTokenCreateResponses, AccountsTokenRefreshCreateData, AccountsTokenRefreshCreateErrors, AccountsTokenRefreshCreateResponses, ApproveCostLineData, ApproveCostLineResponses, AssignPhoneCallNumberData, AssignPhoneCallNumberErrors, AssignPhoneCallNumberResponses, BuildIdRetrieveData, BuildIdRetrieveResponses, CheckDuplicateIdentitiesData, CheckDuplicateIdentitiesResponses, CheckDuplicatePhonesData, CheckDuplicatePhonesResponses, CompaniesAddressesValidateCreateData, CompaniesAddressesValidateCreateResponses, CompaniesAllListData, CompaniesAllListResponses, CompaniesContactMethodsCreateData, CompaniesContactMethodsCreateResponses, CompaniesContactMethodsDestroyData, CompaniesContactMethodsDestroyResponses, CompaniesContactMethodsListData, CompaniesContactMethodsListResponses, CompaniesContactMethodsPartialUpdateData, CompaniesContactMethodsPartialUpdateResponses, CompaniesContactMethodsRetrieveData, CompaniesContactMethodsRetrieveResponses, CompaniesContactMethodsUpdateData, CompaniesContactMethodsUpdateResponses, CompaniesCreateCreateData, CompaniesCreateCreateResponses, CompaniesJobsRetrieveData, CompaniesJobsRetrieveResponses, CompaniesPeopleCreateData, CompaniesPeopleCreateErrors, CompaniesPeopleCreateResponses, CompaniesPeopleListData, CompaniesPeopleListResponses, CompaniesPeoplePhoneOwnershipCreateData, CompaniesPeoplePhoneOwnershipCreateResponses, CompaniesPickupAddressesCreateData, CompaniesPickupAddressesCreateResponses, CompaniesPickupAddressesDestroyData, CompaniesPickupAddressesDestroyResponses, CompaniesPickupAddressesListData, CompaniesPickupAddressesListResponses, CompaniesPickupAddressesPartialUpdateData, CompaniesPickupAddressesPartialUpdateResponses, CompaniesPickupAddressesRetrieveData, CompaniesPickupAddressesRetrieveResponses, CompaniesPickupAddressesUpdateData, CompaniesPickupAddressesUpdateResponses, CompaniesRetrieveData, CompaniesRetrieveResponses, CompaniesSearchRetrieveData, CompaniesSearchRetrieveResponses, CompaniesSupplierAliasesCreateData, CompaniesSupplierAliasesCreateResponses, CompaniesSupplierAliasesDestroyData, CompaniesSupplierAliasesDestroyResponses, CompaniesSupplierAliasesListData, CompaniesSupplierAliasesListResponses, CompaniesUpdatePartialUpdateData, CompaniesUpdatePartialUpdateResponses, CompaniesUpdateUpdateData, CompaniesUpdateUpdateResponses, CompanyDefaultsPartialUpdateData, CompanyDefaultsPartialUpdateResponses, CompanyDefaultsRetrieveData, CompanyDefaultsRetrieveResponses, CompanyDefaultsSchemaRetrieveData, CompanyDefaultsSchemaRetrieveResponses, ConsumeStockData, ConsumeStockResponses, CreatePurchaseOrderData, CreatePurchaseOrderEventData, CreatePurchaseOrderEventResponses, CreatePurchaseOrderResponses, CrmPhoneCallRecordingsListData, CrmPhoneCallRecordingsListResponses, CrmPhoneCallRecordingsRetrieveData, CrmPhoneCallRecordingsRetrieveResponses, CrmPhoneCallsListData, CrmPhoneCallsListResponses, CrmPhoneCallsRetrieveData, CrmPhoneCallsRetrieveResponses, CrmPhoneEndpointsCreateData, CrmPhoneEndpointsCreateErrors, CrmPhoneEndpointsCreateResponses, CrmPhoneEndpointsDestroyData, CrmPhoneEndpointsDestroyResponses, CrmPhoneEndpointsListData, CrmPhoneEndpointsListResponses, CrmPhoneEndpointsPartialUpdateData, CrmPhoneEndpointsPartialUpdateErrors, CrmPhoneEndpointsPartialUpdateResponses, CrmPhoneEndpointsRetrieveData, CrmPhoneEndpointsRetrieveResponses, CrmPhoneEndpointsUpdateData, CrmPhoneEndpointsUpdateErrors, CrmPhoneEndpointsUpdateResponses, DataVersionsRetrieveData, DataVersionsRetrieveResponses, DeleteAllocationData, DeleteAllocationResponses, DeleteJobFileData, DeleteJobFileResponses, DeleteLocalPhoneCallRecordingData, DeleteLocalPhoneCallRecordingResponses, DeleteProviderPhoneCallRecordingData, DeleteProviderPhoneCallRecordingResponses, DownloadPhoneCallRecordingData, DownloadPhoneCallRecordingResponses, GenerateDeliveryDocketRestData, GenerateDeliveryDocketRestResponses, GetAllocationDetailsData, GetAllocationDetailsResponses, GetDailyTimesheetSummaryByDateData, GetDailyTimesheetSummaryByDateResponses, GetFullJobData, GetFullJobResponses, GetJobFileData, GetJobFileResponses, GetJobFileThumbnailData, GetJobFileThumbnailResponses, GetJobSummaryData, GetJobSummaryResponses, GetKanbanChangesData, GetKanbanChangesResponses, GetLastPurchaseOrderNumberData, GetLastPurchaseOrderNumberResponses, GetPhoneProviderSettingsData, GetPhoneProviderSettingsResponses, GetPurchaseOrderEmailData, GetPurchaseOrderEmailResponses, GetPurchaseOrderPdfData, GetPurchaseOrderPdfResponses, GetStaffDailyTimesheetDetailByDateData, GetStaffDailyTimesheetDetailByDateResponses, GetSupplierPriceStatusData, GetSupplierPriceStatusResponses, JobCostLinesDeleteDestroyData, JobCostLinesDeleteDestroyResponses, JobCostLinesPartialUpdateData, JobCostLinesPartialUpdateResponses, JobJobAssignmentCreateData, JobJobAssignmentCreateErrors, JobJobAssignmentCreateResponses, JobJobAssignmentDestroyData, JobJobAssignmentDestroyErrors, JobJobAssignmentDestroyResponses, JobJobsAdvancedSearchRetrieveData, JobJobsAdvancedSearchRetrieveResponses, JobJobsBasicInfoRetrieveData, JobJobsBasicInfoRetrieveResponses, JobJobsCostSetsActualCostLinesCreateData, JobJobsCostSetsActualCostLinesCreateResponses, JobJobsCostSetsCostLinesCreateData, JobJobsCostSetsCostLinesCreateResponses, JobJobsCostSetsQuoteReviseCreateData, JobJobsCostSetsQuoteReviseCreateResponses, JobJobsCostSetsQuoteReviseRetrieveData, JobJobsCostSetsQuoteReviseRetrieveResponses, JobJobsCostSetsRetrieveData, JobJobsCostSetsRetrieveResponses, JobJobsCostsSummaryRetrieveData, JobJobsCostsSummaryRetrieveResponses, JobJobsCreateData, JobJobsCreateResponses, JobJobsDeltaRejectionsGroupedMarkResolvedCreateData, JobJobsDeltaRejectionsGroupedMarkResolvedCreateResponses, JobJobsDeltaRejectionsGroupedMarkUnresolvedCreateData, JobJobsDeltaRejectionsGroupedMarkUnresolvedCreateResponses, JobJobsDeltaRejectionsGroupedRetrieveData, JobJobsDeltaRejectionsGroupedRetrieveResponses, JobJobsDestroyData, JobJobsDestroyResponses, JobJobsEventsRetrieveData, JobJobsEventsRetrieveResponses, JobJobsFetchAllRetrieveData, JobJobsFetchAllRetrieveResponses, JobJobsFetchByColumnRetrieveData, JobJobsFetchByColumnRetrieveResponses, JobJobsFetchRetrieveData, JobJobsFetchRetrieveResponses, JobJobsFinishPartialUpdateData, JobJobsFinishPartialUpdateResponses, JobJobsFinishRetrieveData, JobJobsFinishRetrieveResponses, JobJobsHeaderRetrieveData, JobJobsHeaderRetrieveResponses, JobJobsInvoicesRetrieveData, JobJobsInvoicesRetrieveResponses, JobJobsLabourRatesListData, JobJobsLabourRatesListResponses, JobJobsLabourRatesPartialUpdateData, JobJobsLabourRatesPartialUpdateResponses, JobJobsPartialUpdateData, JobJobsPartialUpdateResponses, JobJobsQuoteAcceptCreateData, JobJobsQuoteAcceptCreateResponses, JobJobsQuoteRetrieveData, JobJobsQuoteRetrieveResponses, JobJobsReorderCreateData, JobJobsReorderCreateResponses, JobJobsStatusChoicesRetrieveData, JobJobsStatusChoicesRetrieveResponses, JobJobsStatusValuesRetrieveData, JobJobsStatusValuesRetrieveResponses, JobJobsTimelineRetrieveData, JobJobsTimelineRetrieveResponses, JobJobsUndoChangeCreateData, JobJobsUndoChangeCreateResponses, JobJobsUpdateData, JobJobsUpdateResponses, JobJobsUpdateStatusCreateData, JobJobsUpdateStatusCreateResponses, JobJobsWorkshopPdfRetrieveData, JobJobsWorkshopPdfRetrieveResponses, JobLabourSubtypesListData, JobLabourSubtypesListResponses, JobLabourSubtypesManageCreateData, JobLabourSubtypesManageCreateResponses, JobLabourSubtypesManageListData, JobLabourSubtypesManageListResponses, JobLabourSubtypesManagePartialUpdateData, JobLabourSubtypesManagePartialUpdateResponses, JobLabourSubtypesManageRetrieveData, JobLabourSubtypesManageRetrieveResponses, JobMonthEndCreateData, JobMonthEndCreateResponses, JobMonthEndRetrieveData, JobMonthEndRetrieveResponses, JobRestJobDeltaRejectionsListData, JobRestJobDeltaRejectionsListResponses, JobRestJobsDeltaRejectionsAdminListData, JobRestJobsDeltaRejectionsAdminListResponses, JobRestJobsEventsCreateData, JobRestJobsEventsCreateErrors, JobRestJobsEventsCreateResponses, JobTimesheetEntriesRetrieveData, JobTimesheetEntriesRetrieveResponses, JobWorkshopTimesheetsCreateData, JobWorkshopTimesheetsCreateResponses, JobWorkshopTimesheetsDestroyData, JobWorkshopTimesheetsDestroyResponses, JobWorkshopTimesheetsPartialUpdateData, JobWorkshopTimesheetsPartialUpdateResponses, JobWorkshopTimesheetsRetrieveData, JobWorkshopTimesheetsRetrieveResponses, LinkPhoneCallJobData, LinkPhoneCallJobErrors, LinkPhoneCallJobResponses, ListJobFilesData, ListJobFilesResponses, ListProductMappingsData, ListProductMappingsResponses, ListPurchaseOrderEventsData, ListPurchaseOrderEventsResponses, ListPurchaseOrdersData, ListPurchaseOrdersResponses, NotebookLmLinksMenuListData, NotebookLmLinksMenuListResponses, PeopleArchiveCreateData, PeopleArchiveCreateResponses, PeopleCompanyLinksDestroyData, PeopleCompanyLinksDestroyResponses, PeopleCompanyLinksListData, PeopleCompanyLinksListResponses, PeopleCompanyLinksUpdateData, PeopleCompanyLinksUpdateResponses, PeopleContactMethodsCreateData, PeopleContactMethodsCreateResponses, PeopleContactMethodsDestroyData, PeopleContactMethodsDestroyResponses, PeopleContactMethodsListData, PeopleContactMethodsListResponses, PeopleContactMethodsPartialUpdateData, PeopleContactMethodsPartialUpdateResponses, PeopleListData, PeopleListResponses, PeoplePartialUpdateData, PeoplePartialUpdateResponses, PeopleRetrieveData, PeopleRetrieveResponses, PeopleUpdateData, PeopleUpdateResponses, PurchasingAllJobsRetrieveData, PurchasingAllJobsRetrieveResponses, PurchasingDeliveryReceiptsCreateData, PurchasingDeliveryReceiptsCreateResponses, PurchasingJobsRetrieveData, PurchasingJobsRetrieveResponses, PurchasingPurchaseOrdersAllocationsRetrieveData, PurchasingPurchaseOrdersAllocationsRetrieveResponses, PurchasingPurchaseOrdersPartialUpdateData, PurchasingPurchaseOrdersPartialUpdateResponses, PurchasingStockCreateData, PurchasingStockCreateResponses, PurchasingStockDestroyData, PurchasingStockDestroyResponses, PurchasingStockListData, PurchasingStockListResponses, PurchasingStockPartialUpdateData, PurchasingStockPartialUpdateResponses, PurchasingStockRetrieveData, PurchasingStockRetrieveResponses, PurchasingStockSearchRetrieveData, PurchasingStockSearchRetrieveResponses, PurchasingStockUpdateData, PurchasingStockUpdateResponses, PurchasingSuppliersSearchRetrieveData, PurchasingSuppliersSearchRetrieveResponses, QuotingScheduledTaskExecutionsListData, QuotingScheduledTaskExecutionsListResponses, QuotingScheduledTaskExecutionsRetrieveData, QuotingScheduledTaskExecutionsRetrieveResponses, QuotingScheduledTasksListData, QuotingScheduledTasksListResponses, QuotingScheduledTasksRetrieveData, QuotingScheduledTasksRetrieveResponses, RetrievePurchaseOrderData, RetrievePurchaseOrderResponses, SalesForecastListData, SalesForecastListResponses, SalesForecastMonthDetailData, SalesForecastMonthDetailResponses, TimesheetsJobsRetrieveData, TimesheetsJobsRetrieveResponses, TimesheetsPayrollPayRunsCreateCreateData, TimesheetsPayrollPayRunsCreateCreateResponses, TimesheetsPayrollPayRunsRefreshCreateData, TimesheetsPayrollPayRunsRefreshCreateResponses, TimesheetsPayrollPayRunsRetrieveData, TimesheetsPayrollPayRunsRetrieveResponses, TimesheetsPayrollPostStaffWeekCreateData, TimesheetsPayrollPostStaffWeekCreateResponses, TimesheetsStaffRetrieveData, TimesheetsStaffRetrieveResponses, TimesheetsWeeklyRetrieveData, TimesheetsWeeklyRetrieveResponses, UnlinkPhoneCallJobData, UnlinkPhoneCallJobErrors, UnlinkPhoneCallJobResponses, UpdateJobFileData, UpdateJobFileResponses, UpdatePhoneProviderSettingsData, UpdatePhoneProviderSettingsErrors, UpdatePhoneProviderSettingsResponses, UploadJobFilesData, UploadJobFilesErrors, UploadJobFilesResponses, ValidateProductMappingData, ValidateProductMappingResponses, XeroAppsActivateData, XeroAppsActivateResponses, XeroAppsConfigData, XeroAppsConfigResponses, XeroAppsCreateData, XeroAppsCreateErrors, XeroAppsCreateResponses, XeroAppsDestroyData, XeroAppsDestroyErrors, XeroAppsDestroyResponses, XeroAppsListData, XeroAppsListResponses, XeroAppsPartialUpdateData, XeroAppsPartialUpdateErrors, XeroAppsPartialUpdateResponses, XeroBrandingThemesListData, XeroBrandingThemesListErrors, XeroBrandingThemesListResponses, XeroCreateInvoiceData, XeroCreateInvoiceErrors, XeroCreateInvoiceResponses, XeroCreatePurchaseOrderData, XeroCreatePurchaseOrderErrors, XeroCreatePurchaseOrderResponses, XeroCreateQuoteData, XeroCreateQuoteErrors, XeroCreateQuoteResponses, XeroDeleteInvoiceData, XeroDeleteInvoiceErrors, XeroDeleteInvoiceResponses, XeroDeletePurchaseOrderData, XeroDeletePurchaseOrderErrors, XeroDeletePurchaseOrderResponses, XeroDeleteQuoteData, XeroDeleteQuoteErrors, XeroDeleteQuoteResponses, XeroDisconnectCreateData, XeroDisconnectCreateResponses, XeroPayItemsListData, XeroPayItemsListResponses, XeroPingRetrieveData, XeroPingRetrieveErrors, XeroPingRetrieveResponses, XeroSyncCreateData, XeroSyncCreateErrors, XeroSyncCreateResponses, XeroSyncInfoRetrieveData, XeroSyncInfoRetrieveResponses } from './types.gen';
+import type { AccountingReportsCalendarRetrieveData, AccountingReportsCalendarRetrieveResponses, AccountingReportsJobAgingRetrieveData, AccountingReportsJobAgingRetrieveResponses, AccountingReportsJobMovementRetrieveData, AccountingReportsJobMovementRetrieveResponses, AccountingReportsPayrollDateRangeRetrieveData, AccountingReportsPayrollDateRangeRetrieveResponses, AccountingReportsPayrollReconciliationRetrieveData, AccountingReportsPayrollReconciliationRetrieveResponses, AccountingReportsPayrollWeekReconciliationRetrieveData, AccountingReportsPayrollWeekReconciliationRetrieveResponses, AccountingReportsProfitAndLossRetrieveData, AccountingReportsProfitAndLossRetrieveErrors, AccountingReportsRdtiSpendRetrieveData, AccountingReportsRdtiSpendRetrieveResponses, AccountingReportsSalesPipelineRetrieveData, AccountingReportsSalesPipelineRetrieveResponses, AccountingReportsStaffPerformanceRetrieveData, AccountingReportsStaffPerformanceRetrieveResponses, AccountingReportsStaffPerformanceSummaryRetrieveData, AccountingReportsStaffPerformanceSummaryRetrieveResponses, AccountingReportsWipRetrieveData, AccountingReportsWipRetrieveResponses, AccountsLogoutCreateData, AccountsLogoutCreateResponses, AccountsMeRetrieveData, AccountsMeRetrieveErrors, AccountsMeRetrieveResponses, AccountsStaffAllListData, AccountsStaffAllListResponses, AccountsStaffListData, AccountsStaffListResponses, AccountsTokenCreateData, AccountsTokenCreateErrors, AccountsTokenCreateResponses, AccountsTokenRefreshCreateData, AccountsTokenRefreshCreateErrors, AccountsTokenRefreshCreateResponses, ApproveCostLineData, ApproveCostLineResponses, AssignPhoneCallNumberData, AssignPhoneCallNumberErrors, AssignPhoneCallNumberResponses, BuildIdRetrieveData, BuildIdRetrieveResponses, CheckDuplicateIdentitiesData, CheckDuplicateIdentitiesResponses, CheckDuplicatePhonesData, CheckDuplicatePhonesResponses, CompaniesAddressesValidateCreateData, CompaniesAddressesValidateCreateResponses, CompaniesAllListData, CompaniesAllListResponses, CompaniesContactMethodsCreateData, CompaniesContactMethodsCreateResponses, CompaniesContactMethodsDestroyData, CompaniesContactMethodsDestroyResponses, CompaniesContactMethodsListData, CompaniesContactMethodsListResponses, CompaniesContactMethodsPartialUpdateData, CompaniesContactMethodsPartialUpdateResponses, CompaniesContactMethodsRetrieveData, CompaniesContactMethodsRetrieveResponses, CompaniesContactMethodsUpdateData, CompaniesContactMethodsUpdateResponses, CompaniesCreateCreateData, CompaniesCreateCreateResponses, CompaniesJobsRetrieveData, CompaniesJobsRetrieveResponses, CompaniesPeopleCreateData, CompaniesPeopleCreateErrors, CompaniesPeopleCreateResponses, CompaniesPeopleListData, CompaniesPeopleListResponses, CompaniesPeoplePhoneOwnershipCreateData, CompaniesPeoplePhoneOwnershipCreateResponses, CompaniesPickupAddressesCreateData, CompaniesPickupAddressesCreateResponses, CompaniesPickupAddressesDestroyData, CompaniesPickupAddressesDestroyResponses, CompaniesPickupAddressesListData, CompaniesPickupAddressesListResponses, CompaniesPickupAddressesPartialUpdateData, CompaniesPickupAddressesPartialUpdateResponses, CompaniesPickupAddressesRetrieveData, CompaniesPickupAddressesRetrieveResponses, CompaniesPickupAddressesUpdateData, CompaniesPickupAddressesUpdateResponses, CompaniesRetrieveData, CompaniesRetrieveResponses, CompaniesSearchRetrieveData, CompaniesSearchRetrieveResponses, CompaniesSupplierAliasesCreateData, CompaniesSupplierAliasesCreateResponses, CompaniesSupplierAliasesDestroyData, CompaniesSupplierAliasesDestroyResponses, CompaniesSupplierAliasesListData, CompaniesSupplierAliasesListResponses, CompaniesUpdatePartialUpdateData, CompaniesUpdatePartialUpdateResponses, CompaniesUpdateUpdateData, CompaniesUpdateUpdateResponses, CompanyDefaultsPartialUpdateData, CompanyDefaultsPartialUpdateResponses, CompanyDefaultsRetrieveData, CompanyDefaultsRetrieveResponses, CompanyDefaultsSchemaRetrieveData, CompanyDefaultsSchemaRetrieveResponses, ConsumeStockData, ConsumeStockResponses, CreatePurchaseOrderData, CreatePurchaseOrderEventData, CreatePurchaseOrderEventResponses, CreatePurchaseOrderResponses, CrmPhoneCallRecordingsListData, CrmPhoneCallRecordingsListResponses, CrmPhoneCallRecordingsRetrieveData, CrmPhoneCallRecordingsRetrieveResponses, CrmPhoneCallsListData, CrmPhoneCallsListResponses, CrmPhoneCallsRetrieveData, CrmPhoneCallsRetrieveResponses, CrmPhoneEndpointsCreateData, CrmPhoneEndpointsCreateErrors, CrmPhoneEndpointsCreateResponses, CrmPhoneEndpointsDestroyData, CrmPhoneEndpointsDestroyResponses, CrmPhoneEndpointsListData, CrmPhoneEndpointsListResponses, CrmPhoneEndpointsPartialUpdateData, CrmPhoneEndpointsPartialUpdateErrors, CrmPhoneEndpointsPartialUpdateResponses, CrmPhoneEndpointsRetrieveData, CrmPhoneEndpointsRetrieveResponses, CrmPhoneEndpointsUpdateData, CrmPhoneEndpointsUpdateErrors, CrmPhoneEndpointsUpdateResponses, DataVersionsRetrieveData, DataVersionsRetrieveResponses, DeleteAllocationData, DeleteAllocationResponses, DeleteJobFileData, DeleteJobFileResponses, DeleteLocalPhoneCallRecordingData, DeleteLocalPhoneCallRecordingResponses, DeleteProviderPhoneCallRecordingData, DeleteProviderPhoneCallRecordingResponses, DownloadPhoneCallRecordingData, DownloadPhoneCallRecordingResponses, GenerateDeliveryDocketRestData, GenerateDeliveryDocketRestResponses, GetAllocationDetailsData, GetAllocationDetailsResponses, GetDailyTimesheetSummaryByDateData, GetDailyTimesheetSummaryByDateResponses, GetFullJobData, GetFullJobResponses, GetJobFileData, GetJobFileResponses, GetJobFileThumbnailData, GetJobFileThumbnailResponses, GetJobSummaryData, GetJobSummaryResponses, GetKanbanChangesData, GetKanbanChangesResponses, GetLastPurchaseOrderNumberData, GetLastPurchaseOrderNumberResponses, GetPhoneProviderSettingsData, GetPhoneProviderSettingsResponses, GetPurchaseOrderEmailData, GetPurchaseOrderEmailResponses, GetPurchaseOrderPdfData, GetPurchaseOrderPdfResponses, GetStaffDailyTimesheetDetailByDateData, GetStaffDailyTimesheetDetailByDateResponses, GetSupplierPriceStatusData, GetSupplierPriceStatusResponses, JobCostLinesDeleteDestroyData, JobCostLinesDeleteDestroyResponses, JobCostLinesPartialUpdateData, JobCostLinesPartialUpdateResponses, JobJobAssignmentCreateData, JobJobAssignmentCreateErrors, JobJobAssignmentCreateResponses, JobJobAssignmentDestroyData, JobJobAssignmentDestroyErrors, JobJobAssignmentDestroyResponses, JobJobsAdvancedSearchRetrieveData, JobJobsAdvancedSearchRetrieveResponses, JobJobsBasicInfoRetrieveData, JobJobsBasicInfoRetrieveResponses, JobJobsCostSetsActualCostLinesCreateData, JobJobsCostSetsActualCostLinesCreateResponses, JobJobsCostSetsCostLinesCreateData, JobJobsCostSetsCostLinesCreateResponses, JobJobsCostSetsQuoteReviseCreateData, JobJobsCostSetsQuoteReviseCreateResponses, JobJobsCostSetsQuoteReviseRetrieveData, JobJobsCostSetsQuoteReviseRetrieveResponses, JobJobsCostSetsRetrieveData, JobJobsCostSetsRetrieveResponses, JobJobsCostsSummaryRetrieveData, JobJobsCostsSummaryRetrieveResponses, JobJobsCreateData, JobJobsCreateResponses, JobJobsDeltaRejectionsGroupedMarkResolvedCreateData, JobJobsDeltaRejectionsGroupedMarkResolvedCreateResponses, JobJobsDeltaRejectionsGroupedMarkUnresolvedCreateData, JobJobsDeltaRejectionsGroupedMarkUnresolvedCreateResponses, JobJobsDeltaRejectionsGroupedRetrieveData, JobJobsDeltaRejectionsGroupedRetrieveResponses, JobJobsDestroyData, JobJobsDestroyResponses, JobJobsEventsRetrieveData, JobJobsEventsRetrieveResponses, JobJobsFetchAllRetrieveData, JobJobsFetchAllRetrieveResponses, JobJobsFetchByColumnRetrieveData, JobJobsFetchByColumnRetrieveResponses, JobJobsFetchRetrieveData, JobJobsFetchRetrieveResponses, JobJobsFinishPartialUpdateData, JobJobsFinishPartialUpdateResponses, JobJobsFinishRetrieveData, JobJobsFinishRetrieveResponses, JobJobsHeaderRetrieveData, JobJobsHeaderRetrieveResponses, JobJobsInvoicesRetrieveData, JobJobsInvoicesRetrieveResponses, JobJobsLabourRatesListData, JobJobsLabourRatesListResponses, JobJobsLabourRatesPartialUpdateData, JobJobsLabourRatesPartialUpdateResponses, JobJobsOptionsListData, JobJobsOptionsListResponses, JobJobsPartialUpdateData, JobJobsPartialUpdateResponses, JobJobsQuoteAcceptCreateData, JobJobsQuoteAcceptCreateResponses, JobJobsQuoteRetrieveData, JobJobsQuoteRetrieveResponses, JobJobsReorderCreateData, JobJobsReorderCreateResponses, JobJobsStatusChoicesRetrieveData, JobJobsStatusChoicesRetrieveResponses, JobJobsStatusValuesRetrieveData, JobJobsStatusValuesRetrieveResponses, JobJobsTimelineRetrieveData, JobJobsTimelineRetrieveResponses, JobJobsUndoChangeCreateData, JobJobsUndoChangeCreateResponses, JobJobsUpdateData, JobJobsUpdateResponses, JobJobsUpdateStatusCreateData, JobJobsUpdateStatusCreateResponses, JobJobsWorkshopPdfRetrieveData, JobJobsWorkshopPdfRetrieveResponses, JobLabourSubtypesListData, JobLabourSubtypesListResponses, JobLabourSubtypesManageCreateData, JobLabourSubtypesManageCreateResponses, JobLabourSubtypesManageListData, JobLabourSubtypesManageListResponses, JobLabourSubtypesManagePartialUpdateData, JobLabourSubtypesManagePartialUpdateResponses, JobLabourSubtypesManageRetrieveData, JobLabourSubtypesManageRetrieveResponses, JobMonthEndCreateData, JobMonthEndCreateResponses, JobMonthEndRetrieveData, JobMonthEndRetrieveResponses, JobRestJobDeltaRejectionsListData, JobRestJobDeltaRejectionsListResponses, JobRestJobsDeltaRejectionsAdminListData, JobRestJobsDeltaRejectionsAdminListResponses, JobRestJobsEventsCreateData, JobRestJobsEventsCreateErrors, JobRestJobsEventsCreateResponses, JobTimesheetEntriesRetrieveData, JobTimesheetEntriesRetrieveResponses, JobWorkshopTimesheetsCreateData, JobWorkshopTimesheetsCreateResponses, JobWorkshopTimesheetsDestroyData, JobWorkshopTimesheetsDestroyResponses, JobWorkshopTimesheetsPartialUpdateData, JobWorkshopTimesheetsPartialUpdateResponses, JobWorkshopTimesheetsRetrieveData, JobWorkshopTimesheetsRetrieveResponses, LinkPhoneCallJobData, LinkPhoneCallJobErrors, LinkPhoneCallJobResponses, ListJobFilesData, ListJobFilesResponses, ListProductMappingsData, ListProductMappingsResponses, ListPurchaseOrderEventsData, ListPurchaseOrderEventsResponses, ListPurchaseOrdersData, ListPurchaseOrdersResponses, NotebookLmLinksMenuListData, NotebookLmLinksMenuListResponses, PeopleArchiveCreateData, PeopleArchiveCreateResponses, PeopleCompanyLinksDestroyData, PeopleCompanyLinksDestroyResponses, PeopleCompanyLinksListData, PeopleCompanyLinksListResponses, PeopleCompanyLinksUpdateData, PeopleCompanyLinksUpdateResponses, PeopleContactMethodsCreateData, PeopleContactMethodsCreateResponses, PeopleContactMethodsDestroyData, PeopleContactMethodsDestroyResponses, PeopleContactMethodsListData, PeopleContactMethodsListResponses, PeopleContactMethodsPartialUpdateData, PeopleContactMethodsPartialUpdateResponses, PeopleListData, PeopleListResponses, PeoplePartialUpdateData, PeoplePartialUpdateResponses, PeopleRetrieveData, PeopleRetrieveResponses, PeopleUpdateData, PeopleUpdateResponses, PurchasingAllJobsRetrieveData, PurchasingAllJobsRetrieveResponses, PurchasingDeliveryReceiptsCreateData, PurchasingDeliveryReceiptsCreateResponses, PurchasingJobsRetrieveData, PurchasingJobsRetrieveResponses, PurchasingPurchaseOrdersAllocationsRetrieveData, PurchasingPurchaseOrdersAllocationsRetrieveResponses, PurchasingPurchaseOrdersPartialUpdateData, PurchasingPurchaseOrdersPartialUpdateResponses, PurchasingStockCreateData, PurchasingStockCreateResponses, PurchasingStockDestroyData, PurchasingStockDestroyResponses, PurchasingStockListData, PurchasingStockListResponses, PurchasingStockPartialUpdateData, PurchasingStockPartialUpdateResponses, PurchasingStockRetrieveData, PurchasingStockRetrieveResponses, PurchasingStockSearchRetrieveData, PurchasingStockSearchRetrieveResponses, PurchasingStockUpdateData, PurchasingStockUpdateResponses, PurchasingSuppliersSearchRetrieveData, PurchasingSuppliersSearchRetrieveResponses, QuotingScheduledTaskExecutionsListData, QuotingScheduledTaskExecutionsListResponses, QuotingScheduledTaskExecutionsRetrieveData, QuotingScheduledTaskExecutionsRetrieveResponses, QuotingScheduledTasksListData, QuotingScheduledTasksListResponses, QuotingScheduledTasksRetrieveData, QuotingScheduledTasksRetrieveResponses, RetrievePurchaseOrderData, RetrievePurchaseOrderResponses, SalesForecastListData, SalesForecastListResponses, SalesForecastMonthDetailData, SalesForecastMonthDetailResponses, TimesheetsJobsRetrieveData, TimesheetsJobsRetrieveResponses, TimesheetsLeaveBalanceRetrieveData, TimesheetsLeaveBalanceRetrieveResponses, TimesheetsLeaveOfficeClosureCreateData, TimesheetsLeaveOfficeClosureCreateResponses, TimesheetsLeaveOfficeClosurePreviewCreateData, TimesheetsLeaveOfficeClosurePreviewCreateResponses, TimesheetsLeavePreviewCreateData, TimesheetsLeavePreviewCreateResponses, TimesheetsLeaveRequestsCreateData, TimesheetsLeaveRequestsCreateResponses, TimesheetsLeaveRequestsDeleteData, TimesheetsLeaveRequestsDeleteResponses, TimesheetsLeaveRequestsListData, TimesheetsLeaveRequestsListResponses, TimesheetsLeaveRequestsUpdateData, TimesheetsLeaveRequestsUpdateResponses, TimesheetsLeaveSettingsRetrieveData, TimesheetsLeaveSettingsRetrieveResponses, TimesheetsLeaveSettingsUpdateData, TimesheetsLeaveSettingsUpdateResponses, TimesheetsPayrollPayRunsRetrieveData, TimesheetsPayrollPayRunsRetrieveResponses, TimesheetsPayrollPostStaffWeekCreateData, TimesheetsPayrollPostStaffWeekCreateResponses, TimesheetsPayrollRunsRetrieveData, TimesheetsPayrollRunsRetrieveResponses, TimesheetsPayrollWeekStatusRetrieveData, TimesheetsPayrollWeekStatusRetrieveResponses, TimesheetsStaffRetrieveData, TimesheetsStaffRetrieveResponses, TimesheetsWeeklyRetrieveData, TimesheetsWeeklyRetrieveResponses, UnlinkPhoneCallJobData, UnlinkPhoneCallJobErrors, UnlinkPhoneCallJobResponses, UpdateJobFileData, UpdateJobFileResponses, UpdatePhoneProviderSettingsData, UpdatePhoneProviderSettingsErrors, UpdatePhoneProviderSettingsResponses, UploadJobFilesData, UploadJobFilesErrors, UploadJobFilesResponses, ValidateProductMappingData, ValidateProductMappingResponses, XeroAppsActivateData, XeroAppsActivateResponses, XeroAppsConfigData, XeroAppsConfigResponses, XeroAppsCreateData, XeroAppsCreateErrors, XeroAppsCreateResponses, XeroAppsDestroyData, XeroAppsDestroyErrors, XeroAppsDestroyResponses, XeroAppsListData, XeroAppsListResponses, XeroAppsPartialUpdateData, XeroAppsPartialUpdateErrors, XeroAppsPartialUpdateResponses, XeroBrandingThemesListData, XeroBrandingThemesListErrors, XeroBrandingThemesListResponses, XeroCreateInvoiceData, XeroCreateInvoiceErrors, XeroCreateInvoiceResponses, XeroCreatePurchaseOrderData, XeroCreatePurchaseOrderErrors, XeroCreatePurchaseOrderResponses, XeroCreateQuoteData, XeroCreateQuoteErrors, XeroCreateQuoteResponses, XeroDeleteInvoiceData, XeroDeleteInvoiceErrors, XeroDeleteInvoiceResponses, XeroDeletePurchaseOrderData, XeroDeletePurchaseOrderErrors, XeroDeletePurchaseOrderResponses, XeroDeleteQuoteData, XeroDeleteQuoteErrors, XeroDeleteQuoteResponses, XeroDisconnectCreateData, XeroDisconnectCreateResponses, XeroPayItemsListData, XeroPayItemsListResponses, XeroPingRetrieveData, XeroPingRetrieveErrors, XeroPingRetrieveResponses, XeroSyncCreateData, XeroSyncCreateErrors, XeroSyncCreateResponses, XeroSyncInfoRetrieveData, XeroSyncInfoRetrieveResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -77,7 +77,7 @@ export const accountingReportsJobMovementRetrieve = <ThrowOnError extends boolea
 export const accountingReportsPayrollDateRangeRetrieve = <ThrowOnError extends boolean = false>(options: Options<AccountingReportsPayrollDateRangeRetrieveData, ThrowOnError>): RequestResult<AccountingReportsPayrollDateRangeRetrieveResponses, unknown, ThrowOnError> => (options.client ?? client).get<AccountingReportsPayrollDateRangeRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',
     security: [{
-            key: 'CookieJWTAuth',
+            key: 'SuperuserCookieJWTAuth',
             in: 'cookie',
             name: 'access_token',
             type: 'apiKey'
@@ -94,12 +94,34 @@ export const accountingReportsPayrollDateRangeRetrieve = <ThrowOnError extends b
 export const accountingReportsPayrollReconciliationRetrieve = <ThrowOnError extends boolean = false>(options: Options<AccountingReportsPayrollReconciliationRetrieveData, ThrowOnError>): RequestResult<AccountingReportsPayrollReconciliationRetrieveResponses, unknown, ThrowOnError> => (options.client ?? client).get<AccountingReportsPayrollReconciliationRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',
     security: [{
-            key: 'CookieJWTAuth',
+            key: 'SuperuserCookieJWTAuth',
             in: 'cookie',
             name: 'access_token',
             type: 'apiKey'
         }],
     url: '/api/accounting/reports/payroll-reconciliation/',
+    ...options
+});
+
+/**
+ * One payroll week: what we expect Xero to pay, beside what Xero computed
+ *
+ * Reconcile one week live, without waiting for the run to be Posted and synced.
+ *
+ * Its own endpoint rather than a parameter on the date-range report: that one
+ * reads the synced pay-slip mirror and answers a costing question over a
+ * window, while this reads the week's run directly so it can answer in the
+ * minutes after posting, when a mistake is still cheap to fix.
+ */
+export const accountingReportsPayrollWeekReconciliationRetrieve = <ThrowOnError extends boolean = false>(options: Options<AccountingReportsPayrollWeekReconciliationRetrieveData, ThrowOnError>): RequestResult<AccountingReportsPayrollWeekReconciliationRetrieveResponses, unknown, ThrowOnError> => (options.client ?? client).get<AccountingReportsPayrollWeekReconciliationRetrieveResponses, unknown, ThrowOnError>({
+    responseType: 'json',
+    security: [{
+            key: 'SuperuserCookieJWTAuth',
+            in: 'cookie',
+            name: 'access_token',
+            type: 'apiKey'
+        }],
+    url: '/api/accounting/reports/payroll-reconciliation/week/',
     ...options
 });
 
@@ -1604,6 +1626,23 @@ export const getKanbanChanges = <ThrowOnError extends boolean = false>(options?:
 });
 
 /**
+ * List one status's jobs, narrowed to what a picker renders
+ *
+ * Jobs of one status, for the admin screens that map a fixed kind of job.
+ */
+export const jobJobsOptionsList = <ThrowOnError extends boolean = false>(options: Options<JobJobsOptionsListData, ThrowOnError>): RequestResult<JobJobsOptionsListResponses, unknown, ThrowOnError> => (options.client ?? client).get<JobJobsOptionsListResponses, unknown, ThrowOnError>({
+    responseType: 'json',
+    security: [{
+            key: 'CookieJWTAuth',
+            in: 'cookie',
+            name: 'access_token',
+            type: 'apiKey'
+        }],
+    url: '/api/job/jobs/options/',
+    ...options
+});
+
+/**
  * Fetch job status choices
  *
  * Return the status choices available for jobs.
@@ -2749,6 +2788,11 @@ export const peopleContactMethodsPartialUpdate = <ThrowOnError extends boolean =
  * List all jobs with the stock-holding flag
  *
  * All non-archived jobs, flagging which one holds general stock.
+ *
+ * With `q`, searches the WHOLE table instead — the picker holds the
+ * non-archived set already and asks for this only to reach what that set
+ * excludes, which in practice is archived jobs. Booking against one is rare
+ * but legitimate, and without this it is impossible.
  */
 export const purchasingAllJobsRetrieve = <ThrowOnError extends boolean = false>(options?: Options<PurchasingAllJobsRetrieveData, ThrowOnError>): RequestResult<PurchasingAllJobsRetrieveResponses, unknown, ThrowOnError> => (options?.client ?? client).get<PurchasingAllJobsRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',
@@ -3337,6 +3381,8 @@ export const getDailyTimesheetSummaryByDate = <ThrowOnError extends boolean = fa
  * Get list of active jobs for timesheet entries using CostSet system
  *
  * Jobs available for time entry (active, plus recently archived fixed-price).
+ *
+ * With `q`, searches the whole table so a picker can reach an archived job.
  */
 export const timesheetsJobsRetrieve = <ThrowOnError extends boolean = false>(options?: Options<TimesheetsJobsRetrieveData, ThrowOnError>): RequestResult<TimesheetsJobsRetrieveResponses, unknown, ThrowOnError> => (options?.client ?? client).get<TimesheetsJobsRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',
@@ -3348,6 +3394,199 @@ export const timesheetsJobsRetrieve = <ThrowOnError extends boolean = false>(opt
         }],
     url: '/api/timesheets/jobs/',
     ...options
+});
+
+/**
+ * Get Settings
+ *
+ * Return the fixed types and their editable mappings.
+ */
+export const timesheetsLeaveSettingsRetrieve = <ThrowOnError extends boolean = false>(options?: Options<TimesheetsLeaveSettingsRetrieveData, ThrowOnError>): RequestResult<TimesheetsLeaveSettingsRetrieveResponses, unknown, ThrowOnError> => (options?.client ?? client).get<TimesheetsLeaveSettingsRetrieveResponses, unknown, ThrowOnError>({
+    responseType: 'json',
+    security: [{
+            key: 'SuperuserCookieJWTAuth',
+            in: 'cookie',
+            name: 'access_token',
+            type: 'apiKey'
+        }],
+    url: '/api/timesheets/leave-settings/',
+    ...options
+});
+
+/**
+ * Update Settings
+ *
+ * Save every changed leave mapping, or none of them.
+ */
+export const timesheetsLeaveSettingsUpdate = <ThrowOnError extends boolean = false>(options: Options<TimesheetsLeaveSettingsUpdateData, ThrowOnError>): RequestResult<TimesheetsLeaveSettingsUpdateResponses, unknown, ThrowOnError> => (options.client ?? client).patch<TimesheetsLeaveSettingsUpdateResponses, unknown, ThrowOnError>({
+    responseType: 'json',
+    security: [{
+            key: 'SuperuserCookieJWTAuth',
+            in: 'cookie',
+            name: 'access_token',
+            type: 'apiKey'
+        }],
+    url: '/api/timesheets/leave-settings/',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Leave Balance
+ *
+ * Read the employee's selected balance live from payroll.
+ */
+export const timesheetsLeaveBalanceRetrieve = <ThrowOnError extends boolean = false>(options: Options<TimesheetsLeaveBalanceRetrieveData, ThrowOnError>): RequestResult<TimesheetsLeaveBalanceRetrieveResponses, unknown, ThrowOnError> => (options.client ?? client).get<TimesheetsLeaveBalanceRetrieveResponses, unknown, ThrowOnError>({
+    responseType: 'json',
+    security: [{
+            key: 'SuperuserCookieJWTAuth',
+            in: 'cookie',
+            name: 'access_token',
+            type: 'apiKey'
+        }],
+    url: '/api/timesheets/leave/balance/',
+    ...options
+});
+
+/**
+ * Create Office Closure Endpoint
+ *
+ * Create Public Holiday leave for all affected staff.
+ */
+export const timesheetsLeaveOfficeClosureCreate = <ThrowOnError extends boolean = false>(options: Options<TimesheetsLeaveOfficeClosureCreateData, ThrowOnError>): RequestResult<TimesheetsLeaveOfficeClosureCreateResponses, unknown, ThrowOnError> => (options.client ?? client).post<TimesheetsLeaveOfficeClosureCreateResponses, unknown, ThrowOnError>({
+    responseType: 'json',
+    security: [{
+            key: 'SuperuserCookieJWTAuth',
+            in: 'cookie',
+            name: 'access_token',
+            type: 'apiKey'
+        }],
+    url: '/api/timesheets/leave/office-closure/',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Preview Office Closure Endpoint
+ *
+ * Preview the active scheduled staff affected by a closure.
+ */
+export const timesheetsLeaveOfficeClosurePreviewCreate = <ThrowOnError extends boolean = false>(options: Options<TimesheetsLeaveOfficeClosurePreviewCreateData, ThrowOnError>): RequestResult<TimesheetsLeaveOfficeClosurePreviewCreateResponses, unknown, ThrowOnError> => (options.client ?? client).post<TimesheetsLeaveOfficeClosurePreviewCreateResponses, unknown, ThrowOnError>({
+    responseType: 'json',
+    security: [{
+            key: 'SuperuserCookieJWTAuth',
+            in: 'cookie',
+            name: 'access_token',
+            type: 'apiKey'
+        }],
+    url: '/api/timesheets/leave/office-closure/preview/',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Preview Leave Endpoint
+ *
+ * Preview one employee's scheduled and conflicting dates.
+ */
+export const timesheetsLeavePreviewCreate = <ThrowOnError extends boolean = false>(options: Options<TimesheetsLeavePreviewCreateData, ThrowOnError>): RequestResult<TimesheetsLeavePreviewCreateResponses, unknown, ThrowOnError> => (options.client ?? client).post<TimesheetsLeavePreviewCreateResponses, unknown, ThrowOnError>({
+    responseType: 'json',
+    security: [{
+            key: 'SuperuserCookieJWTAuth',
+            in: 'cookie',
+            name: 'access_token',
+            type: 'apiKey'
+        }],
+    url: '/api/timesheets/leave/preview/',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List Requests
+ *
+ * List current or historical leave with filtered summary figures.
+ */
+export const timesheetsLeaveRequestsList = <ThrowOnError extends boolean = false>(options?: Options<TimesheetsLeaveRequestsListData, ThrowOnError>): RequestResult<TimesheetsLeaveRequestsListResponses, unknown, ThrowOnError> => (options?.client ?? client).get<TimesheetsLeaveRequestsListResponses, unknown, ThrowOnError>({
+    responseType: 'json',
+    security: [{
+            key: 'SuperuserCookieJWTAuth',
+            in: 'cookie',
+            name: 'access_token',
+            type: 'apiKey'
+        }],
+    url: '/api/timesheets/leave/requests/',
+    ...options
+});
+
+/**
+ * Create Request
+ *
+ * Create a leave request and daily payroll lines.
+ */
+export const timesheetsLeaveRequestsCreate = <ThrowOnError extends boolean = false>(options: Options<TimesheetsLeaveRequestsCreateData, ThrowOnError>): RequestResult<TimesheetsLeaveRequestsCreateResponses, unknown, ThrowOnError> => (options.client ?? client).post<TimesheetsLeaveRequestsCreateResponses, unknown, ThrowOnError>({
+    responseType: 'json',
+    security: [{
+            key: 'SuperuserCookieJWTAuth',
+            in: 'cookie',
+            name: 'access_token',
+            type: 'apiKey'
+        }],
+    url: '/api/timesheets/leave/requests/',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete Request
+ *
+ * Cancel leave and remove its daily payroll lines.
+ */
+export const timesheetsLeaveRequestsDelete = <ThrowOnError extends boolean = false>(options: Options<TimesheetsLeaveRequestsDeleteData, ThrowOnError>): RequestResult<TimesheetsLeaveRequestsDeleteResponses, unknown, ThrowOnError> => (options.client ?? client).delete<TimesheetsLeaveRequestsDeleteResponses, unknown, ThrowOnError>({
+    security: [{
+            key: 'SuperuserCookieJWTAuth',
+            in: 'cookie',
+            name: 'access_token',
+            type: 'apiKey'
+        }],
+    url: '/api/timesheets/leave/requests/{request_id}/',
+    ...options
+});
+
+/**
+ * Update Request
+ *
+ * Replace an existing request and its daily payroll lines.
+ */
+export const timesheetsLeaveRequestsUpdate = <ThrowOnError extends boolean = false>(options: Options<TimesheetsLeaveRequestsUpdateData, ThrowOnError>): RequestResult<TimesheetsLeaveRequestsUpdateResponses, unknown, ThrowOnError> => (options.client ?? client).patch<TimesheetsLeaveRequestsUpdateResponses, unknown, ThrowOnError>({
+    responseType: 'json',
+    security: [{
+            key: 'SuperuserCookieJWTAuth',
+            in: 'cookie',
+            name: 'access_token',
+            type: 'apiKey'
+        }],
+    url: '/api/timesheets/leave/requests/{request_id}/',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 /**
@@ -3368,47 +3607,20 @@ export const timesheetsPayrollPayRunsRetrieve = <ThrowOnError extends boolean = 
 });
 
 /**
- * Create pay run for a week
- *
- * Create a new pay run for the specified week (Phase 4 seam: Xero write).
- */
-export const timesheetsPayrollPayRunsCreateCreate = <ThrowOnError extends boolean = false>(options: Options<TimesheetsPayrollPayRunsCreateCreateData, ThrowOnError>): RequestResult<TimesheetsPayrollPayRunsCreateCreateResponses, unknown, ThrowOnError> => (options.client ?? client).post<TimesheetsPayrollPayRunsCreateCreateResponses, unknown, ThrowOnError>({
-    responseType: 'json',
-    security: [{
-            key: 'SuperuserCookieJWTAuth',
-            in: 'cookie',
-            name: 'access_token',
-            type: 'apiKey'
-        }],
-    url: '/api/timesheets/payroll/pay-runs/create',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Refresh cached pay runs from Xero
- *
- * Synchronise the local pay-run mirror with Xero (Phase 4 seam).
- */
-export const timesheetsPayrollPayRunsRefreshCreate = <ThrowOnError extends boolean = false>(options?: Options<TimesheetsPayrollPayRunsRefreshCreateData, ThrowOnError>): RequestResult<TimesheetsPayrollPayRunsRefreshCreateResponses, unknown, ThrowOnError> => (options?.client ?? client).post<TimesheetsPayrollPayRunsRefreshCreateResponses, unknown, ThrowOnError>({
-    responseType: 'json',
-    security: [{
-            key: 'SuperuserCookieJWTAuth',
-            in: 'cookie',
-            name: 'access_token',
-            type: 'apiKey'
-        }],
-    url: '/api/timesheets/payroll/pay-runs/refresh',
-    ...options
-});
-
-/**
  * Start posting weekly timesheets to Xero Payroll
  *
- * Register the posting task and return its SSE stream URL.
+ * Claim the calendar, dispatch the run, and return its opening document.
+ *
+ * Opus: A run already in progress raises ``PayrollRunInProgressError``, a typed
+ * ConflictError the envelope answers 409 with — so a duplicate click is
+ * refused here rather than handed a run id whose only content is a fabricated
+ * failure the client must open a stream to read.
+ *
+ * Fable: The request names only the week. The staff are the server's to
+ * derive and the postable-week rule is the server's to enforce, on a mirror
+ * this POST refreshes itself — the panel's read may be an hour stale, and a
+ * stale banner must be able to cost at most a clear refusal, never a wrong
+ * posting.
  */
 export const timesheetsPayrollPostStaffWeekCreate = <ThrowOnError extends boolean = false>(options: Options<TimesheetsPayrollPostStaffWeekCreateData, ThrowOnError>): RequestResult<TimesheetsPayrollPostStaffWeekCreateResponses, unknown, ThrowOnError> => (options.client ?? client).post<TimesheetsPayrollPostStaffWeekCreateResponses, unknown, ThrowOnError>({
     responseType: 'json',
@@ -3424,6 +3636,54 @@ export const timesheetsPayrollPostStaffWeekCreate = <ThrowOnError extends boolea
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * The payroll runs this organisation currently has state for
+ *
+ * Return the current run document, which the stream also pushes.
+ *
+ * Opus: The polling sibling of the SSE channel, and the reason the run document
+ * has generated frontend types at all — a stream cannot be a ninja operation
+ * (ADR 0047), so without this the wire contract existed only as hand-written
+ * TypeScript. It is also what makes a reload rejoin a live run, and what tells
+ * an expired run (404-shaped: an absent slot) apart from a lapsed session
+ * (401), which the stream cannot express.
+ */
+export const timesheetsPayrollRunsRetrieve = <ThrowOnError extends boolean = false>(options?: Options<TimesheetsPayrollRunsRetrieveData, ThrowOnError>): RequestResult<TimesheetsPayrollRunsRetrieveResponses, unknown, ThrowOnError> => (options?.client ?? client).get<TimesheetsPayrollRunsRetrieveResponses, unknown, ThrowOnError>({
+    responseType: 'json',
+    security: [{
+            key: 'SuperuserCookieJWTAuth',
+            in: 'cookie',
+            name: 'access_token',
+            type: 'apiKey'
+        }],
+    url: '/api/timesheets/payroll/runs/',
+    ...options
+});
+
+/**
+ * What Xero holds for the week, beside what was recorded
+ *
+ * Ask Xero what it holds for each staff member's week.
+ *
+ * Opus: Separate from the weekly overview on purpose (ADR 0007): this one calls
+ * Xero, and the grid must keep rendering when Xero is unreachable.
+ *
+ * ``week_start_date`` is required rather than defaulting to this week. A
+ * default would make a bare GET call Xero, and the one caller always knows
+ * which week it is showing.
+ */
+export const timesheetsPayrollWeekStatusRetrieve = <ThrowOnError extends boolean = false>(options: Options<TimesheetsPayrollWeekStatusRetrieveData, ThrowOnError>): RequestResult<TimesheetsPayrollWeekStatusRetrieveResponses, unknown, ThrowOnError> => (options.client ?? client).get<TimesheetsPayrollWeekStatusRetrieveResponses, unknown, ThrowOnError>({
+    responseType: 'json',
+    security: [{
+            key: 'SuperuserCookieJWTAuth',
+            in: 'cookie',
+            name: 'access_token',
+            type: 'apiKey'
+        }],
+    url: '/api/timesheets/payroll/week-status/',
+    ...options
 });
 
 /**

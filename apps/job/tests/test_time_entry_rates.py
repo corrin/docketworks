@@ -6,18 +6,20 @@ job does to the multipliers, where the wage rate comes from, and how the
 charge-out rate is chosen.
 """
 
+from datetime import date
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from django.core.exceptions import ValidationError
 
-from apps.accounts.models import Staff
+from apps.accounts.models import Staff, StaffPayrollTerm
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job, LabourSubtype
 from apps.job.services.time_entry_rates import (
+    DEFAULT_MULTIPLIER,
     ZERO_MULTIPLIER,
     calculate_time_unit_rates,
     get_bill_rate_multiplier,
@@ -25,6 +27,7 @@ from apps.job.services.time_entry_rates import (
     rate_from_meta,
     resolve_xero_pay_item,
 )
+from apps.timesheet.models import LeaveType
 
 pytestmark = pytest.mark.django_db
 
@@ -105,6 +108,7 @@ class TestPriceTimeEntry:
         assert pricing.unit_rev == Decimal("180.00")  # 120.00 * 1.5
         assert pricing.is_billable is True
         assert pricing.labour_subtype == workshop
+        assert pricing.pay_item is not None
         assert pricing.pay_item.name == "Time and one half"
 
     def test_missing_wage_rate_multiplier_fails_early(
@@ -142,6 +146,42 @@ class TestPriceTimeEntry:
 
         assert pricing.unit_cost == Decimal("55.00")
 
+    def test_salaried_staff_are_costed_from_effective_xero_terms(
+        self, job: Job, unpaid_staff: Staff
+    ) -> None:
+        unpaid_staff.pay_basis = "salary"
+        unpaid_staff.save(update_fields=["pay_basis", "updated_at"])
+        CompanyDefaults.objects.update(annual_leave_loading=Decimal("20.00"))
+        term = StaffPayrollTerm.objects.create(
+            staff=unpaid_staff,
+            effective_from=date(2026, 1, 1),
+            pay_basis="salary",
+            annual_salary=Decimal("104000.00"),
+            working_weeks=[
+                {
+                    "monday": 8,
+                    "tuesday": 8,
+                    "wednesday": 8,
+                    "thursday": 8,
+                    "friday": 8,
+                    "saturday": 0,
+                    "sunday": 0,
+                }
+            ],
+        )
+
+        pricing = price_time_entry(
+            job=job,
+            staff=unpaid_staff,
+            meta={"date": "2026-08-18", "wage_rate_multiplier": 1.5},
+        )
+
+        assert pricing.wage_rate == Decimal("60.00")  # $104k / 52 / 40, plus 20% loading
+        assert pricing.unit_cost == Decimal("60.00")
+        assert pricing.wage_rate_multiplier == Decimal("1.00")
+        assert pricing.bill_rate_multiplier == Decimal("1.50")
+        assert pricing.salary_term_id == str(term.id)
+
     def test_subtype_defaults_from_the_worker(self, job: Job, timesheet_worker: Staff) -> None:
         pricing = price_time_entry(
             job=job, staff=timesheet_worker, meta={"wage_rate_multiplier": 1.0}
@@ -167,9 +207,7 @@ class TestPriceTimeEntry:
         self, company: Company, office_staff: Staff, timesheet_worker: Staff
     ) -> None:
         """Leave pricing remains job-aware through the canonical pipeline (ADR 0039)."""
-        leave_job = make_job(company, office_staff, name="Annual Leave")
-        leave_job.default_xero_pay_item_id = _pay_item_id("Annual Leave", uses_leave_api=True)
-        leave_job.save(staff=office_staff, update_fields=["default_xero_pay_item", "updated_at"])
+        leave_job = _configured_leave_job(company, office_staff, "Annual Leave", "annual_leave")
         leave_job.labour_rates.update(charge_out_rate=Decimal("120.00"))
 
         pricing = price_time_entry(
@@ -179,6 +217,7 @@ class TestPriceTimeEntry:
             meta={"wage_rate_multiplier": 1.5, "is_billable": True},
         )
 
+        assert pricing.pay_item is not None
         assert pricing.pay_item.name == "Annual Leave"
         assert pricing.wage_rate_multiplier == Decimal("1.00")
         assert pricing.bill_rate_multiplier == ZERO_MULTIPLIER
@@ -208,9 +247,7 @@ class TestPriceTimeEntry:
     def test_unpaid_leave_job_costs_nothing(
         self, company: Company, office_staff: Staff, timesheet_worker: Staff
     ) -> None:
-        leave_job = make_job(company, office_staff, name="Unpaid Leave")
-        leave_job.default_xero_pay_item_id = _pay_item_id("Unpaid Leave", uses_leave_api=True)
-        leave_job.save(staff=office_staff, update_fields=["default_xero_pay_item", "updated_at"])
+        leave_job = _configured_leave_job(company, office_staff, "Unpaid Leave", "unpaid_leave")
 
         pricing = price_time_entry(
             job=leave_job, staff=timesheet_worker, meta={"wage_rate_multiplier": 1.0}
@@ -218,6 +255,82 @@ class TestPriceTimeEntry:
 
         assert pricing.wage_rate_multiplier == ZERO_MULTIPLIER
         assert pricing.unit_cost == Decimal("0.00")
+
+    def test_paid_leave_is_costed_at_full_rate(
+        self, company: Company, office_staff: Staff, timesheet_worker: Staff
+    ) -> None:
+        """Whether leave is paid comes from its category, not from its Xero name."""
+        leave_job = _configured_leave_job(company, office_staff, "Sick Leave", "sick_leave")
+
+        pricing = price_time_entry(
+            job=leave_job, staff=timesheet_worker, meta={"wage_rate_multiplier": 1.0}
+        )
+
+        assert pricing.wage_rate_multiplier == DEFAULT_MULTIPLIER
+
+    def test_renaming_the_xero_leave_item_does_not_make_unpaid_leave_paid(
+        self, company: Company, office_staff: Staff, timesheet_worker: Staff
+    ) -> None:
+        """The regression: pay was decided by ``"unpaid" in pay_item.name.lower()``.
+
+        The leave-settings screen lets an admin rename these, and renaming this
+        one away from the word "unpaid" used to cost a full day's pay per day
+        booked, with nothing reporting it.
+        """
+        from django.apps import apps as django_apps  # noqa: PLC0415
+
+        leave_job = _configured_leave_job(company, office_staff, "Unpaid Leave", "unpaid_leave")
+        pay_item_model = django_apps.get_model("xero", "XeroPayItem")
+        pay_item_model._default_manager.filter(pk=leave_job.default_xero_pay_item_id).update(
+            name="Leave Without Pay"
+        )
+
+        pricing = price_time_entry(
+            job=leave_job, staff=timesheet_worker, meta={"wage_rate_multiplier": 1.0}
+        )
+
+        assert pricing.wage_rate_multiplier == ZERO_MULTIPLIER
+
+    def test_a_leave_item_no_category_claims_is_refused(
+        self, company: Company, office_staff: Staff, timesheet_worker: Staff
+    ) -> None:
+        """The organisation holds 18 leave types and Docketworks maps four.
+
+        Two of the unmapped ones are unpaid, so assuming "paid" for an unmapped
+        item would rebuild the overpayment for the next category configured.
+        """
+        from django.apps import apps as django_apps  # noqa: PLC0415
+
+        unmapped = django_apps.get_model("xero", "XeroPayItem")._default_manager.create(
+            name="Parental Leave - Primary Carer", uses_leave_api=True, xero_id=uuid4()
+        )
+        leave_job = make_job(company, office_staff, name="Parental Leave")
+        leave_job.default_xero_pay_item_id = unmapped.pk
+        leave_job.save(staff=office_staff, update_fields=["default_xero_pay_item", "updated_at"])
+
+        with pytest.raises(ValidationError, match="not mapped to a Docketworks leave category"):
+            price_time_entry(
+                job=leave_job, staff=timesheet_worker, meta={"wage_rate_multiplier": 1.0}
+            )
+
+
+def _configured_leave_job(
+    company: Company, actor: Staff, pay_item_name: str, leave_code: str
+) -> Job:
+    """A leave job bound to its Xero pay item AND claimed by its LeaveType.
+
+    Opus: Both halves, because that is what an onboarded instance has:
+    ``configure_default_leave_types`` binds the category to the job whose
+    default pay item posts it. The seed migration leaves ``LeaveType.job`` NULL
+    when the special jobs do not exist yet, which is the state a test database
+    is in — so a test that skipped this would be asserting against a
+    configuration no real installation runs.
+    """
+    leave_job = make_job(company, actor, name=pay_item_name)
+    leave_job.default_xero_pay_item_id = _pay_item_id(pay_item_name, uses_leave_api=True)
+    leave_job.save(staff=actor, update_fields=["default_xero_pay_item", "updated_at"])
+    LeaveType.objects.filter(code=leave_code).update(job=leave_job)
+    return leave_job
 
 
 def _pay_item_id(name: str, *, uses_leave_api: bool) -> UUID:

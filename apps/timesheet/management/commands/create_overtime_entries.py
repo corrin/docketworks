@@ -31,13 +31,14 @@ from django.db.models import Sum
 from apps.accounts.models import Staff
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, CostSet
+from apps.timesheet.models import LeaveType
 from apps.timesheet.services.xero_hours import (
     CUTOFF_DATE,
-    LEAVE_JOB_NAMES,
     XeroWeekRow,
     build_staff_lookup,
     get_jm_hours_for_staff_week,
     get_xero_hours_by_staff_week,
+    leave_job_ids,
 )
 
 from ._repair_shared import (
@@ -356,7 +357,18 @@ class Command(BaseCommand):
                 if leave_type not in leave_pay_items:
                     raise CommandError(f"Row {i}: no pay item found for leave type '{leave_type}'")
                 pay_item = leave_pay_items[leave_type]
-                multiplier = float(pay_item.multiplier or 0)
+                # Opus: From the Docketworks category, not the pay item's multiplier.
+                # A leave type carries no multiplier — the sync used to infer one
+                # from the Xero name, so `or 0` silently costed every leave hour
+                # at ZERO the moment that guess went away. Whether leave is paid
+                # is `LeaveType.is_paid`, the one rule 171ef64 established.
+                category = LeaveType.for_pay_item(pay_item.id)
+                if category is None:
+                    raise CommandError(
+                        f"Row {i}: Xero leave type {pay_item.name!r} is not mapped to a "
+                        "Docketworks leave category, so whether it is paid is unknown."
+                    )
+                multiplier = 1.0 if category.is_paid else 0.0
                 label = leave_type
 
             cost_line = build_repair_time_line(
@@ -414,9 +426,19 @@ class Command(BaseCommand):
 
     @staticmethod
     def _get_leave_jobs() -> dict[str, Job]:
-        """Return leave job name -> Job for the special leave jobs."""
+        """Return leave category CODE -> Job for the configured leave jobs.
+
+        Opus: Keyed by code so it joins the Xero side, which `_extract_leave_type`
+        also resolves to a code. Keying one by job name and the other by
+        anything else is how the two halves of a comparison silently stop
+        matching — every leave line would then read as a gap and be recreated.
+        """
+        from apps.timesheet.models import LeaveType  # noqa: PLC0415
+
         return {
-            job.name: job for job in Job.objects.filter(status="special", name__in=LEAVE_JOB_NAMES)
+            leave_type.code: leave_type.job
+            for leave_type in LeaveType.objects.exclude(job=None).select_related("job")
+            if leave_type.job is not None
         }
 
     def _find_primary_jobs(self, staff_by_xero_id: dict[str, Staff]) -> dict[Staff, _PrimaryJob]:
@@ -433,7 +455,7 @@ class Command(BaseCommand):
                     accounting_date__gte=CUTOFF_DATE,
                     staff=staff,
                 )
-                .exclude(cost_set__job__name__in=LEAVE_JOB_NAMES)
+                .exclude(cost_set__job_id__in=leave_job_ids())
                 .values("cost_set__job__id", "cost_set__job__name")
                 .annotate(total_hrs=Sum("quantity"))
                 .order_by("-total_hrs")

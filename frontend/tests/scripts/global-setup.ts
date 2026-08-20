@@ -10,6 +10,7 @@ import {
   syncSequences,
 } from './db-backup-utils'
 import { openSyncWindow } from './e2e-sync-windows'
+import { ensureXeroConnected } from './xero-login'
 
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
 
@@ -72,10 +73,15 @@ async function checkXeroStatus(): Promise<{
     signal: AbortSignal.timeout(60_000),
   })
   if (!response.ok) {
-    // A 500 here is an operational failure (e.g. token refresh failed with
-    // an error_id) — reporting it as "not connected" would send the operator
-    // to redo OAuth instead of reading the error. Fail with the real body.
-    throw new Error(`Xero ping failed with HTTP ${response.status}: ${await response.text()}`)
+    // Opus: Not connected, and the body is logged rather than raised (v1 did the
+    // same). The commonest non-ok here is a refresh against a consumed token,
+    // reported as a 500 with an error_id — a dead connection, whose fix is the
+    // consent flow. Raising instead made the reconnect unreachable for exactly
+    // that case; the error_id still reaches the operator through this line,
+    // and a reconnect that does not fix it is still caught, because the
+    // preflight below blocks on the re-check.
+    console.log(`[xero] Ping returned HTTP ${response.status}: ${await response.text()}`)
+    return { connected: false, xeroReadonly: false, productionClient: null }
   }
   const data: unknown = await response.json()
   if (typeof data !== 'object' || data === null) {
@@ -123,6 +129,32 @@ export function xeroPreflightIssues(xeroStatus: {
   return issues
 }
 
+/**
+ * Re-consent to Xero, then report the connection again.
+ *
+ * Opus: The refresh token Xero issues is single-use, so a dev connection dies
+ * routinely — and every Xero spec in the suite dies with it. Aborting with
+ * "complete the OAuth flow first" was the whole response, which put a manual
+ * step in front of a gate that is supposed to run start to finish.
+ *
+ * Opus: Attended by design: Xero sends an MFA push and the helper waits up to 120s
+ * for someone to approve it. It is skipped rather than attempted without
+ * credentials, so an environment that has none still fails on the preflight
+ * message below instead of hanging for two minutes first.
+ */
+async function reconnectXero(): Promise<Awaited<ReturnType<typeof checkXeroStatus>>> {
+  if (!process.env.XERO_USERNAME || !process.env.XERO_PASSWORD) {
+    console.log('[xero] Not connected, and no XERO_USERNAME/XERO_PASSWORD to reconnect with.')
+    // Opus: Reported as not-connected rather than re-raising the ping's error: the
+    // preflight's own message names the fix, which is what an environment
+    // without Xero credentials needs to read.
+    return { connected: false, xeroReadonly: false, productionClient: null }
+  }
+  console.log('[xero] Not connected — running the OAuth flow. Approve the MFA push if prompted.')
+  await ensureXeroConnected()
+  return await checkXeroStatus()
+}
+
 /** Acquire the run lock atomically so concurrent setup processes cannot both pass preflight. */
 export function acquireE2ELock(lockFile: string, pid: number): void {
   try {
@@ -146,9 +178,12 @@ export default async function globalSetup(): Promise<void> {
   // otherwise the next run refuses to start for a dead PID.
   let backupFile: string | null = null
   try {
-    // All checks are read-only — they abort if something is wrong, never fix it.
     console.log('[xero] Checking Xero connection...')
-    const xeroIssues = xeroPreflightIssues(await checkXeroStatus())
+    let xeroStatus = await checkXeroStatus()
+    if (!xeroStatus.connected) {
+      xeroStatus = await reconnectXero()
+    }
+    const xeroIssues = xeroPreflightIssues(xeroStatus)
     if (xeroIssues.length > 0) {
       const issueList = xeroIssues.map((i) => `  - ${i}`).join('\n')
       throw new Error(`E2E Xero pre-flight checks failed:\n${issueList}`)

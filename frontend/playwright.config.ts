@@ -26,6 +26,17 @@ if (fs.existsSync(testEnvPath)) {
 const externalBaseURL = process.env.E2E_MANAGED_BASE_URL ?? process.env.E2E_BASE_URL
 const baseURL = externalBaseURL ?? 'http://localhost:4173'
 
+// Tests tagged @xero-payroll-write post a real week to Xero payroll, which
+// creates a draft pay run. Xero Payroll NZ has no API to post one or delete
+// one — createPayRun exists, updatePayRun and deletePayRun do not — so every
+// such run leaves an object behind that only a human can clear in the Xero UI.
+// They are therefore opt-in: an unattended gate must not accumulate external
+// state nobody can clean up. Run them deliberately with `npm run test:e2e:payroll`.
+// The posting path stays covered before merge by apps/xero/tests/
+// test_payroll_integration.py, which drives it against the same real Xero
+// (ADR 0050's named exception).
+const runsXeroPayrollWrites = process.env.E2E_XERO_PAYROLL === '1'
+
 export default defineConfig({
   globalSetup: path.join(configDir, 'tests/scripts/global-setup.ts'),
   globalTeardown: path.join(configDir, 'tests/scripts/global-teardown.ts'),
@@ -35,6 +46,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: 1, // Single worker to avoid parallel database conflicts
   maxFailures: 1, // Stop early — don't wait if something's broken
+  ...(runsXeroPayrollWrites ? {} : { grepInvert: /@xero-payroll-write/ }),
   reporter: [
     ['html', { open: 'never', outputFolder: path.join(configDir, 'playwright-report') }],
     ['list', { printSteps: true }], // Show steps and console output

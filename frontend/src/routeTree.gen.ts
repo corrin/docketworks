@@ -14,13 +14,17 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SessionCheckRouteImport } from './routes/session-check'
 import { Route as AuthedKanbanRouteImport } from './routes/_authed/kanban'
+import { Route as AuthedAdminLeaveSettingsRouteImport } from './routes/_authed/admin/leave-settings'
 import { Route as AuthedJobsJobIdRouteImport } from './routes/_authed/jobs/$jobId'
 import { Route as AuthedJobsCreateRouteImport } from './routes/_authed/jobs/create'
 import { Route as AuthedPurchasingStockRouteImport } from './routes/_authed/purchasing/stock'
 import { Route as AuthedReportsJobMovementRouteImport } from './routes/_authed/reports/job-movement'
+import { Route as AuthedReportsPayrollReconciliationRouteImport } from './routes/_authed/reports/payroll-reconciliation'
 import { Route as AuthedReportsWipRouteImport } from './routes/_authed/reports/wip'
 import { Route as AuthedTimesheetsDailyRouteImport } from './routes/_authed/timesheets/daily'
 import { Route as AuthedTimesheetsEntryRouteImport } from './routes/_authed/timesheets/entry'
+import { Route as AuthedTimesheetsLeaveRouteImport } from './routes/_authed/timesheets/leave'
+import { Route as AuthedTimesheetsWeeklyRouteImport } from './routes/_authed/timesheets/weekly'
 import { Route as AuthedCrmCompaniesIndexRouteImport } from './routes/_authed/crm/companies/index'
 import { Route as AuthedCrmCompaniesCompanyIdRouteImport } from './routes/_authed/crm/companies/$companyId'
 import { Route as AuthedPurchasingPoIndexRouteImport } from './routes/_authed/purchasing/po/index'
@@ -51,6 +55,12 @@ const AuthedKanbanRoute = AuthedKanbanRouteImport.update({
   path: '/kanban',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedAdminLeaveSettingsRoute =
+  AuthedAdminLeaveSettingsRouteImport.update({
+    id: '/admin/leave-settings',
+    path: '/admin/leave-settings',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedJobsJobIdRoute = AuthedJobsJobIdRouteImport.update({
   id: '/jobs/$jobId',
   path: '/jobs/$jobId',
@@ -72,6 +82,12 @@ const AuthedReportsJobMovementRoute =
     path: '/reports/job-movement',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedReportsPayrollReconciliationRoute =
+  AuthedReportsPayrollReconciliationRouteImport.update({
+    id: '/reports/payroll-reconciliation',
+    path: '/reports/payroll-reconciliation',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedReportsWipRoute = AuthedReportsWipRouteImport.update({
   id: '/reports/wip',
   path: '/reports/wip',
@@ -85,6 +101,16 @@ const AuthedTimesheetsDailyRoute = AuthedTimesheetsDailyRouteImport.update({
 const AuthedTimesheetsEntryRoute = AuthedTimesheetsEntryRouteImport.update({
   id: '/timesheets/entry',
   path: '/timesheets/entry',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedTimesheetsLeaveRoute = AuthedTimesheetsLeaveRouteImport.update({
+  id: '/timesheets/leave',
+  path: '/timesheets/leave',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedTimesheetsWeeklyRoute = AuthedTimesheetsWeeklyRouteImport.update({
+  id: '/timesheets/weekly',
+  path: '/timesheets/weekly',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedCrmCompaniesIndexRoute = AuthedCrmCompaniesIndexRouteImport.update({
@@ -120,13 +146,17 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/session-check': typeof SessionCheckRoute
   '/kanban': typeof AuthedKanbanRoute
+  '/admin/leave-settings': typeof AuthedAdminLeaveSettingsRoute
   '/jobs/$jobId': typeof AuthedJobsJobIdRoute
   '/jobs/create': typeof AuthedJobsCreateRoute
   '/purchasing/stock': typeof AuthedPurchasingStockRoute
   '/reports/job-movement': typeof AuthedReportsJobMovementRoute
+  '/reports/payroll-reconciliation': typeof AuthedReportsPayrollReconciliationRoute
   '/reports/wip': typeof AuthedReportsWipRoute
   '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
+  '/timesheets/leave': typeof AuthedTimesheetsLeaveRoute
+  '/timesheets/weekly': typeof AuthedTimesheetsWeeklyRoute
   '/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
   '/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
   '/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
@@ -138,13 +168,17 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/session-check': typeof SessionCheckRoute
   '/kanban': typeof AuthedKanbanRoute
+  '/admin/leave-settings': typeof AuthedAdminLeaveSettingsRoute
   '/jobs/$jobId': typeof AuthedJobsJobIdRoute
   '/jobs/create': typeof AuthedJobsCreateRoute
   '/purchasing/stock': typeof AuthedPurchasingStockRoute
   '/reports/job-movement': typeof AuthedReportsJobMovementRoute
+  '/reports/payroll-reconciliation': typeof AuthedReportsPayrollReconciliationRoute
   '/reports/wip': typeof AuthedReportsWipRoute
   '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
+  '/timesheets/leave': typeof AuthedTimesheetsLeaveRoute
+  '/timesheets/weekly': typeof AuthedTimesheetsWeeklyRoute
   '/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
   '/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
   '/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
@@ -158,13 +192,17 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/session-check': typeof SessionCheckRoute
   '/_authed/kanban': typeof AuthedKanbanRoute
+  '/_authed/admin/leave-settings': typeof AuthedAdminLeaveSettingsRoute
   '/_authed/jobs/$jobId': typeof AuthedJobsJobIdRoute
   '/_authed/jobs/create': typeof AuthedJobsCreateRoute
   '/_authed/purchasing/stock': typeof AuthedPurchasingStockRoute
   '/_authed/reports/job-movement': typeof AuthedReportsJobMovementRoute
+  '/_authed/reports/payroll-reconciliation': typeof AuthedReportsPayrollReconciliationRoute
   '/_authed/reports/wip': typeof AuthedReportsWipRoute
   '/_authed/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/_authed/timesheets/entry': typeof AuthedTimesheetsEntryRoute
+  '/_authed/timesheets/leave': typeof AuthedTimesheetsLeaveRoute
+  '/_authed/timesheets/weekly': typeof AuthedTimesheetsWeeklyRoute
   '/_authed/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
   '/_authed/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
   '/_authed/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
@@ -178,13 +216,17 @@ export interface FileRouteTypes {
     | '/login'
     | '/session-check'
     | '/kanban'
+    | '/admin/leave-settings'
     | '/jobs/$jobId'
     | '/jobs/create'
     | '/purchasing/stock'
     | '/reports/job-movement'
+    | '/reports/payroll-reconciliation'
     | '/reports/wip'
     | '/timesheets/daily'
     | '/timesheets/entry'
+    | '/timesheets/leave'
+    | '/timesheets/weekly'
     | '/crm/companies/$companyId'
     | '/purchasing/po/$poId'
     | '/purchasing/po/create'
@@ -196,13 +238,17 @@ export interface FileRouteTypes {
     | '/login'
     | '/session-check'
     | '/kanban'
+    | '/admin/leave-settings'
     | '/jobs/$jobId'
     | '/jobs/create'
     | '/purchasing/stock'
     | '/reports/job-movement'
+    | '/reports/payroll-reconciliation'
     | '/reports/wip'
     | '/timesheets/daily'
     | '/timesheets/entry'
+    | '/timesheets/leave'
+    | '/timesheets/weekly'
     | '/crm/companies/$companyId'
     | '/purchasing/po/$poId'
     | '/purchasing/po/create'
@@ -215,13 +261,17 @@ export interface FileRouteTypes {
     | '/login'
     | '/session-check'
     | '/_authed/kanban'
+    | '/_authed/admin/leave-settings'
     | '/_authed/jobs/$jobId'
     | '/_authed/jobs/create'
     | '/_authed/purchasing/stock'
     | '/_authed/reports/job-movement'
+    | '/_authed/reports/payroll-reconciliation'
     | '/_authed/reports/wip'
     | '/_authed/timesheets/daily'
     | '/_authed/timesheets/entry'
+    | '/_authed/timesheets/leave'
+    | '/_authed/timesheets/weekly'
     | '/_authed/crm/companies/$companyId'
     | '/_authed/purchasing/po/$poId'
     | '/_authed/purchasing/po/create'
@@ -273,6 +323,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedKanbanRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/admin/leave-settings': {
+      id: '/_authed/admin/leave-settings'
+      path: '/admin/leave-settings'
+      fullPath: '/admin/leave-settings'
+      preLoaderRoute: typeof AuthedAdminLeaveSettingsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/jobs/$jobId': {
       id: '/_authed/jobs/$jobId'
       path: '/jobs/$jobId'
@@ -301,6 +358,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedReportsJobMovementRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/reports/payroll-reconciliation': {
+      id: '/_authed/reports/payroll-reconciliation'
+      path: '/reports/payroll-reconciliation'
+      fullPath: '/reports/payroll-reconciliation'
+      preLoaderRoute: typeof AuthedReportsPayrollReconciliationRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/reports/wip': {
       id: '/_authed/reports/wip'
       path: '/reports/wip'
@@ -320,6 +384,20 @@ declare module '@tanstack/react-router' {
       path: '/timesheets/entry'
       fullPath: '/timesheets/entry'
       preLoaderRoute: typeof AuthedTimesheetsEntryRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/timesheets/leave': {
+      id: '/_authed/timesheets/leave'
+      path: '/timesheets/leave'
+      fullPath: '/timesheets/leave'
+      preLoaderRoute: typeof AuthedTimesheetsLeaveRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/timesheets/weekly': {
+      id: '/_authed/timesheets/weekly'
+      path: '/timesheets/weekly'
+      fullPath: '/timesheets/weekly'
+      preLoaderRoute: typeof AuthedTimesheetsWeeklyRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/crm/companies/': {
@@ -362,13 +440,17 @@ declare module '@tanstack/react-router' {
 
 interface AuthedRouteChildren {
   AuthedKanbanRoute: typeof AuthedKanbanRoute
+  AuthedAdminLeaveSettingsRoute: typeof AuthedAdminLeaveSettingsRoute
   AuthedJobsJobIdRoute: typeof AuthedJobsJobIdRoute
   AuthedJobsCreateRoute: typeof AuthedJobsCreateRoute
   AuthedPurchasingStockRoute: typeof AuthedPurchasingStockRoute
   AuthedReportsJobMovementRoute: typeof AuthedReportsJobMovementRoute
+  AuthedReportsPayrollReconciliationRoute: typeof AuthedReportsPayrollReconciliationRoute
   AuthedReportsWipRoute: typeof AuthedReportsWipRoute
   AuthedTimesheetsDailyRoute: typeof AuthedTimesheetsDailyRoute
   AuthedTimesheetsEntryRoute: typeof AuthedTimesheetsEntryRoute
+  AuthedTimesheetsLeaveRoute: typeof AuthedTimesheetsLeaveRoute
+  AuthedTimesheetsWeeklyRoute: typeof AuthedTimesheetsWeeklyRoute
   AuthedCrmCompaniesCompanyIdRoute: typeof AuthedCrmCompaniesCompanyIdRoute
   AuthedPurchasingPoPoIdRoute: typeof AuthedPurchasingPoPoIdRoute
   AuthedPurchasingPoCreateRoute: typeof AuthedPurchasingPoCreateRoute
@@ -378,13 +460,18 @@ interface AuthedRouteChildren {
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedKanbanRoute: AuthedKanbanRoute,
+  AuthedAdminLeaveSettingsRoute: AuthedAdminLeaveSettingsRoute,
   AuthedJobsJobIdRoute: AuthedJobsJobIdRoute,
   AuthedJobsCreateRoute: AuthedJobsCreateRoute,
   AuthedPurchasingStockRoute: AuthedPurchasingStockRoute,
   AuthedReportsJobMovementRoute: AuthedReportsJobMovementRoute,
+  AuthedReportsPayrollReconciliationRoute:
+    AuthedReportsPayrollReconciliationRoute,
   AuthedReportsWipRoute: AuthedReportsWipRoute,
   AuthedTimesheetsDailyRoute: AuthedTimesheetsDailyRoute,
   AuthedTimesheetsEntryRoute: AuthedTimesheetsEntryRoute,
+  AuthedTimesheetsLeaveRoute: AuthedTimesheetsLeaveRoute,
+  AuthedTimesheetsWeeklyRoute: AuthedTimesheetsWeeklyRoute,
   AuthedCrmCompaniesCompanyIdRoute: AuthedCrmCompaniesCompanyIdRoute,
   AuthedPurchasingPoPoIdRoute: AuthedPurchasingPoPoIdRoute,
   AuthedPurchasingPoCreateRoute: AuthedPurchasingPoCreateRoute,

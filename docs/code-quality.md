@@ -14,24 +14,24 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 
 | metric | count |
 |---|---:|
-| type: ignore | 7 |
-| pragma: no cover | 5 |
+| type: ignore | 8 |
+| pragma: no cover | 6 |
 | noqa (no rule code) | 0 |
 | @ts-ignore | 0 |
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
-| oxlint-disable | 4 |
-| TOTAL suppressions | 594 |
-| noqa: DJ001 | 153 |
-| noqa: PLC0415 | 98 |
-| noqa: E402 | 97 |
-| noqa: BLE001 | 33 |
-| noqa: PLR0913 | 32 |
-| noqa: ARG002 | 31 |
+| oxlint-disable | 6 |
+| TOTAL suppressions | 663 |
+| noqa: DJ001 | 158 |
+| noqa: PLC0415 | 128 |
+| noqa: E402 | 100 |
+| noqa: PLR0913 | 42 |
+| noqa: ARG002 | 37 |
+| noqa: BLE001 | 36 |
 | noqa: C901 | 21 |
+| noqa: ARG001 | 15 |
 | noqa: S603 | 14 |
 | noqa: TRY300 | 9 |
-| noqa: ARG001 | 8 |
 | noqa: DJ008 | 7 |
 | noqa: PLR0911 | 7 |
 | noqa: F405 | 6 |
@@ -45,6 +45,7 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: PLW0603 | 3 |
 | noqa: RUF012 | 3 |
 | noqa: S105 | 3 |
+| noqa: F401 | 2 |
 | noqa: S108 | 2 |
 | noqa: ARG004 | 1 |
 | noqa: B009 | 1 |
@@ -54,7 +55,6 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: D107 | 1 |
 | noqa: DTZ001 | 1 |
 | noqa: DTZ007 | 1 |
-| noqa: F401 | 1 |
 | noqa: F821 | 1 |
 | noqa: PIE804 | 1 |
 | noqa: PLR0915 | 1 |
@@ -69,8 +69,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 215 |
-| in docstrings | 361 |
+| in comments | 224 |
+| in docstrings | 372 |
 
 ## Exception handling
 
@@ -78,11 +78,11 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 338 |
-| except handlers | 364 |
-| re-raises or converts | 232 |
-| returns instead | 74 |
-| falls through | 47 |
+| try statements | 362 |
+| except handlers | 392 |
+| re-raises or converts | 254 |
+| returns instead | 78 |
+| falls through | 49 |
 | continue/break in a loop | 10 |
 | pass (silent) | 1 |
 
@@ -93,7 +93,7 @@ The narrow subset of the above: functions whose ENTIRE body is one single-statem
 | metric | count |
 |---|---:|
 | passthrough | 0 |
-| rethrow | 9 |
+| rethrow | 14 |
 | fallback | 3 |
 
 ## Optional returns
@@ -102,8 +102,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 168 |
-| non-test functions | 2112 |
+| functions returning `X \| None` | 186 |
+| non-test functions | 2316 |
 
 ## Wire contract (response side)
 
@@ -111,7 +111,7 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 250 |
-| response properties | 1682 |
+| response schemas | 275 |
+| response properties | 1787 |
 | optional (pinned at zero) | 0 |
-| nullable | 374 |
+| nullable | 394 |

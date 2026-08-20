@@ -88,6 +88,9 @@ export type { JobFileOut } from './generated/types.gen'
 // Xero pay items (job settings tab)
 export { xeroPayItemsListOptions } from './generated/@tanstack/react-query.gen'
 export type { XeroPayItemOut } from './generated/types.gen'
+// Narrow job list for the admin screens that map a fixed kind of job.
+export { jobJobsOptionsListOptions } from './generated/@tanstack/react-query.gen'
+export type { JobOptionOut } from './generated/types.gen'
 
 // Finish Job workspace (balance, checklist, invoices, cost comparison)
 export {
@@ -163,9 +166,14 @@ export type {
 // Accounting reports
 export {
   accountingReportsJobMovementRetrieveOptions,
+  accountingReportsPayrollWeekReconciliationRetrieveOptions,
   accountingReportsWipRetrieveOptions,
 } from './generated/@tanstack/react-query.gen'
-export type { WipResponse } from './generated/types.gen'
+export type {
+  PayrollStaffWeekRowOut,
+  PayrollWeekReconciliationResponse,
+  WipResponse,
+} from './generated/types.gen'
 
 // Company detail (CRM companies report; supplier search aliases tab)
 export {
@@ -189,6 +197,45 @@ export {
   timesheetsJobsRetrieveOptions,
   timesheetsStaffRetrieveOptions,
 } from './generated/@tanstack/react-query.gen'
+export {
+  timesheetsLeaveBalanceRetrieveOptions,
+  timesheetsLeaveOfficeClosureCreateMutation,
+  timesheetsLeaveOfficeClosurePreviewCreateMutation,
+  timesheetsLeavePreviewCreateMutation,
+  timesheetsLeaveRequestsCreateMutation,
+  timesheetsLeaveRequestsDeleteMutation,
+  timesheetsLeaveRequestsListOptions,
+  timesheetsLeaveRequestsListQueryKey,
+  timesheetsLeaveRequestsUpdateMutation,
+  timesheetsLeaveSettingsRetrieveOptions,
+  timesheetsLeaveSettingsRetrieveQueryKey,
+  timesheetsLeaveSettingsUpdateMutation,
+} from './generated/@tanstack/react-query.gen'
+// Opus: Weekly overview + the Xero payroll pay-run surface it posts through.
+export {
+  timesheetsPayrollPayRunsRetrieveOptions,
+  timesheetsPayrollRunsRetrieveOptions,
+  timesheetsPayrollRunsRetrieveQueryKey,
+  timesheetsPayrollPayRunsRetrieveQueryKey,
+  timesheetsPayrollPostStaffWeekCreateMutation,
+  timesheetsPayrollWeekStatusRetrieveOptions,
+  timesheetsPayrollWeekStatusRetrieveQueryKey,
+  timesheetsWeeklyRetrieveOptions,
+  timesheetsWeeklyRetrieveQueryKey,
+} from './generated/@tanstack/react-query.gen'
+export { runPayrollRunsStream } from './payroll-runs-stream'
+export type {
+  PayRunListItemOut,
+  PayRunListResponse,
+  PayrollPostRunOut,
+  PayrollRunsOut,
+  StaffWeekPostResultOut,
+  StaffWeekPostingOut,
+  WeekPostingStatusResponse,
+  WeeklyStaffDataOut,
+  WeeklyStaffDayOut,
+  WeeklyTimesheetDataOut,
+} from './generated/types.gen'
 export type {
   CostLineApprovalResponse,
   DailyTimesheetSummaryOut,
@@ -197,6 +244,13 @@ export type {
   TimesheetEntriesOut,
   TimesheetJobOut,
   TimesheetStaffOut,
+  LeaveBalanceOut,
+  LeaveDayInput,
+  LeavePreviewOut,
+  LeaveRequestOut,
+  LeaveSettingsOut,
+  LeaveTypeOut,
+  OfficeClosurePreviewOut,
 } from './generated/types.gen'
 
 // Kanban (board columns, drag reorder/status, staff panel, incremental
@@ -213,6 +267,7 @@ export {
   jobJobsFetchByColumnRetrieveOptions,
   jobJobsFetchByColumnRetrieveQueryKey,
   jobJobsReorderCreateMutation,
+  jobJobsStatusChoicesRetrieveOptions,
   jobJobsStatusValuesRetrieveOptions,
   jobJobsUpdateStatusCreateMutation,
 } from './generated/@tanstack/react-query.gen'

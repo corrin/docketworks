@@ -58,6 +58,26 @@ class TestJobPickers:
 
         assert str(job.id) not in ids
 
+    def test_a_search_term_reaches_an_archived_job(
+        self,
+        client: Client,
+        stock_holding_job: Job,  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
+        job: Job,
+    ) -> None:
+        """A PO line may need to book against archived work; without ?q= it cannot."""
+        Job.objects.filter(pk=job.pk).untracked_update(status="archived")
+
+        rows = client.get(f"/api/purchasing/all-jobs/?q={job.name}").json()["jobs"]
+
+        assert str(job.id) in {row["id"] for row in rows}
+
+    def test_a_search_term_below_the_minimum_is_a_400(
+        self,
+        client: Client,
+        stock_holding_job: Job,  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
+    ) -> None:
+        assert client.get("/api/purchasing/all-jobs/?q=ab").status_code == 400
+
     def test_purchasing_jobs_lists_costable_jobs_with_their_actual_cost_set(
         self, client: Client, job: Job
     ) -> None:
@@ -300,6 +320,36 @@ class TestProductMappings:
         product.refresh_from_db()
         assert product.parsed_description == "50x50 SHS"
         assert product.parsed_alloy == "350"
+
+    def test_validating_carries_every_mapped_field_the_operator_corrected(
+        self, client: Client
+    ) -> None:
+        """One branch per field on the handler: a missed one is silently dropped."""
+        mapping = self._mapping(input_hash="hash-full", validated=False, item_code=None)
+
+        response = client.post(
+            f"/api/purchasing/product-mappings/{mapping.id}/validate/",
+            data={
+                "mapped_description": "50x50 SHS",
+                "mapped_metal_type": "steel",
+                "mapped_alloy": "350",
+                "mapped_specifics": "h9",
+                "mapped_dimensions": "50x50x3",
+                "mapped_unit_cost": "31.50",
+                "mapped_price_unit": "each",
+                "validation_notes": "Corrected from the supplier PDF",
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        mapping.refresh_from_db()
+        assert mapping.mapped_metal_type == "steel"
+        assert mapping.mapped_specifics == "h9"
+        assert mapping.mapped_dimensions == "50x50x3"
+        assert mapping.mapped_unit_cost == Decimal("31.50")
+        assert mapping.mapped_price_unit == "each"
+        assert mapping.validation_notes == "Corrected from the supplier PDF"
 
     @pytest.mark.parametrize(
         "field",

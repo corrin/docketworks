@@ -8,25 +8,13 @@ from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
-from apps.timesheet.services import weekly_timesheet_service
-from apps.timesheet.tests.conftest import WEEK_START, make_time_line
+from apps.timesheet.models import LeaveType
+from apps.timesheet.services import daily_timesheet_service, weekly_timesheet_service
+from apps.timesheet.tests.conftest import WEEK_START, make_leave_job, make_time_line
 
 pytestmark = pytest.mark.django_db
-
-
-def _leave_job(company: Company, superuser: Staff, leave_type: str) -> Job:
-    """A leave job: name contains "Leave" and it carries the leave pay item."""
-    from django.apps import apps as django_apps  # noqa: PLC0415
-
-    job = make_job(company, superuser, name=leave_type)
-    job.default_xero_pay_item = django_apps.get_model("xero", "XeroPayItem")._default_manager.get(
-        name=leave_type, uses_leave_api=True
-    )
-    job.save(staff=superuser, update_fields=["default_xero_pay_item", "updated_at"])
-    return job
 
 
 @pytest.mark.usefixtures("worker")
@@ -49,6 +37,59 @@ class TestWeekShape:
         assert overview["week_type"] == "7-day"
         assert len(overview["week_days"]) == 7
         assert overview["end_date"] == "2026-05-10"
+
+    def test_saturday_hours_appear_even_with_weekends_disabled(
+        self, worker: Staff, job: Job
+    ) -> None:
+        """The screen a week is posted from must not hide hours that get posted.
+
+        Opus: Posting covers Monday to Sunday whatever this flag says, so a five-day
+        grid transmitted and paid Saturday hours that appeared in no column, in
+        no total and in no summary. The reconciliation could not catch it
+        either: it reads the same Mon-Sun window, so posted and recorded agreed
+        and the panel reported a match.
+        """
+        saturday = WEEK_START + timedelta(days=5)
+        make_time_line(job, worker, accounting_date=saturday, hours="6.000")
+
+        overview = weekly_timesheet_service.get_weekly_overview(WEEK_START)
+
+        assert len(overview["week_days"]) == 7, "a day carrying hours cannot be hidden"
+        assert overview["week_days"][5] == "2026-05-09"
+        [row] = [staff for staff in overview["staff_data"] if staff["staff_id"] == str(worker.id)]
+        assert row["total_hours"] == Decimal("6.000")
+        assert overview["weekly_summary"]["total_hours"] == Decimal("6.0")
+
+    def test_a_rostered_saturday_agrees_with_the_daily_page(self, worker: Staff, job: Job) -> None:
+        """One weekend rule, or the same booked day gets two different statuses.
+
+        Opus: The daily service zeroes weekend scheduled hours when the flag is off;
+        the weekly one read the roster straight off the model. That was
+        harmless while this grid never rendered a weekend — the divergent path
+        was unreachable — and went live the moment it started showing weekend
+        days that carry hours. With a non-zero hours_sat and the flag off, the
+        roster read would call 6h of 8 "Partial"; the shared rule calls it
+        "Unscheduled", which is what the daily page says.
+        """
+        worker.hours_sat = Decimal("8.00")
+        worker.save(update_fields=["hours_sat"])
+        saturday = WEEK_START + timedelta(days=5)
+        make_time_line(job, worker, accounting_date=saturday, hours="6.000")
+
+        overview = weekly_timesheet_service.get_weekly_overview(WEEK_START)
+
+        [row] = [staff for staff in overview["staff_data"] if staff["staff_id"] == str(worker.id)]
+        [saturday_row] = [day for day in row["weekly_hours"] if day["day"] == "2026-05-09"]
+        assert saturday_row["scheduled_hours"] == Decimal("0.0")
+        assert saturday_row["day_status"] == "Unscheduled"
+
+    def test_an_empty_weekend_stays_hidden(self, worker: Staff, job: Job) -> None:
+        """The flag still earns its keep: it hides days, never hours."""
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+
+        overview = weekly_timesheet_service.get_weekly_overview(WEEK_START)
+
+        assert len(overview["week_days"]) == 5
 
     def test_navigation_points_at_the_neighbouring_weeks(self) -> None:
         overview = weekly_timesheet_service.get_weekly_overview(WEEK_START)
@@ -145,8 +186,8 @@ class TestPayrollColumns:
     def test_leave_hours_are_split_by_the_jobs_pay_item(
         self, company: Company, superuser: Staff, worker: Staff
     ) -> None:
-        sick = _leave_job(company, superuser, "Sick Leave")
-        annual = _leave_job(company, superuser, "Annual Leave")
+        sick = make_leave_job(company, superuser, "Sick Leave")
+        annual = make_leave_job(company, superuser, "Annual Leave")
         make_time_line(sick, worker, accounting_date=WEEK_START, hours="8.000")
         make_time_line(
             annual, worker, accounting_date=WEEK_START + timedelta(days=1), hours="4.000"
@@ -158,20 +199,70 @@ class TestPayrollColumns:
         assert row["total_annual_leave_hours"] == 4.0
         # Leave never counts as work, billed or unbilled.
         assert row["total_billed_hours"] == 0.0
-        assert row["weekly_hours"][0]["status"] == "Leave"
-        assert row["weekly_hours"][0]["leave_type"] == "Sick Leave"
+        assert row["weekly_hours"][0]["day_status"] == "Leave"
+        # Opus: The category CODE, not the Xero pay item's display name. An admin
+        # can rename that item from the leave-settings screen, so putting the
+        # name on the wire made a rename change what this screen said a day was.
+        assert row["weekly_hours"][0]["leave_type"] == LeaveType.Code.SICK
+
+
+class TestAgreementWithTheDailyOverview:
+    """The two screens must answer the same question about a day the same way.
+
+    Opus: This is the regression these renames exist to prevent: v1 let the weekly
+    cell and the daily row drift apart until the same person on the same day
+    read "Complete" on one screen and "⚠" on the other.
+    """
+
+    @pytest.mark.parametrize(
+        ("hours", "expected"),
+        [("8.000", "Complete"), ("2.000", "Partial")],
+    )
+    def test_the_weekly_cell_matches_the_daily_row(
+        self, job: Job, worker: Staff, hours: str, expected: str
+    ) -> None:
+        make_time_line(job, worker, accounting_date=WEEK_START, hours=hours)
+
+        [week_row] = weekly_timesheet_service.get_weekly_overview(WEEK_START)["staff_data"]
+        day_row = daily_timesheet_service.get_staff_timesheet_data(worker, WEEK_START, False)
+
+        assert week_row["weekly_hours"][0]["day_status"] == expected
+        assert day_row["day_status"] == expected
+        assert week_row["staff_name"] == day_row["staff_name"]
+        assert week_row["weekly_hours"][0]["hours"] == day_row["actual_hours"]
+        assert week_row["weekly_hours"][0]["billable_hours"] == day_row["billable_hours"]
+
+    def test_both_screens_call_a_leave_day_leave(
+        self, company: Company, superuser: Staff, worker: Staff
+    ) -> None:
+        """v1's daily screen called a leave day "Complete" — it saw hours and stopped asking."""
+        sick = make_leave_job(company, superuser, "Sick Leave")
+        make_time_line(sick, worker, accounting_date=WEEK_START, hours="8.000")
+
+        [week_row] = weekly_timesheet_service.get_weekly_overview(WEEK_START)["staff_data"]
+        day_row = daily_timesheet_service.get_staff_timesheet_data(worker, WEEK_START, False)
+
+        assert week_row["weekly_hours"][0]["day_status"] == "Leave"
+        assert day_row["day_status"] == "Leave"
 
 
 class TestWeeklySummaries:
-    def test_day_status_markers(self, job: Job, worker: Staff) -> None:
+    def test_day_status_uses_the_same_words_as_the_daily_overview(
+        self, job: Job, worker: Staff
+    ) -> None:
+        """A weekly cell is the daily status of that staff member on that day.
+
+        v1 put the glyphs "✓" and "⚠" on the wire here while the daily screen
+        put words on it, so the same day read two ways.
+        """
         make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
         make_time_line(job, worker, accounting_date=WEEK_START + timedelta(days=1), hours="2.000")
 
         [row] = weekly_timesheet_service.get_weekly_overview(WEEK_START)["staff_data"]
 
-        assert row["weekly_hours"][0]["status"] == "✓"  # met the schedule
-        assert row["weekly_hours"][1]["status"] == "⚠"  # short
-        assert row["weekly_hours"][2]["status"] == "⚠"  # nothing booked
+        assert row["weekly_hours"][0]["day_status"] == "Complete"
+        assert row["weekly_hours"][1]["day_status"] == "Partial"
+        assert row["weekly_hours"][2]["day_status"] == "No Entry"
 
     def test_staff_status_banding(self, job: Job, worker: Staff) -> None:
         for offset in range(3):
@@ -183,7 +274,7 @@ class TestWeeklySummaries:
         [row] = overview["staff_data"]
 
         assert row["total_hours"] == 24.0
-        assert row["status"] == "Partial"
+        assert row["week_status"] == "Partial"
         assert overview["summary_stats"]["partial_staff"] == 1
         assert overview["weekly_summary"]["staff_count"] == 1
 

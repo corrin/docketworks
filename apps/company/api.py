@@ -78,7 +78,6 @@ from apps.company.services.company_rest_service import (
     CompanyRestService,
     CompanySearchPage,
     CompanyUpdateData,
-    DuplicateContactError,
     PickupAddressData,
     ProviderAuthRequiredError,
     annotated_with_phone,
@@ -267,8 +266,6 @@ def companies_create_create(
     }
     try:
         created = CompanyRestService.create_company(data)
-    except DuplicateContactError as exc:
-        raise HttpError(409, str(exc)) from exc
     except ProviderAuthRequiredError as exc:
         raise HttpError(401, str(exc)) from exc
     except ValueError as exc:

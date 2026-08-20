@@ -759,30 +759,6 @@ export const zCostSetOut = z.object({
 });
 
 /**
- * CreatePayRunRequest
- *
- * Wire contract for CreatePayRunRequest.
- */
-export const zCreatePayRunRequest = z.object({
-    week_start_date: z.iso.date()
-});
-
-/**
- * CreatePayRunResponse
- *
- * Wire contract for CreatePayRunResponse.
- */
-export const zCreatePayRunResponse = z.object({
-    id: z.uuid(),
-    payment_date: z.iso.date(),
-    period_end_date: z.iso.date(),
-    period_start_date: z.iso.date(),
-    status: z.string(),
-    xero_id: z.uuid(),
-    xero_url: z.string()
-});
-
-/**
  * DailyTotalsOut
  *
  * Wire contract for DailyTotalsOut.
@@ -1655,6 +1631,33 @@ export const zJobMetricsOut = z.object({
 });
 
 /**
+ * JobOptionOut
+ *
+ * A job as a picker draws it, and nothing more.
+ *
+ * The narrow list the admin mapping screens need. The domain job lists
+ * (JobForPurchasing, TimesheetJobOut) stay separate on purpose: they carry
+ * the stock-holding flag and labour rates their own screens price work with,
+ * which no picker renders.
+ */
+export const zJobOptionOut = z.object({
+    company_name: z.string().nullable(),
+    id: z.uuid(),
+    job_number: z.int(),
+    name: z.string(),
+    status: z.string()
+});
+
+/**
+ * JobOptionsResponse
+ *
+ * Wire contract for JobOptionsResponse.
+ */
+export const zJobOptionsResponse = z.object({
+    jobs: z.array(zJobOptionOut)
+});
+
+/**
  * JobQuoteAcceptanceResponse
  *
  * Wire contract for JobQuoteAcceptanceResponse.
@@ -2092,6 +2095,194 @@ export const zLabourSubtypeOut = z.object({
 });
 
 /**
+ * LeaveBalanceOut
+ *
+ * Live provider leave balance.
+ */
+export const zLeaveBalanceOut = z.object({
+    balance: z.number(),
+    name: z.string(),
+    unit: z.string()
+});
+
+export const zLeaveCodeOut = z.enum([
+    'annual_leave',
+    'sick_leave',
+    'unpaid_leave',
+    'bereavement_leave',
+    'public_holiday'
+]);
+
+/**
+ * LeaveDayInput
+ *
+ * Operator-selected hours for one proposed date.
+ */
+export const zLeaveDayInput = z.object({
+    date: z.iso.date(),
+    hours: z.number()
+});
+
+/**
+ * LeaveDayOut
+ *
+ * Persisted leave day and payroll-line identity.
+ */
+export const zLeaveDayOut = z.object({
+    cost_line_id: z.string(),
+    date: z.iso.date(),
+    hours: z.number(),
+    id: z.string()
+});
+
+/**
+ * LeavePreviewDayOut
+ *
+ * Scheduled date availability.
+ */
+export const zLeavePreviewDayOut = z.object({
+    available: z.boolean(),
+    date: z.iso.date(),
+    hours: z.number(),
+    reason: z.string().nullable(),
+    scheduled_hours: z.number()
+});
+
+/**
+ * LeavePreviewOut
+ *
+ * One employee's range preview.
+ */
+export const zLeavePreviewOut = z.object({
+    available_hours: z.number(),
+    days: z.array(zLeavePreviewDayOut),
+    end_date: z.iso.date(),
+    staff_id: z.string(),
+    staff_name: z.string(),
+    start_date: z.iso.date()
+});
+
+/**
+ * LeavePreviewRequest
+ *
+ * Employee and inclusive range to preview.
+ */
+export const zLeavePreviewRequest = z.object({
+    end_date: z.iso.date(),
+    staff_id: z.uuid(),
+    start_date: z.iso.date()
+});
+
+/**
+ * LeaveRequestOut
+ *
+ * Persisted leave request.
+ */
+export const zLeaveRequestOut = z.object({
+    batch_id: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    days: z.array(zLeaveDayOut),
+    end_date: z.iso.date(),
+    id: z.string(),
+    leave_type_code: z.string(),
+    leave_type_name: z.string(),
+    note: z.string().nullable(),
+    source: z.string(),
+    staff_id: z.string(),
+    staff_name: z.string(),
+    start_date: z.iso.date(),
+    total_hours: z.number()
+});
+
+/**
+ * LeaveRequestUpdate
+ *
+ * Replace an existing leave request.
+ */
+export const zLeaveRequestUpdate = z.object({
+    days: z.array(zLeaveDayInput).min(1),
+    end_date: z.iso.date(),
+    leave_type_code: z.string(),
+    note: z.string().min(1).nullish(),
+    start_date: z.iso.date()
+});
+
+/**
+ * LeaveRequestWrite
+ *
+ * Create a first-class leave request.
+ */
+export const zLeaveRequestWrite = z.object({
+    days: z.array(zLeaveDayInput).min(1),
+    end_date: z.iso.date(),
+    leave_type_code: z.string(),
+    note: z.string().min(1).nullish(),
+    staff_id: z.uuid(),
+    start_date: z.iso.date()
+});
+
+/**
+ * LeaveSaveOut
+ *
+ * Saved request and any conflicts skipped at commit.
+ */
+export const zLeaveSaveOut = z.object({
+    request: zLeaveRequestOut,
+    skipped_days: z.array(zLeavePreviewDayOut)
+});
+
+/**
+ * LeaveSummaryOut
+ *
+ * Quick figures over the filtered request set.
+ */
+export const zLeaveSummaryOut = z.object({
+    away_today: z.int(),
+    upcoming_hours: z.number(),
+    upcoming_requests: z.int()
+});
+
+/**
+ * LeaveListOut
+ *
+ * Current or history leave listing.
+ */
+export const zLeaveListOut = z.object({
+    requests: z.array(zLeaveRequestOut),
+    scope: z.enum(['current', 'history']),
+    summary: zLeaveSummaryOut
+});
+
+/**
+ * LeaveTypeUpdate
+ *
+ * Editable fields for one fixed leave code.
+ *
+ * Fable: ``xero_pay_item_id`` is required-but-nullable, not optional: null is
+ * a statement, and it is the only truthful one for the ``xero_computed``
+ * surface, which has no Xero object to name. Requiring a UUID here made every
+ * save containing a public-holiday edit fail validation for a field the row
+ * cannot have, and the atomic batch took the other rows down with it. The
+ * service still refuses the two dishonest combinations (a pay item on
+ * ``xero_computed``, null on a surface that posts).
+ */
+export const zLeaveTypeUpdate = z.object({
+    code: z.string(),
+    display_name: z.string().min(1).max(100),
+    job_id: z.uuid(),
+    xero_pay_item_id: z.uuid().nullable()
+});
+
+/**
+ * LeaveSettingsUpdate
+ *
+ * Every mapping the settings page changed, saved as one transaction.
+ */
+export const zLeaveSettingsUpdate = z.object({
+    leave_types: z.array(zLeaveTypeUpdate).min(1)
+});
+
+/**
  * LoginRequest
  *
  * Wire contract for LoginRequest.
@@ -2218,6 +2409,41 @@ export const zNotebookLmLinkOut = z.object({
     order: z.int(),
     restriction: z.string(),
     url: z.string()
+});
+
+/**
+ * OfficeClosureOut
+ *
+ * Batched requests created for an office closure.
+ */
+export const zOfficeClosureOut = z.object({
+    batch_id: z.string(),
+    requests: z.array(zLeaveRequestOut),
+    skipped_days: z.array(zLeavePreviewDayOut)
+});
+
+/**
+ * OfficeClosurePreviewOut
+ *
+ * Staff and hours affected by an office closure.
+ */
+export const zOfficeClosurePreviewOut = z.object({
+    available_hours: z.number(),
+    available_staff: z.int(),
+    end_date: z.iso.date(),
+    staff: z.array(zLeavePreviewOut),
+    start_date: z.iso.date()
+});
+
+/**
+ * OfficeClosureWrite
+ *
+ * Inclusive closure range and optional note.
+ */
+export const zOfficeClosureWrite = z.object({
+    end_date: z.iso.date(),
+    note: z.string().min(1).nullish(),
+    start_date: z.iso.date()
 });
 
 /**
@@ -2362,18 +2588,6 @@ export const zPayRunListResponse = z.object({
 });
 
 /**
- * PayRunSyncResponse
- *
- * Wire contract for PayRunSyncResponse.
- */
-export const zPayRunSyncResponse = z.object({
-    created: z.int(),
-    fetched: z.int(),
-    synced: z.boolean(),
-    updated: z.int()
-});
-
-/**
  * PayrollDateRangeResponse
  *
  * Wire contract for PayrollDateRangeResponse.
@@ -2396,9 +2610,19 @@ export const zPayrollGrandTotalsOut = z.object({
 });
 
 /**
+ * PayrollHeatmapColumnOut
+ *
+ * One staff column: the join key and the display name.
+ */
+export const zPayrollHeatmapColumnOut = z.object({
+    key: z.string(),
+    name: z.string()
+});
+
+/**
  * PayrollHeatmapRowOut
  *
- * Wire contract for PayrollHeatmapRowOut.
+ * Wire contract for PayrollHeatmapRowOut. Cells are keyed by staff key.
  */
 export const zPayrollHeatmapRowOut = z.object({
     cells: z.record(z.string(), z.number().nullable()),
@@ -2411,9 +2635,27 @@ export const zPayrollHeatmapRowOut = z.object({
  * Wire contract for PayrollHeatmapOut.
  */
 export const zPayrollHeatmapOut = z.object({
-    rows: z.array(zPayrollHeatmapRowOut),
-    staff_names: z.array(z.string())
+    columns: z.array(zPayrollHeatmapColumnOut),
+    rows: z.array(zPayrollHeatmapRowOut)
 });
+
+export const zPayrollPostingMode = z.enum(['timesheet', 'salary']);
+
+export const zPayrollRowStatus = z.enum([
+    'ok',
+    'mismatch',
+    'jm_only',
+    'xero_only_salaried',
+    'xero_only_departed',
+    'xero_only_unposted',
+    'xero_only_unknown'
+]);
+
+export const zPayrollRunStatus = z.enum([
+    'running',
+    'succeeded',
+    'failed'
+]);
 
 /**
  * PayrollStaffSummaryOut
@@ -2426,6 +2668,7 @@ export const zPayrollStaffSummaryOut = z.object({
     hours_diff: z.number(),
     jm_cost: z.number(),
     jm_hours: z.number(),
+    key: z.string(),
     name: z.string(),
     rate_cost_impact: z.number(),
     weeks_present: z.int(),
@@ -2443,12 +2686,15 @@ export const zPayrollStaffWeekRowOut = z.object({
     cost_diff: z.number(),
     hours_cost_impact: z.number(),
     hours_diff: z.number(),
+    jm_base_pay: z.number(),
     jm_cost: z.number(),
     jm_hours: z.number(),
     jm_rate: z.number(),
+    key: z.string(),
     name: z.string(),
+    pay_diff: z.number(),
     rate_cost_impact: z.number(),
-    status: z.string(),
+    status: zPayrollRowStatus,
     xero_gross: z.number(),
     xero_hours: z.number(),
     xero_leave_hours: z.number(),
@@ -2463,8 +2709,10 @@ export const zPayrollStaffWeekRowOut = z.object({
  */
 export const zPayrollWeekTotalsOut = z.object({
     diff: z.number(),
+    jm_base_pay: z.number(),
     jm_cost: z.number(),
     jm_hours: z.number(),
+    pay_diff: z.number(),
     xero_gross: z.number(),
     xero_hours: z.number()
 });
@@ -2494,6 +2742,19 @@ export const zPayrollReconciliationResponse = z.object({
     heatmap: zPayrollHeatmapOut,
     staff_summaries: z.array(zPayrollStaffSummaryOut),
     weeks: z.array(zPayrollWeekOut)
+});
+
+export const zPayrollXeroSource = z.enum(['live_run', 'no_pay_run']);
+
+/**
+ * PayrollWeekReconciliationResponse
+ *
+ * One payroll week reconciled live against the provider.
+ */
+export const zPayrollWeekReconciliationResponse = z.object({
+    unposted_count: z.int(),
+    week: zPayrollWeekOut,
+    xero_source: zPayrollXeroSource
 });
 
 /**
@@ -3124,20 +3385,46 @@ export const zPipelineWarningOut = z.object({
  * PostWeekToXeroRequest
  *
  * Wire contract for PostWeekToXeroRequest.
+ *
+ * Fable: The week alone. The staff are derived server-side from the same
+ * filter the weekly grid answers from, and the postable-week rule is
+ * enforced server-side on a freshly refreshed mirror — a client that named
+ * the roster could relay a stale grid, and one that judged postability
+ * judged it from an hour-old read.
  */
 export const zPostWeekToXeroRequest = z.object({
-    staff_ids: z.array(z.uuid()),
     week_start_date: z.iso.date()
 });
 
+export const zPostingSurfaceOut = z.enum([
+    'timesheet',
+    'leave_api',
+    'xero_computed'
+]);
+
 /**
- * PostWeekToXeroStartResponse
+ * LeaveTypeOut
  *
- * Wire contract for PostWeekToXeroStartResponse.
+ * Fixed Docketworks type and its effective mapping.
  */
-export const zPostWeekToXeroStartResponse = z.object({
-    stream_url: z.string(),
-    task_id: z.uuid()
+export const zLeaveTypeOut = z.object({
+    code: z.string(),
+    configured: z.boolean(),
+    display_name: z.string(),
+    job_id: z.string().nullable(),
+    job_name: z.string().nullable(),
+    posting_surface: zPostingSurfaceOut,
+    xero_pay_item_id: z.string().nullable(),
+    xero_pay_item_name: z.string().nullable()
+});
+
+/**
+ * LeaveSettingsOut
+ *
+ * Leave mapping administration data.
+ */
+export const zLeaveSettingsOut = z.object({
+    leave_types: z.array(zLeaveTypeOut)
 });
 
 /**
@@ -3791,6 +4078,7 @@ export const zStaffDailyDataOut = z.object({
     billable_hours: z.number(),
     billable_percentage: z.number(),
     completion_percentage: z.number(),
+    day_status: z.string(),
     entry_count: z.int(),
     icon_url: z.string().nullable(),
     is_weekend: z.boolean(),
@@ -3800,8 +4088,6 @@ export const zStaffDailyDataOut = z.object({
     staff_id: z.string(),
     staff_initials: z.string(),
     staff_name: z.string(),
-    status: z.string(),
-    status_class: z.string(),
     total_cost: z.number(),
     total_revenue: z.number(),
     weekend_enabled: z.boolean()
@@ -3834,11 +4120,14 @@ export const zStaffJobBreakdownOut = z.object({
 export const zStaffListItemOut = z.object({
     base_wage_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     date_left: z.iso.date().nullable(),
-    email: z.string(),
+    employment_start_date: z.iso.date(),
     first_name: z.string(),
     id: z.uuid(),
     is_office_staff: z.boolean(),
     last_name: z.string(),
+    office_email: z.string(),
+    pay_basis: z.string().nullable(),
+    payroll_email: z.string().nullable(),
     wage_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
 });
 
@@ -3860,6 +4149,105 @@ export const zStaffMetricsOut = z.object({
     total_cost: z.number(),
     total_hours: z.number(),
     total_revenue: z.number()
+});
+
+/**
+ * StaffWeekPostResultOut
+ *
+ * One staff member's outcome, as the run reports it.
+ *
+ * Opus: Built by `model_validate` off the frozen `StaffWeekPostResult` dataclass
+ * rather than a hand-written flattening step. The flattening was a second
+ * declaration of these fields, and a third lived in TypeScript.
+ */
+export const zStaffWeekPostResultOut = z.object({
+    entries_posted: z.int(),
+    error: z.string().nullable(),
+    has_entries: z.boolean(),
+    leave_hours: z.number(),
+    other_leave_hours: z.number(),
+    posting_mode: zPayrollPostingMode,
+    reason: z.string().nullable(),
+    salary_timesheet_removed: z.boolean(),
+    skipped: z.boolean(),
+    staff_id: z.string(),
+    staff_name: z.string(),
+    success: z.boolean(),
+    timesheet_id: z.string().nullable(),
+    work_hours: z.number()
+});
+
+/**
+ * PayrollPostRunOut
+ *
+ * The whole state of a payroll posting run.
+ *
+ * Opus: Latest-state-wins, the contract ADR 0047 already proves with
+ * data-versions: every push carries the complete current document, so a client
+ * that connects late, reconnects, or reloads needs no replay and no offset —
+ * it needs the present. The append-only event log this replaces existed to
+ * make replay exact, which is a problem this shape does not have.
+ *
+ * `updated_at` is the ordering guard. A catch-up read can be in flight when a
+ * push lands, and the older answer would otherwise overwrite a finished run
+ * with a running one, leaving a panel spinning forever.
+ */
+export const zPayrollPostRunOut = z.object({
+    completed: z.int(),
+    current_staff_name: z.string().nullable(),
+    failed: z.int(),
+    message: z.string().nullable(),
+    results: z.array(zStaffWeekPostResultOut),
+    run_id: z.uuid(),
+    status: zPayrollRunStatus,
+    successful: z.int(),
+    total: z.int(),
+    updated_at: z.iso.datetime(),
+    week_start_date: z.iso.date()
+});
+
+/**
+ * PayrollRunsOut
+ *
+ * Every payroll run this organisation currently has state for.
+ *
+ * Opus: A named slot rather than a discriminated union: the slot IS the kind, so
+ * TypeScript narrows by field access with no ceremony. A second kind — the
+ * comparison run — becomes a second slot, and the frontend's exhaustiveness
+ * check makes forgetting to handle it a compile error.
+ */
+export const zPayrollRunsOut = z.object({
+    post: zPayrollPostRunOut.nullable()
+});
+
+/**
+ * PostWeekToXeroStartResponse
+ *
+ * Wire contract for PostWeekToXeroStartResponse.
+ *
+ * Opus: Returns the run's opening document rather than a `stream_url`. The panel
+ * can render "0 of N" before any push arrives, and the stream path is a client
+ * constant like `data-versions-stream.ts`'s — a URL is not a contract.
+ */
+export const zPostWeekToXeroStartResponse = z.object({
+    run: zPayrollPostRunOut
+});
+
+/**
+ * StaffWeekPostingOut
+ *
+ * Wire contract for StaffWeekPostingOut.
+ */
+export const zStaffWeekPostingOut = z.object({
+    matches: z.boolean(),
+    pay_basis: z.string().nullable(),
+    posted: z.boolean(),
+    posted_leave_hours: z.number(),
+    posted_timesheet_hours: z.number(),
+    recorded_leave_hours: z.number(),
+    recorded_timesheet_hours: z.number(),
+    staff_id: z.string(),
+    timesheet_status: z.string().nullable()
 });
 
 /**
@@ -4331,7 +4719,6 @@ export const zTimesheetJobOut = z.object({
     is_urgent: z.boolean(),
     job_number: z.int(),
     labour_rates: z.array(zJobLabourRateOut),
-    leave_type: z.string().nullable(),
     name: z.string(),
     shop_job: z.boolean(),
     status: z.string()
@@ -4353,12 +4740,13 @@ export const zJobsListResponse = z.object({
  * Wire contract for TimesheetStaffOut.
  */
 export const zTimesheetStaffOut = z.object({
-    email: z.string(),
     firstName: z.string(),
     icon_url: z.string().nullable(),
     id: z.string(),
     lastName: z.string(),
     name: z.string(),
+    office_email: z.string(),
+    pay_basis: z.string().nullable(),
     wageRate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
 });
 
@@ -4399,15 +4787,15 @@ export const zTokenRefreshResponse = z.record(z.string(), z.unknown());
  * alias; the /me/ endpoint therefore serialises with ``by_alias=True``.
  */
 export const zUserProfile = z.object({
-    email: z.string(),
     first_name: z.string(),
     fullName: z.string(),
     id: z.uuid(),
     is_office_staff: z.boolean(),
     is_superuser: z.boolean(),
     last_name: z.string(),
-    preferred_name: z.string().nullable(),
-    username: z.string()
+    office_email: z.string(),
+    payroll_email: z.string().nullable(),
+    preferred_name: z.string().nullable()
 });
 
 /**
@@ -4471,6 +4859,16 @@ export const zWipResponse = z.object({
 });
 
 /**
+ * WeekPostingStatusResponse
+ *
+ * Wire contract for WeekPostingStatusResponse.
+ */
+export const zWeekPostingStatusResponse = z.object({
+    staff: z.array(zStaffWeekPostingOut),
+    week_start_date: z.iso.date()
+});
+
+/**
  * WeeklyNavigationOut
  *
  * Previous, next, and current week links in the weekly payload.
@@ -4494,14 +4892,15 @@ export const zWeeklyStaffDayOut = z.object({
     daily_base_cost: z.number(),
     daily_cost: z.number(),
     day: z.string(),
+    day_status: z.string(),
     has_leave: z.boolean(),
     hours: z.number(),
-    leave_type: z.string().nullable(),
+    leave_type: zLeaveCodeOut.nullable(),
+    other_leave_hours: z.number(),
     overtime_1_5x_hours: z.number(),
     overtime_2x_hours: z.number(),
     scheduled_hours: z.number(),
     sick_leave_hours: z.number(),
-    status: z.string(),
     unbilled_hours: z.number()
 });
 
@@ -4512,20 +4911,24 @@ export const zWeeklyStaffDayOut = z.object({
  */
 export const zWeeklyStaffDataOut = z.object({
     billable_percentage: z.number(),
-    name: z.string(),
+    expected_hours: z.number(),
+    pay_basis: z.string().nullable(),
     staff_id: z.uuid(),
-    status: z.string(),
+    staff_name: z.string(),
     total_annual_leave_hours: z.number(),
     total_bereavement_leave_hours: z.number(),
     total_billable_hours: z.number(),
     total_billed_hours: z.number(),
     total_hours: z.number(),
+    total_other_leave_hours: z.number(),
     total_overtime_1_5x_hours: z.number(),
     total_overtime_2x_hours: z.number(),
     total_overtime_hours: z.number(),
     total_scheduled_hours: z.number(),
     total_sick_leave_hours: z.number(),
     total_unbilled_hours: z.number(),
+    variance_hours: z.number(),
+    week_status: z.string(),
     weekly_base_cost: z.number(),
     weekly_cost: z.number(),
     weekly_hours: z.array(zWeeklyStaffDayOut)
@@ -5071,6 +5474,15 @@ export const zAccountingReportsPayrollReconciliationRetrieveQuery = z.object({
  * OK
  */
 export const zAccountingReportsPayrollReconciliationRetrieveResponse = zPayrollReconciliationResponse;
+
+export const zAccountingReportsPayrollWeekReconciliationRetrieveQuery = z.object({
+    week_start_date: z.iso.date()
+});
+
+/**
+ * OK
+ */
+export const zAccountingReportsPayrollWeekReconciliationRetrieveResponse = zPayrollWeekReconciliationResponse;
 
 export const zAccountingReportsRdtiSpendRetrieveQuery = z.object({
     start_date: z.iso.date(),
@@ -5828,6 +6240,15 @@ export const zGetKanbanChangesQuery = z.object({
  */
 export const zGetKanbanChangesResponse = zKanbanChangesResponse;
 
+export const zJobJobsOptionsListQuery = z.object({
+    status: z.string()
+});
+
+/**
+ * OK
+ */
+export const zJobJobsOptionsListResponse = zJobOptionsResponse;
+
 /**
  * OK
  */
@@ -6406,6 +6827,10 @@ export const zPeopleContactMethodsPartialUpdatePath = z.object({
  */
 export const zPeopleContactMethodsPartialUpdateResponse = zContactMethodOut;
 
+export const zPurchasingAllJobsRetrieveQuery = z.object({
+    q: z.string().optional().default('')
+});
+
 /**
  * OK
  */
@@ -6692,6 +7117,10 @@ export const zGetDailyTimesheetSummaryByDatePath = z.object({
  */
 export const zGetDailyTimesheetSummaryByDateResponse = zDailyTimesheetSummaryOut;
 
+export const zTimesheetsJobsRetrieveQuery = z.object({
+    q: z.string().optional().default('')
+});
+
 /**
  * OK
  */
@@ -6700,19 +7129,87 @@ export const zTimesheetsJobsRetrieveResponse = zJobsListResponse;
 /**
  * OK
  */
-export const zTimesheetsPayrollPayRunsRetrieveResponse = zPayRunListResponse;
+export const zTimesheetsLeaveSettingsRetrieveResponse = zLeaveSettingsOut;
 
-export const zTimesheetsPayrollPayRunsCreateCreateBody = zCreatePayRunRequest;
-
-/**
- * Created
- */
-export const zTimesheetsPayrollPayRunsCreateCreateResponse = zCreatePayRunResponse;
+export const zTimesheetsLeaveSettingsUpdateBody = zLeaveSettingsUpdate;
 
 /**
  * OK
  */
-export const zTimesheetsPayrollPayRunsRefreshCreateResponse = zPayRunSyncResponse;
+export const zTimesheetsLeaveSettingsUpdateResponse = zLeaveSettingsOut;
+
+export const zTimesheetsLeaveBalanceRetrieveQuery = z.object({
+    staff_id: z.uuid(),
+    leave_type_code: z.string()
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsLeaveBalanceRetrieveResponse = zLeaveBalanceOut;
+
+export const zTimesheetsLeaveOfficeClosureCreateBody = zOfficeClosureWrite;
+
+/**
+ * OK
+ */
+export const zTimesheetsLeaveOfficeClosureCreateResponse = zOfficeClosureOut;
+
+export const zTimesheetsLeaveOfficeClosurePreviewCreateBody = zOfficeClosureWrite;
+
+/**
+ * OK
+ */
+export const zTimesheetsLeaveOfficeClosurePreviewCreateResponse = zOfficeClosurePreviewOut;
+
+export const zTimesheetsLeavePreviewCreateBody = zLeavePreviewRequest;
+
+/**
+ * OK
+ */
+export const zTimesheetsLeavePreviewCreateResponse = zLeavePreviewOut;
+
+export const zTimesheetsLeaveRequestsListQuery = z.object({
+    scope: z.enum(['current', 'history']).optional().default('current'),
+    search: z.string().optional().default('')
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsLeaveRequestsListResponse = zLeaveListOut;
+
+export const zTimesheetsLeaveRequestsCreateBody = zLeaveRequestWrite;
+
+/**
+ * OK
+ */
+export const zTimesheetsLeaveRequestsCreateResponse = zLeaveSaveOut;
+
+export const zTimesheetsLeaveRequestsDeletePath = z.object({
+    request_id: z.uuid()
+});
+
+/**
+ * No Content
+ */
+export const zTimesheetsLeaveRequestsDeleteResponse = z.void();
+
+export const zTimesheetsLeaveRequestsUpdateBody = zLeaveRequestUpdate;
+
+export const zTimesheetsLeaveRequestsUpdatePath = z.object({
+    request_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsLeaveRequestsUpdateResponse = zLeaveSaveOut;
+
+/**
+ * OK
+ */
+export const zTimesheetsPayrollPayRunsRetrieveResponse = zPayRunListResponse;
 
 export const zTimesheetsPayrollPostStaffWeekCreateBody = zPostWeekToXeroRequest;
 
@@ -6720,6 +7217,20 @@ export const zTimesheetsPayrollPostStaffWeekCreateBody = zPostWeekToXeroRequest;
  * OK
  */
 export const zTimesheetsPayrollPostStaffWeekCreateResponse = zPostWeekToXeroStartResponse;
+
+/**
+ * OK
+ */
+export const zTimesheetsPayrollRunsRetrieveResponse = zPayrollRunsOut;
+
+export const zTimesheetsPayrollWeekStatusRetrieveQuery = z.object({
+    week_start_date: z.string()
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsPayrollWeekStatusRetrieveResponse = zWeekPostingStatusResponse;
 
 export const zTimesheetsStaffRetrieveQuery = z.object({
     date: z.string().nullish()

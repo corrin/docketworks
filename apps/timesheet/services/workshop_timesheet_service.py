@@ -20,6 +20,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from apps.accounts.models import Staff
+from apps.core.errors import AccessDeniedError
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.job.services.job_service import CostLineData, cost_line_data, get_or_create_cost_set
@@ -29,11 +30,12 @@ from apps.job.services.time_entry_rates import (
     price_time_entry,
     rate_from_meta,
 )
+from apps.timesheet.services import hour_categories
 
 logger = logging.getLogger(__name__)
 
 
-class EntryOwnershipError(Exception):
+class EntryOwnershipError(AccessDeniedError):
     """A staff member touched an entry that is not theirs (403 at the boundary)."""
 
 
@@ -144,8 +146,13 @@ def entry_data(line: CostLine) -> WorkshopEntryData:
     """Shape one CostLine as a workshop timesheet entry."""
     job = line.cost_set.job
     meta = line.meta
-    wage_multiplier = _meta_multiplier(meta, "wage_rate_multiplier", Decimal("1.00"))
-    is_billable = bool(meta.get("is_billable", True))
+    # Opus: The canonical readers, not a defaulted `meta.get`. Both keys are
+    # denormalised onto the line at write time, so a default here could only mask
+    # bad data — and this module already imports `hour_categories` for
+    # `scheduled_hours`, so it was using two-thirds of a shared vocabulary and
+    # its own copy of the rest (ADR 0015, ADR 0039).
+    wage_multiplier = hour_categories.wage_rate_multiplier(line)
+    is_billable = hour_categories.is_billable(line)
     default_bill = wage_multiplier if is_billable else ZERO_MULTIPLIER
     bill_multiplier = _meta_multiplier(meta, "bill_rate_multiplier", default_bill)
     return {
@@ -169,11 +176,12 @@ def entry_data(line: CostLine) -> WorkshopEntryData:
 
 def _summary(entries: list[CostLine]) -> WorkshopSummaryData:
     """Totals for a staff member's day."""
-    total_hours = sum((line.quantity for line in entries), Decimal("0"))
-    billable_hours = sum(
-        (line.quantity for line in entries if line.meta.get("is_billable", True)),
-        Decimal("0"),
-    )
+    # Opus: The shared split, not a second sum with its own billable rule. This
+    # decided billability with a defaulted `meta.get` while every other screen
+    # asked `hour_categories` — the shape v1's divergent totals started as.
+    categories = hour_categories.categorise(entries)
+    total_hours = categories.total
+    billable_hours = categories.billable
     return {
         "total_hours": float(total_hours),
         "billable_hours": float(billable_hours),
@@ -280,12 +288,14 @@ def management_day_data(staff: Staff, entry_date: date) -> ManagementDayData:
         "summary": {
             **base,
             "entry_count": len(lines),
-            "scheduled_hours": float(staff.get_scheduled_hours(entry_date)),
+            "scheduled_hours": float(
+                hour_categories.scheduled_hours(staff, entry_date, weekend_enabled=True)
+            ),
         },
     }
 
 
-def _pricing_meta(
+def pricing_meta(
     *,
     staff: Staff,
     accounting_date: date,
@@ -306,7 +316,7 @@ def _pricing_meta(
     return meta
 
 
-def _update_latest_actual(job: Job, cost_set_rev: int, cost_set_id: UUID, staff: Staff) -> None:
+def update_latest_actual(job: Job, cost_set_rev: int, cost_set_id: UUID, staff: Staff) -> None:
     """Point the job at its newest actual cost set."""
     if job.latest_actual is None or cost_set_rev >= job.latest_actual.rev:
         job.latest_actual_id = cost_set_id
@@ -320,7 +330,7 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
 
     with transaction.atomic():
         cost_set = get_or_create_cost_set(job, "actual")
-        meta = _pricing_meta(
+        meta = pricing_meta(
             staff=staff,
             accounting_date=data["accounting_date"],
             wage_rate_multiplier=wage_rate_multiplier,
@@ -346,7 +356,7 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
             unit_rev=pricing.unit_rev,
             accounting_date=data["accounting_date"],
             staff=staff,
-            xero_pay_item_id=pricing.pay_item.id,
+            xero_pay_item_id=pricing.pay_item_id,
             labour_subtype=pricing.labour_subtype,
             ext_refs={},
             meta=meta,
@@ -354,7 +364,7 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
             approved=staff.is_office_staff,
         )
         line.save()
-        _update_latest_actual(job, cost_set.rev, cost_set.id, staff)
+        update_latest_actual(job, cost_set.rev, cost_set.id, staff)
 
     return entry_data(line)
 
@@ -448,7 +458,7 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
             meta.update(pricing.meta_updates())
             line.unit_cost = pricing.unit_cost
             line.unit_rev = pricing.unit_rev
-            line.xero_pay_item_id = pricing.pay_item.id
+            line.xero_pay_item_id = pricing.pay_item_id
             line.labour_subtype = pricing.labour_subtype
             changed = True
 
@@ -458,7 +468,7 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
         line.meta = meta
         line.save()
         if moved_cost_set is not None:
-            _update_latest_actual(job, moved_cost_set.rev, moved_cost_set.id, staff)
+            update_latest_actual(job, moved_cost_set.rev, moved_cost_set.id, staff)
 
     return entry_data(line)
 

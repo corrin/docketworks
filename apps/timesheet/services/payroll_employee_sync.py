@@ -15,9 +15,8 @@ lets the seed measure whether it has finished (``apps/xero/seeding.py``).
 Xero is reached through ``AccountingProvider``: apps.xero sits above the
 domain apps in the import contract, so this module cannot call it directly.
 
-``import_staff_from_xero`` — the opposite direction, for a fresh prospect
-instance where the organisation is the source of truth for people — remains a
-loud seam. No restore path calls it.
+Normal Xero-to-Docketworks employee import belongs to the generic Xero entity
+sync. This module now serves only the non-production seed path.
 """
 
 import logging
@@ -37,6 +36,7 @@ from apps.accounting.types import (
     PayrollEmployeeRef,
 )
 from apps.accounts.models import Staff
+from apps.accounts.services.payroll_terms import WEEKDAYS
 from apps.core.models import CompanyDefaults
 from apps.timesheet.services.demo_payroll_data import generate_ird_number, get_bank_account
 
@@ -51,18 +51,8 @@ STAFF_UUID_PATTERN = re.compile(r"\[([0-9a-f-]{36})\]$", re.IGNORECASE)
 
 DEFAULT_JOB_TITLE = "Workshop Worker"
 
-# A created demo employee needs a date of birth and a start date the payroll
-# product will accept. An employee who started after a timesheet week cannot be
-# paid for it, so the bound that matters is the EARLIEST POSTABLE WEEK — which
-# is not the age of the restored data. Payroll posting works through the
-# configured pay run calendar, and `xero --setup --seed-xero` anchors a created
-# one CALENDAR_ANCHOR_WEEKS_BACK = 4 weeks before setup
-# (apps/xero/payroll_setup.py), so no week older than that is postable however
-# many years of timesheets the dump carries. A fixed date in the past therefore
-# clears the bound by months, and re-anchoring it to the calendar would couple
-# employee creation to payroll setup for no reachable case.
+# A created demo employee needs a date of birth the payroll product will accept.
 DEFAULT_DATE_OF_BIRTH = date(1990, 1, 1)
-DEFAULT_START_DATE = date(2025, 4, 1)
 
 # Xero does NOT persist Employee.end_date on create — a departed staff member
 # is created as an ACTIVE employee, verified against the live demo
@@ -71,21 +61,6 @@ DEFAULT_START_DATE = date(2025, 4, 1)
 # would fix it. Accepted rather than worked around: an active employee can be
 # paid for the historical weeks a restore exists to exercise, and a terminated
 # one could not.
-
-PHASE_4 = (
-    "Xero Payroll integration is not ported yet (Phase 4); "
-    "no employee data was read from or written to Xero."
-)
-
-WEEKDAY_NAMES = (
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-    "sunday",
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,7 +87,7 @@ class StaffSummary(TypedDict):
     """Data contract for StaffSummary."""
 
     staff_id: str
-    email: str
+    office_email: str
     first_name: str
     last_name: str
 
@@ -212,7 +187,7 @@ def match_staff_to_employee(staff: Staff, index: EmployeeIndex) -> EmployeeRecor
     if staff_id in index.by_staff_id:
         return index.by_staff_id[staff_id]
 
-    email = staff.email.strip().lower()
+    email = staff.office_email.strip().lower()
     if email and email in index.by_email:
         return index.by_email[email]
 
@@ -227,7 +202,7 @@ def staff_summary(staff: Staff) -> StaffSummary:
     """Build the staff identity block of a sync summary."""
     return {
         "staff_id": str(staff.id),
-        "email": staff.email,
+        "office_email": staff.office_email,
         "first_name": staff.first_name,
         "last_name": staff.last_name,
     }
@@ -262,12 +237,12 @@ def hours_per_week(staff: Staff) -> dict[str, float]:
         staff.hours_sat,
         staff.hours_sun,
     )
-    missing = [name for name, value in zip(WEEKDAY_NAMES, hours, strict=True) if value is None]
+    missing = [name for name, value in zip(WEEKDAYS, hours, strict=True) if value is None]
     if missing:
         raise ValueError(
-            f"Staff {staff.id} ({staff.email}) missing hours for: {', '.join(missing)}"
+            f"Staff {staff.id} ({staff.office_email}) missing hours for: {', '.join(missing)}"
         )
-    return {name: float(value) for name, value in zip(WEEKDAY_NAMES, hours, strict=True)}
+    return {name: float(value) for name, value in zip(WEEKDAYS, hours, strict=True)}
 
 
 def _hours_between(start: time | None, end: time | None) -> float:
@@ -303,7 +278,7 @@ def link_staff(staff: Staff, employee_id: str, tenant_id: str) -> None:
     logger.info(
         "Linking staff %s (%s) to payroll employee %s in %s",
         staff.id,
-        staff.email,
+        staff.office_email,
         employee_id,
         tenant_id,
     )
@@ -332,6 +307,18 @@ def staff_needing_payroll_link(tenant_id: str) -> "QuerySet[Staff]":
     tenant column is NULL, so nothing attributes them to this organisation.
     """
     return Staff.objects.filter(xero_user_id__isnull=False).exclude(xero_tenant_id=tenant_id)
+
+
+def staff_needing_seed(tenant_id: str) -> list[Staff]:
+    """Staff the seed must create or re-link in this non-production organisation."""
+    candidates = {
+        staff.pk: staff for staff in [*syncable_staff(), *staff_needing_payroll_link(tenant_id)]
+    }
+    return [
+        staff
+        for staff in candidates.values()
+        if not staff.xero_user_id or staff.xero_tenant_id != tenant_id
+    ]
 
 
 def _required_address_field(value: str | None, name: str) -> str:
@@ -368,7 +355,7 @@ def _creation_refusals(staff: Staff) -> list[str]:
     refusals: list[str] = []
     if not clean_string(staff.first_name) or not clean_string(staff.last_name):
         refusals.append("missing first or last name")
-    if not clean_string(staff.email):
+    if not clean_string(staff.office_email):
         refusals.append("missing email")
     if staff.base_wage_rate <= Decimal("0"):
         refusals.append(f"base_wage_rate is {staff.base_wage_rate}")
@@ -391,7 +378,7 @@ def _creation_refusals(staff: Staff) -> list[str]:
 def _assert_creatable(staff_members: Sequence[Staff]) -> None:
     """Refuse the whole batch, naming every unusable row, before any write."""
     problems = [
-        f"  {staff.email or staff.id}: {'; '.join(refusals)}"
+        f"  {staff.office_email}: {'; '.join(refusals)}"
         for staff in staff_members
         if (refusals := _creation_refusals(staff))
     ]
@@ -412,7 +399,7 @@ def _employee_spec(
     """
     first_name = clean_string(staff.first_name, 35)
     last_name = clean_string(staff.last_name, 35)
-    email = clean_string(staff.email, 255)
+    email = clean_string(staff.office_email, 255)
     if first_name is None or last_name is None or email is None:
         raise StaffNotPayrollReadyError(f"Staff {staff.id} has no usable name or email")
 
@@ -423,7 +410,7 @@ def _employee_spec(
         email=email,
         job_title=xero_job_title(staff),
         date_of_birth=DEFAULT_DATE_OF_BIRTH,
-        start_date=DEFAULT_START_DATE,
+        start_date=staff.employment_start_date,
         end_date=staff.date_left,
         address=address,
         hours_per_week=hours_per_week(staff),
@@ -460,7 +447,8 @@ def _partition(
         previous = claimed.get(match.employee_id)
         if previous is not None:
             raise StaffNotPayrollReadyError(
-                f"Staff {previous.email} and {staff.email} both match payroll employee "
+                f"Staff {previous.office_email} and {staff.office_email} both match "
+                "payroll employee "
                 f"{match.employee_id} ({match.first_name} {match.last_name}). Give one of "
                 "them a distinct name or email, or stamp the intended Staff UUID into the "
                 "employee's job title in the payroll organisation, then re-run."
@@ -528,32 +516,13 @@ def sync_staff(
                 link_summary(staff, created.external_id, serialize_employee(created))
             )
             logger.info(
-                "Created payroll employee %d/%d (%s)", position, len(to_create), staff.email
+                "Created payroll employee %d/%d (%s)",
+                position,
+                len(to_create),
+                staff.office_email,
             )
 
     if not allow_create:
         result.unmatched.extend(staff_summary(staff) for staff in unmatched)
 
     return result
-
-
-def import_staff_from_xero(*, dry_run: bool = False, initial_password: str = "") -> None:
-    """Create local Staff rows from payroll employees (v1).
-
-    Phase 4 seam, and not on any restore path: it is for a fresh prospect
-    instance where the payroll organisation, not the database, is the source
-    of truth for people. It needs two provider reads that nothing else wants
-    yet — an employee's salary and wage records, and their working pattern —
-    so they are absent from ``AccountingProvider`` rather than declared and
-    unexercised. ``default_working_hours`` above is the one part that does not
-    come from the provider and is ported.
-    """
-    raise NotImplementedError(
-        f"{PHASE_4} import_staff_from_xero(dry_run={dry_run}) needs the "
-        "payroll employee salary and working-pattern reads."
-    )
-
-
-def active_on(employee_end_date: date | None, today: date) -> bool:
-    """Whether a payroll employee is still active on a date."""
-    return employee_end_date is None or employee_end_date > today

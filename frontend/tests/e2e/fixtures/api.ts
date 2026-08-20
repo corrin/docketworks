@@ -39,7 +39,7 @@ export async function getJobLabourRates(page: Page, jobId: string): Promise<JobL
 
 const authenticatedProfileSchema = z.object({
   id: z.string(),
-  email: z.string(),
+  office_email: z.string(),
   is_office_staff: z.boolean(),
   is_superuser: z.boolean(),
 })
@@ -92,7 +92,7 @@ export async function getTimesheetJobs(page: Page): Promise<TimesheetJob[]> {
 
 const staffListItemSchema = z.object({
   id: z.string(),
-  email: z.string(),
+  office_email: z.string(),
   wage_rate: z.string(),
   base_wage_rate: z.string(),
   date_left: z.string().nullable(),
@@ -106,4 +106,143 @@ export async function getStaffList(page: Page): Promise<StaffListItem[]> {
     throw new Error(`Staff list read failed: ${response.status()} ${await response.text()}`)
   }
   return z.array(staffListItemSchema).parse(await response.json())
+}
+
+const payRunListSchema = z.object({
+  next_postable_week_start_date: z.string().nullable(),
+})
+
+/**
+ * The one week Xero will currently accept a pay run for, as the server rules it.
+ *
+ * Opus: Read, never computed. Xero processes pay runs in sequence and creates the
+ * calendar's next unprocessed period regardless of what is requested, so a
+ * guessed week is simply wrong — a restored demo tenant has no pay runs at all
+ * and answers with the calendar's anchor, four weeks back.
+ */
+/**
+ * Bring the pay-run mirror current, through the product's own door.
+ *
+ * Fable: Posting refreshes the mirror BEFORE judging the week, and refuses an
+ * out-of-order week after that refresh — with no run started and the claim
+ * released — so a deliberately unpostable week is exactly a mirror refresh.
+ * The harness needs one because teardown restores the database out from under
+ * Xero, and the postable-week answer is computed from the mirror. There is no
+ * standalone refresh endpoint to reach for: refreshing is a step of posting,
+ * not an operator intent, and the UI's banner is advisory for the same reason.
+ * 2001-01-01 is a Monday — it must pass the Monday check, or the refusal would
+ * fire BEFORE the refresh — and can never post: the preflight refuses any week
+ * before CompanyDefaults.xero_payroll_start_date outright, a guard that does
+ * not lean on the calendar's state or the staff roster.
+ */
+export async function refreshPayrollMirror(page: Page): Promise<void> {
+  const response = await page.request.post('/api/timesheets/payroll/post-staff-week/', {
+    data: { week_start_date: '2001-01-01' },
+  })
+  if (response.status() !== 400) {
+    throw new Error(
+      `The mirror-refreshing probe expected a 400 refusal, got ${response.status()}: ` +
+        (await response.text()),
+    )
+  }
+}
+
+export async function getPostableWeek(page: Page): Promise<string> {
+  const response = await page.request.get('/api/timesheets/payroll/pay-runs/')
+  if (!response.ok()) {
+    throw new Error(`Pay run read failed: ${response.status()} ${await response.text()}`)
+  }
+  const { next_postable_week_start_date: week } = payRunListSchema.parse(await response.json())
+  if (week === null) {
+    throw new Error(
+      'The server reports no postable week for the payroll calendar. Run ' +
+        '`python manage.py xero --setup --seed-xero` and check the calendar exists.',
+    )
+  }
+  return week
+}
+
+const staffWeekPostingSchema = z.object({
+  staff_id: z.string(),
+  posted: z.boolean(),
+  timesheet_status: z.string().nullable(),
+  posted_timesheet_hours: z.number(),
+  posted_leave_hours: z.number(),
+  recorded_timesheet_hours: z.number(),
+  recorded_leave_hours: z.number(),
+  matches: z.boolean(),
+})
+export type StaffWeekPosting = z.infer<typeof staffWeekPostingSchema>
+
+/**
+ * What Xero holds for the week, per staff member, beside what was recorded.
+ *
+ * Opus: This is the read-back an assertion about posting must use: checking that the
+ * posting run reported success only proves the run agrees with itself.
+ */
+export async function getWeekPostingStatus(
+  page: Page,
+  weekStartDate: string,
+): Promise<StaffWeekPosting[]> {
+  const response = await page.request.get(
+    `/api/timesheets/payroll/week-status/?week_start_date=${weekStartDate}`,
+  )
+  if (!response.ok()) {
+    throw new Error(`Week status read failed: ${response.status()} ${await response.text()}`)
+  }
+  return z.object({ staff: z.array(staffWeekPostingSchema) }).parse(await response.json()).staff
+}
+
+const seededCostLineSchema = z.object({ id: z.string() })
+
+/**
+ * Record time for a staff member on a date, through the live cost-line create.
+ *
+ * Opus: ``meta.created_from_timesheet`` routes it through the one rate pipeline, so
+ * unit cost/rev and the Xero pay item are server-derived exactly as a timesheet
+ * write derives them — which is what makes the line safe to post to payroll.
+ * Building the line by hand instead would prove Xero accepts a shape the
+ * application never sends (ADR 0050).
+ *
+ * Opus: Seed onto a `[TEST]` job: `e2e_cleanup` deletes those and cascades to their
+ * cost lines, while hours recorded against a restored production job survive
+ * the reset and join every later payroll post for that week.
+ */
+export interface SeedTimesheetLabourPayload {
+  jobId: string
+  staffId: string
+  labourSubtype: string
+  date: string
+  hours: number
+  description: string
+}
+
+export async function seedTimesheetLabour(
+  page: Page,
+  payload: SeedTimesheetLabourPayload,
+): Promise<string> {
+  const response = await page.request.post(
+    `/api/job/jobs/${payload.jobId}/cost_sets/actual/cost_lines/`,
+    {
+      data: {
+        kind: 'time',
+        desc: payload.description,
+        quantity: payload.hours,
+        accounting_date: payload.date,
+        ext_refs: {},
+        labour_subtype: payload.labourSubtype,
+        meta: {
+          created_from_timesheet: true,
+          staff_id: payload.staffId,
+          date: payload.date,
+          is_billable: true,
+          wage_rate_multiplier: 1,
+        },
+      },
+    },
+  )
+  if (!response.ok()) {
+    throw new Error(`Timesheet labour seed failed: ${response.status()} ${await response.text()}`)
+  }
+  return seededCostLineSchema.parse(await response.json()).id
 }

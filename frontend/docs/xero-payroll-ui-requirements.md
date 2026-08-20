@@ -1,142 +1,89 @@
 # Xero Payroll UI Requirements
 
-**Status: blocked-by:payroll-employees.** The backend API below exists and is in
-the generated client; the weekly-timesheets page that consumes it is not built
-(routes today: `timesheets/entry`, `timesheets/daily` only). This document is
-the UI contract for that slice. Spec-first rule applies: the slice ships with
-its E2E spec.
+**Status: built.** The page is `/timesheets/weekly`
+(`src/features/timesheet/WeeklyOverviewPage.tsx` plus `PayrollPanel.tsx` and
+`usePayrollWeek.ts`), and its E2E spec is
+`tests/e2e/timesheet/weekly-payroll.spec.ts`, which posts a real week to Xero
+and reads it back. This document remains the UI contract: it is what the page
+is checked against, not a record of building it. The posting mechanism itself
+(surfaces, ordering, irreversibility) is ADR 0007's, not this document's.
 
-## Overview
+## The operator's intents
 
-The office manager needs UI to:
+Two, plus a report:
 
-1. Create Draft pay runs for weekly periods
-2. Post staff timesheet weeks to the pay run in Xero
-3. View posting results and handle errors
+1. **Post the week to Xero.** One button. Posting creates the Draft pay run
+   itself (leave must reconcile before the draft exists — KAN-326), replaces
+   any previously posted lines, and reports per-staff results as they happen.
+2. **Check against Xero.** Ask what Xero actually holds for the week, per
+   staff member, hours split by surface.
+3. **Check the money.** A link to `/reports/payroll-reconciliation?week=<monday>`,
+   which compares what DocketWorks expects Xero to pay against what Xero
+   computed.
 
-**Weekly process:**
+Everything else the integration requires — creating the pay run, refreshing
+the pay-run mirror, enforcing Xero's post-in-order rule, choosing the roster —
+is the server's, done inside the POST where it can be judged on fresh data.
+The UI must not grow controls for those steps; that was tried, and it handed
+the operator the one step (early draft creation) that locks leave changes.
 
-1. **Monday–Friday:** daily timesheets entered as normal (no change to the
-   existing entry UI).
-2. **End of week:** on the weekly timesheets page, create the week's pay run if
-   it does not exist, post hours to Xero for staff, review results.
-3. **In Xero:** the office manager reviews, approves, and posts the pay run,
-   which locks it.
-4. Once Posted in Xero, the week cannot be modified from DocketWorks.
+## Wire contract
 
-## Backend API (already live — use the generated hooks, never hand-rolled calls)
+All payroll operations are on the timesheet router (`apps/timesheet/api.py`),
+superuser-only, consumed through the generated TanStack Query layer:
 
-All four operations are on the timesheet router (`apps/timesheet/api.py`),
-require office-manager auth (`manage_auth`), and are exposed through the
-generated TanStack Query layer (`src/api/generated/@tanstack/react-query.gen.ts`):
+- `GET /api/timesheets/payroll/pay-runs/` — the mirror's pay runs plus
+  `next_postable_week_start_date`/`_end_date`. The postable week is advisory
+  here (the mirror refreshes hourly); null means the server cannot name one,
+  and the client renders no banner and invents nothing — it never computes a
+  week from its own clock.
+- `POST /api/timesheets/payroll/post-staff-week/` — body is
+  `{week_start_date}` only. The server derives the roster (the same
+  `get_displayable_staff` filter the grid uses), refreshes the mirror,
+  refuses a non-postable week with a 400 naming the postable one, refuses a
+  week already being posted with a 409 naming the live run, and answers the
+  run's opening document `{run: ...}`.
+- `GET /api/timesheets/payroll/runs/` and the SSE stream at
+  `api/timesheets/payroll/runs/stream/` (ADR 0047) — the same run document,
+  polled and pushed. Every push carries the whole document, so reconnecting
+  or reloading needs the present, not a replayed history.
+- `GET /api/timesheets/payroll/week-status/` — what Xero holds for the week.
+  Never called on page load: it costs one Xero call per staff member.
+  "Check against Xero" asks for it, and a completed posting run asks for it.
 
-| Operation | Endpoint | Generated hook |
-|---|---|---|
-| List pay runs (local mirror) | `GET /api/timesheets/payroll/pay-runs/` | `timesheetsPayrollPayRunsRetrieveOptions` |
-| Create pay run for a week | `POST /api/timesheets/payroll/pay-runs/create` | `timesheetsPayrollPayRunsCreateCreateMutation` |
-| Refresh mirror from Xero | `POST /api/timesheets/payroll/pay-runs/refresh` | `timesheetsPayrollPayRunsRefreshCreateMutation` |
-| Post staff weeks to Xero | `POST /api/timesheets/payroll/post-staff-week/` | `timesheetsPayrollPostStaffWeekCreateMutation` |
+## Page behaviour
 
-Wire shapes (`apps/timesheet/schemas.py`):
+- **Landing:** a bare `/timesheets/weekly` lands on the server-named postable
+  week; an explicit `?week=` is the operator's choice and is never overridden.
+- **Pay-run state** renders in words ("Pay run ready for posting", "Pay run
+  locked (already paid)", "Pay run not created yet") — never an icon alone.
+- **Post** is disabled only while reads are in flight, while a run is live, or
+  when the week is locked (Posted). Off the postable week it stays enabled and
+  the banner advises, with "Go to that week"; the server's refusal is the
+  enforcement, and a stale banner must never lock the truly-postable week
+  behind a disabled control.
+- **Progress and results** come from the run document ("Posting 3 of 10…",
+  then per-staff rows). Failed staff keep an actionable message; hours that
+  exist but were deliberately not posted say so. Results survive reload and
+  reconnect (the document is server-held); navigation away is the operator's
+  choice, which is why "Check the money" is a link, not a redirect.
+- **Errors** are the backend's messages verbatim (ADR 0038), which name the
+  fix — "delete the draft pay run for …, then post again".
+- The panel answers in **hours**; the money question is the reconciliation
+  page, which compares `jm_base_pay` (the loading removed) against Xero's
+  gross — the loaded wage is what a job is charged, not what Xero pays, and
+  the page's Base/Loaded toggle is presentation over figures already on the
+  row.
 
-- **List** returns `{ pay_runs: [...], next_postable_week_start_date,
-  next_postable_week_end_date }`; each pay run carries `id`, `xero_id`,
-  `period_start_date`, `period_end_date`, `payment_date`, `pay_run_status`, and
-  `xero_url` (deep link into Xero — render it as "Open in Xero").
-  `next_postable_*` is the server's ruling on which week can be posted next; the
-  UI derives "can I create/post here?" from it rather than re-implementing the
-  calendar rule.
-- **Create** takes `{ week_start_date }` (a Monday) and answers 201 with the new
-  run, or 400 with the validation message (not-a-Monday, existing draft run).
-- **Refresh** answers `{ synced, fetched, created, updated }` — surface a short
-  "Synced N pay runs" confirmation.
-- **Post** takes `{ staff_ids: [uuid, …], week_start_date }` — posting is a
-  **batch, asynchronous** operation. The response is `{ task_id, stream_url }`;
-  the actual posting happens while the client consumes the SSE stream at
-  `stream_url` (`payroll/post-staff-week/stream/{task_id}/` — a plain SSE view,
-  not a ninja operation, so it is not in the generated client; open it with
-  `EventSource`). Progress and per-staff results arrive as stream events.
-  A single-staff "Post" button sends a one-element `staff_ids`.
+## Testing checklist (the E2E spec's shape)
 
-The weekly data itself comes from `GET /api/timesheets/weekly/`
-(`timesheets_weekly_retrieve`, optional `start_date`, defaults to the current
-week) — per-staff daily hours, leave split (sick/annual/bereavement), overtime,
-and costs.
-
-## Page: Weekly Timesheets
-
-### 1. Pay-run management section (top of page)
-
-Display the selected week, its payment date, and pay-run status:
-
-- **Draft**: "Pay run ready for posting"
-- **Posted** (locked): "Pay run locked (already paid)"
-- **Not created**: "Pay run not created yet"
-
-(No emoji/icon-only status — words, per repo convention.)
-
-**"Create Pay Run for This Week"** button — visible only when no pay run exists
-for the selected week and the server's `next_postable_week_start_date` allows
-it. On 400, show the backend message; the known cases are a non-Monday date and
-"only one draft pay run" (tell the user to post or delete the existing draft in
-Xero first, then Refresh).
-
-**"Refresh from Xero"** button — runs the mirror sync; needed after the office
-manager posts or deletes a run inside Xero.
-
-### 2. Staff posting section
-
-One card/row per staff member with hours this week, showing the hour breakdown
-from the weekly payload (work, leave split, overtime). Post button states:
-
-- Disabled with tooltip "Create pay run first" when no draft run exists.
-- Disabled with tooltip "This week is locked" when the run is Posted.
-- While the SSE stream is open: progress indicator ("Posting 3 of 10 staff…"
-  for bulk, spinner for single), buttons disabled to prevent double-posting.
-- On completion: per-staff success/error from the stream events; failed staff
-  keep an actionable error, successful ones show the posted breakdown.
-
-**"Post All Staff to Xero"** sends every listed staff id in one request and
-drives the same progress UI from the one stream.
-
-**Open item for the slice:** the weekly payload does not yet carry per-staff
-"posted to Xero / last posted at" state, so posted-status persistence across a
-page reload needs a backend addition (or it stays session-local and the page
-says so). Decide in the slice; do not invent a client-side cache silently.
-
-### 3. Re-posting
-
-If hours are edited after an initial post (but before the run is Posted in
-Xero), posting again is legal — the backend replaces the previously posted
-lines. Label the button "Re-post to Xero" where the session knows a prior post
-happened.
-
-## Error handling
-
-Errors are transparent after authentication (ADR 0038) — show the backend
-message, augmented with the action that fixes it:
-
-| Backend condition | UI guidance to append |
-|---|---|
-| week_start_date not a Monday | Client-side week picker should only offer Mondays; if it slips through, show the message as-is |
-| No pay run for the week | Point at the Create button above |
-| Pay run already Posted | "This week's payroll is finalized in Xero. Contact payroll if corrections are needed." |
-| Staff not linked to Xero (no xero_user_id) | "Ask an administrator to link this staff member to Xero." |
-| Only one draft pay run allowed | "Post or delete the other draft in Xero, then Refresh." |
-| Xero connection/auth failure | Show the error; the Xero connection page is the fix |
-
-## Permissions
-
-The endpoints are superuser/office-manager only (`manage_auth`); the page is
-management UI and is not shown to workshop self-service users.
-
-## Testing checklist for the slice's E2E spec
-
-- Create-pay-run button appears only when no run exists for the week
-- Post buttons disabled without a run, and when the run is Posted
-- Posting drives the SSE progress UI and ends with per-staff results
-- Re-posting after an hours edit succeeds
-- Week picker navigation updates run status and staff list together
-- Error cases above render their messages
-- Xero fidelity: real demo-company pay-run objects, cleaned per
-  [`e2e-testing-strategy.md`](e2e-testing-strategy.md)
+- Posting on the postable week succeeds with no pay run existing beforehand,
+  and drives the SSE progress UI to per-staff results.
+- Posting out of order is refused by the server with the postable week named,
+  no run started.
+- Re-posting after an hours edit replaces rather than appends, verified
+  against Xero's own records.
+- Week navigation moves the grid and the panel together.
+- Xero fidelity: real demo-company objects, opt-in for the posting writes
+  (`@xero-payroll-write`), cleaned per
+  [`e2e-testing-strategy.md`](e2e-testing-strategy.md).

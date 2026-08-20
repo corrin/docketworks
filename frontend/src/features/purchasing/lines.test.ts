@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
+import type { JobForPurchasing } from '@/api'
 import {
   draftCreateBody,
   emptyPoLineDraft,
+  jobsBookableOnPoLine,
   poLineDraftIsEmpty,
   poLineDraftIsReady,
   poLineItemLabel,
+  poLineJobLabel,
 } from './lines'
 
 describe('PO line drafts', () => {
@@ -88,5 +91,52 @@ describe('poLineItemLabel', () => {
   it('reads as unbound only when neither a code nor a description is set', () => {
     expect(poLineItemLabel(null, '')).toBe('Select Item')
     expect(poLineItemLabel(null, '   ')).toBe('Select Item')
+  })
+})
+
+function job(overrides: Partial<JobForPurchasing>): JobForPurchasing {
+  const base = {
+    id: 'job-1',
+    job_number: 100,
+    name: 'Handrail',
+    company_name: 'ABC',
+    status: 'draft',
+    is_stock_holding: false,
+    ...overrides,
+  }
+  // Derived like the backend derives it, so a display-name match can never
+  // leak another fixture's name into a filter assertion.
+  return { ...base, job_display_name: `${base.job_number} - ${base.name}` }
+}
+
+describe('poLineJobLabel', () => {
+  it('renders number and name when bound', () => {
+    expect(poLineJobLabel(97391, '[TEST] Job')).toBe('97391 - [TEST] Job')
+  })
+
+  it('renders the bare number when the name is missing', () => {
+    expect(poLineJobLabel(97391, null)).toBe('97391')
+  })
+
+  it('renders empty while unbound', () => {
+    expect(poLineJobLabel(null, null)).toBe('')
+  })
+})
+
+describe('jobsBookableOnPoLine', () => {
+  const jobs = [
+    job({ id: 'a', job_number: 100, name: 'Handrail', company_name: 'ABC' }),
+    job({ id: 'b', job_number: 200, name: 'Gate', company_name: 'XYZ', status: 'in_progress' }),
+    job({ id: 'c', job_number: 300, name: 'Fence', status: 'completed' }),
+    job({ id: 'd', job_number: 400, name: 'Stairs', status: 'archived' }),
+    job({ id: 'e', job_number: 500, name: 'Ramp', status: 'rejected' }),
+  ]
+
+  it('drops the closed statuses a PO line may not book against', () => {
+    expect(jobsBookableOnPoLine(jobs).map((entry) => entry.id)).toEqual(['a', 'b'])
+  })
+
+  it('matches status case-insensitively', () => {
+    expect(jobsBookableOnPoLine([job({ id: 'f', status: 'ARCHIVED' })])).toEqual([])
   })
 })

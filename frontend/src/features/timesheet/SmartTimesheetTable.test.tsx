@@ -26,7 +26,6 @@ function makeJob(overrides: Partial<TimesheetJobOut> = {}): TimesheetJobOut {
     status: 'in_progress',
     labour_rates: [workshopRate],
     has_actual_costset: true,
-    leave_type: null,
     estimated_hours: null,
     default_xero_pay_item_id: 'pay-ordinary',
     default_xero_pay_item_name: 'Ordinary Time',
@@ -126,6 +125,7 @@ async function renderTable(props: Partial<SmartTimesheetTableProps> = {}) {
       staffId={STAFF_ID}
       date={DATE}
       staffWageRate={48}
+      payBasis={null}
       {...handles}
       {...props}
     />,
@@ -133,6 +133,15 @@ async function renderTable(props: Partial<SmartTimesheetTableProps> = {}) {
   await waitFor(() => autoId('DataTable-row-0'))
   return handles
 }
+
+describe('salary rate', () => {
+  it('labels salary allocation without offering an overtime pay selector', async () => {
+    await renderTable({ payBasis: 'salary' })
+
+    expect(document.body).toHaveTextContent('Salary')
+    expect(document.querySelector('[data-automation-id="SmartTimesheetTable-rate-0"]')).toBeNull()
+  })
+})
 
 async function pickJob(
   user: ReturnType<typeof userEvent.setup>,
