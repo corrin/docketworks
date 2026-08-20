@@ -60,7 +60,6 @@ class TestStaffDailyRow:
     def test_no_entries_is_no_entry_with_an_alert(self, worker: Staff) -> None:
         row = daily_timesheet_service.get_staff_timesheet_data(worker, WEDNESDAY, False)
         assert row["day_status"] == "No Entry"
-        assert row["status_class"] == "danger"
         assert row["alerts"] == ["No timesheet entries"]
 
     def test_short_day_is_partial_and_flags_low_hours(self, job: Job, worker: Staff) -> None:
@@ -102,7 +101,6 @@ class TestStaffDailyRow:
 
             assert row["scheduled_hours"] == 0.0
             assert row["day_status"] == "Unscheduled"
-            assert row["status_class"] == "info"
 
 
 class TestJobBreakdown:

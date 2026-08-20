@@ -235,7 +235,6 @@ class StaffWeekPostResult:
     staff_name: str
     success: bool
     timesheet_id: str | None = None
-    leave_ids: tuple[str, ...] = ()
     entries_posted: int = 0
     work_hours: Decimal = Decimal("0")
     other_leave_hours: Decimal = Decimal("0")
@@ -275,24 +274,6 @@ class StaffWeekPosting:
     recorded_timesheet_hours: Decimal
     recorded_leave_hours: Decimal
     pay_basis: str | None = None
-
-    @property
-    def posted_hours(self) -> Decimal:
-        """Everything Xero holds for the week, across both APIs."""
-        return self.posted_timesheet_hours + self.posted_leave_hours
-
-    @property
-    def recorded_hours(self) -> Decimal:
-        """Everything the timesheet holds that Xero should be holding too.
-
-        Opus: NOT every hour recorded for the week. Public-holiday hours are
-        deliberately absent from both sides: Xero computes that day from the
-        employee's working pattern and Docketworks posts nothing for it, so
-        including them here would report a shortfall on every week containing
-        one (ADR 0007). This is the comparable total, which is what the two
-        posted/recorded pairs beside it are for.
-        """
-        return self.recorded_timesheet_hours + self.recorded_leave_hours
 
     @property
     def matches(self) -> bool:

@@ -46,8 +46,8 @@ A week's time entries are classified once (`hour_categories.LeaveCatalogue`) and
   continuing would knowingly post a week whose leave and work surfaces disagree.
 - Before posting work hours, delete the existing timesheet lines on Xero — re-posting replaces
   rather than appends, so Xero stays the single source of truth for what was posted. An
-  unchanged re-post is detected (lines compared at `payroll_push.UNIT_PRECISION`, three
-  decimal places, matching `payroll_leave.LEAVE_UNIT_PRECISION`) and skipped.
+  unchanged re-post is detected (lines compared at `constants.PAYROLL_UNIT_PRECISION`,
+  three decimal places, shared with the leave surface) and skipped.
 - An empty week still posts an empty timesheet. Without one Xero falls back to the employee's
   pay template, typically 40 hours. Xero rejects zero-unit lines but accepts an empty timesheet.
 - `create_pay_run` mirrors the created run locally **even when Xero returns a different period

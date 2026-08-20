@@ -249,12 +249,6 @@ class TestStaffFacts:
         assert sync.clean_string(None) is None
         assert sync.clean_string("abcdef", 3) == "abc"
 
-    def test_active_on_uses_the_end_date(self) -> None:
-        today = date(2026, 5, 4)
-        assert sync.active_on(None, today) is True
-        assert sync.active_on(date(2026, 6, 1), today) is True
-        assert sync.active_on(date(2026, 5, 4), today) is False
-
 
 @pytest.mark.usefixtures("company")
 class TestStaffNeedingPayrollLink:

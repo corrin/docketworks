@@ -32,6 +32,7 @@ from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.core.xero_registry import xero_model_manager
 from apps.job.models.costing import CostLine
+from apps.timesheet.services.xero_hours import build_staff_lookup
 
 ZERO = Decimal("0")
 CENT = Decimal("0.01")
@@ -324,7 +325,7 @@ def get_reconciliation_data(start_date: date, end_date: date) -> PayrollReconcil
         start_date = max(start_date, payroll_start)
 
     try:
-        staff_map = _build_staff_xero_map()
+        staff_map = build_staff_lookup()
 
         # Overlap rather than period_start >= start, so a run straddling the
         # window's first Monday still counts.
@@ -411,7 +412,7 @@ def get_week_reconciliation(week_start_date: date) -> PayrollWeekReconciliation:
     """
     provider = get_provider()
     slips = provider.get_pay_slips_for_week(week_start_date)
-    staff_map = _build_staff_xero_map()
+    staff_map = build_staff_lookup()
 
     xero_data: dict[str, _XeroStaffWeek] = {}
     for slip in slips:
@@ -511,15 +512,6 @@ def _payroll_week_of(pay_run: _PayRunRow) -> date:
             "Docketworks requires a Monday-start weekly payroll calendar."
         )
     return pay_run.period_start_date
-
-
-def _build_staff_xero_map() -> dict[str, Staff]:
-    """Map xero_user_id (str) -> Staff object."""
-    return {
-        staff.xero_user_id: staff
-        for staff in Staff.objects.exclude(xero_user_id__isnull=True)
-        if staff.xero_user_id is not None  # narrows the exclude() for the type checker
-    }
 
 
 def _slip_name(

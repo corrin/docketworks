@@ -134,12 +134,6 @@ def _dates(start_date: date, end_date: date) -> list[date]:
     ]
 
 
-def _active_on(staff: Staff, target_date: date) -> bool:
-    return staff.employment_start_date <= target_date and (
-        staff.date_left is None or staff.date_left > target_date
-    )
-
-
 def preview_leave(
     *, staff: Staff, start_date: date, end_date: date, exclude_request: LeaveRequest | None = None
 ) -> PreviewData:
@@ -159,7 +153,7 @@ def preview_leave(
     for target_date in target_dates:
         rostered = scheduled_hours(staff, target_date, weekend_enabled=True)
         reason: str | None = None
-        if not _active_on(staff, target_date):
+        if not staff.is_active_on(target_date):
             reason = "Outside employment dates"
         elif rostered <= 0:
             reason = "Not a scheduled working day"

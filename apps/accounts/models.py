@@ -302,6 +302,31 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         """Check if staff member is currently active."""
         return self.date_left is None or self.date_left > timezone.localdate()
 
+    def is_active_on(self, target_date: date) -> bool:
+        """Whether this staff member was employed on the date.
+
+        Fable: The per-object twin of ``StaffManager.active_on_date``, kept
+        beside the manager so the boundary rule cannot fork: employment starts
+        ON ``employment_start_date`` and ends strictly BEFORE ``date_left``.
+        ``leave_service`` and the payroll push each restated this in Python,
+        one edit away from disagreeing with the queryset filters.
+        """
+        if self.employment_start_date > target_date:
+            return False
+        return self.date_left is None or self.date_left > target_date
+
+    def is_active_between(self, start_date: date, end_date: date) -> bool:
+        """Whether this staff member was employed at any point in the range.
+
+        Fable: The per-object twin of ``StaffManager.active_between_dates``.
+        Unlike ``is_active_on``, ``date_left`` compares INCLUSIVELY here
+        (``>= start_date``) — that is the manager's own boundary, mirrored
+        exactly rather than re-derived.
+        """
+        if self.employment_start_date > end_date:
+            return False
+        return self.date_left is None or self.date_left >= start_date
+
 
 class StaffPayrollTerm(models.Model):
     """One effective-dated salary/wage and working-pattern snapshot from Xero."""

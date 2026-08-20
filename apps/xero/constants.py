@@ -1,5 +1,7 @@
 """Constants used by the Xero API integration."""
 
+from decimal import Decimal
+
 from django.core.cache import BaseCache, caches
 
 # Cache key for the active app's resolved Xero tenant id. Read by
@@ -72,6 +74,16 @@ SLEEP_TIME = 1
 #: behaviour change to payroll pacing and needs one clean integration run to
 #: settle, which the tenant's exhausted daily quota prevented.
 PAYROLL_SLEEP_SECONDS = 3
+
+#: The precision payroll units are held and compared at, on BOTH payroll
+#: surfaces: timesheet lines and leave periods are quantized to it before any
+#: equality decides whether Xero already holds the right hours.
+#:
+#: Fable: One definition, for the same reason SLEEP_TIME above has one. This
+#: was declared as `payroll_push.UNIT_PRECISION` and
+#: `payroll_leave.LEAVE_UNIT_PRECISION` — two names for one policy value, held
+#: equal only by a comment promising they match.
+PAYROLL_UNIT_PRECISION = Decimal("0.001")
 
 # Xero sometimes returns this instead of a real document id on create; it must
 # never be stored or treated as an existing document.

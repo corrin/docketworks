@@ -20,7 +20,7 @@ import uuid as uuid_module
 from collections.abc import Iterator
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Protocol, TypedDict, cast
+from typing import TYPE_CHECKING, Protocol, TypedDict, cast
 from uuid import UUID
 
 from apps.accounting.registry import get_provider
@@ -35,11 +35,9 @@ if TYPE_CHECKING:
     from django.db.models import QuerySet
 
     from apps.accounts.models import Staff
-    from apps.timesheet.schemas import PayrollRunsOut
+    from apps.timesheet.schemas import PayrollPostRunOut, PayrollRunsOut
 
 logger = logging.getLogger(__name__)
-
-# Keep posting task state long enough for the client to connect to its stream.
 
 
 class PayRunRow(Protocol):
@@ -131,7 +129,11 @@ class PostWeekStartData(TypedDict):
     #: Opus: The run's opening document, not a task id and a stream URL. The panel
     #: renders "0 of N" from it before any push arrives, and the stream path is a
     #: client constant — a URL was never the contract.
-    run: dict[str, Any]
+    #: Fable: Held as the schema itself, not `model_dump`ed to `dict[str, Any]`:
+    #: the wire contract (`PostWeekToXeroStartResponse.run`) is typed, and ninja
+    #: serialises the model — dumping here only erased the type between two
+    #: typed ends.
+    run: "PayrollPostRunOut"
 
 
 class StaffWeekPostingData(TypedDict):
@@ -394,4 +396,4 @@ def start_post_week_task(week_start_date: date) -> PostWeekStartData:
         len(staff_ids),
         week_start_date,
     )
-    return {"run": run.model_dump(mode="json")}
+    return {"run": run}

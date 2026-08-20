@@ -48,6 +48,7 @@ from xero_python.payrollnz import (
 
 from apps.accounting.types import NewPayrollEmployee, PayrollEmployeeRef, PayrollLeaveBalance
 from apps.accounts.models import Staff, StaffPayrollTerm
+from apps.accounts.services.payroll_terms import WEEKDAYS
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.timesheet.services.leave_settings import employee_leave_mappings
@@ -309,20 +310,7 @@ def _working_patterns(
             raise XeroValidationError(["working_pattern"], "employee", employee_id)
         weeks: list[dict[str, float]] = []
         for week in detail.working_weeks:
-            weeks.append(
-                {
-                    day: float(getattr(week, day) or 0)
-                    for day in (
-                        "monday",
-                        "tuesday",
-                        "wednesday",
-                        "thursday",
-                        "friday",
-                        "saturday",
-                        "sunday",
-                    )
-                }
-            )
+            weeks.append({day: float(getattr(week, day) or 0) for day in WEEKDAYS})
         patterns.append((effective_from, str(pattern_id), weeks))
     return sorted(patterns, key=lambda item: item[0])
 

@@ -19,7 +19,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, TypedDict
 from uuid import UUID
 
 from xero_python.payrollnz import EmployeeLeave, LeavePeriod, PayrollNzApi
@@ -27,16 +27,29 @@ from xero_python.payrollnz import EmployeeLeave, LeavePeriod, PayrollNzApi
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.job.models.costing import CostLine
 from apps.xero import payroll_sdk
-from apps.xero.constants import PAYROLL_SLEEP_SECONDS
+from apps.xero.constants import PAYROLL_SLEEP_SECONDS, PAYROLL_UNIT_PRECISION
 from apps.xero.helpers import as_date
 from apps.xero.models import XeroPayRun
 
 if TYPE_CHECKING:
+    from apps.xero.models import XeroPayItem
     from apps.xero.payroll_push import _WeekWindow
 
 logger = logging.getLogger(__name__)
 
-LEAVE_UNIT_PRECISION = Decimal("0.001")
+
+def require_pay_item(line: CostLine) -> "XeroPayItem":
+    """Return the line's pay item, refusing a line that has none.
+
+    Fable: The one implementation for both payroll surfaces. This module and
+    ``payroll_push`` each carried a private ``_pay_item`` copy — this one typed
+    ``-> Any`` — and since push already imports leave, this is the shared home
+    that adds no import edge. Not ``hour_categories``: the layer contract bans
+    a domain module naming ``XeroPayItem``, even type-only.
+    """
+    if line.xero_pay_item is None:
+        raise ValueError(f"CostLine {line.id} has no xero_pay_item")
+    return line.xero_pay_item
 
 
 class DraftPayRunBlocksLeaveError(ValueError):
@@ -76,14 +89,7 @@ class _LeaveSession:
     week: "_WeekWindow"
 
 
-def _pay_item(line: CostLine) -> Any:
-    """Return the line's pay item, which the posting run has already proved present."""
-    if line.xero_pay_item is None:
-        raise ValueError(f"CostLine {line.id} has no xero_pay_item")
-    return line.xero_pay_item
-
-
-def _leave_units(leave: Any) -> Decimal:
+def _leave_units(leave: EmployeeLeave) -> Decimal:
     """Total paid hours across a Xero leave record's periods.
 
     Opus: Xero collapses leave into one period per pay period and keeps only the
@@ -103,12 +109,12 @@ def _leave_units(leave: Any) -> Decimal:
                 "has no number_of_units"
             )
         total += Decimal(str(period.number_of_units))
-    return total.quantize(LEAVE_UNIT_PRECISION)
+    return total.quantize(PAYROLL_UNIT_PRECISION)
 
 
 def _leave_key(leave_type_id: str, start: date, end: date, units: Decimal) -> LeaveKey:
     """Build the identity leave is matched on across a reconcile."""
-    return (str(leave_type_id), start, end, Decimal(str(units)).quantize(LEAVE_UNIT_PRECISION))
+    return (str(leave_type_id), start, end, Decimal(str(units)).quantize(PAYROLL_UNIT_PRECISION))
 
 
 def _build_leave_requests(lines: Sequence[CostLine]) -> list[LeaveRequestSpec]:
@@ -123,7 +129,7 @@ def _build_leave_requests(lines: Sequence[CostLine]) -> list[LeaveRequestSpec]:
     )
     names: dict[str, str] = {}
     for line in lines:
-        pay_item = _pay_item(line)
+        pay_item = require_pay_item(line)
         leave_type_id = str(pay_item.xero_id)
         day_totals[leave_type_id][line.accounting_date] += line.quantity
         names[leave_type_id] = str(pay_item.name)
@@ -140,7 +146,7 @@ def _build_leave_requests(lines: Sequence[CostLine]) -> list[LeaveRequestSpec]:
                     leave_type_id=leave_type_id,
                     start_date=start_day,
                     end_date=end_day,
-                    total_units=total.quantize(LEAVE_UNIT_PRECISION),
+                    total_units=total.quantize(PAYROLL_UNIT_PRECISION),
                     description=names[leave_type_id],
                 )
             )
@@ -286,12 +292,12 @@ def posted_leave_hours(employee_id: UUID, week: "_WeekWindow", *, tenant_id: str
             )
         if leave_start >= week.start and leave_end <= week.end:
             total += _leave_units(leave)
-    return total.quantize(LEAVE_UNIT_PRECISION)
+    return total.quantize(PAYROLL_UNIT_PRECISION)
 
 
 def reconcile_leave_for_staff_week(
     employee_id: UUID, lines: Sequence[CostLine], week: "_WeekWindow", *, tenant_id: str
-) -> list[str]:
+) -> None:
     """Make the employee's Xero leave for the week match the timesheet.
 
     Opus: Leave that already matches is left untouched. Stale leave with an
@@ -310,8 +316,7 @@ def reconcile_leave_for_staff_week(
         for spec in _build_leave_requests(lines)
     }
 
-    kept: list[str] = []
-    stale: list[tuple[Any, date, date]] = []
+    stale: list[tuple[EmployeeLeave, date, date]] = []
     for leave in response.leave or []:
         leave_start, leave_end = as_date(leave.start_date), as_date(leave.end_date)
         if leave_start is None or leave_end is None:
@@ -325,38 +330,35 @@ def reconcile_leave_for_staff_week(
             raise ValueError(f"Xero leave {leave.leave_id} has no leave_type_id")
         key = _leave_key(leave.leave_type_id, leave_start, leave_end, _leave_units(leave))
         if key in desired:
-            kept.append(str(leave.leave_id))
             del desired[key]
         else:
             stale.append((leave, leave_start, leave_end))
 
     session = _LeaveSession(api=api, tenant_id=tenant_id, employee_id=employee_id, week=week)
-    updated = _resolve_stale_leave(session, stale, desired)
-    created = [_create_leave(session, spec) for spec in desired.values()]
-    return kept + updated + created
+    _resolve_stale_leave(session, stale, desired)
+    for spec in desired.values():
+        _create_leave(session, spec)
 
 
 def _resolve_stale_leave(
     session: _LeaveSession,
-    stale: Sequence[tuple[Any, date, date]],
+    stale: Sequence[tuple[EmployeeLeave, date, date]],
     desired: dict[LeaveKey, LeaveRequestSpec],
-) -> list[str]:
+) -> None:
     """Update stale leave to a desired request where one overlaps, else delete it."""
-    updated: list[str] = []
     for leave, leave_start, leave_end in stale:
         replacement = _take_overlapping_spec(
             desired, str(leave.leave_type_id), leave_start, leave_end
         )
         if replacement is not None:
-            updated.append(_update_leave(session, leave, replacement, leave_start, leave_end))
+            _update_leave(session, leave, replacement, leave_start, leave_end)
             continue
         _delete_leave(session, leave, leave_start, leave_end)
-    return updated
 
 
 def _update_leave(
     session: _LeaveSession,
-    leave: Any,
+    leave: EmployeeLeave,
     spec: LeaveRequestSpec,
     leave_start: date,
     leave_end: date,
@@ -398,7 +400,9 @@ def _update_leave(
     return str(updated.leave_id)
 
 
-def _delete_leave(session: _LeaveSession, leave: Any, leave_start: date, leave_end: date) -> None:
+def _delete_leave(
+    session: _LeaveSession, leave: EmployeeLeave, leave_start: date, leave_end: date
+) -> None:
     """Remove leave the timesheet no longer asks for."""
     try:
         session.api.delete_employee_leave(

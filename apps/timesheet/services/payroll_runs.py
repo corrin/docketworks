@@ -116,15 +116,6 @@ def read_runs(connection_id: str) -> "PayrollRunsOut":
     return _as_runs(_cache().get(run_key(connection_id)))
 
 
-async def aread_runs(connection_id: str) -> "PayrollRunsOut":
-    """Async twin of ``read_runs``, for the event-loop code that pushes it.
-
-    Opus: Django's own ``aget`` rather than a thread wrapper — the caller runs on
-    the event loop, and the read belongs to the module that owns the key.
-    """
-    return _as_runs(await _cache().aget(run_key(connection_id)))
-
-
 def running(
     connection_id: str, run_id: str, week_start_date: "date", *, total: int
 ) -> "PayrollPostRunOut":

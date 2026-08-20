@@ -13,6 +13,7 @@ from ninja.responses import Status
 from apps.accounts.models import Staff
 from apps.core.auth import SuperuserCookieJWTAuth
 from apps.job.models import Job
+from apps.timesheet.api import authenticated_staff
 from apps.timesheet.leave_schemas import (
     LeaveBalanceOut,
     LeaveListOut,
@@ -31,13 +32,6 @@ from apps.timesheet.models import LeaveRequest, LeaveType
 from apps.timesheet.services import leave_service, leave_settings
 
 router = Router(auth=SuperuserCookieJWTAuth(), tags=["leave"])
-
-
-def _actor(request: HttpRequest) -> Staff:
-    user = request.user
-    if not isinstance(user, Staff):  # pragma: no cover - guaranteed by auth
-        raise HttpError(401, "Authentication credentials were not provided.")
-    return user
 
 
 def _validation_message(exc: DjangoValidationError) -> str:
@@ -98,7 +92,7 @@ def create_request(request: HttpRequest, payload: LeaveRequestWrite) -> leave_se
             end_date=payload.end_date,
             note=payload.note,
             requested_days=_requested_days(payload),
-            actor=_actor(request),
+            actor=authenticated_staff(request),
         )
     except Staff.DoesNotExist as exc:
         raise HttpError(404, "Employee not found.") from exc
@@ -125,7 +119,7 @@ def update_request(
             end_date=payload.end_date,
             note=payload.note,
             requested_days=_requested_days(payload),
-            actor=_actor(request),
+            actor=authenticated_staff(request),
         )
     except LeaveRequest.DoesNotExist as exc:
         raise HttpError(404, "Leave request not found.") from exc
@@ -201,7 +195,7 @@ def create_office_closure_endpoint(
             start_date=payload.start_date,
             end_date=payload.end_date,
             note=payload.note,
-            actor=_actor(request),
+            actor=authenticated_staff(request),
         )
     # No LeaveType.DoesNotExist arm: the code passed down is the constant
     # PUBLIC_HOLIDAY and all five rows are seeded by migration, so an
@@ -240,7 +234,9 @@ def update_settings(
         for row in payload.leave_types
     ]
     try:
-        return leave_settings.update_leave_types(updates=updates, actor=_actor(request))
+        return leave_settings.update_leave_types(
+            updates=updates, actor=authenticated_staff(request)
+        )
     except LeaveType.DoesNotExist as exc:
         raise HttpError(404, "Leave type not found.") from exc
     except Job.DoesNotExist as exc:

@@ -63,7 +63,6 @@ class StaffDailyDataOut(Schema):
     total_revenue: float
     total_cost: float
     day_status: str
-    status_class: str
     billable_percentage: float
     completion_percentage: float
     job_breakdown: list[JobBreakdownOut]

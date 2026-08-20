@@ -94,8 +94,13 @@ def _validation_message(exc: DjangoValidationError) -> str:
     return "; ".join(exc.messages)
 
 
-def _staff(request: HttpRequest) -> Staff:
-    """Return the authenticated staff member (the auth class guarantees one)."""
+def authenticated_staff(request: HttpRequest) -> Staff:
+    """Return the authenticated staff member (the auth class guarantees one).
+
+    Fable: Public rather than module-private: ``leave_api`` carried a verbatim
+    copy named ``_actor``, and one router's guard drifting from the other's is
+    exactly the sibling-implementation failure ADR 0039 exists to prevent.
+    """
     user = request.user
     if not isinstance(user, Staff):  # pragma: no cover - guaranteed by the auth class
         raise HttpError(401, "Authentication credentials were not provided.")
@@ -340,7 +345,7 @@ def job_workshop_timesheets_retrieve(
         entry_date = workshop_timesheet_service.resolve_entry_date(date)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
-    return workshop_timesheet_service.list_entries(_staff(request), entry_date)
+    return workshop_timesheet_service.list_entries(authenticated_staff(request), entry_date)
 
 
 def _create_payload(payload: WorkshopTimesheetEntryRequest) -> WorkshopEntryCreateData:
@@ -375,7 +380,9 @@ def job_workshop_timesheets_create(
 ) -> Status[workshop_timesheet_service.WorkshopEntryData]:
     """Create a time entry owned by the authenticated staff member."""
     try:
-        entry = workshop_timesheet_service.create_entry(_staff(request), _create_payload(payload))
+        entry = workshop_timesheet_service.create_entry(
+            authenticated_staff(request), _create_payload(payload)
+        )
     except Job.DoesNotExist as exc:
         raise HttpError(404, "Job not found.") from exc
     except DjangoValidationError as exc:
@@ -428,7 +435,7 @@ def job_workshop_timesheets_partial_update(
     if len(data) <= 1:
         raise HttpError(400, "At least one field besides entry_id must be provided.")
     try:
-        return workshop_timesheet_service.update_entry(_staff(request), data)
+        return workshop_timesheet_service.update_entry(authenticated_staff(request), data)
     except CostLine.DoesNotExist as exc:
         raise HttpError(404, "Timesheet entry not found.") from exc
     except Job.DoesNotExist as exc:
@@ -450,7 +457,7 @@ def job_workshop_timesheets_partial_update(
 def job_workshop_timesheets_destroy(request: HttpRequest, entry_id: UUID) -> Status[None]:
     """Delete one of the authenticated staff member's own entries."""
     try:
-        workshop_timesheet_service.delete_entry(_staff(request), entry_id)
+        workshop_timesheet_service.delete_entry(authenticated_staff(request), entry_id)
     except CostLine.DoesNotExist as exc:
         raise HttpError(404, "Timesheet entry not found.") from exc
     return Status(204, None)

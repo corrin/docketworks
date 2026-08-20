@@ -234,18 +234,16 @@ def employee_leave_mappings() -> list[EmployeeLeaveMapping]:
     rows = LeaveType.objects.filter(code__in=LEAVE_API_CODES).select_related(
         "job__default_xero_pay_item"
     )
-    tenant_id = CompanyDefaults.get_solo().xero_tenant_id
     mappings: list[EmployeeLeaveMapping] = []
     for row in rows:
         job = row.job
         pay_item = job.default_xero_pay_item if job is not None else None
-        if (
-            job is None
-            or pay_item is None
-            or not pay_item.xero_id
-            or pay_item.xero_tenant_id != tenant_id
-            or not pay_item.uses_leave_api
-        ):
+        # Fable: "configured" is leave_type_data's verdict, not a restated
+        # condition: this block used to spell the same five-clause predicate a
+        # second time, free to drift from the one the settings screen reports.
+        # The pay_item None check remains only to narrow the type — a None pay
+        # item on a Leave-API row is already unconfigured.
+        if pay_item is None or not leave_type_data(row)["configured"]:
             raise ValueError(
                 f"Docketworks leave type {row.display_name} is not linked to a Xero leave type."
             )

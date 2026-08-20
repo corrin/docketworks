@@ -36,7 +36,6 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from xero_python.payrollnz import (
@@ -63,30 +62,31 @@ from apps.timesheet.services import hour_categories
 
 # Fable: Importing payroll_sdk also applies the v1 nullable-field SDK fixes.
 from apps.xero import payroll_sdk
-from apps.xero.constants import PAYROLL_SLEEP_SECONDS
+from apps.xero.constants import PAYROLL_SLEEP_SECONDS, PAYROLL_UNIT_PRECISION
 from apps.xero.helpers import as_date
 from apps.xero.models import XeroPayRun
-from apps.xero.payroll_leave import posted_leave_hours, reconcile_leave_for_staff_week
+from apps.xero.payroll_leave import (
+    posted_leave_hours,
+    reconcile_leave_for_staff_week,
+    require_pay_item,
+)
 from apps.xero.payroll_setup import get_payroll_calendars
 from apps.xero.payroll_sync import get_pay_runs_for_sync
 from apps.xero.transforms import transform_pay_run
-
-if TYPE_CHECKING:
-    from apps.xero.models import XeroPayItem
 
 logger = logging.getLogger(__name__)
 
 # Opus: Xero pays the whole period end + 3 days (the Wednesday after a Sunday end).
 PAYMENT_OFFSET_DAYS = 3
-#: Opus: The precision payroll units are held and compared at, matching the leave
-#: side (payroll_leave.LEAVE_UNIT_PRECISION) so one notion of "a payroll unit"
-#: covers both surfaces.
-UNIT_PRECISION = Decimal("0.001")
 #: Opus: The two timesheet statuses this code acts on. Anything else means Xero has
 #: moved the timesheet beyond our reach — paid — and it is refused rather than
 #: modified.
 STATUS_DRAFT = "Draft"
 STATUS_APPROVED = "Approved"
+#: Fable: Shared with the read-only provider, whose fake results must carry the
+#: real provider's wording — a second copy of this sentence is how the fake's
+#: shape drifts from the shape it claims to mirror.
+SALARY_SKIP_REASON = "Salary is paid from Xero regular earnings; leave was reconciled."
 
 
 @dataclass(frozen=True)
@@ -214,9 +214,9 @@ def validate_pay_items_for_week(staff_ids: Sequence[UUID], week_start_date: date
     # line that lost it. So the only failure left to report is one whose pay
     # item was never linked to this organisation.
     problems = [
-        f"CostLine {line.id} has XeroPayItem {_pay_item(line).name!r} with no xero_id"
+        f"CostLine {line.id} has XeroPayItem {require_pay_item(line).name!r} with no xero_id"
         for line in postable
-        if not _pay_item(line).xero_id
+        if not require_pay_item(line).xero_id
     ]
     if problems:
         raise ValueError(
@@ -224,13 +224,6 @@ def validate_pay_items_for_week(staff_ids: Sequence[UUID], week_start_date: date
             "'python manage.py xero --configure-payroll' first:\n"
             + "\n".join(f"  - {problem}" for problem in problems)
         )
-
-
-def _pay_item(line: CostLine) -> "XeroPayItem":
-    """Return the line's pay item, already proved present by validate_pay_items_for_week."""
-    if line.xero_pay_item is None:
-        raise ValueError(f"CostLine {line.id} has no xero_pay_item")
-    return line.xero_pay_item
 
 
 @dataclass(frozen=True, slots=True)
@@ -281,10 +274,10 @@ def _timesheet_line_payloads(lines: Sequence[CostLine]) -> list[TimesheetLinePay
     """
     totals: defaultdict[tuple[date, str], Decimal] = defaultdict(lambda: Decimal("0"))
     for line in lines:
-        totals[(line.accounting_date, str(_pay_item(line).xero_id))] += line.quantity
+        totals[(line.accounting_date, str(require_pay_item(line).xero_id))] += line.quantity
     return [
         TimesheetLinePayload(
-            date=entry_date, earnings_rate_id=rate_id, units=units.quantize(UNIT_PRECISION)
+            date=entry_date, earnings_rate_id=rate_id, units=units.quantize(PAYROLL_UNIT_PRECISION)
         )
         for (entry_date, rate_id), units in totals.items()
     ]
@@ -317,7 +310,7 @@ def post_timesheet(
     existing_timesheet: PostedTimesheet | None,
     *,
     tenant_id: str,
-) -> Any:
+) -> PostedTimesheet:
     """Replace the employee's timesheet for the week, then approve it.
 
     Opus: Delete-and-recreate rather than editing lines: it is one call instead of
@@ -384,16 +377,28 @@ def post_timesheet(
     if not created or not created.timesheet:
         raise ValueError(f"Xero returned no timesheet when creating one for {employee_id}")
 
-    timesheet = created.timesheet
-    api.approve_timesheet(xero_tenant_id=tenant_id, timesheet_id=str(timesheet.timesheet_id))
+    timesheet_id = created.timesheet.timesheet_id
+    if not timesheet_id:
+        raise ValueError(
+            f"Xero returned a timesheet without an id when creating one for {employee_id}"
+        )
+    api.approve_timesheet(xero_tenant_id=tenant_id, timesheet_id=str(timesheet_id))
     time.sleep(PAYROLL_SLEEP_SECONDS)
     logger.info(
         "Posted timesheet %s for employee %s with %d line(s)",
-        timesheet.timesheet_id,
+        timesheet_id,
         employee_id,
         len(line_payloads),
     )
-    return timesheet
+    # Fable: Normalised to PostedTimesheet rather than returning the SDK object:
+    # the SDK Timesheet was the one member of an accidental union (the two
+    # early-return branches already answer PostedTimesheet), and no caller reads
+    # anything the SDK type carries beyond the id.
+    return PostedTimesheet(
+        timesheet_id=str(timesheet_id),
+        employee_id=str(employee_id),
+        status=STATUS_APPROVED,
+    )
 
 
 def _delete_timesheet(api: PayrollNzApi, tenant_id: str, existing: PostedTimesheet) -> None:
@@ -503,7 +508,7 @@ def timesheet_lines(timesheet_id: str, *, tenant_id: str) -> list[TimesheetLineP
             TimesheetLinePayload(
                 date=line_date,
                 earnings_rate_id=str(line.earnings_rate_id),
-                units=Decimal(str(line.number_of_units)).quantize(UNIT_PRECISION),
+                units=Decimal(str(line.number_of_units)).quantize(PAYROLL_UNIT_PRECISION),
             )
         )
     return payloads
@@ -770,13 +775,6 @@ def refresh_pay_runs(*, tenant_id: str) -> PayRunSyncResult:
 # --- The posting run -----------------------------------------------------
 
 
-def _staff_in_week(staff: Staff, week: _WeekWindow) -> bool:
-    """Whether the staff member was employed during any of the payroll week."""
-    if staff.employment_start_date > week.end:
-        return False
-    return not (staff.date_left is not None and staff.date_left < week.start)
-
-
 def _failure_result(staff: Staff, error: str, has_entries: bool) -> StaffWeekPostResult:
     """One staff member's failure, shaped so the batch can carry on past it."""
     return StaffWeekPostResult(
@@ -896,7 +894,7 @@ def post_payroll_week(
     #
     for staff_id in staff_to_post:
         staff = staff_by_id[staff_id]
-        if not staff.xero_user_id or not _staff_in_week(staff, week):
+        if not staff.xero_user_id or not staff.is_active_between(week.start, week.end):
             continue
         split = _split_by_surface(lines_by_staff.get(staff_id, []), catalogue)
         reconcile_leave_for_staff_week(
@@ -941,13 +939,13 @@ def _post_one_staff_week(  # noqa: PLR0913 -- Fable: the run's fixed context (we
     staff: Staff,
     lines: Sequence[CostLine],
     week: _WeekWindow,
-    existing: dict[str, Any],
+    existing: dict[str, PostedTimesheet],
     catalogue: "hour_categories.LeaveCatalogue",
     *,
     tenant_id: str,
 ) -> StaffWeekPostResult:
     """Post one staff member's week, converting any failure into their own result."""
-    if not _staff_in_week(staff, week):
+    if not staff.is_active_between(week.start, week.end):
         return _skip_result(staff, "Not employed during this week", bool(lines))
     if not staff.xero_user_id:
         return _failure_result(
@@ -973,7 +971,7 @@ def _post_one_staff_week(  # noqa: PLR0913 -- Fable: the run's fixed context (we
             staff_name=staff.get_display_full_name(),
             success=True,
             skipped=True,
-            reason="Salary is paid from Xero regular earnings; leave was reconciled.",
+            reason=SALARY_SKIP_REASON,
             work_hours=sum((line.quantity for line in timesheet_lines), Decimal("0")),
             leave_hours=sum((line.quantity for line in leave_lines), Decimal("0")),
             has_entries=bool(lines),
@@ -992,13 +990,15 @@ def _post_one_staff_week(  # noqa: PLR0913 -- Fable: the run's fixed context (we
         persist_app_error(exc, _staff_failure_context(staff, week, "timesheet"))
         return _failure_result(staff, str(exc), bool(lines))
 
-    work_lines = [line for line in timesheet_lines if _pay_item(line).multiplier is not None]
-    other_leave_lines = [line for line in timesheet_lines if _pay_item(line).multiplier is None]
+    work_lines = [line for line in timesheet_lines if require_pay_item(line).multiplier is not None]
+    other_leave_lines = [
+        line for line in timesheet_lines if require_pay_item(line).multiplier is None
+    ]
     return StaffWeekPostResult(
         staff_id=str(staff.id),
         staff_name=staff.get_display_full_name(),
         success=True,
-        timesheet_id=str(timesheet.timesheet_id),
+        timesheet_id=timesheet.timesheet_id,
         entries_posted=len(lines),
         work_hours=sum((line.quantity for line in work_lines), Decimal("0")),
         other_leave_hours=sum((line.quantity for line in other_leave_lines), Decimal("0")),
@@ -1022,7 +1022,7 @@ def _posted_total(timesheet: PostedTimesheet | None, *, tenant_id: str) -> Decim
     return sum(
         (line.units for line in timesheet_lines(timesheet.timesheet_id, tenant_id=tenant_id)),
         Decimal("0"),
-    ).quantize(UNIT_PRECISION)
+    ).quantize(PAYROLL_UNIT_PRECISION)
 
 
 def week_posting_status(week_start_date: date, *, tenant_id: str) -> list[StaffWeekPosting]:

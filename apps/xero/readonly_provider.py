@@ -12,7 +12,7 @@ import logging
 import uuid
 from collections import defaultdict
 from collections.abc import Iterator, Sequence
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -33,6 +33,8 @@ from apps.accounting.types import (
 )
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
+from apps.xero import payroll_push
+from apps.xero.payroll_leave import require_pay_item
 from apps.xero.provider import XeroAccountingProvider
 
 if TYPE_CHECKING:
@@ -350,7 +352,7 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
 def _suppressed_week_posts(
     staff_ids: "Sequence[UUID]", week_start_date: date
 ) -> "Iterator[StaffWeekPostResult]":
-    """Yield a well-formed posted result per staff member, reading real hours.
+    """Yield the result a real post would report per staff member, reading real hours.
 
     Opus: Split by the same classifier the real provider posts through, not summed
     into ``work_hours``. Every hour landed in the work bucket, so a week
@@ -358,35 +360,59 @@ def _suppressed_week_posts(
     docstring claimed "the screen shows true numbers". A read-only provider that
     lies about the shape of a result is worse than one that refuses, because the
     screen it feeds is exactly where an operator checks what a post would do.
+
+    Fable: The lines come from ``payroll_push._week_time_lines`` — the query the
+    real run reads — not a local restatement of it, and the salary/hourly split
+    mirrors ``payroll_push._post_one_staff_week`` field for field: a salaried
+    staff member is a skip in ``posting_mode="salary"`` with no timesheet id,
+    because the real provider never posts them a timesheet.
+    ``salary_timesheet_removed`` stays False rather than asking Xero whether a
+    sheet exists: a suppressed post removes nothing, and the read would be this
+    module's only payroll call to the tenant.
     """
     # Opus: Call-time import: these are loaded through the app registry, and this
     # module is imported at app-ready.
     from apps.accounts.models import Staff  # noqa: PLC0415
     from apps.timesheet.services import hour_categories  # noqa: PLC0415
 
-    week_end = week_start_date + timedelta(days=6)
-    lines = CostLine.objects.filter(
-        cost_set__kind="actual",
-        kind="time",
-        accounting_date__gte=week_start_date,
-        accounting_date__lte=week_end,
-        staff_id__in=list(staff_ids),
-    ).select_related("xero_pay_item", "cost_set__job")
+    week = payroll_push._WeekWindow.of(week_start_date)
     catalogue = hour_categories.LeaveCatalogue.load()
     lines_by_staff: dict[str, list[CostLine]] = defaultdict(list)
-    for line in lines:
+    for line in payroll_push._week_time_lines(week, staff_ids):
         lines_by_staff[str(line.staff_id)].append(line)
 
     for staff in Staff.objects.filter(id__in=list(staff_ids)):
         staff_lines = lines_by_staff.get(str(staff.id), [])
-        categories = hour_categories.categorise(staff_lines, catalogue)
+        split = payroll_push._split_by_surface(staff_lines, catalogue)
+        leave_hours = sum((line.quantity for line in split.leave_api), Decimal("0"))
+        if staff.pay_basis == "salary":
+            yield StaffWeekPostResult(
+                staff_id=str(staff.id),
+                staff_name=staff.get_display_full_name(),
+                success=True,
+                skipped=True,
+                reason=payroll_push.SALARY_SKIP_REASON,
+                work_hours=sum((line.quantity for line in split.timesheet), Decimal("0")),
+                leave_hours=leave_hours,
+                has_entries=bool(staff_lines),
+                posting_mode="salary",
+                salary_timesheet_removed=False,
+            )
+            continue
+        work_lines = [
+            line for line in split.timesheet if require_pay_item(line).multiplier is not None
+        ]
+        other_leave_lines = [
+            line for line in split.timesheet if require_pay_item(line).multiplier is None
+        ]
         yield StaffWeekPostResult(
             staff_id=str(staff.id),
             staff_name=staff.get_display_full_name(),
             success=True,
             timesheet_id=_fake_id(),
-            entries_posted=0,
-            work_hours=categories.timesheet,
-            leave_hours=categories.leave_api,
+            entries_posted=len(staff_lines),
+            work_hours=sum((line.quantity for line in work_lines), Decimal("0")),
+            other_leave_hours=sum((line.quantity for line in other_leave_lines), Decimal("0")),
+            leave_hours=leave_hours,
             has_entries=bool(staff_lines),
         )

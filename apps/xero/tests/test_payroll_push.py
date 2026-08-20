@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from django.utils import timezone
-from xero_python.payrollnz import TimesheetLine
+from xero_python.payrollnz import EmployeeLeave, TimesheetLine
 
 from apps.accounting.types import NotAPayrollWeekError
 from apps.accounts.models import Staff
@@ -1109,7 +1109,15 @@ class TestLeaveUpdateResponse:
             employee_id=uuid.uuid4(),
             week=payroll_push._WeekWindow.of(WEEK_START),
         )
-        existing = SimpleNamespace(leave_id="old-leave")
+        # Fable: The SDK's generated setters refuse None for the required
+        # fields, so a minimal-but-valid record is the smallest constructible one.
+        existing = EmployeeLeave(
+            leave_id="old-leave",
+            leave_type_id="annual",
+            description="Annual Leave",
+            start_date=WEEK_START,
+            end_date=WEEK_START,
+        )
         spec: payroll_leave.LeaveRequestSpec = {
             "leave_type_id": "annual",
             "start_date": WEEK_START,
@@ -1132,7 +1140,15 @@ class TestLeaveUpdateResponse:
             employee_id=uuid.uuid4(),
             week=payroll_push._WeekWindow.of(WEEK_START),
         )
-        existing = SimpleNamespace(leave_id="old-leave")
+        # Fable: The SDK's generated setters refuse None for the required
+        # fields, so a minimal-but-valid record is the smallest constructible one.
+        existing = EmployeeLeave(
+            leave_id="old-leave",
+            leave_type_id="annual",
+            description="Annual Leave",
+            start_date=WEEK_START,
+            end_date=WEEK_START,
+        )
         spec: payroll_leave.LeaveRequestSpec = {
             "leave_type_id": "annual",
             "start_date": WEEK_START,
@@ -1144,3 +1160,55 @@ class TestLeaveUpdateResponse:
 
         with pytest.raises(ValueError, match="returned no leave record"):
             payroll_leave._update_leave(session, existing, spec, WEEK_START, WEEK_START)
+
+
+class TestReadonlyWeekPostsMirrorTheRealShape:
+    """The read-only fake answers per pay_basis in the real provider's shape.
+
+    Fable: The fake's docstring claims fidelity, and before these tests it
+    answered a SALARIED week with ``success=True`` and a fabricated timesheet
+    id — a shape the real provider never produces (salary is a skip in
+    ``posting_mode="salary"`` with no timesheet) — and never set
+    ``entries_posted``, ``other_leave_hours`` or ``posting_mode`` at all.
+    """
+
+    def test_a_salaried_week_is_a_salary_skip_not_a_fake_timesheet(self, job: Job) -> None:
+        from apps.xero.readonly_provider import _suppressed_week_posts  # noqa: PLC0415
+
+        salaried = make_staff("readonly-salaried@example.com", pay_basis="salary")
+        make_time_line(job, salaried, accounting_date=WEEK_START, hours="8.000")
+
+        [result] = list(_suppressed_week_posts([salaried.id], WEEK_START))
+
+        assert result.success
+        assert result.skipped, "the real provider never posts a salaried timesheet"
+        assert result.posting_mode == "salary"
+        assert result.timesheet_id is None
+        assert result.reason == payroll_push.SALARY_SKIP_REASON
+        assert result.work_hours == Decimal("8.000")
+        assert result.salary_timesheet_removed is False
+        assert result.has_entries
+
+    def test_an_hourly_week_carries_the_real_result_fields(
+        self, company: Company, superuser: Staff, worker: Staff, job: Job
+    ) -> None:
+        from apps.xero.readonly_provider import _suppressed_week_posts  # noqa: PLC0415
+
+        annual = make_leave_job(company, superuser, "Annual Leave")
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        make_time_line(
+            annual, worker, accounting_date=WEEK_START + timedelta(days=1), hours="4.000"
+        )
+
+        [result] = list(_suppressed_week_posts([worker.id], WEEK_START))
+
+        assert result.success
+        assert not result.skipped
+        assert result.posting_mode == "timesheet"
+        assert result.timesheet_id, "an hourly week reports a (fake) posted timesheet"
+        assert result.entries_posted == 2
+        assert result.work_hours == Decimal("8.000")
+        assert result.leave_hours == Decimal("4.000"), (
+            "Leave-API hours must land in leave_hours, as the real split reports them"
+        )
+        assert result.other_leave_hours == Decimal("0")

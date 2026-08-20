@@ -36,6 +36,7 @@ from apps.accounting.types import (
     PayrollEmployeeRef,
 )
 from apps.accounts.models import Staff
+from apps.accounts.services.payroll_terms import WEEKDAYS
 from apps.core.models import CompanyDefaults
 from apps.timesheet.services.demo_payroll_data import generate_ird_number, get_bank_account
 
@@ -60,16 +61,6 @@ DEFAULT_DATE_OF_BIRTH = date(1990, 1, 1)
 # would fix it. Accepted rather than worked around: an active employee can be
 # paid for the historical weeks a restore exists to exercise, and a terminated
 # one could not.
-
-WEEKDAY_NAMES = (
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-    "sunday",
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -246,12 +237,12 @@ def hours_per_week(staff: Staff) -> dict[str, float]:
         staff.hours_sat,
         staff.hours_sun,
     )
-    missing = [name for name, value in zip(WEEKDAY_NAMES, hours, strict=True) if value is None]
+    missing = [name for name, value in zip(WEEKDAYS, hours, strict=True) if value is None]
     if missing:
         raise ValueError(
             f"Staff {staff.id} ({staff.office_email}) missing hours for: {', '.join(missing)}"
         )
-    return {name: float(value) for name, value in zip(WEEKDAY_NAMES, hours, strict=True)}
+    return {name: float(value) for name, value in zip(WEEKDAYS, hours, strict=True)}
 
 
 def _hours_between(start: time | None, end: time | None) -> float:
@@ -535,8 +526,3 @@ def sync_staff(
         result.unmatched.extend(staff_summary(staff) for staff in unmatched)
 
     return result
-
-
-def active_on(employee_end_date: date | None, today: date) -> bool:
-    """Whether a payroll employee is still active on a date."""
-    return employee_end_date is None or employee_end_date > today

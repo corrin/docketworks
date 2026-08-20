@@ -18,16 +18,6 @@ from apps.timesheet.services import hour_categories
 
 logger = logging.getLogger(__name__)
 
-# Opus: The CSS class each day-status word maps to. The vocabulary itself lives in
-# hour_categories, shared with the weekly overview.
-STATUS_CLASSES = {
-    "Complete": "success",
-    "Partial": "warning",
-    "No Entry": "danger",
-    "Leave": "info",
-    "Off": "secondary",
-    "Unscheduled": "info",
-}
 LOW_HOURS_THRESHOLD = Decimal("0.5")
 OVERTIME_THRESHOLD = Decimal("1.2")
 
@@ -59,7 +49,6 @@ class StaffDailyData(TypedDict):
     total_revenue: float
     total_cost: float
     day_status: str
-    status_class: str
     billable_percentage: float
     completion_percentage: float
     job_breakdown: list[JobBreakdownData]
@@ -243,7 +232,6 @@ def get_staff_timesheet_data(
         "total_revenue": float(total_revenue),
         "total_cost": float(total_cost),
         "day_status": status,
-        "status_class": STATUS_CLASSES.get(status, "secondary"),
         # Use Decimal throughout the hour-ratio calculation.
         "billable_percentage": _percentage(billable_hours, total_hours),
         "completion_percentage": _percentage(total_hours, scheduled_hours),
