@@ -239,7 +239,10 @@ function StaffWeekRow({
               Salary
             </span>
           )}
-          {staff.pay_basis === 'salary' && Math.abs(staff.variance_hours) > 0.01 && (
+          {/* The server already quantizes variance_hours to 0.01, so zero is
+              the only "no variance" value — a client-side band on top of that
+              was a second materiality rule, and it swallowed a genuine 0.01h. */}
+          {staff.pay_basis === 'salary' && staff.variance_hours !== 0 && (
             <span className="ml-2 text-xs text-amber-700">
               {staff.variance_hours < 0
                 ? `${Math.abs(staff.variance_hours)}h unallocated`

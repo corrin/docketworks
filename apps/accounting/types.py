@@ -193,6 +193,29 @@ class PayRunSyncResult:
 #: hand-written copy said so.
 type PayrollPostingMode = Literal["timesheet", "salary"]
 
+#: Fable: The reconciliation row's closed status set, published as a Literal so
+#: the page's wording map is exhaustiveness-checked by the generated union
+#: (ADR 0028) — a new status becomes a frontend compile error instead of a raw
+#: code rendered to the operator and silently missing from every count.
+type PayrollRowStatus = Literal[
+    "ok",
+    "mismatch",
+    "jm_only",
+    "xero_only_salaried",
+    "xero_only_departed",
+    "xero_only_unposted",
+    "xero_only_unknown",
+]
+
+#: The statuses that mean the provider is paying hours we never posted — the
+#: findings the week page headlines. Salaried is excluded on purpose: Xero
+#: paying a salary against no posted hours is the arrangement working.
+UNPOSTED_STATUSES: frozenset[str] = frozenset(
+    {"xero_only_departed", "xero_only_unposted", "xero_only_unknown"}
+)
+
+type PayrollXeroSource = Literal["live_run", "no_pay_run"]
+
 
 @dataclass(frozen=True)
 class StaffWeekPostResult:

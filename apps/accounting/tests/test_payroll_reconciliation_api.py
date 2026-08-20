@@ -104,7 +104,7 @@ class TestPayrollReconciliation:
         body = resp.json()
         assert body["weeks"] == []
         assert body["staff_summaries"] == []
-        assert body["heatmap"] == {"staff_names": [], "rows": []}
+        assert body["heatmap"] == {"columns": [], "rows": []}
         assert body["grand_totals"] == {
             "xero_gross": 0.0,
             "jm_cost": 0.0,

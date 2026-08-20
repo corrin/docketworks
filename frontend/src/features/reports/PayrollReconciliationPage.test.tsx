@@ -14,6 +14,7 @@ const ENDPOINT = '*/api/accounting/reports/payroll-reconciliation/week/'
 
 function row(overrides: Partial<PayrollStaffWeekRowOut> = {}): PayrollStaffWeekRowOut {
   return {
+    key: 'xero-emp-charlie',
     name: 'Charlie Nelson',
     xero_hours: 8,
     xero_timesheet_hours: 8,
@@ -36,10 +37,15 @@ function row(overrides: Partial<PayrollStaffWeekRowOut> = {}): PayrollStaffWeekR
 
 function response(
   rows: PayrollStaffWeekRowOut[],
-  xeroSource = 'live_run',
+  xeroSource: PayrollWeekReconciliationResponse['xero_source'] = 'live_run',
 ): PayrollWeekReconciliationResponse {
   return {
     xero_source: xeroSource,
+    // The count arrives computed: the status taxonomy lives on the server,
+    // and the page renders this number verbatim.
+    unposted_count: rows.filter(
+      (r) => r.status.startsWith('xero_only_') && r.status !== 'xero_only_salaried',
+    ).length,
     week: {
       week_start: WEEK,
       xero_period_start: null,
@@ -105,6 +111,7 @@ describe('PayrollReconciliationPage', () => {
           response([
             row(),
             row({
+              key: 'xero-emp-sam',
               name: 'Sam Patel',
               status: 'xero_only_departed',
               jm_hours: 0,

@@ -7088,26 +7088,40 @@ components:
       - diff_pct
       title: PayrollGrandTotalsOut
       type: object
+    PayrollHeatmapColumnOut:
+      description: 'One staff column: the join key and the display name.'
+      properties:
+        key:
+          title: Key
+          type: string
+        name:
+          title: Name
+          type: string
+      required:
+      - key
+      - name
+      title: PayrollHeatmapColumnOut
+      type: object
     PayrollHeatmapOut:
       description: Wire contract for PayrollHeatmapOut.
       properties:
+        columns:
+          items:
+            $ref: '#/components/schemas/PayrollHeatmapColumnOut'
+          title: Columns
+          type: array
         rows:
           items:
             $ref: '#/components/schemas/PayrollHeatmapRowOut'
           title: Rows
           type: array
-        staff_names:
-          items:
-            type: string
-          title: Staff Names
-          type: array
       required:
-      - staff_names
+      - columns
       - rows
       title: PayrollHeatmapOut
       type: object
     PayrollHeatmapRowOut:
-      description: Wire contract for PayrollHeatmapRowOut.
+      description: Wire contract for PayrollHeatmapRowOut. Cells are keyed by staff key.
       properties:
         cells:
           additionalProperties:
@@ -7218,6 +7232,16 @@ components:
       - grand_totals
       title: PayrollReconciliationResponse
       type: object
+    PayrollRowStatus:
+      enum:
+      - ok
+      - mismatch
+      - jm_only
+      - xero_only_salaried
+      - xero_only_departed
+      - xero_only_unposted
+      - xero_only_unknown
+      type: string
     PayrollRunStatus:
       enum:
       - queued
@@ -7257,6 +7281,9 @@ components:
         jm_hours:
           title: Jm Hours
           type: number
+        key:
+          title: Key
+          type: string
         name:
           title: Name
           type: string
@@ -7276,6 +7303,7 @@ components:
           title: Xero Hours
           type: number
       required:
+      - key
       - name
       - xero_hours
       - xero_gross
@@ -7313,6 +7341,9 @@ components:
         jm_rate:
           title: Jm Rate
           type: number
+        key:
+          title: Key
+          type: string
         name:
           title: Name
           type: string
@@ -7323,8 +7354,7 @@ components:
           title: Rate Cost Impact
           type: number
         status:
-          title: Status
-          type: string
+          $ref: '#/components/schemas/PayrollRowStatus'
         xero_gross:
           title: Xero Gross
           type: number
@@ -7341,6 +7371,7 @@ components:
           title: Xero Timesheet Hours
           type: number
       required:
+      - key
       - name
       - xero_hours
       - xero_timesheet_hours
@@ -7407,14 +7438,17 @@ components:
     PayrollWeekReconciliationResponse:
       description: One payroll week reconciled live against the provider.
       properties:
+        unposted_count:
+          title: Unposted Count
+          type: integer
         week:
           $ref: '#/components/schemas/PayrollWeekOut'
         xero_source:
-          title: Xero Source
-          type: string
+          $ref: '#/components/schemas/PayrollXeroSource'
       required:
       - week
       - xero_source
+      - unposted_count
       title: PayrollWeekReconciliationResponse
       type: object
     PayrollWeekTotalsOut:
@@ -7451,6 +7485,11 @@ components:
       - pay_diff
       title: PayrollWeekTotalsOut
       type: object
+    PayrollXeroSource:
+      enum:
+      - live_run
+      - no_pay_run
+      type: string
     PeriodSummaryOut:
       description: Wire contract for PeriodSummaryOut.
       properties:

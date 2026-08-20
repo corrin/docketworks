@@ -2646,9 +2646,19 @@ export const zPayrollGrandTotalsOut = z.object({
 });
 
 /**
+ * PayrollHeatmapColumnOut
+ *
+ * One staff column: the join key and the display name.
+ */
+export const zPayrollHeatmapColumnOut = z.object({
+    key: z.string(),
+    name: z.string()
+});
+
+/**
  * PayrollHeatmapRowOut
  *
- * Wire contract for PayrollHeatmapRowOut.
+ * Wire contract for PayrollHeatmapRowOut. Cells are keyed by staff key.
  */
 export const zPayrollHeatmapRowOut = z.object({
     cells: z.record(z.string(), z.number().nullable()),
@@ -2661,11 +2671,21 @@ export const zPayrollHeatmapRowOut = z.object({
  * Wire contract for PayrollHeatmapOut.
  */
 export const zPayrollHeatmapOut = z.object({
-    rows: z.array(zPayrollHeatmapRowOut),
-    staff_names: z.array(z.string())
+    columns: z.array(zPayrollHeatmapColumnOut),
+    rows: z.array(zPayrollHeatmapRowOut)
 });
 
 export const zPayrollPostingMode = z.enum(['timesheet', 'salary']);
+
+export const zPayrollRowStatus = z.enum([
+    'ok',
+    'mismatch',
+    'jm_only',
+    'xero_only_salaried',
+    'xero_only_departed',
+    'xero_only_unposted',
+    'xero_only_unknown'
+]);
 
 export const zPayrollRunStatus = z.enum([
     'queued',
@@ -2685,6 +2705,7 @@ export const zPayrollStaffSummaryOut = z.object({
     hours_diff: z.number(),
     jm_cost: z.number(),
     jm_hours: z.number(),
+    key: z.string(),
     name: z.string(),
     rate_cost_impact: z.number(),
     weeks_present: z.int(),
@@ -2706,10 +2727,11 @@ export const zPayrollStaffWeekRowOut = z.object({
     jm_cost: z.number(),
     jm_hours: z.number(),
     jm_rate: z.number(),
+    key: z.string(),
     name: z.string(),
     pay_diff: z.number(),
     rate_cost_impact: z.number(),
-    status: z.string(),
+    status: zPayrollRowStatus,
     xero_gross: z.number(),
     xero_hours: z.number(),
     xero_leave_hours: z.number(),
@@ -2759,14 +2781,17 @@ export const zPayrollReconciliationResponse = z.object({
     weeks: z.array(zPayrollWeekOut)
 });
 
+export const zPayrollXeroSource = z.enum(['live_run', 'no_pay_run']);
+
 /**
  * PayrollWeekReconciliationResponse
  *
  * One payroll week reconciled live against the provider.
  */
 export const zPayrollWeekReconciliationResponse = z.object({
+    unposted_count: z.int(),
     week: zPayrollWeekOut,
-    xero_source: z.string()
+    xero_source: zPayrollXeroSource
 });
 
 /**

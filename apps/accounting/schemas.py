@@ -9,6 +9,7 @@ from uuid import UUID
 
 from ninja import Schema
 
+from apps.accounting.types import PayrollRowStatus, PayrollXeroSource
 from apps.core.schemas import ResponseSchema
 
 
@@ -552,6 +553,9 @@ class SalesPipelineResponse(Schema):
 class PayrollStaffWeekRowOut(Schema):
     """Wire contract for PayrollStaffWeekRowOut."""
 
+    #: The reconciliation join identity. Rows, summaries and heatmap columns
+    #: key on this; ``name`` is display only — two staff can share one.
+    key: str
     name: str
     xero_hours: float
     xero_timesheet_hours: float
@@ -567,7 +571,7 @@ class PayrollStaffWeekRowOut(Schema):
     cost_diff: float
     hours_cost_impact: float
     rate_cost_impact: float
-    status: str
+    status: PayrollRowStatus
 
 
 class PayrollWeekTotalsOut(Schema):
@@ -604,12 +608,16 @@ class PayrollWeekReconciliationResponse(Schema):
     #: ``live_run`` when the provider's own figures were read from the week's
     #: pay run; ``no_pay_run`` when it has computed nothing to compare against,
     #: which makes every difference an artefact rather than a finding.
-    xero_source: str
+    xero_source: PayrollXeroSource
+    #: How many people the provider is paying hours we never posted — the
+    #: page's headline, counted where the status taxonomy lives.
+    unposted_count: int
 
 
 class PayrollStaffSummaryOut(Schema):
     """Wire contract for PayrollStaffSummaryOut."""
 
+    key: str
     name: str
     xero_hours: float
     xero_gross: float
@@ -623,8 +631,15 @@ class PayrollStaffSummaryOut(Schema):
     weeks_with_mismatch: int
 
 
+class PayrollHeatmapColumnOut(Schema):
+    """One staff column: the join key and the display name."""
+
+    key: str
+    name: str
+
+
 class PayrollHeatmapRowOut(Schema):
-    """Wire contract for PayrollHeatmapRowOut."""
+    """Wire contract for PayrollHeatmapRowOut. Cells are keyed by staff key."""
 
     week_start: date
     cells: dict[str, float | None]
@@ -633,7 +648,7 @@ class PayrollHeatmapRowOut(Schema):
 class PayrollHeatmapOut(Schema):
     """Wire contract for PayrollHeatmapOut."""
 
-    staff_names: list[str]
+    columns: list[PayrollHeatmapColumnOut]
     rows: list[PayrollHeatmapRowOut]
 
 

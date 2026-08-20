@@ -6382,25 +6382,41 @@ export type PayrollGrandTotalsOut = {
 };
 
 /**
+ * PayrollHeatmapColumnOut
+ *
+ * One staff column: the join key and the display name.
+ */
+export type PayrollHeatmapColumnOut = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
  * PayrollHeatmapOut
  *
  * Wire contract for PayrollHeatmapOut.
  */
 export type PayrollHeatmapOut = {
     /**
+     * Columns
+     */
+    columns: Array<PayrollHeatmapColumnOut>;
+    /**
      * Rows
      */
     rows: Array<PayrollHeatmapRowOut>;
-    /**
-     * Staff Names
-     */
-    staff_names: Array<string>;
 };
 
 /**
  * PayrollHeatmapRowOut
  *
- * Wire contract for PayrollHeatmapRowOut.
+ * Wire contract for PayrollHeatmapRowOut. Cells are keyed by staff key.
  */
 export type PayrollHeatmapRowOut = {
     /**
@@ -6494,6 +6510,8 @@ export type PayrollReconciliationResponse = {
     weeks: Array<PayrollWeekOut>;
 };
 
+export type PayrollRowStatus = 'ok' | 'mismatch' | 'jm_only' | 'xero_only_salaried' | 'xero_only_departed' | 'xero_only_unposted' | 'xero_only_unknown';
+
 export type PayrollRunStatus = 'queued' | 'running' | 'succeeded' | 'failed';
 
 /**
@@ -6536,6 +6554,10 @@ export type PayrollStaffSummaryOut = {
      * Jm Hours
      */
     jm_hours: number;
+    /**
+     * Key
+     */
+    key: string;
     /**
      * Name
      */
@@ -6597,6 +6619,10 @@ export type PayrollStaffWeekRowOut = {
      */
     jm_rate: number;
     /**
+     * Key
+     */
+    key: string;
+    /**
      * Name
      */
     name: string;
@@ -6608,10 +6634,7 @@ export type PayrollStaffWeekRowOut = {
      * Rate Cost Impact
      */
     rate_cost_impact: number;
-    /**
-     * Status
-     */
-    status: string;
+    status: PayrollRowStatus;
     /**
      * Xero Gross
      */
@@ -6673,11 +6696,12 @@ export type PayrollWeekOut = {
  * One payroll week reconciled live against the provider.
  */
 export type PayrollWeekReconciliationResponse = {
-    week: PayrollWeekOut;
     /**
-     * Xero Source
+     * Unposted Count
      */
-    xero_source: string;
+    unposted_count: number;
+    week: PayrollWeekOut;
+    xero_source: PayrollXeroSource;
 };
 
 /**
@@ -6715,6 +6739,8 @@ export type PayrollWeekTotalsOut = {
      */
     xero_hours: number;
 };
+
+export type PayrollXeroSource = 'live_run' | 'no_pay_run';
 
 /**
  * PeriodSummaryOut

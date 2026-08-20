@@ -22,7 +22,11 @@ from typing import Protocol, TypedDict, cast
 from uuid import UUID
 
 from apps.accounting.registry import get_provider
-from apps.accounting.types import PayrollSlip
+from apps.accounting.types import (
+    UNPOSTED_STATUSES,
+    PayrollRowStatus,
+    PayrollXeroSource,
+)
 from apps.accounts.models import Staff
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
@@ -31,6 +35,21 @@ from apps.job.models.costing import CostLine
 
 ZERO = Decimal("0")
 CENT = Decimal("0.01")
+TENTH = Decimal("0.1")
+
+
+def _wire(value: Decimal) -> float:
+    """Convert one computed figure to its wire float, quantized to 0.01.
+
+    Fable: The single Decimal-to-float crossing (ADR 0046 sends numbers, the
+    Quantity contract in apps/core/schemas.py keeps the arithmetic Decimal).
+    Quantized HERE so every published figure is exact at two places — the
+    report used to round some columns and ship raw binary artefacts
+    (0.30000000000000004) in others.
+    """
+    return float(value.quantize(CENT))
+
+
 #: How far ``jm_base_pay`` may sit from Xero's gross before the week is a
 #: finding, as a fraction of the gross.
 #:
@@ -139,6 +158,11 @@ def _pay_run_mirror() -> _PayRunMirror:
 class PayrollStaffWeekRow(TypedDict):
     """Per-staff row within a single reconciliation week."""
 
+    #: The identity both sides join on (``staff_key``): the Xero employee id,
+    #: or a ``staff:`` namespace for staff who cannot appear in a pay run.
+    #: Consumers key rows and columns on this, never on ``name`` — two staff
+    #: sharing a display name are two people whose money must not merge.
+    key: str
     name: str
     xero_hours: float
     xero_timesheet_hours: float
@@ -161,7 +185,7 @@ class PayrollStaffWeekRow(TypedDict):
     cost_diff: float
     hours_cost_impact: float
     rate_cost_impact: float
-    status: str
+    status: PayrollRowStatus
 
 
 class PayrollWeekTotals(TypedDict):
@@ -197,6 +221,7 @@ class PayrollWeek(TypedDict):
 class PayrollStaffSummary(TypedDict):
     """Per-staff aggregate across all weeks in the reporting window."""
 
+    key: str
     name: str
     xero_hours: float
     xero_gross: float
@@ -210,17 +235,29 @@ class PayrollStaffSummary(TypedDict):
     weeks_with_mismatch: int
 
 
+class PayrollHeatmapColumn(TypedDict):
+    """One staff column of the heatmap: the join key and the name to show."""
+
+    key: str
+    name: str
+
+
 class PayrollHeatmapRow(TypedDict):
-    """Single row in the heatmap grid (one week)."""
+    """Single row in the heatmap grid (one week). Cells are keyed by staff key."""
 
     week_start: str
     cells: dict[str, float | None]
 
 
 class PayrollHeatmap(TypedDict):
-    """Week x staff cost-difference heatmap."""
+    """Week x staff cost-difference heatmap.
 
-    staff_names: list[str]
+    Columns carry the staff KEY beside the display name: keyed on names, two
+    staff sharing one collapsed into a single column whose cells summed
+    whichever of them was the finding.
+    """
+
+    columns: list[PayrollHeatmapColumn]
     rows: list[PayrollHeatmapRow]
 
 
@@ -256,10 +293,16 @@ class PayrollWeekReconciliation(TypedDict):
     are read straight off the week's pay run and can still be settling, while
     ``no_pay_run`` means the provider has computed nothing to compare against
     and a difference would be an artefact of that, not a finding.
+
+    ``unposted_count`` is the page's headline — how many people the provider
+    is paying hours we never posted (``UNPOSTED_STATUSES``). Counted here so
+    the taxonomy has one owner; the browser re-deriving it from a hand-copied
+    status set is how a new status silently vanished from the count.
     """
 
     week: PayrollWeek
-    xero_source: str
+    xero_source: PayrollXeroSource
+    unposted_count: int
 
 
 # ---------------------------------------------------------------------------
@@ -320,20 +363,23 @@ def get_reconciliation_data(start_date: date, end_date: date) -> PayrollReconcil
             _reconcile_week(monday, xero_weeks.get(monday), staff_map) for monday in all_mondays
         ]
 
-        grand_xero = sum(w["totals"]["xero_gross"] for w in weeks)
-        grand_jm = sum(w["totals"]["jm_cost"] for w in weeks)
+        # Fable: Summed from the published week totals (re-read as Decimal), not
+        # from a parallel unquantized accumulator: a grand total that differs
+        # by a cent from the column a reader adds up reads as a defect.
+        grand_xero = sum((Decimal(str(w["totals"]["xero_gross"])) for w in weeks), ZERO)
+        grand_jm = sum((Decimal(str(w["totals"]["jm_cost"])) for w in weeks), ZERO)
         grand_diff = grand_jm - grand_xero
-        grand_pct = (grand_diff / grand_xero * 100) if grand_xero else 0.0
+        grand_pct = (grand_diff / grand_xero * 100) if grand_xero else ZERO
 
         return PayrollReconciliationData(
             weeks=weeks,
             staff_summaries=_build_staff_summaries(weeks),
             heatmap=_build_heatmap(weeks),
             grand_totals=PayrollGrandTotals(
-                xero_gross=round(grand_xero, 2),
-                jm_cost=round(grand_jm, 2),
-                diff=round(grand_diff, 2),
-                diff_pct=round(grand_pct, 1),
+                xero_gross=_wire(grand_xero),
+                jm_cost=_wire(grand_jm),
+                diff=_wire(grand_diff),
+                diff_pct=float(grand_pct.quantize(TENTH)),
             ),
         )
     except Exception as exc:
@@ -369,40 +415,23 @@ def get_week_reconciliation(week_start_date: date) -> PayrollWeekReconciliation:
 
     xero_data: dict[str, _XeroStaffWeek] = {}
     for slip in slips:
-        key = str(slip.employee_external_id)
-        entry = xero_data.get(key)
-        if entry is None:
-            entry = _XeroStaffWeek(
-                name=_provider_slip_name(slip, staff_map),
-                hours=0.0,
-                timesheet_hours=0.0,
-                leave_hours=0.0,
-                gross=0.0,
-            )
-            xero_data[key] = entry
-        entry["hours"] += float(slip.timesheet_hours + slip.leave_hours)
-        entry["timesheet_hours"] += float(slip.timesheet_hours)
-        entry["leave_hours"] += float(slip.leave_hours)
-        entry["gross"] += float(slip.gross_earnings)
+        _fold_slip(
+            xero_data,
+            staff_map,
+            employee_id=str(slip.employee_external_id),
+            employee_name=slip.employee_name,
+            slip_ref=f"provider pay slip for employee {slip.employee_external_id}",
+            timesheet_hours=slip.timesheet_hours,
+            leave_hours=slip.leave_hours,
+            gross=slip.gross_earnings,
+        )
 
     week = _reconcile_week_against(week_start_date, xero_data, staff_map, _XeroPeriod())
     return PayrollWeekReconciliation(
         week=week,
         xero_source="live_run" if slips else "no_pay_run",
+        unposted_count=sum(1 for row in week["staff"] if row["status"] in UNPOSTED_STATUSES),
     )
-
-
-def _provider_slip_name(slip: PayrollSlip, staff_map: dict[str, Staff]) -> str:
-    """Name a provider slip for display; the join key is the employee id."""
-    staff = staff_map.get(str(slip.employee_external_id))
-    if staff is not None:
-        return staff.get_display_full_name()
-    if slip.employee_name is None:
-        raise ValueError(
-            f"Provider pay slip for employee {slip.employee_external_id} has no name "
-            "and no Staff with a matching xero_user_id"
-        )
-    return slip.employee_name
 
 
 def get_aligned_date_range(start_date: date, end_date: date) -> AlignedDateRange:
@@ -429,22 +458,28 @@ def get_aligned_date_range(start_date: date, end_date: date) -> AlignedDateRange
 
 
 class _XeroStaffWeek(TypedDict):
-    """One staff member's Xero side of a week, summed across pay runs."""
+    """One staff member's Xero side of a week, summed across pay runs.
+
+    Fable: Decimal throughout, converted to float once at the wire. Money and
+    hours accumulated as float is the named defect class in the Quantity
+    contract (apps/core/schemas.py): binary rounding error inside what a
+    person is paid, and a tolerance comparison that can flip at the boundary.
+    """
 
     name: str
-    hours: float
-    timesheet_hours: float
-    leave_hours: float
-    gross: float
+    hours: Decimal
+    timesheet_hours: Decimal
+    leave_hours: Decimal
+    gross: Decimal
 
 
 class _JMStaffWeek(TypedDict):
     """One staff member's JM side of a week."""
 
     name: str
-    hours: float
-    cost: float
-    base_pay: float
+    hours: Decimal
+    cost: Decimal
+    base_pay: Decimal
     #: Carried so the report can say WHY Xero is paying someone we did not
     #: post for: departed is the finding, salaried is expected.
     date_left: date | None
@@ -487,24 +522,58 @@ def _build_staff_xero_map() -> dict[str, Staff]:
     }
 
 
-def _slip_display_name(slip: _PaySlipRow, staff_map: dict[str, Staff]) -> str:
+def _slip_name(
+    employee_id: str, employee_name: str | None, staff_map: dict[str, Staff], slip_ref: str
+) -> str:
     """Resolve the name a slip's hours are shown under — display only, never the key.
 
     Matched staff use their full DocketWorks name, so two people sharing a
-    first name stay distinguishable; an unmatched slip falls back to Xero's
-    denormalised name. Both missing is a sync defect the report cannot
-    reconcile around, so it fails loudly (ADR 0015) instead of emitting a
-    null-named row v1 would have 500'd on at the serializer.
+    first name stay distinguishable; an unmatched slip falls back to the
+    provider's denormalised name. Both missing is a sync defect the report
+    cannot reconcile around, so it fails loudly (ADR 0015) instead of emitting
+    a null-named row v1 would have 500'd on at the serializer.
     """
-    staff = staff_map.get(str(slip.xero_employee_id))
+    staff = staff_map.get(employee_id)
     if staff is not None:
         return staff.get_display_full_name()
-    if slip.employee_name is None:
+    if employee_name is None:
         raise ValueError(
-            f"Xero pay slip {slip.xero_id} (employee {slip.xero_employee_id}) has "
-            "no employee_name and no Staff with a matching xero_user_id"
+            f"{slip_ref} has no employee_name and no Staff with a matching xero_user_id"
         )
-    return slip.employee_name
+    return employee_name
+
+
+def _fold_slip(  # noqa: PLR0913 -- One argument per slip fact; both slip shapes flatten here.
+    result: dict[str, _XeroStaffWeek],
+    staff_map: dict[str, Staff],
+    *,
+    employee_id: str,
+    employee_name: str | None,
+    slip_ref: str,
+    timesheet_hours: Decimal,
+    leave_hours: Decimal,
+    gross: Decimal,
+) -> None:
+    """Fold one slip into the week's Xero side, keyed by employee id.
+
+    Fable: The one fold for both sources of slips — the synced mirror rows and
+    the provider's live read. It was written twice over two structurally
+    identical shapes, which is the sibling drift ADR 0039 exists to prevent.
+    """
+    entry = result.get(employee_id)
+    if entry is None:
+        entry = _XeroStaffWeek(
+            name=_slip_name(employee_id, employee_name, staff_map, slip_ref),
+            hours=ZERO,
+            timesheet_hours=ZERO,
+            leave_hours=ZERO,
+            gross=ZERO,
+        )
+        result[employee_id] = entry
+    entry["hours"] += timesheet_hours + leave_hours
+    entry["timesheet_hours"] += timesheet_hours
+    entry["leave_hours"] += leave_hours
+    entry["gross"] += gross
 
 
 def _get_xero_week_data(
@@ -514,30 +583,22 @@ def _get_xero_week_data(
     result: dict[str, _XeroStaffWeek] = {}
     for pay_run in pay_runs:
         for slip in pay_run.pay_slips.all():
-            key = str(slip.xero_employee_id)
-            entry = result.get(key)
-            if entry is None:
-                entry = _XeroStaffWeek(
-                    name=_slip_display_name(slip, staff_map),
-                    hours=0.0,
-                    timesheet_hours=0.0,
-                    leave_hours=0.0,
-                    gross=0.0,
-                )
-                result[key] = entry
-            entry["hours"] += float(slip.timesheet_hours + slip.leave_hours)
-            entry["timesheet_hours"] += float(slip.timesheet_hours)
-            entry["leave_hours"] += float(slip.leave_hours)
-            entry["gross"] += float(slip.gross_earnings)
+            _fold_slip(
+                result,
+                staff_map,
+                employee_id=str(slip.xero_employee_id),
+                employee_name=slip.employee_name,
+                slip_ref=f"Xero pay slip {slip.xero_id} (employee {slip.xero_employee_id})",
+                timesheet_hours=slip.timesheet_hours,
+                leave_hours=slip.leave_hours,
+                gross=slip.gross_earnings,
+            )
     return result
 
 
-def _pay_tolerance(xero_gross: float) -> float:
+def _pay_tolerance(xero_gross: Decimal) -> Decimal:
     """How far base pay may sit from this gross before the row is a finding."""
-    return max(
-        abs(xero_gross) * float(PAY_TOLERANCE_FRACTION),
-        float(PAY_TOLERANCE_FLOOR),
-    )
+    return max(abs(xero_gross) * PAY_TOLERANCE_FRACTION, PAY_TOLERANCE_FLOOR)
 
 
 def staff_key(staff: Staff) -> str:
@@ -608,9 +669,9 @@ def _get_jm_week_data(week_start: date, week_end: date) -> dict[str, _JMStaffWee
     return {
         key: _JMStaffWeek(
             name=staff_by_key[key].get_display_full_name(),
-            hours=float(hours[key]),
-            cost=float(cost[key]),
-            base_pay=float(base_pay[key].quantize(CENT)),
+            hours=hours[key],
+            cost=cost[key],
+            base_pay=base_pay[key].quantize(CENT),
             date_left=staff_by_key[key].date_left,
             pay_basis=staff_by_key[key].pay_basis,
         )
@@ -665,7 +726,7 @@ def _row_name(
     return xero_data[key]["name"]
 
 
-def _unposted_status(key: str, staff_map: dict[str, Staff]) -> str:
+def _unposted_status(key: str, staff_map: dict[str, Staff]) -> PayrollRowStatus:
     """Say WHY Xero is paying someone we posted no hours for.
 
     One bucket made the report unreadable, because these mean opposite things:
@@ -722,11 +783,11 @@ def _reconcile_week_against(
     )
 
     staff_rows: list[PayrollStaffWeekRow] = []
-    total_xero_gross = 0.0
-    total_jm_cost = 0.0
-    total_jm_base_pay = 0.0
-    total_xero_hours = 0.0
-    total_jm_hours = 0.0
+    total_xero_gross = ZERO
+    total_jm_cost = ZERO
+    total_jm_base_pay = ZERO
+    total_xero_hours = ZERO
+    total_jm_hours = ZERO
     mismatch_count = 0
 
     for key in all_keys:
@@ -734,17 +795,17 @@ def _reconcile_week_against(
         jm = jm_data.get(key)
         name = _row_name(key, xero_data, jm_data)
 
-        xero_gross = xero["gross"] if xero is not None else 0.0
-        jm_cost = jm["cost"] if jm is not None else 0.0
-        jm_base_pay = jm["base_pay"] if jm is not None else 0.0
-        xero_hrs = xero["hours"] if xero is not None else 0.0
-        jm_hrs = jm["hours"] if jm is not None else 0.0
+        xero_gross = xero["gross"] if xero is not None else ZERO
+        jm_cost = jm["cost"] if jm is not None else ZERO
+        jm_base_pay = jm["base_pay"] if jm is not None else ZERO
+        xero_hrs = xero["hours"] if xero is not None else ZERO
+        jm_hrs = jm["hours"] if jm is not None else ZERO
         cost_diff = jm_cost - xero_gross
         pay_diff = jm_base_pay - xero_gross
         hrs_diff = jm_hrs - xero_hrs
 
-        xero_rate = xero_gross / xero_hrs if xero_hrs else 0.0
-        jm_rate = jm_cost / jm_hrs if jm_hrs else 0.0
+        xero_rate = xero_gross / xero_hrs if xero_hrs else ZERO
+        jm_rate = jm_cost / jm_hrs if jm_hrs else ZERO
         hours_cost_impact = hrs_diff * xero_rate
         rate_cost_impact = cost_diff - hours_cost_impact
 
@@ -755,11 +816,12 @@ def _reconcile_week_against(
         total_jm_hours += jm_hrs
 
         staff = staff_map.get(key)
+        row_status: PayrollRowStatus
         if xero is None:
             row_status = "jm_only"
         elif staff is not None and staff.pay_basis == "salary":
             row_status = "xero_only_salaried"
-        elif jm is None or jm["hours"] == 0.0:
+        elif jm is None or not jm["hours"]:
             row_status = _unposted_status(key, staff_map)
         elif abs(pay_diff) > _pay_tolerance(xero_gross):
             # Judged on base pay against Xero's gross, the two figures that
@@ -774,21 +836,22 @@ def _reconcile_week_against(
 
         staff_rows.append(
             PayrollStaffWeekRow(
+                key=key,
                 name=name,
-                xero_hours=xero_hrs,
-                xero_timesheet_hours=xero["timesheet_hours"] if xero is not None else 0.0,
-                xero_leave_hours=xero["leave_hours"] if xero is not None else 0.0,
-                xero_gross=xero_gross,
-                xero_rate=round(xero_rate, 2),
-                jm_hours=jm_hrs,
-                jm_cost=jm_cost,
-                jm_rate=round(jm_rate, 2),
-                jm_base_pay=jm_base_pay,
-                pay_diff=round(pay_diff, 2),
-                hours_diff=hrs_diff,
-                cost_diff=cost_diff,
-                hours_cost_impact=round(hours_cost_impact, 2),
-                rate_cost_impact=round(rate_cost_impact, 2),
+                xero_hours=_wire(xero_hrs),
+                xero_timesheet_hours=_wire(xero["timesheet_hours"] if xero is not None else ZERO),
+                xero_leave_hours=_wire(xero["leave_hours"] if xero is not None else ZERO),
+                xero_gross=_wire(xero_gross),
+                xero_rate=_wire(xero_rate),
+                jm_hours=_wire(jm_hrs),
+                jm_cost=_wire(jm_cost),
+                jm_rate=_wire(jm_rate),
+                jm_base_pay=_wire(jm_base_pay),
+                pay_diff=_wire(pay_diff),
+                hours_diff=_wire(hrs_diff),
+                cost_diff=_wire(cost_diff),
+                hours_cost_impact=_wire(hours_cost_impact),
+                rate_cost_impact=_wire(rate_cost_impact),
                 status=row_status,
             )
         )
@@ -799,13 +862,13 @@ def _reconcile_week_against(
         xero_period_end=period.end,
         payment_date=period.payment_date,
         totals=PayrollWeekTotals(
-            xero_gross=total_xero_gross,
-            jm_cost=total_jm_cost,
-            diff=total_jm_cost - total_xero_gross,
-            xero_hours=total_xero_hours,
-            jm_hours=total_jm_hours,
-            jm_base_pay=total_jm_base_pay,
-            pay_diff=total_jm_base_pay - total_xero_gross,
+            xero_gross=_wire(total_xero_gross),
+            jm_cost=_wire(total_jm_cost),
+            diff=_wire(total_jm_cost - total_xero_gross),
+            xero_hours=_wire(total_xero_hours),
+            jm_hours=_wire(total_jm_hours),
+            jm_base_pay=_wire(total_jm_base_pay),
+            pay_diff=_wire(total_jm_base_pay - total_xero_gross),
         ),
         mismatch_count=mismatch_count,
         staff=staff_rows,
@@ -815,26 +878,34 @@ def _reconcile_week_against(
 class _StaffAccum(TypedDict):
     """Running per-staff totals while folding weeks into summaries."""
 
-    xero_hours: float
-    xero_gross: float
-    jm_hours: float
-    jm_cost: float
-    hours_cost_impact: float
-    rate_cost_impact: float
+    name: str
+    xero_hours: Decimal
+    xero_gross: Decimal
+    jm_hours: Decimal
+    jm_cost: Decimal
+    hours_cost_impact: Decimal
+    rate_cost_impact: Decimal
     weeks_with_mismatch: int
     weeks_present: int
 
 
 def _build_staff_summaries(weeks: list[PayrollWeek]) -> list[PayrollStaffSummary]:
-    """Aggregate per-staff totals across all weeks."""
-    by_name: defaultdict[str, _StaffAccum] = defaultdict(
+    """Aggregate per-staff totals across all weeks.
+
+    Keyed by the row's ``key``, never its name: ``staff_key``'s own contract —
+    two people sharing a display name are two rows whose money must not merge.
+    The published week rows carry wire floats, so each figure is re-read as
+    Decimal before it is summed.
+    """
+    by_key: defaultdict[str, _StaffAccum] = defaultdict(
         lambda: _StaffAccum(
-            xero_hours=0.0,
-            xero_gross=0.0,
-            jm_hours=0.0,
-            jm_cost=0.0,
-            hours_cost_impact=0.0,
-            rate_cost_impact=0.0,
+            name="",
+            xero_hours=ZERO,
+            xero_gross=ZERO,
+            jm_hours=ZERO,
+            jm_cost=ZERO,
+            hours_cost_impact=ZERO,
+            rate_cost_impact=ZERO,
             weeks_with_mismatch=0,
             weeks_present=0,
         )
@@ -842,31 +913,33 @@ def _build_staff_summaries(weeks: list[PayrollWeek]) -> list[PayrollStaffSummary
 
     for week in weeks:
         for row in week["staff"]:
-            acc = by_name[row["name"]]
-            acc["xero_hours"] += row["xero_hours"]
-            acc["xero_gross"] += row["xero_gross"]
-            acc["jm_hours"] += row["jm_hours"]
-            acc["jm_cost"] += row["jm_cost"]
-            acc["hours_cost_impact"] += row["hours_cost_impact"]
-            acc["rate_cost_impact"] += row["rate_cost_impact"]
+            acc = by_key[row["key"]]
+            acc["name"] = row["name"]
+            acc["xero_hours"] += Decimal(str(row["xero_hours"]))
+            acc["xero_gross"] += Decimal(str(row["xero_gross"]))
+            acc["jm_hours"] += Decimal(str(row["jm_hours"]))
+            acc["jm_cost"] += Decimal(str(row["jm_cost"]))
+            acc["hours_cost_impact"] += Decimal(str(row["hours_cost_impact"]))
+            acc["rate_cost_impact"] += Decimal(str(row["rate_cost_impact"]))
             acc["weeks_present"] += 1
             if row["status"] not in {"ok", "xero_only_salaried"}:
                 acc["weeks_with_mismatch"] += 1
 
     result: list[PayrollStaffSummary] = []
-    for name in sorted(by_name):
-        acc = by_name[name]
+    for key in sorted(by_key, key=lambda item: by_key[item]["name"]):
+        acc = by_key[key]
         result.append(
             PayrollStaffSummary(
-                name=name,
-                xero_hours=round(acc["xero_hours"], 2),
-                xero_gross=round(acc["xero_gross"], 2),
-                jm_hours=round(acc["jm_hours"], 2),
-                jm_cost=round(acc["jm_cost"], 2),
-                hours_diff=round(acc["jm_hours"] - acc["xero_hours"], 2),
-                cost_diff=round(acc["jm_cost"] - acc["xero_gross"], 2),
-                hours_cost_impact=round(acc["hours_cost_impact"], 2),
-                rate_cost_impact=round(acc["rate_cost_impact"], 2),
+                key=key,
+                name=acc["name"],
+                xero_hours=_wire(acc["xero_hours"]),
+                xero_gross=_wire(acc["xero_gross"]),
+                jm_hours=_wire(acc["jm_hours"]),
+                jm_cost=_wire(acc["jm_cost"]),
+                hours_diff=_wire(acc["jm_hours"] - acc["xero_hours"]),
+                cost_diff=_wire(acc["jm_cost"] - acc["xero_gross"]),
+                hours_cost_impact=_wire(acc["hours_cost_impact"]),
+                rate_cost_impact=_wire(acc["rate_cost_impact"]),
                 weeks_present=acc["weeks_present"],
                 weeks_with_mismatch=acc["weeks_with_mismatch"],
             )
@@ -876,20 +949,23 @@ def _build_staff_summaries(weeks: list[PayrollWeek]) -> list[PayrollStaffSummary
 
 
 def _build_heatmap(weeks: list[PayrollWeek]) -> PayrollHeatmap:
-    """Build week x staff grid of cost differences for heatmap display."""
-    all_names: set[str] = set()
+    """Build the week x staff grid of cost differences, columns keyed by staff key."""
+    names_by_key: dict[str, str] = {}
     for week in weeks:
         for row in week["staff"]:
-            all_names.add(row["name"])
+            names_by_key[row["key"]] = row["name"]
 
-    staff_names = sorted(all_names)
+    columns = [
+        PayrollHeatmapColumn(key=key, name=names_by_key[key])
+        for key in sorted(names_by_key, key=lambda item: names_by_key[item])
+    ]
     rows: list[PayrollHeatmapRow] = []
     for week in weeks:
-        staff_by_name = {row["name"]: row for row in week["staff"]}
+        staff_by_key = {row["key"]: row for row in week["staff"]}
         cells: dict[str, float | None] = {}
-        for name in staff_names:
-            match = staff_by_name.get(name)
-            cells[name] = round(match["cost_diff"], 2) if match is not None else None
+        for column in columns:
+            match = staff_by_key.get(column["key"])
+            cells[column["key"]] = match["cost_diff"] if match is not None else None
         rows.append(PayrollHeatmapRow(week_start=week["week_start"], cells=cells))
 
-    return PayrollHeatmap(staff_names=staff_names, rows=rows)
+    return PayrollHeatmap(columns=columns, rows=rows)

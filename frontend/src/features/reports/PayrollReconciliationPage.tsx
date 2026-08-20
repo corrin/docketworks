@@ -24,7 +24,14 @@ import { SummaryCard } from './SummaryCard'
  * surface them. They appear here as "Not posted".
  */
 
-const STATUS_WORDING: Record<string, string> = {
+/** The row's closed status set, straight off the wire contract. */
+type RowStatus = PayrollStaffWeekRowOut['status']
+
+// Typed against the generated union rather than Record<string, string>, so a
+// status the backend adds is a compile error here instead of a raw code
+// rendered to the operator. The taxonomy itself — including which statuses
+// count as findings — lives on the server (unposted_count arrives computed).
+const STATUS_WORDING: Record<RowStatus, string> = {
   ok: 'Matches',
   mismatch: 'Differs',
   xero_only_departed: 'Left — Xero is still paying them',
@@ -34,8 +41,15 @@ const STATUS_WORDING: Record<string, string> = {
   jm_only: 'No pay slip',
 }
 
-/** The rows an operator has to act on. Salaried staff are expected, not a gap. */
-const UNPOSTED_FINDINGS = new Set(['xero_only_departed', 'xero_only_unposted', 'xero_only_unknown'])
+const ROW_TONE: Record<RowStatus, string> = {
+  ok: '',
+  mismatch: 'text-amber-900',
+  xero_only_departed: 'bg-red-50 text-red-900',
+  xero_only_unposted: 'bg-red-50 text-red-900',
+  xero_only_unknown: 'bg-red-50 text-red-900',
+  xero_only_salaried: '',
+  jm_only: '',
+}
 
 /**
  * DocketWorks holds both a loaded wage and a base wage: the loaded one is what
@@ -52,14 +66,6 @@ function ourDollars(row: PayrollStaffWeekRowOut, wageBasis: WageBasis): number {
 
 type WageBasis = 'base' | 'loaded'
 
-function rowTone(status: string): string {
-  if (status === 'xero_only_departed') return 'bg-red-50 text-red-900'
-  if (status === 'xero_only_unknown') return 'bg-red-50 text-red-900'
-  if (status === 'xero_only_unposted') return 'bg-red-50 text-red-900'
-  if (status === 'mismatch') return 'text-amber-900'
-  return ''
-}
-
 export function PayrollReconciliationPage({ weekStart }: { weekStart: string }) {
   // Base by default: this page exists to be compared with Xero, and Xero pays
   // the base wage.
@@ -72,7 +78,6 @@ export function PayrollReconciliationPage({ weekStart }: { weekStart: string }) 
 
   const week = report.data?.week
   const rows = week?.staff
-  const unposted = (rows ?? []).filter((row) => UNPOSTED_FINDINGS.has(row.status))
   // Both totals come from the server, like every other figure on this page. The
   // base column is what each row's status is judged on, so re-summing it here
   // made the headline total a second computation of a business value the
@@ -149,8 +154,8 @@ export function PayrollReconciliationPage({ weekStart }: { weekStart: string }) 
         }
         renderRow={(row) => (
           <tr
-            key={row.name}
-            className={`border-b border-gray-100 ${rowTone(row.status)}`}
+            key={row.key}
+            className={`border-b border-gray-100 ${ROW_TONE[row.status]}`}
             data-automation-id={`PayrollReconciliation-row-${row.status}`}
           >
             <td className="px-3 py-2">{row.name}</td>
@@ -159,7 +164,7 @@ export function PayrollReconciliationPage({ weekStart }: { weekStart: string }) 
             <td className="px-3 py-2 text-right font-medium">{formatCurrency(row.pay_diff)}</td>
             <td className="px-3 py-2 text-right">{row.jm_hours}</td>
             <td className="px-3 py-2 text-right">{row.xero_hours}</td>
-            <td className="px-3 py-2">{STATUS_WORDING[row.status] ?? row.status}</td>
+            <td className="px-3 py-2">{STATUS_WORDING[row.status]}</td>
           </tr>
         )}
       >
@@ -181,7 +186,7 @@ export function PayrollReconciliationPage({ weekStart }: { weekStart: string }) 
               label="Paid but not posted"
               valueAutomationId="PayrollReconciliation-unposted-count"
             >
-              {unposted.length}
+              {report.data?.unposted_count ?? 0}
             </SummaryCard>
           </div>
         )}

@@ -380,6 +380,60 @@ class TestWeekDiffMath:
         assert row["status"] == "ok"
         assert week["mismatch_count"] == 0
 
+    def test_a_gap_of_exactly_the_tolerance_is_still_ok(self, job: Job) -> None:
+        """The band is inclusive, and it holds exactly at the boundary.
+
+        Fable: These figures sit on the tolerance floor (gross 50.00 makes the
+        band exactly 1.00), computed at cent precision — the case Decimal
+        arithmetic exists for, since a float fold can land either side of the
+        boundary by a binary artefact smaller than any real difference.
+        """
+        cheap = make_staff(
+            "payroll-recon-boundary-ok@example.com",
+            first_name="Bo",
+            last_name="Boundary",
+            base_wage_rate=Decimal("10.00"),
+        )
+        # 5.100h at 10.00 = 51.00 base; gross 50.00; the gap IS the 1.00 band.
+        make_time_line(job, cheap, accounting_date=date(2026, 5, 5), hours="5.100")
+        pay_run = _make_pay_run()
+        _make_pay_slip(
+            pay_run,
+            employee_id=uuid.UUID(str(cheap.xero_user_id)),
+            timesheet_hours="5.1",
+            gross="50.00",
+        )
+
+        data = payroll_reconciliation_service.get_reconciliation_data(MONDAY, date(2026, 5, 10))
+
+        [row] = data["weeks"][0]["staff"]
+        assert row["pay_diff"] == 1.0
+        assert row["status"] == "ok"
+
+    def test_one_cent_past_the_tolerance_is_a_mismatch(self, job: Job) -> None:
+        """Pairs the inclusive boundary with its converse, one cent over."""
+        cheap = make_staff(
+            "payroll-recon-boundary-over@example.com",
+            first_name="Bo",
+            last_name="Boundary",
+            base_wage_rate=Decimal("10.00"),
+        )
+        # 5.101h at 10.00 = 51.01 base; gross 50.00; one cent past the band.
+        make_time_line(job, cheap, accounting_date=date(2026, 5, 5), hours="5.101")
+        pay_run = _make_pay_run()
+        _make_pay_slip(
+            pay_run,
+            employee_id=uuid.UUID(str(cheap.xero_user_id)),
+            timesheet_hours="5.1",
+            gross="50.00",
+        )
+
+        data = payroll_reconciliation_service.get_reconciliation_data(MONDAY, date(2026, 5, 10))
+
+        [row] = data["weeks"][0]["staff"]
+        assert row["pay_diff"] == 1.01
+        assert row["status"] == "mismatch"
+
 
 class TestUnmatchedStaff:
     def test_jm_only_staff_shows_zero_xero_side(self, job: Job, wendy: Staff) -> None:
@@ -579,7 +633,39 @@ class TestCrossWeekAggregation:
         assert by_name["Wendy Workshop"]["cost_diff"] == 768.0
         assert by_name["Otto Other"]["weeks_present"] == 1
 
-        assert data["heatmap"]["staff_names"] == ["Otto Other", "Wendy Workshop"]
+        columns = data["heatmap"]["columns"]
+        assert [column["name"] for column in columns] == ["Otto Other", "Wendy Workshop"]
+        assert [column["key"] for column in columns] == [
+            str(otto.xero_user_id),
+            str(wendy.xero_user_id),
+        ]
         week_two = data["heatmap"]["rows"][1]
         assert week_two["week_start"] == "2026-05-11"
-        assert week_two["cells"] == {"Otto Other": None, "Wendy Workshop": 384.0}
+        assert week_two["cells"] == {
+            str(otto.xero_user_id): None,
+            str(wendy.xero_user_id): 384.0,
+        }
+
+    def test_two_staff_with_identical_full_names_do_not_merge_across_weeks(self, job: Job) -> None:
+        """Summaries and heatmap columns aggregate by key, never by display name.
+
+        Fable: The per-week rows already joined on the Xero employee id, but the
+        cross-week fold re-keyed them by name — so two people with one full
+        name merged into a single summary row and heatmap column, summing
+        their money and hiding whichever of them was the finding. This is the
+        exact failure staff_key's contract names.
+        """
+        first = make_staff(
+            "payroll-recon-meilin-1@example.com", first_name="Mei-Lin", last_name="Chen"
+        )
+        second = make_staff(
+            "payroll-recon-meilin-2@example.com", first_name="Mei-Lin", last_name="Chen"
+        )
+        make_time_line(job, first, accounting_date=date(2026, 5, 5), hours="8.000")
+        make_time_line(job, second, accounting_date=date(2026, 5, 5), hours="4.000")
+
+        data = payroll_reconciliation_service.get_reconciliation_data(MONDAY, date(2026, 5, 10))
+
+        assert len(data["staff_summaries"]) == 2
+        assert sorted(s["jm_hours"] for s in data["staff_summaries"]) == [4.0, 8.0]
+        assert len(data["heatmap"]["columns"]) == 2
