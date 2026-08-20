@@ -5,7 +5,7 @@ from django.conf.urls.static import static
 from django.urls import path
 
 from apps.operations.events import data_versions_stream
-from apps.timesheet.events import payroll_post_stream
+from apps.timesheet.events import payroll_runs_stream
 from apps.xero.oauth_views import xero_authenticate, xero_oauth_callback
 from apps.xero.webhooks import XeroWebhookView
 from config.api import api
@@ -28,9 +28,9 @@ urlpatterns = [
     path("api/data-versions/stream/", data_versions_stream, name="data_versions_stream"),
     # Opus: The posting itself runs in a Celery task; this endpoint only reports it.
     path(
-        "api/timesheets/payroll/post-staff-week/stream/<str:task_id>/",
-        payroll_post_stream,
-        name="payroll_post_stream",
+        "api/timesheets/payroll/runs/stream/",
+        payroll_runs_stream,
+        name="payroll_runs_stream",
     ),
     path("api/", api.urls),
 ]

@@ -12,7 +12,8 @@ from uuid import UUID
 from ninja import Schema
 from pydantic import Field
 
-from apps.core.schemas import Quantity, omittable
+from apps.accounting.types import PayrollPostingMode
+from apps.core.schemas import Quantity, ResponseSchema, omittable
 from apps.job.schemas import CostLineOut, JobLabourRateOut
 
 # These bounds keep workshop inputs representable by their decimal columns and
@@ -435,11 +436,97 @@ class PostWeekToXeroRequest(Schema):
     week_start_date: date
 
 
-class PostWeekToXeroStartResponse(Schema):
-    """Wire contract for PostWeekToXeroStartResponse."""
+#: Opus: How a posting run stands. ONE field, where there were five event kinds
+#: and a `TERMINAL_EVENTS` set that disagreed with the client about which ended
+#: a run: the task published `error` then `done`, the stream returned on the
+#: `error`, and the client — which keys "finished" off `done` — reconnected three
+#: times and reported "the run ended without reporting an outcome". A real
+#: failure with an actionable message became a silent quarter-hour. A run cannot
+#: be in two of these at once, so the disagreement has nowhere to live.
+type PayrollRunStatus = Literal["queued", "running", "succeeded", "failed"]
 
-    task_id: UUID
-    stream_url: str
+
+class StaffWeekPostResultOut(ResponseSchema):
+    """One staff member's outcome, as the run reports it.
+
+    Opus: Built by `model_validate` off the frozen `StaffWeekPostResult` dataclass
+    rather than a hand-written flattening step. The flattening was a second
+    declaration of these fields, and a third lived in TypeScript.
+    """
+
+    # Opus: No defaults. This is a ResponseSchema — every declared field is in the
+    # body — and a default on a Quantity published `default: "0"` against a
+    # numeric type, because a Decimal default serialises as a string. The
+    # dataclass this is validated from carries the defaults; the wire does not
+    # need a second opinion about them.
+    staff_id: str
+    staff_name: str
+    success: bool
+    timesheet_id: str | None
+    entries_posted: int
+    work_hours: Quantity
+    other_leave_hours: Quantity
+    leave_hours: Quantity
+    skipped: bool
+    reason: str | None
+    has_entries: bool
+    error: str | None
+    posting_mode: PayrollPostingMode
+    salary_timesheet_removed: bool
+
+
+class PayrollPostRunOut(ResponseSchema):
+    """The whole state of a payroll posting run.
+
+    Opus: Latest-state-wins, the contract ADR 0047 already proves with
+    data-versions: every push carries the complete current document, so a client
+    that connects late, reconnects, or reloads needs no replay and no offset —
+    it needs the present. The append-only event log this replaces existed to
+    make replay exact, which is a problem this shape does not have.
+
+    `updated_at` is the ordering guard. A catch-up read can be in flight when a
+    push lands, and the older answer would otherwise overwrite a finished run
+    with a running one, leaving a panel spinning forever.
+    """
+
+    run_id: UUID
+    week_start_date: date
+    status: PayrollRunStatus
+    total: int
+    completed: int
+    successful: int
+    failed: int
+    current_staff_name: str | None
+    #: Opus: A batch-level refusal or failure, verbatim (ADR 0038). This is the
+    #: field that was unreachable: "Xero locks leave while the employee is in a
+    #: draft pay run — delete the draft for 2026-07-13, then post again" is
+    #: exactly what an operator needs and never saw.
+    message: str | None
+    updated_at: datetime
+    results: list[StaffWeekPostResultOut]
+
+
+class PayrollRunsOut(ResponseSchema):
+    """Every payroll run this organisation currently has state for.
+
+    Opus: A named slot rather than a discriminated union: the slot IS the kind, so
+    TypeScript narrows by field access with no ceremony. A second kind — the
+    comparison run — becomes a second slot, and the frontend's exhaustiveness
+    check makes forgetting to handle it a compile error.
+    """
+
+    post: PayrollPostRunOut | None
+
+
+class PostWeekToXeroStartResponse(Schema):
+    """Wire contract for PostWeekToXeroStartResponse.
+
+    Opus: Returns the run's opening document rather than a `stream_url`. The panel
+    can render "0 of N" before any push arrives, and the stream path is a client
+    constant like `data-versions-stream.ts`'s — a URL is not a contract.
+    """
+
+    run: PayrollPostRunOut
 
 
 class StaffWeekPostingOut(Schema):

@@ -276,6 +276,14 @@ if "connection_class" in EVENTSTREAM_REDIS:
 # The database name is the thing that tells those instances apart.
 DATA_VERSIONS_CHANNEL = f"data-versions-{DATABASES['default']['NAME']}"
 
+# Opus: Payroll runs get their OWN channel rather than an event on the one above,
+# and the reason is authorisation rather than tidiness. That stream authenticates
+# any staff member (CookieJWTAuth); this document carries names, hours and pay
+# basis, so its view uses SuperuserCookieJWTAuth — sharing a channel would push
+# other people's pay to every logged-in worker's open stream. Namespaced by
+# database for the same reason as its sibling.
+PAYROLL_RUNS_CHANNEL = f"payroll-runs-{DATABASES['default']['NAME']}"
+
 # django-solo caches CompanyDefaults.get_solo() across reads; routed onto
 # "shared" makes edits propagate to every worker immediately.
 SOLO_CACHE: str | None = "shared"  # settings_test overrides to None (no caching across tests)

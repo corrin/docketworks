@@ -16,6 +16,7 @@ import uuid
 from collections.abc import Iterator, Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from typing import cast
 
 import pytest
 from django.apps import apps as django_apps
@@ -33,7 +34,7 @@ from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.models import CompanyDefaults
 from apps.timesheet import tasks
-from apps.timesheet.services import payroll_progress, payroll_service
+from apps.timesheet.services import payroll_runs, payroll_service
 
 pytestmark = [
     pytest.mark.django_db,
@@ -266,9 +267,16 @@ class TestPayRunWrites:
 
 
 class TestPostStaffWeek:
-    def test_registers_a_task_and_returns_its_stream_url(
+    def test_it_answers_with_the_runs_opening_document(
         self, manage_client: Client, worker: Staff
     ) -> None:
+        """The document, not a task id and a stream URL.
+
+        Opus: The panel renders "0 of N" from this before any push arrives, and the
+        same shape is what the poll and the stream carry — so there is one
+        contract rather than a URL the client had to follow and a payload only
+        hand-written TypeScript described.
+        """
         response = manage_client.post(
             "/api/timesheets/payroll/post-staff-week/",
             data={"staff_ids": [str(worker.id)], "week_start_date": "2026-05-04"},
@@ -276,13 +284,53 @@ class TestPostStaffWeek:
         )
 
         assert response.status_code == 200, response.content
-        body = response.json()
-        task_id = body["task_id"]
-        assert body["stream_url"] == (f"/api/timesheets/payroll/post-staff-week/stream/{task_id}/")
-        assert payroll_progress.get_task(task_id) == {
-            "staff_ids": [str(worker.id)],
-            "week_start_date": "2026-05-04",
-        }
+        run = response.json()["run"]
+        assert run["week_start_date"] == "2026-05-04"
+        assert run["status"] == "running"
+        assert run["total"] == 1
+        assert run["results"] == []
+
+    def test_posting_is_refused_while_another_run_holds_the_calendar(
+        self, manage_client: Client, worker: Staff
+    ) -> None:
+        """Two runs against one calendar can pay a week twice, or half of it.
+
+        Opus: The claim is held directly rather than by starting a real first run,
+        because the test settings run Celery eagerly — an inline first run has
+        already finished and released by the time a second request arrives, so
+        two POSTs cannot express "while one is live" at all.
+
+        Refused HERE, synchronously, with the live run named. The shape this
+        replaces refused inside the task, which meant inventing a second run,
+        writing a fabricated failure into it, and making the client open a
+        stream to discover it had been refused.
+        """
+        live = str(uuid.uuid4())
+        assert payroll_runs.acquire_run_claim("tenant-1", live) is None
+
+        response = manage_client.post(
+            "/api/timesheets/payroll/post-staff-week/",
+            data={"staff_ids": [str(worker.id)], "week_start_date": "2026-05-04"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 409, response.content
+        assert live in response.json()["detail"]
+
+    def test_the_run_is_readable_without_the_id_it_was_given(
+        self, manage_client: Client, worker: Staff
+    ) -> None:
+        """What makes a reload rejoin a live run."""
+        manage_client.post(
+            "/api/timesheets/payroll/post-staff-week/",
+            data={"staff_ids": [str(worker.id)], "week_start_date": "2026-05-04"},
+            content_type="application/json",
+        )
+
+        response = manage_client.get("/api/timesheets/payroll/runs/")
+
+        assert response.status_code == 200, response.content
+        assert response.json()["post"]["week_start_date"] == "2026-05-04"
 
     def test_a_broker_that_refuses_the_dispatch_ends_the_run(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
@@ -290,27 +338,23 @@ class TestPostStaffWeek:
         """Otherwise the registered run has no publisher and the page spins for 1800s.
 
         Opus: The stream cannot tell a run that never started from a slow one, so the
-        only place that knows is here — the dispatch that raised.
+        only place that knows is here — the dispatch that raised. Releasing the
+        claim matters as much as closing the run: without it the refusal would
+        block payroll until the claim's TTL expired.
         """
 
         def refuse(*_args: object, **_kwargs: object) -> None:
             raise OSError("Connection refused by the broker")
 
-        # Opus: Watching what is published rather than reading it back by task id:
-        # the id is minted inside the call, and the question this test asks is
-        # whether ANYTHING terminal was said, not where it was stored.
-        published: list[dict[str, object]] = []
-        monkeypatch.setattr(
-            payroll_progress, "publish", lambda _task_id, event: published.append(event)
-        )
         monkeypatch.setattr(tasks.post_payroll_week_task, "delay", refuse)
 
         with pytest.raises(OSError, match="Connection refused"):
             payroll_service.start_post_week_task([worker.id], date(2026, 5, 4))
 
-        assert published[-2]["event"] == "error"
-        assert "Could not start the posting run" in str(published[-2]["message"])
-        assert published[-1] == {"event": "done", "successful": 0, "failed": 1}
+        run = cast("dict[str, object] | None", payroll_service.current_runs()["post"])
+        assert run is not None
+        assert run["status"] == "failed"
+        assert "Could not start the posting run" in str(run["message"])
 
     def test_empty_staff_ids_is_400(self, manage_client: Client) -> None:
         response = manage_client.post(

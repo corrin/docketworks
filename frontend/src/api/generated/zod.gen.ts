@@ -2657,6 +2657,15 @@ export const zPayrollHeatmapOut = z.object({
     staff_names: z.array(z.string())
 });
 
+export const zPayrollPostingMode = z.enum(['timesheet', 'salary']);
+
+export const zPayrollRunStatus = z.enum([
+    'queued',
+    'running',
+    'succeeded',
+    'failed'
+]);
+
 /**
  * PayrollStaffSummaryOut
  *
@@ -3384,16 +3393,6 @@ export const zPipelineWarningOut = z.object({
 export const zPostWeekToXeroRequest = z.object({
     staff_ids: z.array(z.uuid()),
     week_start_date: z.iso.date()
-});
-
-/**
- * PostWeekToXeroStartResponse
- *
- * Wire contract for PostWeekToXeroStartResponse.
- */
-export const zPostWeekToXeroStartResponse = z.object({
-    stream_url: z.string(),
-    task_id: z.uuid()
 });
 
 export const zPostingSurfaceOut = z.enum([
@@ -4150,6 +4149,88 @@ export const zStaffMetricsOut = z.object({
     total_cost: z.number(),
     total_hours: z.number(),
     total_revenue: z.number()
+});
+
+/**
+ * StaffWeekPostResultOut
+ *
+ * One staff member's outcome, as the run reports it.
+ *
+ * Opus: Built by `model_validate` off the frozen `StaffWeekPostResult` dataclass
+ * rather than a hand-written flattening step. The flattening was a second
+ * declaration of these fields, and a third lived in TypeScript.
+ */
+export const zStaffWeekPostResultOut = z.object({
+    entries_posted: z.int(),
+    error: z.string().nullable(),
+    has_entries: z.boolean(),
+    leave_hours: z.number(),
+    other_leave_hours: z.number(),
+    posting_mode: zPayrollPostingMode,
+    reason: z.string().nullable(),
+    salary_timesheet_removed: z.boolean(),
+    skipped: z.boolean(),
+    staff_id: z.string(),
+    staff_name: z.string(),
+    success: z.boolean(),
+    timesheet_id: z.string().nullable(),
+    work_hours: z.number()
+});
+
+/**
+ * PayrollPostRunOut
+ *
+ * The whole state of a payroll posting run.
+ *
+ * Opus: Latest-state-wins, the contract ADR 0047 already proves with
+ * data-versions: every push carries the complete current document, so a client
+ * that connects late, reconnects, or reloads needs no replay and no offset —
+ * it needs the present. The append-only event log this replaces existed to
+ * make replay exact, which is a problem this shape does not have.
+ *
+ * `updated_at` is the ordering guard. A catch-up read can be in flight when a
+ * push lands, and the older answer would otherwise overwrite a finished run
+ * with a running one, leaving a panel spinning forever.
+ */
+export const zPayrollPostRunOut = z.object({
+    completed: z.int(),
+    current_staff_name: z.string().nullable(),
+    failed: z.int(),
+    message: z.string().nullable(),
+    results: z.array(zStaffWeekPostResultOut),
+    run_id: z.uuid(),
+    status: zPayrollRunStatus,
+    successful: z.int(),
+    total: z.int(),
+    updated_at: z.iso.datetime(),
+    week_start_date: z.iso.date()
+});
+
+/**
+ * PayrollRunsOut
+ *
+ * Every payroll run this organisation currently has state for.
+ *
+ * Opus: A named slot rather than a discriminated union: the slot IS the kind, so
+ * TypeScript narrows by field access with no ceremony. A second kind — the
+ * comparison run — becomes a second slot, and the frontend's exhaustiveness
+ * check makes forgetting to handle it a compile error.
+ */
+export const zPayrollRunsOut = z.object({
+    post: zPayrollPostRunOut.nullable()
+});
+
+/**
+ * PostWeekToXeroStartResponse
+ *
+ * Wire contract for PostWeekToXeroStartResponse.
+ *
+ * Opus: Returns the run's opening document rather than a `stream_url`. The panel
+ * can render "0 of N" before any push arrives, and the stream path is a client
+ * constant like `data-versions-stream.ts`'s — a URL is not a contract.
+ */
+export const zPostWeekToXeroStartResponse = z.object({
+    run: zPayrollPostRunOut
 });
 
 /**
@@ -7148,6 +7229,11 @@ export const zTimesheetsPayrollPostStaffWeekCreateBody = zPostWeekToXeroRequest;
  * OK
  */
 export const zTimesheetsPayrollPostStaffWeekCreateResponse = zPostWeekToXeroStartResponse;
+
+/**
+ * OK
+ */
+export const zTimesheetsPayrollRunsRetrieveResponse = zPayrollRunsOut;
 
 export const zTimesheetsPayrollWeekStatusRetrieveQuery = z.object({
     week_start_date: z.string()

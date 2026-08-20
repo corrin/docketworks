@@ -7,7 +7,6 @@ the demo company.
 """
 
 import asyncio
-import json
 from collections.abc import AsyncIterator, Iterator, Sequence
 from datetime import date
 from decimal import Decimal
@@ -23,7 +22,7 @@ from apps.accounting.types import PayrollMirrorScope, StaffWeekPostResult
 from apps.accounts.models import Staff
 from apps.core.models import AppError
 from apps.timesheet import tasks
-from apps.timesheet.services import payroll_progress
+from apps.timesheet.services import payroll_runs
 
 pytestmark = pytest.mark.django_db
 
@@ -79,15 +78,26 @@ def _run_task(
     monkeypatch: pytest.MonkeyPatch, provider: _FakeProvider, staff_ids: list[str]
 ) -> str:
     task_id = str(uuid4())
-    payroll_progress.register(task_id, staff_ids, WEEK.isoformat())
+    payroll_runs.acquire_run_claim("tenant-1", task_id)
+    payroll_runs.running("tenant-1", task_id, WEEK, total=len(staff_ids))
     monkeypatch.setattr(tasks, "get_provider", lambda: provider)
     monkeypatch.setattr(tasks.refresh_payroll_after_settle_task, "apply_async", lambda **_kw: None)
     tasks.post_payroll_week_task(task_id, "tenant-1", staff_ids, WEEK.isoformat())
     return task_id
 
 
-def _events(task_id: str) -> list[dict[str, object]]:
-    return payroll_progress.events_since(task_id, 0)
+def _results(connection_id: str = "tenant-1") -> list[dict[str, object]]:
+    """The per-staff outcomes the run has recorded so far."""
+    results: list[dict[str, object]] = _run(connection_id)["results"]  # type: ignore[assignment]
+    return results
+
+
+def _run(connection_id: str = "tenant-1") -> dict[str, object]:
+    """The run document as the poll and the stream both serve it."""
+    post = payroll_runs.read_runs(connection_id)["post"]
+    assert post is not None, "the run document should exist"
+    document: dict[str, object] = post
+    return document
 
 
 class TestOnlyOneRunPostsAtATime:
@@ -100,22 +110,31 @@ class TestOnlyOneRunPostsAtATime:
     guard cannot be scoped to the task.
     """
 
-    def test_a_second_run_posts_nothing_and_names_the_run_that_holds_it(
+    def test_a_redelivered_run_posts_nothing_while_another_holds_the_claim(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
     ) -> None:
+        """The case that still reaches the task, now that a duplicate click is a 409.
+
+        Opus: `CELERY_TASK_ACKS_LATE` makes redelivery real (ADR 0024): a worker
+        that dies has its message redelivered, and by then another run may hold
+        the calendar. The guard has to be inside the task for that one, and it
+        must refuse BEFORE the first irreversible call — posting deletes a
+        timesheet's lines before re-posting them, so two interleaved runs can
+        leave a timesheet holding neither run's figures.
+        """
         held = str(uuid4())
-        assert payroll_progress.acquire_run_claim("tenant-1", held) is None
+        assert payroll_runs.acquire_run_claim("tenant-1", held) is None
         provider = _FakeProvider([_result(str(worker.id))])
 
-        task_id = _run_task(monkeypatch, provider, [str(worker.id)])
+        run_id = str(uuid4())
+        payroll_runs.running("tenant-1", run_id, WEEK, total=1)
+        monkeypatch.setattr(tasks, "get_provider", lambda: provider)
+        with pytest.raises(payroll_runs.PayrollRunClaimLostError):
+            tasks.post_payroll_week_task(run_id, "tenant-1", [str(worker.id)], WEEK.isoformat())
 
-        assert provider.calls == [], "a second run reached Xero while another held the claim"
-        events = _events(task_id)
-        assert [event["event"] for event in events] == ["error", "done"]
-        assert held in str(events[0]["message"])
-        # Terminal even when refused: the page is already watching this stream,
-        # and a run that never reports is indistinguishable from a slow one.
-        assert events[-1] == {"event": "done", "successful": 0, "failed": 1}
+        assert provider.calls == [], "a redelivered run reached Xero while another held the claim"
+        assert _run()["status"] == "failed"
+        assert "no longer holds the posting claim" in str(_run()["message"])
 
     def test_a_run_that_finished_leaves_the_claim_free_for_the_next(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
@@ -124,10 +143,12 @@ class TestOnlyOneRunPostsAtATime:
         _run_task(monkeypatch, first, [str(worker.id)])
 
         second = _FakeProvider([_result(str(worker.id))])
-        task_id = _run_task(monkeypatch, second, [str(worker.id)])
+        _run_task(monkeypatch, second, [str(worker.id)])
 
         assert len(second.calls) == 1, "the finished run did not release its claim"
-        assert _events(task_id)[-1] == {"event": "done", "successful": 1, "failed": 0}
+        assert _run()["status"] == "succeeded"
+        assert _run()["successful"] == 1
+        assert _run()["failed"] == 0
 
     def test_a_run_that_failed_leaves_the_claim_free_for_the_next(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
@@ -138,10 +159,12 @@ class TestOnlyOneRunPostsAtATime:
             _run_task(monkeypatch, failing, [str(worker.id)])
 
         recovered = _FakeProvider([_result(str(worker.id))])
-        task_id = _run_task(monkeypatch, recovered, [str(worker.id)])
+        _run_task(monkeypatch, recovered, [str(worker.id)])
 
         assert len(recovered.calls) == 1, "a failed run left the claim behind"
-        assert _events(task_id)[-1] == {"event": "done", "successful": 1, "failed": 0}
+        assert _run()["status"] == "succeeded"
+        assert _run()["successful"] == 1
+        assert _run()["failed"] == 0
 
     def test_an_expired_claim_is_takeable_so_a_redelivery_still_runs(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
@@ -152,52 +175,54 @@ class TestOnlyOneRunPostsAtATime:
         gone, the next delivery acquires and posts rather than refusing forever.
         """
         abandoned = str(uuid4())
-        assert payroll_progress.acquire_run_claim("tenant-1", abandoned) is None
-        caches["shared"].delete(payroll_progress.claim_key("tenant-1"))
+        assert payroll_runs.acquire_run_claim("tenant-1", abandoned) is None
+        caches["shared"].delete(payroll_runs.claim_key("tenant-1"))
 
         provider = _FakeProvider([_result(str(worker.id))])
-        task_id = _run_task(monkeypatch, provider, [str(worker.id)])
+        _run_task(monkeypatch, provider, [str(worker.id)])
 
         assert len(provider.calls) == 1
-        assert _events(task_id)[-1] == {"event": "done", "successful": 1, "failed": 0}
+        assert _run()["status"] == "succeeded"
+        assert _run()["successful"] == 1
+        assert _run()["failed"] == 0
 
     def test_renewal_refuses_once_the_claim_belongs_to_someone_else(self) -> None:
         """Renewal is what stops a live run writing on after its claim lapsed."""
         mine, theirs = str(uuid4()), str(uuid4())
-        assert payroll_progress.acquire_run_claim("tenant-1", mine) is None
-        payroll_progress.renew_run_claim("tenant-1", mine)
+        assert payroll_runs.acquire_run_claim("tenant-1", mine) is None
+        payroll_runs.renew_run_claim("tenant-1", mine)
 
-        caches["shared"].set(payroll_progress.claim_key("tenant-1"), theirs)
+        caches["shared"].set(payroll_runs.claim_key("tenant-1"), theirs)
 
-        with pytest.raises(payroll_progress.PayrollRunClaimLostError, match=mine):
-            payroll_progress.renew_run_claim("tenant-1", mine)
+        with pytest.raises(payroll_runs.PayrollRunClaimLostError, match=mine):
+            payroll_runs.renew_run_claim("tenant-1", mine)
 
     def test_releasing_never_takes_another_run_claim(self) -> None:
         """A late release from an expired run must not free the run that replaced it."""
         theirs = str(uuid4())
-        assert payroll_progress.acquire_run_claim("tenant-1", theirs) is None
+        assert payroll_runs.acquire_run_claim("tenant-1", theirs) is None
 
-        payroll_progress.release_run_claim("tenant-1", str(uuid4()))
+        payroll_runs.release_run_claim("tenant-1", str(uuid4()))
 
-        assert payroll_progress.acquire_run_claim("tenant-1", str(uuid4())) == theirs
+        assert payroll_runs.acquire_run_claim("tenant-1", str(uuid4())) == theirs
 
 
 class TestPostingTask:
-    def test_publishes_start_progress_complete_and_done(
+    def test_an_operator_can_tell_a_finished_run_from_a_live_one(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
     ) -> None:
+        """Because posting again over a live run is the expensive mistake.
+
+        Opus: This is the requirement behind the whole progress path — not "four
+        events arrive in this order", which is what the deleted test asserted
+        and which said nothing about whether an operator could act on them.
+        """
         provider = _FakeProvider([_result(str(worker.id), work_hours=Decimal("8.0"))])
 
-        task_id = _run_task(monkeypatch, provider, [str(worker.id)])
+        _run_task(monkeypatch, provider, [str(worker.id)])
 
-        assert [event["event"] for event in _events(task_id)] == [
-            "start",
-            "progress",
-            "complete",
-            "done",
-        ]
-        done = _events(task_id)[-1]
-        assert done == {"event": "done", "successful": 1, "failed": 0}
+        assert _run()["status"] == "succeeded"
+        assert _run()["completed"] == _run()["total"]
         assert provider.mirror_calls == [
             ("tenant-1", PayrollMirrorScope.BEFORE_POST),
             ("tenant-1", PayrollMirrorScope.AFTER_POST),
@@ -209,7 +234,8 @@ class TestPostingTask:
         provider = _FakeProvider([_result(str(worker.id))])
         scheduled: list[tuple[tuple[str, str], int]] = []
         task_id = str(uuid4())
-        payroll_progress.register(task_id, [str(worker.id)], WEEK.isoformat())
+        payroll_runs.acquire_run_claim("tenant-1", task_id)
+        payroll_runs.running("tenant-1", task_id, WEEK, total=1)
         monkeypatch.setattr(tasks, "get_provider", lambda: provider)
         monkeypatch.setattr(
             tasks.refresh_payroll_after_settle_task,
@@ -247,12 +273,13 @@ class TestPostingTask:
             ]
         )
 
-        task_id = _run_task(monkeypatch, provider, [str(worker.id), str(other_worker.id)])
+        _run_task(monkeypatch, provider, [str(worker.id), str(other_worker.id)])
 
-        completions = [e for e in _events(task_id) if e["event"] == "complete"]
-        assert [e["success"] for e in completions] == [False, True]
-        assert completions[0]["error"] == "Not linked to a Xero employee"
-        assert _events(task_id)[-1] == {"event": "done", "successful": 1, "failed": 1}
+        results = _results()
+        assert [r["success"] for r in results] == [False, True]
+        assert results[0]["error"] == "Not linked to a Xero employee"
+        assert _run()["successful"] == 1
+        assert _run()["failed"] == 1
 
     def test_hours_stay_exact_on_the_wire(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
@@ -270,9 +297,9 @@ class TestPostingTask:
             [_result(str(worker.id), work_hours=Decimal("7.35"), leave_hours=Decimal("0.65"))]
         )
 
-        task_id = _run_task(monkeypatch, provider, [str(worker.id)])
+        _run_task(monkeypatch, provider, [str(worker.id)])
 
-        [completion] = [e for e in _events(task_id) if e["event"] == "complete"]
+        [completion] = _results()
         assert completion["work_hours"] == 7.35
         assert completion["leave_hours"] == 0.65
         # Opus: Numbers, not the strings this used to send: a consumer that treats a
@@ -282,21 +309,31 @@ class TestPostingTask:
     def test_a_batch_level_refusal_still_ends_the_run(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
     ) -> None:
-        """A preflight failure must publish a terminal event, or the page spins forever."""
+        """A batch refusal must reach the operator carrying its message.
+
+        Opus: This is the case that cost 15 minutes on 2026-08-20. The task failed
+        in seconds with "Xero locks leave while the employee is in a draft pay
+        run — delete the draft for 2026-07-13, then post again", and the
+        operator saw nothing: the shape this replaces published `error` then
+        `done`, `TERMINAL_EVENTS` counted `error` as terminal, so the stream
+        closed before the `done` the client keys "finished" off. The client
+        reconnected three times and reported "the run ended without reporting an
+        outcome" — we told them we did not know, when we did.
+
+        One terminal status carrying one message cannot lose it that way.
+        """
         provider = _FakeProvider([], error=ValueError("Pay items are not linked to Xero"))
 
         task_id = str(uuid4())
-        payroll_progress.register(task_id, [str(worker.id)], WEEK.isoformat())
+        payroll_runs.acquire_run_claim("tenant-1", task_id)
+        payroll_runs.running("tenant-1", task_id, WEEK, total=1)
         monkeypatch.setattr(tasks, "get_provider", lambda: provider)
         with pytest.raises(ValueError, match="Pay items are not linked"):
             tasks.post_payroll_week_task(task_id, "tenant-1", [str(worker.id)], WEEK.isoformat())
 
-        events = _events(task_id)
-        assert events[-2] == {
-            "event": "error",
-            "message": "Pay items are not linked to Xero",
-        }
-        assert events[-1] == {"event": "done", "successful": 0, "failed": 1}
+        run = _run()
+        assert run["status"] == "failed"
+        assert run["message"] == "Pay items are not linked to Xero"
 
     def test_a_batch_level_refusal_records_which_week_and_staff_were_left_unposted(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
@@ -309,7 +346,8 @@ class TestPostingTask:
         """
         provider = _FakeProvider([], error=ValueError("Pay items are not linked to Xero"))
         task_id = str(uuid4())
-        payroll_progress.register(task_id, [str(worker.id)], WEEK.isoformat())
+        payroll_runs.acquire_run_claim("tenant-1", task_id)
+        payroll_runs.running("tenant-1", task_id, WEEK, total=1)
         monkeypatch.setattr(tasks, "get_provider", lambda: provider)
 
         with pytest.raises(ValueError):
@@ -317,7 +355,7 @@ class TestPostingTask:
 
         context = AppError.objects.latest("timestamp").data
         assert context is not None
-        assert context["task_id"] == task_id
+        assert context["run_id"] == task_id
         assert context["staff_ids"] == [str(worker.id)]
         assert context["week_start_date"] == WEEK.isoformat()
         assert context["successful"] == 0
@@ -330,28 +368,55 @@ class TestPostingTask:
         provider.supports_payroll = False
 
         task_id = str(uuid4())
-        payroll_progress.register(task_id, [str(worker.id)], WEEK.isoformat())
+        payroll_runs.acquire_run_claim("tenant-1", task_id)
+        payroll_runs.running("tenant-1", task_id, WEEK, total=1)
         monkeypatch.setattr(tasks, "get_provider", lambda: provider)
         with pytest.raises(ValueError, match="does not support payroll"):
             tasks.post_payroll_week_task(task_id, "tenant-1", [str(worker.id)], WEEK.isoformat())
 
 
-class TestProgressChannel:
-    def test_events_replay_from_an_offset(self) -> None:
-        """The reason the work moved out of the request: a reconnect loses nothing."""
-        task_id = str(uuid4())
-        payroll_progress.register(task_id, [], WEEK.isoformat())
-        payroll_progress.publish(task_id, {"event": "start", "total": 2})
-        payroll_progress.publish(task_id, {"event": "progress", "current": 1})
+class TestRunDocument:
+    """Offset replay and a terminal-event set are gone, so their tests are too.
 
-        assert len(payroll_progress.events_since(task_id, 0)) == 2
-        assert payroll_progress.events_since(task_id, 1) == [{"event": "progress", "current": 1}]
-        assert payroll_progress.events_since(task_id, 2) == []
+    Opus: They pinned the two ideas the document removes — that a reader rebuilds
+    a run from a log it resumes at an offset, and that a SET of event names says
+    which one ended it. The second was the defect: `error` was terminal and was
+    published before `done`, so the stream closed on it. ADR 0039 says a test
+    entrenching a removed divergence goes with the divergence.
+    """
 
-    def test_only_done_and_error_end_the_run(self) -> None:
-        assert payroll_progress.is_terminal({"event": "done"}) is True
-        assert payroll_progress.is_terminal({"event": "error"}) is True
-        assert payroll_progress.is_terminal({"event": "progress"}) is False
+    def test_a_reader_arriving_at_any_point_sees_the_whole_run(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, other_worker: Staff
+    ) -> None:
+        """The requirement the old replay-from-an-offset machinery existed to meet.
+
+        Opus: An operator who connects late, reconnects, or reloads must see every
+        staff member's outcome exactly once — not a suffix of them, and not one
+        copy per reconnect. Asserted by reading the run the way any late reader
+        does, rather than by exercising a log's slicing, so this survives the
+        next change of transport as well as it survived this one.
+        """
+        provider = _FakeProvider(
+            [_result(str(worker.id)), _result(str(other_worker.id), success=False, error="nope")]
+        )
+
+        _run_task(monkeypatch, provider, [str(worker.id), str(other_worker.id)])
+
+        results = _results()
+        assert [r["staff_id"] for r in results] == [str(worker.id), str(other_worker.id)]
+        assert _run()["status"] == "succeeded"
+
+    def test_a_run_is_found_without_holding_its_id(self) -> None:
+        """What makes a reload rejoin: the key is the calendar, not the run.
+
+        Opus: The shape this replaces keyed on the run id and handed it to the
+        client once. Nothing persisted it, so F5 lost the run permanently while
+        its record sat in the cache for another hour.
+        """
+        payroll_runs.running("tenant-1", str(uuid4()), WEEK, total=1)
+
+        assert payroll_runs.read_runs("tenant-1")["post"] is not None
+        assert payroll_runs.read_runs("other-tenant")["post"] is None
 
 
 def _drain(response: StreamingHttpResponse) -> bytes:
@@ -365,53 +430,43 @@ def _drain(response: StreamingHttpResponse) -> bytes:
     return asyncio.run(collect())
 
 
-class TestPostStreamEndpoint:
-    def test_replays_the_runs_events_and_closes_on_done(
-        self, manage_client: Client, worker: Staff
-    ) -> None:
-        task_id = str(uuid4())
-        payroll_progress.register(task_id, [str(worker.id)], WEEK.isoformat())
-        payroll_progress.publish(task_id, {"event": "start", "total": 1})
-        payroll_progress.publish(task_id, {"event": "done", "successful": 1, "failed": 0})
+class TestRunStreamEndpoint:
+    """The stream is a subscription now, not a replay of an event log."""
 
-        response = manage_client.get(f"/api/timesheets/payroll/post-staff-week/stream/{task_id}/")
+    def test_it_streams_rather_than_buffering_the_whole_run(self, manage_client: Client) -> None:
+        """The assertion no other tier can make.
+
+        Opus: Django decides `is_async` by whether `iter()` accepts what it was
+        given, and a SYNC generator made `__aiter__` drain the entire response
+        into a list before sending a byte — under ASGI the operator saw nothing
+        for the whole post, then everything at once. Measured 2026-08-20 by
+        driving `config.asgi:application`: sync delivered both frames at t=2.27,
+        async delivered the first at t=0.77. The E2E cannot see it, because it
+        waits for content to appear and a terminal blob satisfies that.
+
+        Note what this does NOT cover: `__iter__` has the mirror-image fallback,
+        so an async iterator served over WSGI buffers identically while
+        `is_async` stays true. ADR 0047 pins the server; this pins the generator.
+        """
+        response = manage_client.get("/api/timesheets/payroll/runs/stream/")
 
         assert response.status_code == 200
         assert response["Content-Type"] == "text/event-stream"
-        assert response["X-Accel-Buffering"] == "no"
-        streaming = cast("StreamingHttpResponse", response)
-        # Opus: The assertion no other tier can make. Django decides `is_async` by
-        # whether `iter()` accepts the generator, and a SYNC one made `__aiter__`
-        # drain the whole run into a list before sending a byte — so under ASGI
-        # the operator saw nothing for the entire post, then everything at once.
-        # The E2E cannot see it: it waits for results to become visible, which a
-        # terminal blob satisfies. Only this can.
-        assert streaming.is_async, (
-            "the payroll stream must be an async generator, or Django buffers the "
-            "whole run before sending anything"
+        assert response["Content-Encoding"] == "identity"
+        assert cast("StreamingHttpResponse", response).is_async, (
+            "the payroll stream must be served from an async iterator, or Django "
+            "buffers the whole run before sending anything"
         )
-        body = _drain(streaming).decode()
-        frames = [
-            json.loads(line.removeprefix("data: "))
-            for line in body.split("\n\n")
-            if line.startswith("data: ")
-        ]
-        assert frames == [
-            {"event": "start", "total": 1},
-            {"event": "done", "successful": 1, "failed": 0},
-        ]
+        response.close()
 
-    def test_an_unknown_run_is_404_rather_than_an_endless_wait(self, manage_client: Client) -> None:
-        response = manage_client.get(f"/api/timesheets/payroll/post-staff-week/stream/{uuid4()}/")
+    def test_the_stream_is_superuser_only(self, worker_client: Client) -> None:
+        """It carries other staff members' pay, so office access is not enough.
 
-        assert response.status_code == 404
-
-    def test_the_stream_is_superuser_only(self, worker_client: Client, worker: Staff) -> None:
-        """It reports other staff members' pay, so office access is not enough."""
-        task_id = str(uuid4())
-        payroll_progress.register(task_id, [str(worker.id)], WEEK.isoformat())
-
-        response = worker_client.get(f"/api/timesheets/payroll/post-staff-week/stream/{task_id}/")
+        Opus: This is also why it has its own channel rather than an event on the
+        data-versions one, which authenticates any staff member — sharing would
+        push everyone's pay to every logged-in worker's open stream.
+        """
+        response = worker_client.get("/api/timesheets/payroll/runs/stream/")
 
         assert response.status_code in {401, 403}
 
@@ -444,5 +499,5 @@ class TestProgressChannelCrossesProcesses:
         """
         from django.core.cache import caches  # noqa: PLC0415
 
-        assert payroll_progress._cache() is caches["shared"]
+        assert payroll_runs._cache() is caches["shared"]
         assert caches["shared"] is not caches["default"]

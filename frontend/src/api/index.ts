@@ -216,6 +216,8 @@ export {
   timesheetsPayrollPayRunsCreateCreateMutation,
   timesheetsPayrollPayRunsRefreshCreateMutation,
   timesheetsPayrollPayRunsRetrieveOptions,
+  timesheetsPayrollRunsRetrieveOptions,
+  timesheetsPayrollRunsRetrieveQueryKey,
   timesheetsPayrollPayRunsRetrieveQueryKey,
   timesheetsPayrollPostStaffWeekCreateMutation,
   timesheetsPayrollWeekStatusRetrieveOptions,
@@ -223,11 +225,13 @@ export {
   timesheetsWeeklyRetrieveOptions,
   timesheetsWeeklyRetrieveQueryKey,
 } from './generated/@tanstack/react-query.gen'
-export { streamPayrollPost } from './payroll-post-stream'
-export type { PayrollCompleteEvent, PayrollPostEvent } from './payroll-post-stream'
+export { runPayrollRunsStream } from './payroll-runs-stream'
 export type {
   PayRunListItemOut,
   PayRunListResponse,
+  PayrollPostRunOut,
+  PayrollRunsOut,
+  StaffWeekPostResultOut,
   StaffWeekPostingOut,
   WeekPostingStatusResponse,
   WeeklyStaffDataOut,

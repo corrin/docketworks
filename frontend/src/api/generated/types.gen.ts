@@ -6408,6 +6408,67 @@ export type PayrollHeatmapRowOut = {
 };
 
 /**
+ * PayrollPostRunOut
+ *
+ * The whole state of a payroll posting run.
+ *
+ * Opus: Latest-state-wins, the contract ADR 0047 already proves with
+ * data-versions: every push carries the complete current document, so a client
+ * that connects late, reconnects, or reloads needs no replay and no offset —
+ * it needs the present. The append-only event log this replaces existed to
+ * make replay exact, which is a problem this shape does not have.
+ *
+ * `updated_at` is the ordering guard. A catch-up read can be in flight when a
+ * push lands, and the older answer would otherwise overwrite a finished run
+ * with a running one, leaving a panel spinning forever.
+ */
+export type PayrollPostRunOut = {
+    /**
+     * Completed
+     */
+    completed: number;
+    /**
+     * Current Staff Name
+     */
+    current_staff_name: string | null;
+    /**
+     * Failed
+     */
+    failed: number;
+    /**
+     * Message
+     */
+    message: string | null;
+    /**
+     * Results
+     */
+    results: Array<StaffWeekPostResultOut>;
+    /**
+     * Run Id
+     */
+    run_id: string;
+    status: PayrollRunStatus;
+    /**
+     * Successful
+     */
+    successful: number;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Week Start Date
+     */
+    week_start_date: string;
+};
+
+export type PayrollPostingMode = 'timesheet' | 'salary';
+
+/**
  * PayrollReconciliationResponse
  *
  * Wire contract for PayrollReconciliationResponse.
@@ -6423,6 +6484,22 @@ export type PayrollReconciliationResponse = {
      * Weeks
      */
     weeks: Array<PayrollWeekOut>;
+};
+
+export type PayrollRunStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+
+/**
+ * PayrollRunsOut
+ *
+ * Every payroll run this organisation currently has state for.
+ *
+ * Opus: A named slot rather than a discriminated union: the slot IS the kind, so
+ * TypeScript narrows by field access with no ceremony. A second kind — the
+ * comparison run — becomes a second slot, and the frontend's exhaustiveness
+ * check makes forgetting to handle it a compile error.
+ */
+export type PayrollRunsOut = {
+    post: PayrollPostRunOut | null;
 };
 
 /**
@@ -7868,16 +7945,13 @@ export type PostWeekToXeroRequest = {
  * PostWeekToXeroStartResponse
  *
  * Wire contract for PostWeekToXeroStartResponse.
+ *
+ * Opus: Returns the run's opening document rather than a `stream_url`. The panel
+ * can render "0 of N" before any push arrives, and the stream path is a client
+ * constant like `data-versions-stream.ts`'s — a URL is not a contract.
  */
 export type PostWeekToXeroStartResponse = {
-    /**
-     * Stream Url
-     */
-    stream_url: string;
-    /**
-     * Task Id
-     */
-    task_id: string;
+    run: PayrollPostRunOut;
 };
 
 export type PostingSurfaceOut = 'timesheet' | 'leave_api' | 'xero_computed';
@@ -9418,6 +9492,71 @@ export type StaffPerformanceResponse = {
      */
     staff: Array<StaffMetricsOut>;
     team_averages: TeamAveragesOut;
+};
+
+/**
+ * StaffWeekPostResultOut
+ *
+ * One staff member's outcome, as the run reports it.
+ *
+ * Opus: Built by `model_validate` off the frozen `StaffWeekPostResult` dataclass
+ * rather than a hand-written flattening step. The flattening was a second
+ * declaration of these fields, and a third lived in TypeScript.
+ */
+export type StaffWeekPostResultOut = {
+    /**
+     * Entries Posted
+     */
+    entries_posted: number;
+    /**
+     * Error
+     */
+    error: string | null;
+    /**
+     * Has Entries
+     */
+    has_entries: boolean;
+    /**
+     * Leave Hours
+     */
+    leave_hours: number;
+    /**
+     * Other Leave Hours
+     */
+    other_leave_hours: number;
+    posting_mode: PayrollPostingMode;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * Salary Timesheet Removed
+     */
+    salary_timesheet_removed: boolean;
+    /**
+     * Skipped
+     */
+    skipped: boolean;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+    /**
+     * Success
+     */
+    success: boolean;
+    /**
+     * Timesheet Id
+     */
+    timesheet_id: string | null;
+    /**
+     * Work Hours
+     */
+    work_hours: number;
 };
 
 /**
@@ -16139,6 +16278,22 @@ export type TimesheetsPayrollPostStaffWeekCreateResponses = {
 };
 
 export type TimesheetsPayrollPostStaffWeekCreateResponse = TimesheetsPayrollPostStaffWeekCreateResponses[keyof TimesheetsPayrollPostStaffWeekCreateResponses];
+
+export type TimesheetsPayrollRunsRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/payroll/runs/';
+};
+
+export type TimesheetsPayrollRunsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: PayrollRunsOut;
+};
+
+export type TimesheetsPayrollRunsRetrieveResponse = TimesheetsPayrollRunsRetrieveResponses[keyof TimesheetsPayrollRunsRetrieveResponses];
 
 export type TimesheetsPayrollWeekStatusRetrieveData = {
     body?: never;

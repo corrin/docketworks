@@ -44,6 +44,7 @@ from apps.timesheet.schemas import (
     CreatePayRunResponse,
     DailyTimesheetSummaryOut,
     JobsListResponse,
+    PayrollRunsOut,
     PayRunListResponse,
     PayRunSyncResponse,
     PostWeekToXeroRequest,
@@ -316,11 +317,38 @@ def timesheets_payroll_week_status_retrieve(
 def timesheets_payroll_post_staff_week_create(
     request: HttpRequest, payload: PostWeekToXeroRequest
 ) -> payroll_service.PostWeekStartData:
-    """Register the posting task and return its SSE stream URL."""
+    """Claim the calendar, dispatch the run, and return its opening document.
+
+    Opus: A run already in progress raises ``PayrollRunInProgressError``, a typed
+    ConflictError the envelope answers 409 with — so a duplicate click is
+    refused here rather than handed a run id whose only content is a fabricated
+    failure the client must open a stream to read.
+    """
     try:
         return payroll_service.start_post_week_task(payload.staff_ids, payload.week_start_date)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
+
+
+@router.get(
+    "/timesheets/payroll/runs/",
+    auth=manage_auth,
+    operation_id="timesheets_payroll_runs_retrieve",
+    response=PayrollRunsOut,
+    summary="The payroll runs this organisation currently has state for",
+    tags=["timesheets"],
+)
+def timesheets_payroll_runs_retrieve(request: HttpRequest) -> dict[str, object]:
+    """Return the current run document, which the stream also pushes.
+
+    Opus: The polling sibling of the SSE channel, and the reason the run document
+    has generated frontend types at all — a stream cannot be a ninja operation
+    (ADR 0047), so without this the wire contract existed only as hand-written
+    TypeScript. It is also what makes a reload rejoin a live run, and what tells
+    an expired run (404-shaped: an absent slot) apart from a lapsed session
+    (401), which the stream cannot express.
+    """
+    return payroll_service.current_runs()
 
 
 # ── Workshop "my time" self-service (/api/job/) ──────────────────────────

@@ -20,14 +20,15 @@ import uuid as uuid_module
 from collections.abc import Iterator
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Protocol, TypedDict, cast
+from typing import Any, Protocol, TypedDict, cast
 from uuid import UUID
 
 from apps.accounting.registry import get_provider
 from apps.accounting.types import require_payroll_week_start
+from apps.core.errors import ConflictError
 from apps.core.models import CompanyDefaults
 from apps.core.xero_registry import xero_model_manager
-from apps.timesheet.services import payroll_progress
+from apps.timesheet.services import payroll_runs
 
 logger = logging.getLogger(__name__)
 
@@ -128,11 +129,23 @@ class CreatedPayRunData(TypedDict):
     xero_url: str
 
 
+class PayrollRunInProgressError(ConflictError):
+    """Another payroll posting run already holds this organisation's calendar.
+
+    Opus: A typed refusal so the boundary answers 409 with the message verbatim
+    (apps/core/envelope.py). It used to be reported by inventing a run, writing a
+    fabricated failure into it and making the client open a stream to discover
+    it had been refused — a refusal that had to be subscribed to.
+    """
+
+
 class PostWeekStartData(TypedDict):
     """Data contract for PostWeekStartData."""
 
-    task_id: UUID
-    stream_url: str
+    #: Opus: The run's opening document, not a task id and a stream URL. The panel
+    #: renders "0 of N" from it before any push arrives, and the stream path is a
+    #: client constant — a URL was never the contract.
+    run: dict[str, Any]
 
 
 class StaffWeekPostingData(TypedDict):
@@ -319,57 +332,71 @@ def posting_status_for_week(week_start_date: date) -> WeekPostingStatusData:
     }
 
 
-def start_post_week_task(staff_ids: list[UUID], week_start_date: date) -> PostWeekStartData:
-    """Register a payroll-posting run, dispatch it, and hand back its stream URL.
+def current_runs() -> dict[str, object]:
+    """Every payroll run this organisation has state for.
 
-    Opus: The work happens in a Celery task, not in the stream that reports it: the
-    stream is a GET and a GET never writes, and a task that outlives the
-    client's connection is what makes a dropped connection recoverable rather
-    than a lost record of what was posted.
+    Opus: Reads the connection id rather than taking one, so the page needs to
+    know nothing but its own week — the run is keyed by calendar, not by an id
+    the client had to still be holding. That is what makes a reload rejoin.
+    """
+    return payroll_runs.read_runs(get_provider().payroll_connection_id())
+
+
+def start_post_week_task(staff_ids: list[UUID], week_start_date: date) -> PostWeekStartData:
+    """Claim the calendar, open the run's document, and dispatch the work.
+
+    Opus: The work happens in a Celery task, not in the stream that reports it: a
+    GET never writes, and a task that outlives the client's connection is what
+    makes a dropped connection recoverable rather than a lost record of what was
+    posted.
+
+    Opus: The CLAIM is taken here rather than inside the task. A second operator
+    click is then refused synchronously, with a 409 naming the live run, instead
+    of being handed a run id whose only content is a fabricated failure it has
+    to open a stream to read. Redelivery of a dead worker's message is still the
+    task's problem and is still checked there (ADR 0024).
     """
     if not staff_ids:
         raise ValueError("staff_ids is required")
     require_payroll_week_start(week_start_date)
 
-    task_id = uuid_module.uuid4()
-    payroll_progress.register(
-        str(task_id), [str(staff_id) for staff_id in staff_ids], week_start_date.isoformat()
-    )
+    connection_id = get_provider().payroll_connection_id()
+    run_id = uuid_module.uuid4()
+    holder = payroll_runs.acquire_run_claim(connection_id, str(run_id))
+    if holder is not None:
+        raise PayrollRunInProgressError(
+            f"A payroll posting run ({holder}) is already in progress for this "
+            "organisation. Nothing was posted. Wait for it to finish, then check "
+            "what Xero holds before posting again."
+        )
+
+    run = payroll_runs.running(connection_id, str(run_id), week_start_date, total=len(staff_ids))
     # Opus: Call-time import: apps.timesheet.tasks imports the accounting registry,
     # which this module is itself imported by at app-ready.
     from apps.timesheet.tasks import post_payroll_week_task  # noqa: PLC0415
 
     try:
-        connection_id = get_provider().payroll_connection_id()
         post_payroll_week_task.delay(
-            str(task_id),
+            str(run_id),
             connection_id,
             [str(staff_id) for staff_id in staff_ids],
             week_start_date.isoformat(),
         )
     except Exception as exc:
-        # Opus: Registering the run before dispatching it is what makes the stream
-        # connectable immediately; it also means a broker that refuses the
-        # dispatch leaves a registered run that nothing will ever publish to.
-        # The stream cannot tell that from a slow post, so it would spin for
-        # its full 1800s timeout — the exact failure this module's docstring
-        # says the design removes. Publishing the terminal event here is the
-        # only place that knows the work never started.
-        payroll_progress.publish(
-            str(task_id),
-            {"event": "error", "message": f"Could not start the posting run: {exc}"},
+        # Opus: A broker that refuses the dispatch leaves a run nothing will ever
+        # advance. Closing it here is the only place that knows the work never
+        # started — and releasing the claim matters as much, or the refusal would
+        # block payroll until the claim's TTL expired.
+        payroll_runs.write(
+            connection_id,
+            payroll_runs.finished(run, "failed", message=f"Could not start the posting run: {exc}"),
         )
-        payroll_progress.publish(
-            str(task_id), {"event": "done", "successful": 0, "failed": len(staff_ids)}
-        )
+        payroll_runs.release_run_claim(connection_id, str(run_id))
         raise
     logger.info(
-        "Dispatched payroll posting task %s for %d staff, week %s",
-        task_id,
+        "Dispatched payroll posting run %s for %d staff, week %s",
+        run_id,
         len(staff_ids),
         week_start_date,
     )
-    return {
-        "task_id": task_id,
-        "stream_url": f"/api/timesheets/payroll/post-staff-week/stream/{task_id}/",
-    }
+    return {"run": run.model_dump(mode="json")}

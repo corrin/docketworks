@@ -1,103 +1,48 @@
-"""SSE stream reporting a payroll-posting run — a plain Django view, outside ninja.
+"""SSE stream carrying the payroll run document — a plain Django view, outside ninja.
 
-Opus: **This endpoint only reads.** The posting itself happens in
+Opus: **This endpoint only reads.** The posting happens in
 ``apps.timesheet.tasks.post_payroll_week_task``. v1 did the Xero writing inside
-this GET handler, which made fetching a URL post payroll, and meant a client
-that disconnected mid-batch destroyed the only record of which staff had
-succeeded. Here the task owns the work and writes its progress to the cache;
-this view replays that log.
+this GET handler, which made fetching a URL post payroll, and meant a client that
+disconnected mid-batch destroyed the only record of which staff had succeeded.
 
-Deliberately not a ninja operation, for the same reasons as the data-versions
-stream: the response does not end, it is consumed by ``EventSource`` rather
-than the generated client, and inside ninja it would put an operation in the
-OpenAPI schema that the API-boundary gate would then require calling through
-generated code.
+Opus: It is django-eventstream now, the same library and the same shape as
+``apps/operations/events.py``. The version this replaces hand-rolled a poll loop
+over an append-only event log, on the argument that the library cannot replay
+what a reader missed without a storage backend ADR 0047 forbids. That argument
+was answered by changing the payload rather than the transport: every push
+carries the WHOLE run document, so there is nothing to replay — a reader that
+connects late, reconnects, or reloads needs the present, and gets it from the
+polling sibling on ``stream-open``.
 
-Deliberately not django-eventstream either, which is the library this repo
-otherwise uses for SSE (ADR 0032). That library pushes live events but cannot
-replay what a reader missed without a storage backend, which ADR 0047's "Do
-not" section forbids enabling — and replaying what was missed is the entire
-point of moving the work out of the request. Reading an append-only cache log
-from an offset gives exact resume in a way the library, as configured here,
-cannot.
+Opus: Deliberately not a ninja operation, for the same reason the data-versions
+stream is not: the response does not end, so it is not something the generated
+axios client can call, and inside ninja it would put an operation in the OpenAPI
+schema that the API-boundary gate would then demand be called through generated
+code.
+
+Opus: Its own channel rather than an event on the data-versions one. That stream
+authenticates any staff member; this document carries names, hours and pay basis,
+so it is superuser-only — sharing a channel would push other people's pay to
+every logged-in worker's open stream.
 """
 
-import asyncio
-import json
 import logging
-import time
-from collections.abc import AsyncIterator
 
-from django.http import HttpRequest, JsonResponse, StreamingHttpResponse
+from django.conf import settings
+from django.http import HttpRequest, JsonResponse
 from django.http.response import HttpResponseBase
 from django.views.decorators.http import require_GET
+from django_eventstream import views as eventstream_views
 
 from apps.accounts.models import Staff
 from apps.core.auth import SuperuserCookieJWTAuth
-from apps.timesheet.services import payroll_progress
 
 logger = logging.getLogger(__name__)
 
-# Opus: How often to look for newly published events. The posting run makes several
-# rate-limited Xero calls per employee, so events arrive seconds apart; polling
-# faster would only spin.
-POLL_INTERVAL_SECONDS = 0.5
-# Opus: A ceiling so a task that dies without publishing a terminal event cannot hold
-# a connection open forever. Comfortably longer than a full staff list takes.
-MAX_STREAM_SECONDS = 1800
-
-
-def _frame(event: dict[str, object]) -> str:
-    """Encode one event as an SSE data frame."""
-    return f"data: {json.dumps(event)}\n\n"
-
-
-async def _event_stream(task_id: str) -> AsyncIterator[str]:
-    """Replay the run's events from the start, then follow it until it ends.
-
-    Opus: ASYNC, and that is the whole point rather than a style choice. Django's
-    ``StreamingHttpResponse`` sets ``is_async`` by whether ``iter()`` accepts
-    the value (``django/http/response.py``), so a SYNC generator here made
-    ``__aiter__`` fall back to ``for part in await sync_to_async(list)(...)`` —
-    draining the entire run into a list before sending one byte. Under ASGI,
-    which is how this is served (ADR 0047), the operator saw nothing for the
-    whole post and then the complete log at once; the poll interval below bought
-    nothing and the sleep only delayed the blob. It also pinned a thread-sensitive
-    worker thread for up to MAX_STREAM_SECONDS per open tab.
-
-    Every tier passed it: the E2E waits for results to become VISIBLE, which a
-    terminal blob satisfies. ``test_the_stream_is_actually_streamed`` asserts
-    ``response.is_async`` instead, which is the only thing that can see it.
-    """
-    offset = 0
-    deadline = time.monotonic() + MAX_STREAM_SECONDS
-    while time.monotonic() < deadline:
-        events = await payroll_progress.aevents_since(task_id, offset)
-        offset += len(events)
-        for event in events:
-            yield _frame(event)
-            if payroll_progress.is_terminal(event):
-                return
-        if not events:
-            # Opus: asyncio.sleep, not time.sleep — this runs on the event loop now,
-            # and blocking it would stall every other stream and request the
-            # worker is serving, not just this one.
-            await asyncio.sleep(POLL_INTERVAL_SECONDS)
-    logger.warning("Payroll posting stream %s hit its time limit with no terminal event", task_id)
-    yield _frame(
-        {
-            "event": "error",
-            "message": (
-                "The payroll posting run stopped reporting progress. Check Xero for what "
-                "was posted before running it again."
-            ),
-        }
-    )
-
 
 @require_GET
-def payroll_post_stream(request: HttpRequest, task_id: str) -> HttpResponseBase:
-    """Stream a payroll-posting run's progress to the weekly timesheets page."""
+def payroll_runs_stream(request: HttpRequest) -> HttpResponseBase:
+    """Stream this organisation's payroll run documents to the weekly page."""
     auth = SuperuserCookieJWTAuth()
     try:
         user = auth.authenticate(request, request.COOKIES.get(auth.param_name))
@@ -112,19 +57,15 @@ def payroll_post_stream(request: HttpRequest, task_id: str) -> HttpResponseBase:
     if not isinstance(user, Staff):
         raise TypeError(f"Cookie JWT resolved a non-Staff principal: {type(user)!r}")
 
-    if payroll_progress.get_task(task_id) is None:
-        # Opus: Either the id was never registered or its hour has elapsed. Saying so
-        # beats streaming an empty log the client would wait on forever.
-        return JsonResponse(
-            {"detail": f"No payroll posting run {task_id} is in progress."}, status=404
-        )
+    # Opus: django-eventstream reads ``request.user`` itself rather than taking a
+    # user argument (its eventrequest.py), and AuthenticationMiddleware left it
+    # anonymous — that middleware reads the Django session, not the JWT cookie
+    # this contract authenticates with.
+    request.user = user
 
-    response = StreamingHttpResponse(_event_stream(task_id), content_type="text/event-stream")
-    response["Cache-Control"] = "no-cache, no-transform"
-    # Opus: nginx buffers proxied responses by default, which would hold every event
-    # until the run finished.
-    response["X-Accel-Buffering"] = "no"
+    response = eventstream_views.events(request, channels=[settings.PAYROLL_RUNS_CHANNEL])
     # Opus: GZipMiddleware compresses streaming responses, batching events into
-    # compression blocks; it skips anything already declaring an encoding.
+    # compression blocks; it skips any response already declaring an encoding.
+    # Cache-Control and X-Accel-Buffering come from the library's own defaults.
     response["Content-Encoding"] = "identity"
     return response

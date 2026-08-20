@@ -7,7 +7,7 @@ import datetime
 from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from apps.core.errors import InvalidInputError
@@ -181,6 +181,13 @@ class PayRunSyncResult:
     updated: int
 
 
+#: Opus: How a staff member's week was posted. A named union, not a bare `str`:
+#: this was declared as a two-member union in TypeScript and as `str` here, so
+#: the wire contract was stricter than the type that produced it and only the
+#: hand-written copy said so.
+type PayrollPostingMode = Literal["timesheet", "salary"]
+
+
 @dataclass(frozen=True)
 class StaffWeekPostResult:
     """One staff member's week, after the provider posted it.
@@ -204,7 +211,7 @@ class StaffWeekPostResult:
     reason: str | None = None
     has_entries: bool = False
     error: str | None = None
-    posting_mode: str = "timesheet"
+    posting_mode: PayrollPostingMode = "timesheet"
     salary_timesheet_removed: bool = False
 
 

@@ -696,14 +696,46 @@ def ensure_pay_run_for_week(week_start_date: date) -> PayRunRef:
             week.end,
         )
         return _pay_run_ref(same_week, str(same_week.xero_id))
-    if open_drafts:
-        blocking = open_drafts[0]
+    require_no_blocking_draft(week_start_date)
+    return create_pay_run(week.start)
+
+
+def require_no_blocking_draft(week_start_date: date) -> None:
+    """Refuse a week that another week's open draft pay run blocks.
+
+    Opus: Xero allows exactly one draft pay run per calendar, and this reads the
+    LOCAL mirror — it costs no Xero call at all, which is why it is a preflight
+    rather than something discovered on the way past.
+
+    Opus: It used to be checked only inside ``ensure_pay_run_for_week``, which runs
+    AFTER the leave reconcile — and that loop spends one ``get_employee_leaves``
+    per staff member before the first result. So a week blocked by a stale draft
+    paid the whole per-staff preflight to discover a fact already sitting in the
+    mirror, and paid it again on every retry. A draft left open is routine: an
+    operator starts a pay run in Xero and does not finish it, and the next
+    Monday's post walks into this. Measured 2026-08-20 against the demo tenant:
+    six attempts, ~144 Xero calls each, all failing on one draft.
+    """
+    week = _WeekWindow.of(week_start_date)
+    # Opus: Tenant and status, not the calendar id. This installation has exactly
+    # one payroll calendar — ``CompanyDefaults.xero_payroll_calendar_id`` is a
+    # single field, which is the same fact the run claim rests on — so the
+    # calendar adds nothing to the filter and asking for it would make THIS the
+    # function that reports an unconfigured install. That belongs to
+    # ``ensure_pay_run_for_week``, which genuinely needs the id; a preflight that
+    # pre-empted it would answer "no calendar configured" to someone who had
+    # actually passed an unknown staff id.
+    blocking = (
+        XeroPayRun.objects.filter(xero_tenant_id=_tenant(), pay_run_status="Draft")
+        .exclude(period_start_date=week.start, period_end_date=week.end)
+        .first()
+    )
+    if blocking is not None:
         raise ValueError(
             f"A draft pay run for {blocking.period_start_date} to {blocking.period_end_date} "
             f"is already open on the payroll calendar, and Xero allows only one. Post or "
             f"delete it in Xero, then refresh, before posting {week.start} to {week.end}."
         )
-    return create_pay_run(week.start)
 
 
 def refresh_pay_runs() -> PayRunSyncResult:
@@ -836,6 +868,12 @@ def post_payroll_week(
     # Opus: Loaded once for the whole run rather than per line: five rows that
     # cannot change mid-post, and the alternative is a query per cost line.
     catalogue = hour_categories.LeaveCatalogue.load()
+
+    # Opus: After the staff list resolves, not before it: an unknown staff id is
+    # the caller's own mistake and should say so rather than be answered with a
+    # fact about the pay run. Before the loop below, which costs a Xero call per
+    # staff member where this costs none.
+    require_no_blocking_draft(week.start)
 
     # Opus: Leave first, and before the pay run exists: Xero locks leave changes once
     # the employee is in a draft pay run (KAN-326).

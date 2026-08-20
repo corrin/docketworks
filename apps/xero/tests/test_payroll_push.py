@@ -74,6 +74,51 @@ def job(company: Company, superuser: Staff) -> Job:
     return make_job(company, superuser, name="Payroll Push Job")
 
 
+@pytest.fixture
+def xero_writes(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Every posting call that would reach Xero, in the order it was reached.
+
+    Opus: A list rather than a mock per call site, because what these tests assert
+    is ORDER and COUNT across the whole run — that nothing was written before a
+    refusal, and that a repeated staff id posts once. Patched at the module
+    boundary ``post_payroll_week`` calls through, so a call added inside one of
+    these functions still lands under the marker its caller trips.
+    """
+    writes: list[str] = []
+
+    def _record(name: str, result: object = None) -> "Callable[..., object]":
+        def _call(*_args: object, **_kwargs: object) -> object:
+            writes.append(name)
+            return result
+
+        return _call
+
+    monkeypatch.setattr(payroll_push, "_tenant", lambda: POSTING_TENANT)
+    monkeypatch.setattr(payroll_push, "reconcile_leave_for_staff_week", _record("leave"))
+    monkeypatch.setattr(payroll_push, "ensure_pay_run_for_week", _record("pay_run"))
+    monkeypatch.setattr(payroll_push, "existing_timesheets_for_week", _record("list", {}))
+    monkeypatch.setattr(payroll_push, "_post_one_staff_week", _record("post"))
+    return writes
+
+
+def make_pay_run(
+    tenant: str, *, week_start: date = WEEK_START, status: str = "Draft"
+) -> XeroPayRun:
+    """A mirrored Xero pay run covering the week beginning ``week_start``."""
+    return XeroPayRun.objects.create(
+        xero_id=uuid.uuid4(),
+        xero_tenant_id=tenant,
+        payroll_calendar_id=uuid.uuid4(),
+        period_start_date=week_start,
+        period_end_date=week_start + timedelta(days=6),
+        payment_date=week_start + timedelta(days=9),
+        pay_run_status=status,
+        pay_run_type="Scheduled",
+        raw_json={},
+        xero_last_modified=timezone.now(),
+    )
+
+
 def _catalogue() -> "hour_categories.LeaveCatalogue":
     """The configured categories, as every posting path loads them."""
     return hour_categories.LeaveCatalogue.load()
@@ -399,6 +444,38 @@ class TestDraftPayRunBlock:
             payroll_leave._is_draft_pay_run_leave_block(Exception("Rate limit exceeded")) is False
         )
 
+    def test_another_weeks_draft_is_refused_without_calling_xero(
+        self, xero_writes: list[str], worker: Staff, job: Job
+    ) -> None:
+        """The requirement is the cost, not the refusal (ADR 0052).
+
+        Opus: The task already refused a blocked week before this preflight
+        existed — from Xero's own error, after one ``get_employee_leaves`` per
+        staff member. So the message is identical on both sides of the fix and
+        asserting it would prove nothing; the call count is the only thing that
+        moved. Measured 2026-08-20 against the demo tenant: six attempts at
+        ~144 calls each, 862 of a 1,000-call day, to rediscover one draft the
+        local mirror already named.
+        """
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        make_pay_run(POSTING_TENANT, week_start=WEEK_START - timedelta(days=7))
+
+        with pytest.raises(ValueError, match="Xero allows only one"):
+            list(payroll_push.post_payroll_week(POSTING_TENANT, [worker.id], WEEK_START))
+
+        assert xero_writes == [], "a locally-knowable refusal spent Xero calls to reach"
+
+    def test_this_weeks_own_draft_does_not_block_it(
+        self, xero_writes: list[str], worker: Staff, job: Job
+    ) -> None:
+        """Re-posting a week reuses its own draft; only ANOTHER week's blocks."""
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        make_pay_run(POSTING_TENANT)
+
+        list(payroll_push.post_payroll_week(POSTING_TENANT, [worker.id], WEEK_START))
+
+        assert xero_writes.count("post") == 1
+
 
 class TestMatchingTimesheetMustBeApproved:
     """A timesheet holding the right hours is not necessarily a posted one.
@@ -479,29 +556,10 @@ class TestStaffListIsValidatedBeforeAnyWrite:
     input except the one it was written for.
     """
 
-    def _record_writes(self, monkeypatch: pytest.MonkeyPatch) -> list[str]:
-        """Trip a marker on every call that would reach Xero."""
-        writes: list[str] = []
-
-        def _record(name: str, result: object = None) -> "Callable[..., object]":
-            def _call(*_args: object, **_kwargs: object) -> object:
-                writes.append(name)
-                return result
-
-            return _call
-
-        monkeypatch.setattr(payroll_push, "_tenant", lambda: POSTING_TENANT)
-        monkeypatch.setattr(payroll_push, "reconcile_leave_for_staff_week", _record("leave"))
-        monkeypatch.setattr(payroll_push, "ensure_pay_run_for_week", _record("pay_run"))
-        monkeypatch.setattr(payroll_push, "existing_timesheets_for_week", _record("list", {}))
-        monkeypatch.setattr(payroll_push, "_post_one_staff_week", _record("post"))
-        return writes
-
     def test_an_unknown_staff_id_writes_nothing(
-        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job
+        self, xero_writes: list[str], worker: Staff, job: Job
     ) -> None:
         make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
-        writes = self._record_writes(monkeypatch)
 
         with pytest.raises(ValueError, match="not found"):
             list(
@@ -510,10 +568,10 @@ class TestStaffListIsValidatedBeforeAnyWrite:
                 )
             )
 
-        assert writes == [], "payroll was written before the staff list was validated"
+        assert xero_writes == [], "payroll was written before the staff list was validated"
 
     def test_a_changed_organisation_writes_nothing(
-        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job
+        self, monkeypatch: pytest.MonkeyPatch, xero_writes: list[str], worker: Staff, job: Job
     ) -> None:
         """A week posted into another organisation's payroll is not recoverable.
 
@@ -523,25 +581,23 @@ class TestStaffListIsValidatedBeforeAnyWrite:
         can pick up a run dispatched for one organisation and resolve another.
         """
         make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
-        writes = self._record_writes(monkeypatch)
         monkeypatch.setattr(payroll_push, "_tenant", lambda: "another-organisation")
 
         with pytest.raises(payroll_push.WrongPayrollTenantError, match=POSTING_TENANT):
             list(payroll_push.post_payroll_week(POSTING_TENANT, [worker.id], WEEK_START))
 
-        assert writes == [], "payroll was written into an organisation it was not meant for"
+        assert xero_writes == [], "payroll was written into an organisation it was not meant for"
 
     def test_a_repeated_staff_id_is_posted_once(
-        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job
+        self, xero_writes: list[str], worker: Staff, job: Job
     ) -> None:
         """Both loops iterated the argument, so a repeat reconciled and posted twice."""
         make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
-        writes = self._record_writes(monkeypatch)
 
         list(payroll_push.post_payroll_week(POSTING_TENANT, [worker.id, worker.id], WEEK_START))
 
-        assert writes.count("post") == 1
-        assert writes.count("leave") == 1
+        assert xero_writes.count("post") == 1
+        assert xero_writes.count("leave") == 1
 
 
 class TestPostedLeaveHours:
@@ -796,26 +852,11 @@ class TestLeaveFailureAbortsTheBatch:
 
 
 class TestPayRunTenantIsolation:
-    def _run(self, tenant: str, *, status: str = "Draft") -> XeroPayRun:
-        run_id = uuid.uuid4()
-        return XeroPayRun.objects.create(
-            xero_id=run_id,
-            xero_tenant_id=tenant,
-            payroll_calendar_id=uuid.uuid4(),
-            period_start_date=WEEK_START,
-            period_end_date=WEEK_START + timedelta(days=6),
-            payment_date=WEEK_START + timedelta(days=9),
-            pay_run_status=status,
-            pay_run_type="Scheduled",
-            raw_json={},
-            xero_last_modified=timezone.now(),
-        )
-
     def test_refresh_deletes_only_orphans_for_the_connected_tenant(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        ours = self._run("ours")
-        foreign = self._run("foreign")
+        ours = make_pay_run("ours")
+        foreign = make_pay_run("foreign")
         monkeypatch.setattr(payroll_push, "_tenant", lambda: "ours")
         monkeypatch.setattr(
             payroll_push,
@@ -831,7 +872,7 @@ class TestPayRunTenantIsolation:
     def test_a_foreign_draft_does_not_block_this_tenant(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        foreign = self._run("foreign")
+        foreign = make_pay_run("foreign")
         monkeypatch.setattr(payroll_push, "_tenant", lambda: "ours")
         monkeypatch.setattr(payroll_push, "_calendar_id", lambda: foreign.payroll_calendar_id)
         created = SimpleNamespace(pay_run_id="new-run")

@@ -7108,6 +7108,75 @@ components:
       - cells
       title: PayrollHeatmapRowOut
       type: object
+    PayrollPostRunOut:
+      description: "The whole state of a payroll posting run.\n\nOpus: Latest-state-wins, the contract\
+        \ ADR 0047 already proves with\ndata-versions: every push carries the complete current document,\
+        \ so a client\nthat connects late, reconnects, or reloads needs no replay and no offset \u2014\
+        \nit needs the present. The append-only event log this replaces existed to\nmake replay exact,\
+        \ which is a problem this shape does not have.\n\n`updated_at` is the ordering guard. A catch-up\
+        \ read can be in flight when a\npush lands, and the older answer would otherwise overwrite a finished\
+        \ run\nwith a running one, leaving a panel spinning forever."
+      properties:
+        completed:
+          title: Completed
+          type: integer
+        current_staff_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Staff Name
+        failed:
+          title: Failed
+          type: integer
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+        results:
+          items:
+            $ref: '#/components/schemas/StaffWeekPostResultOut'
+          title: Results
+          type: array
+        run_id:
+          format: uuid
+          title: Run Id
+          type: string
+        status:
+          $ref: '#/components/schemas/PayrollRunStatus'
+        successful:
+          title: Successful
+          type: integer
+        total:
+          title: Total
+          type: integer
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+        week_start_date:
+          format: date
+          title: Week Start Date
+          type: string
+      required:
+      - completed
+      - current_staff_name
+      - failed
+      - message
+      - results
+      - run_id
+      - status
+      - successful
+      - total
+      - updated_at
+      - week_start_date
+      title: PayrollPostRunOut
+      type: object
+    PayrollPostingMode:
+      enum:
+      - timesheet
+      - salary
+      type: string
     PayrollReconciliationResponse:
       description: Wire contract for PayrollReconciliationResponse.
       properties:
@@ -7131,6 +7200,27 @@ components:
       - heatmap
       - grand_totals
       title: PayrollReconciliationResponse
+      type: object
+    PayrollRunStatus:
+      enum:
+      - queued
+      - running
+      - succeeded
+      - failed
+      type: string
+    PayrollRunsOut:
+      description: "Every payroll run this organisation currently has state for.\n\nOpus: A named slot\
+        \ rather than a discriminated union: the slot IS the kind, so\nTypeScript narrows by field access\
+        \ with no ceremony. A second kind \u2014 the\ncomparison run \u2014 becomes a second slot, and\
+        \ the frontend's exhaustiveness\ncheck makes forgetting to handle it a compile error."
+      properties:
+        post:
+          anyOf:
+          - $ref: '#/components/schemas/PayrollPostRunOut'
+          - type: 'null'
+      required:
+      - post
+      title: PayrollRunsOut
       type: object
     PayrollStaffSummaryOut:
       description: Wire contract for PayrollStaffSummaryOut.
@@ -8774,18 +8864,15 @@ components:
       title: PostWeekToXeroRequest
       type: object
     PostWeekToXeroStartResponse:
-      description: Wire contract for PostWeekToXeroStartResponse.
+      description: "Wire contract for PostWeekToXeroStartResponse.\n\nOpus: Returns the run's opening\
+        \ document rather than a `stream_url`. The panel\ncan render \"0 of N\" before any push arrives,\
+        \ and the stream path is a client\nconstant like `data-versions-stream.ts`'s \u2014 a URL is not\
+        \ a contract."
       properties:
-        stream_url:
-          title: Stream Url
-          type: string
-        task_id:
-          format: uuid
-          title: Task Id
-          type: string
+        run:
+          $ref: '#/components/schemas/PayrollPostRunOut'
       required:
-      - task_id
-      - stream_url
+      - run
       title: PostWeekToXeroStartResponse
       type: object
     PostingSurfaceOut:
@@ -10566,6 +10653,80 @@ components:
       - staff
       - period_summary
       title: StaffPerformanceResponse
+      type: object
+    StaffWeekPostResultOut:
+      description: 'One staff member''s outcome, as the run reports it.
+
+
+        Opus: Built by `model_validate` off the frozen `StaffWeekPostResult` dataclass
+
+        rather than a hand-written flattening step. The flattening was a second
+
+        declaration of these fields, and a third lived in TypeScript.'
+      properties:
+        entries_posted:
+          title: Entries Posted
+          type: integer
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+        has_entries:
+          title: Has Entries
+          type: boolean
+        leave_hours:
+          title: Leave Hours
+          type: number
+        other_leave_hours:
+          title: Other Leave Hours
+          type: number
+        posting_mode:
+          $ref: '#/components/schemas/PayrollPostingMode'
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        salary_timesheet_removed:
+          title: Salary Timesheet Removed
+          type: boolean
+        skipped:
+          title: Skipped
+          type: boolean
+        staff_id:
+          title: Staff Id
+          type: string
+        staff_name:
+          title: Staff Name
+          type: string
+        success:
+          title: Success
+          type: boolean
+        timesheet_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Timesheet Id
+        work_hours:
+          title: Work Hours
+          type: number
+      required:
+      - entries_posted
+      - error
+      - has_entries
+      - leave_hours
+      - other_leave_hours
+      - posting_mode
+      - reason
+      - salary_timesheet_removed
+      - skipped
+      - staff_id
+      - staff_name
+      - success
+      - timesheet_id
+      - work_hours
+      title: StaffWeekPostResultOut
       type: object
     StaffWeekPostingOut:
       description: Wire contract for StaffWeekPostingOut.
@@ -18783,7 +18944,10 @@ paths:
       - timesheets
   /api/timesheets/payroll/post-staff-week/:
     post:
-      description: Register the posting task and return its SSE stream URL.
+      description: "Claim the calendar, dispatch the run, and return its opening document.\n\nOpus: A\
+        \ run already in progress raises ``PayrollRunInProgressError``, a typed\nConflictError the envelope\
+        \ answers 409 with \u2014 so a duplicate click is\nrefused here rather than handed a run id whose\
+        \ only content is a fabricated\nfailure the client must open a stream to read."
       operationId: timesheets_payroll_post_staff_week_create
       parameters: []
       requestBody:
@@ -18802,6 +18966,28 @@ paths:
       security:
       - SuperuserCookieJWTAuth: []
       summary: Start posting weekly timesheets to Xero Payroll
+      tags:
+      - timesheets
+  /api/timesheets/payroll/runs/:
+    get:
+      description: "Return the current run document, which the stream also pushes.\n\nOpus: The polling\
+        \ sibling of the SSE channel, and the reason the run document\nhas generated frontend types at\
+        \ all \u2014 a stream cannot be a ninja operation\n(ADR 0047), so without this the wire contract\
+        \ existed only as hand-written\nTypeScript. It is also what makes a reload rejoin a live run,\
+        \ and what tells\nan expired run (404-shaped: an absent slot) apart from a lapsed session\n(401),\
+        \ which the stream cannot express."
+      operationId: timesheets_payroll_runs_retrieve
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayrollRunsOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: The payroll runs this organisation currently has state for
       tags:
       - timesheets
   /api/timesheets/payroll/week-status/:

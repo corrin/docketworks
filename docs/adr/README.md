@@ -59,3 +59,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0049](0049-one-home-per-operational-script.md) | Operational scripts are homed by confidentiality and recurrence: client adhoc, repo adhoc, scripts/, management command |
 | [0050](0050-integrations-are-proven-against-the-real-thing.md) | Every integration is proven against the real thing, and nothing merges without it |
 | [0051](0051-ai-rationales-name-their-author.md) | AI rationales name their author until ratified |
+| [0052](0052-tests-survive-rewrites.md) | A test survives a rewrite and fails a behaviour change |

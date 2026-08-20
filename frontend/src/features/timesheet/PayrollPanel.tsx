@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { mondayOf } from '@/lib/dates'
 import { formatDate, localIsoDate } from '@/lib/format'
 
-import type { PayrollCompleteEvent } from '@/api'
+import type { StaffWeekPostResultOut } from '@/api'
 import type { UsePayrollWeekResult } from './usePayrollWeek'
 
 /**
@@ -258,7 +258,7 @@ function postButtonTitle(payRunState: string, isPostableWeek: boolean): string {
   return 'Post every staff member’s hours for this week to Xero'
 }
 
-function PostResults({ results }: { results: PayrollCompleteEvent[] }) {
+function PostResults({ results }: { results: StaffWeekPostResultOut[] }) {
   return (
     <ul className="flex flex-col gap-1 text-xs" data-automation-id="PayrollPanel-results">
       {results.map((result) => (
@@ -274,13 +274,13 @@ function PostResults({ results }: { results: PayrollCompleteEvent[] }) {
   )
 }
 
-function resultTone(result: PayrollCompleteEvent): string {
+function resultTone(result: StaffWeekPostResultOut): string {
   if (!result.success) return 'text-red-700'
   if (result.skipped) return 'text-amber-800'
   return 'text-slate-600'
 }
 
-function resultText(result: PayrollCompleteEvent): string {
+function resultText(result: StaffWeekPostResultOut): string {
   if (!result.success) return result.error ?? 'Failed to post'
   if (result.posting_mode === 'salary') {
     const cleanup = result.salary_timesheet_removed ? ' Removed an overriding Xero timesheet.' : ''

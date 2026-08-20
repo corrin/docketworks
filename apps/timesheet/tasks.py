@@ -20,7 +20,7 @@ from celery import shared_task
 from apps.accounting.registry import get_provider
 from apps.accounting.types import PayrollMirrorScope
 from apps.core.errors import AppErrorContext, persist_app_error
-from apps.timesheet.services import payroll_progress
+from apps.timesheet.services import payroll_runs
 
 logger = logging.getLogger(__name__)
 
@@ -43,33 +43,34 @@ PAYSLIP_SETTLE_DELAY_SECONDS = 180
 
 @shared_task(name="apps.timesheet.tasks.post_payroll_week_task")
 def post_payroll_week_task(
-    task_id: str,
+    run_id: str,
     connection_id: str,
     staff_ids: list[str],
     week_start_date: str,
 ) -> None:
-    """Post a week of hours to payroll, publishing progress for the stream to read.
+    """Post a week of hours to payroll, keeping the run document current.
 
-    Opus: Every exit path publishes a terminal event. A task that died silently would
-    leave the page's progress bar spinning forever with no way to tell a slow
-    post from a dead one.
+    Opus: Every exit path writes a TERMINAL document — `succeeded` or `failed`.
+    A task that died silently would leave the panel's progress bar spinning with
+    no way to tell a slow post from a dead one, and the shape this replaces had
+    a subtler version of the same fault: it published `error` then `done`, the
+    stream treated `error` as terminal and closed before the `done` the client
+    keys "finished" off, so a real failure carrying an actionable message read
+    as "the run ended without reporting an outcome". One `status` field cannot
+    disagree with itself that way.
     """
     week = date.fromisoformat(week_start_date)
     ids = [UUID(staff_id) for staff_id in staff_ids]
+    run = payroll_runs.running(connection_id, run_id, week, total=len(ids))
 
     successful = failed = 0
     try:
-        # Opus: Claimed before anything is published, so a refused duplicate leaves no
-        # trace in the live run's log. CELERY_TASK_ACKS_LATE is on, so a worker
-        # that dies or loses the broker mid-batch has this message redelivered
-        # (ADR 0024) — and a second operator click produces a second task id,
-        # which no task-scoped guard would catch. Both land here.
-        holder = payroll_progress.acquire_run_claim(connection_id, task_id)
-        if holder is not None:
-            _report_already_running(task_id, holder, len(ids))
-            return
-
-        payroll_progress.publish(task_id, {"event": "start", "total": len(ids)})
+        # Opus: Redelivery guard, in the task body as ADR 0024 asks. The claim was
+        # taken by the request handler so a duplicate click is a synchronous 409;
+        # what reaches here is CELERY_TASK_ACKS_LATE redelivering a message whose
+        # worker died. Renewing proves the claim is still ours before the first
+        # irreversible call.
+        payroll_runs.renew_run_claim(connection_id, run_id)
         provider = get_provider()
         if not provider.supports_payroll:
             raise ValueError(
@@ -80,84 +81,47 @@ def post_payroll_week_task(
         for index, result in enumerate(
             provider.post_payroll_week(connection_id, ids, week), start=1
         ):
-            payroll_progress.renew_run_claim(connection_id, task_id)
-            payroll_progress.publish(
-                task_id,
-                {
-                    "event": "progress",
-                    "staff_id": result.staff_id,
-                    "staff_name": result.staff_name,
-                    "current": index,
-                    "total": len(ids),
-                },
-            )
-            payroll_progress.publish(task_id, payroll_progress.completion_event(result))
+            payroll_runs.renew_run_claim(connection_id, run_id)
             if result.success:
                 successful += 1
             else:
                 failed += 1
+            run = payroll_runs.with_result(
+                run, result, completed=index, successful=successful, failed=failed
+            )
+            payroll_runs.write(connection_id, run)
         provider.sync_payroll_mirror(connection_id, PayrollMirrorScope.AFTER_POST)
         refresh_payroll_after_settle_task.apply_async(
             args=(connection_id, week_start_date), countdown=PAYSLIP_SETTLE_DELAY_SECONDS
         )
-        payroll_progress.publish(
-            task_id, {"event": "done", "successful": successful, "failed": failed}
-        )
+        payroll_runs.write(connection_id, payroll_runs.finished(run, "succeeded"))
     except Exception as exc:
         # Opus: The preflight refuses the whole batch (unlinked pay items, a blocking
         # draft pay run), so this is a batch-level failure, not one staff
-        # member's. It is reported verbatim because the message names the fix
-        # (ADR 0038) — and re-raised so the task is recorded as failed.
-        #
-        # Persisted as well as logged, because the log line cannot answer the
-        # question asked after a failed payroll run: WHICH week and WHICH staff
-        # were left unposted. Progress events expire with the cache entry, so
-        # without this row the batch's scope is gone by the time anyone looks.
+        # member's. The message is carried verbatim because it names the fix
+        # (ADR 0038) — "delete the draft pay run for 2026-07-13, then post again"
+        # is the whole of what an operator needs, and it is the sentence that
+        # used to be published and never delivered.
         persist_app_error(
             exc,
             AppErrorContext(
                 additional_context={
-                    "task_id": task_id,
-                    "staff_ids": staff_ids,
+                    "run_id": run_id,
                     "week_start_date": week_start_date,
+                    "staff_ids": staff_ids,
                     "successful": successful,
                     "failed": failed,
                 }
             ),
         )
-        logger.exception("Payroll posting task %s failed", task_id)
-        payroll_progress.publish(task_id, {"event": "error", "message": str(exc)})
-        payroll_progress.publish(
-            task_id,
-            {"event": "done", "successful": successful, "failed": len(ids) - successful},
-        )
+        logger.exception("Payroll posting task %s failed", run_id)
+        payroll_runs.write(connection_id, payroll_runs.finished(run, "failed", message=str(exc)))
         raise
     finally:
-        # Opus: Released after the terminal event, so the claim covers everything a
-        # second run could collide with. It only deletes a claim this run owns,
-        # so the refused path above and a claim already expired are both no-ops.
-        payroll_progress.release_run_claim(connection_id, task_id)
-
-
-def _report_already_running(task_id: str, holder: str, total: int) -> None:
-    """Tell the operator which run holds the calendar, and end this one quietly.
-
-    Opus: Not an exception: a refused duplicate is the guard working, not the task
-    failing, and raising would retry it against the same held claim.
-    """
-    logger.warning("Payroll posting task %s refused: run %s holds the calendar", task_id, holder)
-    payroll_progress.publish(
-        task_id,
-        {
-            "event": "error",
-            "message": (
-                f"A payroll posting run ({holder}) is already in progress. Nothing was "
-                "posted. Wait for it to finish, then check what Xero holds before "
-                "posting again."
-            ),
-        },
-    )
-    payroll_progress.publish(task_id, {"event": "done", "successful": 0, "failed": total})
+        # Opus: Released after the terminal document, so the claim covers everything
+        # a second run could collide with. It only deletes a claim this run owns,
+        # so an already-expired claim is a no-op.
+        payroll_runs.release_run_claim(connection_id, run_id)
 
 
 @shared_task(name="apps.timesheet.tasks.refresh_payroll_after_settle_task")

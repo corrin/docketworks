@@ -5,13 +5,13 @@
  * Query cache. The only local state is the progress of a run in flight, which
  * is not server state — it is a conversation with a task, and it ends.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import {
   apiErrorMessage,
-  streamPayrollPost,
+  runPayrollRunsStream,
   timesheetsPayrollPayRunsCreateCreateMutation,
   timesheetsPayrollPayRunsRefreshCreateMutation,
   timesheetsPayrollPayRunsRetrieveOptions,
@@ -20,7 +20,11 @@ import {
   timesheetsPayrollWeekStatusRetrieveOptions,
   timesheetsPayrollWeekStatusRetrieveQueryKey,
   timesheetsWeeklyRetrieveQueryKey,
-  type PayrollCompleteEvent,
+  timesheetsPayrollRunsRetrieveOptions,
+  timesheetsPayrollRunsRetrieveQueryKey,
+  type PayrollPostRunOut,
+  type StaffWeekPostResultOut,
+  type PayrollRunsOut,
   type PayRunListItemOut,
   type StaffWeekPostingOut,
 } from '@/api'
@@ -28,18 +32,12 @@ import {
 /** How the selected week stands with payroll, in the words the page shows. */
 export type PayRunState = 'draft' | 'posted' | 'missing'
 
-/** How many times a dropped stream is rejoined before the operator is told. */
-const STREAM_RECONNECT_ATTEMPTS = 3
+/** How often to re-read a live run while the stream is the primary signal. */
+const LIVE_RUN_POLL_MS = 10_000
 
 /** What to do when the run's outcome is unknown — never "try posting again". */
 const UNKNOWN_OUTCOME_ADVICE =
   ' It may still be running in Xero — use "Check against Xero" before posting again.'
-
-/** Space out reconnects. Four immediate retries against a server that closes at
- * once are four requests in a few milliseconds, which is a hammer, not a retry. */
-function backoff(attempt: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt))
-}
 
 export interface PayrollProgress {
   current: number
@@ -67,7 +65,7 @@ export interface UsePayrollWeekResult {
   postWeek: (staffIds: string[]) => void
   isPosting: boolean
   progress: PayrollProgress | null
-  results: PayrollCompleteEvent[]
+  results: StaffWeekPostResultOut[]
   /** Set once a post has run this session, so the button can say "Re-post". */
   hasPosted: boolean
   /**
@@ -84,6 +82,18 @@ export interface UsePayrollWeekResult {
   checkXero: () => void
 }
 
+/** Whether a pushed document is newer than the one already held.
+ *
+ * Opus: Module scope, not inside the hook: it closes over nothing, and a
+ * function redefined per render is a new identity in every dependency array
+ * that names it.
+ */
+function isNewer(pushed: PayrollRunsOut, held: PayrollRunsOut | undefined): boolean {
+  if (held?.post === undefined || held.post === null) return true
+  if (pushed.post === undefined || pushed.post === null) return false
+  return pushed.post.updated_at >= held.post.updated_at
+}
+
 export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
   const queryClient = useQueryClient()
   const payRunsQuery = useQuery(timesheetsPayrollPayRunsRetrieveOptions())
@@ -98,33 +108,75 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
     staleTime: Infinity,
     retry: false,
   })
-  const [progress, setProgress] = useState<PayrollProgress | null>(null)
-  const [results, setResults] = useState<PayrollCompleteEvent[]>([])
-  const [hasPosted, setHasPosted] = useState(false)
-  const [isPosting, setIsPosting] = useState(false)
-  // Opus: Abort a run's stream if the operator navigates away mid-post; the task
-  // keeps going server-side, which is the point of it living there.
-  const abortRef = useRef<AbortController | null>(null)
+  // Opus: The run document, not local progress state. Every push carries the whole
+  // of it, so reconnecting cannot duplicate results and a reload cannot lose
+  // them — the two failure modes the replaced code had to remember to avoid.
+  const runsQuery = useQuery({
+    ...timesheetsPayrollRunsRetrieveOptions(),
+    // Opus: The stream is primary; this poll is the catch-up on connect and the
+    // fallback while a run is live. It is off otherwise, because a payroll run
+    // is a conversation with a task, and it ends.
+    refetchInterval: (query) =>
+      query.state.data?.post?.status === 'running' ? LIVE_RUN_POLL_MS : false,
+  })
 
-  // Opus: All of the state above belongs to ONE week. The route survives
-  // search-parameter navigation, so without this, week B showed week A's
-  // per-staff results and its "Re-post to Xero" label, and A's stream kept
-  // writing into the display while B was on screen — an operator reading
-  // another week's outcome as this one's. The server task is deliberately not
-  // cancelled: it owns the posting, and abandoning the stream is exactly what
-  // the task living server-side is for.
+  // Opus: A document for another week is not this week's business. The route
+  // survives search-parameter navigation, so week B used to show week A's
+  // per-staff results and its "Re-post to Xero" label while A's stream kept
+  // writing into the display. Selecting by week makes that unrepresentable
+  // rather than something a cleanup effect has to undo.
+  const run: PayrollPostRunOut | null =
+    runsQuery.data?.post?.week_start_date === weekStart ? runsQuery.data.post : null
+  const isPosting = run?.status === 'running'
+  const results = useMemo(() => run?.results ?? [], [run])
+  const hasPosted = run !== null && run.status !== 'queued'
+  const progress: PayrollProgress | null = isPosting
+    ? { current: run.completed, total: run.total, staffName: run.current_staff_name }
+    : null
+
+  // Opus: One connection while the panel is mounted, writing each pushed document
+  // into the query cache. `updated_at` is the guard: a catch-up read can still be
+  // in flight when a terminal push lands, and the older answer would otherwise
+  // overwrite a finished run with a running one — a panel spinning forever on a
+  // run that is done.
   useEffect(() => {
-    return () => {
-      abortRef.current?.abort()
-      abortRef.current = null
-      setProgress(null)
-      setResults([])
-      setHasPosted(false)
-      setIsPosting(false)
-    }
-  }, [weekStart])
+    const controller = new AbortController()
+    void runPayrollRunsStream({
+      signal: controller.signal,
+      onRuns: (pushed) => {
+        queryClient.setQueryData<PayrollRunsOut>(timesheetsPayrollRunsRetrieveQueryKey(), (held) =>
+          isNewer(pushed, held) ? pushed : held,
+        )
+      },
+      // Opus: The tab is connected and owes itself whatever happened while it was
+      // not. Storage-free pub/sub drops a publication rather than queueing it,
+      // so this is what closes that gap.
+      onStreamOpen: () => {
+        void queryClient.invalidateQueries({
+          queryKey: timesheetsPayrollRunsRetrieveQueryKey(),
+        })
+      },
+    })
+    // Opus: Aborting closes the stream, never the server task: the task owns the
+    // posting, and abandoning the view of it is exactly what running it
+    // server-side is for.
+    return () => controller.abort()
+  }, [queryClient])
 
-  const payRun = payRunsQuery.data?.pay_runs.find((run) => run.period_start_date === weekStart)
+  // Opus: Announce a run's outcome once, when it turns terminal. Derived from the
+  // document rather than fired from a stream callback, so a reconnect that
+  // re-delivers the terminal state cannot toast twice.
+  const announced = useRef<string | null>(null)
+  useEffect(() => {
+    if (run === null || run.status === 'running' || run.status === 'queued') return
+    if (announced.current === run.run_id) return
+    announced.current = run.run_id
+    reportOutcome(run)
+  })
+
+  const payRun = payRunsQuery.data?.pay_runs.find(
+    (candidate) => candidate.period_start_date === weekStart,
+  )
   const payRunState: PayRunState =
     payRun === undefined ? 'missing' : payRun.pay_run_status === 'Posted' ? 'posted' : 'draft'
 
@@ -163,14 +215,13 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
 
   const postMutation = useMutation({
     ...timesheetsPayrollPostStaffWeekCreateMutation(),
-    onError: (error) => {
-      setIsPosting(false)
-      // Opus: postWeek sets progress before the request; postButtonLabel reads it
-      // first, so leaving it set showed "Posting 0 of N…" on a button that was
-      // enabled and had started nothing.
-      setProgress(null)
-      toast.error(apiErrorMessage(error, 'Could not start posting to Xero.'))
-    },
+    // Opus: Nothing to unwind. Progress is derived from the run document, and a
+    // start that failed wrote no document — so the button cannot be left saying
+    // "Posting 0 of N…" while enabled and having started nothing, which is what
+    // the local progress state had to be cleared by hand to avoid. A refused
+    // duplicate arrives here as a 409 carrying the live run's id, rather than as
+    // a fabricated failure the client had to open a stream to discover.
+    onError: (error) => toast.error(apiErrorMessage(error, 'Could not start posting to Xero.')),
   })
 
   const postWeek = useCallback(
@@ -179,113 +230,50 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
         toast.error('There are no staff to post for this week.')
         return
       }
-      setIsPosting(true)
-      setResults([])
-      setProgress({ current: 0, total: staffIds.length, staffName: null })
       postMutation.mutate(
         { body: { staff_ids: staffIds, week_start_date: weekStart } },
         {
+          // Opus: The response IS the run's opening document, so the panel shows
+          // "0 of N" without waiting for a push. No stream URL to follow: the
+          // stream is already open and keyed by organisation.
           onSuccess: (started) => {
-            void consumeRun(started.stream_url)
+            queryClient.setQueryData<PayrollRunsOut>(timesheetsPayrollRunsRetrieveQueryKey(), {
+              post: started.run,
+            })
           },
         },
       )
     },
-    // Opus: consumeRun is stable for the life of the hook; listing it would need a
-    // ref dance that buys nothing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [postMutation, weekStart],
+    [postMutation, queryClient, weekStart],
   )
 
-  /**
-   * Follow a posting run, reconnecting to the same URL if the stream drops.
-   *
-   * Opus: The server keeps the event log and the URL replays it from the beginning,
-   * so a transient network loss is recoverable — but this used to surface it
-   * as "lost contact" and re-enable Post, which invited a second post while
-   * the first was very likely still running. The task owns the posting; the
-   * stream is only how we watch it.
-   *
-   * Opus: Replay is why `setResults` REPLACES rather than appends across attempts:
-   * a reconnect re-delivers every completion already seen, and appending would
-   * show each staff member once per attempt.
-   */
-  async function consumeRun(streamUrl: string): Promise<void> {
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
-    let finished = false
-
-    for (let attempt = 0; attempt <= STREAM_RECONNECT_ATTEMPTS && !finished; attempt += 1) {
-      const seen: PayrollCompleteEvent[] = []
-      try {
-        // Opus: Sequential by necessity: each attempt is a RETRY of the previous
-        // one, so they cannot be started in parallel.
-        // eslint-disable-next-line no-await-in-loop
-        for await (const event of streamPayrollPost(streamUrl, controller.signal)) {
-          if (event.event === 'progress') {
-            setProgress({ current: event.current, total: event.total, staffName: event.staff_name })
-          } else if (event.event === 'complete') {
-            seen.push(event)
-            setResults([...seen])
-          } else if (event.event === 'error') {
-            toast.error(event.message)
-          } else if (event.event === 'done') {
-            finished = true
-            reportOutcome(event.successful, event.failed)
-          }
-        }
-        // Opus: The stream ended without a terminal event: the run may still be
-        // going, so reconnecting is the only way to learn its outcome.
-        if (!finished && !controller.signal.aborted) {
-          // eslint-disable-next-line no-await-in-loop
-          await backoff(attempt)
-          continue
-        }
-      } catch (error) {
-        if (controller.signal.aborted) break
-        if (attempt === STREAM_RECONNECT_ATTEMPTS) {
-          toast.error(
-            apiErrorMessage(error, 'Lost contact with the posting run.') + UNKNOWN_OUTCOME_ADVICE,
-          )
-          break
-        }
-        toast.warning(`Lost contact with the posting run; reconnecting (${attempt + 1})…`)
-        // eslint-disable-next-line no-await-in-loop
-        await backoff(attempt)
-      }
-    }
-
-    // Opus: A run that ends without a terminal event is the quiet version of the
-    // failure this whole loop exists to prevent: the spinner stops, Post
-    // re-enables, and nothing says the outcome is unknown — so the operator
-    // posts again over a run that may still be writing. Only the catch branch
-    // used to speak; a stream that closes cleanly every attempt said nothing.
-    if (!finished && !controller.signal.aborted) {
-      toast.error(`The posting run ended without reporting an outcome.${UNKNOWN_OUTCOME_ADVICE}`)
-    }
-
-    setIsPosting(false)
-    setProgress(null)
-    abortRef.current = null
-  }
-
-  function reportOutcome(successful: number, failed: number): void {
-    setHasPosted(true)
+  function reportOutcome(finishedRun: PayrollPostRunOut): void {
     invalidate()
     // Opus: The one moment the Xero read pays for itself: the operator has just
     // written to payroll and the next question is always whether it landed.
     void statusQuery.refetch()
-    if (failed === 0) {
+    if (finishedRun.status === 'failed') {
+      // Opus: The batch-level message verbatim, because it names the fix — "delete
+      // the draft pay run for 2026-07-13, then post again" is the whole of what
+      // an operator needs. This is the sentence the old shape published and then
+      // never delivered: `error` counted as terminal, so the stream closed
+      // before the `done` the client keyed "finished" off, and a real failure
+      // read as "the run ended without reporting an outcome".
+      toast.error(finishedRun.message ?? `Posting failed.${UNKNOWN_OUTCOME_ADVICE}`)
+      return
+    }
+    if (finishedRun.failed === 0) {
       toast.success(
-        `Posted ${successful} staff member${successful === 1 ? '' : 's'} to Xero. ` +
+        `Posted ${finishedRun.successful} staff member${finishedRun.successful === 1 ? '' : 's'} to Xero. ` +
           'Xero may take a minute or two to finish recalculating payslips.',
       )
       return
     }
     // Opus: Not a toast that disappears: a failed staff member is work the operator
     // still has to do, and the rows below carry the reason for each one.
-    toast.error(`${failed} of ${successful + failed} staff failed to post — see the rows below`)
+    toast.error(
+      `${finishedRun.failed} of ${finishedRun.successful + finishedRun.failed} staff failed to post — see the rows below`,
+    )
   }
 
   return {
