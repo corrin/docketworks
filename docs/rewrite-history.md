@@ -119,7 +119,11 @@ unpaid day, fixed in the same session by deriving the multiplier from
 `LeaveType.is_paid`), and the full E2E gate that followed (108 specs) caught
 the weekly page's always-open SSE stream making Playwright's `networkidle`
 unreachable — the same fact the kanban specs already recorded for the board.
-The opt-in payroll-WRITE specs then stopped on the documented operator-action
-condition: the integration runs had changed the week's leave, the standing
-draft locks leave changes, and the app refused with the delete-this-draft
-remedy verbatim — the refusal path proving itself in the process.
+The opt-in payroll-WRITE specs first stopped on the documented operator-action
+condition (the standing draft locking leave changes; the app refused with the
+delete-this-draft remedy verbatim — the refusal path proving itself), and once
+the owner deleted the draft, the primary write spec passed: a week posted
+through the browser, read back from Xero's own records. The re-posting specs
+then exhausted the tenant's daily quota — one day's allowance covers roughly
+two full integration suites plus several live reruns and one E2E write pass,
+a budget worth knowing before scheduling the release-candidate evidence run.

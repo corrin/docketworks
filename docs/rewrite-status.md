@@ -143,14 +143,12 @@ operations v1's frontend called, never what shape v2 must serve.
 - [ ] Take a fresh production dump for cutover and rebuild the rehearsal
       database from it. `config/tests/test_data_migration_script.py` fails any
       new data-writing migration that ships unclassified.
-- [ ] **Owner: delete the demo tenant's draft pay run for 2026-07-13 to
-      2026-07-19 in the Xero UI, then run
-      `E2E_XERO_PAYROLL=1 ./scripts/ops/run_e2e.sh --grep @xero-payroll-write`.**
-      The 2026-08-21 integration runs changed that week's leave, so the
-      write-path E2E now refuses exactly as designed — Xero locks leave while
-      the employee is in a draft, and drafts have no delete API — with the
-      remedy verbatim in the refusal. Everything up to the human step is
-      already proven live by the integration suite.
+- [ ] Run the two remaining payroll-write E2E specs on a fresh day's Xero
+      quota: `E2E_XERO_PAYROLL=1 ./scripts/ops/run_e2e.sh --grep
+      "@xero-payroll-write"`. The primary spec — hours reach Xero and Xero
+      holds what was recorded — passed 2026-08-21 after the owner deleted the
+      stale draft; the re-posting and replacement specs then hit the day
+      limit (quota resets ~19:00 NZT).
 - [ ] Confirm the sitemap shard count in the pre-cutover live-portal run.
 
 ### Owner: check one production pay slip for a double-paid public holiday
