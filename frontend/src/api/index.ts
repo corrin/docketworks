@@ -267,6 +267,7 @@ export {
   jobJobsFetchByColumnRetrieveOptions,
   jobJobsFetchByColumnRetrieveQueryKey,
   jobJobsReorderCreateMutation,
+  jobJobsStatusChoicesRetrieveOptions,
   jobJobsStatusValuesRetrieveOptions,
   jobJobsUpdateStatusCreateMutation,
 } from './generated/@tanstack/react-query.gen'

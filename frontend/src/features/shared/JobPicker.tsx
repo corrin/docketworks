@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
-import { jobJobsStatusValuesRetrieveOptions } from '@/api'
+import { jobJobsStatusChoicesRetrieveOptions } from '@/api'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useDebouncedValue } from './useDebouncedValue'
@@ -107,12 +107,15 @@ function useNoJobSearch<T extends JobPickerOption>(_term: string): BackgroundJob
 /**
  * The status vocabulary at runtime, from the endpoint that owns it. A second
  * hand-typed table here is the drift `features/kanban/columns.ts` documents
- * refusing — the taxonomy has one home, and this picker reads it. Statuses are
- * fixed per deployment, so the answer is cached for the session; an unknown or
- * not-yet-loaded status renders no label rather than a guess.
+ * refusing — the taxonomy has one home, and this picker reads it. The FULL
+ * status-choices endpoint (Job.JOB_STATUS_CHOICES), not the kanban
+ * status-values one: the board's vocabulary is the column subset, and this
+ * picker lists jobs in statuses (special, archived) no column carries.
+ * Statuses are fixed per deployment, so the answer is cached for the session;
+ * an unknown or not-yet-loaded status renders no label rather than a guess.
  */
 function useStatusLabels(): Record<string, string> {
-  const query = useQuery({ ...jobJobsStatusValuesRetrieveOptions(), staleTime: Infinity })
+  const query = useQuery({ ...jobJobsStatusChoicesRetrieveOptions(), staleTime: Infinity })
   return query.data?.statuses ?? {}
 }
 
