@@ -26,7 +26,7 @@ from xero_python.payrollnz import EmployeeLeave, LeavePeriod, PayrollNzApi
 
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.job.models.costing import CostLine
-from apps.xero.auth import get_tenant_id
+from apps.xero import payroll_sdk
 from apps.xero.constants import PAYROLL_SLEEP_SECONDS
 from apps.xero.helpers import as_date
 from apps.xero.models import XeroPayRun
@@ -81,21 +81,6 @@ def _pay_item(line: CostLine) -> Any:
     if line.xero_pay_item is None:
         raise ValueError(f"CostLine {line.id} has no xero_pay_item")
     return line.xero_pay_item
-
-
-def _payroll_api() -> PayrollNzApi:
-    """Build the Payroll NZ client for the connected tenant."""
-    from apps.xero.auth import get_api_client  # noqa: PLC0415
-
-    return PayrollNzApi(get_api_client())
-
-
-def _tenant() -> str:
-    """Return the connected tenant id, refusing an unconfigured install."""
-    tenant_id = get_tenant_id()
-    if not tenant_id:
-        raise ValueError("No Xero tenant ID configured for payroll leave")
-    return str(tenant_id)
 
 
 def _leave_units(leave: Any) -> Decimal:
@@ -221,14 +206,14 @@ def _is_draft_pay_run_leave_block(exc: Exception) -> bool:
     return "leave request" in message and "draft pay run" in message
 
 
-def _draft_pay_run_summary() -> str:
+def _draft_pay_run_summary(tenant_id: str) -> str:
     """Name every draft pay run the operator may need to delete in Xero.
 
     Opus: Xero blocks leave changes for an employee in ANY draft pay run, not only
     the week being posted, so every mirrored draft is named.
     """
     drafts = list(
-        XeroPayRun.objects.filter(xero_tenant_id=get_tenant_id(), pay_run_status="Draft").order_by(
+        XeroPayRun.objects.filter(xero_tenant_id=tenant_id, pay_run_status="Draft").order_by(
             "period_start_date"
         )
     )
@@ -243,14 +228,14 @@ def _draft_pay_run_summary() -> str:
     )
 
 
-def _draft_block_message(action: str, leave_id: str, start: date, end: date) -> str:
+def _draft_block_message(action: str, leave_id: str, start: date, end: date, tenant_id: str) -> str:
     """Tell the operator exactly which draft pay run to delete, and where."""
     return (
         f"Xero is blocking a payroll leave change: leave request {leave_id} "
         f"({start} to {end}) needs to be {action} to match the timesheet, but Xero "
         "locks leave while the employee is in a draft pay run, and draft pay runs "
         "cannot be deleted through Xero's API. In Xero go to Payroll then Pay runs, "
-        f"delete {_draft_pay_run_summary()}, then post to Xero again."
+        f"delete {_draft_pay_run_summary(tenant_id)}, then post to Xero again."
     )
 
 
@@ -276,7 +261,7 @@ def _take_overlapping_spec(
     return desired.pop(best_key) if best_key is not None else None
 
 
-def posted_leave_hours(employee_id: UUID, week: "_WeekWindow") -> Decimal:
+def posted_leave_hours(employee_id: UUID, week: "_WeekWindow", *, tenant_id: str) -> Decimal:
     """Total leave hours Xero currently holds for the employee inside the week.
 
     Opus: The counterpart to ``payroll_push._posted_total``, which sees only the
@@ -288,8 +273,8 @@ def posted_leave_hours(employee_id: UUID, week: "_WeekWindow") -> Decimal:
     week boundary belongs to neither week's total, and that rule lives here
     once rather than being restated by each caller.
     """
-    response = _payroll_api().get_employee_leaves(
-        xero_tenant_id=_tenant(), employee_id=str(employee_id)
+    response = payroll_sdk.payroll_api().get_employee_leaves(
+        xero_tenant_id=tenant_id, employee_id=str(employee_id)
     )
     total = Decimal("0")
     for leave in response.leave or []:
@@ -305,7 +290,7 @@ def posted_leave_hours(employee_id: UUID, week: "_WeekWindow") -> Decimal:
 
 
 def reconcile_leave_for_staff_week(
-    employee_id: UUID, lines: Sequence[CostLine], week: "_WeekWindow"
+    employee_id: UUID, lines: Sequence[CostLine], week: "_WeekWindow", *, tenant_id: str
 ) -> list[str]:
     """Make the employee's Xero leave for the week match the timesheet.
 
@@ -316,8 +301,7 @@ def reconcile_leave_for_staff_week(
     path that still works late in the week. Only leave with no counterpart is
     deleted, and leave spanning a week boundary is never touched at all.
     """
-    tenant_id = _tenant()
-    api = _payroll_api()
+    api = payroll_sdk.payroll_api()
     response = api.get_employee_leaves(xero_tenant_id=tenant_id, employee_id=str(employee_id))
     desired: dict[LeaveKey, LeaveRequestSpec] = {
         _leave_key(
@@ -388,7 +372,9 @@ def _update_leave(
     except Exception as exc:
         if _is_draft_pay_run_leave_block(exc):
             raise DraftPayRunBlocksLeaveError(
-                _draft_block_message("replaced", str(leave.leave_id), leave_start, leave_end)
+                _draft_block_message(
+                    "replaced", str(leave.leave_id), leave_start, leave_end, session.tenant_id
+                )
             ) from exc
         persist_app_error(
             exc,
@@ -423,7 +409,9 @@ def _delete_leave(session: _LeaveSession, leave: Any, leave_start: date, leave_e
     except Exception as exc:
         if _is_draft_pay_run_leave_block(exc):
             raise DraftPayRunBlocksLeaveError(
-                _draft_block_message("removed", str(leave.leave_id), leave_start, leave_end)
+                _draft_block_message(
+                    "removed", str(leave.leave_id), leave_start, leave_end, session.tenant_id
+                )
             ) from exc
         persist_app_error(
             exc,

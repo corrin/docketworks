@@ -660,15 +660,23 @@ class XeroAccountingProvider:
         """Return the calendar's own first postable period, when it has no pay runs yet."""
         return payroll_push.payroll_calendar_anchor_week()
 
+    # Fable: Each payroll delegation below resolves the connected tenant ONCE
+    # (via payroll_connection_id) and threads it down, because the resolution
+    # can answer with the previous organisation for up to five minutes after a
+    # swap (constants.tenant_cache) — one resolution per call means one
+    # organisation per call, never a mix (ADR 0024).
+
     @staticmethod
     def create_pay_run(week_start_date: date) -> PayRunRef:
         """Create a Draft pay run for the week and mirror it locally."""
-        return payroll_push.create_pay_run(week_start_date)
+        tenant_id = XeroAccountingProvider.payroll_connection_id()
+        return payroll_push.create_pay_run(week_start_date, tenant_id=tenant_id)
 
     @staticmethod
     def refresh_pay_runs() -> PayRunSyncResult:
         """Re-sync the local pay-run mirror from Xero."""
-        return payroll_push.refresh_pay_runs()
+        tenant_id = XeroAccountingProvider.payroll_connection_id()
+        return payroll_push.refresh_pay_runs(tenant_id=tenant_id)
 
     @staticmethod
     def payroll_connection_id() -> str:
@@ -691,7 +699,8 @@ class XeroAccountingProvider:
     @staticmethod
     def week_posting_status(week_start_date: date) -> list[StaffWeekPosting]:
         """Report what Xero currently holds for each staff member's week."""
-        return payroll_push.week_posting_status(week_start_date)
+        tenant_id = XeroAccountingProvider.payroll_connection_id()
+        return payroll_push.week_posting_status(week_start_date, tenant_id=tenant_id)
 
     @staticmethod
     def post_payroll_week(
@@ -725,11 +734,14 @@ class XeroAccountingProvider:
         # whose entire job is spotting people Xero paid. Refreshing the mirror
         # here is not the alternative: this is a GET, and refresh_pay_runs
         # deletes and recreates rows.
-        pay_run = payroll_push.find_live_pay_run_for_week(week_start_date)
+        tenant_id = XeroAccountingProvider.payroll_connection_id()
+        pay_run = payroll_push.find_live_pay_run_for_week(week_start_date, tenant_id=tenant_id)
         if pay_run is None:
             return []
         slips: list[PayrollSlip] = []
-        for slip in payroll_sync.get_pay_slips_for_run(pay_run.pay_run_id):
+        for slip in payroll_sync.get_pay_slips_for_run(
+            pay_run.pay_run_id, xero_tenant_id=tenant_id
+        ):
             # Opus: Hours and gross come from the SDK object rather than
             # transform_pay_slip, which writes a XeroPaySlip mirror row. A live
             # read of a Draft run must not overwrite the mirror the Posted-run

@@ -60,8 +60,9 @@ from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
 from apps.timesheet.models import PostingSurface
 from apps.timesheet.services import hour_categories
-from apps.xero import payroll_sdk as _payroll_sdk  # noqa: F401 -- applies v1 SDK fixes
-from apps.xero.auth import get_api_client, get_tenant_id
+
+# Fable: Importing payroll_sdk also applies the v1 nullable-field SDK fixes.
+from apps.xero import payroll_sdk
 from apps.xero.constants import PAYROLL_SLEEP_SECONDS
 from apps.xero.helpers import as_date
 from apps.xero.models import XeroPayRun
@@ -135,19 +136,6 @@ class _WeekWindow:
         return cls(start=week_start_date, end=week_start_date + timedelta(days=6))
 
 
-def _payroll_api() -> PayrollNzApi:
-    """Build the Payroll NZ client for the connected tenant."""
-    return PayrollNzApi(get_api_client())
-
-
-def _tenant() -> str:
-    """Return the connected tenant id, refusing an unconfigured install."""
-    tenant_id = get_tenant_id()
-    if not tenant_id:
-        raise ValueError("No Xero tenant ID configured for payroll posting")
-    return str(tenant_id)
-
-
 class WrongPayrollTenantError(RuntimeError):
     """The connected organisation is not the one this posting run was dispatched for."""
 
@@ -167,8 +155,16 @@ def require_dispatched_tenant(connection_id: str) -> None:
     exactly that swap. Posting is irreversible — Xero has no ``delete_pay_run``
     — which is the condition ADR 0039 names for checking a precondition
     immediately before the step rather than trusting the caller.
+
+    Fable: The check alone only narrowed the window to the first call — every
+    later call re-resolved the singleton, so a swap landing mid-run could still
+    split one week across two organisations. What closes the window for the
+    WHOLE run is this check plus threading: after it passes, every downstream
+    call in ``post_payroll_week``'s call tree carries the verified
+    ``connection_id`` as its ``tenant_id`` argument and nothing resolves the
+    singleton again.
     """
-    connected = _tenant()
+    connected = payroll_sdk.connected_tenant()
     if connected != connection_id:
         raise WrongPayrollTenantError(
             f"This payroll run was dispatched for Xero organisation {connection_id}, "
@@ -319,6 +315,8 @@ def post_timesheet(
     week: _WeekWindow,
     line_payloads: Sequence[TimesheetLinePayload],
     existing_timesheet: PostedTimesheet | None,
+    *,
+    tenant_id: str,
 ) -> Any:
     """Replace the employee's timesheet for the week, then approve it.
 
@@ -328,11 +326,10 @@ def post_timesheet(
     Xero falls back to the employee's pay template (40 hours). Xero rejects
     zero-unit lines but accepts a timesheet with no lines at all.
     """
-    tenant_id = _tenant()
-    api = _payroll_api()
+    api = payroll_sdk.payroll_api()
 
     if existing_timesheet is not None and _lines_match(
-        timesheet_lines(existing_timesheet.timesheet_id), line_payloads
+        timesheet_lines(existing_timesheet.timesheet_id, tenant_id=tenant_id), line_payloads
     ):
         # Opus: Matching lines are not enough — an unapproved timesheet is not a
         # posted one. A create that succeeded followed by a failed
@@ -416,7 +413,9 @@ def _delete_timesheet(api: PayrollNzApi, tenant_id: str, existing: PostedTimeshe
     time.sleep(PAYROLL_SLEEP_SECONDS)
 
 
-def existing_timesheets_for_week(week: _WeekWindow) -> dict[str, PostedTimesheet]:
+def existing_timesheets_for_week(
+    week: _WeekWindow, *, tenant_id: str
+) -> dict[str, PostedTimesheet]:
     """Every timesheet Xero already holds for the week, keyed by employee id.
 
     Opus: One call for the whole batch; the per-employee alternative multiplied the
@@ -424,8 +423,8 @@ def existing_timesheets_for_week(week: _WeekWindow) -> dict[str, PostedTimesheet
     total only — see PostedTimesheet for why the lines this endpoint returns
     are not usable.
     """
-    response = _payroll_api().get_timesheets(
-        xero_tenant_id=_tenant(),
+    response = payroll_sdk.payroll_api().get_timesheets(
+        xero_tenant_id=tenant_id,
         start_date=week.start,
         end_date=week.end,
     )
@@ -458,7 +457,7 @@ def existing_timesheets_for_week(week: _WeekWindow) -> dict[str, PostedTimesheet
     return found
 
 
-def timesheet_lines(timesheet_id: str) -> list[TimesheetLinePayload]:
+def timesheet_lines(timesheet_id: str, *, tenant_id: str) -> list[TimesheetLinePayload]:
     """Fetch the lines Xero holds on one timesheet, in the same shape we send.
 
     Opus: Raw JSON because the SDK's generated setter refuses a null line date, and
@@ -477,7 +476,9 @@ def timesheet_lines(timesheet_id: str) -> list[TimesheetLinePayload]:
     holds, which reads as a mismatch, which deletes and recreates a timesheet
     that was already correct.
     """
-    response = _payroll_api().get_timesheet(xero_tenant_id=_tenant(), timesheet_id=timesheet_id)
+    response = payroll_sdk.payroll_api().get_timesheet(
+        xero_tenant_id=tenant_id, timesheet_id=timesheet_id
+    )
     timesheet = response.timesheet if response else None
     if timesheet is None:
         raise ValueError(f"Xero returned no timesheet for {timesheet_id}")
@@ -534,7 +535,7 @@ def payroll_calendar_anchor_week() -> tuple[date, date] | None:
     return None
 
 
-def create_pay_run(week_start_date: date) -> PayRunRef:
+def create_pay_run(week_start_date: date, *, tenant_id: str) -> PayRunRef:
     """Create a Draft pay run for the week and mirror it locally."""
     week = _WeekWindow.of(week_start_date)
     defaults = CompanyDefaults.get_solo()
@@ -550,8 +551,8 @@ def create_pay_run(week_start_date: date) -> PayRunRef:
             f"Available: {sorted(c.name for c in calendars)}"
         )
 
-    response = _payroll_api().create_pay_run(
-        xero_tenant_id=_tenant(),
+    response = payroll_sdk.payroll_api().create_pay_run(
+        xero_tenant_id=tenant_id,
         pay_run=PayRun(
             payroll_calendar_id=calendar.id,
             period_start_date=week.start,
@@ -579,8 +580,8 @@ def create_pay_run(week_start_date: date) -> PayRunRef:
             "Posting requires the calendar period to match the selected week exactly."
         )
 
-    detail = _payroll_api().get_pay_run(
-        xero_tenant_id=_tenant(), pay_run_id=str(created.pay_run_id)
+    detail = payroll_sdk.payroll_api().get_pay_run(
+        xero_tenant_id=tenant_id, pay_run_id=str(created.pay_run_id)
     )
     fetched = detail.pay_run if detail else None
     if fetched is None:
@@ -602,7 +603,7 @@ def _pay_run_ref(pay_run: XeroPayRun, pay_run_id: str) -> PayRunRef:
     )
 
 
-def find_live_pay_run_for_week(week_start_date: date) -> PayRunRef | None:
+def find_live_pay_run_for_week(week_start_date: date, *, tenant_id: str) -> PayRunRef | None:
     """Return the pay run Xero holds covering the week, or None — never creating one.
 
     The read-only counterpart to ``ensure_pay_run_for_week``. Separate rather
@@ -628,7 +629,7 @@ def find_live_pay_run_for_week(week_start_date: date) -> PayRunRef | None:
     """
     week = _WeekWindow.of(week_start_date)
     calendar_id = str(_calendar_id())
-    for pay_run in get_pay_runs_for_sync().pay_runs:
+    for pay_run in get_pay_runs_for_sync(xero_tenant_id=tenant_id).pay_runs:
         if str(pay_run.payroll_calendar_id) != calendar_id:
             continue
         period_start, period_end = (
@@ -663,7 +664,7 @@ def find_live_pay_run_for_week(week_start_date: date) -> PayRunRef | None:
     return None
 
 
-def ensure_pay_run_for_week(week_start_date: date) -> PayRunRef:
+def ensure_pay_run_for_week(week_start_date: date, *, tenant_id: str) -> PayRunRef:
     """Return the week's Draft pay run, creating it if the calendar has none.
 
     Opus: Xero allows exactly ONE Draft pay run per calendar, so a draft for another
@@ -675,7 +676,7 @@ def ensure_pay_run_for_week(week_start_date: date) -> PayRunRef:
     calendar_id = _calendar_id()
     open_drafts = list(
         XeroPayRun.objects.filter(
-            xero_tenant_id=_tenant(),
+            xero_tenant_id=tenant_id,
             payroll_calendar_id=calendar_id,
             pay_run_status="Draft",
         )
@@ -696,11 +697,11 @@ def ensure_pay_run_for_week(week_start_date: date) -> PayRunRef:
             week.end,
         )
         return _pay_run_ref(same_week, str(same_week.xero_id))
-    require_no_blocking_draft(week_start_date)
-    return create_pay_run(week.start)
+    require_no_blocking_draft(week_start_date, tenant_id=tenant_id)
+    return create_pay_run(week.start, tenant_id=tenant_id)
 
 
-def require_no_blocking_draft(week_start_date: date) -> None:
+def require_no_blocking_draft(week_start_date: date, *, tenant_id: str) -> None:
     """Refuse a week that another week's open draft pay run blocks.
 
     Opus: Xero allows exactly one draft pay run per calendar, and this reads the
@@ -726,7 +727,7 @@ def require_no_blocking_draft(week_start_date: date) -> None:
     # pre-empted it would answer "no calendar configured" to someone who had
     # actually passed an unknown staff id.
     blocking = (
-        XeroPayRun.objects.filter(xero_tenant_id=_tenant(), pay_run_status="Draft")
+        XeroPayRun.objects.filter(xero_tenant_id=tenant_id, pay_run_status="Draft")
         .exclude(period_start_date=week.start, period_end_date=week.end)
         .first()
     )
@@ -738,7 +739,7 @@ def require_no_blocking_draft(week_start_date: date) -> None:
         )
 
 
-def refresh_pay_runs() -> PayRunSyncResult:
+def refresh_pay_runs(*, tenant_id: str) -> PayRunSyncResult:
     """Re-sync the local pay-run mirror from Xero.
 
     Opus: The operator's recovery path after posting or deleting a run inside Xero,
@@ -746,9 +747,9 @@ def refresh_pay_runs() -> PayRunSyncResult:
     dropped: Xero is master for pay runs, and a run deleted there must not
     keep blocking the one-draft rule locally.
     """
-    fetched = get_pay_runs_for_sync().pay_runs
+    fetched = get_pay_runs_for_sync(xero_tenant_id=tenant_id).pay_runs
     live_ids = {str(pay_run.pay_run_id) for pay_run in fetched}
-    XeroPayRun.objects.filter(xero_tenant_id=_tenant()).exclude(xero_id__in=live_ids).delete()
+    XeroPayRun.objects.filter(xero_tenant_id=tenant_id).exclude(xero_id__in=live_ids).delete()
 
     created = updated = 0
     for pay_run in fetched:
@@ -831,6 +832,10 @@ def post_payroll_week(
     failures individually so they can be fixed and re-posted.
     """
     require_dispatched_tenant(connection_id)
+    # Fable: From here on ``connection_id`` IS the tenant: the check above proved
+    # it equals the connected organisation, and threading it through every call
+    # below is what keeps a mid-run organisation swap from splitting the week
+    # across two tenants (see require_dispatched_tenant).
     week = _WeekWindow.of(week_start_date)
     if not staff_ids:
         raise ValueError("staff_ids is required")
@@ -878,13 +883,13 @@ def post_payroll_week(
     # passed and the per-staff loop rediscovered the block at one Xero call each
     # — the case it exists to prevent. Same single call as before, moved to
     # where it is load-bearing.
-    refresh_pay_runs()
+    refresh_pay_runs(tenant_id=connection_id)
 
     # Opus: After the staff list resolves, not before it: an unknown staff id is
     # the caller's own mistake and should say so rather than be answered with a
     # fact about the pay run. Before the loop below, which costs a Xero call per
     # staff member where this costs one in total.
-    require_no_blocking_draft(week.start)
+    require_no_blocking_draft(week.start, tenant_id=connection_id)
 
     # Opus: Leave first, and before the pay run exists: Xero locks leave changes once
     # the employee is in a draft pay run (KAN-326).
@@ -894,15 +899,22 @@ def post_payroll_week(
         if not staff.xero_user_id or not _staff_in_week(staff, week):
             continue
         split = _split_by_surface(lines_by_staff.get(staff_id, []), catalogue)
-        reconcile_leave_for_staff_week(UUID(str(staff.xero_user_id)), split.leave_api, week)
+        reconcile_leave_for_staff_week(
+            UUID(str(staff.xero_user_id)), split.leave_api, week, tenant_id=connection_id
+        )
 
-    ensure_pay_run_for_week(week.start)
-    existing = existing_timesheets_for_week(week)
+    ensure_pay_run_for_week(week.start, tenant_id=connection_id)
+    existing = existing_timesheets_for_week(week, tenant_id=connection_id)
 
     for staff_id in staff_to_post:
         staff = staff_by_id[staff_id]
         yield _post_one_staff_week(
-            staff, lines_by_staff.get(staff_id, []), week, existing, catalogue
+            staff,
+            lines_by_staff.get(staff_id, []),
+            week,
+            existing,
+            catalogue,
+            tenant_id=connection_id,
         )
 
 
@@ -925,12 +937,14 @@ def _lines_by_staff(
     return grouped
 
 
-def _post_one_staff_week(
+def _post_one_staff_week(  # noqa: PLR0913 -- Fable: the run's fixed context (week, existing sheets, catalogue, tenant) plus the one staff member; bundling them into a param object would restate _LeaveSession for one caller
     staff: Staff,
     lines: Sequence[CostLine],
     week: _WeekWindow,
     existing: dict[str, Any],
     catalogue: "hour_categories.LeaveCatalogue",
+    *,
+    tenant_id: str,
 ) -> StaffWeekPostResult:
     """Post one staff member's week, converting any failure into their own result."""
     if not _staff_in_week(staff, week):
@@ -950,7 +964,7 @@ def _post_one_staff_week(
         existing_timesheet = existing.get(str(employee_id))
         try:
             if existing_timesheet is not None:
-                _delete_timesheet(_payroll_api(), _tenant(), existing_timesheet)
+                _delete_timesheet(payroll_sdk.payroll_api(), tenant_id, existing_timesheet)
         except Exception as exc:  # noqa: BLE001 -- reported per employee like hourly posting
             persist_app_error(exc, _staff_failure_context(staff, week, "salary_timesheet_cleanup"))
             return _failure_result(staff, str(exc), bool(lines))
@@ -972,6 +986,7 @@ def _post_one_staff_week(
             week,
             _timesheet_line_payloads(timesheet_lines),
             existing.get(str(employee_id)),
+            tenant_id=tenant_id,
         )
     except Exception as exc:  # noqa: BLE001 -- Opus: one staff member's failure becomes their own result rather than stranding the rest of the batch; it is persisted and reported, never swallowed
         persist_app_error(exc, _staff_failure_context(staff, week, "timesheet"))
@@ -992,7 +1007,7 @@ def _post_one_staff_week(
     )
 
 
-def _posted_total(timesheet: PostedTimesheet | None) -> Decimal:
+def _posted_total(timesheet: PostedTimesheet | None, *, tenant_id: str) -> Decimal:
     """Sum the hours Xero holds on a timesheet; zero when there is none.
 
     Opus: Summed from the timesheet's own lines rather than read from its
@@ -1005,11 +1020,12 @@ def _posted_total(timesheet: PostedTimesheet | None) -> Decimal:
     if timesheet is None:
         return Decimal("0")
     return sum(
-        (line.units for line in timesheet_lines(timesheet.timesheet_id)), Decimal("0")
+        (line.units for line in timesheet_lines(timesheet.timesheet_id, tenant_id=tenant_id)),
+        Decimal("0"),
     ).quantize(UNIT_PRECISION)
 
 
-def week_posting_status(week_start_date: date) -> list[StaffWeekPosting]:
+def week_posting_status(week_start_date: date, *, tenant_id: str) -> list[StaffWeekPosting]:
     """Report what Xero holds for each staff member's week, beside what we recorded.
 
     Opus: Asked of Xero rather than tracked locally: a local "posted" flag can
@@ -1036,7 +1052,7 @@ def week_posting_status(week_start_date: date) -> list[StaffWeekPosting]:
     operator has asked this exact question.
     """
     week = _WeekWindow.of(week_start_date)
-    timesheets = existing_timesheets_for_week(week)
+    timesheets = existing_timesheets_for_week(week, tenant_id=tenant_id)
     recorded = _lines_by_staff(week)
     catalogue = hour_categories.LeaveCatalogue.load()
     statuses: list[StaffWeekPosting] = []
@@ -1048,11 +1064,13 @@ def week_posting_status(week_start_date: date) -> list[StaffWeekPosting]:
                 staff_id=str(staff.id),
                 posted=timesheet is not None,
                 timesheet_status=None if timesheet is None else str(timesheet.status),
-                posted_timesheet_hours=_posted_total(timesheet),
+                posted_timesheet_hours=_posted_total(timesheet, tenant_id=tenant_id),
                 # Opus: get_displayable_staff's actual_users filter already excludes
                 # anyone whose xero_user_id is missing or not UUID-shaped, so
                 # this parses rather than guards.
-                posted_leave_hours=posted_leave_hours(UUID(str(staff.xero_user_id)), week),
+                posted_leave_hours=posted_leave_hours(
+                    UUID(str(staff.xero_user_id)), week, tenant_id=tenant_id
+                ),
                 recorded_timesheet_hours=categories.timesheet,
                 # Opus: leave_api, not leave. They differ by exactly the hours Xero
                 # pays from its own calculation, and Xero's leave endpoint has

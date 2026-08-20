@@ -41,7 +41,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 def _guards(integration_credentials: None) -> None:  # noqa: ARG001
     assert_not_production_target()
     assert_xero_writes_enabled("the payroll integration suite")
-    payroll_push.refresh_pay_runs()
+    payroll_push.refresh_pay_runs(tenant_id=get_tenant_id())
 
 
 @pytest.fixture
@@ -128,7 +128,9 @@ def payroll_lines(payroll_staff: Staff, postable_week: date) -> list[CostLine]:
 
 def _status(week: date, staff: Staff) -> StaffWeekPosting:
     return next(
-        row for row in payroll_push.week_posting_status(week) if row.staff_id == str(staff.id)
+        row
+        for row in payroll_push.week_posting_status(week, tenant_id=get_tenant_id())
+        if row.staff_id == str(staff.id)
     )
 
 
@@ -201,10 +203,10 @@ def _assert_xero_computed(week: date, staff: Staff, posted: StaffWeekPostResult)
     has a deadline and reports both figures when it expires — it never passes on
     a timeout, which would turn this assertion back into the thing it replaced.
     """
-    pay_run = payroll_push.ensure_pay_run_for_week(week)
+    pay_run = payroll_push.ensure_pay_run_for_week(week, tenant_id=get_tenant_id())
     # transform_pay_slip resolves each slip's parent from the XeroPayRun table,
     # so the mirror has to hold the run the post just used.
-    payroll_push.refresh_pay_runs()
+    payroll_push.refresh_pay_runs(tenant_id=get_tenant_id())
     expected_timesheet = posted.work_hours + posted.other_leave_hours
     expected_leave = posted.leave_hours
 
@@ -350,11 +352,11 @@ def test_complete_weekly_payroll_lifecycle(
     assert restored_status.matches
 
     week = payroll_push._WeekWindow.of(postable_week)
-    before_id = payroll_push.existing_timesheets_for_week(week)[
+    before_id = payroll_push.existing_timesheets_for_week(week, tenant_id=get_tenant_id())[
         str(payroll_staff.xero_user_id)
     ].timesheet_id
     unchanged = _post(postable_week, payroll_staff)
-    after_id = payroll_push.existing_timesheets_for_week(week)[
+    after_id = payroll_push.existing_timesheets_for_week(week, tenant_id=get_tenant_id())[
         str(payroll_staff.xero_user_id)
     ].timesheet_id
     assert unchanged.work_hours == initial_work

@@ -32,12 +32,12 @@ from apps.timesheet.tests.conftest import (
     make_staff,
     make_time_line,
 )
-from apps.xero import payroll_leave, payroll_push
+from apps.xero import payroll_leave, payroll_push, payroll_sdk
 from apps.xero.models import XeroPayRun
 
 #: Opus: The organisation a posting run is dispatched for. post_payroll_week refuses
 #: any other connected tenant (ADR 0024), so the tests that drive it patch
-#: ``_tenant`` to this and pass it as the dispatched id.
+#: ``payroll_sdk.connected_tenant`` to this and pass it as the dispatched id.
 POSTING_TENANT = "tenant-1"
 
 pytestmark = pytest.mark.django_db
@@ -93,7 +93,7 @@ def xero_writes(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
         return _call
 
-    monkeypatch.setattr(payroll_push, "_tenant", lambda: POSTING_TENANT)
+    monkeypatch.setattr(payroll_sdk, "connected_tenant", lambda: POSTING_TENANT)
     # Opus: Recorded rather than silenced. The pre-post mirror refresh is one Xero
     # read and the preflight's correctness rests on it, so a test that hid it
     # could not tell "refreshed, then refused" from "refused on whatever the
@@ -286,8 +286,7 @@ class TestSalaryPosting:
         )
         api = MagicMock()
         delete_timesheet = MagicMock()
-        monkeypatch.setattr(payroll_push, "_payroll_api", lambda: api)
-        monkeypatch.setattr(payroll_push, "_tenant", lambda: "tenant-1")
+        monkeypatch.setattr(payroll_sdk, "payroll_api", lambda: api)
         monkeypatch.setattr(payroll_push, "_delete_timesheet", delete_timesheet)
 
         result = payroll_push._post_one_staff_week(
@@ -296,6 +295,7 @@ class TestSalaryPosting:
             payroll_push._WeekWindow.of(WEEK_START),
             {employee_id: existing},
             _catalogue(),
+            tenant_id="tenant-1",
         )
 
         assert result.success
@@ -486,7 +486,7 @@ class TestDraftPayRunBlock:
         """
         make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
 
-        def _refresh_finds_a_draft() -> None:
+        def _refresh_finds_a_draft(**_kwargs: object) -> None:
             xero_writes.append("refresh")
             make_pay_run(POSTING_TENANT, week_start=WEEK_START - timedelta(days=7))
 
@@ -504,7 +504,7 @@ class TestDraftPayRunBlock:
         make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
         gone = make_pay_run(POSTING_TENANT, week_start=WEEK_START - timedelta(days=7))
 
-        def _refresh_drops_it() -> None:
+        def _refresh_drops_it(**_kwargs: object) -> None:
             xero_writes.append("refresh")
             XeroPayRun.objects.filter(pk=gone.pk).delete()
 
@@ -538,9 +538,10 @@ class TestMatchingTimesheetMustBeApproved:
 
     def _api(self, monkeypatch: pytest.MonkeyPatch, calls: list[str]) -> None:
         """Stub the surface post_timesheet touches, recording what it calls."""
-        monkeypatch.setattr(payroll_push, "_tenant", lambda: "tenant")
         monkeypatch.setattr(
-            payroll_push, "timesheet_lines", lambda _timesheet_id: [_payload("8.000")]
+            payroll_push,
+            "timesheet_lines",
+            lambda _timesheet_id, **_kwargs: [_payload("8.000")],
         )
         monkeypatch.setattr("apps.xero.payroll_push.time.sleep", lambda _seconds: None)
 
@@ -554,7 +555,7 @@ class TestMatchingTimesheetMustBeApproved:
             def revert_timesheet(self, **_kwargs: str) -> None:
                 calls.append("revert")
 
-        monkeypatch.setattr(payroll_push, "_payroll_api", _Api)
+        monkeypatch.setattr(payroll_sdk, "payroll_api", _Api)
 
     def test_a_matching_approved_timesheet_is_left_alone(
         self, monkeypatch: pytest.MonkeyPatch
@@ -566,7 +567,11 @@ class TestMatchingTimesheetMustBeApproved:
         )
 
         result = payroll_push.post_timesheet(
-            uuid.uuid4(), payroll_push._WeekWindow.of(WEEK_START), [_payload("8.000")], existing
+            uuid.uuid4(),
+            payroll_push._WeekWindow.of(WEEK_START),
+            [_payload("8.000")],
+            existing,
+            tenant_id="tenant",
         )
 
         assert result is existing
@@ -583,7 +588,11 @@ class TestMatchingTimesheetMustBeApproved:
         )
 
         result = payroll_push.post_timesheet(
-            uuid.uuid4(), payroll_push._WeekWindow.of(WEEK_START), [_payload("8.000")], existing
+            uuid.uuid4(),
+            payroll_push._WeekWindow.of(WEEK_START),
+            [_payload("8.000")],
+            existing,
+            tenant_id="tenant",
         )
 
         assert calls == ["approve:ts-1"], "a matching Draft must be approved, not accepted"
@@ -632,7 +641,7 @@ class TestStaffListIsValidatedBeforeAnyWrite:
         can pick up a run dispatched for one organisation and resolve another.
         """
         make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
-        monkeypatch.setattr(payroll_push, "_tenant", lambda: "another-organisation")
+        monkeypatch.setattr(payroll_sdk, "connected_tenant", lambda: "another-organisation")
 
         with pytest.raises(payroll_push.WrongPayrollTenantError, match=POSTING_TENANT):
             list(payroll_push.post_payroll_week(POSTING_TENANT, [worker.id], WEEK_START))
@@ -651,6 +660,118 @@ class TestStaffListIsValidatedBeforeAnyWrite:
         assert xero_writes.count("leave") == 1
 
 
+@pytest.mark.django_db
+class TestDispatchedTenantIsThreadedThroughTheRun:
+    """A tenant swap AFTER the dispatch check must not move a single call.
+
+    Fable: ``constants.tenant_cache`` documents that a worker can resolve the
+    PREVIOUS organisation for up to five minutes after a swap.
+    ``require_dispatched_tenant`` pins only the run's first moment; what pins
+    the rest is that every downstream call carries the verified id as an
+    argument instead of re-resolving the singleton. So this drives the REAL
+    posting pipeline — reconcile, pay run, timesheet — against a recording
+    fake, flips what the singleton answers the moment the check has passed,
+    and requires every ``xero_tenant_id`` the fake saw to be the dispatched
+    one. The xero_writes fixture cannot prove this: it replaces the very
+    functions whose resolution is in question.
+    """
+
+    def test_a_mid_run_swap_cannot_redirect_any_call(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job
+    ) -> None:
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        calendar_id = uuid.uuid4()
+        CompanyDefaults.objects.filter(id=1).update(
+            xero_payroll_calendar_id=calendar_id,
+            xero_payroll_calendar_name="Weekly",
+        )
+
+        # The dispatch check gets the dispatched organisation; every resolution
+        # after it gets the swapped one, exactly as a stale cache entry expiring
+        # mid-run would answer.
+        answers = iter([POSTING_TENANT])
+        monkeypatch.setattr(payroll_sdk, "connected_tenant", lambda: next(answers, "tenant-B"))
+
+        recorded: list[tuple[str, str]] = []
+
+        class _Api:
+            def _note(self, method: str, kwargs: dict[str, object]) -> None:
+                recorded.append((method, str(kwargs["xero_tenant_id"])))
+
+            def get_employee_leaves(self, **kwargs: object) -> SimpleNamespace:
+                self._note("get_employee_leaves", kwargs)
+                return SimpleNamespace(leave=[])
+
+            def get_timesheets(self, **kwargs: object) -> SimpleNamespace:
+                self._note("get_timesheets", kwargs)
+                return SimpleNamespace(timesheets=[])
+
+            def create_pay_run(self, **kwargs: object) -> SimpleNamespace:
+                self._note("create_pay_run", kwargs)
+                return SimpleNamespace(
+                    pay_run=SimpleNamespace(
+                        pay_run_id="run-1",
+                        period_start_date=WEEK_START,
+                        period_end_date=WEEK_START + timedelta(days=6),
+                    )
+                )
+
+            def get_pay_run(self, **kwargs: object) -> SimpleNamespace:
+                self._note("get_pay_run", kwargs)
+                return SimpleNamespace(pay_run=SimpleNamespace(pay_run_id="run-1"))
+
+            def create_timesheet(self, **kwargs: object) -> SimpleNamespace:
+                self._note("create_timesheet", kwargs)
+                return SimpleNamespace(timesheet=SimpleNamespace(timesheet_id="ts-1"))
+
+            def approve_timesheet(self, **kwargs: object) -> None:
+                self._note("approve_timesheet", kwargs)
+
+        monkeypatch.setattr(payroll_sdk, "payroll_api", _Api)
+
+        def _pay_runs_for_sync(**kwargs: object) -> SimpleNamespace:
+            recorded.append(("get_pay_runs_for_sync", str(kwargs["xero_tenant_id"])))
+            return SimpleNamespace(pay_runs=[])
+
+        monkeypatch.setattr(payroll_push, "get_pay_runs_for_sync", _pay_runs_for_sync)
+        monkeypatch.setattr(
+            payroll_push,
+            "get_payroll_calendars",
+            lambda: [SimpleNamespace(id=str(calendar_id), name="Weekly")],
+        )
+        mirrored = SimpleNamespace(
+            payroll_calendar_id=calendar_id,
+            period_start_date=WEEK_START,
+            period_end_date=WEEK_START + timedelta(days=6),
+            payment_date=WEEK_START + timedelta(days=9),
+            pay_run_status="Draft",
+            pay_run_type="Scheduled",
+        )
+        monkeypatch.setattr(
+            payroll_push, "transform_pay_run", lambda _pay_run, _xero_id: (mirrored, "created")
+        )
+        monkeypatch.setattr("apps.xero.payroll_push.time.sleep", lambda _seconds: None)
+        monkeypatch.setattr("apps.xero.payroll_leave.time.sleep", lambda _seconds: None)
+
+        [result] = list(payroll_push.post_payroll_week(POSTING_TENANT, [worker.id], WEEK_START))
+
+        assert result.success, result.error
+        assert payroll_sdk.connected_tenant() == "tenant-B", "the swap never became live"
+        # The run must have actually crossed every surface, or the property is
+        # vacuously true of a run that made no calls.
+        methods = {method for method, _tenant in recorded}
+        assert {
+            "get_pay_runs_for_sync",
+            "get_employee_leaves",
+            "create_pay_run",
+            "get_timesheets",
+            "create_timesheet",
+            "approve_timesheet",
+        } <= methods
+        wrong = [(method, tenant) for method, tenant in recorded if tenant != POSTING_TENANT]
+        assert wrong == [], f"calls followed the swapped organisation: {wrong}"
+
+
 class TestPostedLeaveHours:
     """The leave half of the read-back, which no timesheet can show.
 
@@ -667,13 +788,11 @@ class TestPostedLeaveHours:
         )
 
     def _stub(self, monkeypatch: pytest.MonkeyPatch, leaves: list[SimpleNamespace]) -> None:
-        monkeypatch.setattr(payroll_leave, "_tenant", lambda: "tenant")
-
         class _Api:
             def get_employee_leaves(self, **_kwargs: str) -> SimpleNamespace:
                 return SimpleNamespace(leave=leaves)
 
-        monkeypatch.setattr(payroll_leave, "_payroll_api", _Api)
+        monkeypatch.setattr(payroll_sdk, "payroll_api", _Api)
 
     def test_leave_inside_the_week_is_totalled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         week = payroll_push._WeekWindow.of(WEEK_START)
@@ -685,7 +804,9 @@ class TestPostedLeaveHours:
             ],
         )
 
-        assert payroll_leave.posted_leave_hours(uuid.uuid4(), week) == Decimal("12.000")
+        assert payroll_leave.posted_leave_hours(uuid.uuid4(), week, tenant_id="tenant") == Decimal(
+            "12.000"
+        )
 
     def test_leave_spanning_the_week_boundary_belongs_to_neither_week(
         self, monkeypatch: pytest.MonkeyPatch
@@ -699,7 +820,9 @@ class TestPostedLeaveHours:
         week = payroll_push._WeekWindow.of(WEEK_START)
         self._stub(monkeypatch, [self._leave(WEEK_START - timedelta(days=1), WEEK_START, "8")])
 
-        assert payroll_leave.posted_leave_hours(uuid.uuid4(), week) == Decimal("0.000")
+        assert payroll_leave.posted_leave_hours(uuid.uuid4(), week, tenant_id="tenant") == Decimal(
+            "0.000"
+        )
 
     def test_an_unreadable_date_range_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Guessing which week undated leave belongs to would move someone's pay."""
@@ -707,7 +830,7 @@ class TestPostedLeaveHours:
         self._stub(monkeypatch, [self._leave(None, None, "8")])
 
         with pytest.raises(ValueError, match="unreadable date range"):
-            payroll_leave.posted_leave_hours(uuid.uuid4(), week)
+            payroll_leave.posted_leave_hours(uuid.uuid4(), week, tenant_id="tenant")
 
 
 @pytest.mark.django_db
@@ -728,10 +851,18 @@ class TestWeekPostingStatus:
         posted_units: str = "0",
         leave_units: str = "0",
     ) -> None:
-        monkeypatch.setattr(payroll_push, "existing_timesheets_for_week", lambda _week: timesheets)
-        monkeypatch.setattr(payroll_push, "timesheet_lines", lambda _id: [_payload(posted_units)])
         monkeypatch.setattr(
-            payroll_push, "posted_leave_hours", lambda _employee, _week: Decimal(leave_units)
+            payroll_push,
+            "existing_timesheets_for_week",
+            lambda _week, **_kwargs: timesheets,
+        )
+        monkeypatch.setattr(
+            payroll_push, "timesheet_lines", lambda _id, **_kwargs: [_payload(posted_units)]
+        )
+        monkeypatch.setattr(
+            payroll_push,
+            "posted_leave_hours",
+            lambda _employee, _week, **_kwargs: Decimal(leave_units),
         )
 
     def test_it_reports_both_sides_for_a_posted_week(
@@ -753,7 +884,7 @@ class TestWeekPostingStatus:
 
         [status] = [
             row
-            for row in payroll_push.week_posting_status(WEEK_START)
+            for row in payroll_push.week_posting_status(WEEK_START, tenant_id="tenant")
             if row.staff_id == str(worker.id)
         ]
 
@@ -771,7 +902,7 @@ class TestWeekPostingStatus:
 
         [status] = [
             row
-            for row in payroll_push.week_posting_status(WEEK_START)
+            for row in payroll_push.week_posting_status(WEEK_START, tenant_id="tenant")
             if row.staff_id == str(worker.id)
         ]
 
@@ -800,7 +931,7 @@ class TestWeekPostingStatus:
 
         [status] = [
             row
-            for row in payroll_push.week_posting_status(WEEK_START)
+            for row in payroll_push.week_posting_status(WEEK_START, tenant_id="tenant")
             if row.staff_id == str(worker.id)
         ]
 
@@ -822,7 +953,9 @@ class TestWeekPostingStatus:
         worker.save(update_fields=["date_left"])
         self._stub_xero(monkeypatch, timesheets={})
 
-        reported = [row.staff_id for row in payroll_push.week_posting_status(WEEK_START)]
+        reported = [
+            row.staff_id for row in payroll_push.week_posting_status(WEEK_START, tenant_id="tenant")
+        ]
 
         assert str(worker.id) not in reported
 
@@ -842,19 +975,18 @@ class TestUndatedLinesAreRefused:
         )
 
     def _stub(self, monkeypatch: pytest.MonkeyPatch, lines: list[TimesheetLine]) -> None:
-        monkeypatch.setattr(payroll_push, "_tenant", lambda: "tenant")
         response = SimpleNamespace(timesheet=SimpleNamespace(timesheet_lines=lines))
 
         class _Api:
             def get_timesheet(self, **_kwargs: object) -> SimpleNamespace:
                 return response
 
-        monkeypatch.setattr(payroll_push, "_payroll_api", _Api)
+        monkeypatch.setattr(payroll_sdk, "payroll_api", _Api)
 
     def test_dated_lines_read_back(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._stub(monkeypatch, [self._dated()])
 
-        [line] = payroll_push.timesheet_lines("ts-1")
+        [line] = payroll_push.timesheet_lines("ts-1", tenant_id="tenant")
 
         assert line.units == Decimal("8.000")
 
@@ -866,7 +998,7 @@ class TestUndatedLinesAreRefused:
         self._stub(monkeypatch, [self._dated(), undated])
 
         with pytest.raises(ValueError, match="DELETED"):
-            payroll_push.timesheet_lines("ts-1")
+            payroll_push.timesheet_lines("ts-1", tenant_id="tenant")
 
 
 @pytest.mark.django_db
@@ -901,14 +1033,13 @@ class TestPayRunTenantIsolation:
     ) -> None:
         ours = make_pay_run("ours")
         foreign = make_pay_run("foreign")
-        monkeypatch.setattr(payroll_push, "_tenant", lambda: "ours")
         monkeypatch.setattr(
             payroll_push,
             "get_pay_runs_for_sync",
-            lambda: SimpleNamespace(pay_runs=[]),
+            lambda **_kwargs: SimpleNamespace(pay_runs=[]),
         )
 
-        payroll_push.refresh_pay_runs()
+        payroll_push.refresh_pay_runs(tenant_id="ours")
 
         assert not XeroPayRun.objects.filter(pk=ours.pk).exists()
         assert XeroPayRun.objects.filter(pk=foreign.pk).exists()
@@ -917,12 +1048,13 @@ class TestPayRunTenantIsolation:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         foreign = make_pay_run("foreign")
-        monkeypatch.setattr(payroll_push, "_tenant", lambda: "ours")
         monkeypatch.setattr(payroll_push, "_calendar_id", lambda: foreign.payroll_calendar_id)
         created = SimpleNamespace(pay_run_id="new-run")
-        monkeypatch.setattr(payroll_push, "create_pay_run", lambda _week: created)
+        monkeypatch.setattr(payroll_push, "create_pay_run", lambda _week, **_kwargs: created)
 
-        assert payroll_push.ensure_pay_run_for_week(WEEK_START).pay_run_id == "new-run"
+        ensured = payroll_push.ensure_pay_run_for_week(WEEK_START, tenant_id="ours")
+
+        assert ensured.pay_run_id == "new-run"
 
     def test_create_refetches_the_pay_run_before_mirroring(
         self, monkeypatch: pytest.MonkeyPatch
@@ -955,12 +1087,11 @@ class TestPayRunTenantIsolation:
             transformed.append(value)
             return mirrored, "created"
 
-        monkeypatch.setattr(payroll_push, "_tenant", lambda: "ours")
-        monkeypatch.setattr(payroll_push, "_payroll_api", lambda: api)
+        monkeypatch.setattr(payroll_sdk, "payroll_api", lambda: api)
         monkeypatch.setattr(payroll_push, "get_payroll_calendars", lambda: [calendar])
         monkeypatch.setattr(payroll_push, "transform_pay_run", _transform)
 
-        result = payroll_push.create_pay_run(WEEK_START)
+        result = payroll_push.create_pay_run(WEEK_START, tenant_id="ours")
 
         assert transformed == [detail]
         assert result.pay_run_id == pay_run_id
