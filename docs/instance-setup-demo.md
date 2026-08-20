@@ -73,24 +73,34 @@ flag may create missing demo-only payroll objects, including the configured
 weekly calendar and required pay items — the same objects production
 onboarding refuses to create. It then selects a live branding theme if none is
 configured (demo seeding may take the first; production never does), syncs
-accounts and pay items, links or creates Xero Payroll employees for the dummy
-staff, creates the nine canonical shop jobs, validates the result, and enables
-automated sync last. Failures exit non-zero and leave sync disabled; the
-command is safe to rerun after correcting the cause.
+pay items and accounts, creates the eleven canonical shop jobs, links the
+fixed leave types to them, and imports the dummy staff last — linking or
+creating their Xero Payroll employees — so the inbound sync sees the finished
+payroll configuration. Automated sync is enabled only at the very end; there
+is no separate completion validation, because each leg enforces its own
+contract. Failures exit non-zero and leave sync disabled; the command is safe
+to rerun after correcting the cause.
 
 The employee seed is only the demo bootstrap path. Once seeded, employees use
 the same normal inbound Xero sync as every other instance.
 
 ## 5. If the demo organisation is reset
 
-Do not add reset-recovery behaviour to the sync. Restore the usual production
-backup into non-production and run the normal restore/seed process.
+Xero recreates the Demo Company roughly monthly, and the replacement carries a
+new tenant id, an unprovisioned payroll product, and blank quote terms. Do not
+add reset-recovery behaviour to the sync. Restore the usual production backup
+into non-production and run the normal restore/seed process —
+[`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md) covers rebinding to
+the replacement tenant and activating payroll (unprovisioned payroll answers
+every NZ Payroll call `403 Forbidden` with an empty body), and the Xero
+**Terms (Quotes)** wording from section 3 must be re-entered in Xero because
+the reset wipes it.
 
 ## 6. Verify
 
 - Staff list shows 11 demo employees, all linked to Xero Payroll. Xero's
   immutable shipped sample employees are explicitly ignored by the sync.
-- Exactly nine shop jobs are visible.
+- Exactly eleven shop jobs are visible.
 - Admin > Xero reports connected.
 - A normal Xero sync completes without errors.
 - A test job, timesheet, quote, and invoice work as expected.

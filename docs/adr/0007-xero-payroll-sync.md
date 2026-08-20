@@ -1,6 +1,6 @@
-# 0007 — Xero Payroll NZ sync with four-bucket hour categorisation
+# 0007 — Xero Payroll NZ sync: one classifier, three posting surfaces
 
-A week's time entries split into work / other-leave / annual-or-sick / unpaid buckets, each posted through the Xero surface that can actually represent it.
+A week's time entries are classified once (`hour_categories.LeaveCatalogue`) and each category is posted through the one Xero surface that can actually represent it: the Timesheets API for work and rate-paid leave, the Employee Leave API for balance-debiting leave, and nothing at all for a public holiday, which Xero computes itself.
 
 ## Rules
 

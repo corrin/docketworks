@@ -82,11 +82,13 @@ The command's contract
    calendar, pay items and selected branding theme against the organisation;
    store the tenant, shortcode, theme and calendar ids.
 3. Sync pay items, then accounts.
-4. Create the nine canonical shop jobs.
-5. Import staff through the normal Xero employee entity sync, deliberately
+4. Create the eleven canonical shop jobs.
+5. Link the fixed leave types to their shop jobs.
+6. Import staff through the normal Xero employee entity sync, deliberately
    last so payroll configuration exists first.
-6. Validate completion and set `enable_xero_sync=true` — only after every
-   previous step succeeds.
+7. Set `enable_xero_sync=true` — the sequence's only re-open, reached only
+   after every previous leg succeeds. There is no separate completion
+   validation: each leg enforces its own contract.
 
 Any failure exits non-zero, persists the error, and leaves automated Xero sync
 disabled. Fix the source configuration and rerun the same command; it is
@@ -95,7 +97,7 @@ rerunnable.
 ## 5. Verify and hand over
 
 - Staff list contains the expected Xero Payroll employees.
-- Exactly nine shop jobs are present.
+- Exactly eleven shop jobs are present.
 - Admin > Xero reports connected.
 - A normal Xero sync completes without errors.
 - Test quote and invoice PDFs use the selected branding theme.

@@ -198,10 +198,14 @@ type PayrollPostingMode = Literal["timesheet", "salary"]
 class StaffWeekPostResult:
     """One staff member's week, after the provider posted it.
 
-    Opus: The four hour figures are ADR 0007's buckets. ``skipped`` covers a staff
-    member outside the week (joined after it, or left before it); such a
-    member may still have entries, which ``has_entries`` reports so the
-    operator can see hours that were deliberately not posted.
+    Fable: The three hour figures follow ADR 0007's posting surfaces: work and
+    rate-paid leave both travel through the Timesheets API but are reported
+    separately, and ``leave_hours`` is what went through the Leave API — the
+    only surface that debits a balance. A public holiday posts nowhere and so
+    appears in none of them. ``skipped`` covers a staff member outside the
+    week (joined after it, or left before it); such a member may still have
+    entries, which ``has_entries`` reports so the operator can see hours that
+    were deliberately not posted.
     """
 
     staff_id: str

@@ -986,7 +986,7 @@
     day concept and the week concept no longer share a field name.
 
 - operation: timesheets_weekly_retrieve
-  change: "Leave is identified by the line's own xero_pay_item.uses_leave_api, not by 'Leave' appearing in the job name; leave columns are keyed on that pay item's name"
+  change: "Leave is identified by the line's own xero_pay_item.uses_leave_api — a public holiday, which names no pay item, by its LeaveType job FK — not by 'Leave' appearing in the job name; leave columns are keyed on the fixed category code (hour_categories.COLUMN_BY_CODE)"
   reason: >
     v1 split work from leave on a job-name substring and then bucketed by the
     JOB's default pay item, so a renamed job silently reclassified paid leave
@@ -1028,9 +1028,12 @@
     coding standard forbids outright, and it made the client's connection the
     thing doing the work — so a disconnect mid-batch destroyed the only record
     of which staff had succeeded, leaving re-posting everyone as the sole
-    recovery. Events now accumulate in an append-only cache log the stream
-    replays from an offset, so a reconnect loses nothing. The wire contract of
-    the POST is unchanged: it still answers {task_id, stream_url}.
+    recovery. The task rewrites ONE run document in place and every push
+    carries the whole of it, so a client that connects late, reconnects or
+    reloads needs the present rather than a replayed history (ADR 0047). The
+    POST answers that opening document ({run: ...}); the same document is
+    served by GET /timesheets/payroll/runs/ and pushed on the payroll SSE
+    channel.
 
 - operation: (payroll posting — leave and work routing)
   change: "Lines are routed to Xero's two payroll APIs by the line's own xero_pay_item; v1 pattern-matched the job name via Job.get_leave_type()"

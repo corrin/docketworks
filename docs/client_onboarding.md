@@ -342,8 +342,10 @@ duplicating.
    and no usable password. Set their Docketworks password, and change `office_email` if they
    have a separate office address. Either address logs into the same account.
 3. Set weekly hours (`hours_mon` through `hours_sun`) and upload a profile photo if wanted.
-   Salaried employees need an explicit hourly costing override before their time can be
-   costed; the application refuses to invent one from annual salary.
+   A salaried employee's hourly costing rate is derived from the payroll terms synced from
+   Xero (annual salary over the working pattern's average weekly hours); what the
+   application refuses is costing their time before those terms have synced, or when the
+   synced pattern carries no contracted hours.
 
 ### 7e. Link Leave Jobs to Xero
 

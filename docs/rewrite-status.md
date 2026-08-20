@@ -204,6 +204,18 @@ rather than anywhere else. This file is finished when it is empty.
 
 ### Payroll and Xero
 
+- **Make the week reconciliation poll pay slips to a deadline.** ADR 0007
+  records the gap: `get_week_reconciliation` makes a single unguarded
+  `get_pay_slips_for_week` call while a Draft run's slips recompute
+  asynchronously for minutes after a post, and the page is reached by a link
+  clicked in exactly that window. Poll to a deadline and fail on expiry; never
+  converge on agreement with our own figures. `PaySlip.lastEdited` (absent
+  from the hand-written stub) may be the convergence signal.
+- **Settle whether `PAYROLL_SLEEP_SECONDS` should exist.** The OPEN QUESTION at
+  `apps/xero/constants.py`: `RateLimitedRESTClient` already paces and absorbs
+  minute-limit 429s, so the manual payroll pacing layer may be a second
+  implementation of handled behaviour. Deleting it changes live pacing and
+  needs one clean fresh-quota integration run to settle.
 - **Scope the hourly pay-slip sync** to Draft and not-yet-mirrored runs. It is
   N+1 by its own docstring and runs hourly over all entities: 21 Xero calls per
   sync becomes 2, and it grows 24/day for every new weekly pay run. Xero has no
@@ -233,10 +245,7 @@ rather than anywhere else. This file is finished when it is empty.
   panel's live read (`week_posting_status`) from one week to a date range. Gross
   pay stays slip-sourced — a timesheet line carries units, not dollars — and the
   live read costs one Xero call per staff per week, so it stays behind an
-  explicit trigger. Fix two defects in the same slice: `_jm_week` keys staff by
-  DISPLAY NAME, so two people sharing one merge into a single row; and
-  `xero_hours` derives leave from job names rather than the line's pay item,
-  which ADR 0007 records as the v1 mistake that let three leave rules drift.
+  explicit trigger.
   **Its core value is the employee nobody posted for** — Xero pays an employee
   on the calendar their pay-template hours when the run holds no timesheet for
   them, so the reconciliation must be driven from Xero's employee list, not the
