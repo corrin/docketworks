@@ -146,6 +146,23 @@ describe('SalesForecastPage', () => {
     ).toBeNull()
   })
 
+  it('opens a month from the keyboard, not only by clicking the row', async () => {
+    // Opus: the row's onClick is a mouse-only affordance — a keyboard user
+    // reaches the drill-down through the month button inside the cell, which
+    // is the pair CompaniesListPage uses for the same table shape.
+    serveForecast()
+    const { user } = renderWithProviders(<SalesForecastPage />)
+
+    await screen.findByText('Jun 2026')
+
+    // getByRole, not a cell query: if the month is not exposed as a control
+    // there is nothing for a keyboard to reach, and this line is the assertion.
+    screen.getByRole('button', { name: 'Jun 2026' }).focus()
+    await user.keyboard('{Enter}')
+
+    await screen.findByText('Zeta Engineering')
+  })
+
   it('sorts detail rows on the clicked column, keeping blanks last both ways', async () => {
     serveForecast()
     const { container, user } = renderWithProviders(<SalesForecastPage />)

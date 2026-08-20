@@ -64,7 +64,22 @@ export function SalesForecastMonthTable({
           className="cursor-pointer border-b border-gray-100 hover:bg-blue-50"
           onClick={() => onSelect(month.month)}
         >
-          <td className="px-3 py-2 font-medium text-gray-900">{month.month_label}</td>
+          <td className="px-3 py-2 font-medium text-gray-900">
+            {/* Opus: a real button, so the drill-down is reachable without a
+                mouse; the row onClick is the mouse-only whole-row affordance.
+                A button rather than a link because the drill-down is state,
+                not a route. CompaniesListPage carries the same pair. */}
+            <button
+              type="button"
+              className="cursor-pointer hover:underline"
+              onClick={(event) => {
+                event.stopPropagation()
+                onSelect(month.month)
+              }}
+            >
+              {month.month_label}
+            </button>
+          </td>
           <td className="px-3 py-2 text-right">{formatCurrency(month.xero_sales)}</td>
           <td className="px-3 py-2 text-right">{formatCurrency(month.jm_sales)}</td>
           <td className={`px-3 py-2 text-right font-medium ${varianceToneClass(month.variance)}`}>
