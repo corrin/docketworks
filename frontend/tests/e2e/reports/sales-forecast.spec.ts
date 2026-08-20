@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs'
+
 import { expect, test } from '../fixtures/auth'
 import { autoId } from '../helpers'
 
@@ -39,7 +41,24 @@ test.describe('Sales Forecast Report', () => {
 
     const monthRows = autoId(page, 'SalesForecastReport-table').locator('tbody tr')
     await expect(monthRows.first()).toBeVisible()
+    const monthCount = await monthRows.count()
     const monthLabel = (await monthRows.first().locator('td').first().innerText()).trim()
+
+    // The export is a browser download, so nothing below the button is
+    // reachable from a component test: the blob, the filename and the click
+    // only exist in a real page.
+    const download = await Promise.all([
+      page.waitForEvent('download'),
+      autoId(page, 'SalesForecastReport-export').click(),
+    ]).then(([event]) => event)
+    expect(download.suggestedFilename()).toMatch(/^sales-forecast-report-\d{4}-\d{2}-\d{2}\.csv$/)
+    const csvPath = await download.path()
+    const csvLines = readFileSync(csvPath, 'utf8').trim().split('\r\n')
+    expect(csvLines[0]).toBe('Month,Xero Sales,JM Sales,Variance,Variance %')
+    // One line per month on screen, and the same first month: the export has
+    // to be the table the user is looking at, not a second fetch of its own.
+    expect(csvLines).toHaveLength(monthCount + 1)
+    expect(csvLines[1]).toContain(monthLabel)
 
     await monthRows.first().click()
 
