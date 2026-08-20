@@ -101,3 +101,36 @@ describe('AppNavbar — the weekly timesheets link', () => {
     expect(autoId('AppNavbar-leave-settings')).toBeNull()
   })
 })
+
+describe('AppNavbar — the Reports menu', () => {
+  it('lists every shipped report under its v1 section heading', async () => {
+    mockUser({ is_office_staff: true })
+    const { user } = renderWithProviders(<AppNavbar />)
+
+    await openMenu(user, 'AppNavbar-reports-menu')
+    await waitFor(() => {
+      expect(autoId('AppNavbar-sales-forecast')).not.toBeNull()
+      expect(autoId('AppNavbar-job-movement')).not.toBeNull()
+      expect(autoId('AppNavbar-wip')).not.toBeNull()
+      expect(autoId('AppNavbar-payroll-reconciliation')).not.toBeNull()
+    })
+    // A routed report the menu omits is reachable only by typing its URL,
+    // which is how all three of these sat unreachable before this menu.
+    expect(document.body.textContent).toContain('Management')
+    expect(document.body.textContent).toContain('Reconciliation')
+  })
+
+  it('is withheld from a workshop login', async () => {
+    // Every entry is company-wide revenue or payroll, which is why v1 gated
+    // the whole menu on is_office_staff rather than gating entries.
+    mockUser({ is_office_staff: false })
+    const { user } = renderWithProviders(<AppNavbar />)
+
+    await waitFor(() => expect(autoId('AppNavbar-logout')).not.toBeNull())
+    expect(autoId('AppNavbar-reports-menu')).toBeNull()
+
+    await openMenu(user, 'AppNavbar-timesheets-menu')
+    await waitFor(() => expect(autoId('AppNavbar-daily-timesheets')).not.toBeNull())
+    expect(autoId('AppNavbar-sales-forecast')).toBeNull()
+  })
+})

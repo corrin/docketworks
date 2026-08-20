@@ -6,6 +6,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { meQueryOptions, useLogout } from '@/features/auth'
@@ -63,6 +65,30 @@ export function AppNavbar() {
             </>
           )}
         </NavMenu>
+        {/* Office staff only, as in v1: every entry is company-wide revenue
+            or payroll, which a workshop login has no business reading. */}
+        {user.is_office_staff && (
+          <NavMenu label="Reports" automationId="AppNavbar-reports-menu">
+            <DropdownMenuLabel>Management</DropdownMenuLabel>
+            <NavMenuLink to="/reports/job-movement" automationId="AppNavbar-job-movement">
+              Job Movement
+            </NavMenuLink>
+            <NavMenuLink to="/reports/sales-forecast" automationId="AppNavbar-sales-forecast">
+              Sales Forecast
+            </NavMenuLink>
+            <NavMenuLink to="/reports/wip" automationId="AppNavbar-wip">
+              WIP Report
+            </NavMenuLink>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Reconciliation</DropdownMenuLabel>
+            <NavMenuLink
+              to="/reports/payroll-reconciliation"
+              automationId="AppNavbar-payroll-reconciliation"
+            >
+              Payroll (Xero)
+            </NavMenuLink>
+          </NavMenu>
+        )}
         {user.is_superuser && (
           <NavMenu label="Admin" automationId="AppNavbar-admin-menu">
             <NavMenuLink to="/admin/leave-settings" automationId="AppNavbar-leave-settings">

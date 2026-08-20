@@ -20,6 +20,7 @@ import { Route as AuthedJobsCreateRouteImport } from './routes/_authed/jobs/crea
 import { Route as AuthedPurchasingStockRouteImport } from './routes/_authed/purchasing/stock'
 import { Route as AuthedReportsJobMovementRouteImport } from './routes/_authed/reports/job-movement'
 import { Route as AuthedReportsPayrollReconciliationRouteImport } from './routes/_authed/reports/payroll-reconciliation'
+import { Route as AuthedReportsSalesForecastRouteImport } from './routes/_authed/reports/sales-forecast'
 import { Route as AuthedReportsWipRouteImport } from './routes/_authed/reports/wip'
 import { Route as AuthedTimesheetsDailyRouteImport } from './routes/_authed/timesheets/daily'
 import { Route as AuthedTimesheetsEntryRouteImport } from './routes/_authed/timesheets/entry'
@@ -88,6 +89,12 @@ const AuthedReportsPayrollReconciliationRoute =
     path: '/reports/payroll-reconciliation',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedReportsSalesForecastRoute =
+  AuthedReportsSalesForecastRouteImport.update({
+    id: '/reports/sales-forecast',
+    path: '/reports/sales-forecast',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedReportsWipRoute = AuthedReportsWipRouteImport.update({
   id: '/reports/wip',
   path: '/reports/wip',
@@ -152,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/purchasing/stock': typeof AuthedPurchasingStockRoute
   '/reports/job-movement': typeof AuthedReportsJobMovementRoute
   '/reports/payroll-reconciliation': typeof AuthedReportsPayrollReconciliationRoute
+  '/reports/sales-forecast': typeof AuthedReportsSalesForecastRoute
   '/reports/wip': typeof AuthedReportsWipRoute
   '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
@@ -174,6 +182,7 @@ export interface FileRoutesByTo {
   '/purchasing/stock': typeof AuthedPurchasingStockRoute
   '/reports/job-movement': typeof AuthedReportsJobMovementRoute
   '/reports/payroll-reconciliation': typeof AuthedReportsPayrollReconciliationRoute
+  '/reports/sales-forecast': typeof AuthedReportsSalesForecastRoute
   '/reports/wip': typeof AuthedReportsWipRoute
   '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
@@ -198,6 +207,7 @@ export interface FileRoutesById {
   '/_authed/purchasing/stock': typeof AuthedPurchasingStockRoute
   '/_authed/reports/job-movement': typeof AuthedReportsJobMovementRoute
   '/_authed/reports/payroll-reconciliation': typeof AuthedReportsPayrollReconciliationRoute
+  '/_authed/reports/sales-forecast': typeof AuthedReportsSalesForecastRoute
   '/_authed/reports/wip': typeof AuthedReportsWipRoute
   '/_authed/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/_authed/timesheets/entry': typeof AuthedTimesheetsEntryRoute
@@ -222,6 +232,7 @@ export interface FileRouteTypes {
     | '/purchasing/stock'
     | '/reports/job-movement'
     | '/reports/payroll-reconciliation'
+    | '/reports/sales-forecast'
     | '/reports/wip'
     | '/timesheets/daily'
     | '/timesheets/entry'
@@ -244,6 +255,7 @@ export interface FileRouteTypes {
     | '/purchasing/stock'
     | '/reports/job-movement'
     | '/reports/payroll-reconciliation'
+    | '/reports/sales-forecast'
     | '/reports/wip'
     | '/timesheets/daily'
     | '/timesheets/entry'
@@ -267,6 +279,7 @@ export interface FileRouteTypes {
     | '/_authed/purchasing/stock'
     | '/_authed/reports/job-movement'
     | '/_authed/reports/payroll-reconciliation'
+    | '/_authed/reports/sales-forecast'
     | '/_authed/reports/wip'
     | '/_authed/timesheets/daily'
     | '/_authed/timesheets/entry'
@@ -365,6 +378,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedReportsPayrollReconciliationRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/reports/sales-forecast': {
+      id: '/_authed/reports/sales-forecast'
+      path: '/reports/sales-forecast'
+      fullPath: '/reports/sales-forecast'
+      preLoaderRoute: typeof AuthedReportsSalesForecastRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/reports/wip': {
       id: '/_authed/reports/wip'
       path: '/reports/wip'
@@ -446,6 +466,7 @@ interface AuthedRouteChildren {
   AuthedPurchasingStockRoute: typeof AuthedPurchasingStockRoute
   AuthedReportsJobMovementRoute: typeof AuthedReportsJobMovementRoute
   AuthedReportsPayrollReconciliationRoute: typeof AuthedReportsPayrollReconciliationRoute
+  AuthedReportsSalesForecastRoute: typeof AuthedReportsSalesForecastRoute
   AuthedReportsWipRoute: typeof AuthedReportsWipRoute
   AuthedTimesheetsDailyRoute: typeof AuthedTimesheetsDailyRoute
   AuthedTimesheetsEntryRoute: typeof AuthedTimesheetsEntryRoute
@@ -467,6 +488,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedReportsJobMovementRoute: AuthedReportsJobMovementRoute,
   AuthedReportsPayrollReconciliationRoute:
     AuthedReportsPayrollReconciliationRoute,
+  AuthedReportsSalesForecastRoute: AuthedReportsSalesForecastRoute,
   AuthedReportsWipRoute: AuthedReportsWipRoute,
   AuthedTimesheetsDailyRoute: AuthedTimesheetsDailyRoute,
   AuthedTimesheetsEntryRoute: AuthedTimesheetsEntryRoute,

@@ -168,8 +168,12 @@ export {
   accountingReportsJobMovementRetrieveOptions,
   accountingReportsPayrollWeekReconciliationRetrieveOptions,
   accountingReportsWipRetrieveOptions,
+  salesForecastListOptions,
+  salesForecastMonthDetailOptions,
 } from './generated/@tanstack/react-query.gen'
 export type {
+  ForecastComparisonRowOut,
+  ForecastMonthOut,
   PayrollStaffWeekRowOut,
   PayrollWeekReconciliationResponse,
   WipResponse,

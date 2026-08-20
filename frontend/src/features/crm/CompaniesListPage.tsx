@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ChevronDown, ChevronUp } from 'lucide-react'
 
 import { companiesSearchRetrieveOptions } from '@/api'
 import { ListTable } from '@/features/shared/ListTable'
+import { SortHeader } from '@/features/shared/SortHeader'
 import { useDebouncedValue } from '@/features/shared/useDebouncedValue'
+import { useSortState } from '@/features/shared/useSortState'
 import { formatCurrency } from '@/lib/format'
 
 // v1's page size; the report is a first-page-plus-search view, not a pager —
@@ -14,55 +15,6 @@ const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
 
 type SortColumn = 'name' | 'total_spend'
-type SortDir = 'asc' | 'desc'
-
-interface SortHeaderProps {
-  column: SortColumn
-  label: string
-  automationId: string
-  sortBy: SortColumn
-  sortDir: SortDir
-  align: 'left' | 'right'
-  onSort: (column: SortColumn) => void
-}
-
-function SortHeader({
-  column,
-  label,
-  automationId,
-  sortBy,
-  sortDir,
-  align,
-  onSort,
-}: SortHeaderProps) {
-  const active = sortBy === column
-  return (
-    <th
-      scope="col"
-      data-automation-id={automationId}
-      aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-      className="p-0"
-    >
-      {/* The button fills the cell so a click anywhere on the header (which
-          is what the E2E spec targets) lands on a keyboard-operable control. */}
-      <button
-        type="button"
-        className={`w-full cursor-pointer px-3 py-2 select-none hover:text-gray-900 ${
-          align === 'right' ? 'text-right' : 'text-left'
-        }`}
-        onClick={() => onSort(column)}
-      >
-        {label}
-        {active &&
-          (sortDir === 'asc' ? (
-            <ChevronUp className="ml-1 inline h-3 w-3" />
-          ) : (
-            <ChevronDown className="ml-1 inline h-3 w-3" />
-          ))}
-      </button>
-    </th>
-  )
-}
 
 /**
  * Companies report: server-sorted, server-searched list. Sorting happens in
@@ -73,8 +25,7 @@ export function CompaniesListPage() {
   const navigate = useNavigate()
   const [searchInput, setSearchInput] = useState('')
   const query = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS)
-  const [sortBy, setSortBy] = useState<SortColumn>('name')
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const { sortBy, sortDir, onSort } = useSortState<SortColumn>('name')
 
   const companies = useQuery({
     ...companiesSearchRetrieveOptions({
@@ -84,15 +35,6 @@ export function CompaniesListPage() {
     // change would unmount the table and re-flash the loading text.
     placeholderData: keepPreviousData,
   })
-
-  const handleSort = (column: SortColumn) => {
-    if (column === sortBy) {
-      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortBy(column)
-      setSortDir('asc')
-    }
-  }
 
   return (
     <div className="min-h-screen p-6">
@@ -131,7 +73,7 @@ export function CompaniesListPage() {
               sortBy={sortBy}
               sortDir={sortDir}
               align="left"
-              onSort={handleSort}
+              onSort={onSort}
             />
             <th scope="col" className="px-3 py-2 text-left">
               Email
@@ -146,7 +88,7 @@ export function CompaniesListPage() {
               sortBy={sortBy}
               sortDir={sortDir}
               align="right"
-              onSort={handleSort}
+              onSort={onSort}
             />
           </tr>
         }
