@@ -14,7 +14,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-from django.utils import timezone
 from xero_python.payrollnz import EmployeeLeave, TimesheetLine
 
 from apps.accounting.types import NotAPayrollWeekError
@@ -28,6 +27,7 @@ from apps.timesheet.services import hour_categories
 from apps.timesheet.tests.conftest import (
     WEEK_START,
     make_leave_job,
+    make_pay_run,
     make_public_holiday_job,
     make_staff,
     make_time_line,
@@ -106,27 +106,22 @@ def xero_writes(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return writes
 
 
-def make_pay_run(
-    tenant: str, *, week_start: date = WEEK_START, status: str = "Draft"
-) -> XeroPayRun:
-    """A mirrored Xero pay run covering the week beginning ``week_start``."""
-    return XeroPayRun.objects.create(
-        xero_id=uuid.uuid4(),
-        xero_tenant_id=tenant,
-        payroll_calendar_id=uuid.uuid4(),
-        period_start_date=week_start,
-        period_end_date=week_start + timedelta(days=6),
-        payment_date=week_start + timedelta(days=9),
-        pay_run_status=status,
-        pay_run_type="Scheduled",
-        raw_json={},
-        xero_last_modified=timezone.now(),
-    )
-
-
 def _catalogue() -> "hour_categories.LeaveCatalogue":
     """The configured categories, as every posting path loads them."""
     return hour_categories.LeaveCatalogue.load()
+
+
+def _restore_v1_row_without_pay_item(line: CostLine) -> None:
+    """Null a work line's pay item the way a v1 database restore delivers it: as a raw row.
+
+    Fable: ``CostLine.clean`` refuses to save a postable time line without a
+    pay item, so no supported write path produces this state — but pg_restore
+    writes rows, not model saves, and restored v1 data still carries them.
+    The queryset update models that arrival. This stays within ADR 0052's
+    fixture allowance because the code under test is the preflight VALIDATION
+    of such rows, not the write path the update bypasses.
+    """
+    CostLine.objects.filter(id=line.id).update(xero_pay_item=None)
 
 
 def _lines(job: Job) -> list[CostLine]:
@@ -166,9 +161,9 @@ class TestRouting:
         """
         stat = make_public_holiday_job(company, superuser)
         make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
-        holiday = make_time_line(stat, worker, accounting_date=WEEK_START, hours="8.000")
-        # The migration clears it; a line created before it still carries one.
-        CostLine.objects.filter(id=holiday.id).update(xero_pay_item=None)
+        # Fable: make_time_line already writes the holiday line with no pay
+        # item, the only shape CostLine.clean accepts for this category.
+        make_time_line(stat, worker, accounting_date=WEEK_START, hours="8.000")
 
         split = payroll_push._split_by_surface(_lines(job) + _lines(stat), _catalogue())
 
@@ -181,8 +176,7 @@ class TestRouting:
     ) -> None:
         """The check covers what will be sent; a line that is never sent needs no Xero id."""
         stat = make_public_holiday_job(company, superuser)
-        holiday = make_time_line(stat, worker, accounting_date=WEEK_START, hours="8.000")
-        CostLine.objects.filter(id=holiday.id).update(xero_pay_item=None)
+        make_time_line(stat, worker, accounting_date=WEEK_START, hours="8.000")
 
         payroll_push.validate_pay_items_for_week([worker.id], WEEK_START)
 
@@ -191,7 +185,7 @@ class TestRouting:
     ) -> None:
         """Scoping the check must not blunt it for the lines it exists to guard."""
         line = make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
-        CostLine.objects.filter(id=line.id).update(xero_pay_item=None)
+        _restore_v1_row_without_pay_item(line)
 
         with pytest.raises(ValueError, match=r"no xero_pay_item|not a leave category"):
             payroll_push.validate_pay_items_for_week([worker.id], WEEK_START)
@@ -1047,8 +1041,9 @@ class TestPayRunTenantIsolation:
     def test_a_foreign_draft_does_not_block_this_tenant(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        foreign = make_pay_run("foreign")
-        monkeypatch.setattr(payroll_push, "_calendar_id", lambda: foreign.payroll_calendar_id)
+        calendar_id = uuid.uuid4()
+        make_pay_run("foreign", calendar_id=calendar_id)
+        monkeypatch.setattr(payroll_push, "_calendar_id", lambda: calendar_id)
         created = SimpleNamespace(pay_run_id="new-run")
         monkeypatch.setattr(payroll_push, "create_pay_run", lambda _week, **_kwargs: created)
 

@@ -25,7 +25,12 @@ from apps.company.tests.conftest import make_company
 from apps.company.tests.job_fixtures import make_job
 from apps.core.models import AppError, CompanyDefaults
 from apps.job.models import Job
-from apps.timesheet.tests.conftest import make_staff, make_time_line
+from apps.timesheet.tests.conftest import (
+    PayRunRow,
+    make_pay_run,
+    make_staff,
+    make_time_line,
+)
 
 pytestmark = [pytest.mark.django_db]
 
@@ -107,32 +112,13 @@ class TestGetAlignedDateRange:
 # ---------------------------------------------------------------------------
 
 
-def _make_pay_run(
-    *,
-    start: date = XERO_PERIOD_START,
-    end: date = XERO_PERIOD_END,
-    payment: date = PAYMENT_DATE,
-    status: str = "Posted",
-) -> Model:
-    # The registry manager is untyped (Any); the cast carries the Model typing,
-    # as the service's protocol cast does for the same layer-contract seam.
-    return cast(
-        "Model",
-        django_apps.get_model("xero", "XeroPayRun")._default_manager.create(
-            xero_id=uuid.uuid4(),
-            xero_tenant_id="tenant-1",
-            period_start_date=start,
-            period_end_date=end,
-            payment_date=payment,
-            pay_run_status=status,
-            raw_json={},
-            xero_last_modified=SYNC_TIME,
-        ),
-    )
+def _posted_pay_run(*, status: str = "Posted") -> PayRunRow:
+    """This module's usual run: Posted, covering the fixture week, paid on PAYMENT_DATE."""
+    return make_pay_run(status=status, payment=PAYMENT_DATE)
 
 
 def _make_pay_slip(  # noqa: PLR0913 -- a factory: every field is an axis a test varies
-    pay_run: Model,
+    pay_run: PayRunRow,
     *,
     employee_id: uuid.UUID | None = None,
     employee_name: str | None = "Xero Employee",
@@ -179,7 +165,7 @@ def _wendy_slip_employee_id(wendy: Staff) -> uuid.UUID:
 class TestWeekDiffMath:
     def test_matched_staff_row_computes_jm_minus_xero_diffs(self, job: Job, wendy: Staff) -> None:
         make_time_line(job, wendy, accounting_date=date(2026, 5, 5), hours="8.000")
-        pay_run = _make_pay_run()
+        pay_run = _posted_pay_run()
         _make_pay_slip(
             pay_run,
             employee_id=_wendy_slip_employee_id(wendy),
@@ -247,7 +233,7 @@ class TestWeekDiffMath:
         Here Xero pays exactly what it should: 8h at 40.00.
         """
         make_time_line(job, wendy, accounting_date=date(2026, 5, 5), hours="8.000")
-        pay_run = _make_pay_run()
+        pay_run = _posted_pay_run()
         _make_pay_slip(
             pay_run,
             employee_id=_wendy_slip_employee_id(wendy),
@@ -278,7 +264,7 @@ class TestWeekDiffMath:
         does afterwards.
         """
         make_time_line(job, wendy, accounting_date=date(2026, 5, 5), hours="8.000")
-        pay_run = _make_pay_run()
+        pay_run = _posted_pay_run()
         _make_pay_slip(
             pay_run,
             employee_id=_wendy_slip_employee_id(wendy),
@@ -311,7 +297,7 @@ class TestWeekDiffMath:
         )
         make_time_line(job, wendy, accounting_date=date(2026, 5, 5), hours="8.000")
         make_time_line(job, twin, accounting_date=date(2026, 5, 5), hours="4.000")
-        pay_run = _make_pay_run()
+        pay_run = _posted_pay_run()
         _make_pay_slip(
             pay_run,
             employee_id=_wendy_slip_employee_id(wendy),
@@ -336,7 +322,7 @@ class TestWeekDiffMath:
         self, job: Job, wendy: Staff
     ) -> None:
         make_time_line(job, wendy, accounting_date=date(2026, 5, 5), hours="10.000")
-        pay_run = _make_pay_run()
+        pay_run = _posted_pay_run()
         _make_pay_slip(
             pay_run,
             employee_id=_wendy_slip_employee_id(wendy),
@@ -363,7 +349,7 @@ class TestWeekDiffMath:
         which carries the annual leave loading Xero never pays.
         """
         make_time_line(job, wendy, accounting_date=date(2026, 5, 5), hours="8.000")
-        pay_run = _make_pay_run()
+        pay_run = _posted_pay_run()
         _make_pay_slip(
             pay_run,
             employee_id=_wendy_slip_employee_id(wendy),
@@ -396,7 +382,7 @@ class TestWeekDiffMath:
         )
         # 5.100h at 10.00 = 51.00 base; gross 50.00; the gap IS the 1.00 band.
         make_time_line(job, cheap, accounting_date=date(2026, 5, 5), hours="5.100")
-        pay_run = _make_pay_run()
+        pay_run = _posted_pay_run()
         _make_pay_slip(
             pay_run,
             employee_id=uuid.UUID(str(cheap.xero_user_id)),
@@ -420,7 +406,7 @@ class TestWeekDiffMath:
         )
         # 5.101h at 10.00 = 51.01 base; gross 50.00; one cent past the band.
         make_time_line(job, cheap, accounting_date=date(2026, 5, 5), hours="5.101")
-        pay_run = _make_pay_run()
+        pay_run = _posted_pay_run()
         _make_pay_slip(
             pay_run,
             employee_id=uuid.UUID(str(cheap.xero_user_id)),
@@ -459,7 +445,7 @@ class TestUnmatchedStaff:
     ) -> None:
         # Wendy exists but the slip belongs to an employee id no Staff carries.
         make_time_line(job, wendy, accounting_date=date(2026, 5, 5), hours="8.000")
-        pay_run = _make_pay_run()
+        pay_run = _posted_pay_run()
         _make_pay_slip(
             pay_run,
             employee_name="Departed Person",
@@ -490,7 +476,7 @@ class TestUnmatchedStaff:
         never heard of.
         """
         assert job is not None
-        pay_run = _make_pay_run()
+        pay_run = _posted_pay_run()
         _make_pay_slip(
             pay_run,
             employee_id=_wendy_slip_employee_id(wendy),
@@ -515,7 +501,7 @@ class TestUnmatchedStaff:
         assert job is not None
         wendy.date_left = date(2026, 4, 30)
         wendy.save(update_fields=["date_left"])
-        pay_run = _make_pay_run()
+        pay_run = _posted_pay_run()
         _make_pay_slip(
             pay_run,
             employee_id=_wendy_slip_employee_id(wendy),
@@ -534,7 +520,7 @@ class TestUnmatchedStaff:
         make_time_line(job, wendy, accounting_date=MONDAY, hours="8.000")
         wendy.pay_basis = "salary"
         wendy.save(update_fields=["pay_basis"])
-        pay_run = _make_pay_run()
+        pay_run = _posted_pay_run()
         _make_pay_slip(
             pay_run,
             employee_id=_wendy_slip_employee_id(wendy),
@@ -551,7 +537,7 @@ class TestUnmatchedStaff:
 
     def test_slip_with_no_name_and_no_staff_match_fails_loudly(self, job: Job) -> None:
         assert job is not None  # seeds CompanyDefaults for get_reconciliation_data
-        pay_run = _make_pay_run()
+        pay_run = _posted_pay_run()
         _make_pay_slip(pay_run, employee_name=None, timesheet_hours="4", gross="200")
 
         with pytest.raises(ValueError, match="no employee_name"):
@@ -566,7 +552,7 @@ class TestUnmatchedStaff:
 class TestWeekDiscovery:
     def test_draft_pay_runs_are_ignored(self, job: Job, wendy: Staff) -> None:
         make_time_line(job, wendy, accounting_date=date(2026, 5, 5), hours="8.000")
-        pay_run = _make_pay_run(status="Draft")
+        pay_run = _posted_pay_run(status="Draft")
         _make_pay_slip(
             pay_run,
             employee_id=_wendy_slip_employee_id(wendy),
@@ -582,10 +568,13 @@ class TestWeekDiscovery:
 
     def test_multiple_pay_runs_in_one_week_are_summed(self, wendy: Staff) -> None:
         employee_id = _wendy_slip_employee_id(wendy)
-        scheduled = _make_pay_run()
+        scheduled = _posted_pay_run()
         _make_pay_slip(scheduled, employee_id=employee_id, timesheet_hours="8", gross="400")
-        unscheduled = _make_pay_run(
-            start=date(2026, 5, 4), end=date(2026, 5, 8), payment=date(2026, 5, 13)
+        unscheduled = make_pay_run(
+            status="Posted",
+            week_start=date(2026, 5, 4),
+            end=date(2026, 5, 8),
+            payment=date(2026, 5, 13),
         )
         _make_pay_slip(unscheduled, employee_id=employee_id, timesheet_hours="2", gross="100")
 

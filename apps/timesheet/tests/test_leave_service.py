@@ -21,7 +21,12 @@ from apps.job.models.costing import CostLine
 from apps.job.services import job_service
 from apps.timesheet.models import LeaveDay, LeaveRequest, LeaveType
 from apps.timesheet.services import leave_service, leave_settings
-from apps.timesheet.tests.conftest import make_staff, make_time_line
+from apps.timesheet.tests.conftest import (
+    make_leave_job,
+    make_public_holiday_job,
+    make_staff,
+    make_time_line,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -43,47 +48,18 @@ MONDAY = next_monday()
 TUESDAY = MONDAY + timedelta(days=1)
 
 
-def configure_type(
-    *, code: str, name: str, job: Job, superuser: Staff, uses_leave_api: bool = True
-) -> LeaveType:
-    defaults = CompanyDefaults.get_solo()
-    pay_item_model = django_apps.get_model("xero", "XeroPayItem")
-    pay_item, _created = pay_item_model.objects.update_or_create(
-        name=name if uses_leave_api else "Ordinary Time",
-        uses_leave_api=uses_leave_api,
-        defaults={
-            "xero_id": f"xero-{code}",
-            "xero_tenant_id": defaults.xero_tenant_id,
-            "multiplier": None if uses_leave_api else Decimal("1.00"),
-        },
-    )
-    job.status = "special"
-    job.default_xero_pay_item_id = pay_item.pk
-    job.save(staff=superuser, update_fields=["status", "default_xero_pay_item", "updated_at"])
-    leave_type = LeaveType.objects.get(code=code)
-    leave_type.display_name = name
-    leave_type.job = job
-    leave_type.save(update_fields=["display_name", "job", "updated_at"])
-    return leave_type
-
-
 def requested(*days: tuple[date, str]) -> list[leave_service.RequestedDay]:
     return [{"date": day, "hours": Decimal(hours)} for day, hours in days]
 
 
 def test_create_request_projects_partial_days_to_payroll_lines(
-    worker: Staff, job: Job, superuser: Staff
+    worker: Staff, company: Company, superuser: Staff
 ) -> None:
-    leave_type = configure_type(
-        code=LeaveType.Code.ANNUAL,
-        name="Annual Leave",
-        job=job,
-        superuser=superuser,
-    )
+    leave_job = make_leave_job(company, superuser, "Annual Leave")
 
     result = leave_service.create_leave_request(
         staff_id=worker.id,
-        leave_type_code=leave_type.code,
+        leave_type_code=LeaveType.Code.ANNUAL,
         start_date=MONDAY,
         end_date=TUESDAY,
         note="Family trip",
@@ -97,15 +73,15 @@ def test_create_request_projects_partial_days_to_payroll_lines(
     lines = CostLine.objects.filter(managed_by="leave").order_by("accounting_date")
     assert list(lines.values_list("quantity", flat=True)) == [Decimal("4"), Decimal("8")]
     assert all(line.staff_id == worker.id for line in lines)
-    assert all(line.xero_pay_item_id == job.default_xero_pay_item_id for line in lines)
+    assert all(line.xero_pay_item_id == leave_job.default_xero_pay_item_id for line in lines)
     assert all(line.meta["is_billable"] is False for line in lines)
     assert all(line.approved for line in lines)
 
 
 def test_conflicting_days_are_skipped_but_available_days_are_saved(
-    worker: Staff, job: Job, superuser: Staff
+    worker: Staff, company: Company, job: Job, superuser: Staff
 ) -> None:
-    configure_type(code=LeaveType.Code.SICK, name="Sick Leave", job=job, superuser=superuser)
+    make_leave_job(company, superuser, "Sick Leave")
     make_time_line(job, worker, accounting_date=MONDAY)
 
     result = leave_service.create_leave_request(
@@ -123,14 +99,9 @@ def test_conflicting_days_are_skipped_but_available_days_are_saved(
 
 
 def test_update_replaces_days_and_delete_removes_every_projection(
-    worker: Staff, job: Job, superuser: Staff
+    worker: Staff, company: Company, superuser: Staff
 ) -> None:
-    configure_type(
-        code=LeaveType.Code.ANNUAL,
-        name="Annual Leave",
-        job=job,
-        superuser=superuser,
-    )
+    make_leave_job(company, superuser, "Annual Leave")
     created = leave_service.create_leave_request(
         staff_id=worker.id,
         leave_type_code=LeaveType.Code.ANNUAL,
@@ -162,14 +133,9 @@ def test_update_replaces_days_and_delete_removes_every_projection(
 
 
 def test_generic_cost_line_writes_refuse_managed_leave(
-    worker: Staff, job: Job, superuser: Staff
+    worker: Staff, company: Company, superuser: Staff
 ) -> None:
-    configure_type(
-        code=LeaveType.Code.ANNUAL,
-        name="Annual Leave",
-        job=job,
-        superuser=superuser,
-    )
+    make_leave_job(company, superuser, "Annual Leave")
     leave_service.create_leave_request(
         staff_id=worker.id,
         leave_type_code=LeaveType.Code.ANNUAL,
@@ -188,18 +154,14 @@ def test_generic_cost_line_writes_refuse_managed_leave(
 
 
 def test_balance_uses_configured_external_id(
-    monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job, superuser: Staff
+    monkeypatch: pytest.MonkeyPatch, worker: Staff, company: Company, superuser: Staff
 ) -> None:
-    configure_type(
-        code=LeaveType.Code.ANNUAL,
-        name="Annual Leave",
-        job=job,
-        superuser=superuser,
-    )
+    make_leave_job(company, superuser, "Annual Leave")
     provider = SimpleNamespace(
         get_payroll_leave_balances=lambda _employee_id: [
             PayrollLeaveBalance(
-                leave_type_external_id="xero-annual_leave",
+                # Fable: The id the seeded pay-item catalogue carries for Annual Leave.
+                leave_type_external_id="xero-leave-annual-leave",
                 name="Annual Leave",
                 balance=Decimal("72.5"),
                 unit="Hours",
@@ -230,14 +192,9 @@ def update_row(
 
 
 def test_mapping_update_changes_job_default_and_rejects_wrong_surface(
-    job: Job, superuser: Staff
+    company: Company, superuser: Staff
 ) -> None:
-    configure_type(
-        code=LeaveType.Code.ANNUAL,
-        name="Annual Leave",
-        job=job,
-        superuser=superuser,
-    )
+    annual_job = make_leave_job(company, superuser, "Annual Leave")
     pay_item_model = django_apps.get_model("xero", "XeroPayItem")
     ordinary = pay_item_model.objects.get(name="Ordinary Time", uses_leave_api=False)
 
@@ -247,7 +204,7 @@ def test_mapping_update_changes_job_default_and_rejects_wrong_surface(
                 leave_settings.LeaveTypeUpdateData(
                     code=LeaveType.Code.ANNUAL,
                     display_name="Holiday",
-                    job_id=job.id,
+                    job_id=annual_job.id,
                     xero_pay_item_id=ordinary.id,
                 )
             ],
@@ -256,14 +213,12 @@ def test_mapping_update_changes_job_default_and_rejects_wrong_surface(
 
 
 def test_a_rejected_row_rolls_back_the_rows_saved_beside_it(
-    company: Company, job: Job, superuser: Staff
+    company: Company, superuser: Staff
 ) -> None:
     """The reason this endpoint takes a list: a loop would leave row 1 written."""
-    annual = configure_type(
-        code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
-    )
-    sick_job = make_job(company, superuser, name="Sick Leave Job")
-    configure_type(code=LeaveType.Code.SICK, name="Sick Leave", job=sick_job, superuser=superuser)
+    annual_job = make_leave_job(company, superuser, "Annual Leave")
+    annual = LeaveType.objects.get(code=LeaveType.Code.ANNUAL)
+    sick_job = make_leave_job(company, superuser, "Sick Leave")
     pay_item_model = django_apps.get_model("xero", "XeroPayItem")
     ordinary = pay_item_model.objects.get(name="Ordinary Time", uses_leave_api=False)
 
@@ -283,20 +238,17 @@ def test_a_rejected_row_rolls_back_the_rows_saved_beside_it(
 
     annual.refresh_from_db()
     assert annual.display_name == "Annual Leave"
-    assert annual.job_id == job.id
+    assert annual.job_id == annual_job.id
 
 
 def test_two_leave_types_can_swap_their_jobs_in_one_save(
-    company: Company, job: Job, superuser: Staff
+    company: Company, superuser: Staff
 ) -> None:
     """LeaveType.job is a OneToOne, so a swap is only expressible in one transaction."""
-    annual = configure_type(
-        code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
-    )
-    sick_job = make_job(company, superuser, name="Sick Leave Job")
-    sick = configure_type(
-        code=LeaveType.Code.SICK, name="Sick Leave", job=sick_job, superuser=superuser
-    )
+    annual_job = make_leave_job(company, superuser, "Annual Leave")
+    annual = LeaveType.objects.get(code=LeaveType.Code.ANNUAL)
+    sick_job = make_leave_job(company, superuser, "Sick Leave")
+    sick = LeaveType.objects.get(code=LeaveType.Code.SICK)
 
     leave_settings.update_leave_types(
         updates=[
@@ -309,8 +261,8 @@ def test_two_leave_types_can_swap_their_jobs_in_one_save(
             leave_settings.LeaveTypeUpdateData(
                 code=LeaveType.Code.SICK,
                 display_name="Sick Leave",
-                job_id=job.id,
-                xero_pay_item_id=job.default_xero_pay_item_id,
+                job_id=annual_job.id,
+                xero_pay_item_id=annual_job.default_xero_pay_item_id,
             ),
         ],
         actor=superuser,
@@ -319,15 +271,14 @@ def test_two_leave_types_can_swap_their_jobs_in_one_save(
     annual.refresh_from_db()
     sick.refresh_from_db()
     assert annual.job_id == sick_job.id
-    assert sick.job_id == job.id
+    assert sick.job_id == annual_job.id
 
 
 def test_a_job_held_by_an_untouched_leave_type_is_refused_by_name(
-    company: Company, job: Job, superuser: Staff
+    company: Company, superuser: Staff
 ) -> None:
-    configure_type(code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser)
-    sick_job = make_job(company, superuser, name="Sick Leave Job")
-    configure_type(code=LeaveType.Code.SICK, name="Sick Leave", job=sick_job, superuser=superuser)
+    make_leave_job(company, superuser, "Annual Leave")
+    sick_job = make_leave_job(company, superuser, "Sick Leave")
 
     with pytest.raises(ValidationError, match="Sick Leave already uses that Docketworks job"):
         leave_settings.update_leave_types(
@@ -343,10 +294,9 @@ def test_a_job_held_by_an_untouched_leave_type_is_refused_by_name(
         )
 
 
-def test_a_duplicated_code_in_one_save_is_refused(job: Job, superuser: Staff) -> None:
-    annual = configure_type(
-        code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
-    )
+def test_a_duplicated_code_in_one_save_is_refused(company: Company, superuser: Staff) -> None:
+    make_leave_job(company, superuser, "Annual Leave")
+    annual = LeaveType.objects.get(code=LeaveType.Code.ANNUAL)
 
     with pytest.raises(ValidationError, match="once per request"):
         leave_settings.update_leave_types(
@@ -356,7 +306,7 @@ def test_a_duplicated_code_in_one_save_is_refused(job: Job, superuser: Staff) ->
 
 
 def test_a_public_holiday_edit_saves_beside_other_rows_carrying_no_pay_item(
-    company: Company, job: Job, superuser: Staff
+    company: Company, superuser: Staff
 ) -> None:
     """The xero_computed surface has no Xero item, so null is its finished state.
 
@@ -364,17 +314,10 @@ def test_a_public_holiday_edit_saves_beside_other_rows_carrying_no_pay_item(
     public-holiday rename that could not be expressed on the wire did not just
     fail its own row — it rolled back every edit saved beside it.
     """
-    annual = configure_type(
-        code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
-    )
-    ph_job = make_job(company, superuser, name="Public Holiday Job")
-    public_holiday = configure_type(
-        code=LeaveType.Code.PUBLIC_HOLIDAY,
-        name="Public Holiday",
-        job=ph_job,
-        superuser=superuser,
-        uses_leave_api=False,
-    )
+    make_leave_job(company, superuser, "Annual Leave")
+    annual = LeaveType.objects.get(code=LeaveType.Code.ANNUAL)
+    ph_job = make_public_holiday_job(company, superuser)
+    public_holiday = LeaveType.objects.get(code=LeaveType.Code.PUBLIC_HOLIDAY)
 
     leave_settings.update_leave_types(
         updates=[
@@ -399,14 +342,7 @@ def test_a_pay_item_on_the_public_holiday_row_is_refused(
     company: Company, superuser: Staff
 ) -> None:
     """Naming a pay item here would post the day twice: Xero computes its own."""
-    ph_job = make_job(company, superuser, name="Public Holiday Job")
-    configure_type(
-        code=LeaveType.Code.PUBLIC_HOLIDAY,
-        name="Public Holiday",
-        job=ph_job,
-        superuser=superuser,
-        uses_leave_api=False,
-    )
+    ph_job = make_public_holiday_job(company, superuser)
 
     with pytest.raises(ValidationError, match="takes no Xero payroll item"):
         leave_settings.update_leave_types(
@@ -422,11 +358,10 @@ def test_a_pay_item_on_the_public_holiday_row_is_refused(
         )
 
 
-def test_a_leave_api_row_with_no_pay_item_is_refused(job: Job, superuser: Staff) -> None:
+def test_a_leave_api_row_with_no_pay_item_is_refused(company: Company, superuser: Staff) -> None:
     """Pairs the public-holiday rule with its converse: a surface that posts needs its item."""
-    annual = configure_type(
-        code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
-    )
+    make_leave_job(company, superuser, "Annual Leave")
+    annual = LeaveType.objects.get(code=LeaveType.Code.ANNUAL)
     assert annual.job is not None
 
     with pytest.raises(ValidationError, match="requires a Xero leave type"):
@@ -452,14 +387,7 @@ def test_the_public_holiday_row_reads_with_no_pay_item_and_only_needs_a_job(
     contract then refused; and demanding pay-item validity for a surface that
     never consults one could report a bookable category as unconfigured.
     """
-    ph_job = make_job(company, superuser, name="Public Holiday Job")
-    configure_type(
-        code=LeaveType.Code.PUBLIC_HOLIDAY,
-        name="Public Holiday",
-        job=ph_job,
-        superuser=superuser,
-        uses_leave_api=False,
-    )
+    make_public_holiday_job(company, superuser)
 
     row = leave_settings.leave_type_data(
         LeaveType.objects.select_related("job__default_xero_pay_item").get(
@@ -474,7 +402,7 @@ def test_the_public_holiday_row_reads_with_no_pay_item_and_only_needs_a_job(
 
 @pytest.mark.usefixtures("worker")
 def test_an_office_closure_writes_no_xero_pay_item_so_the_day_is_paid_once(
-    job: Job, superuser: Staff
+    company: Company, superuser: Staff
 ) -> None:
     """The office-closure path is where public-holiday lines are actually created.
 
@@ -486,13 +414,7 @@ def test_an_office_closure_writes_no_xero_pay_item_so_the_day_is_paid_once(
     the created CostLine rather than on the classifier, because the classifier
     was already right while this path went on producing the wrong rows.
     """
-    configure_type(
-        code=LeaveType.Code.PUBLIC_HOLIDAY,
-        name="Public Holiday",
-        job=job,
-        superuser=superuser,
-        uses_leave_api=False,
-    )
+    ph_job = make_public_holiday_job(company, superuser)
 
     leave_service.create_office_closure(
         start_date=MONDAY,
@@ -501,7 +423,7 @@ def test_an_office_closure_writes_no_xero_pay_item_so_the_day_is_paid_once(
         actor=superuser,
     )
 
-    lines = CostLine.objects.filter(cost_set__job=job, kind="time", cost_set__kind="actual")
+    lines = CostLine.objects.filter(cost_set__job=ph_job, kind="time", cost_set__kind="actual")
     assert lines.exists(), "the closure must still record the hours"
     assert not lines.exclude(xero_pay_item__isnull=True).exists(), (
         "a public-holiday line naming a Xero pay item is posted on top of Xero's own line"
@@ -509,15 +431,9 @@ def test_an_office_closure_writes_no_xero_pay_item_so_the_day_is_paid_once(
 
 
 def test_office_closure_creates_one_public_holiday_request_per_payroll_staff(
-    worker: Staff, other_worker: Staff, job: Job, superuser: Staff
+    worker: Staff, other_worker: Staff, company: Company, superuser: Staff
 ) -> None:
-    configure_type(
-        code=LeaveType.Code.PUBLIC_HOLIDAY,
-        name="Public Holiday",
-        job=job,
-        superuser=superuser,
-        uses_leave_api=False,
-    )
+    make_public_holiday_job(company, superuser)
 
     result = leave_service.create_office_closure(
         start_date=MONDAY,
@@ -541,12 +457,10 @@ class TestRequestedDayRules:
     """What a leave request refuses, and what each refusal protects."""
 
     def test_hours_beyond_the_days_roster_are_refused(
-        self, worker: Staff, job: Job, superuser: Staff
+        self, worker: Staff, company: Company, superuser: Staff
     ) -> None:
         """Payroll integrity: an 8-hour day cannot be paid 12 hours of leave."""
-        configure_type(
-            code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
-        )
+        make_leave_job(company, superuser, "Annual Leave")
 
         with pytest.raises(ValidationError, match="no more than the scheduled"):
             leave_service.create_leave_request(
@@ -561,12 +475,10 @@ class TestRequestedDayRules:
         assert not LeaveRequest.objects.exists()
 
     def test_the_same_date_may_not_be_supplied_twice(
-        self, worker: Staff, job: Job, superuser: Staff
+        self, worker: Staff, company: Company, superuser: Staff
     ) -> None:
         """Otherwise one day is paid twice out of a single request."""
-        configure_type(
-            code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
-        )
+        make_leave_job(company, superuser, "Annual Leave")
 
         with pytest.raises(ValidationError, match="only once"):
             leave_service.create_leave_request(
@@ -581,12 +493,10 @@ class TestRequestedDayRules:
         assert not LeaveRequest.objects.exists()
 
     def test_a_date_outside_the_requested_range_is_refused(
-        self, worker: Staff, job: Job, superuser: Staff
+        self, worker: Staff, company: Company, superuser: Staff
     ) -> None:
         """A day the operator never previewed must not be paid."""
-        configure_type(
-            code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
-        )
+        make_leave_job(company, superuser, "Annual Leave")
 
         with pytest.raises(ValidationError, match="outside the requested date range"):
             leave_service.create_leave_request(
@@ -601,12 +511,10 @@ class TestRequestedDayRules:
         assert not LeaveRequest.objects.exists()
 
     def test_a_request_whose_every_day_conflicts_saves_nothing(
-        self, worker: Staff, job: Job, superuser: Staff
+        self, worker: Staff, company: Company, job: Job, superuser: Staff
     ) -> None:
         """Refused outright rather than persisted as a request with no days."""
-        configure_type(
-            code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
-        )
+        make_leave_job(company, superuser, "Annual Leave")
         make_time_line(job, worker, accounting_date=MONDAY)
 
         with pytest.raises(ValidationError, match="No available leave days remain"):
@@ -678,10 +586,8 @@ class TestLeaveBalance:
     def _provider(self, *balances: PayrollLeaveBalance) -> SimpleNamespace:
         return SimpleNamespace(get_payroll_leave_balances=lambda _employee_id: list(balances))
 
-    def test_staff_with_no_payroll_link_is_named(self, job: Job, superuser: Staff) -> None:
-        configure_type(
-            code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
-        )
+    def test_staff_with_no_payroll_link_is_named(self, company: Company, superuser: Staff) -> None:
+        make_leave_job(company, superuser, "Annual Leave")
         unlinked = make_staff("leave-unlinked@example.com", xero_user_id="")
 
         with pytest.raises(ValidationError, match="is not linked to payroll"):
@@ -693,16 +599,10 @@ class TestLeaveBalance:
             leave_service.get_leave_balance(staff=worker, leave_type_code=LeaveType.Code.ANNUAL)
 
     def test_a_type_paid_as_an_earnings_rate_has_no_balance(
-        self, worker: Staff, job: Job, superuser: Staff
+        self, worker: Staff, company: Company, superuser: Staff
     ) -> None:
         """Public Holiday posts through earnings, not the Leave API — it has no balance."""
-        configure_type(
-            code=LeaveType.Code.PUBLIC_HOLIDAY,
-            name="Public Holiday",
-            job=job,
-            superuser=superuser,
-            uses_leave_api=False,
-        )
+        make_public_holiday_job(company, superuser)
 
         with pytest.raises(ValidationError, match="does not have a leave balance"):
             leave_service.get_leave_balance(
@@ -710,12 +610,10 @@ class TestLeaveBalance:
             )
 
     def test_a_balance_xero_does_not_hold_is_reported_rather_than_read_as_zero(
-        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job, superuser: Staff
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, company: Company, superuser: Staff
     ) -> None:
         """The post-incomplete-employee-sync case: absent is not the same as nil."""
-        configure_type(
-            code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
-        )
+        make_leave_job(company, superuser, "Annual Leave")
         provider = self._provider()
         monkeypatch.setattr(leave_service, "get_provider", lambda: provider)
 
@@ -727,16 +625,10 @@ class TestOfficeClosure:
     """A firm-wide write, so what it skips and what it refuses both matter."""
 
     def test_preview_counts_only_the_staff_a_closure_could_actually_pay(
-        self, worker: Staff, other_worker: Staff, job: Job, superuser: Staff
+        self, worker: Staff, other_worker: Staff, company: Company, job: Job, superuser: Staff
     ) -> None:
         """available_staff and available_hours are what the operator commits on."""
-        configure_type(
-            code=LeaveType.Code.PUBLIC_HOLIDAY,
-            name="Public Holiday",
-            job=job,
-            superuser=superuser,
-            uses_leave_api=False,
-        )
+        make_public_holiday_job(company, superuser)
         make_time_line(job, other_worker, accounting_date=MONDAY)
 
         preview = leave_service.preview_office_closure(start_date=MONDAY, end_date=MONDAY)
@@ -748,15 +640,9 @@ class TestOfficeClosure:
         assert by_staff[str(other_worker.id)]["available_hours"] == Decimal("0")
 
     def test_a_staff_member_with_no_available_day_is_skipped_not_given_an_empty_request(
-        self, worker: Staff, other_worker: Staff, job: Job, superuser: Staff
+        self, worker: Staff, other_worker: Staff, company: Company, job: Job, superuser: Staff
     ) -> None:
-        configure_type(
-            code=LeaveType.Code.PUBLIC_HOLIDAY,
-            name="Public Holiday",
-            job=job,
-            superuser=superuser,
-            uses_leave_api=False,
-        )
+        make_public_holiday_job(company, superuser)
         make_time_line(job, other_worker, accounting_date=MONDAY)
 
         result = leave_service.create_office_closure(
@@ -767,16 +653,10 @@ class TestOfficeClosure:
         assert not LeaveRequest.objects.filter(staff=other_worker).exists()
 
     def test_a_closure_nobody_can_take_is_refused_outright(
-        self, worker: Staff, other_worker: Staff, job: Job, superuser: Staff
+        self, worker: Staff, other_worker: Staff, company: Company, superuser: Staff
     ) -> None:
         """A Saturday is rostered for nobody: the batch fails rather than writing nothing."""
-        configure_type(
-            code=LeaveType.Code.PUBLIC_HOLIDAY,
-            name="Public Holiday",
-            job=job,
-            superuser=superuser,
-            uses_leave_api=False,
-        )
+        make_public_holiday_job(company, superuser)
         saturday = MONDAY + timedelta(days=5)
         del worker, other_worker
 
@@ -873,18 +753,8 @@ class TestEmployeeLeaveMappings:
     """
 
     def _configure_all(self, company: Company, superuser: Staff) -> None:
-        for code, name in (
-            (LeaveType.Code.ANNUAL, "Annual Leave"),
-            (LeaveType.Code.SICK, "Sick Leave"),
-            (LeaveType.Code.UNPAID, "Unpaid Leave"),
-            (LeaveType.Code.BEREAVEMENT, "Bereavement Leave"),
-        ):
-            configure_type(
-                code=code,
-                name=name,
-                job=make_job(company, superuser, name=f"{name} Job"),
-                superuser=superuser,
-            )
+        for name in ("Annual Leave", "Sick Leave", "Unpaid Leave", "Bereavement Leave"):
+            make_leave_job(company, superuser, name)
 
     def test_all_four_leave_api_types_map_to_their_xero_ids(
         self, company: Company, superuser: Staff

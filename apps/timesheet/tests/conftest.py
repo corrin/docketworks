@@ -1,13 +1,23 @@
 """Shared fixtures for the timesheet app's service and API tests."""
 
 import uuid
-from datetime import date
+from collections.abc import Iterator, Sequence
+from datetime import date, timedelta
 from decimal import Decimal
+from typing import Protocol, cast
 
 import pytest
+from django.apps import apps as django_apps
 from django.core.cache import caches
 from django.test import Client
+from django.utils import timezone
 
+from apps.accounting.types import (
+    PayrollMirrorScope,
+    PayRunSyncResult,
+    StaffWeekPosting,
+    StaffWeekPostResult,
+)
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.conftest import authenticate, make_company
@@ -208,6 +218,145 @@ def make_time_line(  # noqa: PLR0913 -- a factory: every field is an axis a test
     return line
 
 
+class PayRunRow(Protocol):
+    """The XeroPayRun columns payroll tests read back.
+
+    Fable: A Protocol rather than the model: the layer contract forbids
+    ``apps.timesheet -> apps.xero`` imports, so ``make_pay_run`` reaches the
+    model through the app registry and this names the fields it hands back.
+    """
+
+    pk: uuid.UUID
+    xero_id: uuid.UUID
+    payroll_calendar_id: uuid.UUID | None
+
+
+def make_pay_run(  # noqa: PLR0913 -- a factory: every field is an axis a test varies
+    tenant: str = "tenant-1",
+    *,
+    week_start: date = WEEK_START,
+    end: date | None = None,
+    payment: date | None = None,
+    calendar_id: uuid.UUID | None = None,
+    status: str = "Draft",
+) -> PayRunRow:
+    """A mirrored Xero pay run covering the week beginning ``week_start``.
+
+    The one row builder for the mirror table (ADR 0039). ``end`` defaults to
+    the week's Sunday and ``payment`` to ``end``; tests whose subject buckets
+    by payment date pass it explicitly.
+    """
+    period_end = end if end is not None else week_start + timedelta(days=6)
+    return cast(
+        "PayRunRow",
+        django_apps.get_model("xero", "XeroPayRun")._default_manager.create(
+            xero_id=uuid.uuid4(),
+            xero_tenant_id=tenant,
+            payroll_calendar_id=calendar_id,
+            period_start_date=week_start,
+            period_end_date=period_end,
+            payment_date=payment if payment is not None else period_end,
+            pay_run_status=status,
+            pay_run_type="Scheduled",
+            raw_json={},
+            xero_last_modified=timezone.now(),
+        ),
+    )
+
+
+def make_week_posting(  # noqa: PLR0913 -- fixture builder exposes each compared payroll value
+    *,
+    posted: bool,
+    staff_id: str = "staff-1",
+    posted_timesheet: str = "0",
+    posted_leave: str = "0",
+    recorded_timesheet: str = "0",
+    recorded_leave: str = "0",
+    pay_basis: str | None = None,
+) -> StaffWeekPosting:
+    """One staff row of the week-posting comparison, both sides split by surface."""
+    return StaffWeekPosting(
+        staff_id=staff_id,
+        posted=posted,
+        timesheet_status="Approved" if posted else None,
+        posted_timesheet_hours=Decimal(posted_timesheet),
+        posted_leave_hours=Decimal(posted_leave),
+        recorded_timesheet_hours=Decimal(recorded_timesheet),
+        recorded_leave_hours=Decimal(recorded_leave),
+        pay_basis=pay_basis,
+    )
+
+
+class FakePayrollProvider:
+    """The accounting provider's payroll surface: known answers, every call recorded.
+
+    Fable: One fake for every suite that injects a payroll provider (ADR 0039)
+    — the pay-run API tests assert the wire mapping over its fixed answers,
+    and the posting-task tests assert dispatch, progress and claim handling
+    over the results/error it is constructed with. Employee CRUD
+    (list/create/rename) is NOT here: that protocol slice is disjoint and has
+    its own recording fake in test_payroll_employee_sync.
+    """
+
+    provider_name = "Fake"
+    supports_payroll = True
+
+    def __init__(
+        self,
+        results: Sequence[StaffWeekPostResult] | None = None,
+        error: Exception | None = None,
+    ) -> None:
+        #: None means "one generic success per staff id"; a sequence is yielded as given.
+        self.results = results
+        self.error = error
+        self.calls: list[tuple[str, Sequence[uuid.UUID], date]] = []
+        self.mirror_calls: list[tuple[str, PayrollMirrorScope]] = []
+        self.refresh_calls = 0
+        #: Set per test; what week_posting_status answers.
+        self.week_status: list[StaffWeekPosting] = []
+
+    def payroll_connection_id(self) -> str:
+        return "tenant-1"
+
+    def sync_payroll_mirror(self, connection_id: str, scope: PayrollMirrorScope) -> None:
+        self.mirror_calls.append((connection_id, scope))
+
+    def payroll_calendar_anchor_week(self) -> tuple[date, date] | None:
+        return None
+
+    def refresh_pay_runs(self) -> PayRunSyncResult:
+        self.refresh_calls += 1
+        return PayRunSyncResult(fetched=0, created=0, updated=0)
+
+    def post_payroll_week(
+        self,
+        connection_id: str,
+        staff_ids: Sequence[uuid.UUID],
+        week_start_date: date,
+    ) -> Iterator[StaffWeekPostResult]:
+        self.calls.append((connection_id, staff_ids, week_start_date))
+        if self.error is not None:
+            raise self.error
+        if self.results is not None:
+            yield from self.results
+            return
+        for staff_id in staff_ids:
+            yield StaffWeekPostResult(
+                staff_id=str(staff_id), staff_name="Wendy Workshop", success=True
+            )
+
+    @property
+    def posted_weeks(self) -> list[date]:
+        """The weeks a posting run reached the provider for, in call order."""
+        return [week for _connection, _staff_ids, week in self.calls]
+
+    def week_posting_status(
+        self,
+        week_start_date: date,  # noqa: ARG002 -- Opus: part of the provider signature; this fake answers for a fixed week
+    ) -> list[StaffWeekPosting]:
+        return list(self.week_status)
+
+
 #: The Docketworks category each seeded Xero leave type belongs to.
 LEAVE_CODE_BY_PAY_ITEM = {
     "Sick Leave": LeaveType.Code.SICK,
@@ -218,28 +367,44 @@ LEAVE_CODE_BY_PAY_ITEM = {
 
 
 def make_leave_job(company: Company, superuser: Staff, pay_item_name: str) -> Job:
-    """A leave job as an onboarded installation has it: pay item AND category.
+    """A leave job as an onboarded installation has it: special, with pay item AND category.
 
-    Opus: The one implementation. Three test modules each had their own copy, and
-    all three bound the pay item WITHOUT the LeaveType that claims it — a state
-    no real installation runs, because the seed migration binds the five
-    categories as soon as the special jobs exist. The classifier refuses such a
-    line, correctly: nothing can say whether an unclaimed Xero leave type is
-    paid (ADR 0015, ADR 0039).
+    Opus: The one implementation; every test module reaches a configured
+    Leave-API category through this. All the copies it replaced bound the pay
+    item WITHOUT the LeaveType that claims it — a state no real installation
+    runs, because the seed migration binds the five categories as soon as the
+    special jobs exist. The classifier refuses such a line, correctly: nothing
+    can say whether an unclaimed Xero leave type is paid (ADR 0015, ADR 0039).
+
+    Fable: Each step mirrors the production door (ADR 0052): a special-status
+    job as ``create_shop_jobs`` writes it, then the seeded pay item bound and
+    the LeaveType converged exactly as
+    ``apps.xero.leave_configuration.configure_default_leave_types`` does.
+    Tests needing the category row itself read ``LeaveType.objects.get(code=…)``
+    rather than this returning two objects.
     """
     from django.apps import apps as django_apps
 
-    job = make_job(company, superuser, name=pay_item_name)
+    job = make_job(company, superuser, name=pay_item_name, status="special")
     job.default_xero_pay_item = django_apps.get_model("xero", "XeroPayItem")._default_manager.get(
         name=pay_item_name, uses_leave_api=True
     )
     job.save(staff=superuser, update_fields=["default_xero_pay_item", "updated_at"])
-    LeaveType.objects.filter(code=LEAVE_CODE_BY_PAY_ITEM[pay_item_name]).update(job=job)
+    LeaveType.objects.update_or_create(
+        code=LEAVE_CODE_BY_PAY_ITEM[pay_item_name],
+        defaults={"display_name": pay_item_name, "job": job},
+    )
     return job
 
 
 def make_public_holiday_job(company: Company, superuser: Staff) -> Job:
-    """The stat-holiday job, whose lines name no Xero object and post nowhere."""
-    job = make_job(company, superuser, name="Statutory holiday")
-    LeaveType.objects.filter(code=LeaveType.Code.PUBLIC_HOLIDAY).update(job=job)
+    """The stat-holiday job, whose lines name no Xero object and post nowhere.
+
+    Fable: Special status and no pay-item binding, as
+    ``configure_default_leave_types`` leaves it: the job keeps its NOT NULL
+    "Ordinary Time" dropdown default, which classifies nothing because the
+    catalogue indexes pay items for Leave-API categories only.
+    """
+    job = make_job(company, superuser, name="Statutory holiday", status="special")
+    LeaveType.objects.update_or_create(code=LeaveType.Code.PUBLIC_HOLIDAY, defaults={"job": job})
     return job

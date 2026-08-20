@@ -24,37 +24,11 @@ from apps.core.models import AppError
 from apps.timesheet import tasks
 from apps.timesheet.schemas import PayrollPostRunOut
 from apps.timesheet.services import payroll_runs
+from apps.timesheet.tests.conftest import FakePayrollProvider
 
 pytestmark = pytest.mark.django_db
 
 WEEK = date(2026, 5, 4)
-
-
-class _FakeProvider:
-    """An accounting provider that records what it was asked to post."""
-
-    provider_name = "Fake"
-    supports_payroll = True
-
-    def __init__(self, results: Sequence[StaffWeekPostResult], error: Exception | None = None):
-        self.results = results
-        self.error = error
-        self.calls: list[tuple[str, Sequence[UUID], date]] = []
-        self.mirror_calls: list[tuple[str, PayrollMirrorScope]] = []
-
-    def payroll_connection_id(self) -> str:
-        return "tenant-1"
-
-    def sync_payroll_mirror(self, connection_id: str, scope: PayrollMirrorScope) -> None:
-        self.mirror_calls.append((connection_id, scope))
-
-    def post_payroll_week(
-        self, connection_id: str, staff_ids: Sequence[UUID], week_start_date: date
-    ) -> Iterator[StaffWeekPostResult]:
-        self.calls.append((connection_id, staff_ids, week_start_date))
-        if self.error is not None:
-            raise self.error
-        yield from self.results
 
 
 def _result(
@@ -76,7 +50,7 @@ def _result(
 
 
 def _run_task(
-    monkeypatch: pytest.MonkeyPatch, provider: _FakeProvider, staff_ids: list[str]
+    monkeypatch: pytest.MonkeyPatch, provider: FakePayrollProvider, staff_ids: list[str]
 ) -> str:
     task_id = str(uuid4())
     payroll_runs.acquire_run_claim("tenant-1", task_id)
@@ -137,7 +111,7 @@ class TestOnlyOneRunPostsAtATime:
         held = str(uuid4())
         assert payroll_runs.acquire_run_claim("tenant-1", held) is None
         live_document = payroll_runs.running("tenant-1", held, WEEK, total=3)
-        provider = _FakeProvider([_result(str(worker.id))])
+        provider = FakePayrollProvider([_result(str(worker.id))])
 
         run_id = str(uuid4())
         monkeypatch.setattr(tasks, "get_provider", lambda: provider)
@@ -159,7 +133,7 @@ class TestOnlyOneRunPostsAtATime:
         this run published is the one that stays.
         """
 
-        class _ClaimStealingProvider(_FakeProvider):
+        class _ClaimStealingProvider(FakePayrollProvider):
             def post_payroll_week(
                 self, connection_id: str, staff_ids: Sequence[UUID], week_start_date: date
             ) -> Iterator[StaffWeekPostResult]:
@@ -188,10 +162,10 @@ class TestOnlyOneRunPostsAtATime:
     def test_a_run_that_finished_leaves_the_claim_free_for_the_next(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
     ) -> None:
-        first = _FakeProvider([_result(str(worker.id))])
+        first = FakePayrollProvider([_result(str(worker.id))])
         _run_task(monkeypatch, first, [str(worker.id)])
 
-        second = _FakeProvider([_result(str(worker.id))])
+        second = FakePayrollProvider([_result(str(worker.id))])
         _run_task(monkeypatch, second, [str(worker.id)])
 
         assert len(second.calls) == 1, "the finished run did not release its claim"
@@ -203,11 +177,11 @@ class TestOnlyOneRunPostsAtATime:
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
     ) -> None:
         """The claim is released in a finally, or one crash blocks payroll until the TTL."""
-        failing = _FakeProvider([], error=RuntimeError("Xero refused the batch"))
+        failing = FakePayrollProvider([], error=RuntimeError("Xero refused the batch"))
         with pytest.raises(RuntimeError):
             _run_task(monkeypatch, failing, [str(worker.id)])
 
-        recovered = _FakeProvider([_result(str(worker.id))])
+        recovered = FakePayrollProvider([_result(str(worker.id))])
         _run_task(monkeypatch, recovered, [str(worker.id)])
 
         assert len(recovered.calls) == 1, "a failed run left the claim behind"
@@ -227,7 +201,7 @@ class TestOnlyOneRunPostsAtATime:
         assert payroll_runs.acquire_run_claim("tenant-1", abandoned) is None
         caches["shared"].delete(payroll_runs.claim_key("tenant-1"))
 
-        provider = _FakeProvider([_result(str(worker.id))])
+        provider = FakePayrollProvider([_result(str(worker.id))])
         _run_task(monkeypatch, provider, [str(worker.id)])
 
         assert len(provider.calls) == 1
@@ -266,7 +240,7 @@ class TestPostingTask:
         events arrive in this order", which is what the deleted test asserted
         and which said nothing about whether an operator could act on them.
         """
-        provider = _FakeProvider([_result(str(worker.id), work_hours=Decimal("8.0"))])
+        provider = FakePayrollProvider([_result(str(worker.id), work_hours=Decimal("8.0"))])
 
         _run_task(monkeypatch, provider, [str(worker.id)])
 
@@ -280,7 +254,7 @@ class TestPostingTask:
     def test_schedules_one_generic_refresh_after_xero_settles(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
     ) -> None:
-        provider = _FakeProvider([_result(str(worker.id))])
+        provider = FakePayrollProvider([_result(str(worker.id))])
         scheduled: list[tuple[tuple[str, str], int]] = []
         task_id = str(uuid4())
         payroll_runs.acquire_run_claim("tenant-1", task_id)
@@ -304,7 +278,7 @@ class TestPostingTask:
     def test_settled_refresh_uses_the_same_provider_sync(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        provider = _FakeProvider([])
+        provider = FakePayrollProvider([])
         monkeypatch.setattr(tasks, "get_provider", lambda: provider)
 
         tasks.refresh_payroll_after_settle_task("tenant-1", WEEK.isoformat())
@@ -315,7 +289,7 @@ class TestPostingTask:
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff, other_worker: Staff
     ) -> None:
         """One unlinked employee must not strand everyone else's hours."""
-        provider = _FakeProvider(
+        provider = FakePayrollProvider(
             [
                 _result(str(worker.id), success=False, error="Not linked to a Xero employee"),
                 _result(str(other_worker.id), work_hours=Decimal("6.5")),
@@ -342,7 +316,7 @@ class TestPostingTask:
         parse into every consumer. The values below are the three-decimal
         payroll precision and survive a JSON number exactly.
         """
-        provider = _FakeProvider(
+        provider = FakePayrollProvider(
             [_result(str(worker.id), work_hours=Decimal("7.35"), leave_hours=Decimal("0.65"))]
         )
 
@@ -371,7 +345,7 @@ class TestPostingTask:
 
         One terminal status carrying one message cannot lose it that way.
         """
-        provider = _FakeProvider([], error=ValueError("Pay items are not linked to Xero"))
+        provider = FakePayrollProvider([], error=ValueError("Pay items are not linked to Xero"))
 
         task_id = str(uuid4())
         payroll_runs.acquire_run_claim("tenant-1", task_id)
@@ -393,7 +367,7 @@ class TestPostingTask:
         scope of a failed payroll run — which week, which staff — is gone by
         the time anyone asks.
         """
-        provider = _FakeProvider([], error=ValueError("Pay items are not linked to Xero"))
+        provider = FakePayrollProvider([], error=ValueError("Pay items are not linked to Xero"))
         task_id = str(uuid4())
         payroll_runs.acquire_run_claim("tenant-1", task_id)
         payroll_runs.running("tenant-1", task_id, WEEK, total=1)
@@ -413,7 +387,7 @@ class TestPostingTask:
     def test_a_backend_without_payroll_is_refused(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
     ) -> None:
-        provider = _FakeProvider([])
+        provider = FakePayrollProvider([])
         provider.supports_payroll = False
 
         task_id = str(uuid4())
@@ -445,7 +419,7 @@ class TestRunDocument:
         does, rather than by exercising a log's slicing, so this survives the
         next change of transport as well as it survived this one.
         """
-        provider = _FakeProvider(
+        provider = FakePayrollProvider(
             [_result(str(worker.id)), _result(str(other_worker.id), success=False, error="nope")]
         )
 

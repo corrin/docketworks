@@ -13,25 +13,16 @@ into assertions about a stub's fabricated return values.
 """
 
 import uuid
-from collections.abc import Iterator, Sequence
-from datetime import UTC, date, datetime
-from decimal import Decimal
+from datetime import date
 
 import pytest
-from django.apps import apps as django_apps
-from django.db.models import Model
 from django.test import Client
 
-from apps.accounting.types import (
-    PayrollMirrorScope,
-    PayRunSyncResult,
-    StaffWeekPosting,
-    StaffWeekPostResult,
-)
 from apps.company.models import Company
 from apps.core.models import CompanyDefaults
 from apps.timesheet import tasks
 from apps.timesheet.services import payroll_runs, payroll_service
+from apps.timesheet.tests.conftest import FakePayrollProvider, make_pay_run, make_week_posting
 
 pytestmark = [
     pytest.mark.django_db,
@@ -41,65 +32,15 @@ pytestmark = [
 SHORTCODE = "!TEST"
 
 
-def _pay_run_model() -> type[Model]:
-    """Resolve XeroPayRun dynamically: the layer contract forbids the import."""
-    return django_apps.get_model("xero", "XeroPayRun")
-
-
-class _FakeProvider:
-    """An accounting provider with known answers, so the mapping is what is tested."""
-
-    provider_name = "Fake"
-    supports_payroll = True
-
-    def __init__(self) -> None:
-        self.pay_run_id = uuid.uuid4()
-        #: Opus: Set per test; the wire shaping is what these tests assert.
-        self.week_status: list[StaffWeekPosting] = []
-        self.refresh_calls = 0
-        self.posted_weeks: list[date] = []
-
-    def payroll_connection_id(self) -> str:
-        return "tenant-1"
-
-    def sync_payroll_mirror(self, connection_id: str, scope: PayrollMirrorScope) -> None:
-        del connection_id, scope
-
-    def payroll_calendar_anchor_week(self) -> tuple[date, date] | None:
-        return None
-
-    def refresh_pay_runs(self) -> PayRunSyncResult:
-        self.refresh_calls += 1
-        return PayRunSyncResult(fetched=0, created=0, updated=0)
-
-    def post_payroll_week(
-        self,
-        connection_id: str,  # noqa: ARG002 -- Opus: part of the provider signature; the real provider refuses a mismatch
-        staff_ids: Sequence[uuid.UUID],
-        week_start_date: date,
-    ) -> Iterator[StaffWeekPostResult]:
-        self.posted_weeks.append(week_start_date)
-        for staff_id in staff_ids:
-            yield StaffWeekPostResult(
-                staff_id=str(staff_id), staff_name="Wendy Workshop", success=True
-            )
-
-    def week_posting_status(
-        self,
-        week_start_date: date,  # noqa: ARG002 -- Opus: part of the provider signature; this fake answers for a fixed week
-    ) -> list[StaffWeekPosting]:
-        return list(self.week_status)
-
-
 @pytest.fixture(autouse=True)
-def fake_provider(monkeypatch: pytest.MonkeyPatch) -> _FakeProvider:
+def fake_provider(monkeypatch: pytest.MonkeyPatch) -> FakePayrollProvider:
     """Inject the fake wherever a payroll consumer resolves its provider.
 
     Opus: Both call sites are patched because Celery runs eagerly under the test
     settings, so the POST endpoint's task executes inline and resolves its own
     provider.
     """
-    provider = _FakeProvider()
+    provider = FakePayrollProvider()
     for module in ("apps.timesheet.services.payroll_service", "apps.timesheet.tasks"):
         monkeypatch.setattr(f"{module}.get_provider", lambda: provider)
     return provider
@@ -116,50 +57,27 @@ def payroll_defaults(company: Company) -> uuid.UUID:
     return defaults.xero_payroll_calendar_id
 
 
-def _make_pay_run(
-    calendar_id: uuid.UUID,
-    *,
-    start: date,
-    end: date,
-    status: str = "Draft",
-) -> uuid.UUID:
-    """Create a mirror row and return its Xero id (the only field tests assert on)."""
-    xero_id = uuid.uuid4()
-    _pay_run_model()._default_manager.create(
-        xero_id=xero_id,
-        xero_tenant_id="tenant-1",
-        payroll_calendar_id=calendar_id,
-        period_start_date=start,
-        period_end_date=end,
-        payment_date=end,
-        pay_run_status=status,
-        raw_json={},
-        xero_last_modified=datetime(2026, 5, 13, tzinfo=UTC),
-    )
-    return xero_id
-
-
 class TestPayRunList:
     def test_lists_the_local_mirror_with_deep_links(
         self, manage_client: Client, payroll_defaults: uuid.UUID
     ) -> None:
-        xero_id = _make_pay_run(payroll_defaults, start=date(2026, 5, 4), end=date(2026, 5, 10))
+        run = make_pay_run(calendar_id=payroll_defaults, week_start=date(2026, 5, 4))
 
         response = manage_client.get("/api/timesheets/payroll/pay-runs/")
 
         assert response.status_code == 200, response.content
         body = response.json()
         [row] = body["pay_runs"]
-        assert row["xero_id"] == str(xero_id)
+        assert row["xero_id"] == str(run.xero_id)
         assert row["pay_run_status"] == "Draft"
         assert row["xero_url"] == (
-            f"https://payroll.xero.com/PayRun?CID={SHORTCODE}#payruns/{xero_id}"
+            f"https://payroll.xero.com/PayRun?CID={SHORTCODE}#payruns/{run.xero_id}"
         )
 
     def test_open_draft_is_the_postable_week(
         self, manage_client: Client, payroll_defaults: uuid.UUID
     ) -> None:
-        _make_pay_run(payroll_defaults, start=date(2026, 5, 4), end=date(2026, 5, 10))
+        make_pay_run(calendar_id=payroll_defaults, week_start=date(2026, 5, 4))
 
         body = manage_client.get("/api/timesheets/payroll/pay-runs/").json()
 
@@ -169,12 +87,7 @@ class TestPayRunList:
     def test_without_a_draft_the_week_after_the_latest_run_is_postable(
         self, manage_client: Client, payroll_defaults: uuid.UUID
     ) -> None:
-        _make_pay_run(
-            payroll_defaults,
-            start=date(2026, 4, 27),
-            end=date(2026, 5, 3),
-            status="Posted",
-        )
+        make_pay_run(calendar_id=payroll_defaults, week_start=date(2026, 4, 27), status="Posted")
 
         body = manage_client.get("/api/timesheets/payroll/pay-runs/").json()
 
@@ -184,8 +97,8 @@ class TestPayRunList:
     def test_pay_runs_on_another_calendar_are_ignored(
         self, manage_client: Client, payroll_defaults: uuid.UUID
     ) -> None:
-        _make_pay_run(payroll_defaults, start=date(2026, 5, 4), end=date(2026, 5, 10))
-        _make_pay_run(uuid.uuid4(), start=date(2026, 5, 4), end=date(2026, 5, 10))
+        make_pay_run(calendar_id=payroll_defaults, week_start=date(2026, 5, 4))
+        make_pay_run(calendar_id=uuid.uuid4(), week_start=date(2026, 5, 4))
 
         body = manage_client.get("/api/timesheets/payroll/pay-runs/").json()
 
@@ -245,7 +158,7 @@ class TestPostStaffWeek:
 
     @pytest.mark.usefixtures("worker")
     def test_a_week_that_is_not_the_postable_week_is_refused_before_any_posting(
-        self, manage_client: Client, payroll_defaults: uuid.UUID, fake_provider: _FakeProvider
+        self, manage_client: Client, payroll_defaults: uuid.UUID, fake_provider: FakePayrollProvider
     ) -> None:
         """The postable-week rule is the server's, enforced on a refreshed mirror.
 
@@ -256,9 +169,7 @@ class TestPostStaffWeek:
         posted, because "no" without "which" sends the operator to Xero to find
         out.
         """
-        _make_pay_run(
-            payroll_defaults, start=date(2026, 4, 27), end=date(2026, 5, 3), status="Posted"
-        )
+        make_pay_run(calendar_id=payroll_defaults, week_start=date(2026, 4, 27), status="Posted")
 
         response = manage_client.post(
             "/api/timesheets/payroll/post-staff-week/",
@@ -273,16 +184,14 @@ class TestPostStaffWeek:
 
     @pytest.mark.usefixtures("worker")
     def test_a_preflight_refusal_releases_the_claim_for_the_next_attempt(
-        self, manage_client: Client, payroll_defaults: uuid.UUID, fake_provider: _FakeProvider
+        self, manage_client: Client, payroll_defaults: uuid.UUID, fake_provider: FakePayrollProvider
     ) -> None:
         """Pairs the refusal with its converse: the right week still posts.
 
         Fable: If the refusal leaked the claim, the operator's corrected click
         would 409 against their own refused attempt until the TTL expired.
         """
-        _make_pay_run(
-            payroll_defaults, start=date(2026, 4, 27), end=date(2026, 5, 3), status="Posted"
-        )
+        make_pay_run(calendar_id=payroll_defaults, week_start=date(2026, 4, 27), status="Posted")
         refused = manage_client.post(
             "/api/timesheets/payroll/post-staff-week/",
             data={"week_start_date": "2026-05-11"},
@@ -409,22 +318,13 @@ class TestWeekStatus:
     read costs one Xero call per staff member.
     """
 
-    def _posting(self, *, posted: bool, staff_id: str = "staff-1") -> StaffWeekPosting:
-        return StaffWeekPosting(
-            staff_id=staff_id,
-            posted=posted,
-            timesheet_status="Approved" if posted else None,
-            posted_timesheet_hours=Decimal("8.000") if posted else Decimal("0"),
-            posted_leave_hours=Decimal("0"),
-            recorded_timesheet_hours=Decimal("8.000") if posted else Decimal("0"),
-            recorded_leave_hours=Decimal("0"),
-        )
-
     def test_both_sides_reach_the_wire_as_numbers(
-        self, manage_client: Client, fake_provider: _FakeProvider
+        self, manage_client: Client, fake_provider: FakePayrollProvider
     ) -> None:
         """Quantities are JSON numbers, not the strings a bare Decimal produces (ADR 0046)."""
-        fake_provider.week_status = [self._posting(posted=True)]
+        fake_provider.week_status = [
+            make_week_posting(posted=True, posted_timesheet="8.000", recorded_timesheet="8.000")
+        ]
 
         body = manage_client.get(
             "/api/timesheets/payroll/week-status/?week_start_date=2026-05-04"
@@ -438,7 +338,7 @@ class TestWeekStatus:
         assert row["matches"] is True
 
     def test_a_nil_week_with_no_timesheet_is_reported_as_a_mismatch(
-        self, manage_client: Client, fake_provider: _FakeProvider
+        self, manage_client: Client, fake_provider: FakePayrollProvider
     ) -> None:
         """The state that overpays, and the one that used to read as agreement.
 
@@ -446,7 +346,7 @@ class TestWeekStatus:
         the row then vanished from the panel. Without a timesheet Xero pays the
         pay-template default, typically a full week nobody worked.
         """
-        fake_provider.week_status = [self._posting(posted=False)]
+        fake_provider.week_status = [make_week_posting(posted=False)]
 
         body = manage_client.get(
             "/api/timesheets/payroll/week-status/?week_start_date=2026-05-04"

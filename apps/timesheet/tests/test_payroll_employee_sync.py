@@ -42,7 +42,13 @@ def ref(
 
 
 class FakeProvider:
-    """Records every payroll-employee call and hands back plausible results."""
+    """Records every payroll-employee call and hands back plausible results.
+
+    Fable: Not a sibling of the conftest FakePayrollProvider: this fakes the
+    employee CRUD slice of the provider protocol (list/create/rename), which
+    is disjoint from the posting surface that one fakes — no method appears
+    on both, so there is nothing to consolidate.
+    """
 
     def __init__(self, employees: list[PayrollEmployeeRef] | None = None) -> None:
         self.employees = employees or []

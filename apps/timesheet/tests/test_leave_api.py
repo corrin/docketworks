@@ -10,10 +10,12 @@ from django.test import Client
 
 from apps.accounting.types import PayrollLeaveBalance
 from apps.accounts.models import Staff
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.timesheet.models import LeaveRequest, LeaveType
 from apps.timesheet.services import leave_service
-from apps.timesheet.tests.test_leave_service import MONDAY, configure_type
+from apps.timesheet.tests.conftest import make_leave_job, make_public_holiday_job
+from apps.timesheet.tests.test_leave_service import MONDAY
 
 pytestmark = pytest.mark.django_db
 
@@ -32,14 +34,10 @@ def _request_payload(staff: Staff, code: str) -> dict[str, object]:
 
 
 def test_preview_create_list_update_and_cancel(
-    manage_client: Client, worker: Staff, job: Job, superuser: Staff
+    manage_client: Client, worker: Staff, company: Company, superuser: Staff
 ) -> None:
-    leave_type = configure_type(
-        code=LeaveType.Code.ANNUAL,
-        name="Annual Leave",
-        job=job,
-        superuser=superuser,
-    )
+    make_leave_job(company, superuser, "Annual Leave")
+    leave_type = LeaveType.objects.get(code=LeaveType.Code.ANNUAL)
 
     preview = manage_client.post(
         "/api/timesheets/leave/preview/",
@@ -96,15 +94,11 @@ def test_leave_and_settings_endpoints_are_superuser_only(worker_client: Client) 
 
 
 def test_settings_update_returns_every_mapping_after_saving(
-    manage_client: Client, job: Job, superuser: Staff
+    manage_client: Client, company: Company, superuser: Staff
 ) -> None:
     """The save's response is the whole page state, so no second GET is needed."""
-    leave_type = configure_type(
-        code=LeaveType.Code.ANNUAL,
-        name="Annual Leave",
-        job=job,
-        superuser=superuser,
-    )
+    job = make_leave_job(company, superuser, "Annual Leave")
+    leave_type = LeaveType.objects.get(code=LeaveType.Code.ANNUAL)
 
     response = manage_client.patch(
         "/api/timesheets/leave-settings/",
@@ -188,12 +182,10 @@ class TestLeaveHttpContract:
         assert "Unknown leave type" in response.json()["detail"]
 
     def test_a_refused_rule_reaches_the_operator_as_a_400_carrying_its_message(
-        self, manage_client: Client, worker: Staff, job: Job, superuser: Staff
+        self, manage_client: Client, worker: Staff, company: Company, superuser: Staff
     ) -> None:
         """ADR 0038: the diagnosis travels, rather than being flattened to a 500."""
-        configure_type(
-            code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
-        )
+        make_leave_job(company, superuser, "Annual Leave")
         payload = _request_payload(worker, LeaveType.Code.ANNUAL)
         payload["days"] = [{"date": MONDAY.isoformat(), "hours": "12.000"}]
 
@@ -257,17 +249,16 @@ class TestLeaveHttpContract:
         monkeypatch: pytest.MonkeyPatch,
         manage_client: Client,
         worker: Staff,
-        job: Job,
+        company: Company,
         superuser: Staff,
     ) -> None:
         """ADR 0046: balance is a JSON number, which a bare Decimal would not be."""
-        configure_type(
-            code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
-        )
+        make_leave_job(company, superuser, "Annual Leave")
         provider = SimpleNamespace(
             get_payroll_leave_balances=lambda _employee_id: [
                 PayrollLeaveBalance(
-                    leave_type_external_id="xero-annual_leave",
+                    # Fable: The id the seeded pay-item catalogue carries for Annual Leave.
+                    leave_type_external_id="xero-leave-annual-leave",
                     name="Annual Leave",
                     balance=Decimal("72.5"),
                     unit="Hours",
@@ -288,15 +279,9 @@ class TestLeaveHttpContract:
         assert body["unit"] == "Hours"
 
     def test_office_closure_preview_reports_what_a_closure_would_cost(
-        self, manage_client: Client, worker: Staff, job: Job, superuser: Staff
+        self, manage_client: Client, worker: Staff, company: Company, superuser: Staff
     ) -> None:
-        configure_type(
-            code=LeaveType.Code.PUBLIC_HOLIDAY,
-            name="Public Holiday",
-            job=job,
-            superuser=superuser,
-            uses_leave_api=False,
-        )
+        make_public_holiday_job(company, superuser)
         del worker
 
         response = manage_client.post(
@@ -312,16 +297,10 @@ class TestLeaveHttpContract:
         assert body["available_hours"] > 0
 
     def test_office_closure_creates_a_batch_over_the_whole_firm(
-        self, manage_client: Client, worker: Staff, job: Job, superuser: Staff
+        self, manage_client: Client, worker: Staff, company: Company, superuser: Staff
     ) -> None:
         """The HTTP shape only; that one request lands per staff member is a service test."""
-        configure_type(
-            code=LeaveType.Code.PUBLIC_HOLIDAY,
-            name="Public Holiday",
-            job=job,
-            superuser=superuser,
-            uses_leave_api=False,
-        )
+        make_public_holiday_job(company, superuser)
         del worker
 
         response = manage_client.post(
@@ -342,12 +321,10 @@ class TestLeaveHttpContract:
         assert len(body["requests"]) >= 1
 
     def test_history_and_current_are_separate_scopes_with_their_own_summary(
-        self, manage_client: Client, worker: Staff, job: Job, superuser: Staff
+        self, manage_client: Client, worker: Staff, company: Company, superuser: Staff
     ) -> None:
         """The header tiles on the leave page read these figures."""
-        configure_type(
-            code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
-        )
+        make_leave_job(company, superuser, "Annual Leave")
         manage_client.post(
             "/api/timesheets/leave/requests/",
             data=json.dumps(_request_payload(worker, LeaveType.Code.ANNUAL)),

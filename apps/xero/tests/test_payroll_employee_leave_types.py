@@ -5,12 +5,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from apps.accounts.models import Staff
 from apps.company.tests.conftest import make_company
 from apps.core.models import CompanyDefaults
-from apps.job.models import Job
-from apps.timesheet.models import LeaveType
-from apps.timesheet.tests.conftest import make_staff
+from apps.timesheet.tests.conftest import make_leave_job, make_staff
 from apps.xero import payroll_employees, seeding
 from apps.xero.models import XeroPayItem
 
@@ -20,29 +17,24 @@ TENANT = "leave-ready-tenant"
 
 
 def _configure_required_types() -> dict[str, str]:
+    """The four Leave-API categories configured for TENANT, as name -> Xero id.
+
+    Fable: Configuration goes through make_leave_job (the one leave-type
+    builder); the only extra step is claiming the seeded pay-item catalogue
+    for the tenant under test, because "configured" requires the pay item to
+    belong to the connected organisation.
+    """
     CompanyDefaults.objects.filter(id=1).update(xero_tenant_id=TENANT)
     CompanyDefaults.clear_cache()
-    defaults = CompanyDefaults.get_solo()
-    actor = Staff.get_automation_user()
+    XeroPayItem.objects.filter(uses_leave_api=True).update(xero_tenant_id=TENANT)
+    superuser = make_staff("leave-types-super@example.com", is_superuser=True, xero_user_id="")
+    company = make_company("Leave Types Test Company")
     ids: dict[str, str] = {}
-    specs = (
-        (LeaveType.Code.ANNUAL, "Annual Leave"),
-        (LeaveType.Code.SICK, "Sick Leave"),
-        (LeaveType.Code.UNPAID, "Unpaid Leave"),
-        (LeaveType.Code.BEREAVEMENT, "Bereavement Leave"),
-    )
-    for index, (code, name) in enumerate(specs):
-        external_id = f"leave-{index}"
-        pay_item, _created = XeroPayItem.objects.update_or_create(
-            name=name,
-            uses_leave_api=True,
-            defaults={"xero_id": external_id, "xero_tenant_id": TENANT},
-        )
-        job = Job(name=name, company=defaults.shop_company, status="special")
-        job.default_xero_pay_item = pay_item
-        job.save(staff=actor)
-        LeaveType.objects.update_or_create(code=code, defaults={"display_name": name, "job": job})
-        ids[name] = external_id
+    for name in ("Annual Leave", "Sick Leave", "Unpaid Leave", "Bereavement Leave"):
+        job = make_leave_job(company, superuser, name)
+        pay_item = job.default_xero_pay_item
+        assert pay_item is not None and pay_item.xero_id is not None
+        ids[name] = pay_item.xero_id
     return ids
 
 
