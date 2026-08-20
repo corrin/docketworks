@@ -649,9 +649,18 @@ def _get_jm_week_data(week_start: date, week_end: date) -> dict[str, _JMStaffWee
     staff_by_key: dict[str, Staff] = {}
     for line in lines:
         if line.staff is None:
-            # Staff-less time lines from restored pre-FK data are
-            # invisible to the reconciliation rather than a crash.
-            continue
+            # Fable: Refused, never skipped. CostLine.clean forbids an actual
+            # time line without staff, and the owner's ruling (2026-08-21) is
+            # that the state is disallowed outright — the restored production
+            # database holds zero among 13,301. A silent skip here hid hours
+            # from the one report whose job is finding pay that went missing;
+            # a row this rule somehow misses must name itself, not vanish.
+            raise ValueError(
+                f"Actual time line {line.id} ({line.accounting_date}, "
+                f"{line.quantity}h) has no staff. CostLine.clean forbids this "
+                "state; fix the row — the reconciliation will not report a "
+                "week while hiding hours from it."
+            )
         key = staff_key(line.staff)
         staff_by_key[key] = line.staff
         hours[key] += line.quantity

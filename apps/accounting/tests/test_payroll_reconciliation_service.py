@@ -25,6 +25,7 @@ from apps.company.tests.conftest import make_company
 from apps.company.tests.job_fixtures import make_job
 from apps.core.models import AppError, CompanyDefaults
 from apps.job.models import Job
+from apps.job.models.costing import CostLine
 from apps.timesheet.tests.conftest import (
     PayRunRow,
     make_pay_run,
@@ -419,6 +420,31 @@ class TestWeekDiffMath:
         [row] = data["weeks"][0]["staff"]
         assert row["pay_diff"] == 1.01
         assert row["status"] == "mismatch"
+
+
+class TestForbiddenRows:
+    def test_a_staff_less_time_line_is_refused_by_name_never_hidden(
+        self, job: Job, wendy: Staff
+    ) -> None:
+        """The report must not answer while silently dropping hours.
+
+        Fable: CostLine.clean forbids an actual time line without staff, and
+        the owner ruled the state disallowed outright (2026-08-21; the
+        restored production database holds zero). The read side used to skip
+        such rows, which hid hours from the one report whose job is finding
+        pay that went missing. The raw update below manufactures the
+        forbidden row deliberately — only a defective restore could produce
+        it, and the code under test is the refusal, not the write path the
+        update bypasses (ADR 0052's fixture allowance).
+        """
+        line = make_time_line(job, wendy, accounting_date=date(2026, 5, 5), hours="8.000")
+        # Both halves of the costline_staff_entry_seq_pair constraint: the DB
+        # permits the null PAIR, which is exactly the corrupt shape left for
+        # model validation alone to forbid.
+        CostLine.objects.filter(id=line.id).update(staff=None, entry_seq=None)
+
+        with pytest.raises(ValueError, match=str(line.id)):
+            payroll_reconciliation_service.get_reconciliation_data(MONDAY, date(2026, 5, 10))
 
 
 class TestUnmatchedStaff:
