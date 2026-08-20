@@ -373,9 +373,8 @@ other surfaces join as they arrive (ADR 0047) — never a second stream.
   what is left is names that describe the wrong thing. The known instance is
   the sales forecast, which forecasts nothing — it reconciles Xero invoice
   totals against job revenue attribution for months already past. Sweep for
-  the others rather than fixing only this one, and change the route, the
-  operation ids, the navbar entry and the automation ids together; a rename
-  that stops at the heading leaves the misnomer everywhere a session greps.
+  the others rather than fixing only this one; ADR 0017 already settles how
+  far each rename has to reach.
 
 - Port v1's kanban search-ranking test net (~30 tests); the scoring code is
   line-identical but v2's regression net is 4 tests.
