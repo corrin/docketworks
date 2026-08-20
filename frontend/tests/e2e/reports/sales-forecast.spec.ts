@@ -18,7 +18,6 @@ import { autoId } from '../helpers'
 
 const CURRENCY = /^-?\$[\d,]+\.\d{2}$/
 const PERCENTAGE = /^-?[\d.]+%$/
-const COMPANY_COLUMN = 3
 
 test.describe('Sales Forecast Report', () => {
   test('opens from the Reports menu, drills into a month and sorts the detail', async ({
@@ -73,18 +72,28 @@ test.describe('Sales Forecast Report', () => {
     const detailTable = autoId(page, 'SalesForecastReport-detail-table')
     await expect(detailTable.locator('tbody tr').first()).toBeVisible()
 
+    // By automation id, not column position: the column order is incidental
+    // (COLUMNS in SalesForecastDetailTable), so an inserted column would move
+    // an nth-child assertion onto different data without failing.
     const companies = async (): Promise<string[]> =>
-      (await detailTable.locator(`tbody tr td:nth-child(${COMPANY_COLUMN})`).allInnerTexts()).map(
-        (cell) => cell.trim(),
+      (await autoId(page, 'SalesForecastReport-detail-company').allInnerTexts()).map((cell) =>
+        cell.trim(),
       )
 
     await autoId(page, 'SalesForecastReport-header-company').locator('button').click()
     const ascending = await companies()
-    expect(ascending).toEqual(ascending.toSorted((a, b) => a.localeCompare(b)))
+    // Both order assertions below hold trivially for a single row, so the
+    // month must actually carry several before they mean anything.
+    expect(ascending.length).toBeGreaterThan(1)
+    expect(ascending).toEqual(
+      ascending.toSorted((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    )
 
     await autoId(page, 'SalesForecastReport-header-company').locator('button').click()
     const descending = await companies()
     expect(descending).toEqual(ascending.toReversed())
+    // ...and a reversal that changed nothing would satisfy the line above.
+    expect(descending).not.toEqual(ascending)
 
     await autoId(page, 'SalesForecastReport-back').click()
     await expect(autoId(page, 'SalesForecastReport-table')).toBeVisible()

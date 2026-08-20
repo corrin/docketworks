@@ -109,18 +109,25 @@ function compareRows(
   if (b === null) return -1
 
   const sign = dir === 'asc' ? 1 : -1
-  if (typeof a === 'string' && typeof b === 'string') return a.localeCompare(b) * sign
+  if (typeof a === 'string' && typeof b === 'string')
+    // numeric collation, so INV-10 follows INV-2 rather than INV-1.
+    return a.localeCompare(b, undefined, { numeric: true }) * sign
   if (typeof a === 'number' && typeof b === 'number') return (a - b) * sign
-  // One column holds one type across every row, so a mismatch means the wire
-  // contract changed under us. Sorting it as equal would hide that behind a
-  // table that merely looks unsorted.
+  // Opus: one column holds one type across every row, so a mismatch means the
+  // wire contract changed under us. Sorting it as equal would hide that behind
+  // a table that merely looks unsorted. This runs inside render, so it takes
+  // the root error boundary rather than just this table — deliberate for a
+  // contract this far from repairable, but do not copy the shape into a column
+  // whose type is a legitimate union.
   throw new Error(`sales forecast: column ${column} mixes ${typeof a} and ${typeof b}`)
 }
 
-/** A blank money cell: a true zero here means "no invoice" and "no revenue",
-    which an em dash says and $0.00 does not. */
+/** Opus: blank on zero only, never on negative. Zero here means "no invoice"
+    and "no revenue", which an em dash says and $0.00 does not — but a reversal
+    or credit note makes `job_revenue` legitimately negative (costing.py allows
+    it), and blanking that hides the row while still showing its variance. */
 function MoneyCell({ value }: { value: number }) {
-  return value > 0 ? <>{formatCurrency(value)}</> : <Blank />
+  return value === 0 ? <Blank /> : <>{formatCurrency(value)}</>
 }
 
 function Blank() {
@@ -172,7 +179,9 @@ export function SalesForecastDetailTable({ month }: { month: string }) {
             {row.job_start_date === null ? <Blank /> : formatDate(row.job_start_date)}
           </td>
           <td className="px-3 py-2">{row.date === null ? <Blank /> : formatDate(row.date)}</td>
-          <td className="px-3 py-2">{row.company_name}</td>
+          <td data-automation-id="SalesForecastReport-detail-company" className="px-3 py-2">
+            {row.company_name}
+          </td>
           <td className="px-3 py-2">
             {row.invoice_numbers === null ? <Blank /> : row.invoice_numbers}
           </td>

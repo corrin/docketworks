@@ -47,6 +47,14 @@ class TestWIPReport:
     def test_requires_authentication(self) -> None:
         assert Client().get(URL).status_code == 401
 
+    def test_refuses_a_staff_member_who_is_not_office_staff(self, workshop_client: Client) -> None:
+        """WIP is company-wide job value; a workshop login must not read it.
+
+        The navbar hides the Reports menu from this user, which is
+        presentation; only this gate stops the bare URL returning it.
+        """
+        assert workshop_client.get(URL).status_code == 403
+
     def test_net_wip_is_revenue_minus_invoiced(
         self, authenticated_client: Client, staff: Staff
     ) -> None:

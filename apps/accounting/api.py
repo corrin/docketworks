@@ -47,7 +47,7 @@ from apps.accounting.services import (
     staff_performance_service,
     wip_service,
 )
-from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
+from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth, SuperuserCookieJWTAuth
 
 router = Router(tags=["accounting"], auth=CookieJWTAuth())
 
@@ -57,6 +57,12 @@ router = Router(tags=["accounting"], auth=CookieJWTAuth())
 # v1 served every report on plain IsAuthenticated; matching that here would
 # have let any workshop cookie read the whole company's gross pay.
 _payroll_auth = SuperuserCookieJWTAuth()
+
+# Opus: Company-wide revenue, not per-employee pay, so office-staff rather than
+# the payroll gate above. NOT the router's any-staff auth: hiding the navbar
+# entry from a workshop login is presentation, and a cookie plus the bare URL
+# still returned every month's turnover — the menu is not the control.
+_report_auth = OfficeStaffCookieJWTAuth()
 
 
 def _require_ordered(start_date: datetime.date, end_date: datetime.date) -> None:
@@ -83,6 +89,7 @@ def job_aging(
     operation_id="accounting_reports_wip_retrieve",
     summary="Work-in-progress report",
     response=WIPResponse,
+    auth=_report_auth,
 )
 def wip_report(
     request: HttpRequest,
@@ -115,6 +122,7 @@ def rdti_spend(
     summary="Job movement and conversion metrics",
     response=dict,  # The comparison/baseline/
     # details sections merge in dynamically, so dict keeps schema parity
+    auth=_report_auth,
 )
 def job_movement(  # noqa: PLR0913, PLR0917 -- One argument per public report filter.
     request: HttpRequest,
@@ -145,6 +153,7 @@ def job_movement(  # noqa: PLR0913, PLR0917 -- One argument per public report fi
     operation_id="sales_forecast_list",
     summary="Monthly sales forecast data",
     response=SalesForecastResponse,
+    auth=_report_auth,
 )
 def sales_forecast(request: HttpRequest) -> sales_forecast_service.ForecastMonths:
     """Compare monthly Xero invoice totals with JM revenue, newest first."""
@@ -156,6 +165,7 @@ def sales_forecast(request: HttpRequest) -> sales_forecast_service.ForecastMonth
     operation_id="sales_forecast_month_detail",
     summary="Month detail for sales forecast",
     response=SalesForecastMonthDetailResponse,
+    auth=_report_auth,
 )
 def sales_forecast_month_detail(
     request: HttpRequest, month: str

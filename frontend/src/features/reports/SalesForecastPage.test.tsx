@@ -84,11 +84,12 @@ function element(container: HTMLElement, automationId: string): HTMLElement {
   return found
 }
 
+/** By automation id, not column position — an inserted column would move a
+    positional read onto different data without failing (ADR 0025). */
 function companyColumn(container: HTMLElement): string[] {
-  const rows = container.querySelectorAll(
-    '[data-automation-id="SalesForecastReport-detail-table"] tbody tr',
-  )
-  return [...rows].map((row) => row.querySelectorAll('td')[2]?.textContent ?? '')
+  return [
+    ...container.querySelectorAll('[data-automation-id="SalesForecastReport-detail-company"]'),
+  ].map((cell) => cell.textContent ?? '')
 }
 
 describe('SalesForecastPage', () => {
@@ -167,6 +168,13 @@ describe('SalesForecastPage', () => {
 
     // Job Start is null on the unmatched row: it sits last ascending AND
     // descending, so reversing the sort never buries the data under blanks.
+    // The company sort above left Alpha first, so a Job Start sort that did
+    // nothing would leave it there — this asserts a change, not a coincidence.
+    await user.click(companyHeader)
+    await waitFor(() =>
+      expect(companyColumn(container)).toEqual(['Alpha Fabrication', 'Zeta Engineering']),
+    )
+
     const startHeader = within(
       element(container, 'SalesForecastReport-header-job-start'),
     ).getByRole('button')

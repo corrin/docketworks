@@ -11,10 +11,13 @@ export interface SortState<TColumn extends string> {
 
 /**
  * The one owner of click-a-header-to-sort state, for client- and
- * server-sorted tables alike. Column and direction live in ONE state object
- * rather than two: with separate `useState` calls, picking a new column
- * queues two updates, and a consumer whose query key is derived from both
- * would fetch once against the new column paired with the old direction.
+ * server-sorted tables alike.
+ *
+ * Opus: column and direction live in ONE state object because they are one
+ * fact — a sort — and splitting them lets a caller read or pass half of it.
+ * Not for the reason first recorded here: that claimed two `useState` calls
+ * would let a derived query key fetch the new column against the old
+ * direction, which React 19's batching makes impossible.
  */
 export function useSortState<TColumn extends string>(
   initialColumn: TColumn,

@@ -23,3 +23,20 @@ describe('toCsv', () => {
     )
   })
 })
+
+describe('toCsv formula neutralisation', () => {
+  it('prefixes a field that a spreadsheet would execute', () => {
+    // Opus: company names come from Xero, where the name is free text; this
+    // is the whole reason the guard is at the seam rather than at a caller.
+    expect(toCsv(['Company'], [['=HYPERLINK("http://x","Invoice")']])).toBe(
+      'Company\r\n"\'=HYPERLINK(""http://x"",""Invoice"")"',
+    )
+    // A tab needs no quoting in a comma-delimited file, so it is neutralised
+    // without being quoted.
+    expect(toCsv(['Note'], [['+1'], ['@sum'], ['\tlead']])).toBe("Note\r\n'+1\r\n'@sum\r\n'\tlead")
+  })
+
+  it('leaves a negative number alone so the column still sums', () => {
+    expect(toCsv(['Variance'], [['-38270.19']])).toBe('Variance\r\n-38270.19')
+  })
+})

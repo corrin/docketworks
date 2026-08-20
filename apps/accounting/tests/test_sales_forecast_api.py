@@ -37,6 +37,20 @@ class TestSalesForecastList:
     def test_requires_authentication(self) -> None:
         assert Client().get(LIST_URL).status_code == 401
 
+    def test_refuses_a_staff_member_who_is_not_office_staff(self, workshop_client: Client) -> None:
+        """A workshop login must not read company-wide turnover.
+
+        The navbar hides the Reports menu from this user, which is
+        presentation; only this gate stops the bare URL, or a cookie and
+        curl, returning every month's revenue.
+        """
+        assert workshop_client.get(LIST_URL).status_code == 403
+
+    def test_month_detail_refuses_a_staff_member_who_is_not_office_staff(
+        self, workshop_client: Client
+    ) -> None:
+        assert workshop_client.get(f"{LIST_URL}{JUNE_KEY}/").status_code == 403
+
     def test_months_compare_xero_invoices_with_jm_revenue(
         self, authenticated_client: Client, staff: Staff
     ) -> None:

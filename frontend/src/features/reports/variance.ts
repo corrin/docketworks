@@ -1,6 +1,12 @@
 /**
- * Variance presentation, shared by every report that compares two systems'
- * idea of the same number. Bands are percentage points (ADR 0046).
+ * The sales forecast's variance banding. Bands are percentage points
+ * (ADR 0046).
+ *
+ * Opus: deliberately not yet claimed as the shared home for every two-system
+ * comparison — payroll reconciliation renders its own difference with no tone
+ * at all, and JobFinishTab's green/red carries a polarity this has no concept
+ * of. It moves to features/shared on the slice that adopts it, not on the
+ * promise of one.
  */
 
 const CLOSE_ENOUGH_PCT = 10

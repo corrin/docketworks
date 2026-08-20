@@ -79,14 +79,23 @@ export function AppNavbar() {
             <NavMenuLink to="/reports/wip" automationId="AppNavbar-wip">
               WIP Report
             </NavMenuLink>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Reconciliation</DropdownMenuLabel>
-            <NavMenuLink
-              to="/reports/payroll-reconciliation"
-              automationId="AppNavbar-payroll-reconciliation"
-            >
-              Payroll (Xero)
-            </NavMenuLink>
+            {/* Opus: superuser, not office staff like its neighbours — every
+                endpoint behind this page uses SuperuserCookieJWTAuth, so an
+                office-staff login that follows the link reaches a page whose
+                every query 403s. The heading travels with its only entry
+                rather than heading an empty section. */}
+            {user.is_superuser && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Reconciliation</DropdownMenuLabel>
+                <NavMenuLink
+                  to="/reports/payroll-reconciliation"
+                  automationId="AppNavbar-payroll-reconciliation"
+                >
+                  Payroll (Xero)
+                </NavMenuLink>
+              </>
+            )}
           </NavMenu>
         )}
         {user.is_superuser && (
@@ -151,7 +160,13 @@ function NavMenu({
       >
         {label} <span aria-hidden="true">▾</span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent>{children}</DropdownMenuContent>
+      {/* Opus: the panel carries its own id so a test can assert over one
+          menu's contents. Asserting over document.body instead passes today
+          and stops testing anything the moment another menu uses the same
+          word. */}
+      <DropdownMenuContent data-automation-id={`${automationId}-content`}>
+        {children}
+      </DropdownMenuContent>
     </DropdownMenu>
   )
 }

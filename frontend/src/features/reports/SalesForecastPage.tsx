@@ -82,32 +82,44 @@ export function SalesForecastPage() {
         >
           Sales Forecast Report
         </h1>
-        <div className="flex space-x-2">
-          <button
-            type="button"
-            data-automation-id="SalesForecastReport-export"
-            disabled={months === undefined || months.length === 0}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => {
-              if (months !== undefined) exportMonths(months)
-            }}
-          >
-            Export CSV
-          </button>
-          <button
-            type="button"
-            data-automation-id="SalesForecastReport-refresh"
-            disabled={forecast.isFetching}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => void forecast.refetch()}
-          >
-            Refresh
-          </button>
-        </div>
+        {/* Opus: only over the month list. Both buttons act on that query, so
+            on the drill-down Refresh left the rows the user was looking at
+            untouched and Export wrote the months under a filename they would
+            read as the month they had opened. */}
+        {selectedMonth === null && (
+          <div className="flex space-x-2">
+            <button
+              type="button"
+              data-automation-id="SalesForecastReport-export"
+              disabled={months === undefined || months.length === 0}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => {
+                if (months !== undefined) exportMonths(months)
+              }}
+            >
+              Export CSV
+            </button>
+            <button
+              type="button"
+              data-automation-id="SalesForecastReport-refresh"
+              disabled={forecast.isFetching}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => void forecast.refetch()}
+            >
+              Refresh
+            </button>
+          </div>
+        )}
       </div>
 
       {selectedMonth === null ? (
-        <SalesForecastMonthTable forecast={forecast} onSelect={setSelectedMonth}>
+        <SalesForecastMonthTable
+          months={months}
+          isPending={forecast.isPending}
+          isError={forecast.isError}
+          onRetry={() => void forecast.refetch()}
+          onSelect={setSelectedMonth}
+        >
           <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
             <p className="font-medium">About this report</p>
             <p>

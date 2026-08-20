@@ -1,6 +1,7 @@
 import { toast } from 'sonner'
 
 import { apiErrorMessage } from '@/api'
+import { revokeObjectUrlLater, saveObjectUrl } from '@/lib/download'
 
 interface OpenBlobOptions {
   /** Auto-print once the tab loads (the print buttons); downloads skip it. */
@@ -32,20 +33,16 @@ export async function openBlobInNewTab(
   }
 
   const url = URL.createObjectURL(data)
-  const revokeLater = () => setTimeout(() => URL.revokeObjectURL(url), 60_000)
 
   if (options.downloadName !== undefined) {
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = options.downloadName
-    anchor.click()
+    saveObjectUrl(url, options.downloadName)
   }
 
   const win = window.open(url, '_blank')
   // Revoked on every path: a tab closed before its load event would
-  // otherwise leak the object URL for the session's lifetime. The delay is
-  // ample for the new tab to fetch the blob.
-  revokeLater()
+  // otherwise leak the object URL for the session's lifetime. lib/download
+  // owns how long the delay is.
+  revokeObjectUrlLater(url)
   if (!win) {
     if (options.downloadName === undefined) {
       toast.error('Failed to open print window — check the popup blocker.')

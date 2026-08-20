@@ -103,21 +103,33 @@ describe('AppNavbar — the weekly timesheets link', () => {
 })
 
 describe('AppNavbar — the Reports menu', () => {
-  it('lists every shipped report under its v1 section heading', async () => {
-    mockUser({ is_office_staff: true })
+  it('offers office staff every report their login can actually read', async () => {
+    mockUser({ is_office_staff: true, is_superuser: false })
     const { user } = renderWithProviders(<AppNavbar />)
 
     await openMenu(user, 'AppNavbar-reports-menu')
+    // Opus: a routed report the menu omits is reachable only by typing its
+    // URL, which is how all three of these sat unreachable before this menu.
     await waitFor(() => {
       expect(autoId('AppNavbar-sales-forecast')).not.toBeNull()
       expect(autoId('AppNavbar-job-movement')).not.toBeNull()
       expect(autoId('AppNavbar-wip')).not.toBeNull()
-      expect(autoId('AppNavbar-payroll-reconciliation')).not.toBeNull()
     })
-    // A routed report the menu omits is reachable only by typing its URL,
-    // which is how all three of these sat unreachable before this menu.
-    expect(document.body.textContent).toContain('Management')
-    expect(document.body.textContent).toContain('Reconciliation')
+    // Payroll is superuser-only behind the API, so office staff must not be
+    // offered it — and its section heading must not linger over nothing.
+    expect(autoId('AppNavbar-payroll-reconciliation')).toBeNull()
+    const menu = autoId('AppNavbar-reports-menu-content')
+    expect(menu?.textContent).toContain('Management')
+    expect(menu?.textContent).not.toContain('Reconciliation')
+  })
+
+  it('adds the payroll report for a superuser', async () => {
+    mockUser({ is_office_staff: true, is_superuser: true })
+    const { user } = renderWithProviders(<AppNavbar />)
+
+    await openMenu(user, 'AppNavbar-reports-menu')
+    await waitFor(() => expect(autoId('AppNavbar-payroll-reconciliation')).not.toBeNull())
+    expect(autoId('AppNavbar-reports-menu-content')?.textContent).toContain('Reconciliation')
   })
 
   it('is withheld from a workshop login', async () => {

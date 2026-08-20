@@ -1,3 +1,5 @@
+import { saveBlob } from './download'
+
 /**
  * RFC 4180 quoting: quote a field only when it holds a delimiter, a quote or
  * a newline, and double any embedded quote.
@@ -7,8 +9,22 @@ function quoteField(value: string): string {
   return `"${value.replace(/"/g, '""')}"`
 }
 
+// Opus: Excel and Sheets execute a field that opens with one of these, so a
+// company name arriving from Xero as `=HYPERLINK(...)` would run on open.
+// A leading apostrophe is the neutraliser rather than stripping the
+// character, which would silently alter the data. `-` is deliberately absent:
+// it opens a formula too, but it also opens every negative number, and
+// quoting those would stop the column summing.
+const FORMULA_LEAD = /^[=+@\t\r]/
+
+function neutraliseFormula(value: string): string {
+  return FORMULA_LEAD.test(value) ? `'${value}` : value
+}
+
 export function toCsv(headers: readonly string[], rows: readonly (readonly string[])[]): string {
-  return [headers, ...rows].map((row) => row.map(quoteField).join(',')).join('\r\n')
+  return [headers, ...rows]
+    .map((row) => row.map((field) => quoteField(neutraliseFormula(field))).join(','))
+    .join('\r\n')
 }
 
 /**
@@ -20,21 +36,14 @@ export function toCsv(headers: readonly string[], rows: readonly (readonly strin
  * raw values the way v1's page did, because a company name containing a
  * comma silently shifts every later column of that row.
  *
- * The object URL is revoked once the click is dispatched; v1 never revoked
- * its own, so each export leaked the whole file for the life of the tab.
+ * The byte-order mark is what makes Excel on Windows read the file as UTF-8;
+ * without it the declared charset is ignored and macrons arrive as mojibake.
  */
 export function downloadCsv(
   filename: string,
   headers: readonly string[],
   rows: readonly (readonly string[])[],
 ): void {
-  const blob = new Blob([toCsv(headers, rows)], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  const blob = new Blob([`﻿${toCsv(headers, rows)}`], { type: 'text/csv;charset=utf-8;' })
+  saveBlob(blob, filename)
 }
