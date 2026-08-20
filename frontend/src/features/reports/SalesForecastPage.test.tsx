@@ -2,6 +2,12 @@ import { http, HttpResponse } from 'msw'
 import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
+import { allAutoIds, autoId } from '@/test/auto-id'
+import type {
+  ForecastComparisonRowOut,
+  SalesForecastMonthDetailResponse,
+  SalesForecastResponse,
+} from '@/api'
 import { renderWithProviders } from '@/test/render'
 import { server } from '@/test/msw'
 import { SalesForecastPage } from './SalesForecastPage'
@@ -9,7 +15,9 @@ import { SalesForecastPage } from './SalesForecastPage'
 const FORECAST_URL = '*/api/accounting/reports/sales-forecast/'
 const JUNE_DETAIL_URL = '*/api/accounting/reports/sales-forecast/2026-06/'
 
-const forecastResponse = {
+// Typed against the generated wire types: an untyped literal stays green
+// through a backend field rename that breaks the page.
+const forecastResponse: SalesForecastResponse = {
   months: [
     {
       month: '2026-07',
@@ -30,7 +38,7 @@ const forecastResponse = {
   ],
 }
 
-function detailRow(overrides: Record<string, unknown>) {
+function detailRow(overrides: Partial<ForecastComparisonRowOut>): ForecastComparisonRowOut {
   return {
     date: '2026-06-02',
     company_name: 'Miller-Mcpherson',
@@ -50,7 +58,7 @@ function detailRow(overrides: Record<string, unknown>) {
   }
 }
 
-const juneDetail = {
+const juneDetail: SalesForecastMonthDetailResponse = {
   month: '2026-06',
   month_label: 'Jun 2026',
   rows: [
@@ -76,20 +84,12 @@ function serveForecast() {
   )
 }
 
-/** Automation ids are the E2E contract, so the unit test drives the same
-    handles rather than role or text queries that only it can use. */
-function element(container: HTMLElement, automationId: string): HTMLElement {
-  const found = container.querySelector(`[data-automation-id="${automationId}"]`)
-  if (!(found instanceof HTMLElement)) throw new Error(`missing ${automationId}`)
-  return found
-}
-
 /** By automation id, not column position — an inserted column would move a
     positional read onto different data without failing (ADR 0025). */
 function companyColumn(container: HTMLElement): string[] {
-  return [
-    ...container.querySelectorAll('[data-automation-id="SalesForecastReport-detail-company"]'),
-  ].map((cell) => cell.textContent ?? '')
+  return allAutoIds('SalesForecastReport-detail-company', container).map(
+    (cell) => cell.textContent ?? '',
+  )
 }
 
 describe('SalesForecastPage', () => {
@@ -139,7 +139,7 @@ describe('SalesForecastPage', () => {
     if (!(unmatched instanceof HTMLElement)) throw new Error('missing unmatched row')
     expect(within(unmatched).queryByRole('link')).toBeNull()
 
-    await user.click(element(container, 'SalesForecastReport-back'))
+    await user.click(autoId('SalesForecastReport-back', container))
     await screen.findByText('Jul 2026')
     expect(
       container.querySelector('[data-automation-id="SalesForecastReport-detail-table"]'),
@@ -153,9 +153,9 @@ describe('SalesForecastPage', () => {
     await user.click(await screen.findByText('Jun 2026'))
     await screen.findByText('Zeta Engineering')
 
-    const companyHeader = within(
-      element(container, 'SalesForecastReport-header-company'),
-    ).getByRole('button')
+    const companyHeader = within(autoId('SalesForecastReport-header-company', container)).getByRole(
+      'button',
+    )
     await user.click(companyHeader)
     await waitFor(() =>
       expect(companyColumn(container)).toEqual(['Alpha Fabrication', 'Zeta Engineering']),
@@ -175,9 +175,9 @@ describe('SalesForecastPage', () => {
       expect(companyColumn(container)).toEqual(['Alpha Fabrication', 'Zeta Engineering']),
     )
 
-    const startHeader = within(
-      element(container, 'SalesForecastReport-header-job-start'),
-    ).getByRole('button')
+    const startHeader = within(autoId('SalesForecastReport-header-job-start', container)).getByRole(
+      'button',
+    )
     await user.click(startHeader)
     await waitFor(() =>
       expect(companyColumn(container)).toEqual(['Zeta Engineering', 'Alpha Fabrication']),

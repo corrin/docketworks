@@ -368,7 +368,7 @@ other surfaces join as they arrive (ADR 0047) — never a second stream.
 
 ### Engineering backlog
 
-- **Rename what v1 misnamed.** Names came across unexamined so that v2 and v1
+- **Rename what v1 misnamed.** Opus: names came across unexamined so that v2 and v1
   could be reconciled screen by screen; that reason expires at cutover, and
   what is left is names that describe the wrong thing. The known instance is
   the sales forecast, which forecasts nothing — it reconciles Xero invoice

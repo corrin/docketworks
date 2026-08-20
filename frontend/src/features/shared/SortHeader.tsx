@@ -17,7 +17,7 @@ interface SortHeaderProps<TColumn extends string> {
  * a page keeps its own compile-time column names — a `string` prop would let
  * a typo sort by a column that does not exist.
  *
- * The indicator renders only on the active column. v1's forecast table also
+ * Opus: the indicator renders only on the active column. v1's forecast table also
  * drew a neutral up-down glyph on every inactive header, which reads as
  * "sorted" at a glance across ten columns; the direction chevron alone says
  * the same thing without the noise.
@@ -39,8 +39,9 @@ export function SortHeader<TColumn extends string>({
       aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
       className="p-0"
     >
-      {/* The button fills the cell so a click anywhere on the header (which
-          is what the E2E spec targets) lands on a keyboard-operable control. */}
+      {/* Opus: the button fills the cell so a click anywhere on the header
+          (which is what the E2E spec targets) lands on a keyboard-operable
+          control. */}
       <button
         type="button"
         className={`w-full cursor-pointer px-3 py-2 select-none hover:text-gray-900 ${

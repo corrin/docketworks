@@ -12,8 +12,8 @@ interface SalesForecastMonthTableProps {
   isError: boolean
   onRetry: () => void
   onSelect: (month: string) => void
-  /** Rendered above the rows once the query resolves — the summary cards,
-      which must not appear beside a loading or errored table. */
+  /** Opus: rendered above the rows once the query resolves — the summary
+      cards, which must not appear beside a loading or errored table. */
   children: ReactNode
 }
 

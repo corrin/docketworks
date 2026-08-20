@@ -4,7 +4,7 @@ import { expect, test } from '../fixtures/auth'
 import { autoId } from '../helpers'
 
 /**
- * The forecast compares Xero invoice totals with Job Manager revenue, so the
+ * Opus: the forecast compares Xero invoice totals with Job Manager revenue, so the
  * cross-layer risk is the drill-down: the month row the user clicks has to
  * become the path segment the detail endpoint validates, and the rows that
  * come back have to survive the client-side sort. Both are asserted here

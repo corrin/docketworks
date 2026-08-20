@@ -13,7 +13,7 @@ const CLOSE_ENOUGH_PCT = 10
 const WORTH_A_LOOK_PCT = 25
 
 /**
- * A variance report exists to make the month that drifted visible at a
+ * Opus: a variance report exists to make the month that drifted visible at a
  * glance, so the badge colour is the answer and the number is the evidence.
  * Banded on absolute drift: over-billing by a third is as much worth opening
  * as under-billing by a third.

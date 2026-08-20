@@ -19,7 +19,7 @@ interface ForecastSummary {
 }
 
 /**
- * The average is the mean of the monthly percentages, NOT a percentage of
+ * Opus: the average is the mean of the monthly percentages, NOT a percentage of
  * the totals: a quiet month's drift matters as much as a busy one's, and
  * dividing the totals would let one large month bury eleven small ones.
  */
@@ -33,6 +33,12 @@ function summarise(months: readonly ForecastMonthOut[]): ForecastSummary | null 
   }
 }
 
+/**
+ * Opus: raw `toFixed`, deliberately not `formatCurrency`/`formatPercentage`.
+ * A spreadsheet has to sum and chart this column, and "$1,234.56" is text to
+ * every spreadsheet that opens it — the screen wants a formatted string and
+ * the file wants a number, and they are not the same requirement.
+ */
 function exportMonths(months: readonly ForecastMonthOut[]): void {
   downloadCsv(
     `sales-forecast-report-${localIsoDate()}.csv`,
@@ -50,10 +56,11 @@ function exportMonths(months: readonly ForecastMonthOut[]): void {
 /**
  * Sales forecast: Xero invoice totals against Job Manager revenue
  * attribution, month by month, with a drill-down into the invoices and jobs
- * behind any one month. Both endpoints read restore-populated mirror tables,
- * so the page has no write path and nothing to invalidate.
+ * behind any one month.
  *
- * The page owns the month query and the selection; each table owns its own
+ * Opus: both endpoints read restore-populated mirror tables, so the page has
+ * no write path and nothing to invalidate. The page owns the month query and
+ * the selection; each table owns its own
  * markup, and the drill-down owns its own query (see
  * SalesForecastDetailTable).
  *
@@ -181,6 +188,10 @@ export function SalesForecastPage() {
                 className="text-lg font-semibold text-gray-900"
                 data-automation-id="SalesForecastReport-detail-month"
               >
+                {/* Opus: the raw YYYY-MM key is the fallback because a refetch
+                    that drops the month must still name which month is open —
+                    an empty heading over a populated table is worse than an
+                    unformatted one. */}
                 {selected?.month_label ?? selectedMonth}
               </h2>
               {selected !== null && (

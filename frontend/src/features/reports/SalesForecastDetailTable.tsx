@@ -92,7 +92,7 @@ const COLUMNS: readonly {
 ]
 
 /**
- * Nulls sort last in BOTH directions, rather than v1's "whichever end the
+ * Opus: nulls sort last in BOTH directions, rather than v1's "whichever end the
  * direction puts them". Reversing a sort to see the other extreme otherwise
  * lands you on a screenful of em dashes, which is never the row anyone
  * reversed the sort to find.
@@ -135,10 +135,12 @@ function Blank() {
 }
 
 /**
- * The month drill-down. Owns its own query rather than taking rows from the
- * page: the component mounts only once a month is chosen, so `month` is a
- * real value by construction and the query needs neither an `enabled` flag
- * nor a placeholder parameter standing in for "nothing selected yet".
+ * The month drill-down.
+ *
+ * Opus: owns its own query rather than taking rows from the page, because the
+ * component mounts only once a month is chosen — so `month` is a real value by
+ * construction and the query needs neither an `enabled` flag nor a placeholder
+ * parameter standing in for "nothing selected yet".
  */
 export function SalesForecastDetailTable({ month }: { month: string }) {
   const sort = useSortState<DetailColumn>('date')
@@ -168,10 +170,13 @@ export function SalesForecastDetailTable({ month }: { month: string }) {
       }
       renderRow={(row) => (
         <tr
-          // Rows are one Xero-invoice-to-job match, and an unmatched Xero row
-          // carries no job id, so neither column is unique on its own; the
-          // pair is, because a job row always has an id and an unlinked-
-          // invoice row always has an invoice number.
+          // Opus: rows are one Xero-invoice-to-job match, and an unmatched Xero
+          // row carries no job id, so neither column is unique on its own. The
+          // pair is, EXCEPT for unlinked invoices whose number is blank —
+          // Invoice.number carries no unique constraint and Xero accepts an
+          // empty InvoiceNumber — which is why the date is the last resort
+          // rather than a formality. Rows are stateless, so a collision costs
+          // a duplicate-key warning, not wrong data.
           key={`${row.job_id ?? 'unmatched'}-${row.invoice_numbers ?? row.date ?? ''}`}
           className="border-b border-gray-100 hover:bg-gray-50"
         >

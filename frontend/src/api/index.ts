@@ -177,6 +177,8 @@ export type {
   PayrollStaffWeekRowOut,
   PayrollWeekReconciliationResponse,
   SalesForecastListResponse,
+  SalesForecastMonthDetailResponse,
+  SalesForecastResponse,
   WipResponse,
 } from './generated/types.gen'
 
