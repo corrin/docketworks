@@ -130,10 +130,14 @@ def running(
 ) -> "PayrollPostRunOut":
     """Open a run's document and store it before any Xero call is made.
 
-    Opus: Written by the REQUEST handler, not the task, so the panel can render
-    "0 of N" immediately and a reload during the broker's queueing delay still
-    finds a run. The shape this replaces registered a task id and an empty event
+    Opus: Written by the REQUEST handler so the panel can render "0 of N"
+    immediately and a reload during the broker's queueing delay still finds a
+    run. The shape this replaces registered a task id and an empty event
     list, which told a reader a run existed but nothing about it.
+
+    Fable: The task calls this once more as its opening heartbeat — but only
+    AFTER renewing its claim. The document is keyed by connection, so a caller
+    that has not proven the claim would overwrite whichever run is live.
     """
     # Call-time import: schemas import apps.accounting.types, which imports this
     # app's models through the registry.

@@ -129,19 +129,61 @@ class TestOnlyOneRunPostsAtATime:
         timesheet's lines before re-posting them, so two interleaved runs can
         leave a timesheet holding neither run's figures.
         """
+        # Fable: The live run holds the claim AND owns the connection-keyed
+        # document the panel is rendering. The stale redelivery must leave both
+        # alone: writing even its own "running 0 of N" — let alone a terminal
+        # "failed" — would replace the live run's record on the one panel the
+        # operator is watching to decide whether payroll posted.
         held = str(uuid4())
         assert payroll_runs.acquire_run_claim("tenant-1", held) is None
+        live_document = payroll_runs.running("tenant-1", held, WEEK, total=3)
         provider = _FakeProvider([_result(str(worker.id))])
 
         run_id = str(uuid4())
-        payroll_runs.running("tenant-1", run_id, WEEK, total=1)
         monkeypatch.setattr(tasks, "get_provider", lambda: provider)
         with pytest.raises(payroll_runs.PayrollRunClaimLostError):
             tasks.post_payroll_week_task(run_id, "tenant-1", [str(worker.id)], WEEK.isoformat())
 
         assert provider.calls == [], "a redelivered run reached Xero while another held the claim"
-        assert _run().status == "failed"
-        assert "no longer holds the posting claim" in str(_run().message)
+        assert _run() == live_document, "a stale redelivery wrote over the live run's document"
+
+    def test_a_run_that_loses_its_claim_mid_batch_stops_without_writing_an_outcome(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff
+    ) -> None:
+        """A claim lost between staff means another run may own the panel now.
+
+        Fable: The stale run must stop posting — that part is the claim's whole
+        purpose — but it must also NOT publish a terminal "failed" document,
+        because the document is keyed by connection and whichever run took the
+        claim over is writing its own progress there. The last honest state
+        this run published is the one that stays.
+        """
+
+        class _ClaimStealingProvider(_FakeProvider):
+            def post_payroll_week(
+                self, connection_id: str, staff_ids: Sequence[UUID], week_start_date: date
+            ) -> Iterator[StaffWeekPostResult]:
+                yield from super().post_payroll_week(connection_id, staff_ids, week_start_date)
+                payroll_runs.release_run_claim("tenant-1", task_id)
+                assert payroll_runs.acquire_run_claim("tenant-1", "takeover-run") is None
+                yield _result(str(worker.id))
+
+        provider = _ClaimStealingProvider([_result(str(worker.id))])
+        task_id = str(uuid4())
+        payroll_runs.acquire_run_claim("tenant-1", task_id)
+        payroll_runs.running("tenant-1", task_id, WEEK, total=2)
+        monkeypatch.setattr(tasks, "get_provider", lambda: provider)
+
+        with pytest.raises(payroll_runs.PayrollRunClaimLostError):
+            tasks.post_payroll_week_task(
+                task_id, "tenant-1", [str(worker.id), str(worker.id)], WEEK.isoformat()
+            )
+
+        document = _run()
+        assert document.status == "running", (
+            "a run that lost its claim wrote a terminal document over the takeover run's panel"
+        )
+        assert document.completed == 1, "the last honestly-published progress should stand"
 
     def test_a_run_that_finished_leaves_the_claim_free_for_the_next(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff

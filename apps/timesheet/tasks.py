@@ -61,16 +61,30 @@ def post_payroll_week_task(
     """
     week = date.fromisoformat(week_start_date)
     ids = [UUID(staff_id) for staff_id in staff_ids]
-    run = payroll_runs.running(connection_id, run_id, week, total=len(ids))
 
+    # Fable: Redelivery guard, in the task body as ADR 0024 asks, and BEFORE the
+    # first document write, not merely before the first Xero call. The claim was
+    # taken by the request handler so a duplicate click is a synchronous 409;
+    # what reaches here is CELERY_TASK_ACKS_LATE redelivering a message whose
+    # worker died — by which time another run may hold the calendar, and the
+    # document is keyed by CONNECTION, so any write from this stale run (the
+    # opening "running 0 of N" as much as a terminal "failed") lands on the
+    # live run's panel.
+    try:
+        payroll_runs.renew_run_claim(connection_id, run_id)
+    except payroll_runs.PayrollRunClaimLostError as exc:
+        persist_app_error(
+            exc,
+            AppErrorContext(
+                additional_context={"run_id": run_id, "week_start_date": week_start_date}
+            ),
+        )
+        logger.exception("Refused stale payroll posting run %s before it wrote anything", run_id)
+        raise
+
+    run = payroll_runs.running(connection_id, run_id, week, total=len(ids))
     successful = failed = 0
     try:
-        # Opus: Redelivery guard, in the task body as ADR 0024 asks. The claim was
-        # taken by the request handler so a duplicate click is a synchronous 409;
-        # what reaches here is CELERY_TASK_ACKS_LATE redelivering a message whose
-        # worker died. Renewing proves the claim is still ours before the first
-        # irreversible call.
-        payroll_runs.renew_run_claim(connection_id, run_id)
         provider = get_provider()
         if not provider.supports_payroll:
             raise ValueError(
@@ -94,6 +108,27 @@ def post_payroll_week_task(
             args=(connection_id, week_start_date), countdown=PAYSLIP_SETTLE_DELAY_SECONDS
         )
         payroll_runs.write(connection_id, payroll_runs.finished(run, "succeeded"))
+    except payroll_runs.PayrollRunClaimLostError as exc:
+        # Fable: Claim lost MID-run: the TTL expired without renewal (a hung
+        # provider call), so another run may already own the calendar and the
+        # panel. No terminal document is written for the same reason the
+        # opening guard writes none — it could land on the live run's record.
+        # The cost is a stale "running" bar if no other run takes over, which
+        # the document's own TTL clears; the alternative was overwriting a
+        # live run's results with this run's obituary.
+        persist_app_error(
+            exc,
+            AppErrorContext(
+                additional_context={
+                    "run_id": run_id,
+                    "week_start_date": week_start_date,
+                    "successful": successful,
+                    "failed": failed,
+                }
+            ),
+        )
+        logger.exception("Payroll posting task %s lost its claim mid-run", run_id)
+        raise
     except Exception as exc:
         # Opus: The preflight refuses the whole batch (unlinked pay items, a blocking
         # draft pay run), so this is a batch-level failure, not one staff
