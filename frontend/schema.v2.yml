@@ -13449,7 +13449,7 @@ paths:
                 type: object
           description: OK
       security:
-      - CookieJWTAuth: []
+      - OfficeStaffCookieJWTAuth: []
       summary: Job movement and conversion metrics
       tags:
       - accounting
@@ -13611,7 +13611,7 @@ paths:
                 $ref: '#/components/schemas/SalesForecastResponse'
           description: OK
       security:
-      - CookieJWTAuth: []
+      - OfficeStaffCookieJWTAuth: []
       summary: Monthly sales forecast data
       tags:
       - accounting
@@ -13634,7 +13634,7 @@ paths:
                 $ref: '#/components/schemas/SalesForecastMonthDetailResponse'
           description: OK
       security:
-      - CookieJWTAuth: []
+      - OfficeStaffCookieJWTAuth: []
       summary: Month detail for sales forecast
       tags:
       - accounting
@@ -13786,7 +13786,7 @@ paths:
                 $ref: '#/components/schemas/WIPResponse'
           description: OK
       security:
-      - CookieJWTAuth: []
+      - OfficeStaffCookieJWTAuth: []
       summary: Work-in-progress report
       tags:
       - accounting
