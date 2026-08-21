@@ -69,7 +69,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 224 |
+| in comments | 225 |
 | in docstrings | 371 |
 
 ## Exception handling
@@ -103,7 +103,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 186 |
-| non-test functions | 2316 |
+| non-test functions | 2318 |
 
 ## Wire contract (response side)
 

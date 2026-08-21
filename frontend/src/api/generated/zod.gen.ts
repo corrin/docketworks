@@ -267,7 +267,6 @@ export const zCompanyDefaultsPatchIn = z.object({
     company_name: z.string().max(255).nullish(),
     company_url: z.string().nullish(),
     country: z.string().max(100).nullish(),
-    created_at: z.iso.datetime().nullish(),
     daily_approved_hours_target: z.union([
         z.number(),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
@@ -340,7 +339,6 @@ export const zCompanyDefaultsPatchIn = z.object({
     ]).nullish(),
     tue_end: z.iso.time().nullish(),
     tue_start: z.iso.time().nullish(),
-    updated_at: z.iso.datetime().nullish(),
     wage_rate: z.union([
         z.number(),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)

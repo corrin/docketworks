@@ -23,12 +23,13 @@ from typing import ClassVar
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import models
 from django.http import HttpRequest, HttpResponse
 from ninja import ModelSchema, Router, Schema
 from ninja.errors import HttpError
-from pydantic import ConfigDict
+from pydantic import ConfigDict, model_validator
 
-from apps.core.auth import CookieJWTAuth
+from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
 from apps.core.models import CompanyDefaults
 from apps.core.schemas import derived_response, drop_model_defaults
 from apps.core.settings_metadata import CompanyDefaultsSchemaOut, build_company_defaults_schema
@@ -145,6 +146,17 @@ class CompanyDefaultsOut(ModelSchema):
         return _logo_url(obj, "logo_wide")
 
 
+def _nullable_text_field_names() -> frozenset[str]:
+    return frozenset(
+        field.name
+        for field in CompanyDefaults._meta.get_fields()
+        if isinstance(field, models.CharField | models.TextField) and field.null
+    )
+
+
+_NULLABLE_TEXT_FIELDS = _nullable_text_field_names()
+
+
 class CompanyDefaultsPatchIn(ModelSchema):
     """Partial update: every field optional, presence read from the payload."""
 
@@ -152,8 +164,20 @@ class CompanyDefaultsPatchIn(ModelSchema):
 
     class Meta:
         model = CompanyDefaults
-        exclude: ClassVar[list[str]] = ["id", "logo", "logo_wide"]
+        # created_at/updated_at are auto-managed; without this exclusion the
+        # setattr loop would happily rewrite created_at on update.
+        exclude: ClassVar[list[str]] = ["id", "logo", "logo_wide", "created_at", "updated_at"]
         fields_optional = "__all__"
+
+    @model_validator(mode="after")
+    def _blank_is_not_a_value(self) -> "CompanyDefaultsPatchIn":
+        # ADR 0040: nullable text columns never store ""; null is how a client
+        # clears a value. Enforced generically rather than via NullableText per
+        # field because this schema is derived with fields_optional="__all__".
+        for name in self.model_fields_set & _NULLABLE_TEXT_FIELDS:
+            if getattr(self, name) == "":
+                raise ValueError(f"{name}: blank is not a value; send null to clear")
+        return self
 
 
 def _logo_url(instance: CompanyDefaults, field_name: str) -> str | None:
@@ -184,9 +208,18 @@ def company_defaults_retrieve(request: HttpRequest) -> CompanyDefaults:
     return CompanyDefaults.get_solo()
 
 
+# Opus: superuser, not office staff — this PATCH sets wage rates, markups, GST and
+# Xero identity; v1's effective gate was the superuser /admin route guard, and the
+# admin nav + leave-settings use the same class. GET stays any-staff: company
+# defaults is app-shell boot data for every user.
+# Opus: If-Match rejected here — ADR 0003 scopes optimistic concurrency to Job/PO;
+# the dirty-fields-only payload (exclude_unset) means concurrent editors of
+# different fields never clobber each other, and same-field conflict on a
+# rarely-edited singleton is accepted last-write-wins (ruling in
+# docs/rewrite-history.md, 2026-08-21).
 @router.patch(
     "/company-defaults/",
-    auth=CookieJWTAuth(),
+    auth=SuperuserCookieJWTAuth(),
     operation_id="company_defaults_partial_update",
     response=CompanyDefaultsOut,
     summary="Update some of the company defaults",

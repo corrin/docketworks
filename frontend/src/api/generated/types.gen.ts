@@ -846,10 +846,6 @@ export type CompanyDefaultsPatchIn = {
      */
     country?: string | null;
     /**
-     * Created At
-     */
-    created_at?: string | null;
-    /**
      * Daily approved hours target
      *
      * Target daily hours of newly-approved work flowing into the shop, used by the Sales Pipeline scoreboard
@@ -1063,10 +1059,6 @@ export type CompanyDefaultsPatchIn = {
      * Tue Start
      */
     tue_start?: string | null;
-    /**
-     * Updated At
-     */
-    updated_at?: string | null;
     /**
      * Wage Rate
      */

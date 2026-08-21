@@ -936,7 +936,7 @@ export const companyDefaultsRetrieve = <ThrowOnError extends boolean = false>(op
 export const companyDefaultsPartialUpdate = <ThrowOnError extends boolean = false>(options: Options<CompanyDefaultsPartialUpdateData, ThrowOnError>): RequestResult<CompanyDefaultsPartialUpdateResponses, unknown, ThrowOnError> => (options.client ?? client).patch<CompanyDefaultsPartialUpdateResponses, unknown, ThrowOnError>({
     responseType: 'json',
     security: [{
-            key: 'CookieJWTAuth',
+            key: 'SuperuserCookieJWTAuth',
             in: 'cookie',
             name: 'access_token',
             type: 'apiKey'

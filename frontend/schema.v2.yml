@@ -962,12 +962,6 @@ components:
           - type: 'null'
           description: Country name
           title: Country
-        created_at:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Created At
         daily_approved_hours_target:
           anyOf:
           - type: number
@@ -1241,12 +1235,6 @@ components:
             type: string
           - type: 'null'
           title: Tue Start
-        updated_at:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Updated At
         wage_rate:
           anyOf:
           - type: number
@@ -14797,7 +14785,7 @@ paths:
                 $ref: '#/components/schemas/CompanyDefaultsOut'
           description: OK
       security:
-      - CookieJWTAuth: []
+      - SuperuserCookieJWTAuth: []
       summary: Update some of the company defaults
       tags:
       - company-defaults
