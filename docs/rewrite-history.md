@@ -59,6 +59,12 @@ ported.
 (`sales-forecast`, `payroll-reconciliation`, `create-timesheet-entry`,
 `job-cost-entry-data`); they read restore-populated mirror tables only.
 
+**The company-defaults PATCH stays last-write-wins; no If-Match (2026-08-22).**
+Rejected because the dirty-fields-only payload (`exclude_unset`) bounds any
+conflict to two editors touching the same field, and ADR 0003's optimistic-
+concurrency scope is Job/PO, not this singleton — a rarely-edited row does not
+earn the extra mechanism.
+
 ## Cross-report divergences, ported faithfully (2026-08-04)
 
 v1's reports disagree with each other on definitions users can see side by side.

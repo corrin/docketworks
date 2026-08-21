@@ -18,15 +18,17 @@ import shutil
 import subprocess
 from functools import lru_cache
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import models
+from django.db.models.fields.files import FieldFile
 from django.http import HttpRequest, HttpResponse
-from ninja import ModelSchema, Router, Schema
+from ninja import File, ModelSchema, Router, Schema
 from ninja.errors import HttpError
+from ninja.files import UploadedFile
 from pydantic import ConfigDict, model_validator
 
 from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
@@ -216,7 +218,7 @@ def company_defaults_retrieve(request: HttpRequest) -> CompanyDefaults:
 # the dirty-fields-only payload (exclude_unset) means concurrent editors of
 # different fields never clobber each other, and same-field conflict on a
 # rarely-edited singleton is accepted last-write-wins (ruling in
-# docs/rewrite-history.md, 2026-08-21).
+# docs/rewrite-history.md, 2026-08-22).
 @router.patch(
     "/company-defaults/",
     auth=SuperuserCookieJWTAuth(),
@@ -262,3 +264,73 @@ def company_defaults_partial_update(
 def company_defaults_schema_retrieve(request: HttpRequest) -> CompanyDefaultsSchemaOut:
     """Serve the section/field registry the settings screen renders from."""
     return build_company_defaults_schema()
+
+
+# ── Company logo upload/delete ───────────────────────────────────────────
+#
+# Field name in the path, not the multipart body (v1 put it in the body and
+# fetched raw, because "Zodios can't multipart") — so hey-api generates a
+# typed multipart client here too (precedent: uploadJobFiles, apps/job/api.py).
+
+LogoFieldName = Literal["logo", "logo_wide"]
+_ALLOWED_LOGO_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"})
+_MAX_LOGO_BYTES = 5 * 1024 * 1024
+
+
+def _delete_stored_logo(field_file: FieldFile) -> None:
+    # Only unlink files under MEDIA_ROOT/company_logos so a git-tracked seed
+    # asset referenced by a restored row is never destroyed (v1 carried the same
+    # guard; checked by test_delete_clears_the_logo against an uploaded file).
+    if not field_file:
+        return
+    storage_path = Path(field_file.name or "")
+    if storage_path.parts[:1] != ("company_logos",):
+        return
+    field_file.delete(save=False)
+
+
+def _validate_logo_upload(file: UploadedFile) -> None:
+    suffix = Path(file.name or "").suffix.lower()
+    if suffix not in _ALLOWED_LOGO_SUFFIXES:
+        raise HttpError(400, f"Unsupported file type {suffix or '(none)'}")
+    if file.size is None or file.size > _MAX_LOGO_BYTES:
+        raise HttpError(400, "Logo files are limited to 5 MB")
+
+
+@router.post(
+    "/company-defaults/logo/{field_name}/",
+    auth=SuperuserCookieJWTAuth(),
+    operation_id="company_defaults_logo_update",
+    response=CompanyDefaultsOut,
+    summary="Upload a company logo",
+    tags=["company-defaults"],
+)
+def company_defaults_logo_update(
+    request: HttpRequest, field_name: LogoFieldName, file: File[UploadedFile]
+) -> CompanyDefaults:
+    """Replace the named logo field and delete the file it replaces."""
+    _validate_logo_upload(file)
+    instance = CompanyDefaults.get_solo()
+    _delete_stored_logo(getattr(instance, field_name))
+    setattr(instance, field_name, file)
+    instance.save(update_fields=[field_name, "updated_at"])
+    return instance
+
+
+@router.delete(
+    "/company-defaults/logo/{field_name}/",
+    auth=SuperuserCookieJWTAuth(),
+    operation_id="company_defaults_logo_destroy",
+    response=CompanyDefaultsOut,
+    summary="Remove a company logo",
+    tags=["company-defaults"],
+)
+def company_defaults_logo_destroy(
+    request: HttpRequest, field_name: LogoFieldName
+) -> CompanyDefaults:
+    """Clear the named logo field and delete the stored file."""
+    instance = CompanyDefaults.get_solo()
+    _delete_stored_logo(getattr(instance, field_name))
+    setattr(instance, field_name, None)
+    instance.save(update_fields=[field_name, "updated_at"])
+    return instance

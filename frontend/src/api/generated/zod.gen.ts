@@ -5876,6 +5876,31 @@ export const zCompanyDefaultsPartialUpdateBody = zCompanyDefaultsPatchIn;
  */
 export const zCompanyDefaultsPartialUpdateResponse = zCompanyDefaultsOut;
 
+export const zCompanyDefaultsLogoDestroyPath = z.object({
+    field_name: z.enum(['logo', 'logo_wide'])
+});
+
+/**
+ * OK
+ */
+export const zCompanyDefaultsLogoDestroyResponse = zCompanyDefaultsOut;
+
+/**
+ * FileParams
+ */
+export const zCompanyDefaultsLogoUpdateBody = z.object({
+    file: z.string()
+});
+
+export const zCompanyDefaultsLogoUpdatePath = z.object({
+    field_name: z.enum(['logo', 'logo_wide'])
+});
+
+/**
+ * OK
+ */
+export const zCompanyDefaultsLogoUpdateResponse = zCompanyDefaultsOut;
+
 /**
  * OK
  */
