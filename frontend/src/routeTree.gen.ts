@@ -26,6 +26,8 @@ import { Route as AuthedTimesheetsDailyRouteImport } from './routes/_authed/time
 import { Route as AuthedTimesheetsEntryRouteImport } from './routes/_authed/timesheets/entry'
 import { Route as AuthedTimesheetsLeaveRouteImport } from './routes/_authed/timesheets/leave'
 import { Route as AuthedTimesheetsWeeklyRouteImport } from './routes/_authed/timesheets/weekly'
+import { Route as AuthedAdminCompanyDefaultsIndexRouteImport } from './routes/_authed/admin/company-defaults/index'
+import { Route as AuthedAdminCompanyDefaultsSectionRouteImport } from './routes/_authed/admin/company-defaults/$section'
 import { Route as AuthedCrmCompaniesIndexRouteImport } from './routes/_authed/crm/companies/index'
 import { Route as AuthedCrmCompaniesCompanyIdRouteImport } from './routes/_authed/crm/companies/$companyId'
 import { Route as AuthedPurchasingPoIndexRouteImport } from './routes/_authed/purchasing/po/index'
@@ -120,6 +122,18 @@ const AuthedTimesheetsWeeklyRoute = AuthedTimesheetsWeeklyRouteImport.update({
   path: '/timesheets/weekly',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedAdminCompanyDefaultsIndexRoute =
+  AuthedAdminCompanyDefaultsIndexRouteImport.update({
+    id: '/admin/company-defaults/',
+    path: '/admin/company-defaults/',
+    getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedAdminCompanyDefaultsSectionRoute =
+  AuthedAdminCompanyDefaultsSectionRouteImport.update({
+    id: '/admin/company-defaults/$section',
+    path: '/admin/company-defaults/$section',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedCrmCompaniesIndexRoute = AuthedCrmCompaniesIndexRouteImport.update({
   id: '/crm/companies/',
   path: '/crm/companies/',
@@ -165,9 +179,11 @@ export interface FileRoutesByFullPath {
   '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
   '/timesheets/leave': typeof AuthedTimesheetsLeaveRoute
   '/timesheets/weekly': typeof AuthedTimesheetsWeeklyRoute
+  '/admin/company-defaults/$section': typeof AuthedAdminCompanyDefaultsSectionRoute
   '/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
   '/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
   '/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
+  '/admin/company-defaults/': typeof AuthedAdminCompanyDefaultsIndexRoute
   '/crm/companies/': typeof AuthedCrmCompaniesIndexRoute
   '/purchasing/po/': typeof AuthedPurchasingPoIndexRoute
 }
@@ -188,9 +204,11 @@ export interface FileRoutesByTo {
   '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
   '/timesheets/leave': typeof AuthedTimesheetsLeaveRoute
   '/timesheets/weekly': typeof AuthedTimesheetsWeeklyRoute
+  '/admin/company-defaults/$section': typeof AuthedAdminCompanyDefaultsSectionRoute
   '/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
   '/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
   '/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
+  '/admin/company-defaults': typeof AuthedAdminCompanyDefaultsIndexRoute
   '/crm/companies': typeof AuthedCrmCompaniesIndexRoute
   '/purchasing/po': typeof AuthedPurchasingPoIndexRoute
 }
@@ -213,9 +231,11 @@ export interface FileRoutesById {
   '/_authed/timesheets/entry': typeof AuthedTimesheetsEntryRoute
   '/_authed/timesheets/leave': typeof AuthedTimesheetsLeaveRoute
   '/_authed/timesheets/weekly': typeof AuthedTimesheetsWeeklyRoute
+  '/_authed/admin/company-defaults/$section': typeof AuthedAdminCompanyDefaultsSectionRoute
   '/_authed/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
   '/_authed/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
   '/_authed/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
+  '/_authed/admin/company-defaults/': typeof AuthedAdminCompanyDefaultsIndexRoute
   '/_authed/crm/companies/': typeof AuthedCrmCompaniesIndexRoute
   '/_authed/purchasing/po/': typeof AuthedPurchasingPoIndexRoute
 }
@@ -238,9 +258,11 @@ export interface FileRouteTypes {
     | '/timesheets/entry'
     | '/timesheets/leave'
     | '/timesheets/weekly'
+    | '/admin/company-defaults/$section'
     | '/crm/companies/$companyId'
     | '/purchasing/po/$poId'
     | '/purchasing/po/create'
+    | '/admin/company-defaults/'
     | '/crm/companies/'
     | '/purchasing/po/'
   fileRoutesByTo: FileRoutesByTo
@@ -261,9 +283,11 @@ export interface FileRouteTypes {
     | '/timesheets/entry'
     | '/timesheets/leave'
     | '/timesheets/weekly'
+    | '/admin/company-defaults/$section'
     | '/crm/companies/$companyId'
     | '/purchasing/po/$poId'
     | '/purchasing/po/create'
+    | '/admin/company-defaults'
     | '/crm/companies'
     | '/purchasing/po'
   id:
@@ -285,9 +309,11 @@ export interface FileRouteTypes {
     | '/_authed/timesheets/entry'
     | '/_authed/timesheets/leave'
     | '/_authed/timesheets/weekly'
+    | '/_authed/admin/company-defaults/$section'
     | '/_authed/crm/companies/$companyId'
     | '/_authed/purchasing/po/$poId'
     | '/_authed/purchasing/po/create'
+    | '/_authed/admin/company-defaults/'
     | '/_authed/crm/companies/'
     | '/_authed/purchasing/po/'
   fileRoutesById: FileRoutesById
@@ -420,6 +446,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedTimesheetsWeeklyRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/admin/company-defaults/': {
+      id: '/_authed/admin/company-defaults/'
+      path: '/admin/company-defaults'
+      fullPath: '/admin/company-defaults/'
+      preLoaderRoute: typeof AuthedAdminCompanyDefaultsIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/admin/company-defaults/$section': {
+      id: '/_authed/admin/company-defaults/$section'
+      path: '/admin/company-defaults/$section'
+      fullPath: '/admin/company-defaults/$section'
+      preLoaderRoute: typeof AuthedAdminCompanyDefaultsSectionRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/crm/companies/': {
       id: '/_authed/crm/companies/'
       path: '/crm/companies'
@@ -472,9 +512,11 @@ interface AuthedRouteChildren {
   AuthedTimesheetsEntryRoute: typeof AuthedTimesheetsEntryRoute
   AuthedTimesheetsLeaveRoute: typeof AuthedTimesheetsLeaveRoute
   AuthedTimesheetsWeeklyRoute: typeof AuthedTimesheetsWeeklyRoute
+  AuthedAdminCompanyDefaultsSectionRoute: typeof AuthedAdminCompanyDefaultsSectionRoute
   AuthedCrmCompaniesCompanyIdRoute: typeof AuthedCrmCompaniesCompanyIdRoute
   AuthedPurchasingPoPoIdRoute: typeof AuthedPurchasingPoPoIdRoute
   AuthedPurchasingPoCreateRoute: typeof AuthedPurchasingPoCreateRoute
+  AuthedAdminCompanyDefaultsIndexRoute: typeof AuthedAdminCompanyDefaultsIndexRoute
   AuthedCrmCompaniesIndexRoute: typeof AuthedCrmCompaniesIndexRoute
   AuthedPurchasingPoIndexRoute: typeof AuthedPurchasingPoIndexRoute
 }
@@ -494,9 +536,12 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedTimesheetsEntryRoute: AuthedTimesheetsEntryRoute,
   AuthedTimesheetsLeaveRoute: AuthedTimesheetsLeaveRoute,
   AuthedTimesheetsWeeklyRoute: AuthedTimesheetsWeeklyRoute,
+  AuthedAdminCompanyDefaultsSectionRoute:
+    AuthedAdminCompanyDefaultsSectionRoute,
   AuthedCrmCompaniesCompanyIdRoute: AuthedCrmCompaniesCompanyIdRoute,
   AuthedPurchasingPoPoIdRoute: AuthedPurchasingPoPoIdRoute,
   AuthedPurchasingPoCreateRoute: AuthedPurchasingPoCreateRoute,
+  AuthedAdminCompanyDefaultsIndexRoute: AuthedAdminCompanyDefaultsIndexRoute,
   AuthedCrmCompaniesIndexRoute: AuthedCrmCompaniesIndexRoute,
   AuthedPurchasingPoIndexRoute: AuthedPurchasingPoIndexRoute,
 }
