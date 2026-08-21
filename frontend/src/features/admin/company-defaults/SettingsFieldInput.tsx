@@ -1,7 +1,18 @@
 import type { SettingsFieldOut } from '@/api'
 import { INPUT_CLASS } from '@/components/ui/field'
 
+import { BrandingThemeSelect } from './BrandingThemeSelect'
+import { CompanySelect } from './CompanySelect'
+import { LogoField } from './LogoField'
 import { fromDateTimeLocalInput, toDateTimeLocalInput, type FieldValue } from './snapshot'
+
+// The one sanctioned field-name exception besides the working-hours grid
+// (Decision 6): the quote-terms textarea gets a character counter, a blank
+// warning and a link out to Xero, none of which the schema can describe.
+const XERO_QUOTE_TERMS_KEY = 'xero_quote_terms'
+const XERO_QUOTE_TERMS_MAX_LENGTH = 4000
+const XERO_QUOTE_TERMS_WARNING_LENGTH = 3600
+const XERO_INVOICE_SETTINGS_URL = 'https://go.xero.com/Settings/InvoiceSettings/'
 
 export interface SettingsFieldInputProps {
   field: SettingsFieldOut
@@ -28,45 +39,22 @@ const INPUT_TYPE: Record<GenericFieldType, string> = {
   text: 'text',
 }
 
-/** Placeholder for the three widgets Task 5 owns (company picker, Xero branding
- *  theme select, logo uploader). Shows the stored value uneditably rather than
- *  hiding the field: a section that silently omits a configured setting reads as
- *  data loss to the admin looking for it. */
-function PendingWidget({
-  field,
-  value,
-  automationId,
-}: {
-  field: SettingsFieldOut
-  value: FieldValue
-  automationId: string
-}) {
-  return (
-    <input
-      type="text"
-      className={`${INPUT_CLASS} bg-slate-100 text-slate-500`}
-      value={value === null ? '' : String(value)}
-      readOnly
-      disabled
-      aria-label={field.label}
-      data-automation-id={automationId}
-    />
-  )
-}
-
 export function SettingsFieldInput({ field, value, onChange, section }: SettingsFieldInputProps) {
   const automationId = `CompanyDefaultsPage-${section}-field-${field.key}`
 
+  // Special-type branches precede the generic INPUT_TYPE lookup: each one
+  // narrows field.type away from GenericFieldType, so moving one below the
+  // lookup would break the exhaustiveness check above.
   if (field.type === 'company') {
-    return <PendingWidget field={field} value={value} automationId={automationId} />
+    return <CompanySelect field={field} value={value} onChange={onChange} section={section} />
   }
 
   if (field.type === 'xero_branding_theme') {
-    return <PendingWidget field={field} value={value} automationId={automationId} />
+    return <BrandingThemeSelect field={field} value={value} onChange={onChange} section={section} />
   }
 
   if (field.type === 'image') {
-    return <PendingWidget field={field} value={value} automationId={automationId} />
+    return <LogoField field={field} value={value} onChange={onChange} section={section} />
   }
 
   if (field.type === 'boolean') {
@@ -84,10 +72,56 @@ export function SettingsFieldInput({ field, value, onChange, section }: Settings
   }
 
   if (field.type === 'textarea') {
+    const stringValue = value === null ? '' : String(value)
+
+    if (field.key === XERO_QUOTE_TERMS_KEY) {
+      const count = stringValue.length
+      const isBlank = stringValue.trim().length === 0
+      return (
+        <div className="flex flex-col gap-2">
+          <textarea
+            className={`${INPUT_CLASS} min-h-40`}
+            value={stringValue}
+            readOnly={field.read_only}
+            onChange={(event) => onChange(event.target.value)}
+            maxLength={XERO_QUOTE_TERMS_MAX_LENGTH}
+            aria-invalid={isBlank}
+            aria-label={field.label}
+            data-automation-id={automationId}
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <a
+              href={XERO_INVOICE_SETTINGS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-indigo-600 hover:underline"
+            >
+              Open Xero Invoice Settings
+            </a>
+            <span
+              className={
+                count >= XERO_QUOTE_TERMS_WARNING_LENGTH
+                  ? 'shrink-0 tabular-nums text-amber-700'
+                  : 'shrink-0 tabular-nums text-slate-500'
+              }
+              data-automation-id={`${automationId}-count`}
+            >
+              {count.toLocaleString()} / {XERO_QUOTE_TERMS_MAX_LENGTH.toLocaleString()} characters
+            </span>
+          </div>
+          {isBlank && (
+            <p className="text-xs text-red-700">
+              Enter quote terms before creating quotes in Xero.
+            </p>
+          )}
+        </div>
+      )
+    }
+
     return (
       <textarea
         className={`${INPUT_CLASS} min-h-24`}
-        value={value === null ? '' : String(value)}
+        value={stringValue}
         readOnly={field.read_only}
         onChange={(event) => onChange(event.target.value)}
         aria-label={field.label}

@@ -21,6 +21,7 @@ import {
   buildPatch,
   dirtyKeys,
   snapshotSection,
+  type CompanyDefaultsRecord,
   type FieldValue,
   type SectionSnapshot,
 } from './snapshot'
@@ -116,6 +117,16 @@ function SectionShell({
   )
 }
 
+/** An image field's live preview: the `${key}_url` companion straight from the
+ * shell-owned company-defaults query, not the mounted drafts/server snapshot.
+ * The upload/remove mutations setQueryData the fresh row on the same cache
+ * entry `defaults` is read from, so this stays current without a remount —
+ * where the snapshot only refreshes on the next SectionForm mount. */
+function imageUrl(defaults: CompanyDefaultsRecord, key: string): FieldValue {
+  const raw = defaults[`${key}_url`]
+  return typeof raw === 'string' ? raw : null
+}
+
 /** The ten working-hours keys are model fields the schema endpoint always
  *  emits, so a missing one is a registry defect rather than a case to lay out
  *  around (ADR 0015; apps/core/tests/test_company_defaults_schema_api.py holds
@@ -206,7 +217,9 @@ function SectionForm({
             <SettingsFieldInput
               field={field}
               section={section.key}
-              value={drafts[field.key] ?? null}
+              value={
+                field.type === 'image' ? imageUrl(defaults, field.key) : (drafts[field.key] ?? null)
+              }
               onChange={(value) => setDraft(field.key, value)}
             />
             {field.help_text && (
