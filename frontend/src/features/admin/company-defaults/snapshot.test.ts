@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { SettingsFieldOut } from '@/api'
+import type { CompanyDefaultsOut, SettingsFieldOut } from '@/api'
 
 import {
   buildPatch,
@@ -21,15 +21,78 @@ const field = (key: string, overrides: Partial<SettingsFieldOut> = {}): Settings
   ...overrides,
 })
 
-// Only the fields under test; the functions never touch other keys.
-const defaults = {
-  company_name: 'DocketWorks',
+/** The whole wire response, not a stub: `snapshotSection` takes the real
+ *  `CompanyDefaultsOut`, so a column added to the model surfaces here as a type
+ *  error rather than as a section that silently renders one field short. Only
+ *  the keys the tests below name carry meaningful values. */
+const defaults: CompanyDefaultsOut = {
+  accounting_provider: 'Xero',
+  address_line1: null,
+  address_line2: null,
+  annual_leave_loading: '0.00',
+  city: null,
   company_acronym: null,
-  shop_company: 'uuid-1',
-  mon_start: '07:00:00',
-  wage_rate: '32.00',
-  logo_url: null,
+  company_email: null,
+  company_name: 'DocketWorks',
+  company_url: null,
+  country: 'New Zealand',
+  created_at: '2026-08-21T09:30:45.123456Z',
+  daily_approved_hours_target: '0.00',
+  enable_xero_sync: false,
+  financial_year_start_month: 7,
+  fri_end: '15:30:00',
+  fri_start: '07:00:00',
+  gdrive_how_we_work_folder_id: null,
+  gdrive_quotes_folder_id: null,
+  gdrive_quotes_folder_url: null,
+  gdrive_reference_library_folder_id: null,
+  gdrive_sops_folder_id: null,
+  google_shared_drive_id: null,
+  gst_rate: '0.00',
+  id: null,
+  job_delta_soft_fail: false,
+  kpi_daily_billable_hours_amber: '',
+  kpi_daily_billable_hours_green: '',
+  kpi_daily_gp_amber: '',
+  kpi_daily_gp_green: '',
+  kpi_daily_gp_target: '0.00',
+  kpi_daily_shop_hours_percentage: '0.00',
+  kpi_job_gp_target_percentage: '0.00',
+  last_xero_deep_sync: null,
   last_xero_sync: '2026-08-21T09:30:45.123456Z',
+  logo_url: null,
+  logo_wide_url: null,
+  master_quote_template_id: null,
+  master_quote_template_url: null,
+  materials_markup: '0.00',
+  mon_end: '15:30:00',
+  mon_start: '07:00:00',
+  po_prefix: 'PO-',
+  post_code: null,
+  shop_company: 'uuid-1',
+  starting_job_number: 0,
+  starting_po_number: 0,
+  suburb: null,
+  test_company_name: null,
+  thu_end: '15:30:00',
+  thu_start: '07:00:00',
+  time_markup: '0.00',
+  tue_end: '15:30:00',
+  tue_start: '07:00:00',
+  updated_at: '2026-08-21T09:30:45.123456Z',
+  wage_rate: '32.00',
+  wed_end: '15:30:00',
+  wed_start: '07:00:00',
+  weekend_timesheets_enabled: false,
+  workshop_efficiency_factor: '0.00',
+  xero_automated_day_floor: 0,
+  xero_payroll_calendar_id: null,
+  xero_payroll_calendar_name: 'Weekly',
+  xero_payroll_start_date: null,
+  xero_quote_terms: 'Valid for 30 days.',
+  xero_sales_branding_theme_id: null,
+  xero_shortcode: null,
+  xero_tenant_id: null,
 }
 
 describe('snapshotSection', () => {
@@ -52,6 +115,33 @@ describe('snapshotSection', () => {
   it('normalises datetime values to the minute the input can express', () => {
     const snap = snapshotSection(defaults, [field('last_xero_sync', { type: 'datetime' })])
     expect(snap).toEqual({ last_xero_sync: '2026-08-21T09:30:00.000Z' })
+  })
+})
+
+// ADR 0046: Decimals travel as strings and the form never reformats a number it
+// is not editing. '32.00' must survive as '32.00' — a Number() round trip would
+// show the admin '32' and post a value they never typed.
+describe('decimal fidelity', () => {
+  it('keeps a decimal wire string byte-for-byte', () => {
+    const snap = snapshotSection(defaults, [field('wage_rate', { type: 'number' })])
+    expect(snap).toEqual({ wage_rate: '32.00' })
+  })
+  it('patches an edited decimal exactly as typed', () => {
+    const fields = [field('wage_rate', { type: 'number' })]
+    const server = snapshotSection(defaults, fields)
+    expect(buildPatch(fields, { ...server, wage_rate: '33.50' }, server)).toEqual({
+      wage_rate: '33.50',
+    })
+  })
+  it('leaves an integer field clean once its draft is typed back to the original', () => {
+    // Ints arrive as wire numbers and leave the input as strings, so the
+    // snapshot holds the string form on both sides; otherwise edit-and-revert
+    // stayed dirty forever on Object.is('7', 7).
+    const fields = [field('financial_year_start_month', { type: 'number' })]
+    const server = snapshotSection(defaults, fields)
+    expect(server).toEqual({ financial_year_start_month: '7' })
+    const reverted = { ...server, financial_year_start_month: '7' }
+    expect(dirtyKeys(fields, reverted, server)).toEqual([])
   })
 })
 
@@ -101,5 +191,14 @@ describe('dirtyKeys / buildPatch', () => {
   it('sends null, never empty string, for a cleared optional field', () => {
     const drafts = { ...server, company_acronym: '' }
     expect(buildPatch(fields, drafts, server)).toEqual({ company_acronym: null })
+  })
+  it('sends the empty string a cleared REQUIRED field carries, so the server refuses it', () => {
+    // Null would be a lie the backend accepts on some columns; '' earns the 422
+    // that tells the admin the field is mandatory (fail loudly, ADR 0015).
+    const requiredFields = [field('country', { required: true })]
+    const requiredServer = snapshotSection(defaults, requiredFields)
+    expect(buildPatch(requiredFields, { ...requiredServer, country: '' }, requiredServer)).toEqual({
+      country: '',
+    })
   })
 })

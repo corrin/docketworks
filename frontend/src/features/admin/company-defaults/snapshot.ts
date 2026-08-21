@@ -1,4 +1,4 @@
-import type { CompanyDefaultsPatchIn, SettingsFieldOut } from '@/api'
+import type { CompanyDefaultsOut, CompanyDefaultsPatchIn, SettingsFieldOut } from '@/api'
 
 /** Every settings value is a JSON scalar by construction: the 12 widget types all
  * map scalar columns, so per-key Object.is comparison is sound where
@@ -7,15 +7,21 @@ import type { CompanyDefaultsPatchIn, SettingsFieldOut } from '@/api'
 export type FieldValue = string | number | boolean | null
 export type SectionSnapshot = Record<string, FieldValue>
 
-/** The company-defaults response read by schema key. The screen's whole point is
- * that the field list arrives from the server, so the named 60-property type
- * cannot index it; declaring the record view once keeps that dynamic lookup at a
- * single named seam instead of an assertion per read (ADR 0028).
- * `CompanyDefaultsOut` is assignable to it, so callers still pass the wire type. */
-export type CompanyDefaultsRecord = Record<string, unknown>
+/** The company-defaults response, indexable by schema key. The screen's whole
+ * point is that the field list arrives from the server, so the named type alone
+ * cannot index it — but a bare `Record<string, unknown>` would take any object at
+ * all, so the intersection keeps the wire contract while opening the dynamic read
+ * (ADR 0028). One named seam here replaces an assertion at every read. */
+export type CompanyDefaultsRecord = CompanyDefaultsOut & Record<string, unknown>
 
 // The wire reads the FK as `shop_company` (schema key and GET field) but writes
 // `shop_company_id` (ninja ModelSchema PatchIn). Bridged here and nowhere else.
+//
+// Opus: deliberately Partial where INPUT_TYPE is total. Writing under its own key
+// is the rule and this bridge is the single exception, so a widget type absent
+// from this map is correct by default; making it total would force every new
+// widget to restate `(key) => key`. Only ninja's `_id` suffix on a ForeignKey
+// earns an entry, and apps/core/settings_metadata.py has exactly one FK widget.
 const WRITE_KEY_BY_TYPE: Partial<Record<SettingsFieldOut['type'], (key: string) => string>> = {
   company: (key) => `${key}_id`,
 }
@@ -61,6 +67,12 @@ const normalise = (field: SettingsFieldOut, raw: unknown): FieldValue => {
   if (field.type === 'datetime' && typeof raw === 'string') {
     return fromDateTimeLocalInput(toDateTimeLocalInput(raw))
   }
+  // Integer columns arrive as wire numbers but leave the <input> as strings, so
+  // both snapshots hold the string form: without this, editing an int and typing
+  // the original back stayed dirty forever on Object.is('7', 7). Decimals are
+  // already wire strings and pass through untouched, so '32.00' keeps its
+  // trailing zeros (ADR 0046); pydantic coerces the string back on PATCH.
+  if (field.type === 'number' && typeof raw === 'number') return String(raw)
   // Narrowed rather than asserted: every registered widget maps a scalar column
   // (apps/core/settings_metadata.py FIELD_TYPE_RULES), so a container here means
   // the registry grew a shape this form cannot edit and must say so.

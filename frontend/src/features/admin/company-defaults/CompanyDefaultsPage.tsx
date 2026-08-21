@@ -6,7 +6,6 @@ import { toast } from 'sonner'
 import {
   apiErrorMessage,
   companyDefaultsPartialUpdateMutation,
-  companyDefaultsRetrieveOptions,
   companyDefaultsRetrieveQueryKey,
   companyDefaultsSchemaRetrieveOptions,
   type CompanyDefaultsOut,
@@ -15,6 +14,7 @@ import {
 } from '@/api'
 import { Button } from '@/components/ui/button'
 import { QueryState } from '@/features/shared/QueryState'
+import { companyDefaultsQueryOptions } from '@/features/shell'
 
 import { SettingsFieldInput } from './SettingsFieldInput'
 import {
@@ -39,7 +39,11 @@ const WORKING_DAYS: readonly { label: string; startKey: string; endKey: string }
 const WORKING_HOURS_TIME_KEYS = new Set(WORKING_DAYS.flatMap((day) => [day.startKey, day.endKey]))
 
 export function CompanyDefaultsPage({ section }: { section: string }) {
-  const defaultsQuery = useQuery(companyDefaultsRetrieveOptions())
+  // The shell owns this singleton's options (5-minute staleTime, preloaded for
+  // every authenticated page); a second useQuery over the raw generated options
+  // would be a sibling cache entry that the save path's setQueryData never
+  // reaches, and TimesheetEntryPage already reads it this way.
+  const defaultsQuery = useQuery(companyDefaultsQueryOptions())
   const schemaQuery = useQuery(companyDefaultsSchemaRetrieveOptions())
 
   return (
