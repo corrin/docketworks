@@ -29,6 +29,7 @@ from django.http import HttpRequest, HttpResponse
 from ninja import File, ModelSchema, Router, Schema
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
+from PIL import Image
 from pydantic import ConfigDict, model_validator
 
 from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
@@ -268,22 +269,29 @@ def company_defaults_schema_retrieve(request: HttpRequest) -> CompanyDefaultsSch
 
 # ── Company logo upload/delete ───────────────────────────────────────────
 #
-# Field name in the path, not the multipart body (v1 put it in the body and
+# Opus: Field name in the path, not the multipart body (v1 put it in the body and
 # fetched raw, because "Zodios can't multipart") — so hey-api generates a
 # typed multipart client here too (precedent: uploadJobFiles, apps/job/api.py).
 
 LogoFieldName = Literal["logo", "logo_wide"]
-_ALLOWED_LOGO_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"})
+# Opus: .svg deliberately excluded even though v1's upload accepted it —
+# PIL cannot open SVG, and the one consumer (purchase_order_pdf_service.py)
+# opens the stored file with PIL, so an allowlisted-but-unopenable format would
+# 400 at upload only to 500 every PO PDF later.
+_ALLOWED_LOGO_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp"})
 _MAX_LOGO_BYTES = 5 * 1024 * 1024
 
 
 def _delete_stored_logo(field_file: FieldFile) -> None:
-    # Only unlink files under MEDIA_ROOT/company_logos so a git-tracked seed
+    # Opus: Only unlink files under MEDIA_ROOT/company_logos so a git-tracked seed
     # asset referenced by a restored row is never destroyed (v1 carried the same
-    # guard; checked by test_delete_clears_the_logo against an uploaded file).
+    # guard). normpath first: the guard exists for names that did NOT come
+    # through the upload path (e.g. a restored row), so a ``../`` cannot walk out
+    # of company_logos/ before the parts check runs. The protected branch is
+    # checked by test_delete_leaves_a_non_company_logos_file_on_disk.
     if not field_file:
         return
-    storage_path = Path(field_file.name or "")
+    storage_path = Path(os.path.normpath(field_file.name or ""))
     if storage_path.parts[:1] != ("company_logos",):
         return
     field_file.delete(save=False)
@@ -293,8 +301,23 @@ def _validate_logo_upload(file: UploadedFile) -> None:
     suffix = Path(file.name or "").suffix.lower()
     if suffix not in _ALLOWED_LOGO_SUFFIXES:
         raise HttpError(400, f"Unsupported file type {suffix or '(none)'}")
-    if file.size is None or file.size > _MAX_LOGO_BYTES:
+    if not file.size:
+        raise HttpError(400, "Logo files cannot be empty")
+    if file.size > _MAX_LOGO_BYTES:
         raise HttpError(400, "Logo files are limited to 5 MB")
+    # Opus: content, not just suffix — the PO PDF consumer opens the stored
+    # file with PIL and hard-fails (UnidentifiedImageError, a 500) on a mislabeled
+    # non-image, so that must be a 400 here instead. verify() raises OSError for
+    # both an unrecognised format and a truncated/corrupt one (UnidentifiedImageError
+    # is itself an OSError subclass); rewind after, since a failed verify() leaves
+    # the stream unusable for the caller's subsequent save.
+    try:
+        with Image.open(file) as image:
+            image.verify()
+    except OSError as exc:
+        raise HttpError(400, "Uploaded file is not a valid image") from exc
+    finally:
+        file.seek(0)
 
 
 @router.post(
@@ -308,12 +331,17 @@ def _validate_logo_upload(file: UploadedFile) -> None:
 def company_defaults_logo_update(
     request: HttpRequest, field_name: LogoFieldName, file: File[UploadedFile]
 ) -> CompanyDefaults:
-    """Replace the named logo field and delete the file it replaces."""
+    """Save the uploaded file and delete the file it replaces."""
     _validate_logo_upload(file)
     instance = CompanyDefaults.get_solo()
-    _delete_stored_logo(getattr(instance, field_name))
+    # Opus: save the new file before unlinking the old one — a save failure
+    # (full_clean, disk-full, whatever) must not leave the row pointing at a file
+    # that no longer exists. ``replaced`` is captured before setattr rebinds the
+    # descriptor, so it still names the pre-upload file.
+    replaced = getattr(instance, field_name)
     setattr(instance, field_name, file)
     instance.save(update_fields=[field_name, "updated_at"])
+    _delete_stored_logo(replaced)
     return instance
 
 

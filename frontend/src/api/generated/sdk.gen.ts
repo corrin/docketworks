@@ -969,7 +969,7 @@ export const companyDefaultsLogoDestroy = <ThrowOnError extends boolean = false>
 /**
  * Upload a company logo
  *
- * Replace the named logo field and delete the file it replaces.
+ * Save the uploaded file and delete the file it replaces.
  */
 export const companyDefaultsLogoUpdate = <ThrowOnError extends boolean = false>(options: Options<CompanyDefaultsLogoUpdateData, ThrowOnError>): RequestResult<CompanyDefaultsLogoUpdateResponses, unknown, ThrowOnError> => (options.client ?? client).post<CompanyDefaultsLogoUpdateResponses, unknown, ThrowOnError>({
     ...formDataBodySerializer,

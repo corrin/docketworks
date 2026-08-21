@@ -1180,7 +1180,7 @@ export const companyDefaultsLogoDestroyMutation = (options?: Partial<Options<Com
 /**
  * Upload a company logo
  *
- * Replace the named logo field and delete the file it replaces.
+ * Save the uploaded file and delete the file it replaces.
  */
 export const companyDefaultsLogoUpdateMutation = (options?: Partial<Options<CompanyDefaultsLogoUpdateData>>): UseMutationOptions<CompanyDefaultsLogoUpdateResponse, AxiosError<DefaultError>, Options<CompanyDefaultsLogoUpdateData>> => {
     const mutationOptions: UseMutationOptions<CompanyDefaultsLogoUpdateResponse, AxiosError<DefaultError>, Options<CompanyDefaultsLogoUpdateData>> = {

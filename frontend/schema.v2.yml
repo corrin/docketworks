@@ -14816,7 +14816,7 @@ paths:
       tags:
       - company-defaults
     post:
-      description: Replace the named logo field and delete the file it replaces.
+      description: Save the uploaded file and delete the file it replaces.
       operationId: company_defaults_logo_update
       parameters:
       - in: path
