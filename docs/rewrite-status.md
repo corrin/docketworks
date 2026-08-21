@@ -59,15 +59,12 @@ written measures typing, not delivery.
 
 ### Specs still to port
 
-Eight, plus `example`, which is a placeholder to delete rather than port:
-`company-defaults`, `crm/people`, `crm/people-archive`,
+Seven, plus `example`, which is a placeholder to delete rather than port:
+`crm/people`, `crm/people-archive`,
 `crm/phone-call-job-link`, `process-documents/form-entries-page-scroll`,
 `purchasing/pickup-address`, `staff/create-staff`,
 `timesheet/workshop-my-time-view`.
 
-- `company-defaults` blocks more than itself: `JobViewTabs` renders
-  `JobEstimateTab` only when company defaults exist, so the job cluster stays
-  dark until it does.
 - `workshop-my-time-view` is a rebuild, not a port —
   `@kodeglot/vue-calendar` has no React equivalent.
 - `form-entries-page-scroll` seeds itself over the API, so its true cost is the
