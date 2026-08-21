@@ -27,13 +27,11 @@ test.describe('company defaults', () => {
     const email = autoId(page, 'CompanyDefaultsPage-company-field-company_email')
     await expect(email).toBeVisible()
     // company_name is read-only by contract (COMPANY_DEFAULTS_READ_ONLY_FIELDS);
-    // email is the writable probe. The generic widget renders read_only as the
-    // input's `readonly`, so the field stays focusable and copyable — asserting
-    // toBeDisabled() would pin the wrong widget contract.
-    await expect(autoId(page, 'CompanyDefaultsPage-company-field-company_name')).toHaveAttribute(
-      'readonly',
-      '',
-    )
+    // email is the writable probe. Asserted as "cannot be edited" rather than as
+    // the `readonly` attribute the widget happens to use today: the promise is
+    // that an admin cannot rename the company from this form, and a rewrite to
+    // `disabled` or `aria-readonly` keeps that promise (ADR 0052).
+    await expect(autoId(page, 'CompanyDefaultsPage-company-field-company_name')).not.toBeEditable()
 
     const save = autoId(page, 'CompanyDefaultsPage-save-button')
     const cancel = autoId(page, 'CompanyDefaultsPage-cancel-button')
@@ -66,7 +64,10 @@ test.describe('company defaults', () => {
     expect(patchBody).toEqual({ company_email: testValue })
     await expect(page.getByText('Company saved')).toBeVisible()
     // Save going back to disabled is the proof the snapshot advanced from the
-    // response, rather than the page merely having sent something.
+    // response, rather than the page merely having sent something. The label
+    // assertion is what makes it proof: `disabled={saving || !isDirty}` is also
+    // true mid-flight, so disabled alone would pass on a save still in progress.
+    await expect(save).toHaveText('Save')
     await expect(save).toBeDisabled()
 
     // The value came from the server, not from React state.
@@ -82,14 +83,28 @@ test.describe('company defaults', () => {
     // and make this test fail whenever the tenant connection is down, which is
     // the branding-theme test's business, not this one's.
     await email.fill('dirty@example.com')
-    page.once('dialog', (dialog) => dialog.dismiss())
+
+    // The flags are the point: staying on the page and leaving the page are both
+    // what a screen with NO guard would do, so the URL assertions alone would
+    // pass against a page that never prompted at all.
+    let promptedOnRefusal = false
+    page.once('dialog', (dialog) => {
+      promptedOnRefusal = true
+      return dialog.dismiss()
+    })
     await autoId(page, 'CompanyDefaultsPage-section-link-finances').click()
     await expect(page).toHaveURL(/\/admin\/company-defaults\/company$/)
     await expect(email).toHaveValue('dirty@example.com')
+    expect(promptedOnRefusal, 'leaving dirty did not prompt').toBe(true)
 
-    page.once('dialog', (dialog) => dialog.accept())
+    let promptedOnDiscard = false
+    page.once('dialog', (dialog) => {
+      promptedOnDiscard = true
+      return dialog.accept()
+    })
     await autoId(page, 'CompanyDefaultsPage-section-link-finances').click()
     await expect(page).toHaveURL(/\/admin\/company-defaults\/finances$/)
+    expect(promptedOnDiscard, 'discarding dirty edits did not prompt').toBe(true)
 
     // Restore, so the spec is idempotent against the restored E2E database.
     await page.goto('/admin/company-defaults/company')
@@ -148,6 +163,15 @@ test.describe('company defaults', () => {
             .map((option) => option.value),
         UNAVAILABLE_THEME_PREFIX,
       )
+    // BrandingThemeSelect renders the `Unavailable theme (…)` option only while
+    // the stale id is still selected, so saving anything else deletes the only
+    // way back — the restore below could never re-select it and the tenant would
+    // be stranded on the test's theme.
+    test.skip(
+      originalValue !== '' && !candidateIds.includes(originalValue),
+      'The configured branding theme is no longer offered by Xero and could not be restored',
+    )
+
     const testValue =
       originalValue === '' ? candidateIds[0] : candidateIds.find((id) => id !== originalValue)
     test.skip(testValue === undefined, 'No alternative branding theme to exercise')
@@ -159,11 +183,14 @@ test.describe('company defaults', () => {
       await expect(save).toBeEnabled()
       await save.click()
       await expect(page.getByText('Xero saved')).toBeVisible()
+      await expect(save).toHaveText('Save')
       await expect(save).toBeDisabled({ timeout: 10000 })
 
       await page.reload()
       await expect(selector).toBeVisible({ timeout: 15000 })
-      await expect(selector).toHaveValue(testValue)
+      // Same budget as the first themes load above: the select is visible from
+      // its pending state onward, so this waits out a second Xero round trip.
+      await expect(selector).toHaveValue(testValue, { timeout: 15000 })
     } finally {
       // An originally-null theme means Xero setup was incomplete; restoring it
       // would deliberately write the null the widget exists to prevent.
@@ -177,7 +204,17 @@ test.describe('company defaults', () => {
         })
         if ((await selector.inputValue()) !== originalValue) {
           await selector.selectOption(originalValue)
+          // Awaited on the wire, not on the button: `disabled` flips true the
+          // moment `saving` does, so toBeDisabled() alone would return while the
+          // restore PATCH was still in flight and let the context close on it.
+          const restoreSaved = page.waitForResponse(
+            (response) =>
+              new URL(response.url()).pathname === DEFAULTS_PATH &&
+              response.request().method() === 'PATCH',
+          )
           await save.click()
+          expect((await restoreSaved).ok()).toBe(true)
+          await expect(save).toHaveText('Save')
           await expect(save).toBeDisabled({ timeout: 10000 })
         }
       }
