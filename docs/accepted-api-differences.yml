@@ -753,13 +753,20 @@
     last_xero_deep_sync) was offered a date input. Subclasses now sit before
     their parents, and the live-field tests pin the ordering.
 
-- operation: company_defaults_update / company_defaults_partial_update / company_defaults_logo_update / company_defaults_logo_destroy
-  change: "All four endpoints require superuser (v1: any authenticated user could write; v1's only gate was a frontend route guard)"
+- operation: company_defaults_partial_update / company_defaults_logo_update / company_defaults_logo_destroy
+  change: "All three endpoints require superuser (v1: any authenticated user could write; v1's only gate was a frontend route guard)"
   reason: >
     Company-wide defaults (pricing, markups, wage rates, Xero linkage) were
     writable by any staff cookie in v1 — the settings screen's route guard was
     the only thing standing between a workshop login and the numbers every
     quote and invoice prices from. v2 gates the write surface itself.
+
+- operation: company_defaults_update
+  change: "Endpoint not ported"
+  reason: >
+    v1's PUT (full-replace) sibling of the PATCH endpoint. apps/core/api.py
+    exposes only company_defaults_partial_update; the settings screen's only
+    write path was always the PATCH. Dead surface.
 
 - operation: company_defaults_logo_update / company_defaults_logo_destroy
   change: "Logo upload moved from body-field POST /api/company-defaults/upload-logo/ to path-param POST/DELETE /api/company-defaults/logo/{field_name}/"
@@ -768,7 +775,7 @@
     shared endpoint; v2 names the field in the path and generates a typed
     multipart client for it. No external party holds the old URL.
 
-- operation: company_defaults_update / company_defaults_partial_update
+- operation: company_defaults_partial_update
   change: "Blank string on a nullable text field is 422 at the schema (ADR 0040) rather than v1's serializer 400"
   reason: >
     Same NullableText contract already applied elsewhere (PO lines, stock,
