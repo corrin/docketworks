@@ -103,6 +103,10 @@ export function AppNavbar() {
             <NavMenuLink to="/admin/leave-settings" automationId="AppNavbar-leave-settings">
               Leave settings
             </NavMenuLink>
+            {/* Superuser only: endpoint uses SuperuserCookieJWTAuth, matching the menu gate. */}
+            <NavMenuLink to="/admin/company-defaults" automationId="AppNavbar-company-defaults">
+              Company Defaults
+            </NavMenuLink>
           </NavMenu>
         )}
       </div>
