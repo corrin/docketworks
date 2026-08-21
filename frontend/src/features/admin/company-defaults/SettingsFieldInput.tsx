@@ -3,6 +3,7 @@ import { INPUT_CLASS } from '@/components/ui/field'
 
 import { BrandingThemeSelect } from './BrandingThemeSelect'
 import { CompanySelect } from './CompanySelect'
+import { fieldAutomationId } from './fieldAutomationId'
 import { LogoField } from './LogoField'
 import { fromDateTimeLocalInput, toDateTimeLocalInput, type FieldValue } from './snapshot'
 
@@ -40,7 +41,7 @@ const INPUT_TYPE: Record<GenericFieldType, string> = {
 }
 
 export function SettingsFieldInput({ field, value, onChange, section }: SettingsFieldInputProps) {
-  const automationId = `CompanyDefaultsPage-${section}-field-${field.key}`
+  const automationId = fieldAutomationId(section, field.key)
 
   // Special-type branches precede the generic INPUT_TYPE lookup: each one
   // narrows field.type away from GenericFieldType, so moving one below the

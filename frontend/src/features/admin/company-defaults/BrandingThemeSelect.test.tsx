@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -127,5 +127,14 @@ describe('BrandingThemeSelect', () => {
     await waitFor(() => expect(autoId(AUTOMATION_ID)).not.toBeDisabled())
     await user.selectOptions(autoId(AUTOMATION_ID), 'a')
     expect(onChange).toHaveBeenCalledWith('a')
+
+    onChange.mockClear()
+    // The placeholder option is disabled, so userEvent cannot reach an empty
+    // selection through the real UI — but that's exactly the gap a deleted
+    // `next === ''` guard would leave unexercised. fireEvent bypasses the
+    // disabled-option restriction to drive the change handler directly and
+    // prove the guard itself does the ignoring, not just that users can't reach it.
+    fireEvent.change(autoId(AUTOMATION_ID), { target: { value: '' } })
+    expect(onChange).not.toHaveBeenCalled()
   })
 })

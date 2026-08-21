@@ -80,6 +80,14 @@ const normalise = (field: SettingsFieldOut, raw: unknown): FieldValue => {
   throw new Error(`Company defaults field ${field.key} carried a non-scalar value.`)
 }
 
+/** The wire's `<key>_url` companion for an image field — the one place this
+ * suffix convention is spelled out (ADR 0039). CompanyDefaultsPage's live
+ * logo preview reads the same key via this helper rather than restating the
+ * suffix. */
+export function imageUrlKey(key: string): string {
+  return `${key}_url`
+}
+
 export function snapshotSection(
   defaults: CompanyDefaultsRecord,
   fields: SettingsFieldOut[],
@@ -90,7 +98,7 @@ export function snapshotSection(
       // An image field has no editable column of its own; the wire exposes the
       // stored file as a `<key>_url` companion, which is what the widget shows.
       field.type === 'image'
-        ? normalise(field, defaults[`${field.key}_url`])
+        ? normalise(field, defaults[imageUrlKey(field.key)])
         : normalise(field, defaults[field.key]),
     ]),
   )

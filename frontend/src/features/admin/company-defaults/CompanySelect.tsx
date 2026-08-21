@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { companiesAllListOptions } from '@/api'
 import { INPUT_CLASS } from '@/components/ui/field'
 
+import { fieldAutomationId } from './fieldAutomationId'
 import type { SettingsFieldInputProps } from './SettingsFieldInput'
 
 /** Native `<select>` over the small companies list — matches LeaveSettingsPage's
@@ -10,7 +11,7 @@ import type { SettingsFieldInputProps } from './SettingsFieldInput'
  * is short enough that scanning it beats typing into it. */
 export function CompanySelect({ field, value, onChange, section }: SettingsFieldInputProps) {
   const companiesQuery = useQuery(companiesAllListOptions())
-  const automationId = `CompanyDefaultsPage-${section}-field-${field.key}`
+  const automationId = fieldAutomationId(section, field.key)
 
   if (companiesQuery.isError) {
     return (

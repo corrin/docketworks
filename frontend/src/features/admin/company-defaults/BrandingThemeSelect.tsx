@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { isApiErrorStatus, xeroBrandingThemesListOptions } from '@/api'
 import { INPUT_CLASS } from '@/components/ui/field'
 
+import { fieldAutomationId } from './fieldAutomationId'
 import type { SettingsFieldInputProps } from './SettingsFieldInput'
 
 const NOT_CONNECTED_MESSAGE = 'Xero is not connected.'
@@ -19,7 +20,7 @@ const DISABLED_SELECT_CLASS = `${INPUT_CLASS} bg-slate-100 text-slate-500`
  * selection is ignored rather than clearing the field.
  */
 export function BrandingThemeSelect({ field, value, onChange, section }: SettingsFieldInputProps) {
-  const automationId = `CompanyDefaultsPage-${section}-field-${field.key}`
+  const automationId = fieldAutomationId(section, field.key)
   // The endpoint's 401 means "Xero is not connected", a state to render, not
   // recover from by retrying — retry:false keeps that render immediate.
   const themesQuery = useQuery({ ...xeroBrandingThemesListOptions(), retry: false })

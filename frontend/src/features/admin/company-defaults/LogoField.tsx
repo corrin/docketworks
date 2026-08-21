@@ -10,6 +10,7 @@ import {
 } from '@/api'
 import { Button } from '@/components/ui/button'
 
+import { fieldAutomationId } from './fieldAutomationId'
 import { aspectRatioProblem } from './logoAspectRatio'
 import type { SettingsFieldInputProps } from './SettingsFieldInput'
 
@@ -38,9 +39,14 @@ export function LogoField({ field, value, section }: SettingsFieldInputProps) {
   const uploadMutation = useMutation(companyDefaultsLogoUpdateMutation())
   const destroyMutation = useMutation(companyDefaultsLogoDestroyMutation())
   const [validationError, setValidationError] = useState<string | null>(null)
-  const automationId = `CompanyDefaultsPage-${section}-field-${field.key}`
+  const automationId = fieldAutomationId(section, field.key)
   const url = typeof value === 'string' ? value : null
   const fieldName = requireLogoFieldName(field.key)
+  // One in-flight guard for both controls: an upload started mid-remove (or a
+  // second Remove click before the first round-trip lands) would otherwise
+  // race two mutations against the same slot.
+  const busy = uploadMutation.isPending || destroyMutation.isPending
+  const uploadDisabled = field.read_only || busy
 
   async function onFile(file: File) {
     const problem = await aspectRatioProblem(field.key, file)
@@ -85,13 +91,21 @@ export function LogoField({ field, value, section }: SettingsFieldInputProps) {
       <div className="flex items-center gap-2">
         {/* A visible <label> wrapping a hidden file input keeps the control
          * keyboard-reachable and screen-reader-named without a synthetic
-         * click() call from a ref. */}
-        <label className="inline-flex cursor-pointer items-center rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+         * click() call from a ref. focus-within carries the input's focus
+         * ring onto the visible label, since the input itself is sr-only. */}
+        <label
+          className={
+            uploadDisabled
+              ? 'inline-flex cursor-not-allowed items-center rounded-md border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-400'
+              : 'inline-flex cursor-pointer items-center rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-slate-400 focus-within:ring-offset-2'
+          }
+        >
           Upload
           <input
             type="file"
             accept={LOGO_ACCEPT}
             className="sr-only"
+            disabled={uploadDisabled}
             aria-label={`Upload ${field.label}`}
             data-automation-id={`${automationId}-upload`}
             onChange={(event) => {
@@ -106,6 +120,7 @@ export function LogoField({ field, value, section }: SettingsFieldInputProps) {
             type="button"
             variant="outline"
             size="sm"
+            disabled={field.read_only || busy}
             onClick={() => void onRemove()}
             data-automation-id={`${automationId}-remove`}
           >
@@ -113,7 +128,11 @@ export function LogoField({ field, value, section }: SettingsFieldInputProps) {
           </Button>
         )}
       </div>
-      {validationError && <p className="text-xs text-red-700">{validationError}</p>}
+      {validationError && (
+        <p className="text-xs text-red-700" data-automation-id={`${automationId}-validation`}>
+          {validationError}
+        </p>
+      )}
     </div>
   )
 }

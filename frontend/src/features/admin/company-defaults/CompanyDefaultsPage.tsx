@@ -20,6 +20,7 @@ import { SettingsFieldInput } from './SettingsFieldInput'
 import {
   buildPatch,
   dirtyKeys,
+  imageUrlKey,
   snapshotSection,
   type CompanyDefaultsRecord,
   type FieldValue,
@@ -123,7 +124,7 @@ function SectionShell({
  * entry `defaults` is read from, so this stays current without a remount —
  * where the snapshot only refreshes on the next SectionForm mount. */
 function imageUrl(defaults: CompanyDefaultsRecord, key: string): FieldValue {
-  const raw = defaults[`${key}_url`]
+  const raw = defaults[imageUrlKey(key)]
   return typeof raw === 'string' ? raw : null
 }
 
@@ -211,22 +212,39 @@ function SectionForm({
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
-        {genericFields.map((field) => (
-          <label key={field.key} className="flex flex-col gap-1 text-sm font-medium">
-            <span className="text-slate-700">{field.label}</span>
-            <SettingsFieldInput
-              field={field}
-              section={section.key}
-              value={
-                field.type === 'image' ? imageUrl(defaults, field.key) : (drafts[field.key] ?? null)
-              }
-              onChange={(value) => setDraft(field.key, value)}
-            />
-            {field.help_text && (
-              <span className="text-xs font-normal text-slate-500">{field.help_text}</span>
-            )}
-          </label>
-        ))}
+        {genericFields.map((field) => {
+          const value =
+            field.type === 'image' ? imageUrl(defaults, field.key) : (drafts[field.key] ?? null)
+          const content = (
+            <>
+              <span className="text-slate-700">{field.label}</span>
+              <SettingsFieldInput
+                field={field}
+                section={section.key}
+                value={value}
+                onChange={(next) => setDraft(field.key, next)}
+              />
+              {field.help_text && (
+                <span className="text-xs font-normal text-slate-500">{field.help_text}</span>
+              )}
+            </>
+          )
+          // LogoField's own upload control is a <label>-wrapped file input;
+          // nesting that inside this field's caption <label> is invalid HTML
+          // and makes the OUTER label's implicit control resolve to the
+          // hidden file input, so clicking the caption or the preview image
+          // opens the file picker (a hang under Playwright). image fields get
+          // a <div> caption instead — every other widget type keeps <label>.
+          return field.type === 'image' ? (
+            <div key={field.key} className="flex flex-col gap-1 text-sm font-medium">
+              {content}
+            </div>
+          ) : (
+            <label key={field.key} className="flex flex-col gap-1 text-sm font-medium">
+              {content}
+            </label>
+          )
+        })}
       </div>
       {isWorkingHours && (
         <div className="flex flex-col gap-3" data-automation-id="CompanyDefaultsPage-working-days">
