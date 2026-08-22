@@ -61,7 +61,7 @@ sudo -u postgres createdb docketworks_v2
 uv run python manage.py migrate
 ```
 
-## Private configuration: Xero app and AI providers
+## Private configuration: Xero app, AI providers, integration settings
 
 A fresh database has no `XeroApp` or `AIProvider` rows, and there is no admin UI to create
 them — the fixtures below are the dev path (server instances get theirs rendered by
@@ -87,6 +87,19 @@ gitignored because they hold live keys.
    # edit in the shared credentials, then:
    uv run python manage.py loaddata apps/xero/fixtures/xero_apps.json
    ```
+
+3. **`apps/core/fixtures/integration_settings.json`** — the install-level credentials
+   (ADR 0053): the Google Maps key and, if you need it, the phone provider's login. They are
+   columns on the `IntegrationSettings` row that `migrate` creates; nothing reads them from
+   `.env`. Leave the phone provider unset on a dev machine so dev Celery cannot reach the
+   production phone system. The E2E preflight refuses to run without the Maps key.
+   ```bash
+   cp apps/core/fixtures/integration_settings.json.example apps/core/fixtures/integration_settings.json
+   # edit in the shared Maps key, then:
+   uv run python manage.py load_integration_settings apps/core/fixtures/integration_settings.json
+   ```
+   The command applies each integration only while its columns are unset, so re-running it
+   never overwrites what a superuser has since entered on **Admin > Integrations**.
 
 Production data moves from v1 by `pg_dump`/restore (models keep v1's app labels and table
 names — see [`../CLAUDE.md`](../CLAUDE.md)); refreshing from a production dump is

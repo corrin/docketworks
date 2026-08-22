@@ -11,6 +11,7 @@ import pytest
 from django.test import Client
 
 from apps.company.services.geocoding_service import geocode_address
+from apps.core.models import IntegrationSettings
 
 pytestmark = [
     pytest.mark.django_db,
@@ -49,13 +50,13 @@ def _google_ok(payload: dict[str, Any]) -> MagicMock:
 
 
 @pytest.fixture
-def api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "test-key")
+def api_key() -> None:
+    IntegrationSettings.objects.filter(pk=1).update(google_maps_api_key="test-key")
 
 
 @pytest.fixture
-def no_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
+def no_api_key() -> None:
+    IntegrationSettings.objects.filter(pk=1).update(google_maps_api_key=None)
 
 
 @pytest.mark.usefixtures("api_key")
@@ -86,6 +87,11 @@ class TestEndpoint:
         sent = post.call_args.kwargs["json"]
         assert sent["address"]["addressLines"] == ["12 depot rd penrose"]
         assert sent["address"]["regionCode"] == "NZ"
+        # The key is a header: a URL carrying it would be copied into every
+        # RequestException message and so into AppError.
+        assert post.call_args.kwargs["headers"]["X-Goog-Api-Key"] == "test-key"
+        assert "params" not in post.call_args.kwargs
+        assert "test-key" not in post.call_args.args[0]
 
     def test_no_match_returns_empty_candidates(self, client: Client) -> None:
         with patch(POST_TARGET, return_value=_google_ok({"result": {}})):

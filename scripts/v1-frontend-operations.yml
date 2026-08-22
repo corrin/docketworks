@@ -585,6 +585,8 @@ renamed:
   workflow_xero_pay_items_list: xero_pay_items_list
   company_defaults_upload_logo_create: company_defaults_logo_update
   company_defaults_upload_logo_destroy: company_defaults_logo_destroy
+  getPhoneProviderSettings: integration_settings_retrieve
+  updatePhoneProviderSettings: integration_settings_partial_update
 introduced:
 # Specified by ADR 0007 and the payroll UI contract but never built in v1:
 # what Xero holds for a week, read live, beside what the timesheet recorded.

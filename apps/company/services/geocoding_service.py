@@ -5,10 +5,11 @@ Exposed by the ``companies_addresses_validate_create`` endpoint
 """
 
 import logging
-import os
 from dataclasses import dataclass
 
 import requests
+
+from apps.core.models import IntegrationSettings
 
 logger = logging.getLogger(__name__)
 
@@ -49,14 +50,16 @@ class GeocodingNotConfiguredError(GeocodingError):
 
 
 def get_api_key() -> str:
-    """Get the Google Maps API key from the environment.
+    """Return the Google Maps API key from IntegrationSettings.
 
     Raises:
-        GeocodingNotConfiguredError: if GOOGLE_MAPS_API_KEY is unset.
+        GeocodingNotConfiguredError: if the key is not set.
     """
-    api_key = os.environ.get("GOOGLE_MAPS_API_KEY")
-    if not api_key:
-        raise GeocodingNotConfiguredError("GOOGLE_MAPS_API_KEY not configured")
+    api_key = IntegrationSettings.get_solo().google_maps_api_key
+    if api_key is None:
+        raise GeocodingNotConfiguredError(
+            "Google Maps API key not set — enter it on Admin > Integrations"
+        )
     return api_key
 
 
@@ -71,7 +74,7 @@ def geocode_address(address: str, api_key: str | None = None) -> GeocodingResult
         GeocodingResult with structured address data, or None if no result.
 
     Raises:
-        GeocodingNotConfiguredError: if no API key is available.
+        GeocodingNotConfiguredError: if no API key is set.
         GeocodingError: if the API call fails.
     """
     if not api_key:
@@ -87,11 +90,15 @@ def geocode_address(address: str, api_key: str | None = None) -> GeocodingResult
         "enableUspsCass": False,
     }
 
+    # Fable: the key travels in a header, never the query string. requests
+    # puts the full URL into every RequestException message, and that message
+    # is persisted as an AppError and logged — so `?key=` would write the
+    # credential into the database on the first network blip.
     try:
         response = requests.post(
             url,
             json=payload,
-            params={"key": api_key},
+            headers={"X-Goog-Api-Key": api_key},
             timeout=10,
         )
     except requests.RequestException as exc:

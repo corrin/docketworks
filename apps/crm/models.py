@@ -4,9 +4,8 @@ v2.0 data migrates by pg_dump/restore, so column names and nullability stay
 bit-identical to v1. That parity requirement is why ``null=True`` on string
 fields is kept verbatim (``# noqa: DJ001`` at each site).
 
-v1 stored ``PhoneProviderSettings.username``/``password`` as
-``EncryptedCharField`` (django-encrypted-model-fields); v2 ports them as plain
-``TextField`` until the dependency is adopted at integration time.
+The phone provider's connection settings are columns on
+``apps.core.models.IntegrationSettings`` (ADR 0053), not a model here.
 """
 
 import uuid
@@ -120,53 +119,6 @@ class PhoneEndpoint(models.Model):
             stored["normalized_number"] != self.normalized_number
             or stored["is_active"] != self.is_active
         )
-
-
-class PhoneProviderSettings(models.Model):
-    """CRM phone-provider connection settings."""
-
-    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
-    downloads_enabled = models.BooleanField(default=False)
-    recording_deletion_enabled = models.BooleanField(default=False)
-    base_url = models.URLField(null=True, blank=True, default=None)  # noqa: DJ001
-    # Plaintext by decision (2026-08-01): field-level encryption dropped in v2 —
-    # per-instance DBs owned by per-client roles make it key-management theatre
-    # (v1 already stored Xero tokens unencrypted). v1 ciphertext in this column
-    # must be decrypted (or re-entered) during the one-time data migration.
-    username = models.TextField(blank=True, null=True)  # noqa: DJ001
-    # Plaintext by decision — see username above.
-    password = models.TextField(blank=True, null=True)  # noqa: DJ001
-    account_code = models.CharField(max_length=100, blank=True, null=True)  # noqa: DJ001
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = "Phone Provider Settings"
-        verbose_name_plural = "Phone Provider Settings"
-        constraints: ClassVar[list[models.BaseConstraint]] = [
-            models.CheckConstraint(
-                condition=~models.Q(account_code=""),
-                name="crm_phoneprovidersettings_account_code_not_blank",
-            ),
-            models.CheckConstraint(condition=~models.Q(base_url=""), name="base_url_not_blank"),
-            models.CheckConstraint(
-                condition=~models.Q(password=""),
-                name="crm_phoneprovidersettings_password_not_blank",
-            ),
-            models.CheckConstraint(
-                condition=~models.Q(username=""),
-                name="crm_phoneprovidersettings_username_not_blank",
-            ),
-        ]
-
-    def __str__(self) -> str:
-        return "phone provider settings"
-
-    @classmethod
-    def get_solo(cls) -> "PhoneProviderSettings":
-        """Return the singleton settings row, creating it on first access."""
-        settings, _created = cls.objects.get_or_create(pk=1)
-        return settings
 
 
 class PhoneCallRecord(models.Model):

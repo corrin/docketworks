@@ -71,9 +71,9 @@ A path that touches an external system is not done until a durable test has exec
   every later run reuses. Re-runnability is the property that makes a test durable; design
   for it rather than treating the constraint as a reason to skip.
 - **Missing credentials are work, not an exemption.** The rule binds whether or not a key is
-  currently held. `apps/company/api.py` calls Google Maps and 503s because
-  `GOOGLE_MAPS_API_KEY` is unset in v2 — that is a gap with an owner, not a waiver. v1's
-  `.env` is the reference for which credentials exist.
+  currently held. `apps/company/api.py` calls Google Maps and 503s while the Maps key is
+  unset on `IntegrationSettings` — that is a gap with an owner, not a waiver. v1's `.env`
+  is the reference for which credentials exist.
 - **Read credentials the way the application reads them** so the test exercises the real
   resolution path. Credentials are migrating from `.env` into the database (Xero's
   `XeroApp`, the AI provider config, the phone provider's settings endpoints) so they can be

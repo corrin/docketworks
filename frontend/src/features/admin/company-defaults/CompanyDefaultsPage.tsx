@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useBlocker } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
 import {
@@ -14,6 +14,7 @@ import {
 } from '@/api'
 import { Button } from '@/components/ui/button'
 import { QueryState } from '@/features/shared/QueryState'
+import { useUnsavedChangesGuard } from '@/features/shared/useUnsavedChangesGuard'
 import { companyDefaultsQueryOptions } from '@/features/shell'
 
 import { SettingsFieldInput } from './SettingsFieldInput'
@@ -166,15 +167,7 @@ function SectionForm({
   )
   const isDirty = dirty.length > 0
 
-  // TanStack Router blocks when shouldBlockFn returns true, so a confirmed
-  // discard is the negation. `disabled` arms it — calling the hook
-  // conditionally would break the rules of hooks.
-  useBlocker({
-    shouldBlockFn: () =>
-      !window.confirm('You have unsaved changes. Discard them and leave this page?'),
-    disabled: !isDirty,
-    enableBeforeUnload: () => isDirty,
-  })
+  useUnsavedChangesGuard(isDirty)
 
   const setDraft = (key: string, value: FieldValue): void => {
     setDrafts((previous) => ({ ...previous, [key]: value }))

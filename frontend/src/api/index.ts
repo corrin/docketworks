@@ -60,6 +60,14 @@ export type {
   SettingsSectionOut,
   XeroBrandingThemeOut,
 } from './generated/types.gen'
+// Integration settings (superuser admin screen: the install's vendor
+// credentials, ADR 0053 — secrets are write-only on the wire)
+export {
+  integrationSettingsPartialUpdateMutation,
+  integrationSettingsRetrieveOptions,
+  integrationSettingsRetrieveQueryKey,
+} from './generated/@tanstack/react-query.gen'
+export type { IntegrationSettingsOut, IntegrationSettingsPatchIn } from './generated/types.gen'
 // The push half of the same document: a stream of data-version pushes, which
 // consumers run instead of waiting out their poll interval.
 export { runDataVersionsStream } from './data-versions-stream'

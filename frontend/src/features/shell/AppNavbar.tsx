@@ -121,6 +121,9 @@ export function AppNavbar() {
             <NavMenuLink to="/admin/company-defaults" automationId="AppNavbar-company-defaults">
               Company Defaults
             </NavMenuLink>
+            <NavMenuLink to="/admin/integrations" automationId="AppNavbar-integrations">
+              Integrations
+            </NavMenuLink>
           </NavMenu>
         )}
       </div>

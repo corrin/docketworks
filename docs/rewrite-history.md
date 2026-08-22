@@ -181,3 +181,12 @@ took 30s for 76 targets (the Xero calls serialise at one per second) and found
 the invoice-settings link plus two rotted certbot raw URLs in
 `scripts/server/server-setup.sh` (the files moved under `certbot/src/`).
 
+**Integration credentials move off the environment, 2026-08-23.** The owner
+ruled the shape for vendor credentials as integrations keep arriving: typed
+columns on one `IntegrationSettings` singleton in `apps/core` for everything
+the install has exactly one of, typed tables for the N-of integrations, and
+never `CompanyDefaults` (its any-staff GET echoes every column). Row-per-
+integration was weighed and rejected because its only honest form is generic
+columns plus a JSON bag mypy cannot see into. `PhoneProviderSettings` is
+replaced rather than joined by the new model, and `GOOGLE_MAPS_API_KEY` leaves
+`.env`, `shared.env` and `server-setup.sh` entirely. ADR 0053 records the rules.

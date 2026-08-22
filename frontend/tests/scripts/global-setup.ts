@@ -30,6 +30,38 @@ function mintRunId(): string {
  */
 const BACKEND_URL = 'http://127.0.0.1:8000'
 
+/**
+ * The pickup-address spec validates addresses against Google for real, so the
+ * E2E database must hold the Maps key (an IntegrationSettings column, never
+ * env). Reported as a preflight issue naming the fix rather than left to fail
+ * as a 503 inside the spec.
+ */
+async function integrationSettingsIssues(): Promise<string[]> {
+  const cookieValue = await getAuthCookie()
+  const response = await fetch(`${BACKEND_URL}/api/integration-settings/`, {
+    headers: { Cookie: cookieValue },
+    signal: AbortSignal.timeout(30_000),
+  })
+  if (!response.ok) {
+    return [
+      `GET /api/integration-settings/ answered ${response.status}; the E2E account must be a superuser`,
+    ]
+  }
+  const body: unknown = await response.json()
+  const configured =
+    typeof body === 'object' && body !== null && 'has_google_maps_api_key' in body
+      ? body.has_google_maps_api_key === true
+      : false
+  if (!configured) {
+    return [
+      'No Google Maps API key on IntegrationSettings. Load one with ' +
+        '`uv run python manage.py load_integration_settings apps/core/fixtures/integration_settings.json` ' +
+        '(copy the .example) or enter it on Admin > Integrations.',
+    ]
+  }
+  return []
+}
+
 async function getAuthCookie(): Promise<string> {
   const username = process.env.E2E_TEST_USERNAME
   const password = process.env.E2E_TEST_PASSWORD
@@ -187,6 +219,13 @@ export default async function globalSetup(): Promise<void> {
     if (xeroIssues.length > 0) {
       const issueList = xeroIssues.map((i) => `  - ${i}`).join('\n')
       throw new Error(`E2E Xero pre-flight checks failed:\n${issueList}`)
+    }
+
+    console.log('[integrations] Checking the Google Maps key is configured...')
+    const integrationIssues = await integrationSettingsIssues()
+    if (integrationIssues.length > 0) {
+      const issueList = integrationIssues.map((i) => `  - ${i}`).join('\n')
+      throw new Error(`E2E integration pre-flight checks failed:\n${issueList}`)
     }
 
     console.log('[db] Checking database is safe for E2E tests...')

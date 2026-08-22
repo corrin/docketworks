@@ -13,8 +13,8 @@ from django.utils import timezone
 from pytest_django.fixtures import SettingsWrapper
 
 from apps.company.models import ContactMethod
-from apps.core.models import AppError
-from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneProviderSettings
+from apps.core.models import AppError, IntegrationSettings
+from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.crm.services.phone_call_service import (
     PhoneMatcher,
     PhoneProviderCallPage,
@@ -245,14 +245,11 @@ class TestProviderRecordingDeletion:
 
     @pytest.fixture(autouse=True)
     def provider_settings(self) -> None:
-        PhoneProviderSettings.objects.update_or_create(
-            pk=1,
-            defaults={
-                "base_url": "https://phone.example.test",
-                "username": "user",
-                "password": "secret",
-                "account_code": "account",
-            },
+        IntegrationSettings.objects.filter(pk=1).update(
+            phone_provider_base_url="https://phone.example.test",
+            phone_provider_username="user",
+            phone_provider_password="secret",
+            phone_provider_account_code="account",
         )
 
     def test_deletes_only_downloaded_calls_more_than_one_month_old(self) -> None:
@@ -298,14 +295,11 @@ class TestPhoneCallSync:
     @pytest.fixture(autouse=True)
     def provider_env(self, settings: SettingsWrapper, tmp_path: Path) -> Path:
         settings.PHONE_RECORDING_STORAGE_ROOT = str(tmp_path)
-        PhoneProviderSettings.objects.update_or_create(
-            pk=1,
-            defaults={
-                "base_url": "https://phone.example.test",
-                "username": "user",
-                "password": "secret",
-                "account_code": "account",
-            },
+        IntegrationSettings.objects.filter(pk=1).update(
+            phone_provider_base_url="https://phone.example.test",
+            phone_provider_username="user",
+            phone_provider_password="secret",
+            phone_provider_account_code="account",
         )
         return tmp_path
 

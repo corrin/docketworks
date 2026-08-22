@@ -1,9 +1,4 @@
-"""Request and response schemas for the CRM phone-call API.
-
-Provider-settings credentials are write-only and surface only as
-``has_username`` and ``has_password`` booleans; stored values never cross the
-read boundary.
-"""
+"""Request and response schemas for the CRM phone-call API."""
 
 from datetime import date, datetime, time
 from typing import Annotated, Literal
@@ -13,12 +8,7 @@ from ninja import Field, Schema
 from pydantic import StringConstraints
 
 from apps.core.schemas import ResponseSchema, omittable
-from apps.crm.models import (
-    PhoneCallRecord,
-    PhoneCallRecording,
-    PhoneEndpoint,
-    PhoneProviderSettings,
-)
+from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
 
 EndpointTypeLiteral = Literal["main_line", "staff_mobile", "staff_ddi", "extension", "shared"]
 
@@ -277,41 +267,3 @@ class PhoneEndpointPatchIn(Schema):
     provider_account_code: str | None = Field(None, min_length=1, max_length=100)
     provider_metadata: dict[str, object] = Field(default_factory=dict)
     is_active: bool = omittable(True)
-
-
-class PhoneProviderSettingsOut(Schema):
-    """Wire contract for PhoneProviderSettingsOut."""
-
-    id: int
-    downloads_enabled: bool
-    recording_deletion_enabled: bool
-    base_url: str | None
-    has_username: bool
-    has_password: bool
-    account_code: str | None
-    created_at: datetime
-    updated_at: datetime
-
-    @staticmethod
-    def resolve_has_username(obj: PhoneProviderSettings) -> bool:
-        """Report whether a username is stored (the value never leaves the server)."""
-        return bool(obj.username)
-
-    @staticmethod
-    def resolve_has_password(obj: PhoneProviderSettings) -> bool:
-        """Report whether a password is stored (the value never leaves the server)."""
-        return bool(obj.password)
-
-
-class PhoneProviderSettingsPatchIn(Schema):
-    """Wire contract for PhoneProviderSettingsPatchIn."""
-
-    # As above: presence markers, not values. `provided.get(key, stored_value)`
-    # in the handler means an omitted flag keeps the stored setting, so the
-    # published `default: false` actively misdescribed the behaviour.
-    downloads_enabled: bool = omittable(False)
-    recording_deletion_enabled: bool = omittable(False)
-    base_url: str | None = Field(None, min_length=1, max_length=200)
-    username: Annotated[str, StringConstraints(min_length=1)] = omittable("")
-    password: Annotated[str, StringConstraints(min_length=1)] = omittable("")
-    account_code: str | None = Field(None, min_length=1, max_length=100)

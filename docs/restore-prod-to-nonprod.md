@@ -134,14 +134,15 @@ A failing archive is not restored — take a fresh one.
 
 ## Preserve the private configuration rows
 
-The scrubbed dump strips `workflow_xeroapp` and `workflow_aiprovider`, so the
-load leaves this installation with no Xero application registration and no AI
-provider configuration. Both rows already exist in the target database and are
-owned by this installation, not by production: copy them out before the load and
-back in afterwards.
+The scrubbed dump strips `workflow_xeroapp`, `workflow_aiprovider` and
+`crm_phoneprovidersettings` (the `IntegrationSettings` row), so the load leaves
+this installation with no Xero application registration, no AI provider
+configuration and no Google Maps key. All three already exist in the target
+database and are owned by this installation, not by production: copy them out
+before the load and back in afterwards.
 
 A fresh target database is the one branch here: it has no rows to preserve, so
-skip the copy-out, and after the load bootstrap both rows from the dev fixtures
+skip the copy-out, and after the load bootstrap all three from the dev fixtures
 instead (see "Private configuration" in
 [`initial_install.md`](initial_install.md)).
 
@@ -162,9 +163,10 @@ minutes before the load precisely to avoid one.
 ```bash
 psql -d "$DB_NAME" -c "\copy workflow_xeroapp TO 'restore/xeroapp.csv' WITH (FORMAT csv)"
 psql -d "$DB_NAME" -c "\copy workflow_aiprovider TO 'restore/aiprovider.csv' WITH (FORMAT csv)"
+psql -d "$DB_NAME" -c "\copy crm_phoneprovidersettings TO 'restore/integrationsettings.csv' WITH (FORMAT csv)"
 ```
 
-**Check:** both files exist and are non-empty. An empty `xeroapp.csv` means the
+**Check:** all three files exist and are non-empty. An empty `xeroapp.csv` means the
 token material is already gone, and the re-consent later in this runbook is the
 only way to get a working connection back.
 
@@ -174,6 +176,10 @@ configuration:
 ```bash
 psql -d "$DB_NAME" -c "\copy workflow_xeroapp FROM 'restore/xeroapp.csv' WITH (FORMAT csv)"
 psql -d "$DB_NAME" -c "\copy workflow_aiprovider FROM 'restore/aiprovider.csv' WITH (FORMAT csv)"
+# The migration script re-applied core/0003 after the load, which created an
+# empty IntegrationSettings row at pk=1; the saved row replaces it.
+psql -d "$DB_NAME" -c "DELETE FROM crm_phoneprovidersettings"
+psql -d "$DB_NAME" -c "\copy crm_phoneprovidersettings FROM 'restore/integrationsettings.csv' WITH (FORMAT csv)"
 ```
 
 On a server instance the re-insert is not a CSV round trip: regenerate and load
@@ -203,14 +209,15 @@ and the seed pushes production-id rows at the demo organisation — the exact
 duplication the seed exists to prevent. The seed re-opens the gate once it
 measures the mirror fully linked.
 
-Local dev deliberately has no `PhoneProviderSettings` row, so dev Celery cannot
-reach the production phone system. On a local dev restore, assert that absence
-rather than assuming it:
+Local dev deliberately has no phone-provider credentials on its
+`IntegrationSettings` row, so dev Celery cannot reach the production phone
+system. On a local dev restore, assert that rather than assuming it:
 
 ```bash
 uv run python manage.py shell -c "
-from apps.crm.models import PhoneProviderSettings
-assert not PhoneProviderSettings.objects.exists(), 'phone provider must be unconfigured on local dev'
+from apps.core.models import IntegrationSettings
+s = IntegrationSettings.get_solo()
+assert not (s.phone_provider_base_url or s.phone_provider_username or s.phone_provider_password), 'phone provider must be unconfigured on local dev'
 "
 ```
 
@@ -467,6 +474,10 @@ broken until this fabricates a placeholder for each row.
 rows still have no file on disk.
 
 ## Post-restore checks
+
+`check_integration_settings` makes one live Address Validation call, so the
+refreshed database must hold the Maps key (re-inserted above, or loaded with
+`manage.py load_integration_settings`) before this loop runs.
 
 ```bash
 (for s in scripts/ops/restore_checks/check_*.py; do

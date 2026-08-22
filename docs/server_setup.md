@@ -41,36 +41,31 @@ decision about which domains it serves certs for: one or more
 # First install on UAT (wildcard cert covering every *-uat.docketworks.site):
 sudo ./scripts/server/server-setup.sh \
     --dreamhost-key   "$DREAMHOST_API_KEY" \
-    --google-maps-key "$GOOGLE_MAPS_API_KEY" \
     --cert-domain     '*.docketworks.site'
 
 # Same UAT box also serving a client-branded URL (additional cert):
 sudo ./scripts/server/server-setup.sh \
     --dreamhost-key   "$DREAMHOST_API_KEY" \
-    --google-maps-key "$GOOGLE_MAPS_API_KEY" \
     --cert-domain     '*.docketworks.site' \
     --cert-domain     uat-office.morrissheetmetal.co.nz
 
 # First install on a prod box (one cert for the customer FQDN):
 sudo ./scripts/server/server-setup.sh \
     --dreamhost-key   "$DREAMHOST_API_KEY" \
-    --google-maps-key "$GOOGLE_MAPS_API_KEY" \
     --cert-domain     office.heuserlimited.com
 
 # First install on a DR box (no certs obtained):
 sudo ./scripts/server/server-setup.sh \
     --dreamhost-key   "$DREAMHOST_API_KEY" \
-    --google-maps-key "$GOOGLE_MAPS_API_KEY" \
     --no-cert-domain
 
 # Re-run on an already-configured server (reads everything from saved files):
 sudo ./scripts/server/server-setup.sh
 ```
 
-The Dreamhost key, Google Maps key, and cert-domain list are persisted
-on first install at `/etc/letsencrypt/dreamhost-api-key.txt`,
-`/opt/docketworks/shared.env`, and `/etc/letsencrypt/cert-domains.txt`
-respectively. Re-runs read all three from disk, so `deploy.sh` can
+The Dreamhost key and cert-domain list are persisted on first install at
+`/etc/letsencrypt/dreamhost-api-key.txt` and `/etc/letsencrypt/cert-domains.txt`
+respectively. Re-runs read both from disk, so `deploy.sh` can
 re-invoke `server-setup.sh` with no flags on every deploy.
 
 To add or remove a single cert-domain on an already-configured server,

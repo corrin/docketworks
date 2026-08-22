@@ -526,7 +526,7 @@ def companies_addresses_validate_create(
 ) -> dict[str, list[dict[str, object]]]:
     """Validate a freetext address and return structured candidates.
 
-    503 when the Google API is unavailable or GOOGLE_MAPS_API_KEY is not
+    503 when the Google API is unavailable or the Google Maps API key is not
     configured (v1 behaviour).
     """
     address = payload.address.strip()
@@ -536,7 +536,7 @@ def companies_addresses_validate_create(
     try:
         result = geocode_address(address)
     except GeocodingNotConfiguredError as exc:
-        logger.warning("GOOGLE_MAPS_API_KEY not configured")
+        logger.warning("Google Maps API key not set on IntegrationSettings")
         raise HttpError(503, "Address validation service not configured") from exc
     except GeocodingError as exc:
         persist_app_error(exc)

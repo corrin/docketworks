@@ -21,13 +21,12 @@ config/api.py: ``api.add_router("/crm/", router)``.
 - PUT    /api/crm/phone-endpoints/{id}/             crm_phone_endpoints_update
 - PATCH  /api/crm/phone-endpoints/{id}/             crm_phone_endpoints_partial_update
 - DELETE /api/crm/phone-endpoints/{id}/             crm_phone_endpoints_destroy
-- GET    /api/crm/phone-provider-settings/          getPhoneProviderSettings
-- PATCH  /api/crm/phone-provider-settings/          updatePhoneProviderSettings
 
-Authorization requires office staff for calls and
-recording reads; superuser for recording deletes, endpoint admin, and provider
-settings. The phone-provider *ingestion* URLs are not here — ingestion is a
-poll of the provider portal (see services/phone_call_service.py, EXACT-URL PIN).
+Authorization requires office staff for calls and recording reads; superuser
+for recording deletes and endpoint admin. The provider connection settings are
+``/api/integration-settings/`` in apps/core. The phone-provider *ingestion*
+URLs are not here — ingestion is a poll of the provider portal (see
+services/phone_call_service.py, EXACT-URL PIN).
 """
 
 import mimetypes
@@ -35,9 +34,7 @@ from collections.abc import Callable
 from datetime import date
 from uuid import UUID
 
-from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.paginator import EmptyPage, Paginator
-from django.core.validators import URLValidator
 from django.db.models import Q, QuerySet
 from django.http import (
     FileResponse,
@@ -55,12 +52,7 @@ from apps.accounts.models import Staff
 from apps.company.models import ContactMethod
 from apps.core.auth import CookieJWTAuth
 from apps.core.errors import persist_app_error
-from apps.crm.models import (
-    PhoneCallRecord,
-    PhoneCallRecording,
-    PhoneEndpoint,
-    PhoneProviderSettings,
-)
+from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
 from apps.crm.schemas import (
     OperationErrorOut,
     PaginatedPhoneCallRecordsOut,
@@ -73,8 +65,6 @@ from apps.crm.schemas import (
     PhoneEndpointPatchIn,
     PhoneEndpointPutIn,
     PhoneNumberAssignmentIn,
-    PhoneProviderSettingsOut,
-    PhoneProviderSettingsPatchIn,
 )
 from apps.crm.services.phone_call_service import (
     assign_phone_number_from_call,
@@ -676,65 +666,3 @@ def destroy_endpoint(request: HttpRequest, endpoint_id: UUID) -> Status[None]:
     endpoint.delete()
     rematch_phone_calls_task.delay([number])
     return Status(204, None)
-
-
-# ---------------------------------------------------------------------------
-# Phone provider settings (superuser admin surface)
-# ---------------------------------------------------------------------------
-
-
-_PROVIDER_SETTINGS_FIELDS = (
-    "downloads_enabled",
-    "recording_deletion_enabled",
-    "base_url",
-    "username",
-    "password",
-    "account_code",
-)
-
-
-@router.get(
-    "/phone-provider-settings/",
-    operation_id="getPhoneProviderSettings",
-    response=PhoneProviderSettingsOut,
-    summary="Read the phone provider connection settings",
-)
-def get_provider_settings(request: HttpRequest) -> PhoneProviderSettings:
-    """Return the singleton settings row; credentials appear only as has_* booleans."""
-    _require_superuser(request)
-    return PhoneProviderSettings.get_solo()
-
-
-@router.patch(
-    "/phone-provider-settings/",
-    operation_id="updatePhoneProviderSettings",
-    response={200: PhoneProviderSettingsOut, 400: FieldErrors},
-    summary="Update the phone provider connection settings",
-)
-def update_provider_settings(
-    request: HttpRequest,
-    payload: PhoneProviderSettingsPatchIn,
-) -> Status[PhoneProviderSettings | FieldErrors]:
-    """Partial update; omitted username/password keep the stored credential."""
-    _require_superuser(request)
-    phone_settings = PhoneProviderSettings.get_solo()
-    provided = payload.dict(exclude_unset=True)
-
-    downloads_enabled = provided.get("downloads_enabled", phone_settings.downloads_enabled)
-    base_url = provided.get("base_url", phone_settings.base_url)
-    if downloads_enabled and not base_url:
-        return Status(400, {"base_url": ["Base URL is required when phone downloads are enabled."]})
-    if provided.get("base_url"):
-        try:
-            URLValidator()(provided["base_url"])
-        # deliberate-swallow: URLValidator signals "not a URL" by raising, so
-        # this is the validator's answer being read, not an error being hidden;
-        # it becomes the field error the form renders next to base_url
-        except DjangoValidationError:
-            return Status(400, {"base_url": ["Enter a valid URL."]})
-
-    for field_name in _PROVIDER_SETTINGS_FIELDS:
-        if field_name in provided:
-            setattr(phone_settings, field_name, provided[field_name])
-    phone_settings.save()
-    return Status(200, phone_settings)

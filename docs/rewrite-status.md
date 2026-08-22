@@ -43,14 +43,14 @@ done only when that spec is green.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **38 of 40** — green is the only measure that counts |
-| Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
+| E2E specs ported | **39 of 40** — green is the only measure that counts |
+| Backend operations still to port | **71** (see below; 34 more exist but nothing calls them) |
 | API operations v2 exposes | 219 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2484 (all passing) |
+| Unit tests | 2497 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 110 recorded deviations |
-| ADRs | 39 (v1's 26 carried forward + 0038–0041, 0043, 0045–0052 written here) |
+| ADRs | 40 (v1's 26 carried forward + 0038–0041, 0043, 0045–0053 written here) |
 
 **Written is not ported.** Report progress as specs green; a count of endpoints
 written measures typing, not delivery.
@@ -195,6 +195,16 @@ rather than anywhere else. This file is finished when it is empty.
   ADR 0041 claims the gateway is where these live; make that true.
 - **Labour Rates card and the price-cap/RDTI/urgent controls** on
   `JobSettingsTab` — no spec asserts them.
+- **Call-recording retention is a setting, not a literal** (owner, 2026-08-23).
+  Two knobs: the provider-side deletion delay, a literal 31 days at
+  `apps/crm/services/phone_call_service.py:187`, becomes
+  `IntegrationSettings.phone_provider_recording_deletion_after_days` beside its
+  switch; and local retention, which does not exist — archived recordings under
+  `PHONE_RECORDING_STORAGE_ROOT` are kept forever — becomes
+  `CompanyDefaults.phone_recording_retention_days` (default 730) with a beat
+  task that deletes the file and its `PhoneCallRecording` row past the cutoff by
+  call date, refuses to run while the value is unset, and ships with a spec
+  because it destroys data.
 
 ## DEFERRED — after cutover
 
@@ -297,7 +307,8 @@ rather than anywhere else. This file is finished when it is empty.
   Sheets sync; the dependency is the real cost, not the endpoints. When that
   Drive client lands in `apps/`, `scripts/ops/outbound_links_probe.py` becomes
   `manage.py check_links` (ADR 0049: it is a script only because the app does
-  not read `GCP_CREDENTIALS` yet).
+  not read `GCP_CREDENTIALS` yet). The service-account JSON lands as a column
+  on `IntegrationSettings` with that client (ADR 0053), never back in `.env`.
 - **Job — reports:** weekly metrics, workshop list, completed/archive,
   profitability, archived-jobs compliance. Each is a fresh aggregation service.
 - **App errors read path:** `app_errors_*`. The write path is done everywhere.
@@ -406,6 +417,12 @@ other surfaces join as they arrive (ADR 0047) — never a second stream.
 - Untested paths worth a net: the per-row savepoint in `save_products`,
   `_save_mapping`'s concurrent-parse branch, `scheduled_task_service.py`'s
   malformed-entry guards, and `MAX_FAILURE_RATIO`'s 50% boundary.
+- **Fixture renderers pass secrets as process arguments.** All three
+  `scripts/server/instance.sh` renderers (`render_ai_providers_fixture`,
+  `render_xero_apps_fixture`, `render_integration_settings_fixture`) expand API
+  keys, the Xero client secret and the phone password into `sed -e` arguments,
+  readable by any local user listing processes while provisioning runs. Render
+  through one helper that reads values from stdin, for all three at once.
 - **The payroll SDK boundary has inline siblings.** `payroll_sdk.payroll_api`
   is the declared one home for building the payroll client, but
   `payroll_sync`, `payroll_setup`, `payroll_employees` and

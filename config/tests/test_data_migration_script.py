@@ -38,6 +38,10 @@ SYSTEM_AUTOMATION_EMAIL = "system.automation@docketworks.local"
 SEEDING_MIGRATIONS = {
     ("accounts", "0003_seed_system_automation_user"),
     ("job", "0002_seed_labour_subtypes"),
+    # Fable: the IntegrationSettings singleton (pk=1). Leaving it out of this
+    # set is rejected because v1's row arrives under the same key and the
+    # single-transaction restore rolls back whole on the collision.
+    ("core", "0003_integration_settings_row"),
 }
 
 # Migrations that FIX existing rows. Being a no-op against an empty database is
@@ -62,7 +66,32 @@ DATA_MIGRATIONS_RERUN_AFTER_RESTORE = {
     # posted on top of the line Xero computes itself. The lines it fixes arrive
     # with the restore, so the empty-database run finds none.
     ("timesheet", "0004_public_holiday_posts_nowhere"),
+    # Fable: also here, because a dump that never created the row would
+    # otherwise leave the singleton absent and every get_solo() raising.
+    ("core", "0003_integration_settings_row"),
 }
+
+
+# Migrations the script unapplies BEFORE the restore. Restoring with them
+# applied is rejected because pg_dump --data-only names every column in its
+# COPY, so a renamed column aborts the single-transaction load.
+UNAPPLIED_BEFORE_RESTORE = {
+    ("accounts", "0004"),
+    # Fable: core/0002 renamed the phone-provider columns; crm/0002 is state-only, so
+    # core at 0001 is exactly v1's table.
+    ("core", "0001"),
+}
+
+
+def test_script_unapplies_column_renames_before_restoring() -> None:
+    """pg_dump names every column in its COPY, so a renamed column aborts the load."""
+    script = MIGRATE_SCRIPT.read_text()
+    restore_at = script.index("pg_restore --data-only")
+
+    for app_label, target in UNAPPLIED_BEFORE_RESTORE:
+        at = script.find(f"migrate {app_label} {target}")
+        assert at != -1, f"{MIGRATE_SCRIPT.name} never unapplies {app_label} to {target}"
+        assert at < restore_at, f"{app_label} is unapplied AFTER the restore, which is too late"
 
 
 def _seeded_tables() -> dict[str, tuple[str, str]]:
@@ -72,6 +101,10 @@ def _seeded_tables() -> dict[str, tuple[str, str]]:
         apps.get_model("job", "LabourSubtype")._meta.db_table: (
             "job",
             "0002_seed_labour_subtypes",
+        ),
+        apps.get_model("core", "IntegrationSettings")._meta.db_table: (
+            "core",
+            "0003_integration_settings_row",
         ),
     }
 
@@ -85,6 +118,7 @@ def test_seed_migrations_actually_write_rows() -> None:
     """
     assert Staff.objects.filter(office_email=SYSTEM_AUTOMATION_EMAIL).exists()
     assert apps.get_model("job", "LabourSubtype")._default_manager.exists()
+    assert apps.get_model("core", "IntegrationSettings")._default_manager.filter(pk=1).exists()
 
 
 def test_script_clears_every_seeded_table_before_restoring() -> None:

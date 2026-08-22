@@ -198,14 +198,16 @@ require_instance_credentials() {
     [[ -z "${XERO_WEBHOOK_KEY:-}" ]] && MISSING+=("XERO_WEBHOOK_KEY")
     [[ -z "${XERO_REDIRECT_URI:-}" ]] && MISSING+=("XERO_REDIRECT_URI")
 
-    PHONE_PROVIDER_DOWNLOADS_ENABLED="${PHONE_PROVIDER_DOWNLOADS_ENABLED:-false}"
+    PHONE_PROVIDER_ENABLED="${PHONE_PROVIDER_ENABLED:-false}"
     PHONE_PROVIDER_RECORDING_DELETION_ENABLED="${PHONE_PROVIDER_RECORDING_DELETION_ENABLED:-false}"
-    if [[ "$PHONE_PROVIDER_DOWNLOADS_ENABLED" == "true" || "$PHONE_PROVIDER_RECORDING_DELETION_ENABLED" == "true" ]]; then
-        [[ -z "${PHONE_PROVIDER_BASE_URL:-}" ]] && MISSING+=("PHONE_PROVIDER_BASE_URL")
-        [[ -z "${PHONE_PROVIDER_USERNAME:-}" ]] && MISSING+=("PHONE_PROVIDER_USERNAME")
-        [[ -z "${PHONE_PROVIDER_PASSWORD:-}" ]] && MISSING+=("PHONE_PROVIDER_PASSWORD")
-        [[ -z "${PHONE_PROVIDER_ACCOUNT_CODE:-}" ]] && MISSING+=("PHONE_PROVIDER_ACCOUNT_CODE")
-    fi
+    # The flags are written into JSON verbatim, so anything but the two JSON
+    # literals is refused here rather than discovered by the loader.
+    for flag in PHONE_PROVIDER_ENABLED PHONE_PROVIDER_RECORDING_DELETION_ENABLED; do
+        case "${!flag}" in
+            true|false) ;;
+            *) echo "ERROR: $flag must be exactly 'true' or 'false' in $creds_file (got '${!flag}')"; exit 1 ;;
+        esac
+    done
 
     if [[ ${#MISSING[@]} -gt 0 ]]; then
         echo "ERROR: Missing required values in $creds_file:"
@@ -311,14 +313,6 @@ render_instance_env() {
         -e "s|__REDIS_DB__|$redis_db|g" \
         "$TEMPLATE_DIR/env-instance.template" > "$tmp_env"
 
-    local shared_env="$BASE_DIR/shared.env"
-    if [[ ! -f "$shared_env" ]]; then
-        rm -f "$tmp_env"
-        echo "ERROR: $shared_env not found. Run server-setup.sh first."
-        exit 1
-    fi
-    echo "" >> "$tmp_env"
-    grep '^GOOGLE_MAPS_API_KEY=' "$shared_env" >> "$tmp_env"
     chown "$instance_user:$instance_user" "$tmp_env"
     chmod 600 "$tmp_env"
     mv "$tmp_env" "$env_file"
@@ -371,31 +365,33 @@ render_xero_apps_fixture() {
     chmod 600 "$fixture_dir/xero_apps.json"
 }
 
-render_phone_provider_settings_fixture() {
+render_integration_settings_fixture() {
     local instance_dir="$1"
     local instance_user="$2"
     local fixture_dir="$instance_dir/.fixtures"
 
-    log "Generating phone provider settings fixture..."
+    log "Generating integration settings fixture..."
     mkdir -p "$fixture_dir"
-    local PHONE_PROVIDER_BASE_URL_JSON PHONE_PROVIDER_USERNAME_JSON
+    local GOOGLE_MAPS_API_KEY_JSON PHONE_PROVIDER_BASE_URL_JSON PHONE_PROVIDER_USERNAME_JSON
     local PHONE_PROVIDER_PASSWORD_JSON PHONE_PROVIDER_ACCOUNT_CODE_JSON
+    GOOGLE_MAPS_API_KEY_JSON="$(sed_escape "$(json_string_or_null "${GOOGLE_MAPS_API_KEY:-}")")"
     PHONE_PROVIDER_BASE_URL_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_BASE_URL:-}")")"
     PHONE_PROVIDER_USERNAME_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_USERNAME:-}")")"
     PHONE_PROVIDER_PASSWORD_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_PASSWORD:-}")")"
     PHONE_PROVIDER_ACCOUNT_CODE_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_ACCOUNT_CODE:-}")")"
     sed \
-        -e "s|__PHONE_PROVIDER_DOWNLOADS_ENABLED__|${PHONE_PROVIDER_DOWNLOADS_ENABLED:-false}|g" \
+        -e "s|__GOOGLE_MAPS_API_KEY_JSON__|$GOOGLE_MAPS_API_KEY_JSON|g" \
+        -e "s|__PHONE_PROVIDER_ENABLED__|${PHONE_PROVIDER_ENABLED:-false}|g" \
         -e "s|__PHONE_PROVIDER_RECORDING_DELETION_ENABLED__|${PHONE_PROVIDER_RECORDING_DELETION_ENABLED:-false}|g" \
         -e "s|__PHONE_PROVIDER_BASE_URL_JSON__|$PHONE_PROVIDER_BASE_URL_JSON|g" \
         -e "s|__PHONE_PROVIDER_USERNAME_JSON__|$PHONE_PROVIDER_USERNAME_JSON|g" \
         -e "s|__PHONE_PROVIDER_PASSWORD_JSON__|$PHONE_PROVIDER_PASSWORD_JSON|g" \
         -e "s|__PHONE_PROVIDER_ACCOUNT_CODE_JSON__|$PHONE_PROVIDER_ACCOUNT_CODE_JSON|g" \
-        "$TEMPLATE_DIR/phone-provider-settings.json.template" \
-        > "$fixture_dir/phone_provider_settings.json"
+        "$TEMPLATE_DIR/integration-settings.json.template" \
+        > "$fixture_dir/integration_settings.json"
     chown -R "$instance_user:$instance_user" "$fixture_dir"
     chmod 700 "$fixture_dir"
-    chmod 600 "$fixture_dir/phone_provider_settings.json"
+    chmod 600 "$fixture_dir/integration_settings.json"
 }
 
 # ============================================================
@@ -716,12 +712,22 @@ EOSQL
         "from django.core.management import call_command; from apps.xero.models import XeroApp; print('XeroApp already configured; skipping xero_apps.json load') if XeroApp.objects.exists() else call_command('loaddata', '$XERO_APPS_FIXTURE')"
     rm -f "$XERO_APPS_FIXTURE"
 
-    render_phone_provider_settings_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
-    log "Loading phone provider settings..."
-    local PHONE_PROVIDER_SETTINGS_FIXTURE="$INSTANCE_DIR/.fixtures/phone_provider_settings.json"
-    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
-        "from django.core.management import call_command; from apps.crm.models import PhoneProviderSettings; settings = PhoneProviderSettings.get_solo(); configured = bool(settings.base_url or settings.username or settings.account_code); print('PhoneProviderSettings already configured; skipping phone_provider_settings.json load') if configured else call_command('loaddata', '$PHONE_PROVIDER_SETTINGS_FIXTURE')"
-    rm -f "$PHONE_PROVIDER_SETTINGS_FIXTURE"
+    render_integration_settings_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
+    log "Loading integration settings..."
+    local INTEGRATION_SETTINGS_FIXTURE="$INSTANCE_DIR/.fixtures/integration_settings.json"
+    # Fable: not loaddata: the row holds several integrations, and a restored
+    # instance that already carries the phone login must still receive the
+    # Maps key without that login being overwritten. The command applies each
+    # integration only while its columns are unset, and creates the row when a
+    # scrubbed restore left the table empty.
+    # The rendered fixture holds the key and the phone password; it is gone
+    # whether the loader succeeds or not.
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py load_integration_settings \
+        "$INTEGRATION_SETTINGS_FIXTURE" || {
+        rm -f "$INTEGRATION_SETTINGS_FIXTURE"
+        exit 1
+    }
+    rm -f "$INTEGRATION_SETTINGS_FIXTURE"
 
     if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
         # No scripted admin bootstrap: a stored bootstrap password is a
