@@ -24,7 +24,7 @@ from typing import ClassVar, Literal
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import models
+from django.db import models, transaction
 from django.db.models.fields.files import FieldFile
 from django.http import HttpRequest, HttpResponse
 from ninja import File, ModelSchema, Router, Schema
@@ -404,7 +404,7 @@ class IntegrationSettingsOut(Schema):
 
     id: int
     has_google_maps_api_key: bool
-    phone_provider_downloads_enabled: bool
+    phone_provider_enabled: bool
     phone_provider_recording_deletion_enabled: bool
     phone_provider_base_url: str | None
     has_phone_provider_username: bool
@@ -433,36 +433,12 @@ class IntegrationSettingsPatchIn(Schema):
     """Partial update: omitted fields keep their stored value, ``null`` clears."""
 
     google_maps_api_key: NullableText = omittable(None)
-    phone_provider_downloads_enabled: bool = omittable(False)
+    phone_provider_enabled: bool = omittable(False)
     phone_provider_recording_deletion_enabled: bool = omittable(False)
     phone_provider_base_url: NullableText = omittable(None)
     phone_provider_username: NullableText = omittable(None)
     phone_provider_password: NullableText = omittable(None)
     phone_provider_account_code: NullableText = omittable(None)
-
-
-_PHONE_PROVIDER_LOGIN = (
-    "phone_provider_base_url",
-    "phone_provider_username",
-    "phone_provider_password",
-    "phone_provider_account_code",
-)
-
-
-def _require_phone_provider_login(instance: IntegrationSettings) -> None:
-    """Refuse a phone switch that is on while any of the four login values is unset."""
-    switched_on = (
-        instance.phone_provider_downloads_enabled
-        or instance.phone_provider_recording_deletion_enabled
-    )
-    if not switched_on:
-        return
-    missing = [name for name in _PHONE_PROVIDER_LOGIN if getattr(instance, name) is None]
-    if missing:
-        raise HttpError(
-            400,
-            f"{', '.join(missing)}: required while phone downloads or recording deletion is on",
-        )
 
 
 @router.get(
@@ -495,21 +471,22 @@ def integration_settings_partial_update(
     payload, so a settings screen can submit one section without touching the
     others, and an omitted secret is left exactly as stored.
     """
-    instance = IntegrationSettings.get_solo()
     supplied = payload.model_dump(exclude_unset=True)
     if not supplied:
-        return instance
-    for field, value in supplied.items():
-        setattr(instance, field, value)
-    # Fable: the cross-column rule the model cannot express as a CHECK without
-    # a migration per flag. Both phone tasks log in to the portal with all
-    # four values (apps/crm/services/phone_call_service._config), so a switch
-    # turned on with any of them missing would surface as a Celery failure an
-    # hour later instead of a 400 now.
-    _require_phone_provider_login(instance)
-    try:
-        instance.full_clean()
-    except DjangoValidationError as exc:
-        raise HttpError(400, "; ".join(exc.messages)) from exc
-    instance.save(update_fields=[*supplied, "updated_at"])
+        return IntegrationSettings.get_solo()
+    # Fable: the row lock keeps two concurrent PATCHes from interleaving their
+    # read-modify-write on the same singleton; CompanyDefaults accepts
+    # last-write-wins instead (its ruling at company_defaults_partial_update),
+    # and a credential row is where a lost write is least acceptable.
+    with transaction.atomic():
+        instance = IntegrationSettings.objects.select_for_update().filter(pk=1).first()
+        if instance is None:
+            instance = IntegrationSettings.get_solo()  # raises: the row is missing
+        for field, value in supplied.items():
+            setattr(instance, field, value)
+        try:
+            instance.full_clean()
+        except DjangoValidationError as exc:
+            raise HttpError(400, "; ".join(exc.messages)) from exc
+        instance.save(update_fields=[*supplied, "updated_at"])
     return instance

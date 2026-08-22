@@ -26,7 +26,7 @@ def _run(path: Path) -> str:
 
 
 FULL_PHONE = {
-    "phone_provider_downloads_enabled": True,
+    "phone_provider_enabled": True,
     "phone_provider_recording_deletion_enabled": False,
     "phone_provider_base_url": "https://phone.example.test",
     "phone_provider_username": "user",
@@ -41,7 +41,7 @@ def test_loads_every_unset_integration(tmp_path: Path) -> None:
     row = IntegrationSettings.get_solo()
     assert row.google_maps_api_key == "maps-key"
     assert row.phone_provider_password == "secret"
-    assert row.phone_provider_downloads_enabled is True
+    assert row.phone_provider_enabled is True
 
 
 def test_a_configured_integration_is_never_overwritten_while_another_is_loaded(
@@ -61,7 +61,7 @@ def test_a_configured_integration_is_never_overwritten_while_another_is_loaded(
     row = IntegrationSettings.get_solo()
     assert row.google_maps_api_key == "maps-key"
     assert row.phone_provider_password == "live-secret"
-    assert row.phone_provider_downloads_enabled is False
+    assert row.phone_provider_enabled is False
     assert "phone provider: already configured" in output
 
 

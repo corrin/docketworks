@@ -65,7 +65,7 @@ sudo ./scripts/server/server-setup.sh
 
 The Dreamhost key and cert-domain list are persisted on first install at
 `/etc/letsencrypt/dreamhost-api-key.txt` and `/etc/letsencrypt/cert-domains.txt`
-respectively. Re-runs read all three from disk, so `deploy.sh` can
+respectively. Re-runs read both from disk, so `deploy.sh` can
 re-invoke `server-setup.sh` with no flags on every deploy.
 
 To add or remove a single cert-domain on an already-configured server,

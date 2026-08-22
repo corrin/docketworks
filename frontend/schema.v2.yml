@@ -3329,8 +3329,8 @@ components:
           - type: string
           - type: 'null'
           title: Phone Provider Base Url
-        phone_provider_downloads_enabled:
-          title: Phone Provider Downloads Enabled
+        phone_provider_enabled:
+          title: Phone Provider Enabled
           type: boolean
         phone_provider_recording_deletion_enabled:
           title: Phone Provider Recording Deletion Enabled
@@ -3342,7 +3342,7 @@ components:
       required:
       - id
       - has_google_maps_api_key
-      - phone_provider_downloads_enabled
+      - phone_provider_enabled
       - phone_provider_recording_deletion_enabled
       - phone_provider_base_url
       - has_phone_provider_username
@@ -3373,8 +3373,8 @@ components:
             type: string
           - type: 'null'
           title: Phone Provider Base Url
-        phone_provider_downloads_enabled:
-          title: Phone Provider Downloads Enabled
+        phone_provider_enabled:
+          title: Phone Provider Enabled
           type: boolean
         phone_provider_password:
           anyOf:

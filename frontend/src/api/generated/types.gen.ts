@@ -2947,9 +2947,9 @@ export type IntegrationSettingsOut = {
      */
     phone_provider_base_url: string | null;
     /**
-     * Phone Provider Downloads Enabled
+     * Phone Provider Enabled
      */
-    phone_provider_downloads_enabled: boolean;
+    phone_provider_enabled: boolean;
     /**
      * Phone Provider Recording Deletion Enabled
      */
@@ -2979,9 +2979,9 @@ export type IntegrationSettingsPatchIn = {
      */
     phone_provider_base_url?: string | null;
     /**
-     * Phone Provider Downloads Enabled
+     * Phone Provider Enabled
      */
-    phone_provider_downloads_enabled?: boolean;
+    phone_provider_enabled?: boolean;
     /**
      * Phone Provider Password
      */

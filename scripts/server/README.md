@@ -33,7 +33,7 @@ These scripts provision and manage multiple isolated DocketWorks instances on a 
 sudo ./scripts/server/server-setup.sh --dreamhost-key <DREAMHOST_API_KEY>
 
 # Prod (no wildcard; DNS lives elsewhere):
-sudo ./scripts/server/server-setup.sh --no-cert
+sudo ./scripts/server/server-setup.sh --dreamhost-key <DREAMHOST_API_KEY> --cert-domain <customer-fqdn>
 
 # Re-run (reads any saved keys from disk):
 sudo ./scripts/server/server-setup.sh
@@ -83,7 +83,7 @@ After creation, the instance is live at its configured URL. Each instance also g
 
 The credentials file (`templates/credentials-instance.template` is the authority) holds:
 
-```
+```text
 XERO_CLIENT_ID=            → XeroApp row
 XERO_CLIENT_SECRET=
 XERO_WEBHOOK_KEY=

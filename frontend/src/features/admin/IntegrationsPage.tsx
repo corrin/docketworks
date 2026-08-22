@@ -26,7 +26,7 @@ type SecretDraft = string | null | undefined
 
 type SecretKey = 'google_maps_api_key' | 'phone_provider_username' | 'phone_provider_password'
 type PlainKey = 'phone_provider_base_url' | 'phone_provider_account_code'
-type FlagKey = 'phone_provider_downloads_enabled' | 'phone_provider_recording_deletion_enabled'
+type FlagKey = 'phone_provider_enabled' | 'phone_provider_recording_deletion_enabled'
 
 const SECRET_KEYS: readonly SecretKey[] = [
   'google_maps_api_key',
@@ -35,7 +35,7 @@ const SECRET_KEYS: readonly SecretKey[] = [
 ]
 const PLAIN_KEYS: readonly PlainKey[] = ['phone_provider_base_url', 'phone_provider_account_code']
 const FLAG_KEYS: readonly FlagKey[] = [
-  'phone_provider_downloads_enabled',
+  'phone_provider_enabled',
   'phone_provider_recording_deletion_enabled',
 ]
 
@@ -48,7 +48,7 @@ function snapshot(settings: IntegrationSettingsOut): Drafts {
     phone_provider_password: undefined,
     phone_provider_base_url: settings.phone_provider_base_url ?? '',
     phone_provider_account_code: settings.phone_provider_account_code ?? '',
-    phone_provider_downloads_enabled: settings.phone_provider_downloads_enabled,
+    phone_provider_enabled: settings.phone_provider_enabled,
     phone_provider_recording_deletion_enabled: settings.phone_provider_recording_deletion_enabled,
   }
 }
@@ -165,8 +165,15 @@ function SettingsForm({ settings }: { settings: IntegrationSettingsOut }) {
       <Section
         sectionKey="phone"
         title="Phone provider"
-        description="CRM call ingestion from the phone provider's portal. All four connection values are required once downloads are on."
+        description="CRM call ingestion from the phone provider's portal."
       >
+        <FlagField
+          section="phone"
+          fieldKey="phone_provider_enabled"
+          label="Enabled"
+          checked={drafts.phone_provider_enabled}
+          onChange={(value) => setDraft('phone_provider_enabled', value)}
+        />
         <TextField
           section="phone"
           fieldKey="phone_provider_base_url"
@@ -199,13 +206,6 @@ function SettingsForm({ settings }: { settings: IntegrationSettingsOut }) {
           configured={stored.has_phone_provider_password}
           draft={drafts.phone_provider_password}
           onChange={(value) => setDraft('phone_provider_password', value)}
-        />
-        <FlagField
-          section="phone"
-          fieldKey="phone_provider_downloads_enabled"
-          label="Download calls and recordings"
-          checked={drafts.phone_provider_downloads_enabled}
-          onChange={(value) => setDraft('phone_provider_downloads_enabled', value)}
         />
         <FlagField
           section="phone"

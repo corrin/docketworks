@@ -22,7 +22,7 @@ def sync_phone_calls_task() -> None:
     scheduler_logger.info("Running sync_phone_calls_task.")
     try:
         close_old_connections()
-        if not IntegrationSettings.get_solo().phone_provider_downloads_enabled:
+        if not IntegrationSettings.get_solo().phone_provider_enabled:
             scheduler_logger.info("Phone call download disabled by CRM phone settings.")
             return
 
@@ -52,7 +52,11 @@ def delete_archived_phone_recordings_task(limit: int = 100) -> None:
     scheduler_logger.info("Running delete_archived_phone_recordings_task.")
     try:
         close_old_connections()
-        if not IntegrationSettings.get_solo().phone_provider_recording_deletion_enabled:
+        integration = IntegrationSettings.get_solo()
+        if not (
+            integration.phone_provider_enabled
+            and integration.phone_provider_recording_deletion_enabled
+        ):
             scheduler_logger.info(
                 "Phone recording provider cleanup disabled by CRM phone settings."
             )

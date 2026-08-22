@@ -83,7 +83,7 @@ class Migration(migrations.Migration):
         migrations.RenameField(
             model_name="integrationsettings",
             old_name="downloads_enabled",
-            new_name="phone_provider_downloads_enabled",
+            new_name="phone_provider_enabled",
         ),
         migrations.RenameField(
             model_name="integrationsettings",

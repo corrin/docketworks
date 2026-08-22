@@ -198,14 +198,16 @@ require_instance_credentials() {
     [[ -z "${XERO_WEBHOOK_KEY:-}" ]] && MISSING+=("XERO_WEBHOOK_KEY")
     [[ -z "${XERO_REDIRECT_URI:-}" ]] && MISSING+=("XERO_REDIRECT_URI")
 
-    PHONE_PROVIDER_DOWNLOADS_ENABLED="${PHONE_PROVIDER_DOWNLOADS_ENABLED:-false}"
+    PHONE_PROVIDER_ENABLED="${PHONE_PROVIDER_ENABLED:-false}"
     PHONE_PROVIDER_RECORDING_DELETION_ENABLED="${PHONE_PROVIDER_RECORDING_DELETION_ENABLED:-false}"
-    if [[ "$PHONE_PROVIDER_DOWNLOADS_ENABLED" == "true" || "$PHONE_PROVIDER_RECORDING_DELETION_ENABLED" == "true" ]]; then
-        [[ -z "${PHONE_PROVIDER_BASE_URL:-}" ]] && MISSING+=("PHONE_PROVIDER_BASE_URL")
-        [[ -z "${PHONE_PROVIDER_USERNAME:-}" ]] && MISSING+=("PHONE_PROVIDER_USERNAME")
-        [[ -z "${PHONE_PROVIDER_PASSWORD:-}" ]] && MISSING+=("PHONE_PROVIDER_PASSWORD")
-        [[ -z "${PHONE_PROVIDER_ACCOUNT_CODE:-}" ]] && MISSING+=("PHONE_PROVIDER_ACCOUNT_CODE")
-    fi
+    # The flags are written into JSON verbatim, so anything but the two JSON
+    # literals is refused here rather than discovered by the loader.
+    for flag in PHONE_PROVIDER_ENABLED PHONE_PROVIDER_RECORDING_DELETION_ENABLED; do
+        case "${!flag}" in
+            true|false) ;;
+            *) echo "ERROR: $flag must be exactly 'true' or 'false' in $creds_file (got '${!flag}')"; exit 1 ;;
+        esac
+    done
 
     if [[ ${#MISSING[@]} -gt 0 ]]; then
         echo "ERROR: Missing required values in $creds_file:"
@@ -379,7 +381,7 @@ render_integration_settings_fixture() {
     PHONE_PROVIDER_ACCOUNT_CODE_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_ACCOUNT_CODE:-}")")"
     sed \
         -e "s|__GOOGLE_MAPS_API_KEY_JSON__|$GOOGLE_MAPS_API_KEY_JSON|g" \
-        -e "s|__PHONE_PROVIDER_DOWNLOADS_ENABLED__|${PHONE_PROVIDER_DOWNLOADS_ENABLED:-false}|g" \
+        -e "s|__PHONE_PROVIDER_ENABLED__|${PHONE_PROVIDER_ENABLED:-false}|g" \
         -e "s|__PHONE_PROVIDER_RECORDING_DELETION_ENABLED__|${PHONE_PROVIDER_RECORDING_DELETION_ENABLED:-false}|g" \
         -e "s|__PHONE_PROVIDER_BASE_URL_JSON__|$PHONE_PROVIDER_BASE_URL_JSON|g" \
         -e "s|__PHONE_PROVIDER_USERNAME_JSON__|$PHONE_PROVIDER_USERNAME_JSON|g" \
@@ -718,8 +720,13 @@ EOSQL
     # Maps key without that login being overwritten. The command applies each
     # integration only while its columns are unset, and creates the row when a
     # scrubbed restore left the table empty.
+    # The rendered fixture holds the key and the phone password; it is gone
+    # whether the loader succeeds or not.
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py load_integration_settings \
-        "$INTEGRATION_SETTINGS_FIXTURE"
+        "$INTEGRATION_SETTINGS_FIXTURE" || {
+        rm -f "$INTEGRATION_SETTINGS_FIXTURE"
+        exit 1
+    }
     rm -f "$INTEGRATION_SETTINGS_FIXTURE"
 
     if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then

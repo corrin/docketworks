@@ -46,7 +46,7 @@ done only when that spec is green.
 | E2E specs ported | **39 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 34 more exist but nothing calls them) |
 | API operations v2 exposes | 219 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2500 (all passing) |
+| Unit tests | 2497 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 110 recorded deviations |
@@ -417,6 +417,12 @@ other surfaces join as they arrive (ADR 0047) — never a second stream.
 - Untested paths worth a net: the per-row savepoint in `save_products`,
   `_save_mapping`'s concurrent-parse branch, `scheduled_task_service.py`'s
   malformed-entry guards, and `MAX_FAILURE_RATIO`'s 50% boundary.
+- **Fixture renderers pass secrets as process arguments.** All three
+  `scripts/server/instance.sh` renderers (`render_ai_providers_fixture`,
+  `render_xero_apps_fixture`, `render_integration_settings_fixture`) expand API
+  keys, the Xero client secret and the phone password into `sed -e` arguments,
+  readable by any local user listing processes while provisioning runs. Render
+  through one helper that reads values from stdin, for all three at once.
 - **The payroll SDK boundary has inline siblings.** `payroll_sdk.payroll_api`
   is the declared one home for building the payroll client, but
   `payroll_sync`, `payroll_setup`, `payroll_employees` and

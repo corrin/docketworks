@@ -31,8 +31,11 @@ signing keys, paths) and nothing the application could change without a deploy.
   carries `has_<column>` booleans in place of secret values; the request takes a value to set
   or `null` to clear, and an omitted field leaves the stored value alone.
 - **One seed, one check, one scrub.** `scripts/server/instance.sh` renders every column from
-  the root-owned credentials file into `integration-settings.json` and loads it only when the
-  row holds no credential, so a restored instance keeps what its admin entered.
+  the root-owned credentials file into `integration-settings.json`, and
+  `manage.py load_integration_settings` applies each integration only while that
+  integration's columns are all unset — a restored instance keeps the phone login its admin
+  entered and still receives the Maps key. The command also creates the row a scrubbed
+  restore leaves missing.
   `scripts/ops/restore_checks/check_integration_settings.py` proves each credential the way the
   app uses it (a live Address Validation call for the Maps key). The scrubber truncates the
   table whole, and its private-table list is the scrub contract for every column at once.

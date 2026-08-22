@@ -464,7 +464,7 @@ class TestRecordingDownload:
     ) -> None:
         """Catches LAN playback regressing to require provider connectivity."""
         IntegrationSettings.objects.filter(pk=1).update(
-            phone_provider_downloads_enabled=False,
+            phone_provider_enabled=False,
             phone_provider_recording_deletion_enabled=False,
             phone_provider_base_url=None,
             phone_provider_username=None,

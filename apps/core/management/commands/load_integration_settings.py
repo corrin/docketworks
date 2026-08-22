@@ -29,7 +29,7 @@ FIXTURE_MODEL = "core.integrationsettings"
 INTEGRATION_GROUPS: dict[str, tuple[str, ...]] = {
     "Google Maps": ("google_maps_api_key",),
     "phone provider": (
-        "phone_provider_downloads_enabled",
+        "phone_provider_enabled",
         "phone_provider_recording_deletion_enabled",
         "phone_provider_base_url",
         "phone_provider_username",

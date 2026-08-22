@@ -1143,7 +1143,7 @@ export const zIntegrationSettingsOut = z.object({
     id: z.int(),
     phone_provider_account_code: z.string().nullable(),
     phone_provider_base_url: z.string().nullable(),
-    phone_provider_downloads_enabled: z.boolean(),
+    phone_provider_enabled: z.boolean(),
     phone_provider_recording_deletion_enabled: z.boolean(),
     updated_at: z.iso.datetime()
 });
@@ -1157,7 +1157,7 @@ export const zIntegrationSettingsPatchIn = z.object({
     google_maps_api_key: z.string().min(1).nullish(),
     phone_provider_account_code: z.string().min(1).nullish(),
     phone_provider_base_url: z.string().min(1).nullish(),
-    phone_provider_downloads_enabled: z.boolean().optional(),
+    phone_provider_enabled: z.boolean().optional(),
     phone_provider_password: z.string().min(1).nullish(),
     phone_provider_recording_deletion_enabled: z.boolean().optional(),
     phone_provider_username: z.string().min(1).nullish()

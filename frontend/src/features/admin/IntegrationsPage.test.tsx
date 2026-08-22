@@ -19,7 +19,7 @@ function settings(overrides: Partial<IntegrationSettingsOut> = {}): IntegrationS
     has_google_maps_api_key: true,
     has_phone_provider_username: false,
     has_phone_provider_password: false,
-    phone_provider_downloads_enabled: false,
+    phone_provider_enabled: false,
     phone_provider_recording_deletion_enabled: false,
     phone_provider_base_url: null,
     phone_provider_account_code: 'ACC-1',
@@ -134,17 +134,17 @@ describe('IntegrationsPage', () => {
     server.use(
       http.patch(SETTINGS, () =>
         HttpResponse.json(
-          { detail: 'phone_provider_base_url: required when phone downloads are enabled' },
+          { detail: 'phone_provider_base_url: Enter a valid URL.' },
           { status: 400 },
         ),
       ),
     )
     const { user } = await renderPage()
-    await user.click(autoId('IntegrationsPage-phone-field-phone_provider_downloads_enabled'))
+    await user.click(autoId('IntegrationsPage-phone-field-phone_provider_enabled'))
     await user.click(save())
 
-    expect(await screen.findByText(/required when phone downloads are enabled/)).toBeInTheDocument()
-    expect(autoId('IntegrationsPage-phone-field-phone_provider_downloads_enabled')).toBeChecked()
+    expect(await screen.findByText(/Enter a valid URL/)).toBeInTheDocument()
+    expect(autoId('IntegrationsPage-phone-field-phone_provider_enabled')).toBeChecked()
     expect(save()).toBeEnabled()
   })
 

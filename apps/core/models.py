@@ -135,10 +135,10 @@ class IntegrationSettings(models.Model):
         max_length=255, null=True, blank=True
     )
 
-    # The phone provider's portal (CRM call ingestion). The four login values
-    # are required together once either switch is on; the PATCH handler in
-    # apps/core/api.py refuses a switch without them.
-    phone_provider_downloads_enabled = models.BooleanField(default=False)
+    # The phone provider's portal (CRM call ingestion). `phone_provider_enabled`
+    # is the one switch for the integration; the tasks read the four login
+    # values at the point of use and fail there, naming what is missing.
+    phone_provider_enabled = models.BooleanField(default=False)
     phone_provider_recording_deletion_enabled = models.BooleanField(default=False)
     phone_provider_base_url = models.URLField(null=True, blank=True, default=None)  # noqa: DJ001 -- unset is NULL (ADR 0040)
     phone_provider_username = models.TextField(blank=True, null=True)  # noqa: DJ001 -- unset is NULL (ADR 0040)

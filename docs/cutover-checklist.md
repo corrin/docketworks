@@ -172,8 +172,9 @@ required to match v1's except where an external party holds the URL.
       Admin > Integrations (v1 stored it as Fernet ciphertext, so it is
       re-entered, not carried). Then
       `uv run python -m scripts.ops.restore_checks.check_integration_settings`
-      proves the key with a live Address Validation call. `shared.env` and
-      `GOOGLE_MAPS_API_KEY` no longer exist anywhere on a host.
+      proves the key with a live Address Validation call. `shared.env` is
+      gone and no process environment carries the key; it lives in the
+      root-owned credentials file and on the `IntegrationSettings` row.
 - [ ] **The hosts run the ASGI serving model.**
       `scripts/server/templates/gunicorn-instance.service.template` renders
       `gunicorn -k uvicorn_worker.UvicornWorker --workers 4 --timeout 180

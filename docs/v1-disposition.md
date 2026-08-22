@@ -167,7 +167,7 @@ where `instance.sh` renders it per instance:
 | `backup-files-instance.service.template`, `backup-files-instance.timer.template` | ported | The nightly file backup unit and its timer. |
 | `ai-providers.json.template` | ported | Rendered into the instance's private fixture directory and loaded when no provider row exists. |
 | `xero-apps.json.template` | ported | Same mechanism, for the Xero application registration. |
-| `phone-provider-settings.json.template` | ported | `scripts/server/templates/integration-settings.json.template`: the same mechanism, now one fixture for every install-level credential (the Google Maps key and the phone provider's base URL, login and account code) loaded onto the `IntegrationSettings` row (ADR 0053). `instance.sh` loads it only while the row holds no credential, so a reconfigure never overwrites live values; a local development database leaves the phone columns unset, which is what stops development Celery reaching the production phone system. |
+| `phone-provider-settings.json.template` | ported | `scripts/server/templates/integration-settings.json.template`: the same mechanism, now one fixture for every install-level credential (the Google Maps key and the phone provider's base URL, login and account code) loaded onto the `IntegrationSettings` row (ADR 0053). `manage.py load_integration_settings` applies each integration only while its own columns are unset, so a reconfigure never overwrites live values; a local development database leaves the phone columns unset, which is what stops development Celery reaching the production phone system. |
 
 ## adhoc/
 

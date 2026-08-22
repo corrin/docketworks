@@ -38,9 +38,9 @@ SYSTEM_AUTOMATION_EMAIL = "system.automation@docketworks.local"
 SEEDING_MIGRATIONS = {
     ("accounts", "0003_seed_system_automation_user"),
     ("job", "0002_seed_labour_subtypes"),
-    # Fable: the IntegrationSettings singleton (pk=1). v1's dump carries the same row
-    # under the same key, so it is cleared before the restore; it is ALSO in
-    # the re-run set because a dump that never created the row needs one.
+    # Fable: the IntegrationSettings singleton (pk=1). Leaving it out of this
+    # set is rejected because v1's row arrives under the same key and the
+    # single-transaction restore rolls back whole on the collision.
     ("core", "0003_integration_settings_row"),
 }
 
@@ -66,15 +66,15 @@ DATA_MIGRATIONS_RERUN_AFTER_RESTORE = {
     # posted on top of the line Xero computes itself. The lines it fixes arrive
     # with the restore, so the empty-database run finds none.
     ("timesheet", "0004_public_holiday_posts_nowhere"),
-    # Fable: ensures the IntegrationSettings row exists once the restore has had its
-    # say; get_or_create, so a restored row is left untouched.
+    # Fable: also here, because a dump that never created the row would
+    # otherwise leave the singleton absent and every get_solo() raising.
     ("core", "0003_integration_settings_row"),
 }
 
 
-# Migrations the script unapplies BEFORE the restore so pg_restore meets the
-# column shapes v1's dump names: the script's `migrate <app> <target>` line
-# must precede the restore, and a later `migrate <app> <n>` re-applies it.
+# Migrations the script unapplies BEFORE the restore. Restoring with them
+# applied is rejected because pg_dump --data-only names every column in its
+# COPY, so a renamed column aborts the single-transaction load.
 UNAPPLIED_BEFORE_RESTORE = {
     ("accounts", "0004"),
     # Fable: core/0002 renamed the phone-provider columns; crm/0002 is state-only, so

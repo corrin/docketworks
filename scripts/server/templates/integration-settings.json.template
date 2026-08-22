@@ -4,7 +4,7 @@
     "pk": 1,
     "fields": {
       "google_maps_api_key": __GOOGLE_MAPS_API_KEY_JSON__,
-      "phone_provider_downloads_enabled": __PHONE_PROVIDER_DOWNLOADS_ENABLED__,
+      "phone_provider_enabled": __PHONE_PROVIDER_ENABLED__,
       "phone_provider_recording_deletion_enabled": __PHONE_PROVIDER_RECORDING_DELETION_ENABLED__,
       "phone_provider_base_url": __PHONE_PROVIDER_BASE_URL_JSON__,
       "phone_provider_username": __PHONE_PROVIDER_USERNAME_JSON__,

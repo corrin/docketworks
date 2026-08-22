@@ -502,6 +502,15 @@ class PhoneProviderPortalClient:
             raise ValueError(f"provider delete failed for recording {provider_recording_id}")
 
 
+def verify_portal_login() -> None:
+    """Log in to the provider portal with the stored settings; raises on any failure.
+
+    The restore check's proof that the phone integration works: the same
+    config resolution and the same login the sync task performs.
+    """
+    PhoneProviderPortalClient(_config()).login()
+
+
 @dataclass(frozen=True)
 class PhoneProviderConfig:
     """The four values required to log in to the provider portal."""
