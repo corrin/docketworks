@@ -82,8 +82,9 @@ operations v1's frontend called, never what shape v2 must serve.
   still to come. An unrecorded rename makes the v1 name read as missing *and*
   the v2 name look brand new, corrupting the count in both directions.
 - **Staff:** `accounts_staff_all_list`, `_create`, `_partial_update`,
-  `_icon_create` (a multipart upload — the only one). Unblocks
-  `staff/create-staff`.
+  `_icon_create` (a multipart image upload — generalise the company-defaults
+  logo seam in `apps/core/api.py` (`_validate_logo_upload` /
+  `_delete_stored_logo`), never a sibling). Unblocks `staff/create-staff`.
 - **Process forms:** enough of `apps/process` to serve
   `process_forms_entries_list`. Models are partial and there is no category
   model, so `process_categories_retrieve` is greenfield.
