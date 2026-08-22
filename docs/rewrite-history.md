@@ -196,8 +196,10 @@ reappeared after every E2E run although `e2e_cleanup` deleted it each time.
 Every company a spec creates through the app becomes a Xero contact in the
 demo organisation (80 of them by now), Xero contacts can only be archived, and
 the contact sync is incremental by modification time — so any test contact
-touched in Xero after the restored watermark is re-imported. The cleanup now
-archives the E2E contacts in Xero (`archive_test_contacts`), and a company
-archived in Xero is treated as the organisation's mirror rather than residue by
-the cleanup and the preflight; archived contacts stay importable because invoice
-linkage fetches them on demand.
+touched in Xero after the restored watermark is re-imported. Every confirmed
+cleanup therefore archives the E2E contacts in Xero first (`archive_test_contacts`,
+whose production and read-only guards run before any local delete, and which
+runs even when the local database is already clean — the normal state after a
+run), and a company archived in Xero is the organisation's mirror rather than
+residue to the cleanup and the preflight; archived contacts stay importable
+because invoice linkage fetches them on demand.

@@ -25,6 +25,7 @@ from apps.accounting.models import (
 from apps.company.models import Company, ContactMethod, SupplierPickupAddress
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.xero.auth import get_tenant_id
+from apps.xero.constants import XERO_CONTACT_STATUSES
 from apps.xero.models import XeroAccount
 
 if TYPE_CHECKING:
@@ -296,12 +297,9 @@ def set_company_fields(  # noqa: C901, PLR0912, PLR0915 -- ported v1 shape; each
     # regardless: its jobs belong to the winner.
     # No fallback for a missing status: guessing ACTIVE would un-archive the
     # company and re-open it for jobs. Malformed data fails this company's
-    # sync (ADR 0015 — consumers stay strict). GDPRREQUEST is deliberately
-    # not accepted: it should never occur on an NZ org, and treating it as
-    # active would re-enable jobs for an erased contact — if it ever appears,
-    # fail loudly and decide its handling then.
+    # The accepted set and the GDPRREQUEST refusal are XERO_CONTACT_STATUSES' business.
     contact_status = raw_json.get("_contact_status")
-    if contact_status not in ("ACTIVE", "ARCHIVED"):
+    if contact_status not in XERO_CONTACT_STATUSES:
         raise ValueError(
             f"Company {company.id} raw_json has missing or unhandled "
             f"_contact_status {contact_status!r}"

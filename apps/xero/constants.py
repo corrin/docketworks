@@ -57,6 +57,17 @@ XERO_SCOPES = [
 # webhook single-syncs, contact push and stock push.
 SLEEP_TIME = 1
 
+#: Xero's documented maximum number of objects in one batch create or update;
+#: every batched write (contact seeding, document seeding, contact archiving)
+#: slices by it.
+XERO_BATCH_SIZE = 50
+
+#: The two contact statuses Xero documents. GDPRREQUEST also exists and is
+#: deliberately not accepted: it should never occur on an NZ organisation, and
+#: treating an erased contact as either would be wrong — fail loudly and
+#: decide its handling then.
+XERO_CONTACT_STATUSES = ("ACTIVE", "ARCHIVED")
+
 #: Seconds slept between calls on the PAYROLL endpoints, which rate-limit harder
 #: than the accounting ones and take several mutating calls per employee. v1
 #: measured 3s as the interval that survives a full staff list without

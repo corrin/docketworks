@@ -4,12 +4,17 @@ The command is a dry run unless ``--confirm`` is supplied. Cross-domain
 cleanup belongs in diagnostics, which sits above the domain-app layer; putting
 it in core would invert the import contract merely for an operator tool.
 
-Companies a spec created through the app exist in the Xero demo organisation
-too, and the incremental contact sync brings a deleted one back the next time
-its contact is touched. So a confirmed run also archives those contacts
-(``archive_test_contacts``), and a company already archived in Xero is the
-organisation's mirror, not residue: it is left alone here and by the E2E
-preflight.
+Fable: companies a spec created through the app exist in the Xero demo
+organisation too, and the incremental contact sync brings a deleted one back
+the next time its contact is touched. So a confirmed run archives those
+contacts first (``archive_test_contacts`` — reached by name, because
+diagnostics and xero are independent layers that may not import each other),
+and only then deletes locally: the archiver's production and read-only guards
+trip before any local row is gone. A company already archived in Xero is the
+organisation's mirror, not residue, and is left alone here and by the E2E
+preflight. The local step is skipped when nothing matches, never the Xero
+step: the database is clean after every normal run, and the residue that
+matters is in the organisation.
 """
 
 from django.core.management import call_command
@@ -20,17 +25,18 @@ from django.db.models import Model, Q, QuerySet
 from apps.accounting.models import Invoice, Quote
 from apps.company.models import Company, CompanyPersonLink, Person
 from apps.core.models import CompanyDefaults
-from apps.core.test_data import LEGACY_E2E_PREFIXES, TEST_DATA_PREFIX
+from apps.core.test_data import LEGACY_E2E_PREFIXES, TEST_COMPANY_NAME, TEST_DATA_PREFIX
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
-
-TEST_COMPANY_NAME = "ABC Carpet Cleaning TEST IGNORE"
 
 
 class Command(BaseCommand):
     """Report or remove E2E-created rows in dependency-safe order."""
 
-    help = "Remove E2E test data. Dry run by default; use --confirm to delete."
+    help = (
+        "Remove E2E test data locally and archive its Xero contacts. "
+        "Dry run by default; use --confirm to act."
+    )
 
     def add_arguments(self, parser: CommandParser) -> None:
         """Add the explicit destructive-operation confirmation flag."""
@@ -44,26 +50,32 @@ class Command(BaseCommand):
         self, *_args: object, **options: object
     ) -> None:
         """Report matching rows, then delete them atomically when confirmed."""
-        confirm_option = options.get("confirm")
-        if not isinstance(confirm_option, bool):
+        confirm = options["confirm"]
+        if not isinstance(confirm, bool):
             raise TypeError("The confirm option must be a boolean")
-        confirm = confirm_option
 
         test_jobs = Job.objects.filter(name__startswith=TEST_DATA_PREFIX)
         test_people = CompanyPersonLink.objects.filter(person__name__startswith=TEST_DATA_PREFIX)
         test_person_records = Person.objects.filter(name__startswith=TEST_DATA_PREFIX)
-        test_companies = Company.objects.filter(
-            name__startswith=TEST_DATA_PREFIX, xero_archived=False
+        # Fable: dependants are matched by the company's NAME whatever its Xero
+        # status — a job or PO a spec raised against a now-archived company is
+        # still residue — while the company row itself is deleted only when
+        # not archived in Xero, since an archived one is the organisation's
+        # mirror and would only be re-imported.
+        named_test_companies = Company.objects.filter(name__startswith=TEST_DATA_PREFIX)
+        test_companies = named_test_companies.filter(xero_archived=False)
+        test_prefix_company_jobs = Job.objects.filter(company__in=named_test_companies)
+        test_prefix_company_people = CompanyPersonLink.objects.filter(
+            company__in=named_test_companies
         )
-        test_prefix_company_jobs = Job.objects.filter(company__in=test_companies)
-        test_prefix_company_people = CompanyPersonLink.objects.filter(company__in=test_companies)
 
         legacy_q = Q()
         for prefix in LEGACY_E2E_PREFIXES:
             legacy_q |= Q(name__startswith=prefix)
-        legacy_companies = Company.objects.filter(legacy_q, xero_archived=False)
-        legacy_company_jobs = Job.objects.filter(company__in=legacy_companies)
-        legacy_company_people = CompanyPersonLink.objects.filter(company__in=legacy_companies)
+        named_legacy_companies = Company.objects.filter(legacy_q)
+        legacy_companies = named_legacy_companies.filter(xero_archived=False)
+        legacy_company_jobs = Job.objects.filter(company__in=named_legacy_companies)
+        legacy_company_people = CompanyPersonLink.objects.filter(company__in=named_legacy_companies)
 
         test_company = Company.objects.filter(name=TEST_COMPANY_NAME)
         test_company_jobs = Job.objects.filter(company__in=test_company)
@@ -74,6 +86,7 @@ class Command(BaseCommand):
         # preserved during backports. Its E2E-created jobs and people are
         # removed; the company row itself must survive.
         deletable_companies = (test_companies | legacy_companies).distinct()
+        named_companies = (named_test_companies | named_legacy_companies).distinct()
         all_people_links = (
             test_people | test_prefix_company_people | legacy_company_people | test_company_people
         ).distinct()
@@ -87,8 +100,12 @@ class Command(BaseCommand):
         self._report_queryset(
             "Underlying [TEST]-prefixed person records", test_person_records, "name"
         )
-        self._report_queryset("[TEST]-prefixed companies (active in Xero)", test_companies, "name")
-        self._report_queryset("Legacy E2E companies (active in Xero)", legacy_companies, "name")
+        self._report_queryset(
+            "[TEST]-prefixed companies (not archived in Xero)", test_companies, "name"
+        )
+        self._report_queryset(
+            "Legacy E2E companies (not archived in Xero)", legacy_companies, "name"
+        )
         self._report_queryset("Named E2E test company", test_company, "name")
         self._report_queryset("Legacy E2E company jobs", legacy_company_jobs, "name")
         self._report_queryset("Legacy E2E company people", legacy_company_people, "person__name")
@@ -107,36 +124,49 @@ class Command(BaseCommand):
             "person__name",
         )
 
+        # Invoices and quotes PROTECT on company as well as job, so a
+        # company-scoped row with job=None would abort the whole transaction
+        # if only job-scoped rows were removed first.
+        linked_invoices = Invoice.objects.filter(
+            Q(job__in=all_jobs) | Q(company__in=named_companies)
+        )
+        linked_quotes = Quote.objects.filter(Q(job__in=all_jobs) | Q(company__in=named_companies))
+        linked_po_lines = PurchaseOrderLine.objects.filter(job__in=all_jobs)
+        linked_quote_sheets = QuoteSpreadsheet.objects.filter(job__in=all_jobs)
+        linked_pos = PurchaseOrder.objects.filter(supplier__in=named_companies)
+
         total = sum(
             queryset.count()
-            for queryset in (all_jobs, all_people_links, test_person_records, deletable_companies)
+            for queryset in (
+                all_jobs,
+                all_people_links,
+                test_person_records,
+                deletable_companies,
+                linked_invoices,
+                linked_quotes,
+                linked_pos,
+            )
         )
-        if total == 0:
-            self.stdout.write("\nNo test data found. Database is clean.")
-            return
+
+        self.stdout.write("\n=== E2E contacts in Xero ===")
         if not confirm:
+            call_command("archive_test_contacts", stdout=self.stdout)
+            if total == 0:
+                self.stdout.write("\nNo local test data found.")
             self.stdout.write("\n=== DRY RUN — no changes made ===")
             self.stdout.write(
-                "Run with --confirm to delete:\n  python manage.py e2e_cleanup --confirm"
+                "Run with --confirm to act:\n  python manage.py e2e_cleanup --confirm"
             )
+            return
+        call_command("archive_test_contacts", "--confirm", stdout=self.stdout)
+
+        if total == 0:
+            self.stdout.write("\nNo local test data found. Database is clean.")
             return
 
         people_ids = set(all_people_links.values_list("person_id", flat=True)) | set(
             test_person_records.values_list("id", flat=True)
         )
-
-        # Invoices and quotes PROTECT on company as well as job, so a
-        # company-scoped row with job=None would abort the whole transaction
-        # if only job-scoped rows were removed first.
-        linked_invoices = Invoice.objects.filter(
-            Q(job__in=all_jobs) | Q(company__in=deletable_companies)
-        )
-        linked_quotes = Quote.objects.filter(
-            Q(job__in=all_jobs) | Q(company__in=deletable_companies)
-        )
-        linked_po_lines = PurchaseOrderLine.objects.filter(job__in=all_jobs)
-        linked_quote_sheets = QuoteSpreadsheet.objects.filter(job__in=all_jobs)
-        linked_pos = PurchaseOrder.objects.filter(supplier__in=deletable_companies)
 
         self._refuse_protected_company_references(deletable_companies)
 
@@ -159,11 +189,6 @@ class Command(BaseCommand):
             )
             self._delete_queryset("Underlying test person records", orphaned_test_people)
             self._delete_queryset("E2E companies", deletable_companies)
-
-        # After the local deletes, so a spec's person and phone links are gone
-        # before the contact they belonged to is archived.
-        self.stdout.write("\nArchiving E2E contacts in Xero...")
-        call_command("archive_test_contacts", "--confirm")
 
         # After the deletes so the sequences reflect the final table state.
         self.stdout.write("\nSyncing sequences...")

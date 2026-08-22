@@ -20,13 +20,9 @@ from django.test import override_settings
 from django.utils import timezone
 from pytest_django.fixtures import SettingsWrapper
 
+from apps.core.test_data import TEST_COMPANY_NAME, TEST_DATA_PREFIX
 from apps.xero import e2e_artifacts
-from apps.xero.e2e_artifacts import (
-    TEST_COMPANY_NAME,
-    TEST_DATA_PREFIX,
-    InboundXeroObject,
-    drop_e2e_artifacts,
-)
+from apps.xero.e2e_artifacts import InboundXeroObject, drop_e2e_artifacts
 
 
 @dataclass

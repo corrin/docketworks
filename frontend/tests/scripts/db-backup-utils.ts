@@ -245,9 +245,10 @@ export function checkSafeToTest(dbConfig: DbConfig): SafetyCheckResult {
     issues.push(`${testPersonCount} test people found (names starting with '${TEST_DATA_PREFIX}')`)
   }
 
-  // A company archived in Xero is the demo organisation's mirror, not residue:
-  // e2e_cleanup archives a spec's contacts there (Xero cannot delete them) and
-  // the sync brings them back archived.
+  // Fable: a company archived in Xero is the demo organisation's mirror, not
+  // residue — e2e_cleanup archives a spec's contacts there (Xero cannot delete
+  // them) and the sync brings them back archived, so counting them would fail
+  // every run after the first.
   const testCompanyCount = runPsql(
     dbConfig,
     `SELECT COUNT(*) FROM company_company WHERE name LIKE '${prefix}%' AND xero_archived = false`,

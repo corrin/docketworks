@@ -49,6 +49,8 @@ class Address:
 class Contact:
     contact_id: str | None
     contact_status: str | None
+    has_validation_errors: bool | None
+    validation_errors: list[ValidationError] | None
     merged_to_contact_id: str | None
     name: str | None
     email_address: str | None

@@ -37,8 +37,13 @@ real-world breakage.
   (jobs, people, companies, suppliers, PO references — see the helpers in
   `tests/e2e/helpers.ts`), and every UI-seeded spec works against the fixed seed
   company `ABC Carpet Cleaning TEST IGNORE`. `npm run test:e2e:reset -- --confirm`
-  runs `manage.py e2e_cleanup`, which removes exactly that recognised data if a
-  restore ever fails to fire; without `--confirm` it reports without mutating.
+  runs `manage.py e2e_cleanup`, which archives the run's contacts in the Xero
+  demo organisation (`manage.py archive_test_contacts`, refused on a production
+  tenant or under `XERO_READONLY`) and then removes exactly that recognised
+  local data if a restore ever failed to fire; without `--confirm` it reports
+  both without mutating. A `[TEST]` company that is archived in Xero is the
+  organisation's mirror, not residue: it lives in the dev database permanently
+  and neither the cleanup nor the preflight counts it.
 - **Xero writes outlive the database restore.** Objects the run creates in the
   live demo org cannot be restored away, and the hourly Xero poll would replay
   them into the clean database. Each run therefore records its wall-clock span
@@ -46,7 +51,9 @@ real-world breakage.
   (`tests/scripts/e2e-sync-windows.ts`); the backend sync
   (`apps/xero/e2e_artifacts.py`) reads it and ignores objects created inside a
   recorded window. It is a temp file, not a table, precisely because the
-  database restore would erase any in-database record of the run.
+  database restore would erase any in-database record of the run. The window
+  covers invoices and quotes, which cannot be archived; contacts touched after
+  the window are what the archive step above exists for.
 
 ## Serving model
 
