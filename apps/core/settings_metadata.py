@@ -92,8 +92,9 @@ FIELD_TYPE_RULES: tuple[FieldTypeRule, ...] = (
 COMPANY_DEFAULTS_READ_ONLY_FIELDS: frozenset[str] = frozenset({"company_name"})
 
 # There is deliberately no CRM section. Its only fields moved to the
-# PhoneProviderSettings singleton, and retaining the section made the screen
-# offer a button that opened an empty form.
+# IntegrationSettings singleton (ADR 0053: credentials never sit on the
+# any-staff CompanyDefaults), and retaining the section made the screen offer
+# a button that opened an empty form.
 COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, RegistrySectionKey] = {
     "company_name": "company",
     "company_acronym": "company",

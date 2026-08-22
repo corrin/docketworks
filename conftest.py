@@ -153,7 +153,7 @@ class _Refusal:
 _CREDENTIAL_MODELS: tuple[tuple[str, str, tuple[str, ...], tuple[str, ...]], ...] = (
     ("xero", "XeroApp", ("client_id",), ()),
     ("ai", "AIProvider", ("name",), ()),
-    ("crm", "PhoneProviderSettings", ("id",), ()),
+    ("core", "IntegrationSettings", ("id",), ()),
     # Opus: default_labour_subtype points at a row whose id differs between databases,
     # and no payroll path reads it. The id is dropped too: the test database
     # seeds the automation account itself, so that row must be UPDATED in place

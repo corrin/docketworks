@@ -38,6 +38,10 @@ SYSTEM_AUTOMATION_EMAIL = "system.automation@docketworks.local"
 SEEDING_MIGRATIONS = {
     ("accounts", "0003_seed_system_automation_user"),
     ("job", "0002_seed_labour_subtypes"),
+    # The IntegrationSettings singleton (pk=1). v1's dump carries the same row
+    # under the same key, so it is cleared before the restore; it is ALSO in
+    # the re-run set because a dump that never created the row needs one.
+    ("core", "0003_integration_settings_row"),
 }
 
 # Migrations that FIX existing rows. Being a no-op against an empty database is
@@ -62,6 +66,9 @@ DATA_MIGRATIONS_RERUN_AFTER_RESTORE = {
     # posted on top of the line Xero computes itself. The lines it fixes arrive
     # with the restore, so the empty-database run finds none.
     ("timesheet", "0004_public_holiday_posts_nowhere"),
+    # Ensures the IntegrationSettings row exists once the restore has had its
+    # say; get_or_create, so a restored row is left untouched.
+    ("core", "0003_integration_settings_row"),
 }
 
 
@@ -72,6 +79,10 @@ def _seeded_tables() -> dict[str, tuple[str, str]]:
         apps.get_model("job", "LabourSubtype")._meta.db_table: (
             "job",
             "0002_seed_labour_subtypes",
+        ),
+        apps.get_model("core", "IntegrationSettings")._meta.db_table: (
+            "core",
+            "0003_integration_settings_row",
         ),
     }
 
@@ -85,6 +96,7 @@ def test_seed_migrations_actually_write_rows() -> None:
     """
     assert Staff.objects.filter(office_email=SYSTEM_AUTOMATION_EMAIL).exists()
     assert apps.get_model("job", "LabourSubtype")._default_manager.exists()
+    assert apps.get_model("core", "IntegrationSettings")._default_manager.filter(pk=1).exists()
 
 
 def test_script_clears_every_seeded_table_before_restoring() -> None:

@@ -173,13 +173,16 @@ def auth_error(code: AuthErrorCode) -> AuthErrorOut:
 
 
 def omittable(default: Any) -> Any:
-    """Declare a field that may be omitted but must never be sent as ``null``.
+    """Declare a field whose omission means "leave the stored value alone".
 
     ``default`` is a placeholder the handler must not read: check
     ``model_fields_set`` (or ``model_dump(exclude_unset=True)``) to learn
     whether the client supplied anything. Give it a value of the field's own
-    type — ``""`` for text, ``False`` for a flag — so the attribute never
-    contradicts its annotation.
+    type — ``""`` for text, ``False`` for a flag, ``None`` for a nullable
+    column — so the attribute never contradicts its annotation. On a nullable
+    field ``null`` is a real value (it clears the column, ADR 0040) and only
+    omission is the no-op; the annotation, not this helper, decides whether
+    ``null`` is accepted.
 
     Returns ``Any`` for the same reason pydantic's own ``Field()`` does: the
     call sits on the right-hand side of an arbitrary annotation, so a concrete

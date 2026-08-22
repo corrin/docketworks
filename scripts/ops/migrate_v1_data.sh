@@ -60,6 +60,9 @@ psql "$@" -d "$V2_DB" -v ON_ERROR_STOP=1 <<'SQL'
 BEGIN;
 DELETE FROM accounts_staff WHERE email = 'system.automation@docketworks.local';
 DELETE FROM job_laboursubtype;
+-- core/0003 creates the IntegrationSettings row at pk=1 and v1's dump carries
+-- its phone-provider row under that same key.
+DELETE FROM crm_phoneprovidersettings;
 COMMIT;
 SQL
 
@@ -125,6 +128,13 @@ DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0002 --no-input
 # same tested code against the rows that now exist.
 DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0003 --no-input
 DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0004 --no-input
+# core/0003 creates the IntegrationSettings row. v1's phone-provider row, when
+# the dump has one, restored into the same table above and is kept as-is
+# (get_or_create); a dump without one gets the row here. Its reverse is a
+# no-op — rolling back must never delete live credentials — so unapplying is
+# free and re-applying is the same tested code against the restored table.
+DB_NAME="$V2_DB" uv run python manage.py migrate core 0002 --no-input
+DB_NAME="$V2_DB" uv run python manage.py migrate core 0003 --no-input
 
 echo "==> NOTE: formerly-encrypted credential columns"
 cat <<'NOTE'
@@ -132,7 +142,8 @@ v1 stored Fernet ciphertext in crm_phoneprovidersettings.username/.password and
 quoting_suppliercredential.username/.password/.api_key; v2 stores plaintext
 (encryption dropped by decision 2026-08-01). Either run the decrypt helper with
 v1's FIELD_ENCRYPTION_KEY after this restore, or re-enter the handful of
-credentials by hand post-cutover.
+credentials by hand post-cutover: the phone provider's and the Google Maps key
+on Admin > Integrations (they are IntegrationSettings columns now, not .env).
 NOTE
 
 echo "==> Resetting sequences"

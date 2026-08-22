@@ -11,7 +11,7 @@ from celery import shared_task
 from django.db import close_old_connections
 
 from apps.core.errors import persist_app_error
-from apps.crm.models import PhoneProviderSettings
+from apps.core.models import IntegrationSettings
 
 scheduler_logger = logging.getLogger("apps.crm.tasks")
 
@@ -22,8 +22,7 @@ def sync_phone_calls_task() -> None:
     scheduler_logger.info("Running sync_phone_calls_task.")
     try:
         close_old_connections()
-        phone_settings = PhoneProviderSettings.get_solo()
-        if not phone_settings.downloads_enabled:
+        if not IntegrationSettings.get_solo().phone_provider_downloads_enabled:
             scheduler_logger.info("Phone call download disabled by CRM phone settings.")
             return
 
@@ -53,8 +52,7 @@ def delete_archived_phone_recordings_task(limit: int = 100) -> None:
     scheduler_logger.info("Running delete_archived_phone_recordings_task.")
     try:
         close_old_connections()
-        phone_settings = PhoneProviderSettings.get_solo()
-        if not phone_settings.recording_deletion_enabled:
+        if not IntegrationSettings.get_solo().phone_provider_recording_deletion_enabled:
             scheduler_logger.info(
                 "Phone recording provider cleanup disabled by CRM phone settings."
             )

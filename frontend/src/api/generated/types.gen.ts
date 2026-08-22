@@ -2913,6 +2913,90 @@ export type GroupedJobDeltaRejectionResolveResponse = {
 };
 
 /**
+ * IntegrationSettingsOut
+ *
+ * Every non-secret column, plus presence flags for the secrets.
+ */
+export type IntegrationSettingsOut = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Has Google Maps Api Key
+     */
+    has_google_maps_api_key: boolean;
+    /**
+     * Has Phone Provider Password
+     */
+    has_phone_provider_password: boolean;
+    /**
+     * Has Phone Provider Username
+     */
+    has_phone_provider_username: boolean;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Phone Provider Account Code
+     */
+    phone_provider_account_code: string | null;
+    /**
+     * Phone Provider Base Url
+     */
+    phone_provider_base_url: string | null;
+    /**
+     * Phone Provider Downloads Enabled
+     */
+    phone_provider_downloads_enabled: boolean;
+    /**
+     * Phone Provider Recording Deletion Enabled
+     */
+    phone_provider_recording_deletion_enabled: boolean;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * IntegrationSettingsPatchIn
+ *
+ * Partial update: omitted fields keep their stored value, ``null`` clears.
+ */
+export type IntegrationSettingsPatchIn = {
+    /**
+     * Google Maps Api Key
+     */
+    google_maps_api_key?: string | null;
+    /**
+     * Phone Provider Account Code
+     */
+    phone_provider_account_code?: string | null;
+    /**
+     * Phone Provider Base Url
+     */
+    phone_provider_base_url?: string | null;
+    /**
+     * Phone Provider Downloads Enabled
+     */
+    phone_provider_downloads_enabled?: boolean;
+    /**
+     * Phone Provider Password
+     */
+    phone_provider_password?: string | null;
+    /**
+     * Phone Provider Recording Deletion Enabled
+     */
+    phone_provider_recording_deletion_enabled?: boolean;
+    /**
+     * Phone Provider Username
+     */
+    phone_provider_username?: string | null;
+};
+
+/**
  * InvoiceOut
  *
  * Wire contract for InvoiceOut.
@@ -7412,82 +7496,6 @@ export type PhonePersonMatch = {
      * Person Name
      */
     person_name: string;
-};
-
-/**
- * PhoneProviderSettingsOut
- *
- * Wire contract for PhoneProviderSettingsOut.
- */
-export type PhoneProviderSettingsOut = {
-    /**
-     * Account Code
-     */
-    account_code: string | null;
-    /**
-     * Base Url
-     */
-    base_url: string | null;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Downloads Enabled
-     */
-    downloads_enabled: boolean;
-    /**
-     * Has Password
-     */
-    has_password: boolean;
-    /**
-     * Has Username
-     */
-    has_username: boolean;
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Recording Deletion Enabled
-     */
-    recording_deletion_enabled: boolean;
-    /**
-     * Updated At
-     */
-    updated_at: string;
-};
-
-/**
- * PhoneProviderSettingsPatchIn
- *
- * Wire contract for PhoneProviderSettingsPatchIn.
- */
-export type PhoneProviderSettingsPatchIn = {
-    /**
-     * Account Code
-     */
-    account_code?: string | null;
-    /**
-     * Base Url
-     */
-    base_url?: string | null;
-    /**
-     * Downloads Enabled
-     */
-    downloads_enabled?: boolean;
-    /**
-     * Password
-     */
-    password?: string;
-    /**
-     * Recording Deletion Enabled
-     */
-    recording_deletion_enabled?: boolean;
-    /**
-     * Username
-     */
-    username?: string;
 };
 
 /**
@@ -13466,51 +13474,6 @@ export type CrmPhoneEndpointsUpdateResponses = {
 
 export type CrmPhoneEndpointsUpdateResponse = CrmPhoneEndpointsUpdateResponses[keyof CrmPhoneEndpointsUpdateResponses];
 
-export type GetPhoneProviderSettingsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/crm/phone-provider-settings/';
-};
-
-export type GetPhoneProviderSettingsResponses = {
-    /**
-     * OK
-     */
-    200: PhoneProviderSettingsOut;
-};
-
-export type GetPhoneProviderSettingsResponse = GetPhoneProviderSettingsResponses[keyof GetPhoneProviderSettingsResponses];
-
-export type UpdatePhoneProviderSettingsData = {
-    body: PhoneProviderSettingsPatchIn;
-    path?: never;
-    query?: never;
-    url: '/api/crm/phone-provider-settings/';
-};
-
-export type UpdatePhoneProviderSettingsErrors = {
-    /**
-     * Response
-     *
-     * Bad Request
-     */
-    400: {
-        [key: string]: Array<string>;
-    };
-};
-
-export type UpdatePhoneProviderSettingsError = UpdatePhoneProviderSettingsErrors[keyof UpdatePhoneProviderSettingsErrors];
-
-export type UpdatePhoneProviderSettingsResponses = {
-    /**
-     * OK
-     */
-    200: PhoneProviderSettingsOut;
-};
-
-export type UpdatePhoneProviderSettingsResponse = UpdatePhoneProviderSettingsResponses[keyof UpdatePhoneProviderSettingsResponses];
-
 export type DataVersionsRetrieveData = {
     body?: never;
     path?: never;
@@ -13526,6 +13489,38 @@ export type DataVersionsRetrieveResponses = {
 };
 
 export type DataVersionsRetrieveResponse = DataVersionsRetrieveResponses[keyof DataVersionsRetrieveResponses];
+
+export type IntegrationSettingsRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/integration-settings/';
+};
+
+export type IntegrationSettingsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: IntegrationSettingsOut;
+};
+
+export type IntegrationSettingsRetrieveResponse = IntegrationSettingsRetrieveResponses[keyof IntegrationSettingsRetrieveResponses];
+
+export type IntegrationSettingsPartialUpdateData = {
+    body: IntegrationSettingsPatchIn;
+    path?: never;
+    query?: never;
+    url: '/api/integration-settings/';
+};
+
+export type IntegrationSettingsPartialUpdateResponses = {
+    /**
+     * OK
+     */
+    200: IntegrationSettingsOut;
+};
+
+export type IntegrationSettingsPartialUpdateResponse = IntegrationSettingsPartialUpdateResponses[keyof IntegrationSettingsPartialUpdateResponses];
 
 export type JobCostLinesPartialUpdateData = {
     body: CostLineUpdateRequest;

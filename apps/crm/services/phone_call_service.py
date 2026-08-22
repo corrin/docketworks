@@ -11,8 +11,8 @@ URLs and auth semantics are held by the external party and must not drift:
 - recording delete:   POST ``{base_url}/json/account/deleteMedia``
 
 There is no inbound webhook and no ServiceAPIKey involvement; credentials come
-from ``PhoneProviderSettings`` (plaintext columns by decision — do not re-add
-encryption).
+from the ``phone_provider_*`` columns of ``IntegrationSettings`` (plaintext by
+decision — do not re-add encryption).
 """
 
 import hashlib
@@ -37,12 +37,8 @@ from django.utils import timezone
 
 from apps.company.models import Company, ContactMethod, Person
 from apps.core.errors import persist_app_error
-from apps.crm.models import (
-    PhoneCallRecord,
-    PhoneCallRecording,
-    PhoneEndpoint,
-    PhoneProviderSettings,
-)
+from apps.core.models import IntegrationSettings
+from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
 
 if TYPE_CHECKING:
     from apps.accounts.models import Staff
@@ -517,11 +513,11 @@ class PhoneProviderConfig:
 
 
 def _config() -> PhoneProviderConfig:
-    phone_settings = PhoneProviderSettings.get_solo()
-    base_url = phone_settings.base_url
-    username = phone_settings.username
-    password = phone_settings.password
-    account_code = phone_settings.account_code
+    integration_settings = IntegrationSettings.get_solo()
+    base_url = integration_settings.phone_provider_base_url
+    username = integration_settings.phone_provider_username
+    password = integration_settings.phone_provider_password
+    account_code = integration_settings.phone_provider_account_code
     # All four are required to log in and to stamp the records we import;
     # failing here gives a clear config message instead of an opaque login
     # failure later.

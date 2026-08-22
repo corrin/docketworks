@@ -9,7 +9,7 @@ not through this script.
 Reuses apps/crm/services/phone_call_service.py's PhoneProviderPortalClient —
 the same portal client the Beat sync uses — rather than carrying a second
 login/CDR/download implementation (ADR 0039). Credentials therefore come
-from the PhoneProviderSettings solo row, not environment variables.
+from the IntegrationSettings row (Admin > Integrations), not environment variables.
 """
 
 import argparse

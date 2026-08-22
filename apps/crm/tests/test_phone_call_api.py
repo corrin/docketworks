@@ -1,4 +1,4 @@
-"""API tests for CRM phone-call and provider-settings endpoints.
+"""API tests for CRM phone-call endpoints.
 
 Django test Client with the HttpOnly JWT cookie (pattern:
 apps/accounts/tests/test_auth_api.py). URLs are the production paths.
@@ -16,13 +16,8 @@ from pytest_django.fixtures import SettingsWrapper
 
 from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, Person
-from apps.core.models import AppError
-from apps.crm.models import (
-    PhoneCallRecord,
-    PhoneCallRecording,
-    PhoneEndpoint,
-    PhoneProviderSettings,
-)
+from apps.core.models import AppError, IntegrationSettings
+from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
 from apps.crm.tests.helpers import (
     PASSWORD,
     cookie_client,
@@ -31,7 +26,6 @@ from apps.crm.tests.helpers import (
     make_job,
     make_office_staff,
     make_recording,
-    make_superuser,
 )
 from apps.job.models import Job
 
@@ -469,16 +463,13 @@ class TestRecordingDownload:
         self, api: Client, call: PhoneCallRecord, storage_root: Path
     ) -> None:
         """Catches LAN playback regressing to require provider connectivity."""
-        PhoneProviderSettings.objects.update_or_create(
-            pk=1,
-            defaults={
-                "downloads_enabled": False,
-                "recording_deletion_enabled": False,
-                "base_url": None,
-                "username": None,
-                "password": None,
-                "account_code": None,
-            },
+        IntegrationSettings.objects.filter(pk=1).update(
+            phone_provider_downloads_enabled=False,
+            phone_provider_recording_deletion_enabled=False,
+            phone_provider_base_url=None,
+            phone_provider_username=None,
+            phone_provider_password=None,
+            phone_provider_account_code=None,
         )
         recording, payload = self._archived_recording(
             call, storage_root, "offline-playback", with_sha256=False
@@ -536,73 +527,3 @@ class TestRecordingDownload:
         )
 
         assert response.status_code == 403
-
-
-class TestProviderSettings:
-    """The provider-settings admin surface: superuser-only, credentials never
-    leave the server, and omitted credentials stay stored.
-    """
-
-    def test_requires_superuser(self, api: Client) -> None:
-        response = api.get("/api/crm/phone-provider-settings/")
-        assert response.status_code == 403
-
-    def test_get_reports_credential_presence_without_values(self) -> None:
-        PhoneProviderSettings.objects.update_or_create(
-            pk=1,
-            defaults={
-                "base_url": "https://phone.example.test",
-                "username": "user",
-                "password": "secret",
-                "account_code": "account",
-            },
-        )
-        client = cookie_client(make_superuser())
-
-        response = client.get("/api/crm/phone-provider-settings/")
-
-        assert response.status_code == 200
-        body = response.json()
-        assert body["has_username"] is True
-        assert body["has_password"] is True
-        assert "username" not in body
-        assert "password" not in body
-        assert body["base_url"] == "https://phone.example.test"
-
-    def test_patch_with_omitted_credentials_keeps_stored_values(self) -> None:
-        PhoneProviderSettings.objects.update_or_create(
-            pk=1,
-            defaults={
-                "base_url": "https://phone.example.test",
-                "username": "user",
-                "password": "secret",
-                "account_code": "account",
-            },
-        )
-        client = cookie_client(make_superuser())
-
-        response = client.patch(
-            "/api/crm/phone-provider-settings/",
-            data={"downloads_enabled": True},
-            content_type="application/json",
-        )
-
-        assert response.status_code == 200
-        stored = PhoneProviderSettings.get_solo()
-        assert stored.downloads_enabled is True
-        assert stored.username == "user"
-        assert stored.password == "secret"
-
-    def test_patch_rejects_downloads_enabled_without_base_url(self) -> None:
-        client = cookie_client(make_superuser())
-
-        response = client.patch(
-            "/api/crm/phone-provider-settings/",
-            data={"downloads_enabled": True},
-            content_type="application/json",
-        )
-
-        assert response.status_code == 400
-        assert response.json() == {
-            "base_url": ["Base URL is required when phone downloads are enabled."]
-        }
