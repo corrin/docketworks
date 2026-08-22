@@ -42,6 +42,7 @@ from scripts.ops.outbound_links_probe import (
     main,
     requests_fetch,
     scan_source_literals,
+    unclassified_fields,
     verify_all,
     verify_google_file,
     verify_http,
@@ -737,6 +738,13 @@ class TestCli:
         """Django refuses a negative slice with a traceback; argparse refuses it with a message."""
         with pytest.raises(SystemExit):
             main(["--sample", "-1"])
+
+
+@pytest.mark.django_db
+class TestUnclassifiedFields:
+    def test_every_link_shaped_column_is_accounted_for(self) -> None:
+        """The docstring's contract: a new ``twotalk_call_id`` is red until classified."""
+        assert unclassified_fields() == []
 
 
 @pytest.mark.django_db

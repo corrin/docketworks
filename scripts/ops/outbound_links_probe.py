@@ -78,7 +78,6 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol, get_args
 from urllib.parse import urlsplit
-from uuid import UUID
 
 from scripts import REPO_ROOT
 from scripts.bootstrap import setup_django
@@ -607,12 +606,6 @@ def _google_pair(url: str | None, file_id: str | None, *, source: str) -> Outbou
     return link
 
 
-def _configured(value: str | UUID | None, *, kind: LinkKind, source: str) -> OutboundLink:
-    if value is None:
-        return OutboundLink(kind="skipped", source=source, detail="not configured")
-    return OutboundLink(kind=kind, source=source, external_id=str(value))
-
-
 def enumerate_company_defaults(defaults: CompanyDefaults) -> list[OutboundLink]:
     """Every link or external id the singleton holds, one source per column.
 
@@ -888,8 +881,9 @@ def verify_google_file(link: OutboundLink, *, lookup: GoogleLookup) -> LinkVerdi
         raise ValueError(f"{link.source}: a google_file link needs a file id")
     try:
         state = lookup(link.external_id)
-    # deliberate-swallow: the adapter's typed "could not ask" outcome becomes
-    # the verdict that fails the gate.
+    # deliberate-swallow: DriveLookup raises this when Drive itself could not
+    # be asked (quota 403, 5xx, transport); that is a verdict that fails the
+    # gate, not a traceback.
     except UnreachableError as exc:
         return LinkVerdict(link, "unreachable", str(exc))
     if state.status == "missing":
@@ -930,8 +924,9 @@ def verify_xero(link: OutboundLink, *, xero: XeroLookups) -> LinkVerdict:
             present = xero.document_exists(document_kind, link.external_id)
         else:
             raise ValueError(f"{link.source}: {link.kind} is not a Xero kind")
-    # deliberate-swallow: the adapter's typed "could not ask" outcome becomes
-    # the verdict that fails the gate.
+    # deliberate-swallow: LiveXero raises this when the tenant listing or the
+    # document fetch could not be made at all (no token, quota, transport);
+    # that is a verdict that fails the gate, not a traceback.
     except UnreachableError as exc:
         return LinkVerdict(link, "unreachable", str(exc))
     if present:
@@ -1016,6 +1011,7 @@ def requests_fetch(url: str) -> int:
 
     headers = {"User-Agent": _USER_AGENT}
     last: UnreachableError | None = None
+    final = 0
     for _attempt in range(2):
         try:
             answer = requests.get(
