@@ -65,6 +65,20 @@ export function AppNavbar() {
             </>
           )}
         </NavMenu>
+        {/* Office staff only: every people endpoint is office_auth, and the
+            companies report exposes company-wide spend. No Calls entry —
+            no phone-calls page exists, and a visible tab may not lead to a
+            placeholder. */}
+        {user.is_office_staff && (
+          <NavMenu label="CRM" automationId="AppNavbar-crm-menu">
+            <NavMenuLink to="/crm/companies" automationId="AppNavbar-companies">
+              Companies
+            </NavMenuLink>
+            <NavMenuLink to="/crm/people" automationId="AppNavbar-people">
+              People
+            </NavMenuLink>
+          </NavMenu>
+        )}
         {/* Office staff only, as in v1: every entry is company-wide revenue
             or payroll, which a workshop login has no business reading. */}
         {user.is_office_staff && (
