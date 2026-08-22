@@ -42,6 +42,13 @@ export function isApiErrorStatus(error: unknown, status: number): boolean {
   return isAxiosError(error) && error.response?.status === status
 }
 
+/** The response body of a failed call, for endpoints whose error status
+    carries a typed payload (e.g. the 409 PhoneOwnership conflict). Callers
+    validate the shape themselves — this only crosses the axios boundary. */
+export function apiErrorBody(error: unknown): unknown {
+  return isAxiosError(error) ? error.response?.data : undefined
+}
+
 /** Authentication challenge emitted by the app session boundary, not a domain 401. */
 export function isSessionAuthenticationError(error: unknown): boolean {
   if (!isAxiosError(error) || error.response?.status !== 401 || !isRecord(error.response.data)) {

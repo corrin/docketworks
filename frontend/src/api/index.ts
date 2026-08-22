@@ -11,6 +11,7 @@ export { client } from './client'
 // Error presentation for failed calls; lives here because it inspects the
 // axios error shape, and transport knowledge stays inside src/api.
 export {
+  apiErrorBody,
   apiErrorId,
   apiErrorMessage,
   isApiErrorStatus,
@@ -70,6 +71,8 @@ export {
   companiesPeopleCreateMutation,
   companiesPeopleListOptions,
   companiesPeopleListQueryKey,
+  companiesPeoplePhoneOwnershipCreateMutation,
+  companiesSearchRetrieveInfiniteOptions,
   companiesSearchRetrieveOptions,
   peopleCompanyLinksDestroyMutation,
   peoplePartialUpdateMutation,
@@ -78,7 +81,37 @@ export type {
   CompanyCreateResponse,
   CompanyPerson,
   CompanyPersonCreateRequest,
+  CompanySearchResponse,
   CompanySearchResult,
+  PhoneOwnership,
+  PhonePersonMatch,
+} from './generated/types.gen'
+// The create call's 409 backstop carries a typed PhoneOwnership body; this
+// schema validates it before it is fed back into the conflict picker.
+export { zPhoneOwnership } from './generated/zod.gen'
+
+// People directory and person detail (/crm/people)
+export {
+  peopleArchiveCreateMutation,
+  peopleCompanyLinksListOptions,
+  peopleCompanyLinksListQueryKey,
+  peopleCompanyLinksUpdateMutation,
+  peopleContactMethodsCreateMutation,
+  peopleContactMethodsDestroyMutation,
+  peopleContactMethodsListOptions,
+  peopleContactMethodsListQueryKey,
+  peopleContactMethodsPartialUpdateMutation,
+  peopleListInfiniteOptions,
+  peopleListQueryKey,
+  peopleRetrieveOptions,
+  peopleRetrieveQueryKey,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  ContactMethodOut,
+  PaginatedPersonSummaryList,
+  PersonCompanyLink,
+  PersonDetail,
+  PersonSummary,
 } from './generated/types.gen'
 // Job (create + detail + header edits)
 export {

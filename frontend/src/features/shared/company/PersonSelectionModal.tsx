@@ -4,13 +4,22 @@ import { AlertTriangle, PencilLine, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
+  apiErrorBody,
   apiErrorMessage,
   companiesPeopleCreateMutation,
+  companiesPeopleListOptions,
   companiesPeopleListQueryKey,
+  companiesPeoplePhoneOwnershipCreateMutation,
   peopleCompanyLinksDestroyMutation,
+  peopleCompanyLinksUpdateMutation,
+  peopleListQueryKey,
   peoplePartialUpdateMutation,
+  zPhoneOwnership,
+  isApiErrorStatus,
   type CompanyPerson,
   type CompanyPersonCreateRequest,
+  type PhoneOwnership,
+  type PhonePersonMatch,
 } from '@/api'
 import {
   Dialog,
@@ -61,9 +70,12 @@ interface PersonSelectionModalProps {
  * decides. Selecting (by card click or the hover Select button) closes the
  * modal.
  *
- * Deferred: the phone-ownership conflict flow. A phone that belongs to
- * another person or company is rejected by the backend (409), surfaced here
- * as an error toast rather than v1's link-or-create-separate picker.
+ * Fable: a phone owned elsewhere is caught by a pre-flight ownership read
+ * before the create call, and surfaced as a link-or-create-separate picker.
+ * The check is a read rather than a parse of the create call's 409 because a
+ * 4xx XHR logs a browser console error, which the E2E console guard turns
+ * into a spec failure; the 409 remains the concurrency backstop, and its
+ * typed body re-arms the same picker.
  */
 export function PersonSelectionModal({
   open,
@@ -81,11 +93,14 @@ export function PersonSelectionModal({
   const [form, setForm] = useState<PersonFormState>(EMPTY_FORM)
   const [editingPerson, setEditingPerson] = useState<CompanyPerson | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<CompanyPerson | null>(null)
+  const [phoneOwnership, setPhoneOwnership] = useState<PhoneOwnership | null>(null)
   const fieldIdPrefix = useId()
 
   const createPerson = useMutation(companiesPeopleCreateMutation())
   const updatePerson = useMutation(peoplePartialUpdateMutation())
   const removeLink = useMutation(peopleCompanyLinksDestroyMutation())
+  const checkPhoneOwnership = useMutation(companiesPeoplePhoneOwnershipCreateMutation())
+  const linkPerson = useMutation(peopleCompanyLinksUpdateMutation())
 
   const updateForm = (patch: Partial<PersonFormState>) => {
     setForm((current) => ({ ...current, ...patch }))
@@ -95,6 +110,7 @@ export function PersonSelectionModal({
     setForm(EMPTY_FORM)
     setEditingPerson(null)
     setDeleteTarget(null)
+    setPhoneOwnership(null)
     onClose()
   }
 
@@ -105,6 +121,7 @@ export function PersonSelectionModal({
 
   const startEdit = (person: CompanyPerson) => {
     setEditingPerson(person)
+    setPhoneOwnership(null)
     setForm({
       name: person.person_name,
       position: person.position ?? '',
@@ -115,10 +132,16 @@ export function PersonSelectionModal({
     })
   }
 
-  const invalidatePeople = () =>
-    queryClient.invalidateQueries({
-      queryKey: companiesPeopleListQueryKey({ path: { company_id: companyId } }),
-    })
+  const invalidatePeople = async () => {
+    // The people directory renders this modal inside its create panel, so a
+    // change made here must also refresh the person-scoped list behind it.
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: companiesPeopleListQueryKey({ path: { company_id: companyId } }),
+      }),
+      queryClient.invalidateQueries({ queryKey: peopleListQueryKey() }),
+    ])
+  }
 
   const handleUpdate = async () => {
     if (editingPerson === null) {
@@ -178,7 +201,7 @@ export function PersonSelectionModal({
     setDeleteTarget(null)
   }
 
-  const handleCreate = async () => {
+  const handleCreate = async (skipPhoneCheck = false) => {
     const name = form.name.trim()
     if (!name) {
       return
@@ -190,6 +213,25 @@ export function PersonSelectionModal({
       return
     }
 
+    const phone = form.phone.trim()
+    if (phone && !skipPhoneCheck) {
+      let ownership: PhoneOwnership
+      try {
+        ownership = await checkPhoneOwnership.mutateAsync({
+          path: { company_id: companyId },
+          body: { phone },
+        })
+      } catch (error) {
+        toast.error(apiErrorMessage(error, 'Failed to check phone ownership.'))
+        return
+      }
+      if (ownership.status !== 'available') {
+        setPhoneOwnership(ownership)
+        return
+      }
+    }
+    setPhoneOwnership(null)
+
     // Blank optional fields are absent on the wire (undefined never
     // serializes), so the backend leaves the person's contact methods alone.
     const body: CompanyPersonCreateRequest = {
@@ -198,7 +240,7 @@ export function PersonSelectionModal({
       position: form.position.trim() || undefined,
       email: email || undefined,
       notes: form.notes.trim() || undefined,
-      phone: form.phone.trim() || undefined,
+      phone: phone || undefined,
     }
 
     toast.info('Creating person...', { id: 'save-person' })
@@ -207,6 +249,17 @@ export function PersonSelectionModal({
       created = await createPerson.mutateAsync({ path: { company_id: companyId }, body })
     } catch (error) {
       toast.dismiss('save-person')
+      // Fable: the pre-flight cannot rule out a concurrent writer claiming
+      // the phone between check and create; the backstop 409 carries the
+      // same PhoneOwnership payload, so it re-arms the picker rather than
+      // dead-ending in a generic toast.
+      if (isApiErrorStatus(error, 409)) {
+        const conflict = zPhoneOwnership.safeParse(apiErrorBody(error))
+        if (conflict.success) {
+          setPhoneOwnership(conflict.data)
+          return
+        }
+      }
       toast.error(
         apiErrorMessage(error, 'Failed to create person. Please check the form and try again.'),
       )
@@ -215,15 +268,87 @@ export function PersonSelectionModal({
     toast.dismiss('save-person')
     toast.success('Person created successfully!')
 
-    await queryClient.invalidateQueries({
-      queryKey: companiesPeopleListQueryKey({ path: { company_id: companyId } }),
-    })
+    await invalidatePeople()
     onSelectPerson(created)
     closeAndReset()
   }
 
+  const matchAction = (match: PhonePersonMatch): string => {
+    const link = match.company_links.find((item) => item.company_id === companyId)
+    if (link?.is_active) {
+      return 'Select person'
+    }
+    if (link) {
+      return 'Restore company link'
+    }
+    return 'Link to this company'
+  }
+
+  const handleLinkMatch = async (match: PhonePersonMatch) => {
+    const existingLink = match.company_links.find((item) => item.company_id === companyId)
+    toast.info('Linking person...', { id: 'save-person' })
+    try {
+      if (!existingLink?.is_active) {
+        // The PUT upserts the link, reactivates an inactive one, and
+        // un-archives the person server-side.
+        // Fable: an inactive link keeps its stored position/notes on
+        // restore — the form here described the person the user was about
+        // to create, not this relationship, and the PUT assigns
+        // unconditionally, so sending form values would blank real data.
+        const body = existingLink
+          ? {
+              position: existingLink.position,
+              notes: existingLink.notes,
+              is_primary: existingLink.is_primary,
+            }
+          : {
+              position: form.position.trim() || null,
+              notes: form.notes.trim() || null,
+              is_primary: form.isPrimary || people.length === 0,
+            }
+        await linkPerson.mutateAsync({
+          path: { person_id: match.person_id, company_id: companyId },
+          body,
+        })
+        // The PUT can un-archive the person, so the directory's cache is
+        // stale even though this modal only reads the company-scoped list.
+        await queryClient.invalidateQueries({ queryKey: peopleListQueryKey() })
+      }
+      // Fable: fetchQuery, not invalidate — the parent PersonSelector reads
+      // this exact key, and the selection below needs the annotated
+      // CompanyPerson row. staleTime 0 because the client default of 30s
+      // would make this a cache read of the pre-link list, which cannot
+      // contain the person just linked (the LeaveSettingsPage save documents
+      // the same trap).
+      const fresh = await queryClient.fetchQuery({
+        ...companiesPeopleListOptions({ path: { company_id: companyId } }),
+        staleTime: 0,
+      })
+      const linked = fresh.find((person) => person.person_id === match.person_id)
+      if (!linked) {
+        throw new Error('Linked person was not returned for the company')
+      }
+      toast.dismiss('save-person')
+      toast.success('Person linked successfully!')
+      onSelectPerson(linked)
+      closeAndReset()
+    } catch (error) {
+      toast.dismiss('save-person')
+      toast.error(apiErrorMessage(error, 'Failed to link the existing person.'))
+    }
+  }
+
   const isSaving = createPerson.isPending || updatePerson.isPending
-  const submitDisabled = isSaving || !form.name.trim()
+  // Fable: the form is read-only while the ownership pre-flight runs —
+  // handleCreate captured the phone before the await, so an edit mid-check
+  // would create the original number or show a conflict for one no longer
+  // in the box.
+  const checkingPhone = checkPhoneOwnership.isPending
+  // isLoadingPeople: is_primary defaults from whether the company already
+  // has people, so submitting before that list lands could demote the real
+  // primary person.
+  const conflictActionsDisabled = isSaving || checkPhoneOwnership.isPending || linkPerson.isPending
+  const submitDisabled = conflictActionsDisabled || isLoadingPeople || !form.name.trim()
   const submitLabel = isSaving ? 'Saving...' : editingPerson ? 'Update Person' : 'Create Person'
 
   return (
@@ -236,6 +361,79 @@ export function PersonSelectionModal({
               Company: <span className="font-medium text-gray-900">{companyName}</span>
             </DialogDescription>
           </DialogHeader>
+
+          {phoneOwnership && (
+            <div
+              className={`mt-4 max-h-64 flex-shrink-0 overflow-y-auto rounded-lg border p-4 ${
+                phoneOwnership.status === 'people'
+                  ? 'border-amber-300 bg-amber-50'
+                  : 'border-red-300 bg-red-50'
+              }`}
+              data-automation-id="PersonSelectionModal-phone-conflict"
+            >
+              <h4 className="font-semibold text-gray-900">This phone number is already in use</h4>
+              {phoneOwnership.status === 'people' ? (
+                <p className="mt-1 text-sm text-gray-700">
+                  Choose the matching person. Their identity and contact details will be preserved.
+                </p>
+              ) : phoneOwnership.status === 'company' ? (
+                <p className="mt-1 text-sm text-red-800">
+                  It belongs to{' '}
+                  {phoneOwnership.companies.map((company) => company.company_name).join(', ')} and
+                  cannot be assigned to a person.
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-red-800">
+                  It is an internal phone endpoint and cannot be assigned to a person.
+                </p>
+              )}
+
+              {phoneOwnership.status === 'people' && (
+                <div className="mt-3 space-y-2">
+                  {phoneOwnership.people.map((match) => (
+                    <div
+                      key={match.person_id}
+                      className="flex flex-col gap-2 rounded-md border border-amber-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                      data-automation-id={`PersonSelectionModal-phone-match-${match.person_id}`}
+                    >
+                      <div>
+                        <p className="font-medium text-gray-900">{match.person_name}</p>
+                        <p className="text-xs text-gray-600">{match.person_email || 'No email'}</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {match.company_links
+                            .map(
+                              (link) =>
+                                `${link.company_name}${link.is_active ? '' : ' (inactive)'}`,
+                            )
+                            .join(', ') || 'No company links'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="rounded-md bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-800 disabled:opacity-50"
+                        data-automation-id={`PersonSelectionModal-link-match-${match.person_id}`}
+                        disabled={conflictActionsDisabled}
+                        onClick={() => void handleLinkMatch(match)}
+                      >
+                        {matchAction(match)}
+                      </button>
+                    </div>
+                  ))}
+                  {phoneOwnership.can_create_person && (
+                    <button
+                      type="button"
+                      className="text-sm font-medium text-amber-900 underline disabled:opacity-50"
+                      data-automation-id="PersonSelectionModal-create-separate"
+                      disabled={conflictActionsDisabled}
+                      onClick={() => void handleCreate(true)}
+                    >
+                      Create a separate person with this shared number
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-4 xl:flex-row lg:gap-6">
             <div className="relative flex min-h-0 flex-1 flex-col">
@@ -417,6 +615,7 @@ export function PersonSelectionModal({
                   <input
                     type="text"
                     id={`${fieldIdPrefix}-name`}
+                    disabled={checkingPhone}
                     value={form.name}
                     data-automation-id="PersonSelectionModal-name-input"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
@@ -436,7 +635,7 @@ export function PersonSelectionModal({
                     type="text"
                     id={`${fieldIdPrefix}-position`}
                     value={form.position}
-                    disabled={editingPerson !== null}
+                    disabled={editingPerson !== null || checkingPhone}
                     title={editingPerson ? 'Editing changes name and email only' : undefined}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
                     placeholder="Job title/position"
@@ -455,12 +654,15 @@ export function PersonSelectionModal({
                     type="tel"
                     id={`${fieldIdPrefix}-phone`}
                     value={form.phone}
-                    disabled={editingPerson !== null}
+                    disabled={editingPerson !== null || checkingPhone}
                     title={editingPerson ? 'Editing changes name and email only' : undefined}
                     data-automation-id="PersonSelectionModal-phone-input"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
                     placeholder="Phone number"
-                    onChange={(event) => updateForm({ phone: event.target.value })}
+                    onChange={(event) => {
+                      updateForm({ phone: event.target.value })
+                      setPhoneOwnership(null)
+                    }}
                   />
                 </div>
 
@@ -475,6 +677,7 @@ export function PersonSelectionModal({
                     type="email"
                     id={`${fieldIdPrefix}-email`}
                     value={form.email}
+                    disabled={checkingPhone}
                     data-automation-id="PersonSelectionModal-email-input"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
                     placeholder="Email address"
@@ -493,7 +696,7 @@ export function PersonSelectionModal({
                     id={`${fieldIdPrefix}-notes`}
                     value={form.notes}
                     rows={2}
-                    disabled={editingPerson !== null}
+                    disabled={editingPerson !== null || checkingPhone}
                     title={editingPerson ? 'Editing changes name and email only' : undefined}
                     className="w-full resize-none rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
                     placeholder="Additional notes"
@@ -507,7 +710,7 @@ export function PersonSelectionModal({
                       id={`${fieldIdPrefix}-primary`}
                       type="checkbox"
                       checked={form.isPrimary || people.length === 0}
-                      disabled={people.length === 0 || editingPerson !== null}
+                      disabled={people.length === 0 || editingPerson !== null || checkingPhone}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       onChange={(event) => updateForm({ isPrimary: event.target.checked })}
                     />
@@ -536,7 +739,7 @@ export function PersonSelectionModal({
               data-automation-id="PersonSelectionModal-submit"
               className="ml-3 rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={submitDisabled}
-              onClick={editingPerson ? handleUpdate : handleCreate}
+              onClick={() => void (editingPerson ? handleUpdate() : handleCreate())}
             >
               {submitLabel}
             </button>

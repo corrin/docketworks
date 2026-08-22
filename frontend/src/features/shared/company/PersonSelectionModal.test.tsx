@@ -1,9 +1,12 @@
-import { screen } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
+import { screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { CompanyPerson } from '@/api'
+import { peopleListQueryKey, type CompanyPerson, type PhoneOwnership } from '@/api'
 import { expectNoAccessibilityViolations } from '@/test/accessibility'
+import { queryAutoId } from '@/test/auto-id'
 import { renderWithProviders } from '@/test/render'
+import { server } from '@/test/msw'
 import { PersonSelectionModal } from './PersonSelectionModal'
 
 const person: CompanyPerson = {
@@ -44,5 +47,220 @@ describe('PersonSelectionModal', () => {
     select.focus()
     expect(select).toHaveFocus()
     await expectNoAccessibilityViolations(container)
+  })
+})
+
+const matchedPerson = (companyLinks: PhoneOwnership['people'][number]['company_links']) => ({
+  person_id: 'person-9',
+  person_name: 'Jordan Rivers',
+  person_email: null,
+  company_links: companyLinks,
+})
+
+const ownership = (people: PhoneOwnership['people'], canCreatePerson = false): PhoneOwnership => ({
+  status: people.length > 0 ? 'people' : 'available',
+  normalized_phone: '+64211234567',
+  can_create_person: canCreatePerson,
+  people,
+  companies: [],
+})
+
+const linkedCompanyPerson: CompanyPerson = {
+  is_primary: true,
+  notes: null,
+  person_email: null,
+  person_id: 'person-9',
+  person_name: 'Jordan Rivers',
+  position: null,
+  primary_phone: '021 123 4567',
+}
+
+/** A promise the test resolves by hand, to hold a response open. */
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void
+  const promise = new Promise<void>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
+function renderCreateModal(onSelectPerson = vi.fn(), onClose = vi.fn()) {
+  const rendered = renderWithProviders(
+    <PersonSelectionModal
+      open
+      companyId="company-1"
+      companyName="Alpha Engineering"
+      people={[]}
+      isLoadingPeople={false}
+      selectedPersonId={null}
+      onClose={onClose}
+      onSelectPerson={onSelectPerson}
+    />,
+  )
+  return { ...rendered, onSelectPerson, onClose }
+}
+
+async function submitNewPerson(user: ReturnType<typeof renderCreateModal>['user']) {
+  await user.type(await screen.findByLabelText('Name *'), 'Casey New')
+  await user.type(screen.getByLabelText('Phone'), '021 123 4567')
+  await user.click(screen.getByRole('button', { name: 'Create Person' }))
+}
+
+describe('PersonSelectionModal phone-ownership conflict', () => {
+  it('shows the conflict picker for an owned phone instead of creating', async () => {
+    let createCalls = 0
+    server.use(
+      http.post('*/api/companies/company-1/people/phone-ownership/', () =>
+        HttpResponse.json(ownership([matchedPerson([])])),
+      ),
+      http.post('*/api/companies/company-1/people/', () => {
+        createCalls += 1
+        return HttpResponse.json(linkedCompanyPerson, { status: 201 })
+      }),
+    )
+    const { user } = renderCreateModal()
+
+    await submitNewPerson(user)
+
+    await waitFor(() => expect(queryAutoId('PersonSelectionModal-phone-conflict')).not.toBeNull())
+    expect(screen.getByText('Jordan Rivers')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Link to this company' })).toBeVisible()
+    expect(createCalls).toBe(0)
+  })
+
+  it('locks the form while the phone ownership check is in flight', async () => {
+    const gate = deferred()
+    server.use(
+      http.post('*/api/companies/company-1/people/phone-ownership/', async () => {
+        await gate.promise
+        return HttpResponse.json(ownership([matchedPerson([])]))
+      }),
+    )
+    const { user } = renderCreateModal()
+
+    await submitNewPerson(user)
+
+    // Editing the phone mid-check would create the original phone, or show a
+    // conflict for a number no longer in the box.
+    await waitFor(() => expect(screen.getByLabelText('Phone')).toBeDisabled())
+    expect(screen.getByLabelText('Name *')).toBeDisabled()
+    gate.resolve()
+    await waitFor(() => expect(queryAutoId('PersonSelectionModal-phone-conflict')).not.toBeNull())
+    expect(screen.getByLabelText('Phone')).toBeEnabled()
+  })
+
+  it('links the matched person and selects the refreshed company person', async () => {
+    let putBody: unknown = null
+    server.use(
+      http.post('*/api/companies/company-1/people/phone-ownership/', () =>
+        HttpResponse.json(ownership([matchedPerson([])])),
+      ),
+      http.put('*/api/people/person-9/company-links/company-1/', async ({ request }) => {
+        putBody = await request.json()
+        return HttpResponse.json({
+          company_id: 'company-1',
+          company_name: 'Alpha Engineering',
+          position: null,
+          is_primary: true,
+          notes: null,
+          is_active: true,
+        })
+      }),
+      http.get('*/api/companies/company-1/people/', () => HttpResponse.json([linkedCompanyPerson])),
+    )
+    const { user, onSelectPerson, onClose, queryClient } = renderCreateModal()
+    // A stale directory entry: the PUT can un-archive the person server-side.
+    // gcTime: the test client collects unobserved queries at once, which
+    // would erase the entry before its state can be read.
+    queryClient.setQueryDefaults(peopleListQueryKey(), { gcTime: Number.POSITIVE_INFINITY })
+    queryClient.setQueryData(peopleListQueryKey(), { count: 0, results: [] })
+
+    await submitNewPerson(user)
+    await user.click(await screen.findByRole('button', { name: 'Link to this company' }))
+
+    await waitFor(() => expect(onSelectPerson).toHaveBeenCalledWith(linkedCompanyPerson))
+    expect(putBody).toEqual({ position: null, notes: null, is_primary: true })
+    expect(onClose).toHaveBeenCalled()
+    expect(queryClient.getQueryState(peopleListQueryKey())?.isInvalidated).toBe(true)
+  })
+
+  it('skips the PUT when the match already holds an active link', async () => {
+    let putCalls = 0
+    server.use(
+      http.post('*/api/companies/company-1/people/phone-ownership/', () =>
+        HttpResponse.json(
+          ownership([
+            matchedPerson([
+              {
+                company_id: 'company-1',
+                company_name: 'Alpha Engineering',
+                position: null,
+                is_primary: true,
+                notes: null,
+                is_active: true,
+              },
+            ]),
+          ]),
+        ),
+      ),
+      http.put('*/api/people/person-9/company-links/company-1/', () => {
+        putCalls += 1
+        return HttpResponse.json({})
+      }),
+      http.get('*/api/companies/company-1/people/', () => HttpResponse.json([linkedCompanyPerson])),
+    )
+    const { user, onSelectPerson } = renderCreateModal()
+
+    await submitNewPerson(user)
+    await user.click(await screen.findByRole('button', { name: 'Select person' }))
+
+    await waitFor(() => expect(onSelectPerson).toHaveBeenCalledWith(linkedCompanyPerson))
+    expect(putCalls).toBe(0)
+  })
+
+  it('creates a separate person without a second ownership check', async () => {
+    let ownershipCalls = 0
+    let createCalls = 0
+    server.use(
+      http.post('*/api/companies/company-1/people/phone-ownership/', () => {
+        ownershipCalls += 1
+        return HttpResponse.json(ownership([matchedPerson([])], true))
+      }),
+      http.post('*/api/companies/company-1/people/', () => {
+        createCalls += 1
+        return HttpResponse.json(linkedCompanyPerson, { status: 201 })
+      }),
+      http.get('*/api/companies/company-1/people/', () => HttpResponse.json([linkedCompanyPerson])),
+    )
+    const { user, onSelectPerson } = renderCreateModal()
+
+    await submitNewPerson(user)
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Create a separate person with this shared number',
+      }),
+    )
+
+    await waitFor(() => expect(createCalls).toBe(1))
+    expect(ownershipCalls).toBe(1)
+    await waitFor(() => expect(onSelectPerson).toHaveBeenCalled())
+  })
+
+  it('creates directly when the phone is available', async () => {
+    server.use(
+      http.post('*/api/companies/company-1/people/phone-ownership/', () =>
+        HttpResponse.json(ownership([])),
+      ),
+      http.post('*/api/companies/company-1/people/', () =>
+        HttpResponse.json(linkedCompanyPerson, { status: 201 }),
+      ),
+      http.get('*/api/companies/company-1/people/', () => HttpResponse.json([linkedCompanyPerson])),
+    )
+    const { user, onSelectPerson } = renderCreateModal()
+
+    await submitNewPerson(user)
+
+    await waitFor(() => expect(onSelectPerson).toHaveBeenCalledWith(linkedCompanyPerson))
+    expect(queryAutoId('PersonSelectionModal-phone-conflict')).toBeNull()
   })
 })

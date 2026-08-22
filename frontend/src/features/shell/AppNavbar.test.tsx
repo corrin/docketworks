@@ -139,3 +139,26 @@ describe('AppNavbar — the Reports menu', () => {
     expect(queryAutoId('AppNavbar-sales-forecast')).toBeNull()
   })
 })
+
+describe('AppNavbar — the CRM menu', () => {
+  it('offers companies and people to office staff', async () => {
+    mockUser({ is_office_staff: true, is_superuser: false })
+    const { user } = renderWithProviders(<AppNavbar />)
+
+    await openMenu(user, 'AppNavbar-crm-menu')
+    await waitFor(() => {
+      expect(queryAutoId('AppNavbar-companies')).not.toBeNull()
+      expect(queryAutoId('AppNavbar-people')).not.toBeNull()
+    })
+  })
+
+  it('is withheld from a workshop login', async () => {
+    // Fable: every people endpoint is office_auth; a menu a workshop login
+    // can see would lead to pages whose every query 403s.
+    mockUser({ is_office_staff: false })
+    renderWithProviders(<AppNavbar />)
+
+    await waitFor(() => expect(queryAutoId('AppNavbar-logout')).not.toBeNull())
+    expect(queryAutoId('AppNavbar-crm-menu')).toBeNull()
+  })
+})
