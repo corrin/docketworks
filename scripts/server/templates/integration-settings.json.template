@@ -1,0 +1,17 @@
+[
+  {
+    "model": "core.integrationsettings",
+    "pk": 1,
+    "fields": {
+      "google_maps_api_key": __GOOGLE_MAPS_API_KEY_JSON__,
+      "phone_provider_downloads_enabled": __PHONE_PROVIDER_DOWNLOADS_ENABLED__,
+      "phone_provider_recording_deletion_enabled": __PHONE_PROVIDER_RECORDING_DELETION_ENABLED__,
+      "phone_provider_base_url": __PHONE_PROVIDER_BASE_URL_JSON__,
+      "phone_provider_username": __PHONE_PROVIDER_USERNAME_JSON__,
+      "phone_provider_password": __PHONE_PROVIDER_PASSWORD_JSON__,
+      "phone_provider_account_code": __PHONE_PROVIDER_ACCOUNT_CODE_JSON__,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  }
+]

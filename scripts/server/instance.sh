@@ -311,14 +311,6 @@ render_instance_env() {
         -e "s|__REDIS_DB__|$redis_db|g" \
         "$TEMPLATE_DIR/env-instance.template" > "$tmp_env"
 
-    local shared_env="$BASE_DIR/shared.env"
-    if [[ ! -f "$shared_env" ]]; then
-        rm -f "$tmp_env"
-        echo "ERROR: $shared_env not found. Run server-setup.sh first."
-        exit 1
-    fi
-    echo "" >> "$tmp_env"
-    grep '^GOOGLE_MAPS_API_KEY=' "$shared_env" >> "$tmp_env"
     chown "$instance_user:$instance_user" "$tmp_env"
     chmod 600 "$tmp_env"
     mv "$tmp_env" "$env_file"
@@ -371,31 +363,33 @@ render_xero_apps_fixture() {
     chmod 600 "$fixture_dir/xero_apps.json"
 }
 
-render_phone_provider_settings_fixture() {
+render_integration_settings_fixture() {
     local instance_dir="$1"
     local instance_user="$2"
     local fixture_dir="$instance_dir/.fixtures"
 
-    log "Generating phone provider settings fixture..."
+    log "Generating integration settings fixture..."
     mkdir -p "$fixture_dir"
-    local PHONE_PROVIDER_BASE_URL_JSON PHONE_PROVIDER_USERNAME_JSON
+    local GOOGLE_MAPS_API_KEY_JSON PHONE_PROVIDER_BASE_URL_JSON PHONE_PROVIDER_USERNAME_JSON
     local PHONE_PROVIDER_PASSWORD_JSON PHONE_PROVIDER_ACCOUNT_CODE_JSON
+    GOOGLE_MAPS_API_KEY_JSON="$(sed_escape "$(json_string_or_null "${GOOGLE_MAPS_API_KEY:-}")")"
     PHONE_PROVIDER_BASE_URL_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_BASE_URL:-}")")"
     PHONE_PROVIDER_USERNAME_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_USERNAME:-}")")"
     PHONE_PROVIDER_PASSWORD_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_PASSWORD:-}")")"
     PHONE_PROVIDER_ACCOUNT_CODE_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_ACCOUNT_CODE:-}")")"
     sed \
+        -e "s|__GOOGLE_MAPS_API_KEY_JSON__|$GOOGLE_MAPS_API_KEY_JSON|g" \
         -e "s|__PHONE_PROVIDER_DOWNLOADS_ENABLED__|${PHONE_PROVIDER_DOWNLOADS_ENABLED:-false}|g" \
         -e "s|__PHONE_PROVIDER_RECORDING_DELETION_ENABLED__|${PHONE_PROVIDER_RECORDING_DELETION_ENABLED:-false}|g" \
         -e "s|__PHONE_PROVIDER_BASE_URL_JSON__|$PHONE_PROVIDER_BASE_URL_JSON|g" \
         -e "s|__PHONE_PROVIDER_USERNAME_JSON__|$PHONE_PROVIDER_USERNAME_JSON|g" \
         -e "s|__PHONE_PROVIDER_PASSWORD_JSON__|$PHONE_PROVIDER_PASSWORD_JSON|g" \
         -e "s|__PHONE_PROVIDER_ACCOUNT_CODE_JSON__|$PHONE_PROVIDER_ACCOUNT_CODE_JSON|g" \
-        "$TEMPLATE_DIR/phone-provider-settings.json.template" \
-        > "$fixture_dir/phone_provider_settings.json"
+        "$TEMPLATE_DIR/integration-settings.json.template" \
+        > "$fixture_dir/integration_settings.json"
     chown -R "$instance_user:$instance_user" "$fixture_dir"
     chmod 700 "$fixture_dir"
-    chmod 600 "$fixture_dir/phone_provider_settings.json"
+    chmod 600 "$fixture_dir/integration_settings.json"
 }
 
 # ============================================================
@@ -716,12 +710,14 @@ EOSQL
         "from django.core.management import call_command; from apps.xero.models import XeroApp; print('XeroApp already configured; skipping xero_apps.json load') if XeroApp.objects.exists() else call_command('loaddata', '$XERO_APPS_FIXTURE')"
     rm -f "$XERO_APPS_FIXTURE"
 
-    render_phone_provider_settings_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
-    log "Loading phone provider settings..."
-    local PHONE_PROVIDER_SETTINGS_FIXTURE="$INSTANCE_DIR/.fixtures/phone_provider_settings.json"
+    render_integration_settings_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
+    log "Loading integration settings..."
+    local INTEGRATION_SETTINGS_FIXTURE="$INSTANCE_DIR/.fixtures/integration_settings.json"
+    # The row always exists (core/0003), so the guard is "holds a credential",
+    # not "exists": a restored instance keeps what its admin entered.
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
-        "from django.core.management import call_command; from apps.crm.models import PhoneProviderSettings; settings = PhoneProviderSettings.get_solo(); configured = bool(settings.base_url or settings.username or settings.account_code); print('PhoneProviderSettings already configured; skipping phone_provider_settings.json load') if configured else call_command('loaddata', '$PHONE_PROVIDER_SETTINGS_FIXTURE')"
-    rm -f "$PHONE_PROVIDER_SETTINGS_FIXTURE"
+        "from django.core.management import call_command; from apps.core.models import IntegrationSettings; settings = IntegrationSettings.get_solo(); configured = bool(settings.google_maps_api_key or settings.phone_provider_base_url or settings.phone_provider_username or settings.phone_provider_account_code); print('IntegrationSettings already configured; skipping integration_settings.json load') if configured else call_command('loaddata', '$INTEGRATION_SETTINGS_FIXTURE')"
+    rm -f "$INTEGRATION_SETTINGS_FIXTURE"
 
     if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
         # No scripted admin bootstrap: a stored bootstrap password is a

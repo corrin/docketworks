@@ -50,7 +50,7 @@ done only when that spec is green.
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 110 recorded deviations |
-| ADRs | 39 (v1's 26 carried forward + 0038–0041, 0043, 0045–0052 written here) |
+| ADRs | 40 (v1's 26 carried forward + 0038–0041, 0043, 0045–0053 written here) |
 
 **Written is not ported.** Report progress as specs green; a count of endpoints
 written measures typing, not delivery.
@@ -297,7 +297,8 @@ rather than anywhere else. This file is finished when it is empty.
   Sheets sync; the dependency is the real cost, not the endpoints. When that
   Drive client lands in `apps/`, `scripts/ops/outbound_links_probe.py` becomes
   `manage.py check_links` (ADR 0049: it is a script only because the app does
-  not read `GCP_CREDENTIALS` yet).
+  not read `GCP_CREDENTIALS` yet). The service-account JSON lands as a column
+  on `IntegrationSettings` with that client (ADR 0053), never back in `.env`.
 - **Job — reports:** weekly metrics, workshop list, completed/archive,
   profitability, archived-jobs compliance. Each is a fresh aggregation service.
 - **App errors read path:** `app_errors_*`. The write path is done everywhere.

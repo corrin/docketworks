@@ -740,8 +740,8 @@
     CompanyDefaults, then moved them to PhoneProviderSettings (apps/crm) and
     kept serving the empty section — the settings screen rendered one button
     per section served, so production carried a CRM button that opened an
-    empty form. The CRM settings are not lost: they are the
-    PhoneProviderSettings singleton at /api/crm/phone-provider-settings/. A
+    empty form. The CRM settings are not lost: they are the phone_provider_*
+    columns of IntegrationSettings at /api/integration-settings/ (ADR 0053). A
     section is earned by a field; the first company-wide CRM default re-adds
     the registry line, and the boot check loudly demands it until then.
 

@@ -47,9 +47,10 @@ would need a result model and a page to read it; nothing surfaces it yet.
 
 This is a script rather than a management command (ADR 0049) because the app
 does not read ``GCP_CREDENTIALS`` today — only the gdocs authoring toolchain
-does. When the quote-sheet port moves a Drive client into ``apps/``, this
-becomes ``manage.py check_links``; ``docs/rewrite-status.md`` carries that
-pointer. It is read-only everywhere it reaches, so there is no production
+does. When the quote-sheet port moves a Drive client into ``apps/`` (reading
+the service-account JSON from an ``IntegrationSettings`` column, ADR 0053),
+this becomes ``manage.py check_links``; ``docs/rewrite-status.md`` carries
+that pointer. It is read-only everywhere it reaches, so there is no production
 guard on purpose: the instance with the deleted doc is the one to run it on.
 
 It never runs in CI (no credentials; CI stays hermetic). The integration test

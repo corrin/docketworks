@@ -199,8 +199,9 @@ shared across all instances.
 1. In the docketworks GCP project: APIs & Services > Credentials
 2. Create an API key (or reuse the existing shared one)
 3. Restrict it to the **Address Validation API**
-4. It lives as `GOOGLE_MAPS_API_KEY` in `/opt/docketworks/shared.env` — written once by
-   `scripts/server/server-setup.sh` and appended into each instance `.env` by `instance.sh`.
+4. Put it in the instance's root-owned credentials file as `GOOGLE_MAPS_API_KEY`;
+   `instance.sh` loads it onto the `IntegrationSettings` row (ADR 0053), and a superuser
+   can change it later on Admin > Integrations. Nothing reads it from the environment.
 
 ---
 
@@ -249,8 +250,8 @@ Password resets and notifications need SMTP credentials. Collect them during onb
 The application does not yet consume SMTP settings — `config/settings.py` reads no `EMAIL_*`
 variables, and password state is handled by the `password_needs_reset` login flow. When the
 email feature lands, the production credentials belong in the root-owned credentials file
-(`EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL`) and the shared UAT account in
-`/opt/docketworks/shared.env`, alongside the other secrets those files already hold.
+(`EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL`), loaded onto the
+`IntegrationSettings` row like the other install-level credentials (ADR 0053).
 
 ---
 
@@ -384,9 +385,10 @@ take their presentation from the sales branding theme (Phase 2a). Upload both lo
 | Information | Destination |
 |------------|-------------|
 | Xero Client ID / Secret / Webhook Key | root-owned `credentials.env` → `XeroApp` row |
+| Phone provider URL / login / account code | root-owned `credentials.env` (`PHONE_PROVIDER_*`) → `IntegrationSettings` row |
 | GCP service account JSON key path | root-owned `credentials.env` (`GCP_CREDENTIALS`) |
 | Backup Shared Drive / folder IDs | root-owned `credentials.env` (`BACKUP_GDRIVE_TEAM_DRIVE_ID`, `BACKUP_GDRIVE_ROOT_FOLDER_ID`) |
-| Google Maps API key | `shared.env` (`GOOGLE_MAPS_API_KEY`) |
+| Google Maps API key | root-owned `credentials.env` (`GOOGLE_MAPS_API_KEY`) → `IntegrationSettings` row |
 | Email SMTP credentials | root-owned `credentials.env` (when the email feature lands — Phase 5) |
 | AI provider keys | root-owned `credentials.env` → `AIProvider` rows |
 | Supplier credentials (Steel & Tube) | `quoting.SupplierCredential` rows in the database |

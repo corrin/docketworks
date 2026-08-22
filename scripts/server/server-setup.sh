@@ -10,11 +10,11 @@ set -euo pipefail
 # decision about which domains it serves certs for: one or more
 # --cert-domain flags, or --no-cert-domain for a DR-posture box.
 #
-# First run (UAT):   sudo ./server-setup.sh --dreamhost-key <KEY> --google-maps-key <KEY> \
+# First run (UAT):   sudo ./server-setup.sh --dreamhost-key <KEY> \
 #                                           --cert-domain '*.docketworks.site'
-# First run (prod):  sudo ./server-setup.sh --dreamhost-key <KEY> --google-maps-key <KEY> \
+# First run (prod):  sudo ./server-setup.sh --dreamhost-key <KEY> \
 #                                           --cert-domain <customer-fqdn>
-# First run (DR):    sudo ./server-setup.sh --dreamhost-key <KEY> --google-maps-key <KEY> \
+# First run (DR):    sudo ./server-setup.sh --dreamhost-key <KEY> \
 #                                           --no-cert-domain
 # Re-run:            sudo ./server-setup.sh   (reads everything from files saved on first run)
 
@@ -53,55 +53,50 @@ cd /
 
 DREAMHOST_KEY_FILE="/etc/letsencrypt/dreamhost-api-key.txt"
 CERT_DOMAINS_FILE="/etc/letsencrypt/cert-domains.txt"
-SHARED_ENV_FILE="/opt/docketworks/shared.env"
 
-USAGE="Usage: $0 [--dreamhost-key <KEY>] [--google-maps-key <KEY>]
+USAGE="Usage: $0 [--dreamhost-key <KEY>]
               [--cert-domain <FQDN> [--cert-domain <FQDN> ...] | --no-cert-domain]
 
   First install on UAT (wildcard cert):
-    $0 --dreamhost-key <KEY> --google-maps-key <KEY> \\
+    $0 --dreamhost-key <KEY> \\
        --cert-domain '*.docketworks.site'
 
   First install on UAT with extra client-branded URL:
-    $0 --dreamhost-key <KEY> --google-maps-key <KEY> \\
+    $0 --dreamhost-key <KEY> \\
        --cert-domain '*.docketworks.site' \\
        --cert-domain uat-office.morrissheetmetal.co.nz
 
   First install on prod:
-    $0 --dreamhost-key <KEY> --google-maps-key <KEY> \\
+    $0 --dreamhost-key <KEY> \\
        --cert-domain office.heuserlimited.com
 
   First install on DR (no certs obtained):
-    $0 --dreamhost-key <KEY> --google-maps-key <KEY> --no-cert-domain
+    $0 --dreamhost-key <KEY> --no-cert-domain
 
   Re-run on a configured server:
     $0   (reads everything from files saved on first run)
 
   --dreamhost-key:    panel.dreamhost.com → Home > API (grant dns-* permissions)
-  --google-maps-key:  GCP console → APIs & Services → Credentials
   --cert-domain:      one cert per FQDN. Repeatable. Wildcards include the apex.
                       On a re-run with this flag, the supplied list REPLACES
                       the persisted list at $CERT_DOMAINS_FILE.
   --no-cert-domain:   explicit DR posture (no certs obtained). Mutually
                       exclusive with --cert-domain."
 
-if ! parsed=$(getopt -o '' --long dreamhost-key:,google-maps-key:,cert-domain:,no-cert-domain -n "$(basename "$0")" -- "$@"); then
+if ! parsed=$(getopt -o '' --long dreamhost-key:,cert-domain:,no-cert-domain -n "$(basename "$0")" -- "$@"); then
     echo "$USAGE" >&2
     exit 1
 fi
 eval set -- "$parsed"
 
 DREAMHOST_API_KEY=""
-GOOGLE_MAPS_API_KEY=""
 DREAMHOST_KEY_GIVEN=false
-GOOGLE_MAPS_KEY_GIVEN=false
 CERT_DOMAINS=()
 CERT_DOMAINS_GIVEN=false
 NO_CERT_DOMAIN_GIVEN=false
 while true; do
     case "$1" in
         --dreamhost-key)   DREAMHOST_API_KEY="$2";   DREAMHOST_KEY_GIVEN=true;   shift 2 ;;
-        --google-maps-key) GOOGLE_MAPS_API_KEY="$2"; GOOGLE_MAPS_KEY_GIVEN=true; shift 2 ;;
         --cert-domain)     CERT_DOMAINS+=("$2");     CERT_DOMAINS_GIVEN=true;    shift 2 ;;
         --no-cert-domain)  NO_CERT_DOMAIN_GIVEN=true;                            shift ;;
         --)                shift; break ;;
@@ -128,16 +123,6 @@ if [[ "$DREAMHOST_KEY_GIVEN" == false ]]; then
         exit 1
     fi
     DREAMHOST_API_KEY="$(cat "$DREAMHOST_KEY_FILE")"
-fi
-
-# --- Resolve Google Maps key (unchanged) ---
-if [[ "$GOOGLE_MAPS_KEY_GIVEN" == false ]]; then
-    if [[ ! -f "$SHARED_ENV_FILE" ]]; then
-        echo "ERROR: --google-maps-key not given and no saved value in $SHARED_ENV_FILE" >&2
-        echo "$USAGE" >&2
-        exit 1
-    fi
-    GOOGLE_MAPS_API_KEY="$(grep GOOGLE_MAPS_API_KEY "$SHARED_ENV_FILE" | cut -d"'" -f2)"
 fi
 
 # --- Resolve cert-domains list ---
@@ -515,15 +500,11 @@ else
     log "  Dreamhost API key saved to $DREAMHOST_KEY_FILE"
 fi
 
-# --- Write shared.env (Google Maps key, sourced by instance .env files) ---
-
-SHARED_ENV="/opt/docketworks/shared.env"
-cat > "$SHARED_ENV" <<SHARED_EOF
-GOOGLE_MAPS_API_KEY='$GOOGLE_MAPS_API_KEY'
-SHARED_EOF
-chown docketworks:docketworks "$SHARED_ENV"
-chmod 600 "$SHARED_ENV"
-log "  Shared config written to $SHARED_ENV"
+# --- shared.env is retired ---
+# It held only GOOGLE_MAPS_API_KEY, which is an IntegrationSettings column
+# now (loaded per instance from the credentials file). Removed so a stale
+# copy cannot be mistaken for the live value.
+rm -f /opt/docketworks/shared.env
 
 # --- uv for docketworks user (Python dependency manager; release builds) ---
 

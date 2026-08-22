@@ -61,13 +61,19 @@ sudo -u postgres createdb docketworks_v2
 uv run python manage.py migrate
 ```
 
-## Private configuration: Xero app and AI providers
+## Private configuration: Xero app, AI providers, integration settings
 
 A fresh database has no `XeroApp` or `AIProvider` rows, and there is no admin UI to create
 them — the fixtures below are the dev path (server instances get theirs rendered by
 `scripts/server/instance.sh` from the root-owned credentials file instead). Copy each
 `.example` to its real name, fill in the credentials, and load it. The real filenames are
 gitignored because they hold live keys.
+
+The install-level credentials — the Google Maps key and, if you need it, the phone
+provider's login — are columns on the `IntegrationSettings` row that `migrate` creates
+(ADR 0053). Enter them after your first login as a superuser on **Admin > Integrations**;
+nothing reads them from `.env`. Leave the phone provider unset on a dev machine so dev
+Celery cannot reach the production phone system.
 
 1. **`apps/ai/fixtures/ai_providers.json`** — copy from `ai_providers.json.example` and add
    your API keys for Claude, Gemini, and Mistral:

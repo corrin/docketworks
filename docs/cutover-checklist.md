@@ -96,7 +96,8 @@ required to match v1's except where an external party holds the URL.
       separate v1 history purge before switch day would be redundant. The
       local mirror keeps that history on private disk only.
 - [ ] **Formerly-encrypted credentials.** The five columns that were Fernet
-      ciphertext in v1 (crm `PhoneProviderSettings.username/password`, quoting
+      ciphertext in v1 (the phone provider's username/password, now
+      `IntegrationSettings.phone_provider_*`, and quoting
       `SupplierCredential.username/password/api_key`) are plain text in v2:
       decrypt with v1's `FIELD_ENCRYPTION_KEY` during the load, or re-enter
       them after cutover. See `scripts/ops/migrate_v1_data.sh`.
@@ -165,6 +166,13 @@ required to match v1's except where an external party holds the URL.
       propagation) — v2 fails at commit time on `Job.save()` without it.
 - [ ] Required env vars present per `.env.example` (settings validate
       fail-fast at boot, so a missing one stops the service immediately).
+- [ ] **Install-level credentials are database rows, not env** (ADR 0053).
+      After the data migration, open Admin > Integrations on the new host and
+      enter the Google Maps key and the phone provider's login (v1 stored the
+      latter as Fernet ciphertext, so it is re-entered, not carried). Then
+      `uv run python -m scripts.ops.restore_checks.check_integration_settings`
+      proves the key with a live Address Validation call. `shared.env` and
+      `GOOGLE_MAPS_API_KEY` no longer exist anywhere on a host.
 - [ ] **The hosts run the ASGI serving model.**
       `scripts/server/templates/gunicorn-instance.service.template` renders
       `gunicorn -k uvicorn_worker.UvicornWorker --workers 4 --timeout 180

@@ -30,12 +30,10 @@ These scripts provision and manage multiple isolated DocketWorks instances on a 
 
 ```bash
 # UAT (wildcard cert via Dreamhost DNS):
-sudo ./scripts/server/server-setup.sh \
-    --dreamhost-key   <DREAMHOST_API_KEY> \
-    --google-maps-key <GOOGLE_MAPS_API_KEY>
+sudo ./scripts/server/server-setup.sh --dreamhost-key <DREAMHOST_API_KEY>
 
 # Prod (no wildcard; DNS lives elsewhere):
-sudo ./scripts/server/server-setup.sh --no-cert --google-maps-key <GOOGLE_MAPS_API_KEY>
+sudo ./scripts/server/server-setup.sh --no-cert
 
 # Re-run (reads any saved keys from disk):
 sudo ./scripts/server/server-setup.sh
@@ -46,9 +44,8 @@ Installs host-level requirements: Python 3.12, Node 22, PostgreSQL, Redis, Nginx
 Required keys (passed once on first run, then cached):
 
 1. Dreamhost API key (for the Let's Encrypt DNS-01 challenge — UAT only)
-2. Google Maps API key (for address validation)
 
-The Maps API key is stored in `/opt/docketworks/shared.env` and appended to every instance's `.env`. Integration and backup credentials are configured per-instance (see below).
+Integration and backup credentials — including the Google Maps key — are configured per-instance (see below).
 
 This script is host-level only. It does NOT touch existing instances; per-instance setup lives in `instance.sh`.
 
@@ -82,24 +79,29 @@ sudo ./scripts/server/dw-run.sh mycompany-uat python manage.py createsuperuser
 
 After creation, the instance is live at its configured URL. Each instance also gets `backup-db-<instance>.timer` enabled for nightly database backups.
 
-## Per-Instance Xero Setup
+## Per-Instance Credentials
 
-The credentials file needs:
+The credentials file (`templates/credentials-instance.template` is the authority) holds:
 
 ```
-XERO_CLIENT_ID=
+XERO_CLIENT_ID=            → XeroApp row
 XERO_CLIENT_SECRET=
 XERO_WEBHOOK_KEY=
 XERO_REDIRECT_URI=
-ANTHROPIC_API_KEY=
+ANTHROPIC_API_KEY=         → AIProvider rows
 GEMINI_API_KEY=
 MISTRAL_API_KEY=
-GCP_CREDENTIALS=
+GCP_CREDENTIALS=           → <instance>/gcp-credentials.json (backups only)
+BACKUP_GDRIVE_ROOT_FOLDER_ID=
+BACKUP_GDRIVE_TEAM_DRIVE_ID=
+GOOGLE_MAPS_API_KEY=       → IntegrationSettings row (ADR 0053)
+PHONE_PROVIDER_*=          → IntegrationSettings row
 ```
 
-Xero client_id, client_secret, webhook_key, and redirect URI are also required
-in the credentials file. `instance.sh create` renders them into the XeroApp
-bootstrap fixture and only loads that fixture when no XeroApp exists yet.
+`instance.sh create` renders each group into a fixture and loads it only when
+the database does not already hold that configuration (no XeroApp row, no
+AIProvider row, no credential on the IntegrationSettings row), so a restored
+instance keeps what its admin entered on Admin > Integrations.
 
 How to get them:
 
@@ -202,7 +204,6 @@ Shows each instance's name, status (running/stopped/no service), current release
 /opt/docketworks/
 ├── repo/                     # Local git clone/cache
 ├── releases/<sha>/           # Shared immutable app release (code, release-local .venv, frontend dist)
-├── shared.env                # Maps API key (appended to each .env)
 ├── certbot-hooks/            # Dreamhost DNS challenge scripts
 ├── config/
 │   ├── <name>.credentials.env    # root-owned operator input (survives destroy)
@@ -212,7 +213,7 @@ Shows each instance's name, status (running/stopped/no service), current release
     └── <name>/               # Mutable instance state
         ├── app -> ../../releases/<sha>
         ├── gcp-credentials.json  # Copied from path in credentials.env (mode 600)
-        ├── .env                  # Full env (generated from template + credentials + shared.env)
+        ├── .env                  # Full env (generated from template + credentials)
         ├── mediafiles/
         ├── dropbox/
         ├── phone-recordings/
@@ -224,7 +225,7 @@ Shows each instance's name, status (running/stopped/no service), current release
 ### How Env Vars Flow
 
 ```
-config/<name>.credentials.env (root-owned operator input: Xero + AI keys + backup GCP)
+config/<name>.credentials.env (root-owned operator input: Xero + AI + Maps + phone keys, backup GCP)
         ↓
 instance.sh reads + validates
         ↓
@@ -232,14 +233,14 @@ GCP key file copied to instance dir (gcp-credentials.json)
         ↓
 sed substitutes into env-instance.template → .env
         ↓
-shared.env appended to .env
+integration credentials rendered into fixtures → loaded as database rows
         ↓
 gunicorn systemd service loads .env via EnvironmentFile=
 ```
 
 ### Security Model
 
-- **Shared user** `docketworks` owns the local repo, release directories, release-local venvs, and shared.env
+- **Shared user** `docketworks` owns the local repo, release directories and release-local venvs
 - **Per-instance user** `dw-<name>` runs gunicorn, owns the instance directory
 - **Credentials input** in `/opt/docketworks/config` is `root:root` mode 600
   because `instance.sh` and `deploy.sh` source it during root-run orchestration
@@ -265,7 +266,7 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `templates/company-defaults-prospect.json.template` | Prospect Company/CompanyDefaults bootstrap fixture                                                   |
 | `templates/ai-providers.json.template`              | ai.AIProvider bootstrap fixture (LLM gateway keys)                                                   |
 | `templates/xero-apps.json.template`                 | xero.XeroApp bootstrap fixture                                                                       |
-| `templates/phone-provider-settings.json.template`   | crm.PhoneProviderSettings bootstrap fixture                                                          |
+| `templates/integration-settings.json.template`      | core.IntegrationSettings bootstrap fixture (Maps key, phone provider)                                |
 | `templates/nginx-ratelimit.conf`                    | Per-IP auth rate-limit zones (http context, conf.d)                                                  |
 | `templates/fail2ban-jail-docketworks.conf`          | Fail2ban jails: sshd + the two 401-only auth jails, banning via UFW                                  |
 | `templates/fail2ban-filter-docketworks-auth-login.conf` | 401-only filter for POST /api/accounts/token/                                                    |
