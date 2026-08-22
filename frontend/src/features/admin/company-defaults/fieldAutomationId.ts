@@ -1,4 +1,4 @@
-/** ADR 0039: one implementation of the settings-widget automation-id shape.
+/** Opus: ADR 0039: one implementation of the settings-widget automation-id shape.
  * `SettingsFieldInput` and its three special widgets (CompanySelect,
  * BrandingThemeSelect, LogoField) each need this id, and a template literal
  * repeated in four files is exactly the drift ADR 0039 forbids — a tiny

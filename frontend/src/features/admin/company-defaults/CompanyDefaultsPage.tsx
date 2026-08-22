@@ -41,7 +41,7 @@ const WORKING_DAYS: readonly { label: string; startKey: string; endKey: string }
 const WORKING_HOURS_TIME_KEYS = new Set(WORKING_DAYS.flatMap((day) => [day.startKey, day.endKey]))
 
 export function CompanyDefaultsPage({ section }: { section: string }) {
-  // The shell owns this singleton's options (5-minute staleTime, preloaded for
+  // Opus: The shell owns this singleton's options (5-minute staleTime, preloaded for
   // every authenticated page); a second useQuery over the raw generated options
   // would be a sibling cache entry that the save path's setQueryData never
   // reaches, and TimesheetEntryPage already reads it this way.
@@ -229,7 +229,7 @@ function SectionForm({
               )}
             </>
           )
-          // LogoField's own upload control is a <label>-wrapped file input;
+          // Opus: LogoField's own upload control is a <label>-wrapped file input;
           // nesting that inside this field's caption <label> is invalid HTML
           // and makes the OUTER label's implicit control resolve to the
           // hidden file input, so clicking the caption or the preview image

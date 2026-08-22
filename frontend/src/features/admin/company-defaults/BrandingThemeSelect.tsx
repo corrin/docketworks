@@ -21,7 +21,7 @@ const DISABLED_SELECT_CLASS = `${INPUT_CLASS} bg-slate-100 text-slate-500`
  */
 export function BrandingThemeSelect({ field, value, onChange, section }: SettingsFieldInputProps) {
   const automationId = fieldAutomationId(section, field.key)
-  // The endpoint's 401 means "Xero is not connected", a state to render, not
+  // Opus: The endpoint's 401 means "Xero is not connected", a state to render, not
   // recover from by retrying — retry:false keeps that render immediate.
   const themesQuery = useQuery({ ...xeroBrandingThemesListOptions(), retry: false })
   const selected = typeof value === 'string' ? value : ''

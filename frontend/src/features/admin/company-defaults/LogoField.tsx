@@ -14,9 +14,10 @@ import { fieldAutomationId } from './fieldAutomationId'
 import { aspectRatioProblem } from './logoAspectRatio'
 import type { SettingsFieldInputProps } from './SettingsFieldInput'
 
-// The server validates png/jpg/jpeg/gif/webp only (no svg) and PIL-verifies
-// the upload; the accept list mirrors that so the file picker never offers a
-// format the server will refuse.
+// Mirrors apps/core/api.py's _ALLOWED_LOGO_SUFFIXES (png/jpg/jpeg/gif/webp,
+// no svg) — the server also PIL-verifies the upload, so the accept list here
+// is a convenience: it keeps the file picker from offering a format the
+// server will refuse, not a substitute for that server-side check.
 const LOGO_ACCEPT = 'image/png,image/jpeg,image/gif,image/webp'
 
 /** The logo endpoints' path param is a closed union; a plain cast from
@@ -42,7 +43,7 @@ export function LogoField({ field, value, section }: SettingsFieldInputProps) {
   const automationId = fieldAutomationId(section, field.key)
   const url = typeof value === 'string' ? value : null
   const fieldName = requireLogoFieldName(field.key)
-  // One in-flight guard for both controls: an upload started mid-remove (or a
+  // Opus: One in-flight guard for both controls: an upload started mid-remove (or a
   // second Remove click before the first round-trip lands) would otherwise
   // race two mutations against the same slot.
   const busy = uploadMutation.isPending || destroyMutation.isPending
@@ -89,7 +90,7 @@ export function LogoField({ field, value, section }: SettingsFieldInputProps) {
         <p className="text-xs text-slate-500">No image</p>
       )}
       <div className="flex items-center gap-2">
-        {/* A visible <label> wrapping a hidden file input keeps the control
+        {/* Opus: A visible <label> wrapping a hidden file input keeps the control
          * keyboard-reachable and screen-reader-named without a synthetic
          * click() call from a ref. focus-within carries the input's focus
          * ring onto the visible label, since the input itself is sr-only. */}

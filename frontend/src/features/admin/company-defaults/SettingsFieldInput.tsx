@@ -7,9 +7,13 @@ import { fieldAutomationId } from './fieldAutomationId'
 import { LogoField } from './LogoField'
 import { fromDateTimeLocalInput, toDateTimeLocalInput, type FieldValue } from './snapshot'
 
-// The one sanctioned field-name exception besides the working-hours grid
-// (Decision 6): the quote-terms textarea gets a character counter, a blank
-// warning and a link out to Xero, none of which the schema can describe.
+// A sanctioned field-name exception, alongside the working-hours grid and the
+// logo/logo_wide keys (logoAspectRatio.ts's LOGO_ASPECT_RULES and LogoField's
+// requireLogoFieldName both key on them too, so a new image slot forces a
+// frontend touch there regardless — the backend LogoFieldName Literal already
+// closes that union) (Decision 6): the quote-terms textarea gets a character
+// counter, a blank warning and a link out to Xero, none of which the schema
+// can describe.
 const XERO_QUOTE_TERMS_KEY = 'xero_quote_terms'
 const XERO_QUOTE_TERMS_MAX_LENGTH = 4000
 const XERO_QUOTE_TERMS_WARNING_LENGTH = 3600
