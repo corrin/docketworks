@@ -441,6 +441,30 @@ class IntegrationSettingsPatchIn(Schema):
     phone_provider_account_code: NullableText = omittable(None)
 
 
+_PHONE_PROVIDER_LOGIN = (
+    "phone_provider_base_url",
+    "phone_provider_username",
+    "phone_provider_password",
+    "phone_provider_account_code",
+)
+
+
+def _require_phone_provider_login(instance: IntegrationSettings) -> None:
+    """Refuse a phone switch that is on while any of the four login values is unset."""
+    switched_on = (
+        instance.phone_provider_downloads_enabled
+        or instance.phone_provider_recording_deletion_enabled
+    )
+    if not switched_on:
+        return
+    missing = [name for name in _PHONE_PROVIDER_LOGIN if getattr(instance, name) is None]
+    if missing:
+        raise HttpError(
+            400,
+            f"{', '.join(missing)}: required while phone downloads or recording deletion is on",
+        )
+
+
 @router.get(
     "/integration-settings/",
     auth=SuperuserCookieJWTAuth(),
@@ -467,9 +491,9 @@ def integration_settings_partial_update(
 ) -> IntegrationSettings:
     """Apply only the fields the caller sent.
 
-    Same discipline as company defaults: presence comes from the payload, so
-    a settings screen can submit one section without touching the others, and
-    an omitted secret is left exactly as stored.
+    Fable: same discipline as company defaults — presence comes from the
+    payload, so a settings screen can submit one section without touching the
+    others, and an omitted secret is left exactly as stored.
     """
     instance = IntegrationSettings.get_solo()
     supplied = payload.model_dump(exclude_unset=True)
@@ -477,12 +501,12 @@ def integration_settings_partial_update(
         return instance
     for field, value in supplied.items():
         setattr(instance, field, value)
-    # Cross-column rule the model cannot express as a CHECK without a
-    # migration per flag: the sync task logs in to the portal the moment
-    # downloads are on, so a missing URL would surface as a Celery failure an
+    # Fable: the cross-column rule the model cannot express as a CHECK without
+    # a migration per flag. Both phone tasks log in to the portal with all
+    # four values (apps/crm/services/phone_call_service._config), so a switch
+    # turned on with any of them missing would surface as a Celery failure an
     # hour later instead of a 400 now.
-    if instance.phone_provider_downloads_enabled and not instance.phone_provider_base_url:
-        raise HttpError(400, "phone_provider_base_url: required when phone downloads are enabled")
+    _require_phone_provider_login(instance)
     try:
         instance.full_clean()
     except DjangoValidationError as exc:

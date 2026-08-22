@@ -69,7 +69,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 230 |
+| in comments | 232 |
 | in docstrings | 373 |
 
 ## Exception handling
@@ -78,9 +78,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 374 |
-| except handlers | 406 |
-| re-raises or converts | 261 |
+| try statements | 375 |
+| except handlers | 407 |
+| re-raises or converts | 262 |
 | returns instead | 84 |
 | falls through | 49 |
 | continue/break in a loop | 11 |
@@ -103,7 +103,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 190 |
-| non-test functions | 2380 |
+| non-test functions | 2384 |
 
 ## Wire contract (response side)
 

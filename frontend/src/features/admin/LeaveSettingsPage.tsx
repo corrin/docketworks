@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useBlocker } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
 import {
@@ -18,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { JobPicker } from '@/features/shared/JobPicker'
 import { QueryState } from '@/features/shared/QueryState'
+import { useUnsavedChangesGuard } from '@/features/shared/useUnsavedChangesGuard'
 import { INPUT_CLASS } from '@/components/ui/field'
 
 /** One row's editable values. Unset ids are null, never '' (ADR 0040): '' is
@@ -170,12 +170,7 @@ function LeaveSettingsForm({
   // discard is the negation. `disabled` arms it — calling the hook
   // conditionally would break the rules of hooks. enableBeforeUnload covers
   // tab-close, which v1's onBeforeRouteLeave never did.
-  useBlocker({
-    shouldBlockFn: () =>
-      !window.confirm('You have unsaved changes. Discard them and leave this page?'),
-    disabled: !isDirty,
-    enableBeforeUnload: () => isDirty,
-  })
+  useUnsavedChangesGuard(isDirty)
 
   const setDraft = (code: string, patch: Partial<LeaveDraft>) => {
     setDrafts((current) => ({ ...current, [code]: { ...requireDraft(current, code), ...patch } }))

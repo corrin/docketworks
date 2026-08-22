@@ -1607,9 +1607,9 @@ export const integrationSettingsRetrieveOptions = (options?: Options<Integration
  *
  * Apply only the fields the caller sent.
  *
- * Same discipline as company defaults: presence comes from the payload, so
- * a settings screen can submit one section without touching the others, and
- * an omitted secret is left exactly as stored.
+ * Fable: same discipline as company defaults — presence comes from the
+ * payload, so a settings screen can submit one section without touching the
+ * others, and an omitted secret is left exactly as stored.
  */
 export const integrationSettingsPartialUpdateMutation = (options?: Partial<Options<IntegrationSettingsPartialUpdateData>>): UseMutationOptions<IntegrationSettingsPartialUpdateResponse, AxiosError<DefaultError>, Options<IntegrationSettingsPartialUpdateData>> => {
     const mutationOptions: UseMutationOptions<IntegrationSettingsPartialUpdateResponse, AxiosError<DefaultError>, Options<IntegrationSettingsPartialUpdateData>> = {

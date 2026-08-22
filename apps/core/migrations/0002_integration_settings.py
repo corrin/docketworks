@@ -1,6 +1,6 @@
 """IntegrationSettings adopts the phone-provider table and gains the Maps key.
 
-The state operation describes the table as crm/0001 created it, so the schema
+Fable: the state operation describes the table as crm/0001 created it, so the schema
 editor sees no difference; the renames and the new column are the only
 physical changes. ``db_table`` stays ``crm_phoneprovidersettings`` because v1's
 dump restores by table name (ADR 0053; docs/rewrite-status.md carries the

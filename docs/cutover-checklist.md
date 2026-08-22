@@ -167,9 +167,10 @@ required to match v1's except where an external party holds the URL.
 - [ ] Required env vars present per `.env.example` (settings validate
       fail-fast at boot, so a missing one stops the service immediately).
 - [ ] **Install-level credentials are database rows, not env** (ADR 0053).
-      After the data migration, open Admin > Integrations on the new host and
-      enter the Google Maps key and the phone provider's login (v1 stored the
-      latter as Fernet ciphertext, so it is re-entered, not carried). Then
+      After the data migration, `instance.sh reconfigure` loads the Google
+      Maps key from the credentials file; enter the phone provider's login on
+      Admin > Integrations (v1 stored it as Fernet ciphertext, so it is
+      re-entered, not carried). Then
       `uv run python -m scripts.ops.restore_checks.check_integration_settings`
       proves the key with a live Address Validation call. `shared.env` and
       `GOOGLE_MAPS_API_KEY` no longer exist anywhere on a host.

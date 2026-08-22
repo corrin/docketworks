@@ -44,6 +44,11 @@ echo "==> Clearing migration-seeded rows (v1's dump supplies them)"
 # migration rename and backfill those restored rows. This deliberately avoids
 # maintaining a second translation implementation in this script (ADR 0039).
 DB_NAME="$V2_DB" uv run python manage.py migrate accounts 0004 --no-input
+# Fable: same for crm_phoneprovidersettings: core/0002 renamed its columns and added
+# one, and pg_dump --data-only names every column in its COPY — even for an
+# empty table — so the restore must see v1's names. crm/0002 is state-only,
+# so unapplying core to 0001 returns exactly v1's table.
+DB_NAME="$V2_DB" uv run python manage.py migrate core 0001 --no-input
 # `manage.py migrate` seeds rows a FRESH install needs: the system automation
 # Staff row (accounts/0003) and the labour-subtype catalogue (job/0002). v1's
 # dump carries those same rows under different primary keys, and both collide
@@ -60,7 +65,7 @@ psql "$@" -d "$V2_DB" -v ON_ERROR_STOP=1 <<'SQL'
 BEGIN;
 DELETE FROM accounts_staff WHERE email = 'system.automation@docketworks.local';
 DELETE FROM job_laboursubtype;
--- core/0003 creates the IntegrationSettings row at pk=1 and v1's dump carries
+-- Fable: core/0003 creates the IntegrationSettings row at pk=1 and v1's dump carries
 -- its phone-provider row under that same key.
 DELETE FROM crm_phoneprovidersettings;
 COMMIT;
@@ -128,12 +133,10 @@ DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0002 --no-input
 # same tested code against the rows that now exist.
 DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0003 --no-input
 DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0004 --no-input
-# core/0003 creates the IntegrationSettings row. v1's phone-provider row, when
-# the dump has one, restored into the same table above and is kept as-is
-# (get_or_create); a dump without one gets the row here. Its reverse is a
-# no-op — rolling back must never delete live credentials — so unapplying is
-# free and re-applying is the same tested code against the restored table.
-DB_NAME="$V2_DB" uv run python manage.py migrate core 0002 --no-input
+# Fable: core was unapplied to 0001 before the restore so v1's phone-provider row
+# could land in its own column names. core/0002 now renames those columns and
+# adds the Maps key; core/0003 creates the IntegrationSettings row when the
+# dump carried none (get_or_create keeps a restored row as-is).
 DB_NAME="$V2_DB" uv run python manage.py migrate core 0003 --no-input
 
 echo "==> NOTE: formerly-encrypted credential columns"

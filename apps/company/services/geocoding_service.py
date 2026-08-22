@@ -90,11 +90,15 @@ def geocode_address(address: str, api_key: str | None = None) -> GeocodingResult
         "enableUspsCass": False,
     }
 
+    # Fable: the key travels in a header, never the query string. requests
+    # puts the full URL into every RequestException message, and that message
+    # is persisted as an AppError and logged — so `?key=` would write the
+    # credential into the database on the first network blip.
     try:
         response = requests.post(
             url,
             json=payload,
-            params={"key": api_key},
+            headers={"X-Goog-Api-Key": api_key},
             timeout=10,
         )
     except requests.RequestException as exc:

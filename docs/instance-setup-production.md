@@ -52,6 +52,7 @@ Check the app and Xero application configuration:
 ```bash
 sudo scripts/server/dw-run.sh <client>-prod python -m scripts.ops.restore_checks.check_company_defaults
 sudo scripts/server/dw-run.sh <client>-prod python -m scripts.ops.restore_checks.check_xero_app
+sudo scripts/server/dw-run.sh <client>-prod python -m scripts.ops.restore_checks.check_integration_settings
 ```
 
 ## 3. Start services and authorise Xero

@@ -142,7 +142,7 @@ database and are owned by this installation, not by production: copy them out
 before the load and back in afterwards.
 
 A fresh target database is the one branch here: it has no rows to preserve, so
-skip the copy-out, and after the load bootstrap both rows from the dev fixtures
+skip the copy-out, and after the load bootstrap all three from the dev fixtures
 instead (see "Private configuration" in
 [`initial_install.md`](initial_install.md)).
 
@@ -166,7 +166,7 @@ psql -d "$DB_NAME" -c "\copy workflow_aiprovider TO 'restore/aiprovider.csv' WIT
 psql -d "$DB_NAME" -c "\copy crm_phoneprovidersettings TO 'restore/integrationsettings.csv' WITH (FORMAT csv)"
 ```
 
-**Check:** both files exist and are non-empty. An empty `xeroapp.csv` means the
+**Check:** all three files exist and are non-empty. An empty `xeroapp.csv` means the
 token material is already gone, and the re-consent later in this runbook is the
 only way to get a working connection back.
 
@@ -176,6 +176,9 @@ configuration:
 ```bash
 psql -d "$DB_NAME" -c "\copy workflow_xeroapp FROM 'restore/xeroapp.csv' WITH (FORMAT csv)"
 psql -d "$DB_NAME" -c "\copy workflow_aiprovider FROM 'restore/aiprovider.csv' WITH (FORMAT csv)"
+# The migration script re-applied core/0003 after the load, which created an
+# empty IntegrationSettings row at pk=1; the saved row replaces it.
+psql -d "$DB_NAME" -c "DELETE FROM crm_phoneprovidersettings"
 psql -d "$DB_NAME" -c "\copy crm_phoneprovidersettings FROM 'restore/integrationsettings.csv' WITH (FORMAT csv)"
 ```
 
@@ -471,6 +474,10 @@ broken until this fabricates a placeholder for each row.
 rows still have no file on disk.
 
 ## Post-restore checks
+
+`check_integration_settings` makes one live Address Validation call, so the
+refreshed database must hold the Maps key (re-inserted above, or loaded with
+`manage.py load_integration_settings`) before this loop runs.
 
 ```bash
 (for s in scripts/ops/restore_checks/check_*.py; do

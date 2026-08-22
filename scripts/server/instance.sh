@@ -713,10 +713,13 @@ EOSQL
     render_integration_settings_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
     log "Loading integration settings..."
     local INTEGRATION_SETTINGS_FIXTURE="$INSTANCE_DIR/.fixtures/integration_settings.json"
-    # The row always exists (core/0003), so the guard is "holds a credential",
-    # not "exists": a restored instance keeps what its admin entered.
-    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
-        "from django.core.management import call_command; from apps.core.models import IntegrationSettings; settings = IntegrationSettings.get_solo(); configured = bool(settings.google_maps_api_key or settings.phone_provider_base_url or settings.phone_provider_username or settings.phone_provider_account_code); print('IntegrationSettings already configured; skipping integration_settings.json load') if configured else call_command('loaddata', '$INTEGRATION_SETTINGS_FIXTURE')"
+    # Fable: not loaddata: the row holds several integrations, and a restored
+    # instance that already carries the phone login must still receive the
+    # Maps key without that login being overwritten. The command applies each
+    # integration only while its columns are unset, and creates the row when a
+    # scrubbed restore left the table empty.
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py load_integration_settings \
+        "$INTEGRATION_SETTINGS_FIXTURE"
     rm -f "$INTEGRATION_SETTINGS_FIXTURE"
 
     if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then

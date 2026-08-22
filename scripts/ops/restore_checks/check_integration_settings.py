@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """Verify the IntegrationSettings row is present and its Google Maps key works.
 
-Runs after the instance's ``.fixtures/integration_settings.json`` is loaded
-(rendered by scripts/server/instance.sh's render_integration_settings_fixture)
-or after an operator enters the key on Admin > Integrations. The Maps key is
+Runs after ``manage.py load_integration_settings`` has applied the instance's
+rendered credentials (scripts/server/instance.sh) or after an operator enters
+the key on Admin > Integrations. The Maps key is
 proven with one live Address Validation call, the way check_ai_providers
 proves an AI key with a live completion (ADR 0050). The phone provider is
 reported, not called: its only client is a portal scrape that the Beat task

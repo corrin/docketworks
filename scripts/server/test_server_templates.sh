@@ -164,6 +164,14 @@ while IFS='=' read -r var _; do
         || fail "env template: $var is in .env.example but not in env-instance.template"
 done < "$REPO_ROOT/.env.example"
 
+# --- JSON fixture templates: a rendered fixture must parse, or loaddata is the first to know ---
+for json_template in ai-providers xero-apps integration-settings; do
+    JSON_RENDERED="$(render "$TEMPLATE_DIR/$json_template.json.template" \
+        | sed -e 's/__[A-Z_]*_JSON__/"sample"/g' -e 's/__[A-Z_]*_ENABLED__/false/g' -e 's/__[A-Z_]*__/sample/g')"
+    python3 -m json.tool <<<"$JSON_RENDERED" >/dev/null \
+        || fail "$json_template.json.template: does not render to valid JSON"
+done
+
 # --- fail2ban filters: 401s on the exact routes match; nothing else does ---
 check_filter() {
     local filter_file="$1"

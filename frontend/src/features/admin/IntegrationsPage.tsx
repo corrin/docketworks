@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useBlocker } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
 import {
@@ -14,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { INPUT_CLASS } from '@/components/ui/field'
 import { QueryState } from '@/features/shared/QueryState'
+import { useUnsavedChangesGuard } from '@/features/shared/useUnsavedChangesGuard'
 
 /**
  * The install's credentials for external services (ADR 0053): one section per
@@ -60,11 +60,20 @@ function buildPatch(drafts: Drafts, server: Drafts): IntegrationSettingsPatchIn 
   for (const key of FLAG_KEYS) {
     if (drafts[key] !== server[key]) patch[key] = drafts[key]
   }
+  // Trimmed on the way out: the server strips before its not-blank check, so a
+  // whitespace-only box is "unset" here too rather than a 422.
   for (const key of PLAIN_KEYS) {
-    if (drafts[key] !== server[key]) patch[key] = drafts[key] === '' ? null : drafts[key]
+    const draft = drafts[key].trim()
+    if (draft !== server[key]) patch[key] = draft === '' ? null : draft
   }
   for (const key of SECRET_KEYS) {
-    if (drafts[key] !== undefined) patch[key] = drafts[key]
+    const draft = drafts[key]
+    if (draft === undefined) continue
+    if (draft === null) {
+      patch[key] = null
+    } else if (draft.trim() !== '') {
+      patch[key] = draft.trim()
+    }
   }
   return patch
 }
@@ -113,12 +122,7 @@ function SettingsForm({ settings }: { settings: IntegrationSettingsOut }) {
   const patch = useMemo(() => buildPatch(drafts, server), [drafts, server])
   const isDirty = Object.keys(patch).length > 0
 
-  useBlocker({
-    shouldBlockFn: () =>
-      !window.confirm('You have unsaved changes. Discard them and leave this page?'),
-    disabled: !isDirty,
-    enableBeforeUnload: () => isDirty,
-  })
+  useUnsavedChangesGuard(isDirty)
 
   const setDraft = <K extends keyof Drafts>(key: K, value: Drafts[K]): void => {
     setDrafts((previous) => ({ ...previous, [key]: value }))
@@ -347,7 +351,9 @@ function SecretField({
         <span className="text-slate-700">{label}</span>
         <input
           type={inputType}
-          autoComplete="off"
+          // Browsers ignore "off" on a password box and offer to save the
+          // Maps key as a login; "new-password" is the value they honour.
+          autoComplete="new-password"
           className={INPUT_CLASS}
           value={draft ?? ''}
           disabled={clearing}

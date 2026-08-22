@@ -135,8 +135,9 @@ class IntegrationSettings(models.Model):
         max_length=255, null=True, blank=True
     )
 
-    # The phone provider's portal (CRM call ingestion). The four credentials
-    # are required together once either switch is on; apps/crm validates that.
+    # The phone provider's portal (CRM call ingestion). The four login values
+    # are required together once either switch is on; the PATCH handler in
+    # apps/core/api.py refuses a switch without them.
     phone_provider_downloads_enabled = models.BooleanField(default=False)
     phone_provider_recording_deletion_enabled = models.BooleanField(default=False)
     phone_provider_base_url = models.URLField(null=True, blank=True, default=None)  # noqa: DJ001 -- unset is NULL (ADR 0040)
@@ -192,15 +193,18 @@ class IntegrationSettings(models.Model):
     def get_solo(cls) -> "IntegrationSettings":
         """Return the singleton. Never creates one — reads do not write.
 
-        The row is created by core/0003 and re-created by the cutover script
-        after the restore; its absence is an operator problem, said plainly
-        rather than papered over with a row nobody configured (ADR 0015).
+        Fable: the row is created by core/0003 on a fresh install and by
+        `manage.py load_integration_settings` after a scrubbed restore (which
+        truncates the table while django_migrations already records 0003).
+        Its absence is an operator problem, said plainly rather than papered
+        over with a row nobody configured (ADR 0015).
         """
         instance = cls.objects.first()
         if instance is None:
             raise ImproperlyConfigured(
-                "IntegrationSettings has no row. Run `manage.py migrate core` — "
-                "core/0003_integration_settings_row creates it."
+                "IntegrationSettings has no row. A fresh install gets it from "
+                "core/0003_integration_settings_row; after a scrubbed restore run "
+                "`manage.py load_integration_settings <fixture>` or re-insert the saved row."
             )
         return instance
 

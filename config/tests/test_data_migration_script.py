@@ -38,7 +38,7 @@ SYSTEM_AUTOMATION_EMAIL = "system.automation@docketworks.local"
 SEEDING_MIGRATIONS = {
     ("accounts", "0003_seed_system_automation_user"),
     ("job", "0002_seed_labour_subtypes"),
-    # The IntegrationSettings singleton (pk=1). v1's dump carries the same row
+    # Fable: the IntegrationSettings singleton (pk=1). v1's dump carries the same row
     # under the same key, so it is cleared before the restore; it is ALSO in
     # the re-run set because a dump that never created the row needs one.
     ("core", "0003_integration_settings_row"),
@@ -66,10 +66,32 @@ DATA_MIGRATIONS_RERUN_AFTER_RESTORE = {
     # posted on top of the line Xero computes itself. The lines it fixes arrive
     # with the restore, so the empty-database run finds none.
     ("timesheet", "0004_public_holiday_posts_nowhere"),
-    # Ensures the IntegrationSettings row exists once the restore has had its
+    # Fable: ensures the IntegrationSettings row exists once the restore has had its
     # say; get_or_create, so a restored row is left untouched.
     ("core", "0003_integration_settings_row"),
 }
+
+
+# Migrations the script unapplies BEFORE the restore so pg_restore meets the
+# column shapes v1's dump names: the script's `migrate <app> <target>` line
+# must precede the restore, and a later `migrate <app> <n>` re-applies it.
+UNAPPLIED_BEFORE_RESTORE = {
+    ("accounts", "0004"),
+    # Fable: core/0002 renamed the phone-provider columns; crm/0002 is state-only, so
+    # core at 0001 is exactly v1's table.
+    ("core", "0001"),
+}
+
+
+def test_script_unapplies_column_renames_before_restoring() -> None:
+    """pg_dump names every column in its COPY, so a renamed column aborts the load."""
+    script = MIGRATE_SCRIPT.read_text()
+    restore_at = script.index("pg_restore --data-only")
+
+    for app_label, target in UNAPPLIED_BEFORE_RESTORE:
+        at = script.find(f"migrate {app_label} {target}")
+        assert at != -1, f"{MIGRATE_SCRIPT.name} never unapplies {app_label} to {target}"
+        assert at < restore_at, f"{app_label} is unapplied AFTER the restore, which is too late"
 
 
 def _seeded_tables() -> dict[str, tuple[str, str]]:

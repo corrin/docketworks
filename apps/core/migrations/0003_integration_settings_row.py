@@ -1,6 +1,6 @@
 """Create the IntegrationSettings row.
 
-``get_solo()`` never writes (a GET is a safe method), so the row has to exist
+Fable: ``get_solo()`` never writes (a GET is a safe method), so the row has to exist
 before anything reads it. The reverse is deliberately a no-op: rolling back a
 migration must never delete the install's live credentials. The cutover script
 clears the table before the restore instead (v1's row collides on pk=1) and

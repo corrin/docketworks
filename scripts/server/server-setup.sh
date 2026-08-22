@@ -503,7 +503,8 @@ fi
 # --- shared.env is retired ---
 # It held only GOOGLE_MAPS_API_KEY, which is an IntegrationSettings column
 # now (loaded per instance from the credentials file). Removed so a stale
-# copy cannot be mistaken for the live value.
+# copy cannot be mistaken for the live value; the line it appended to each
+# instance .env is inert and goes on that instance's next `reconfigure`.
 rm -f /opt/docketworks/shared.env
 
 # --- uv for docketworks user (Python dependency manager; release builds) ---

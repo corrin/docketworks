@@ -15482,14 +15482,9 @@ paths:
       tags:
       - integration-settings
     patch:
-      description: 'Apply only the fields the caller sent.
-
-
-        Same discipline as company defaults: presence comes from the payload, so
-
-        a settings screen can submit one section without touching the others, and
-
-        an omitted secret is left exactly as stored.'
+      description: "Apply only the fields the caller sent.\n\nFable: same discipline as company defaults\
+        \ \u2014 presence comes from the\npayload, so a settings screen can submit one section without\
+        \ touching the\nothers, and an omitted secret is left exactly as stored."
       operationId: integration_settings_partial_update
       parameters: []
       requestBody:

@@ -103,14 +103,46 @@ def test_blank_is_not_a_value(superuser_api: Client) -> None:
     assert response.status_code == 422
 
 
-def test_patch_rejects_downloads_enabled_without_base_url(superuser_api: Client) -> None:
+def test_patch_rejects_a_phone_switch_without_the_full_login(superuser_api: Client) -> None:
+    # Both tasks log in with all four values, so either switch needs all four.
+    for switch in ("phone_provider_downloads_enabled", "phone_provider_recording_deletion_enabled"):
+        response = superuser_api.patch(URL, data={switch: True}, content_type="application/json")
+
+        assert response.status_code == 400, switch
+        detail = response.json()["detail"]
+        assert "phone_provider_base_url" in detail
+        assert "phone_provider_password" in detail
+        assert getattr(IntegrationSettings.get_solo(), switch) is False
+
+
+def test_patch_rejects_clearing_a_login_value_while_a_switch_is_on(superuser_api: Client) -> None:
+    _configure_phone_provider()
+    IntegrationSettings.objects.filter(pk=1).update(phone_provider_downloads_enabled=True)
+
     response = superuser_api.patch(
-        URL, data={"phone_provider_downloads_enabled": True}, content_type="application/json"
+        URL, data={"phone_provider_base_url": None}, content_type="application/json"
     )
 
     assert response.status_code == 400
-    assert "phone_provider_base_url" in response.json()["detail"]
-    assert IntegrationSettings.get_solo().phone_provider_downloads_enabled is False
+    assert IntegrationSettings.get_solo().phone_provider_base_url == "https://phone.example.test"
+
+
+def test_patch_accepts_a_switch_once_the_login_is_complete(superuser_api: Client) -> None:
+    _configure_phone_provider()
+
+    response = superuser_api.patch(
+        URL,
+        data={
+            "phone_provider_downloads_enabled": True,
+            "phone_provider_recording_deletion_enabled": True,
+        },
+        content_type="application/json",
+    )
+
+    assert response.status_code == 200
+    stored = IntegrationSettings.get_solo()
+    assert stored.phone_provider_downloads_enabled is True
+    assert stored.phone_provider_recording_deletion_enabled is True
 
 
 def test_patch_rejects_a_base_url_that_is_not_a_url(superuser_api: Client) -> None:

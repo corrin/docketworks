@@ -1335,9 +1335,9 @@ export const integrationSettingsRetrieve = <ThrowOnError extends boolean = false
  *
  * Apply only the fields the caller sent.
  *
- * Same discipline as company defaults: presence comes from the payload, so
- * a settings screen can submit one section without touching the others, and
- * an omitted secret is left exactly as stored.
+ * Fable: same discipline as company defaults — presence comes from the
+ * payload, so a settings screen can submit one section without touching the
+ * others, and an omitted secret is left exactly as stored.
  */
 export const integrationSettingsPartialUpdate = <ThrowOnError extends boolean = false>(options: Options<IntegrationSettingsPartialUpdateData, ThrowOnError>): RequestResult<IntegrationSettingsPartialUpdateResponses, unknown, ThrowOnError> => (options.client ?? client).patch<IntegrationSettingsPartialUpdateResponses, unknown, ThrowOnError>({
     responseType: 'json',
