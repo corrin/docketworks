@@ -6,11 +6,16 @@ import { toast } from 'sonner'
 import {
   apiErrorMessage,
   companiesPeopleCreateMutation,
+  companiesPeopleListOptions,
   companiesPeopleListQueryKey,
+  companiesPeoplePhoneOwnershipCreateMutation,
   peopleCompanyLinksDestroyMutation,
+  peopleCompanyLinksUpdateMutation,
   peoplePartialUpdateMutation,
   type CompanyPerson,
   type CompanyPersonCreateRequest,
+  type PhoneOwnership,
+  type PhonePersonMatch,
 } from '@/api'
 import {
   Dialog,
@@ -61,9 +66,11 @@ interface PersonSelectionModalProps {
  * decides. Selecting (by card click or the hover Select button) closes the
  * modal.
  *
- * Deferred: the phone-ownership conflict flow. A phone that belongs to
- * another person or company is rejected by the backend (409), surfaced here
- * as an error toast rather than v1's link-or-create-separate picker.
+ * A phone owned elsewhere is caught by a pre-flight ownership read before the
+ * create call, and surfaced as a link-or-create-separate picker. The check is
+ * a read rather than a parse of the create call's 409 because a 4xx XHR logs
+ * a browser console error, which the E2E console guard turns into a spec
+ * failure; the 409 remains the server-side backstop.
  */
 export function PersonSelectionModal({
   open,
@@ -81,11 +88,14 @@ export function PersonSelectionModal({
   const [form, setForm] = useState<PersonFormState>(EMPTY_FORM)
   const [editingPerson, setEditingPerson] = useState<CompanyPerson | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<CompanyPerson | null>(null)
+  const [phoneOwnership, setPhoneOwnership] = useState<PhoneOwnership | null>(null)
   const fieldIdPrefix = useId()
 
   const createPerson = useMutation(companiesPeopleCreateMutation())
   const updatePerson = useMutation(peoplePartialUpdateMutation())
   const removeLink = useMutation(peopleCompanyLinksDestroyMutation())
+  const checkPhoneOwnership = useMutation(companiesPeoplePhoneOwnershipCreateMutation())
+  const linkPerson = useMutation(peopleCompanyLinksUpdateMutation())
 
   const updateForm = (patch: Partial<PersonFormState>) => {
     setForm((current) => ({ ...current, ...patch }))
@@ -95,6 +105,7 @@ export function PersonSelectionModal({
     setForm(EMPTY_FORM)
     setEditingPerson(null)
     setDeleteTarget(null)
+    setPhoneOwnership(null)
     onClose()
   }
 
@@ -105,6 +116,7 @@ export function PersonSelectionModal({
 
   const startEdit = (person: CompanyPerson) => {
     setEditingPerson(person)
+    setPhoneOwnership(null)
     setForm({
       name: person.person_name,
       position: person.position ?? '',
@@ -178,7 +190,7 @@ export function PersonSelectionModal({
     setDeleteTarget(null)
   }
 
-  const handleCreate = async () => {
+  const handleCreate = async (skipPhoneCheck = false) => {
     const name = form.name.trim()
     if (!name) {
       return
@@ -190,6 +202,25 @@ export function PersonSelectionModal({
       return
     }
 
+    const phone = form.phone.trim()
+    if (phone && !skipPhoneCheck) {
+      let ownership: PhoneOwnership
+      try {
+        ownership = await checkPhoneOwnership.mutateAsync({
+          path: { company_id: companyId },
+          body: { phone },
+        })
+      } catch (error) {
+        toast.error(apiErrorMessage(error, 'Failed to check phone ownership.'))
+        return
+      }
+      if (ownership.status !== 'available') {
+        setPhoneOwnership(ownership)
+        return
+      }
+    }
+    setPhoneOwnership(null)
+
     // Blank optional fields are absent on the wire (undefined never
     // serializes), so the backend leaves the person's contact methods alone.
     const body: CompanyPersonCreateRequest = {
@@ -198,7 +229,7 @@ export function PersonSelectionModal({
       position: form.position.trim() || undefined,
       email: email || undefined,
       notes: form.notes.trim() || undefined,
-      phone: form.phone.trim() || undefined,
+      phone: phone || undefined,
     }
 
     toast.info('Creating person...', { id: 'save-person' })
@@ -222,8 +253,55 @@ export function PersonSelectionModal({
     closeAndReset()
   }
 
+  const matchAction = (match: PhonePersonMatch): string => {
+    const link = match.company_links.find((item) => item.company_id === companyId)
+    if (link?.is_active) {
+      return 'Select person'
+    }
+    if (link) {
+      return 'Restore company link'
+    }
+    return 'Link to this company'
+  }
+
+  const handleLinkMatch = async (match: PhonePersonMatch) => {
+    const existingLink = match.company_links.find((item) => item.company_id === companyId)
+    toast.info('Linking person...', { id: 'save-person' })
+    try {
+      if (!existingLink?.is_active) {
+        // The PUT upserts the link, reactivates an inactive one, and
+        // un-archives the person server-side.
+        await linkPerson.mutateAsync({
+          path: { person_id: match.person_id, company_id: companyId },
+          body: {
+            position: form.position.trim() || null,
+            notes: form.notes.trim() || null,
+            is_primary: form.isPrimary || people.length === 0,
+          },
+        })
+      }
+      // fetchQuery, not invalidate: the parent PersonSelector reads this exact
+      // key, and the selection below needs the annotated CompanyPerson row.
+      const fresh = await queryClient.fetchQuery(
+        companiesPeopleListOptions({ path: { company_id: companyId } }),
+      )
+      const linked = fresh.find((person) => person.person_id === match.person_id)
+      if (!linked) {
+        throw new Error('Linked person was not returned for the company')
+      }
+      toast.dismiss('save-person')
+      toast.success('Person linked successfully!')
+      onSelectPerson(linked)
+      closeAndReset()
+    } catch (error) {
+      toast.dismiss('save-person')
+      toast.error(apiErrorMessage(error, 'Failed to link the existing person.'))
+    }
+  }
+
   const isSaving = createPerson.isPending || updatePerson.isPending
-  const submitDisabled = isSaving || !form.name.trim()
+  const submitDisabled =
+    isSaving || checkPhoneOwnership.isPending || linkPerson.isPending || !form.name.trim()
   const submitLabel = isSaving ? 'Saving...' : editingPerson ? 'Update Person' : 'Create Person'
 
   return (
@@ -236,6 +314,77 @@ export function PersonSelectionModal({
               Company: <span className="font-medium text-gray-900">{companyName}</span>
             </DialogDescription>
           </DialogHeader>
+
+          {phoneOwnership && (
+            <div
+              className={`mt-4 max-h-64 flex-shrink-0 overflow-y-auto rounded-lg border p-4 ${
+                phoneOwnership.status === 'people'
+                  ? 'border-amber-300 bg-amber-50'
+                  : 'border-red-300 bg-red-50'
+              }`}
+              data-automation-id="PersonSelectionModal-phone-conflict"
+            >
+              <h4 className="font-semibold text-gray-900">This phone number is already in use</h4>
+              {phoneOwnership.status === 'people' ? (
+                <p className="mt-1 text-sm text-gray-700">
+                  Choose the matching person. Their identity and contact details will be preserved.
+                </p>
+              ) : phoneOwnership.status === 'company' ? (
+                <p className="mt-1 text-sm text-red-800">
+                  It belongs to{' '}
+                  {phoneOwnership.companies.map((company) => company.company_name).join(', ')} and
+                  cannot be assigned to a person.
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-red-800">
+                  It is an internal phone endpoint and cannot be assigned to a person.
+                </p>
+              )}
+
+              {phoneOwnership.status === 'people' && (
+                <div className="mt-3 space-y-2">
+                  {phoneOwnership.people.map((match) => (
+                    <div
+                      key={match.person_id}
+                      className="flex flex-col gap-2 rounded-md border border-amber-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                      data-automation-id={`PersonSelectionModal-phone-match-${match.person_id}`}
+                    >
+                      <div>
+                        <p className="font-medium text-gray-900">{match.person_name}</p>
+                        <p className="text-xs text-gray-600">{match.person_email || 'No email'}</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {match.company_links
+                            .map(
+                              (link) =>
+                                `${link.company_name}${link.is_active ? '' : ' (inactive)'}`,
+                            )
+                            .join(', ') || 'No company links'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="rounded-md bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-800"
+                        data-automation-id={`PersonSelectionModal-link-match-${match.person_id}`}
+                        onClick={() => void handleLinkMatch(match)}
+                      >
+                        {matchAction(match)}
+                      </button>
+                    </div>
+                  ))}
+                  {phoneOwnership.can_create_person && (
+                    <button
+                      type="button"
+                      className="text-sm font-medium text-amber-900 underline"
+                      data-automation-id="PersonSelectionModal-create-separate"
+                      onClick={() => void handleCreate(true)}
+                    >
+                      Create a separate person with this shared number
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-4 xl:flex-row lg:gap-6">
             <div className="relative flex min-h-0 flex-1 flex-col">
@@ -460,7 +609,10 @@ export function PersonSelectionModal({
                     data-automation-id="PersonSelectionModal-phone-input"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
                     placeholder="Phone number"
-                    onChange={(event) => updateForm({ phone: event.target.value })}
+                    onChange={(event) => {
+                      updateForm({ phone: event.target.value })
+                      setPhoneOwnership(null)
+                    }}
                   />
                 </div>
 
@@ -536,7 +688,7 @@ export function PersonSelectionModal({
               data-automation-id="PersonSelectionModal-submit"
               className="ml-3 rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={submitDisabled}
-              onClick={editingPerson ? handleUpdate : handleCreate}
+              onClick={() => void (editingPerson ? handleUpdate() : handleCreate())}
             >
               {submitLabel}
             </button>

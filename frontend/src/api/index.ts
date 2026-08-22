@@ -70,6 +70,7 @@ export {
   companiesPeopleCreateMutation,
   companiesPeopleListOptions,
   companiesPeopleListQueryKey,
+  companiesPeoplePhoneOwnershipCreateMutation,
   companiesSearchRetrieveOptions,
   peopleCompanyLinksDestroyMutation,
   peoplePartialUpdateMutation,
@@ -79,6 +80,35 @@ export type {
   CompanyPerson,
   CompanyPersonCreateRequest,
   CompanySearchResult,
+  PhoneOwnership,
+  PhonePersonMatch,
+} from './generated/types.gen'
+
+// People directory and person detail (/crm/people)
+export {
+  peopleArchiveCreateMutation,
+  peopleCompanyLinksListOptions,
+  peopleCompanyLinksListQueryKey,
+  peopleCompanyLinksUpdateMutation,
+  peopleContactMethodsCreateMutation,
+  peopleContactMethodsDestroyMutation,
+  peopleContactMethodsListOptions,
+  peopleContactMethodsListQueryKey,
+  peopleContactMethodsPartialUpdateMutation,
+  peopleListOptions,
+  peopleListQueryKey,
+  peopleRetrieveOptions,
+  peopleRetrieveQueryKey,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  CompanyLinkWriteRequest,
+  ContactMethodOut,
+  PaginatedPersonSummaryList,
+  PersonCompanyLink,
+  PersonCompanySummary,
+  PersonContactMethodWriteRequest,
+  PersonDetail,
+  PersonSummary,
 } from './generated/types.gen'
 // Job (create + detail + header edits)
 export {
