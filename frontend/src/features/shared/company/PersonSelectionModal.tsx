@@ -310,6 +310,9 @@ export function PersonSelectionModal({
           path: { person_id: match.person_id, company_id: companyId },
           body,
         })
+        // The PUT can un-archive the person, so the directory's cache is
+        // stale even though this modal only reads the company-scoped list.
+        await queryClient.invalidateQueries({ queryKey: peopleListQueryKey() })
       }
       // Fable: fetchQuery, not invalidate — the parent PersonSelector reads
       // this exact key, and the selection below needs the annotated
@@ -336,6 +339,11 @@ export function PersonSelectionModal({
   }
 
   const isSaving = createPerson.isPending || updatePerson.isPending
+  // Fable: the form is read-only while the ownership pre-flight runs —
+  // handleCreate captured the phone before the await, so an edit mid-check
+  // would create the original number or show a conflict for one no longer
+  // in the box.
+  const checkingPhone = checkPhoneOwnership.isPending
   // isLoadingPeople: is_primary defaults from whether the company already
   // has people, so submitting before that list lands could demote the real
   // primary person.
@@ -607,6 +615,7 @@ export function PersonSelectionModal({
                   <input
                     type="text"
                     id={`${fieldIdPrefix}-name`}
+                    disabled={checkingPhone}
                     value={form.name}
                     data-automation-id="PersonSelectionModal-name-input"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
@@ -626,7 +635,7 @@ export function PersonSelectionModal({
                     type="text"
                     id={`${fieldIdPrefix}-position`}
                     value={form.position}
-                    disabled={editingPerson !== null}
+                    disabled={editingPerson !== null || checkingPhone}
                     title={editingPerson ? 'Editing changes name and email only' : undefined}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
                     placeholder="Job title/position"
@@ -645,7 +654,7 @@ export function PersonSelectionModal({
                     type="tel"
                     id={`${fieldIdPrefix}-phone`}
                     value={form.phone}
-                    disabled={editingPerson !== null}
+                    disabled={editingPerson !== null || checkingPhone}
                     title={editingPerson ? 'Editing changes name and email only' : undefined}
                     data-automation-id="PersonSelectionModal-phone-input"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
@@ -668,6 +677,7 @@ export function PersonSelectionModal({
                     type="email"
                     id={`${fieldIdPrefix}-email`}
                     value={form.email}
+                    disabled={checkingPhone}
                     data-automation-id="PersonSelectionModal-email-input"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
                     placeholder="Email address"
@@ -686,7 +696,7 @@ export function PersonSelectionModal({
                     id={`${fieldIdPrefix}-notes`}
                     value={form.notes}
                     rows={2}
-                    disabled={editingPerson !== null}
+                    disabled={editingPerson !== null || checkingPhone}
                     title={editingPerson ? 'Editing changes name and email only' : undefined}
                     className="w-full resize-none rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
                     placeholder="Additional notes"
@@ -700,7 +710,7 @@ export function PersonSelectionModal({
                       id={`${fieldIdPrefix}-primary`}
                       type="checkbox"
                       checked={form.isPrimary || people.length === 0}
-                      disabled={people.length === 0 || editingPerson !== null}
+                      disabled={people.length === 0 || editingPerson !== null || checkingPhone}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       onChange={(event) => updateForm({ isPrimary: event.target.checked })}
                     />

@@ -2,65 +2,8 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
+import { intersect, observingCount } from '@/test/intersection-observer'
 import { LoadMoreSentinel } from './LoadMoreSentinel'
-
-/**
- * jsdom has no layout, so intersection is driven by hand: every observer
- * still observing is in `live`, and `intersect` fires them — like the real
- * API, a disconnected observer never fires again.
- */
-const live = new Set<FakeIntersectionObserver>()
-
-class FakeIntersectionObserver implements IntersectionObserver {
-  readonly root = null
-  readonly rootMargin = ''
-  readonly scrollMargin = ''
-  readonly thresholds: readonly number[] = []
-  private readonly callback: IntersectionObserverCallback
-  private target: Element | null = null
-
-  constructor(callback: IntersectionObserverCallback) {
-    this.callback = callback
-    live.add(this)
-  }
-
-  observe(target: Element): void {
-    this.target = target
-  }
-
-  unobserve(): void {}
-
-  disconnect(): void {
-    live.delete(this)
-  }
-
-  takeRecords(): IntersectionObserverEntry[] {
-    return []
-  }
-
-  fire(isIntersecting: boolean): void {
-    if (this.target === null) throw new Error('fired before observe()')
-    const rect = this.target.getBoundingClientRect()
-    this.callback(
-      [
-        {
-          isIntersecting,
-          target: this.target,
-          time: 0,
-          intersectionRatio: isIntersecting ? 1 : 0,
-          boundingClientRect: rect,
-          intersectionRect: rect,
-          rootBounds: null,
-        },
-      ],
-      this,
-    )
-  }
-}
-
-function intersect(isIntersecting: boolean): void {
-  for (const observer of live) observer.fire(isIntersecting)
-}
 
 const baseProps = {
   automationId: 'Things-load-more',
@@ -110,7 +53,6 @@ describe('LoadMoreSentinel', () => {
   })
 
   it('reports a failed next page and retries it on demand, not on scroll', () => {
-    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver)
     const onLoadMore = vi.fn()
     render(
       <LoadMoreSentinel {...baseProps} hasNextPage isFetchNextPageError onLoadMore={onLoadMore} />,
@@ -118,10 +60,26 @@ describe('LoadMoreSentinel', () => {
 
     expect(screen.getByText('Loading more failed.')).toBeVisible()
     // A failed page must not be retried every time the foot scrolls into view.
-    expect(live.size).toBe(0)
+    expect(observingCount()).toBe(0)
     screen.getByRole('button', { name: 'Retry' }).click()
     expect(onLoadMore).toHaveBeenCalledTimes(1)
-    vi.unstubAllGlobals()
+  })
+
+  it('holds the Retry button while the retried page is in flight', () => {
+    render(
+      <LoadMoreSentinel
+        {...baseProps}
+        hasNextPage
+        isFetchNextPageError
+        isFetchingNextPage
+        onLoadMore={() => undefined}
+      />,
+    )
+
+    // The query keeps its error status until the retry resolves, so this
+    // branch is what the user sees during the retry; a second click would
+    // cancel the request in flight.
+    expect(screen.getByRole('button', { name: 'Retrying...' })).toBeDisabled()
   })
 
   it('renders nothing for an empty list', () => {
@@ -139,7 +97,6 @@ describe('LoadMoreSentinel', () => {
   })
 
   it('loads the next page when it scrolls into view, and only when one remains', () => {
-    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver)
     const onLoadMore = vi.fn()
     const { rerender, unmount } = render(
       <LoadMoreSentinel {...baseProps} hasNextPage onLoadMore={onLoadMore} />,
@@ -158,7 +115,6 @@ describe('LoadMoreSentinel', () => {
     expect(onLoadMore).toHaveBeenCalledTimes(1)
 
     unmount()
-    expect(live.size).toBe(0)
-    vi.unstubAllGlobals()
+    expect(observingCount()).toBe(0)
   })
 })

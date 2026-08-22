@@ -125,6 +125,30 @@ describe('PeopleDirectoryPage', () => {
     expect(screen.queryByText('Loading more failed.')).toBeNull()
   })
 
+  it('keeps the rows and offers a retry when a background refresh fails', async () => {
+    let calls = 0
+    server.use(
+      http.get('*/api/people/', () => {
+        calls += 1
+        if (calls === 2) return HttpResponse.json({ detail: 'boom' }, { status: 500 })
+        return HttpResponse.json(paginated([person()]))
+      }),
+    )
+    const { user } = renderWithProviders(<PeopleDirectoryPage />)
+    await screen.findByText('Alex Smith')
+
+    // Search with the same (empty) query is a refetch of what is on screen.
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+    expect(await screen.findByText('Refresh failed — showing the last loaded rows.')).toBeVisible()
+    expect(screen.getByText('Alex Smith')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() =>
+      expect(screen.queryByText('Refresh failed — showing the last loaded rows.')).toBeNull(),
+    )
+    expect(calls).toBe(3)
+  })
+
   it('applies the search on Enter, not per keystroke', async () => {
     const queries: (string | null)[] = []
     server.use(

@@ -83,11 +83,21 @@ test.describe('people directory and company links', () => {
 
     const rows = page.locator('[data-automation-id^="PeopleDirectory-row-"]')
     const count = autoId(page, 'PeopleDirectory-load-more-count')
-    await expect(rows).toHaveCount(50)
-    await expect(count).toHaveText(/^Showing 50 of \d+ people$/)
+    // The first page is whatever the server's default size is; the count
+    // line names it and shows there is more.
+    await expect(count).toHaveText(/^Showing \d+ of \d+ people$/)
+    const [, shownText, totalText] =
+      (await count.innerText()).match(/^Showing (\d+) of (\d+)/) ?? []
+    const firstPage = Number(shownText)
+    expect(firstPage).toBeGreaterThan(0)
+    expect(Number(totalText)).toBeGreaterThan(firstPage)
+    await expect(rows).toHaveCount(firstPage)
 
+    // Scrolling the foot into view is the whole gesture: no click.
     await autoId(page, 'PeopleDirectory-load-more').scrollIntoViewIfNeeded()
-    await expect(rows).toHaveCount(100, { timeout: 10000 })
-    await expect(count).toHaveText(/^Showing 100 of \d+ people$/)
+    await expect.poll(() => rows.count(), { timeout: 10000 }).toBeGreaterThanOrEqual(firstPage * 2)
+    await expect(count).toHaveText(
+      new RegExp(`^Showing ${await rows.count()} of ${totalText} people$`),
+    )
   })
 })

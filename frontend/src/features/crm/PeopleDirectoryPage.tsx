@@ -28,7 +28,7 @@ export function PeopleDirectoryPage() {
   const [createCompany, setCreateCompany] = useState<CompanySearchResult | null>(null)
   const [createPerson, setCreatePerson] = useState<SelectedPerson | null>(null)
 
-  // Infinite scroll over the server's default page size, not a pager: search
+  // Fable: infinite scroll over the server's default page size, not a pager: search
   // stays the primary way to find a person, and scrolling reaches every row
   // instead of hiding the tail. `page` is the pageParam the generated queryFn
   // injects, so it must not appear in the base query.
@@ -41,6 +41,11 @@ export function PeopleDirectoryPage() {
     }),
     initialPageParam: 1,
     getNextPageParam: nextPageParam,
+    // Fable: a refetch of an infinite query re-requests every loaded page in
+    // series, so a window-focus refetch of a list scrolled ten pages deep is
+    // ten requests for nothing. Invalidation after a mutation still refetches
+    // all pages, which is the one time the rows are known to have changed.
+    refetchOnWindowFocus: false,
     placeholderData: keepPreviousData,
   })
   const rows = people.data?.pages.flatMap((page) => page.results)
@@ -157,7 +162,7 @@ export function PeopleDirectoryPage() {
 
       {people.isRefetchError && (
         <div className="mt-4 flex items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          {/* A failed next page is LoadMoreSentinel's to report; this banner
+          {/* Fable: a failed next page is LoadMoreSentinel's to report; this banner
               is only for a background refetch of the rows already on screen. */}
           <span>Refresh failed — showing the last loaded rows.</span>
           <button

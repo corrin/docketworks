@@ -5,6 +5,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll } from 'vitest'
 
+import { FakeIntersectionObserver, resetIntersectionObservers } from './intersection-observer'
 import { server } from './msw'
 
 // TanStack Router restores scroll after navigation; jsdom intentionally omits this browser API.
@@ -19,20 +20,16 @@ class ResizeObserverStub {
 }
 window.ResizeObserver = window.ResizeObserver ?? ResizeObserverStub
 
-// LoadMoreSentinel auto-fetches when scrolled into view; jsdom has no layout,
-// so the stub never fires and unit tests drive the Load more button instead.
-class IntersectionObserverStub {
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
-}
-window.IntersectionObserver = window.IntersectionObserver ?? IntersectionObserverStub
+// jsdom ships no IntersectionObserver at all. Page tests click Load more;
+// LoadMoreSentinel's own test fires the fake through intersect().
+window.IntersectionObserver = window.IntersectionObserver ?? FakeIntersectionObserver
 Element.prototype.scrollIntoView = () => undefined
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 
 afterEach(() => {
   cleanup()
+  resetIntersectionObservers()
   server.resetHandlers()
 })
 

@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw'
 import { screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { CompanyPerson, PhoneOwnership } from '@/api'
+import { peopleListQueryKey, type CompanyPerson, type PhoneOwnership } from '@/api'
 import { expectNoAccessibilityViolations } from '@/test/accessibility'
 import { queryAutoId } from '@/test/auto-id'
 import { renderWithProviders } from '@/test/render'
@@ -75,6 +75,15 @@ const linkedCompanyPerson: CompanyPerson = {
   primary_phone: '021 123 4567',
 }
 
+/** A promise the test resolves by hand, to hold a response open. */
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void
+  const promise = new Promise<void>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
 function renderCreateModal(onSelectPerson = vi.fn(), onClose = vi.fn()) {
   const rendered = renderWithProviders(
     <PersonSelectionModal
@@ -119,6 +128,27 @@ describe('PersonSelectionModal phone-ownership conflict', () => {
     expect(createCalls).toBe(0)
   })
 
+  it('locks the form while the phone ownership check is in flight', async () => {
+    const gate = deferred()
+    server.use(
+      http.post('*/api/companies/company-1/people/phone-ownership/', async () => {
+        await gate.promise
+        return HttpResponse.json(ownership([matchedPerson([])]))
+      }),
+    )
+    const { user } = renderCreateModal()
+
+    await submitNewPerson(user)
+
+    // Editing the phone mid-check would create the original phone, or show a
+    // conflict for a number no longer in the box.
+    await waitFor(() => expect(screen.getByLabelText('Phone')).toBeDisabled())
+    expect(screen.getByLabelText('Name *')).toBeDisabled()
+    gate.resolve()
+    await waitFor(() => expect(queryAutoId('PersonSelectionModal-phone-conflict')).not.toBeNull())
+    expect(screen.getByLabelText('Phone')).toBeEnabled()
+  })
+
   it('links the matched person and selects the refreshed company person', async () => {
     let putBody: unknown = null
     server.use(
@@ -138,7 +168,12 @@ describe('PersonSelectionModal phone-ownership conflict', () => {
       }),
       http.get('*/api/companies/company-1/people/', () => HttpResponse.json([linkedCompanyPerson])),
     )
-    const { user, onSelectPerson, onClose } = renderCreateModal()
+    const { user, onSelectPerson, onClose, queryClient } = renderCreateModal()
+    // A stale directory entry: the PUT can un-archive the person server-side.
+    // gcTime: the test client collects unobserved queries at once, which
+    // would erase the entry before its state can be read.
+    queryClient.setQueryDefaults(peopleListQueryKey(), { gcTime: Number.POSITIVE_INFINITY })
+    queryClient.setQueryData(peopleListQueryKey(), { count: 0, results: [] })
 
     await submitNewPerson(user)
     await user.click(await screen.findByRole('button', { name: 'Link to this company' }))
@@ -146,6 +181,7 @@ describe('PersonSelectionModal phone-ownership conflict', () => {
     await waitFor(() => expect(onSelectPerson).toHaveBeenCalledWith(linkedCompanyPerson))
     expect(putBody).toEqual({ position: null, notes: null, is_primary: true })
     expect(onClose).toHaveBeenCalled()
+    expect(queryClient.getQueryState(peopleListQueryKey())?.isInvalidated).toBe(true)
   })
 
   it('skips the PUT when the match already holds an active link', async () => {

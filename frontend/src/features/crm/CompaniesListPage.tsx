@@ -26,7 +26,7 @@ export function CompaniesListPage() {
   const query = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS)
   const { sortBy, sortDir, onSort } = useSortState<SortColumn>('name')
 
-  // Pages come in the server's default size; `page` is the pageParam the
+  // Fable: pages come in the server's default size; `page` is the pageParam the
   // generated queryFn injects, so it must not appear in the base query.
   const companies = useInfiniteQuery({
     ...companiesSearchRetrieveInfiniteOptions({
@@ -34,6 +34,11 @@ export function CompaniesListPage() {
     }),
     initialPageParam: 1,
     getNextPageParam: nextPageParam,
+    // Fable: a refetch of an infinite query re-requests every loaded page in
+    // series, so a window-focus refetch of a list scrolled ten pages deep is
+    // ten requests for nothing. Invalidation after a mutation still refetches
+    // all pages, which is the one time the rows are known to have changed.
+    refetchOnWindowFocus: false,
     // Sort and search change the query key; without placeholder data every
     // change would unmount the table and re-flash the loading text.
     placeholderData: keepPreviousData,

@@ -97,6 +97,29 @@ class TestListAndRetrieve:
 
         assert response.json()["results"][0]["phone"] == "09 555 0000"
 
+    def test_browse_pages_cover_tied_rows_exactly_once(self, client: Client) -> None:
+        # Every company without invoices ties at total_spend 0.00, and names
+        # are not unique. Offset paging over a sort with no tie-break may
+        # repeat or skip tied rows between pages; the stable id tie-break is
+        # what makes page N+1 continue where page N stopped.
+        ids = {str(make_company("Tie Co").id) for _ in range(6)}
+
+        seen: list[str] = []
+        page = 1
+        while True:
+            response = client.get(
+                "/api/companies/search/",
+                {"page": str(page), "page_size": "2", "sort_by": "total_spend", "sort_dir": "asc"},
+            )
+            assert response.status_code == 200
+            body = response.json()
+            seen.extend(row["id"] for row in body["results"] if row["id"] in ids)
+            if page >= body["total_pages"]:
+                break
+            page += 1
+
+        assert sorted(seen) == sorted(ids)
+
     def test_search_page_size_is_clamped_to_max(self, client: Client) -> None:
         """An absurd page_size must clamp to MAX_PAGE_SIZE (100) in the envelope."""
         make_company("Acme Engineering")

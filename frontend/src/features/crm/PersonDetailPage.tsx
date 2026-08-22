@@ -514,8 +514,14 @@ export function PersonDetailPage({ personId }: { personId: string }) {
               <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_auto_auto]">
                 {linkForm.editingCompanyId ? (
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">Company</label>
+                    <label
+                      htmlFor="person-link-company-name"
+                      className="mb-1 block text-sm font-medium text-gray-700"
+                    >
+                      Company
+                    </label>
                     <input
+                      id="person-link-company-name"
                       type="text"
                       value={linkForm.editingCompanyName}
                       disabled

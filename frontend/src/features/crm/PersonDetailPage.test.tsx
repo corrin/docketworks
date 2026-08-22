@@ -74,6 +74,15 @@ describe('PersonDetailPage', () => {
     expect(await screen.findByText('Company link restored')).toBeVisible()
   })
 
+  it('labels the fixed company field while editing a link', async () => {
+    stubPerson(personDetail(), [activeLink])
+    const { user } = renderWithProviders(<PersonDetailPage personId="p-1" />)
+    await screen.findByText('Alpha Engineering')
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.getByLabelText('Company')).toBeDisabled()
+  })
+
   it('saves identity with only name and email in the body', async () => {
     let patchBody: unknown = null
     stubPerson(personDetail(), [activeLink])
