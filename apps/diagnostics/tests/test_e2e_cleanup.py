@@ -18,13 +18,25 @@ from apps.quoting.models import SupplierPriceList
 pytestmark = pytest.mark.django_db
 
 
+STUBBED_COMMANDS = ("sync_sequences", "archive_test_contacts")
+
+
 @pytest.fixture(autouse=True)
-def _isolate_sequence_sync(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep sync_sequences' explicit COMMIT from escaping pytest's database savepoint."""
-    monkeypatch.setattr(
-        "apps.diagnostics.management.commands.e2e_cleanup.call_command",
-        lambda command: None if command == "sync_sequences" else call_command(command),
-    )
+def invoked_commands(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, ...]]:
+    """Record the commands the cleanup delegates to instead of running them.
+
+    sync_sequences' explicit COMMIT would escape pytest's database savepoint,
+    and archive_test_contacts writes to Xero.
+    """
+    invoked: list[tuple[str, ...]] = []
+
+    def record(command: str, *args: str) -> None:
+        invoked.append((command, *args))
+        if command not in STUBBED_COMMANDS:
+            call_command(command, *args)
+
+    monkeypatch.setattr("apps.diagnostics.management.commands.e2e_cleanup.call_command", record)
+    return invoked
 
 
 def _run_cleanup(*args: str) -> str:
@@ -188,3 +200,29 @@ def test_confirm_rolls_back_when_a_delete_fails(
     assert Invoice.objects.filter(pk=invoice.pk).exists()
     assert Job.objects.filter(pk=job.pk).exists()
     assert Company.objects.filter(pk=company.pk).exists()
+
+
+def test_a_company_archived_in_xero_is_the_mirror_not_residue(
+    invoked_commands: list[tuple[str, ...]],
+) -> None:
+    """Xero cannot delete a contact; the archived mirror must survive every cleanup."""
+    archived = Company.objects.create(
+        name="[TEST] Archived In Xero", xero_archived=True, xero_last_modified="2026-08-08T00:00Z"
+    )
+    active = Company.objects.create(
+        name="[TEST] Still Active", xero_last_modified="2026-08-08T00:00Z"
+    )
+
+    _run_cleanup("--confirm")
+
+    assert Company.objects.filter(pk=archived.pk).exists()
+    assert not Company.objects.filter(pk=active.pk).exists()
+    assert ("archive_test_contacts", "--confirm") in invoked_commands
+
+
+def test_dry_run_does_not_archive_in_xero(invoked_commands: list[tuple[str, ...]]) -> None:
+    Company.objects.create(name="[TEST] Company", xero_last_modified="2026-08-08T00:00Z")
+
+    _run_cleanup()
+
+    assert all(command != "archive_test_contacts" for command, *_ in invoked_commands)

@@ -82,10 +82,11 @@ SALES_ACCOUNT_NAME = "Sales"
 
 @dataclass(frozen=True)
 class XeroContactRef:
-    """The two fields of a Xero contact the by-name linker needs."""
+    """What the by-name linker and the E2E archiver need of a Xero contact."""
 
     name: str
     contact_id: str
+    contact_status: str
 
 
 @dataclass(frozen=True)
@@ -172,9 +173,15 @@ def get_all_xero_contacts() -> list[XeroContactRef]:
 
     contacts: list[XeroContactRef] = []
     for contact in response.contacts or []:
-        if not contact.name or not contact.contact_id:
-            raise ValueError(f"Xero returned a contact without a name or id: {contact}")
-        contacts.append(XeroContactRef(name=contact.name, contact_id=contact.contact_id))
+        if not contact.name or not contact.contact_id or not contact.contact_status:
+            raise ValueError(f"Xero returned a contact without a name, id or status: {contact}")
+        contacts.append(
+            XeroContactRef(
+                name=contact.name,
+                contact_id=contact.contact_id,
+                contact_status=contact.contact_status,
+            )
+        )
 
     logger.info("Fetched %d contacts from Xero", len(contacts))
     return contacts

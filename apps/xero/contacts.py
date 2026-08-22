@@ -8,6 +8,7 @@ object.
 
 import logging
 import time
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from xero_python.accounting import AccountingApi, Address, Contact, Phone
@@ -82,6 +83,36 @@ def create_company_contact_in_xero(company: "Company") -> str:
     company.save(update_fields=["xero_contact_id"])
     logger.info("Created company %s in Xero with ID %s", company.name, company.xero_contact_id)
     return company.xero_contact_id
+
+
+#: Xero accepts many contacts per update call; 50 keeps each request well
+#: inside its payload and time limits while still archiving a run's residue
+#: in one or two calls.
+ARCHIVE_BATCH_SIZE = 50
+
+
+def archive_contacts_in_xero(contact_ids: Sequence[str]) -> int:
+    """Archive the given contacts (Xero's removal; contacts cannot be deleted).
+
+    Batched through update_or_create_contacts, paced like every other write
+    here. Raises on any failure (ADR 0015). Returns the number archived.
+    """
+    accounting_api = AccountingApi(get_api_client())
+    tenant_id = get_tenant_id()
+    for start in range(0, len(contact_ids), ARCHIVE_BATCH_SIZE):
+        batch = contact_ids[start : start + ARCHIVE_BATCH_SIZE]
+        accounting_api.update_or_create_contacts(
+            tenant_id,
+            contacts={
+                "contacts": [
+                    Contact(contact_id=contact_id, contact_status="ARCHIVED")
+                    for contact_id in batch
+                ]
+            },
+        )
+        time.sleep(SLEEP_TIME)
+    logger.info("Archived %d contacts in Xero", len(contact_ids))
+    return len(contact_ids)
 
 
 def sync_company_to_xero(company: "Company") -> None:

@@ -3,6 +3,13 @@
 The command is a dry run unless ``--confirm`` is supplied. Cross-domain
 cleanup belongs in diagnostics, which sits above the domain-app layer; putting
 it in core would invert the import contract merely for an operator tool.
+
+Companies a spec created through the app exist in the Xero demo organisation
+too, and the incremental contact sync brings a deleted one back the next time
+its contact is touched. So a confirmed run also archives those contacts
+(``archive_test_contacts``), and a company already archived in Xero is the
+organisation's mirror, not residue: it is left alone here and by the E2E
+preflight.
 """
 
 from django.core.management import call_command
@@ -13,12 +20,11 @@ from django.db.models import Model, Q, QuerySet
 from apps.accounting.models import Invoice, Quote
 from apps.company.models import Company, CompanyPersonLink, Person
 from apps.core.models import CompanyDefaults
+from apps.core.test_data import LEGACY_E2E_PREFIXES, TEST_DATA_PREFIX
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 
 TEST_COMPANY_NAME = "ABC Carpet Cleaning TEST IGNORE"
-TEST_DATA_PREFIX = "[TEST]"
-LEGACY_E2E_PREFIXES = ("E2E Test Client", "E2E Modal Client", "E2E Test Supplier")
 
 
 class Command(BaseCommand):
@@ -46,14 +52,16 @@ class Command(BaseCommand):
         test_jobs = Job.objects.filter(name__startswith=TEST_DATA_PREFIX)
         test_people = CompanyPersonLink.objects.filter(person__name__startswith=TEST_DATA_PREFIX)
         test_person_records = Person.objects.filter(name__startswith=TEST_DATA_PREFIX)
-        test_companies = Company.objects.filter(name__startswith=TEST_DATA_PREFIX)
+        test_companies = Company.objects.filter(
+            name__startswith=TEST_DATA_PREFIX, xero_archived=False
+        )
         test_prefix_company_jobs = Job.objects.filter(company__in=test_companies)
         test_prefix_company_people = CompanyPersonLink.objects.filter(company__in=test_companies)
 
         legacy_q = Q()
         for prefix in LEGACY_E2E_PREFIXES:
             legacy_q |= Q(name__startswith=prefix)
-        legacy_companies = Company.objects.filter(legacy_q)
+        legacy_companies = Company.objects.filter(legacy_q, xero_archived=False)
         legacy_company_jobs = Job.objects.filter(company__in=legacy_companies)
         legacy_company_people = CompanyPersonLink.objects.filter(company__in=legacy_companies)
 
@@ -79,8 +87,8 @@ class Command(BaseCommand):
         self._report_queryset(
             "Underlying [TEST]-prefixed person records", test_person_records, "name"
         )
-        self._report_queryset("[TEST]-prefixed companies", test_companies, "name")
-        self._report_queryset("Legacy E2E companies", legacy_companies, "name")
+        self._report_queryset("[TEST]-prefixed companies (active in Xero)", test_companies, "name")
+        self._report_queryset("Legacy E2E companies (active in Xero)", legacy_companies, "name")
         self._report_queryset("Named E2E test company", test_company, "name")
         self._report_queryset("Legacy E2E company jobs", legacy_company_jobs, "name")
         self._report_queryset("Legacy E2E company people", legacy_company_people, "person__name")
@@ -151,6 +159,11 @@ class Command(BaseCommand):
             )
             self._delete_queryset("Underlying test person records", orphaned_test_people)
             self._delete_queryset("E2E companies", deletable_companies)
+
+        # After the local deletes, so a spec's person and phone links are gone
+        # before the contact they belonged to is archived.
+        self.stdout.write("\nArchiving E2E contacts in Xero...")
+        call_command("archive_test_contacts", "--confirm")
 
         # After the deletes so the sequences reflect the final table state.
         self.stdout.write("\nSyncing sequences...")
