@@ -38,6 +38,27 @@ export {
   notebookLmLinksMenuListOptions,
 } from './generated/@tanstack/react-query.gen'
 export type { DataVersions } from './generated/types.gen'
+
+// Company defaults (admin settings screen: schema-driven form + logo uploads)
+export {
+  companiesAllListOptions,
+  companyDefaultsLogoDestroyMutation,
+  companyDefaultsLogoUpdateMutation,
+  companyDefaultsPartialUpdateMutation,
+  companyDefaultsRetrieveQueryKey,
+  companyDefaultsSchemaRetrieveOptions,
+  xeroBrandingThemesListOptions,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  CompanyDefaultsOut,
+  CompanyDefaultsPatchIn,
+  CompanyNameOnly,
+  SettingsFieldOut,
+  SettingsFieldType,
+  SettingsSectionKey,
+  SettingsSectionOut,
+  XeroBrandingThemeOut,
+} from './generated/types.gen'
 // The push half of the same document: a stream of data-version pushes, which
 // consumers run instead of waiting out their poll interval.
 export { runDataVersionsStream } from './data-versions-stream'

@@ -18,17 +18,21 @@ import shutil
 import subprocess
 from functools import lru_cache
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import models
+from django.db.models.fields.files import FieldFile
 from django.http import HttpRequest, HttpResponse
-from ninja import ModelSchema, Router, Schema
+from ninja import File, ModelSchema, Router, Schema
 from ninja.errors import HttpError
-from pydantic import ConfigDict
+from ninja.files import UploadedFile
+from PIL import Image
+from pydantic import ConfigDict, model_validator
 
-from apps.core.auth import CookieJWTAuth
+from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
 from apps.core.models import CompanyDefaults
 from apps.core.schemas import derived_response, drop_model_defaults
 from apps.core.settings_metadata import CompanyDefaultsSchemaOut, build_company_defaults_schema
@@ -145,6 +149,17 @@ class CompanyDefaultsOut(ModelSchema):
         return _logo_url(obj, "logo_wide")
 
 
+def _nullable_text_field_names() -> frozenset[str]:
+    return frozenset(
+        field.name
+        for field in CompanyDefaults._meta.get_fields()
+        if isinstance(field, models.CharField | models.TextField) and field.null
+    )
+
+
+_NULLABLE_TEXT_FIELDS = _nullable_text_field_names()
+
+
 class CompanyDefaultsPatchIn(ModelSchema):
     """Partial update: every field optional, presence read from the payload."""
 
@@ -152,8 +167,20 @@ class CompanyDefaultsPatchIn(ModelSchema):
 
     class Meta:
         model = CompanyDefaults
-        exclude: ClassVar[list[str]] = ["id", "logo", "logo_wide"]
+        # created_at/updated_at are auto-managed; without this exclusion the
+        # setattr loop would happily rewrite created_at on update.
+        exclude: ClassVar[list[str]] = ["id", "logo", "logo_wide", "created_at", "updated_at"]
         fields_optional = "__all__"
+
+    @model_validator(mode="after")
+    def _blank_is_not_a_value(self) -> "CompanyDefaultsPatchIn":
+        # ADR 0040: nullable text columns never store ""; null is how a client
+        # clears a value. Enforced generically rather than via NullableText per
+        # field because this schema is derived with fields_optional="__all__".
+        for name in self.model_fields_set & _NULLABLE_TEXT_FIELDS:
+            if getattr(self, name) == "":
+                raise ValueError(f"{name}: blank is not a value; send null to clear")
+        return self
 
 
 def _logo_url(instance: CompanyDefaults, field_name: str) -> str | None:
@@ -184,9 +211,18 @@ def company_defaults_retrieve(request: HttpRequest) -> CompanyDefaults:
     return CompanyDefaults.get_solo()
 
 
+# Opus: superuser, not office staff — this PATCH sets wage rates, markups, GST and
+# Xero identity; v1's effective gate was the superuser /admin route guard, and the
+# admin nav + leave-settings use the same class. GET stays any-staff: company
+# defaults is app-shell boot data for every user.
+# Opus: If-Match rejected here — ADR 0003 scopes optimistic concurrency to Job/PO;
+# the dirty-fields-only payload (exclude_unset) means concurrent editors of
+# different fields never clobber each other, and same-field conflict on a
+# rarely-edited singleton is accepted last-write-wins (ruling in
+# docs/rewrite-history.md, 2026-08-22).
 @router.patch(
     "/company-defaults/",
-    auth=CookieJWTAuth(),
+    auth=SuperuserCookieJWTAuth(),
     operation_id="company_defaults_partial_update",
     response=CompanyDefaultsOut,
     summary="Update some of the company defaults",
@@ -202,7 +238,21 @@ def company_defaults_partial_update(
     section at a time.
     """
     instance = CompanyDefaults.get_solo()
-    supplied = payload.model_dump(exclude_unset=True)
+    # by_alias=True: ninja's ModelSchema names the FK's pydantic attribute
+    # ``shop_company`` (alias ``shop_company_id``, the wire key). Dumping by
+    # attribute name would yield {"shop_company": <uuid>}, and setattr on a
+    # Django FK descriptor with a raw UUID (not a model instance) raises
+    # ValueError before full_clean ever runs — a 500 for a legal payload.
+    # Dumping by alias yields {"shop_company_id": <uuid>}, a real attname
+    # setattr and update_fields both accept; every other field's alias equals
+    # its attribute name, so this is a no-op for them. model_fields_set (used
+    # by _blank_is_not_a_value above) is keyed by attribute name regardless of
+    # by_alias, so that validator is unaffected.
+    supplied = payload.model_dump(exclude_unset=True, by_alias=True)
+    if not supplied:
+        # An empty PATCH body has nothing to apply; save(update_fields=None)
+        # would fall back to a full-row write for zero benefit.
+        return instance
     for field, value in supplied.items():
         setattr(instance, field, value)
     try:
@@ -214,7 +264,7 @@ def company_defaults_partial_update(
         # flattening (job, purchasing, timesheet, company); it belongs in
         # apps/core beside the envelope, and consolidating it is its own change.
         raise HttpError(400, "; ".join(exc.messages)) from exc
-    instance.save(update_fields=[*supplied, "updated_at"] if supplied else None)
+    instance.save(update_fields=[*supplied, "updated_at"])
     return instance
 
 
@@ -229,3 +279,110 @@ def company_defaults_partial_update(
 def company_defaults_schema_retrieve(request: HttpRequest) -> CompanyDefaultsSchemaOut:
     """Serve the section/field registry the settings screen renders from."""
     return build_company_defaults_schema()
+
+
+# ── Company logo upload/delete ───────────────────────────────────────────
+#
+# Opus: Field name in the path, not the multipart body (v1 put it in the body and
+# fetched raw, because "Zodios can't multipart") — so hey-api generates a
+# typed multipart client here too (precedent: uploadJobFiles, apps/job/api.py).
+
+LogoFieldName = Literal["logo", "logo_wide"]
+# Opus: .svg deliberately excluded even though v1's upload accepted it —
+# PIL cannot open SVG, and both consumers (grep Image.open over apps/ finds
+# apps/purchasing/services/purchase_order_pdf_service.py and
+# apps/job/services/workshop_pdf_service.py) open the stored file with PIL, so
+# an allowlisted-but-unopenable format would 400 at upload only to 500 every
+# PO/workshop PDF later.
+_ALLOWED_LOGO_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp"})
+_MAX_LOGO_BYTES = 5 * 1024 * 1024
+
+
+def _delete_stored_logo(field_file: FieldFile) -> None:
+    # Opus: Only unlink files under MEDIA_ROOT/company_logos so a git-tracked seed
+    # asset referenced by a restored row is never destroyed (v1 carried the same
+    # guard). normpath first: the guard exists for names that did NOT come
+    # through the upload path (e.g. a restored row), so a ``../`` cannot walk out
+    # of company_logos/ before the parts check runs. The protected branch is
+    # checked by test_delete_leaves_a_non_company_logos_file_on_disk.
+    if not field_file:
+        return
+    storage_path = Path(os.path.normpath(field_file.name or ""))
+    if storage_path.parts[:1] != ("company_logos",):
+        return
+    field_file.delete(save=False)
+
+
+def _validate_logo_upload(file: UploadedFile) -> None:
+    suffix = Path(file.name or "").suffix.lower()
+    if suffix not in _ALLOWED_LOGO_SUFFIXES:
+        raise HttpError(400, f"Unsupported file type {suffix or '(none)'}")
+    if not file.size:
+        raise HttpError(400, "Logo files cannot be empty")
+    if file.size > _MAX_LOGO_BYTES:
+        raise HttpError(400, "Logo files are limited to 5 MB")
+    # Opus: content, not just suffix — the PO PDF consumer opens the stored
+    # file with PIL and hard-fails (UnidentifiedImageError, a 500) on a mislabeled
+    # non-image, so that must be a 400 here instead. verify() raises OSError for
+    # both an unrecognised format and a truncated/corrupt one (UnidentifiedImageError
+    # is itself an OSError subclass); rewind after, since a failed verify() leaves
+    # the stream unusable for the caller's subsequent save.
+    # DecompressionBombError is Image.DecompressionBombError, not an OSError
+    # subclass — without it a small PNG declaring absurd dimensions raises
+    # past this except tuple and 500s instead of 400ing.
+    try:
+        with Image.open(file) as image:
+            image.verify()
+    except (OSError, Image.DecompressionBombError) as exc:
+        raise HttpError(400, "Uploaded file is not a valid image") from exc
+    finally:
+        file.seek(0)
+
+
+@router.post(
+    "/company-defaults/logo/{field_name}/",
+    auth=SuperuserCookieJWTAuth(),
+    operation_id="company_defaults_logo_update",
+    response=CompanyDefaultsOut,
+    summary="Upload a company logo",
+    tags=["company-defaults"],
+)
+def company_defaults_logo_update(
+    request: HttpRequest, field_name: LogoFieldName, file: File[UploadedFile]
+) -> CompanyDefaults:
+    """Save the uploaded file and delete the file it replaces."""
+    _validate_logo_upload(file)
+    instance = CompanyDefaults.get_solo()
+    # Opus: save the new file before unlinking the old one — a save failure
+    # (full_clean, disk-full, whatever) must not leave the row pointing at a file
+    # that no longer exists. ``replaced`` is captured before setattr rebinds the
+    # descriptor, so it still names the pre-upload file.
+    replaced = getattr(instance, field_name)
+    setattr(instance, field_name, file)
+    instance.save(update_fields=[field_name, "updated_at"])
+    _delete_stored_logo(replaced)
+    return instance
+
+
+@router.delete(
+    "/company-defaults/logo/{field_name}/",
+    auth=SuperuserCookieJWTAuth(),
+    operation_id="company_defaults_logo_destroy",
+    response=CompanyDefaultsOut,
+    summary="Remove a company logo",
+    tags=["company-defaults"],
+)
+def company_defaults_logo_destroy(
+    request: HttpRequest, field_name: LogoFieldName
+) -> CompanyDefaults:
+    """Clear the named logo field and delete the stored file."""
+    instance = CompanyDefaults.get_solo()
+    # Opus: clear + save before unlinking, mirroring the upload endpoint above —
+    # a save failure must not leave the file deleted while the row still points
+    # at it. ``removed`` is captured before setattr clears the descriptor, so it
+    # still names the file to delete once the row is safely persisted.
+    removed = getattr(instance, field_name)
+    setattr(instance, field_name, None)
+    instance.save(update_fields=[field_name, "updated_at"])
+    _delete_stored_logo(removed)
+    return instance

@@ -43,13 +43,13 @@ done only when that spec is green.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **35 of 40** — green is the only measure that counts |
+| E2E specs ported | **36 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
-| API operations v2 exposes | 217 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2366 (all passing) |
+| API operations v2 exposes | 219 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 2383 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
-| Behaviour ledger | 105 recorded deviations |
+| Behaviour ledger | 110 recorded deviations |
 | ADRs | 39 (v1's 26 carried forward + 0038–0041, 0043, 0045–0052 written here) |
 
 **Written is not ported.** Report progress as specs green; a count of endpoints
@@ -59,15 +59,12 @@ written measures typing, not delivery.
 
 ### Specs still to port
 
-Eight, plus `example`, which is a placeholder to delete rather than port:
-`company-defaults`, `crm/people`, `crm/people-archive`,
+Seven, plus `example`, which is a placeholder to delete rather than port:
+`crm/people`, `crm/people-archive`,
 `crm/phone-call-job-link`, `process-documents/form-entries-page-scroll`,
 `purchasing/pickup-address`, `staff/create-staff`,
 `timesheet/workshop-my-time-view`.
 
-- `company-defaults` blocks more than itself: `JobViewTabs` renders
-  `JobEstimateTab` only when company defaults exist, so the job cluster stays
-  dark until it does.
 - `workshop-my-time-view` is a rebuild, not a port —
   `@kodeglot/vue-calendar` has no React equivalent.
 - `form-entries-page-scroll` seeds itself over the API, so its true cost is the
@@ -85,8 +82,9 @@ operations v1's frontend called, never what shape v2 must serve.
   still to come. An unrecorded rename makes the v1 name read as missing *and*
   the v2 name look brand new, corrupting the count in both directions.
 - **Staff:** `accounts_staff_all_list`, `_create`, `_partial_update`,
-  `_icon_create` (a multipart upload — the only one). Unblocks
-  `staff/create-staff`.
+  `_icon_create` (a multipart image upload — generalise the company-defaults
+  logo seam in `apps/core/api.py` (`_validate_logo_upload` /
+  `_delete_stored_logo`), never a sibling). Unblocks `staff/create-staff`.
 - **Process forms:** enough of `apps/process` to serve
   `process_forms_entries_list`. Models are partial and there is no category
   model, so `process_categories_retrieve` is greenfield.

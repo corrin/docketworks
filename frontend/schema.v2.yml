@@ -962,12 +962,6 @@ components:
           - type: 'null'
           description: Country name
           title: Country
-        created_at:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Created At
         daily_approved_hours_target:
           anyOf:
           - type: number
@@ -1241,12 +1235,6 @@ components:
             type: string
           - type: 'null'
           title: Tue Start
-        updated_at:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Updated At
         wage_rate:
           anyOf:
           - type: number
@@ -14797,8 +14785,73 @@ paths:
                 $ref: '#/components/schemas/CompanyDefaultsOut'
           description: OK
       security:
-      - CookieJWTAuth: []
+      - SuperuserCookieJWTAuth: []
       summary: Update some of the company defaults
+      tags:
+      - company-defaults
+  /api/company-defaults/logo/{field_name}/:
+    delete:
+      description: Clear the named logo field and delete the stored file.
+      operationId: company_defaults_logo_destroy
+      parameters:
+      - in: path
+        name: field_name
+        required: true
+        schema:
+          enum:
+          - logo
+          - logo_wide
+          title: Field Name
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyDefaultsOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Remove a company logo
+      tags:
+      - company-defaults
+    post:
+      description: Save the uploaded file and delete the file it replaces.
+      operationId: company_defaults_logo_update
+      parameters:
+      - in: path
+        name: field_name
+        required: true
+        schema:
+          enum:
+          - logo
+          - logo_wide
+          title: Field Name
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  format: binary
+                  title: File
+                  type: string
+              required:
+              - file
+              title: FileParams
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyDefaultsOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Upload a company logo
       tags:
       - company-defaults
   /api/company-defaults/schema/:

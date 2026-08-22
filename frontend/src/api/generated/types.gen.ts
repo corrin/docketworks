@@ -846,10 +846,6 @@ export type CompanyDefaultsPatchIn = {
      */
     country?: string | null;
     /**
-     * Created At
-     */
-    created_at?: string | null;
-    /**
      * Daily approved hours target
      *
      * Target daily hours of newly-approved work flowing into the shop, used by the Sales Pipeline scoreboard
@@ -1063,10 +1059,6 @@ export type CompanyDefaultsPatchIn = {
      * Tue Start
      */
     tue_start?: string | null;
-    /**
-     * Updated At
-     */
-    updated_at?: string | null;
     /**
      * Wage Rate
      */
@@ -12961,6 +12953,56 @@ export type CompanyDefaultsPartialUpdateResponses = {
 };
 
 export type CompanyDefaultsPartialUpdateResponse = CompanyDefaultsPartialUpdateResponses[keyof CompanyDefaultsPartialUpdateResponses];
+
+export type CompanyDefaultsLogoDestroyData = {
+    body?: never;
+    path: {
+        /**
+         * Field Name
+         */
+        field_name: 'logo' | 'logo_wide';
+    };
+    query?: never;
+    url: '/api/company-defaults/logo/{field_name}/';
+};
+
+export type CompanyDefaultsLogoDestroyResponses = {
+    /**
+     * OK
+     */
+    200: CompanyDefaultsOut;
+};
+
+export type CompanyDefaultsLogoDestroyResponse = CompanyDefaultsLogoDestroyResponses[keyof CompanyDefaultsLogoDestroyResponses];
+
+export type CompanyDefaultsLogoUpdateData = {
+    /**
+     * FileParams
+     */
+    body: {
+        /**
+         * File
+         */
+        file: Blob | File;
+    };
+    path: {
+        /**
+         * Field Name
+         */
+        field_name: 'logo' | 'logo_wide';
+    };
+    query?: never;
+    url: '/api/company-defaults/logo/{field_name}/';
+};
+
+export type CompanyDefaultsLogoUpdateResponses = {
+    /**
+     * OK
+     */
+    200: CompanyDefaultsOut;
+};
+
+export type CompanyDefaultsLogoUpdateResponse = CompanyDefaultsLogoUpdateResponses[keyof CompanyDefaultsLogoUpdateResponses];
 
 export type CompanyDefaultsSchemaRetrieveData = {
     body?: never;
