@@ -1,6 +1,5 @@
 """Regression tests for the E2E recovery command."""
 
-from dataclasses import dataclass
 from io import StringIO
 
 import pytest
@@ -12,12 +11,16 @@ from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, Person
 from apps.company.tests.job_fixtures import make_invoice, make_job, make_purchase_order, make_quote
 from apps.core.test_data import TEST_COMPANY_NAME
-from apps.diagnostics.management.commands.e2e_cleanup import Command
+from apps.diagnostics.management.commands.e2e_cleanup import Command, active_e2e_contacts
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 from apps.quoting.models import SupplierPriceList
+from apps.xero.contacts import ArchiveOutcome
+from apps.xero.seeding import XeroContactRef
 
 pytestmark = pytest.mark.django_db
+
+CLEANUP = "apps.diagnostics.management.commands.e2e_cleanup"
 
 
 @pytest.fixture(autouse=True)
@@ -34,42 +37,37 @@ def _isolate_sequence_sync(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-@dataclass(frozen=True)
-class _XeroContact:
-    """Fable: a local double for apps.xero.seeding.XeroContactRef — diagnostics
-    and xero are independent layers, so this test may not import xero either."""
-
-    name: str
-    contact_id: str
-    contact_status: str
+def _ref(name: str, status: str = "ACTIVE") -> XeroContactRef:
+    return XeroContactRef(name=name, contact_id=f"id-{name}", contact_status=status)
 
 
-@dataclass(frozen=True)
-class _ArchiveOutcome:
-    archived: tuple[str, ...]
-    refused: dict[str, str]
+XERO_CONTACTS = [
+    _ref("[TEST] In Xero"),
+    _ref("E2E Test Client 2"),
+    _ref("[TEST] Already Archived", status="ARCHIVED"),
+    _ref(TEST_COMPANY_NAME),
+    _ref("Real Customer Ltd"),
+]
 
 
 @pytest.fixture(autouse=True)
 def xero_archives(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
-    """A fake demo organisation holding one active E2E contact; archive calls are recorded.
+    """A fake demo organisation; guards pass and every archive call is recorded.
 
-    Fable: stubbed at the Xero seams rather than at the command dispatch, so
-    the guarantee under test — a confirmed cleanup archives the residue in
-    Xero — survives a rewrite that stops going through call_command.
+    Fable: stubbed at the Xero seams rather than at a command dispatch, so the
+    guarantee under test — a confirmed cleanup archives the residue in Xero —
+    is what the test sees, not how the command reaches it.
     """
     archived: list[list[str]] = []
-    target = "apps.xero.management.commands.archive_test_contacts"
-    in_xero = _XeroContact(name="[TEST] In Xero", contact_id="xero-1", contact_status="ACTIVE")
-    monkeypatch.setattr(f"{target}.get_all_xero_contacts", lambda: [in_xero])
-    monkeypatch.setattr(f"{target}.assert_not_production_target", lambda: None)
-    monkeypatch.setattr(f"{target}.assert_xero_writes_enabled", lambda _operation: None)
+    monkeypatch.setattr(f"{CLEANUP}.get_all_xero_contacts", lambda: XERO_CONTACTS)
+    monkeypatch.setattr(f"{CLEANUP}.assert_not_production_target", lambda: None)
+    monkeypatch.setattr(f"{CLEANUP}.assert_xero_writes_enabled", lambda _operation: None)
 
-    def record(contact_ids: list[str]) -> _ArchiveOutcome:
+    def record(contact_ids: list[str]) -> ArchiveOutcome:
         archived.append(list(contact_ids))
-        return _ArchiveOutcome(archived=tuple(contact_ids), refused={})
+        return ArchiveOutcome(archived=tuple(contact_ids), refused={})
 
-    monkeypatch.setattr(f"{target}.archive_contacts_in_xero", record)
+    monkeypatch.setattr(f"{CLEANUP}.archive_contacts_in_xero", record)
     return archived
 
 
@@ -253,7 +251,7 @@ def test_confirm_archives_the_residue_in_xero_even_when_the_database_is_clean(
     """The database is clean after every normal run; the residue that matters is in Xero."""
     _run_cleanup("--confirm")
 
-    assert xero_archives == [["xero-1"]]
+    assert xero_archives == [["id-[TEST] In Xero", "id-E2E Test Client 2"]]
 
 
 def test_dry_run_does_not_archive_in_xero(xero_archives: list[list[str]]) -> None:
@@ -274,10 +272,7 @@ def test_the_xero_guard_trips_before_any_local_row_is_deleted(
     def refuse() -> None:
         raise ValueError("production tenant")
 
-    monkeypatch.setattr(
-        "apps.xero.management.commands.archive_test_contacts.assert_not_production_target",
-        refuse,
-    )
+    monkeypatch.setattr(f"{CLEANUP}.assert_not_production_target", refuse)
 
     with pytest.raises(ValueError, match="production tenant"):
         _run_cleanup("--confirm")
@@ -295,3 +290,24 @@ def test_dependants_of_an_archived_company_are_still_residue() -> None:
 
     assert not PurchaseOrder.objects.filter(pk=po.pk).exists()
     assert Company.objects.filter(pk=archived.pk).exists()
+
+
+def test_only_active_e2e_residue_is_archived() -> None:
+    """The standing company, real customers and already-archived contacts are never touched."""
+    chosen = {contact.name for contact in active_e2e_contacts(XERO_CONTACTS)}
+
+    assert chosen == {"[TEST] In Xero", "E2E Test Client 2"}
+
+
+def test_a_refusal_is_reported_by_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The operator learns which contact Xero would not archive, and why."""
+    monkeypatch.setattr(
+        f"{CLEANUP}.archive_contacts_in_xero",
+        lambda ids: ArchiveOutcome(
+            archived=(ids[0],), refused={ids[1]: "Contact has outstanding transactions"}
+        ),
+    )
+
+    output = _run_cleanup("--confirm")
+
+    assert "E2E Test Client 2: Contact has outstanding transactions" in output

@@ -6,11 +6,11 @@ it in core would invert the import contract merely for an operator tool.
 
 Fable: companies a spec created through the app exist in the Xero demo
 organisation too, and the incremental contact sync brings a deleted one back
-the next time its contact is touched. So a confirmed run archives those
-contacts first (``archive_test_contacts`` — reached by name, because
-diagnostics and xero are independent layers that may not import each other),
-and only then deletes locally: the archiver's production and read-only guards
-trip before any local row is gone. A company already archived in Xero is the
+the next time its contact is touched — Xero contacts cannot be deleted, only
+archived, and the sync-window filter (apps/xero/e2e_artifacts.py) covers only
+objects changed inside a recorded run. So a confirmed run archives those
+contacts first and only then deletes locally: the production and read-only
+guards trip before any local row is gone. A company already archived in Xero is the
 organisation's mirror, not residue, and is left alone here and by the E2E
 preflight. The local step is skipped when nothing matches, never the Xero
 step: the database is clean after every normal run, and the residue that
@@ -25,13 +25,30 @@ from django.db.models import Model, Q, QuerySet
 from apps.accounting.models import Invoice, Quote
 from apps.company.models import Company, CompanyPersonLink, Person
 from apps.core.models import CompanyDefaults
-from apps.core.test_data import LEGACY_E2E_PREFIXES, TEST_COMPANY_NAME, TEST_DATA_PREFIX
+from apps.core.test_data import (
+    LEGACY_E2E_PREFIXES,
+    TEST_COMPANY_NAME,
+    TEST_DATA_PREFIX,
+    is_e2e_name,
+)
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
+from apps.xero.contacts import archive_contacts_in_xero
+from apps.xero.operator_guards import assert_not_production_target, assert_xero_writes_enabled
+from apps.xero.seeding import XeroContactRef, get_all_xero_contacts
+
+
+def active_e2e_contacts(contacts: list[XeroContactRef]) -> list[XeroContactRef]:
+    """Return the contacts still to archive: E2E residue that is not yet archived."""
+    return [
+        contact
+        for contact in contacts
+        if contact.contact_status == "ACTIVE" and is_e2e_name(contact.name)
+    ]
 
 
 class Command(BaseCommand):
-    """Report or remove E2E-created rows in dependency-safe order."""
+    """Report or remove E2E-created rows in dependency-safe order, and archive their contacts."""
 
     help = (
         "Remove E2E test data locally and archive its Xero contacts. "
@@ -148,9 +165,8 @@ class Command(BaseCommand):
             )
         )
 
-        self.stdout.write("\n=== E2E contacts in Xero ===")
+        self._archive_e2e_contacts_in_xero(confirm)
         if not confirm:
-            call_command("archive_test_contacts", stdout=self.stdout)
             if total == 0:
                 self.stdout.write("\nNo local test data found.")
             self.stdout.write("\n=== DRY RUN — no changes made ===")
@@ -158,7 +174,6 @@ class Command(BaseCommand):
                 "Run with --confirm to act:\n  python manage.py e2e_cleanup --confirm"
             )
             return
-        call_command("archive_test_contacts", "--confirm", stdout=self.stdout)
 
         if total == 0:
             self.stdout.write("\nNo local test data found. Database is clean.")
@@ -194,6 +209,31 @@ class Command(BaseCommand):
         self.stdout.write("\nSyncing sequences...")
         call_command("sync_sequences")
         self.stdout.write("Sequences synced.\n\nDone.")
+
+    def _archive_e2e_contacts_in_xero(self, confirm: bool) -> None:
+        """Report the active E2E contacts in the organisation; archive them when confirmed.
+
+        Runs before any local delete so the guards decide first; runs even
+        when the local database is clean, because after a normal run it is.
+        """
+        assert_not_production_target()
+        assert_xero_writes_enabled("e2e_cleanup")
+
+        contacts = active_e2e_contacts(get_all_xero_contacts())
+        self.stdout.write(f"\n=== E2E contacts in Xero ===\nActive: {len(contacts)}")
+        for contact in contacts:
+            self.stdout.write(f"  - {contact.name}")
+        if not contacts or not confirm:
+            return
+
+        outcome = archive_contacts_in_xero([contact.contact_id for contact in contacts])
+        names = {contact.contact_id: contact.name for contact in contacts}
+        for contact_id, reason in outcome.refused.items():
+            # Fable: reported, not raised. Xero refuses to archive a contact with
+            # transactions against it, which no cleanup can change; failing here
+            # would strand every E2E reset on one spec's authorised PO.
+            self.stdout.write(self.style.WARNING(f"Xero refused {names[contact_id]}: {reason}"))
+        self.stdout.write(self.style.SUCCESS(f"Archived {len(outcome.archived)} contacts in Xero."))
 
     def _refuse_protected_company_references(self, companies: QuerySet[Company]) -> None:
         """Refuse deletion when a company holds PROTECT references not cleaned here.

@@ -1,111 +1,13 @@
-"""The archive_test_contacts command and the archive seam it drives."""
+"""archive_contacts_in_xero: batching, per-element refusals, malformed answers, status contract."""
 
-from io import StringIO
 from typing import ClassVar, Protocol
 
 import pytest
-from django.core.management import call_command
 
 from apps.xero import contacts as contacts_module
 from apps.xero import seeding as seeding_module
 from apps.xero.constants import XERO_BATCH_SIZE
-from apps.xero.contacts import ArchiveOutcome
-from apps.xero.management.commands import archive_test_contacts as command_module
-from apps.xero.management.commands.archive_test_contacts import active_e2e_contacts
-from apps.xero.seeding import XeroContactRef, get_all_xero_contacts
-
-
-def _ref(name: str, status: str = "ACTIVE") -> XeroContactRef:
-    return XeroContactRef(name=name, contact_id=f"id-{name}", contact_status=status)
-
-
-CONTACTS = [
-    _ref("[TEST] Supplier 1"),
-    _ref("E2E Test Client 2"),
-    _ref("[TEST] Already Archived", status="ARCHIVED"),
-    _ref("ABC Carpet Cleaning TEST IGNORE"),
-    _ref("Real Customer Ltd"),
-]
-
-
-def test_only_active_e2e_residue_is_selected() -> None:
-    """The standing company, real customers and already-archived contacts are never touched."""
-    chosen = {contact.name for contact in active_e2e_contacts(CONTACTS)}
-
-    assert chosen == {"[TEST] Supplier 1", "E2E Test Client 2"}
-
-
-@pytest.fixture
-def xero(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
-    """A fake organisation: no guard trips, and every archive call is recorded."""
-    archived: list[list[str]] = []
-    monkeypatch.setattr(command_module, "get_all_xero_contacts", lambda: CONTACTS)
-    monkeypatch.setattr(command_module, "assert_not_production_target", lambda: None)
-    monkeypatch.setattr(command_module, "assert_xero_writes_enabled", lambda _operation: None)
-
-    def record(contact_ids: list[str]) -> ArchiveOutcome:
-        archived.append(list(contact_ids))
-        return ArchiveOutcome(archived=tuple(contact_ids), refused={})
-
-    monkeypatch.setattr(command_module, "archive_contacts_in_xero", record)
-    return archived
-
-
-def _run(*args: str) -> str:
-    out = StringIO()
-    call_command("archive_test_contacts", *args, stdout=out)
-    return out.getvalue()
-
-
-def test_dry_run_archives_nothing(xero: list[list[str]]) -> None:
-    """An inspection without --confirm must never become a write to the organisation."""
-    _run()
-
-    assert xero == []
-
-
-def test_confirm_archives_exactly_the_residue(xero: list[list[str]]) -> None:
-    """Everything selected is archived, and nothing else is."""
-    _run("--confirm")
-
-    assert xero == [["id-[TEST] Supplier 1", "id-E2E Test Client 2"]]
-
-
-def test_a_refusal_is_reported_by_name(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The operator learns which contact Xero would not archive, and why."""
-    monkeypatch.setattr(command_module, "get_all_xero_contacts", lambda: CONTACTS)
-    monkeypatch.setattr(command_module, "assert_not_production_target", lambda: None)
-    monkeypatch.setattr(command_module, "assert_xero_writes_enabled", lambda _operation: None)
-    monkeypatch.setattr(
-        command_module,
-        "archive_contacts_in_xero",
-        lambda ids: ArchiveOutcome(
-            archived=(ids[0],), refused={ids[1]: "Contact has outstanding transactions"}
-        ),
-    )
-
-    output = _run("--confirm")
-
-    assert "E2E Test Client 2: Contact has outstanding transactions" in output
-
-
-def test_production_target_is_refused_before_the_organisation_is_read(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The guard runs first, so a production tenant is never even listed."""
-
-    def refuse() -> None:
-        raise ValueError("production tenant")
-
-    monkeypatch.setattr(command_module, "assert_not_production_target", refuse)
-
-    def unreachable() -> list[XeroContactRef]:
-        raise AssertionError("the organisation must not be read on a refused target")
-
-    monkeypatch.setattr(command_module, "get_all_xero_contacts", unreachable)
-
-    with pytest.raises(ValueError, match="production tenant"):
-        _run("--confirm")
+from apps.xero.seeding import get_all_xero_contacts
 
 
 class _ContactLike(Protocol):

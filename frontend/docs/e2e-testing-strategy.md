@@ -38,8 +38,8 @@ real-world breakage.
   `tests/e2e/helpers.ts`), and every UI-seeded spec works against the fixed seed
   company `ABC Carpet Cleaning TEST IGNORE`. `npm run test:e2e:reset -- --confirm`
   runs `manage.py e2e_cleanup`, which archives the run's contacts in the Xero
-  demo organisation (`manage.py archive_test_contacts`, refused on a production
-  tenant or under `XERO_READONLY`) and then removes exactly that recognised
+  demo organisation (refused on a production tenant or under `XERO_READONLY`)
+  and then removes exactly that recognised
   local data if a restore ever failed to fire; without `--confirm` it reports
   both without mutating. A `[TEST]` company that is archived in Xero is the
   organisation's mirror, not residue: it lives in the dev database permanently

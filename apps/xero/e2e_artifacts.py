@@ -4,8 +4,8 @@ E2E runs against a live Xero organisation with writes enabled, so the contacts,
 invoices and quotes a run creates persist in Xero after the run's database has
 been restored from backup. The hourly Xero sync then re-imports them into the
 clean database. This module stops the objects changed inside a recorded run;
-contacts touched later are handled by e2e_cleanup archiving them in Xero
-(``archive_test_contacts``), after which they mirror back archived.
+contacts touched later are handled by e2e_cleanup archiving them in Xero,
+after which they mirror back archived.
 
 An inbound Xero object is skipped only when *both* hold:
 
