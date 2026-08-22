@@ -18,6 +18,15 @@ class ResizeObserverStub {
   disconnect(): void {}
 }
 window.ResizeObserver = window.ResizeObserver ?? ResizeObserverStub
+
+// LoadMoreSentinel auto-fetches when scrolled into view; jsdom has no layout,
+// so the stub never fires and unit tests drive the Load more button instead.
+class IntersectionObserverStub {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+window.IntersectionObserver = window.IntersectionObserver ?? IntersectionObserverStub
 Element.prototype.scrollIntoView = () => undefined
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))

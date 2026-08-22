@@ -74,4 +74,20 @@ test.describe('people directory and company links', () => {
     await expect(row).toContainText(firstCompany)
     await expect(row).toContainText(secondCompany)
   })
+
+  test('appends the next page when the foot of the list scrolls into view', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/crm/people')
+    await expect(page.getByText('Loading people...')).toBeHidden({ timeout: 30000 })
+
+    const rows = page.locator('[data-automation-id^="PeopleDirectory-row-"]')
+    const count = autoId(page, 'PeopleDirectory-load-more-count')
+    await expect(rows).toHaveCount(50)
+    await expect(count).toHaveText(/^Showing 50 of \d+ people$/)
+
+    await autoId(page, 'PeopleDirectory-load-more').scrollIntoViewIfNeeded()
+    await expect(rows).toHaveCount(100, { timeout: 10000 })
+    await expect(count).toHaveText(/^Showing 100 of \d+ people$/)
+  })
 })

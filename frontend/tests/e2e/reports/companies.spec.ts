@@ -133,4 +133,22 @@ test.describe('Companies Report', () => {
     })
     await expect(testCompanyRow.first()).toBeVisible({ timeout: 10000 })
   })
+
+  test('appends the next page when the foot of the list scrolls into view', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/crm/companies')
+    await expect(page.getByText('Loading companies...')).toBeHidden({ timeout: 30000 })
+
+    const rows = autoId(page, 'CompaniesTable-table').locator('tbody tr')
+    const count = autoId(page, 'CompaniesTable-load-more-count')
+    // The server's default page size is the first chunk.
+    await expect(rows).toHaveCount(50)
+    await expect(count).toHaveText(/^Showing 50 of \d+ companies$/)
+
+    // Scrolling the foot into view is the whole gesture: no click.
+    await autoId(page, 'CompaniesTable-load-more').scrollIntoViewIfNeeded()
+    await expect(rows).toHaveCount(100, { timeout: 10000 })
+    await expect(count).toHaveText(/^Showing 100 of \d+ companies$/)
+  })
 })

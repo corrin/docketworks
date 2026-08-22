@@ -54,22 +54,75 @@ describe('PeopleDirectoryPage', () => {
     expect(screen.getByText('021 555 111')).toBeVisible()
     expect(queryAutoId('PeopleDirectory-row-p-1')).not.toBeNull()
     expect(screen.getAllByRole('button', { name: 'Manage' })).toHaveLength(2)
-    // Complete result set: no truncation line.
-    expect(queryAutoId('PeopleDirectory-truncation')).toBeNull()
+    // Complete result set: the count is shown, the Load more button is not.
+    expect(screen.getByText('Showing 2 of 2 people')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
   })
 
-  it('says the list is truncated when more people exist than were returned', async () => {
+  it('appends the next page on Load more and stops at the last page', async () => {
+    const pages: (string | null)[] = []
     server.use(
-      http.get('*/api/people/', () =>
-        HttpResponse.json({ ...paginated([person()]), count: 1036, total_pages: 21 }),
-      ),
+      http.get('*/api/people/', ({ request }) => {
+        const page = new URL(request.url).searchParams.get('page')
+        pages.push(page)
+        if (page === '2') {
+          return HttpResponse.json({
+            ...paginated([person({ id: 'p-3', name: 'Cy Dube' })]),
+            count: 3,
+            page: 2,
+            total_pages: 2,
+          })
+        }
+        return HttpResponse.json({
+          ...paginated([person(), person({ id: 'p-2', name: 'Bo Chen' })]),
+          count: 3,
+          total_pages: 2,
+        })
+      }),
     )
-    renderWithProviders(<PeopleDirectoryPage />)
+    const { user } = renderWithProviders(<PeopleDirectoryPage />)
 
     expect(await screen.findByText('Alex Smith')).toBeVisible()
-    expect(queryAutoId('PeopleDirectory-truncation')).toHaveTextContent(
-      'Showing the first 1 of 1036 people',
+    expect(screen.getByText('Showing 2 of 3 people')).toBeVisible()
+    // The server's page size applies; the page does not carry its own.
+    expect(pages).toEqual(['1'])
+
+    await user.click(screen.getByRole('button', { name: 'Load more' }))
+    expect(await screen.findByText('Cy Dube')).toBeVisible()
+    expect(screen.getByText('Alex Smith')).toBeVisible()
+    expect(screen.getByText('Showing 3 of 3 people')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
+    expect(pages).toEqual(['1', '2'])
+  })
+
+  it('keeps the loaded rows and offers a retry when the next page fails', async () => {
+    let failNextPage = true
+    server.use(
+      http.get('*/api/people/', ({ request }) => {
+        const page = new URL(request.url).searchParams.get('page')
+        if (page === '2') {
+          if (failNextPage) return HttpResponse.json({ detail: 'boom' }, { status: 500 })
+          return HttpResponse.json({
+            ...paginated([person({ id: 'p-2', name: 'Bo Chen' })]),
+            count: 2,
+            page: 2,
+            total_pages: 2,
+          })
+        }
+        return HttpResponse.json({ ...paginated([person()]), count: 2, total_pages: 2 })
+      }),
     )
+    const { user } = renderWithProviders(<PeopleDirectoryPage />)
+    await screen.findByText('Alex Smith')
+
+    await user.click(screen.getByRole('button', { name: 'Load more' }))
+    expect(await screen.findByText('Loading more failed.')).toBeVisible()
+    expect(screen.getByText('Alex Smith')).toBeVisible()
+
+    failNextPage = false
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('Bo Chen')).toBeVisible()
+    expect(screen.queryByText('Loading more failed.')).toBeNull()
   })
 
   it('applies the search on Enter, not per keystroke', async () => {

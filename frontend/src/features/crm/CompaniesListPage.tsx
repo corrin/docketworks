@@ -1,25 +1,24 @@
 import { useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 
-import { companiesSearchRetrieveOptions } from '@/api'
+import { companiesSearchRetrieveInfiniteOptions } from '@/api'
 import { ListTable } from '@/features/shared/ListTable'
+import { LoadMoreSentinel } from '@/features/shared/LoadMoreSentinel'
+import { nextPageParam } from '@/features/shared/nextPageParam'
 import { SortHeader } from '@/features/shared/SortHeader'
 import { useDebouncedValue } from '@/features/shared/useDebouncedValue'
 import { useSortState } from '@/features/shared/useSortState'
 import { formatCurrency } from '@/lib/format'
 
-// v1's page size; the report is a first-page-plus-search view, not a pager —
-// pagination controls ship with the slice that asserts on them.
-const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
 
 type SortColumn = 'name' | 'total_spend'
 
 /**
- * Companies report: server-sorted, server-searched list. Sorting happens in
- * the query params, never client-side — the first page of a client-side sort
- * would only reorder the 20 rows it happens to hold.
+ * Companies report: server-sorted, server-searched, infinite-scrolled list.
+ * Sorting happens in the query params, never client-side — a client-side
+ * sort would only reorder the rows the page happens to hold.
  */
 export function CompaniesListPage() {
   const navigate = useNavigate()
@@ -27,14 +26,20 @@ export function CompaniesListPage() {
   const query = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS)
   const { sortBy, sortDir, onSort } = useSortState<SortColumn>('name')
 
-  const companies = useQuery({
-    ...companiesSearchRetrieveOptions({
-      query: { q: query, page: 1, page_size: PAGE_SIZE, sort_by: sortBy, sort_dir: sortDir },
+  // Pages come in the server's default size; `page` is the pageParam the
+  // generated queryFn injects, so it must not appear in the base query.
+  const companies = useInfiniteQuery({
+    ...companiesSearchRetrieveInfiniteOptions({
+      query: { q: query, sort_by: sortBy, sort_dir: sortDir },
     }),
+    initialPageParam: 1,
+    getNextPageParam: nextPageParam,
     // Sort and search change the query key; without placeholder data every
     // change would unmount the table and re-flash the loading text.
     placeholderData: keepPreviousData,
   })
+  const rows = companies.data?.pages.flatMap((page) => page.results)
+  const lastPage = companies.data?.pages.at(-1)
 
   return (
     <div className="min-h-screen p-6">
@@ -61,7 +66,7 @@ export function CompaniesListPage() {
         onRetry={() => void companies.refetch()}
         loadingLabel="Loading companies..."
         errorLabel="Failed to load companies."
-        rows={companies.data?.results}
+        rows={rows}
         emptyLabel="No companies found"
         automationId="CompaniesTable-table"
         head={
@@ -131,6 +136,19 @@ export function CompaniesListPage() {
           </tr>
         )}
       />
+
+      {rows !== undefined && lastPage !== undefined && (
+        <LoadMoreSentinel
+          automationId="CompaniesTable-load-more"
+          noun="companies"
+          shown={rows.length}
+          total={lastPage.count}
+          hasNextPage={companies.hasNextPage}
+          isFetchingNextPage={companies.isFetchingNextPage}
+          isFetchNextPageError={companies.isFetchNextPageError}
+          onLoadMore={() => void companies.fetchNextPage()}
+        />
+      )}
     </div>
   )
 }

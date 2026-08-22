@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 
-import { peopleListOptions, peopleListQueryKey, type CompanySearchResult } from '@/api'
+import { peopleListInfiniteOptions, peopleListQueryKey, type CompanySearchResult } from '@/api'
 import { CompanyLookup } from '@/features/shared/company/CompanyLookup'
 import { PersonSelector, type SelectedPerson } from '@/features/shared/company/PersonSelector'
 import { ListTable } from '@/features/shared/ListTable'
-
-const PAGE_SIZE = 50
+import { LoadMoreSentinel } from '@/features/shared/LoadMoreSentinel'
+import { nextPageParam } from '@/features/shared/nextPageParam'
 
 /**
  * People directory: one identity per person, linked to every company they
@@ -28,19 +28,23 @@ export function PeopleDirectoryPage() {
   const [createCompany, setCreateCompany] = useState<CompanySearchResult | null>(null)
   const [createPerson, setCreatePerson] = useState<SelectedPerson | null>(null)
 
-  // First-page-plus-search, like CompaniesListPage: nothing in the app pages
-  // through results — search is how a person is found, so no pager renders.
-  const people = useQuery({
-    ...peopleListOptions({
+  // Infinite scroll over the server's default page size, not a pager: search
+  // stays the primary way to find a person, and scrolling reaches every row
+  // instead of hiding the tail. `page` is the pageParam the generated queryFn
+  // injects, so it must not appear in the base query.
+  const people = useInfiniteQuery({
+    ...peopleListInfiniteOptions({
       query: {
         q: appliedQuery || undefined,
         include_archived: includeArchived || undefined,
-        page: 1,
-        page_size: PAGE_SIZE,
       },
     }),
+    initialPageParam: 1,
+    getNextPageParam: nextPageParam,
     placeholderData: keepPreviousData,
   })
+  const rows = people.data?.pages.flatMap((page) => page.results)
+  const lastPage = people.data?.pages.at(-1)
 
   const applySearch = () => {
     if (searchInput === appliedQuery) {
@@ -151,9 +155,11 @@ export function PeopleDirectoryPage() {
         </label>
       </div>
 
-      {people.isError && people.data !== undefined && (
+      {people.isRefetchError && (
         <div className="mt-4 flex items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          <span>Refresh failed — showing the last loaded page.</span>
+          {/* A failed next page is LoadMoreSentinel's to report; this banner
+              is only for a background refetch of the rows already on screen. */}
+          <span>Refresh failed — showing the last loaded rows.</span>
           <button
             type="button"
             className="font-medium underline"
@@ -172,7 +178,7 @@ export function PeopleDirectoryPage() {
         onRetry={() => void people.refetch()}
         loadingLabel="Loading people..."
         errorLabel="Failed to load people."
-        rows={people.data?.results}
+        rows={rows}
         emptyLabel="No people found"
         automationId="PeopleDirectory-table"
         head={
@@ -231,11 +237,17 @@ export function PeopleDirectoryPage() {
         )}
       />
 
-      {people.data && people.data.count > people.data.results.length && (
-        <p data-automation-id="PeopleDirectory-truncation" className="mt-4 text-sm text-gray-500">
-          Showing the first {people.data.results.length} of {people.data.count} people — refine the
-          search to find the rest.
-        </p>
+      {rows !== undefined && lastPage !== undefined && (
+        <LoadMoreSentinel
+          automationId="PeopleDirectory-load-more"
+          noun="people"
+          shown={rows.length}
+          total={lastPage.count}
+          hasNextPage={people.hasNextPage}
+          isFetchingNextPage={people.isFetchingNextPage}
+          isFetchNextPageError={people.isFetchNextPageError}
+          onLoadMore={() => void people.fetchNextPage()}
+        />
       )}
     </div>
   )
