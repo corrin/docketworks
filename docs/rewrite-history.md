@@ -140,3 +140,24 @@ day` and a `Retry-After` of roughly eleven hours. Confirm it from the run's
 own `logs/e2e/django.log` rather than bisecting — `grep -c RateLimitException`
 against the count of `ERROR django.request Internal Server Error` settles it
 in one command.
+
+**Outbound links are probed from an authenticated context, 2026-08-22.** The
+company-defaults screen shipped a link to `go.xero.com/Settings/InvoiceSettings/`,
+a 404, and no tier could have caught it: nothing probed the URLs the app hands
+to users. `scripts/ops/outbound_links_probe.py` now enumerates every outbound
+target — tree literals, the ids and URLs in `CompanyDefaults`, every quote
+spreadsheet, the latest five Xero documents per type — and verifies each by
+the strongest means available, with `scripts/tests/test_outbound_links_integration.py`
+as the slow-tier merge gate. Measured facts that shaped it: `go.xero.com` and
+`payroll.xero.com` route before they authenticate (a real page answers 302 to
+the login, an unknown path a bare 404) but answer 503 to every HEAD, so the
+probe is GET-only with the body unread; `portal.steelandtube.co.nz` likewise
+answers 404 to HEAD and 200 to GET; Jira answers 202 and a login redirect to
+any issue key, so Atlassian links are reported as unverifiable rather than
+checked; Google's Drive API answers 404 for unshared files as well as missing
+ones, so the identity asking (`--google-as delegated|service-account`) is an
+explicit choice, never a fallback. The first full run against the dev instance
+took 30s for 76 targets (the Xero calls serialise at one per second) and found
+the invoice-settings link plus two rotted certbot raw URLs in
+`scripts/server/server-setup.sh` (the files moved under `certbot/src/`).
+

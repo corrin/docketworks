@@ -60,7 +60,7 @@ filing it where it will not run.
 | **commit** | everything CI runs: ruff, ruff-format, mypy, import-linter, find-duplicates, deptry, exported schema, status table, code-quality metrics, delta goldens, frontend lint/format/boundary/type-check/audit, generated-client-current, server suites | ~64s | automatic on commit |
 | **push** | what CI does not run — today just makemigrations | ~5s | automatic on push |
 | **unit** | the Python suite | ~152s | `uv run pytest` |
-| **integration** | the real Xero/LLM/Maps/Drive/phone calls | ~1min | `./scripts/ops/run_integration_tests.sh` |
+| **integration** | the real Xero/LLM/Maps/Drive/phone calls, and the outbound-link probe (`scripts/ops/outbound_links_probe.py`: every URL and vendor id the app emits, asked with the instance's credentials) | ~1min | `./scripts/ops/run_integration_tests.sh` |
 | **e2e** | Playwright | ~25min | `npm run test:e2e` |
 
 **Nothing that touches an external system merges without an integration test

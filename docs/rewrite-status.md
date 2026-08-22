@@ -46,7 +46,7 @@ done only when that spec is green.
 | E2E specs ported | **36 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 219 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2383 (all passing) |
+| Unit tests | 2455 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 110 recorded deviations |
@@ -295,7 +295,10 @@ rather than anywhere else. This file is finished when it is empty.
 - **AI providers and NotebookLM CRUD** — admin screens behind the navbar menu.
   The local Gemini key lives in an `AIProvider` row, not env.
 - **Job — quote:** `_apply_create`, `_link_create`, `_preview_create` are Google
-  Sheets sync; the dependency is the real cost, not the endpoints.
+  Sheets sync; the dependency is the real cost, not the endpoints. When that
+  Drive client lands in `apps/`, `scripts/ops/outbound_links_probe.py` becomes
+  `manage.py check_links` (ADR 0049: it is a script only because the app does
+  not read `GCP_CREDENTIALS` yet).
 - **Job — reports:** weekly metrics, workshop list, completed/archive,
   profitability, archived-jobs compliance. Each is a fresh aggregation service.
 - **App errors read path:** `app_errors_*`. The write path is done everywhere.
@@ -305,6 +308,11 @@ rather than anywhere else. This file is finished when it is empty.
 
 ### Correctness and hygiene
 
+- **Geocoding has no integration test (ADR 0050).**
+  `addressvalidation.googleapis.com/v1:validateAddress` is a POST-only method
+  the outbound-link probe cannot verify anonymously, so its existence rests on
+  an `integration`-marked test calling `geocoding_service` — which does not
+  exist.
 - **Read-side fallback cleanup** ([KAN-338](https://docketworks.atlassian.net/browse/KAN-338)).
   ~40 reads of our own JSON shapes violate ADR 0015/0028/0045, concentrated in
   JSONField payloads mypy cannot see into. The `is_billable` divergence between
