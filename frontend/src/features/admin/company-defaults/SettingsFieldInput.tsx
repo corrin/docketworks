@@ -17,7 +17,7 @@ import { fromDateTimeLocalInput, toDateTimeLocalInput, type FieldValue } from '.
 const XERO_QUOTE_TERMS_KEY = 'xero_quote_terms'
 const XERO_QUOTE_TERMS_MAX_LENGTH = 4000
 const XERO_QUOTE_TERMS_WARNING_LENGTH = 3600
-const XERO_INVOICE_SETTINGS_URL = 'https://go.xero.com/Settings/InvoiceSettings/'
+const XERO_INVOICE_SETTINGS_URL = 'https://go.xero.com/InvoiceSettings/InvoiceSettings.aspx'
 
 export interface SettingsFieldInputProps {
   field: SettingsFieldOut

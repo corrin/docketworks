@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from typing import Any
 
-    from django.db.models import Model
+    from django.db.models import Field, Model
     from django.test import Client
     from psycopg import Connection
 
@@ -172,19 +172,21 @@ _CREDENTIAL_MODELS: tuple[tuple[str, str, tuple[str, ...], tuple[str, ...]], ...
     ("xero", "XeroPayItem", ("name", "uses_leave_api"), ("id",)),
 )
 
-#: Opus: CompanyDefaults is a singleton the test database already seeds, so it is
-#: updated in place rather than inserted. These are the columns that identify
-#: the Xero org — without them payroll cannot resolve a calendar.
-_COMPANY_DEFAULTS_CREDENTIAL_FIELDS = (
-    # Opus: Which Xero org the token is for. Without it every call raises before it
-    # reaches the network, so it is as load-bearing as the token itself.
-    "xero_tenant_id",
-    "xero_shortcode",
-    "xero_payroll_calendar_name",
-    "xero_payroll_calendar_id",
-    "xero_payroll_start_date",
-    "accounting_provider",
-)
+
+#: Fable: Every concrete column except the key and the foreign keys. The
+#: previous hand-listed six (tenant, shortcode, payroll calendar) silently left
+#: the Google folder ids, the branding theme and the delegation subject at
+#: their seeded NULLs, so an integration test that believed it was checking
+#: them checked nothing. Driven by the model so a field added tomorrow is
+#: copied tomorrow. Foreign keys stay seeded: they point at OUR rows, whose ids
+#: differ between the two databases, and a vendor credential is never a
+#: relation.
+def _company_defaults_fields(model: "type[Model]") -> "list[Field[Any, Any]]":
+    return [
+        field
+        for field in model._meta.concrete_fields
+        if not field.primary_key and not field.is_relation
+    ]
 
 
 #: Opus: The columns Xero itself mutates. Everything else about a XeroApp row is
@@ -329,20 +331,21 @@ def _copy_rows(
 
 
 def _copy_company_defaults(source: "Connection[Any]", model: "type[Model]") -> None:
-    """Copy the Xero org identifiers onto the seeded CompanyDefaults singleton."""
-    quoted = ", ".join(f'"{field}"' for field in _COMPANY_DEFAULTS_CREDENTIAL_FIELDS)
+    """Copy the dev CompanyDefaults row onto the seeded singleton, every column."""
+    fields = _company_defaults_fields(model)
+    quoted = ", ".join(f'"{field.column}"' for field in fields)
     with source.cursor() as cursor:
-        cursor.execute(f'SELECT {quoted} FROM "{model._meta.db_table}" LIMIT 1')  # noqa: S608 -- Opus: fields are module constants
+        cursor.execute(f'SELECT {quoted} FROM "{model._meta.db_table}" LIMIT 1')  # noqa: S608 -- Opus: columns come from the model's own field list
         row = cursor.fetchone()
     if row is None:
-        raise RuntimeError("The dev database has no CompanyDefaults row to copy Xero config from.")
+        raise RuntimeError("The dev database has no CompanyDefaults row to copy config from.")
     # Opus: The seeded singleton, reached through the manager rather than get_solo:
     # this module resolves models through the app registry, so it holds a
     # plain Model type with no knowledge of solo-model helpers.
     defaults = model._default_manager.get()
-    for field, value in zip(_COMPANY_DEFAULTS_CREDENTIAL_FIELDS, row, strict=True):
-        setattr(defaults, field, value)
-    defaults.save(update_fields=list(_COMPANY_DEFAULTS_CREDENTIAL_FIELDS))
+    for field, value in zip(fields, row, strict=True):
+        setattr(defaults, field.attname, value)
+    defaults.save(update_fields=[field.name for field in fields])
 
 
 @pytest.fixture(autouse=True)

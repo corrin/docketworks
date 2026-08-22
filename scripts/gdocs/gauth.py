@@ -64,6 +64,17 @@ def delegated_credentials(scopes: list[str]) -> service_account.Credentials:
     return service_account_credentials(scopes).with_subject(subject)
 
 
+def build_drive(credentials: service_account.Credentials) -> DriveResource:
+    """The one Drive client constructor (ADR 0039).
+
+    Fable: ``cache_discovery=False`` because the discovery-document cache
+    uses ``oauth2client`` when present and logs a warning per client
+    otherwise; the probe builds one client per worker thread and would log
+    sixteen.
+    """
+    return build("drive", "v3", credentials=credentials, cache_discovery=False)
+
+
 def build_service_account_drive() -> DriveResource:
     """Drive client as the service account itself (no impersonation).
 
@@ -72,15 +83,15 @@ def build_service_account_drive() -> DriveResource:
     created as the service account count against its fixed quota, and a
     delegated client would audit the impersonated user's storage instead.
     """
-    return build("drive", "v3", credentials=service_account_credentials([DRIVE_SCOPE]))
+    return build_drive(service_account_credentials([DRIVE_SCOPE]))
 
 
 def build_delegated_drive() -> DriveResource:
     """Drive client impersonating the resolved Workspace subject."""
-    return build("drive", "v3", credentials=delegated_credentials([DRIVE_SCOPE]))
+    return build_drive(delegated_credentials([DRIVE_SCOPE]))
 
 
 def build_delegated_drive_and_docs() -> tuple[DriveResource, DocsResource]:
     """Drive + Docs client pair sharing one set of delegated credentials."""
     creds = delegated_credentials([DRIVE_SCOPE, DOCS_SCOPE])
-    return build("drive", "v3", credentials=creds), build("docs", "v1", credentials=creds)
+    return build_drive(creds), build("docs", "v1", credentials=creds)

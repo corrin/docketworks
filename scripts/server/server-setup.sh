@@ -622,12 +622,12 @@ else
     if [[ ! -f /etc/letsencrypt/options-ssl-nginx.conf ]]; then
         log "Creating /etc/letsencrypt/options-ssl-nginx.conf..."
         curl -fsSL -o /etc/letsencrypt/options-ssl-nginx.conf \
-            https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf
+            https://raw.githubusercontent.com/certbot/certbot/main/certbot/src/certbot/_internal/plugins/nginx/tls_configs/options-ssl-nginx.conf
     fi
     if [[ ! -f /etc/letsencrypt/ssl-dhparams.pem ]]; then
         log "Creating /etc/letsencrypt/ssl-dhparams.pem..."
         curl -fsSL -o /etc/letsencrypt/ssl-dhparams.pem \
-            https://raw.githubusercontent.com/certbot/certbot/master/certbot/certbot/ssl-dhparams.pem
+            https://raw.githubusercontent.com/certbot/certbot/main/certbot/src/certbot/ssl-dhparams.pem
     fi
 fi
 

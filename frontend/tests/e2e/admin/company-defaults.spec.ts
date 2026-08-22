@@ -126,6 +126,22 @@ test.describe('company defaults', () => {
     }
   })
 
+  test('the quote-terms field links to the page Xero actually serves', async ({
+    authenticatedPage: page,
+  }) => {
+    // Pins the one outbound link this screen hardcodes. Whether the page is
+    // still there is the link probe's job (scripts/ops/outbound_links_probe.py,
+    // the integration tier); this only proves the fix shipped — the first
+    // version linked a path Xero answered with a 404.
+    await page.goto('/admin/company-defaults/xero')
+    await autoId(page, 'CompanyDefaultsPage-root').waitFor({ timeout: 30000 })
+
+    await expect(page.getByRole('link', { name: 'Open Xero Invoice Settings' })).toHaveAttribute(
+      'href',
+      'https://go.xero.com/InvoiceSettings/InvoiceSettings.aspx',
+    )
+  })
+
   test('Xero branding theme saves, survives reload, and restores', async ({
     authenticatedPage: page,
   }) => {
