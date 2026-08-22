@@ -59,6 +59,18 @@ ported.
 (`sales-forecast`, `payroll-reconciliation`, `create-timesheet-entry`,
 `job-cost-entry-data`); they read restore-populated mirror tables only.
 
+**Lists scroll to load, they do not page or truncate (2026-08-22).** The
+people directory and companies report fetch the server's default page and
+append the next one when the foot of the list scrolls into view
+(`LoadMoreSentinel`, with a visible Load more button as the keyboard path);
+whenever the list has rows the running count is shown, and loading stops at
+the last page. This supersedes the first-page-plus-search ruling of `143a56a`,
+which hid the tail of a 1,000-row directory behind the search box. Full-height virtual
+scrolling (scrollbar spanning every row, random-access page fetches) was
+considered and declined on cutover weekend as roughly double the work; offset
+paging stays on the backend because keyset paging is the feed answer, not a
+sorted directory's.
+
 **The company-defaults PATCH stays last-write-wins; no If-Match (2026-08-22).**
 Rejected because the dirty-fields-only payload (`exclude_unset`) bounds any
 conflict to two editors touching the same field, and ADR 0003's optimistic-

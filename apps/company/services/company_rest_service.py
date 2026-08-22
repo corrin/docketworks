@@ -279,7 +279,11 @@ class CompanyRestService:
             else:
                 total_count = queryset.count()
                 offset = (page - 1) * page_size
-                companies = list(queryset.order_by(sort_field)[offset : offset + page_size])
+                # Fable: "id" breaks ties so offset paging is a total order —
+                # every uninvoiced company ties at total_spend 0.00 and names
+                # are not unique, and without the tie-break page N+1 can repeat
+                # or skip rows that page N already placed.
+                companies = list(queryset.order_by(sort_field, "id")[offset : offset + page_size])
 
             total_pages = (total_count + page_size - 1) // page_size
 
@@ -603,7 +607,11 @@ class CompanyRestService:
             for company_id, name in candidates.iterator()
             if CompanyRestService._company_name_matches(name, tokens)
         ]
-        ranked.sort(key=lambda item: item[0])
+        # Fable: the id is the tie-break for equal scores; the candidate
+        # queryset's name ordering alone leaves equal (score, name) pairs in
+        # whatever order the database returned them, which offset paging
+        # cannot rely on.
+        ranked.sort(key=lambda item: (item[0], str(item[1])))
         return [company_id for _, company_id in ranked]
 
     @staticmethod

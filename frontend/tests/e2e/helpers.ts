@@ -517,3 +517,34 @@ export async function getPhantomRowIndex(page: Page): Promise<number> {
   await rows.first().waitFor({ timeout: 15000 })
   return (await rows.count()) - 1
 }
+
+/**
+ * Quick-create a company through CompanyLookup's Ctrl+Enter path and assert
+ * the Xero round trip succeeded. Requires a CompanyLookup already on screen.
+ */
+export async function createCompanyViaLookup(page: Page, companyName: string): Promise<void> {
+  const input = autoId(page, 'CompanyLookup-input')
+  await input.fill(companyName)
+  await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
+  await waitForCompanyCreateResponse(page, async () => {
+    await input.press('Control+Enter')
+  })
+  await expect(input).toHaveValue(companyName)
+}
+
+/**
+ * Create a person for the currently selected company through
+ * PersonSelectionModal, waiting until the modal closes on success.
+ */
+export async function createPersonViaSelectionModal(
+  page: Page,
+  name: string,
+  phone: string,
+): Promise<void> {
+  await autoId(page, 'PersonSelector-modal-button').click()
+  await autoId(page, 'PersonSelectionModal-container').waitFor()
+  await autoId(page, 'PersonSelectionModal-name-input').fill(name)
+  await autoId(page, 'PersonSelectionModal-phone-input').fill(phone)
+  await autoId(page, 'PersonSelectionModal-submit').click()
+  await autoId(page, 'PersonSelectionModal-container').waitFor({ state: 'hidden' })
+}
