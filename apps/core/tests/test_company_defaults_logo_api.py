@@ -1,5 +1,6 @@
-"""The logo endpoints exist so PDFs can carry the letterhead: the PO PDF service
-hard-fails without a wide logo, and PATCH deliberately excludes ImageFields."""
+"""The logo endpoints exist so PDFs can carry the letterhead: the PO PDF and
+workshop PDF services (grep Image.open over apps/ finds both) hard-fail
+without a wide logo, and PATCH deliberately excludes ImageFields."""
 
 from collections.abc import Iterator
 from io import BytesIO
@@ -69,8 +70,9 @@ def test_upload_rejects_a_disallowed_extension(superuser_api: Client) -> None:
 
 
 def test_upload_rejects_svg(superuser_api: Client) -> None:
-    """PIL cannot open SVG, and the one consumer (the PO PDF) opens with PIL —
-    an allowlisted-but-unopenable format would 400 at upload only to 500 the PDF
+    """PIL cannot open SVG, and both consumers (the PO PDF and workshop PDF
+    services — grep Image.open over apps/ finds both) open with PIL — an
+    allowlisted-but-unopenable format would 400 at upload only to 500 the PDF
     later, so .svg is off the allowlist even though v1's upload accepted it."""
     svg = BytesIO(b"<svg xmlns='http://www.w3.org/2000/svg'></svg>")
     svg.name = "logo.svg"

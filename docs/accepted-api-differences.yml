@@ -785,9 +785,10 @@
 - operation: company_defaults_logo_update
   change: "Uploads are content-validated; a mislabeled non-image file is a 400 (v1 stored it), and .svg is no longer an accepted logo format (v1 accepted it)"
   reason: >
-    The logo is opened as a raster image when the PO PDF renders it (PIL), so
-    an SVG or a mislabeled non-image file stored by v1 only failed later, at
-    PDF generation, with no diagnosis path back to the upload that caused it.
+    The logo is opened as a raster image when the PO PDF and workshop PDF
+    services render it (PIL; grep Image.open over apps/ finds both), so an
+    SVG or a mislabeled non-image file stored by v1 only failed later, at PDF
+    generation, with no diagnosis path back to the upload that caused it.
     v2 validates content at upload time and does not accept SVG.
 
 - operation: xero_ping_retrieve

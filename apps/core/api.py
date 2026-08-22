@@ -238,7 +238,21 @@ def company_defaults_partial_update(
     section at a time.
     """
     instance = CompanyDefaults.get_solo()
-    supplied = payload.model_dump(exclude_unset=True)
+    # by_alias=True: ninja's ModelSchema names the FK's pydantic attribute
+    # ``shop_company`` (alias ``shop_company_id``, the wire key). Dumping by
+    # attribute name would yield {"shop_company": <uuid>}, and setattr on a
+    # Django FK descriptor with a raw UUID (not a model instance) raises
+    # ValueError before full_clean ever runs — a 500 for a legal payload.
+    # Dumping by alias yields {"shop_company_id": <uuid>}, a real attname
+    # setattr and update_fields both accept; every other field's alias equals
+    # its attribute name, so this is a no-op for them. model_fields_set (used
+    # by _blank_is_not_a_value above) is keyed by attribute name regardless of
+    # by_alias, so that validator is unaffected.
+    supplied = payload.model_dump(exclude_unset=True, by_alias=True)
+    if not supplied:
+        # An empty PATCH body has nothing to apply; save(update_fields=None)
+        # would fall back to a full-row write for zero benefit.
+        return instance
     for field, value in supplied.items():
         setattr(instance, field, value)
     try:
@@ -250,7 +264,7 @@ def company_defaults_partial_update(
         # flattening (job, purchasing, timesheet, company); it belongs in
         # apps/core beside the envelope, and consolidating it is its own change.
         raise HttpError(400, "; ".join(exc.messages)) from exc
-    instance.save(update_fields=[*supplied, "updated_at"] if supplied else None)
+    instance.save(update_fields=[*supplied, "updated_at"])
     return instance
 
 
@@ -275,9 +289,11 @@ def company_defaults_schema_retrieve(request: HttpRequest) -> CompanyDefaultsSch
 
 LogoFieldName = Literal["logo", "logo_wide"]
 # Opus: .svg deliberately excluded even though v1's upload accepted it —
-# PIL cannot open SVG, and the one consumer (purchase_order_pdf_service.py)
-# opens the stored file with PIL, so an allowlisted-but-unopenable format would
-# 400 at upload only to 500 every PO PDF later.
+# PIL cannot open SVG, and both consumers (grep Image.open over apps/ finds
+# apps/purchasing/services/purchase_order_pdf_service.py and
+# apps/job/services/workshop_pdf_service.py) open the stored file with PIL, so
+# an allowlisted-but-unopenable format would 400 at upload only to 500 every
+# PO/workshop PDF later.
 _ALLOWED_LOGO_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp"})
 _MAX_LOGO_BYTES = 5 * 1024 * 1024
 
@@ -311,10 +327,13 @@ def _validate_logo_upload(file: UploadedFile) -> None:
     # both an unrecognised format and a truncated/corrupt one (UnidentifiedImageError
     # is itself an OSError subclass); rewind after, since a failed verify() leaves
     # the stream unusable for the caller's subsequent save.
+    # DecompressionBombError is Image.DecompressionBombError, not an OSError
+    # subclass — without it a small PNG declaring absurd dimensions raises
+    # past this except tuple and 500s instead of 400ing.
     try:
         with Image.open(file) as image:
             image.verify()
-    except OSError as exc:
+    except (OSError, Image.DecompressionBombError) as exc:
         raise HttpError(400, "Uploaded file is not a valid image") from exc
     finally:
         file.seek(0)
@@ -358,7 +377,12 @@ def company_defaults_logo_destroy(
 ) -> CompanyDefaults:
     """Clear the named logo field and delete the stored file."""
     instance = CompanyDefaults.get_solo()
-    _delete_stored_logo(getattr(instance, field_name))
+    # Opus: clear + save before unlinking, mirroring the upload endpoint above —
+    # a save failure must not leave the file deleted while the row still points
+    # at it. ``removed`` is captured before setattr clears the descriptor, so it
+    # still names the file to delete once the row is safely persisted.
+    removed = getattr(instance, field_name)
     setattr(instance, field_name, None)
     instance.save(update_fields=[field_name, "updated_at"])
+    _delete_stored_logo(removed)
     return instance

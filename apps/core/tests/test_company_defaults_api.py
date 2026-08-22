@@ -10,10 +10,13 @@ app and the layer contract is satisfied without moving the test away from the
 code it tests.
 """
 
+import uuid
 from decimal import Decimal
 
 import pytest
+from django.apps import apps as django_apps
 from django.test import Client
+from django.utils import timezone
 
 from apps.core.api import CompanyDefaultsOut
 from apps.core.models import CompanyDefaults
@@ -132,3 +135,40 @@ def test_patch_cannot_rewrite_timestamps(superuser_api: Client) -> None:
     # 422 — the binding requirement is that the timestamp itself never moves.
     assert response.status_code in {200, 422}
     assert CompanyDefaults.get_solo().created_at == created_at_before
+
+
+def test_patch_moves_the_shop_company_fk(superuser_api: Client) -> None:
+    """Regression: ninja's ModelSchema names this attribute ``shop_company``
+    (alias ``shop_company_id``); ``model_dump(exclude_unset=True)`` dumps by
+    attribute name, so ``setattr(instance, "shop_company", <uuid>)`` hit
+    Django's FK descriptor with a raw UUID instead of a Company and raised
+    ValueError before full_clean ever ran — a 500 for a legal wire payload.
+    ``by_alias=True`` dumps ``shop_company_id`` instead, a real attname
+    ``setattr`` (and ``update_fields``) accepts.
+
+    Company is fetched via the app registry rather than imported: apps/core
+    sits below every domain app in the import-linter layering contract, and a
+    static ``from apps.company.models import Company`` would violate it.
+    """
+    company_model = django_apps.get_model("company", "Company")
+    # xero_last_modified is the only column the model truly requires beyond
+    # name (mirrors apps/company/tests/conftest.py's make_company, which
+    # cannot be imported here without crossing the layering contract).
+    other = company_model._default_manager.create(
+        name="Other Shop Company", xero_last_modified=timezone.now()
+    )
+
+    response = superuser_api.patch(
+        URL, {"shop_company_id": str(other.id)}, content_type="application/json"
+    )
+
+    assert response.status_code == 200
+    assert CompanyDefaults.get_solo().shop_company_id == other.id
+
+
+def test_patch_rejects_a_shop_company_that_does_not_exist(superuser_api: Client) -> None:
+    response = superuser_api.patch(
+        URL, {"shop_company_id": str(uuid.uuid4())}, content_type="application/json"
+    )
+
+    assert response.status_code == 400
