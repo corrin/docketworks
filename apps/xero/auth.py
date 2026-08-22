@@ -329,12 +329,18 @@ def get_authentication_url(state: str) -> str:
     return f"https://login.xero.com/identity/connect/authorize?{urlencode(params, quote_via=quote)}"
 
 
-def get_tenant_id_from_connections() -> str:
-    """Get tenant ID using the active client."""
+def connected_tenant_ids() -> set[str]:
+    """Return the tenants the active token is connected to, as Xero lists them."""
     identity_api = IdentityApi(_get_or_build())
     connections = identity_api.get_connections()
     if not connections:
         raise RuntimeError("No Xero tenants found.")
+    return {str(connection.tenant_id) for connection in connections}
+
+
+def get_tenant_id_from_connections() -> str:
+    """Get tenant ID using the active client."""
+    available = connected_tenant_ids()
 
     company_defaults = CompanyDefaults.get_solo()
     if not company_defaults.xero_tenant_id:
@@ -342,7 +348,6 @@ def get_tenant_id_from_connections() -> str:
             "No Xero tenant ID configured in company defaults. Please set this up first."
         )
 
-    available = [conn.tenant_id for conn in connections]
     if company_defaults.xero_tenant_id not in available:
         raise RuntimeError(
             "Configured Xero tenant ID is no longer valid. "

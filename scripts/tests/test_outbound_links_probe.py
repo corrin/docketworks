@@ -9,12 +9,26 @@ only at the edge the integration test covers for real (ADR 0050).
 
 from __future__ import annotations
 
+import json
+import socket
+from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+import httplib2
 import pytest
+import requests
+from googleapiclient.errors import HttpError
+from urllib3 import HTTPConnectionPool
+from urllib3.connection import HTTPConnection
+from urllib3.exceptions import MaxRetryError, NameResolutionError
 
 from apps.core.models import CompanyDefaults
+
+if TYPE_CHECKING:
+    from google.oauth2.service_account import Credentials
 from scripts.ops.outbound_links_probe import (
+    DriveLookup,
     GoogleFileState,
     LinkVerdict,
     NoSuchHostError,
@@ -22,8 +36,11 @@ from scripts.ops.outbound_links_probe import (
     UnreachableError,
     classify_url,
     enumerate_company_defaults,
+    enumerate_database_links,
     enumerate_manifest,
     excluded_reason,
+    main,
+    requests_fetch,
     scan_source_literals,
     verify_all,
     verify_google_file,
@@ -70,6 +87,19 @@ class TestScanSourceLiterals:
         links = scan_source_literals(tmp_path, paths=("apps",))
 
         assert [link.source for link in links] == ["apps/a.py:1"]
+
+    def test_server_templates_and_nginx_confs_are_scanned(self, tmp_path: Path) -> None:
+        (tmp_path / "scripts" / "server" / "templates").mkdir(parents=True)
+        (tmp_path / "scripts" / "server" / "templates" / "site.template").write_text(
+            "proxy_pass https://www.docketworks.site/;\n"
+        )
+        (tmp_path / "scripts" / "server" / "base.conf").write_text(
+            "# see https://developer.xero.com/app/manage\n"
+        )
+
+        urls = sorted(link.url or "" for link in scan_source_literals(tmp_path, paths=("scripts",)))
+
+        assert urls == ["https://developer.xero.com/app/manage", "https://www.docketworks.site/"]
 
     def test_a_missing_scan_path_fails_loud(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
@@ -158,6 +188,7 @@ class TestExclusions:
             "https://login.xero.com/identity/connect/authorize?{urlencode",
             "https://APP_DOMAIN",
             "https://cli.github.com/packages",
+            "https://__INSTANCE__.docketworks.site/api/xero/webhook/",
         ],
     )
     def test_a_deliberate_fake_is_excluded_with_a_reason(self, url: str) -> None:
@@ -173,6 +204,8 @@ class TestExclusions:
             "https://api.xero.com/api.xro/2.0/",
             "https://developer.mozilla.org/",
             "https://docs.google.com/document/d/abc/edit",
+            "https://www.docketworks.site/",
+            "https://docketworks.site",
         ],
     )
     def test_a_real_host_is_never_excluded(self, url: str) -> None:
@@ -196,6 +229,22 @@ class TestClassifyUrl:
 
         assert link.kind == "google_file"
         assert link.external_id == file_id
+
+    def test_a_published_google_doc_is_a_plain_http_probe_not_a_drive_id(self) -> None:
+        """``/d/e/<token>/pub`` is a publish token, not a file id: anonymous GET is right."""
+        link = classify_url("https://docs.google.com/document/d/e/2PACX-1vTabc/pub", source="s")
+
+        assert link.kind == "http"
+
+    @pytest.mark.parametrize("value", ["", "www.morrissheetmetal.co.nz", "mailto:x@y.example"])
+    def test_a_value_without_an_http_scheme_is_broken_before_any_network_call(
+        self, value: str
+    ) -> None:
+        """A v1 row without a scheme is a defect in the data, reported, never a traceback."""
+        link = classify_url(value, source="s")
+
+        assert link.kind == "broken"
+        assert "http" in link.detail
 
     def test_a_google_host_without_a_file_id_is_a_plain_http_probe(self) -> None:
         assert classify_url("https://developers.google.com/drive", source="s").kind == "http"
@@ -277,6 +326,138 @@ class TestVerifyHttp:
 
         assert verdict.verdict == "unreachable"
         assert "connection refused" in verdict.detail
+
+
+class _Answer:
+    def __init__(self, status: int) -> None:
+        self.status_code = status
+
+    def close(self) -> None:
+        pass
+
+
+def _scripted_get(
+    monkeypatch: pytest.MonkeyPatch, answers: list[int | Exception]
+) -> Callable[[], int]:
+    calls = 0
+
+    def fake_get(_url: str, **_kwargs: object) -> _Answer:
+        nonlocal calls
+        answer = answers[calls]
+        calls += 1
+        if isinstance(answer, Exception):
+            raise answer
+        return _Answer(answer)
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    return lambda: calls
+
+
+def _dns_failure(errno: int) -> requests.ConnectionError:
+    gai = socket.gaierror(errno, "resolver says no")
+    resolution = NameResolutionError("dead.example", HTTPConnection("dead.example"), gai)
+    pool = HTTPConnectionPool("dead.example")
+    return requests.ConnectionError(MaxRetryError(pool, "https://dead.example/", resolution))
+
+
+class TestRequestsFetch:
+    def test_a_5xx_is_retried_once_and_the_second_answer_wins(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls = _scripted_get(monkeypatch, [503, 200])
+
+        assert requests_fetch("https://a/") == 200
+        assert calls() == 2
+
+    def test_a_persistent_5xx_is_reported_as_that_status(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _scripted_get(monkeypatch, [503, 503])
+
+        assert requests_fetch("https://a/") == 503
+
+    def test_a_4xx_is_not_retried(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        calls = _scripted_get(monkeypatch, [404])
+
+        assert requests_fetch("https://a/") == 404
+        assert calls() == 1
+
+    def test_rate_limiting_is_the_host_declining_to_answer_not_a_dead_link(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _scripted_get(monkeypatch, [429, 429])
+
+        with pytest.raises(UnreachableError, match="429"):
+            requests_fetch("https://a/")
+
+    def test_a_host_that_does_not_exist_is_dead(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _scripted_get(monkeypatch, [_dns_failure(socket.EAI_NONAME)])
+
+        with pytest.raises(NoSuchHostError):
+            requests_fetch("https://dead.example/")
+
+    def test_a_resolver_that_is_down_is_unreachable_not_a_dead_host(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """EAI_AGAIN is "try later": offline, every host would otherwise read as deleted."""
+        _scripted_get(monkeypatch, [_dns_failure(socket.EAI_AGAIN), _dns_failure(socket.EAI_AGAIN)])
+
+        with pytest.raises(UnreachableError):
+            requests_fetch("https://dead.example/")
+
+
+class _FakeDriveService:
+    def __init__(self, outcome: dict[str, object] | Exception) -> None:
+        self._outcome = outcome
+
+    def files(self) -> _FakeDriveService:
+        return self
+
+    def get(self, **_kwargs: object) -> _FakeDriveService:
+        return self
+
+    def execute(self) -> dict[str, object]:
+        if isinstance(self._outcome, Exception):
+            raise self._outcome
+        return self._outcome
+
+
+def _drive_error(status: int, reason: str) -> HttpError:
+    body = json.dumps({"error": {"errors": [{"reason": reason}], "message": reason}}).encode()
+    return HttpError(httplib2.Response({"status": str(status)}), body)
+
+
+def _lookup(outcome: dict[str, object] | Exception) -> DriveLookup:
+    class Fake(DriveLookup):
+        # Fable: the fake stands in for the discovery resource, which the
+        # stubs type as a concrete class rather than a Protocol.
+        def drive(self) -> _FakeDriveService:  # type: ignore[override]
+            return _FakeDriveService(outcome)
+
+    def never_called() -> Credentials:
+        raise AssertionError("the fake never builds credentials")
+
+    return Fake(credentials=never_called)
+
+
+class TestDriveLookup:
+    def test_a_404_is_missing(self) -> None:
+        assert _lookup(_drive_error(404, "notFound"))("1a").status == "missing"
+
+    def test_a_permission_403_is_forbidden(self) -> None:
+        assert _lookup(_drive_error(403, "insufficientFilePermissions"))("1a").status == "forbidden"
+
+    @pytest.mark.parametrize(
+        "reason", ["userRateLimitExceeded", "rateLimitExceeded", "dailyLimitExceeded"]
+    )
+    def test_a_quota_403_is_the_api_declining_to_answer(self, reason: str) -> None:
+        with pytest.raises(UnreachableError, match=reason):
+            _lookup(_drive_error(403, reason))("1a")
+
+    def test_a_found_file_reports_its_name_and_trashed_flag(self) -> None:
+        state = _lookup({"id": "1a", "name": "SOP", "trashed": True})("1a")
+
+        assert state == GoogleFileState(status="found", name="SOP", trashed=True)
 
 
 def _google(file_id: str) -> OutboundLink:
@@ -486,6 +667,42 @@ class TestVerifyAll:
         }
         assert report.reachable
 
+    def test_verdicts_come_back_in_input_order_across_pooled_and_serial_kinds(self) -> None:
+        links = [
+            OutboundLink(kind="xero_tenant", source="s", external_id="tenant-1"),
+            _http("https://ok/"),
+            _google("1a"),
+            OutboundLink(kind="skipped", source="x"),
+            _http("https://ok2/"),
+        ]
+
+        report = verify_all(
+            links,
+            workers=4,
+            fetch=lambda _url: 200,
+            google_lookup=lambda _id: GoogleFileState(status="found"),
+            xero=FakeXero(),
+        )
+
+        assert [v.link for v in report.verdicts] == links
+
+    def test_an_unreachable_target_is_listed_even_when_the_run_answered(self) -> None:
+        """The gate fails on these: a Drive that could not be asked is not a Drive that said yes."""
+
+        def lookup(_id: str) -> GoogleFileState:
+            raise UnreachableError("token refresh failed")
+
+        report = verify_all(
+            [_http("https://ok/"), _google("1a")],
+            workers=2,
+            fetch=lambda _url: 200,
+            google_lookup=lookup,
+            xero=FakeXero(),
+        )
+
+        assert report.reachable
+        assert [v.link.external_id for v in report.unreachable] == ["1a"]
+
     def test_a_run_that_reached_nothing_is_not_believed(self) -> None:
         """The scraper rule: a run has to have read something to be believed."""
 
@@ -505,3 +722,41 @@ class TestVerifyAll:
         assert all(
             isinstance(v, LinkVerdict) and v.verdict == "unreachable" for v in report.verdicts
         )
+
+
+class TestCli:
+    def test_an_unknown_kind_is_refused_not_silently_empty(self) -> None:
+        with pytest.raises(SystemExit):
+            main(["--kind", "nope"])
+
+    def test_zero_workers_is_refused(self) -> None:
+        with pytest.raises(SystemExit):
+            main(["--workers", "0"])
+
+
+@pytest.mark.django_db
+class TestEnumerateDatabaseLinks:
+    def test_every_link_holding_row_is_enumerated(self) -> None:
+        from apps.ai.models.notebook_lm_link import NotebookLmLink
+        from apps.job.models import QuoteSpreadsheet
+        from apps.process.models.procedure import Procedure
+
+        QuoteSpreadsheet.objects.create(
+            sheet_id="1Sheet", sheet_url="https://docs.google.com/spreadsheets/d/1Sheet/edit"
+        )
+        Procedure.objects.create(
+            title="Running the Workshop",
+            document_type="procedure",
+            google_doc_id="1Doc",
+            google_doc_url="https://docs.google.com/document/d/1Doc/edit",
+        )
+        NotebookLmLink.objects.create(
+            name="Training", url="https://notebooklm.google.com/notebook/abc"
+        )
+
+        links = enumerate_database_links(sample=5)
+
+        by_source = {link.source: link for link in links}
+        assert by_source["QuoteSpreadsheet 1Sheet"].kind == "google_file"
+        assert by_source["Procedure Running the Workshop"].external_id == "1Doc"
+        assert by_source["NotebookLmLink Training"].kind == "http"

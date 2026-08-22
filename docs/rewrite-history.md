@@ -145,10 +145,18 @@ in one command.
 company-defaults screen shipped a link to `go.xero.com/Settings/InvoiceSettings/`,
 a 404, and no tier could have caught it: nothing probed the URLs the app hands
 to users. `scripts/ops/outbound_links_probe.py` now enumerates every outbound
-target — tree literals, the ids and URLs in `CompanyDefaults`, every quote
-spreadsheet, the latest five Xero documents per type — and verifies each by
-the strongest means available, with `scripts/tests/test_outbound_links_integration.py`
-as the slow-tier merge gate. Measured facts that shaped it: `go.xero.com` and
+target and verifies each by the strongest means available, with
+`scripts/tests/test_outbound_links_integration.py` as the slow-tier merge
+gate. Enumeration is structural so a new integration cannot be left out:
+every `http(s)://` literal in the tree; every `URLField` on every first-party
+model, found through Django's model registry; and every non-relation `*_id`
+column, which is classified in the probe's registries (verifiable kind,
+vendor id with no verifier yet, or not a link) — `unclassified_fields()` is
+asserted empty by the hermetic unit suite, so an unclassified column is a
+red commit. Its first run over the full inventory found 13 `URLField`s and
+71 id columns, five of them link-holding fields the first hand-written
+enumeration had missed (`Procedure.google_doc_url` among them — the SOP
+documents, the very case the probe exists for). Measured facts that shaped it: `go.xero.com` and
 `payroll.xero.com` route before they authenticate (a real page answers 302 to
 the login, an unknown path a bare 404) but answer 503 to every HEAD, so the
 probe is GET-only with the body unread; `portal.steelandtube.co.nz` likewise
