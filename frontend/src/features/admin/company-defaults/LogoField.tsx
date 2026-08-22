@@ -41,6 +41,7 @@ export function LogoField({ field, value, section }: SettingsFieldInputProps) {
   const destroyMutation = useMutation(companyDefaultsLogoDestroyMutation())
   const [validationError, setValidationError] = useState<string | null>(null)
   const automationId = fieldAutomationId(section, field.key)
+  const validationErrorId = `${automationId}-validation`
   const url = typeof value === 'string' ? value : null
   const fieldName = requireLogoFieldName(field.key)
   // Opus: One in-flight guard for both controls: an upload started mid-remove (or a
@@ -108,6 +109,7 @@ export function LogoField({ field, value, section }: SettingsFieldInputProps) {
             className="sr-only"
             disabled={uploadDisabled}
             aria-label={`Upload ${field.label}`}
+            aria-describedby={validationError ? validationErrorId : undefined}
             data-automation-id={`${automationId}-upload`}
             onChange={(event) => {
               const file = event.target.files?.[0]
@@ -130,7 +132,12 @@ export function LogoField({ field, value, section }: SettingsFieldInputProps) {
         )}
       </div>
       {validationError && (
-        <p className="text-xs text-red-700" data-automation-id={`${automationId}-validation`}>
+        <p
+          role="alert"
+          id={validationErrorId}
+          className="text-xs text-red-700"
+          data-automation-id={`${automationId}-validation`}
+        >
           {validationError}
         </p>
       )}

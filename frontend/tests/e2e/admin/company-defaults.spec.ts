@@ -50,75 +50,80 @@ test.describe('company defaults', () => {
     await expect(save).toBeDisabled()
 
     // Save: only the dirty field goes on the wire (exclude_unset is the contract).
-    await email.fill(testValue)
-    const saved = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname === DEFAULTS_PATH &&
-        response.request().method() === 'PATCH',
-    )
-    await save.click()
-    const patch = await saved
-    expect(patch.ok()).toBe(true)
-    // exclude_unset is the contract: an untouched field must not appear at all.
-    const patchBody: unknown = patch.request().postDataJSON()
-    expect(patchBody).toEqual({ company_email: testValue })
-    await expect(page.getByText('Company saved')).toBeVisible()
-    // Save going back to disabled is the proof the snapshot advanced from the
-    // response, rather than the page merely having sent something. The label
-    // assertion is what makes it proof: `disabled={saving || !isDirty}` is also
-    // true mid-flight, so disabled alone would pass on a save still in progress.
-    await expect(save).toHaveText('Save')
-    await expect(save).toBeDisabled()
+    try {
+      await email.fill(testValue)
+      const saved = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === DEFAULTS_PATH &&
+          response.request().method() === 'PATCH',
+      )
+      await save.click()
+      const patch = await saved
+      expect(patch.ok()).toBe(true)
+      // exclude_unset is the contract: an untouched field must not appear at all.
+      const patchBody: unknown = patch.request().postDataJSON()
+      expect(patchBody).toEqual({ company_email: testValue })
+      await expect(page.getByText('Company saved')).toBeVisible()
+      // Save going back to disabled is the proof the snapshot advanced from the
+      // response, rather than the page merely having sent something. The label
+      // assertion is what makes it proof: `disabled={saving || !isDirty}` is also
+      // true mid-flight, so disabled alone would pass on a save still in progress.
+      await expect(save).toHaveText('Save')
+      await expect(save).toBeDisabled()
 
-    // The value came from the server, not from React state.
-    await page.reload()
-    await autoId(page, 'CompanyDefaultsPage-root').waitFor({ timeout: 30000 })
-    await expect(autoId(page, 'CompanyDefaultsPage-company-field-company_email')).toHaveValue(
-      testValue,
-    )
+      // The value came from the server, not from React state.
+      await page.reload()
+      await autoId(page, 'CompanyDefaultsPage-root').waitFor({ timeout: 30000 })
+      await expect(autoId(page, 'CompanyDefaultsPage-company-field-company_email')).toHaveValue(
+        testValue,
+      )
 
-    // Unsaved-changes guard: dismiss keeps you here, accept lets you leave.
-    // Finances is the destination rather than Xero because every widget in it
-    // is a plain number input — landing on Xero would mount BrandingThemeSelect
-    // and make this test fail whenever the tenant connection is down, which is
-    // the branding-theme test's business, not this one's.
-    await email.fill('dirty@example.com')
+      // Unsaved-changes guard: dismiss keeps you here, accept lets you leave.
+      // Finances is the destination rather than Xero because every widget in it
+      // is a plain number input — landing on Xero would mount BrandingThemeSelect
+      // and make this test fail whenever the tenant connection is down, which is
+      // the branding-theme test's business, not this one's.
+      await email.fill('dirty@example.com')
 
-    // The flags are the point: staying on the page and leaving the page are both
-    // what a screen with NO guard would do, so the URL assertions alone would
-    // pass against a page that never prompted at all.
-    let promptedOnRefusal = false
-    page.once('dialog', (dialog) => {
-      promptedOnRefusal = true
-      return dialog.dismiss()
-    })
-    await autoId(page, 'CompanyDefaultsPage-section-link-finances').click()
-    await expect(page).toHaveURL(/\/admin\/company-defaults\/company$/)
-    await expect(email).toHaveValue('dirty@example.com')
-    expect(promptedOnRefusal, 'leaving dirty did not prompt').toBe(true)
+      // The flags are the point: staying on the page and leaving the page are both
+      // what a screen with NO guard would do, so the URL assertions alone would
+      // pass against a page that never prompted at all.
+      let promptedOnRefusal = false
+      page.once('dialog', (dialog) => {
+        promptedOnRefusal = true
+        return dialog.dismiss()
+      })
+      await autoId(page, 'CompanyDefaultsPage-section-link-finances').click()
+      await expect(page).toHaveURL(/\/admin\/company-defaults\/company$/)
+      await expect(email).toHaveValue('dirty@example.com')
+      expect(promptedOnRefusal, 'leaving dirty did not prompt').toBe(true)
 
-    let promptedOnDiscard = false
-    page.once('dialog', (dialog) => {
-      promptedOnDiscard = true
-      return dialog.accept()
-    })
-    await autoId(page, 'CompanyDefaultsPage-section-link-finances').click()
-    await expect(page).toHaveURL(/\/admin\/company-defaults\/finances$/)
-    expect(promptedOnDiscard, 'discarding dirty edits did not prompt').toBe(true)
-
-    // Restore, so the spec is idempotent against the restored E2E database.
-    await page.goto('/admin/company-defaults/company')
-    await autoId(page, 'CompanyDefaultsPage-root').waitFor({ timeout: 30000 })
-    const restored = autoId(page, 'CompanyDefaultsPage-company-field-company_email')
-    await restored.fill(original)
-    const restoreSaved = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname === DEFAULTS_PATH &&
-        response.request().method() === 'PATCH',
-    )
-    await autoId(page, 'CompanyDefaultsPage-save-button').click()
-    expect((await restoreSaved).ok()).toBe(true)
-    await expect(restored).toHaveValue(original)
+      let promptedOnDiscard = false
+      page.once('dialog', (dialog) => {
+        promptedOnDiscard = true
+        return dialog.accept()
+      })
+      await autoId(page, 'CompanyDefaultsPage-section-link-finances').click()
+      await expect(page).toHaveURL(/\/admin\/company-defaults\/finances$/)
+      expect(promptedOnDiscard, 'discarding dirty edits did not prompt').toBe(true)
+    } finally {
+      // Restore, so the spec is idempotent against the restored E2E database.
+      // Only reached dirty when an assertion above already failed, and a dirty
+      // page answers the browser's beforeunload prompt instead of navigating.
+      page.once('dialog', (dialog) => dialog.accept())
+      await page.goto('/admin/company-defaults/company')
+      await autoId(page, 'CompanyDefaultsPage-root').waitFor({ timeout: 30000 })
+      const restored = autoId(page, 'CompanyDefaultsPage-company-field-company_email')
+      await restored.fill(original)
+      const restoreSaved = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === DEFAULTS_PATH &&
+          response.request().method() === 'PATCH',
+      )
+      await autoId(page, 'CompanyDefaultsPage-save-button').click()
+      expect((await restoreSaved).ok()).toBe(true)
+      await expect(restored).toHaveValue(original)
+    }
   })
 
   test('Xero branding theme saves, survives reload, and restores', async ({
