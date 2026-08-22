@@ -14,6 +14,7 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SessionCheckRouteImport } from './routes/session-check'
 import { Route as AuthedKanbanRouteImport } from './routes/_authed/kanban'
+import { Route as AuthedAdminIntegrationsRouteImport } from './routes/_authed/admin/integrations'
 import { Route as AuthedAdminLeaveSettingsRouteImport } from './routes/_authed/admin/leave-settings'
 import { Route as AuthedJobsJobIdRouteImport } from './routes/_authed/jobs/$jobId'
 import { Route as AuthedJobsCreateRouteImport } from './routes/_authed/jobs/create'
@@ -58,6 +59,11 @@ const SessionCheckRoute = SessionCheckRouteImport.update({
 const AuthedKanbanRoute = AuthedKanbanRouteImport.update({
   id: '/kanban',
   path: '/kanban',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedAdminIntegrationsRoute = AuthedAdminIntegrationsRouteImport.update({
+  id: '/admin/integrations',
+  path: '/admin/integrations',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedAdminLeaveSettingsRoute =
@@ -179,6 +185,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/session-check': typeof SessionCheckRoute
   '/kanban': typeof AuthedKanbanRoute
+  '/admin/integrations': typeof AuthedAdminIntegrationsRoute
   '/admin/leave-settings': typeof AuthedAdminLeaveSettingsRoute
   '/jobs/$jobId': typeof AuthedJobsJobIdRoute
   '/jobs/create': typeof AuthedJobsCreateRoute
@@ -206,6 +213,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/session-check': typeof SessionCheckRoute
   '/kanban': typeof AuthedKanbanRoute
+  '/admin/integrations': typeof AuthedAdminIntegrationsRoute
   '/admin/leave-settings': typeof AuthedAdminLeaveSettingsRoute
   '/jobs/$jobId': typeof AuthedJobsJobIdRoute
   '/jobs/create': typeof AuthedJobsCreateRoute
@@ -235,6 +243,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/session-check': typeof SessionCheckRoute
   '/_authed/kanban': typeof AuthedKanbanRoute
+  '/_authed/admin/integrations': typeof AuthedAdminIntegrationsRoute
   '/_authed/admin/leave-settings': typeof AuthedAdminLeaveSettingsRoute
   '/_authed/jobs/$jobId': typeof AuthedJobsJobIdRoute
   '/_authed/jobs/create': typeof AuthedJobsCreateRoute
@@ -264,6 +273,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/session-check'
     | '/kanban'
+    | '/admin/integrations'
     | '/admin/leave-settings'
     | '/jobs/$jobId'
     | '/jobs/create'
@@ -291,6 +301,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/session-check'
     | '/kanban'
+    | '/admin/integrations'
     | '/admin/leave-settings'
     | '/jobs/$jobId'
     | '/jobs/create'
@@ -319,6 +330,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/session-check'
     | '/_authed/kanban'
+    | '/_authed/admin/integrations'
     | '/_authed/admin/leave-settings'
     | '/_authed/jobs/$jobId'
     | '/_authed/jobs/create'
@@ -384,6 +396,13 @@ declare module '@tanstack/react-router' {
       path: '/kanban'
       fullPath: '/kanban'
       preLoaderRoute: typeof AuthedKanbanRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/admin/integrations': {
+      id: '/_authed/admin/integrations'
+      path: '/admin/integrations'
+      fullPath: '/admin/integrations'
+      preLoaderRoute: typeof AuthedAdminIntegrationsRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/admin/leave-settings': {
@@ -538,6 +557,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthedRouteChildren {
   AuthedKanbanRoute: typeof AuthedKanbanRoute
+  AuthedAdminIntegrationsRoute: typeof AuthedAdminIntegrationsRoute
   AuthedAdminLeaveSettingsRoute: typeof AuthedAdminLeaveSettingsRoute
   AuthedJobsJobIdRoute: typeof AuthedJobsJobIdRoute
   AuthedJobsCreateRoute: typeof AuthedJobsCreateRoute
@@ -563,6 +583,7 @@ interface AuthedRouteChildren {
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedKanbanRoute: AuthedKanbanRoute,
+  AuthedAdminIntegrationsRoute: AuthedAdminIntegrationsRoute,
   AuthedAdminLeaveSettingsRoute: AuthedAdminLeaveSettingsRoute,
   AuthedJobsJobIdRoute: AuthedJobsJobIdRoute,
   AuthedJobsCreateRoute: AuthedJobsCreateRoute,
