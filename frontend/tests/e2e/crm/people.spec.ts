@@ -1,28 +1,5 @@
 import { expect, test } from '../fixtures/auth'
-import { autoId, waitForCompanyCreateResponse } from '../helpers'
-
-async function createCompany(page: Parameters<typeof autoId>[0], companyName: string) {
-  const input = autoId(page, 'CompanyLookup-input')
-  await input.fill(companyName)
-  await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
-  await waitForCompanyCreateResponse(page, async () => {
-    await input.press('Control+Enter')
-  })
-  await expect(input).toHaveValue(companyName)
-}
-
-async function createPersonForSelectedCompany(
-  page: Parameters<typeof autoId>[0],
-  name: string,
-  phone: string,
-) {
-  await autoId(page, 'PersonSelector-modal-button').click()
-  await autoId(page, 'PersonSelectionModal-container').waitFor()
-  await autoId(page, 'PersonSelectionModal-name-input').fill(name)
-  await autoId(page, 'PersonSelectionModal-phone-input').fill(phone)
-  await autoId(page, 'PersonSelectionModal-submit').click()
-  await autoId(page, 'PersonSelectionModal-container').waitFor({ state: 'hidden' })
-}
+import { autoId, createCompanyViaLookup, createPersonViaSelectionModal } from '../helpers'
 
 test.describe('people directory and company links', () => {
   test('creates a company-linked person and manages link lifecycle', async ({
@@ -34,8 +11,8 @@ test.describe('people directory and company links', () => {
 
     await page.goto('/crm/people')
     await autoId(page, 'PeopleDirectory-create').click()
-    await createCompany(page, companyName)
-    await createPersonForSelectedCompany(page, personName, `0217${String(suffix).padStart(6, '0')}`)
+    await createCompanyViaLookup(page, companyName)
+    await createPersonViaSelectionModal(page, personName, `0217${String(suffix).padStart(6, '0')}`)
 
     await autoId(page, 'PeopleDirectory-search').fill(personName)
     await autoId(page, 'PeopleDirectory-search').press('Enter')
@@ -71,11 +48,11 @@ test.describe('people directory and company links', () => {
 
     await page.goto('/crm/people')
     await autoId(page, 'PeopleDirectory-create').click()
-    await createCompany(page, firstCompany)
-    await createPersonForSelectedCompany(page, personName, phone)
+    await createCompanyViaLookup(page, firstCompany)
+    await createPersonViaSelectionModal(page, personName, phone)
 
     await autoId(page, 'PeopleDirectory-create').click()
-    await createCompany(page, secondCompany)
+    await createCompanyViaLookup(page, secondCompany)
     await autoId(page, 'PersonSelector-modal-button').click()
     await autoId(page, 'PersonSelectionModal-name-input').fill(`${personName} duplicate`)
     await autoId(page, 'PersonSelectionModal-phone-input').fill(phone)

@@ -25,6 +25,7 @@ import {
   type PersonCompanyLink,
 } from '@/api'
 import { CompanyLookup } from '@/features/shared/company/CompanyLookup'
+import { ListTable } from '@/features/shared/ListTable'
 import { QueryState } from '@/features/shared/QueryState'
 
 interface MethodFormState {
@@ -62,10 +63,12 @@ const EMPTY_LINK_FORM: LinkFormState = {
 }
 
 /**
- * Person detail: identity, contact methods, and company links. Archiving is
- * server-owned — removing the last active link archives the person, and
- * restoring any link un-archives — so every link mutation invalidates the
- * person read too, and the archived badge follows the server's answer.
+ * Person detail: identity, contact methods, and company links.
+ *
+ * Fable: archiving is server-owned — removing the last active link archives
+ * the person, and restoring any link un-archives — so every link mutation
+ * invalidates the person read too, and the archived badge follows the
+ * server's answer rather than any client-side flag.
  */
 export function PersonDetailPage({ personId }: { personId: string }) {
   const navigate = useNavigate()
@@ -82,8 +85,9 @@ export function PersonDetailPage({ personId }: { personId: string }) {
   const [methodForm, setMethodForm] = useState<MethodFormState>(EMPTY_METHOD_FORM)
   const [linkForm, setLinkForm] = useState<LinkFormState>(EMPTY_LINK_FORM)
 
-  // Seed the identity inputs from the loaded person; later refetches must not
-  // overwrite what the user is typing, so this keys on the person's id.
+  // Fable: seed the identity inputs from the loaded person; later refetches
+  // must not overwrite what the user is typing, so this keys on the person's
+  // id rather than the data object.
   useEffect(() => {
     if (person.data) {
       setIdentityName(person.data.name)
@@ -308,17 +312,21 @@ export function PersonDetailPage({ personId }: { personId: string }) {
       </header>
 
       <QueryState
-        isPending={person.isPending || contactMethods.isPending || companyLinks.isPending}
-        isError={person.isError || contactMethods.isError || companyLinks.isError}
+        isPending={person.isPending || companyLinks.isPending}
+        // A failed FIRST load is the error state; an errored background
+        // refetch keeps the loaded page on screen instead of collapsing it.
+        isError={
+          (person.isError && person.data === undefined) ||
+          (companyLinks.isError && companyLinks.data === undefined)
+        }
         onRetry={() => {
           void person.refetch()
-          void contactMethods.refetch()
           void companyLinks.refetch()
         }}
         loadingLabel="Loading person..."
         errorLabel="Failed to load person."
       >
-        {person.data && contactMethods.data && companyLinks.data && (
+        {person.data && companyLinks.data && (
           <>
             <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900">Identity</h2>
@@ -442,54 +450,60 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                   )}
                 </div>
               </div>
-              <div className="mt-4 overflow-x-auto rounded-md border border-gray-200">
-                <table className="w-full text-sm">
-                  <thead className="border-b border-gray-200 bg-slate-50 text-left">
-                    <tr>
-                      <th className="p-3">Type</th>
-                      <th className="p-3">Value</th>
-                      <th className="p-3">Label</th>
-                      <th className="p-3">Primary</th>
-                      <th className="p-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {contactMethods.data.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="p-6 text-center text-gray-500">
-                          No contact methods
-                        </td>
-                      </tr>
-                    )}
-                    {contactMethods.data.map((method) => (
-                      <tr key={method.id} className="border-b border-gray-100 last:border-b-0">
-                        <td className="p-3 capitalize">{method.method_type}</td>
-                        <td className="p-3">{method.value}</td>
-                        <td className="p-3">{method.label || '—'}</td>
-                        <td className="p-3">{method.is_primary ? 'Yes' : '—'}</td>
-                        <td className="p-3">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              type="button"
-                              className="rounded-md px-2 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                              onClick={() => startEditMethod(method)}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded-md px-2 py-1 text-sm font-medium text-red-700 hover:bg-red-50"
-                              onClick={() => void handleRemoveMethod(method.id)}
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ListTable
+                isPending={contactMethods.isPending}
+                isError={contactMethods.isError && contactMethods.data === undefined}
+                onRetry={() => void contactMethods.refetch()}
+                loadingLabel="Loading contact methods..."
+                errorLabel="Failed to load contact methods."
+                rows={contactMethods.data}
+                emptyLabel="No contact methods"
+                head={
+                  <tr className="border-b border-gray-200 text-gray-500">
+                    <th scope="col" className="px-3 py-2 text-left">
+                      Type
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-left">
+                      Value
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-left">
+                      Label
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-left">
+                      Primary
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-right">
+                      Actions
+                    </th>
+                  </tr>
+                }
+                renderRow={(method) => (
+                  <tr key={method.id} className="border-b border-gray-100">
+                    <td className="px-3 py-2 capitalize">{method.method_type}</td>
+                    <td className="px-3 py-2">{method.value}</td>
+                    <td className="px-3 py-2">{method.label || '—'}</td>
+                    <td className="px-3 py-2">{method.is_primary ? 'Yes' : '—'}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          className="rounded-md px-2 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                          onClick={() => startEditMethod(method)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-md px-2 py-1 text-sm font-medium text-red-700 hover:bg-red-50"
+                          onClick={() => void handleRemoveMethod(method.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              />
             </section>
 
             <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">

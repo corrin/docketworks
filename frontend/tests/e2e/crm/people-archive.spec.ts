@@ -1,28 +1,5 @@
 import { expect, test } from '../fixtures/auth'
-import { autoId, waitForCompanyCreateResponse } from '../helpers'
-
-async function createCompany(page: Parameters<typeof autoId>[0], companyName: string) {
-  const input = autoId(page, 'CompanyLookup-input')
-  await input.fill(companyName)
-  await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
-  await waitForCompanyCreateResponse(page, async () => {
-    await input.press('Control+Enter')
-  })
-  await expect(input).toHaveValue(companyName)
-}
-
-async function createPersonForSelectedCompany(
-  page: Parameters<typeof autoId>[0],
-  name: string,
-  phone: string,
-) {
-  await autoId(page, 'PersonSelector-modal-button').click()
-  await autoId(page, 'PersonSelectionModal-container').waitFor()
-  await autoId(page, 'PersonSelectionModal-name-input').fill(name)
-  await autoId(page, 'PersonSelectionModal-phone-input').fill(phone)
-  await autoId(page, 'PersonSelectionModal-submit').click()
-  await autoId(page, 'PersonSelectionModal-container').waitFor({ state: 'hidden' })
-}
+import { autoId, createCompanyViaLookup, createPersonViaSelectionModal } from '../helpers'
 
 test.describe('people archive lifecycle', () => {
   test('archived person is hidden by default, findable via filter, and restorable', async ({
@@ -35,8 +12,8 @@ test.describe('people archive lifecycle', () => {
     // Create a single-company person, then archive by removing their only link.
     await page.goto('/crm/people')
     await autoId(page, 'PeopleDirectory-create').click()
-    await createCompany(page, companyName)
-    await createPersonForSelectedCompany(page, personName, `0219${String(suffix).padStart(6, '0')}`)
+    await createCompanyViaLookup(page, companyName)
+    await createPersonViaSelectionModal(page, personName, `0219${String(suffix).padStart(6, '0')}`)
 
     await autoId(page, 'PeopleDirectory-search').fill(personName)
     await autoId(page, 'PeopleDirectory-search').press('Enter')
@@ -48,18 +25,26 @@ test.describe('people archive lifecycle', () => {
     const link = page
       .locator('[data-automation-id^="PersonDetail-company-link-"]')
       .filter({ hasText: companyName })
-    const linkId = (await link.getAttribute('data-automation-id'))!.replace(
+    const linkId = (await link.getAttribute('data-automation-id'))?.replace(
       'PersonDetail-company-link-',
       '',
     )
+    expect(linkId).toBeTruthy()
     page.once('dialog', (d) => d.accept())
     await autoId(page, `PersonDetail-remove-link-${linkId}`).click()
     await expect(autoId(page, 'PersonDetail-archived-badge')).toBeVisible()
 
-    // Hidden from default directory search.
+    // Hidden from default directory search. The searched response must land
+    // before the count assertion: keepPreviousData shows the pre-search list
+    // (which also lacks this person) while the fetch is in flight, so without
+    // the wait the assertion could pass without testing the search at all.
     await page.goto('/crm/people')
     await autoId(page, 'PeopleDirectory-search').fill(personName)
+    const searched = page.waitForResponse(
+      (response) => new URL(response.url()).searchParams.get('q') === personName,
+    )
     await autoId(page, 'PeopleDirectory-search').press('Enter')
+    await searched
     await expect(
       page.locator('[data-automation-id^="PeopleDirectory-row-"]').filter({ hasText: personName }),
     ).toHaveCount(0)

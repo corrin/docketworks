@@ -4,6 +4,7 @@ import { AlertTriangle, PencilLine, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
+  apiErrorBody,
   apiErrorMessage,
   companiesPeopleCreateMutation,
   companiesPeopleListOptions,
@@ -11,7 +12,10 @@ import {
   companiesPeoplePhoneOwnershipCreateMutation,
   peopleCompanyLinksDestroyMutation,
   peopleCompanyLinksUpdateMutation,
+  peopleListQueryKey,
   peoplePartialUpdateMutation,
+  zPhoneOwnership,
+  isApiErrorStatus,
   type CompanyPerson,
   type CompanyPersonCreateRequest,
   type PhoneOwnership,
@@ -66,11 +70,12 @@ interface PersonSelectionModalProps {
  * decides. Selecting (by card click or the hover Select button) closes the
  * modal.
  *
- * A phone owned elsewhere is caught by a pre-flight ownership read before the
- * create call, and surfaced as a link-or-create-separate picker. The check is
- * a read rather than a parse of the create call's 409 because a 4xx XHR logs
- * a browser console error, which the E2E console guard turns into a spec
- * failure; the 409 remains the server-side backstop.
+ * Fable: a phone owned elsewhere is caught by a pre-flight ownership read
+ * before the create call, and surfaced as a link-or-create-separate picker.
+ * The check is a read rather than a parse of the create call's 409 because a
+ * 4xx XHR logs a browser console error, which the E2E console guard turns
+ * into a spec failure; the 409 remains the concurrency backstop, and its
+ * typed body re-arms the same picker.
  */
 export function PersonSelectionModal({
   open,
@@ -127,10 +132,16 @@ export function PersonSelectionModal({
     })
   }
 
-  const invalidatePeople = () =>
-    queryClient.invalidateQueries({
-      queryKey: companiesPeopleListQueryKey({ path: { company_id: companyId } }),
-    })
+  const invalidatePeople = async () => {
+    // The people directory renders this modal inside its create panel, so a
+    // change made here must also refresh the person-scoped list behind it.
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: companiesPeopleListQueryKey({ path: { company_id: companyId } }),
+      }),
+      queryClient.invalidateQueries({ queryKey: peopleListQueryKey() }),
+    ])
+  }
 
   const handleUpdate = async () => {
     if (editingPerson === null) {
@@ -238,6 +249,17 @@ export function PersonSelectionModal({
       created = await createPerson.mutateAsync({ path: { company_id: companyId }, body })
     } catch (error) {
       toast.dismiss('save-person')
+      // Fable: the pre-flight cannot rule out a concurrent writer claiming
+      // the phone between check and create; the backstop 409 carries the
+      // same PhoneOwnership payload, so it re-arms the picker rather than
+      // dead-ending in a generic toast.
+      if (isApiErrorStatus(error, 409)) {
+        const conflict = zPhoneOwnership.safeParse(apiErrorBody(error))
+        if (conflict.success) {
+          setPhoneOwnership(conflict.data)
+          return
+        }
+      }
       toast.error(
         apiErrorMessage(error, 'Failed to create person. Please check the form and try again.'),
       )
@@ -246,9 +268,7 @@ export function PersonSelectionModal({
     toast.dismiss('save-person')
     toast.success('Person created successfully!')
 
-    await queryClient.invalidateQueries({
-      queryKey: companiesPeopleListQueryKey({ path: { company_id: companyId } }),
-    })
+    await invalidatePeople()
     onSelectPerson(created)
     closeAndReset()
   }
@@ -271,20 +291,32 @@ export function PersonSelectionModal({
       if (!existingLink?.is_active) {
         // The PUT upserts the link, reactivates an inactive one, and
         // un-archives the person server-side.
+        // Fable: an inactive link keeps its stored position/notes on
+        // restore — the form here described the person the user was about
+        // to create, not this relationship, and the PUT assigns
+        // unconditionally, so sending form values would blank real data.
+        const body = existingLink
+          ? {
+              position: existingLink.position,
+              notes: existingLink.notes,
+              is_primary: existingLink.is_primary,
+            }
+          : {
+              position: form.position.trim() || null,
+              notes: form.notes.trim() || null,
+              is_primary: form.isPrimary || people.length === 0,
+            }
         await linkPerson.mutateAsync({
           path: { person_id: match.person_id, company_id: companyId },
-          body: {
-            position: form.position.trim() || null,
-            notes: form.notes.trim() || null,
-            is_primary: form.isPrimary || people.length === 0,
-          },
+          body,
         })
       }
-      // fetchQuery, not invalidate: the parent PersonSelector reads this exact
-      // key, and the selection below needs the annotated CompanyPerson row.
-      // staleTime 0 because the client default of 30s would make this a cache
-      // read of the pre-link list, which cannot contain the person just
-      // linked (the LeaveSettingsPage save documents the same trap).
+      // Fable: fetchQuery, not invalidate — the parent PersonSelector reads
+      // this exact key, and the selection below needs the annotated
+      // CompanyPerson row. staleTime 0 because the client default of 30s
+      // would make this a cache read of the pre-link list, which cannot
+      // contain the person just linked (the LeaveSettingsPage save documents
+      // the same trap).
       const fresh = await queryClient.fetchQuery({
         ...companiesPeopleListOptions({ path: { company_id: companyId } }),
         staleTime: 0,
@@ -304,8 +336,11 @@ export function PersonSelectionModal({
   }
 
   const isSaving = createPerson.isPending || updatePerson.isPending
-  const submitDisabled =
-    isSaving || checkPhoneOwnership.isPending || linkPerson.isPending || !form.name.trim()
+  // isLoadingPeople: is_primary defaults from whether the company already
+  // has people, so submitting before that list lands could demote the real
+  // primary person.
+  const conflictActionsDisabled = isSaving || checkPhoneOwnership.isPending || linkPerson.isPending
+  const submitDisabled = conflictActionsDisabled || isLoadingPeople || !form.name.trim()
   const submitLabel = isSaving ? 'Saving...' : editingPerson ? 'Update Person' : 'Create Person'
 
   return (
@@ -367,8 +402,9 @@ export function PersonSelectionModal({
                       </div>
                       <button
                         type="button"
-                        className="rounded-md bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-800"
+                        className="rounded-md bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-800 disabled:opacity-50"
                         data-automation-id={`PersonSelectionModal-link-match-${match.person_id}`}
+                        disabled={conflictActionsDisabled}
                         onClick={() => void handleLinkMatch(match)}
                       >
                         {matchAction(match)}
@@ -378,8 +414,9 @@ export function PersonSelectionModal({
                   {phoneOwnership.can_create_person && (
                     <button
                       type="button"
-                      className="text-sm font-medium text-amber-900 underline"
+                      className="text-sm font-medium text-amber-900 underline disabled:opacity-50"
                       data-automation-id="PersonSelectionModal-create-separate"
+                      disabled={conflictActionsDisabled}
                       onClick={() => void handleCreate(true)}
                     >
                       Create a separate person with this shared number

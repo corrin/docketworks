@@ -65,10 +65,10 @@ export function AppNavbar() {
             </>
           )}
         </NavMenu>
-        {/* Office staff only: every people endpoint is office_auth, and the
-            companies report exposes company-wide spend. No Calls entry —
-            no phone-calls page exists, and a visible tab may not lead to a
-            placeholder. */}
+        {/* Fable: office staff only — every people endpoint is office_auth,
+            and the companies report exposes company-wide spend. No Calls
+            entry: no phone-calls page exists, and a visible tab may not lead
+            to a placeholder. */}
         {user.is_office_staff && (
           <NavMenu label="CRM" automationId="AppNavbar-crm-menu">
             <NavMenuLink to="/crm/companies" automationId="AppNavbar-companies">

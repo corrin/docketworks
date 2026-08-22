@@ -153,8 +153,8 @@ describe('AppNavbar — the CRM menu', () => {
   })
 
   it('is withheld from a workshop login', async () => {
-    // Every people endpoint is office_auth; a menu a workshop login can see
-    // would lead to pages whose every query 403s.
+    // Fable: every people endpoint is office_auth; a menu a workshop login
+    // can see would lead to pages whose every query 403s.
     mockUser({ is_office_staff: false })
     renderWithProviders(<AppNavbar />)
 
