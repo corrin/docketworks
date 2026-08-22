@@ -11,9 +11,12 @@ const PAGE_SIZE = 50
 
 /**
  * People directory: one identity per person, linked to every company they
- * work with. Search is applied on Enter or the Search button, not debounced —
- * the directory filters on name, email, phone digits and company name, and a
- * half-typed phone number matching everything is noise, not feedback.
+ * work with.
+ *
+ * Fable: search is applied on Enter or the Search button, not debounced like
+ * CompaniesListPage — the directory filters on name, email, phone digits and
+ * company name, and a half-typed phone number matching everything is noise,
+ * not feedback.
  */
 export function PeopleDirectoryPage() {
   const navigate = useNavigate()
@@ -21,17 +24,18 @@ export function PeopleDirectoryPage() {
   const [searchInput, setSearchInput] = useState('')
   const [appliedQuery, setAppliedQuery] = useState('')
   const [includeArchived, setIncludeArchived] = useState(false)
-  const [page, setPage] = useState(1)
   const [showCreate, setShowCreate] = useState(false)
   const [createCompany, setCreateCompany] = useState<CompanySearchResult | null>(null)
   const [createPerson, setCreatePerson] = useState<SelectedPerson | null>(null)
 
+  // First-page-plus-search, like CompaniesListPage: nothing in the app pages
+  // through results — search is how a person is found, so no pager renders.
   const people = useQuery({
     ...peopleListOptions({
       query: {
         q: appliedQuery || undefined,
         include_archived: includeArchived || undefined,
-        page,
+        page: 1,
         page_size: PAGE_SIZE,
       },
     }),
@@ -39,11 +43,14 @@ export function PeopleDirectoryPage() {
   })
 
   const applySearch = () => {
+    if (searchInput === appliedQuery) {
+      // Same query: no state change, so no new query key — the user
+      // pressing Search again is asking for fresh data.
+      void people.refetch()
+      return
+    }
     setAppliedQuery(searchInput)
-    setPage(1)
   }
-
-  const totalPages = people.data?.total_pages ?? 1
 
   return (
     <div className="min-h-screen p-6">
@@ -138,17 +145,29 @@ export function PeopleDirectoryPage() {
             data-automation-id="PeopleDirectory-show-archived"
             checked={includeArchived}
             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            onChange={(event) => {
-              setIncludeArchived(event.target.checked)
-              setPage(1)
-            }}
+            onChange={(event) => setIncludeArchived(event.target.checked)}
           />
           Show archived
         </label>
       </div>
 
+      {people.isError && people.data !== undefined && (
+        <div className="mt-4 flex items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          <span>Refresh failed — showing the last loaded page.</span>
+          <button
+            type="button"
+            className="font-medium underline"
+            onClick={() => void people.refetch()}
+          >
+            Retry
+          </button>
+        </div>
+      )}
       <ListTable
         isPending={people.isPending}
+        // A failed FIRST load is the error state; an errored background
+        // refetch keeps the keepPreviousData table on screen, with the
+        // refresh-failed banner above owning visibility.
         isError={people.isError && people.data === undefined}
         onRetry={() => void people.refetch()}
         loadingLabel="Loading people..."
@@ -212,31 +231,11 @@ export function PeopleDirectoryPage() {
         )}
       />
 
-      {people.data && (
-        <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
-          <span>{people.data.count} people</span>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              disabled={page <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-            >
-              Previous
-            </button>
-            <span>
-              Page {people.data.page} of {Math.max(totalPages, 1)}
-            </span>
-            <button
-              type="button"
-              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              disabled={page >= totalPages}
-              onClick={() => setPage((current) => current + 1)}
-            >
-              Next
-            </button>
-          </div>
-        </div>
+      {people.data && people.data.count > people.data.results.length && (
+        <p data-automation-id="PeopleDirectory-truncation" className="mt-4 text-sm text-gray-500">
+          Showing the first {people.data.results.length} of {people.data.count} people — refine the
+          search to find the rest.
+        </p>
       )}
     </div>
   )

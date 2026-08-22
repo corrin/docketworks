@@ -54,7 +54,22 @@ describe('PeopleDirectoryPage', () => {
     expect(screen.getByText('021 555 111')).toBeVisible()
     expect(queryAutoId('PeopleDirectory-row-p-1')).not.toBeNull()
     expect(screen.getAllByRole('button', { name: 'Manage' })).toHaveLength(2)
-    expect(screen.getByText('2 people')).toBeVisible()
+    // Complete result set: no truncation line.
+    expect(queryAutoId('PeopleDirectory-truncation')).toBeNull()
+  })
+
+  it('says the list is truncated when more people exist than were returned', async () => {
+    server.use(
+      http.get('*/api/people/', () =>
+        HttpResponse.json({ ...paginated([person()]), count: 1036, total_pages: 21 }),
+      ),
+    )
+    renderWithProviders(<PeopleDirectoryPage />)
+
+    expect(await screen.findByText('Alex Smith')).toBeVisible()
+    expect(queryAutoId('PeopleDirectory-truncation')).toHaveTextContent(
+      'Showing the first 1 of 1036 people',
+    )
   })
 
   it('applies the search on Enter, not per keystroke', async () => {
