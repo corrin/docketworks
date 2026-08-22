@@ -477,7 +477,10 @@ NOT_A_LINK_FIELDS: dict[str, str] = {
     "xero.XeroApp.client_id": "OAuth client id: a credential, not a link",
     "xero.XeroError.job_id": "our own row id",
     "xero.XeroError.user_id": "our own row id",
-    "xero.XeroError.reference_id": "free-text reference",
+    "xero.XeroError.reference_id": (
+        "Xero id of the entity that failed, kept on the error row for diagnosis; "
+        "never emitted as a link"
+    ),
     "search.SearchTelemetryEvent.selected_result_id": "our own row id",
     "diagnostics.SessionReplayRecording.job_id": "our own row id",
     "diagnostics.SessionReplayChunk.job_id": "our own row id",
@@ -611,25 +614,26 @@ def _configured(value: str | UUID | None, *, kind: LinkKind, source: str) -> Out
 
 
 def enumerate_company_defaults(defaults: CompanyDefaults) -> list[OutboundLink]:
-    """Every link or external id the singleton holds."""
-    links: list[OutboundLink] = []
-    for model_field in _link_fields(CompanyDefaults):
-        label = _field_label(CompanyDefaults, model_field)
-        value = getattr(defaults, model_field.name)
-        source = f"CompanyDefaults.{model_field.name}"
-        if label in GOOGLE_URL_ID_PAIRS:
-            id_name = GOOGLE_URL_ID_PAIRS[label].rsplit(".", 1)[1]
-            links.append(_google_pair(value, getattr(defaults, id_name), source=f"{source}/_id"))
-        elif label in GOOGLE_URL_ID_PAIRS.values():
-            continue  # paired with its URL above
-        elif isinstance(model_field, models.URLField):
-            if value is None:
-                links.append(OutboundLink(kind="skipped", source=source, detail="not configured"))
-            else:
-                links.append(classify_url(value, source=source))
-        else:
-            links.append(_configured(value, kind=EXTERNAL_ID_FIELDS[label], source=source))
-    return links
+    """Every link or external id the singleton holds, one source per column.
+
+    Fable: The same dispatch as every other row (``_row_links``), not a second
+    one: an earlier copy indexed ``EXTERNAL_ID_FIELDS`` directly and would
+    have raised on a singleton column filed as unverified. The singleton
+    differs only in reporting an unset column as ``skipped: not configured``
+    — configuration is expected to be set, a per-row NULL is not news.
+    """
+    labels = {
+        field.name: _field_label(CompanyDefaults, field) for field in _link_fields(CompanyDefaults)
+    }
+    return [
+        *_field_level_skips(labels),
+        *_row_links(
+            defaults,
+            _row_level_fields(CompanyDefaults, labels),
+            source=lambda name: f"CompanyDefaults.{name}",
+            report_unset=True,
+        ),
+    ]
 
 
 def _latest(model: type[models.Model], sample: int) -> models.QuerySet[models.Model]:
@@ -696,24 +700,43 @@ def _row_level_fields(model: type[models.Model], labels: dict[str, str]) -> list
     return chosen
 
 
+def _constant(label: str) -> Callable[[str], str]:
+    """A row's source is the same whichever column the link came from."""
+    return lambda _name: label
+
+
 def _row_links(
-    row: models.Model, source: str, row_fields: list[tuple[str, str]]
+    row: models.Model,
+    row_fields: list[tuple[str, str]],
+    *,
+    source: Callable[[str], str],
+    report_unset: bool,
 ) -> list[OutboundLink]:
+    """The links one row holds; ``source`` names the row (or, for the singleton, the column)."""
     links: list[OutboundLink] = []
     for name, label in row_fields:
         value = getattr(row, name)
         if label in GOOGLE_URL_ID_PAIRS:
             id_name = GOOGLE_URL_ID_PAIRS[label].rsplit(".", 1)[1]
-            links.append(_google_pair(value, getattr(row, id_name), source=source))
+            file_id = getattr(row, id_name)
+            if value is None and file_id is None and not report_unset:
+                continue
+            pair_source = f"{source(name)}/_id" if report_unset else source(name)
+            links.append(_google_pair(value, file_id, source=pair_source))
         elif value is None:
-            continue
+            if report_unset:
+                links.append(
+                    OutboundLink(kind="skipped", source=source(name), detail="not configured")
+                )
         elif label in EXTERNAL_ID_FIELDS:
             links.append(
-                OutboundLink(kind=EXTERNAL_ID_FIELDS[label], source=source, external_id=str(value))
+                OutboundLink(
+                    kind=EXTERNAL_ID_FIELDS[label], source=source(name), external_id=str(value)
+                )
             )
             links.extend(_derived_urls(label, row))
         else:
-            links.append(classify_url(value, source=source))
+            links.append(classify_url(value, source=source(name)))
     return links
 
 
@@ -743,7 +766,11 @@ def enumerate_database_links(*, sample: int) -> list[OutboundLink]:
             EXTERNAL_ID_FIELDS.get(label) in XERO_DOCUMENT_KINDS for _, label in row_fields
         )
         for row in _latest(model, sample if samples_xero else 0):
-            links.extend(_row_links(row, _row_label(model, row), row_fields))
+            links.extend(
+                _row_links(
+                    row, row_fields, source=_constant(_row_label(model, row)), report_unset=False
+                )
+            )
     return links
 
 
@@ -879,10 +906,13 @@ def verify_google_file(link: OutboundLink, *, lookup: GoogleLookup) -> LinkVerdi
     return LinkVerdict(link, "ok", state.name)
 
 
+_XERO_DOCUMENT_KINDS_BY_NAME: dict[str, XeroDocumentKind] = {
+    kind: kind for kind in get_args(XeroDocumentKind)
+}
+
+
 def _is_xero_document_kind(kind: str) -> XeroDocumentKind | None:
-    # Fable: membership in get_args(XeroDocumentKind) IS the narrowing; mypy
-    # cannot see through a frozenset, hence the ignore.
-    return kind if kind in XERO_DOCUMENT_KINDS else None  # type: ignore[return-value]
+    return _XERO_DOCUMENT_KINDS_BY_NAME.get(kind)
 
 
 def verify_xero(link: OutboundLink, *, xero: XeroLookups) -> LinkVerdict:
@@ -1228,13 +1258,20 @@ def _positive(value: str) -> int:
     return number
 
 
+def _non_negative(value: str) -> int:
+    number = int(value)
+    if number < 0:
+        raise argparse.ArgumentTypeError("must be 0 (every row) or a positive sample size")
+    return number
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument(
         "--workers", type=_positive, default=16, help="threads for HTTP and Drive lookups"
     )
     parser.add_argument(
-        "--sample", type=int, default=5, help="latest N Xero documents per type; 0 = all"
+        "--sample", type=_non_negative, default=5, help="latest N Xero documents per type; 0 = all"
     )
     parser.add_argument(
         "--kind", action="append", choices=LINK_KINDS, help="only these link kinds (repeatable)"

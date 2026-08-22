@@ -14,14 +14,14 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 
 | metric | count |
 |---|---:|
-| type: ignore | 10 |
+| type: ignore | 9 |
 | pragma: no cover | 6 |
 | noqa (no rule code) | 0 |
 | @ts-ignore | 0 |
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 7 |
-| TOTAL suppressions | 670 |
+| TOTAL suppressions | 669 |
 | noqa: DJ001 | 158 |
 | noqa: PLC0415 | 128 |
 | noqa: E402 | 103 |
@@ -103,7 +103,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 190 |
-| non-test functions | 2377 |
+| non-test functions | 2379 |
 
 ## Wire contract (response side)
 

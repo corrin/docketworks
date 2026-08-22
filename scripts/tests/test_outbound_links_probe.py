@@ -733,6 +733,11 @@ class TestCli:
         with pytest.raises(SystemExit):
             main(["--workers", "0"])
 
+    def test_a_negative_sample_is_refused(self) -> None:
+        """Django refuses a negative slice with a traceback; argparse refuses it with a message."""
+        with pytest.raises(SystemExit):
+            main(["--sample", "-1"])
+
 
 @pytest.mark.django_db
 class TestEnumerateDatabaseLinks:
@@ -758,5 +763,7 @@ class TestEnumerateDatabaseLinks:
 
         by_source = {link.source: link for link in links}
         assert by_source["QuoteSpreadsheet 1Sheet"].kind == "google_file"
+        # A row with neither URL nor id is not news; only the singleton reports unset.
+        assert not any(link.detail == "not configured" for link in links)
         assert by_source["Procedure Running the Workshop"].external_id == "1Doc"
         assert by_source["NotebookLmLink Training"].kind == "http"

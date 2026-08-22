@@ -13,8 +13,9 @@ which needs ``GCP_CREDENTIALS`` — required, not optional: a run that silently
 skipped Drive would report the deleted-doc case as green.
 
 No ``assert_not_production_target`` here, unlike the payroll suite: the probe
-writes nothing anywhere, and the run script already refuses a production
-database before pytest starts.
+is read-only, the canary's only write is a throwaway file it deletes in its
+``finally``, and the run script already refuses a production database before
+pytest starts.
 """
 
 from __future__ import annotations
@@ -40,7 +41,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 
 
 @pytest.fixture(autouse=True)
-def _credentials(integration_credentials: None) -> None:  # noqa: ARG001 -- the fixture's side effect is the dependency
+def _credentials(integration_credentials: None) -> None:  # noqa: ARG001 -- Fable: the fixture's side effect is the dependency
     if not os.environ.get("GCP_CREDENTIALS"):
         raise RuntimeError(
             "GCP_CREDENTIALS is not set: the link probe verifies Google Drive files as the "
