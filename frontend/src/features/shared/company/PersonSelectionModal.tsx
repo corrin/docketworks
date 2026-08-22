@@ -282,9 +282,13 @@ export function PersonSelectionModal({
       }
       // fetchQuery, not invalidate: the parent PersonSelector reads this exact
       // key, and the selection below needs the annotated CompanyPerson row.
-      const fresh = await queryClient.fetchQuery(
-        companiesPeopleListOptions({ path: { company_id: companyId } }),
-      )
+      // staleTime 0 because the client default of 30s would make this a cache
+      // read of the pre-link list, which cannot contain the person just
+      // linked (the LeaveSettingsPage save documents the same trap).
+      const fresh = await queryClient.fetchQuery({
+        ...companiesPeopleListOptions({ path: { company_id: companyId } }),
+        staleTime: 0,
+      })
       const linked = fresh.find((person) => person.person_id === match.person_id)
       if (!linked) {
         throw new Error('Linked person was not returned for the company')

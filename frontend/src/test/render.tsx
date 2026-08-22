@@ -38,7 +38,11 @@ function TestRoot() {
 export function renderWithProviders(ui: ReactElement): RenderWithProvidersResult {
   const queryClient = new QueryClient({
     defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
+      // staleTime mirrors production (src/api/query-client.ts): with the test
+      // default of 0, a fetchQuery that is a cache read in the real app is a
+      // network call under test, and the suite green-lights code that shows
+      // stale data to users.
+      queries: { retry: false, gcTime: 0, staleTime: 30_000 },
       mutations: { retry: false },
     },
   })
