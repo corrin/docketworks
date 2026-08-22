@@ -195,6 +195,16 @@ rather than anywhere else. This file is finished when it is empty.
   ADR 0041 claims the gateway is where these live; make that true.
 - **Labour Rates card and the price-cap/RDTI/urgent controls** on
   `JobSettingsTab` — no spec asserts them.
+- **Call-recording retention is a setting, not a literal** (owner, 2026-08-23).
+  Two knobs: the provider-side deletion delay, a literal 31 days at
+  `apps/crm/services/phone_call_service.py:187`, becomes
+  `IntegrationSettings.phone_provider_recording_deletion_after_days` beside its
+  switch; and local retention, which does not exist — archived recordings under
+  `PHONE_RECORDING_STORAGE_ROOT` are kept forever — becomes
+  `CompanyDefaults.phone_recording_retention_days` (default 730) with a beat
+  task that deletes the file and its `PhoneCallRecording` row past the cutoff by
+  call date, refuses to run while the value is unset, and ships with a spec
+  because it destroys data.
 
 ## DEFERRED — after cutover
 
