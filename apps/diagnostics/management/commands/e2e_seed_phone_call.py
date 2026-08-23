@@ -16,12 +16,11 @@ import wave
 from io import BytesIO
 from uuid import UUID, uuid4
 
-from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import transaction
 from django.utils import timezone
 
-from apps.core.environment import database_class
+from apps.core.environment import ProductionDatabaseError, assert_not_production_database
 from apps.core.test_data import TEST_DATA_PREFIX, is_e2e_name
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.crm.services.phone_call_service import normalize_phone, store_recording_bytes
@@ -72,20 +71,18 @@ class Command(BaseCommand):
             help="Job whose company the seeded call is matched to",
         )
 
-    def handle(self, *args: object, **options: object) -> None:  # noqa: ARG002 -- BaseCommand signature
+    def handle(self, *_args: object, **options: object) -> None:
         """Refuse anything unsafe, then seed the call, recording and audio."""
         job_id = options["job"]
         if not isinstance(job_id, UUID):
             raise CommandError("--job must be a UUID")
 
-        db_name = str(settings.DATABASES["default"]["NAME"])
-        # The database name is the one signal a run cannot spoof (ADR 0048):
-        # an environment variable saying "this is dev" is an input, not a
-        # fact, so DEBUG is not consulted here.
-        if database_class(db_name) == "prod":
-            raise CommandError(
-                f"Refusing to seed E2E phone data into production database: {db_name}."
+        try:
+            assert_not_production_database(
+                "this command fabricates a phone call, its recording and its audio."
             )
+        except ProductionDatabaseError as exc:
+            raise CommandError(str(exc)) from exc
 
         job = Job.objects.select_related("company").filter(pk=job_id).first()
         if job is None:

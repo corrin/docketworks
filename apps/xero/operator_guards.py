@@ -11,7 +11,7 @@ import logging
 
 from django.conf import settings
 
-from apps.core.environment import database_class
+from apps.core.environment import assert_not_production_database
 from apps.xero.auth import get_tenant_id
 
 logger = logging.getLogger(__name__)
@@ -60,12 +60,11 @@ def assert_not_production_target(tenant_id: str | None = None) -> None:
     and must be judged on that, because the stored value is the org it is
     leaving. Everyone else is already bound and omits it.
     """
-    db_name = str(settings.DATABASES["default"]["NAME"])
-    if database_class(db_name) == "prod":
-        raise ValueError(
-            f"Refusing to seed Xero against production database: {db_name}. "
-            "This operation is only for development environments after a production restore."
-        )
+    assert_not_production_database(
+        "Xero seeding writes to whichever organisation this installation is "
+        "connected to, and is only for a development environment after a "
+        "production restore."
+    )
 
     if tenant_id is None:
         tenant_id = get_tenant_id()

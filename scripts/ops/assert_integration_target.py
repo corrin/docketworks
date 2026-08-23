@@ -41,19 +41,20 @@ setup_django()
 
 from django.conf import settings  # noqa: E402 -- Opus: Django must be configured first
 
-from apps.core.environment import database_class  # noqa: E402
+from apps.core.environment import (  # noqa: E402
+    ProductionDatabaseError,
+    assert_not_production_database,
+    database_class,
+)
 from apps.xero.operator_guards import assert_xero_writes_enabled  # noqa: E402
 
 
 def main() -> int:
     """Refuse a production database or a write-suppressed run."""
-    db_name = str(settings.DATABASES["default"]["NAME"])
-    if database_class(db_name) == "prod":
-        print(
-            f"Refusing to start: {db_name} is a production database. Integration tests "
-            "write to real vendors and must never run against it.",
-            file=sys.stderr,
-        )
+    try:
+        assert_not_production_database("integration tests write to real vendors.")
+    except ProductionDatabaseError as exc:
+        print(f"Refusing to start: {exc}", file=sys.stderr)
         return 1
 
     try:
@@ -62,6 +63,7 @@ def main() -> int:
         print(f"Refusing to start: {exc}", file=sys.stderr)
         return 1
 
+    db_name = str(settings.DATABASES["default"]["NAME"])
     print(f"Integration target: {db_name} ({database_class(db_name)}), Xero writes enabled.")
     return 0
 

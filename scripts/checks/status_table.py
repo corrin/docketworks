@@ -242,8 +242,17 @@ def _measure_specs_ported() -> str:
     ported = len(list(E2E_SPEC_DIR.rglob("*.spec.ts")))
     # Deliberately "ported", not "passing": this counts files, and a file
     # existing is not a spec going green. Nothing here can know the latter.
+    #
+    # Fable: the two numbers are stated side by side rather than as "N of M".
+    # A fraction claims one population measured against another, and these are
+    # different populations — v2 splits and merges v1's specs, so the count
+    # passed v1's total while specs from v1 were still unported and the row
+    # read "42 of 40" beside prose listing what is left.
     total = _v1_operations()["e2e_spec_files"]
-    return f"**{ported} of {total}** — green is the only measure that counts"
+    return (
+        f"**{ported} spec files** (v1 shipped {total}; the specs still to port "
+        f"are listed under MUST) — green is the only measure that counts"
+    )
 
 
 @dataclass(frozen=True)

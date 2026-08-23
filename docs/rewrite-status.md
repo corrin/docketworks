@@ -43,10 +43,10 @@ done only when that spec is green.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **42 of 40** — green is the only measure that counts |
+| E2E specs ported | **42 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 34 more exist but nothing calls them) |
 | API operations v2 exposes | 219 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2532 (all passing) |
+| Unit tests | 2537 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 112 recorded deviations |
@@ -324,11 +324,32 @@ rather than anywhere else. This file is finished when it is empty.
   job ETag is derived from, but none of them calls `_set_job_etag(response,
   job_id)`. The client therefore has to refetch `getFullJob` after every
   settled cost-line write purely to re-arm the etag store the header's If-Match
-  reads (`features/job/invalidateJobViews.ts`). Add the call to all three; then
-  a cost-line write needs only the cost-set and timeline keys, and
+  reads (`features/job/invalidateJobViews.ts`). The server change alone does
+  not land it: cost lines live at `/api/job/cost_lines/{id}/`, and the
+  concurrency interceptor's job rule captures a version only from
+  `/api/job/jobs/` URLs and reads the job id out of the URL path
+  (`isVersionedEndpoint` and `jobIdFromUrl` in
+  `src/lib/concurrency/interceptors.ts`), so a header set on a cost-line
+  response is discarded. Pair the three `_set_job_etag` calls with teaching
+  the interceptor those URLs — the job id from the response body, or an
+  `X-Resource-Id` beside `X-Resource-Version`. Until both land, the
+  `getFullJob` refetch stays. Once they do, a cost-line write needs only the
+  cost-set and timeline keys, and
   `features/timesheet/useTimesheetEntries.ts` — which writes cost lines against
   arbitrary jobs and cannot reach across features to invalidate job views —
   stops being a hole that 412s the next header edit.
+- **`companies_jobs_retrieve` is unpaginated and feeds the link-job picker.**
+  `apps/company/api.py` returns every job a company has ever had, and
+  `PhoneCallLinkJobDialog` fetches it to populate the job list. A company with
+  thousands of jobs sends a response past the 100 KB E2E wire guard and past
+  what a picker can usefully render. Page it, or cap it server-side to the
+  newest jobs the picker offers.
+- **The E2E network log records a negative request duration.**
+  `enableNetworkLogging` in `frontend/tests/e2e/helpers.ts` writes
+  `duration_ms` as `timing.responseEnd - timing.startTime`, but Playwright's
+  `startTime` is an epoch millisecond value while `responseEnd` is an offset
+  from it, so every row is a large negative number. Log `responseEnd`
+  directly.
 - **`getFullJob` returns more than any consumer reads.**
   `get_job_for_edit` (`apps/job/services/job_service.py`) returns every
   `JobEvent` for the job unpaginated, and `job_detail_data` embeds

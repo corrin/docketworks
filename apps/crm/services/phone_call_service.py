@@ -941,14 +941,14 @@ def assign_phone_number(
         normalized_value=normalized,
         defaults={
             "value": phone_number.strip(),
-            "label": label.strip() if label else None,
+            "label": label,
             "is_primary": should_be_primary,
             "source": ContactMethod.Source.LOCAL,
         },
     )
     if not created:
         method.value = phone_number.strip()
-        method.label = label.strip() if label else None
+        method.label = label
         method.source = ContactMethod.Source.LOCAL
         method.is_primary = should_be_primary or method.is_primary
         method.save(update_fields=["value", "label", "source", "is_primary", "updated_at"])

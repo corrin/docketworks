@@ -318,6 +318,28 @@ class TestClientErrorsDoNotPersistAppErrors:
         method = ContactMethod.objects.get(value="+6421555003")
         assert method.label is None
 
+    def test_assign_number_stores_the_label_the_wire_validated(
+        self, api: Client, call: PhoneCallRecord, company_obj: Company
+    ) -> None:
+        """The schema owns trimming, so the service stores what it is handed.
+
+        NullableText strips before the length check, so padding never reaches
+        the service and a service-side ``label.strip() if label else None``
+        could only turn a value the wire had already accepted into NULL.
+        """
+        call.external_number = "+6421555004"
+        call.save(update_fields=["external_number"])
+
+        response = api.post(
+            f"{CALLS_PATH}{call.id}/assign-number/",
+            data={"company": str(company_obj.id), "label": "  Front desk  "},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        method = ContactMethod.objects.get(value="+6421555004")
+        assert method.label == "Front desk"
+
 
 class TestCallList:
     """The CRM calls page must paginate and filter without drifting from the

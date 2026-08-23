@@ -41,7 +41,11 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import connection
 from django.utils import timezone
 
-from apps.core.environment import database_class
+from apps.core.environment import (
+    ProductionDatabaseError,
+    assert_not_production_database,
+    database_class,
+)
 from apps.diagnostics.services import scrub_pipeline
 
 
@@ -109,13 +113,18 @@ class Command(BaseCommand):
             )
 
         klass = database_class(configured)
-        if klass == "prod" and not options["wipe_production"]:
-            raise CommandError(
-                f"{configured} is a production database. Wiping it requires the "
-                f"explicit --wipe-production flag; find it only in the "
-                f"production-purpose runbook you are following, never add it to "
-                f"a dev/UAT procedure."
-            )
+        # Gated on the flag rather than absolute, unlike every other caller of
+        # this refusal: agents legitimately operate in production (ADR 0048),
+        # so this command grades deliberateness instead of refusing outright.
+        if not options["wipe_production"]:
+            try:
+                assert_not_production_database(
+                    "wiping it requires the explicit --wipe-production flag; find it "
+                    "only in the production-purpose runbook you are following, never "
+                    "add it to a dev/UAT procedure."
+                )
+            except ProductionDatabaseError as exc:
+                raise CommandError(str(exc)) from exc
         if klass == "prod" and options["skip_backup"]:
             raise CommandError(
                 "--skip-backup is refused for a production database: a prod wipe "
