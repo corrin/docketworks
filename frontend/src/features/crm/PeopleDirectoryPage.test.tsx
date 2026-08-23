@@ -134,11 +134,12 @@ describe('PeopleDirectoryPage', () => {
         return HttpResponse.json(paginated([person()]))
       }),
     )
-    const { user } = renderWithProviders(<PeopleDirectoryPage />)
+    const { user, queryClient } = renderWithProviders(<PeopleDirectoryPage />)
     await screen.findByText('Alex Smith')
 
-    // Search with the same (empty) query is a refetch of what is on screen.
-    await user.click(screen.getByRole('button', { name: 'Search' }))
+    // A background refetch of what is on screen — what a mutation's
+    // invalidation does — fails while the rows stay up.
+    await queryClient.refetchQueries()
     expect(await screen.findByText('Refresh failed — showing the last loaded rows.')).toBeVisible()
     expect(screen.getByText('Alex Smith')).toBeVisible()
 
@@ -149,7 +150,7 @@ describe('PeopleDirectoryPage', () => {
     expect(calls).toBe(3)
   })
 
-  it('applies the search on Enter, not per keystroke', async () => {
+  it('searches live after the typing pause, not per keystroke', async () => {
     const queries: (string | null)[] = []
     server.use(
       http.get('*/api/people/', ({ request }) => {
@@ -164,7 +165,7 @@ describe('PeopleDirectoryPage', () => {
     await user.type(search, 'alex')
     expect(queries).toEqual([null])
 
-    await user.type(search, '{Enter}')
+    // One request for the settled term, none for 'a', 'al', 'ale'.
     await waitFor(() => expect(queries).toEqual([null, 'alex']))
   })
 

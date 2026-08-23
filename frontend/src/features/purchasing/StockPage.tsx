@@ -5,11 +5,12 @@ import { purchasingStockListOptions, purchasingStockSearchRetrieveOptions } from
 import type { StockItem } from '@/api'
 import { ListTable } from '@/features/shared/ListTable'
 import { trimDecimal } from '@/features/shared/decimal'
-import { useDebouncedValue } from '@/features/shared/useDebouncedValue'
+import {
+  MIN_SEARCH_TERM_LENGTH,
+  SEARCH_DEBOUNCE_MS,
+  useDebouncedValue,
+} from '@/features/shared/useDebouncedValue'
 import { formatCurrency } from '@/lib/format'
-
-const SEARCH_DEBOUNCE_MS = 300
-const MIN_QUERY_LENGTH = 3
 
 /**
  * The stock page: the full active-stock list on load, swapped for
@@ -22,7 +23,7 @@ export function StockPage() {
   const [searchInput, setSearchInput] = useState('')
   const query = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS)
 
-  const searchActive = query.trim().length >= MIN_QUERY_LENGTH
+  const searchActive = query.trim().length >= MIN_SEARCH_TERM_LENGTH
   const list = useQuery(purchasingStockListOptions())
   const search = useQuery({
     ...purchasingStockSearchRetrieveOptions({ query: { q: query } }),

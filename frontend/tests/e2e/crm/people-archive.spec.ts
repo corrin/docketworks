@@ -16,7 +16,6 @@ test.describe('people archive lifecycle', () => {
     await createPersonViaSelectionModal(page, personName, `0219${String(suffix).padStart(6, '0')}`)
 
     await autoId(page, 'PeopleDirectory-search').fill(personName)
-    await autoId(page, 'PeopleDirectory-search').press('Enter')
     const row = page
       .locator('[data-automation-id^="PeopleDirectory-row-"]')
       .filter({ hasText: personName })
@@ -43,7 +42,6 @@ test.describe('people archive lifecycle', () => {
     const searched = page.waitForResponse(
       (response) => new URL(response.url()).searchParams.get('q') === personName,
     )
-    await autoId(page, 'PeopleDirectory-search').press('Enter')
     await searched
     await expect(
       page.locator('[data-automation-id^="PeopleDirectory-row-"]').filter({ hasText: personName }),

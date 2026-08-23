@@ -15,7 +15,6 @@ test.describe('people directory and company links', () => {
     await createPersonViaSelectionModal(page, personName, `0217${String(suffix).padStart(6, '0')}`)
 
     await autoId(page, 'PeopleDirectory-search').fill(personName)
-    await autoId(page, 'PeopleDirectory-search').press('Enter')
     const row = page.locator('[data-automation-id^="PeopleDirectory-row-"]').filter({
       hasText: personName,
     })
@@ -67,7 +66,6 @@ test.describe('people directory and company links', () => {
     await autoId(page, 'PersonSelectionModal-container').waitFor({ state: 'hidden' })
 
     await autoId(page, 'PeopleDirectory-search').fill(personName)
-    await autoId(page, 'PeopleDirectory-search').press('Enter')
     const row = page.locator('[data-automation-id^="PeopleDirectory-row-"]').filter({
       hasText: personName,
     })

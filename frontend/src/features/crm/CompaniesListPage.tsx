@@ -7,11 +7,9 @@ import { ListTable } from '@/features/shared/ListTable'
 import { LoadMoreSentinel } from '@/features/shared/LoadMoreSentinel'
 import { nextPageParam } from '@/features/shared/nextPageParam'
 import { SortHeader } from '@/features/shared/SortHeader'
-import { useDebouncedValue } from '@/features/shared/useDebouncedValue'
+import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
 import { useSortState } from '@/features/shared/useSortState'
 import { formatCurrency } from '@/lib/format'
-
-const SEARCH_DEBOUNCE_MS = 300
 
 type SortColumn = 'name' | 'total_spend'
 

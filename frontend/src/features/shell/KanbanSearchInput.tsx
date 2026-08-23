@@ -14,7 +14,7 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 
-const SEARCH_DEBOUNCE_MS = 300
+import { SEARCH_DEBOUNCE_MS } from '@/features/shared/useDebouncedValue'
 
 export function KanbanSearchInput() {
   const navigate = useNavigate()
