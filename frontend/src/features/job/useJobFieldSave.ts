@@ -2,7 +2,12 @@ import { useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
-import { apiErrorMessage, getFullJobOptions, jobJobsPartialUpdateMutation } from '@/api'
+import {
+  apiErrorMessage,
+  getFullJobOptions,
+  jobJobsPartialUpdateMutation,
+  jobJobsTimelineRetrieveQueryKey,
+} from '@/api'
 import { isConcurrencyError } from '@/lib/concurrency/interceptors'
 import { onConcurrencyRetry } from '@/lib/concurrency/retry-bus'
 import { buildJobDeltaEnvelope, changedFieldsOnly, snapshotJob, type JobFieldValues } from './delta'
@@ -59,6 +64,14 @@ export function useJobFieldSave(jobId: string, options?: UseJobFieldSaveOptions)
       onSavedRef.current?.(changes)
       await queryClient.invalidateQueries({
         queryKey: getFullJobOptions({ path: { job_id: jobId } }).queryKey,
+      })
+      // The delta PATCH records a JobEvent, so the History tab's timeline is
+      // stale the moment a header edit lands — and the header sits ABOVE the
+      // tabs, so that tab is often on screen while the edit is made. Leaving
+      // it to the tab's own remount was rejected: the timeline would then
+      // silently omit the change the user just made.
+      await queryClient.invalidateQueries({
+        queryKey: jobJobsTimelineRetrieveQueryKey({ path: { job_id: jobId } }),
       })
     },
     [jobId, mutateAsync, queryClient],

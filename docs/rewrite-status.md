@@ -43,7 +43,7 @@ done only when that spec is green.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **40 of 40** — green is the only measure that counts |
+| E2E specs ported | **42 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 34 more exist but nothing calls them) |
 | API operations v2 exposes | 219 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 2532 (all passing) |
@@ -59,9 +59,9 @@ written measures typing, not delivery.
 
 ### Specs still to port
 
-Four, plus `example`, which is a placeholder to delete rather than port:
-`crm/phone-call-job-link`, `process-documents/form-entries-page-scroll`,
-`staff/create-staff`, `timesheet/workshop-my-time-view`.
+Three, plus `example`, which is a placeholder to delete rather than port:
+`process-documents/form-entries-page-scroll`, `staff/create-staff`,
+`timesheet/workshop-my-time-view`.
 
 - `workshop-my-time-view` is a rebuild, not a port —
   `@kodeglot/vue-calendar` has no React equivalent.

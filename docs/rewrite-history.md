@@ -77,6 +77,42 @@ conflict to two editors touching the same field, and ADR 0003's optimistic-
 concurrency scope is Job/PO, not this singleton — a rarely-edited row does not
 earn the extra mechanism.
 
+**The job History tab offers Add Event, Undo and Linked Phone Calls to office
+staff only (2026-08-23).** All three endpoints behind them —
+`job_rest_jobs_events_create`, `job_jobs_undo_change_create` and
+`crm_phone_calls_list` — require office staff, so a workshop user offered any
+of those controls could only be refused by the server. v1 drew all three for
+everyone and let the request 403.
+
+**A `costline_updated` timeline entry renders as "Costline Updated"
+(2026-08-23).** `timelineKind` maps the three entry types the tab draws and
+throws on a fourth. v1 treated every entry that was not `costline_created` as
+a job event, which is how a cost-line update came to render as a blue
+"General" job event nobody could account for. An entry type the tab has no
+rendering for is a fault to surface, not a shape to guess at.
+
+**v1's `PhoneNumberManager` card is not ported (2026-08-23).** Contact methods
+have one home in v2 — PersonDetailPage and CompanyDetailPage — and the calls
+page's Assign Number panel covers the call-to-number flow the card existed for.
+
+**A phone call's job controls are identified per row (2026-08-23).**
+`PhoneCallTable-linked-job-{callId}` and `PhoneCallTable-link-job-{callId}`,
+not v1's shared `PhoneCallTable-linked-job`: the shared id matched whichever
+linked row sorted first, so an assertion on it could pass on a call the test
+never touched. The job itself is chosen through the shared `JobPicker`
+(`PhoneCallTable-job-trigger`, `-job-search`, `-job-option-{job_number}`),
+which retires v1's native-select ids `PhoneCallTable-job-select` and
+`-job-search`.
+
+**A seeded phone call is recognised by its `[TEST]` description (2026-08-23).**
+The phone provider is a pull-only portal, so an E2E environment can only
+fabricate a call; `e2e_seed_phone_call` writes the `[TEST]` prefix into the
+call's description, provider call id and account code, and `e2e_cleanup`
+selects calls by `description__startswith`. Both of `PhoneCallRecord`'s
+foreign keys are SET_NULL, so a call the cleanup cannot name outlives its job
+and company as an orphan in the Unmatched queue with its recording file
+stranded under `PHONE_RECORDING_STORAGE_ROOT`.
+
 ## Cross-report divergences, ported faithfully (2026-08-04)
 
 v1's reports disagree with each other on definitions users can see side by side.
