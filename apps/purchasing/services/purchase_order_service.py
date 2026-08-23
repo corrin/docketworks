@@ -355,10 +355,25 @@ def _resolve_supplier(supplier_id: UUID) -> Company:
     return supplier
 
 
-def _resolve_pickup_address(pickup_address_id: UUID) -> SupplierPickupAddress:
-    address = SupplierPickupAddress.objects.filter(id=pickup_address_id, is_active=True).first()
+def _resolve_pickup_address(
+    pickup_address_id: UUID, supplier: Company | None
+) -> SupplierPickupAddress:
+    """Resolve a pickup address that belongs to the PO's supplier.
+
+    Fable: ownership is checked here rather than trusted from the client
+    because the address list the screen offers is per supplier; an id from
+    another company can only arrive by mistake or by hand, and either way a
+    PO collecting from a stranger's yard is wrong data, not a preference.
+    """
+    if supplier is None:
+        raise DjangoValidationError("A pickup address needs a supplier")
+    address = SupplierPickupAddress.objects.filter(
+        id=pickup_address_id, company=supplier, is_active=True
+    ).first()
     if address is None:
-        raise DjangoValidationError(f"Pickup address {pickup_address_id} not found")
+        raise DjangoValidationError(
+            f"Pickup address {pickup_address_id} does not belong to supplier {supplier.name}"
+        )
     return address
 
 
@@ -372,7 +387,7 @@ def create_purchase_order(
     pickup_address_id = data.get("pickup_address_id")
     pickup_address: SupplierPickupAddress | None
     if pickup_address_id:
-        pickup_address = _resolve_pickup_address(pickup_address_id)
+        pickup_address = _resolve_pickup_address(pickup_address_id, supplier)
     elif supplier is not None:
         # Auto-select the supplier's primary address when none is given.
         pickup_address = SupplierPickupAddress.objects.filter(
@@ -503,7 +518,9 @@ def update_purchase_order(
         if "pickup_address_id" in data:
             pickup_address_id = data.get("pickup_address_id")
             po.pickup_address = (
-                _resolve_pickup_address(pickup_address_id) if pickup_address_id else None
+                _resolve_pickup_address(pickup_address_id, po.supplier)
+                if pickup_address_id
+                else None
             )
 
         _write_lines(po, data.get("lines", []))

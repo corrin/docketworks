@@ -300,6 +300,15 @@
     review 2026-08-03.
 
 - operation: purchasing_purchase_orders_partial_update
+  change: "A pickup address must belong to the PO's supplier (v1 accepted any active address)"
+  reason: >
+    v1's _update_pickup_address looked the id up with is_active=True only, so
+    an id from another company — a stale client, a hand-typed request — was
+    linked and printed on the PO as the collection point. The screen only ever
+    offers the supplier's own addresses, so a foreign id is a mistake; v2
+    refuses it with a 400 on create and update alike.
+
+- operation: purchasing_purchase_orders_partial_update
   change: "Omitted PO-line fields keep their stored value (v1 reset quantity/price_tbc to defaults)"
   reason: >
     v1's PurchaseOrderLineUpdateSerializer declared quantity default=0 and

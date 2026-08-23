@@ -46,10 +46,10 @@ done only when that spec is green.
 | E2E specs ported | **39 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 34 more exist but nothing calls them) |
 | API operations v2 exposes | 219 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2509 (all passing) |
+| Unit tests | 2510 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
-| Behaviour ledger | 110 recorded deviations |
+| Behaviour ledger | 111 recorded deviations |
 | ADRs | 40 (v1's 26 carried forward + 0038–0041, 0043, 0045–0053 written here) |
 
 **Written is not ported.** Report progress as specs green; a count of endpoints
