@@ -1,9 +1,4 @@
-"""The markers E2E specs put on the rows they create.
-
-Names carry the marker where the row has one a person reads (companies, jobs,
-people). Phone-provider rows have no such name — their identity is the
-account the provider billed the call to — so a seeded call is marked by
-``E2E_PHONE_ACCOUNT_CODE`` instead, and the phone cleanup keys on that alone.
+"""The names E2E specs give the rows they create.
 
 Fable: one home rather than a copy per reader. Three independent apps read
 these — diagnostics (the local cleanup), xero (archiving the contacts those
@@ -15,7 +10,7 @@ every app may import. ``frontend/tests/scripts/db-backup-utils.ts`` and
 import is possible across that boundary.
 """
 
-#: Marks the companies, jobs and people a run creates.
+#: Marks the companies, jobs, people and phone calls a run creates.
 TEST_DATA_PREFIX = "[TEST]"
 #: Prefixes older specs used; the residue they left is still recognised.
 LEGACY_E2E_PREFIXES = ("E2E Test Client", "E2E Modal Client", "E2E Test Supplier")
@@ -23,15 +18,15 @@ E2E_NAME_PREFIXES = (TEST_DATA_PREFIX, *LEGACY_E2E_PREFIXES)
 #: The standing fixture company that UI-seeded specs work against. Seed data,
 #: never residue: it is preserved by the cleanup and must never be archived.
 TEST_COMPANY_NAME = "ABC Carpet Cleaning TEST IGNORE"
-#: The provider account code a seeded phone call and its recording carry.
-#: Residue is this one fact — never the call's description or the company it
-#: matched, because the standing test company is live data whose real calls
-#: must survive a cleanup.
-E2E_PHONE_ACCOUNT_CODE = "e2e"
 
 
 def is_e2e_name(name: str) -> bool:
-    """Whether a company, job or person name marks it as E2E-created residue."""
+    """Whether a row's human-readable text marks it as E2E-created residue.
+
+    Usually a company, job or person name. A phone call has no name, so the
+    text is its description — the same prefix, checked the same way, because
+    a second convention for one model is a second thing to remember.
+    """
     return name.startswith(E2E_NAME_PREFIXES)
 
 

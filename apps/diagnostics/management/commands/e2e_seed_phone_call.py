@@ -2,8 +2,9 @@
 
 The phone provider is a pull-only portal (apps/crm/services/phone_call_service
 holds the EXACT-URL PIN), so an E2E environment can never obtain a call the
-way production does. This command fabricates one instead, marked as residue
-by ``account_code`` so ``e2e_cleanup`` finds it.
+way production does. This command fabricates one instead. Its description
+starts with ``[TEST]``, which is how ``e2e_cleanup`` finds it later and how
+every other E2E-created row is recognised.
 
 Lives in diagnostics rather than crm: it reads crm and job models together,
 which is exactly the cross-domain operator work that sits above the domain
@@ -21,7 +22,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.core.environment import database_class
-from apps.core.test_data import E2E_PHONE_ACCOUNT_CODE, TEST_DATA_PREFIX, is_e2e_name
+from apps.core.test_data import TEST_DATA_PREFIX, is_e2e_name
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.crm.services.phone_call_service import normalize_phone, store_recording_bytes
 from apps.job.models import Job
@@ -29,6 +30,7 @@ from apps.job.models import Job
 #: The caller's number and the office number the spec's call ran between.
 CUSTOMER_NUMBER = "+6421555123"
 OFFICE_NUMBER = "+6496365131"
+#: The description is the marker the cleanup looks for.
 CALL_DESCRIPTION = f"{TEST_DATA_PREFIX} CRM phone call job link"
 RECORDING_FILENAME = "e2e-call.wav"
 RECORDING_CONTENT_TYPE = "audio/wav"
@@ -103,8 +105,8 @@ class Command(BaseCommand):
             call = self._create_call(job)
             recording = PhoneCallRecording.objects.create(
                 call=call,
-                provider_recording_id=f"{E2E_PHONE_ACCOUNT_CODE}:{uuid4()}",
-                account_code=E2E_PHONE_ACCOUNT_CODE,
+                provider_recording_id=f"{TEST_DATA_PREFIX} {uuid4()}",
+                account_code=TEST_DATA_PREFIX,
             )
             store_recording_bytes(
                 call=call,
@@ -129,6 +131,12 @@ class Command(BaseCommand):
     def _create_call(self, job: Job) -> PhoneCallRecord:
         """Create an inbound customer call, already matched to the job's company.
 
+        Every identifier this seed invents — the account code, the provider
+        call id, the description — starts with ``[TEST]``, so nothing written
+        here could be mistaken for a value the provider sent. The account
+        code is the provider's customer account number in a real row, which
+        is why a plausible-looking one is exactly what it must not be.
+
         The classification columns are set directly instead of running
         PhoneMatcher: the matcher reads the phone book and the configured
         endpoints, neither of which an E2E environment carries, so a matched
@@ -141,8 +149,8 @@ class Command(BaseCommand):
         local_date = timezone.localdate(now)
         local_time = timezone.localtime(now).time()
         return PhoneCallRecord.objects.create(
-            provider_call_id=f"{E2E_PHONE_ACCOUNT_CODE}:{call_uid}",
-            account_code=E2E_PHONE_ACCOUNT_CODE,
+            provider_call_id=f"{TEST_DATA_PREFIX} {call_uid}",
+            account_code=TEST_DATA_PREFIX,
             call_datetime=now,
             call_date=local_date,
             call_time=local_time,

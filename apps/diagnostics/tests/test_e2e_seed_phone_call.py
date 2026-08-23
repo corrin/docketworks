@@ -18,7 +18,7 @@ from pytest_django.fixtures import SettingsWrapper
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
-from apps.core.test_data import E2E_PHONE_ACCOUNT_CODE, TEST_DATA_PREFIX
+from apps.core.test_data import TEST_DATA_PREFIX, is_e2e_name
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.crm.tests.helpers import cookie_client, make_company
 from apps.job.models import Job
@@ -63,7 +63,8 @@ class TestSeedOutput:
         assert payload["job_number"] == job.job_number
 
         call = PhoneCallRecord.objects.get(id=payload["call_id"])
-        assert call.account_code == E2E_PHONE_ACCOUNT_CODE
+        assert call.description is not None
+        assert is_e2e_name(call.description)
         assert call.company_id == company.id
         # Unlinked on purpose: linking the call to the job is what the spec
         # drives through the UI, so a seed that did it would prove nothing.
@@ -72,9 +73,13 @@ class TestSeedOutput:
         assert call.external_number == "+6421555123"
         assert call.our_number == "+6496365131"
         assert call.description == f"{TEST_DATA_PREFIX} CRM phone call job link"
+        # Nothing the seed invents may pass for a value the provider sent.
+        assert call.account_code == TEST_DATA_PREFIX
+        assert call.provider_call_id.startswith(TEST_DATA_PREFIX)
 
         recording = PhoneCallRecording.objects.get(id=payload["recording_id"])
-        assert recording.account_code == E2E_PHONE_ACCOUNT_CODE
+        assert recording.account_code == TEST_DATA_PREFIX
+        assert recording.provider_recording_id.startswith(TEST_DATA_PREFIX)
         assert recording.storage_path is not None
         assert recording.storage_path.endswith(".wav")
         assert (storage_root / recording.storage_path).exists()
