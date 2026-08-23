@@ -42,8 +42,9 @@ interface PhoneCallTableProps {
   onRetry: () => void
   rows: readonly PhoneCallRecordOut[] | undefined
   emptyLabel: string
-  /** False on surfaces that only report a call's job (the job's own History
-      tab), where changing the link would move the call off the page. */
+  /** False on a surface that only reports a call's job. Both surfaces pass
+      true today — the History tab included, as v1's did: a call linked to the
+      wrong job is corrected from wherever it is noticed. */
   allowJobLinking: boolean
   /** Offered only where the caller can host the assign panel; a call with no
       company is otherwise simply reported as unmatched. */
@@ -207,9 +208,9 @@ export function PhoneCallTable({
                   </Button>
                 ) : (
                   // Also the branch for a call that HAS a company on a surface
-                  // that forbids linking. Unreachable today: the only such
-                  // surface is the job History tab, which lists calls already
-                  // linked to that job.
+                  // that forbids linking. Unreachable today: every surface
+                  // passes allowJobLinking, so only a call with no company
+                  // reaches this text.
                   <span className="text-xs text-gray-500">Assign company first</span>
                 )}
               </td>

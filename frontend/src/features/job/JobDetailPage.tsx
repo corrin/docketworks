@@ -31,6 +31,10 @@ const JobEstimateTab = lazy(() =>
 const JobActualTab = lazy(() =>
   import('./costing/JobActualTab').then((module) => ({ default: module.JobActualTab })),
 )
+// Lazy: the history tab pulls in the linked-calls table and its link dialog.
+const JobHistoryTab = lazy(() =>
+  import('./JobHistoryTab').then((module) => ({ default: module.JobHistoryTab })),
+)
 
 const PRICING_OPTIONS = [
   { key: 'fixed_price', label: 'Fixed Price' },
@@ -156,6 +160,10 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
       ) : activeTab === 'actual' ? (
         <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
           <JobActualTab key={jobId} jobId={jobId} />
+        </Suspense>
+      ) : activeTab === 'history' ? (
+        <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+          <JobHistoryTab key={jobId} jobId={jobId} />
         </Suspense>
       ) : (
         <div className="p-6 text-sm text-gray-500">This tab ships in a later slice.</div>
