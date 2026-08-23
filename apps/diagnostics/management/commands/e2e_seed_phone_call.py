@@ -133,9 +133,9 @@ class Command(BaseCommand):
 
         Every identifier this seed invents — the account code, the provider
         call id, the description — starts with ``[TEST]``, so nothing written
-        here could be mistaken for a value the provider sent. The account
-        code is the provider's customer account number in a real row, which
-        is why a plausible-looking one is exactly what it must not be.
+        here can be mistaken for a value the provider sent. On a real row the
+        account code is the provider's customer account number, so a
+        plausible-looking one is exactly what it must not hold.
 
         The classification columns are set directly instead of running
         PhoneMatcher: the matcher reads the phone book and the configured

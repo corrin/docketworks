@@ -160,10 +160,10 @@ class Command(BaseCommand):
         linked_quote_sheets = QuoteSpreadsheet.objects.filter(job__in=all_jobs)
         linked_pos = PurchaseOrder.objects.filter(supplier__in=named_companies)
 
-        # The description is the whole rule. Matching the call's job or
-        # company instead would miss the calls SET_NULL has already orphaned,
-        # and would sweep the standing test company's real calls, which are
-        # live data.
+        # The description is the whole rule. Matching on the call's job or
+        # company instead would miss every call whose job and company have
+        # already been set to NULL, and would sweep the standing test
+        # company's real calls, which are live data.
         e2e_calls = PhoneCallRecord.objects.filter(description__startswith=TEST_DATA_PREFIX)
         archived_recordings = PhoneCallRecording.objects.filter(call__in=e2e_calls).exclude(
             storage_path__isnull=True
