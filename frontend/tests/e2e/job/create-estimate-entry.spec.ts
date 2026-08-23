@@ -16,50 +16,88 @@ import { autoId, createTestJob, waitForAutosave } from '../helpers'
  *   custom Tab-to-next-row handler.
  */
 
+interface RowMatch {
+  row: Locator
+  /** The row's position in the table, which the SmartCostLinesTable
+      automation ids are keyed on. */
+  index: number
+}
+
+/**
+ * One pass over the rows. Descriptions live in textareas, so a row's
+ * description is not matchable as row text.
+ *
+ * A detached read throws rather than reading as an empty description: a row
+ * that vanished mid-scan is a scan to retry, and swallowing it as `''` made
+ * it indistinguishable from a row whose description really is blank — which
+ * is how the caller below came back with "no such row" and no retry.
+ */
 async function findRowsByDescription(
   page: Page,
   description: string,
   matcher: 'exact' | 'includes' = 'exact',
-): Promise<{ rows: Locator[]; indices: number[] }> {
+): Promise<RowMatch[]> {
   const allRows = page.locator('[data-automation-id^="DataTable-row-"]')
   const rowCount = await allRows.count()
-  const rows: Locator[] = []
-  const indices: number[] = []
+  const matches: RowMatch[] = []
 
   for (let i = 0; i < rowCount; i++) {
     const row = allRows.nth(i)
-    const textarea = row.locator('textarea').first()
-    const value = await textarea.inputValue().catch(() => '')
-    const matches = matcher === 'exact' ? value === description : value.includes(description)
-    if (matches) {
-      rows.push(row)
-      indices.push(i)
+    const value = await row.locator('textarea').first().inputValue()
+    const matched = matcher === 'exact' ? value === description : value.includes(description)
+    if (matched) {
+      matches.push({ row, index: i })
     }
   }
-  return { rows, indices }
+  return matches
 }
 
+/** One pass, for the callers asserting a row is NOT there. */
 async function findRowByDescription(page: Page, description: string): Promise<Locator | null> {
-  const { rows } = await findRowsByDescription(page, description)
-  return rows[0] ?? null
+  const [first] = await findRowsByDescription(page, description)
+  return first === undefined ? null : first.row
 }
 
-/** Retry the description scan: a just-created line swaps its draft row for a
- * server row mid-render, and a single pass can read rows between frames
- * (v1 hid the same race behind waitForTimeout sleeps). */
-async function waitForRowByDescription(page: Page, description: string): Promise<Locator> {
+/**
+ * Every matching row, retried until at least one matches.
+ *
+ * Every caller asserting presence goes through here, because the scan above
+ * is imperative: it reads rows one at a time while a settled cost-line write
+ * is followed by TWO refetches within about 80ms — the cost set, and the job
+ * itself (invalidateJobViews, because a cost-line write moves the job's
+ * ETag). A single pass can therefore read the table between frames and miss a
+ * row that is there, which is what failed this file once in a full sweep and
+ * passed eight times in isolation. Filtering a locator by its input value is
+ * not expressible, so polling the scan is the honest form; v1 hid the same
+ * race behind waitForTimeout sleeps.
+ */
+async function waitForRowsByDescription(
+  page: Page,
+  description: string,
+  matcher: 'exact' | 'includes' = 'exact',
+): Promise<RowMatch[]> {
+  const found: RowMatch[] = []
   await expect(async () => {
-    const row = await findRowByDescription(page, description)
-    expect(row).not.toBeNull()
+    const matches = await findRowsByDescription(page, description, matcher)
+    found.length = 0
+    found.push(...matches)
+    expect(found.length, `no row described "${description}"`).toBeGreaterThan(0)
   }).toPass({ timeout: 10000 })
-  const row = await findRowByDescription(page, description)
-  if (!row) throw new Error(`Row "${description}" vanished after appearing`)
-  return row
+  return found
+}
+
+/** The first matching row, retried until it appears. */
+async function waitForRowByDescription(page: Page, description: string): Promise<RowMatch> {
+  const [first] = await waitForRowsByDescription(page, description)
+  if (first === undefined) {
+    throw new Error(`Row "${description}" vanished after the scan that found it`)
+  }
+  return first
 }
 
 async function findRowIndexByDescription(page: Page, description: string): Promise<number> {
-  const { indices } = await findRowsByDescription(page, description)
-  return indices[0] ?? -1
+  const { index } = await waitForRowByDescription(page, description)
+  return index
 }
 
 async function navigateToEstimateTab(page: Page, jobUrl: string): Promise<void> {
@@ -154,7 +192,7 @@ test.describe.serial('estimate operations', () => {
     await labourOption.click()
     await pickSave
 
-    const labourRow = await waitForRowByDescription(page, 'Workshop')
+    const { row: labourRow } = await waitForRowByDescription(page, 'Workshop')
 
     const qtyInput = labourRow.locator('input').first()
     await qtyInput.click()
@@ -166,8 +204,7 @@ test.describe.serial('estimate operations', () => {
     // Verify persistence
     await navigateToEstimateTab(page, jobUrl)
 
-    const labourRowAfter = await findRowByDescription(page, 'Workshop')
-    expect(labourRowAfter).not.toBeNull()
+    await waitForRowByDescription(page, 'Workshop')
   })
 
   test('add Material entry', async ({ authenticatedPage: page }) => {
@@ -188,7 +225,7 @@ test.describe.serial('estimate operations', () => {
     await wingNutOption.click()
     await pickSave
 
-    const materialRow = await waitForRowByDescription(page, 'M8 ZINC WING NUT')
+    const { row: materialRow } = await waitForRowByDescription(page, 'M8 ZINC WING NUT')
 
     const qtyInput = materialRow.locator('input').first()
     await qtyInput.click()
@@ -200,8 +237,7 @@ test.describe.serial('estimate operations', () => {
     // Verify persistence
     await navigateToEstimateTab(page, jobUrl)
 
-    const materialRowAfter = await findRowByDescription(page, 'M8 ZINC WING NUT')
-    expect(materialRowAfter).not.toBeNull()
+    await waitForRowByDescription(page, 'M8 ZINC WING NUT')
   })
 
   test('add Adjustment entry', async ({ authenticatedPage: page }) => {
@@ -212,20 +248,17 @@ test.describe.serial('estimate operations', () => {
     // Verify persistence
     await navigateToEstimateTab(page, jobUrl)
 
-    const adjustmentRow = await findRowByDescription(page, 'Discount - repeat customer')
-    expect(adjustmentRow).not.toBeNull()
+    await waitForRowByDescription(page, 'Discount - repeat customer')
   })
 
   test('verify all entries persist', async ({ authenticatedPage: page }) => {
     await navigateToEstimateTab(page, jobUrl)
 
-    const labourRow = await findRowByDescription(page, 'Workshop')
-    const materialRow = await findRowByDescription(page, 'M8 ZINC WING NUT')
-    const adjustmentRow = await findRowByDescription(page, 'Discount - repeat customer')
-
-    expect(labourRow).not.toBeNull()
-    expect(materialRow).not.toBeNull()
-    expect(adjustmentRow).not.toBeNull()
+    // Each throws if its row never appears, and retries while the tab's two
+    // refetches settle.
+    await waitForRowByDescription(page, 'Workshop')
+    await waitForRowByDescription(page, 'M8 ZINC WING NUT')
+    await waitForRowByDescription(page, 'Discount - repeat customer')
   })
 
   test('edit quantity and unit cost', async ({ authenticatedPage: page }) => {
@@ -298,11 +331,10 @@ test.describe.serial('estimate operations', () => {
   test('change material code', async ({ authenticatedPage: page }) => {
     await navigateToEstimateTab(page, jobUrl)
 
-    // Count M8 ZINC rows before change
-    const { indices: m8IndicesBefore } = await findRowsByDescription(page, 'M8 ZINC WING NUT')
-    expect(m8IndicesBefore.length).toBeGreaterThan(0)
-
-    const materialRowIndex = m8IndicesBefore[0]
+    // Count M8 ZINC rows before change. The retrying wait comes first, so the
+    // count that follows is taken from a settled table.
+    const { index: materialRowIndex } = await waitForRowByDescription(page, 'M8 ZINC WING NUT')
+    const m8Before = await findRowsByDescription(page, 'M8 ZINC WING NUT')
 
     // Click the item cell button to open the selector
     const itemCell = autoId(page, `SmartCostLinesTable-item-${materialRowIndex}`)
@@ -327,12 +359,11 @@ test.describe.serial('estimate operations', () => {
     await navigateToEstimateTab(page, jobUrl)
 
     // Count M8 ZINC rows after - should be one less
-    const { indices: m8IndicesAfter } = await findRowsByDescription(page, 'M8 ZINC WING NUT')
-    expect(m8IndicesAfter.length).toBe(m8IndicesBefore.length - 1)
+    const m8After = await findRowsByDescription(page, 'M8 ZINC WING NUT')
+    expect(m8After.length).toBe(m8Before.length - 1)
 
     // Check for an M10 row using the helper with 'includes' matcher
-    const { rows: m10Rows } = await findRowsByDescription(page, 'M10', 'includes')
-    expect(m10Rows.length).toBeGreaterThan(0)
+    await waitForRowsByDescription(page, 'M10', 'includes')
   })
 
   test('delete costline', async ({ authenticatedPage: page }) => {
