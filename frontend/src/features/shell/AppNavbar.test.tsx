@@ -141,7 +141,7 @@ describe('AppNavbar — the Reports menu', () => {
 })
 
 describe('AppNavbar — the CRM menu', () => {
-  it('offers companies and people to office staff', async () => {
+  it('offers companies, people and calls to office staff', async () => {
     mockUser({ is_office_staff: true, is_superuser: false })
     const { user } = renderWithProviders(<AppNavbar />)
 
@@ -149,6 +149,9 @@ describe('AppNavbar — the CRM menu', () => {
     await waitFor(() => {
       expect(queryAutoId('AppNavbar-companies')).not.toBeNull()
       expect(queryAutoId('AppNavbar-people')).not.toBeNull()
+      // Every /api/crm/phone-calls* route is _require_office_staff, so this
+      // login can read the page the entry leads to.
+      expect(queryAutoId('AppNavbar-calls')).not.toBeNull()
     })
   })
 
