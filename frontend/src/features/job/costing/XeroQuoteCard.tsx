@@ -53,8 +53,9 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
     void queryClient.invalidateQueries({
       queryKey: jobJobsQuoteRetrieveQueryKey({ path: { job_id: jobId } }),
     })
-    // job.quoted flipped, which the header and other tabs read from the full
-    // job — and creating or deleting a Xero quote writes a JobEvent
+    // Invalidating only the quote query was rejected: job.quoted flipped,
+    // which the header and other tabs read from the full job — and creating
+    // or deleting a Xero quote writes a JobEvent
     // (apps/xero/documents/quote.py), so the timeline moves with it.
     void invalidateJobViews(queryClient, jobId)
   }

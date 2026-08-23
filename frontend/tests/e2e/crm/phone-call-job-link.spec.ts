@@ -31,8 +31,8 @@ const repoRoot = path.resolve(specDir, '../../../..')
 const managePy = path.join(repoRoot, 'manage.py')
 
 const seededCallSchema = z.object({
-  call_id: z.string().uuid(),
-  recording_id: z.string().uuid(),
+  call_id: z.uuid(),
+  recording_id: z.uuid(),
   job_number: z.number().int().positive(),
   download_url: z.string(),
 })

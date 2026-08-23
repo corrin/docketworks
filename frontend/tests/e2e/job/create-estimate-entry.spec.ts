@@ -331,10 +331,15 @@ test.describe.serial('estimate operations', () => {
   test('change material code', async ({ authenticatedPage: page }) => {
     await navigateToEstimateTab(page, jobUrl)
 
-    // Count M8 ZINC rows before change. The retrying wait comes first, so the
-    // count that follows is taken from a settled table.
-    const { index: materialRowIndex } = await waitForRowByDescription(page, 'M8 ZINC WING NUT')
-    const m8Before = await findRowsByDescription(page, 'M8 ZINC WING NUT')
+    // Count M8 ZINC rows before change, from the same settled scan that
+    // located the row: a second, non-retrying scan here could see a refetch
+    // mid-flight and undercount despite the row being on screen throughout.
+    const m8Before = await waitForRowsByDescription(page, 'M8 ZINC WING NUT')
+    const [firstM8] = m8Before
+    if (firstM8 === undefined) {
+      throw new Error('Row "M8 ZINC WING NUT" vanished after the scan that found it')
+    }
+    const materialRowIndex = firstM8.index
 
     // Click the item cell button to open the selector
     const itemCell = autoId(page, `SmartCostLinesTable-item-${materialRowIndex}`)

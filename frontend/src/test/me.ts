@@ -1,5 +1,7 @@
 import { http, HttpResponse } from 'msw'
 
+import type { UserProfile } from '@/api'
+
 import { server } from './msw'
 
 /**
@@ -9,7 +11,7 @@ import { server } from './msw'
  * inventing its own profile is how two of them would disagree about what
  * `is_office_staff: false` renders.
  */
-export function mockUser(overrides: Record<string, unknown> = {}): void {
+export function mockUser(overrides: Partial<UserProfile> = {}): void {
   server.use(
     http.get('*/api/accounts/me/', () =>
       HttpResponse.json({

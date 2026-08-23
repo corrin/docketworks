@@ -142,6 +142,7 @@ export function PeopleDirectoryPage() {
           <span>Refresh failed — showing the last loaded rows.</span>
           <button
             type="button"
+            data-automation-id="PeopleDirectory-refresh-retry"
             className="font-medium underline"
             onClick={() => void people.refetch()}
           >

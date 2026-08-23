@@ -31,7 +31,9 @@ const JobEstimateTab = lazy(() =>
 const JobActualTab = lazy(() =>
   import('./costing/JobActualTab').then((module) => ({ default: module.JobActualTab })),
 )
-// Lazy: the history tab pulls in the linked-calls table and its link dialog.
+// Lazy: a static import was rejected because it would put PhoneCallTable,
+// JobPicker and the link dialog into this page's initial chunk for every
+// visitor, most of whom never open History.
 const JobHistoryTab = lazy(() =>
   import('./JobHistoryTab').then((module) => ({ default: module.JobHistoryTab })),
 )

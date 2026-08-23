@@ -62,8 +62,10 @@ export function formatDateTime(iso: string): string {
 /**
  * A wire event type as a heading: `costline_updated` reads "Costline
  * Updated". Fable: the alternative was a hand-written label table, rejected
- * because the backend adds entry types without asking the frontend and an
- * unlisted one would then render blank rather than merely unpolished.
+ * because the backend adds event types without asking the frontend and an
+ * unlisted one would then render blank rather than merely unpolished
+ * (`entry_type` and `costline_kind` are closed sets and `history.ts` throws
+ * on an undeclared one).
  */
 export function formatEventType(snakeCase: string): string {
   return snakeCase

@@ -165,6 +165,7 @@ export function PhoneCallsPage() {
           <span>Refresh failed — showing the last loaded rows.</span>
           <button
             type="button"
+            data-automation-id={`${ID}-refresh-retry`}
             className="font-medium underline"
             onClick={() => void calls.refetch()}
           >

@@ -142,7 +142,8 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
     void queryClient.invalidateQueries({
       queryKey: jobJobsInvoicesRetrieveQueryKey({ path: { job_id: jobId } }),
     })
-    // Creating or deleting an invoice writes a JobEvent and bumps the job
+    // Invalidating only the finish/invoice queries was rejected: creating or
+    // deleting an invoice writes a JobEvent and bumps the job
     // (apps/xero/documents/invoice.py), so both of the job's views moved with
     // it — the timeline gained an entry and the ETag the header's next
     // If-Match carries is now stale.

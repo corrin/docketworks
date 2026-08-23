@@ -360,7 +360,6 @@ def test_confirm_deletes_e2e_phone_calls_with_their_files(phone_storage_root: Pa
     assert not PhoneCallRecord.objects.filter(pk=call.pk).exists()
     assert not PhoneCallRecording.objects.filter(pk=recording.pk).exists()
     assert not seeded_file.exists()
-    # A real call's description is whatever the provider recorded.
     assert PhoneCallRecord.objects.filter(pk=real_call.pk).exists()
     assert PhoneCallRecording.objects.filter(pk=real_recording.pk).exists()
     assert real_file.exists()

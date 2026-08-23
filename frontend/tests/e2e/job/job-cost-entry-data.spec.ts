@@ -196,10 +196,12 @@ async function findRowIndexByDescription(page: Page, description: string): Promi
  * expressible, so polling the scan is the honest form.
  */
 async function waitForRowIndexByDescription(page: Page, description: string): Promise<number> {
+  let index = -1
   await expect(async () => {
-    expect(await findRowIndexByDescription(page, description)).toBeGreaterThanOrEqual(0)
+    index = await findRowIndexByDescription(page, description)
+    expect(index).toBeGreaterThanOrEqual(0)
   }).toPass({ timeout: 10000 })
-  return findRowIndexByDescription(page, description)
+  return index
 }
 
 async function expectRowAbsent(page: Page, description: string): Promise<void> {
