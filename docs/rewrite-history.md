@@ -204,3 +204,12 @@ moved above the integrations in the layer contract so the cleanup can import
 the archive seam rather than reach a second command by name), and a company archived in Xero is the organisation's mirror rather than
 residue to the cleanup and the preflight; archived contacts stay importable
 because invoice linkage fetches them on demand.
+
+**Served but unreachable routes are gated, 2026-08-23.** `/purchasing/po` and
+`/purchasing/stock` were served, specced and green for weeks while nothing in
+the app linked to them: the PO specs navigate by `page.goto`, so a route can
+pass its spec and be invisible to a user. `scripts/checks/route_reachability.py`
+now enumerates every `createFileRoute` path and every in-app `to=`/`href=`/
+`navigate`/`redirect` target and fails the integration tier on any route with
+no target — the inverse of the outbound-link probe, which proves the URLs the
+app emits resolve. The first run over the tree found exactly those two.
