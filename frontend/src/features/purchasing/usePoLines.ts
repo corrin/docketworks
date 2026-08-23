@@ -18,7 +18,7 @@ import { draftCreateBody, type PoLineDraft } from './lines'
 
 export type PoHeaderPatch = Pick<
   PurchaseOrderUpdateRequest,
-  'reference' | 'status' | 'expected_delivery'
+  'reference' | 'status' | 'expected_delivery' | 'pickup_address_id'
 >
 
 export type PoLinePatch = Omit<PurchaseOrderLineUpdateRequest, 'id'>

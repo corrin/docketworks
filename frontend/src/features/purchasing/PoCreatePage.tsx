@@ -3,7 +3,12 @@ import { useMutation } from '@tanstack/react-query'
 import { useNavigate, useRouter } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
-import { apiErrorMessage, createPurchaseOrderMutation, type CompanySearchResult } from '@/api'
+import {
+  apiErrorMessage,
+  createPurchaseOrderMutation,
+  type CompanySearchResult,
+  type SupplierPickupAddressOut,
+} from '@/api'
 import { Button } from '@/components/ui/button'
 import { PoSummaryCard } from './PoSummaryCard'
 
@@ -12,6 +17,7 @@ export function PoCreatePage() {
   const router = useRouter()
   const [supplier, setSupplier] = useState<CompanySearchResult | null>(null)
   const [reference, setReference] = useState('')
+  const [pickupAddress, setPickupAddress] = useState<SupplierPickupAddressOut | null>(null)
   const createPo = useMutation(createPurchaseOrderMutation())
 
   const save = () => {
@@ -21,6 +27,8 @@ export function PoCreatePage() {
           supplier_id: supplier?.id ?? null,
           // ADR 0040: an empty reference is unset, and unset is null.
           reference: reference.trim() === '' ? null : reference,
+          // Unset lets the backend pick the supplier's primary address.
+          pickup_address_id: pickupAddress?.id ?? null,
         },
       },
       {
@@ -47,6 +55,8 @@ export function PoCreatePage() {
         onSelectSupplier={setSupplier}
         reference={reference}
         onReferenceChange={setReference}
+        pickupAddress={pickupAddress}
+        onSelectPickupAddress={setPickupAddress}
       />
 
       <div className="flex justify-end gap-2">

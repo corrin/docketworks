@@ -60,6 +60,23 @@ export type {
   SettingsSectionOut,
   XeroBrandingThemeOut,
 } from './generated/types.gen'
+// Pickup addresses (a supplier's collection points, chosen on a purchase
+// order) and the address-validation proxy the street field asks for candidates
+export {
+  companiesAddressesValidateCreateMutation,
+  companiesPickupAddressesCreateMutation,
+  companiesPickupAddressesDestroyMutation,
+  companiesPickupAddressesListOptions,
+  companiesPickupAddressesListQueryKey,
+  companiesPickupAddressesPartialUpdateMutation,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  AddressCandidate,
+  PatchedSupplierPickupAddressRequest,
+  SupplierPickupAddressOut,
+  SupplierPickupAddressRequest,
+} from './generated/types.gen'
+
 // Integration settings (superuser admin screen: the install's vendor
 // credentials, ADR 0053 — secrets are write-only on the wire)
 export {

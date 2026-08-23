@@ -79,6 +79,19 @@ export function AppNavbar() {
             </NavMenuLink>
           </NavMenu>
         )}
+        {/* Fable: Purchases, v1's label. Only the two routes that exist are
+            listed; Upload Supplier Pricing and Product Mappings are deferred
+            screens, and a deferred capability is hidden, not an inert entry. */}
+        {user.is_office_staff && (
+          <NavMenu label="Purchases" automationId="AppNavbar-purchases-menu">
+            <NavMenuLink to="/purchasing/po" automationId="AppNavbar-purchase-orders">
+              Purchase Orders
+            </NavMenuLink>
+            <NavMenuLink to="/purchasing/stock" automationId="AppNavbar-use-stock">
+              Use Stock
+            </NavMenuLink>
+          </NavMenu>
+        )}
         {/* Office staff only, as in v1: every entry is company-wide revenue
             or payroll, which a workshop login has no business reading. */}
         {user.is_office_staff && (

@@ -1,4 +1,4 @@
-import type { CompanySearchResult, PurchaseOrderDetail } from '@/api'
+import type { CompanySearchResult, PurchaseOrderDetail, SupplierPickupAddressOut } from '@/api'
 import {
   Select,
   SelectContent,
@@ -9,6 +9,7 @@ import {
 import { CompanyLookup } from '@/features/shared/company'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { formatDate } from '@/lib/format'
+import { PickupAddressSelector } from './PickupAddressSelector'
 import type { PoHeaderPatch } from './usePoLines'
 
 export const PO_STATUS_OPTIONS = [
@@ -25,6 +26,8 @@ interface PoSummaryCardCreateProps {
   onSelectSupplier: (company: CompanySearchResult | null) => void
   reference: string
   onReferenceChange: (value: string) => void
+  pickupAddress: SupplierPickupAddressOut | null
+  onSelectPickupAddress: (address: SupplierPickupAddressOut | null) => void
 }
 
 interface PoSummaryCardDetailProps {
@@ -66,6 +69,8 @@ function CreateFields({
   onSelectSupplier,
   reference,
   onReferenceChange,
+  pickupAddress,
+  onSelectPickupAddress,
 }: PoSummaryCardCreateProps) {
   return (
     <div className="space-y-4">
@@ -73,9 +78,20 @@ function CreateFields({
         id="po-supplier"
         label="Supplier"
         selectedCompany={supplier}
-        onSelectCompany={onSelectSupplier}
+        onSelectCompany={(company) => {
+          onSelectSupplier(company)
+          // An address belongs to its supplier; a new supplier starts unselected.
+          onSelectPickupAddress(null)
+        }}
         mode="supplier"
       />
+      {supplier && (
+        <PickupAddressSelector
+          supplier={{ id: supplier.id, name: supplier.name }}
+          selected={pickupAddress}
+          onChange={onSelectPickupAddress}
+        />
+      )}
       <div>
         <ReferenceLabel />
         <input
@@ -140,6 +156,19 @@ function DetailFields({ po, patchHeader }: PoSummaryCardDetailProps) {
           onBlur={referenceField.onBlur}
         />
       </div>
+      {po.supplier_id && (
+        <div className="sm:col-span-2">
+          <PickupAddressSelector
+            supplier={{ id: po.supplier_id, name: po.supplier }}
+            selected={po.pickup_address}
+            onChange={(address) =>
+              patchHeader({
+                pickup_address_id: address?.id ?? null,
+              })
+            }
+          />
+        </div>
+      )}
       <div>
         <span className="mb-1 block text-sm font-medium text-gray-700">Status</span>
         <Select value={po.status} onValueChange={(value) => patchHeader({ status: value })}>
