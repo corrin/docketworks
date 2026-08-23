@@ -44,3 +44,30 @@ export function localIsoDate(): string {
   const day = String(now.getDate()).padStart(2, '0')
   return `${now.getFullYear()}-${month}-${day}`
 }
+
+const NZ_DATE_TIME = new Intl.DateTimeFormat('en-NZ', {
+  dateStyle: 'short',
+  timeStyle: 'short',
+  // No timeZone: unlike formatDate above, these values carry a time of day
+  // and an offset. Pinning UTC would show a 9am Auckland call as 9pm the day
+  // before, so the reader's own zone is the only correct one here.
+})
+
+/** The one timestamp formatter, for the same cross-page string-equality
+    reason as formatDate — dates with a time of day go through here. */
+export function formatDateTime(iso: string): string {
+  return NZ_DATE_TIME.format(new Date(iso))
+}
+
+/**
+ * A wire event type as a heading: `costline_updated` reads "Costline
+ * Updated". Fable: the alternative was a hand-written label table, rejected
+ * because the backend adds entry types without asking the frontend and an
+ * unlisted one would then render blank rather than merely unpolished.
+ */
+export function formatEventType(snakeCase: string): string {
+  return snakeCase
+    .split('_')
+    .map((word) => (word === '' ? word : word[0]!.toUpperCase() + word.slice(1)))
+    .join(' ')
+}
