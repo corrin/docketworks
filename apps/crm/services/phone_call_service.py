@@ -705,7 +705,7 @@ class PhoneMatcher:
             for endpoint in PhoneEndpoint.objects.filter(is_active=True)
         }
 
-    def match_customer(self, *values: str) -> tuple[Company | None, Person | None]:
+    def match_customer(self, *values: str | None) -> tuple[Company | None, Person | None]:
         """Resolve numbers to a single owning company (and person when unambiguous)."""
         matches: set[tuple[str, str, str]] = set()
         for value in values:
@@ -737,8 +737,10 @@ class PhoneMatcher:
         """Classify a call's direction and parties from its two numbers."""
         normalized_origin = normalize_phone(origin)
         normalized_destination = normalize_phone(destination)
-        origin_endpoint = self.endpoints.get(normalized_origin)
-        destination_endpoint = self.endpoints.get(normalized_destination)
+        origin_endpoint = self.endpoints.get(normalized_origin) if normalized_origin else None
+        destination_endpoint = (
+            self.endpoints.get(normalized_destination) if normalized_destination else None
+        )
 
         if origin_endpoint and destination_endpoint:
             return CallClassification(
@@ -803,10 +805,18 @@ def is_call_payload(payload: ProviderPayload) -> bool:
     return bool(origin or destination)
 
 
-def normalize_phone(value: object) -> str:
-    """Delegate to the one phone-normalization implementation (ContactMethod's)."""
-    # Falsy inputs (None, "", 0) mean "no number".
-    return ContactMethod.normalize_phone(str(value) if value else None)
+def normalize_phone(value: object) -> str | None:
+    """Delegate to the one phone-normalization implementation (ContactMethod's).
+
+    None, not "", for "no number": ContactMethod.normalize_phone answers ""
+    because its own column is NOT NULL, but every number column on a call is
+    nullable with a not-blank check (ADR 0040). 2talk reports a withheld
+    caller as origin "", and the first real sync failed on exactly that row
+    when "" reached external_number.
+    """
+    if not value:
+        return None
+    return ContactMethod.normalize_phone(str(value)) or None
 
 
 def configured_own_numbers() -> set[str]:

@@ -15,7 +15,7 @@ from pytest_django.fixtures import SettingsWrapper
 
 from apps.company.models import ContactMethod
 from apps.core.models import AppError, IntegrationSettings
-from apps.crm.models import PhoneCallRecord, PhoneCallRecording
+from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
 from apps.crm.services.phone_call_service import (
     PhoneMatcher,
     PhoneProviderCallPage,
@@ -27,6 +27,7 @@ from apps.crm.services.phone_call_service import (
     rematch_calls_for_numbers,
     store_recording_bytes,
     sync_call_history,
+    upsert_call_record,
 )
 from apps.crm.tests.helpers import (
     link_person,
@@ -79,6 +80,14 @@ class TestNormalizePhone:
         assert normalize_phone("6496365131") == "+6496365131"
         assert normalize_phone("09 636 5131") == "+6496365131"
         assert normalize_phone("027 530 3238") == "+64275303238"
+
+    def test_no_number_normalizes_to_none_not_blank(self) -> None:
+        # A withheld caller arrives from the provider as origin "" — the call
+        # row's number columns are nullable with not-blank constraints, so
+        # "no number" must be NULL, never "".
+        assert normalize_phone("") is None
+        assert normalize_phone(None) is None
+        assert normalize_phone("Anonymous") is None
 
 
 class TestCallDurationCoercion:
@@ -424,3 +433,43 @@ class TestStoreRecordingBytes:
         assert recording.sha256 == hashlib.sha256(content).hexdigest()
         assert recording.archived_at is not None
         assert recording.account_code == call.account_code
+
+
+@pytest.mark.django_db
+class TestWithheldNumberCalls:
+    """2talk reports a withheld caller as origin "". The first real sync hit
+    this on its first page: every number column is nullable with a not-blank
+    check, so the row must store NULL for the missing party, not "".
+    """
+
+    def test_inbound_call_from_withheld_number_is_saved_with_null_external_number(self) -> None:
+        PhoneEndpoint.objects.create(
+            number="+6496365131",
+            label="Main line",
+            endpoint_type=PhoneEndpoint.EndpointType.MAIN_LINE,
+            is_active=True,
+        )
+        payload = {
+            "id": "10684389777",
+            "type": "Inbound",
+            "origin": "",
+            "destination": "+6496365131",
+            "calldate": "2026-08-21",
+            "calltime": "13:43:13",
+            "seconds": "60",
+            "charge": "0.00000000",
+            "status": "Ok",
+            "description": "New Zealand",
+        }
+
+        call, created = upsert_call_record(
+            payload=payload, account_code="15539090", matcher=PhoneMatcher()
+        )
+
+        assert created is True
+        call.refresh_from_db()
+        assert call.direction == PhoneCallRecord.Direction.INBOUND
+        assert call.origin is None
+        assert call.normalized_origin is None
+        assert call.external_number is None
+        assert call.our_number == "+6496365131"

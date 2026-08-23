@@ -491,8 +491,10 @@ def _endpoint_field_errors(
     elif instance is not None:
         number = instance.number
     else:
-        number = ""
+        return {"number": ["Phone endpoint requires a number."]}
     normalized = normalize_phone(number)
+    if normalized is None:
+        return {"number": ["Phone endpoint requires a number."]}
 
     if "is_active" in provided:
         is_active = bool(provided["is_active"])
