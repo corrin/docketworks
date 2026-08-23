@@ -13,8 +13,10 @@ import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
  */
 test.describe('job history', () => {
   test('an event is added and a header change is undone', async ({ authenticatedPage: page }) => {
-    const originalName = `[TEST] Job History ${Date.now()}`
-    const jobUrl = await createTestJob(page, 'History', { jobName: originalName })
+    // The suffix is all createTestJob needs: it builds `[TEST] Job History
+    // <ts>` itself, and passing jobName as well would make the suffix dead.
+    // The name the undo has to restore is read off the header below.
+    const jobUrl = await createTestJob(page, 'History')
     const jobId = getJobIdFromUrl(jobUrl)
 
     await autoId(page, 'JobViewTabs-history').click()
@@ -42,9 +44,12 @@ test.describe('job history', () => {
 
     const nameEditor = autoId(page, 'JobView-job-number').locator('..').locator('.inline-edit-text')
     const renamedTo = `[TEST] Job Renamed ${Date.now()}`
+    const originalName = (await nameEditor.textContent())?.trim()
+    if (!originalName) {
+      throw new Error('The job header carries no name to rename')
+    }
 
     await test.step('rename the job from the header', async () => {
-      await expect(nameEditor).toContainText(originalName)
       await nameEditor.click()
       const nameInput = nameEditor.locator('input')
       await nameInput.fill(renamedTo)

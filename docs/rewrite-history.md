@@ -95,14 +95,15 @@ rendering for is a fault to surface, not a shape to guess at.
 have one home in v2 — PersonDetailPage and CompanyDetailPage — and the calls
 page's Assign Number panel covers the call-to-number flow the card existed for.
 
-**A phone call's job controls are identified per row (2026-08-23).**
-`PhoneCallTable-linked-job-{callId}` and `PhoneCallTable-link-job-{callId}`,
-not v1's shared `PhoneCallTable-linked-job`: the shared id matched whichever
-linked row sorted first, so an assertion on it could pass on a call the test
-never touched. The job itself is chosen through the shared `JobPicker`
-(`PhoneCallTable-job-trigger`, `-job-search`, `-job-option-{job_number}`),
-which retires v1's native-select ids `PhoneCallTable-job-select` and
-`-job-search`.
+**Two phone-call automation ids changed from v1 (2026-08-23).** The linked-job
+badge is per row — `PhoneCallTable-linked-job-{callId}`, not v1's shared
+`PhoneCallTable-linked-job`, whose single id matched whichever linked row
+sorted first, so an assertion on it could pass on a call the test never
+touched. And `PhoneCallTable-job-select`, v1's native `<select>` of jobs, is
+retired: the job is chosen through the shared `JobPicker`, which opens from
+`PhoneCallTable-job-trigger` and lists `PhoneCallTable-job-option-{job_number}`.
+`PhoneCallTable-job-search` is the same id it was in v1; only its owner
+changed, from a hand-rolled filter box to the picker.
 
 **A seeded phone call is recognised by its `[TEST]` description (2026-08-23).**
 The phone provider is a pull-only portal, so an E2E environment can only

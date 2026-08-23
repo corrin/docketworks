@@ -13,10 +13,12 @@ import { autoId, createTestJob, expectStepUnder, getJobIdFromUrl } from '../help
  * <audio> per row with preload="metadata" made the browser download every
  * recording on page load.
  *
- * Three ids differ from v1 on purpose:
- * - `PhoneCallTable-job-select` / `-job-search` (a native <select> plus a
- *   filter box) are now the shared JobPicker's `PhoneCallTable-job-trigger`,
- *   `-job-search` and `-job-option-{job_number}`.
+ * Two ids differ from v1 on purpose:
+ * - `PhoneCallTable-job-select`, v1's native <select> of jobs, is retired: the
+ *   job is chosen through the shared JobPicker, which opens from
+ *   `PhoneCallTable-job-trigger` and lists `-job-option-{job_number}`.
+ *   `PhoneCallTable-job-search` is unchanged — same id, now emitted by the
+ *   picker rather than by a hand-rolled filter box.
  * - `PhoneCallTable-linked-job` is per row (`-linked-job-{callId}`): v1's
  *   shared id matched whichever linked row happened to sort first, so the
  *   assertion could pass on somebody else's call.

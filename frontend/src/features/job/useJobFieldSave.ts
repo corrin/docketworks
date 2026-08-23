@@ -2,15 +2,11 @@ import { useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
-import {
-  apiErrorMessage,
-  getFullJobOptions,
-  jobJobsPartialUpdateMutation,
-  jobJobsTimelineRetrieveQueryKey,
-} from '@/api'
+import { apiErrorMessage, getFullJobOptions, jobJobsPartialUpdateMutation } from '@/api'
 import { isConcurrencyError } from '@/lib/concurrency/interceptors'
 import { onConcurrencyRetry } from '@/lib/concurrency/retry-bus'
 import { buildJobDeltaEnvelope, changedFieldsOnly, snapshotJob, type JobFieldValues } from './delta'
+import { invalidateJobViews } from './invalidateJobViews'
 
 interface UseJobFieldSaveOptions {
   /** Called after EVERY successful save, including a Retry replay — the
@@ -62,17 +58,10 @@ export function useJobFieldSave(jobId: string, options?: UseJobFieldSaveOptions)
         rejectedChanges.current = Object.keys(remaining).length > 0 ? remaining : null
       }
       onSavedRef.current?.(changes)
-      await queryClient.invalidateQueries({
-        queryKey: getFullJobOptions({ path: { job_id: jobId } }).queryKey,
-      })
-      // The delta PATCH records a JobEvent, so the History tab's timeline is
-      // stale the moment a header edit lands — and the header sits ABOVE the
-      // tabs, so that tab is often on screen while the edit is made. Leaving
-      // it to the tab's own remount was rejected: the timeline would then
-      // silently omit the change the user just made.
-      await queryClient.invalidateQueries({
-        queryKey: jobJobsTimelineRetrieveQueryKey({ path: { job_id: jobId } }),
-      })
+      // Awaited: the next edit diffs against the baseline this refetch brings
+      // back, so returning before it lands would let a second keystroke build
+      // its delta from the pre-save values.
+      await invalidateJobViews(queryClient, jobId)
     },
     [jobId, mutateAsync, queryClient],
   )

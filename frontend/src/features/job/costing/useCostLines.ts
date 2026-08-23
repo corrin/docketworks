@@ -11,6 +11,7 @@ import {
   jobJobsCostSetsRetrieveQueryKey,
 } from '@/api'
 import type { CostLineCreateRequest, CostLineOut, CostLineUpdateRequest, CostSetOut } from '@/api'
+import { invalidateJobViews } from '@/features/job/invalidateJobViews'
 import { restoreDeletedRow } from '@/features/shared/optimistic'
 import type { CostSetKind } from './types'
 
@@ -41,7 +42,14 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
   const deleteMutation = useMutation(jobCostLinesDeleteDestroyMutation())
   const consumeMutation = useMutation(consumeStockMutation())
 
-  const invalidate = () => void queryClient.invalidateQueries({ queryKey })
+  // The cost set, plus the job's two views: a cost line is a timeline entry
+  // (costline_created / costline_updated) and its cost set's server-computed
+  // summary rides on the job detail, so a write that refreshed only this grid
+  // left the History tab and the header showing pre-write numbers.
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey })
+    void invalidateJobViews(queryClient, jobId)
+  }
   // An in-flight background refetch resolving AFTER an optimistic write
   // would clobber it with pre-write data; cancellation closes that window.
   const cancelInFlight = () => void queryClient.cancelQueries({ queryKey })

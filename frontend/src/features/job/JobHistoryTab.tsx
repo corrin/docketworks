@@ -6,7 +6,6 @@ import { toast } from 'sonner'
 import {
   apiErrorMessage,
   crmPhoneCallsListOptions,
-  getFullJobOptions,
   jobJobsTimelineRetrieveOptions,
   jobJobsTimelineRetrieveQueryKey,
   jobJobsUndoChangeCreateMutation,
@@ -21,6 +20,7 @@ import { QueryState } from '@/features/shared/QueryState'
 import { isConcurrencyError } from '@/lib/concurrency/interceptors'
 import { formatDateTime } from '@/lib/format'
 
+import { invalidateJobViews } from './invalidateJobViews'
 import {
   costlineDescription,
   costlineKindClass,
@@ -73,18 +73,16 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
   })
 
   const timelineKey = jobJobsTimelineRetrieveQueryKey({ path: { job_id: jobId } })
-  const jobKey = getFullJobOptions({ path: { job_id: jobId } }).queryKey
 
   const addEvent = useMutation({
     ...jobRestJobsEventsCreateMutation(),
     onSuccess: () => {
       setDescription('')
       setIsAddEventOpen(false)
-      void queryClient.invalidateQueries({ queryKey: timelineKey })
-      // The job's own version moved with the write, so the detail cache the
-      // header's inline edits read is re-fetched rather than left behind a
-      // stale ETag.
-      void queryClient.invalidateQueries({ queryKey: jobKey })
+      // Both views: the entry belongs on the timeline, and the job's own
+      // version moved with the write, so the detail cache the header's inline
+      // edits read is re-fetched rather than left behind a stale ETag.
+      void invalidateJobViews(queryClient, jobId)
       toast.success('Event added')
     },
     onError: (error) => {
@@ -99,11 +97,10 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
     ...jobJobsUndoChangeCreateMutation(),
     onSuccess: () => {
       setExpandedIds(new Set())
-      void queryClient.invalidateQueries({ queryKey: timelineKey })
       // v1 called window.location.reload() here, throwing away every other
-      // tab's cache to refresh the header; invalidating the job detail is the
-      // same refresh without the round trip.
-      void queryClient.invalidateQueries({ queryKey: jobKey })
+      // tab's cache to refresh the header; invalidating the job's two views is
+      // the same refresh without the round trip.
+      void invalidateJobViews(queryClient, jobId)
       toast.success('Change undone successfully')
     },
     onError: (error) => {
