@@ -300,13 +300,23 @@
     review 2026-08-03.
 
 - operation: purchasing_purchase_orders_partial_update
-  change: "A pickup address must belong to the PO's supplier (v1 accepted any active address)"
+  change: "A pickup address must belong to the PO's supplier, and changing the supplier drops it (v1 accepted any active address and kept it across a supplier change)"
   reason: >
     v1's _update_pickup_address looked the id up with is_active=True only, so
     an id from another company — a stale client, a hand-typed request — was
-    linked and printed on the PO as the collection point. The screen only ever
-    offers the supplier's own addresses, so a foreign id is a mistake; v2
-    refuses it with a 400 on create and update alike.
+    linked and printed on the PO as the collection point, and a PO moved to
+    another supplier kept the old supplier's yard. The screen only ever offers
+    the supplier's own addresses, so a foreign id is a mistake; v2 refuses it
+    with a 400, and a supplier change clears the address unless the same
+    request names a new one.
+
+- operation: createPurchaseOrder
+  change: "pickup_address_id: unsent means the supplier's primary, null means none (v1 treated both as 'pick the primary')"
+  reason: >
+    v1 auto-selected the primary whenever the id was falsy, so a client could
+    not create a PO with no pickup address while the supplier had a primary.
+    Unset is NULL (ADR 0040): a null the client sends is a choice, and only an
+    absent key defers to the primary. An id from another company is a 400.
 
 - operation: purchasing_purchase_orders_partial_update
   change: "Omitted PO-line fields keep their stored value (v1 reset quantity/price_tbc to defaults)"

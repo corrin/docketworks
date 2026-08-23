@@ -726,6 +726,18 @@ def _apply_pickup_address_write(
     ):
         if field in supplied:
             setattr(address, field, supplied[field])
+    # Fable: a company's first active address is its primary. PO creation
+    # without an explicit choice resolves to the primary, so a company whose
+    # only address is not primary would resolve to nothing; owned here rather
+    # than by a client so every caller of the endpoint gets it.
+    # `_state.adding`, not `pk is None`: the UUID primary key is assigned at
+    # construction, so an unsaved row already has one.
+    if address._state.adding:
+        has_active = SupplierPickupAddress.objects.filter(
+            company=address.company, is_active=True
+        ).exists()
+        if not has_active:
+            address.is_primary = True
     try:
         with transaction.atomic():  # savepoint: keep the connection usable on conflict
             address.save()

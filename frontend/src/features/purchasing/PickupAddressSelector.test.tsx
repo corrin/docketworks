@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { SupplierPickupAddressOut } from '@/api'
+import { expectNoAccessibilityViolations } from '@/test/accessibility'
 import { autoId, queryAutoId } from '@/test/auto-id'
 import { server } from '@/test/msw'
 import { renderWithProviders } from '@/test/render'
@@ -35,11 +36,12 @@ const SELECTED: SupplierPickupAddressOut = {
 describe('PickupAddressSelector', () => {
   it('shows the chosen address and Clear hands back null', async () => {
     const onChange = vi.fn()
-    const { user } = renderWithProviders(
+    const { user, container } = renderWithProviders(
       <PickupAddressSelector supplier={SUPPLIER} selected={SELECTED} onChange={onChange} />,
     )
 
     expect(await screen.findByLabelText('Pickup address')).toHaveValue('1 Steel Road, Auckland')
+    await expectNoAccessibilityViolations(container)
     await user.click(autoId('PickupAddressSelector-clear-button'))
 
     expect(onChange).toHaveBeenCalledWith(null)

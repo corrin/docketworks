@@ -79,9 +79,11 @@ export function AppNavbar() {
             </NavMenuLink>
           </NavMenu>
         )}
-        {/* Fable: Purchases, v1's label. Only the two routes that exist are
-            listed; Upload Supplier Pricing and Product Mappings are deferred
-            screens, and a deferred capability is hidden, not an inert entry. */}
+        {/* Fable: Purchases, v1's label and v1's office-staff gate (the PO
+            endpoints themselves are any-staff; the gate is the menu's, as it
+            was). Only the two routes that exist are listed: Upload Supplier
+            Pricing and Product Mappings are deferred screens, and a deferred
+            capability is hidden, not an inert entry. */}
         {user.is_office_staff && (
           <NavMenu label="Purchases" automationId="AppNavbar-purchases-menu">
             <NavMenuLink to="/purchasing/po" automationId="AppNavbar-purchase-orders">

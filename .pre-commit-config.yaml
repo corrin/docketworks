@@ -65,7 +65,10 @@ repos:
         name: status table (regenerates on drift)
         entry: uv run python -m scripts.checks.status_table
         language: system
-        types: [python]
+        # Fable: always, not types: [python]. The table counts E2E specs and
+        # exposed operations, so a frontend-only commit moved it while the
+        # hook slept; CI runs --check on every push and went red.
+        always_run: true
         pass_filenames: false
       - id: code-quality
         name: code quality metrics (regenerates on drift)

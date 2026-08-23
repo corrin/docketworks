@@ -73,7 +73,7 @@ test.describe.serial('pickup addresses', () => {
     await expect(suggestions).toBeVisible()
     await suggestions.locator('div').filter({ hasText: PROBE_MATCH }).first().click()
     // The candidate fills the rest of the form.
-    await expect(modal.locator('input[placeholder="City"]')).not.toHaveValue('')
+    await expect(autoId(page, 'PickupAddressSelectionModal-city-input')).not.toHaveValue('')
 
     const created = page.waitForResponse(
       (response) =>
@@ -113,7 +113,10 @@ test.describe.serial('pickup addresses', () => {
     // Re-select the address from the list.
     await autoId(page, 'PickupAddressSelector-modal-button').click()
     await expect(modal).toBeVisible()
-    await autoId(page, 'PickupAddressSelectionModal-select-button').first().click()
+    await page
+      .locator('[data-automation-id^="PickupAddressSelectionModal-select-"]')
+      .first()
+      .click()
     await expect(modal).toBeHidden()
     await expect(autoId(page, 'PickupAddressSelector-display')).toHaveValue(PROBE_MATCH)
   })
@@ -124,9 +127,10 @@ test.describe.serial('pickup addresses', () => {
     await autoId(page, 'PickupAddressSelector-modal-button').click()
     const modal = autoId(page, 'PickupAddressSelectionModal-container')
     await expect(modal).toBeVisible()
-    await expect(autoId(page, 'PickupAddressSelectionModal-select-button').first()).toBeVisible()
+    const editButtons = page.locator('[data-automation-id^="PickupAddressSelectionModal-edit-"]')
+    await expect(editButtons.first()).toBeVisible()
 
-    await modal.locator('button[title="Edit address"]').first().click()
+    await editButtons.first().click()
     const name = autoId(page, 'PickupAddressSelectionModal-name-input')
     expect((await name.inputValue()).length).toBeGreaterThan(0)
     const newName = `Updated ${Date.now()}`
@@ -135,7 +139,7 @@ test.describe.serial('pickup addresses', () => {
     const updated = page.waitForResponse(
       (response) =>
         response.url().includes('/pickup-addresses/') &&
-        response.request().method() === 'PATCH' &&
+        response.request().method() === 'PUT' &&
         response.status() === 200,
     )
     await autoId(page, 'PickupAddressSelectionModal-submit').click()
@@ -152,11 +156,14 @@ test.describe.serial('pickup addresses', () => {
     await autoId(page, 'PickupAddressSelector-modal-button').click()
     const modal = autoId(page, 'PickupAddressSelectionModal-container')
     await expect(modal).toBeVisible()
-    const cards = autoId(page, 'PickupAddressSelectionModal-select-button')
+    const cards = page.locator('[data-automation-id^="PickupAddressSelectionModal-address-"]')
     await expect(cards.first()).toBeVisible()
     const before = await cards.count()
 
-    await modal.locator('button[title="Delete address"]').first().click()
+    await page
+      .locator('[data-automation-id^="PickupAddressSelectionModal-delete-"]')
+      .first()
+      .click()
     await expect(modal.getByText('Delete Address?')).toBeVisible()
     const deleted = page.waitForResponse(
       (response) =>
@@ -164,7 +171,7 @@ test.describe.serial('pickup addresses', () => {
         response.request().method() === 'DELETE' &&
         response.status() === 204,
     )
-    await modal.getByRole('button', { name: 'Delete', exact: true }).click()
+    await autoId(page, 'PickupAddressSelectionModal-confirm-delete').click()
     await deleted
 
     await expect(modal).toBeVisible()

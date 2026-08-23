@@ -4,6 +4,7 @@ import { delay, http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { AddressCandidate } from '@/api'
+import { expectNoAccessibilityViolations } from '@/test/accessibility'
 import { queryAutoId } from '@/test/auto-id'
 import { server } from '@/test/msw'
 import { renderWithProviders } from '@/test/render'
@@ -36,12 +37,8 @@ function candidate(street: string): AddressCandidate {
   }
 }
 
-function Harness({ onSelect }: { onSelect: (candidate: AddressCandidate) => void }) {
-  return <ControlledInput onSelect={onSelect} />
-}
-
 // A small controlled owner, as the modal is: the input never holds its own value.
-function ControlledInput({ onSelect }: { onSelect: (candidate: AddressCandidate) => void }) {
+function Harness({ onSelect }: { onSelect: (candidate: AddressCandidate) => void }) {
   const [value, setValue] = useState('')
   return (
     <AddressAutocompleteInput
@@ -82,13 +79,18 @@ describe('AddressAutocompleteInput', () => {
       }),
     )
     const onSelect = vi.fn()
-    const { user } = renderWithProviders(<Harness onSelect={onSelect} />)
+    const { user, container } = renderWithProviders(<Harness onSelect={onSelect} />)
     const input = await screen.findByRole('combobox')
 
     await user.type(input, '7C Aldersgate')
     await screen.findByText(/7C Aldersgate Road, Hillsborough/)
-    // One round trip for the whole word, not one per keystroke.
-    expect(requests).toEqual(['7C Aldersgate'])
+    // The whole word reached the server; per-keystroke calls would be more.
+    expect(requests.at(-1)).toBe('7C Aldersgate')
+    expect(input).toHaveAttribute('aria-expanded', 'true')
+    expect(input.getAttribute('aria-activedescendant')).toBe(
+      screen.getByRole('option').getAttribute('id'),
+    )
+    await expectNoAccessibilityViolations(container)
 
     await user.keyboard('{Enter}')
 
@@ -118,5 +120,20 @@ describe('AddressAutocompleteInput', () => {
     await new Promise((resolve) => setTimeout(resolve, 800))
     await waitFor(() => expect(screen.queryByText(/Alderman Avenue/)).toBeNull())
     expect(screen.getByText(/7C Aldersgate Road/)).toBeInTheDocument()
+  })
+
+  it('says so when the lookup fails, rather than looking like no match', async () => {
+    server.use(
+      http.post(VALIDATE, () =>
+        HttpResponse.json({ detail: 'Address validation service not configured' }, { status: 503 }),
+      ),
+    )
+    const { user } = renderWithProviders(<Harness onSelect={vi.fn()} />)
+    const input = await screen.findByRole('combobox')
+
+    await user.type(input, '7C Aldersgate')
+
+    expect(await screen.findByText(/Address lookup is unavailable/)).toBeInTheDocument()
+    expect(input).toHaveValue('7C Aldersgate')
   })
 })

@@ -235,6 +235,40 @@ class TestPurchaseOrderCreate:
         po = PurchaseOrder.objects.get(id=response.json()["id"])
         assert po.po_lines.get().dimensions == "2400x1200x6"
 
+    def test_an_explicit_null_pickup_address_means_none(
+        self, client: Client, supplier: Company
+    ) -> None:
+        """Null is a choice (ADR 0040), not an invitation to pick the primary."""
+        SupplierPickupAddress.objects.create(
+            company=supplier, name="Yard", street="1 Steel Rd", city="Auckland", is_primary=True
+        )
+
+        response = client.post(
+            "/api/purchasing/purchase-orders/",
+            data={"supplier_id": str(supplier.id), "pickup_address_id": None},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201
+        assert PurchaseOrder.objects.get(id=response.json()["id"]).pickup_address_id is None
+
+    def test_a_pickup_address_without_a_supplier_is_refused(
+        self, client: Client, supplier: Company
+    ) -> None:
+        """An address belongs to a supplier; a PO with none cannot collect from one."""
+        own = SupplierPickupAddress.objects.create(
+            company=supplier, name="Yard", street="1 Steel Rd", city="Auckland"
+        )
+
+        response = client.post(
+            "/api/purchasing/purchase-orders/",
+            data={"pickup_address_id": str(own.id)},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        assert PurchaseOrder.objects.count() == 0
+
     def test_primary_pickup_address_is_selected_automatically(
         self, client: Client, supplier: Company
     ) -> None:
@@ -656,6 +690,27 @@ class TestPurchaseOrderUpdate:
         po.refresh_from_db()
         assert po.status == "draft"
 
+    def test_the_suppliers_own_pickup_address_is_linked(
+        self, client: Client, supplier: Company
+    ) -> None:
+        """The converse of the refusal: the supplier's own yard links."""
+        own = SupplierPickupAddress.objects.create(
+            company=supplier, name="Yard", street="1 Steel Rd", city="Auckland"
+        )
+        po = make_purchase_order(supplier=supplier)
+        etag = _current_etag(client, po)
+
+        response = client.patch(
+            _detail_url(po),
+            data={"pickup_address_id": str(own.id)},
+            content_type="application/json",
+            headers={"If-Match": etag},
+        )
+
+        assert response.status_code == 200
+        po.refresh_from_db()
+        assert po.pickup_address_id == own.id
+
     def test_another_companys_pickup_address_is_refused(
         self, client: Client, supplier: Company
     ) -> None:
@@ -675,8 +730,32 @@ class TestPurchaseOrderUpdate:
         )
 
         assert response.status_code == 400
-        assert "does not belong to supplier" in response.json()["detail"]
         po.refresh_from_db()
+        assert po.pickup_address_id is None
+
+    def test_changing_the_supplier_drops_the_old_suppliers_yard(
+        self, client: Client, supplier: Company
+    ) -> None:
+        """A pickup address is the supplier's; it does not follow the PO to another supplier."""
+        own = SupplierPickupAddress.objects.create(
+            company=supplier, name="Yard", street="1 Steel Rd", city="Auckland"
+        )
+        po = make_purchase_order(supplier=supplier)
+        po.pickup_address = own
+        po.save()
+        other = make_company("Other Supplier Ltd", is_supplier=True)
+        etag = _current_etag(client, po)
+
+        response = client.patch(
+            _detail_url(po),
+            data={"supplier_id": str(other.id)},
+            content_type="application/json",
+            headers={"If-Match": etag},
+        )
+
+        assert response.status_code == 200
+        po.refresh_from_db()
+        assert po.supplier_id == other.id
         assert po.pickup_address_id is None
 
     def test_pickup_address_can_be_cleared_with_an_explicit_null(

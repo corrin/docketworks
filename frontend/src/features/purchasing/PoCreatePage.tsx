@@ -17,7 +17,9 @@ export function PoCreatePage() {
   const router = useRouter()
   const [supplier, setSupplier] = useState<CompanySearchResult | null>(null)
   const [reference, setReference] = useState('')
-  const [pickupAddress, setPickupAddress] = useState<SupplierPickupAddressOut | null>(null)
+  // undefined until the user touches it: an unsent field lets the backend
+  // pick the supplier's primary address; a null is the user's "none".
+  const [pickupAddress, setPickupAddress] = useState<SupplierPickupAddressOut | null>()
   const createPo = useMutation(createPurchaseOrderMutation())
 
   const save = () => {
@@ -27,8 +29,7 @@ export function PoCreatePage() {
           supplier_id: supplier?.id ?? null,
           // ADR 0040: an empty reference is unset, and unset is null.
           reference: reference.trim() === '' ? null : reference,
-          // Unset lets the backend pick the supplier's primary address.
-          pickup_address_id: pickupAddress?.id ?? null,
+          ...(pickupAddress === undefined ? {} : { pickup_address_id: pickupAddress?.id ?? null }),
         },
       },
       {
@@ -57,6 +58,7 @@ export function PoCreatePage() {
         onReferenceChange={setReference}
         pickupAddress={pickupAddress}
         onSelectPickupAddress={setPickupAddress}
+        onResetPickupAddress={() => setPickupAddress(undefined)}
       />
 
       <div className="flex justify-end gap-2">

@@ -10,18 +10,20 @@ interface PickupAddressSelectorProps {
   supplier: PickupSupplier
   selected: SupplierPickupAddressOut | null
   onChange: (address: SupplierPickupAddressOut | null) => void
+  /** Shown while nothing is selected; the create page says what the backend will do instead. */
+  placeholder?: string
 }
 
 /**
  * The PO's pickup address: a read-only display of the chosen one, a button
- * opening the supplier's list, and a clear. Rendered only once the PO has a
- * supplier — the addresses are the supplier's, so without one there is
- * nothing to choose from and the control would be a dead button.
+ * opening the supplier's list, and a clear. The owner renders it only once
+ * the PO has a supplier, because the addresses are the supplier's.
  */
 export function PickupAddressSelector({
   supplier,
   selected,
   onChange,
+  placeholder = 'No pickup address selected',
 }: PickupAddressSelectorProps) {
   const [open, setOpen] = useState(false)
 
@@ -29,11 +31,12 @@ export function PickupAddressSelector({
     <div>
       <span className="mb-1 block text-sm font-medium text-gray-700">Pickup address</span>
       <div className="flex items-center gap-2">
+        {/* An input, not a span: the E2E contract reads this via inputValue(). */}
         <input
           type="text"
           readOnly
           className={`${INPUT_CLASS} bg-gray-50`}
-          placeholder="No pickup address selected"
+          placeholder={placeholder}
           aria-label="Pickup address"
           value={selected?.formatted_address ?? ''}
           data-automation-id="PickupAddressSelector-display"
@@ -63,7 +66,10 @@ export function PickupAddressSelector({
           </Button>
         )}
       </div>
+      {/* Keyed on the supplier so an edit in progress never outlives the
+          supplier it belonged to. */}
       <PickupAddressModal
+        key={supplier.id}
         open={open}
         supplier={supplier}
         selectedId={selected?.id ?? null}

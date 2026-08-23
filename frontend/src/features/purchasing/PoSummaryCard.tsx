@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/select'
 import { CompanyLookup } from '@/features/shared/company'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
+import { INPUT_CLASS } from '@/components/ui/field'
 import { formatDate } from '@/lib/format'
 import { PickupAddressSelector } from './PickupAddressSelector'
 import type { PoHeaderPatch } from './usePoLines'
@@ -26,14 +27,17 @@ interface PoSummaryCardCreateProps {
   onSelectSupplier: (company: CompanySearchResult | null) => void
   reference: string
   onReferenceChange: (value: string) => void
-  pickupAddress: SupplierPickupAddressOut | null
+  /** undefined: untouched, the backend picks the primary; null: cleared, none. */
+  pickupAddress: SupplierPickupAddressOut | null | undefined
   onSelectPickupAddress: (address: SupplierPickupAddressOut | null) => void
+  /** A new supplier starts untouched: its addresses are its own. */
+  onResetPickupAddress: () => void
 }
 
 interface PoSummaryCardDetailProps {
   mode: 'detail'
   po: PurchaseOrderDetail
-  patchHeader: (fields: PoHeaderPatch) => void
+  patchHeader: (fields: PoHeaderPatch, display?: Partial<PurchaseOrderDetail>) => void
 }
 
 type PoSummaryCardProps = PoSummaryCardCreateProps | PoSummaryCardDetailProps
@@ -61,9 +65,6 @@ function ReferenceLabel() {
   )
 }
 
-const REFERENCE_INPUT_CLASS =
-  'w-full rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500'
-
 function CreateFields({
   supplier,
   onSelectSupplier,
@@ -71,6 +72,7 @@ function CreateFields({
   onReferenceChange,
   pickupAddress,
   onSelectPickupAddress,
+  onResetPickupAddress,
 }: PoSummaryCardCreateProps) {
   return (
     <div className="space-y-4">
@@ -80,16 +82,20 @@ function CreateFields({
         selectedCompany={supplier}
         onSelectCompany={(company) => {
           onSelectSupplier(company)
-          // An address belongs to its supplier; a new supplier starts unselected.
-          onSelectPickupAddress(null)
+          onResetPickupAddress()
         }}
         mode="supplier"
       />
       {supplier && (
         <PickupAddressSelector
           supplier={{ id: supplier.id, name: supplier.name }}
-          selected={pickupAddress}
+          selected={pickupAddress ?? null}
           onChange={onSelectPickupAddress}
+          placeholder={
+            pickupAddress === undefined
+              ? "The supplier's primary address, unless chosen here"
+              : 'No pickup address'
+          }
         />
       )}
       <div>
@@ -100,7 +106,7 @@ function CreateFields({
           value={reference}
           autoComplete="off"
           data-automation-id="PoSummaryCard-reference"
-          className={REFERENCE_INPUT_CLASS}
+          className={INPUT_CLASS}
           onChange={(event) => onReferenceChange(event.target.value)}
         />
       </div>
@@ -150,7 +156,7 @@ function DetailFields({ po, patchHeader }: PoSummaryCardDetailProps) {
           value={referenceField.value}
           autoComplete="off"
           data-automation-id="PoSummaryCard-reference"
-          className={REFERENCE_INPUT_CLASS}
+          className={INPUT_CLASS}
           onChange={(event) => referenceField.onChange(event.target.value)}
           onFocus={referenceField.onFocus}
           onBlur={referenceField.onBlur}
@@ -162,9 +168,7 @@ function DetailFields({ po, patchHeader }: PoSummaryCardDetailProps) {
             supplier={{ id: po.supplier_id, name: po.supplier }}
             selected={po.pickup_address}
             onChange={(address) =>
-              patchHeader({
-                pickup_address_id: address?.id ?? null,
-              })
+              patchHeader({ pickup_address_id: address?.id ?? null }, { pickup_address: address })
             }
           />
         </div>
