@@ -175,7 +175,7 @@ describe('PhoneCallTable — the plain columns', () => {
       rows: [
         call(),
         call({ id: 'call-3', duration_seconds: 45, direction: 'outbound' }),
-        call({ id: 'call-4', duration_seconds: 0, direction: 'satellite' }),
+        call({ id: 'call-4', duration_seconds: 0, direction: 'unknown' }),
       ],
     })
 
@@ -186,8 +186,9 @@ describe('PhoneCallTable — the plain columns', () => {
     expect(screen.getByText('0s')).toBeVisible()
     expect(screen.getByText('Inbound')).toBeVisible()
     expect(screen.getByText('Outbound')).toBeVisible()
-    // A direction the frontend has never heard of reads as Unknown rather
-    // than leaking the wire value into the page.
+    // The provider's own "unknown" reads as a label, never as the raw wire
+    // value; a direction the wire does not declare throws instead
+    // (phoneCallFilters.test.ts).
     expect(screen.getByText('Unknown')).toBeVisible()
   })
 

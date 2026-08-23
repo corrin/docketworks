@@ -15,12 +15,6 @@ import { getFullJobOptions, jobJobsTimelineRetrieveQueryKey } from '@/api'
  * (src/lib/concurrency/interceptors.ts). A write that bumps `updated_at`
  * without refreshing that store leaves the user's next header edit to 412.
  *
- * The call sites are exactly: the header field save (useJobFieldSave), the
- * History tab's add-event and undo (JobHistoryTab), cost-line create, patch,
- * delete and stock consumption (costing/useCostLines), Xero quote create and
- * delete (costing/XeroQuoteCard), and invoice create and delete
- * (JobFinishTab).
- *
  * One writer is NOT covered: `features/timesheet/useTimesheetEntries.ts`
  * writes cost lines against arbitrary jobs and would have to reach across
  * features to call this. The hole is real — open a job, book time to it on

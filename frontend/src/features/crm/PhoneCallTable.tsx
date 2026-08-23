@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { ListTable } from '@/features/shared/ListTable'
 import { formatDateTime } from '@/lib/format'
 
+import { callDirectionLabel } from './phoneCallFilters'
 import { linkedJobOption, PhoneCallLinkJobDialog } from './PhoneCallLinkJobDialog'
 
 /** `45s` under a minute, `1m 07s` above it — the seconds pad so a column of
@@ -21,13 +22,6 @@ function formatDuration(seconds: number): string {
   const remainder = seconds % 60
   if (minutes === 0) return `${remainder}s`
   return `${minutes}m ${String(remainder).padStart(2, '0')}s`
-}
-
-function formatDirection(direction: string): string {
-  if (direction === 'inbound') return 'Inbound'
-  if (direction === 'outbound') return 'Outbound'
-  if (direction === 'internal') return 'Internal'
-  return 'Unknown'
 }
 
 /** The recording's playable URL, or null when there is nothing to play. */
@@ -154,7 +148,7 @@ export function PhoneCallTable({
               </td>
               <td className="px-3 py-2">
                 <span className="rounded-full border border-gray-300 px-2 py-0.5 text-xs text-gray-700">
-                  {formatDirection(call.direction)}
+                  {callDirectionLabel(call.direction)}
                 </span>
               </td>
               <td className="whitespace-nowrap px-3 py-2 text-gray-700">

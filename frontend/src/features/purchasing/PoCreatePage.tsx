@@ -10,6 +10,7 @@ import {
   type SupplierPickupAddressOut,
 } from '@/api'
 import { Button } from '@/components/ui/button'
+import { orNull } from '@/features/shared/nullableText'
 import { PoSummaryCard } from './PoSummaryCard'
 
 export function PoCreatePage() {
@@ -27,8 +28,7 @@ export function PoCreatePage() {
       {
         body: {
           supplier_id: supplier?.id ?? null,
-          // ADR 0040: an empty reference is unset, and unset is null.
-          reference: reference.trim() === '' ? null : reference,
+          reference: orNull(reference),
           ...(pickupAddress === undefined ? {} : { pickup_address_id: pickupAddress?.id ?? null }),
         },
       },

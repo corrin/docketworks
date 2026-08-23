@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest'
 
+import { timelineEntry as entry } from '@/test/timeline'
+
 import {
   costlineDescription,
-  costlineKindClass,
+  COSTLINE_KIND_CLASS,
+  costlineKind,
   formatDelta,
   timelineKind,
   timelineTypeLabel,
   TIMELINE_BADGE_CLASS,
   TIMELINE_DOT_CLASS,
 } from './history'
-import { timelineEntry as entry } from './history.test-fixtures'
 
 describe('timelineKind', () => {
   it('names the three kinds the backend emits', () => {
@@ -67,14 +69,16 @@ describe('costlineDescription', () => {
   })
 })
 
-describe('costlineKindClass', () => {
+describe('costlineKind', () => {
   it('colours each cost-line kind differently', () => {
-    const classes = ['time', 'material', 'adjust'].map(costlineKindClass)
+    const classes = ['time', 'material', 'adjust'].map(
+      (kind) => COSTLINE_KIND_CLASS[costlineKind(kind)],
+    )
     expect(new Set(classes).size).toBe(3)
   })
 
-  it('falls back to the neutral badge for a kind it does not know', () => {
-    expect(costlineKindClass('freight')).toBe('bg-gray-100 text-gray-700')
+  it('throws on a kind the wire does not declare', () => {
+    expect(() => costlineKind('freight')).toThrow("Unknown cost-line kind: 'freight'")
   })
 })
 

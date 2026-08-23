@@ -55,35 +55,37 @@ export function timelineTypeLabel(entry: TimelineEntryOut): string {
 
 /** "Estimate - time" for a cost-line entry; a job event has no cost set. */
 export function costlineDescription(entry: TimelineEntryOut): string | null {
-  const { cost_set_kind: costSetKind, costline_kind: costlineKind } = entry
-  if (costSetKind === null || costlineKind === null) {
+  const { cost_set_kind: costSetKind, costline_kind: kind } = entry
+  if (costSetKind === null || kind === null) {
     return null
   }
-  return `${formatEventType(costSetKind)} - ${costlineKind}`
+  return `${formatEventType(costSetKind)} - ${kind}`
 }
 
-const COSTLINE_KIND_CLASS: Record<string, string> = {
+/** The three kinds a cost line takes, from `CostLine.KIND_CHOICES`. */
+export type CostlineKind = 'time' | 'material' | 'adjust'
+
+const COSTLINE_KINDS: readonly CostlineKind[] = ['time', 'material', 'adjust']
+
+/**
+ * The entry's cost-line kind. Throws on a kind the tab has no badge for,
+ * exactly as `timelineKind` does: the column's choices are a fixed triple, so
+ * a fourth value means the wire changed, and a neutral badge would render
+ * that change as an ordinary row nobody looks at twice.
+ */
+export function costlineKind(kind: string): CostlineKind {
+  const known = COSTLINE_KINDS.find((candidate) => candidate === kind)
+  if (known === undefined) {
+    throw new Error(`Unknown cost-line kind: '${kind}'`)
+  }
+  return known
+}
+
+/** The cost-line kind badge's colour — one per kind, as the dots are. */
+export const COSTLINE_KIND_CLASS: Record<CostlineKind, string> = {
   time: 'bg-purple-100 text-purple-700',
   material: 'bg-orange-100 text-orange-700',
   adjust: 'bg-pink-100 text-pink-700',
-}
-
-const NEUTRAL_BADGE_CLASS = 'bg-gray-100 text-gray-700'
-
-/**
- * The cost-line kind badge's colour. Fable: an unknown kind gets the neutral
- * badge rather than the throw `timelineKind` uses. The kind badge is
- * decoration over one row, while the entry type decides how the row is built
- * at all — and the nearest error boundary is the route root, so a throw here
- * would blank the whole page, not the row. A fourth cost-line kind added
- * server-side is not worth that; an entry type the tab cannot render is.
- */
-export function costlineKindClass(kind: string): string {
-  const known = COSTLINE_KIND_CLASS[kind]
-  if (known === undefined) {
-    return NEUTRAL_BADGE_CLASS
-  }
-  return known
 }
 
 /**

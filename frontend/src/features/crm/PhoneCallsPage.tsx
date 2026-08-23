@@ -21,13 +21,6 @@ import {
   type DirectionFilter,
 } from './phoneCallFilters'
 
-const TAB_LABELS: Record<CallsTab, string> = {
-  recent: 'Recent Calls',
-  unmatched: 'Unmatched',
-  unlinked: 'Needs Job Link',
-  all: 'All Calls',
-}
-
 const ID = 'PhoneCallsPage'
 
 /**
@@ -79,7 +72,6 @@ export function PhoneCallsPage() {
           variant="outline"
           size="sm"
           data-automation-id={`${ID}-refresh`}
-          disabled={calls.isFetching}
           onClick={() => void calls.refetch()}
         >
           <RefreshCw className={calls.isFetching ? 'animate-spin' : undefined} />
@@ -100,7 +92,7 @@ export function PhoneCallsPage() {
             }`}
             onClick={() => setTab(candidate)}
           >
-            {TAB_LABELS[candidate]}
+            {QUEUE_META[candidate].tab}
           </button>
         ))}
       </nav>

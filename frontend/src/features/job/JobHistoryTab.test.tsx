@@ -3,13 +3,12 @@ import { delay, http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { PhoneCallRecordOut, TimelineEntryOut } from '@/api'
-import { getFullJobOptions } from '@/api'
 import { allAutoIds, autoId, queryAutoId } from '@/test/auto-id'
+import { seedJobViews } from '@/test/jobViews'
 import { mockUser } from '@/test/me'
 import { server } from '@/test/msw'
 import { renderWithProviders } from '@/test/render'
-
-import { timelineEntry as entry } from './history.test-fixtures'
+import { timelineEntry as entry } from '@/test/timeline'
 
 // The linked-calls table is task 2's component with its own tests, its own
 // link/unlink mutations and an <audio> per row; stubbing it keeps these
@@ -389,9 +388,12 @@ describe('JobHistoryTab — undoing a change', () => {
     )
 
     const { user, queryClient } = renderWithProviders(<JobHistoryTab jobId={JOB_ID} />)
-    const invalidated = vi.spyOn(queryClient, 'invalidateQueries')
 
     await waitFor(() => expect(queryAutoId('JobHistoryTab-undo-toggle-event-2')).not.toBeNull())
+    // Seeded after render, and the job view only: this tab reads the timeline
+    // itself, so its invalidation shows up as the refetch `timeline.calls`
+    // counts below, while nothing here observes the job detail.
+    const keys = seedJobViews(queryClient, JOB_ID, ['job'])
     await user.click(autoId('JobHistoryTab-undo-toggle-event-2'))
 
     expect(await screen.findByText('Revert name to Gate frame')).toBeInTheDocument()
@@ -405,8 +407,7 @@ describe('JobHistoryTab — undoing a change', () => {
     await waitFor(() => expect(timeline.calls).toBe(2))
     // The header's inline edits read the job-detail cache, so it is re-read
     // rather than reloaded — v1 called window.location.reload() here.
-    const jobKey = getFullJobOptions({ path: { job_id: JOB_ID } }).queryKey
-    expect(invalidated).toHaveBeenCalledWith({ queryKey: jobKey })
+    await waitFor(() => expect(queryClient.getQueryState(keys.job)?.isInvalidated).toBe(true))
     // The panel closes: its delta describes a change that has been reverted.
     await waitFor(() => expect(queryAutoId('JobHistoryTab-undo-before-event-2')).toBeNull())
   })

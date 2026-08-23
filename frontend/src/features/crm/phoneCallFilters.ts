@@ -38,27 +38,58 @@ export type EveryDirectionIsOffered = AssertNoneMissing<
 
 export const DIRECTION_FILTERS: readonly DirectionFilter[] = DIRECTION_FILTER_ORDER
 
+/** A direction a call can actually have. `all` is the filter's "no filter",
+    never a value the wire sends back on a record. */
+export type CallDirection = Exclude<DirectionFilter, 'all'>
+
+const CALL_DIRECTIONS: readonly CallDirection[] = DIRECTION_FILTER_ORDER.filter(
+  (direction) => direction !== 'all',
+)
+
+/**
+ * A call's direction as the reader sees it, from the same labels the filter
+ * offers.
+ *
+ * Throws on a direction the wire does not declare: the column carries
+ * `Direction.choices` with an `unknown` member, so a fifth value means the
+ * wire changed, and rendering it as "Unknown" would hide that behind a label
+ * the provider's own unknown already uses.
+ */
+export function callDirectionLabel(direction: string): string {
+  const known = CALL_DIRECTIONS.find((candidate) => candidate === direction)
+  if (known === undefined) {
+    throw new Error(`Unknown call direction: '${direction}'`)
+  }
+  return DIRECTION_LABELS[known]
+}
+
 interface QueueMeta {
+  /** The tab button's text, which is narrower than the heading. */
+  tab: string
   title: string
   description: string
 }
 
-/** What each queue is for, shown above its rows. */
+/** What each queue is called and what it is for, shown above its rows. */
 export const QUEUE_META: Record<CallsTab, QueueMeta> = {
   recent: {
+    tab: 'Recent Calls',
     title: 'Recent Calls',
     description: 'Newest imported calls. The provider sync runs about every five minutes.',
   },
   unmatched: {
+    tab: 'Unmatched',
     title: 'Unmatched Calls',
     description:
       'Assign these numbers to companies or people so future and historical calls land in the right CRM history.',
   },
   unlinked: {
+    tab: 'Needs Job Link',
     title: 'Matched Calls Needing Job Link',
     description: 'These calls already belong to a company but have not been linked to a job.',
   },
   all: {
+    tab: 'All Calls',
     title: 'All Calls',
     description: 'Audit and search across imported calls.',
   },

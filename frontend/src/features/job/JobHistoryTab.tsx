@@ -23,7 +23,8 @@ import { formatDateTime } from '@/lib/format'
 import { invalidateJobViews } from './invalidateJobViews'
 import {
   costlineDescription,
-  costlineKindClass,
+  COSTLINE_KIND_CLASS,
+  costlineKind,
   formatDelta,
   timelineKind,
   timelineTypeLabel,
@@ -313,7 +314,7 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
                               <>
                                 <span>•</span>
                                 <span
-                                  className={`rounded-full px-2 py-1 capitalize ${costlineKindClass(entry.costline_kind)}`}
+                                  className={`rounded-full px-2 py-1 capitalize ${COSTLINE_KIND_CLASS[costlineKind(entry.costline_kind)]}`}
                                 >
                                   {entry.costline_kind}
                                 </span>

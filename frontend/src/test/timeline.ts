@@ -2,7 +2,7 @@ import type { TimelineEntryOut } from '@/api'
 
 /**
  * One timeline entry, defaulting to a staff-written job event. Shared by
- * `history.test.ts` and `JobHistoryTab.test.tsx`: TimelineEntryOut has
+ * the History tab's tests and the timeline helpers': TimelineEntryOut has
  * twenty-one fields, nineteen of which are null on most entries, so a second
  * copy of this builder drifts the moment the wire contract gains a field.
  */

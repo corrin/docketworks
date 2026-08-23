@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { phoneCallQueryFor, QUEUE_META } from './phoneCallFilters'
+import { callDirectionLabel, phoneCallQueryFor, QUEUE_META } from './phoneCallFilters'
 
 describe('phoneCallQueryFor', () => {
   const defaults = { direction: 'all', recordingsOnly: false, q: '' } as const
@@ -66,5 +66,25 @@ describe('QUEUE_META', () => {
     for (const meta of Object.values(QUEUE_META)) {
       expect(meta.description).not.toBe('')
     }
+  })
+})
+
+describe('callDirectionLabel', () => {
+  it("labels every direction the wire declares, in the filter's own words", () => {
+    expect(callDirectionLabel('inbound')).toBe('Inbound')
+    expect(callDirectionLabel('outbound')).toBe('Outbound')
+    expect(callDirectionLabel('internal')).toBe('Internal')
+    expect(callDirectionLabel('unknown')).toBe('Unknown')
+  })
+
+  it('throws on a direction the wire does not declare', () => {
+    // A fifth value means the column's choices changed. Rendering it as
+    // "Unknown" would hide that behind the label the provider's own unknown
+    // already uses.
+    expect(() => callDirectionLabel('satellite')).toThrow("Unknown call direction: 'satellite'")
+  })
+
+  it('never labels the filter-only "all" as a call direction', () => {
+    expect(() => callDirectionLabel('all')).toThrow()
   })
 })
