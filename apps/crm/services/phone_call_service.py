@@ -618,8 +618,34 @@ def archive_recording(
         return False
 
     content, filename, content_type = client.download_recording(call)
+    store_recording_bytes(
+        call=call,
+        recording=recording,
+        content=content,
+        filename=filename,
+        content_type=content_type,
+    )
+    return True
+
+
+def store_recording_bytes(
+    *,
+    call: PhoneCallRecord,
+    recording: PhoneCallRecording,
+    content: bytes,
+    filename: str,
+    content_type: str,
+) -> None:
+    """Write recording audio into the local archive and record it on the row.
+
+    Public because the provider download is not the only producer: the E2E
+    seed hands over bytes it generated. Rejected giving the seed its own
+    writer — the storage root, path layout and atomic-write rules are one
+    implementation (ADR 0039), and a second one drifts from what the download
+    endpoint reads.
+    """
     digest = hashlib.sha256(content).hexdigest()
-    storage_path = _recording_storage_path(call=call, recording=recording)
+    storage_path = _recording_storage_path(call=call, recording=recording, filename=filename)
     _write_file(storage_path=storage_path, payload=content)
 
     recording.filename = filename
@@ -645,7 +671,6 @@ def archive_recording(
             "updated_at",
         ]
     )
-    return True
 
 
 @dataclass(frozen=True)
@@ -1050,8 +1075,14 @@ def _recording_storage_path(
     *,
     call: PhoneCallRecord,
     recording: PhoneCallRecording,
+    filename: str,
 ) -> str:
-    return f"{call.call_date:%Y/%m/%d}/{_safe_filename(recording.provider_recording_id)}.mp3"
+    # The stored suffix is the served Content-Type: the download endpoint
+    # guesses it from this path with mimetypes. Rejected pinning ".mp3" (what
+    # the provider always sends) — a WAV stored under it is served as
+    # audio/mpeg and no browser plays it.
+    suffix = Path(filename).suffix.lower() or ".mp3"
+    return f"{call.call_date:%Y/%m/%d}/{_safe_filename(recording.provider_recording_id)}{suffix}"
 
 
 def _filename_from_response(content_disposition: str, call: PhoneCallRecord) -> str:

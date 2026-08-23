@@ -4,6 +4,7 @@ Contact ownership invariants are covered in the company app, while malformed
 job-link behavior is covered at the observable API boundary.
 """
 
+import hashlib
 from datetime import date, timedelta
 from pathlib import Path
 from unittest import mock
@@ -24,6 +25,7 @@ from apps.crm.services.phone_call_service import (
     delete_archived_provider_recordings,
     normalize_phone,
     rematch_calls_for_numbers,
+    store_recording_bytes,
     sync_call_history,
 )
 from apps.crm.tests.helpers import (
@@ -382,3 +384,43 @@ class TestPhoneCallSync:
             "description": "Customer call",
             "RecordingId": recording_id,
         }
+
+
+@pytest.mark.django_db
+class TestStoreRecordingBytes:
+    """The store half of the archive is public so non-provider producers (the
+    E2E seed) reuse the path rules instead of re-deriving them.
+    """
+
+    @pytest.fixture(autouse=True)
+    def storage_root(self, settings: SettingsWrapper, tmp_path: Path) -> Path:
+        settings.PHONE_RECORDING_STORAGE_ROOT = str(tmp_path)
+        return tmp_path
+
+    def test_stores_wav_under_its_own_suffix(self, storage_root: Path) -> None:
+        """A stored .wav must keep its suffix: the download endpoint derives
+        Content-Type from the stored path, so a WAV under .mp3 is served as
+        audio/mpeg and no browser plays it.
+        """
+        call = make_call("wav-call", company=make_company("Wav Co"))
+        recording = make_recording(call, "wav-recording", storage_path=None)
+        content = b"RIFF....WAVEfmt "
+
+        store_recording_bytes(
+            call=call,
+            recording=recording,
+            content=content,
+            filename="e2e-call.wav",
+            content_type="audio/wav",
+        )
+
+        recording.refresh_from_db()
+        assert recording.storage_path is not None
+        assert recording.storage_path.endswith(".wav")
+        assert (storage_root / recording.storage_path).read_bytes() == content
+        assert recording.filename == "e2e-call.wav"
+        assert recording.content_type == "audio/wav"
+        assert recording.byte_size == len(content)
+        assert recording.sha256 == hashlib.sha256(content).hexdigest()
+        assert recording.archived_at is not None
+        assert recording.account_code == call.account_code
