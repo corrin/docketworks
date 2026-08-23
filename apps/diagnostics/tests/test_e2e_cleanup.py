@@ -367,13 +367,15 @@ def test_confirm_deletes_e2e_phone_calls_with_their_files(phone_storage_root: Pa
 
 
 def test_dry_run_reports_phone_calls_without_deleting(phone_storage_root: Path) -> None:
-    """An inspection names the phone residue and leaves both row and file."""
+    """An inspection names the E2E-seeded phone calls and leaves both row and file."""
     call, recording = _recorded_call("listed", description=f"{TEST_DATA_PREFIX} listed call")
 
     output = _run_cleanup()
 
     assert "E2E phone calls" in output
     assert str(call.description) in output
+    assert "E2E phone recordings with a local file" in output
+    assert recording.provider_recording_id in output
     assert PhoneCallRecord.objects.filter(pk=call.pk).exists()
     assert (phone_storage_root / str(recording.storage_path)).exists()
 

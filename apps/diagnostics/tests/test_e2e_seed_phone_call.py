@@ -84,6 +84,24 @@ class TestSeedOutput:
         assert recording.storage_path.endswith(".wav")
         assert (storage_root / recording.storage_path).exists()
 
+        # The provider's own payload shape: readers index raw_json rather than
+        # probe it (download_recording reads raw["RecordingId"]), so a subset
+        # here would be a KeyError in production code.
+        assert set(call.raw_json) == {
+            "id",
+            "calldate",
+            "calltime",
+            "origin",
+            "destination",
+            "seconds",
+            "charge",
+            "type",
+            "status",
+            "description",
+            "RecordingId",
+        }
+        assert call.raw_json["RecordingId"] == recording.provider_recording_id
+
         response = cookie_client(office_staff).get(payload["download_url"])
 
         assert response.status_code == 200
@@ -93,8 +111,8 @@ class TestSeedOutput:
 
 
 class TestSeedRefusals:
-    """Every refusal happens before a write: a half-seeded call is residue
-    nothing points at.
+    """Every refusal happens before a write: a half-seeded call is a row
+    nothing points at and no later run will clean up.
     """
 
     def test_refuses_a_production_database(self, job: Job, monkeypatch: pytest.MonkeyPatch) -> None:

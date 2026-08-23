@@ -186,7 +186,6 @@ class Command(BaseCommand):
                 linked_quotes,
                 linked_pos,
                 e2e_calls,
-                archived_recordings,
             )
         )
 

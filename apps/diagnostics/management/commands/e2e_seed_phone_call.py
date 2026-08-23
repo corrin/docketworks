@@ -101,13 +101,22 @@ class Command(BaseCommand):
                 "fabricated provider data off a job the cleanup will not remove."
             )
 
+        # The recording id is minted before the call because it belongs in the
+        # call's raw_json too: download_recording reads raw["RecordingId"].
+        provider_recording_id = f"{TEST_DATA_PREFIX} {uuid4()}"
+
         with transaction.atomic():
-            call = self._create_call(job)
+            call = self._create_call(job, provider_recording_id=provider_recording_id)
             recording = PhoneCallRecording.objects.create(
                 call=call,
-                provider_recording_id=f"{TEST_DATA_PREFIX} {uuid4()}",
+                provider_recording_id=provider_recording_id,
                 account_code=TEST_DATA_PREFIX,
             )
+            # Fable: the file is written inside the transaction, so a commit
+            # failure strands a file no row names. Chosen because nothing
+            # follows the write but the commit itself, whereas writing after
+            # it would leave a row whose file never arrives — and that row is
+            # what the spec plays.
             store_recording_bytes(
                 call=call,
                 recording=recording,
@@ -128,7 +137,7 @@ class Command(BaseCommand):
             )
         )
 
-    def _create_call(self, job: Job) -> PhoneCallRecord:
+    def _create_call(self, job: Job, *, provider_recording_id: str) -> PhoneCallRecord:
         """Create an inbound customer call, already matched to the job's company.
 
         Every identifier this seed invents — the account code, the provider
@@ -166,11 +175,21 @@ class Command(BaseCommand):
             external_number=normalize_phone(CUSTOMER_NUMBER),
             duration_seconds=CALL_DURATION_SECONDS,
             company=job.company,
+            # Every key the provider sends, because readers index rather
+            # than probe: download_recording reads raw["RecordingId"] and
+            # _filename_from_response reads raw["calldate"]/["calltime"]. A
+            # subset here would be a KeyError in production code.
             raw_json={
                 "id": str(call_uid),
                 "calldate": local_date.isoformat(),
                 "calltime": local_time.isoformat(timespec="seconds"),
                 "origin": CUSTOMER_NUMBER,
                 "destination": OFFICE_NUMBER,
+                "seconds": str(CALL_DURATION_SECONDS),
+                "charge": "0.0000",
+                "type": "Inbound",
+                "status": "Answered",
+                "description": CALL_DESCRIPTION,
+                "RecordingId": provider_recording_id,
             },
         )
