@@ -1,4 +1,4 @@
-import type { CompanySearchResult, PurchaseOrderDetail } from '@/api'
+import type { CompanySearchResult, PurchaseOrderDetail, SupplierPickupAddressOut } from '@/api'
 import {
   Select,
   SelectContent,
@@ -8,7 +8,9 @@ import {
 } from '@/components/ui/select'
 import { CompanyLookup } from '@/features/shared/company'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
+import { INPUT_CLASS } from '@/components/ui/field'
 import { formatDate } from '@/lib/format'
+import { PickupAddressSelector } from './PickupAddressSelector'
 import type { PoHeaderPatch } from './usePoLines'
 
 export const PO_STATUS_OPTIONS = [
@@ -25,12 +27,17 @@ interface PoSummaryCardCreateProps {
   onSelectSupplier: (company: CompanySearchResult | null) => void
   reference: string
   onReferenceChange: (value: string) => void
+  /** undefined: untouched, the backend picks the primary; null: cleared, none. */
+  pickupAddress: SupplierPickupAddressOut | null | undefined
+  onSelectPickupAddress: (address: SupplierPickupAddressOut | null) => void
+  /** A new supplier starts untouched: its addresses are its own. */
+  onResetPickupAddress: () => void
 }
 
 interface PoSummaryCardDetailProps {
   mode: 'detail'
   po: PurchaseOrderDetail
-  patchHeader: (fields: PoHeaderPatch) => void
+  patchHeader: (fields: PoHeaderPatch, display?: Partial<PurchaseOrderDetail>) => void
 }
 
 type PoSummaryCardProps = PoSummaryCardCreateProps | PoSummaryCardDetailProps
@@ -58,14 +65,14 @@ function ReferenceLabel() {
   )
 }
 
-const REFERENCE_INPUT_CLASS =
-  'w-full rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500'
-
 function CreateFields({
   supplier,
   onSelectSupplier,
   reference,
   onReferenceChange,
+  pickupAddress,
+  onSelectPickupAddress,
+  onResetPickupAddress,
 }: PoSummaryCardCreateProps) {
   return (
     <div className="space-y-4">
@@ -73,9 +80,24 @@ function CreateFields({
         id="po-supplier"
         label="Supplier"
         selectedCompany={supplier}
-        onSelectCompany={onSelectSupplier}
+        onSelectCompany={(company) => {
+          onSelectSupplier(company)
+          onResetPickupAddress()
+        }}
         mode="supplier"
       />
+      {supplier && (
+        <PickupAddressSelector
+          supplier={{ id: supplier.id, name: supplier.name }}
+          selected={pickupAddress ?? null}
+          onChange={onSelectPickupAddress}
+          placeholder={
+            pickupAddress === undefined
+              ? "The supplier's primary address, unless chosen here"
+              : 'No pickup address'
+          }
+        />
+      )}
       <div>
         <ReferenceLabel />
         <input
@@ -84,7 +106,7 @@ function CreateFields({
           value={reference}
           autoComplete="off"
           data-automation-id="PoSummaryCard-reference"
-          className={REFERENCE_INPUT_CLASS}
+          className={INPUT_CLASS}
           onChange={(event) => onReferenceChange(event.target.value)}
         />
       </div>
@@ -134,12 +156,23 @@ function DetailFields({ po, patchHeader }: PoSummaryCardDetailProps) {
           value={referenceField.value}
           autoComplete="off"
           data-automation-id="PoSummaryCard-reference"
-          className={REFERENCE_INPUT_CLASS}
+          className={INPUT_CLASS}
           onChange={(event) => referenceField.onChange(event.target.value)}
           onFocus={referenceField.onFocus}
           onBlur={referenceField.onBlur}
         />
       </div>
+      {po.supplier_id && (
+        <div className="sm:col-span-2">
+          <PickupAddressSelector
+            supplier={{ id: po.supplier_id, name: po.supplier }}
+            selected={po.pickup_address}
+            onChange={(address) =>
+              patchHeader({ pickup_address_id: address?.id ?? null }, { pickup_address: address })
+            }
+          />
+        </div>
+      )}
       <div>
         <span className="mb-1 block text-sm font-medium text-gray-700">Status</span>
         <Select value={po.status} onValueChange={(value) => patchHeader({ status: value })}>

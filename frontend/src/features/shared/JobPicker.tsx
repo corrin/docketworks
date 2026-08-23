@@ -4,13 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { jobJobsStatusChoicesRetrieveOptions } from '@/api'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { useDebouncedValue } from './useDebouncedValue'
-
-const SEARCH_DEBOUNCE_MS = 300
-// Opus: Mirrors apps/job/services/job_search.MIN_SEARCH_TERM_LENGTH: below this a
-// substring match is not selective enough to be worth a round trip, and the
-// endpoint refuses it with a 400.
-const MIN_SEARCH_TERM_LENGTH = 3
+import { MIN_SEARCH_TERM_LENGTH, SEARCH_DEBOUNCE_MS, useDebouncedValue } from './useDebouncedValue'
 
 const NO_BACKGROUND_JOBS: readonly never[] = []
 

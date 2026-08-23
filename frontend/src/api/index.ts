@@ -60,6 +60,25 @@ export type {
   SettingsSectionOut,
   XeroBrandingThemeOut,
 } from './generated/types.gen'
+// Pickup addresses (a supplier's collection points, chosen on a purchase
+// order) and the address-validation proxy the street field asks for candidates
+export {
+  companiesPickupAddressesCreateMutation,
+  companiesPickupAddressesDestroyMutation,
+  companiesPickupAddressesListOptions,
+  companiesPickupAddressesListQueryKey,
+  companiesPickupAddressesUpdateMutation,
+} from './generated/@tanstack/react-query.gen'
+// The validate endpoint is a POST, so the generator offers only a mutation;
+// the street field queries it by debounced term (TanStack key identity is the
+// stale-answer guard), which needs the sdk call itself.
+export { companiesAddressesValidateCreate } from './generated/sdk.gen'
+export type {
+  AddressCandidate,
+  SupplierPickupAddressOut,
+  SupplierPickupAddressRequest,
+} from './generated/types.gen'
+
 // Integration settings (superuser admin screen: the install's vendor
 // credentials, ADR 0053 — secrets are write-only on the wire)
 export {

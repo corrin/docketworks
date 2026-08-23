@@ -18,7 +18,7 @@ import { draftCreateBody, type PoLineDraft } from './lines'
 
 export type PoHeaderPatch = Pick<
   PurchaseOrderUpdateRequest,
-  'reference' | 'status' | 'expected_delivery'
+  'reference' | 'status' | 'expected_delivery' | 'pickup_address_id'
 >
 
 export type PoLinePatch = Omit<PurchaseOrderLineUpdateRequest, 'id'>
@@ -54,11 +54,18 @@ export function usePoLines(poId: string) {
   // would clobber it with pre-write data; cancellation closes that window.
   const cancelInFlight = () => void queryClient.cancelQueries({ queryKey })
 
-  const patchHeader = (fields: PoHeaderPatch) => {
+  // `display` is what the optimistic cache shows for a field the wire carries
+  // by id only — the pickup address is nested on the read side and an id on
+  // the write side, so the caller supplies the object it already has.
+  const patchHeader = (fields: PoHeaderPatch, display?: Partial<PurchaseOrderDetail>) => {
     cancelInFlight()
     const snapshot = queryClient.getQueryData<PurchaseOrderDetail>(queryKey)
     if (snapshot) {
-      queryClient.setQueryData<PurchaseOrderDetail>(queryKey, { ...snapshot, ...fields })
+      queryClient.setQueryData<PurchaseOrderDetail>(queryKey, {
+        ...snapshot,
+        ...fields,
+        ...display,
+      })
     }
     patchMutation.mutate(
       { path, body: fields },
@@ -158,5 +165,9 @@ function headerFieldsFrom(
   if (fields.status !== undefined) restored.status = snapshot.status
   if (fields.expected_delivery !== undefined)
     restored.expected_delivery = snapshot.expected_delivery
+  if (fields.pickup_address_id !== undefined) {
+    restored.pickup_address_id = snapshot.pickup_address_id
+    restored.pickup_address = snapshot.pickup_address
+  }
   return restored
 }

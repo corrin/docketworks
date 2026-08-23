@@ -579,6 +579,22 @@ class TestPickupAddresses:
         assert body["suburb"] is None
         assert body["formatted_address"] == "12 Depot Road, Auckland"
 
+    def test_a_companys_first_address_is_its_primary(self, client: Client) -> None:
+        """PO creation resolves to the primary: the first address is one, the next is not."""
+        company = make_company("Acme Supplies")
+
+        first = self._create(client, company).json()
+        second = self._create(client, company, name="Back gate").json()
+
+        assert first["is_primary"] is True
+        assert second["is_primary"] is False
+        stored = client.get(
+            "/api/companies/pickup-addresses/", {"supplier_id": str(company.id)}
+        ).json()
+        assert [address["name"] for address in stored if address["is_primary"]] == [
+            "Main Warehouse"
+        ]
+
     @pytest.mark.parametrize(
         "field", ["suburb", "state", "postal_code", "google_place_id", "notes"]
     )

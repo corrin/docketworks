@@ -10,11 +10,10 @@ import {
   purchasingSuppliersSearchRetrieveOptions,
   type CompanySearchResult,
 } from '@/api'
+import { MIN_SEARCH_TERM_LENGTH } from '@/features/shared/useDebouncedValue'
 import { CreateCompanyModal } from './CreateCompanyModal'
 import { requireXeroLinkedCompany } from './create-company'
 import { hasXeroContact } from './xero-contact'
-
-const MIN_QUERY_LENGTH = 3
 
 interface CompanyLookupProps {
   id: string
@@ -53,7 +52,7 @@ export function CompanyLookup({
   const createCompany = useMutation(companiesCreateCreateMutation())
 
   const inputValue = selectedCompany ? selectedCompany.name : query
-  const searchEnabled = !selectedCompany && query.length >= MIN_QUERY_LENGTH
+  const searchEnabled = !selectedCompany && query.length >= MIN_SEARCH_TERM_LENGTH
 
   const companySearch = useQuery({
     ...companiesSearchRetrieveOptions({ query: { q: query } }),
@@ -82,7 +81,7 @@ export function CompanyLookup({
       onSelectCompany(null)
     }
     setQuery(value)
-    setShowSuggestions(value.length >= MIN_QUERY_LENGTH)
+    setShowSuggestions(value.length >= MIN_SEARCH_TERM_LENGTH)
   }
 
   const handleSelect = (company: CompanySearchResult) => {
@@ -114,7 +113,7 @@ export function CompanyLookup({
     if (event.ctrlKey && event.key === 'Enter') {
       event.preventDefault()
       const companyName = query.trim()
-      if (companyName.length >= MIN_QUERY_LENGTH && !createCompany.isPending) {
+      if (companyName.length >= MIN_SEARCH_TERM_LENGTH && !createCompany.isPending) {
         void quickCreateCompany(companyName)
       }
       return
@@ -186,7 +185,7 @@ export function CompanyLookup({
                 clearTimeout(blurTimeout.current)
                 blurTimeout.current = null
               }
-              if (!selectedCompany && query.length >= MIN_QUERY_LENGTH) {
+              if (!selectedCompany && query.length >= MIN_SEARCH_TERM_LENGTH) {
                 setShowSuggestions(true)
               }
             }}
@@ -197,63 +196,64 @@ export function CompanyLookup({
             }}
           />
 
-          {showSuggestions && (suggestions.length > 0 || query.length >= MIN_QUERY_LENGTH) && (
-            <div
-              data-automation-id="CompanyLookup-results"
-              className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-gray-300 bg-white shadow-lg"
-            >
-              <div id={listboxId} role="listbox" aria-label={`${label} search results`}>
-                {suggestions.map((company) => (
-                  <div
-                    key={company.id}
-                    id={`${listboxId}-option-${company.id}`}
-                    role="option"
-                    aria-selected={activeCompanyId === company.id}
-                    data-automation-id={`CompanyLookup-option-${company.id}`}
-                    className={`cursor-pointer border-b border-gray-100 px-4 py-2 last:border-b-0 hover:bg-blue-50 ${
-                      activeCompanyId === company.id ? 'bg-blue-50' : ''
-                    }`}
-                    onMouseEnter={() => setActiveCompanyId(company.id)}
-                    onMouseDown={(event) => {
-                      event.preventDefault()
-                      handleSelect(company)
-                    }}
-                  >
-                    <div className="font-medium text-gray-900">{company.name}</div>
-                  </div>
-                ))}
-              </div>
+          {showSuggestions &&
+            (suggestions.length > 0 || query.length >= MIN_SEARCH_TERM_LENGTH) && (
+              <div
+                data-automation-id="CompanyLookup-results"
+                className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-gray-300 bg-white shadow-lg"
+              >
+                <div id={listboxId} role="listbox" aria-label={`${label} search results`}>
+                  {suggestions.map((company) => (
+                    <div
+                      key={company.id}
+                      id={`${listboxId}-option-${company.id}`}
+                      role="option"
+                      aria-selected={activeCompanyId === company.id}
+                      data-automation-id={`CompanyLookup-option-${company.id}`}
+                      className={`cursor-pointer border-b border-gray-100 px-4 py-2 last:border-b-0 hover:bg-blue-50 ${
+                        activeCompanyId === company.id ? 'bg-blue-50' : ''
+                      }`}
+                      onMouseEnter={() => setActiveCompanyId(company.id)}
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        handleSelect(company)
+                      }}
+                    >
+                      <div className="font-medium text-gray-900">{company.name}</div>
+                    </div>
+                  ))}
+                </div>
 
-              {/* Outside the listbox: the arrow-key walk covers options only,
+                {/* Outside the listbox: the arrow-key walk covers options only,
                   so this is a mouse target; Ctrl+Enter (declared on the
                   input via aria-keyshortcuts) is the keyboard path. */}
-              {query.length >= MIN_QUERY_LENGTH && (
-                <div
-                  className="cursor-pointer border-t border-gray-200 px-4 py-2 font-medium text-green-700 hover:bg-green-50"
-                  data-automation-id="CompanyLookup-create-new"
-                  onMouseDown={(event) => {
-                    event.preventDefault()
-                    setShowSuggestions(false)
-                    setShowCreateModal(true)
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add new company &quot;{query}&quot;
+                {query.length >= MIN_SEARCH_TERM_LENGTH && (
+                  <div
+                    className="cursor-pointer border-t border-gray-200 px-4 py-2 font-medium text-green-700 hover:bg-green-50"
+                    data-automation-id="CompanyLookup-create-new"
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      setShowSuggestions(false)
+                      setShowCreateModal(true)
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add new company &quot;{query}&quot;
+                      </div>
+                      <div className="text-xs text-gray-500">or press Ctrl+Enter</div>
                     </div>
-                    <div className="text-xs text-gray-500">or press Ctrl+Enter</div>
                   </div>
-                </div>
-              )}
-
-              {suggestions.length === 0 &&
-                query.length >= MIN_QUERY_LENGTH &&
-                !search.isPending && (
-                  <div className="px-4 py-2 text-center text-gray-500">No companies found</div>
                 )}
-            </div>
-          )}
+
+                {suggestions.length === 0 &&
+                  query.length >= MIN_SEARCH_TERM_LENGTH &&
+                  !search.isPending && (
+                    <div className="px-4 py-2 text-center text-gray-500">No companies found</div>
+                  )}
+              </div>
+            )}
         </div>
 
         <div className="flex items-end">

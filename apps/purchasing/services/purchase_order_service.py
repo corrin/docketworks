@@ -355,10 +355,21 @@ def _resolve_supplier(supplier_id: UUID) -> Company:
     return supplier
 
 
-def _resolve_pickup_address(pickup_address_id: UUID) -> SupplierPickupAddress:
-    address = SupplierPickupAddress.objects.filter(id=pickup_address_id, is_active=True).first()
+def _resolve_pickup_address(pickup_address_id: UUID, supplier: Company) -> SupplierPickupAddress:
+    """Resolve a pickup address that belongs to the PO's supplier.
+
+    Fable: ownership is checked here rather than trusted from the client
+    because the address list the screen offers is per supplier; an id from
+    another company can only arrive by mistake or by hand, and either way a
+    PO collecting from a stranger's yard is wrong data, not a preference.
+    """
+    address = SupplierPickupAddress.objects.filter(
+        id=pickup_address_id, company=supplier, is_active=True
+    ).first()
     if address is None:
-        raise DjangoValidationError(f"Pickup address {pickup_address_id} not found")
+        raise DjangoValidationError(
+            f"Pickup address {pickup_address_id} does not belong to supplier {supplier.name}"
+        )
     return address
 
 
@@ -369,12 +380,18 @@ def create_purchase_order(
     supplier_id = data.get("supplier_id")
     supplier = _resolve_supplier(supplier_id) if supplier_id else None
 
-    pickup_address_id = data.get("pickup_address_id")
     pickup_address: SupplierPickupAddress | None
-    if pickup_address_id:
-        pickup_address = _resolve_pickup_address(pickup_address_id)
+    if "pickup_address_id" in data:
+        # Sent, so the client chose: an id, or null for none (ADR 0040).
+        pickup_address_id = data["pickup_address_id"]
+        if pickup_address_id is None:
+            pickup_address = None
+        elif supplier is None:
+            raise DjangoValidationError("A pickup address needs a supplier")
+        else:
+            pickup_address = _resolve_pickup_address(pickup_address_id, supplier)
     elif supplier is not None:
-        # Auto-select the supplier's primary address when none is given.
+        # Not sent: the supplier's primary address, if it has one.
         pickup_address = SupplierPickupAddress.objects.filter(
             company=supplier, is_primary=True, is_active=True
         ).first()
@@ -498,13 +515,18 @@ def update_purchase_order(
             PurchaseOrderLine.objects.filter(id__in=lines_to_delete, purchase_order=po).delete()
 
         supplier_id = data.get("supplier_id")
-        if supplier_id:
+        if supplier_id and supplier_id != po.supplier_id:
             po.supplier = _resolve_supplier(supplier_id)
+            # The old supplier's yard is no collection point for the new one.
+            po.pickup_address = None
         if "pickup_address_id" in data:
-            pickup_address_id = data.get("pickup_address_id")
-            po.pickup_address = (
-                _resolve_pickup_address(pickup_address_id) if pickup_address_id else None
-            )
+            pickup_address_id = data["pickup_address_id"]
+            if pickup_address_id is None:
+                po.pickup_address = None
+            elif po.supplier is None:
+                raise DjangoValidationError("A pickup address needs a supplier")
+            else:
+                po.pickup_address = _resolve_pickup_address(pickup_address_id, po.supplier)
 
         _write_lines(po, data.get("lines", []))
         _apply_purchase_order_fields(po, data, staff)

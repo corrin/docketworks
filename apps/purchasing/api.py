@@ -257,12 +257,15 @@ def create_purchase_order(
     """Create a PO and its lines; the model assigns the next PO number."""
     data: PurchaseOrderCreateData = {
         "supplier_id": payload.supplier_id,
-        "pickup_address_id": payload.pickup_address_id,
         "reference": payload.reference,
         "order_date": payload.order_date,
         "expected_delivery": payload.expected_delivery,
         "lines": [_line_write_data(line) for line in payload.lines],
     }
+    # Presence matters: an unsent address means "the supplier's primary", a
+    # null means "none" (ADR 0040), and the service tells them apart by key.
+    if "pickup_address_id" in payload.model_fields_set:
+        data["pickup_address_id"] = payload.pickup_address_id
     try:
         po = purchase_order_service.create_purchase_order(data, created_by=_staff(request))
     except DjangoValidationError as exc:
