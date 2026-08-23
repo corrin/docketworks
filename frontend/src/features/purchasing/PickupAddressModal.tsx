@@ -25,6 +25,7 @@ import {
 import { INPUT_CLASS } from '@/components/ui/field'
 import { QueryState } from '@/features/shared/QueryState'
 import { AddressAutocompleteInput } from '@/features/shared/address/AddressAutocompleteInput'
+import { orNull } from '@/features/shared/nullableText'
 
 export interface PickupSupplier {
   id: string
@@ -85,9 +86,6 @@ function formFrom(address: SupplierPickupAddressOut): AddressForm {
     longitude: address.longitude,
   }
 }
-
-/** ADR 0040: an emptied optional box is unset, and unset is null. */
-const orNull = (value: string): string | null => (value.trim() === '' ? null : value)
 
 function requestFrom(form: AddressForm, supplierId: string): SupplierPickupAddressRequest {
   return {

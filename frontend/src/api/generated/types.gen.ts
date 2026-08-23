@@ -7427,7 +7427,7 @@ export type PhoneNumberAssignmentIn = {
     /**
      * Label
      */
-    label?: string;
+    label?: string | null;
     /**
      * Person
      */

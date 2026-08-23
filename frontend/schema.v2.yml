@@ -8321,10 +8321,12 @@ components:
           title: Is Primary
           type: boolean
         label:
-          default: ''
-          maxLength: 255
+          anyOf:
+          - maxLength: 255
+            minLength: 1
+            type: string
+          - type: 'null'
           title: Label
-          type: string
         person:
           anyOf:
           - format: uuid

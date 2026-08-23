@@ -3120,7 +3120,7 @@ export const zPhoneEndpointPutIn = z.object({
 export const zPhoneNumberAssignmentIn = z.object({
     company: z.uuid(),
     is_primary: z.boolean().optional().default(false),
-    label: z.string().max(255).optional().default(''),
+    label: z.string().min(1).max(255).nullish(),
     person: z.uuid().nullish()
 });
 

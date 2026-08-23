@@ -15,7 +15,7 @@ from django.utils import timezone
 from pytest_django.fixtures import SettingsWrapper
 
 from apps.accounts.models import Staff
-from apps.company.models import Company, CompanyPersonLink, Person
+from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.core.models import AppError, IntegrationSettings
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
 from apps.crm.tests.helpers import (
@@ -283,6 +283,40 @@ class TestClientErrorsDoNotPersistAppErrors:
         assert response.status_code == 400
         assert "Person is not linked to the selected company" in response.json()["message"]
         assert AppError.objects.count() == before
+
+    def test_assign_number_refuses_a_blank_label(
+        self, api: Client, call: PhoneCallRecord, company_obj: Company
+    ) -> None:
+        """ContactMethod.label carries a not-blank CHECK, so "" must be caught
+        at the wire as a 422 rather than reaching the database as a 409.
+        """
+        call.external_number = "+6421555002"
+        call.save(update_fields=["external_number"])
+
+        response = api.post(
+            f"{CALLS_PATH}{call.id}/assign-number/",
+            data={"company": str(company_obj.id), "label": ""},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422
+
+    def test_assign_number_without_a_label_stores_null(
+        self, api: Client, call: PhoneCallRecord, company_obj: Company
+    ) -> None:
+        """Unset is NULL (ADR 0040): an omitted label must not become ""."""
+        call.external_number = "+6421555003"
+        call.save(update_fields=["external_number"])
+
+        response = api.post(
+            f"{CALLS_PATH}{call.id}/assign-number/",
+            data={"company": str(company_obj.id)},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        method = ContactMethod.objects.get(value="+6421555003")
+        assert method.label is None
 
 
 class TestCallList:

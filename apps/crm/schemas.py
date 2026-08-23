@@ -7,7 +7,7 @@ from uuid import UUID
 from ninja import Field, Schema
 from pydantic import StringConstraints
 
-from apps.core.schemas import ResponseSchema, omittable
+from apps.core.schemas import NullableText, ResponseSchema, omittable
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
 
 EndpointTypeLiteral = Literal["main_line", "staff_mobile", "staff_ddi", "extension", "shared"]
@@ -196,7 +196,11 @@ class PhoneNumberAssignmentIn(Schema):
     company: UUID
     person: UUID | None = None
     is_primary: bool = False
-    label: str = Field("", max_length=255)
+    # ADR 0040: unset is NULL, and "" is a 422 rather than an IntegrityError
+    # from ContactMethod's label_not_blank CHECK. NullableText is the one
+    # declaration of that (apps/core/schemas.py); the length bound stays
+    # because the column is CharField(255).
+    label: NullableText = Field(None, max_length=255)
 
 
 class PhoneEndpointOut(Schema):
