@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -120,11 +121,19 @@ function LinkJobDialogBody({ call, onClose }: { call: PhoneCallRecordOut; onClos
         // dialog itself keeps focus inside for keyboard and screen-reader
         // users while leaving the picker shut until it is asked for.
         event.preventDefault()
-        contentRef.current?.focus()
+        const content = contentRef.current
+        if (content === null) {
+          throw new Error('The link-job dialog focused itself before it was mounted')
+        }
+        content.focus()
       }}
     >
       <DialogHeader>
         <DialogTitle>Link Phone Call To Job</DialogTitle>
+        <DialogDescription>
+          Pick one of {call.company_name}&rsquo;s jobs. A job belonging to any other company is
+          refused by the server.
+        </DialogDescription>
       </DialogHeader>
       {/* isPending is false deliberately: the picker draws its own "Jobs are
           loading…" row, so gating it behind the shared loading block would
@@ -166,7 +175,11 @@ function LinkJobDialogBody({ call, onClose }: { call: PhoneCallRecordOut; onClos
           data-automation-id="PhoneCallTable-save-job-link"
           disabled={selected === null || link.isPending}
           onClick={() => {
-            if (selected === null) return
+            if (selected === null) {
+              throw new Error(
+                'Save was pressed with no job picked, but it is disabled until one is',
+              )
+            }
             link.mutate({ path: { call_id: call.id }, body: { job: selected.id } })
           }}
         >

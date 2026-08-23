@@ -14,6 +14,7 @@ import { PhoneCallTable } from './PhoneCallTable'
 import {
   CALLS_TABS,
   DIRECTION_FILTERS,
+  DIRECTION_LABELS,
   phoneCallQueryFor,
   QUEUE_META,
   type CallsTab,
@@ -25,14 +26,6 @@ const TAB_LABELS: Record<CallsTab, string> = {
   unmatched: 'Unmatched',
   unlinked: 'Needs Job Link',
   all: 'All Calls',
-}
-
-const DIRECTION_LABELS: Record<DirectionFilter, string> = {
-  all: 'All directions',
-  inbound: 'Inbound',
-  outbound: 'Outbound',
-  internal: 'Internal',
-  unknown: 'Unknown',
 }
 
 const ID = 'PhoneCallsPage'
@@ -111,6 +104,20 @@ export function PhoneCallsPage() {
           </button>
         ))}
       </nav>
+
+      {/* Above the filters and the rows, where the people directory puts its
+          create panel — below LoadMoreSentinel it would open off-screen on a
+          fifty-row page. Keyed on the call so opening it on a second row
+          starts empty: React would otherwise keep the company, person, label
+          and primary flag chosen for the first, and one click would write the
+          second number to the first company. */}
+      {assignTarget !== null && (
+        <AssignCallNumberPanel
+          key={assignTarget.id}
+          call={assignTarget}
+          onClose={() => setAssignTarget(null)}
+        />
+      )}
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <input
@@ -198,10 +205,6 @@ export function PhoneCallsPage() {
           isFetchNextPageError={calls.isFetchNextPageError}
           onLoadMore={() => void calls.fetchNextPage()}
         />
-      )}
-
-      {assignTarget !== null && (
-        <AssignCallNumberPanel call={assignTarget} onClose={() => setAssignTarget(null)} />
       )}
     </div>
   )

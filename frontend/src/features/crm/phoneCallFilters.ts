@@ -8,13 +8,35 @@ export const CALLS_TABS: readonly CallsTab[] = ['recent', 'unmatched', 'unlinked
 /** The direction filter's vocabulary, which is the wire's own. */
 export type DirectionFilter = NonNullable<NonNullable<CrmPhoneCallsListData['query']>['direction']>
 
-export const DIRECTION_FILTERS: readonly DirectionFilter[] = [
-  'all',
-  'inbound',
-  'outbound',
-  'internal',
-  'unknown',
-]
+/** The option text for each direction. The `Record<DirectionFilter, …>`
+    annotation is what makes the compiler demand an entry for every direction
+    the wire declares. */
+export const DIRECTION_LABELS: Record<DirectionFilter, string> = {
+  all: 'All directions',
+  inbound: 'Inbound',
+  outbound: 'Outbound',
+  internal: 'Internal',
+  unknown: 'Unknown',
+}
+
+const DIRECTION_FILTER_ORDER = ['all', 'inbound', 'outbound', 'internal', 'unknown'] as const
+
+/**
+ * Fable: the labels record and the order list check each other, so a direction
+ * added to the wire cannot reach the select without an option. The record's
+ * annotation demands a label for it; this alias demands a place in the order,
+ * and stops compiling when the exclusion leaves anything behind.
+ *
+ * Deriving the order from `Object.keys(DIRECTION_LABELS)` was rejected:
+ * `Object.keys` is typed `string[]`, so it needs a cast back to the union —
+ * and a cast is exactly the silent gap this is here to close.
+ */
+type AssertNoneMissing<T extends never> = T
+export type EveryDirectionIsOffered = AssertNoneMissing<
+  Exclude<DirectionFilter, (typeof DIRECTION_FILTER_ORDER)[number]>
+>
+
+export const DIRECTION_FILTERS: readonly DirectionFilter[] = DIRECTION_FILTER_ORDER
 
 interface QueueMeta {
   title: string

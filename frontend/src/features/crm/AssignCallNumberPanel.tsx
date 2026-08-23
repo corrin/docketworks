@@ -133,7 +133,11 @@ export function AssignCallNumberPanel({ call, onClose }: AssignCallNumberPanelPr
             data-automation-id={`${ID}-assign-submit`}
             disabled={company === null || assign.isPending}
             onClick={() => {
-              if (company === null) return
+              if (company === null) {
+                throw new Error(
+                  'Assign was pressed with no company, but it is disabled until one is',
+                )
+              }
               assign.mutate({
                 path: { call_id: call.id },
                 body: {

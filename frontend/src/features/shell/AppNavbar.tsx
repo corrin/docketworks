@@ -67,8 +67,8 @@ export function AppNavbar() {
         </NavMenu>
         {/* Fable: office staff only — every people endpoint is office_auth,
             the companies report exposes company-wide spend, and every
-            /api/crm/phone-calls* route goes through _require_office_staff
-            (apps/crm/api.py:89). */}
+            /api/crm/phone-calls* route goes through apps/crm/api.py's
+            _require_office_staff. */}
         {user.is_office_staff && (
           <NavMenu label="CRM" automationId="AppNavbar-crm-menu">
             <NavMenuLink to="/crm/companies" automationId="AppNavbar-companies">

@@ -206,6 +206,10 @@ export function PhoneCallTable({
                     Link job
                   </Button>
                 ) : (
+                  // Also the branch for a call that HAS a company on a surface
+                  // that forbids linking. Unreachable today: the only such
+                  // surface is the job History tab, which lists calls already
+                  // linked to that job.
                   <span className="text-xs text-gray-500">Assign company first</span>
                 )}
               </td>

@@ -145,11 +145,12 @@ describe('PhoneCallsPage — the filters', () => {
     await waitFor(() => expect(seen.urls).toHaveLength(1))
 
     await user.type(autoId('PhoneCallsPage-search'), 'alex')
-    expect(seen.urls).toHaveLength(1)
 
-    await waitFor(() => expect(lastQuery(seen).q).toBe('alex'))
-    // One request for the settled term, none for 'a', 'al', 'ale'.
-    expect(seen.urls).toHaveLength(2)
+    // The whole sequence, not a snapshot taken mid-debounce: one request for
+    // the settled term and none for 'a', 'al', 'ale'.
+    await waitFor(() =>
+      expect(seen.urls.map((url) => url.searchParams.get('q'))).toEqual([null, 'alex']),
+    )
   })
 
   it('sends the direction and recording filters as soon as they are chosen', async () => {
@@ -321,6 +322,42 @@ describe('PhoneCallsPage — assigning a number', () => {
         { company: 'company-9', person: null, is_primary: false, label: null },
       ]),
     )
+  })
+
+  it('starts the panel empty when it is opened on a second call', async () => {
+    serveList([
+      unmatchedCall,
+      call({ id: 'call-4', company: null, company_name: '', person_name: '' }),
+    ])
+    server.use(
+      http.get('*/api/companies/search/', () =>
+        HttpResponse.json({
+          count: 1,
+          page: 1,
+          page_size: 50,
+          results: [company()],
+          total_pages: 1,
+        }),
+      ),
+      http.get('*/api/companies/:companyId/people/', () => HttpResponse.json([])),
+    )
+    const { user } = renderWithProviders(<PhoneCallsPage />)
+
+    await waitFor(() => expect(queryAutoId('PhoneCallTable-assign-number-call-2')).not.toBeNull())
+    await user.click(autoId('PhoneCallTable-assign-number-call-2'))
+    await user.type(autoId('CompanyLookup-input'), 'beta')
+    await waitFor(() => expect(queryAutoId('CompanyLookup-option-company-9')).not.toBeNull())
+    await user.click(autoId('CompanyLookup-option-company-9'))
+    await user.type(autoId('PhoneCallsPage-assign-label'), 'Reception')
+    expect(autoId('CompanyLookup-input')).toHaveValue('Beta Fabrication')
+
+    // Carrying the first call's company across would let one click write the
+    // second call's number to the first call's company.
+    await user.click(autoId('PhoneCallTable-assign-number-call-4'))
+
+    expect(autoId('CompanyLookup-input')).toHaveValue('')
+    expect(autoId('PhoneCallsPage-assign-label')).toHaveValue('')
+    expect(autoId('PhoneCallsPage-assign-submit')).toBeDisabled()
   })
 
   it('closes the panel without writing when cancelled', async () => {
