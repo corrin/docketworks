@@ -267,11 +267,16 @@ precision = 2
 root_packages = ["apps", "config"]
 
 [[tool.importlinter.contracts]]
-name = "Layering: core imports no domain app; domain apps do not import integrations; config on top"
+name = "Layering: core imports no domain app; domain apps do not import integrations; diagnostics above integrations; config on top"
 type = "layers"
 # Domain apps are colon-separated (non-independent): they may import each other,
 # matching v1's architecture (job->company, purchasing->job, ...). Integrations
 # sit above domains; the one inherited inversion is ignore_imports'd below.
+#
+# Fable: apps.diagnostics sits ABOVE the integrations: it is operator tooling
+# that spans everything (the scrubber, the E2E cleanup), and the E2E cleanup
+# archives a run's contacts in Xero. Beside them it could only reach that
+# seam by management-command name, a dependency the contract cannot see.
 #
 # apps.ai sits in the BOTTOM layer beside apps.core, not with the integrations:
 # it is infrastructure (a provider-config model plus the one LiteLLM proxy), it
@@ -281,7 +286,8 @@ type = "layers"
 # which is exactly how v1 ended up with four (ADR 0041).
 layers = [
     "config",
-    "(apps.xero) | (apps.search) | (apps.diagnostics)",
+    "apps.diagnostics",
+    "(apps.xero) | (apps.search)",
     "(apps.job) : (apps.accounts) : (apps.company) : (apps.crm) : (apps.purchasing) : (apps.quoting) : (apps.accounting) : (apps.timesheet) : (apps.operations) : (apps.process)",
     "(apps.core) : (apps.ai)",
 ]

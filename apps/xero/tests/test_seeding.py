@@ -50,6 +50,7 @@ def _contact(name: str, contact_id: str) -> MagicMock:
     contact = MagicMock()
     contact.name = name
     contact.contact_id = contact_id
+    contact.contact_status = "ACTIVE"
     return contact
 
 

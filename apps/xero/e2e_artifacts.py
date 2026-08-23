@@ -3,7 +3,9 @@
 E2E runs against a live Xero organisation with writes enabled, so the contacts,
 invoices and quotes a run creates persist in Xero after the run's database has
 been restored from backup. The hourly Xero sync then re-imports them into the
-clean database, which is what this module exists to prevent.
+clean database. This module stops the objects changed inside a recorded run;
+contacts touched later are handled by e2e_cleanup archiving them in Xero,
+after which they mirror back archived.
 
 An inbound Xero object is skipped only when *both* hold:
 
@@ -29,6 +31,7 @@ from typing import Protocol
 
 from django.conf import settings
 
+from apps.core.test_data import is_test_company_name
 from apps.xero.operator_guards import is_production_tenant
 
 logger = logging.getLogger(__name__)
@@ -56,22 +59,12 @@ class InboundXeroObject(Protocol):
 # other; same convention as the E2E lock file. Absent on any machine that has
 # never run E2E, which is what keeps this module inert.
 E2E_SYNC_WINDOWS_FILE = Path(tempfile.gettempdir()) / "docketworks-e2e-sync-windows.json"
+#: The harness's own lock (frontend/tests/scripts/e2e-reset.ts and friends):
+#: present exactly while a suite is running.
+E2E_LOCK_FILE = Path(tempfile.gettempdir()) / "playwright-e2e.lock"
 
-# Names reserved for E2E test data. TEST_DATA_PREFIX marks companies, jobs and
-# people a run creates; TEST_COMPANY_NAME is the standing fixture company that
-# test jobs — and so the invoices and quotes raised against them — hang off.
-# Mirrored (layering forbids sharing) in: frontend/tests/scripts/
-# db-backup-utils.ts, frontend/tests/e2e/helpers.ts, and
-# apps/diagnostics/management/commands/e2e_cleanup.py.
-TEST_DATA_PREFIX = "[TEST]"
-TEST_COMPANY_NAME = "ABC Carpet Cleaning TEST IGNORE"
-
-
-def is_test_company_name(name: str | None) -> bool:
-    """Report whether a company name is reserved for E2E test data."""
-    if not name:
-        return False
-    return name.startswith(TEST_DATA_PREFIX) or name == TEST_COMPANY_NAME
+# The names themselves live in apps/core/test_data.py, the one home every
+# reader may import.
 
 
 def get_closed_e2e_windows() -> list[tuple[datetime, datetime]]:

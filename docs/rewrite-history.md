@@ -190,3 +190,17 @@ integration was weighed and rejected because its only honest form is generic
 columns plus a JSON bag mypy cannot see into. `PhoneProviderSettings` is
 replaced rather than joined by the new model, and `GOOGLE_MAPS_API_KEY` leaves
 `.env`, `shared.env` and `server-setup.sh` entirely. ADR 0053 records the rules.
+
+**E2E residue that came back, 2026-08-23.** `[TEST] Phone Owner B 514429`
+reappeared after every E2E run although `e2e_cleanup` deleted it each time.
+Every company a spec creates through the app becomes a Xero contact in the
+demo organisation (80 of them by now), Xero contacts can only be archived, and
+the contact sync is incremental by modification time — so any test contact
+touched in Xero after the restored watermark is re-imported. Every confirmed
+cleanup therefore archives the E2E contacts in Xero first (its production and
+read-only guards run before any local delete, and the step runs even when the
+local database is already clean — the normal state after a run; `diagnostics`
+moved above the integrations in the layer contract so the cleanup can import
+the archive seam rather than reach a second command by name), and a company archived in Xero is the organisation's mirror rather than
+residue to the cleanup and the preflight; archived contacts stay importable
+because invoice linkage fetches them on demand.

@@ -8,12 +8,15 @@ object.
 
 import logging
 import time
+from collections.abc import Sequence
+from dataclasses import dataclass
+from itertools import batched
 from typing import TYPE_CHECKING
 
 from xero_python.accounting import AccountingApi, Address, Contact, Phone
 
 from apps.xero.auth import get_api_client, get_tenant_id
-from apps.xero.constants import SLEEP_TIME
+from apps.xero.constants import SLEEP_TIME, XERO_BATCH_SIZE
 
 if TYPE_CHECKING:
     from apps.company.models import Company
@@ -82,6 +85,66 @@ def create_company_contact_in_xero(company: "Company") -> str:
     company.save(update_fields=["xero_contact_id"])
     logger.info("Created company %s in Xero with ID %s", company.name, company.xero_contact_id)
     return company.xero_contact_id
+
+
+@dataclass(frozen=True)
+class ArchiveOutcome:
+    """What Xero did with an archive request, contact by contact."""
+
+    archived: tuple[str, ...]
+    #: contact id -> Xero's reason. A contact with transactions against it
+    #: (an authorised PO, an unpaid invoice) cannot be archived; Xero says so
+    #: per element and the caller reports it.
+    refused: dict[str, str]
+
+
+def archive_contacts_in_xero(contact_ids: Sequence[str]) -> ArchiveOutcome:
+    """Archive the given contacts — Xero's removal, since contacts cannot be deleted.
+
+    Fable: update_or_create_contacts with only id and status, batched at
+    XERO_BATCH_SIZE and with summarize_errors off. The SDK default
+    (summarised errors) is the rejected alternative: under it one contact Xero
+    refuses — any with transactions against it — fails its whole batch with
+    nothing saved, permanently, on every cleanup. Per-element errors let the
+    rest archive and name the refusals. A full contact payload is the other
+    rejected alternative: there is no Company to build one from, and Xero
+    leaves omitted fields unchanged. No sleep of its own: the REST client
+    paces every request (apps/xero/client.py). Raises on a malformed response
+    (ADR 0015), never on a refusal.
+    """
+    accounting_api = AccountingApi(get_api_client())
+    tenant_id = get_tenant_id()
+    archived: list[str] = []
+    refused: dict[str, str] = {}
+    for batch in batched(contact_ids, XERO_BATCH_SIZE):
+        response = accounting_api.update_or_create_contacts(
+            tenant_id,
+            contacts={
+                "contacts": [
+                    Contact(contact_id=contact_id, contact_status="ARCHIVED")
+                    for contact_id in batch
+                ]
+            },
+            summarize_errors=False,
+        )
+        returned = response.contacts or []
+        if len(returned) != len(batch):
+            raise ValueError(
+                f"Xero answered an archive batch of {len(batch)} with {len(returned)} contacts"
+            )
+        for contact_id, contact in zip(batch, returned, strict=True):
+            if contact.has_validation_errors:
+                messages = [error.message or "" for error in contact.validation_errors or []]
+                refused[contact_id] = "; ".join(messages) or "refused without a message"
+            elif contact.contact_status == "ARCHIVED":
+                archived.append(contact_id)
+            else:
+                raise ValueError(
+                    f"Xero neither archived nor refused contact {contact_id}: "
+                    f"status {contact.contact_status!r}"
+                )
+    logger.info("Archived %d contacts in Xero, %d refused", len(archived), len(refused))
+    return ArchiveOutcome(archived=tuple(archived), refused=refused)
 
 
 def sync_company_to_xero(company: "Company") -> None:

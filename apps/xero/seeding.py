@@ -38,6 +38,7 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
+from itertools import batched
 from typing import Any
 
 from django.db.models import Q, QuerySet
@@ -54,6 +55,7 @@ from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder, Stock
 from apps.timesheet.services import payroll_employee_sync
 from apps.xero.auth import get_api_client, get_tenant_id
+from apps.xero.constants import XERO_BATCH_SIZE, XERO_CONTACT_STATUSES
 from apps.xero.contacts import contact_from_company
 from apps.xero.helpers import clean_payload, convert_to_pascal_case, sanitize_for_xero
 from apps.xero.models import XeroAccount, XeroPayItem, XeroSyncCursor
@@ -71,8 +73,6 @@ logger = logging.getLogger(__name__)
 # predate every record in any Xero org, i.e. a full pull.
 _SYNC_EPOCH = datetime(2000, 1, 1, tzinfo=UTC)
 
-# Xero's documented maximum for a batch create on these endpoints.
-BATCH_SIZE = 50
 # Page size for paged reads; a shorter page means the last page.
 LOOKUP_PAGE_SIZE = 100
 # The account every seeded invoice and quote line is coded to. The seed
@@ -82,10 +82,12 @@ SALES_ACCOUNT_NAME = "Sales"
 
 @dataclass(frozen=True)
 class XeroContactRef:
-    """The two fields of a Xero contact the by-name linker needs."""
+    """What the by-name linker and the E2E archiver need of a Xero contact."""
 
     name: str
     contact_id: str
+    #: One of XERO_CONTACT_STATUSES; get_all_xero_contacts refuses anything else.
+    contact_status: str
 
 
 @dataclass(frozen=True)
@@ -174,7 +176,17 @@ def get_all_xero_contacts() -> list[XeroContactRef]:
     for contact in response.contacts or []:
         if not contact.name or not contact.contact_id:
             raise ValueError(f"Xero returned a contact without a name or id: {contact}")
-        contacts.append(XeroContactRef(name=contact.name, contact_id=contact.contact_id))
+        if contact.contact_status not in XERO_CONTACT_STATUSES:
+            raise ValueError(
+                f"Xero contact {contact.contact_id} has unhandled status {contact.contact_status!r}"
+            )
+        contacts.append(
+            XeroContactRef(
+                name=contact.name,
+                contact_id=contact.contact_id,
+                contact_status=contact.contact_status,
+            )
+        )
 
     logger.info("Fetched %d contacts from Xero", len(contacts))
     return contacts
@@ -189,10 +201,7 @@ def bulk_create_contacts_in_xero(companies: Sequence[Company]) -> int:
     tenant_id = get_tenant_id()
     total_created = 0
 
-    for start in range(0, len(companies), BATCH_SIZE):
-        batch = list(companies[start : start + BATCH_SIZE])
-        batch_number = start // BATCH_SIZE + 1
-
+    for batch_number, batch in enumerate(batched(companies, XERO_BATCH_SIZE), start=1):
         contact_batch = []
         for company in batch:
             if not company.validate_for_xero():
@@ -741,9 +750,7 @@ def _batch_create[TDocument: (Invoice, Quote)](
     by_number = dict(documents)
     created = 0
 
-    for start in range(0, len(documents), BATCH_SIZE):
-        batch = documents[start : start + BATCH_SIZE]
-        batch_number = start // BATCH_SIZE + 1
+    for batch_number, batch in enumerate(batched(documents, XERO_BATCH_SIZE), start=1):
         payloads = [kind.build_payload(document, account_code) for _number, document in batch]
 
         logger.info("Sending batch %d of %d %s", batch_number, len(payloads), kind.entity)

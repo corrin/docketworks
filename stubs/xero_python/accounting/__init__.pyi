@@ -49,6 +49,8 @@ class Address:
 class Contact:
     contact_id: str | None
     contact_status: str | None
+    has_validation_errors: bool | None
+    validation_errors: list[ValidationError] | None
     merged_to_contact_id: str | None
     name: str | None
     email_address: str | None
@@ -175,6 +177,9 @@ class AccountingApi:
     def create_contacts(self, xero_tenant_id: str, contacts: Any, **kwargs: Any) -> Contacts: ...
     def update_contact(
         self, xero_tenant_id: str, contact_id: Any, contacts: Any, **kwargs: Any
+    ) -> Contacts: ...
+    def update_or_create_contacts(
+        self, xero_tenant_id: str, contacts: Any, **kwargs: Any
     ) -> Contacts: ...
     def get_contacts(self, xero_tenant_id: str, **kwargs: Any) -> Contacts: ...
     def get_branding_themes(self, xero_tenant_id: str, **kwargs: Any) -> BrandingThemes: ...

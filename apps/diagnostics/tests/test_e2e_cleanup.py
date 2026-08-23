@@ -10,21 +10,65 @@ from apps.accounting.models import Invoice, Quote
 from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, Person
 from apps.company.tests.job_fixtures import make_invoice, make_job, make_purchase_order, make_quote
-from apps.diagnostics.management.commands.e2e_cleanup import TEST_COMPANY_NAME, Command
+from apps.core.test_data import TEST_COMPANY_NAME
+from apps.diagnostics.management.commands.e2e_cleanup import Command, active_e2e_contacts
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 from apps.quoting.models import SupplierPriceList
+from apps.xero.contacts import ArchiveOutcome
+from apps.xero.seeding import XeroContactRef
 
 pytestmark = pytest.mark.django_db
+
+CLEANUP = "apps.diagnostics.management.commands.e2e_cleanup"
 
 
 @pytest.fixture(autouse=True)
 def _isolate_sequence_sync(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep sync_sequences' explicit COMMIT from escaping pytest's database savepoint."""
+    real_call_command = call_command
+
+    def skip_sequence_sync(command: str, *args: str, **kwargs: object) -> None:
+        if command != "sync_sequences":
+            real_call_command(command, *args, **kwargs)
+
     monkeypatch.setattr(
-        "apps.diagnostics.management.commands.e2e_cleanup.call_command",
-        lambda command: None if command == "sync_sequences" else call_command(command),
+        "apps.diagnostics.management.commands.e2e_cleanup.call_command", skip_sequence_sync
     )
+
+
+def _ref(name: str, status: str = "ACTIVE") -> XeroContactRef:
+    return XeroContactRef(name=name, contact_id=f"id-{name}", contact_status=status)
+
+
+XERO_CONTACTS = [
+    _ref("[TEST] In Xero"),
+    _ref("E2E Test Client 2"),
+    _ref("[TEST] Already Archived", status="ARCHIVED"),
+    _ref(TEST_COMPANY_NAME),
+    _ref("Real Customer Ltd"),
+]
+
+
+@pytest.fixture(autouse=True)
+def xero_archives(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
+    """A fake demo organisation; guards pass and every archive call is recorded.
+
+    Fable: stubbed at the Xero seams rather than at a command dispatch, so the
+    guarantee under test — a confirmed cleanup archives the residue in Xero —
+    is what the test sees, not how the command reaches it.
+    """
+    archived: list[list[str]] = []
+    monkeypatch.setattr(f"{CLEANUP}.get_all_xero_contacts", lambda: XERO_CONTACTS)
+    monkeypatch.setattr(f"{CLEANUP}.assert_not_production_target", lambda: None)
+    monkeypatch.setattr(f"{CLEANUP}.assert_xero_writes_enabled", lambda _operation: None)
+
+    def record(contact_ids: list[str]) -> ArchiveOutcome:
+        archived.append(list(contact_ids))
+        return ArchiveOutcome(archived=tuple(contact_ids), refused={})
+
+    monkeypatch.setattr(f"{CLEANUP}.archive_contacts_in_xero", record)
+    return archived
 
 
 def _run_cleanup(*args: str) -> str:
@@ -82,7 +126,7 @@ def test_empty_named_test_company_is_not_test_data() -> None:
 
     output = _run_cleanup("--confirm")
 
-    assert "No test data found" in output
+    assert "No local test data found" in output
     assert Company.objects.filter(pk=test_company.pk).exists()
 
 
@@ -188,3 +232,82 @@ def test_confirm_rolls_back_when_a_delete_fails(
     assert Invoice.objects.filter(pk=invoice.pk).exists()
     assert Job.objects.filter(pk=job.pk).exists()
     assert Company.objects.filter(pk=company.pk).exists()
+
+
+def test_a_company_archived_in_xero_is_the_mirror_not_residue() -> None:
+    """Xero cannot delete a contact, so its archived mirror must survive every cleanup."""
+    archived = Company.objects.create(
+        name="[TEST] Archived In Xero", xero_archived=True, xero_last_modified="2026-08-08T00:00Z"
+    )
+
+    _run_cleanup("--confirm")
+
+    assert Company.objects.filter(pk=archived.pk).exists()
+
+
+def test_confirm_archives_the_residue_in_xero_even_when_the_database_is_clean(
+    xero_archives: list[list[str]],
+) -> None:
+    """The database is clean after every normal run; the residue that matters is in Xero."""
+    _run_cleanup("--confirm")
+
+    assert xero_archives == [["id-[TEST] In Xero", "id-E2E Test Client 2"]]
+
+
+def test_dry_run_does_not_archive_in_xero(xero_archives: list[list[str]]) -> None:
+    """An inspection must never write to the organisation."""
+    Company.objects.create(name="[TEST] Company", xero_last_modified="2026-08-08T00:00Z")
+
+    _run_cleanup()
+
+    assert xero_archives == []
+
+
+def test_the_xero_guard_trips_before_any_local_row_is_deleted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A refused target (production, read-only) must not have already lost its local rows."""
+    company = Company.objects.create(name="[TEST] Company", xero_last_modified="2026-08-08T00:00Z")
+
+    def refuse() -> None:
+        raise ValueError("production tenant")
+
+    monkeypatch.setattr(f"{CLEANUP}.assert_not_production_target", refuse)
+
+    with pytest.raises(ValueError, match="production tenant"):
+        _run_cleanup("--confirm")
+    assert Company.objects.filter(pk=company.pk).exists()
+
+
+def test_dependants_of_an_archived_company_are_still_residue() -> None:
+    """A PO raised against a supplier archived later is a spec's leftovers, not the mirror."""
+    archived = Company.objects.create(
+        name="[TEST] Archived Supplier", xero_archived=True, xero_last_modified="2026-08-08T00:00Z"
+    )
+    po = make_purchase_order(archived)
+
+    _run_cleanup("--confirm")
+
+    assert not PurchaseOrder.objects.filter(pk=po.pk).exists()
+    assert Company.objects.filter(pk=archived.pk).exists()
+
+
+def test_only_active_e2e_residue_is_archived() -> None:
+    """The standing company, real customers and already-archived contacts are never touched."""
+    chosen = {contact.name for contact in active_e2e_contacts(XERO_CONTACTS)}
+
+    assert chosen == {"[TEST] In Xero", "E2E Test Client 2"}
+
+
+def test_a_refusal_is_reported_by_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The operator learns which contact Xero would not archive, and why."""
+    monkeypatch.setattr(
+        f"{CLEANUP}.archive_contacts_in_xero",
+        lambda ids: ArchiveOutcome(
+            archived=(ids[0],), refused={ids[1]: "Contact has outstanding transactions"}
+        ),
+    )
+
+    output = _run_cleanup("--confirm")
+
+    assert "E2E Test Client 2: Contact has outstanding transactions" in output
