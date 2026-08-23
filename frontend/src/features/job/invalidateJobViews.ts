@@ -3,18 +3,30 @@ import type { QueryClient } from '@tanstack/react-query'
 import { getFullJobOptions, jobJobsTimelineRetrieveQueryKey } from '@/api'
 
 /**
- * Mark both server-owned views of one job stale: the job detail the header and
- * every tab read, and the History tab's timeline.
+ * Mark both server-owned views of one job stale: the job detail, and the
+ * History tab's timeline.
  *
- * The two keys travel together because one write moves both. Every job write
- * the app makes — a header delta PATCH, a manual event, an undo, a cost-line
- * create/update/delete — records a JobEvent or a cost line that
- * `get_job_timeline` merges into the timeline, and each of them also moves
- * something the job detail carries (its fields, its `updated_at` ETag, or a
- * cost set's server-computed summary). Invalidating one key without the other
- * therefore leaves a screen showing what the user just changed alongside a
- * screen that has not heard of it — which is exactly what the History tab did
- * when a header rename invalidated only the job detail.
+ * The two keys travel together because the writes that move one move the
+ * other. A write lands on the timeline when it records a JobEvent or a cost
+ * line, which `get_job_timeline` merges; it lands on the job detail because
+ * the job's ETag is derived from its `updated_at`
+ * (`generate_updated_at_etag` in apps/job/api.py), and a getFullJob response
+ * is the only thing that re-arms the etag store the header's If-Match reads
+ * (src/lib/concurrency/interceptors.ts). A write that bumps `updated_at`
+ * without refreshing that store leaves the user's next header edit to 412.
+ *
+ * The call sites are exactly: the header field save (useJobFieldSave), the
+ * History tab's add-event and undo (JobHistoryTab), cost-line create, patch,
+ * delete and stock consumption (costing/useCostLines), Xero quote create and
+ * delete (costing/XeroQuoteCard), and invoice create and delete
+ * (JobFinishTab).
+ *
+ * One writer is NOT covered: `features/timesheet/useTimesheetEntries.ts`
+ * writes cost lines against arbitrary jobs and would have to reach across
+ * features to call this. The hole is real — open a job, book time to it on
+ * Timesheets, come back inside the 30s staleTime, and the next header edit
+ * 412s. Its fix is server-side and deferred: see the cost-line
+ * `_set_job_etag` row in docs/rewrite-status.md.
  *
  * Not awaited by design: callers invalidate after their own mutation has
  * settled, and a refetch of a query nothing has mounted is a no-op, so there

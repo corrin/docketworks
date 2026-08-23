@@ -20,6 +20,8 @@ import {
 import type { CostSetSummaryOut, JobCompletionChecklistOut, JobDetail } from '@/api'
 import { QueryState } from '@/features/shared/QueryState'
 import { formatCurrency, formatPercentage } from '@/lib/format'
+
+import { invalidateJobViews } from './invalidateJobViews'
 import { JobInvoiceCard } from './JobInvoiceCard'
 
 type ChecklistKey = keyof JobCompletionChecklistOut
@@ -140,6 +142,11 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
     void queryClient.invalidateQueries({
       queryKey: jobJobsInvoicesRetrieveQueryKey({ path: { job_id: jobId } }),
     })
+    // Creating or deleting an invoice writes a JobEvent and bumps the job
+    // (apps/xero/documents/invoice.py), so both of the job's views moved with
+    // it — the timeline gained an entry and the ETag the header's next
+    // If-Match carries is now stale.
+    void invalidateJobViews(queryClient, jobId)
   }
 
   const toggleChecklist = (key: ChecklistKey, checked: boolean) => {

@@ -11,8 +11,9 @@ import {
   jobJobsCostSetsRetrieveQueryKey,
 } from '@/api'
 import type { CostLineCreateRequest, CostLineOut, CostLineUpdateRequest, CostSetOut } from '@/api'
-import { invalidateJobViews } from '@/features/job/invalidateJobViews'
 import { restoreDeletedRow } from '@/features/shared/optimistic'
+
+import { invalidateJobViews } from '../invalidateJobViews'
 import type { CostSetKind } from './types'
 
 interface CreateLineCallbacks {
@@ -42,10 +43,19 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
   const deleteMutation = useMutation(jobCostLinesDeleteDestroyMutation())
   const consumeMutation = useMutation(consumeStockMutation())
 
-  // The cost set, plus the job's two views: a cost line is a timeline entry
-  // (costline_created / costline_updated) and its cost set's server-computed
-  // summary rides on the job detail, so a write that refreshed only this grid
-  // left the History tab and the header showing pre-write numbers.
+  // The cost set, plus the job's two views.
+  //
+  // The job detail is not refetched for anything it displays: it is refetched
+  // for the ETag its 200/304 carries (apps/job/api.py get_full_job). Every
+  // CostLine save and delete runs _update_cost_set_summary, which calls
+  // touch_updated_at on the job (apps/job/models/costing.py), and the job's
+  // ETag is generated from that updated_at — while the cost-line endpoints
+  // never call _set_job_etag on their own responses. So a cost-line write
+  // silently invalidates the ETag the concurrency interceptor holds, and only
+  // a getFullJob refetch re-arms it; without one, the user's next header
+  // inline edit sends a stale If-Match and 412s.
+  // The timeline key travels with it because the same write is a
+  // costline_created or costline_updated entry on the History tab.
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey })
     void invalidateJobViews(queryClient, jobId)

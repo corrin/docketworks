@@ -318,6 +318,25 @@ rather than anywhere else. This file is finished when it is empty.
 
 ### Correctness and hygiene
 
+- **The three cost-line endpoints must set the job ETag on their own
+  responses.** Create, patch and delete cost line (`apps/job/api.py`) each bump
+  the job's `updated_at` through `_update_cost_set_summary`, which is what the
+  job ETag is derived from, but none of them calls `_set_job_etag(response,
+  job_id)`. The client therefore has to refetch `getFullJob` after every
+  settled cost-line write purely to re-arm the etag store the header's If-Match
+  reads (`features/job/invalidateJobViews.ts`). Add the call to all three; then
+  a cost-line write needs only the cost-set and timeline keys, and
+  `features/timesheet/useTimesheetEntries.ts` — which writes cost lines against
+  arbitrary jobs and cannot reach across features to invalidate job views —
+  stops being a hole that 412s the next header edit.
+- **`getFullJob` returns more than any consumer reads.**
+  `get_job_for_edit` (`apps/job/services/job_service.py`) returns every
+  `JobEvent` for the job unpaginated, and `job_detail_data` embeds
+  `latest_estimate`, `latest_quote` and `latest_actual` as whole cost sets with
+  their lines — which no frontend consumer reads, since the costing tabs fetch
+  cost sets by their own endpoint. Drop the embedded cost sets and page the
+  events. This is now on a hot path: the response is refetched after every
+  settled cost-line write.
 - **Geocoding integration test (ADR 0050).** Write an `integration`-marked test
   calling `geocoding_service` against Address Validation; the outbound-link
   probe skips `v1:validateAddress` because it is POST-only, so only that test
