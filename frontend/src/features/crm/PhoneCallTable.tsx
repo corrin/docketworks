@@ -42,10 +42,6 @@ interface PhoneCallTableProps {
   onRetry: () => void
   rows: readonly PhoneCallRecordOut[] | undefined
   emptyLabel: string
-  /** False on a surface that only reports a call's job. Both surfaces pass
-      true today — the History tab included, as v1's did: a call linked to the
-      wrong job is corrected from wherever it is noticed. */
-  allowJobLinking: boolean
   /** Offered only where the caller can host the assign panel; a call with no
       company is otherwise simply reported as unmatched. */
   onAssignNumber?: (call: PhoneCallRecordOut) => void
@@ -55,8 +51,12 @@ const HEAD_CLASS = 'px-3 py-2 text-left font-semibold text-gray-700'
 
 /**
  * The one phone-call table: the calls page's triage queues and the job
- * History tab's linked calls draw the same seven columns, and linking is a
- * prop rather than a second component.
+ * History tab's linked calls draw the same seven columns.
+ *
+ * Linking is unconditional. It was a prop until both surfaces turned out to
+ * want it — a call linked to the wrong job is corrected wherever it is
+ * noticed, which is what v1 did too — and a flag no caller ever sets false is
+ * a branch no test exercises honestly.
  */
 export function PhoneCallTable({
   isPending,
@@ -64,7 +64,6 @@ export function PhoneCallTable({
   onRetry,
   rows,
   emptyLabel,
-  allowJobLinking,
   onAssignNumber,
 }: PhoneCallTableProps) {
   const queryClient = useQueryClient()
@@ -170,33 +169,29 @@ export function PhoneCallTable({
                     >
                       Job #{linkedJob.job_number}
                     </span>
-                    {allowJobLinking && (
-                      <>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          data-automation-id={`PhoneCallTable-change-job-${call.id}`}
-                          onClick={() => setLinkTarget(call)}
-                        >
-                          Change
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-700 hover:text-red-800"
-                          data-automation-id={`PhoneCallTable-unlink-job-${call.id}`}
-                          disabled={unlink.isPending}
-                          onClick={() => unlink.mutate({ path: { call_id: call.id } })}
-                        >
-                          Unlink
-                        </Button>
-                      </>
-                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      data-automation-id={`PhoneCallTable-change-job-${call.id}`}
+                      onClick={() => setLinkTarget(call)}
+                    >
+                      Change
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-700 hover:text-red-800"
+                      data-automation-id={`PhoneCallTable-unlink-job-${call.id}`}
+                      disabled={unlink.isPending}
+                      onClick={() => unlink.mutate({ path: { call_id: call.id } })}
+                    >
+                      Unlink
+                    </Button>
                     <div className="basis-full text-xs text-gray-500">{linkedJob.name}</div>
                   </div>
-                ) : call.company !== null && allowJobLinking ? (
+                ) : call.company !== null ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -207,10 +202,8 @@ export function PhoneCallTable({
                     Link job
                   </Button>
                 ) : (
-                  // Also the branch for a call that HAS a company on a surface
-                  // that forbids linking. Unreachable today: every surface
-                  // passes allowJobLinking, so only a call with no company
-                  // reaches this text.
+                  // A call with no company: the link endpoint would 400, since
+                  // the job must belong to the call's company.
                   <span className="text-xs text-gray-500">Assign company first</span>
                 )}
               </td>

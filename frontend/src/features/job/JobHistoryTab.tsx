@@ -128,6 +128,13 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
     })
   }
 
+  // Only the row whose undo is in flight loses its Confirm; a shared
+  // `undoChange.isPending` disabled every other entry's button as well.
+  const pendingUndoChangeId =
+    undoChange.isPending && undoChange.variables !== undefined
+      ? undoChange.variables.body.change_id
+      : null
+
   const callsPage = phoneCalls.data
   const entries = timeline.data === undefined ? [] : timeline.data.timeline
 
@@ -154,7 +161,10 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
         </div>
 
         {isOfficeStaff && (
-          <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+          <section
+            data-automation-id={`${ID}-phone-calls`}
+            className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+          >
             <div className="mb-4 flex items-center justify-between gap-3">
               <h3 className="text-lg font-medium text-gray-900">Linked Phone Calls</h3>
               <div className="flex items-center gap-2">
@@ -167,7 +177,10 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
                   errorNode={<span className="text-xs text-red-600">Count unavailable</span>}
                 >
                   {callsPage !== undefined && (
-                    <span className="text-xs text-gray-500">
+                    <span
+                      data-automation-id={`${ID}-phone-calls-count`}
+                      className="text-xs text-gray-500"
+                    >
                       Showing {callsPage.results.length} of {callsPage.count}
                     </span>
                   )}
@@ -194,7 +207,6 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
               onRetry={() => void phoneCalls.refetch()}
               rows={callsPage === undefined ? undefined : callsPage.results}
               emptyLabel="No linked phone calls"
-              allowJobLinking
             />
           </section>
         )}
@@ -374,7 +386,7 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
                                 variant="destructive"
                                 size="sm"
                                 data-automation-id={`${ID}-undo-confirm-${entry.id}`}
-                                disabled={undoChange.isPending}
+                                disabled={pendingUndoChangeId === changeId}
                                 onClick={() =>
                                   undoChange.mutate({
                                     path: { job_id: jobId },
@@ -382,7 +394,7 @@ export function JobHistoryTab({ jobId }: JobHistoryTabProps) {
                                   })
                                 }
                               >
-                                {undoChange.isPending ? 'Undoing...' : 'Confirm Undo'}
+                                {pendingUndoChangeId === changeId ? 'Undoing...' : 'Confirm Undo'}
                               </Button>
                             </div>
                           </div>

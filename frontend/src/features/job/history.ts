@@ -47,7 +47,7 @@ const TIMELINE_KIND_LABEL: Record<TimelineKind, string> = {
  */
 export function timelineTypeLabel(entry: TimelineEntryOut): string {
   const kind = timelineKind(entry)
-  if (kind !== 'event' || entry.event_type === null || entry.event_type === '') {
+  if (kind !== 'event' || entry.event_type === null) {
     return TIMELINE_KIND_LABEL[kind]
   }
   return formatEventType(entry.event_type)
@@ -59,7 +59,7 @@ export function costlineDescription(entry: TimelineEntryOut): string | null {
   if (costSetKind === null || costlineKind === null) {
     return null
   }
-  return `${costSetKind.charAt(0).toUpperCase()}${costSetKind.slice(1)} - ${costlineKind}`
+  return `${formatEventType(costSetKind)} - ${costlineKind}`
 }
 
 const COSTLINE_KIND_CLASS: Record<string, string> = {
@@ -72,10 +72,11 @@ const NEUTRAL_BADGE_CLASS = 'bg-gray-100 text-gray-700'
 
 /**
  * The cost-line kind badge's colour. Fable: an unknown kind gets the neutral
- * badge rather than the throw `timelineKind` uses — the kind badge is
+ * badge rather than the throw `timelineKind` uses. The kind badge is
  * decoration over one row, while the entry type decides how the row is built
- * at all, so a fourth cost-line kind added server-side must not blank a job's
- * whole history.
+ * at all — and the nearest error boundary is the route root, so a throw here
+ * would blank the whole page, not the row. A fourth cost-line kind added
+ * server-side is not worth that; an entry type the tab cannot render is.
  */
 export function costlineKindClass(kind: string): string {
   const known = COSTLINE_KIND_CLASS[kind]
@@ -86,16 +87,28 @@ export function costlineKindClass(kind: string): string {
 }
 
 /**
+ * One delta value as text. Scalars are stringified rather than JSON-encoded:
+ * the reader is comparing two columns of the same fields, and quoting every
+ * string would only add noise. Objects and arrays are the exception — a job
+ * delta can carry a nested value, and `String(value)` renders it as the
+ * useless `[object Object]`.
+ */
+function deltaValue(value: unknown): string {
+  if (typeof value === 'object' && value !== null) {
+    return JSON.stringify(value)
+  }
+  return String(value)
+}
+
+/**
  * A delta side as one `key: value` line per field, for the undo panel's
- * Before/After. Values are stringified rather than JSON-encoded: the reader
- * is comparing two columns of the same fields, and quoting every string
- * would only add noise.
+ * Before/After.
  */
 export function formatDelta(record: { [key: string]: unknown } | null): string {
   if (record === null) {
     return 'No data'
   }
-  const lines = Object.entries(record).map(([key, value]) => `${key}: ${String(value)}`)
+  const lines = Object.entries(record).map(([key, value]) => `${key}: ${deltaValue(value)}`)
   if (lines.length === 0) {
     return 'No data'
   }

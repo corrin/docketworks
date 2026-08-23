@@ -1,82 +1,45 @@
 import { screen, waitFor } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { PhoneCallRecordOut, TimelineEntryOut } from '@/api'
 import { getFullJobOptions } from '@/api'
 import { allAutoIds, autoId, queryAutoId } from '@/test/auto-id'
+import { mockUser } from '@/test/me'
 import { server } from '@/test/msw'
 import { renderWithProviders } from '@/test/render'
 
-import { JobHistoryTab } from './JobHistoryTab'
+import { timelineEntry as entry } from './history.test-fixtures'
 
 // The linked-calls table is task 2's component with its own tests, its own
 // link/unlink mutations and an <audio> per row; stubbing it keeps these
-// assertions about what the History tab hands it.
+// assertions about what the History tab hands it. Every prop it is handed is
+// surfaced here, so a tab that wired the wrong query's state to it fails.
 vi.mock('@/features/crm', () => ({
   PhoneCallTable: (props: {
+    isPending: boolean
+    isError: boolean
+    onRetry: () => void
     rows: readonly PhoneCallRecordOut[] | undefined
     emptyLabel: string
-    allowJobLinking: boolean
   }) => (
     <div
       data-automation-id="PhoneCallTable"
+      data-pending={String(props.isPending)}
+      data-error={String(props.isError)}
       data-rows={props.rows === undefined ? 'unloaded' : props.rows.map((row) => row.id).join(',')}
       data-empty-label={props.emptyLabel}
-      data-allow-job-linking={String(props.allowJobLinking)}
-    />
+    >
+      <button type="button" data-automation-id="PhoneCallTable-retry" onClick={props.onRetry}>
+        Retry calls
+      </button>
+    </div>
   ),
 }))
 
+import { JobHistoryTab } from './JobHistoryTab'
+
 const JOB_ID = '0b54b371-4d33-49e7-be29-31bd93bc78cf'
-
-function mockUser(overrides: Record<string, unknown> = {}) {
-  server.use(
-    http.get('*/api/accounts/me/', () =>
-      HttpResponse.json({
-        id: '11111111-1111-1111-1111-111111111111',
-        office_email: 'someone@example.com',
-        payroll_email: null,
-        first_name: 'Some',
-        last_name: 'One',
-        preferred_name: null,
-        fullName: 'Some One',
-        is_office_staff: true,
-        is_superuser: false,
-        ...overrides,
-      }),
-    ),
-  )
-}
-
-function entry(overrides: Partial<TimelineEntryOut> = {}): TimelineEntryOut {
-  return {
-    can_undo: null,
-    change_id: null,
-    cost_set_kind: null,
-    costline_kind: null,
-    created_at: null,
-    delta_after: null,
-    delta_before: null,
-    delta_checksum: null,
-    delta_meta: null,
-    description: 'Job created',
-    entry_type: 'event',
-    event_type: 'manual_note',
-    id: 'event-1',
-    quantity: null,
-    schema_version: null,
-    staff: 'Alex Smith',
-    timestamp: '2026-08-09T02:30:00Z',
-    total_cost: null,
-    total_rev: null,
-    undo_description: null,
-    unit_cost: null,
-    unit_rev: null,
-    updated_at: null,
-    ...overrides,
-  }
-}
 
 const undoableEntry = entry({
   id: 'event-2',
@@ -164,6 +127,7 @@ describe('JobHistoryTab — who may write', () => {
     // Add Event and Undo to everyone and let the request 403.
     expect(queryAutoId('JobHistoryTab-add-event-toggle')).toBeNull()
     expect(queryAutoId('JobHistoryTab-undo-toggle-event-2')).toBeNull()
+    expect(queryAutoId('JobHistoryTab-phone-calls')).toBeNull()
     expect(queryAutoId('PhoneCallTable')).toBeNull()
     expect(calls.urls).toHaveLength(0)
   })
@@ -184,12 +148,63 @@ describe('JobHistoryTab — who may write', () => {
       page_size: '50',
     })
 
-    const table = await screen.findByText('Showing 1 of 3')
-    expect(table).toBeInTheDocument()
+    await waitFor(() =>
+      expect(autoId('JobHistoryTab-phone-calls-count')).toHaveTextContent('Showing 1 of 3'),
+    )
+    expect(autoId('JobHistoryTab-phone-calls')).toContainElement(autoId('PhoneCallTable'))
     expect(autoId('PhoneCallTable').dataset.rows).toBe('call-1')
     expect(autoId('PhoneCallTable').dataset.emptyLabel).toBe('No linked phone calls')
-    // v1 allowed Change/Unlink from the History tab, and the backend still does.
-    expect(autoId('PhoneCallTable').dataset.allowJobLinking).toBe('true')
+    expect(autoId('PhoneCallTable').dataset.error).toBe('false')
+    expect(autoId('PhoneCallTable').dataset.pending).toBe('false')
+  })
+
+  it('tells the table the calls are still loading', async () => {
+    mockUser()
+    serveTimeline([])
+    server.use(
+      http.get('*/api/crm/phone-calls/', async () => {
+        await delay('infinite')
+        return HttpResponse.json({ count: 0, page: 1, page_size: 50, results: [], total_pages: 1 })
+      }),
+    )
+
+    renderWithProviders(<JobHistoryTab jobId={JOB_ID} />)
+
+    await waitFor(() => expect(autoId('PhoneCallTable').dataset.pending).toBe('true'))
+    expect(autoId('PhoneCallTable').dataset.rows).toBe('unloaded')
+    expect(await screen.findByText('Counting…')).toBeInTheDocument()
+  })
+
+  it('tells the table the calls failed, and its Retry re-asks', async () => {
+    mockUser()
+    serveTimeline([])
+    let attempts = 0
+    server.use(
+      http.get('*/api/crm/phone-calls/', () => {
+        attempts += 1
+        if (attempts === 1) return HttpResponse.json({ detail: 'boom' }, { status: 500 })
+        return HttpResponse.json({
+          count: 1,
+          page: 1,
+          page_size: 50,
+          results: [phoneCall()],
+          total_pages: 1,
+        })
+      }),
+    )
+
+    const { user } = renderWithProviders(<JobHistoryTab jobId={JOB_ID} />)
+
+    await waitFor(() => expect(autoId('PhoneCallTable').dataset.error).toBe('true'))
+    expect(autoId('PhoneCallTable').dataset.rows).toBe('unloaded')
+    // The count cannot be reported either, and does not invent a zero.
+    expect(screen.getByText('Count unavailable')).toBeInTheDocument()
+
+    await user.click(autoId('PhoneCallTable-retry'))
+
+    await waitFor(() => expect(autoId('PhoneCallTable').dataset.rows).toBe('call-1'))
+    expect(autoId('PhoneCallTable').dataset.error).toBe('false')
+    expect(autoId('JobHistoryTab-phone-calls-count')).toHaveTextContent('Showing 1 of 1')
   })
 })
 
@@ -394,6 +409,37 @@ describe('JobHistoryTab — undoing a change', () => {
     expect(invalidated).toHaveBeenCalledWith({ queryKey: jobKey })
     // The panel closes: its delta describes a change that has been reverted.
     await waitFor(() => expect(queryAutoId('JobHistoryTab-undo-before-event-2')).toBeNull())
+  })
+
+  it('leaves other entries undoable while one undo is in flight', async () => {
+    mockUser()
+    serveTimeline([
+      undoableEntry,
+      entry({
+        id: 'event-3',
+        can_undo: true,
+        change_id: 'change-10',
+        undo_description: 'Revert the order number',
+      }),
+    ])
+    servePhoneCalls()
+    server.use(
+      http.post(`*/api/job/jobs/${JOB_ID}/undo-change/`, async () => {
+        await delay('infinite')
+        return HttpResponse.json({ success: true, data: { job: { id: JOB_ID } } })
+      }),
+    )
+
+    const { user } = renderWithProviders(<JobHistoryTab jobId={JOB_ID} />)
+
+    await waitFor(() => expect(queryAutoId('JobHistoryTab-undo-toggle-event-2')).not.toBeNull())
+    await user.click(autoId('JobHistoryTab-undo-toggle-event-2'))
+    await user.click(autoId('JobHistoryTab-undo-toggle-event-3'))
+    await user.click(autoId('JobHistoryTab-undo-confirm-event-2'))
+
+    await waitFor(() => expect(autoId('JobHistoryTab-undo-confirm-event-2')).toBeDisabled())
+    // One shared isPending froze every other entry's Confirm as well.
+    expect(autoId('JobHistoryTab-undo-confirm-event-3')).toBeEnabled()
   })
 
   it('re-reads the timeline when the undo is refused, because it is stale', async () => {

@@ -127,7 +127,6 @@ function renderTable(props: Partial<Parameters<typeof PhoneCallTable>[0]> = {}) 
       onRetry={() => undefined}
       rows={[call()]}
       emptyLabel="No calls found"
-      allowJobLinking
       {...props}
     />,
   )
@@ -148,7 +147,6 @@ function TableOverLiveList({
       onRetry={() => void calls.refetch()}
       rows={calls.data?.results}
       emptyLabel="No calls found"
-      allowJobLinking
       onAssignNumber={onAssignNumber}
     />
   )
@@ -225,14 +223,6 @@ describe('PhoneCallTable — the job cell', () => {
 
     expect(await screen.findByText('Assign company first')).toBeVisible()
     expect(queryAutoId('PhoneCallTable-link-job-call-2')).toBeNull()
-  })
-
-  it('withholds every linking control when the caller does not allow linking', async () => {
-    renderTable({ rows: [linkedCall], allowJobLinking: false })
-
-    expect(await screen.findByText('Job #101')).toBeVisible()
-    expect(queryAutoId('PhoneCallTable-change-job-call-1')).toBeNull()
-    expect(queryAutoId('PhoneCallTable-unlink-job-call-1')).toBeNull()
   })
 
   it('keeps the per-row id distinct so a spec cannot read the wrong row', async () => {

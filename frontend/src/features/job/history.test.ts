@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import type { TimelineEntryOut } from '@/api'
-
 import {
   costlineDescription,
   costlineKindClass,
@@ -11,35 +9,7 @@ import {
   TIMELINE_BADGE_CLASS,
   TIMELINE_DOT_CLASS,
 } from './history'
-
-function entry(overrides: Partial<TimelineEntryOut> = {}): TimelineEntryOut {
-  return {
-    can_undo: null,
-    change_id: null,
-    cost_set_kind: null,
-    costline_kind: null,
-    created_at: null,
-    delta_after: null,
-    delta_before: null,
-    delta_checksum: null,
-    delta_meta: null,
-    description: 'Job created',
-    entry_type: 'event',
-    event_type: 'job_created',
-    id: 'entry-1',
-    quantity: null,
-    schema_version: null,
-    staff: 'Alex Smith',
-    timestamp: '2026-08-09T02:30:00Z',
-    total_cost: null,
-    total_rev: null,
-    undo_description: null,
-    unit_cost: null,
-    unit_rev: null,
-    updated_at: null,
-    ...overrides,
-  }
-}
+import { timelineEntry as entry } from './history.test-fixtures'
 
 describe('timelineKind', () => {
   it('names the three kinds the backend emits', () => {
@@ -122,5 +92,17 @@ describe('formatDelta', () => {
   it('says so when there is no delta at all', () => {
     expect(formatDelta(null)).toBe('No data')
     expect(formatDelta({})).toBe('No data')
+  })
+})
+
+describe('formatDelta — nested values', () => {
+  it('json-encodes an object rather than showing [object Object]', () => {
+    expect(formatDelta({ ext_refs: { staff_id: 'staff-1' } })).toBe(
+      'ext_refs: {"staff_id":"staff-1"}',
+    )
+  })
+
+  it('json-encodes an array too', () => {
+    expect(formatDelta({ tags: ['urgent', 'rework'] })).toBe('tags: ["urgent","rework"]')
   })
 })

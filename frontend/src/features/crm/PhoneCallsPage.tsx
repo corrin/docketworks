@@ -190,7 +190,6 @@ export function PhoneCallsPage() {
         onRetry={() => void calls.refetch()}
         rows={rows}
         emptyLabel="No calls found"
-        allowJobLinking
         onAssignNumber={setAssignTarget}
       />
 
