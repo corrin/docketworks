@@ -40,10 +40,10 @@ from django.http import (
     FileResponse,
     HttpRequest,
     HttpResponseBase,
-    HttpResponseNotModified,
     JsonResponse,
 )
 from django.shortcuts import get_object_or_404
+from django.utils.cache import get_conditional_response
 from ninja import Query, Router
 from ninja.errors import AuthorizationError, HttpError
 from ninja.responses import Status
@@ -389,11 +389,17 @@ def _stream_recording(request: HttpRequest, recording: PhoneCallRecording) -> Ht
     # outlives its file must 404, not 304 the clients holding a stale copy.
     handle = full_path.open("rb")
 
-    if etag and request.headers.get("If-None-Match") == etag:
+    # RFC 9110 s13.1.2: If-None-Match is a WEAK comparison, so the validator a
+    # compressing proxy weakened to W/"<sha>" still matches. Rejected the strict
+    # string compare this began as: through the Vite preview proxy it answered
+    # 200 and resent the audio on every replay. Django's helper owns the
+    # parsing and the comparison (ADR 0032).
+    conditional = get_conditional_response(request, etag=etag)
+    if conditional is not None:
         handle.close()
-        not_modified = HttpResponseNotModified()
-        not_modified["ETag"] = etag  # RFC 9110: a 304 repeats the validator
-        return not_modified
+        if etag:
+            conditional["ETag"] = etag  # RFC 9110: a 304 repeats the validator
+        return conditional
 
     response = FileResponse(handle)
     content_type, _ = mimetypes.guess_type(full_path)

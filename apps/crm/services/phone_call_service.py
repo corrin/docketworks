@@ -464,8 +464,10 @@ class PhoneProviderPortalClient:
             params={
                 "AccountCode": self.config.account_code,
                 "rid": str(raw["RecordingId"]),
-                # A null party must stay "" so requests omits the empty
-                # parameter; stringifying it would send "None".
+                # A withheld party is sent as an EMPTY parameter (``aparty=``):
+                # requests drops only None, and 2talk serves the recording that
+                # way (proven on the real portal 2026-08-23). Stringifying None
+                # would send the literal "None".
                 "aparty": str(raw.get("origin") or ""),
                 "bparty": str(raw.get("destination") or ""),
                 "date": f"{raw['calldate']} - {raw['calltime']}",

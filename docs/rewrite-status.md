@@ -46,7 +46,7 @@ done only when that spec is green.
 | E2E specs ported | **42 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 34 more exist but nothing calls them) |
 | API operations v2 exposes | 219 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2539 (all passing) |
+| Unit tests | 2541 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 112 recorded deviations |
@@ -423,6 +423,13 @@ other surfaces join as they arrive (ADR 0047) — never a second stream.
 
 ### Engineering backlog
 
+- **Opt-in integration test for provider-side recording deletion** (owner,
+  2026-08-23). `deleteMedia` is irreversible on the one live 2talk account with
+  no undo, so it stays out of the merge gate (ADR 0050's opt-in exception). The
+  compensating test runs only under `PHONE_PROVIDER_DELETE=1`: it deletes one
+  recording already archived locally and older than 31 days — what the nightly
+  task does in production — and reads back that the provider no longer serves
+  it.
 - **Rename what v1 misnamed.** Opus: names came across unexamined so that v2 and v1
   could be reconciled screen by screen; that reason expires at cutover, and
   what is left is names that describe the wrong thing. The known instance is

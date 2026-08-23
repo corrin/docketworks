@@ -558,6 +558,26 @@ class TestRecordingDownload:
         # the client can revalidate again without re-reading the body.
         assert second["ETag"] == etag
 
+    def test_download_revalidates_a_weak_validator_too(
+        self, api: Client, call: PhoneCallRecord, storage_root: Path
+    ) -> None:
+        """A compressing proxy hands the browser W/"<sha>"; that must still be a 304.
+
+        RFC 9110 s13.1.2: If-None-Match uses WEAK comparison, so the strong
+        ETag this endpoint emits matches its weakened form. Found by playing a
+        real recording through the Vite preview proxy, which compresses and
+        weakens the validator; a strict string compare answered 200 and
+        resent the audio on every replay.
+        """
+        recording, _payload = self._archived_recording(call, storage_root, "weak-etag-playback")
+        url = f"/api/crm/phone-call-recordings/{recording.id}/download/"
+        etag = api.get(url)["ETag"]
+
+        weak = api.get(url, headers={"if-none-match": f"W/{etag}"})
+
+        assert weak.status_code == 304
+        assert weak["ETag"] == etag
+
     def test_download_404s_a_missing_file_even_when_the_client_revalidates(
         self, api: Client, call: PhoneCallRecord, storage_root: Path
     ) -> None:

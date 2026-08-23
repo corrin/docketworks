@@ -250,3 +250,27 @@ now enumerates every `createFileRoute` path and every in-app `to=`/`href=`/
 `navigate`/`redirect` target and fails the integration tier on any route with
 no target — the inverse of the outbound-link probe, which proves the URLs the
 app emits resolve. The first run over the tree found exactly those two.
+
+**The phone provider is proven against 2talk itself, 2026-08-23.**
+`apps/crm/tests/test_phone_provider_integration.py` is the ADR 0050 gate for
+the pull: it logs in with the `IntegrationSettings` credentials the app
+resolves, imports a seven-day window through `sync_call_history`, reads every
+call and recording back from the database and the archive, streams one
+through the download endpoint, and pulls the window again to prove the second
+pass is a no-op. The hermetic guard now refuses the phone client's transport
+in unit tests, and the test database copies the real `PhoneEndpoint`s so a
+direction assertion means something. Three facts only the real portal could
+supply: the first real sync failed on a withheld caller, which 2talk reports
+as origin `""` and the CRM normaliser now answers with NULL; the CDR mixes
+billing lines (type "Add-On", no parties, status NULL) in with calls, which
+`is_call_payload` drops; and in 45,637 real payloads a call never has a blank
+`type`, `status` or `description`. Playing a real recording in the browser
+found a fourth: through a compressing proxy the strong ETag arrives weakened
+to `W/"<sha>"`, and the download endpoint's strict string compare answered
+200 and resent the audio on every replay — RFC 9110 makes `If-None-Match` a
+weak comparison, and Django's `get_conditional_response` now does it. The
+throwaway Playwright driver that found that is deleted: a scratch script is
+the ad-hoc probe ADR 0050 forbids as verification, and the unit test carries
+the weak-validator case instead. Provider-side deletion (`deleteMedia`) stays
+outside the gate by owner ruling: it is irreversible on the one live account
+and 2talk offers no undo, the ADR's sole opt-in exception.

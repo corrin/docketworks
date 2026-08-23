@@ -73,6 +73,7 @@ _VENDOR_ENTRY_POINTS: dict[str, str] = {
     "apps.xero.auth.requests": "Xero's token endpoint",
     "litellm.completion": "the LLM gateway",
     "apps.company.services.geocoding_service.requests": "Google Maps",
+    "apps.crm.services.phone_call_service.requests": "the phone provider",
 }
 
 
@@ -154,6 +155,10 @@ _CREDENTIAL_MODELS: tuple[tuple[str, str, tuple[str, ...], tuple[str, ...]], ...
     ("xero", "XeroApp", ("client_id",), ()),
     ("ai", "AIProvider", ("name",), ()),
     ("core", "IntegrationSettings", ("id",), ()),
+    # Fable: which numbers are OURS at the phone provider. Without them every
+    # imported call classifies as unknown, so a direction assertion proves nothing.
+    # No foreign keys, so the id travels with the row.
+    ("crm", "PhoneEndpoint", ("normalized_number",), ()),
     # Opus: default_labour_subtype points at a row whose id differs between databases,
     # and no payroll path reads it. The id is dropped too: the test database
     # seeds the automation account itself, so that row must be UPDATED in place
