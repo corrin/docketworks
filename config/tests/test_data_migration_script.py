@@ -69,6 +69,10 @@ DATA_MIGRATIONS_RERUN_AFTER_RESTORE = {
     # Fable: also here, because a dump that never created the row would
     # otherwise leave the singleton absent and every get_solo() raising.
     ("core", "0003_integration_settings_row"),
+    # Measures each archived recording's length from its file. The rows arrive
+    # with the restore and the files with the archive copy, so the empty-
+    # database run finds nothing to measure.
+    ("crm", "0003_phonecallrecording_duration_ms"),
 }
 
 

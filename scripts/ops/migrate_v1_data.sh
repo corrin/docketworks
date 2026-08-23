@@ -138,6 +138,15 @@ DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0004 --no-input
 # adds the Maps key; core/0003 creates the IntegrationSettings row when the
 # dump carried none (get_or_create keeps a restored row as-is).
 DB_NAME="$V2_DB" uv run python manage.py migrate core 0003 --no-input
+# crm/0003 measures every archived recording's length from its file under
+# PHONE_RECORDING_STORAGE_ROOT. The rows arrive with the restore above and the
+# files with the archive copy (cutover checklist), so the empty-database run
+# measured nothing. Its reverse only drops the column, so unapply-reapply is
+# the same tested code against the restored rows; a row whose file is absent
+# stays NULL and its player shows no length, which is the signal that the
+# archive copy was skipped.
+DB_NAME="$V2_DB" uv run python manage.py migrate crm 0002 --no-input
+DB_NAME="$V2_DB" uv run python manage.py migrate crm 0003 --no-input
 
 echo "==> NOTE: formerly-encrypted credential columns"
 cat <<'NOTE'
