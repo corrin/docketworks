@@ -65,10 +65,12 @@ repos:
         name: status table (regenerates on drift)
         entry: uv run python -m scripts.checks.status_table
         language: system
-        # Fable: always, not types: [python]. The table counts E2E specs and
-        # exposed operations, so a frontend-only commit moved it while the
-        # hook slept; CI runs --check on every push and went red.
-        always_run: true
+        # Fable: triggered by the table's inputs, not by Python files: it counts
+        # E2E specs and exposed operations too, so a frontend-only commit moved
+        # it while a types: [python] hook slept and CI's --check went red. Not
+        # always_run either — it boots Django and collects the suite (~10s),
+        # which a docs-only commit should not pay.
+        files: ^(apps/.*\.py|frontend/tests/e2e/.*\.spec\.ts|frontend/schema\.v2\.yml|docs/adr/.*\.md|docs/accepted-api-differences\.yml|scripts/v1-frontend-operations\.yml|docs/rewrite-status\.md|pyproject\.toml)$
         pass_filenames: false
       - id: code-quality
         name: code quality metrics (regenerates on drift)

@@ -37,6 +37,9 @@ interface PickupAddressModalProps {
   selectedId: string | null
   onClose: () => void
   onSelect: (address: SupplierPickupAddressOut) => void
+  /** The owner's selection may be the address just edited or deleted. */
+  onUpdated: (address: SupplierPickupAddressOut) => void
+  onDeleted: (addressId: string) => void
 }
 
 interface AddressForm {
@@ -117,6 +120,8 @@ export function PickupAddressModal({
   selectedId,
   onClose,
   onSelect,
+  onUpdated,
+  onDeleted,
 }: PickupAddressModalProps) {
   const queryClient = useQueryClient()
   const listQuery = useQuery({
@@ -181,9 +186,10 @@ export function PickupAddressModal({
       updateMutation.mutate(
         { path: { id: editing.id }, body },
         {
-          onSuccess: () => {
+          onSuccess: (updated) => {
             void invalidate()
             toast.success('Address updated')
+            onUpdated(updated)
             close()
           },
           onError: (error) => toast.error(apiErrorMessage(error, 'Failed to update the address.')),
@@ -214,6 +220,7 @@ export function PickupAddressModal({
           toast.success('Address deleted')
           setDeleteTarget(null)
           if (editing?.id === address.id) setEditing(null)
+          onDeleted(address.id)
         },
         onError: (error) => toast.error(apiErrorMessage(error, 'Failed to delete the address.')),
       },
@@ -252,41 +259,46 @@ export function PickupAddressModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="relative">
-          {deleteTarget && (
-            <div className="absolute inset-0 z-30 flex items-center justify-center rounded-lg bg-white/95">
-              <div className="max-w-sm p-6 text-center">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-                  <AlertTriangle className="h-6 w-6 text-red-600" />
-                </div>
-                <h4 className="mb-2 text-lg font-semibold text-gray-900">Delete Address?</h4>
-                <p className="mb-4 text-sm text-gray-600">
-                  <strong>{deleteTarget.name}</strong> will no longer be offered for this supplier's
-                  orders.
-                </p>
-                <div className="flex justify-center gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setDeleteTarget(null)}
-                    data-automation-id={`${ID}-cancel-delete`}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    disabled={destroyMutation.isPending}
-                    onClick={() => remove(deleteTarget)}
-                    data-automation-id={`${ID}-confirm-delete`}
-                  >
-                    Delete
-                  </Button>
-                </div>
+        {/* A nested dialog, not an overlay div: the primitive traps focus and
+            makes the list and form behind it inert for keyboard users. */}
+        <Dialog
+          open={deleteTarget !== null}
+          onOpenChange={(next) => !next && setDeleteTarget(null)}
+        >
+          <DialogContent className="sm:max-w-sm" data-automation-id={`${ID}-confirm`}>
+            <DialogHeader>
+              <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
               </div>
+              <DialogTitle className="text-center">Delete Address?</DialogTitle>
+              <DialogDescription className="text-center">
+                <strong>{deleteTarget?.name}</strong> will no longer be offered for this supplier's
+                orders.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDeleteTarget(null)}
+                data-automation-id={`${ID}-cancel-delete`}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={destroyMutation.isPending}
+                onClick={() => deleteTarget && remove(deleteTarget)}
+                data-automation-id={`${ID}-confirm-delete`}
+              >
+                Delete
+              </Button>
             </div>
-          )}
+          </DialogContent>
+        </Dialog>
 
+        <div>
           <QueryState
             isPending={listQuery.isPending}
             isError={listQuery.isError}

@@ -54,6 +54,8 @@ function mockList(addresses: SupplierPickupAddressOut[]): string[] {
 async function renderModal() {
   const onSelect = vi.fn()
   const onClose = vi.fn()
+  const onUpdated = vi.fn()
+  const onDeleted = vi.fn()
   const result = renderWithProviders(
     <PickupAddressModal
       open
@@ -61,10 +63,12 @@ async function renderModal() {
       selectedId={null}
       onClose={onClose}
       onSelect={onSelect}
+      onUpdated={onUpdated}
+      onDeleted={onDeleted}
     />,
   )
   await screen.findByText(`Pickup address for ${SUPPLIER.name}`)
-  return { ...result, onSelect, onClose }
+  return { ...result, onSelect, onClose, onUpdated, onDeleted }
 }
 
 describe('PickupAddressModal', () => {
@@ -127,7 +131,7 @@ describe('PickupAddressModal', () => {
         return HttpResponse.json(address({ name: 'Back gate' }))
       }),
     )
-    const { user } = await renderModal()
+    const { user, onUpdated } = await renderModal()
     await screen.findByText('Main yard')
 
     await user.click(autoId('PickupAddressSelectionModal-edit-addr-1'))
@@ -148,6 +152,8 @@ describe('PickupAddressModal', () => {
         }),
       },
     ])
+    // The owner hears about the edit, so a selected address is shown as saved.
+    expect(onUpdated).toHaveBeenCalledWith(address({ name: 'Back gate' }))
   })
 
   it('retyping the street by hand drops the geocode that described the old one', async () => {
@@ -186,14 +192,21 @@ describe('PickupAddressModal', () => {
         return new HttpResponse(null, { status: 204 })
       }),
     )
-    const { user } = await renderModal()
+    const { user, onDeleted, baseElement } = await renderModal()
     await screen.findByText('Main yard')
 
     await user.click(autoId('PickupAddressSelectionModal-delete-addr-1'))
-    expect(screen.getByText('Delete Address?')).toBeInTheDocument()
+    expect(await screen.findByText('Delete Address?')).toBeInTheDocument()
+    // The confirmation is a dialog of its own: focus lands in it, and the
+    // list behind it is inert.
+    expect(autoId('PickupAddressSelectionModal-confirm')).toContainElement(
+      document.activeElement instanceof HTMLElement ? document.activeElement : null,
+    )
+    await expectNoAccessibilityViolations(baseElement)
     expect(deleted).toEqual([])
     await user.click(autoId('PickupAddressSelectionModal-confirm-delete'))
 
     await waitFor(() => expect(deleted).toEqual(['addr-1']))
+    expect(onDeleted).toHaveBeenCalledWith('addr-1')
   })
 })

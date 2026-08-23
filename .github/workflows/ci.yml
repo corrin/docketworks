@@ -69,10 +69,11 @@ jobs:
         # the client against that stale input.
         run: uv run python -m scripts.checks.export_openapi --check
       - name: status table matches the repo
-        # Here rather than pre-commit: it boots Django and collects the suite,
-        # ~10s that the dev loop should not pay on every commit. The table
-        # drifted in two consecutive PRs and review caught it both times,
-        # which is the wrong place to catch arithmetic.
+        # Unconditional here; the pre-commit hook runs it only when one of the
+        # table's inputs changes (it boots Django and collects the suite, ~10s
+        # a docs-only commit should not pay). The table drifted in two
+        # consecutive PRs and review caught it both times, which is the wrong
+        # place to catch arithmetic.
         run: uv run python -m scripts.checks.status_table --check
       - name: code quality metrics are current
         # docs/code-quality.md is committed so a change that adds suppressions or

@@ -588,6 +588,12 @@ class TestPickupAddresses:
 
         assert first["is_primary"] is True
         assert second["is_primary"] is False
+        stored = client.get(
+            "/api/companies/pickup-addresses/", {"supplier_id": str(company.id)}
+        ).json()
+        assert [address["name"] for address in stored if address["is_primary"]] == [
+            "Main Warehouse"
+        ]
 
     @pytest.mark.parametrize(
         "field", ["suburb", "state", "postal_code", "google_place_id", "notes"]

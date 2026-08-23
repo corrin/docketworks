@@ -164,7 +164,7 @@ test.describe.serial('pickup addresses', () => {
       .locator('[data-automation-id^="PickupAddressSelectionModal-delete-"]')
       .first()
       .click()
-    await expect(modal.getByText('Delete Address?')).toBeVisible()
+    await expect(page.getByText('Delete Address?')).toBeVisible()
     const deleted = page.waitForResponse(
       (response) =>
         response.url().includes('/pickup-addresses/') &&

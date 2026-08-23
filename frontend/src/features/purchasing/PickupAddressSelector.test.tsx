@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -11,6 +11,8 @@ import { renderWithProviders } from '@/test/render'
 import { PickupAddressSelector } from './PickupAddressSelector'
 
 const SUPPLIER = { id: 'supplier-1', name: 'Metal Supplies Ltd' }
+const LIST = '*/api/companies/pickup-addresses/'
+const ONE = '*/api/companies/pickup-addresses/:id/'
 
 const SELECTED: SupplierPickupAddressOut = {
   id: 'addr-1',
@@ -48,7 +50,7 @@ describe('PickupAddressSelector', () => {
   })
 
   it('offers no Clear while nothing is chosen, and the button opens the list', async () => {
-    server.use(http.get('*/api/companies/pickup-addresses/', () => HttpResponse.json([])))
+    server.use(http.get(LIST, () => HttpResponse.json([])))
     const { user } = renderWithProviders(
       <PickupAddressSelector supplier={SUPPLIER} selected={null} onChange={vi.fn()} />,
     )
@@ -58,5 +60,43 @@ describe('PickupAddressSelector', () => {
     await user.click(autoId('PickupAddressSelector-modal-button'))
 
     expect(await screen.findByText(`Pickup address for ${SUPPLIER.name}`)).toBeInTheDocument()
+  })
+
+  it('editing the chosen address reaches the owner', async () => {
+    server.use(
+      http.get(LIST, () => HttpResponse.json([SELECTED])),
+      http.put(ONE, () => HttpResponse.json({ ...SELECTED, name: 'Back gate' })),
+    )
+    const onChange = vi.fn()
+    const { user } = renderWithProviders(
+      <PickupAddressSelector supplier={SUPPLIER} selected={SELECTED} onChange={onChange} />,
+    )
+    await screen.findByLabelText('Pickup address')
+    await user.click(autoId('PickupAddressSelector-modal-button'))
+    await screen.findByText('Main yard')
+
+    await user.click(autoId('PickupAddressSelectionModal-edit-addr-1'))
+    await user.click(autoId('PickupAddressSelectionModal-submit'))
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ ...SELECTED, name: 'Back gate' }))
+  })
+
+  it('deleting the chosen address clears the selection', async () => {
+    server.use(
+      http.get(LIST, () => HttpResponse.json([SELECTED])),
+      http.delete(ONE, () => new HttpResponse(null, { status: 204 })),
+    )
+    const onChange = vi.fn()
+    const { user } = renderWithProviders(
+      <PickupAddressSelector supplier={SUPPLIER} selected={SELECTED} onChange={onChange} />,
+    )
+    await screen.findByLabelText('Pickup address')
+    await user.click(autoId('PickupAddressSelector-modal-button'))
+    await screen.findByText('Main yard')
+
+    await user.click(autoId('PickupAddressSelectionModal-delete-addr-1'))
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(null))
   })
 })

@@ -78,6 +78,14 @@ export function PickupAddressSelector({
           onChange(address)
           setOpen(false)
         }}
+        // The chosen address is what the PO prints; an edit or deletion of
+        // that very address must reach the PO, not only the list.
+        onUpdated={(address) => {
+          if (address.id === selected?.id) onChange(address)
+        }}
+        onDeleted={(addressId) => {
+          if (addressId === selected?.id) onChange(null)
+        }}
       />
     </div>
   )
