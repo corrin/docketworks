@@ -46,7 +46,7 @@ done only when that spec is green.
 | E2E specs ported | **40 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 34 more exist but nothing calls them) |
 | API operations v2 exposes | 219 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2515 (all passing) |
+| Unit tests | 2520 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 112 recorded deviations |
@@ -117,8 +117,9 @@ operations v1's frontend called, never what shape v2 must serve.
       moving line ranges into vaguely named helpers satisfies the number and
       preserves the defect.
 - [ ] **Ship an honest release surface.** Every route linked from navigation
-      works, every implemented route is reachable, and no visible tab leads to a
-      placeholder. A deferred capability is hidden, not an inert control.
+      works, every implemented route is reachable (gated in the integration
+      tier by `scripts/checks/route_reachability.py`), and no visible tab leads
+      to a placeholder. A deferred capability is hidden, not an inert control.
 - [ ] **Prove one immutable release candidate.** Record the SHA and run CI, the
       unit suites, all MUST specs, live-provider integration tests, restored-
       production smoke tests and the cutover/rollback rehearsal against it. Any
