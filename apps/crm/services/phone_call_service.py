@@ -23,6 +23,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from io import BytesIO
 from math import isfinite
 from pathlib import Path
 from time import sleep
@@ -34,6 +35,7 @@ import requests
 from django.conf import settings
 from django.db import models, transaction
 from django.utils import timezone
+from tinytag import TinyTag, TinyTagException
 
 from apps.company.models import Company, ContactMethod, Person
 from apps.core.errors import persist_app_error
@@ -239,12 +241,14 @@ def delete_local_recording(recording: PhoneCallRecording) -> None:
     _full_storage_path(recording.storage_path).unlink(missing_ok=True)
     recording.storage_path = None
     recording.byte_size = None
+    recording.duration_ms = None
     recording.sha256 = None
     recording.local_deleted_at = timezone.now()
     recording.save(
         update_fields=[
             "storage_path",
             "byte_size",
+            "duration_ms",
             "sha256",
             "local_deleted_at",
             "updated_at",
@@ -647,6 +651,9 @@ def store_recording_bytes(
     endpoint reads.
     """
     digest = hashlib.sha256(content).hexdigest()
+    # Measured before anything is written: bytes that are not audio are an
+    # archive failure, and the caller records it as one.
+    duration_ms = measure_audio_duration_ms(content)
     storage_path = _recording_storage_path(call=call, recording=recording, filename=filename)
     _write_file(storage_path=storage_path, payload=content)
 
@@ -654,6 +661,7 @@ def store_recording_bytes(
     recording.storage_path = storage_path
     recording.content_type = content_type
     recording.byte_size = len(content)
+    recording.duration_ms = duration_ms
     recording.sha256 = digest
     recording.archived_at = timezone.now()
     recording.archive_error = None
@@ -665,6 +673,7 @@ def store_recording_bytes(
             "storage_path",
             "content_type",
             "byte_size",
+            "duration_ms",
             "sha256",
             "archived_at",
             "archive_error",
@@ -673,6 +682,27 @@ def store_recording_bytes(
             "updated_at",
         ]
     )
+
+
+def measure_audio_duration_ms(content: bytes) -> int:
+    """Length of an audio file's playback, in whole milliseconds.
+
+    Measured here, at archive time, because nothing else knows it: the
+    provider's CDR ``seconds`` is billed per started minute, and the browser
+    only learns a length once it has fetched the file, which the calls page
+    deliberately does not do until play. tinytag rather than a frame parser
+    of our own (ADR 0032); it reads the provider's header-less CBR MP3 and the
+    E2E seed's WAV alike. Bytes it cannot read are not a recording.
+    """
+    # Both failures are one fact to the caller: tinytag raises on some junk
+    # and answers a None duration on the rest.
+    try:
+        tag = TinyTag.get(file_obj=BytesIO(content))
+    except TinyTagException as exc:
+        raise ValueError("recording bytes are not audio tinytag can measure") from exc
+    if not tag.duration:
+        raise ValueError("recording bytes are not audio tinytag can measure")
+    return round(tag.duration * 1000)
 
 
 @dataclass(frozen=True)

@@ -319,6 +319,11 @@ class PhoneCallRecording(models.Model):
     storage_path = models.CharField(max_length=500, blank=True, null=True)  # noqa: DJ001
     content_type = models.CharField(max_length=100, blank=True, null=True)  # noqa: DJ001
     byte_size = models.PositiveIntegerField(null=True, blank=True)
+    # Measured from the audio when it is archived. Not the call's CDR
+    # ``seconds``: the provider bills per started minute, so a 71-second
+    # recording arrives as a 120-second call. Milliseconds, integer: a
+    # measurement with no float and no Decimal on the wire. NULL is "no file".
+    duration_ms = models.PositiveIntegerField(null=True, blank=True)
     sha256 = models.CharField(max_length=64, blank=True, null=True)  # noqa: DJ001
     archived_at = models.DateTimeField(null=True, blank=True, db_index=True)
     archive_error = models.TextField(blank=True, null=True)  # noqa: DJ001

@@ -32,6 +32,18 @@ const NZ_DATE = new Intl.DateTimeFormat('en-NZ', {
   timeZone: 'UTC',
 })
 
+/**
+ * A playback clock: `m:ss`, minutes unbounded (`10:16`, `0:07`, `72:00`).
+ * Whole seconds, floored — a player's position ticks down to the second and
+ * rounding up would read a second ahead of the audio.
+ */
+export function formatClock(seconds: number): string {
+  const whole = Math.floor(seconds)
+  const minutes = Math.floor(whole / 60)
+  const remainder = whole % 60
+  return `${minutes}:${String(remainder).padStart(2, '0')}`
+}
+
 /** The one date formatter, for the same cross-page string-equality reason. */
 export function formatDate(isoDate: string): string {
   return NZ_DATE.format(new Date(isoDate))

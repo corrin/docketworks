@@ -43,6 +43,7 @@ dependencies = [
     # second-pass rule that a hand-rolled copy gets subtly wrong, and Xero
     # rejects the result at employee-creation time.
     "python-stdnum>=2.1",
+    "tinytag>=2.3.0",
 ]
 
 [dependency-groups]

@@ -9,6 +9,7 @@ import {
   type PhoneCallRecordOut,
 } from '@/api'
 import { Button } from '@/components/ui/button'
+import { AudioPlayer } from '@/features/shared/AudioPlayer'
 import { ListTable } from '@/features/shared/ListTable'
 import { formatDateTime } from '@/lib/format'
 
@@ -202,19 +203,16 @@ export function PhoneCallTable({
                 )}
               </td>
               <td className="min-w-64 px-3 py-2">
-                {url === null ? (
+                {url === null || call.recording === null ? (
                   <span className="text-xs text-gray-500">No recording</span>
                 ) : (
-                  // preload="none": one <audio> per row means "metadata" makes
-                  // the browser fetch every recording on page load — about 2 MB
-                  // of audio nobody played. The duration column already comes
-                  // from duration_seconds, so there is nothing to preload for.
-                  <audio
-                    controls
-                    preload="none"
+                  // The length shown is the recording's own, measured when it
+                  // was archived — not duration_seconds, which is the provider's
+                  // per-minute billing figure for the call.
+                  <AudioPlayer
                     src={url}
-                    data-automation-id={`PhoneCallTable-recording-${call.id}`}
-                    className="h-9 w-full max-w-sm"
+                    durationMs={call.recording.duration_ms}
+                    automationId={`PhoneCallTable-recording-${call.id}`}
                   />
                 )}
               </td>

@@ -128,6 +128,10 @@ def _assert_recordings_read_back(
         assert recording.byte_size
         assert hashlib.sha256(content).hexdigest() == recording.sha256
         assert _is_mpeg_audio(content[:4]), f"{stored} does not open as MPEG audio"
+        # 2talk records 16 kbps CBR with no header, so the length the archive
+        # measured must agree with the one the byte count implies.
+        assert recording.duration_ms is not None
+        assert abs(recording.duration_ms - recording.byte_size * 8 / 16) < 1000
         archived += 1
     assert archived + empty == len(recorded)
     assert result.recordings_archived == archived

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatCurrency, formatDateTime, formatEventType, formatPercentage } from './format'
+import {
+  formatClock,
+  formatCurrency,
+  formatDateTime,
+  formatEventType,
+  formatPercentage,
+} from './format'
 
 describe('formatCurrency', () => {
   it('renders dollars with cents and grouping', () => {
@@ -39,5 +45,14 @@ describe('formatEventType', () => {
     expect(formatEventType('costline_updated')).toBe('Costline Updated')
     expect(formatEventType('manual_note')).toBe('Manual Note')
     expect(formatEventType('created')).toBe('Created')
+  })
+})
+
+describe('formatClock', () => {
+  it('reads m:ss with minutes unbounded', () => {
+    expect(formatClock(0)).toBe('0:00')
+    expect(formatClock(7)).toBe('0:07')
+    expect(formatClock(615.744)).toBe('10:15')
+    expect(formatClock(4320)).toBe('72:00')
   })
 })

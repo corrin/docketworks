@@ -12,8 +12,6 @@ layer (the same reason ``e2e_cleanup`` is here).
 """
 
 import json
-import wave
-from io import BytesIO
 from uuid import UUID, uuid4
 
 from django.core.management.base import BaseCommand, CommandError, CommandParser
@@ -21,7 +19,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.core.environment import ProductionDatabaseError, assert_not_production_database
-from apps.core.test_data import TEST_DATA_PREFIX, is_e2e_name
+from apps.core.test_data import TEST_DATA_PREFIX, is_e2e_name, silent_wav
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.crm.services.phone_call_service import normalize_phone, store_recording_bytes
 from apps.job.models import Job
@@ -33,23 +31,10 @@ OFFICE_NUMBER = "+6496365131"
 CALL_DESCRIPTION = f"{TEST_DATA_PREFIX} CRM phone call job link"
 RECORDING_FILENAME = "e2e-call.wav"
 RECORDING_CONTENT_TYPE = "audio/wav"
+#: Long enough that the player's stored length reads as something (0:03), short
+#: enough that the spec's wire guard never notices it.
+RECORDING_SECONDS = 3
 CALL_DURATION_SECONDS = 67
-
-
-def _silent_wav() -> bytes:
-    """Build a tenth of a second of silence as a real WAV (1ch, 16-bit, 8 kHz).
-
-    Generated rather than committed: a binary fixture in the repository would
-    be a second thing to keep, and the spec only needs an ``<audio>`` element
-    with something a browser will actually decode behind it.
-    """
-    buffer = BytesIO()
-    with wave.open(buffer, "wb") as audio:
-        audio.setnchannels(1)
-        audio.setsampwidth(2)
-        audio.setframerate(8000)
-        audio.writeframes(b"\x00\x00" * 800)
-    return buffer.getvalue()
 
 
 class Command(BaseCommand):
@@ -117,7 +102,7 @@ class Command(BaseCommand):
             store_recording_bytes(
                 call=call,
                 recording=recording,
-                content=_silent_wav(),
+                content=silent_wav(RECORDING_SECONDS),
                 filename=RECORDING_FILENAME,
                 content_type=RECORDING_CONTENT_TYPE,
             )

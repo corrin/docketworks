@@ -10,6 +10,9 @@ every app may import. ``frontend/tests/scripts/db-backup-utils.ts`` and
 import is possible across that boundary.
 """
 
+import wave
+from io import BytesIO
+
 #: Marks the companies, jobs, people and phone calls a run creates.
 TEST_DATA_PREFIX = "[TEST]"
 #: Prefixes older specs used; the residue they left is still recognised.
@@ -41,3 +44,20 @@ def is_test_company_name(name: str | None) -> bool:
     if not name:
         return False
     return is_e2e_name(name) or name == TEST_COMPANY_NAME
+
+
+def silent_wav(seconds: float) -> bytes:
+    """``seconds`` of silence as a real WAV (1ch, 16-bit, 8 kHz).
+
+    The one fabricated recording: the E2E seed stores it and the unit tests
+    feed it to the archive, which measures every file it stores and refuses
+    bytes that are not audio. Generated rather than committed — a binary
+    fixture would be a second thing to keep.
+    """
+    buffer = BytesIO()
+    with wave.open(buffer, "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(8000)
+        audio.writeframes(b"\x00\x00" * round(8000 * seconds))
+    return buffer.getvalue()

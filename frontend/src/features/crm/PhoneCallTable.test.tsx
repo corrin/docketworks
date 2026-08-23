@@ -23,6 +23,7 @@ function recording(overrides: Partial<PhoneCallRecordingOut> = {}): PhoneCallRec
     byte_size: 2048,
     content_type: 'audio/wav',
     created_at: '2026-08-09T02:30:00Z',
+    duration_ms: 65_000,
     download_url: '/api/crm/phone-call-recordings/rec-1/download/',
     filename: 'call.wav',
     id: 'rec-1',

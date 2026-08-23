@@ -12,7 +12,7 @@ from apps.accounting.models import Invoice, Quote
 from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, Person
 from apps.company.tests.job_fixtures import make_invoice, make_job, make_purchase_order, make_quote
-from apps.core.test_data import TEST_COMPANY_NAME, TEST_DATA_PREFIX
+from apps.core.test_data import TEST_COMPANY_NAME, TEST_DATA_PREFIX, silent_wav
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.crm.services.phone_call_service import store_recording_bytes
 from apps.crm.tests.helpers import make_call, make_recording
@@ -336,7 +336,7 @@ def _recorded_call(
     store_recording_bytes(
         call=call,
         recording=recording,
-        content=b"RIFF....WAVEfmt ",
+        content=silent_wav(0.5),
         filename="e2e-call.wav",
         content_type="audio/wav",
     )

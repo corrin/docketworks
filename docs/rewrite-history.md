@@ -274,3 +274,18 @@ the ad-hoc probe ADR 0050 forbids as verification, and the unit test carries
 the weak-validator case instead. Provider-side deletion (`deleteMedia`) stays
 outside the gate by owner ruling: it is irreversible on the one live account
 and 2talk offers no undo, the ADR's sole opt-in exception.
+
+**A recording's length is measured when it is archived, 2026-08-24.** The
+calls page player read `0:00` until played: it is `preload="none"` by design
+(one player per row; metadata preload fetched every recording on load), and a
+native control cannot be told a length it has not fetched. The length the
+call row already held could not stand in — 2talk's CDR `seconds` is billed
+per started minute (660 / 360 / 120 on real rows whose recordings run 616 /
+304 / 110 / 71 s). `PhoneCallRecording.duration_ms` is now measured from the
+bytes at archive time (tinytag, MIT; mutagen rejected as GPL, ffprobe as not
+a Python dependency), backfilled by migration for every archived file present
+on the host, and stated by a small shared `AudioPlayer` before anything is
+fetched; the element's own duration takes over once it has loaded. The
+archive now refuses bytes it cannot measure, which turned the fake
+`b"recorded audio"` in three unit tests into real WAVs from one generator,
+`apps.core.test_data.silent_wav`, shared with the E2E seed.

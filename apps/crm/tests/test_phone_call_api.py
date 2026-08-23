@@ -466,6 +466,7 @@ class TestCallList:
             account_code="account",
             filename="recording-relative-url.mp3",
             storage_path="2026/06/02/recording-relative-url.mp3",
+            duration_ms=615_744,
         )
 
         response = api.get(CALLS_PATH)
@@ -476,6 +477,8 @@ class TestCallList:
             row["recording"]["download_url"]
             == f"/api/crm/phone-call-recordings/{recording.id}/download/"
         )
+        # The player states this length before it fetches anything.
+        assert row["recording"]["duration_ms"] == 615_744
         assert "storage_path" not in row["recording"]
 
 

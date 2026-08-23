@@ -8033,6 +8033,11 @@ components:
           - type: string
           - type: 'null'
           title: Download Url
+        duration_ms:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Duration Ms
         filename:
           anyOf:
           - type: string
@@ -8078,6 +8083,7 @@ components:
       - filename
       - content_type
       - byte_size
+      - duration_ms
       - sha256
       - archived_at
       - archive_error

@@ -7189,6 +7189,10 @@ export type PhoneCallRecordingOut = {
      */
     download_url: string | null;
     /**
+     * Duration Ms
+     */
+    duration_ms: number | null;
+    /**
      * Filename
      */
     filename: string | null;

@@ -29,6 +29,7 @@ class PhoneCallRecordingOut(Schema):
     filename: str | None
     content_type: str | None
     byte_size: int | None
+    duration_ms: int | None
     sha256: str | None
     archived_at: datetime | None
     archive_error: str | None
@@ -60,6 +61,7 @@ class PhoneCallRecordingOut(Schema):
             filename=recording.filename,
             content_type=recording.content_type,
             byte_size=recording.byte_size,
+            duration_ms=recording.duration_ms,
             sha256=recording.sha256,
             archived_at=recording.archived_at,
             archive_error=recording.archive_error,

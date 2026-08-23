@@ -122,6 +122,12 @@ test('office staff links a CRM phone call to a job', async ({ authenticatedPage:
   const recording = autoId(page, `PhoneCallTable-recording-${seeded.call_id}`)
   await expect(recording).toBeAttached()
   await expect(recording).toHaveAttribute('preload', 'none')
+  // The length is the one measured at archive time (the seed stores three
+  // seconds of silence), stated before any fetch — a native control would
+  // read 0:00 here.
+  await expect(autoId(page, `PhoneCallTable-recording-${seeded.call_id}-time`)).toHaveText(
+    '0:00 / 0:03',
+  )
   expect(recordingFetches, 'no recording may be fetched until it is played').toEqual([])
 
   await expectStepUnder('open link job dialog', 2000, async () => {

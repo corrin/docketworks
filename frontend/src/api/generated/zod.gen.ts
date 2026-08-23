@@ -2955,6 +2955,7 @@ export const zPhoneCallRecordingOut = z.object({
     content_type: z.string().nullable(),
     created_at: z.iso.datetime(),
     download_url: z.string().nullable(),
+    duration_ms: z.int().nullable(),
     filename: z.string().nullable(),
     id: z.uuid(),
     local_deleted_at: z.iso.datetime().nullable(),
