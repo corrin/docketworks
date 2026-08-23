@@ -198,6 +198,13 @@ async function findRowIndexByDescription(page: Page, description: string): Promi
 async function waitForRowIndexByDescription(page: Page, description: string): Promise<number> {
   let index = -1
   await expect(async () => {
+    // The two refetches that follow a write can reorder rows — a
+    // timesheet-sourced labour row sorts above a freshly consumed material —
+    // so an index read inside that window addresses the wrong row by click
+    // time. Returning the index from the first scan that found the row was
+    // tried and clicked the labour row's disabled quantity; reading it from a
+    // quiet network is what navigateToCostTab already relies on.
+    await page.waitForLoadState('networkidle')
     index = await findRowIndexByDescription(page, description)
     expect(index).toBeGreaterThanOrEqual(0)
   }).toPass({ timeout: 10000 })

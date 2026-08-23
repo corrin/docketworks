@@ -78,6 +78,11 @@ async function waitForRowsByDescription(
 ): Promise<RowMatch[]> {
   const found: RowMatch[] = []
   await expect(async () => {
+    // Those refetches can also reorder rows, so an index read before they
+    // land addresses the wrong row by click time (the sibling spec clicked a
+    // labour row's disabled quantity that way). A quiet network first, as
+    // navigateToEstimateTab already waits for.
+    await page.waitForLoadState('networkidle')
     const matches = await findRowsByDescription(page, description, matcher)
     found.length = 0
     found.push(...matches)
