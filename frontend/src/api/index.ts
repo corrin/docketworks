@@ -188,6 +188,18 @@ export {
 export { listJobFilesOptions } from './generated/@tanstack/react-query.gen'
 export type { JobFileOut } from './generated/types.gen'
 
+// Job history tab: the unified timeline (job events merged with cost-line
+// creations and updates), the manual event write, and the delta undo. Both
+// writes carry If-Match through the concurrency interceptor
+// (lib/concurrency/interceptors.ts), so neither takes a version argument here.
+export {
+  jobJobsTimelineRetrieveOptions,
+  jobJobsTimelineRetrieveQueryKey,
+  jobJobsUndoChangeCreateMutation,
+  jobRestJobsEventsCreateMutation,
+} from './generated/@tanstack/react-query.gen'
+export type { TimelineEntryOut } from './generated/types.gen'
+
 // Xero pay items (job settings tab)
 export { xeroPayItemsListOptions } from './generated/@tanstack/react-query.gen'
 export type { XeroPayItemOut } from './generated/types.gen'
