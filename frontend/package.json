@@ -23,11 +23,11 @@
   },
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "^2.0.2",
-    "@atlaskit/pragmatic-drag-and-drop-auto-scroll": "^3.0.0",
+    "@atlaskit/pragmatic-drag-and-drop-auto-scroll": "3.1.0",
     "@atlaskit/pragmatic-drag-and-drop-hitbox": "^2.0.0",
     "@fontsource-variable/inter": "^5.3.0",
     "@tanstack/react-query": "^5.101.4",
-    "@tanstack/react-router": "^1.170.18",
+    "@tanstack/react-router": "1.170.31",
     "@tanstack/react-table": "^9.1.2",
     "axios": "^1.19.0",
     "class-variance-authority": "^0.7.1",
@@ -55,12 +55,12 @@
     "@testing-library/user-event": "^14.6.3",
     "@types/adm-zip": "^0.5.8",
     "@types/debug": "^4.1.13",
-    "@types/node": "^26.1.2",
+    "@types/node": "26.2.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@typescript/native": "npm:typescript@~7.0.2",
     "@vitejs/plugin-react": "^6.0.4",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "4.1.11",
     "adm-zip": "^0.6.0",
     "axe-core": "^4.13.0",
     "debug": "^4.4.3",
@@ -74,7 +74,7 @@
     "tsx": "^4.23.12",
     "typescript": "npm:@typescript/typescript6@~6.0.2",
     "vite": "^8.2.1",
-    "vitest": "^4.1.10"
+    "vitest": "4.1.11"
   },
   "overrides": {
     "js-yaml": "^4.2.1"
