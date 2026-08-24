@@ -122,6 +122,16 @@ export function PhoneCallTable({
             >
               <td className="whitespace-nowrap px-3 py-2 text-gray-700">
                 {formatDateTime(call.call_datetime)}
+                {call.attempt_count > 1 && (
+                  // One row stands for N indistinguishable unrecorded ring
+                  // attempts the provider logged for this call.
+                  <span
+                    data-automation-id={`PhoneCallTable-attempts-${call.id}`}
+                    className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600"
+                  >
+                    × {call.attempt_count} attempts
+                  </span>
+                )}
               </td>
               <td className="px-3 py-2">
                 <div className="font-medium text-gray-900">

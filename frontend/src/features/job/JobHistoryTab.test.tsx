@@ -78,6 +78,7 @@ function servePhoneCalls(rows: PhoneCallRecordOut[] = [], count = rows.length): 
 function phoneCall(): PhoneCallRecordOut {
   return {
     account_code: 'ACC',
+    attempt_count: 1,
     call_date: '2026-08-09',
     call_datetime: '2026-08-09T02:30:00Z',
     call_time: '02:30:00',

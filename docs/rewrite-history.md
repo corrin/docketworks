@@ -289,3 +289,21 @@ fetched; the element's own duration takes over once it has loaded. The
 archive now refuses bytes it cannot measure, which turned the fake
 `b"recorded audio"` in three unit tests into real WAVs from one generator,
 `apps.core.test_data.silent_wav`, shared with the E2E seed.
+
+**"Duplicate" call rows are the provider's per-leg CDR, read properly now,
+2026-08-24.** 2talk logs one row per call LEG: a forwarded call is an inbound
+row to the office line plus an outbound diversion row to the forward target,
+each with its own recording (same length, near-identical audio by waveform
+correlation, different bytes); an unanswered burst is two or three rows
+identical in everything but the provider's row id. One three-day pull held 36
+recorded diversion pairs, 57 identical Busy pairs and 46 identical triples.
+v1 stored and showed all of them undifferentiated. Two readings fix it:
+the forward target (a staff mobile) is registered as a `PhoneEndpoint`, so
+diversion legs classify inbound under the caller's number and rematch did
+132 historical legs; and the calls list collapses indistinguishable
+unrecorded, job-less rows to the smallest id wearing an `attempt_count` —
+ingest still keeps every provider row, recorded legs never collapse (a
+recording is evidence only its own row holds), and a job-linked row is never
+suppressed. The nullable identity columns match through Coalesce-to-"" keys
+because SQL NULL never equals NULL, and "" cannot collide with data ADR 0040
+bans from those columns.

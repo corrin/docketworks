@@ -7819,6 +7819,9 @@ components:
         account_code:
           title: Account Code
           type: string
+        attempt_count:
+          title: Attempt Count
+          type: integer
         call_date:
           format: date
           title: Call Date
@@ -7993,6 +7996,7 @@ components:
       - job_linked_at
       - job_linked_by
       - recording
+      - attempt_count
       - imported_at
       - updated_at
       title: PhoneCallRecordOut

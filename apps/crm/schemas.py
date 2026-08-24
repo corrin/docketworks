@@ -108,6 +108,9 @@ class PhoneCallRecordOut(Schema):
     job_linked_at: datetime | None
     job_linked_by: UUID | None
     recording: PhoneCallRecordingOut | None
+    # How many indistinguishable unrecorded ring attempts this row stands for;
+    # 1 everywhere except the calls list, which collapses such bursts.
+    attempt_count: int
     imported_at: datetime
     updated_at: datetime
 
@@ -116,6 +119,7 @@ class PhoneCallRecordOut(Schema):
         cls,
         call: PhoneCallRecord,
         recording: PhoneCallRecording | None,
+        attempt_count: int = 1,
     ) -> "PhoneCallRecordOut":
         """Build the payload from a call row and its (optional) recording."""
         return cls(
@@ -152,6 +156,7 @@ class PhoneCallRecordOut(Schema):
             job_linked_at=call.job_linked_at,
             job_linked_by=call.job_linked_by_id,
             recording=(PhoneCallRecordingOut.from_recording(recording) if recording else None),
+            attempt_count=attempt_count,
             imported_at=call.imported_at,
             updated_at=call.updated_at,
         )

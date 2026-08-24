@@ -14,6 +14,7 @@ const CALL_AT = new Date(2026, 7, 9, 14, 30).toISOString()
 function call(overrides: Partial<PhoneCallRecordOut> = {}): PhoneCallRecordOut {
   return {
     account_code: 'ACC',
+    attempt_count: 1,
     call_date: '2026-08-09',
     call_datetime: CALL_AT,
     call_time: '02:30:00',

@@ -33,6 +33,7 @@ const managePy = path.join(repoRoot, 'manage.py')
 const seededCallSchema = z.object({
   call_id: z.uuid(),
   recording_id: z.uuid(),
+  busy_attempt_ids: z.array(z.uuid()),
   job_number: z.number().int().positive(),
   download_url: z.string(),
 })
@@ -51,7 +52,7 @@ function seedPhoneCallForJob(jobId: string): SeededCall {
   // guarantees an activated interpreter in the npm test environment.
   const result = spawnSync(
     'uv',
-    ['run', 'python', managePy, 'e2e_seed_phone_call', '--job', jobId],
+    ['run', 'python', managePy, 'e2e_seed_phone_call', '--job', jobId, '--busy-attempts', '2'],
     {
       cwd: repoRoot,
       encoding: 'utf8',
@@ -129,6 +130,22 @@ test('office staff links a CRM phone call to a job', async ({ authenticatedPage:
     '0:00 / 0:03',
   )
   expect(recordingFetches, 'no recording may be fetched until it is played').toEqual([])
+
+  // The two seeded Busy ring attempts are indistinguishable, so the list
+  // collapses them to one row wearing the attempt count; which of the two ids
+  // survives is the smallest, which the spec cannot predict.
+  const attemptRows = await Promise.all(
+    seeded.busy_attempt_ids.map((id) =>
+      autoId(page, `PhoneCallTable-row-${id}`)
+        .count()
+        .then((n) => (n > 0 ? id : null)),
+    ),
+  )
+  const visibleAttempts = attemptRows.filter((id) => id !== null)
+  expect(visibleAttempts, 'exactly one collapsed row for the two attempts').toHaveLength(1)
+  await expect(autoId(page, `PhoneCallTable-attempts-${visibleAttempts[0]}`)).toHaveText(
+    '× 2 attempts',
+  )
 
   await expectStepUnder('open link job dialog', 2000, async () => {
     await autoId(page, `PhoneCallTable-link-job-${seeded.call_id}`).click()

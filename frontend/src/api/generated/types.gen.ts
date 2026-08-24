@@ -7028,6 +7028,10 @@ export type PhoneCallRecordOut = {
      */
     account_code: string;
     /**
+     * Attempt Count
+     */
+    attempt_count: number;
+    /**
      * Call Date
      */
     call_date: string;

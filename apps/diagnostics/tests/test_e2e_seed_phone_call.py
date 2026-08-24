@@ -59,7 +59,15 @@ class TestSeedOutput:
         lines = [line for line in raw.splitlines() if line.strip()]
         assert len(lines) == 1
         payload = json.loads(lines[0])
-        assert set(payload) == {"call_id", "recording_id", "job_number", "download_url"}
+        assert set(payload) == {
+            "call_id",
+            "recording_id",
+            "busy_attempt_ids",
+            "job_number",
+            "download_url",
+        }
+        # No --busy-attempts: the ring-attempt rows are opt-in per spec.
+        assert payload["busy_attempt_ids"] == []
         assert payload["job_number"] == job.job_number
 
         call = PhoneCallRecord.objects.get(id=payload["call_id"])

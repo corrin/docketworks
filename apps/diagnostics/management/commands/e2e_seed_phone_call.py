@@ -55,6 +55,16 @@ class Command(BaseCommand):
             type=UUID,
             help="Job whose company the seeded call is matched to",
         )
+        parser.add_argument(
+            "--busy-attempts",
+            type=int,
+            default=0,
+            help=(
+                "Also seed this many identical unrecorded Busy rows at the same "
+                "second (the provider's ring-attempt pattern), for the collapse "
+                "assertion"
+            ),
+        )
 
     def handle(self, *_args: object, **options: object) -> None:
         """Refuse anything unsafe, then seed the call, recording and audio."""
@@ -107,11 +117,17 @@ class Command(BaseCommand):
                 content_type=RECORDING_CONTENT_TYPE,
             )
 
+        busy_attempts = options.get("busy_attempts", 0)
+        if not isinstance(busy_attempts, int):
+            raise CommandError("--busy-attempts must be an integer")
+        attempt_ids = self._create_busy_attempts(job, count=busy_attempts)
+
         self.stdout.write(
             json.dumps(
                 {
                     "call_id": str(call.id),
                     "recording_id": str(recording.id),
+                    "busy_attempt_ids": attempt_ids,
                     "job_number": job.job_number,
                     "download_url": f"/api/crm/phone-call-recordings/{recording.id}/download/",
                 },
@@ -175,3 +191,54 @@ class Command(BaseCommand):
                 "RecordingId": provider_recording_id,
             },
         )
+
+    def _create_busy_attempts(self, job: Job, *, count: int) -> list[str]:
+        """Seed ``count`` indistinguishable unrecorded Busy rows at one second.
+
+        The provider logs a CDR row per ring attempt; identical unrecorded
+        rows collapse to one list row with an attempt count, and this is the
+        data that assertion runs against. Same call_datetime on every row —
+        the identity the collapse matches on.
+        """
+        if count < 1:
+            return []
+        now = timezone.now()
+        local_date = timezone.localdate(now)
+        local_time = timezone.localtime(now).time()
+        attempts = []
+        for _ in range(count):
+            attempts.append(
+                PhoneCallRecord.objects.create(
+                    provider_call_id=f"{TEST_DATA_PREFIX} {uuid4()}",
+                    account_code=TEST_DATA_PREFIX,
+                    call_datetime=now,
+                    call_date=local_date,
+                    call_time=local_time,
+                    call_type="Inbound",
+                    status="Busy",
+                    description=CALL_DESCRIPTION,
+                    origin=CUSTOMER_NUMBER,
+                    destination=OFFICE_NUMBER,
+                    normalized_origin=normalize_phone(CUSTOMER_NUMBER),
+                    normalized_destination=normalize_phone(OFFICE_NUMBER),
+                    direction=PhoneCallRecord.Direction.INBOUND,
+                    our_number=normalize_phone(OFFICE_NUMBER),
+                    external_number=normalize_phone(CUSTOMER_NUMBER),
+                    duration_seconds=0,
+                    company=job.company,
+                    raw_json={
+                        "id": str(uuid4()),
+                        "calldate": local_date.isoformat(),
+                        "calltime": local_time.isoformat(timespec="seconds"),
+                        "origin": CUSTOMER_NUMBER,
+                        "destination": OFFICE_NUMBER,
+                        "seconds": "0",
+                        "charge": "0.0000",
+                        "type": "Inbound",
+                        "status": "Busy",
+                        "description": CALL_DESCRIPTION,
+                        "RecordingId": None,
+                    },
+                )
+            )
+        return [str(attempt.id) for attempt in attempts]

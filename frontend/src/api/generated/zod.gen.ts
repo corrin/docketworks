@@ -2973,6 +2973,7 @@ export const zPhoneCallRecordingOut = z.object({
  */
 export const zPhoneCallRecordOut = z.object({
     account_code: z.string(),
+    attempt_count: z.int(),
     call_date: z.iso.date(),
     call_datetime: z.iso.datetime(),
     call_time: z.iso.time(),

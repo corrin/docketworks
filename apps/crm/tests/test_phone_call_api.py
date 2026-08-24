@@ -387,6 +387,69 @@ class TestCallList:
         assert body["page_size"] == 100
         assert len(body["results"]) == 100
 
+    def test_identical_unrecorded_attempts_collapse_to_one_row(
+        self, api: Client, company_obj: Company
+    ) -> None:
+        """The provider logs one CDR row per ring attempt; a burst of
+        indistinguishable unrecorded rows is one call to a reader, so the list
+        answers one row carrying the attempt count. Real shape: 57 identical
+        Busy pairs and 46 identical triples in a three-day pull.
+        """
+        when = timezone.now()
+        first = make_call("attempt-1", company=company_obj, call_datetime=when)
+        make_call("attempt-2", company=company_obj, call_datetime=when)
+        make_call("attempt-3", company=company_obj, call_datetime=when)
+
+        response = api.get(CALLS_PATH)
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["count"] == 1
+        [row] = body["results"]
+        # Deterministic representative: the smallest id survives.
+        expected = min(str(c.id) for c in PhoneCallRecord.objects.all())
+        assert row["id"] == expected
+        assert row["attempt_count"] == 3
+        assert first.id is not None  # the fixture row is among the three
+
+    def test_a_recorded_row_never_collapses(self, api: Client, company_obj: Company) -> None:
+        """A recording is evidence only its own row holds; suppressing either
+        side would hide a playable file or hide that an attempt also rang.
+        """
+        when = timezone.now()
+        recorded = make_call("recorded-leg", company=company_obj, call_datetime=when)
+        make_recording(recorded, "leg-recording", storage_path="2026/01/01/leg.mp3")
+        twin = make_call("unrecorded-leg", company=company_obj, call_datetime=when)
+
+        response = api.get(CALLS_PATH)
+
+        assert response.status_code == 200
+        rows = {row["id"]: row["attempt_count"] for row in response.json()["results"]}
+        assert rows == {str(recorded.id): 1, str(twin.id): 1}
+
+    def test_a_job_linked_attempt_is_never_suppressed(
+        self, api: Client, company_obj: Company, job: Job
+    ) -> None:
+        """A person chose that row; the collapse may not undo their work."""
+        when = timezone.now()
+        first = make_call("kept-1", company=company_obj, call_datetime=when)
+        linked = make_call("kept-2", company=company_obj, call_datetime=when)
+        linked.job = job
+        linked.save(update_fields=["job"])
+
+        response = api.get(CALLS_PATH)
+
+        assert response.status_code == 200
+        ids = {row["id"] for row in response.json()["results"]}
+        assert str(linked.id) in ids
+        assert str(first.id) in ids
+
+    def test_retrieve_answers_attempt_count_one(self, api: Client, call: PhoneCallRecord) -> None:
+        response = api.get(f"{CALLS_PATH}{call.id}/")
+
+        assert response.status_code == 200
+        assert response.json()["attempt_count"] == 1
+
     def test_list_filters_unmatched_and_unlinked_calls(
         self, api: Client, call: PhoneCallRecord, job: Job, company_obj: Company
     ) -> None:
