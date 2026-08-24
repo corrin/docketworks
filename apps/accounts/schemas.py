@@ -13,7 +13,7 @@ from ninja import Field, Schema
 from pydantic import ConfigDict
 
 from apps.accounts.models import STAFF_MANAGER_GROUP_NAME, Staff
-from apps.core.schemas import NonBlankText, NullableText, ResponseSchema, omittable
+from apps.core.schemas import NonBlankText, NullableText, Quantity, ResponseSchema, omittable
 
 
 class LoginRequest(Schema):
@@ -94,21 +94,21 @@ class StaffListItemOut(Schema):
     payroll_email: str | None
     employment_start_date: date
     pay_basis: str | None
-    wage_rate: Decimal
-    base_wage_rate: Decimal
+    wage_rate: Quantity
+    base_wage_rate: Quantity
     date_left: date | None
     xero_user_id: str | None
     is_office_staff: bool
     is_workshop_staff: bool
     is_superuser: bool
     is_staff_manager: bool
-    hours_mon: Decimal
-    hours_tue: Decimal
-    hours_wed: Decimal
-    hours_thu: Decimal
-    hours_fri: Decimal
-    hours_sat: Decimal
-    hours_sun: Decimal
+    hours_mon: Quantity
+    hours_tue: Quantity
+    hours_wed: Quantity
+    hours_thu: Quantity
+    hours_fri: Quantity
+    hours_sat: Quantity
+    hours_sun: Quantity
     # Plain str, not a URL type: site-root-relative /media/ paths must resolve
     # against the browser's own origin, matching KanbanStaffOut.icon_url.
     icon_url: str | None
@@ -147,7 +147,7 @@ class StaffCreateIn(Schema):
     preferred_name: NullableText = omittable(None)
     payroll_email: NullableText = omittable(None)
     xero_user_id: NullableText = omittable(None)
-    base_wage_rate: Decimal = omittable(Decimal("0"))
+    base_wage_rate: Quantity = omittable(Decimal("0"))
     employment_start_date: date = omittable(date(1970, 1, 1))
     date_left: date | None = omittable(None)
     pay_basis: Literal["hourly", "salary"] | None = omittable(None)
@@ -155,13 +155,13 @@ class StaffCreateIn(Schema):
     is_workshop_staff: bool = omittable(True)
     is_superuser: bool = omittable(False)
     is_staff_manager: bool = omittable(False)
-    hours_mon: Decimal = omittable(Decimal("8"))
-    hours_tue: Decimal = omittable(Decimal("8"))
-    hours_wed: Decimal = omittable(Decimal("8"))
-    hours_thu: Decimal = omittable(Decimal("8"))
-    hours_fri: Decimal = omittable(Decimal("8"))
-    hours_sat: Decimal = omittable(Decimal("0"))
-    hours_sun: Decimal = omittable(Decimal("0"))
+    hours_mon: Quantity = omittable(Decimal("8"))
+    hours_tue: Quantity = omittable(Decimal("8"))
+    hours_wed: Quantity = omittable(Decimal("8"))
+    hours_thu: Quantity = omittable(Decimal("8"))
+    hours_fri: Quantity = omittable(Decimal("8"))
+    hours_sat: Quantity = omittable(Decimal("0"))
+    hours_sun: Quantity = omittable(Decimal("0"))
 
 
 class StaffUpdateIn(Schema):
@@ -182,7 +182,7 @@ class StaffUpdateIn(Schema):
     preferred_name: NullableText = omittable(None)
     payroll_email: NullableText = omittable(None)
     xero_user_id: NullableText = omittable(None)
-    base_wage_rate: Decimal = omittable(Decimal("0"))
+    base_wage_rate: Quantity = omittable(Decimal("0"))
     employment_start_date: date = omittable(date(1970, 1, 1))
     date_left: date | None = omittable(None)
     pay_basis: Literal["hourly", "salary"] | None = omittable(None)
@@ -190,13 +190,13 @@ class StaffUpdateIn(Schema):
     is_workshop_staff: bool = omittable(True)
     is_superuser: bool = omittable(False)
     is_staff_manager: bool = omittable(False)
-    hours_mon: Decimal = omittable(Decimal("8"))
-    hours_tue: Decimal = omittable(Decimal("8"))
-    hours_wed: Decimal = omittable(Decimal("8"))
-    hours_thu: Decimal = omittable(Decimal("8"))
-    hours_fri: Decimal = omittable(Decimal("8"))
-    hours_sat: Decimal = omittable(Decimal("0"))
-    hours_sun: Decimal = omittable(Decimal("0"))
+    hours_mon: Quantity = omittable(Decimal("8"))
+    hours_tue: Quantity = omittable(Decimal("8"))
+    hours_wed: Quantity = omittable(Decimal("8"))
+    hours_thu: Quantity = omittable(Decimal("8"))
+    hours_fri: Quantity = omittable(Decimal("8"))
+    hours_sat: Quantity = omittable(Decimal("0"))
+    hours_sun: Quantity = omittable(Decimal("0"))
 
 
 class KanbanStaffQuery(Schema):

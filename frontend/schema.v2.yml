@@ -10362,11 +10362,8 @@ components:
         \ and never reads the placeholders here."
       properties:
         base_wage_rate:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Base Wage Rate
+          type: number
         date_left:
           anyOf:
           - format: date
@@ -10382,47 +10379,26 @@ components:
           title: First Name
           type: string
         hours_fri:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Hours Fri
+          type: number
         hours_mon:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Hours Mon
+          type: number
         hours_sat:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Hours Sat
+          type: number
         hours_sun:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Hours Sun
+          type: number
         hours_thu:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Hours Thu
+          type: number
         hours_tue:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Hours Tue
+          type: number
         hours_wed:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Hours Wed
+          type: number
         is_office_staff:
           title: Is Office Staff
           type: boolean
@@ -10624,9 +10600,8 @@ components:
         editable field set rides here.'
       properties:
         base_wage_rate:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Base Wage Rate
-          type: string
+          type: number
         date_left:
           anyOf:
           - format: date
@@ -10641,33 +10616,26 @@ components:
           title: First Name
           type: string
         hours_fri:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Hours Fri
-          type: string
+          type: number
         hours_mon:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Hours Mon
-          type: string
+          type: number
         hours_sat:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Hours Sat
-          type: string
+          type: number
         hours_sun:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Hours Sun
-          type: string
+          type: number
         hours_thu:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Hours Thu
-          type: string
+          type: number
         hours_tue:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Hours Tue
-          type: string
+          type: number
         hours_wed:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Hours Wed
-          type: string
+          type: number
         icon_url:
           anyOf:
           - type: string
@@ -10711,9 +10679,8 @@ components:
           - type: 'null'
           title: Preferred Name
         wage_rate:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Wage Rate
-          type: string
+          type: number
         xero_user_id:
           anyOf:
           - type: string
@@ -10846,11 +10813,8 @@ components:
         \ null is\nnever a password value, so only supplying one changes it."
       properties:
         base_wage_rate:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Base Wage Rate
+          type: number
         date_left:
           anyOf:
           - format: date
@@ -10866,47 +10830,26 @@ components:
           title: First Name
           type: string
         hours_fri:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Hours Fri
+          type: number
         hours_mon:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Hours Mon
+          type: number
         hours_sat:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Hours Sat
+          type: number
         hours_sun:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Hours Sun
+          type: number
         hours_thu:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Hours Thu
+          type: number
         hours_tue:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Hours Tue
+          type: number
         hours_wed:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
           title: Hours Wed
+          type: number
         is_office_staff:
           title: Is Office Staff
           type: boolean

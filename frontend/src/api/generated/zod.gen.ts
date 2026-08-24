@@ -4080,41 +4080,17 @@ export const zCompanyDefaultsSchemaOut = z.object({
  * ``exclude_unset`` and never reads the placeholders here.
  */
 export const zStaffCreateIn = z.object({
-    base_wage_rate: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
+    base_wage_rate: z.number().optional(),
     date_left: z.iso.date().nullish(),
     employment_start_date: z.iso.date().optional(),
     first_name: z.string().min(1),
-    hours_fri: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    hours_mon: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    hours_sat: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    hours_sun: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    hours_thu: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    hours_tue: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    hours_wed: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
+    hours_fri: z.number().optional(),
+    hours_mon: z.number().optional(),
+    hours_sat: z.number().optional(),
+    hours_sun: z.number().optional(),
+    hours_thu: z.number().optional(),
+    hours_tue: z.number().optional(),
+    hours_wed: z.number().optional(),
     is_office_staff: z.boolean().optional(),
     is_staff_manager: z.boolean().optional(),
     is_superuser: z.boolean().optional(),
@@ -4183,17 +4159,17 @@ export const zStaffJobBreakdownOut = z.object({
  * editable field set rides here.
  */
 export const zStaffListItemOut = z.object({
-    base_wage_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    base_wage_rate: z.number(),
     date_left: z.iso.date().nullable(),
     employment_start_date: z.iso.date(),
     first_name: z.string(),
-    hours_fri: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
-    hours_mon: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
-    hours_sat: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
-    hours_sun: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
-    hours_thu: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
-    hours_tue: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
-    hours_wed: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    hours_fri: z.number(),
+    hours_mon: z.number(),
+    hours_sat: z.number(),
+    hours_sun: z.number(),
+    hours_thu: z.number(),
+    hours_tue: z.number(),
+    hours_wed: z.number(),
     icon_url: z.string().nullable(),
     id: z.uuid(),
     is_office_staff: z.boolean(),
@@ -4205,7 +4181,7 @@ export const zStaffListItemOut = z.object({
     pay_basis: z.string().nullable(),
     payroll_email: z.string().nullable(),
     preferred_name: z.string().nullable(),
-    wage_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    wage_rate: z.number(),
     xero_user_id: z.string().nullable()
 });
 
@@ -4240,41 +4216,17 @@ export const zStaffMetricsOut = z.object({
  * never a password value, so only supplying one changes it.
  */
 export const zStaffUpdateIn = z.object({
-    base_wage_rate: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
+    base_wage_rate: z.number().optional(),
     date_left: z.iso.date().nullish(),
     employment_start_date: z.iso.date().optional(),
     first_name: z.string().min(1).optional(),
-    hours_fri: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    hours_mon: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    hours_sat: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    hours_sun: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    hours_thu: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    hours_tue: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    hours_wed: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
+    hours_fri: z.number().optional(),
+    hours_mon: z.number().optional(),
+    hours_sat: z.number().optional(),
+    hours_sun: z.number().optional(),
+    hours_thu: z.number().optional(),
+    hours_tue: z.number().optional(),
+    hours_wed: z.number().optional(),
     is_office_staff: z.boolean().optional(),
     is_staff_manager: z.boolean().optional(),
     is_superuser: z.boolean().optional(),

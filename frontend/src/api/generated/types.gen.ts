@@ -9206,7 +9206,7 @@ export type StaffCreateIn = {
     /**
      * Base Wage Rate
      */
-    base_wage_rate?: number | string;
+    base_wage_rate?: number;
     /**
      * Date Left
      */
@@ -9222,31 +9222,31 @@ export type StaffCreateIn = {
     /**
      * Hours Fri
      */
-    hours_fri?: number | string;
+    hours_fri?: number;
     /**
      * Hours Mon
      */
-    hours_mon?: number | string;
+    hours_mon?: number;
     /**
      * Hours Sat
      */
-    hours_sat?: number | string;
+    hours_sat?: number;
     /**
      * Hours Sun
      */
-    hours_sun?: number | string;
+    hours_sun?: number;
     /**
      * Hours Thu
      */
-    hours_thu?: number | string;
+    hours_thu?: number;
     /**
      * Hours Tue
      */
-    hours_tue?: number | string;
+    hours_tue?: number;
     /**
      * Hours Wed
      */
-    hours_wed?: number | string;
+    hours_wed?: number;
     /**
      * Is Office Staff
      */
@@ -9438,7 +9438,7 @@ export type StaffListItemOut = {
     /**
      * Base Wage Rate
      */
-    base_wage_rate: string;
+    base_wage_rate: number;
     /**
      * Date Left
      */
@@ -9454,31 +9454,31 @@ export type StaffListItemOut = {
     /**
      * Hours Fri
      */
-    hours_fri: string;
+    hours_fri: number;
     /**
      * Hours Mon
      */
-    hours_mon: string;
+    hours_mon: number;
     /**
      * Hours Sat
      */
-    hours_sat: string;
+    hours_sat: number;
     /**
      * Hours Sun
      */
-    hours_sun: string;
+    hours_sun: number;
     /**
      * Hours Thu
      */
-    hours_thu: string;
+    hours_thu: number;
     /**
      * Hours Tue
      */
-    hours_tue: string;
+    hours_tue: number;
     /**
      * Hours Wed
      */
-    hours_wed: string;
+    hours_wed: number;
     /**
      * Icon Url
      */
@@ -9526,7 +9526,7 @@ export type StaffListItemOut = {
     /**
      * Wage Rate
      */
-    wage_rate: string;
+    wage_rate: number;
     /**
      * Xero User Id
      */
@@ -9633,7 +9633,7 @@ export type StaffUpdateIn = {
     /**
      * Base Wage Rate
      */
-    base_wage_rate?: number | string;
+    base_wage_rate?: number;
     /**
      * Date Left
      */
@@ -9649,31 +9649,31 @@ export type StaffUpdateIn = {
     /**
      * Hours Fri
      */
-    hours_fri?: number | string;
+    hours_fri?: number;
     /**
      * Hours Mon
      */
-    hours_mon?: number | string;
+    hours_mon?: number;
     /**
      * Hours Sat
      */
-    hours_sat?: number | string;
+    hours_sat?: number;
     /**
      * Hours Sun
      */
-    hours_sun?: number | string;
+    hours_sun?: number;
     /**
      * Hours Thu
      */
-    hours_thu?: number | string;
+    hours_thu?: number;
     /**
      * Hours Tue
      */
-    hours_tue?: number | string;
+    hours_tue?: number;
     /**
      * Hours Wed
      */
-    hours_wed?: number | string;
+    hours_wed?: number;
     /**
      * Is Office Staff
      */
