@@ -51,18 +51,20 @@ def make_job(company: Company, name: str, staff: Staff) -> Job:
     return job
 
 
-def make_call(
+def make_call(  # noqa: PLR0913 -- a factory: every field is an axis a test varies
     provider_id: str,
     *,
     company: Company | None = None,
     origin: str = "+6421555123",
     destination: str = "+6496365131",
     call_datetime: datetime | None = None,
+    description: str | None = None,
 ) -> PhoneCallRecord:
     when = call_datetime or timezone.now()
     return PhoneCallRecord.objects.create(
         provider_call_id=f"account:{provider_id}",
         account_code="account",
+        description=description,
         call_datetime=when,
         call_date=timezone.localdate(when),
         call_time=when.time(),

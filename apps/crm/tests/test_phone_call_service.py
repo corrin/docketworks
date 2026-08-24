@@ -4,6 +4,7 @@ Contact ownership invariants are covered in the company app, while malformed
 job-link behavior is covered at the observable API boundary.
 """
 
+import hashlib
 from datetime import date, timedelta
 from pathlib import Path
 from unittest import mock
@@ -14,7 +15,9 @@ from pytest_django.fixtures import SettingsWrapper
 
 from apps.company.models import ContactMethod
 from apps.core.models import AppError, IntegrationSettings
-from apps.crm.models import PhoneCallRecord, PhoneCallRecording
+from apps.core.test_data import silent_wav
+from apps.crm.migrations import _0003_helpers as backfill
+from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
 from apps.crm.services.phone_call_service import (
     PhoneMatcher,
     PhoneProviderCallPage,
@@ -22,9 +25,13 @@ from apps.crm.services.phone_call_service import (
     _positive_int,
     assign_phone_number,
     delete_archived_provider_recordings,
+    delete_local_recording,
+    measure_audio_duration_ms,
     normalize_phone,
     rematch_calls_for_numbers,
+    store_recording_bytes,
     sync_call_history,
+    upsert_call_record,
 )
 from apps.crm.tests.helpers import (
     link_person,
@@ -77,6 +84,14 @@ class TestNormalizePhone:
         assert normalize_phone("6496365131") == "+6496365131"
         assert normalize_phone("09 636 5131") == "+6496365131"
         assert normalize_phone("027 530 3238") == "+64275303238"
+
+    def test_no_number_normalizes_to_none_not_blank(self) -> None:
+        # A withheld caller arrives from the provider as origin "" — the call
+        # row's number columns are nullable with not-blank constraints, so
+        # "no number" must be NULL, never "".
+        assert normalize_phone("") is None
+        assert normalize_phone(None) is None
+        assert normalize_phone("Anonymous") is None
 
 
 class TestCallDurationCoercion:
@@ -311,6 +326,7 @@ class TestPhoneCallSync:
             value="021 555 123",
         )
         payload = self._payload()
+        audio = silent_wav(1)
 
         with mock.patch(
             "apps.crm.services.phone_call_service.PhoneProviderPortalClient"
@@ -318,7 +334,7 @@ class TestPhoneCallSync:
             portal = client_class.return_value
             portal.iter_call_pages.return_value = [PhoneProviderCallPage(page=1, calls=[payload])]
             portal.download_recording.return_value = (
-                b"recorded audio",
+                audio,
                 "call.mp3",
                 "audio/mpeg",
             )
@@ -342,7 +358,8 @@ class TestPhoneCallSync:
         assert call.company == company
         recording = call.recording
         assert recording.filename == "call.mp3"
-        assert recording.byte_size == len(b"recorded audio")
+        assert recording.byte_size == len(audio)
+        assert recording.duration_ms == 1000
         assert recording.sha256
         assert recording.storage_path is not None
         assert (provider_env / recording.storage_path).exists()
@@ -382,3 +399,157 @@ class TestPhoneCallSync:
             "description": "Customer call",
             "RecordingId": recording_id,
         }
+
+
+@pytest.mark.django_db
+class TestStoreRecordingBytes:
+    """The store half of the archive is public so non-provider producers (the
+    E2E seed) reuse the path rules instead of re-deriving them.
+    """
+
+    @pytest.fixture(autouse=True)
+    def storage_root(self, settings: SettingsWrapper, tmp_path: Path) -> Path:
+        settings.PHONE_RECORDING_STORAGE_ROOT = str(tmp_path)
+        return tmp_path
+
+    def test_stores_wav_under_its_own_suffix(self, storage_root: Path) -> None:
+        """A stored .wav must keep its suffix: the download endpoint derives
+        Content-Type from the stored path, so a WAV under .mp3 is served as
+        audio/mpeg and no browser plays it.
+        """
+        call = make_call("wav-call", company=make_company("Wav Co"))
+        recording = make_recording(call, "wav-recording", storage_path=None)
+        content = silent_wav(0.5)
+
+        store_recording_bytes(
+            call=call,
+            recording=recording,
+            content=content,
+            filename="e2e-call.wav",
+            content_type="audio/wav",
+        )
+
+        recording.refresh_from_db()
+        assert recording.storage_path is not None
+        assert recording.storage_path.endswith(".wav")
+        assert (storage_root / recording.storage_path).read_bytes() == content
+        assert recording.filename == "e2e-call.wav"
+        assert recording.content_type == "audio/wav"
+        assert recording.byte_size == len(content)
+        assert recording.sha256 == hashlib.sha256(content).hexdigest()
+        assert recording.archived_at is not None
+        assert recording.account_code == call.account_code
+        assert recording.duration_ms == 500
+
+
+@pytest.mark.django_db
+class TestWithheldNumberCalls:
+    """2talk reports a withheld caller as origin "". The first real sync hit
+    this on its first page: every number column is nullable with a not-blank
+    check, so the row must store NULL for the missing party, not "".
+    """
+
+    def test_inbound_call_from_withheld_number_is_saved_with_null_external_number(self) -> None:
+        PhoneEndpoint.objects.create(
+            number="+6496365131",
+            label="Main line",
+            endpoint_type=PhoneEndpoint.EndpointType.MAIN_LINE,
+            is_active=True,
+        )
+        payload = {
+            "id": "10684389777",
+            "type": "Inbound",
+            "origin": "",
+            "destination": "+6496365131",
+            "calldate": "2026-08-21",
+            "calltime": "13:43:13",
+            "seconds": "60",
+            "charge": "0.00000000",
+            "status": "Ok",
+            "description": "New Zealand",
+        }
+
+        call, created = upsert_call_record(
+            payload=payload, account_code="15539090", matcher=PhoneMatcher()
+        )
+
+        assert created is True
+        call.refresh_from_db()
+        assert call.direction == PhoneCallRecord.Direction.INBOUND
+        assert call.origin is None
+        assert call.normalized_origin is None
+        assert call.external_number is None
+        assert call.our_number == "+6496365131"
+
+
+class TestMeasureAudioDuration:
+    """The archive measures what it stores; what it cannot measure is not a recording."""
+
+    def test_reads_a_wav_to_the_millisecond(self) -> None:
+        assert measure_audio_duration_ms(silent_wav(2.25)) == 2250
+
+    def test_refuses_bytes_that_are_not_audio(self) -> None:
+        with pytest.raises(ValueError, match="not audio"):
+            measure_audio_duration_ms(b"RIFF....WAVEfmt ")
+
+
+@pytest.mark.django_db
+class TestRecordingDurationLifecycle:
+    @pytest.fixture(autouse=True)
+    def storage_root(self, settings: SettingsWrapper, tmp_path: Path) -> Path:
+        settings.PHONE_RECORDING_STORAGE_ROOT = str(tmp_path)
+        return tmp_path
+
+    def test_local_delete_clears_the_measurement_with_the_file(self) -> None:
+        call = make_call("measured-call", company=make_company("Measured Co"))
+        recording = make_recording(call, "measured-recording", storage_path=None)
+        store_recording_bytes(
+            call=call,
+            recording=recording,
+            content=silent_wav(1),
+            filename="call.wav",
+            content_type="audio/wav",
+        )
+        recording.refresh_from_db()
+        assert recording.duration_ms == 1000
+
+        delete_local_recording(recording)
+
+        recording.refresh_from_db()
+        assert recording.duration_ms is None
+        assert recording.storage_path is None
+
+
+@pytest.mark.django_db
+class TestDurationBackfill:
+    """The 0003 migration's rule: measure every archived file present, leave the rest NULL."""
+
+    def test_measures_present_files_and_leaves_missing_ones_null(self, tmp_path: Path) -> None:
+        company = make_company("Backfill Co")
+        present = make_recording(
+            make_call("present-call", company=company), "present", storage_path="2026/01/01/p.wav"
+        )
+        (tmp_path / "2026/01/01").mkdir(parents=True)
+        (tmp_path / "2026/01/01/p.wav").write_bytes(silent_wav(1.5))
+        missing = make_recording(
+            make_call("missing-call", company=company), "missing", storage_path="2026/01/01/m.wav"
+        )
+
+        measured = backfill.measure_archived_recordings(PhoneCallRecording, tmp_path)
+
+        assert measured == 1
+        present.refresh_from_db()
+        missing.refresh_from_db()
+        assert present.duration_ms == 1500
+        assert missing.duration_ms is None
+
+    def test_aborts_on_a_file_that_is_not_audio(self, tmp_path: Path) -> None:
+        make_recording(
+            make_call("junk-call", company=make_company("Junk Co")),
+            "junk",
+            storage_path="junk.mp3",
+        )
+        (tmp_path / "junk.mp3").write_bytes(b"not audio at all")
+
+        with pytest.raises(RuntimeError, match="not audio"):
+            backfill.measure_archived_recordings(PhoneCallRecording, tmp_path)

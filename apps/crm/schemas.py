@@ -7,7 +7,7 @@ from uuid import UUID
 from ninja import Field, Schema
 from pydantic import StringConstraints
 
-from apps.core.schemas import ResponseSchema, omittable
+from apps.core.schemas import NullableText, ResponseSchema, omittable
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
 
 EndpointTypeLiteral = Literal["main_line", "staff_mobile", "staff_ddi", "extension", "shared"]
@@ -29,6 +29,7 @@ class PhoneCallRecordingOut(Schema):
     filename: str | None
     content_type: str | None
     byte_size: int | None
+    duration_ms: int | None
     sha256: str | None
     archived_at: datetime | None
     archive_error: str | None
@@ -60,6 +61,7 @@ class PhoneCallRecordingOut(Schema):
             filename=recording.filename,
             content_type=recording.content_type,
             byte_size=recording.byte_size,
+            duration_ms=recording.duration_ms,
             sha256=recording.sha256,
             archived_at=recording.archived_at,
             archive_error=recording.archive_error,
@@ -106,6 +108,9 @@ class PhoneCallRecordOut(Schema):
     job_linked_at: datetime | None
     job_linked_by: UUID | None
     recording: PhoneCallRecordingOut | None
+    # How many indistinguishable unrecorded ring attempts this row stands for;
+    # 1 everywhere except the calls list, which collapses such bursts.
+    attempt_count: int
     imported_at: datetime
     updated_at: datetime
 
@@ -114,6 +119,7 @@ class PhoneCallRecordOut(Schema):
         cls,
         call: PhoneCallRecord,
         recording: PhoneCallRecording | None,
+        attempt_count: int = 1,
     ) -> "PhoneCallRecordOut":
         """Build the payload from a call row and its (optional) recording."""
         return cls(
@@ -150,6 +156,7 @@ class PhoneCallRecordOut(Schema):
             job_linked_at=call.job_linked_at,
             job_linked_by=call.job_linked_by_id,
             recording=(PhoneCallRecordingOut.from_recording(recording) if recording else None),
+            attempt_count=attempt_count,
             imported_at=call.imported_at,
             updated_at=call.updated_at,
         )
@@ -196,7 +203,11 @@ class PhoneNumberAssignmentIn(Schema):
     company: UUID
     person: UUID | None = None
     is_primary: bool = False
-    label: str = Field("", max_length=255)
+    # ADR 0040: unset is NULL, and "" is a 422 rather than an IntegrityError
+    # from ContactMethod's label_not_blank CHECK. NullableText is the one
+    # declaration of that (apps/core/schemas.py); the length bound stays
+    # because the column is CharField(255).
+    label: NullableText = Field(None, max_length=255)
 
 
 class PhoneEndpointOut(Schema):

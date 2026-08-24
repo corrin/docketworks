@@ -7028,6 +7028,10 @@ export type PhoneCallRecordOut = {
      */
     account_code: string;
     /**
+     * Attempt Count
+     */
+    attempt_count: number;
+    /**
      * Call Date
      */
     call_date: string;
@@ -7188,6 +7192,10 @@ export type PhoneCallRecordingOut = {
      * Download Url
      */
     download_url: string | null;
+    /**
+     * Duration Ms
+     */
+    duration_ms: number | null;
     /**
      * Filename
      */
@@ -7427,7 +7435,7 @@ export type PhoneNumberAssignmentIn = {
     /**
      * Label
      */
-    label?: string;
+    label?: string | null;
     /**
      * Person
      */

@@ -43,10 +43,10 @@ done only when that spec is green.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **40 of 40** — green is the only measure that counts |
+| E2E specs ported | **42 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 34 more exist but nothing calls them) |
 | API operations v2 exposes | 219 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2520 (all passing) |
+| Unit tests | 2550 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 112 recorded deviations |
@@ -59,9 +59,9 @@ written measures typing, not delivery.
 
 ### Specs still to port
 
-Four, plus `example`, which is a placeholder to delete rather than port:
-`crm/phone-call-job-link`, `process-documents/form-entries-page-scroll`,
-`staff/create-staff`, `timesheet/workshop-my-time-view`.
+Three, plus `example`, which is a placeholder to delete rather than port:
+`process-documents/form-entries-page-scroll`, `staff/create-staff`,
+`timesheet/workshop-my-time-view`.
 
 - `workshop-my-time-view` is a rebuild, not a port —
   `@kodeglot/vue-calendar` has no React equivalent.
@@ -318,6 +318,46 @@ rather than anywhere else. This file is finished when it is empty.
 
 ### Correctness and hygiene
 
+- **The three cost-line endpoints must set the job ETag on their own
+  responses.** Create, patch and delete cost line (`apps/job/api.py`) each bump
+  the job's `updated_at` through `_update_cost_set_summary`, which is what the
+  job ETag is derived from, but none of them calls `_set_job_etag(response,
+  job_id)`. The client therefore has to refetch `getFullJob` after every
+  settled cost-line write purely to re-arm the etag store the header's If-Match
+  reads (`features/job/invalidateJobViews.ts`). The server change alone does
+  not land it: cost lines live at `/api/job/cost_lines/{id}/`, and the
+  concurrency interceptor's job rule captures a version only from
+  `/api/job/jobs/` URLs and reads the job id out of the URL path
+  (`isVersionedEndpoint` and `jobIdFromUrl` in
+  `src/lib/concurrency/interceptors.ts`), so a header set on a cost-line
+  response is discarded. Pair the three `_set_job_etag` calls with teaching
+  the interceptor those URLs — the job id from the response body, or an
+  `X-Resource-Id` beside `X-Resource-Version`. Until both land, the
+  `getFullJob` refetch stays. Once they do, a cost-line write needs only the
+  cost-set and timeline keys, and
+  `features/timesheet/useTimesheetEntries.ts` — which writes cost lines against
+  arbitrary jobs and cannot reach across features to invalidate job views —
+  stops being a hole that 412s the next header edit.
+- **`companies_jobs_retrieve` is unpaginated and feeds the link-job picker.**
+  `apps/company/api.py` returns every job a company has ever had, and
+  `PhoneCallLinkJobDialog` fetches it to populate the job list. A company with
+  thousands of jobs sends a response past the 100 KB E2E wire guard and past
+  what a picker can usefully render. Page it, or cap it server-side to the
+  newest jobs the picker offers.
+- **The E2E network log records a negative request duration.**
+  `enableNetworkLogging` in `frontend/tests/e2e/helpers.ts` writes
+  `duration_ms` as `timing.responseEnd - timing.startTime`, but Playwright's
+  `startTime` is an epoch millisecond value while `responseEnd` is an offset
+  from it, so every row is a large negative number. Log `responseEnd`
+  directly.
+- **`getFullJob` returns more than any consumer reads.**
+  `get_job_for_edit` (`apps/job/services/job_service.py`) returns every
+  `JobEvent` for the job unpaginated, and `job_detail_data` embeds
+  `latest_estimate`, `latest_quote` and `latest_actual` as whole cost sets with
+  their lines — which no frontend consumer reads, since the costing tabs fetch
+  cost sets by their own endpoint. Drop the embedded cost sets and page the
+  events. This is now on a hot path: the response is refetched after every
+  settled cost-line write.
 - **Geocoding integration test (ADR 0050).** Write an `integration`-marked test
   calling `geocoding_service` against Address Validation; the outbound-link
   probe skips `v1:validateAddress` because it is POST-only, so only that test
@@ -383,6 +423,13 @@ other surfaces join as they arrive (ADR 0047) — never a second stream.
 
 ### Engineering backlog
 
+- **Opt-in integration test for provider-side recording deletion** (owner,
+  2026-08-23). `deleteMedia` is irreversible on the one live 2talk account with
+  no undo, so it stays out of the merge gate (ADR 0050's opt-in exception). The
+  compensating test runs only under `PHONE_PROVIDER_DELETE=1`: it deletes one
+  recording already archived locally and older than 31 days — what the nightly
+  task does in production — and reads back that the provider no longer serves
+  it.
 - **Rename what v1 misnamed.** Opus: names came across unexamined so that v2 and v1
   could be reconciled screen by screen; that reason expires at cutover, and
   what is left is names that describe the wrong thing. The known instance is

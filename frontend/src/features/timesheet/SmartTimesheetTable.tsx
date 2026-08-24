@@ -18,6 +18,7 @@ import type {
 import { formatCurrency } from '@/lib/format'
 import { DataTable } from '@/features/shared/DataTable'
 import { JobPicker } from '@/features/shared/JobPicker'
+import { orNull } from '@/features/shared/nullableText'
 import { editableGridFeatures } from '@/features/shared/editableGridTable'
 import { SaveFailedBadge } from '@/features/shared/SaveFailedBadge'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
@@ -373,8 +374,7 @@ function DescriptionCell({ row, table }: CellProps) {
     serverValue,
     (value) => {
       if (gridRow.type === 'server') {
-        // ADR 0040: blank clears to null, never an empty string.
-        context.patchLine(gridRow.line.id, { desc: value.trim() === '' ? null : value })
+        context.patchLine(gridRow.line.id, { desc: orNull(value) })
       } else {
         context.updateDraft(gridRow.localId, { description: value })
       }
@@ -725,7 +725,7 @@ export function SmartTimesheetTable({
       createLine(
         draft.job,
         {
-          desc: draft.description.trim() === '' ? null : draft.description,
+          desc: orNull(draft.description),
           quantity: String(draft.hours),
           accounting_date: date,
           meta: {

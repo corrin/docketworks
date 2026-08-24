@@ -3,6 +3,8 @@ import { screen, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import type { JobDetail, JobFinishResponse } from '@/api'
+import { autoId } from '@/test/auto-id'
+import { seedJobViews } from '@/test/jobViews'
 import { renderWithProviders } from '@/test/render'
 import { server } from '@/test/msw'
 import { JobFinishTab } from './JobFinishTab'
@@ -107,6 +109,34 @@ describe('JobFinishTab', () => {
 
     expect(await screen.findByText("Could not load this job's financials.")).toBeInTheDocument()
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument()
+  })
+
+  it('invalidates both job views after an invoice is created', async () => {
+    stubQuietEndpoints()
+    server.use(
+      http.get('*/api/job/jobs/*/finish/', () => HttpResponse.json(finishPayload)),
+      http.post('*/api/xero/create_invoice/*', () =>
+        HttpResponse.json(
+          { success: true, xero_id: 'xero-invoice-1', invoice_id: 'invoice-1', messages: [] },
+          { status: 201 },
+        ),
+      ),
+    )
+
+    const { user, queryClient } = renderWithProviders(<JobFinishTab jobId="job-1" job={baseJob} />)
+    await screen.findByText('$1,150.00')
+    // Seeded after render: the tab's own queries are already registered, and
+    // these two are the ones nothing on this screen reads.
+    const keys = seedJobViews(queryClient, 'job-1')
+
+    await user.click(await screen.findByRole('button', { name: 'Create Invoice' }))
+    await user.click(autoId('JobFinishTab-mode-invoice-full'))
+
+    // Creating an invoice writes a JobEvent and bumps the job's updated_at.
+    await waitFor(() => {
+      expect(queryClient.getQueryState(keys.timeline)?.isInvalidated).toBe(true)
+      expect(queryClient.getQueryState(keys.job)?.isInvalidated).toBe(true)
+    })
   })
 
   it('persists a checklist tick and hides the timesheets item on quoted jobs', async () => {

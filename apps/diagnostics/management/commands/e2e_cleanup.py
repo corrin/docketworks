@@ -15,6 +15,12 @@ organisation's mirror, not residue, and is left alone here and by the E2E
 preflight. The local step is skipped when nothing matches, never the Xero
 step: the database is clean after every normal run, and the residue that
 matters is in the organisation.
+
+E2E-seeded phone calls are recognised by a ``[TEST]`` description, like every
+other row a run creates. A call has no name to prefix, and its job and company
+links are SET_NULL, so a seeded call outlives both and cannot be found through
+them. Its recording is also a file on disk, which deleting the row does not
+remove.
 """
 
 from django.core.management import call_command
@@ -31,6 +37,8 @@ from apps.core.test_data import (
     TEST_DATA_PREFIX,
     is_e2e_name,
 )
+from apps.crm.models import PhoneCallRecord, PhoneCallRecording
+from apps.crm.services.phone_call_service import delete_local_recording
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 from apps.xero.contacts import archive_contacts_in_xero
@@ -152,6 +160,21 @@ class Command(BaseCommand):
         linked_quote_sheets = QuoteSpreadsheet.objects.filter(job__in=all_jobs)
         linked_pos = PurchaseOrder.objects.filter(supplier__in=named_companies)
 
+        # The description is the whole rule. Matching on the call's job or
+        # company instead would miss every call whose job and company have
+        # already been set to NULL, and would sweep the standing test
+        # company's real calls, which are live data.
+        e2e_calls = PhoneCallRecord.objects.filter(description__startswith=TEST_DATA_PREFIX)
+        archived_recordings = PhoneCallRecording.objects.filter(call__in=e2e_calls).exclude(
+            storage_path__isnull=True
+        )
+        self._report_queryset("E2E phone calls", e2e_calls, "description")
+        self._report_queryset(
+            "E2E phone recordings with a local file",
+            archived_recordings,
+            "provider_recording_id",
+        )
+
         total = sum(
             queryset.count()
             for queryset in (
@@ -162,6 +185,7 @@ class Command(BaseCommand):
                 linked_invoices,
                 linked_quotes,
                 linked_pos,
+                e2e_calls,
             )
         )
 
@@ -188,6 +212,15 @@ class Command(BaseCommand):
         self.stdout.write("\nDeleting...")
 
         with transaction.atomic():
+            # Files first, and inside the transaction: a rollback then leaves
+            # rows whose file is gone, which the download endpoint already
+            # answers with 404 and the next --confirm finishes. Deleting the
+            # files after the commit instead would orphan files that no run
+            # can find, because the rows naming them would be gone.
+            for recording in archived_recordings:
+                delete_local_recording(recording)
+            self._delete_queryset("E2E phone calls", e2e_calls)
+
             self._delete_queryset("Invoices", linked_invoices)
             self._delete_queryset("Purchase orders", linked_pos)
             self._delete_queryset("Quotes", linked_quotes)

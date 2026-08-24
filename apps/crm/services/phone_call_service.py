@@ -23,6 +23,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from io import BytesIO
 from math import isfinite
 from pathlib import Path
 from time import sleep
@@ -34,6 +35,7 @@ import requests
 from django.conf import settings
 from django.db import models, transaction
 from django.utils import timezone
+from tinytag import TinyTag, TinyTagException
 
 from apps.company.models import Company, ContactMethod, Person
 from apps.core.errors import persist_app_error
@@ -239,12 +241,14 @@ def delete_local_recording(recording: PhoneCallRecording) -> None:
     _full_storage_path(recording.storage_path).unlink(missing_ok=True)
     recording.storage_path = None
     recording.byte_size = None
+    recording.duration_ms = None
     recording.sha256 = None
     recording.local_deleted_at = timezone.now()
     recording.save(
         update_fields=[
             "storage_path",
             "byte_size",
+            "duration_ms",
             "sha256",
             "local_deleted_at",
             "updated_at",
@@ -464,8 +468,10 @@ class PhoneProviderPortalClient:
             params={
                 "AccountCode": self.config.account_code,
                 "rid": str(raw["RecordingId"]),
-                # A null party must stay "" so requests omits the empty
-                # parameter; stringifying it would send "None".
+                # A withheld party is sent as an EMPTY parameter (``aparty=``):
+                # requests drops only None, and 2talk serves the recording that
+                # way (proven on the real portal 2026-08-23). Stringifying None
+                # would send the literal "None".
                 "aparty": str(raw.get("origin") or ""),
                 "bparty": str(raw.get("destination") or ""),
                 "date": f"{raw['calldate']} - {raw['calltime']}",
@@ -618,14 +624,44 @@ def archive_recording(
         return False
 
     content, filename, content_type = client.download_recording(call)
+    store_recording_bytes(
+        call=call,
+        recording=recording,
+        content=content,
+        filename=filename,
+        content_type=content_type,
+    )
+    return True
+
+
+def store_recording_bytes(
+    *,
+    call: PhoneCallRecord,
+    recording: PhoneCallRecording,
+    content: bytes,
+    filename: str,
+    content_type: str,
+) -> None:
+    """Write recording audio into the local archive and record it on the row.
+
+    Public because the provider download is not the only producer: the E2E
+    seed hands over bytes it generated. Rejected giving the seed its own
+    writer — the storage root, path layout and atomic-write rules are one
+    implementation (ADR 0039), and a second one drifts from what the download
+    endpoint reads.
+    """
     digest = hashlib.sha256(content).hexdigest()
-    storage_path = _recording_storage_path(call=call, recording=recording)
+    # Measured before anything is written: bytes that are not audio are an
+    # archive failure, and the caller records it as one.
+    duration_ms = measure_audio_duration_ms(content)
+    storage_path = _recording_storage_path(call=call, recording=recording, filename=filename)
     _write_file(storage_path=storage_path, payload=content)
 
     recording.filename = filename
     recording.storage_path = storage_path
     recording.content_type = content_type
     recording.byte_size = len(content)
+    recording.duration_ms = duration_ms
     recording.sha256 = digest
     recording.archived_at = timezone.now()
     recording.archive_error = None
@@ -637,6 +673,7 @@ def archive_recording(
             "storage_path",
             "content_type",
             "byte_size",
+            "duration_ms",
             "sha256",
             "archived_at",
             "archive_error",
@@ -645,7 +682,27 @@ def archive_recording(
             "updated_at",
         ]
     )
-    return True
+
+
+def measure_audio_duration_ms(content: bytes) -> int:
+    """Length of an audio file's playback, in whole milliseconds.
+
+    Measured here, at archive time, because nothing else knows it: the
+    provider's CDR ``seconds`` is billed per started minute, and the browser
+    only learns a length once it has fetched the file, which the calls page
+    deliberately does not do until play. tinytag rather than a frame parser
+    of our own (ADR 0032); it reads the provider's header-less CBR MP3 and the
+    E2E seed's WAV alike. Bytes it cannot read are not a recording.
+    """
+    # Both failures are one fact to the caller: tinytag raises on some junk
+    # and answers a None duration on the rest.
+    try:
+        tag = TinyTag.get(file_obj=BytesIO(content))
+    except TinyTagException as exc:
+        raise ValueError("recording bytes are not audio tinytag can measure") from exc
+    if not tag.duration:
+        raise ValueError("recording bytes are not audio tinytag can measure")
+    return round(tag.duration * 1000)
 
 
 @dataclass(frozen=True)
@@ -680,7 +737,7 @@ class PhoneMatcher:
             for endpoint in PhoneEndpoint.objects.filter(is_active=True)
         }
 
-    def match_customer(self, *values: str) -> tuple[Company | None, Person | None]:
+    def match_customer(self, *values: str | None) -> tuple[Company | None, Person | None]:
         """Resolve numbers to a single owning company (and person when unambiguous)."""
         matches: set[tuple[str, str, str]] = set()
         for value in values:
@@ -712,8 +769,10 @@ class PhoneMatcher:
         """Classify a call's direction and parties from its two numbers."""
         normalized_origin = normalize_phone(origin)
         normalized_destination = normalize_phone(destination)
-        origin_endpoint = self.endpoints.get(normalized_origin)
-        destination_endpoint = self.endpoints.get(normalized_destination)
+        origin_endpoint = self.endpoints.get(normalized_origin) if normalized_origin else None
+        destination_endpoint = (
+            self.endpoints.get(normalized_destination) if normalized_destination else None
+        )
 
         if origin_endpoint and destination_endpoint:
             return CallClassification(
@@ -778,10 +837,18 @@ def is_call_payload(payload: ProviderPayload) -> bool:
     return bool(origin or destination)
 
 
-def normalize_phone(value: object) -> str:
-    """Delegate to the one phone-normalization implementation (ContactMethod's)."""
-    # Falsy inputs (None, "", 0) mean "no number".
-    return ContactMethod.normalize_phone(str(value) if value else None)
+def normalize_phone(value: object) -> str | None:
+    """Delegate to the one phone-normalization implementation (ContactMethod's).
+
+    None, not "", for "no number": ContactMethod.normalize_phone answers ""
+    because its own column is NOT NULL, but every number column on a call is
+    nullable with a not-blank check (ADR 0040). 2talk reports a withheld
+    caller as origin "", and the first real sync failed on exactly that row
+    when "" reached external_number.
+    """
+    if not value:
+        return None
+    return ContactMethod.normalize_phone(str(value)) or None
 
 
 def configured_own_numbers() -> set[str]:
@@ -916,14 +983,14 @@ def assign_phone_number(
         normalized_value=normalized,
         defaults={
             "value": phone_number.strip(),
-            "label": label.strip() if label else None,
+            "label": label,
             "is_primary": should_be_primary,
             "source": ContactMethod.Source.LOCAL,
         },
     )
     if not created:
         method.value = phone_number.strip()
-        method.label = label.strip() if label else None
+        method.label = label
         method.source = ContactMethod.Source.LOCAL
         method.is_primary = should_be_primary or method.is_primary
         method.save(update_fields=["value", "label", "source", "is_primary", "updated_at"])
@@ -1050,8 +1117,14 @@ def _recording_storage_path(
     *,
     call: PhoneCallRecord,
     recording: PhoneCallRecording,
+    filename: str,
 ) -> str:
-    return f"{call.call_date:%Y/%m/%d}/{_safe_filename(recording.provider_recording_id)}.mp3"
+    # The stored suffix is the served Content-Type: the download endpoint
+    # guesses it from this path with mimetypes. Rejected pinning ".mp3" (what
+    # the provider always sends) — a WAV stored under it is served as
+    # audio/mpeg and no browser plays it.
+    suffix = Path(filename).suffix.lower() or ".mp3"
+    return f"{call.call_date:%Y/%m/%d}/{_safe_filename(recording.provider_recording_id)}{suffix}"
 
 
 def _filename_from_response(content_disposition: str, call: PhoneCallRecord) -> str:

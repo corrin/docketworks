@@ -15,7 +15,7 @@ from django.utils import timezone
 from pytest_django.fixtures import SettingsWrapper
 
 from apps.accounts.models import Staff
-from apps.company.models import Company, CompanyPersonLink, Person
+from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.core.models import AppError, IntegrationSettings
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
 from apps.crm.tests.helpers import (
@@ -284,6 +284,62 @@ class TestClientErrorsDoNotPersistAppErrors:
         assert "Person is not linked to the selected company" in response.json()["message"]
         assert AppError.objects.count() == before
 
+    def test_assign_number_refuses_a_blank_label(
+        self, api: Client, call: PhoneCallRecord, company_obj: Company
+    ) -> None:
+        """ContactMethod.label carries a not-blank CHECK, so "" must be caught
+        at the wire as a 422 rather than reaching the database as a 409.
+        """
+        call.external_number = "+6421555002"
+        call.save(update_fields=["external_number"])
+
+        response = api.post(
+            f"{CALLS_PATH}{call.id}/assign-number/",
+            data={"company": str(company_obj.id), "label": ""},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422
+
+    def test_assign_number_without_a_label_stores_null(
+        self, api: Client, call: PhoneCallRecord, company_obj: Company
+    ) -> None:
+        """Unset is NULL (ADR 0040): an omitted label must not become ""."""
+        call.external_number = "+6421555003"
+        call.save(update_fields=["external_number"])
+
+        response = api.post(
+            f"{CALLS_PATH}{call.id}/assign-number/",
+            data={"company": str(company_obj.id)},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        method = ContactMethod.objects.get(value="+6421555003")
+        assert method.label is None
+
+    def test_assign_number_stores_the_label_the_wire_validated(
+        self, api: Client, call: PhoneCallRecord, company_obj: Company
+    ) -> None:
+        """The schema owns trimming, so the service stores what it is handed.
+
+        NullableText strips before the length check, so padding never reaches
+        the service and a service-side ``label.strip() if label else None``
+        could only turn a value the wire had already accepted into NULL.
+        """
+        call.external_number = "+6421555004"
+        call.save(update_fields=["external_number"])
+
+        response = api.post(
+            f"{CALLS_PATH}{call.id}/assign-number/",
+            data={"company": str(company_obj.id), "label": "  Front desk  "},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        method = ContactMethod.objects.get(value="+6421555004")
+        assert method.label == "Front desk"
+
 
 class TestCallList:
     """The CRM calls page must paginate and filter without drifting from the
@@ -330,6 +386,69 @@ class TestCallList:
         assert body["count"] == 102
         assert body["page_size"] == 100
         assert len(body["results"]) == 100
+
+    def test_identical_unrecorded_attempts_collapse_to_one_row(
+        self, api: Client, company_obj: Company
+    ) -> None:
+        """The provider logs one CDR row per ring attempt; a burst of
+        indistinguishable unrecorded rows is one call to a reader, so the list
+        answers one row carrying the attempt count. Real shape: 57 identical
+        Busy pairs and 46 identical triples in a three-day pull.
+        """
+        when = timezone.now()
+        first = make_call("attempt-1", company=company_obj, call_datetime=when)
+        make_call("attempt-2", company=company_obj, call_datetime=when)
+        make_call("attempt-3", company=company_obj, call_datetime=when)
+
+        response = api.get(CALLS_PATH)
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["count"] == 1
+        [row] = body["results"]
+        # Deterministic representative: the smallest id survives.
+        expected = min(str(c.id) for c in PhoneCallRecord.objects.all())
+        assert row["id"] == expected
+        assert row["attempt_count"] == 3
+        assert first.id is not None  # the fixture row is among the three
+
+    def test_a_recorded_row_never_collapses(self, api: Client, company_obj: Company) -> None:
+        """A recording is evidence only its own row holds; suppressing either
+        side would hide a playable file or hide that an attempt also rang.
+        """
+        when = timezone.now()
+        recorded = make_call("recorded-leg", company=company_obj, call_datetime=when)
+        make_recording(recorded, "leg-recording", storage_path="2026/01/01/leg.mp3")
+        twin = make_call("unrecorded-leg", company=company_obj, call_datetime=when)
+
+        response = api.get(CALLS_PATH)
+
+        assert response.status_code == 200
+        rows = {row["id"]: row["attempt_count"] for row in response.json()["results"]}
+        assert rows == {str(recorded.id): 1, str(twin.id): 1}
+
+    def test_a_job_linked_attempt_is_never_suppressed(
+        self, api: Client, company_obj: Company, job: Job
+    ) -> None:
+        """A person chose that row; the collapse may not undo their work."""
+        when = timezone.now()
+        first = make_call("kept-1", company=company_obj, call_datetime=when)
+        linked = make_call("kept-2", company=company_obj, call_datetime=when)
+        linked.job = job
+        linked.save(update_fields=["job"])
+
+        response = api.get(CALLS_PATH)
+
+        assert response.status_code == 200
+        ids = {row["id"] for row in response.json()["results"]}
+        assert str(linked.id) in ids
+        assert str(first.id) in ids
+
+    def test_retrieve_answers_attempt_count_one(self, api: Client, call: PhoneCallRecord) -> None:
+        response = api.get(f"{CALLS_PATH}{call.id}/")
+
+        assert response.status_code == 200
+        assert response.json()["attempt_count"] == 1
 
     def test_list_filters_unmatched_and_unlinked_calls(
         self, api: Client, call: PhoneCallRecord, job: Job, company_obj: Company
@@ -410,6 +529,7 @@ class TestCallList:
             account_code="account",
             filename="recording-relative-url.mp3",
             storage_path="2026/06/02/recording-relative-url.mp3",
+            duration_ms=615_744,
         )
 
         response = api.get(CALLS_PATH)
@@ -420,6 +540,8 @@ class TestCallList:
             row["recording"]["download_url"]
             == f"/api/crm/phone-call-recordings/{recording.id}/download/"
         )
+        # The player states this length before it fetches anything.
+        assert row["recording"]["duration_ms"] == 615_744
         assert "storage_path" not in row["recording"]
 
 
@@ -501,6 +623,26 @@ class TestRecordingDownload:
         # The conditional response carries the validator it was matched on, so
         # the client can revalidate again without re-reading the body.
         assert second["ETag"] == etag
+
+    def test_download_revalidates_a_weak_validator_too(
+        self, api: Client, call: PhoneCallRecord, storage_root: Path
+    ) -> None:
+        """A compressing proxy hands the browser W/"<sha>"; that must still be a 304.
+
+        RFC 9110 s13.1.2: If-None-Match uses WEAK comparison, so the strong
+        ETag this endpoint emits matches its weakened form. Found by playing a
+        real recording through the Vite preview proxy, which compresses and
+        weakens the validator; a strict string compare answered 200 and
+        resent the audio on every replay.
+        """
+        recording, _payload = self._archived_recording(call, storage_root, "weak-etag-playback")
+        url = f"/api/crm/phone-call-recordings/{recording.id}/download/"
+        etag = api.get(url)["ETag"]
+
+        weak = api.get(url, headers={"if-none-match": f"W/{etag}"})
+
+        assert weak.status_code == 304
+        assert weak["ETag"] == etag
 
     def test_download_404s_a_missing_file_even_when_the_client_revalidates(
         self, api: Client, call: PhoneCallRecord, storage_root: Path

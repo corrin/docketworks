@@ -1,16 +1,21 @@
 """Regression tests for the E2E recovery command."""
 
 from io import StringIO
+from pathlib import Path
 
 import pytest
 from django.core.management import CommandError, call_command
 from django.db.models import Model, QuerySet
+from pytest_django.fixtures import SettingsWrapper
 
 from apps.accounting.models import Invoice, Quote
 from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, Person
 from apps.company.tests.job_fixtures import make_invoice, make_job, make_purchase_order, make_quote
-from apps.core.test_data import TEST_COMPANY_NAME
+from apps.core.test_data import TEST_COMPANY_NAME, TEST_DATA_PREFIX, silent_wav
+from apps.crm.models import PhoneCallRecord, PhoneCallRecording
+from apps.crm.services.phone_call_service import store_recording_bytes
+from apps.crm.tests.helpers import make_call, make_recording
 from apps.diagnostics.management.commands.e2e_cleanup import Command, active_e2e_contacts
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
@@ -311,3 +316,103 @@ def test_a_refusal_is_reported_by_name(monkeypatch: pytest.MonkeyPatch) -> None:
     output = _run_cleanup("--confirm")
 
     assert "E2E Test Client 2: Contact has outstanding transactions" in output
+
+
+@pytest.fixture
+def phone_storage_root(settings: SettingsWrapper, tmp_path: Path) -> Path:
+    settings.PHONE_RECORDING_STORAGE_ROOT = str(tmp_path)
+    return tmp_path
+
+
+def _recorded_call(
+    provider_id: str,
+    *,
+    description: str,
+    company: Company | None = None,
+) -> tuple[PhoneCallRecord, PhoneCallRecording]:
+    """A call with a real archived file, built through the production store path."""
+    call = make_call(provider_id, company=company, description=description)
+    recording = make_recording(call, f"rec-{provider_id}", storage_path=None)
+    store_recording_bytes(
+        call=call,
+        recording=recording,
+        content=silent_wav(0.5),
+        filename="e2e-call.wav",
+        content_type="audio/wav",
+    )
+    recording.refresh_from_db()
+    return call, recording
+
+
+def test_confirm_deletes_e2e_phone_calls_with_their_files(phone_storage_root: Path) -> None:
+    """A seeded call outlives its job and company (both SET_NULL), so it must be
+    matched on its own marker or it sits in the Unmatched queue forever, with a
+    stranded file behind it.
+    """
+    call, recording = _recorded_call("seeded", description=f"{TEST_DATA_PREFIX} seeded call")
+    real_call, real_recording = _recorded_call("customer", description="Customer called back")
+    seeded_file = phone_storage_root / str(recording.storage_path)
+    real_file = phone_storage_root / str(real_recording.storage_path)
+
+    output = _run_cleanup("--confirm")
+
+    assert "Done." in output
+    assert not PhoneCallRecord.objects.filter(pk=call.pk).exists()
+    assert not PhoneCallRecording.objects.filter(pk=recording.pk).exists()
+    assert not seeded_file.exists()
+    assert PhoneCallRecord.objects.filter(pk=real_call.pk).exists()
+    assert PhoneCallRecording.objects.filter(pk=real_recording.pk).exists()
+    assert real_file.exists()
+
+
+def test_dry_run_reports_phone_calls_without_deleting(phone_storage_root: Path) -> None:
+    """An inspection names the E2E-seeded phone calls and leaves both row and file."""
+    call, recording = _recorded_call("listed", description=f"{TEST_DATA_PREFIX} listed call")
+
+    output = _run_cleanup()
+
+    assert "E2E phone calls" in output
+    assert str(call.description) in output
+    assert "E2E phone recordings with a local file" in output
+    assert recording.provider_recording_id in output
+    assert PhoneCallRecord.objects.filter(pk=call.pk).exists()
+    assert (phone_storage_root / str(recording.storage_path)).exists()
+
+
+@pytest.mark.usefixtures("phone_storage_root")
+def test_a_call_orphaned_by_set_null_is_still_deleted() -> None:
+    """The description is the whole rule: a call whose company an earlier run
+    removed has nothing else left to recognise it by.
+    """
+    call, _ = _recorded_call(
+        "orphan", description=f"{TEST_DATA_PREFIX} orphaned call", company=None
+    )
+
+    _run_cleanup("--confirm")
+
+    assert not PhoneCallRecord.objects.filter(pk=call.pk).exists()
+
+
+def test_a_failed_cleanup_keeps_the_phone_call_row(
+    phone_storage_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Files go before the commit on purpose: a rollback leaves a row whose file
+    is gone, which the download endpoint already answers with 404 and the next
+    --confirm finishes. Files after the commit would orphan files no run can find.
+    """
+    call, recording = _recorded_call("rollback", description=f"{TEST_DATA_PREFIX} rollback call")
+    stored_file = phone_storage_root / str(recording.storage_path)
+    original_delete = Command._delete_queryset
+
+    def delete_then_fail(self: Command, label: str, queryset: QuerySet[Model]) -> None:
+        original_delete(self, label, queryset)
+        if label == "E2E phone calls":
+            raise RuntimeError("simulated cleanup failure")
+
+    monkeypatch.setattr(Command, "_delete_queryset", delete_then_fail)
+
+    with pytest.raises(RuntimeError, match="simulated cleanup failure"):
+        _run_cleanup("--confirm")
+
+    assert PhoneCallRecord.objects.filter(pk=call.pk).exists()
+    assert not stored_file.exists()

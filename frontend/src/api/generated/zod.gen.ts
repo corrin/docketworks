@@ -2955,6 +2955,7 @@ export const zPhoneCallRecordingOut = z.object({
     content_type: z.string().nullable(),
     created_at: z.iso.datetime(),
     download_url: z.string().nullable(),
+    duration_ms: z.int().nullable(),
     filename: z.string().nullable(),
     id: z.uuid(),
     local_deleted_at: z.iso.datetime().nullable(),
@@ -2972,6 +2973,7 @@ export const zPhoneCallRecordingOut = z.object({
  */
 export const zPhoneCallRecordOut = z.object({
     account_code: z.string(),
+    attempt_count: z.int(),
     call_date: z.iso.date(),
     call_datetime: z.iso.datetime(),
     call_time: z.iso.time(),
@@ -3120,7 +3122,7 @@ export const zPhoneEndpointPutIn = z.object({
 export const zPhoneNumberAssignmentIn = z.object({
     company: z.uuid(),
     is_primary: z.boolean().optional().default(false),
-    label: z.string().max(255).optional().default(''),
+    label: z.string().min(1).max(255).nullish(),
     person: z.uuid().nullish()
 });
 

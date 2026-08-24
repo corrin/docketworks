@@ -66,9 +66,9 @@ export function AppNavbar() {
           )}
         </NavMenu>
         {/* Fable: office staff only — every people endpoint is office_auth,
-            and the companies report exposes company-wide spend. No Calls
-            entry: no phone-calls page exists, and a visible tab may not lead
-            to a placeholder. */}
+            the companies report exposes company-wide spend, and every
+            /api/crm/phone-calls* route goes through apps/crm/api.py's
+            _require_office_staff. */}
         {user.is_office_staff && (
           <NavMenu label="CRM" automationId="AppNavbar-crm-menu">
             <NavMenuLink to="/crm/companies" automationId="AppNavbar-companies">
@@ -76,6 +76,9 @@ export function AppNavbar() {
             </NavMenuLink>
             <NavMenuLink to="/crm/people" automationId="AppNavbar-people">
               People
+            </NavMenuLink>
+            <NavMenuLink to="/crm/calls" automationId="AppNavbar-calls">
+              Calls
             </NavMenuLink>
           </NavMenu>
         )}

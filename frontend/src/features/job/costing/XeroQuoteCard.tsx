@@ -5,7 +5,6 @@ import { toast } from 'sonner'
 
 import {
   apiErrorMessage,
-  getFullJobOptions,
   jobJobsQuoteRetrieveOptions,
   jobJobsQuoteRetrieveQueryKey,
   xeroCreateQuoteMutation,
@@ -22,6 +21,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { formatCurrency, formatDate } from '@/lib/format'
+
+import { invalidateJobViews } from '../invalidateJobViews'
 
 interface XeroQuoteCardProps {
   jobId: string
@@ -52,10 +53,11 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
     void queryClient.invalidateQueries({
       queryKey: jobJobsQuoteRetrieveQueryKey({ path: { job_id: jobId } }),
     })
-    // job.quoted flipped; the header and other tabs read it from the full job.
-    void queryClient.invalidateQueries({
-      queryKey: getFullJobOptions({ path: { job_id: jobId } }).queryKey,
-    })
+    // Invalidating only the quote query was rejected: job.quoted flipped,
+    // which the header and other tabs read from the full job — and creating
+    // or deleting a Xero quote writes a JobEvent
+    // (apps/xero/documents/quote.py), so the timeline moves with it.
+    void invalidateJobViews(queryClient, jobId)
   }
 
   const executeCreate = (breakdown: boolean) => {

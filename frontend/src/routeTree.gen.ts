@@ -29,6 +29,7 @@ import { Route as AuthedTimesheetsLeaveRouteImport } from './routes/_authed/time
 import { Route as AuthedTimesheetsWeeklyRouteImport } from './routes/_authed/timesheets/weekly'
 import { Route as AuthedAdminCompanyDefaultsIndexRouteImport } from './routes/_authed/admin/company-defaults/index'
 import { Route as AuthedAdminCompanyDefaultsSectionRouteImport } from './routes/_authed/admin/company-defaults/$section'
+import { Route as AuthedCrmCallsIndexRouteImport } from './routes/_authed/crm/calls/index'
 import { Route as AuthedCrmCompaniesIndexRouteImport } from './routes/_authed/crm/companies/index'
 import { Route as AuthedCrmCompaniesCompanyIdRouteImport } from './routes/_authed/crm/companies/$companyId'
 import { Route as AuthedCrmPeopleIndexRouteImport } from './routes/_authed/crm/people/index'
@@ -142,6 +143,11 @@ const AuthedAdminCompanyDefaultsSectionRoute =
     path: '/admin/company-defaults/$section',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedCrmCallsIndexRoute = AuthedCrmCallsIndexRouteImport.update({
+  id: '/crm/calls/',
+  path: '/crm/calls/',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedCrmCompaniesIndexRoute = AuthedCrmCompaniesIndexRouteImport.update({
   id: '/crm/companies/',
   path: '/crm/companies/',
@@ -204,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
   '/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
   '/admin/company-defaults/': typeof AuthedAdminCompanyDefaultsIndexRoute
+  '/crm/calls/': typeof AuthedCrmCallsIndexRoute
   '/crm/companies/': typeof AuthedCrmCompaniesIndexRoute
   '/crm/people/': typeof AuthedCrmPeopleIndexRoute
   '/purchasing/po/': typeof AuthedPurchasingPoIndexRoute
@@ -232,6 +239,7 @@ export interface FileRoutesByTo {
   '/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
   '/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
   '/admin/company-defaults': typeof AuthedAdminCompanyDefaultsIndexRoute
+  '/crm/calls': typeof AuthedCrmCallsIndexRoute
   '/crm/companies': typeof AuthedCrmCompaniesIndexRoute
   '/crm/people': typeof AuthedCrmPeopleIndexRoute
   '/purchasing/po': typeof AuthedPurchasingPoIndexRoute
@@ -262,6 +270,7 @@ export interface FileRoutesById {
   '/_authed/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
   '/_authed/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
   '/_authed/admin/company-defaults/': typeof AuthedAdminCompanyDefaultsIndexRoute
+  '/_authed/crm/calls/': typeof AuthedCrmCallsIndexRoute
   '/_authed/crm/companies/': typeof AuthedCrmCompaniesIndexRoute
   '/_authed/crm/people/': typeof AuthedCrmPeopleIndexRoute
   '/_authed/purchasing/po/': typeof AuthedPurchasingPoIndexRoute
@@ -292,6 +301,7 @@ export interface FileRouteTypes {
     | '/purchasing/po/$poId'
     | '/purchasing/po/create'
     | '/admin/company-defaults/'
+    | '/crm/calls/'
     | '/crm/companies/'
     | '/crm/people/'
     | '/purchasing/po/'
@@ -320,6 +330,7 @@ export interface FileRouteTypes {
     | '/purchasing/po/$poId'
     | '/purchasing/po/create'
     | '/admin/company-defaults'
+    | '/crm/calls'
     | '/crm/companies'
     | '/crm/people'
     | '/purchasing/po'
@@ -349,6 +360,7 @@ export interface FileRouteTypes {
     | '/_authed/purchasing/po/$poId'
     | '/_authed/purchasing/po/create'
     | '/_authed/admin/company-defaults/'
+    | '/_authed/crm/calls/'
     | '/_authed/crm/companies/'
     | '/_authed/crm/people/'
     | '/_authed/purchasing/po/'
@@ -503,6 +515,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAdminCompanyDefaultsSectionRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/crm/calls/': {
+      id: '/_authed/crm/calls/'
+      path: '/crm/calls'
+      fullPath: '/crm/calls/'
+      preLoaderRoute: typeof AuthedCrmCallsIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/crm/companies/': {
       id: '/_authed/crm/companies/'
       path: '/crm/companies'
@@ -576,6 +595,7 @@ interface AuthedRouteChildren {
   AuthedPurchasingPoPoIdRoute: typeof AuthedPurchasingPoPoIdRoute
   AuthedPurchasingPoCreateRoute: typeof AuthedPurchasingPoCreateRoute
   AuthedAdminCompanyDefaultsIndexRoute: typeof AuthedAdminCompanyDefaultsIndexRoute
+  AuthedCrmCallsIndexRoute: typeof AuthedCrmCallsIndexRoute
   AuthedCrmCompaniesIndexRoute: typeof AuthedCrmCompaniesIndexRoute
   AuthedCrmPeopleIndexRoute: typeof AuthedCrmPeopleIndexRoute
   AuthedPurchasingPoIndexRoute: typeof AuthedPurchasingPoIndexRoute
@@ -604,6 +624,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedPurchasingPoPoIdRoute: AuthedPurchasingPoPoIdRoute,
   AuthedPurchasingPoCreateRoute: AuthedPurchasingPoCreateRoute,
   AuthedAdminCompanyDefaultsIndexRoute: AuthedAdminCompanyDefaultsIndexRoute,
+  AuthedCrmCallsIndexRoute: AuthedCrmCallsIndexRoute,
   AuthedCrmCompaniesIndexRoute: AuthedCrmCompaniesIndexRoute,
   AuthedCrmPeopleIndexRoute: AuthedCrmPeopleIndexRoute,
   AuthedPurchasingPoIndexRoute: AuthedPurchasingPoIndexRoute,

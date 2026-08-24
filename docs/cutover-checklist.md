@@ -105,6 +105,17 @@ required to match v1's except where an external party holds the URL.
 ## Rehearsed mechanics (see the plan's Data migration section)
 
 - [ ] `scripts/ops/db_schema_diff.sh` green against the production restore.
+- [ ] **Copy v1's recording archive into the instance BEFORE the data load.**
+      Every `PhoneCallRecording` row points at a file under
+      `PHONE_RECORDING_STORAGE_ROOT` by a path relative to that root
+      (`YYYY/MM/DD/<provider id>.mp3`); v1's root is its own
+      `PHONE_RECORDING_STORAGE_ROOT` on the v1 host, v2's is
+      `/opt/docketworks/instances/<instance>/phone-recordings`
+      (`env-instance.template`). Nothing else carries the files across: the
+      dump is rows only, and a row whose file is absent 404s on play. The copy
+      has to land before `migrate_v1_data.sh`, whose re-run of `crm/0003`
+      measures each recording's length from the file and leaves the length
+      NULL (no length in the player) for any file that is not there.
 - [ ] `scripts/ops/migrate_v1_data.sh` load + row-count parity. Rehearsed
       2026-08-05 in the documented order (migrate into an empty database,
       THEN restore) from a production restore carrying v1's repair

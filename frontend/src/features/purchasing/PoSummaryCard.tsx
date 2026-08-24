@@ -7,6 +7,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { CompanyLookup } from '@/features/shared/company'
+import { orNull } from '@/features/shared/nullableText'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { INPUT_CLASS } from '@/components/ui/field'
 import { formatDate } from '@/lib/format'
@@ -116,8 +117,7 @@ function CreateFields({
 
 function DetailFields({ po, patchHeader }: PoSummaryCardDetailProps) {
   const referenceField = useAutosaveField(po.reference ?? '', (value) =>
-    // ADR 0040: blank clears to null, never an empty string.
-    patchHeader({ reference: value.trim() === '' ? null : value }),
+    patchHeader({ reference: orNull(value) }),
   )
 
   return (

@@ -1,32 +1,12 @@
 import { waitFor } from '@testing-library/react'
 import type { UserEvent } from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 
-import { server } from '@/test/msw'
 import { autoId, queryAutoId } from '@/test/auto-id'
+import { mockUser } from '@/test/me'
 import { renderWithProviders } from '@/test/render'
 
 import { AppNavbar } from './AppNavbar'
-
-function mockUser(overrides: Record<string, unknown>) {
-  server.use(
-    http.get('*/api/accounts/me/', () =>
-      HttpResponse.json({
-        id: '11111111-1111-1111-1111-111111111111',
-        office_email: 'someone@example.com',
-        payroll_email: null,
-        first_name: 'Some',
-        last_name: 'One',
-        preferred_name: null,
-        fullName: 'Some One',
-        is_office_staff: true,
-        is_superuser: false,
-        ...overrides,
-      }),
-    ),
-  )
-}
 
 /** Menu contents are portalled out of the render container and mounted only
     while open, so every assertion below opens the menu first — the same thing
@@ -141,7 +121,7 @@ describe('AppNavbar — the Reports menu', () => {
 })
 
 describe('AppNavbar — the CRM menu', () => {
-  it('offers companies and people to office staff', async () => {
+  it('offers companies, people and calls to office staff', async () => {
     mockUser({ is_office_staff: true, is_superuser: false })
     const { user } = renderWithProviders(<AppNavbar />)
 
@@ -149,6 +129,9 @@ describe('AppNavbar — the CRM menu', () => {
     await waitFor(() => {
       expect(queryAutoId('AppNavbar-companies')).not.toBeNull()
       expect(queryAutoId('AppNavbar-people')).not.toBeNull()
+      // Every /api/crm/phone-calls* route is _require_office_staff, so this
+      // login can read the page the entry leads to.
+      expect(queryAutoId('AppNavbar-calls')).not.toBeNull()
     })
   })
 

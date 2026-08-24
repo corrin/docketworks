@@ -32,18 +32,31 @@ services/phone_call_service.py, EXACT-URL PIN).
 import mimetypes
 from collections.abc import Callable
 from datetime import date
+from typing import TYPE_CHECKING, TypedDict
 from uuid import UUID
 
 from django.core.paginator import EmptyPage, Paginator
-from django.db.models import Q, QuerySet
+from django.db.models import (
+    Case,
+    Count,
+    Exists,
+    IntegerField,
+    OuterRef,
+    Q,
+    QuerySet,
+    Subquery,
+    Value,
+    When,
+)
+from django.db.models.functions import Coalesce
 from django.http import (
     FileResponse,
     HttpRequest,
     HttpResponseBase,
-    HttpResponseNotModified,
     JsonResponse,
 )
 from django.shortcuts import get_object_or_404
+from django.utils.cache import get_conditional_response
 from ninja import Query, Router
 from ninja.errors import AuthorizationError, HttpError
 from ninja.responses import Status
@@ -76,6 +89,11 @@ from apps.crm.services.phone_call_service import (
     unlink_phone_call_job,
 )
 from apps.crm.tasks import rematch_phone_calls_task
+
+if TYPE_CHECKING:
+    # Evaluated only by the type checker (annotation is quoted at use site), so
+    # the dev-only django_stubs_ext dependency is never imported at runtime.
+    from django_stubs_ext import WithAnnotations
 
 router = Router(tags=["CRM"], auth=CookieJWTAuth())
 
@@ -198,11 +216,79 @@ def _apply_search_filter(
     return queryset.filter(filters)
 
 
-def _filtered_call_queryset(filters: PhoneCallListFilters) -> QuerySet[PhoneCallRecord]:
+#: The nullable text columns of the ring-attempt identity, matched through
+#: Coalesce-to-"" keys because SQL NULL never equals NULL; "" cannot collide
+#: with data, which ADR 0040 bans from these columns. The non-nullable half
+#: of the identity (account_code, call_datetime, duration_seconds) matches
+#: directly.
+_NULLABLE_IDENTITY = {
+    "_twin_origin": "normalized_origin",
+    "_twin_destination": "normalized_destination",
+    "_twin_status": "status",
+    "_twin_call_type": "call_type",
+}
+
+
+class _CallListAnnotations(TypedDict):
+    """Queryset annotations the list serialisation reads; not model fields."""
+
+    attempt_count: int
+
+
+def _collapse_ring_attempts(
+    queryset: QuerySet[PhoneCallRecord],
+) -> "QuerySet[WithAnnotations[PhoneCallRecord, _CallListAnnotations]]":
+    """One list row per burst of indistinguishable unrecorded ring attempts.
+
+    The provider logs one CDR row per attempt — one real three-day pull held
+    57 identical Busy pairs and 46 identical triples, differing only in the
+    provider's own row id. Only rows with no recording and no job link
+    collapse: a recording is evidence that only its own row holds, and a job
+    link is a person's work. The smallest id survives, wearing the attempt
+    count. Ingest deliberately keeps every provider row; the collapse is a
+    reading of them, not a rewrite.
+    """
+    keys = {alias: Coalesce(column, Value("")) for alias, column in _NULLABLE_IDENTITY.items()}
+    twins = (
+        PhoneCallRecord.objects.annotate(**keys)
+        .filter(
+            recording__isnull=True,
+            job__isnull=True,
+            account_code=OuterRef("account_code"),
+            call_datetime=OuterRef("call_datetime"),
+            duration_seconds=OuterRef("duration_seconds"),
+            **{alias: OuterRef(alias) for alias in _NULLABLE_IDENTITY},
+        )
+        .order_by()
+    )
+    twin_count = (
+        twins.annotate(_bucket=Value(1)).values("_bucket").annotate(n=Count("*")).values("n")
+    )
+    return (
+        queryset.annotate(**keys)
+        .annotate(
+            _earlier_twin=Exists(twins.filter(id__lt=OuterRef("id"))),
+            attempt_count=Case(
+                When(
+                    recording__isnull=True,
+                    job__isnull=True,
+                    then=Subquery(twin_count[:1], output_field=IntegerField()),
+                ),
+                default=Value(1),
+                output_field=IntegerField(),
+            ),
+        )
+        .exclude(_earlier_twin=True, recording__isnull=True, job__isnull=True)
+    )
+
+
+def _filtered_call_queryset(
+    filters: PhoneCallListFilters,
+) -> "QuerySet[WithAnnotations[PhoneCallRecord, _CallListAnnotations]]":
     queryset = _apply_uuid_filters(_base_call_queryset(), filters)
     queryset = _apply_match_filters(queryset, filters)
     queryset = _apply_date_filters(queryset, filters.from_date, filters.to_date)
-    return _apply_search_filter(queryset, filters.q)
+    return _collapse_ring_attempts(_apply_search_filter(queryset, filters.q))
 
 
 def _effective_page_size(page_size: int | None) -> int:
@@ -241,7 +327,12 @@ def list_phone_calls(
     calls = list(page_obj.object_list)
     recordings = _recordings_by_call_id(calls)
     return PaginatedPhoneCallRecordsOut(
-        results=[PhoneCallRecordOut.from_call(call, recordings.get(call.id)) for call in calls],
+        results=[
+            PhoneCallRecordOut.from_call(
+                call, recordings.get(call.id), attempt_count=call.attempt_count
+            )
+            for call in calls
+        ],
         count=paginator.count,
         page=page_obj.number,
         page_size=page_size,
@@ -389,11 +480,17 @@ def _stream_recording(request: HttpRequest, recording: PhoneCallRecording) -> Ht
     # outlives its file must 404, not 304 the clients holding a stale copy.
     handle = full_path.open("rb")
 
-    if etag and request.headers.get("If-None-Match") == etag:
+    # RFC 9110 s13.1.2: If-None-Match is a WEAK comparison, so the validator a
+    # compressing proxy weakened to W/"<sha>" still matches. Rejected the strict
+    # string compare this began as: through the Vite preview proxy it answered
+    # 200 and resent the audio on every replay. Django's helper owns the
+    # parsing and the comparison (ADR 0032).
+    conditional = get_conditional_response(request, etag=etag)
+    if conditional is not None:
         handle.close()
-        not_modified = HttpResponseNotModified()
-        not_modified["ETag"] = etag  # RFC 9110: a 304 repeats the validator
-        return not_modified
+        if etag:
+            conditional["ETag"] = etag  # RFC 9110: a 304 repeats the validator
+        return conditional
 
     response = FileResponse(handle)
     content_type, _ = mimetypes.guess_type(full_path)
@@ -491,8 +588,10 @@ def _endpoint_field_errors(
     elif instance is not None:
         number = instance.number
     else:
-        number = ""
+        return {"number": ["Phone endpoint requires a number."]}
     normalized = normalize_phone(number)
+    if normalized is None:
+        return {"number": ["Phone endpoint requires a number."]}
 
     if "is_active" in provided:
         is_active = bool(provided["is_active"])

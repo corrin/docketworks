@@ -6,6 +6,7 @@ import { apiErrorMessage, getFullJobOptions, jobJobsPartialUpdateMutation } from
 import { isConcurrencyError } from '@/lib/concurrency/interceptors'
 import { onConcurrencyRetry } from '@/lib/concurrency/retry-bus'
 import { buildJobDeltaEnvelope, changedFieldsOnly, snapshotJob, type JobFieldValues } from './delta'
+import { invalidateJobViews } from './invalidateJobViews'
 
 interface UseJobFieldSaveOptions {
   /** Called after EVERY successful save, including a Retry replay — the
@@ -57,9 +58,10 @@ export function useJobFieldSave(jobId: string, options?: UseJobFieldSaveOptions)
         rejectedChanges.current = Object.keys(remaining).length > 0 ? remaining : null
       }
       onSavedRef.current?.(changes)
-      await queryClient.invalidateQueries({
-        queryKey: getFullJobOptions({ path: { job_id: jobId } }).queryKey,
-      })
+      // Awaited: the next edit diffs against the baseline this refetch brings
+      // back, so returning before it lands would let a second keystroke build
+      // its delta from the pre-save values.
+      await invalidateJobViews(queryClient, jobId)
     },
     [jobId, mutateAsync, queryClient],
   )

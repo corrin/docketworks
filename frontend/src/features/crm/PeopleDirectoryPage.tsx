@@ -8,21 +8,18 @@ import { PersonSelector, type SelectedPerson } from '@/features/shared/company/P
 import { ListTable } from '@/features/shared/ListTable'
 import { LoadMoreSentinel } from '@/features/shared/LoadMoreSentinel'
 import { nextPageParam } from '@/features/shared/nextPageParam'
+import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
 
 /**
  * People directory: one identity per person, linked to every company they
- * work with.
- *
- * Fable: search is applied on Enter or the Search button, not debounced like
- * CompaniesListPage — the directory filters on name, email, phone digits and
- * company name, and a half-typed phone number matching everything is noise,
- * not feedback.
+ * work with. Search is live through the shared debounce, as every search box
+ * in the app is.
  */
 export function PeopleDirectoryPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchInput, setSearchInput] = useState('')
-  const [appliedQuery, setAppliedQuery] = useState('')
+  const query = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS)
   const [includeArchived, setIncludeArchived] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [createCompany, setCreateCompany] = useState<CompanySearchResult | null>(null)
@@ -35,7 +32,7 @@ export function PeopleDirectoryPage() {
   const people = useInfiniteQuery({
     ...peopleListInfiniteOptions({
       query: {
-        q: appliedQuery || undefined,
+        q: query || undefined,
         include_archived: includeArchived || undefined,
       },
     }),
@@ -50,16 +47,6 @@ export function PeopleDirectoryPage() {
   })
   const rows = people.data?.pages.flatMap((page) => page.results)
   const lastPage = people.data?.pages.at(-1)
-
-  const applySearch = () => {
-    if (searchInput === appliedQuery) {
-      // Same query: no state change, so no new query key — the user
-      // pressing Search again is asking for fresh data.
-      void people.refetch()
-      return
-    }
-    setAppliedQuery(searchInput)
-  }
 
   return (
     <div className="min-h-screen p-6">
@@ -135,19 +122,7 @@ export function PeopleDirectoryPage() {
           autoComplete="off"
           className="w-full max-w-md rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
           onChange={(event) => setSearchInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              applySearch()
-            }
-          }}
         />
-        <button
-          type="button"
-          className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          onClick={applySearch}
-        >
-          Search
-        </button>
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input
             type="checkbox"
@@ -167,6 +142,7 @@ export function PeopleDirectoryPage() {
           <span>Refresh failed — showing the last loaded rows.</span>
           <button
             type="button"
+            data-automation-id="PeopleDirectory-refresh-retry"
             className="font-medium underline"
             onClick={() => void people.refetch()}
           >

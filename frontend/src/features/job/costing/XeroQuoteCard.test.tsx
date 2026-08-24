@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { QuoteOut } from '@/api'
+import { seedJobViews } from '@/test/jobViews'
 import { renderWithProviders } from '@/test/render'
 import { server } from '@/test/msw'
 import { XeroQuoteCard } from './XeroQuoteCard'
@@ -82,6 +83,42 @@ describe('XeroQuoteCard', () => {
     expect(await screen.findByText('History note could not be added')).toBeInTheDocument()
     // The card re-reads the quote and offers the Xero deep link.
     expect(await screen.findByRole('button', { name: /Open in Xero/ })).toBeInTheDocument()
+  })
+
+  it('invalidates both job views after a create, so the timeline and the ETag catch up', async () => {
+    stubPing(true)
+    let created = false
+    server.use(
+      http.get('*/api/job/jobs/*/quote/', () =>
+        HttpResponse.json({ quote: created ? quote : null }),
+      ),
+      http.post('*/api/xero/create_quote/*', () => {
+        created = true
+        return HttpResponse.json(
+          {
+            success: true,
+            xero_id: quote.xero_id,
+            quote_id: quote.id,
+            online_url: quote.online_url,
+            messages: [],
+          },
+          { status: 201 },
+        )
+      }),
+    )
+    const { user, queryClient } = renderWithProviders(<XeroQuoteCard jobId="job-1" />)
+    // Seeded after render: the card's own queries are already registered, and
+    // these two are the ones nothing on this screen reads.
+    const keys = seedJobViews(queryClient, 'job-1')
+
+    await user.click(await screen.findByRole('button', { name: 'Create Quote' }))
+    await user.click(await screen.findByRole('button', { name: /Send Total Only/ }))
+
+    // Creating a Xero quote writes a JobEvent and bumps the job's updated_at.
+    await waitFor(() => {
+      expect(queryClient.getQueryState(keys.timeline)?.isInvalidated).toBe(true)
+      expect(queryClient.getQueryState(keys.job)?.isInvalidated).toBe(true)
+    })
   })
 
   it('opens the quote in Xero without giving the new tab a window handle', async () => {

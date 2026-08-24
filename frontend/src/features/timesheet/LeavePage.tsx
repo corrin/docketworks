@@ -18,11 +18,9 @@ import { formatDate, localIsoDate } from '@/lib/format'
 
 import { LeaveRequestDialog } from './LeaveRequestDialog'
 import { OfficeClosureDialog } from './OfficeClosureDialog'
-import { useDebouncedValue } from '@/features/shared/useDebouncedValue'
+import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
 
 export type LeaveScope = 'current' | 'history'
-
-const SEARCH_DEBOUNCE_MS = 300
 
 export function LeavePage() {
   const [scope, setScope] = useState<LeaveScope>('current')

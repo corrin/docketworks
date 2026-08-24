@@ -140,6 +140,28 @@ export type {
   PersonDetail,
   PersonSummary,
 } from './generated/types.gen'
+
+// Phone calls (/crm/calls triage queues, and the job History tab's linked
+// calls). Fable: every phone mutation invalidates crmPhoneCallsListQueryKey()
+// with no arguments — that prefix partially matches both the calls page's
+// infinite key and the History tab's plain key, so one invalidation refreshes
+// both surfaces (the same mechanism PeopleDirectoryPage uses).
+export {
+  assignPhoneCallNumberMutation,
+  companiesJobsRetrieveOptions,
+  crmPhoneCallsListInfiniteOptions,
+  crmPhoneCallsListOptions,
+  crmPhoneCallsListQueryKey,
+  linkPhoneCallJobMutation,
+  unlinkPhoneCallJobMutation,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  CompanyJobHeader,
+  CrmPhoneCallsListData,
+  PaginatedPhoneCallRecordsOut,
+  PhoneCallRecordOut,
+  PhoneCallRecordingOut,
+} from './generated/types.gen'
 // Job (create + detail + header edits)
 export {
   getFullJobOptions,
@@ -165,6 +187,18 @@ export {
 // Job files (attachments tab)
 export { listJobFilesOptions } from './generated/@tanstack/react-query.gen'
 export type { JobFileOut } from './generated/types.gen'
+
+// Job history tab: the unified timeline (job events merged with cost-line
+// creations and updates), the manual event write, and the delta undo. Both
+// writes carry If-Match through the concurrency interceptor
+// (lib/concurrency/interceptors.ts), so neither takes a version argument here.
+export {
+  jobJobsTimelineRetrieveOptions,
+  jobJobsTimelineRetrieveQueryKey,
+  jobJobsUndoChangeCreateMutation,
+  jobRestJobsEventsCreateMutation,
+} from './generated/@tanstack/react-query.gen'
+export type { TimelineEntryOut } from './generated/types.gen'
 
 // Xero pay items (job settings tab)
 export { xeroPayItemsListOptions } from './generated/@tanstack/react-query.gen'

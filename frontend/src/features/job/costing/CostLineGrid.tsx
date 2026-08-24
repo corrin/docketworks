@@ -26,6 +26,7 @@ import { DataTable } from '@/features/shared/DataTable'
 import { editableGridFeatures } from '@/features/shared/editableGridTable'
 import { parseDecimalInput, trimDecimal } from '@/features/shared/decimal'
 import { ItemSelect } from '@/features/shared/ItemSelect'
+import { orNull } from '@/features/shared/nullableText'
 import { QueryState } from '@/features/shared/QueryState'
 import { SaveFailedBadge } from '@/features/shared/SaveFailedBadge'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
@@ -250,8 +251,7 @@ function DescCell({ row, table }: CellProps) {
     serverValue,
     (value) => {
       if (gridRow.type === 'server') {
-        // ADR 0040: blank clears to null, never an empty string.
-        context.patchLine(gridRow.line.id, { desc: value.trim() === '' ? null : value })
+        context.patchLine(gridRow.line.id, { desc: orNull(value) })
       } else {
         const patch: Partial<DraftLine> = { desc: value }
         // A typed free-form row is an adjustment (v1 rule): material means

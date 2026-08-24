@@ -7819,6 +7819,9 @@ components:
         account_code:
           title: Account Code
           type: string
+        attempt_count:
+          title: Attempt Count
+          type: integer
         call_date:
           format: date
           title: Call Date
@@ -7993,6 +7996,7 @@ components:
       - job_linked_at
       - job_linked_by
       - recording
+      - attempt_count
       - imported_at
       - updated_at
       title: PhoneCallRecordOut
@@ -8033,6 +8037,11 @@ components:
           - type: string
           - type: 'null'
           title: Download Url
+        duration_ms:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Duration Ms
         filename:
           anyOf:
           - type: string
@@ -8078,6 +8087,7 @@ components:
       - filename
       - content_type
       - byte_size
+      - duration_ms
       - sha256
       - archived_at
       - archive_error
@@ -8321,10 +8331,12 @@ components:
           title: Is Primary
           type: boolean
         label:
-          default: ''
-          maxLength: 255
+          anyOf:
+          - maxLength: 255
+            minLength: 1
+            type: string
+          - type: 'null'
           title: Label
-          type: string
         person:
           anyOf:
           - format: uuid

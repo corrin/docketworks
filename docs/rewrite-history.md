@@ -77,6 +77,43 @@ conflict to two editors touching the same field, and ADR 0003's optimistic-
 concurrency scope is Job/PO, not this singleton — a rarely-edited row does not
 earn the extra mechanism.
 
+**The job History tab offers Add Event, Undo and Linked Phone Calls to office
+staff only (2026-08-23).** All three endpoints behind them —
+`job_rest_jobs_events_create`, `job_jobs_undo_change_create` and
+`crm_phone_calls_list` — require office staff, so a workshop user offered any
+of those controls could only be refused by the server. v1 drew all three for
+everyone and let the request 403.
+
+**A `costline_updated` timeline entry renders as "Costline Updated"
+(2026-08-23).** `timelineKind` maps the three entry types the tab draws and
+throws on a fourth. v1 treated every entry that was not `costline_created` as
+a job event, which is how a cost-line update came to render as a blue
+"General" job event nobody could account for. An entry type the tab has no
+rendering for is a fault to surface, not a shape to guess at.
+
+**v1's `PhoneNumberManager` card is not ported (2026-08-23).** Contact methods
+have one home in v2 — PersonDetailPage and CompanyDetailPage — and the calls
+page's Assign Number panel covers the call-to-number flow the card existed for.
+
+**Two phone-call automation ids changed from v1 (2026-08-23).** The linked-job
+badge is per row — `PhoneCallTable-linked-job-{callId}`, not v1's shared
+`PhoneCallTable-linked-job`, whose single id matched whichever linked row
+sorted first, so an assertion on it could pass on a call the test never
+touched. And `PhoneCallTable-job-select`, v1's native `<select>` of jobs, is
+retired: the job is chosen through the shared `JobPicker`, which opens from
+`PhoneCallTable-job-trigger` and lists `PhoneCallTable-job-option-{job_number}`.
+`PhoneCallTable-job-search` is the same id it was in v1; only its owner
+changed, from a hand-rolled filter box to the picker.
+
+**A seeded phone call is recognised by its `[TEST]` description (2026-08-23).**
+The phone provider is a pull-only portal, so an E2E environment can only
+fabricate a call; `e2e_seed_phone_call` writes the `[TEST]` prefix into the
+call's description, provider call id and account code, and `e2e_cleanup`
+selects calls by `description__startswith`. Both of `PhoneCallRecord`'s
+foreign keys are SET_NULL, so a call the cleanup cannot name outlives its job
+and company as an orphan in the Unmatched queue with its recording file
+stranded under `PHONE_RECORDING_STORAGE_ROOT`.
+
 ## Cross-report divergences, ported faithfully (2026-08-04)
 
 v1's reports disagree with each other on definitions users can see side by side.
@@ -213,3 +250,60 @@ now enumerates every `createFileRoute` path and every in-app `to=`/`href=`/
 `navigate`/`redirect` target and fails the integration tier on any route with
 no target — the inverse of the outbound-link probe, which proves the URLs the
 app emits resolve. The first run over the tree found exactly those two.
+
+**The phone provider is proven against 2talk itself, 2026-08-23.**
+`apps/crm/tests/test_phone_provider_integration.py` is the ADR 0050 gate for
+the pull: it logs in with the `IntegrationSettings` credentials the app
+resolves, imports a seven-day window through `sync_call_history`, reads every
+call and recording back from the database and the archive, streams one
+through the download endpoint, and pulls the window again to prove the second
+pass is a no-op. The hermetic guard now refuses the phone client's transport
+in unit tests, and the test database copies the real `PhoneEndpoint`s so a
+direction assertion means something. Three facts only the real portal could
+supply: the first real sync failed on a withheld caller, which 2talk reports
+as origin `""` and the CRM normaliser now answers with NULL; the CDR mixes
+billing lines (type "Add-On", no parties, status NULL) in with calls, which
+`is_call_payload` drops; and in 45,637 real payloads a call never has a blank
+`type`, `status` or `description`. Playing a real recording in the browser
+found a fourth: through a compressing proxy the strong ETag arrives weakened
+to `W/"<sha>"`, and the download endpoint's strict string compare answered
+200 and resent the audio on every replay — RFC 9110 makes `If-None-Match` a
+weak comparison, and Django's `get_conditional_response` now does it. The
+throwaway Playwright driver that found that is deleted: a scratch script is
+the ad-hoc probe ADR 0050 forbids as verification, and the unit test carries
+the weak-validator case instead. Provider-side deletion (`deleteMedia`) stays
+outside the gate by owner ruling: it is irreversible on the one live account
+and 2talk offers no undo, the ADR's sole opt-in exception.
+
+**A recording's length is measured when it is archived, 2026-08-24.** The
+calls page player read `0:00` until played: it is `preload="none"` by design
+(one player per row; metadata preload fetched every recording on load), and a
+native control cannot be told a length it has not fetched. The length the
+call row already held could not stand in — 2talk's CDR `seconds` is billed
+per started minute (660 / 360 / 120 on real rows whose recordings run 616 /
+304 / 110 / 71 s). `PhoneCallRecording.duration_ms` is now measured from the
+bytes at archive time (tinytag, MIT; mutagen rejected as GPL, ffprobe as not
+a Python dependency), backfilled by migration for every archived file present
+on the host, and stated by a small shared `AudioPlayer` before anything is
+fetched; the element's own duration takes over once it has loaded. The
+archive now refuses bytes it cannot measure, which turned the fake
+`b"recorded audio"` in three unit tests into real WAVs from one generator,
+`apps.core.test_data.silent_wav`, shared with the E2E seed.
+
+**"Duplicate" call rows are the provider's per-leg CDR, read properly now,
+2026-08-24.** 2talk logs one row per call LEG: a forwarded call is an inbound
+row to the office line plus an outbound diversion row to the forward target,
+each with its own recording (same length, near-identical audio by waveform
+correlation, different bytes); an unanswered burst is two or three rows
+identical in everything but the provider's row id. One three-day pull held 36
+recorded diversion pairs, 57 identical Busy pairs and 46 identical triples.
+v1 stored and showed all of them undifferentiated. Two readings fix it:
+the forward target (a staff mobile) is registered as a `PhoneEndpoint`, so
+diversion legs classify inbound under the caller's number and rematch did
+132 historical legs; and the calls list collapses indistinguishable
+unrecorded, job-less rows to the smallest id wearing an `attempt_count` —
+ingest still keeps every provider row, recorded legs never collapse (a
+recording is evidence only its own row holds), and a job-linked row is never
+suppressed. The nullable identity columns match through Coalesce-to-"" keys
+because SQL NULL never equals NULL, and "" cannot collide with data ADR 0040
+bans from those columns.

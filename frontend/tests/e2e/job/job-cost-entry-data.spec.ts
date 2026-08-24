@@ -166,27 +166,49 @@ async function clickAddRow(page: Page): Promise<string> {
   return rowId
 }
 
-/** Descriptions live in textareas, so their value is not matchable as row text. */
+/**
+ * Descriptions live in textareas, so their value is not matchable as row text.
+ *
+ * A detached read throws rather than reading as an empty description: a row
+ * that vanished mid-scan is a scan to retry, and swallowing it as `''` made
+ * it indistinguishable from a row whose description really is blank.
+ */
 async function findRowIndexByDescription(page: Page, description: string): Promise<number> {
   const rows = page.locator('[data-automation-id^="DataTable-row-"]')
   const count = await rows.count()
 
   for (let i = 0; i < count; i += 1) {
     const textarea = rows.nth(i).locator('textarea').first()
-    const value = await textarea.inputValue().catch(() => '')
+    const value = await textarea.inputValue()
     if (value === description) return i
   }
 
   return -1
 }
 
-/** Retry the description scan: a just-created line swaps its draft row for a
- * server row mid-render, and a single pass can read rows between frames. */
+/**
+ * Retry the description scan. Every caller asserting a row IS there goes
+ * through here: the scan reads rows one at a time while a settled cost-line
+ * write is followed by two refetches within about 80ms — the cost set, and
+ * the job itself (invalidateJobViews, because a cost-line write moves the
+ * job's ETag) — so a single pass can read the table between frames and miss a
+ * row that is there. Filtering a locator by its input value is not
+ * expressible, so polling the scan is the honest form.
+ */
 async function waitForRowIndexByDescription(page: Page, description: string): Promise<number> {
+  let index = -1
   await expect(async () => {
-    expect(await findRowIndexByDescription(page, description)).toBeGreaterThanOrEqual(0)
+    // The two refetches that follow a write can reorder rows — a
+    // timesheet-sourced labour row sorts above a freshly consumed material —
+    // so an index read inside that window addresses the wrong row by click
+    // time. Returning the index from the first scan that found the row was
+    // tried and clicked the labour row's disabled quantity; reading it from a
+    // quiet network is what navigateToCostTab already relies on.
+    await page.waitForLoadState('networkidle')
+    index = await findRowIndexByDescription(page, description)
+    expect(index).toBeGreaterThanOrEqual(0)
   }).toPass({ timeout: 10000 })
-  return findRowIndexByDescription(page, description)
+  return index
 }
 
 async function expectRowAbsent(page: Page, description: string): Promise<void> {
@@ -200,7 +222,7 @@ async function countRowsByDescription(page: Page, description: string): Promise<
 
   for (let i = 0; i < count; i += 1) {
     const textarea = rows.nth(i).locator('textarea').first()
-    const value = await textarea.inputValue().catch(() => '')
+    const value = await textarea.inputValue()
     if (value === description) matches += 1
   }
 
@@ -531,8 +553,7 @@ test.describe('job cost entry data-first scenarios', () => {
     await navigateToCostTab(page, jobUrl, 'estimate')
     let adjustmentIndex = await waitForRowIndexByDescription(page, adjustmentDesc)
 
-    const deletedIndex = await findRowIndexByDescription(page, deletedDesc)
-    expect(deletedIndex).toBeGreaterThanOrEqual(0)
+    const deletedIndex = await waitForRowIndexByDescription(page, deletedDesc)
     await deleteRow(page, deletedIndex)
 
     await navigateToCostTab(page, jobUrl, 'estimate')
@@ -559,9 +580,9 @@ test.describe('job cost entry data-first scenarios', () => {
     expect(sumCost(lines)).toBeCloseTo(expectedEstimateCost, 2)
     expect(sumRevenue(lines)).toBeCloseTo(expectedEstimateRevenue, 2)
 
-    const labourIndexAfter = await findRowIndexByDescription(page, 'Workshop')
-    materialIndex = await findRowIndexByDescription(page, stockB.description)
-    adjustmentIndex = await findRowIndexByDescription(page, adjustmentDesc)
+    const labourIndexAfter = await waitForRowIndexByDescription(page, 'Workshop')
+    materialIndex = await waitForRowIndexByDescription(page, stockB.description)
+    adjustmentIndex = await waitForRowIndexByDescription(page, adjustmentDesc)
     await expect(autoId(page, `SmartCostLinesTable-quantity-${labourIndexAfter}`)).toHaveValue(
       labourQuantity,
     )
@@ -619,8 +640,7 @@ test.describe('job cost entry data-first scenarios', () => {
     await navigateToCostTab(page, jobUrl, 'actual')
     let adjustmentIndex = await waitForRowIndexByDescription(page, adjustmentDesc)
 
-    const deletedIndex = await findRowIndexByDescription(page, deletedDesc)
-    expect(deletedIndex).toBeGreaterThanOrEqual(0)
+    const deletedIndex = await waitForRowIndexByDescription(page, deletedDesc)
     await deleteRow(page, deletedIndex)
 
     await navigateToCostTab(page, jobUrl, 'actual')
@@ -670,8 +690,8 @@ test.describe('job cost entry data-first scenarios', () => {
     const timeExpensesValue = money(timeExpensesDigits.replace(/,/g, ''), 'Time & Expenses')
     expect(timeExpensesValue).toBeCloseTo(actualRevenue, 2)
 
-    materialIndex = await findRowIndexByDescription(page, stock.description)
-    adjustmentIndex = await findRowIndexByDescription(page, adjustmentDesc)
+    materialIndex = await waitForRowIndexByDescription(page, stock.description)
+    adjustmentIndex = await waitForRowIndexByDescription(page, adjustmentDesc)
     await expect(autoId(page, `SmartCostLinesTable-quantity-${materialIndex}`)).toHaveValue('2')
     await expect(autoId(page, `SmartCostLinesTable-unit-rev-${adjustmentIndex}`)).toHaveValue('-18')
   })
