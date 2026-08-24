@@ -16,6 +16,7 @@ import { Route as SessionCheckRouteImport } from './routes/session-check'
 import { Route as AuthedKanbanRouteImport } from './routes/_authed/kanban'
 import { Route as AuthedAdminIntegrationsRouteImport } from './routes/_authed/admin/integrations'
 import { Route as AuthedAdminLeaveSettingsRouteImport } from './routes/_authed/admin/leave-settings'
+import { Route as AuthedAdminStaffRouteImport } from './routes/_authed/admin/staff'
 import { Route as AuthedJobsJobIdRouteImport } from './routes/_authed/jobs/$jobId'
 import { Route as AuthedJobsCreateRouteImport } from './routes/_authed/jobs/create'
 import { Route as AuthedPurchasingStockRouteImport } from './routes/_authed/purchasing/stock'
@@ -73,6 +74,11 @@ const AuthedAdminLeaveSettingsRoute =
     path: '/admin/leave-settings',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedAdminStaffRoute = AuthedAdminStaffRouteImport.update({
+  id: '/admin/staff',
+  path: '/admin/staff',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedJobsJobIdRoute = AuthedJobsJobIdRouteImport.update({
   id: '/jobs/$jobId',
   path: '/jobs/$jobId',
@@ -193,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/kanban': typeof AuthedKanbanRoute
   '/admin/integrations': typeof AuthedAdminIntegrationsRoute
   '/admin/leave-settings': typeof AuthedAdminLeaveSettingsRoute
+  '/admin/staff': typeof AuthedAdminStaffRoute
   '/jobs/$jobId': typeof AuthedJobsJobIdRoute
   '/jobs/create': typeof AuthedJobsCreateRoute
   '/purchasing/stock': typeof AuthedPurchasingStockRoute
@@ -222,6 +229,7 @@ export interface FileRoutesByTo {
   '/kanban': typeof AuthedKanbanRoute
   '/admin/integrations': typeof AuthedAdminIntegrationsRoute
   '/admin/leave-settings': typeof AuthedAdminLeaveSettingsRoute
+  '/admin/staff': typeof AuthedAdminStaffRoute
   '/jobs/$jobId': typeof AuthedJobsJobIdRoute
   '/jobs/create': typeof AuthedJobsCreateRoute
   '/purchasing/stock': typeof AuthedPurchasingStockRoute
@@ -253,6 +261,7 @@ export interface FileRoutesById {
   '/_authed/kanban': typeof AuthedKanbanRoute
   '/_authed/admin/integrations': typeof AuthedAdminIntegrationsRoute
   '/_authed/admin/leave-settings': typeof AuthedAdminLeaveSettingsRoute
+  '/_authed/admin/staff': typeof AuthedAdminStaffRoute
   '/_authed/jobs/$jobId': typeof AuthedJobsJobIdRoute
   '/_authed/jobs/create': typeof AuthedJobsCreateRoute
   '/_authed/purchasing/stock': typeof AuthedPurchasingStockRoute
@@ -284,6 +293,7 @@ export interface FileRouteTypes {
     | '/kanban'
     | '/admin/integrations'
     | '/admin/leave-settings'
+    | '/admin/staff'
     | '/jobs/$jobId'
     | '/jobs/create'
     | '/purchasing/stock'
@@ -313,6 +323,7 @@ export interface FileRouteTypes {
     | '/kanban'
     | '/admin/integrations'
     | '/admin/leave-settings'
+    | '/admin/staff'
     | '/jobs/$jobId'
     | '/jobs/create'
     | '/purchasing/stock'
@@ -343,6 +354,7 @@ export interface FileRouteTypes {
     | '/_authed/kanban'
     | '/_authed/admin/integrations'
     | '/_authed/admin/leave-settings'
+    | '/_authed/admin/staff'
     | '/_authed/jobs/$jobId'
     | '/_authed/jobs/create'
     | '/_authed/purchasing/stock'
@@ -422,6 +434,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/leave-settings'
       fullPath: '/admin/leave-settings'
       preLoaderRoute: typeof AuthedAdminLeaveSettingsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/admin/staff': {
+      id: '/_authed/admin/staff'
+      path: '/admin/staff'
+      fullPath: '/admin/staff'
+      preLoaderRoute: typeof AuthedAdminStaffRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/jobs/$jobId': {
@@ -578,6 +597,7 @@ interface AuthedRouteChildren {
   AuthedKanbanRoute: typeof AuthedKanbanRoute
   AuthedAdminIntegrationsRoute: typeof AuthedAdminIntegrationsRoute
   AuthedAdminLeaveSettingsRoute: typeof AuthedAdminLeaveSettingsRoute
+  AuthedAdminStaffRoute: typeof AuthedAdminStaffRoute
   AuthedJobsJobIdRoute: typeof AuthedJobsJobIdRoute
   AuthedJobsCreateRoute: typeof AuthedJobsCreateRoute
   AuthedPurchasingStockRoute: typeof AuthedPurchasingStockRoute
@@ -605,6 +625,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedKanbanRoute: AuthedKanbanRoute,
   AuthedAdminIntegrationsRoute: AuthedAdminIntegrationsRoute,
   AuthedAdminLeaveSettingsRoute: AuthedAdminLeaveSettingsRoute,
+  AuthedAdminStaffRoute: AuthedAdminStaffRoute,
   AuthedJobsJobIdRoute: AuthedJobsJobIdRoute,
   AuthedJobsCreateRoute: AuthedJobsCreateRoute,
   AuthedPurchasingStockRoute: AuthedPurchasingStockRoute,

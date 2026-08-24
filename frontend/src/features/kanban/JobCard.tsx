@@ -17,7 +17,7 @@ import { useState } from 'react'
 import type { KanbanJobOut } from '@/api'
 import { formatDate, localIsoDate } from '@/lib/format'
 
-import { StaffAvatar } from './StaffAvatar'
+import { StaffAvatar } from '@/features/shared/StaffAvatar'
 import { useJobCardDrag } from './useKanbanDrag'
 
 /** Matches the type StaffPanel writes on dragstart. */

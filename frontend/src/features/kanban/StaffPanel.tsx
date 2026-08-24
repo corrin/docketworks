@@ -13,7 +13,7 @@
  */
 import type { KanbanStaffOut } from '@/api'
 
-import { StaffAvatar } from './StaffAvatar'
+import { StaffAvatar } from '@/features/shared/StaffAvatar'
 import { STAFF_DRAG_TYPE } from './JobCard'
 
 interface StaffPanelProps {
