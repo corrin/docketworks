@@ -25,18 +25,17 @@ from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import models, transaction
-from django.db.models.fields.files import FieldFile
 from django.http import HttpRequest, HttpResponse
 from ninja import File, ModelSchema, Router, Schema
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
-from PIL import Image
 from pydantic import ConfigDict, model_validator
 
 from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
 from apps.core.models import CompanyDefaults, IntegrationSettings
 from apps.core.schemas import NullableText, derived_response, drop_model_defaults, omittable
 from apps.core.settings_metadata import CompanyDefaultsSchemaOut, build_company_defaults_schema
+from apps.core.uploads import delete_stored_image, validate_image_upload
 
 router = Router(tags=["build-id"])
 
@@ -289,55 +288,6 @@ def company_defaults_schema_retrieve(request: HttpRequest) -> CompanyDefaultsSch
 # typed multipart client here too (precedent: uploadJobFiles, apps/job/api.py).
 
 LogoFieldName = Literal["logo", "logo_wide"]
-# Opus: .svg deliberately excluded even though v1's upload accepted it —
-# PIL cannot open SVG, and both consumers (grep Image.open over apps/ finds
-# apps/purchasing/services/purchase_order_pdf_service.py and
-# apps/job/services/workshop_pdf_service.py) open the stored file with PIL, so
-# an allowlisted-but-unopenable format would 400 at upload only to 500 every
-# PO/workshop PDF later.
-_ALLOWED_LOGO_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp"})
-_MAX_LOGO_BYTES = 5 * 1024 * 1024
-
-
-def _delete_stored_logo(field_file: FieldFile) -> None:
-    # Opus: Only unlink files under MEDIA_ROOT/company_logos so a git-tracked seed
-    # asset referenced by a restored row is never destroyed (v1 carried the same
-    # guard). normpath first: the guard exists for names that did NOT come
-    # through the upload path (e.g. a restored row), so a ``../`` cannot walk out
-    # of company_logos/ before the parts check runs. The protected branch is
-    # checked by test_delete_leaves_a_non_company_logos_file_on_disk.
-    if not field_file:
-        return
-    storage_path = Path(os.path.normpath(field_file.name or ""))
-    if storage_path.parts[:1] != ("company_logos",):
-        return
-    field_file.delete(save=False)
-
-
-def _validate_logo_upload(file: UploadedFile) -> None:
-    suffix = Path(file.name or "").suffix.lower()
-    if suffix not in _ALLOWED_LOGO_SUFFIXES:
-        raise HttpError(400, f"Unsupported file type {suffix or '(none)'}")
-    if not file.size:
-        raise HttpError(400, "Logo files cannot be empty")
-    if file.size > _MAX_LOGO_BYTES:
-        raise HttpError(400, "Logo files are limited to 5 MB")
-    # Opus: content, not just suffix — the PO PDF consumer opens the stored
-    # file with PIL and hard-fails (UnidentifiedImageError, a 500) on a mislabeled
-    # non-image, so that must be a 400 here instead. verify() raises OSError for
-    # both an unrecognised format and a truncated/corrupt one (UnidentifiedImageError
-    # is itself an OSError subclass); rewind after, since a failed verify() leaves
-    # the stream unusable for the caller's subsequent save.
-    # DecompressionBombError is Image.DecompressionBombError, not an OSError
-    # subclass — without it a small PNG declaring absurd dimensions raises
-    # past this except tuple and 500s instead of 400ing.
-    try:
-        with Image.open(file) as image:
-            image.verify()
-    except (OSError, Image.DecompressionBombError) as exc:
-        raise HttpError(400, "Uploaded file is not a valid image") from exc
-    finally:
-        file.seek(0)
 
 
 @router.post(
@@ -352,7 +302,7 @@ def company_defaults_logo_update(
     request: HttpRequest, field_name: LogoFieldName, file: File[UploadedFile]
 ) -> CompanyDefaults:
     """Save the uploaded file and delete the file it replaces."""
-    _validate_logo_upload(file)
+    validate_image_upload(file, label="Logo")
     instance = CompanyDefaults.get_solo()
     # Opus: save the new file before unlinking the old one — a save failure
     # (full_clean, disk-full, whatever) must not leave the row pointing at a file
@@ -361,7 +311,7 @@ def company_defaults_logo_update(
     replaced = getattr(instance, field_name)
     setattr(instance, field_name, file)
     instance.save(update_fields=[field_name, "updated_at"])
-    _delete_stored_logo(replaced)
+    delete_stored_image(replaced, allowed_prefix="company_logos")
     return instance
 
 
@@ -385,7 +335,7 @@ def company_defaults_logo_destroy(
     removed = getattr(instance, field_name)
     setattr(instance, field_name, None)
     instance.save(update_fields=[field_name, "updated_at"])
-    _delete_stored_logo(removed)
+    delete_stored_image(removed, allowed_prefix="company_logos")
     return instance
 
 
