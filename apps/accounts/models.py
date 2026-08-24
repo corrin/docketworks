@@ -16,6 +16,10 @@ from apps.core.models import CompanyDefaults
 
 SYSTEM_AUTOMATION_EMAIL = "system.automation@docketworks.local"
 
+# The one Django group with meaning: is_staff_manager() checks it and the
+# staff admin API's checkbox manages it. Seeded nowhere — writers get_or_create.
+STAFF_MANAGER_GROUP_NAME = "StaffManager"
+
 
 class StaffManager(BaseUserManager["Staff"]):
     """Custom manager for the Staff user model.
@@ -279,7 +283,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
 
     def is_staff_manager(self) -> bool:
         """Check StaffManager group membership (superusers always qualify)."""
-        return self.groups.filter(name="StaffManager").exists() or self.is_superuser
+        return self.groups.filter(name=STAFF_MANAGER_GROUP_NAME).exists() or self.is_superuser
 
     @classmethod
     def get_automation_user(cls) -> "Staff":

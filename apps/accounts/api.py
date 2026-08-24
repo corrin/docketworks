@@ -7,6 +7,10 @@ Paths and operationIds are the stable contract:
 - POST /api/accounts/logout/         accounts_logout_create
 - GET  /api/accounts/me/             accounts_me_retrieve
 - GET  /api/accounts/staff/          accounts_staff_list            (superuser)
+- POST /api/accounts/staff/          accounts_staff_create          (superuser)
+- PATCH /api/accounts/staff/{id}/    accounts_staff_partial_update  (superuser)
+- POST /api/accounts/staff/{id}/icon/   accounts_staff_icon_create  (superuser)
+- DELETE /api/accounts/staff/{id}/icon/ accounts_staff_icon_destroy (superuser)
 - GET  /api/accounts/staff/all/      accounts_staff_all_list        (authenticated)
 
 Integration wiring (config/api.py): ``api.add_router("/accounts/", router)``.
@@ -16,23 +20,30 @@ import logging
 from uuid import UUID
 
 from django.contrib.auth import authenticate
+from django.contrib.auth.models import Group
+from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.http import HttpRequest, HttpResponse
-from ninja import Query, Router
-from ninja.errors import AuthenticationError
+from django.shortcuts import get_object_or_404
+from ninja import File, Query, Router
+from ninja.errors import AuthenticationError, HttpError
+from ninja.files import UploadedFile
 from ninja.responses import Status
 from ninja_jwt.exceptions import TokenError
 from ninja_jwt.settings import api_settings
 from ninja_jwt.tokens import RefreshToken
 
-from apps.accounts.models import Staff
+from apps.accounts.models import STAFF_MANAGER_GROUP_NAME, Staff
 from apps.accounts.schemas import (
     KanbanStaffOut,
     KanbanStaffQuery,
     LoginRequest,
     LoginResponse,
     LogoutResponse,
+    StaffCreateIn,
     StaffListItemOut,
+    StaffUpdateIn,
     TokenRefreshRequest,
     TokenRefreshResponse,
     UserProfile,
@@ -47,6 +58,7 @@ from apps.core.auth import (
     set_refresh_cookie,
 )
 from apps.core.schemas import AuthErrorOut, auth_error
+from apps.core.uploads import delete_stored_image, validate_image_upload
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +211,156 @@ def accounts_staff_list(request: HttpRequest) -> list[Staff]:
     sensitivity rule as the timesheet management surface.
     """
     return list(list_all_staff())
+
+
+# ── Staff admin writes ───────────────────────────────────────────────────
+#
+# Superuser on every verb, like the list: v1 gated these on is_office_staff
+# while its UI required superuser, so any office member could PATCH
+# is_superuser onto themselves. There is deliberately no DELETE for the staff
+# row itself — offboarding is date_left (time entries PROTECT the row), and
+# clearing date_left reinstates.
+
+
+def _apply_staff_fields(staff: Staff, supplied: dict[str, object]) -> Staff:
+    """Setattr the JSON fields, validate, and fully save.
+
+    A full save, never update_fields: Staff.save() computes wage_rate and the
+    default labour subtype only when update_fields is None or names
+    base_wage_rate, so a partial save would compute the new wage_rate and then
+    not persist it.
+    """
+    for field, value in supplied.items():
+        setattr(staff, field, value)
+    try:
+        staff.full_clean()
+    except DjangoValidationError as exc:
+        # Converted rather than left to escape: an unhandled model
+        # ValidationError is a 500, and a rejected staff value (a duplicate
+        # email included — unique checks run in full_clean) is the caller's to
+        # fix. Same flattening as company_defaults_partial_update.
+        raise HttpError(400, "; ".join(exc.messages)) from exc
+    staff.save()
+    return staff
+
+
+def _set_staff_password(staff: Staff, password: str) -> None:
+    """Validate and hash a new password onto the unsaved staff row.
+
+    validate_password runs AUTH_PASSWORD_VALIDATORS — none are configured
+    today, so this is a no-op that becomes enforcing the moment the
+    weak-password slice configures them, with no change here.
+    """
+    try:
+        validate_password(password, staff)
+    except DjangoValidationError as exc:
+        raise HttpError(400, "; ".join(exc.messages)) from exc
+    staff.set_password(password)
+
+
+def _set_staff_manager(staff: Staff, is_member: bool) -> None:
+    """Add or remove StaffManager membership to match the checkbox."""
+    # get_or_create, not get: nothing seeds the group — it exists because a
+    # staff member was first made a manager.
+    group, _ = Group.objects.get_or_create(name=STAFF_MANAGER_GROUP_NAME)
+    if is_member:
+        staff.groups.add(group)
+    else:
+        staff.groups.remove(group)
+
+
+@router.post(
+    "/staff/",
+    auth=SuperuserCookieJWTAuth(),
+    operation_id="accounts_staff_create",
+    response={201: StaffListItemOut},
+    summary="Create a staff member",
+)
+def accounts_staff_create(request: HttpRequest, payload: StaffCreateIn) -> Status[Staff]:
+    """Create a staff member; omitted fields take the model defaults.
+
+    The password is hashed via set_password and never logged. wage_rate is
+    absent from the schema — it derives from base_wage_rate on save.
+    """
+    supplied = payload.model_dump(exclude_unset=True)
+    password = str(supplied.pop("password"))
+    is_staff_manager = bool(supplied.pop("is_staff_manager", False))
+    staff = Staff(**supplied)
+    _set_staff_password(staff, password)
+    with transaction.atomic():
+        _apply_staff_fields(staff, {})
+        if is_staff_manager:
+            _set_staff_manager(staff, True)
+    return Status(201, staff)
+
+
+@router.patch(
+    "/staff/{uuid:staff_id}/",
+    auth=SuperuserCookieJWTAuth(),
+    operation_id="accounts_staff_partial_update",
+    response=StaffListItemOut,
+    summary="Update some fields of a staff member",
+)
+def accounts_staff_partial_update(
+    request: HttpRequest, staff_id: UUID, payload: StaffUpdateIn
+) -> Staff:
+    """Apply only the fields the caller sent; omission leaves values alone."""
+    staff = get_object_or_404(Staff, pk=staff_id)
+    supplied = payload.model_dump(exclude_unset=True)
+    password = supplied.pop("password", None)
+    is_staff_manager = supplied.pop("is_staff_manager", None)
+    if password is not None:
+        _set_staff_password(staff, str(password))
+    with transaction.atomic():
+        _apply_staff_fields(staff, supplied)
+        if is_staff_manager is not None:
+            _set_staff_manager(staff, bool(is_staff_manager))
+    return staff
+
+
+@router.post(
+    "/staff/{uuid:staff_id}/icon/",
+    auth=SuperuserCookieJWTAuth(),
+    operation_id="accounts_staff_icon_create",
+    response=StaffListItemOut,
+    summary="Upload a staff profile icon",
+)
+def accounts_staff_icon_create(
+    request: HttpRequest, staff_id: UUID, file: File[UploadedFile]
+) -> Staff:
+    """Save the uploaded icon and delete the file it replaces."""
+    staff = get_object_or_404(Staff, pk=staff_id)
+    validate_image_upload(file, label="Profile picture")
+    # Save the new file before unlinking the old one — a save failure must not
+    # leave the row pointing at a deleted file. update_fields is deliberate
+    # here (nothing wage-related changes) and must name updated_at, which
+    # save() assigns manually.
+    replaced = staff.icon
+    staff.icon = file
+    staff.save(update_fields=["icon", "updated_at"])
+    delete_stored_image(replaced, allowed_prefix="staff_icons")
+    return staff
+
+
+@router.delete(
+    "/staff/{uuid:staff_id}/icon/",
+    auth=SuperuserCookieJWTAuth(),
+    operation_id="accounts_staff_icon_destroy",
+    response=StaffListItemOut,
+    summary="Remove a staff profile icon",
+)
+def accounts_staff_icon_destroy(request: HttpRequest, staff_id: UUID) -> Staff:
+    """Clear the icon and delete the stored file; idempotent by design.
+
+    The E2E database restore does not clean MEDIA_ROOT, so spec cleanup needs
+    this endpoint; it may run against any state, hence 200 either way.
+    """
+    staff = get_object_or_404(Staff, pk=staff_id)
+    removed = staff.icon
+    staff.icon = None
+    staff.save(update_fields=["icon", "updated_at"])
+    delete_stored_image(removed, allowed_prefix="staff_icons")
+    return staff
 
 
 @router.get(

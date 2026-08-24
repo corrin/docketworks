@@ -50,8 +50,9 @@ def list_all_staff() -> QuerySet[Staff]:
     Deliberately NOT ``get_displayable_staff``: that filter answers "who can
     record time on a date", while the admin list must show everyone —
     including departed staff and logins without a Xero payroll id.
+    ``groups`` is prefetched for StaffListItemOut's is_staff_manager resolver.
     """
-    return Staff.objects.order_by("first_name", "last_name")
+    return Staff.objects.prefetch_related("groups").order_by("first_name", "last_name")
 
 
 def get_displayable_staff(

@@ -4070,6 +4070,65 @@ export const zCompanyDefaultsSchemaOut = z.object({
 });
 
 /**
+ * StaffCreateIn
+ *
+ * Create body for POST /api/accounts/staff/.
+ *
+ * Unknown keys are rejected rather than dropped (``extra="forbid"``): the
+ * derived ``wage_rate`` in a payload must be a 422, not a silent no-op.
+ * Omitted fields take the model defaults — the handler dumps with
+ * ``exclude_unset`` and never reads the placeholders here.
+ */
+export const zStaffCreateIn = z.object({
+    base_wage_rate: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    date_left: z.iso.date().nullish(),
+    employment_start_date: z.iso.date().optional(),
+    first_name: z.string().min(1),
+    hours_fri: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    hours_mon: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    hours_sat: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    hours_sun: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    hours_thu: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    hours_tue: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    hours_wed: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    is_office_staff: z.boolean().optional(),
+    is_staff_manager: z.boolean().optional(),
+    is_superuser: z.boolean().optional(),
+    is_workshop_staff: z.boolean().optional(),
+    last_name: z.string().min(1),
+    office_email: z.string(),
+    password: z.string().min(1),
+    pay_basis: z.enum(['hourly', 'salary']).nullish(),
+    payroll_email: z.string().min(1).nullish(),
+    preferred_name: z.string().min(1).nullish(),
+    xero_user_id: z.string().min(1).nullish()
+});
+
+/**
  * StaffDailyDataOut
  *
  * Wire contract for StaffDailyDataOut.
@@ -4118,19 +4177,36 @@ export const zStaffJobBreakdownOut = z.object({
  * StaffListItemOut
  *
  * One row of the staff admin list (GET /api/accounts/staff/).
+ *
+ * Also the response of every staff write: the admin screen's edit modal is
+ * populated from this row (there is no retrieve endpoint), so the full
+ * editable field set rides here.
  */
 export const zStaffListItemOut = z.object({
     base_wage_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     date_left: z.iso.date().nullable(),
     employment_start_date: z.iso.date(),
     first_name: z.string(),
+    hours_fri: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    hours_mon: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    hours_sat: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    hours_sun: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    hours_thu: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    hours_tue: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    hours_wed: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    icon_url: z.string().nullable(),
     id: z.uuid(),
     is_office_staff: z.boolean(),
+    is_staff_manager: z.boolean(),
+    is_superuser: z.boolean(),
+    is_workshop_staff: z.boolean(),
     last_name: z.string(),
     office_email: z.string(),
     pay_basis: z.string().nullable(),
     payroll_email: z.string().nullable(),
-    wage_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    preferred_name: z.string().nullable(),
+    wage_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    xero_user_id: z.string().nullable()
 });
 
 /**
@@ -4151,6 +4227,65 @@ export const zStaffMetricsOut = z.object({
     total_cost: z.number(),
     total_hours: z.number(),
     total_revenue: z.number()
+});
+
+/**
+ * StaffUpdateIn
+ *
+ * Partial-update body for PATCH /api/accounts/staff/{staff_id}/.
+ *
+ * Everything omittable: omission leaves the stored value alone. On the
+ * nullable fields ``null`` is a real value — ``date_left: null`` reinstates a
+ * departed staff member (ADR 0040). ``password`` is presence-only: null is
+ * never a password value, so only supplying one changes it.
+ */
+export const zStaffUpdateIn = z.object({
+    base_wage_rate: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    date_left: z.iso.date().nullish(),
+    employment_start_date: z.iso.date().optional(),
+    first_name: z.string().min(1).optional(),
+    hours_fri: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    hours_mon: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    hours_sat: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    hours_sun: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    hours_thu: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    hours_tue: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    hours_wed: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional(),
+    is_office_staff: z.boolean().optional(),
+    is_staff_manager: z.boolean().optional(),
+    is_superuser: z.boolean().optional(),
+    is_workshop_staff: z.boolean().optional(),
+    last_name: z.string().min(1).optional(),
+    office_email: z.string().min(1).optional(),
+    password: z.string().min(1).optional(),
+    pay_basis: z.enum(['hourly', 'salary']).nullish(),
+    payroll_email: z.string().min(1).nullish(),
+    preferred_name: z.string().min(1).nullish(),
+    xero_user_id: z.string().min(1).nullish()
 });
 
 /**
@@ -5573,6 +5708,13 @@ export const zAccountsMeRetrieveResponse = zUserProfile;
  */
 export const zAccountsStaffListResponse = z.array(zStaffListItemOut);
 
+export const zAccountsStaffCreateBody = zStaffCreateIn;
+
+/**
+ * Created
+ */
+export const zAccountsStaffCreateResponse = zStaffListItemOut;
+
 export const zAccountsStaffAllListQuery = z.object({
     date: z.iso.date().nullish(),
     include_inactive: z.boolean().optional().default(false),
@@ -5585,6 +5727,42 @@ export const zAccountsStaffAllListQuery = z.object({
  * OK
  */
 export const zAccountsStaffAllListResponse = z.array(zKanbanStaffOut);
+
+export const zAccountsStaffPartialUpdateBody = zStaffUpdateIn;
+
+export const zAccountsStaffPartialUpdatePath = z.object({
+    staff_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zAccountsStaffPartialUpdateResponse = zStaffListItemOut;
+
+export const zAccountsStaffIconDestroyPath = z.object({
+    staff_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zAccountsStaffIconDestroyResponse = zStaffListItemOut;
+
+/**
+ * FileParams
+ */
+export const zAccountsStaffIconCreateBody = z.object({
+    file: z.string()
+});
+
+export const zAccountsStaffIconCreatePath = z.object({
+    staff_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zAccountsStaffIconCreateResponse = zStaffListItemOut;
 
 export const zAccountsTokenCreateBody = zLoginRequest;
 
