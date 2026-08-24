@@ -10362,6 +10362,7 @@ components:
         \ and never reads the placeholders here."
       properties:
         base_wage_rate:
+          minimum: 0
           title: Base Wage Rate
           type: number
         date_left:
@@ -10379,24 +10380,31 @@ components:
           title: First Name
           type: string
         hours_fri:
+          minimum: 0
           title: Hours Fri
           type: number
         hours_mon:
+          minimum: 0
           title: Hours Mon
           type: number
         hours_sat:
+          minimum: 0
           title: Hours Sat
           type: number
         hours_sun:
+          minimum: 0
           title: Hours Sun
           type: number
         hours_thu:
+          minimum: 0
           title: Hours Thu
           type: number
         hours_tue:
+          minimum: 0
           title: Hours Tue
           type: number
         hours_wed:
+          minimum: 0
           title: Hours Wed
           type: number
         is_office_staff:
@@ -10416,6 +10424,7 @@ components:
           title: Last Name
           type: string
         office_email:
+          minLength: 1
           title: Office Email
           type: string
         password:
@@ -10608,6 +10617,9 @@ components:
             type: string
           - type: 'null'
           title: Date Left
+        display_name:
+          title: Display Name
+          type: string
         employment_start_date:
           format: date
           title: Employment Start Date
@@ -10691,6 +10703,7 @@ components:
       - first_name
       - last_name
       - preferred_name
+      - display_name
       - office_email
       - payroll_email
       - employment_start_date
@@ -10813,6 +10826,7 @@ components:
         \ null is\nnever a password value, so only supplying one changes it."
       properties:
         base_wage_rate:
+          minimum: 0
           title: Base Wage Rate
           type: number
         date_left:
@@ -10830,24 +10844,31 @@ components:
           title: First Name
           type: string
         hours_fri:
+          minimum: 0
           title: Hours Fri
           type: number
         hours_mon:
+          minimum: 0
           title: Hours Mon
           type: number
         hours_sat:
+          minimum: 0
           title: Hours Sat
           type: number
         hours_sun:
+          minimum: 0
           title: Hours Sun
           type: number
         hours_thu:
+          minimum: 0
           title: Hours Thu
           type: number
         hours_tue:
+          minimum: 0
           title: Hours Tue
           type: number
         hours_wed:
+          minimum: 0
           title: Hours Wed
           type: number
         is_office_staff:

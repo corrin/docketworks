@@ -9,7 +9,7 @@ a sibling.
 import os
 from pathlib import Path
 
-# Django's UploadedFile, not ninja's subclass: the helpers need only
+# Fable: Django's UploadedFile, not ninja's subclass — the helpers need only
 # .name/.size/stream, and the wider type lets tests exercise them with
 # SimpleUploadedFile while every ninja endpoint still passes its File[...].
 from django.core.files.uploadedfile import UploadedFile

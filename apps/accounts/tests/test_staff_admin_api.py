@@ -144,6 +144,28 @@ class TestCreate:
         make_staff("new.person@example.com")
         assert create(superuser_client()).status_code == 400
 
+    def test_case_variant_duplicate_office_email_is_a_400(self) -> None:
+        """StaffEmailBackend matches office_email with iexact and returns None
+        on multiple hits, so a case-variant duplicate silently locks BOTH
+        accounts out of login — it must be refused at write time."""
+        make_staff("new.person@example.com")
+        assert create(superuser_client(), office_email="New.Person@example.com").status_code == 400
+
+    def test_duplicate_payroll_email_is_a_400(self) -> None:
+        make_staff("other@example.com", payroll_email="pay@example.com")
+        assert create(superuser_client(), payroll_email="pay@example.com").status_code == 400
+
+    def test_duplicate_xero_user_id_is_a_400(self) -> None:
+        make_staff("other@example.com", xero_user_id="11111111-2222-3333-4444-555555555555")
+        response = create(superuser_client(), xero_user_id="11111111-2222-3333-4444-555555555555")
+        assert response.status_code == 400
+
+    def test_negative_base_wage_rate_is_rejected(self) -> None:
+        assert create(superuser_client(), base_wage_rate="-5").status_code == 422
+
+    def test_negative_hours_are_rejected(self) -> None:
+        assert create(superuser_client(), hours_mon="-1").status_code == 422
+
     def test_staff_manager_true_creates_and_joins_the_group(self) -> None:
         response = create(superuser_client(), is_staff_manager=True)
 
@@ -182,6 +204,29 @@ class TestPartialUpdate:
         assert response.status_code == 200
         target.refresh_from_db()
         assert target.check_password("Fresh-Pass-9!")
+
+    def test_password_null_is_a_422(self) -> None:
+        """null is never a password value: only omission means "unchanged"."""
+        target = make_staff("target@example.com")
+        assert patch(superuser_client(), target.id, password=None).status_code == 422
+
+    def test_a_set_password_clears_password_needs_reset(self) -> None:
+        """This is the one set-password surface; a fresh admin-set password
+        must not leave the account flagged forever."""
+        target = make_staff("target@example.com", password_needs_reset=True)
+
+        patch(superuser_client(), target.id, password="Fresh-Pass-9!")
+
+        target.refresh_from_db()
+        assert target.password_needs_reset is False
+
+    def test_a_patch_without_password_keeps_the_reset_flag(self) -> None:
+        target = make_staff("target@example.com", password_needs_reset=True)
+
+        patch(superuser_client(), target.id, first_name="Renamed")
+
+        target.refresh_from_db()
+        assert target.password_needs_reset is True
 
     def test_setting_date_left_offboards(self) -> None:
         target = make_staff("target@example.com")
@@ -269,6 +314,9 @@ class TestListExtensions:
 
         row = next(item for item in body if item["office_email"] == "detail@example.com")
         assert row["preferred_name"] == "Dee"
+        # display_name is the server's one naming rule (first word of the
+        # preferred name); the client must never re-derive it.
+        assert row["display_name"] == "Dee Person"
         assert row["xero_user_id"] == "11111111-2222-3333-4444-555555555555"
         assert row["is_workshop_staff"] is True
         assert row["is_superuser"] is False

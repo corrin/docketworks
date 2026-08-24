@@ -13,7 +13,14 @@ from ninja import Field, Schema
 from pydantic import ConfigDict
 
 from apps.accounts.models import STAFF_MANAGER_GROUP_NAME, Staff
-from apps.core.schemas import NonBlankText, NullableText, Quantity, ResponseSchema, omittable
+from apps.core.schemas import (
+    NonBlankText,
+    NonNegativeQuantity,
+    NullableText,
+    Quantity,
+    ResponseSchema,
+    omittable,
+)
 
 
 class LoginRequest(Schema):
@@ -90,6 +97,10 @@ class StaffListItemOut(Schema):
     first_name: str
     last_name: str
     preferred_name: str | None
+    # Fable: The server's one naming rule (first word of preferred/first name
+    # plus last name) — carried on the wire so no client re-derives it with
+    # different semantics and hashes a different avatar colour than kanban.
+    display_name: str
     office_email: str
     payroll_email: str | None
     employment_start_date: date
@@ -114,6 +125,11 @@ class StaffListItemOut(Schema):
     icon_url: str | None
 
     @staticmethod
+    def resolve_display_name(obj: Staff) -> str:
+        """Resolve the canonical display name, same rule as the kanban wire types."""
+        return obj.get_display_full_name()
+
+    @staticmethod
     def resolve_icon_url(obj: Staff) -> str | None:
         """Site-relative icon path, or None when the staff member has no icon."""
         return obj.icon.url if obj.icon else None
@@ -122,7 +138,7 @@ class StaffListItemOut(Schema):
     def resolve_is_staff_manager(obj: Staff) -> bool:
         """Raw StaffManager membership, NOT Staff.is_staff_manager().
 
-        The model method folds in is_superuser (effective privilege); a
+        Fable: The model method folds in is_superuser (effective privilege); a
         checkbox round-tripping that would silently enrol every superuser in
         the group. list_all_staff prefetches groups, so this is not N+1.
         """
@@ -140,14 +156,14 @@ class StaffCreateIn(Schema):
 
     model_config = ConfigDict(extra="forbid")
 
-    office_email: str
+    office_email: NonBlankText
     first_name: NonBlankText
     last_name: NonBlankText
     password: NonBlankText
     preferred_name: NullableText = omittable(None)
     payroll_email: NullableText = omittable(None)
     xero_user_id: NullableText = omittable(None)
-    base_wage_rate: Quantity = omittable(Decimal("0"))
+    base_wage_rate: NonNegativeQuantity = omittable(Decimal("0"))
     employment_start_date: date = omittable(date(1970, 1, 1))
     date_left: date | None = omittable(None)
     pay_basis: Literal["hourly", "salary"] | None = omittable(None)
@@ -155,13 +171,13 @@ class StaffCreateIn(Schema):
     is_workshop_staff: bool = omittable(True)
     is_superuser: bool = omittable(False)
     is_staff_manager: bool = omittable(False)
-    hours_mon: Quantity = omittable(Decimal("8"))
-    hours_tue: Quantity = omittable(Decimal("8"))
-    hours_wed: Quantity = omittable(Decimal("8"))
-    hours_thu: Quantity = omittable(Decimal("8"))
-    hours_fri: Quantity = omittable(Decimal("8"))
-    hours_sat: Quantity = omittable(Decimal("0"))
-    hours_sun: Quantity = omittable(Decimal("0"))
+    hours_mon: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_tue: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_wed: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_thu: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_fri: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_sat: NonNegativeQuantity = omittable(Decimal("0"))
+    hours_sun: NonNegativeQuantity = omittable(Decimal("0"))
 
 
 class StaffUpdateIn(Schema):
@@ -182,7 +198,7 @@ class StaffUpdateIn(Schema):
     preferred_name: NullableText = omittable(None)
     payroll_email: NullableText = omittable(None)
     xero_user_id: NullableText = omittable(None)
-    base_wage_rate: Quantity = omittable(Decimal("0"))
+    base_wage_rate: NonNegativeQuantity = omittable(Decimal("0"))
     employment_start_date: date = omittable(date(1970, 1, 1))
     date_left: date | None = omittable(None)
     pay_basis: Literal["hourly", "salary"] | None = omittable(None)
@@ -190,13 +206,13 @@ class StaffUpdateIn(Schema):
     is_workshop_staff: bool = omittable(True)
     is_superuser: bool = omittable(False)
     is_staff_manager: bool = omittable(False)
-    hours_mon: Quantity = omittable(Decimal("8"))
-    hours_tue: Quantity = omittable(Decimal("8"))
-    hours_wed: Quantity = omittable(Decimal("8"))
-    hours_thu: Quantity = omittable(Decimal("8"))
-    hours_fri: Quantity = omittable(Decimal("8"))
-    hours_sat: Quantity = omittable(Decimal("0"))
-    hours_sun: Quantity = omittable(Decimal("0"))
+    hours_mon: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_tue: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_wed: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_thu: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_fri: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_sat: NonNegativeQuantity = omittable(Decimal("0"))
+    hours_sun: NonNegativeQuantity = omittable(Decimal("0"))
 
 
 class KanbanStaffQuery(Schema):

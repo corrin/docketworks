@@ -9444,6 +9444,10 @@ export type StaffListItemOut = {
      */
     date_left: string | null;
     /**
+     * Display Name
+     */
+    display_name: string;
+    /**
      * Employment Start Date
      */
     employment_start_date: string;

@@ -19,6 +19,7 @@ function staffRow(overrides: Partial<StaffListItemOut> = {}): StaffListItemOut {
     first_name: 'Tara',
     last_name: 'Person',
     preferred_name: null,
+    display_name: 'Tara Person',
     office_email: 'tara@example.com',
     payroll_email: null,
     employment_start_date: '2026-01-05',

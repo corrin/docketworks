@@ -138,22 +138,24 @@ test.describe.serial('staff administration', () => {
       await uploaded
     })
 
-    await test.step('the icon is served as a same-origin image', async () => {
-      const iconUrl = (await findStaff(page, id)).icon_url
-      if (!iconUrl) throw new Error('The upload did not set icon_url.')
-      // Relative, never absolute: an absolute URL would leak the backend's
-      // internal host behind the proxy and the browser would then block it as
-      // a cross-origin loopback image.
-      expect(iconUrl).toMatch(/^\//)
-      const served = await page.request.get(iconUrl)
-      expect(served.status()).toBe(200)
-      expect(served.headers()['content-type']).toContain('image')
-    })
-
-    await test.step('clean up the stored file', async () => {
+    // finally, not a step: the stored file must be removed even when an
+    // assertion above it fails, or a red run orphans a file in MEDIA_ROOT.
+    try {
+      await test.step('the icon is served as a same-origin image', async () => {
+        const iconUrl = (await findStaff(page, id)).icon_url
+        if (!iconUrl) throw new Error('The upload did not set icon_url.')
+        // Relative, never absolute: an absolute URL would leak the backend's
+        // internal host behind the proxy and the browser would then block it as
+        // a cross-origin loopback image.
+        expect(iconUrl).toMatch(/^\//)
+        const served = await page.request.get(iconUrl)
+        expect(served.status()).toBe(200)
+        expect(served.headers()['content-type']).toContain('image')
+      })
+    } finally {
       const removed = await page.request.delete(`/api/accounts/staff/${id}/icon/`)
       expect(removed.status()).toBe(200)
       expect((await findStaff(page, id)).icon_url).toBeNull()
-    })
+    }
   })
 })

@@ -307,11 +307,12 @@ export {
 } from './generated/@tanstack/react-query.gen'
 export type { CompanyDetailResponse, SupplierSearchAliasOut } from './generated/types.gen'
 
-// Staff admin (/admin/staff: list + create/edit modal + icon upload)
+// Staff admin (/admin/staff: list + create/edit modal + icon upload).
+// accounts_staff_icon_destroy is deliberately not re-exported: its only
+// consumer is the E2E spec's MEDIA_ROOT cleanup, over a raw request.
 export {
   accountsStaffCreateMutation,
   accountsStaffIconCreateMutation,
-  accountsStaffIconDestroyMutation,
   accountsStaffListOptions,
   accountsStaffListQueryKey,
   accountsStaffPartialUpdateMutation,

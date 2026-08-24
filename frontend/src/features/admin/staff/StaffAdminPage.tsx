@@ -71,11 +71,7 @@ export function StaffAdminPage() {
             <td className={CELL}>
               <div className="flex items-center gap-2">
                 <StaffAvatar
-                  person={{
-                    id: row.id,
-                    display_name: `${row.preferred_name ?? row.first_name} ${row.last_name}`,
-                    icon_url: row.icon_url,
-                  }}
+                  person={{ id: row.id, display_name: row.display_name, icon_url: row.icon_url }}
                 />
                 <span>
                   {row.first_name} {row.last_name}

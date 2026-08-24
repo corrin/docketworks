@@ -8,9 +8,9 @@ Paths and operationIds are the stable contract:
 - GET  /api/accounts/me/             accounts_me_retrieve
 - GET  /api/accounts/staff/          accounts_staff_list            (superuser)
 - POST /api/accounts/staff/          accounts_staff_create          (superuser)
-- PATCH /api/accounts/staff/{id}/    accounts_staff_partial_update  (superuser)
-- POST /api/accounts/staff/{id}/icon/   accounts_staff_icon_create  (superuser)
-- DELETE /api/accounts/staff/{id}/icon/ accounts_staff_icon_destroy (superuser)
+- PATCH /api/accounts/staff/{staff_id}/    accounts_staff_partial_update  (superuser)
+- POST /api/accounts/staff/{staff_id}/icon/   accounts_staff_icon_create  (superuser)
+- DELETE /api/accounts/staff/{staff_id}/icon/ accounts_staff_icon_destroy (superuser)
 - GET  /api/accounts/staff/all/      accounts_staff_all_list        (authenticated)
 
 Integration wiring (config/api.py): ``api.add_router("/accounts/", router)``.
@@ -215,18 +215,18 @@ def accounts_staff_list(request: HttpRequest) -> list[Staff]:
 
 # ── Staff admin writes ───────────────────────────────────────────────────
 #
-# Superuser on every verb, like the list: v1 gated these on is_office_staff
-# while its UI required superuser, so any office member could PATCH
-# is_superuser onto themselves. There is deliberately no DELETE for the staff
-# row itself — offboarding is date_left (time entries PROTECT the row), and
-# clearing date_left reinstates.
+# Fable: Superuser on every verb, like the list — v1 gated these on
+# is_office_staff while its UI required superuser, so any office member could
+# PATCH is_superuser onto themselves. There is deliberately no DELETE for the
+# staff row itself: offboarding is date_left (time entries PROTECT the row),
+# and clearing date_left reinstates.
 
 
 def _apply_staff_fields(staff: Staff, supplied: dict[str, object]) -> Staff:
     """Setattr the JSON fields, validate, and fully save.
 
-    A full save, never update_fields: Staff.save() computes wage_rate and the
-    default labour subtype only when update_fields is None or names
+    Fable: A full save, never update_fields — Staff.save() computes wage_rate
+    and the default labour subtype only when update_fields is None or names
     base_wage_rate, so a partial save would compute the new wage_rate and then
     not persist it.
     """
@@ -247,15 +247,19 @@ def _apply_staff_fields(staff: Staff, supplied: dict[str, object]) -> Staff:
 def _set_staff_password(staff: Staff, password: str) -> None:
     """Validate and hash a new password onto the unsaved staff row.
 
-    validate_password runs AUTH_PASSWORD_VALIDATORS — none are configured
-    today, so this is a no-op that becomes enforcing the moment the
-    weak-password slice configures them, with no change here.
+    Fable: validate_password runs AUTH_PASSWORD_VALIDATORS — none are
+    configured today, so this is a no-op that becomes enforcing the moment the
+    weak-password slice configures them, with no change here. A fresh password
+    also clears password_needs_reset: this is the codebase's one set-password
+    surface, and nothing else ever clears the flag the weak-password sweep and
+    the scrubber set.
     """
     try:
         validate_password(password, staff)
     except DjangoValidationError as exc:
         raise HttpError(400, "; ".join(exc.messages)) from exc
     staff.set_password(password)
+    staff.password_needs_reset = False
 
 
 def _set_staff_manager(staff: Staff, is_member: bool) -> None:
@@ -282,14 +286,16 @@ def accounts_staff_create(request: HttpRequest, payload: StaffCreateIn) -> Statu
     The password is hashed via set_password and never logged. wage_rate is
     absent from the schema — it derives from base_wage_rate on save.
     """
+    # Read password/is_staff_manager off the typed payload, not the dump —
+    # str()/bool() around a dict value would be silent coercion (ADR 0028).
     supplied = payload.model_dump(exclude_unset=True)
-    password = str(supplied.pop("password"))
-    is_staff_manager = bool(supplied.pop("is_staff_manager", False))
+    supplied.pop("password")
+    supplied.pop("is_staff_manager", None)
     staff = Staff(**supplied)
-    _set_staff_password(staff, password)
+    _set_staff_password(staff, payload.password)
     with transaction.atomic():
         _apply_staff_fields(staff, {})
-        if is_staff_manager:
+        if payload.is_staff_manager:
             _set_staff_manager(staff, True)
     return Status(201, staff)
 
@@ -306,15 +312,17 @@ def accounts_staff_partial_update(
 ) -> Staff:
     """Apply only the fields the caller sent; omission leaves values alone."""
     staff = get_object_or_404(Staff, pk=staff_id)
+    # Presence from model_fields_set, values from the typed payload — never
+    # str()/bool() around a dump's object values (ADR 0028).
     supplied = payload.model_dump(exclude_unset=True)
-    password = supplied.pop("password", None)
-    is_staff_manager = supplied.pop("is_staff_manager", None)
-    if password is not None:
-        _set_staff_password(staff, str(password))
+    supplied.pop("password", None)
+    supplied.pop("is_staff_manager", None)
+    if "password" in payload.model_fields_set:
+        _set_staff_password(staff, payload.password)
     with transaction.atomic():
         _apply_staff_fields(staff, supplied)
-        if is_staff_manager is not None:
-            _set_staff_manager(staff, bool(is_staff_manager))
+        if "is_staff_manager" in payload.model_fields_set:
+            _set_staff_manager(staff, payload.is_staff_manager)
     return staff
 
 

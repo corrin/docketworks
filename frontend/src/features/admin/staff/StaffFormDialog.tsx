@@ -57,6 +57,14 @@ function requirePayBasis(value: string): PayBasis {
   throw new Error(`Unexpected pay basis option "${value}".`)
 }
 
+/** Same fail-early rule on the wire value: the model's choices restrict it,
+ * so anything else is a data defect to surface, never to coerce to "" and
+ * then silently null out on the next unrelated save. */
+function payBasisFromWire(value: string | null): PayBasis {
+  if (value === null) return ''
+  return requirePayBasis(value)
+}
+
 interface Drafts {
   first_name: string
   last_name: string
@@ -87,8 +95,7 @@ function snapshot(staff: StaffListItemOut | null): Drafts {
     xero_user_id: staff?.xero_user_id ?? '',
     employment_start_date: staff?.employment_start_date ?? localIsoDate(),
     date_left: staff?.date_left ?? '',
-    pay_basis:
-      staff?.pay_basis === 'hourly' || staff?.pay_basis === 'salary' ? staff.pay_basis : '',
+    pay_basis: staff ? payBasisFromWire(staff.pay_basis) : '',
     hours: {
       hours_mon: staff ? String(staff.hours_mon) : '8',
       hours_tue: staff ? String(staff.hours_tue) : '8',
@@ -120,7 +127,7 @@ function buildCreateBody(drafts: Drafts): StaffCreateIn {
     last_name: drafts.last_name.trim(),
     office_email: drafts.office_email.trim(),
     password: drafts.password,
-    base_wage_rate: Number(drafts.base_wage_rate || '0'),
+    base_wage_rate: Number(drafts.base_wage_rate),
     employment_start_date: drafts.employment_start_date,
     ...drafts.flags,
   }
@@ -133,7 +140,7 @@ function buildCreateBody(drafts: Drafts): StaffCreateIn {
   if (drafts.date_left !== '') body.date_left = drafts.date_left
   if (drafts.pay_basis !== '') body.pay_basis = drafts.pay_basis
   for (const [key] of HOUR_KEYS) {
-    body[key] = Number(drafts.hours[key] || '0')
+    body[key] = Number(drafts.hours[key])
   }
   return body
 }
@@ -157,8 +164,8 @@ function buildPatch(drafts: Drafts, staff: StaffListItemOut): StaffUpdateIn {
     patch.xero_user_id = textOrNull(drafts.xero_user_id)
   }
   if (drafts.password !== '') patch.password = drafts.password
-  if (Number(drafts.base_wage_rate || '0') !== staff.base_wage_rate) {
-    patch.base_wage_rate = Number(drafts.base_wage_rate || '0')
+  if (Number(drafts.base_wage_rate) !== staff.base_wage_rate) {
+    patch.base_wage_rate = Number(drafts.base_wage_rate)
   }
   if (drafts.employment_start_date !== staff.employment_start_date) {
     patch.employment_start_date = drafts.employment_start_date
@@ -166,8 +173,8 @@ function buildPatch(drafts: Drafts, staff: StaffListItemOut): StaffUpdateIn {
   if ((drafts.date_left || null) !== staff.date_left) patch.date_left = drafts.date_left || null
   if ((drafts.pay_basis || null) !== staff.pay_basis) patch.pay_basis = drafts.pay_basis || null
   for (const [key] of HOUR_KEYS) {
-    if (Number(drafts.hours[key] || '0') !== staff[key]) {
-      patch[key] = Number(drafts.hours[key] || '0')
+    if (Number(drafts.hours[key]) !== staff[key]) {
+      patch[key] = Number(drafts.hours[key])
     }
   }
   for (const key of FLAG_KEYS) {
@@ -236,6 +243,17 @@ export function StaffFormDialog({ open, onOpenChange, staff }: Props) {
     if (drafts.office_email.trim() === '') return 'Office email is required.'
     if (staff === null && drafts.password === '') return 'A password is required.'
     if (drafts.password !== drafts.password_confirm) return 'The passwords do not match.'
+    // An emptied number box must be an error, never a silent 0 — zeroing
+    // base_wage_rate is a payroll change nobody asked for.
+    if (drafts.base_wage_rate === '' || Number.isNaN(Number(drafts.base_wage_rate))) {
+      return 'A base wage rate is required.'
+    }
+    for (const [key, label] of HOUR_KEYS) {
+      if (drafts.hours[key] === '' || Number.isNaN(Number(drafts.hours[key]))) {
+        return `Working hours are required for ${label} (0 for a non-working day).`
+      }
+    }
+    if (drafts.employment_start_date === '') return 'An employment start date is required.'
     return null
   }
 
@@ -294,7 +312,15 @@ export function StaffFormDialog({ open, onOpenChange, staff }: Props) {
   const iconUrl = iconPreview ?? staff?.icon_url ?? null
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    // While a save is in flight the dialog must not dismiss (Esc/outside
+    // click) — a completion landing after a re-open would close the wrong
+    // dialog and toast out of context.
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!saving) onOpenChange(next)
+      }}
+    >
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{staff === null ? 'New Staff' : 'Edit Staff'}</DialogTitle>
