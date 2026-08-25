@@ -8,7 +8,6 @@ import uuid
 from typing import ClassVar
 
 from django.db import models
-from simple_history.models import HistoricalRecords
 
 
 class FormEntry(models.Model):
@@ -58,6 +57,17 @@ class FormEntry(models.Model):
         help_text="Staff member who created this entry",
     )
 
+    # Fable: SET_NULL, not CASCADE — an action extracted from a meeting stands
+    # on its own as a record; only test cleanup hard-deletes, and orphaning a
+    # child there is harmless. NULL parent is the normal unlinked state.
+    parent_entry = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="child_entries",
+    )
+
     data = models.JSONField(
         default=dict,
         help_text="Entry data - schema varies by document type",
@@ -70,8 +80,7 @@ class FormEntry(models.Model):
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
-
-    history: HistoricalRecords = HistoricalRecords()
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering: ClassVar = ["-entry_date", "-created_at"]

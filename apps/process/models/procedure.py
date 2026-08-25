@@ -7,7 +7,6 @@ import uuid
 from typing import ClassVar
 
 from django.db import models
-from simple_history.models import HistoricalRecords
 
 
 class Procedure(models.Model):
@@ -29,12 +28,28 @@ class Procedure(models.Model):
         ("archived", "Archived"),
     ]
 
+    class Category(models.TextChoices):
+        """One home per document; a procedure lists in exactly one category."""
+
+        SAFETY = "safety", "Safety"
+        JSA = "jsa", "JSA"
+        TRAINING = "training", "Training"
+        REFERENCE = "reference", "Reference"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     document_type = models.CharField(
         max_length=20,
         choices=DOCUMENT_TYPES,
         help_text="Document type: procedure or reference",
+    )
+
+    # Fable: null=True at the database because the v1 data restore is data-only
+    # into this schema (the dump has no category column); the backfill
+    # migration reruns after the restore and the API requires the field, so
+    # NULL never survives past provisioning.
+    category = models.CharField(  # noqa: DJ001 -- provisioning-only NULL, see comment above
+        max_length=20, choices=Category.choices, null=True
     )
 
     title = models.CharField(max_length=255)
@@ -86,8 +101,6 @@ class Procedure(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    history: HistoricalRecords = HistoricalRecords()
 
     class Meta:
         ordering: ClassVar = ["-created_at"]
