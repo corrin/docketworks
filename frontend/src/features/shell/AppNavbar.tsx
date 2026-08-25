@@ -50,6 +50,47 @@ export function AppNavbar() {
             Create Job
           </Link>
         )}
+        {/* Any-staff: process_forms_list and process_forms_retrieve use
+            CookieJWTAuth — regular staff sign forms day to day, so this menu
+            is not office-gated (writes stay office-only behind the Edit
+            button on the page itself). */}
+        <NavMenu label="Forms" automationId="AppNavbar-forms-menu">
+          <NavMenuLink
+            to="/process-documents/forms/$category"
+            params={{ category: 'safety' }}
+            automationId="AppNavbar-forms-safety"
+          >
+            Safety
+          </NavMenuLink>
+          <NavMenuLink
+            to="/process-documents/forms/$category"
+            params={{ category: 'training' }}
+            automationId="AppNavbar-forms-training"
+          >
+            Training
+          </NavMenuLink>
+          <NavMenuLink
+            to="/process-documents/forms/$category"
+            params={{ category: 'incident' }}
+            automationId="AppNavbar-forms-incident"
+          >
+            Incident
+          </NavMenuLink>
+          <NavMenuLink
+            to="/process-documents/forms/$category"
+            params={{ category: 'meeting' }}
+            automationId="AppNavbar-forms-meeting"
+          >
+            Meeting
+          </NavMenuLink>
+          <NavMenuLink
+            to="/process-documents/forms/$category"
+            params={{ category: 'register' }}
+            automationId="AppNavbar-forms-register"
+          >
+            Register
+          </NavMenuLink>
+        </NavMenu>
         <NavMenu label="Timesheets" automationId="AppNavbar-timesheets-menu">
           <NavMenuLink to="/timesheets/daily" automationId="AppNavbar-daily-timesheets">
             Daily
@@ -217,19 +258,28 @@ function NavMenu({
 
 /** A menu row. `asChild` keeps the Link as the rendered element, so the item
     stays a real anchor — middle-click and open-in-new-tab keep working — while
-    Radix still closes the menu on select. */
+    Radix still closes the menu on select. `params` is optional and composes
+    the same way `Link`'s own prop does, for the handful of menu entries (the
+    Forms category links) that target a dynamic route segment. */
 function NavMenuLink({
   to,
+  params,
   automationId,
   children,
 }: {
   to: string
+  params?: Record<string, string>
   automationId: string
   children: ReactNode
 }) {
   return (
     <DropdownMenuItem asChild>
-      <Link to={to} data-automation-id={automationId} className="block px-3 py-2 text-sm">
+      <Link
+        to={to}
+        params={params}
+        data-automation-id={automationId}
+        className="block px-3 py-2 text-sm"
+      >
         {children}
       </Link>
     </DropdownMenuItem>

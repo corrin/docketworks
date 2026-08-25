@@ -43,13 +43,13 @@ done only when that spec is green.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **43 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
-| Backend operations still to port | **68** (see below; 33 more exist but nothing calls them) |
-| API operations v2 exposes | 223 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2605 (all passing) |
+| E2E specs ported | **45 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
+| Backend operations still to port | **58** (see below; 32 more exist but nothing calls them) |
+| API operations v2 exposes | 237 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 2718 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
-| Behaviour ledger | 112 recorded deviations |
+| Behaviour ledger | 117 recorded deviations |
 | ADRs | 40 (v1's 26 carried forward + 0038–0041, 0043, 0045–0053 written here) |
 
 **Written is not ported.** Report progress as specs green; a count of endpoints
@@ -59,13 +59,11 @@ written measures typing, not delivery.
 
 ### Specs still to port
 
-Two, plus `example`, which is a placeholder to delete rather than port:
-`process-documents/form-entries-page-scroll`, `timesheet/workshop-my-time-view`.
+One, plus `example`, which is a placeholder to delete rather than port:
+`timesheet/workshop-my-time-view`.
 
 - `workshop-my-time-view` is a rebuild, not a port —
   `@kodeglot/vue-calendar` has no React equivalent.
-- `form-entries-page-scroll` seeds itself over the API, so its true cost is the
-  process-forms backend slice in front of it.
 
 ### Backend still to port
 
@@ -78,9 +76,6 @@ operations v1's frontend called, never what shape v2 must serve.
 - **Record every rename by hand as you port it.** 17 `workflow_*` operations
   still to come. An unrecorded rename makes the v1 name read as missing *and*
   the v2 name look brand new, corrupting the count in both directions.
-- **Process forms:** enough of `apps/process` to serve
-  `process_forms_entries_list`. Models are partial and there is no category
-  model, so `process_categories_retrieve` is greenfield.
 
 ### Cross-cutting controls v1 has and v2 lacks
 

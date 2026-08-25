@@ -5,6 +5,50 @@ export type ClientOptions = {
 };
 
 /**
+ * AcknowledgeIn
+ *
+ * POST body for acknowledging a form: empty by design.
+ *
+ * ``staff`` is always ``request.user`` — self-only by construction — so
+ * the contract has no fields for a caller to fill in. ``extra="forbid"``
+ * still gives the endpoint a real body schema: a client-supplied
+ * ``{"staff": ...}`` goes through the same RequestValidationError
+ * machinery every other endpoint's unexpected-key check does, rather than
+ * a bespoke hand-rolled body guard.
+ */
+export type AcknowledgeIn = {
+    [key: string]: never;
+};
+
+/**
+ * AcknowledgementOut
+ *
+ * One staff member's read receipt against a form (or, slice 2, a procedure).
+ */
+export type AcknowledgementOut = {
+    /**
+     * Acknowledged At
+     */
+    acknowledged_at: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Staff
+     */
+    staff: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+};
+
+/**
  * AddressCandidate
  *
  * One structured candidate from the Google Address Validation API.
@@ -330,6 +374,38 @@ export type BuildId = {
      * Build Id
      */
     build_id: string;
+};
+
+/**
+ * CategoriesOut
+ *
+ * The category pickers for forms/registers and procedures.
+ */
+export type CategoriesOut = {
+    /**
+     * Forms
+     */
+    forms: Array<CategoryOut>;
+    /**
+     * Procedures
+     */
+    procedures: Array<CategoryOut>;
+};
+
+/**
+ * CategoryOut
+ *
+ * One selectable category (key/label pair) for a document picker.
+ */
+export type CategoryOut = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
 };
 
 /**
@@ -2582,6 +2658,195 @@ export type DuplicatePhonesResponse = {
 };
 
 /**
+ * EntryCreateIn
+ *
+ * POST body for creating a form/register entry.
+ */
+export type EntryCreateIn = {
+    /**
+     * Data
+     */
+    data: {
+        [key: string]: unknown;
+    };
+    /**
+     * Entry Date
+     */
+    entry_date: string;
+    /**
+     * Job
+     */
+    job?: string | null;
+    /**
+     * Parent Entry
+     */
+    parent_entry?: string | null;
+    /**
+     * Staff
+     */
+    staff?: string | null;
+};
+
+/**
+ * EntryEventOut
+ *
+ * One audit event on a form entry, for the entry's history panel.
+ */
+export type EntryEventOut = {
+    /**
+     * Changes
+     */
+    changes: Array<{
+        [key: string]: string;
+    }>;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Event Type
+     */
+    event_type: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+};
+
+/**
+ * EntryOut
+ *
+ * One form entry — the entry list row and the entry detail alike.
+ *
+ * ``display_data`` carries server-resolved labels for staff/entry_ref values
+ * (e.g. a staff UUID's display name, a referenced entry's display_key value)
+ * so the client renders a row with no follow-up join. It is a plain
+ * declared field, not a ``resolve_*`` staticmethod: computing it needs the
+ * form's schema plus, for entry_ref fields, the referenced entry, which a
+ * single-hop ``resolve_*(obj)`` cannot reach, so the endpoint (Task 8) must
+ * set ``entry.display_data`` on the ORM instance itself before
+ * serialisation.
+ *
+ * Fable: a ``resolve_*`` fallback such as ``getattr(obj, "display_data",
+ * {})`` was rejected — it would turn a missing enrichment pass into a
+ * silent empty dict instead of the loud ``AttributeError`` a plain field
+ * raises at serialisation time, and fail-early treats "the endpoint forgot
+ * to enrich this entry" as a bug to surface, not a value to default over.
+ */
+export type EntryOut = {
+    /**
+     * Child Count
+     */
+    child_count: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Data
+     */
+    data: {
+        [key: string]: unknown;
+    };
+    /**
+     * Display Data
+     */
+    display_data: {
+        [key: string]: string;
+    };
+    /**
+     * Entered By
+     */
+    entered_by: string | null;
+    /**
+     * Entered By Name
+     */
+    entered_by_name: string | null;
+    /**
+     * Entry Date
+     */
+    entry_date: string;
+    /**
+     * Form
+     */
+    form: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Job
+     */
+    job: string | null;
+    /**
+     * Parent Entry
+     */
+    parent_entry: string | null;
+    /**
+     * Staff
+     */
+    staff: string | null;
+    /**
+     * Staff Name
+     */
+    staff_name: string | null;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * EntryUpdateIn
+ *
+ * PATCH body; omission leaves a field alone (exclude_unset).
+ *
+ * ``data``, when sent, replaces the entry's data whole — the entry form
+ * always submits every field, so this is a full replacement, not a
+ * per-key partial merge.
+ *
+ * Fable: defaults below are placeholders never read by handlers (they parse
+ * with ``model_dump(exclude_unset=True)``), same convention as
+ * ``StaffUpdateIn``.
+ */
+export type EntryUpdateIn = {
+    /**
+     * Data
+     */
+    data?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Entry Date
+     */
+    entry_date?: string;
+    /**
+     * Job
+     */
+    job?: string | null;
+    /**
+     * Parent Entry
+     */
+    parent_entry?: string | null;
+    /**
+     * Staff
+     */
+    staff?: string | null;
+};
+
+/**
  * FetchAllJobsResponse
  *
  * Wire contract for FetchAllJobsResponse.
@@ -2823,6 +3088,175 @@ export type ForecastMonthOut = {
      * Xero Sales
      */
     xero_sales: number;
+};
+
+/**
+ * FormCreateIn
+ *
+ * POST body. Unknown keys are a 422, not a silent drop.
+ */
+export type FormCreateIn = {
+    /**
+     * Category
+     */
+    category: 'safety' | 'training' | 'incident' | 'meeting' | 'register';
+    /**
+     * Document Number
+     */
+    document_number?: string | null;
+    /**
+     * Document Type
+     */
+    document_type: 'form' | 'register';
+    form_schema: FormSchemaSpec;
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Title
+     */
+    title: string;
+};
+
+/**
+ * FormFieldSchema
+ *
+ * One field of a form's entry schema.
+ *
+ * options only on select; source_form + display_key exactly on entry_ref —
+ * an Asset Register is just another form, and a maintenance record's asset
+ * field is an entry_ref into it.
+ */
+export type FormFieldSchema = {
+    /**
+     * Display Key
+     */
+    display_key?: string | null;
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Options
+     */
+    options?: Array<string> | null;
+    /**
+     * Required
+     */
+    required?: boolean;
+    /**
+     * Source Form
+     */
+    source_form?: string | null;
+    /**
+     * Type
+     */
+    type: 'text' | 'textarea' | 'date' | 'boolean' | 'number' | 'select' | 'staff' | 'entry_ref';
+};
+
+/**
+ * FormOut
+ *
+ * One form, list row and detail alike (the edit dialog reads the row).
+ */
+export type FormOut = {
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Document Number
+     */
+    document_number: string | null;
+    /**
+     * Document Type
+     */
+    document_type: string;
+    /**
+     * Entry Count
+     */
+    entry_count: number;
+    /**
+     * Form Schema
+     */
+    form_schema: {
+        [key: string]: unknown;
+    };
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Tags
+     */
+    tags: Array<string>;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * FormSchemaSpec
+ *
+ * A form's whole entry schema; keys must be unique.
+ */
+export type FormSchemaSpec = {
+    /**
+     * Fields
+     */
+    fields: Array<FormFieldSchema>;
+};
+
+/**
+ * FormUpdateIn
+ *
+ * PATCH body; omission leaves a field alone (exclude_unset).
+ *
+ * Fable: defaults below are placeholders never read by handlers (they parse
+ * with ``model_dump(exclude_unset=True)``); ``FormSchemaSpec(fields=[])`` is
+ * a fresh instance per default-factory call, not a shared mutable default,
+ * matching the same-file convention on ``EntryUpdateIn``.
+ */
+export type FormUpdateIn = {
+    /**
+     * Category
+     */
+    category?: 'safety' | 'training' | 'incident' | 'meeting' | 'register';
+    /**
+     * Document Number
+     */
+    document_number?: string | null;
+    form_schema?: FormSchemaSpec;
+    /**
+     * Status
+     */
+    status?: 'active' | 'archived';
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Title
+     */
+    title?: string;
 };
 
 /**
@@ -5988,6 +6422,34 @@ export type PaginatedContactMethodList = {
      * Results
      */
     results: Array<ContactMethodOut>;
+    /**
+     * Total Pages
+     */
+    total_pages: number;
+};
+
+/**
+ * PaginatedEntryList
+ *
+ * Wire contract for a paginated list of form entries.
+ */
+export type PaginatedEntryList = {
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Page
+     */
+    page: number;
+    /**
+     * Page Size
+     */
+    page_size: number;
+    /**
+     * Results
+     */
+    results: Array<EntryOut>;
     /**
      * Total Pages
      */
@@ -9607,6 +10069,22 @@ export type StaffMetricsOut = {
      * Total Revenue
      */
     total_revenue: number;
+};
+
+/**
+ * StaffOptionOut
+ *
+ * A staff member as the entry form's staff picker draws it, and nothing more.
+ */
+export type StaffOptionOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
 };
 
 /**
@@ -15679,6 +16157,326 @@ export type PeopleContactMethodsPartialUpdateResponses = {
 };
 
 export type PeopleContactMethodsPartialUpdateResponse = PeopleContactMethodsPartialUpdateResponses[keyof PeopleContactMethodsPartialUpdateResponses];
+
+export type ProcessCategoriesRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/process/categories/';
+};
+
+export type ProcessCategoriesRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: CategoriesOut;
+};
+
+export type ProcessCategoriesRetrieveResponse = ProcessCategoriesRetrieveResponses[keyof ProcessCategoriesRetrieveResponses];
+
+export type ProcessEntriesListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Parent
+         */
+        parent?: string | null;
+        /**
+         * Staff
+         */
+        staff?: string | null;
+        /**
+         * Job
+         */
+        job?: string | null;
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number | null;
+    };
+    url: '/api/process/entries/';
+};
+
+export type ProcessEntriesListResponses = {
+    /**
+     * OK
+     */
+    200: PaginatedEntryList;
+};
+
+export type ProcessEntriesListResponse = ProcessEntriesListResponses[keyof ProcessEntriesListResponses];
+
+export type ProcessEntriesDestroyData = {
+    body?: never;
+    path: {
+        /**
+         * Entry Id
+         */
+        entry_id: string;
+    };
+    query?: never;
+    url: '/api/process/entries/{entry_id}/';
+};
+
+export type ProcessEntriesDestroyResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type ProcessEntriesDestroyResponse = ProcessEntriesDestroyResponses[keyof ProcessEntriesDestroyResponses];
+
+export type ProcessEntriesPartialUpdateData = {
+    body: EntryUpdateIn;
+    path: {
+        /**
+         * Entry Id
+         */
+        entry_id: string;
+    };
+    query?: never;
+    url: '/api/process/entries/{entry_id}/';
+};
+
+export type ProcessEntriesPartialUpdateResponses = {
+    /**
+     * OK
+     */
+    200: EntryOut;
+};
+
+export type ProcessEntriesPartialUpdateResponse = ProcessEntriesPartialUpdateResponses[keyof ProcessEntriesPartialUpdateResponses];
+
+export type ProcessEntriesHistoryListData = {
+    body?: never;
+    path: {
+        /**
+         * Entry Id
+         */
+        entry_id: string;
+    };
+    query?: never;
+    url: '/api/process/entries/{entry_id}/history/';
+};
+
+export type ProcessEntriesHistoryListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<EntryEventOut>;
+};
+
+export type ProcessEntriesHistoryListResponse = ProcessEntriesHistoryListResponses[keyof ProcessEntriesHistoryListResponses];
+
+export type ProcessFormsListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Category
+         */
+        category?: 'safety' | 'training' | 'incident' | 'meeting' | 'register' | null;
+        /**
+         * Q
+         */
+        q?: string;
+        /**
+         * Status
+         */
+        status?: 'active' | 'archived' | null;
+    };
+    url: '/api/process/forms/';
+};
+
+export type ProcessFormsListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<FormOut>;
+};
+
+export type ProcessFormsListResponse = ProcessFormsListResponses[keyof ProcessFormsListResponses];
+
+export type ProcessFormsCreateData = {
+    body: FormCreateIn;
+    path?: never;
+    query?: never;
+    url: '/api/process/forms/';
+};
+
+export type ProcessFormsCreateResponses = {
+    /**
+     * Created
+     */
+    201: FormOut;
+};
+
+export type ProcessFormsCreateResponse = ProcessFormsCreateResponses[keyof ProcessFormsCreateResponses];
+
+export type ProcessFormsRetrieveData = {
+    body?: never;
+    path: {
+        /**
+         * Form Id
+         */
+        form_id: string;
+    };
+    query?: never;
+    url: '/api/process/forms/{form_id}/';
+};
+
+export type ProcessFormsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: FormOut;
+};
+
+export type ProcessFormsRetrieveResponse = ProcessFormsRetrieveResponses[keyof ProcessFormsRetrieveResponses];
+
+export type ProcessFormsPartialUpdateData = {
+    body: FormUpdateIn;
+    path: {
+        /**
+         * Form Id
+         */
+        form_id: string;
+    };
+    query?: never;
+    url: '/api/process/forms/{form_id}/';
+};
+
+export type ProcessFormsPartialUpdateResponses = {
+    /**
+     * OK
+     */
+    200: FormOut;
+};
+
+export type ProcessFormsPartialUpdateResponse = ProcessFormsPartialUpdateResponses[keyof ProcessFormsPartialUpdateResponses];
+
+export type ProcessFormsAcknowledgeCreateData = {
+    body: AcknowledgeIn;
+    path: {
+        /**
+         * Form Id
+         */
+        form_id: string;
+    };
+    query?: never;
+    url: '/api/process/forms/{form_id}/acknowledge/';
+};
+
+export type ProcessFormsAcknowledgeCreateResponses = {
+    /**
+     * Created
+     */
+    201: AcknowledgementOut;
+};
+
+export type ProcessFormsAcknowledgeCreateResponse = ProcessFormsAcknowledgeCreateResponses[keyof ProcessFormsAcknowledgeCreateResponses];
+
+export type ProcessFormsAcknowledgementsListData = {
+    body?: never;
+    path: {
+        /**
+         * Form Id
+         */
+        form_id: string;
+    };
+    query?: never;
+    url: '/api/process/forms/{form_id}/acknowledgements/';
+};
+
+export type ProcessFormsAcknowledgementsListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<AcknowledgementOut>;
+};
+
+export type ProcessFormsAcknowledgementsListResponse = ProcessFormsAcknowledgementsListResponses[keyof ProcessFormsAcknowledgementsListResponses];
+
+export type ProcessFormsEntriesListData = {
+    body?: never;
+    path: {
+        /**
+         * Form Id
+         */
+        form_id: string;
+    };
+    query?: {
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number | null;
+    };
+    url: '/api/process/forms/{form_id}/entries/';
+};
+
+export type ProcessFormsEntriesListResponses = {
+    /**
+     * OK
+     */
+    200: PaginatedEntryList;
+};
+
+export type ProcessFormsEntriesListResponse = ProcessFormsEntriesListResponses[keyof ProcessFormsEntriesListResponses];
+
+export type ProcessFormsEntriesCreateData = {
+    body: EntryCreateIn;
+    path: {
+        /**
+         * Form Id
+         */
+        form_id: string;
+    };
+    query?: never;
+    url: '/api/process/forms/{form_id}/entries/';
+};
+
+export type ProcessFormsEntriesCreateResponses = {
+    /**
+     * Created
+     */
+    201: EntryOut;
+};
+
+export type ProcessFormsEntriesCreateResponse = ProcessFormsEntriesCreateResponses[keyof ProcessFormsEntriesCreateResponses];
+
+export type ProcessStaffOptionsListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/process/staff-options/';
+};
+
+export type ProcessStaffOptionsListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<StaffOptionOut>;
+};
+
+export type ProcessStaffOptionsListResponse = ProcessStaffOptionsListResponses[keyof ProcessStaffOptionsListResponses];
 
 export type PurchasingAllJobsRetrieveData = {
     body?: never;

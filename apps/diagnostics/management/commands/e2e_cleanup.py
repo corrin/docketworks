@@ -40,6 +40,7 @@ from apps.core.test_data import (
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.crm.services.phone_call_service import delete_local_recording
 from apps.job.models import Job, QuoteSpreadsheet
+from apps.process.models import Form, FormEntry, Procedure
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 from apps.xero.contacts import archive_contacts_in_xero
 from apps.xero.operator_guards import assert_not_production_target, assert_xero_writes_enabled
@@ -175,6 +176,16 @@ class Command(BaseCommand):
             "provider_recording_id",
         )
 
+        # ProcessEvent CASCADEs from both form and form_entry, so it needs no
+        # queryset of its own here. Acknowledgement CASCADEs from form (and,
+        # slice 2, procedure) the same way.
+        test_form_entries = FormEntry.objects.filter(form__title__startswith=TEST_DATA_PREFIX)
+        test_forms = Form.objects.filter(title__startswith=TEST_DATA_PREFIX)
+        test_procedures = Procedure.objects.filter(title__startswith=TEST_DATA_PREFIX)
+        self._report_queryset("E2E process form entries", test_form_entries, "form__title")
+        self._report_queryset("E2E process forms", test_forms, "title")
+        self._report_queryset("E2E process procedures", test_procedures, "title")
+
         total = sum(
             queryset.count()
             for queryset in (
@@ -186,6 +197,9 @@ class Command(BaseCommand):
                 linked_quotes,
                 linked_pos,
                 e2e_calls,
+                test_form_entries,
+                test_forms,
+                test_procedures,
             )
         )
 
@@ -237,6 +251,10 @@ class Command(BaseCommand):
             )
             self._delete_queryset("Underlying test person records", orphaned_test_people)
             self._delete_queryset("E2E companies", deletable_companies)
+
+            self._delete_queryset("E2E process form entries", test_form_entries)
+            self._delete_queryset("E2E process forms", test_forms)
+            self._delete_queryset("E2E process procedures", test_procedures)
 
         # After the deletes so the sequences reflect the final table state.
         self.stdout.write("\nSyncing sequences...")

@@ -27,6 +27,11 @@ DUMP="$(mktemp --suffix=.dump)"
 trap 'rm -f "$DUMP"' EXIT
 
 echo "==> Dumping v1 data from $V1_DB"
+# process/0002 dropped HistoricalForm, HistoricalFormEntry and HistoricalProcedure
+# with simple-history's removal from the process app; those tables do not exist
+# in v2, so a --single-transaction --exit-on-error restore aborts on the first
+# one pg_restore tries to COPY into. Their v1 rows do not migrate (design doc
+# ruling) — the wildcard mirrors the celery exclusions above.
 pg_dump -Fc --data-only "$@" "$V1_DB" \
   --exclude-table=django_migrations \
   --exclude-table='django_celery_beat_*' \
@@ -36,6 +41,7 @@ pg_dump -Fc --data-only "$@" "$V1_DB" \
   --exclude-table=django_content_type \
   --exclude-table=auth_permission \
   --exclude-table=django_site \
+  --exclude-table='process_historical*' \
   --file="$DUMP"
 
 echo "==> Clearing migration-seeded rows (v1's dump supplies them)"
@@ -147,6 +153,23 @@ DB_NAME="$V2_DB" uv run python manage.py migrate core 0003 --no-input
 # archive copy was skipped.
 DB_NAME="$V2_DB" uv run python manage.py migrate crm 0002 --no-input
 DB_NAME="$V2_DB" uv run python manage.py migrate crm 0003 --no-input
+# process/0007 backfills FormEntry.updated_at (0006 makes the column
+# nullable so pg_restore's COPY, which supplies no value for a column v1's
+# table never had, does not violate NOT NULL). This pair must run BEFORE the
+# process 0002/0003 rewind below: that rewind reverses every process
+# migration after 0003, including 0006's null=True, and reversing 0006 while
+# a restored row still has a NULL updated_at would violate the column's own
+# NOT NULL constraint. Running the backfill first empties that NULL set, so
+# the later rewind's reversal of 0006 (and the final catch-all's reapply of
+# it) both succeed. Reverse is a no-op, so replaying it here is the same
+# tested code against the rows that now exist.
+DB_NAME="$V2_DB" uv run python manage.py migrate process 0006 --no-input
+DB_NAME="$V2_DB" uv run python manage.py migrate process 0007 --no-input
+# process/0003 derives each document's stored category from its v1 tags. The
+# rows it fixes arrive with the restore; its reverse is a no-op, so replaying
+# it here is the same tested code against the rows that now exist.
+DB_NAME="$V2_DB" uv run python manage.py migrate process 0002 --no-input
+DB_NAME="$V2_DB" uv run python manage.py migrate process 0003 --no-input
 
 echo "==> NOTE: formerly-encrypted credential columns"
 cat <<'NOTE'
@@ -214,5 +237,18 @@ echo "    every sequence verified at or above its table max"
 
 echo "==> VACUUM ANALYZE"
 psql "$@" -d "$V2_DB" -qc "VACUUM ANALYZE"
+
+echo "==> Reapplying every app to head"
+# Each block above unapplies one app to the pre-rename schema and reapplies
+# only as far as the migration the restore needed re-run — accounts stops at
+# 0005 and process stops at 0003 — because that is the exact migration whose
+# tested code has to run against the now-present rows. Neither block goes on
+# to reapply that app's later, purely-schema migrations (accounts 0006-0008;
+# process 0004 ProcessEvent, 0005 Acknowledgement), so accounts and process
+# are left short of head once their per-app blocks finish. A plain `migrate`
+# with no app argument brings every app forward to head in one pass, so a
+# script written when an app's head was lower can never strand a migration
+# added after it — this line needs no edit when the next migration lands.
+DB_NAME="$V2_DB" uv run python manage.py migrate --no-input
 
 echo "Done. Now run scripts/ops/db_schema_diff.sh, row-count parity, and the test suites."

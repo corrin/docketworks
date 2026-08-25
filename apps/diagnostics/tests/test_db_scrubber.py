@@ -31,6 +31,7 @@ from apps.core.models import CompanyDefaults, ServiceAPIKey
 from apps.crm.tests.helpers import make_company
 from apps.diagnostics.services import db_scrubber
 from apps.diagnostics.services.staff_anonymization import create_staff_profile
+from apps.process.models import Acknowledgement, Form, FormEntry, Procedure, ProcessEvent
 from scripts.ops.verify_scrubbed_backup import PRIVATE_CONFIG_TABLES
 
 
@@ -115,6 +116,55 @@ class TestScrubConfigContracts:
         }
         unaccounted = {(model.__name__, name) for model, name in text_fields - scrubbed - not_pii}
         assert not unaccounted, f"CRM text fields with no scrub ruling: {sorted(unaccounted)}"
+
+    def test_every_process_text_field_has_a_scrub_ruling(self) -> None:
+        # A prose exemption with no gate is how the pay-slip leak happened
+        # (ADR 0050): every text/JSON field on a process model is either
+        # scrubbed or has a recorded reason it carries no PII.
+        #
+        # FormEntry.data is schema-driven, not a flat text field — its
+        # text/textarea VALUES are redacted per-key in
+        # _scrub_process_entries — but the field as a whole is still listed
+        # here as "scrubbed" so a future free-text FormEntry column cannot
+        # ride this pin unaccounted for.
+        scrubbed = {
+            (FormEntry, "data"),
+            (Procedure, "site_location"),
+            (ProcessEvent, "delta_before"),
+            (ProcessEvent, "delta_after"),
+            (ProcessEvent, "detail"),
+        }
+        not_pii = {
+            (Form, "document_type"),  # enum
+            (Form, "category"),  # enum
+            (Form, "title"),  # document/template title, not a person's name
+            (Form, "document_number"),  # internal numbering
+            (Form, "tags"),  # free-text category tags, not an identity
+            (Form, "status"),  # enum
+            (Form, "form_schema"),  # field key/label/type structure, not user data
+            (Procedure, "document_type"),  # enum
+            (Procedure, "category"),  # enum
+            (Procedure, "title"),  # document title, not a person's name
+            (Procedure, "document_number"),  # internal numbering
+            (Procedure, "tags"),  # free-text category tags, not an identity
+            (Procedure, "status"),  # enum
+            (Procedure, "google_doc_id"),  # Google Docs id, not PII
+            (Procedure, "google_doc_url"),  # Google Docs URL, not free text
+            (ProcessEvent, "event_type"),  # internal event-type key, not user text
+        }
+        # Acknowledgement carries no free text at all — staff/form/procedure
+        # are id-only FKs and acknowledged_at is a timestamp — but it is
+        # listed here anyway so a later free-text field on it cannot ride
+        # this pin unaccounted for either.
+        text_types = ("CharField", "TextField", "JSONField", "URLField")
+        text_fields = {
+            (model, field.name)
+            for model in (Acknowledgement, Form, FormEntry, Procedure, ProcessEvent)
+            for field in model._meta.fields
+            if field.get_internal_type() in text_types
+        }
+        unaccounted = {(model.__name__, name) for model, name in text_fields - scrubbed - not_pii}
+        assert not unaccounted, f"process text fields with no scrub ruling: {sorted(unaccounted)}"
 
 
 class TestStaffProfiles:
@@ -466,6 +516,255 @@ class TestScrubCompanies:
         assert shop.name == original_name
         shop_phone.refresh_from_db()
         assert shop_phone.value == "09 636 5131"
+
+
+def _incident_form(*, form_schema: dict[str, object]) -> Form:
+    return Form.objects.create(
+        document_type="form",
+        category=Form.Category.INCIDENT,
+        title="Incident Report",
+        form_schema=form_schema,
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("_scrub_the_test_database")
+class TestScrubProcedures:
+    def test_site_location_is_anonymised(self) -> None:
+        procedure = Procedure.objects.create(
+            document_type="procedure",
+            category=Procedure.Category.SAFETY,
+            title="Site Safety SOP",
+            site_location="12 Real Street, Penrose, Auckland",
+        )
+
+        db_scrubber._scrub_procedures()
+
+        procedure.refresh_from_db()
+        assert procedure.site_location != "12 Real Street, Penrose, Auckland"
+
+    def test_a_procedure_with_no_site_location_is_left_alone(self) -> None:
+        procedure = Procedure.objects.create(
+            document_type="reference", category=Procedure.Category.REFERENCE, title="Reference Doc"
+        )
+
+        db_scrubber._scrub_procedures()
+
+        procedure.refresh_from_db()
+        assert procedure.site_location is None
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("_scrub_the_test_database")
+class TestScrubProcessEntries:
+    def test_text_and_textarea_values_are_replaced_but_structured_values_survive(self) -> None:
+        form = _incident_form(
+            form_schema={
+                "fields": [
+                    {"key": "witness", "label": "Witness account", "type": "textarea"},
+                    {"key": "summary", "label": "Summary", "type": "text"},
+                    {
+                        "key": "severity",
+                        "label": "Severity",
+                        "type": "select",
+                        "options": ["low", "high"],
+                    },
+                    {"key": "occurred_on", "label": "Occurred on", "type": "date"},
+                ]
+            }
+        )
+        entry = FormEntry.objects.create(
+            form=form,
+            entry_date="2026-08-25",
+            data={
+                "witness": "Jane Smith saw the forklift tip over",
+                "summary": "Forklift incident, minor injury to Jane Smith",
+                "severity": "high",
+                "occurred_on": "2026-08-25",
+            },
+        )
+
+        db_scrubber._scrub_process_entries()
+
+        entry.refresh_from_db()
+        assert entry.data["witness"] == db_scrubber._TEXT_SCRUB_TOKEN
+        assert entry.data["summary"] == db_scrubber._TEXT_SCRUB_TOKEN
+        assert entry.data["severity"] == "high"
+        assert entry.data["occurred_on"] == "2026-08-25"
+
+    def test_an_unparseable_form_schema_wipes_the_entry_data_and_is_logged(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        form = _incident_form(form_schema={"not_fields": []})
+        entry = FormEntry.objects.create(
+            form=form, entry_date="2026-08-25", data={"anything": "Real witness name here"}
+        )
+
+        with caplog.at_level("WARNING"):
+            db_scrubber._scrub_process_entries()
+
+        entry.refresh_from_db()
+        assert entry.data == {}
+        assert "1 form entries whose form schema would not parse" in caplog.text
+
+    def test_an_entry_with_empty_data_is_left_alone(self) -> None:
+        form = _incident_form(
+            form_schema={"fields": [{"key": "witness", "label": "Witness", "type": "textarea"}]}
+        )
+        entry = FormEntry.objects.create(form=form, entry_date="2026-08-25", data={})
+
+        db_scrubber._scrub_process_entries()
+
+        entry.refresh_from_db()
+        assert entry.data == {}
+
+    def test_a_conforming_select_value_survives(self) -> None:
+        form = _incident_form(
+            form_schema={
+                "fields": [
+                    {
+                        "key": "severity",
+                        "label": "Severity",
+                        "type": "select",
+                        "options": ["low", "high"],
+                    }
+                ]
+            }
+        )
+        entry = FormEntry.objects.create(
+            form=form, entry_date="2026-08-25", data={"severity": "high"}
+        )
+
+        db_scrubber._scrub_process_entries()
+
+        entry.refresh_from_db()
+        assert entry.data["severity"] == "high"
+
+    def test_free_text_in_a_select_field_is_redacted(self) -> None:
+        # v1 accepted arbitrary JSON into FormEntry.data, so a restored row
+        # can hold free text under a key the CURRENT schema types as select —
+        # a value that is not one of the field's options is not a select
+        # value at all, so it must not survive the scrub unredacted.
+        form = _incident_form(
+            form_schema={
+                "fields": [
+                    {
+                        "key": "severity",
+                        "label": "Severity",
+                        "type": "select",
+                        "options": ["low", "high"],
+                    }
+                ]
+            }
+        )
+        entry = FormEntry.objects.create(
+            form=form,
+            entry_date="2026-08-25",
+            data={"severity": "Jane Smith saw the forklift tip over"},
+        )
+
+        db_scrubber._scrub_process_entries()
+
+        entry.refresh_from_db()
+        assert entry.data["severity"] == db_scrubber._TEXT_SCRUB_TOKEN
+
+    def test_a_key_absent_from_the_current_schema_is_redacted_not_kept(self) -> None:
+        # A key an older schema version declared, since dropped or retyped,
+        # is unaudited free text that would otherwise ride an unrelated
+        # field's type check straight past the scrub — keeping it is the
+        # unsafe default, so an unmatched key is redacted like free text,
+        # not passed through like a matched structural field.
+        form = _incident_form(
+            form_schema={
+                "fields": [
+                    {
+                        "key": "severity",
+                        "label": "Severity",
+                        "type": "select",
+                        "options": ["low", "high"],
+                    }
+                ]
+            }
+        )
+        entry = FormEntry.objects.create(
+            form=form,
+            entry_date="2026-08-25",
+            data={"severity": "high", "old_witness_notes": "Jane Smith saw the forklift tip over"},
+        )
+
+        db_scrubber._scrub_process_entries()
+
+        entry.refresh_from_db()
+        assert entry.data["severity"] == "high"
+        assert entry.data["old_witness_notes"] == db_scrubber._TEXT_SCRUB_TOKEN
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("_scrub_the_test_database")
+class TestScrubProcessEvents:
+    def test_deltas_are_nulled_and_changed_values_are_replaced(self, office_staff: Staff) -> None:
+        form = _incident_form(
+            form_schema={"fields": [{"key": "witness", "label": "Witness", "type": "textarea"}]}
+        )
+        entry = FormEntry.objects.create(form=form, entry_date="2026-08-25", data={})
+        event = ProcessEvent.objects.create(
+            form=form,
+            form_entry=entry,
+            staff=office_staff,
+            event_type="entry_created",
+            delta_before={"witness": ""},
+            delta_after={"witness": "Jane Smith saw the forklift tip over"},
+            detail={
+                "changes": [
+                    {
+                        "field_name": "witness",
+                        "old_value": "",
+                        "new_value": "Jane Smith saw the forklift tip over",
+                    }
+                ]
+            },
+        )
+
+        db_scrubber._scrub_process_events()
+
+        event.refresh_from_db()
+        assert event.delta_before is None
+        assert event.delta_after is None
+        change = event.detail["changes"][0]
+        assert change["field_name"] == "witness"
+        assert change["old_value"] == db_scrubber._TEXT_SCRUB_TOKEN
+        assert change["new_value"] == db_scrubber._TEXT_SCRUB_TOKEN
+
+    def test_an_event_with_no_changes_is_left_alone(self, office_staff: Staff) -> None:
+        form = _incident_form(form_schema={"fields": []})
+        event = ProcessEvent.objects.create(
+            form=form,
+            staff=office_staff,
+            event_type="form_created",
+        )
+
+        db_scrubber._scrub_process_events()
+
+        event.refresh_from_db()
+        assert event.delta_before is None
+        assert event.delta_after is None
+        assert event.detail == {}
+
+    def test_a_malformed_changes_value_is_replaced_with_an_empty_list(
+        self, office_staff: Staff
+    ) -> None:
+        # A non-list `changes` cannot be redacted field-by-field, and passing
+        # it through unredacted would ship whatever content it holds in a
+        # "scrubbed" dump — scrub-by-default collapses it instead.
+        form = _incident_form(form_schema={"fields": []})
+        event = ProcessEvent.objects.create(
+            form=form, staff=office_staff, event_type="form_updated", detail={"changes": "junk"}
+        )
+
+        db_scrubber._scrub_process_events()
+
+        event.refresh_from_db()
+        assert event.detail == {"changes": []}
 
 
 @pytest.mark.django_db

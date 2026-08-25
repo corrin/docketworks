@@ -30,12 +30,11 @@ services/phone_call_service.py, EXACT-URL PIN).
 """
 
 import mimetypes
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import date
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, TypedDict, cast
 from uuid import UUID
 
-from django.core.paginator import EmptyPage, Paginator
 from django.db.models import (
     Case,
     Count,
@@ -58,13 +57,14 @@ from django.http import (
 from django.shortcuts import get_object_or_404
 from django.utils.cache import get_conditional_response
 from ninja import Query, Router
-from ninja.errors import AuthorizationError, HttpError
+from ninja.errors import AuthorizationError
 from ninja.responses import Status
 
 from apps.accounts.models import Staff
 from apps.company.models import ContactMethod
 from apps.core.auth import CookieJWTAuth
 from apps.core.errors import persist_app_error
+from apps.core.pagination import paginate
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
 from apps.crm.schemas import (
     OperationErrorOut,
@@ -96,10 +96,6 @@ if TYPE_CHECKING:
     from django_stubs_ext import WithAnnotations
 
 router = Router(tags=["CRM"], auth=CookieJWTAuth())
-
-# Pagination defaults to 50 rows and caps ``?page_size=`` at 100.
-DEFAULT_PAGE_SIZE = 50
-MAX_PAGE_SIZE = 100
 
 FieldErrors = dict[str, list[str]]
 
@@ -291,17 +287,24 @@ def _filtered_call_queryset(
     return _collapse_ring_attempts(_apply_search_filter(queryset, filters.q))
 
 
-def _effective_page_size(page_size: int | None) -> int:
-    if page_size is None or page_size < 1:
-        return DEFAULT_PAGE_SIZE
-    return min(page_size, MAX_PAGE_SIZE)
-
-
-def _recordings_by_call_id(calls: list[PhoneCallRecord]) -> dict[UUID, PhoneCallRecording]:
+def _recordings_by_call_id(calls: Sequence[PhoneCallRecord]) -> dict[UUID, PhoneCallRecording]:
     return {
         recording.call_id: recording
         for recording in PhoneCallRecording.objects.filter(call_id__in=[call.id for call in calls])
     }
+
+
+def _attempt_count(call: PhoneCallRecord) -> int:
+    """Read the ``attempt_count`` annotation ``paginate()`` erased the type of.
+
+    ``paginate()``'s generic ``PageData[M]`` erases ``WithAnnotations`` typing
+    the same way ``CompanyQuerySet`` does (see
+    ``company_rest_service.annotated_with_phone``), so this validates the
+    annotation actually exists on the row before casting back to it.
+    """
+    if "attempt_count" not in call.__dict__:
+        raise RuntimeError("caller must annotate the queryset with attempt_count")
+    return cast("WithAnnotations[PhoneCallRecord, _CallListAnnotations]", call).attempt_count
 
 
 @router.get(
@@ -316,27 +319,21 @@ def list_phone_calls(
 ) -> PaginatedPhoneCallRecordsOut:
     """Return the filtered call list in the standard pagination envelope."""
     _require_office_staff(request)
-    page_size = _effective_page_size(filters.page_size)
-    paginator = Paginator(_filtered_call_queryset(filters), page_size)
-    if filters.page < 1:
-        raise HttpError(404, "Invalid page.")
-    try:
-        page_obj = paginator.page(filters.page)
-    except EmptyPage as exc:
-        raise HttpError(404, "Invalid page.") from exc
-    calls = list(page_obj.object_list)
-    recordings = _recordings_by_call_id(calls)
+    page_data = paginate(
+        _filtered_call_queryset(filters), page=filters.page, page_size=filters.page_size
+    )
+    recordings = _recordings_by_call_id(page_data.rows)
     return PaginatedPhoneCallRecordsOut(
         results=[
             PhoneCallRecordOut.from_call(
-                call, recordings.get(call.id), attempt_count=call.attempt_count
+                call, recordings.get(call.id), attempt_count=_attempt_count(call)
             )
-            for call in calls
+            for call in page_data.rows
         ],
-        count=paginator.count,
-        page=page_obj.number,
-        page_size=page_size,
-        total_pages=paginator.num_pages,
+        count=page_data.count,
+        page=page_data.page,
+        page_size=page_data.page_size,
+        total_pages=page_data.total_pages,
     )
 
 

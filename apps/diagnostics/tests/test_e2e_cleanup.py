@@ -18,6 +18,7 @@ from apps.crm.services.phone_call_service import store_recording_bytes
 from apps.crm.tests.helpers import make_call, make_recording
 from apps.diagnostics.management.commands.e2e_cleanup import Command, active_e2e_contacts
 from apps.job.models import Job, QuoteSpreadsheet
+from apps.process.models import Acknowledgement, Form, FormEntry
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 from apps.quoting.models import SupplierPriceList
 from apps.xero.contacts import ArchiveOutcome
@@ -416,3 +417,29 @@ def test_a_failed_cleanup_keeps_the_phone_call_row(
 
     assert PhoneCallRecord.objects.filter(pk=call.pk).exists()
     assert not stored_file.exists()
+
+
+def test_sweeps_test_prefixed_process_documents(office_staff: Staff) -> None:
+    """v1's scroll spec leaked one permanent form per run into the incident
+    list; the sweep is what makes the ported spec residue-free."""
+    form = Form.objects.create(
+        document_type="form",
+        category=Form.Category.INCIDENT,
+        title="[TEST] Tall Incident Form",
+        form_schema={"fields": []},
+    )
+    FormEntry.objects.create(form=form, entry_date="2026-08-25", data={})
+    # Acknowledgement has no queryset of its own in the command: it CASCADEs
+    # from form, so deleting the form above is expected to take it too.
+    acknowledgement = Acknowledgement.objects.create(staff=office_staff, form=form)
+    keeper = Form.objects.create(
+        document_type="form",
+        category=Form.Category.SAFETY,
+        title="Real form",
+        form_schema={"fields": []},
+    )
+    call_command("e2e_cleanup", "--confirm")
+    assert not Form.objects.filter(pk=form.pk).exists()
+    assert not FormEntry.objects.exists()
+    assert not Acknowledgement.objects.filter(pk=acknowledgement.pk).exists()
+    assert Form.objects.filter(pk=keeper.pk).exists()

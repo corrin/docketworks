@@ -145,3 +145,23 @@ describe('AppNavbar — the CRM menu', () => {
     expect(queryAutoId('AppNavbar-crm-menu')).toBeNull()
   })
 })
+
+describe('AppNavbar — the Forms menu', () => {
+  it('is visible to a workshop login, unlike the office-gated menus', async () => {
+    // process_forms_list and process_forms_retrieve use CookieJWTAuth, not
+    // OfficeStaffCookieJWTAuth — any staff can read forms to sign them, so
+    // this menu (unlike Reports and CRM above) must not be office-gated.
+    mockUser({ is_office_staff: false })
+    const { user } = renderWithProviders(<AppNavbar />)
+
+    await waitFor(() => expect(queryAutoId('AppNavbar-logout')).not.toBeNull())
+    await openMenu(user, 'AppNavbar-forms-menu')
+    await waitFor(() => {
+      expect(queryAutoId('AppNavbar-forms-safety')).not.toBeNull()
+      expect(queryAutoId('AppNavbar-forms-training')).not.toBeNull()
+      expect(queryAutoId('AppNavbar-forms-incident')).not.toBeNull()
+      expect(queryAutoId('AppNavbar-forms-meeting')).not.toBeNull()
+      expect(queryAutoId('AppNavbar-forms-register')).not.toBeNull()
+    })
+  })
+})

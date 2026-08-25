@@ -3,6 +3,33 @@
 import * as z from 'zod';
 
 /**
+ * AcknowledgeIn
+ *
+ * POST body for acknowledging a form: empty by design.
+ *
+ * ``staff`` is always ``request.user`` — self-only by construction — so
+ * the contract has no fields for a caller to fill in. ``extra="forbid"``
+ * still gives the endpoint a real body schema: a client-supplied
+ * ``{"staff": ...}`` goes through the same RequestValidationError
+ * machinery every other endpoint's unexpected-key check does, rather than
+ * a bespoke hand-rolled body guard.
+ */
+export const zAcknowledgeIn = z.record(z.string(), z.never());
+
+/**
+ * AcknowledgementOut
+ *
+ * One staff member's read receipt against a form (or, slice 2, a procedure).
+ */
+export const zAcknowledgementOut = z.object({
+    acknowledged_at: z.iso.datetime(),
+    description: z.string(),
+    id: z.uuid(),
+    staff: z.uuid(),
+    staff_name: z.string()
+});
+
+/**
  * AddressCandidate
  *
  * One structured candidate from the Google Address Validation API.
@@ -138,6 +165,26 @@ export const zAuthErrorOut = z.object({
  */
 export const zBuildId = z.object({
     build_id: z.string()
+});
+
+/**
+ * CategoryOut
+ *
+ * One selectable category (key/label pair) for a document picker.
+ */
+export const zCategoryOut = z.object({
+    key: z.string(),
+    label: z.string()
+});
+
+/**
+ * CategoriesOut
+ *
+ * The category pickers for forms/registers and procedures.
+ */
+export const zCategoriesOut = z.object({
+    forms: z.array(zCategoryOut),
+    procedures: z.array(zCategoryOut)
 });
 
 /**
@@ -1016,6 +1063,92 @@ export const zDuplicatePhonesResponse = z.object({
 });
 
 /**
+ * EntryCreateIn
+ *
+ * POST body for creating a form/register entry.
+ */
+export const zEntryCreateIn = z.object({
+    data: z.record(z.string(), z.unknown()),
+    entry_date: z.iso.date(),
+    job: z.uuid().nullish(),
+    parent_entry: z.uuid().nullish(),
+    staff: z.uuid().nullish()
+});
+
+/**
+ * EntryEventOut
+ *
+ * One audit event on a form entry, for the entry's history panel.
+ */
+export const zEntryEventOut = z.object({
+    changes: z.array(z.record(z.string(), z.string())),
+    description: z.string(),
+    event_type: z.string(),
+    id: z.uuid(),
+    staff_name: z.string(),
+    timestamp: z.iso.datetime()
+});
+
+/**
+ * EntryOut
+ *
+ * One form entry — the entry list row and the entry detail alike.
+ *
+ * ``display_data`` carries server-resolved labels for staff/entry_ref values
+ * (e.g. a staff UUID's display name, a referenced entry's display_key value)
+ * so the client renders a row with no follow-up join. It is a plain
+ * declared field, not a ``resolve_*`` staticmethod: computing it needs the
+ * form's schema plus, for entry_ref fields, the referenced entry, which a
+ * single-hop ``resolve_*(obj)`` cannot reach, so the endpoint (Task 8) must
+ * set ``entry.display_data`` on the ORM instance itself before
+ * serialisation.
+ *
+ * Fable: a ``resolve_*`` fallback such as ``getattr(obj, "display_data",
+ * {})`` was rejected — it would turn a missing enrichment pass into a
+ * silent empty dict instead of the loud ``AttributeError`` a plain field
+ * raises at serialisation time, and fail-early treats "the endpoint forgot
+ * to enrich this entry" as a bug to surface, not a value to default over.
+ */
+export const zEntryOut = z.object({
+    child_count: z.int(),
+    created_at: z.iso.datetime(),
+    data: z.record(z.string(), z.unknown()),
+    display_data: z.record(z.string(), z.string()),
+    entered_by: z.uuid().nullable(),
+    entered_by_name: z.string().nullable(),
+    entry_date: z.iso.date(),
+    form: z.uuid(),
+    id: z.uuid(),
+    is_active: z.boolean(),
+    job: z.uuid().nullable(),
+    parent_entry: z.uuid().nullable(),
+    staff: z.uuid().nullable(),
+    staff_name: z.string().nullable(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * EntryUpdateIn
+ *
+ * PATCH body; omission leaves a field alone (exclude_unset).
+ *
+ * ``data``, when sent, replaces the entry's data whole — the entry form
+ * always submits every field, so this is a full replacement, not a
+ * per-key partial merge.
+ *
+ * Fable: defaults below are placeholders never read by handlers (they parse
+ * with ``model_dump(exclude_unset=True)``), same convention as
+ * ``StaffUpdateIn``.
+ */
+export const zEntryUpdateIn = z.object({
+    data: z.record(z.string(), z.unknown()).optional(),
+    entry_date: z.iso.date().optional(),
+    job: z.uuid().nullish(),
+    parent_entry: z.uuid().nullish(),
+    staff: z.uuid().nullish()
+});
+
+/**
  * FetchStatusValuesResponse
  *
  * Wire contract for FetchStatusValuesResponse.
@@ -1080,6 +1213,107 @@ export const zForecastMonthOut = z.object({
     variance: z.number(),
     variance_pct: z.number(),
     xero_sales: z.number()
+});
+
+/**
+ * FormFieldSchema
+ *
+ * One field of a form's entry schema.
+ *
+ * options only on select; source_form + display_key exactly on entry_ref —
+ * an Asset Register is just another form, and a maintenance record's asset
+ * field is an entry_ref into it.
+ */
+export const zFormFieldSchema = z.object({
+    display_key: z.string().min(1).nullish(),
+    key: z.string().min(1),
+    label: z.string().min(1),
+    options: z.array(z.string().min(1)).nullish(),
+    required: z.boolean().optional().default(false),
+    source_form: z.uuid().nullish(),
+    type: z.enum([
+        'text',
+        'textarea',
+        'date',
+        'boolean',
+        'number',
+        'select',
+        'staff',
+        'entry_ref'
+    ])
+});
+
+/**
+ * FormOut
+ *
+ * One form, list row and detail alike (the edit dialog reads the row).
+ */
+export const zFormOut = z.object({
+    category: z.string(),
+    created_at: z.iso.datetime(),
+    document_number: z.string().nullable(),
+    document_type: z.string(),
+    entry_count: z.int(),
+    form_schema: z.record(z.string(), z.unknown()),
+    id: z.uuid(),
+    status: z.string(),
+    tags: z.array(z.string()),
+    title: z.string(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * FormSchemaSpec
+ *
+ * A form's whole entry schema; keys must be unique.
+ */
+export const zFormSchemaSpec = z.object({
+    fields: z.array(zFormFieldSchema)
+});
+
+/**
+ * FormCreateIn
+ *
+ * POST body. Unknown keys are a 422, not a silent drop.
+ */
+export const zFormCreateIn = z.object({
+    category: z.enum([
+        'safety',
+        'training',
+        'incident',
+        'meeting',
+        'register'
+    ]),
+    document_number: z.string().min(1).nullish(),
+    document_type: z.enum(['form', 'register']),
+    form_schema: zFormSchemaSpec,
+    tags: z.array(z.string().min(1)).optional(),
+    title: z.string().min(1)
+});
+
+/**
+ * FormUpdateIn
+ *
+ * PATCH body; omission leaves a field alone (exclude_unset).
+ *
+ * Fable: defaults below are placeholders never read by handlers (they parse
+ * with ``model_dump(exclude_unset=True)``); ``FormSchemaSpec(fields=[])`` is
+ * a fresh instance per default-factory call, not a shared mutable default,
+ * matching the same-file convention on ``EntryUpdateIn``.
+ */
+export const zFormUpdateIn = z.object({
+    category: z.enum([
+        'safety',
+        'training',
+        'incident',
+        'meeting',
+        'register'
+    ]).optional(),
+    document_number: z.string().min(1).nullish(),
+    form_schema: zFormSchemaSpec.optional(),
+    status: z.enum(['active', 'archived']).optional(),
+    tags: z.array(z.string().min(1)).optional(),
+    title: z.string().min(1).optional()
 });
 
 /**
@@ -2497,6 +2731,19 @@ export const zPaginatedContactMethodList = z.object({
     page: z.int(),
     page_size: z.int(),
     results: z.array(zContactMethodOut),
+    total_pages: z.int()
+});
+
+/**
+ * PaginatedEntryList
+ *
+ * Wire contract for a paginated list of form entries.
+ */
+export const zPaginatedEntryList = z.object({
+    count: z.int(),
+    page: z.int(),
+    page_size: z.int(),
+    results: z.array(zEntryOut),
     total_pages: z.int()
 });
 
@@ -4204,6 +4451,16 @@ export const zStaffMetricsOut = z.object({
     total_cost: z.number(),
     total_hours: z.number(),
     total_revenue: z.number()
+});
+
+/**
+ * StaffOptionOut
+ *
+ * A staff member as the entry form's staff picker draws it, and nothing more.
+ */
+export const zStaffOptionOut = z.object({
+    id: z.uuid(),
+    name: z.string()
 });
 
 /**
@@ -6984,6 +7241,155 @@ export const zPeopleContactMethodsPartialUpdatePath = z.object({
  * OK
  */
 export const zPeopleContactMethodsPartialUpdateResponse = zContactMethodOut;
+
+/**
+ * OK
+ */
+export const zProcessCategoriesRetrieveResponse = zCategoriesOut;
+
+export const zProcessEntriesListQuery = z.object({
+    parent: z.uuid().nullish(),
+    staff: z.uuid().nullish(),
+    job: z.uuid().nullish(),
+    page: z.int().optional().default(1),
+    page_size: z.int().nullish()
+});
+
+/**
+ * OK
+ */
+export const zProcessEntriesListResponse = zPaginatedEntryList;
+
+export const zProcessEntriesDestroyPath = z.object({
+    entry_id: z.uuid()
+});
+
+/**
+ * No Content
+ */
+export const zProcessEntriesDestroyResponse = z.void();
+
+export const zProcessEntriesPartialUpdateBody = zEntryUpdateIn;
+
+export const zProcessEntriesPartialUpdatePath = z.object({
+    entry_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zProcessEntriesPartialUpdateResponse = zEntryOut;
+
+export const zProcessEntriesHistoryListPath = z.object({
+    entry_id: z.uuid()
+});
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zProcessEntriesHistoryListResponse = z.array(zEntryEventOut);
+
+export const zProcessFormsListQuery = z.object({
+    category: z.enum([
+        'safety',
+        'training',
+        'incident',
+        'meeting',
+        'register'
+    ]).nullish(),
+    q: z.string().optional().default(''),
+    status: z.enum(['active', 'archived']).nullish()
+});
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zProcessFormsListResponse = z.array(zFormOut);
+
+export const zProcessFormsCreateBody = zFormCreateIn;
+
+/**
+ * Created
+ */
+export const zProcessFormsCreateResponse = zFormOut;
+
+export const zProcessFormsRetrievePath = z.object({
+    form_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zProcessFormsRetrieveResponse = zFormOut;
+
+export const zProcessFormsPartialUpdateBody = zFormUpdateIn;
+
+export const zProcessFormsPartialUpdatePath = z.object({
+    form_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zProcessFormsPartialUpdateResponse = zFormOut;
+
+export const zProcessFormsAcknowledgeCreateBody = zAcknowledgeIn;
+
+export const zProcessFormsAcknowledgeCreatePath = z.object({
+    form_id: z.uuid()
+});
+
+/**
+ * Created
+ */
+export const zProcessFormsAcknowledgeCreateResponse = zAcknowledgementOut;
+
+export const zProcessFormsAcknowledgementsListPath = z.object({
+    form_id: z.uuid()
+});
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zProcessFormsAcknowledgementsListResponse = z.array(zAcknowledgementOut);
+
+export const zProcessFormsEntriesListPath = z.object({
+    form_id: z.uuid()
+});
+
+export const zProcessFormsEntriesListQuery = z.object({
+    page: z.int().optional().default(1),
+    page_size: z.int().nullish()
+});
+
+/**
+ * OK
+ */
+export const zProcessFormsEntriesListResponse = zPaginatedEntryList;
+
+export const zProcessFormsEntriesCreateBody = zEntryCreateIn;
+
+export const zProcessFormsEntriesCreatePath = z.object({
+    form_id: z.uuid()
+});
+
+/**
+ * Created
+ */
+export const zProcessFormsEntriesCreateResponse = zEntryOut;
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zProcessStaffOptionsListResponse = z.array(zStaffOptionOut);
 
 export const zPurchasingAllJobsRetrieveQuery = z.object({
     q: z.string().optional().default('')

@@ -587,6 +587,17 @@ renamed:
   company_defaults_upload_logo_destroy: company_defaults_logo_destroy
   getPhoneProviderSettings: integration_settings_retrieve
   updatePhoneProviderSettings: integration_settings_partial_update
+  # v2 flattens entry mutations to a top-level /entries/{id}/ resource instead
+  # of nesting under /forms/{category}/{document_pk}/: an entry id is a
+  # globally unique UUID, and process_entries_list's parent_entry filter needs
+  # entries reachable across forms (a meeting entry lists action entries from
+  # a different form), so the URL no longer depends on the owning form.
+  process_forms_entries_partial_update: process_entries_partial_update
+  process_forms_entries_destroy: process_entries_destroy
+  # PUT became PATCH on the same resource; the shape of the change (partial
+  # update semantics) is the same rename pattern as the entry moves above.
+  process_forms_update: process_forms_partial_update
+  process_forms_entries_update: process_entries_partial_update
 introduced:
 # Specified by ADR 0007 and the payroll UI contract but never built in v1:
 # what Xero holds for a week, read live, beside what the timesheet recorded.
@@ -618,6 +629,22 @@ introduced:
 # no such screen, and its pickers were fed by whichever domain list the page
 # already loaded — which is how v2 briefly grew a third job-option schema.
 - job_jobs_options_list
+# v1's entry endpoints were nested one level under a single owning form and
+# carried no audit trail. v2 adds a flat, cross-form entry list — the same
+# resource an entry's parent_entry link already reaches across forms (a
+# meeting entry's action items) — and a per-entry history read backed by
+# ProcessEvent, which v1 had no equivalent model for.
+- process_entries_list
+- process_entries_history_list
+# The entry form's staff picker needs an any-staff staff list (any staff may
+# sign a form entry), but /api/timesheets/staff/ is SuperuserCookieJWTAuth-
+# gated — it exposes other staff members' pay data, which v1 had no
+# equivalent form-entry concept to need reading around.
+- process_staff_options_list
+# An append-only "I have read this" read receipt per staff and document
+# (owner addition 2026-08-25); v1 had no acknowledgement concept at all.
+- process_forms_acknowledge_create
+- process_forms_acknowledgements_list
 dropped:
   timesheets_payroll_pay_runs_create_create: >-
     Creating the Draft pay run is a step of posting, not an operator intent:
@@ -628,3 +655,9 @@ dropped:
     Mirror hygiene is the server's job, not a button: the posting preflight
     refreshes the mirror before judging the week, and the hourly sync keeps it
     roughly current for reads. The panel's postable-week banner is advisory.
+  process_forms_destroy: >-
+    Archive replaces delete: a form's audit trail cannot vanish with the form
+    (owner ruling, design doc 2026-08-25).
+  process_forms_fill_create: >-
+    Fill is entry-create: one operation (process_forms_entries_create) serves
+    both the entries page and the Fill dialog.

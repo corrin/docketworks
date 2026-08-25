@@ -18,7 +18,14 @@ from django.core.management.base import CommandError
 
 from apps.core.models import AppError, CompanyDefaults
 from apps.process.management.commands import import_dropbox_hs_documents as import_module
-from apps.process.management.commands.import_dropbox_hs_documents import FORM_SCHEMAS
+from apps.process.management.commands.import_dropbox_hs_documents import (
+    DOC_MAPPING,
+    FORM_SCHEMAS,
+)
+from apps.process.migrations._0003_helpers import (
+    form_category,
+    procedure_category,
+)
 from apps.process.models import Form, Procedure
 
 pytestmark = pytest.mark.django_db
@@ -155,6 +162,7 @@ class TestImport:
         form = Form.objects.get(document_number="108")
         assert form.document_type == "form"
         assert form.title == "Maintenance Request"
+        assert form.category == "safety"
         assert form.tags == ["safety", "inspection"]
         assert form.form_schema == FORM_SCHEMAS["108"]
         assert form.status == "active"
@@ -163,6 +171,7 @@ class TestImport:
         assert form.created_at == SOURCE_MTIME
         register = Form.objects.get(document_number="380")
         assert register.document_type == "register"
+        assert register.category == "register"
         assert register.form_schema == {}
         drive.files.assert_not_called()
 
@@ -177,6 +186,7 @@ class TestImport:
         assert "Imported 1 documents" in output
         procedure = Procedure.objects.get(document_number="100")
         assert procedure.document_type == "procedure"
+        assert procedure.category == "safety"
         assert procedure.tags == ["safety", "policy"]
         assert procedure.google_doc_id == "gdoc-1"
         assert procedure.google_doc_url == "https://docs.google.com/document/d/gdoc-1/edit"
@@ -222,3 +232,25 @@ class TestImport:
         assert "Imported 1 documents" in output
         assert Procedure.objects.count() == 1
         assert Procedure.objects.get(document_number="100").title == "Kept Policy"
+
+
+class TestDocMappingCategoriesMatchTheRule:
+    """DOC_MAPPING's category is hand-derived; this proves it agrees with the rule.
+
+    One implementation decides category (apps/process/migrations/
+    _0003_helpers.py); DOC_MAPPING only records what that rule produces for
+    each row's stored type+tags, so this is the check that the two never
+    drift apart.
+    """
+
+    def test_every_row_category_equals_the_rule_derivation(self) -> None:
+        for doc_number, (doc_type, category, tags) in DOC_MAPPING.items():
+            expected = (
+                form_category(doc_type, tags)
+                if doc_type in ("form", "register")
+                else procedure_category(doc_type, tags)
+            )
+            assert category == expected, (
+                f"Doc.{doc_number}: mapping says {category!r} but the rule "
+                f"derives {expected!r} from ({doc_type!r}, {tags!r})"
+            )

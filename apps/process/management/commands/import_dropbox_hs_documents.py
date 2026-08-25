@@ -28,102 +28,106 @@ from apps.core.errors import persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.process.models import Form, Procedure
 
-# Maps individual doc numbers to (document_type, tags). Which model a row
-# lands in follows from the type: form/register -> Form, otherwise Procedure.
-DOC_MAPPING: dict[str, tuple[str, list[str]]] = {
+# Maps individual doc numbers to (document_type, category, tags). Which model
+# a row lands in follows from the type: form/register -> Form, otherwise
+# Procedure. category is derived by hand from each row's type+tags via the
+# rules in apps/process/migrations/_0003_helpers.py — asserted to agree in
+# TestDocMappingCategoriesMatchTheRule (never re-derive at import time, so
+# the mapping and the backfill migration cannot silently diverge).
+DOC_MAPPING: dict[str, tuple[str, str, list[str]]] = {
     # Policies (procedures with policy tag)
-    "100": ("procedure", ["safety", "policy"]),
-    "101": ("procedure", ["safety", "policy"]),
+    "100": ("procedure", "safety", ["safety", "policy"]),
+    "101": ("procedure", "safety", ["safety", "policy"]),
     # Planning/reference docs
-    "102": ("reference", ["safety", "planning"]),
-    "103": ("reference", ["safety", "planning"]),
-    "105": ("reference", ["safety", "planning"]),
-    "106": ("reference", ["safety", "planning"]),
+    "102": ("reference", "reference", ["safety", "planning"]),
+    "103": ("reference", "reference", ["safety", "planning"]),
+    "105": ("reference", "reference", ["safety", "planning"]),
+    "106": ("reference", "reference", ["safety", "planning"]),
     # Inspection forms (templates)
-    "107": ("procedure", ["safety", "inspection"]),
-    "108": ("form", ["safety", "inspection"]),
-    "110": ("form", ["safety", "inspection"]),
-    "111": ("form", ["safety", "inspection"]),
-    "112": ("form", ["safety", "ppe"]),
-    "113": ("form", ["safety", "inspection"]),
-    "114": ("form", ["safety", "inspection"]),
-    "115": ("form", ["safety", "hazard-id"]),
-    "116": ("form", ["safety", "hazard-id"]),
-    "117": ("form", ["safety", "maintenance"]),
-    "118": ("procedure", ["safety", "lockout"]),
-    "119": ("form", ["safety", "inspection"]),
-    "120": ("reference", ["training", "induction"]),
+    "107": ("procedure", "safety", ["safety", "inspection"]),
+    "108": ("form", "safety", ["safety", "inspection"]),
+    "110": ("form", "safety", ["safety", "inspection"]),
+    "111": ("form", "safety", ["safety", "inspection"]),
+    "112": ("form", "safety", ["safety", "ppe"]),
+    "113": ("form", "safety", ["safety", "inspection"]),
+    "114": ("form", "safety", ["safety", "inspection"]),
+    "115": ("form", "safety", ["safety", "hazard-id"]),
+    "116": ("form", "safety", ["safety", "hazard-id"]),
+    "117": ("form", "safety", ["safety", "maintenance"]),
+    "118": ("procedure", "safety", ["safety", "lockout"]),
+    "119": ("form", "safety", ["safety", "inspection"]),
+    "120": ("reference", "reference", ["training", "induction"]),
     # Machine inspection (150-series) — a=procedure, b=checklist form
-    "151a": ("procedure", ["safety", "inspection", "machinery"]),
-    "151b": ("form", ["safety", "inspection", "machinery"]),
-    "153a": ("procedure", ["safety", "inspection", "machinery"]),
-    "153b": ("form", ["safety", "inspection", "machinery"]),
-    "168a": ("procedure", ["safety", "inspection", "machinery"]),
-    "168b": ("form", ["safety", "inspection", "machinery"]),
-    "172": ("procedure", ["safety", "inspection", "machinery"]),
+    "151a": ("procedure", "safety", ["safety", "inspection", "machinery"]),
+    "151b": ("form", "safety", ["safety", "inspection", "machinery"]),
+    "153a": ("procedure", "safety", ["safety", "inspection", "machinery"]),
+    "153b": ("form", "safety", ["safety", "inspection", "machinery"]),
+    "168a": ("procedure", "safety", ["safety", "inspection", "machinery"]),
+    "168b": ("form", "safety", ["safety", "inspection", "machinery"]),
+    "172": ("procedure", "safety", ["safety", "inspection", "machinery"]),
     # Incident management (200-series)
-    "202": ("form", ["safety", "incident"]),
-    "203": ("procedure", ["safety", "incident"]),
-    "204": ("procedure", ["safety", "incident"]),
-    "205": ("form", ["safety", "incident"]),
-    "206": ("reference", ["safety", "incident"]),
+    "202": ("form", "incident", ["safety", "incident"]),
+    "203": ("procedure", "safety", ["safety", "incident"]),
+    "204": ("procedure", "safety", ["safety", "incident"]),
+    "205": ("form", "incident", ["safety", "incident"]),
+    "206": ("reference", "reference", ["safety", "incident"]),
     # Training docs, 250 series
-    "250": ("reference", ["training"]),
-    "251": ("procedure", ["training", "induction"]),
-    "252": ("form", ["training", "refresher"]),
-    "253": ("form", ["training", "induction"]),
-    "255": ("form", ["training", "induction"]),
-    "256": ("form", ["training", "refresher", "machinery"]),
-    "257": ("form", ["training", "refresher", "handtool"]),
-    "258": ("form", ["training", "refresher", "lockout"]),
-    "259": ("form", ["training", "induction"]),
+    "250": ("reference", "reference", ["training"]),
+    "251": ("procedure", "training", ["training", "induction"]),
+    "252": ("form", "training", ["training", "refresher"]),
+    "253": ("form", "training", ["training", "induction"]),
+    "255": ("form", "training", ["training", "induction"]),
+    "256": ("form", "training", ["training", "refresher", "machinery"]),
+    "257": ("form", "training", ["training", "refresher", "handtool"]),
+    "258": ("form", "training", ["training", "refresher", "lockout"]),
+    "259": ("form", "training", ["training", "induction"]),
     # Hand tool SOPs (300-series)
-    "300": ("procedure", ["safety", "sop", "handtool"]),
-    "301": ("procedure", ["safety", "sop", "handtool"]),
-    "302": ("procedure", ["safety", "sop", "handtool"]),
-    "303": ("procedure", ["safety", "sop", "handtool"]),
-    "304": ("procedure", ["safety", "sop", "handtool"]),
-    "305": ("procedure", ["safety", "sop", "handtool"]),
-    "306": ("procedure", ["safety", "sop", "handtool"]),
-    "307": ("procedure", ["safety", "sop", "handtool"]),
-    "308": ("procedure", ["safety", "sop", "handtool"]),
-    "309": ("procedure", ["safety", "sop", "handtool"]),
-    "310": ("procedure", ["safety", "sop", "handtool"]),
+    "300": ("procedure", "safety", ["safety", "sop", "handtool"]),
+    "301": ("procedure", "safety", ["safety", "sop", "handtool"]),
+    "302": ("procedure", "safety", ["safety", "sop", "handtool"]),
+    "303": ("procedure", "safety", ["safety", "sop", "handtool"]),
+    "304": ("procedure", "safety", ["safety", "sop", "handtool"]),
+    "305": ("procedure", "safety", ["safety", "sop", "handtool"]),
+    "306": ("procedure", "safety", ["safety", "sop", "handtool"]),
+    "307": ("procedure", "safety", ["safety", "sop", "handtool"]),
+    "308": ("procedure", "safety", ["safety", "sop", "handtool"]),
+    "309": ("procedure", "safety", ["safety", "sop", "handtool"]),
+    "310": ("procedure", "safety", ["safety", "sop", "handtool"]),
     # Machinery SOPs (350-series)
-    "350": ("procedure", ["safety", "sop", "machinery"]),
-    "351": ("procedure", ["safety", "sop", "machinery"]),
-    "352": ("procedure", ["safety", "sop", "machinery"]),
-    "353": ("procedure", ["safety", "sop", "machinery"]),
-    "354": ("procedure", ["safety", "sop", "machinery"]),
-    "355": ("procedure", ["safety", "sop", "machinery"]),
-    "357": ("procedure", ["safety", "sop", "machinery"]),
-    "359": ("procedure", ["safety", "sop", "machinery"]),
-    "360": ("procedure", ["safety", "sop", "machinery"]),
-    "361": ("procedure", ["safety", "sop", "machinery"]),
-    "362": ("procedure", ["safety", "sop", "machinery"]),
-    "363": ("procedure", ["safety", "sop", "machinery"]),
-    "364": ("procedure", ["safety", "sop", "machinery"]),
-    "366": ("procedure", ["safety", "sop", "machinery"]),
-    "369": ("procedure", ["safety", "sop", "machinery"]),
-    "370": ("procedure", ["safety", "sop", "machinery"]),
-    "372": ("procedure", ["safety", "sop", "machinery"]),
-    "373": ("procedure", ["safety", "sop", "machinery"]),
-    "374": ("procedure", ["safety", "sop", "machinery"]),
-    "375": ("procedure", ["safety", "sop", "machinery"]),
+    "350": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "351": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "352": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "353": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "354": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "355": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "357": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "359": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "360": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "361": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "362": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "363": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "364": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "366": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "369": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "370": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "372": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "373": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "374": ("procedure", "safety", ["safety", "sop", "machinery"]),
+    "375": ("procedure", "safety", ["safety", "sop", "machinery"]),
     # Registers
-    "380": ("register", ["safety", "hazard"]),
+    "380": ("register", "register", ["safety", "hazard"]),
     # Emergency and general docs, 400 series
-    "401": ("procedure", ["safety", "emergency"]),
-    "402": ("reference", ["safety", "sop"]),
-    "403": ("register", ["safety", "chemical"]),
-    "404": ("form", ["safety", "emergency"]),
-    "405": ("reference", ["safety", "emergency"]),
+    "401": ("procedure", "safety", ["safety", "emergency"]),
+    "402": ("reference", "reference", ["safety", "sop"]),
+    "403": ("register", "register", ["safety", "chemical"]),
+    "404": ("form", "safety", ["safety", "emergency"]),
+    "405": ("reference", "reference", ["safety", "emergency"]),
     # Meeting forms (415-420)
-    "415": ("form", ["administration", "meeting"]),
-    "416": ("form", ["administration", "meeting"]),
-    "417": ("form", ["administration", "meeting"]),
+    "415": ("form", "meeting", ["administration", "meeting"]),
+    "416": ("form", "meeting", ["administration", "meeting"]),
+    "417": ("form", "meeting", ["administration", "meeting"]),
     # Air compressor
-    "450": ("procedure", ["safety", "sop", "machinery"]),
+    "450": ("procedure", "safety", ["safety", "sop", "machinery"]),
 }
 
 
@@ -572,7 +576,7 @@ class Command(BaseCommand):
                 )
                 continue
 
-            doc_type, tags = DOC_MAPPING[doc_number]
+            doc_type, category, tags = DOC_MAPPING[doc_number]
             path_label = "[FORM]" if doc_type in ("form", "register") else "[GDOC]"
 
             if dry_run:
@@ -583,24 +587,34 @@ class Command(BaseCommand):
                 continue
 
             if doc_type in ("form", "register"):
-                self._import_form(doc_number, title, doc_type, tags, file_path, path_label)
+                self._import_form(
+                    doc_number, title, doc_type, category, tags, file_path, path_label
+                )
             else:
                 if reference_folder_id is None:
                     raise CommandError(
                         "gdrive_reference_library_folder_id became unset mid-run; aborting."
                     )
                 self._import_procedure(
-                    doc_number, title, doc_type, tags, file_path, path_label, reference_folder_id
+                    doc_number,
+                    title,
+                    doc_type,
+                    category,
+                    tags,
+                    file_path,
+                    path_label,
+                    reference_folder_id,
                 )
             imported += 1
 
         return imported, skipped_existing, skipped_no_mapping
 
-    def _import_form(  # noqa: PLR0913, PLR0917 -- one row's identity is genuinely six values
+    def _import_form(  # noqa: PLR0913, PLR0917 -- one row's identity is genuinely seven values
         self,
         doc_number: str,
         title: str,
         doc_type: str,
+        category: str,
         tags: list[str],
         file_path: Path,
         path_label: str,
@@ -609,6 +623,7 @@ class Command(BaseCommand):
         schema: FormSchema | dict[str, object] = FORM_SCHEMAS.get(doc_number, {})
         doc = Form.objects.create(
             document_type=doc_type,
+            category=category,
             tags=tags,
             status="active",
             document_number=doc_number,
@@ -624,11 +639,12 @@ class Command(BaseCommand):
             )
         )
 
-    def _import_procedure(  # noqa: PLR0913, PLR0917 -- one row's identity is genuinely seven values
+    def _import_procedure(  # noqa: PLR0913, PLR0917 -- one row's identity is genuinely eight values
         self,
         doc_number: str,
         title: str,
         doc_type: str,
+        category: str,
         tags: list[str],
         file_path: Path,
         path_label: str,
@@ -640,6 +656,7 @@ class Command(BaseCommand):
         )
         doc = Procedure.objects.create(
             document_type=doc_type,
+            category=category,
             tags=tags,
             status="active",
             document_number=doc_number,
