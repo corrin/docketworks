@@ -12,6 +12,7 @@ name-based with no per-domain exemption (ADR 0039).
 """
 
 import logging
+from datetime import date
 from uuid import UUID
 
 from django.db import transaction
@@ -111,7 +112,7 @@ def _entry_changes(
 def _top_level_changes(
     entry: FormEntry,
     *,
-    new_entry_date: object,
+    new_entry_date: date,
     new_staff: Staff | None,
     new_job: Job | None,
     new_parent: FormEntry | None,
