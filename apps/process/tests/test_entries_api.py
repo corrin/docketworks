@@ -12,7 +12,8 @@ import pytest
 from django.test import Client
 
 from apps.accounts.models import Staff
-from apps.company.tests.conftest import authenticate
+from apps.company.tests.conftest import authenticate, make_company
+from apps.company.tests.job_fixtures import make_job
 from apps.process.models import Form, FormEntry, ProcessEvent
 
 if TYPE_CHECKING:
@@ -215,6 +216,30 @@ class TestList:
         row = body["results"][0]
         assert row["display_data"]["injured"] == staff.get_display_full_name()
 
+    def test_flat_list_filters_by_staff(self) -> None:
+        form = make_form()
+        subject = make_staff("subject@example.com", first_name="Sam", last_name="Subject")
+        matching = make_entry(form, staff=subject)
+        make_entry(form)
+
+        body = any_staff_client().get(ENTRIES_URL, {"staff": str(subject.id)}).json()
+
+        assert [row["id"] for row in body["results"]] == [str(matching.id)]
+
+    def test_flat_list_filters_by_job(self) -> None:
+        form = make_form()
+        company = make_company("Acme Co")
+        job_owner = make_staff("jobowner@example.com")
+        job = make_job(company, job_owner)
+        matching = make_entry(form, job=job)
+        make_entry(form)
+
+        body = any_staff_client().get(ENTRIES_URL, {"job": str(job.id)}).json()
+
+        assert [row["id"] for row in body["results"]] == [str(matching.id)]
+        # EntryOut.job must serialize the FK id, not the related Job instance.
+        assert body["results"][0]["job"] == str(job.id)
+
 
 class TestUpdate:
     def test_edit_writes_entry_updated_with_field_labels(self) -> None:
@@ -248,6 +273,29 @@ class TestUpdate:
             form_entry=entry, event_type="entry_updated"
         ).exists()
 
+    def test_entry_date_only_patch_ignores_a_since_changed_schema(self) -> None:
+        """A PATCH that never touches ``data`` must not validate it: the form's
+        schema can change after entries exist (Task 7 allows PATCH
+        /forms/{id}/ with a new form_schema), and re-validating untouched,
+        now-stale data against the new schema would 400 an edit the caller
+        never asked for."""
+        form = make_form()
+        entry = make_entry(form, data={"area": "Bay 1"})
+        # Drop 'area' and require a field the stored data lacks: the entry's
+        # stored data is now invalid against the form's current schema.
+        form.form_schema = {
+            "fields": [{"key": "zone", "label": "Zone", "type": "text", "required": True}]
+        }
+        form.save(update_fields=["form_schema"])
+        client = any_staff_client()
+
+        response = patch(client, entry.id, entry_date="2026-08-26")
+
+        assert response.status_code == 200
+        entry.refresh_from_db()
+        assert str(entry.entry_date) == "2026-08-26"
+        assert entry.data == {"area": "Bay 1"}
+
 
 class TestArchive:
     def test_delete_is_soft_and_audited(self) -> None:
@@ -261,6 +309,21 @@ class TestArchive:
         entry.refresh_from_db()
         assert entry.is_active is False
         assert ProcessEvent.objects.filter(form_entry=entry, event_type="entry_archived").exists()
+
+    def test_repeated_delete_is_idempotent(self) -> None:
+        # Second DELETE on an already-archived entry: still 204, no second event.
+        form = make_form()
+        entry = make_entry(form)
+        client = any_staff_client()
+
+        first = client.delete(ENTRY_DETAIL_URL.format(id=entry.id))
+        second = client.delete(ENTRY_DETAIL_URL.format(id=entry.id))
+
+        assert first.status_code == 204
+        assert second.status_code == 204
+        assert (
+            ProcessEvent.objects.filter(form_entry=entry, event_type="entry_archived").count() == 1
+        )
 
 
 class TestHistory:

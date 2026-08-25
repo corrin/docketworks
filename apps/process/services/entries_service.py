@@ -166,7 +166,12 @@ def update_form_entry(*, staff: Staff, entry: FormEntry, payload: EntryUpdateIn)
     """
     supplied = payload.model_dump(exclude_unset=True)
     new_data = supplied.get("data", entry.data)
-    validate_entry_data(entry.form, new_data)
+    if "data" in supplied:
+        # Only when the caller actually sent data: an entry_date-only PATCH
+        # must not 400 against stale stored data a schema edit since made
+        # invalid (Task 7 allows PATCH /forms/{id}/ to change form_schema
+        # after entries already exist) — the caller never touched that field.
+        validate_entry_data(entry.form, new_data)
 
     new_staff = _resolve_staff(supplied["staff"]) if "staff" in supplied else entry.staff
     new_job = _resolve_job(supplied["job"]) if "job" in supplied else entry.job
@@ -204,7 +209,15 @@ def update_form_entry(*, staff: Staff, entry: FormEntry, payload: EntryUpdateIn)
 
 
 def archive_entry(*, staff: Staff, entry: FormEntry) -> None:
-    """Soft-delete an entry (is_active=False) and write its entry_archived event."""
+    """Soft-delete an entry (is_active=False) and write its entry_archived event.
+
+    Flip-gated like forms' archive handling: the event fires only on an
+    actual active -> archived transition, never on repeating an already
+    -archived entry, so a second DELETE stays 204 without doubling the
+    audit trail.
+    """
+    if not entry.is_active:
+        return
     with transaction.atomic():
         entry.is_active = False
         entry.save(update_fields=["is_active", "updated_at"])
