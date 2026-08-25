@@ -31,7 +31,7 @@ from apps.core.models import CompanyDefaults, ServiceAPIKey
 from apps.crm.tests.helpers import make_company
 from apps.diagnostics.services import db_scrubber
 from apps.diagnostics.services.staff_anonymization import create_staff_profile
-from apps.process.models import Form, FormEntry, Procedure, ProcessEvent
+from apps.process.models import Acknowledgement, Form, FormEntry, Procedure, ProcessEvent
 from scripts.ops.verify_scrubbed_backup import PRIVATE_CONFIG_TABLES
 
 
@@ -152,10 +152,14 @@ class TestScrubConfigContracts:
             (Procedure, "google_doc_url"),  # Google Docs URL, not free text
             (ProcessEvent, "event_type"),  # internal event-type key, not user text
         }
+        # Acknowledgement carries no free text at all — staff/form/procedure
+        # are id-only FKs and acknowledged_at is a timestamp — but it is
+        # listed here anyway so a later free-text field on it cannot ride
+        # this pin unaccounted for either.
         text_types = ("CharField", "TextField", "JSONField", "URLField")
         text_fields = {
             (model, field.name)
-            for model in (Form, FormEntry, Procedure, ProcessEvent)
+            for model in (Acknowledgement, Form, FormEntry, Procedure, ProcessEvent)
             for field in model._meta.fields
             if field.get_internal_type() in text_types
         }

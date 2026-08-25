@@ -3,6 +3,19 @@
 import * as z from 'zod';
 
 /**
+ * AcknowledgementOut
+ *
+ * One staff member's read receipt against a form (or, slice 2, a procedure).
+ */
+export const zAcknowledgementOut = z.object({
+    acknowledged_at: z.iso.datetime(),
+    description: z.string(),
+    id: z.uuid(),
+    staff: z.uuid(),
+    staff_name: z.string()
+});
+
+/**
  * AddressCandidate
  *
  * One structured candidate from the Google Address Validation API.
@@ -7309,6 +7322,26 @@ export const zProcessFormsPartialUpdatePath = z.object({
  * OK
  */
 export const zProcessFormsPartialUpdateResponse = zFormOut;
+
+export const zProcessFormsAcknowledgeCreatePath = z.object({
+    form_id: z.uuid()
+});
+
+/**
+ * Created
+ */
+export const zProcessFormsAcknowledgeCreateResponse = zAcknowledgementOut;
+
+export const zProcessFormsAcknowledgementsListPath = z.object({
+    form_id: z.uuid()
+});
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zProcessFormsAcknowledgementsListResponse = z.array(zAcknowledgementOut);
 
 export const zProcessFormsEntriesListPath = z.object({
     form_id: z.uuid()

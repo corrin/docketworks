@@ -9,6 +9,8 @@ Paths and operationIds are the stable contract:
 - PATCH  /api/process/forms/{form_id}/              process_forms_partial_update   (office staff)
 - GET    /api/process/forms/{form_id}/entries/      process_forms_entries_list     (any staff)
 - POST   /api/process/forms/{form_id}/entries/      process_forms_entries_create   (any staff)
+- POST   /api/process/forms/{form_id}/acknowledge/  process_forms_acknowledge_create (any staff)
+- GET /api/process/forms/{form_id}/acknowledgements/ process_forms_acknowledgements_list (any staff)
 - GET    /api/process/entries/                     process_entries_list           (any staff)
 - PATCH  /api/process/entries/{entry_id}/           process_entries_partial_update (any staff)
 - DELETE /api/process/entries/{entry_id}/           process_entries_destroy        (any staff)
@@ -31,9 +33,18 @@ Entry reads and writes are any-staff (``CookieJWTAuth``), unlike forms'
 office-staff-only writes: regular staff sign forms day to day, and the
 ProcessEvent audit trail — not a permission gate — is what makes that safe.
 
+``process_forms_acknowledge_create`` declares no payload class — Fable: a
+``staff`` field on the wire was rejected, since acknowledging a document on
+someone else's behalf is not a thing this endpoint does; ``staff`` is always
+``request.user``. A body carrying content is a 422 all the same: ninja only
+validates a request body against a declared schema, so with none declared it
+would otherwise ignore (rather than reject) a ``{"staff": ...}`` payload — the
+handler checks for one explicitly instead of leaving that silent gap open.
+
 Integration wiring (config/api.py): ``api.add_router("/process/", router)``.
 """
 
+import json
 import logging
 from uuid import UUID
 
@@ -48,8 +59,9 @@ from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
 from apps.core.pagination import paginate
-from apps.process.models import Form, FormEntry, Procedure, ProcessEvent
+from apps.process.models import Acknowledgement, Form, FormEntry, Procedure, ProcessEvent
 from apps.process.schemas import (
+    AcknowledgementOut,
     CategoriesOut,
     EntryCreateIn,
     EntryEventOut,
@@ -254,6 +266,61 @@ def process_forms_entries_create(
     entry = create_form_entry(staff=_staff(request), form=form, payload=payload)
     entry.display_data = display_data(entry.form, entry.data)
     return Status(201, entry)
+
+
+def _reject_unexpected_body(request: HttpRequest) -> None:
+    """Refuse any request body content on a self-only, no-payload endpoint.
+
+    With no ``payload: Schema`` parameter declared, ninja never looks at the
+    request body at all, so a client-supplied ``{"staff": ...}`` would
+    otherwise be silently ignored rather than rejected — accepting it would
+    invite a caller to believe a staff field works here. Checked explicitly so
+    the field's absence from the wire is enforced, not merely undocumented.
+    """
+    if not request.body:
+        return
+    try:
+        parsed = json.loads(request.body)
+    except ValueError as exc:
+        raise HttpError(422, "Request body must be empty or valid JSON.") from exc
+    if parsed not in ({}, None):
+        raise HttpError(422, "This endpoint takes no request body.")
+
+
+@router.post(
+    "/forms/{uuid:form_id}/acknowledge/",
+    auth=auth,
+    operation_id="process_forms_acknowledge_create",
+    response={201: AcknowledgementOut},
+    summary="Acknowledge that the caller read and understood a form",
+)
+def process_forms_acknowledge_create(
+    request: HttpRequest, form_id: UUID
+) -> Status[Acknowledgement]:
+    """Record a read receipt for the requesting staff member; repeats allowed.
+
+    Self-only by construction: there is no ``staff`` field to accept on the
+    wire, so the row always names ``request.user``.
+    """
+    _reject_unexpected_body(request)
+    form = get_object_or_404(Form, pk=form_id)
+    row = Acknowledgement.objects.create(staff=_staff(request), form=form)
+    return Status(201, row)
+
+
+@router.get(
+    "/forms/{uuid:form_id}/acknowledgements/",
+    auth=auth,
+    operation_id="process_forms_acknowledgements_list",
+    response=list[AcknowledgementOut],
+    summary="List one form's acknowledgements, newest first",
+)
+def process_forms_acknowledgements_list(
+    request: HttpRequest, form_id: UUID
+) -> list[Acknowledgement]:
+    """List every acknowledgement recorded against one form (Meta ordering)."""
+    form = get_object_or_404(Form, pk=form_id)
+    return list(Acknowledgement.objects.filter(form=form).select_related("staff"))
 
 
 @router.get(

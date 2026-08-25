@@ -5,6 +5,34 @@ export type ClientOptions = {
 };
 
 /**
+ * AcknowledgementOut
+ *
+ * One staff member's read receipt against a form (or, slice 2, a procedure).
+ */
+export type AcknowledgementOut = {
+    /**
+     * Acknowledged At
+     */
+    acknowledged_at: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Staff
+     */
+    staff: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+};
+
+/**
  * AddressCandidate
  *
  * One structured candidate from the Google Address Validation API.
@@ -16320,6 +16348,50 @@ export type ProcessFormsPartialUpdateResponses = {
 };
 
 export type ProcessFormsPartialUpdateResponse = ProcessFormsPartialUpdateResponses[keyof ProcessFormsPartialUpdateResponses];
+
+export type ProcessFormsAcknowledgeCreateData = {
+    body?: never;
+    path: {
+        /**
+         * Form Id
+         */
+        form_id: string;
+    };
+    query?: never;
+    url: '/api/process/forms/{form_id}/acknowledge/';
+};
+
+export type ProcessFormsAcknowledgeCreateResponses = {
+    /**
+     * Created
+     */
+    201: AcknowledgementOut;
+};
+
+export type ProcessFormsAcknowledgeCreateResponse = ProcessFormsAcknowledgeCreateResponses[keyof ProcessFormsAcknowledgeCreateResponses];
+
+export type ProcessFormsAcknowledgementsListData = {
+    body?: never;
+    path: {
+        /**
+         * Form Id
+         */
+        form_id: string;
+    };
+    query?: never;
+    url: '/api/process/forms/{form_id}/acknowledgements/';
+};
+
+export type ProcessFormsAcknowledgementsListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<AcknowledgementOut>;
+};
+
+export type ProcessFormsAcknowledgementsListResponse = ProcessFormsAcknowledgementsListResponses[keyof ProcessFormsAcknowledgementsListResponses];
 
 export type ProcessFormsEntriesListData = {
     body?: never;

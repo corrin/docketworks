@@ -14,7 +14,7 @@ from ninja import Schema
 from pydantic import ConfigDict, model_validator
 
 from apps.core.schemas import NonBlankText, NullableText, omittable
-from apps.process.models import Form, FormEntry, ProcessEvent
+from apps.process.models import Acknowledgement, Form, FormEntry, ProcessEvent
 
 FieldType = Literal["text", "textarea", "date", "boolean", "number", "select", "staff", "entry_ref"]
 FormCategory = Literal["safety", "training", "incident", "meeting", "register"]
@@ -276,6 +276,26 @@ class StaffOptionOut(Schema):
 
     id: UUID
     name: str
+
+
+class AcknowledgementOut(Schema):
+    """One staff member's read receipt against a form (or, slice 2, a procedure)."""
+
+    id: UUID
+    staff: UUID
+    staff_name: str
+    acknowledged_at: datetime
+    description: str
+
+    @staticmethod
+    def resolve_staff(obj: Acknowledgement) -> UUID:
+        """Read the staff FK id (obj.staff is the Staff instance)."""
+        return obj.staff_id
+
+    @staticmethod
+    def resolve_staff_name(obj: Acknowledgement) -> str:
+        """Resolve the acknowledging staff member's display name."""
+        return obj.staff.get_display_full_name()
 
 
 class EntryEventOut(Schema):

@@ -1,5 +1,34 @@
 components:
   schemas:
+    AcknowledgementOut:
+      description: One staff member's read receipt against a form (or, slice 2, a procedure).
+      properties:
+        acknowledged_at:
+          format: date-time
+          title: Acknowledged At
+          type: string
+        description:
+          title: Description
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        staff:
+          format: uuid
+          title: Staff
+          type: string
+        staff_name:
+          title: Staff Name
+          type: string
+      required:
+      - id
+      - staff
+      - staff_name
+      - acknowledged_at
+      - description
+      title: AcknowledgementOut
+      type: object
     AddressCandidate:
       description: One structured candidate from the Google Address Validation API.
       properties:
@@ -18994,6 +19023,62 @@ paths:
       security:
       - OfficeStaffCookieJWTAuth: []
       summary: Update some fields of a form, or archive it
+      tags:
+      - process
+  /api/process/forms/{form_id}/acknowledge/:
+    post:
+      description: 'Record a read receipt for the requesting staff member; repeats allowed.
+
+
+        Self-only by construction: there is no ``staff`` field to accept on the
+
+        wire, so the row always names ``request.user``.'
+      operationId: process_forms_acknowledge_create
+      parameters:
+      - in: path
+        name: form_id
+        required: true
+        schema:
+          format: uuid
+          title: Form Id
+          type: string
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcknowledgementOut'
+          description: Created
+      security:
+      - CookieJWTAuth: []
+      summary: Acknowledge that the caller read and understood a form
+      tags:
+      - process
+  /api/process/forms/{form_id}/acknowledgements/:
+    get:
+      description: List every acknowledgement recorded against one form (Meta ordering).
+      operationId: process_forms_acknowledgements_list
+      parameters:
+      - in: path
+        name: form_id
+        required: true
+        schema:
+          format: uuid
+          title: Form Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/AcknowledgementOut'
+                title: Response
+                type: array
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: List one form's acknowledgements, newest first
       tags:
       - process
   /api/process/forms/{form_id}/entries/:

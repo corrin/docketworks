@@ -177,7 +177,8 @@ class Command(BaseCommand):
         )
 
         # ProcessEvent CASCADEs from both form and form_entry, so it needs no
-        # queryset of its own here.
+        # queryset of its own here. Acknowledgement CASCADEs from form (and,
+        # slice 2, procedure) the same way.
         test_form_entries = FormEntry.objects.filter(form__title__startswith=TEST_DATA_PREFIX)
         test_forms = Form.objects.filter(title__startswith=TEST_DATA_PREFIX)
         test_procedures = Procedure.objects.filter(title__startswith=TEST_DATA_PREFIX)
