@@ -37,13 +37,16 @@ def create_form(*, staff: Staff, payload: FormCreateIn) -> Form:
 
 
 def update_form(*, staff: Staff, form: Form, payload: FormUpdateIn) -> Form:
-    """Apply only the fields the caller sent; write exactly one audit event.
+    """Apply only the fields the caller actually changed; at most one event.
 
-    Mirrors ``accounts_staff_partial_update``: presence comes from
-    ``model_fields_set`` (via ``exclude_unset``), never from the schema's
-    placeholder defaults. The event type is picked from what was actually
-    supplied — an archive (status -> archived) wins over a schema edit, which
-    wins over the generic form_updated.
+    Mirrors ``accounts_staff_partial_update`` for presence (``exclude_unset``
+    against the schema's placeholder defaults), then goes one step further:
+    presence is not "changed" — a supplied field whose value equals the
+    stored one (a redundant re-archive included) is dropped before the event
+    is built. A PATCH that changes nothing writes no event at all — the
+    fail-early-honest reading of "nothing happened" over "diff against
+    nothing". ``form_archived`` fires only on an actual active -> archived
+    transition, never on repeating an already-archived status.
     """
     supplied = payload.model_dump(exclude_unset=True)
     if "form_schema" in supplied:
@@ -52,16 +55,24 @@ def update_form(*, staff: Staff, form: Form, payload: FormUpdateIn) -> Form:
         # dump above still holds UUID objects, and Form.form_schema has no
         # custom encoder to stringify them.
         supplied["form_schema"] = payload.form_schema.model_dump(mode="json", exclude_none=True)
-    changes: list[FieldChange] = [
-        {
-            "field_name": field.replace("_", " ").title(),
-            "old_value": str(json_safe(getattr(form, field))),
-            "new_value": str(json_safe(value)),
-        }
-        for field, value in supplied.items()
-    ]
+
+    prior_status = form.status
+    changed_fields: set[str] = set()
+    changes: list[FieldChange] = []
     for field, value in supplied.items():
+        old = getattr(form, field)
+        if old == value:
+            continue
+        changed_fields.add(field)
+        changes.append(
+            {
+                "field_name": field.replace("_", " ").title(),
+                "old_value": str(json_safe(old)),
+                "new_value": str(json_safe(value)),
+            }
+        )
         setattr(form, field, value)
+
     try:
         form.full_clean()
     except DjangoValidationError as exc:
@@ -69,15 +80,18 @@ def update_form(*, staff: Staff, form: Form, payload: FormUpdateIn) -> Form:
         # a 500, and a rejected form value is the caller's to fix. Same
         # flattening as accounts_staff_partial_update.
         raise HttpError(400, "; ".join(exc.messages)) from exc
-    if supplied.get("status") == "archived":
-        event_type = "form_archived"
-    elif "form_schema" in supplied:
-        event_type = "schema_updated"
-    else:
-        event_type = "form_updated"
+
     with transaction.atomic():
         form.save()
-        record_form_event(form=form, staff=staff, event_type=event_type, changes=changes)
+        if changes:
+            archived_now = "status" in changed_fields and form.status == "archived"
+            if archived_now and prior_status != "archived":
+                event_type = "form_archived"
+            elif "form_schema" in changed_fields:
+                event_type = "schema_updated"
+            else:
+                event_type = "form_updated"
+            record_form_event(form=form, staff=staff, event_type=event_type, changes=changes)
     return form
 
 

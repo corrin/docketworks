@@ -211,3 +211,48 @@ class TestPartialUpdate:
     def test_no_destroy_route_exists(self) -> None:
         form = make_form()
         assert office_client().delete(DETAIL_URL.format(id=form.id)).status_code == 405
+
+    def test_re_archiving_writes_no_second_event(self) -> None:
+        """A PATCH that resupplies the already-stored status is a no-op: it
+        must not write a second form_archived event with old == new."""
+        form = make_form()
+        client = office_client()
+
+        first = patch(client, form.id, status="archived")
+        assert first.status_code == 200
+        assert ProcessEvent.objects.filter(form=form, event_type="form_archived").count() == 1
+
+        second = patch(client, form.id, status="archived")
+        assert second.status_code == 200
+        assert ProcessEvent.objects.filter(form=form, event_type="form_archived").count() == 1
+        assert ProcessEvent.objects.filter(form=form).count() == 1
+
+    def test_entry_ref_round_trips_as_a_string_uuid(self) -> None:
+        """source_form must serialize as a string on both create and update —
+        the JSONField has no UUID-aware encoder, so a raw UUID object left in
+        by a python-mode dump would blow up on save."""
+        client = office_client()
+        source = make_form(title="Asset register", document_type="register", category="register")
+        schema = {
+            "fields": [
+                {
+                    "key": "asset",
+                    "label": "Asset",
+                    "type": "entry_ref",
+                    "source_form": str(source.id),
+                    "display_key": "name",
+                }
+            ]
+        }
+
+        created = create(client, form_schema=schema)
+        assert created.status_code == 201
+        form = Form.objects.get(pk=created.json()["id"])
+        assert form.form_schema["fields"][0]["source_form"] == str(source.id)
+
+        updated_schema = {**schema, "fields": [{**schema["fields"][0], "label": "Linked Asset"}]}
+        patched = patch(client, form.id, form_schema=updated_schema)
+        assert patched.status_code == 200
+        form.refresh_from_db()
+        assert form.form_schema["fields"][0]["source_form"] == str(source.id)
+        assert form.form_schema["fields"][0]["label"] == "Linked Asset"

@@ -29,6 +29,7 @@ _EVENT_LABELS: dict[str, str] = {
     "entry_archived": "Entry archived",
     "form_created": "Form created",
     "form_archived": "Form archived",
+    "form_updated": "Form updated",
     "schema_updated": "Form schema updated",
 }
 
