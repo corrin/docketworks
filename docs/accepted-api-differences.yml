@@ -1183,17 +1183,20 @@
     docs/superpowers/specs/2026-08-25-process-documents-design.md.
 
 - operation: process_forms_entries_create / process_entries_partial_update
-  change: "Entry data is validated against the form's stored schema at write time — unknown keys, missing required fields and type mismatches are 422 (v1 accepted anything into the JSONField)"
+  change: "Entry data is validated against the form's stored schema at write time — unknown keys, missing required fields and type mismatches are 400 (v1 accepted anything into the JSONField)"
   reason: >
     v1's entry data was an opaque JSONField with no server-side shape check,
     so a form's schema was purely advisory for whichever frontend view
     happened to render it. v2's form_schema is a typed FormSchemaSpec
     (fields declaring key/label/type/required/options), validated at
-    form-write time (422 on a malformed schema definition) and again at
-    entry-write time against every entry's data
-    (apps/process/services/entry_validation.py): a staff-type field's value
-    must be an existing staff UUID and an entry_ref value must be an active
-    entry of its configured source form.
+    form-write time (422 at the request boundary on a malformed schema
+    STRUCTURE) and again at entry-write time against every entry's data
+    (apps/process/services/entry_validation.py, validate_entry_data): this
+    second pass is post-parse business validation, not a schema-structure
+    check, so it raises HttpError(400) rather than the 422 the request
+    boundary uses — a staff-type field's value must be an existing staff
+    UUID and an entry_ref value must be an active entry of its configured
+    source form.
 
 - operation: process_forms_entries_list / process_entries_list
   change: "Both entries listings are paginated (page/page_size query params, page size 50); v1 served process_forms_entries_list as a bare array"
