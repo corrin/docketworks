@@ -431,15 +431,23 @@ export {
   processFormsListQueryKey,
   processFormsPartialUpdateMutation,
   processFormsRetrieveOptions,
+  // /api/timesheets/staff/ is SuperuserCookieJWTAuth-gated (it exposes other
+  // staff members' pay data), but any staff member must be able to pick who a
+  // form entry is signed for — apps/process/api.py adds this any-auth sibling
+  // rather than reusing the gated one.
+  processStaffOptionsListOptions,
 } from './generated/@tanstack/react-query.gen'
 export type {
   CategoriesOut,
+  EntryCreateIn,
   EntryEventOut,
   EntryOut,
+  EntryUpdateIn,
   FormCreateIn,
   FormFieldSchema,
   FormOut,
   FormSchemaSpec,
   FormUpdateIn,
   PaginatedEntryList,
+  StaffOptionOut,
 } from './generated/types.gen'

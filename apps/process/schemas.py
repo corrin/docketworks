@@ -271,6 +271,13 @@ class CategoriesOut(Schema):
     procedures: list[CategoryOut]
 
 
+class StaffOptionOut(Schema):
+    """A staff member as the entry form's staff picker draws it, and nothing more."""
+
+    id: UUID
+    name: str
+
+
 class EntryEventOut(Schema):
     """One audit event on a form entry, for the entry's history panel."""
 

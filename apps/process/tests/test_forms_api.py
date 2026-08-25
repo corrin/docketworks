@@ -24,6 +24,7 @@ pytestmark = [
 
 PASSWORD = "s3cret-Pass!"
 CATEGORIES_URL = "/api/process/categories/"
+STAFF_OPTIONS_URL = "/api/process/staff-options/"
 FORMS_URL = "/api/process/forms/"
 DETAIL_URL = "/api/process/forms/{id}/"
 
@@ -104,6 +105,23 @@ class TestCategories:
         body = response.json()
         assert {"key": "incident", "label": "Incident"} in body["forms"]
         assert {"key": "jsa", "label": "JSA"} in body["procedures"]
+
+
+class TestStaffOptions:
+    def test_any_staff_can_list_options_alphabetically_by_name(self) -> None:
+        make_staff("zeta@example.com", first_name="Zeta", last_name="Last")
+        make_staff("alpha@example.com", first_name="Alpha", last_name="First")
+
+        response = any_staff_client().get(STAFF_OPTIONS_URL)
+
+        assert response.status_code == 200
+        names = [row["name"] for row in response.json()]
+        assert names == sorted(names)
+        assert "Alpha First" in names
+        assert "Zeta Last" in names
+
+    def test_anonymous_cannot_list(self) -> None:
+        assert Client().get(STAFF_OPTIONS_URL).status_code == 401
 
 
 class TestCreate:

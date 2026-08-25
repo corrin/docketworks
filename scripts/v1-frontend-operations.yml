@@ -636,6 +636,11 @@ introduced:
 # ProcessEvent, which v1 had no equivalent model for.
 - process_entries_list
 - process_entries_history_list
+# The entry form's staff picker needs an any-staff staff list (any staff may
+# sign a form entry), but /api/timesheets/staff/ is SuperuserCookieJWTAuth-
+# gated — it exposes other staff members' pay data, which v1 had no
+# equivalent form-entry concept to need reading around.
+- process_staff_options_list
 dropped:
   timesheets_payroll_pay_runs_create_create: >-
     Creating the Draft pay run is a step of posting, not an operator intent:

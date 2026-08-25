@@ -54,6 +54,11 @@ describe('ProcessFormsPage', () => {
     server.use(
       http.get(LIST, () => HttpResponse.json([formRow()])),
       http.get(CATEGORIES, () => HttpResponse.json(CATEGORIES_RESPONSE)),
+      // EntryForm's job picker (rendered disabled inside FormDialog's preview
+      // and interactively inside the Fill dialog) queries these on mount.
+      http.get('*/api/purchasing/all-jobs/', () => HttpResponse.json({ success: true, jobs: [] })),
+      http.get('*/api/job/jobs/status-choices/', () => HttpResponse.json({ statuses: {} })),
+      http.get('*/api/process/staff-options/', () => HttpResponse.json([])),
     )
   })
 
@@ -113,9 +118,52 @@ describe('ProcessFormsPage', () => {
     expect(autoId('FormDialog-schema')).toHaveValue(JSON.stringify({ fields: [] }, null, 2))
   })
 
-  it('renders the Fill button disabled — Task 12 wires it up', async () => {
-    await renderPage()
-    expect(autoId('ProcessFormsPage-fill-11111111-1111-1111-1111-111111111111')).toBeDisabled()
+  it('Fill opens the entry form and posts a created entry to the form', async () => {
+    const bodies: unknown[] = []
+    server.use(
+      http.post('*/api/process/forms/:formId/entries/', async ({ request }) => {
+        bodies.push(await request.json())
+        return HttpResponse.json(
+          {
+            id: 'e1111111-1111-1111-1111-111111111111',
+            form: '11111111-1111-1111-1111-111111111111',
+            entry_date: '2026-01-10',
+            staff: null,
+            staff_name: null,
+            entered_by: '11111111-1111-1111-1111-111111111111',
+            entered_by_name: 'Some One',
+            job: null,
+            parent_entry: null,
+            child_count: 0,
+            data: { notes: 'All clear' },
+            display_data: {},
+            is_active: true,
+            created_at: '2026-01-10T00:00:00Z',
+            updated_at: '2026-01-10T00:00:00Z',
+          },
+          { status: 201 },
+        )
+      }),
+    )
+    const { user } = await renderPage()
+
+    await user.click(autoId('ProcessFormsPage-fill-11111111-1111-1111-1111-111111111111'))
+    await waitFor(() => expect(queryAutoId('EntryForm-field-notes')).not.toBeNull())
+
+    await user.type(autoId('EntryForm-field-notes'), 'All clear')
+    await user.click(autoId('EntryForm-submit'))
+
+    await waitFor(() => expect(bodies).toHaveLength(1))
+    expect(bodies[0]).toMatchObject({ data: { notes: 'All clear' } })
+  })
+
+  it('Fill shows the no-schema message for a form with no fields', async () => {
+    server.use(http.get(LIST, () => HttpResponse.json([formRow({ form_schema: { fields: [] } })])))
+    const { user } = await renderPage()
+
+    await user.click(autoId('ProcessFormsPage-fill-11111111-1111-1111-1111-111111111111'))
+    await screen.findByText('This document has no form schema defined. Entries cannot be added.')
+    expect(queryAutoId('EntryForm-submit')).toBeNull()
   })
 
   it('hides Edit from non-office staff; the API rejects the write regardless', async () => {

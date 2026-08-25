@@ -1,15 +1,27 @@
 import { useMemo, useState } from 'react'
-import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { toast } from 'sonner'
 
-import { processFormsListOptions, type FormOut } from '@/api'
+import {
+  apiErrorMessage,
+  processEntriesListQueryKey,
+  processFormsEntriesCreateMutation,
+  processFormsEntriesListQueryKey,
+  processFormsListOptions,
+  processStaffOptionsListOptions,
+  type FormOut,
+} from '@/api'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { meQueryOptions } from '@/features/auth'
 import { ListTable } from '@/features/shared/ListTable'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
 import { formatDate } from '@/lib/format'
 
+import { EntryForm, type EntryFormSubmitBody } from './EntryForm'
 import { FormDialog, requireCategory } from './FormDialog'
+import { extractFields } from './formSchema'
 
 const HEADER_CELL = 'border-b border-slate-200 px-3 py-2 text-left font-semibold text-slate-700'
 const CELL = 'border-b border-slate-100 px-3 py-2'
@@ -22,6 +34,7 @@ const CELL = 'border-b border-slate-100 px-3 py-2'
 export function ProcessFormsPage({ category }: { category: string }) {
   const { data: user } = useSuspenseQuery(meQueryOptions())
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [searchInput, setSearchInput] = useState('')
   const searchQuery = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS)
   const [showArchived, setShowArchived] = useState(false)
@@ -29,6 +42,36 @@ export function ProcessFormsPage({ category }: { category: string }) {
   // The row being edited, or null for create. Kept when the dialog closes so
   // the closing animation does not flash the empty create form.
   const [editing, setEditing] = useState<FormOut | null>(null)
+  // The form being filled from its Fill button, or null when that dialog is
+  // closed. Any staff may fill a form (entry writes are CookieJWTAuth), so
+  // this state carries no gate of its own.
+  const [filling, setFilling] = useState<FormOut | null>(null)
+
+  const staffOptionsQuery = useQuery(processStaffOptionsListOptions())
+  const createEntryMutation = useMutation(processFormsEntriesCreateMutation())
+
+  async function submitFillEntry(form: FormOut, body: EntryFormSubmitBody): Promise<void> {
+    try {
+      await createEntryMutation.mutateAsync({
+        path: { form_id: form.id },
+        body: {
+          entry_date: body.entry_date,
+          data: body.data,
+          staff: body.staff,
+          job: body.job,
+          parent_entry: body.parent_entry,
+        },
+      })
+      await queryClient.invalidateQueries({
+        queryKey: processFormsEntriesListQueryKey({ path: { form_id: form.id } }),
+      })
+      await queryClient.invalidateQueries({ queryKey: processEntriesListQueryKey() })
+      toast.success('Entry saved')
+      setFilling(null)
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'Could not save the entry.'))
+    }
+  }
 
   const formsQuery = useQuery(
     processFormsListOptions({
@@ -147,15 +190,12 @@ export function ProcessFormsPage({ category }: { category: string }) {
             <td className={CELL}>{formatDate(form.updated_at)}</td>
             <td className={CELL} onClick={(event) => event.stopPropagation()}>
               <div className="flex gap-2">
-                {/* Placeholder: opens the Task 12 EntryForm in a dialog for
-                    this form. Any staff may fill a form (entry writes are
-                    CookieJWTAuth), so the button itself has no gate — it is
-                    only disabled because that dialog does not exist yet. */}
+                {/* Any staff may fill a form (entry writes are CookieJWTAuth),
+                    so this button carries no gate of its own. */}
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled
-                  title="Wired up in Task 12."
+                  onClick={() => setFilling(form)}
                   data-automation-id={`ProcessFormsPage-fill-${form.id}`}
                 >
                   Fill
@@ -179,6 +219,35 @@ export function ProcessFormsPage({ category }: { category: string }) {
         )}
       />
       <FormDialog open={dialogOpen} onOpenChange={setDialogOpen} form={editing} />
+
+      {filling !== null && (
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next && !createEntryMutation.isPending) setFilling(null)
+          }}
+        >
+          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Fill {filling.title}</DialogTitle>
+            </DialogHeader>
+            {extractFields(filling.form_schema).length === 0 ? (
+              <p className="text-sm text-slate-600">
+                This document has no form schema defined. Entries cannot be added.
+              </p>
+            ) : (
+              <EntryForm
+                schema={extractFields(filling.form_schema)}
+                initial={{ staff: user.id }}
+                staffOptions={staffOptionsQuery.data ?? []}
+                submitting={createEntryMutation.isPending}
+                automationIdPrefix="EntryForm"
+                onSubmit={(body) => submitFillEntry(filling, body)}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

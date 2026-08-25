@@ -10028,6 +10028,22 @@ export type StaffMetricsOut = {
 };
 
 /**
+ * StaffOptionOut
+ *
+ * A staff member as the entry form's staff picker draws it, and nothing more.
+ */
+export type StaffOptionOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
  * StaffPerformanceResponse
  *
  * Wire contract for StaffPerformanceResponse.
@@ -16355,6 +16371,24 @@ export type ProcessFormsEntriesCreateResponses = {
 };
 
 export type ProcessFormsEntriesCreateResponse = ProcessFormsEntriesCreateResponses[keyof ProcessFormsEntriesCreateResponses];
+
+export type ProcessStaffOptionsListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/process/staff-options/';
+};
+
+export type ProcessStaffOptionsListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<StaffOptionOut>;
+};
+
+export type ProcessStaffOptionsListResponse = ProcessStaffOptionsListResponses[keyof ProcessStaffOptionsListResponses];
 
 export type PurchasingAllJobsRetrieveData = {
     body?: never;

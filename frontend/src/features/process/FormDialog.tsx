@@ -9,7 +9,6 @@ import {
   processFormsListQueryKey,
   processFormsPartialUpdateMutation,
   type FormCreateIn,
-  type FormFieldSchema,
   type FormOut,
   type FormSchemaSpec,
   type FormUpdateIn,
@@ -23,6 +22,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { INPUT_CLASS } from '@/components/ui/field'
+
+import { EntryForm } from './EntryForm'
+import { extractFields, isFormSchemaSpec } from './formSchema'
 
 // apps/process/models.py Form.Category.choices define exactly these five
 // keys; FormCreateIn/FormUpdateIn's category field mirrors them as a closed
@@ -64,62 +66,6 @@ function isFormStatus(value: string): value is FormStatus {
 function requireFormStatus(value: string): FormStatus {
   if (!isFormStatus(value)) throw new Error(`Unexpected form status "${value}".`)
   return value
-}
-
-const FIELD_TYPES = [
-  'text',
-  'textarea',
-  'date',
-  'boolean',
-  'number',
-  'select',
-  'staff',
-  'entry_ref',
-] as const
-type FieldType = (typeof FIELD_TYPES)[number]
-
-function isFieldType(value: unknown): value is FieldType {
-  return typeof value === 'string' && (FIELD_TYPES as readonly string[]).includes(value)
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string')
-}
-
-/** Structural only — the wire shape TypeScript needs to send a typed
- * `FormSchemaSpec`, checked field-by-field with `in` so no `as` cast is
- * needed anywhere below. Business rules (a `select` field needs `options`,
- * `source_form` must name a real form, keys must be unique) stay
- * server-only: duplicating apps/process/schemas.py's real validator here
- * would drift out of sync with it, so those stay 422s, not local refusals. */
-function isFormFieldSchema(value: unknown): value is FormFieldSchema {
-  if (typeof value !== 'object' || value === null) return false
-  if (!('key' in value) || typeof value.key !== 'string') return false
-  if (!('label' in value) || typeof value.label !== 'string') return false
-  if (!('type' in value) || !isFieldType(value.type)) return false
-  if ('required' in value && value.required !== undefined && typeof value.required !== 'boolean') {
-    return false
-  }
-  if ('options' in value && value.options !== undefined && value.options !== null) {
-    if (!isStringArray(value.options)) return false
-  }
-  if ('source_form' in value && value.source_form !== undefined && value.source_form !== null) {
-    if (typeof value.source_form !== 'string') return false
-  }
-  if ('display_key' in value && value.display_key !== undefined && value.display_key !== null) {
-    if (typeof value.display_key !== 'string') return false
-  }
-  return true
-}
-
-function isFormSchemaSpec(value: unknown): value is FormSchemaSpec {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'fields' in value &&
-    Array.isArray(value.fields) &&
-    value.fields.every(isFormFieldSchema)
-  )
 }
 
 const DEFAULT_SCHEMA_TEXT = JSON.stringify({ fields: [] }, null, 2)
@@ -166,13 +112,6 @@ function tagsFromText(value: string): string[] {
     .split(',')
     .map((tag) => tag.trim())
     .filter((tag) => tag !== '')
-}
-
-/** The preview reads only a fully-shaped `{ fields: [...] }`; anything else
-    previews as empty rather than throwing — a schema mid-edit is expected to
-    be momentarily unrecognisable. */
-function extractFields(value: unknown): FormFieldSchema[] {
-  return isFormSchemaSpec(value) ? value.fields : []
 }
 
 interface Props {
@@ -395,11 +334,10 @@ export function FormDialog({ open, onOpenChange, form }: Props) {
             </label>
             <div className="flex flex-col gap-1 text-sm font-medium">
               <span className="text-slate-700">Preview</span>
-              {/* A simple label/type-badge list, not the real EntryForm — Task
-                  12 swaps this for `<EntryForm schema={parsed} disabled ... />`
-                  once that component exists, avoiding a forward dependency. */}
+              {/* The real EntryForm, disabled — what a staff member sees
+                  filling this form, not a schema editor's guess at it. */}
               <div
-                className="flex min-h-64 flex-col gap-2 rounded-md border border-slate-200 p-3"
+                className="flex min-h-64 flex-col gap-2 overflow-y-auto rounded-md border border-slate-200 p-3"
                 data-automation-id="FormDialog-preview"
               >
                 {!parsedSchema.ok ? (
@@ -409,17 +347,16 @@ export function FormDialog({ open, onOpenChange, form }: Props) {
                 ) : previewFields.length === 0 ? (
                   <span className="text-xs font-normal text-slate-500">No fields yet.</span>
                 ) : (
-                  previewFields.map((field) => (
-                    <div
-                      key={field.key}
-                      className="flex items-center justify-between gap-2 text-sm"
-                    >
-                      <span>{field.label}</span>
-                      <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                        {field.type}
-                      </span>
-                    </div>
-                  ))
+                  <EntryForm
+                    schema={previewFields}
+                    staffOptions={[]}
+                    submitting={false}
+                    automationIdPrefix="FormDialog-preview-entry"
+                    disabled
+                    onSubmit={() => {
+                      throw new Error('The disabled preview form must never submit.')
+                    }}
+                  />
                 )}
               </div>
             </div>

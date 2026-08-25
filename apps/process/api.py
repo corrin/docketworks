@@ -13,6 +13,14 @@ Paths and operationIds are the stable contract:
 - PATCH  /api/process/entries/{entry_id}/           process_entries_partial_update (any staff)
 - DELETE /api/process/entries/{entry_id}/           process_entries_destroy        (any staff)
 - GET    /api/process/entries/{entry_id}/history/   process_entries_history_list   (any staff)
+- GET    /api/process/staff-options/                process_staff_options_list     (any staff)
+
+``process_staff_options_list`` exists because ``/api/timesheets/staff/``
+(the frontend's other staff-listing endpoint) is
+``SuperuserCookieJWTAuth``-gated (apps/timesheet/api.py: the management
+surface exposes other staff members' pay data) while any staff member must be
+able to pick who a form entry is signed for — so the entry form's staff
+picker needs its own any-staff endpoint rather than reusing that one.
 
 There is deliberately no DELETE route on forms: archiving (PATCH
 ``{"status": "archived"}``) replaces delete, so a form's audit trail cannot
@@ -37,6 +45,7 @@ from ninja.errors import HttpError
 from ninja.responses import Status
 
 from apps.accounts.models import Staff
+from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
 from apps.core.pagination import paginate
 from apps.process.models import Form, FormEntry, Procedure, ProcessEvent
@@ -52,6 +61,7 @@ from apps.process.schemas import (
     FormStatus,
     FormUpdateIn,
     PaginatedEntryList,
+    StaffOptionOut,
 )
 from apps.process.services.entries_service import (
     archive_entry,
@@ -89,6 +99,26 @@ def process_categories_retrieve(request: HttpRequest) -> dict[str, object]:
         "forms": [{"key": key, "label": label} for key, label in Form.Category.choices],
         "procedures": [{"key": key, "label": label} for key, label in Procedure.Category.choices],
     }
+
+
+@router.get(
+    "/staff-options/",
+    auth=auth,
+    operation_id="process_staff_options_list",
+    response=list[StaffOptionOut],
+    summary="Staff selectable as an entry's subject, alphabetically",
+)
+def process_staff_options_list(request: HttpRequest) -> list[dict[str, object]]:
+    """Currently-active staff, id + display name, ordered alphabetically.
+
+    Unlike the timesheet staff list, ``actual_users=False``: signing a form
+    does not require a Xero payroll id, so excluding developer/admin logins
+    would only hide legitimate signers.
+    """
+    return [
+        {"id": member.id, "name": member.get_display_full_name()}
+        for member in get_displayable_staff(actual_users=False)
+    ]
 
 
 @router.get(

@@ -11287,6 +11287,21 @@ components:
       - total_revenue
       title: StaffMetricsOut
       type: object
+    StaffOptionOut:
+      description: A staff member as the entry form's staff picker draws it, and nothing more.
+      properties:
+        id:
+          format: uuid
+          title: Id
+          type: string
+        name:
+          title: Name
+          type: string
+      required:
+      - id
+      - name
+      title: StaffOptionOut
+      type: object
     StaffPerformanceResponse:
       description: Wire contract for StaffPerformanceResponse.
       properties:
@@ -19047,6 +19062,33 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Create a form entry
+      tags:
+      - process
+  /api/process/staff-options/:
+    get:
+      description: 'Currently-active staff, id + display name, ordered alphabetically.
+
+
+        Unlike the timesheet staff list, ``actual_users=False``: signing a form
+
+        does not require a Xero payroll id, so excluding developer/admin logins
+
+        would only hide legitimate signers.'
+      operationId: process_staff_options_list
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/StaffOptionOut'
+                title: Response
+                type: array
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Staff selectable as an entry's subject, alphabetically
       tags:
       - process
   /api/purchasing/all-jobs/:

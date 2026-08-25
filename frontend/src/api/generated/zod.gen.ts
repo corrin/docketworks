@@ -4427,6 +4427,16 @@ export const zStaffMetricsOut = z.object({
 });
 
 /**
+ * StaffOptionOut
+ *
+ * A staff member as the entry form's staff picker draws it, and nothing more.
+ */
+export const zStaffOptionOut = z.object({
+    id: z.uuid(),
+    name: z.string()
+});
+
+/**
  * StaffUpdateIn
  *
  * Partial-update body for PATCH /api/accounts/staff/{staff_id}/.
@@ -7324,6 +7334,13 @@ export const zProcessFormsEntriesCreatePath = z.object({
  * Created
  */
 export const zProcessFormsEntriesCreateResponse = zEntryOut;
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zProcessStaffOptionsListResponse = z.array(zStaffOptionOut);
 
 export const zPurchasingAllJobsRetrieveQuery = z.object({
     q: z.string().optional().default('')
