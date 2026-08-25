@@ -11,7 +11,9 @@ slices, each shipping its own E2E spec. Slice 1 closes the MUST-tier
 - **Form** — a template. Every form is a template: it carries a JSON field
   schema, and filling it in creates a FormEntry. There is no `is_template`
   flag. `document_type` distinguishes `form` from `register`, which is purely
-  a categorisation — behaviour is identical.
+  a categorisation — behaviour is identical. Registers double as lightweight
+  entity lists (assets, chemicals, hazards) that other forms' fields can
+  reference (see `entry_ref` under API).
 - **FormEntry** — a filled-in form: a formal record ("Ben signed that he read
   this document on this date"). Editable by any authenticated staff member;
   every change writes an audit event that the UI shows. Soft-deletable
@@ -103,9 +105,30 @@ Forms:
 - archive = status update; **no destroy endpoint**
 
 Form schema is a typed, validated contract (`fields: [{key, label, type,
-required?, options?}]`, types `text|textarea|date|boolean|number|select`),
-enforced server-side with 422 on violation — never an opaque JSONField.
-Validation rejects duplicate keys and `options` on non-select fields.
+required?, options?, source_form?, display_key?}]`), enforced server-side
+with 422 on violation — never an opaque JSONField. Field types:
+
+- `text | textarea | date | boolean | number | select` — plain values;
+  `options` only on `select`.
+- `staff` — a staff picker; the entry stores the staff UUID. Used for
+  fields like "injured staff member" or "witness", beyond the top-level
+  `FormEntry.staff` ("who this entry is about").
+- `entry_ref` — a picker over the entries of another form, configured by
+  `source_form` (form id) and `display_key` (which field of the source
+  entry labels it). This is how forms reference **assets**: an Asset
+  Register is just another register form, and a maintenance record's asset
+  field is an `entry_ref` into it. Chemicals, hazards and any future
+  register-backed entity work the same way. If assets ever outgrow a
+  register, promotion to a real model is a data migration.
+
+Validation rejects duplicate keys, `options` off `select`, and
+`source_form`/`display_key` off `entry_ref` (both required on it, and
+`source_form` must exist). Entry-data validation resolves references at
+write time: a `staff` value must be an existing staff UUID, an `entry_ref`
+value an active entry of the configured source form. References are stored
+as UUIDs inside `entry.data`; write-time validation is the integrity
+mechanism (rows are never hard-deleted, so dangling references do not arise
+through the app).
 
 Entries:
 - list (paginated — entries grow without bound; page size 50; filters:
@@ -171,7 +194,10 @@ Components:
 - **One** schema-driven entry form component, used by both the entries-page
   add-entry card and the Fill dialog on the forms list. Optional job picker
   and staff picker; staff defaults to the signed-in user ("sign for myself"
-  is the common case).
+  is the common case). Renders `staff` fields with the app's existing staff
+  picker and `entry_ref` fields as a combobox over the source form's
+  entries labelled by `display_key`; entry tables render references by
+  their display value, not the UUID.
 - Entries table built from the schema, with a history panel per entry
   rendering ProcessEvent rows (who, when, field-level before/after).
 - Linked entries: an entry's detail surface lists its child entries
