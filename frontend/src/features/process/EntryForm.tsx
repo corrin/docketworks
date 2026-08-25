@@ -73,20 +73,29 @@ function isBlank(draft: Draft): boolean {
   return draft === ''
 }
 
-// Total over the field types a text/number/date <input> renders directly:
-// when the backend grows a new FieldType the generated union grows and this
-// Record stops type-checking (the INPUT_TYPE trick from
-// SettingsFieldInput.tsx:37-45) — textarea/boolean/select/staff/entry_ref
-// each get their own branch below, ahead of this fallback.
-type SimpleFieldType = Extract<FormFieldSchema['type'], 'text' | 'number' | 'date'>
+// The complement of every field type with its own branch below
+// (entry_ref/boolean/textarea/select/staff): Exclude only DROPS the named
+// members, so when the backend adds a new FieldType it is NOT named here and
+// therefore lands IN SimpleFieldType — which makes the Record below miss a
+// property and fail to compile until either a new branch or a new INPUT_TYPE
+// entry handles it (the same mechanism as SettingsFieldInput.tsx:33-36; an
+// Extract of the three names here would do the opposite — a new type would
+// silently stay out of SimpleFieldType and this Record would keep compiling).
+type SimpleFieldType = Exclude<
+  FormFieldSchema['type'],
+  'entry_ref' | 'boolean' | 'textarea' | 'select' | 'staff'
+>
 const INPUT_TYPE: Record<SimpleFieldType, string> = {
   text: 'text',
   number: 'number',
   date: 'date',
 }
 
+// Derived from INPUT_TYPE's own keys rather than a second hand-maintained
+// list of type names, so there is exactly one place that enumerates
+// SimpleFieldType's members.
 function isSimpleFieldType(type: FormFieldSchema['type']): type is SimpleFieldType {
-  return type === 'text' || type === 'number' || type === 'date'
+  return type in INPUT_TYPE
 }
 
 interface FieldProps {
@@ -266,6 +275,11 @@ export function EntryForm({
   // one general, company-unscoped job list already wired to the shared
   // JobPicker, unlike purchasing's own usePoJobSearch background search
   // (a PO-specific `q` reach into archived jobs this simpler picker skips).
+  // NOT timesheetsJobsRetrieveOptions: that endpoint is
+  // SuperuserCookieJWTAuth-gated (apps/timesheet/api.py:219-221,
+  // `manage_auth`), the same reason staff-options got its own any-staff
+  // endpoint — purchasingAllJobsRetrieveOptions is CookieJWTAuth, reachable
+  // by whichever staff member is filling this form.
   const jobsQuery = useQuery(purchasingAllJobsRetrieveOptions())
   const jobs = jobsQuery.data?.jobs ?? []
   const selectedJob: JobPickerOption | null = jobs.find((job) => job.id === jobId) ?? null
