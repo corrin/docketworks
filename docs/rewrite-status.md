@@ -173,6 +173,17 @@ rather than anywhere else. This file is finished when it is empty.
 
 ## SHOULD — before the flip, if it never displaces a MUST
 
+- **Invert the staff email rule (owner ruling, 2026-08-26): payroll email is the
+  universal login identity — required, unique, USERNAME_FIELD; office email is
+  an optional second address that also logs in.** The backend already
+  dual-matches both (`apps/accounts/authentication.py`); today's model has the
+  optionality backwards, so creating a wage-only staff member forces inventing
+  an office email. Migration backfills `payroll_email` from `office_email`
+  where NULL (system automation user and any office-only accounts — for those,
+  "payroll email" then means primary email). Dialog flips required/optional and
+  labels accordingly. Own small PR against main; found during owner UAT of the
+  forms slice.
+
 - **The admin tail**, first work after the MUST milestone and the first week's
   work if it slips: labour rates, archive jobs, the month-end UI (backend done)
   and the AppError viewer (write path done everywhere; the read/grouping API and
