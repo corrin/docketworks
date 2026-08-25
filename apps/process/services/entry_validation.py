@@ -33,6 +33,8 @@ def _as_uuid(key: str, value: object, problems: list[str]) -> UUID | None:
         return None
     try:
         return UUID(value)
+    # deliberate-swallow: a malformed id in entry data is the caller's input
+    # error, converted into the named validation problem the 400 reports.
     except ValueError:
         problems.append(f"'{key}' must be an id string.")
         return None
@@ -59,6 +61,8 @@ def _check_date(field: FormFieldSchema, value: object, problems: list[str]) -> N
         return
     try:
         date.fromisoformat(value)
+    # deliberate-swallow: a non-ISO date in entry data is the caller's input
+    # error, converted into the named validation problem the 400 reports.
     except ValueError:
         problems.append(f"'{field.key}' must be an ISO date (YYYY-MM-DD).")
 
@@ -132,6 +136,8 @@ def validate_entry_data(form: Form, data: dict[str, object]) -> None:
 def _is_uuid(value: str) -> bool:
     try:
         UUID(value)
+    # deliberate-swallow: this predicate classifies; non-UUID text is the
+    # False answer, and display_data renders such values verbatim by design.
     except ValueError:
         return False
     return True

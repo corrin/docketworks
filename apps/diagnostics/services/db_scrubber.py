@@ -461,6 +461,9 @@ def _scrub_process_entries() -> None:
     for entry in FormEntry.objects.using(SCRUB_ALIAS).select_related("form"):
         try:
             spec = parse_schema(entry.form)
+        # deliberate-swallow: an unparseable stored schema means the entry's
+        # free-text keys cannot be identified, so the whole data payload is
+        # wiped (the safe direction) and the count is logged after the loop.
         except HttpError:
             unparseable += 1
             entry.data = {}
