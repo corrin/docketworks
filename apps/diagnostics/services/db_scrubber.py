@@ -19,6 +19,13 @@ the seed's employees phase re-reads, and it names a Xero employee record
 rather than a person), and ``CompanyDefaults.test_company_name`` plus the
 shop and enabled-scraper supplier companies keep their real names.
 
+Fable: process_form, process_formentry, process_procedure and
+process_processevent carry no name/email/address PII of their own — a
+FormEntry or ProcessEvent identifies a staff member only through a
+``staff``/``entered_by`` FK, already anonymised at the Staff table itself —
+so, like job's own audit trail (JobEvent), they need no scrub or
+excluded-table entry here.
+
 v1 also left staff PASSWORDS alone, on the reasoning that the restore runbook
 resets them. v2 does not: the reset happens after the archive has already
 travelled, so the file itself carried production hashes. They are replaced
@@ -489,9 +496,6 @@ _EXCLUDED_TABLES = (
     # and CostLine in the dump. Pay item names aren't PII; letting prod's set
     # through is harmless.
     "accounts_historicalstaff",
-    "process_historicalform",
-    "process_historicalformentry",
-    "process_historicalprocedure",
 )
 
 
