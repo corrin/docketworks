@@ -27,6 +27,15 @@ slices, each shipping its own E2E spec. Slice 1 closes the MUST-tier
   the Google Doc. JSAs additionally hang off a job's Safety tab.
 - **Category** — a stored, exclusive field on Form and Procedure. Not tags
   (tags remain for search), not a model, not a URL-segment filter.
+- **Acknowledgement** — "Ryan acknowledged at &lt;datetime&gt; that he read and
+  understood the contents of &lt;document&gt;." A dedicated append-only model,
+  not a form entry and not a ProcessEvent: it spans both document families
+  (a FormEntry cannot reference a Procedure), and the business question it
+  answers is state ("which staff have acknowledged this document?"), which
+  an event log answers badly. Self-only: the API stamps the requesting
+  user; nobody acknowledges on another's behalf. Repeat acknowledgements
+  are allowed (re-reading after a document changes); the UI surfaces each
+  person's latest. No update or delete surface exists.
 
 ## Permission model
 
@@ -83,12 +92,17 @@ are additive migrations plus one removal).
    meeting-minutes → attendance/actions linkage; it is cross-form by design.
    No depth limit is enforced — a chain is legal but the UI only surfaces one
    level.
-6. Categories and `document_type` stay code-level enums. More will come
+6. **`Acknowledgement`** — `id`, `staff` (PROTECT), `form` / `procedure`
+   nullable FKs (CASCADE) with a CHECK that exactly one is set,
+   `acknowledged_at` (`default=now`), `ordering ["-acknowledged_at"]`. A
+   `description` property renders the sentence ("Ryan acknowledged at
+   25 Aug 2026 14:02 that he read and understood 'Working at Heights'").
+7. Categories and `document_type` stay code-level enums. More will come
    (owner: meetings and their derivatives are one known family); extension
    is a one-line choice addition plus a ledger note, and nothing —
    validation, navbar, filters — hardcodes today's list anywhere except the
    enum itself.
-7. Wire contract: `document_number` and `site_location` are `NullableText`
+8. Wire contract: `document_number` and `site_location` are `NullableText`
    (ADR 0040) — blank string is a 422 before the database, which removes
    v1's certain 500 (blank `site_location` vs the CHECK constraint) by
    construction.
@@ -145,6 +159,13 @@ type. (v1 accepted anything.)
 Categories:
 - one GET returning both choice lists with machine keys and display labels;
   drives the navbar menus.
+
+Acknowledgements:
+- `POST /forms/{id}/acknowledge/` — empty body; stamps `staff` from the
+  request user (self-only by construction), 201 with the created row.
+- `GET /forms/{id}/acknowledgements/` — staff name + datetime, latest
+  first. Any authenticated staff.
+- The procedure twins of both endpoints ship with slice 2.
 
 Procedures (slice 2): list/create/retrieve/update + archive-by-status in the
 same shape; content read/write (Google Docs); JSA list + generate under the
@@ -209,6 +230,10 @@ Components:
   as you type.
 - Archive replaces delete everywhere in the UI; archived documents are
   hidden by default and reachable via the status filter.
+- Acknowledgement affordance on the document page: an "I have read and
+  understood this document" button (relabelled "Acknowledge again" once the
+  signed-in user has a row) and an acknowledgements panel listing each
+  person's latest acknowledgement, newest first.
 
 TanStack Query only; generated client (camelCase, option factories); errors
 route to toasts (the console.error E2E guard).
@@ -216,9 +241,10 @@ route to toasts (the console.error E2E guard).
 ## Slices and specs
 
 **Slice 1 — forms (MUST).** Migrations (category backfill, ProcessEvent,
-simple-history removal, updated_at, parent_entry), forms/entries/categories
-API, both pages, Fill dialog, history panel, linked entries, navbar Forms
-menu, e2e_cleanup extension. Specs: the ported `form-entries-page-scroll`
+simple-history removal, updated_at, parent_entry, Acknowledgement),
+forms/entries/categories API, the form acknowledgement endpoints, both
+pages, Fill dialog, history panel, linked entries, acknowledgement button
+and panel, navbar Forms menu, e2e_cleanup extension. Specs: the ported `form-entries-page-scroll`
 (adapted to v2 URLs/wire — its green is the MUST milestone) plus an authored
 lifecycle spec: create form → fill as regular staff → add a linked entry →
 edit → history shows the delta → archive.

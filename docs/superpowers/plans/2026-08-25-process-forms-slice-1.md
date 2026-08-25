@@ -2041,6 +2041,72 @@ git commit -m "Authored form-lifecycle E2E: create, fill, link, audit, archive"
 
 ---
 
+### Task 16: Acknowledgement model + API (execute after Task 14, before Task 15)
+
+Owner addition 2026-08-25: "I have read this" is common enough to deserve its own model — "Ryan acknowledged at &lt;datetime&gt; that he read and understood the contents of &lt;document&gt;". A dedicated append-only model, NOT a ProcessEvent (the business question is state — who has acknowledged — which an event log answers badly) and NOT a FormEntry (it must span procedures too, in slice 2).
+
+**Files:**
+- Create: `apps/process/models/acknowledgement.py`
+- Modify: `apps/process/models/__init__.py`
+- Create: `apps/process/migrations/000N_acknowledgement.py` (generated)
+- Modify: `apps/process/api.py`
+- Modify: `apps/process/schemas.py`
+- Modify: `apps/diagnostics/management/commands/e2e_cleanup.py` (acknowledgements cascade with forms — verify, and extend the report lines if a queryset is needed)
+- Create: `apps/process/tests/test_acknowledgements_api.py`
+
+**Interfaces:**
+- Model `Acknowledgement`: `id` UUID PK; `staff` FK `accounts.Staff` PROTECT `related_name="process_acknowledgements"`; `form` FK nullable CASCADE `related_name="acknowledgements"`; `procedure` FK nullable CASCADE `related_name="acknowledgements"`; `acknowledged_at` DateTimeField `default=now`; `Meta.ordering = ["-acknowledged_at"]`; CheckConstraint `acknowledgement_exactly_one_document`: exactly one of form/procedure set (`Q(form__isnull=False, procedure__isnull=True) | Q(form__isnull=True, procedure__isnull=False)`).
+- `description` property: `f"{self.staff.get_display_full_name()} acknowledged at {self.acknowledged_at:%d %b %Y %H:%M} that he or she read and understood '{title}'"` where title is the linked document's title.
+- Operations:
+  - `POST /forms/{uuid:form_id}/acknowledge/` → `process_forms_acknowledge_create` → 201 `AcknowledgementOut` (auth: any; **no request body**; `staff=request.user` always — self-only by construction, the comment records the rejected alternative of a staff field).
+  - `GET /forms/{uuid:form_id}/acknowledgements/` → `process_forms_acknowledgements_list` → `list[AcknowledgementOut]` newest-first (auth: any).
+- `AcknowledgementOut` (schemas.py): `id: UUID`, `staff: UUID`, `staff_name: str` (resolve via `get_display_full_name()`), `acknowledged_at: datetime`, `description: str`.
+- Repeat acknowledgements allowed: POST twice = two rows. No update/delete endpoints, no admin surface.
+
+- [ ] **Step 1: Write the failing tests** — `test_acknowledgements_api.py` with the Task 7 fixture idiom: `TestAuth` (anonymous 401 on both; any authenticated staff can POST and GET); `TestAcknowledge` (`test_post_stamps_the_requesting_user` — POST with empty body as staff A creates a row with `staff == A`, 201 body carries `staff_name`; `test_body_staff_is_rejected` — POST `{"staff": "<other uuid>"}` is a 422 — self-only means the field does not exist on the wire; `test_repeat_acknowledgement_creates_a_second_row`; `test_unknown_form_is_a_404`); `TestList` (`test_lists_newest_first`; `test_description_renders_the_sentence` — assert the staff display name, the formatted datetime, and the form title all appear in `description`); `TestModel` (`test_exactly_one_document_constraint` — creating with neither/both raises IntegrityError).
+- [ ] **Step 2: Run to verify failure** — `uv run pytest apps/process/tests/test_acknowledgements_api.py -v`, FAIL (model missing).
+- [ ] **Step 3: Implement** — model file (docstring: the state-vs-event-log rationale above, `Fable:` prefixed), `__init__.py` export, `makemigrations process`, schema, the two endpoints in `api.py` (contract-listing docstring updated). The POST handler takes no payload class at all.
+- [ ] **Step 4: e2e_cleanup** — acknowledgements CASCADE from forms, so no new queryset is strictly needed; verify the cascade appears in the delete detail and add a one-line comment in the command noting acknowledgements ride the form cascade.
+- [ ] **Step 5: Run until green** — `uv run pytest apps/process apps/diagnostics -v && uv run mypy apps/process` (hooks regenerate schema.v2.yml + status table on commit; stage them).
+- [ ] **Step 6: Update the ledger files** — `scripts/v1-frontend-operations.yml`: add both new operation ids under `introduced:` (v1 had no acknowledgement concept).
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/process/ apps/diagnostics/ scripts/v1-frontend-operations.yml frontend/schema.v2.yml docs/
+git commit -m "Acknowledgements: an append-only I-have-read-this record per staff and document"
+```
+
+---
+
+### Task 17: Acknowledgement UI + lifecycle-spec step (execute after Task 16, before Task 15)
+
+**Files:**
+- Modify: `frontend/src/api/index.ts` (re-export the two new operations + `AcknowledgementOut`)
+- Modify: `frontend/src/features/process/FormEntriesPage.tsx`
+- Create: `frontend/src/features/process/AcknowledgementsPanel.tsx`
+- Modify: `frontend/src/features/process/FormEntriesPage.test.tsx`
+- Modify: `frontend/tests/e2e/process-documents/form-lifecycle.spec.ts`
+
+**Interfaces:**
+- `AcknowledgementsPanel({ formId }: { formId: string })` — renders the button + the list.
+- Automation ids: `Acknowledgements-button`, `Acknowledgements-count`, `Acknowledgements-row-${id}`.
+- Button label: `I have read and understood this document`; relabelled `Acknowledge again` when the signed-in user already has a row (compare against the shell user id). On click: `processFormsAcknowledgeCreateMutation`, then invalidate `processFormsAcknowledgementsListQueryKey({ path: { form_id } })`; success toast `Acknowledged`; errors via `toast.error(apiErrorMessage(...))`.
+- Panel lists each staff member's LATEST acknowledgement only (client-side: first row per staff id in the newest-first list), rendering `staff_name` and the formatted datetime via `formatDateTime` from `@/lib/format`.
+
+- [ ] **Step 1: Failing component test** — panel renders rows from a mocked list (two rows for one staff id → only the latest shown); button label flips to `Acknowledge again` when the mocked user has a row.
+- [ ] **Step 2: Run to verify failure** — `npx vitest run src/features/process`, FAIL.
+- [ ] **Step 3: Implement** — `AcknowledgementsPanel` placed in the `FormEntriesPage` header region under the badges; api/index.ts block extended (boundary check).
+- [ ] **Step 4: Extend the lifecycle E2E** — new `test.step` after the fill step: click `Acknowledgements-button`, await the POST 201, assert the panel shows the E2E user's name and the count increments; assert the button now reads `Acknowledge again`.
+- [ ] **Step 5: Run until green** — `npx vitest run src/features/process && npm run type-check` (the controller runs the E2E).
+- [ ] **Step 6: Commit**
+
+```bash
+git add frontend/src/features/process/ frontend/src/api/index.ts frontend/tests/e2e/process-documents/form-lifecycle.spec.ts
+git commit -m "Acknowledgement button and panel on the form page; lifecycle spec covers it"
+```
+
+---
+
 ### Task 15: Wrap-up — docs, ledger, full gates
 
 **Files:**
