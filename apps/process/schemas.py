@@ -165,10 +165,18 @@ class EntryOut(Schema):
 
     ``display_data`` carries server-resolved labels for staff/entry_ref values
     (e.g. a staff UUID's display name, a referenced entry's display_key value)
-    so the client renders a row with no follow-up join. It is a plain field
-    the API layer fills on the ORM instance before serialisation (there is no
-    single-hop resolver: computing it needs the form's schema plus, for
-    entry_ref fields, the referenced entry), not a ``resolve_*`` staticmethod.
+    so the client renders a row with no follow-up join. It is a plain
+    declared field, not a ``resolve_*`` staticmethod: computing it needs the
+    form's schema plus, for entry_ref fields, the referenced entry, which a
+    single-hop ``resolve_*(obj)`` cannot reach, so the endpoint (Task 8) must
+    set ``entry.display_data`` on the ORM instance itself before
+    serialisation.
+
+    Fable: a ``resolve_*`` fallback such as ``getattr(obj, "display_data",
+    {})`` was rejected — it would turn a missing enrichment pass into a
+    silent empty dict instead of the loud ``AttributeError`` a plain field
+    raises at serialisation time, and fail-early treats "the endpoint forgot
+    to enrich this entry" as a bug to surface, not a value to default over.
     """
 
     id: UUID
@@ -204,14 +212,6 @@ class EntryOut(Schema):
         if annotated is not None:
             return int(annotated)
         return obj.child_entries.filter(is_active=True).count()
-
-    @staticmethod
-    def resolve_display_data(obj: FormEntry) -> dict[str, str]:
-        """Read the API layer's prepared display labels, empty if unset."""
-        # An entry never enriched for the wire (no API-layer pass) has none
-        # to show; that is a build omission, not a value worth defaulting a
-        # blank string over, so the field is simply absent per key.
-        return getattr(obj, "display_data", {})
 
 
 class PaginatedEntryList(Schema):
