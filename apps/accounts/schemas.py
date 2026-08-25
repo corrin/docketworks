@@ -6,12 +6,21 @@ These schemas are the single source of Staff field lists exposed over the API.
 import datetime as datetime_module
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from ninja import Field, Schema
+from pydantic import ConfigDict
 
-from apps.accounts.models import Staff
-from apps.core.schemas import ResponseSchema
+from apps.accounts.models import STAFF_MANAGER_GROUP_NAME, Staff
+from apps.core.schemas import (
+    NonBlankText,
+    NonNegativeQuantity,
+    NullableText,
+    Quantity,
+    ResponseSchema,
+    omittable,
+)
 
 
 class LoginRequest(Schema):
@@ -77,19 +86,133 @@ class UserProfile(ResponseSchema):
 
 
 class StaffListItemOut(Schema):
-    """One row of the staff admin list (GET /api/accounts/staff/)."""
+    """One row of the staff admin list (GET /api/accounts/staff/).
+
+    Also the response of every staff write: the admin screen's edit modal is
+    populated from this row (there is no retrieve endpoint), so the full
+    editable field set rides here.
+    """
 
     id: UUID
     first_name: str
     last_name: str
+    preferred_name: str | None
+    # Fable: The server's one naming rule (first word of preferred/first name
+    # plus last name) — carried on the wire so no client re-derives it with
+    # different semantics and hashes a different avatar colour than kanban.
+    display_name: str
     office_email: str
     payroll_email: str | None
     employment_start_date: date
     pay_basis: str | None
-    wage_rate: Decimal
-    base_wage_rate: Decimal
+    wage_rate: Quantity
+    base_wage_rate: Quantity
     date_left: date | None
+    xero_user_id: str | None
     is_office_staff: bool
+    is_workshop_staff: bool
+    is_superuser: bool
+    is_staff_manager: bool
+    hours_mon: Quantity
+    hours_tue: Quantity
+    hours_wed: Quantity
+    hours_thu: Quantity
+    hours_fri: Quantity
+    hours_sat: Quantity
+    hours_sun: Quantity
+    # Plain str, not a URL type: site-root-relative /media/ paths must resolve
+    # against the browser's own origin, matching KanbanStaffOut.icon_url.
+    icon_url: str | None
+
+    @staticmethod
+    def resolve_display_name(obj: Staff) -> str:
+        """Resolve the canonical display name, same rule as the kanban wire types."""
+        return obj.get_display_full_name()
+
+    @staticmethod
+    def resolve_icon_url(obj: Staff) -> str | None:
+        """Site-relative icon path, or None when the staff member has no icon."""
+        return obj.icon.url if obj.icon else None
+
+    @staticmethod
+    def resolve_is_staff_manager(obj: Staff) -> bool:
+        """Raw StaffManager membership, NOT Staff.is_staff_manager().
+
+        Fable: The model method folds in is_superuser (effective privilege); a
+        checkbox round-tripping that would silently enrol every superuser in
+        the group. list_all_staff prefetches groups, so this is not N+1.
+        """
+        return any(group.name == STAFF_MANAGER_GROUP_NAME for group in obj.groups.all())
+
+
+class StaffCreateIn(Schema):
+    """Create body for POST /api/accounts/staff/.
+
+    Unknown keys are rejected rather than dropped (``extra="forbid"``): the
+    derived ``wage_rate`` in a payload must be a 422, not a silent no-op.
+    Omitted fields take the model defaults — the handler dumps with
+    ``exclude_unset`` and never reads the placeholders here.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    office_email: NonBlankText
+    first_name: NonBlankText
+    last_name: NonBlankText
+    password: NonBlankText
+    preferred_name: NullableText = omittable(None)
+    payroll_email: NullableText = omittable(None)
+    xero_user_id: NullableText = omittable(None)
+    base_wage_rate: NonNegativeQuantity = omittable(Decimal("0"))
+    employment_start_date: date = omittable(date(1970, 1, 1))
+    date_left: date | None = omittable(None)
+    pay_basis: Literal["hourly", "salary"] | None = omittable(None)
+    is_office_staff: bool = omittable(False)
+    is_workshop_staff: bool = omittable(True)
+    is_superuser: bool = omittable(False)
+    is_staff_manager: bool = omittable(False)
+    hours_mon: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_tue: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_wed: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_thu: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_fri: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_sat: NonNegativeQuantity = omittable(Decimal("0"))
+    hours_sun: NonNegativeQuantity = omittable(Decimal("0"))
+
+
+class StaffUpdateIn(Schema):
+    """Partial-update body for PATCH /api/accounts/staff/{staff_id}/.
+
+    Everything omittable: omission leaves the stored value alone. On the
+    nullable fields ``null`` is a real value — ``date_left: null`` reinstates a
+    departed staff member (ADR 0040). ``password`` is presence-only: null is
+    never a password value, so only supplying one changes it.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    office_email: NonBlankText = omittable("")
+    first_name: NonBlankText = omittable("")
+    last_name: NonBlankText = omittable("")
+    password: NonBlankText = omittable("")
+    preferred_name: NullableText = omittable(None)
+    payroll_email: NullableText = omittable(None)
+    xero_user_id: NullableText = omittable(None)
+    base_wage_rate: NonNegativeQuantity = omittable(Decimal("0"))
+    employment_start_date: date = omittable(date(1970, 1, 1))
+    date_left: date | None = omittable(None)
+    pay_basis: Literal["hourly", "salary"] | None = omittable(None)
+    is_office_staff: bool = omittable(False)
+    is_workshop_staff: bool = omittable(True)
+    is_superuser: bool = omittable(False)
+    is_staff_manager: bool = omittable(False)
+    hours_mon: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_tue: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_wed: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_thu: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_fri: NonNegativeQuantity = omittable(Decimal("8"))
+    hours_sat: NonNegativeQuantity = omittable(Decimal("0"))
+    hours_sun: NonNegativeQuantity = omittable(Decimal("0"))
 
 
 class KanbanStaffQuery(Schema):

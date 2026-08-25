@@ -9193,6 +9193,107 @@ export type SettingsSectionOut = {
 };
 
 /**
+ * StaffCreateIn
+ *
+ * Create body for POST /api/accounts/staff/.
+ *
+ * Unknown keys are rejected rather than dropped (``extra="forbid"``): the
+ * derived ``wage_rate`` in a payload must be a 422, not a silent no-op.
+ * Omitted fields take the model defaults — the handler dumps with
+ * ``exclude_unset`` and never reads the placeholders here.
+ */
+export type StaffCreateIn = {
+    /**
+     * Base Wage Rate
+     */
+    base_wage_rate?: number;
+    /**
+     * Date Left
+     */
+    date_left?: string | null;
+    /**
+     * Employment Start Date
+     */
+    employment_start_date?: string;
+    /**
+     * First Name
+     */
+    first_name: string;
+    /**
+     * Hours Fri
+     */
+    hours_fri?: number;
+    /**
+     * Hours Mon
+     */
+    hours_mon?: number;
+    /**
+     * Hours Sat
+     */
+    hours_sat?: number;
+    /**
+     * Hours Sun
+     */
+    hours_sun?: number;
+    /**
+     * Hours Thu
+     */
+    hours_thu?: number;
+    /**
+     * Hours Tue
+     */
+    hours_tue?: number;
+    /**
+     * Hours Wed
+     */
+    hours_wed?: number;
+    /**
+     * Is Office Staff
+     */
+    is_office_staff?: boolean;
+    /**
+     * Is Staff Manager
+     */
+    is_staff_manager?: boolean;
+    /**
+     * Is Superuser
+     */
+    is_superuser?: boolean;
+    /**
+     * Is Workshop Staff
+     */
+    is_workshop_staff?: boolean;
+    /**
+     * Last Name
+     */
+    last_name: string;
+    /**
+     * Office Email
+     */
+    office_email: string;
+    /**
+     * Password
+     */
+    password: string;
+    /**
+     * Pay Basis
+     */
+    pay_basis?: 'hourly' | 'salary' | null;
+    /**
+     * Payroll Email
+     */
+    payroll_email?: string | null;
+    /**
+     * Preferred Name
+     */
+    preferred_name?: string | null;
+    /**
+     * Xero User Id
+     */
+    xero_user_id?: string | null;
+};
+
+/**
  * StaffDailyDataOut
  *
  * Wire contract for StaffDailyDataOut.
@@ -9328,16 +9429,24 @@ export type StaffJobBreakdownOut = {
  * StaffListItemOut
  *
  * One row of the staff admin list (GET /api/accounts/staff/).
+ *
+ * Also the response of every staff write: the admin screen's edit modal is
+ * populated from this row (there is no retrieve endpoint), so the full
+ * editable field set rides here.
  */
 export type StaffListItemOut = {
     /**
      * Base Wage Rate
      */
-    base_wage_rate: string;
+    base_wage_rate: number;
     /**
      * Date Left
      */
     date_left: string | null;
+    /**
+     * Display Name
+     */
+    display_name: string;
     /**
      * Employment Start Date
      */
@@ -9347,6 +9456,38 @@ export type StaffListItemOut = {
      */
     first_name: string;
     /**
+     * Hours Fri
+     */
+    hours_fri: number;
+    /**
+     * Hours Mon
+     */
+    hours_mon: number;
+    /**
+     * Hours Sat
+     */
+    hours_sat: number;
+    /**
+     * Hours Sun
+     */
+    hours_sun: number;
+    /**
+     * Hours Thu
+     */
+    hours_thu: number;
+    /**
+     * Hours Tue
+     */
+    hours_tue: number;
+    /**
+     * Hours Wed
+     */
+    hours_wed: number;
+    /**
+     * Icon Url
+     */
+    icon_url: string | null;
+    /**
      * Id
      */
     id: string;
@@ -9354,6 +9495,18 @@ export type StaffListItemOut = {
      * Is Office Staff
      */
     is_office_staff: boolean;
+    /**
+     * Is Staff Manager
+     */
+    is_staff_manager: boolean;
+    /**
+     * Is Superuser
+     */
+    is_superuser: boolean;
+    /**
+     * Is Workshop Staff
+     */
+    is_workshop_staff: boolean;
     /**
      * Last Name
      */
@@ -9371,9 +9524,17 @@ export type StaffListItemOut = {
      */
     payroll_email: string | null;
     /**
+     * Preferred Name
+     */
+    preferred_name: string | null;
+    /**
      * Wage Rate
      */
-    wage_rate: string;
+    wage_rate: number;
+    /**
+     * Xero User Id
+     */
+    xero_user_id: string | null;
 };
 
 /**
@@ -9460,6 +9621,107 @@ export type StaffPerformanceResponse = {
      */
     staff: Array<StaffMetricsOut>;
     team_averages: TeamAveragesOut;
+};
+
+/**
+ * StaffUpdateIn
+ *
+ * Partial-update body for PATCH /api/accounts/staff/{staff_id}/.
+ *
+ * Everything omittable: omission leaves the stored value alone. On the
+ * nullable fields ``null`` is a real value — ``date_left: null`` reinstates a
+ * departed staff member (ADR 0040). ``password`` is presence-only: null is
+ * never a password value, so only supplying one changes it.
+ */
+export type StaffUpdateIn = {
+    /**
+     * Base Wage Rate
+     */
+    base_wage_rate?: number;
+    /**
+     * Date Left
+     */
+    date_left?: string | null;
+    /**
+     * Employment Start Date
+     */
+    employment_start_date?: string;
+    /**
+     * First Name
+     */
+    first_name?: string;
+    /**
+     * Hours Fri
+     */
+    hours_fri?: number;
+    /**
+     * Hours Mon
+     */
+    hours_mon?: number;
+    /**
+     * Hours Sat
+     */
+    hours_sat?: number;
+    /**
+     * Hours Sun
+     */
+    hours_sun?: number;
+    /**
+     * Hours Thu
+     */
+    hours_thu?: number;
+    /**
+     * Hours Tue
+     */
+    hours_tue?: number;
+    /**
+     * Hours Wed
+     */
+    hours_wed?: number;
+    /**
+     * Is Office Staff
+     */
+    is_office_staff?: boolean;
+    /**
+     * Is Staff Manager
+     */
+    is_staff_manager?: boolean;
+    /**
+     * Is Superuser
+     */
+    is_superuser?: boolean;
+    /**
+     * Is Workshop Staff
+     */
+    is_workshop_staff?: boolean;
+    /**
+     * Last Name
+     */
+    last_name?: string;
+    /**
+     * Office Email
+     */
+    office_email?: string;
+    /**
+     * Password
+     */
+    password?: string;
+    /**
+     * Pay Basis
+     */
+    pay_basis?: 'hourly' | 'salary' | null;
+    /**
+     * Payroll Email
+     */
+    payroll_email?: string | null;
+    /**
+     * Preferred Name
+     */
+    preferred_name?: string | null;
+    /**
+     * Xero User Id
+     */
+    xero_user_id?: string | null;
 };
 
 /**
@@ -12253,6 +12515,22 @@ export type AccountsStaffListResponses = {
 
 export type AccountsStaffListResponse = AccountsStaffListResponses[keyof AccountsStaffListResponses];
 
+export type AccountsStaffCreateData = {
+    body: StaffCreateIn;
+    path?: never;
+    query?: never;
+    url: '/api/accounts/staff/';
+};
+
+export type AccountsStaffCreateResponses = {
+    /**
+     * Created
+     */
+    201: StaffListItemOut;
+};
+
+export type AccountsStaffCreateResponse = AccountsStaffCreateResponses[keyof AccountsStaffCreateResponses];
+
 export type AccountsStaffAllListData = {
     body?: never;
     path?: never;
@@ -12283,6 +12561,77 @@ export type AccountsStaffAllListResponses = {
 };
 
 export type AccountsStaffAllListResponse = AccountsStaffAllListResponses[keyof AccountsStaffAllListResponses];
+
+export type AccountsStaffPartialUpdateData = {
+    body: StaffUpdateIn;
+    path: {
+        /**
+         * Staff Id
+         */
+        staff_id: string;
+    };
+    query?: never;
+    url: '/api/accounts/staff/{staff_id}/';
+};
+
+export type AccountsStaffPartialUpdateResponses = {
+    /**
+     * OK
+     */
+    200: StaffListItemOut;
+};
+
+export type AccountsStaffPartialUpdateResponse = AccountsStaffPartialUpdateResponses[keyof AccountsStaffPartialUpdateResponses];
+
+export type AccountsStaffIconDestroyData = {
+    body?: never;
+    path: {
+        /**
+         * Staff Id
+         */
+        staff_id: string;
+    };
+    query?: never;
+    url: '/api/accounts/staff/{staff_id}/icon/';
+};
+
+export type AccountsStaffIconDestroyResponses = {
+    /**
+     * OK
+     */
+    200: StaffListItemOut;
+};
+
+export type AccountsStaffIconDestroyResponse = AccountsStaffIconDestroyResponses[keyof AccountsStaffIconDestroyResponses];
+
+export type AccountsStaffIconCreateData = {
+    /**
+     * FileParams
+     */
+    body: {
+        /**
+         * File
+         */
+        file: Blob | File;
+    };
+    path: {
+        /**
+         * Staff Id
+         */
+        staff_id: string;
+    };
+    query?: never;
+    url: '/api/accounts/staff/{staff_id}/icon/';
+};
+
+export type AccountsStaffIconCreateResponses = {
+    /**
+     * OK
+     */
+    200: StaffListItemOut;
+};
+
+export type AccountsStaffIconCreateResponse = AccountsStaffIconCreateResponses[keyof AccountsStaffIconCreateResponses];
 
 export type AccountsTokenCreateData = {
     body: LoginRequest;

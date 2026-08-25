@@ -40,13 +40,13 @@ test.describe.serial('staff wage loading', () => {
 
     const staffList = await getStaffList(page)
     const candidate = staffList.find(
-      (member) => member.date_left === null && Number(member.base_wage_rate) > 0,
+      (member) => member.date_left === null && member.base_wage_rate > 0,
     )
     if (!candidate) throw new Error('No active staff member with base_wage_rate > 0')
     staff = {
       id: candidate.id,
-      base: Number(candidate.base_wage_rate),
-      loaded: Number(candidate.wage_rate),
+      base: candidate.base_wage_rate,
+      loaded: candidate.wage_rate,
     }
   })
 

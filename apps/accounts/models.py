@@ -7,7 +7,9 @@ from typing import Any, ClassVar
 
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models.functions import Lower
 from django.utils import timezone
 from django.utils.timezone import now as timezone_now
 from simple_history.models import HistoricalRecords
@@ -15,6 +17,10 @@ from simple_history.models import HistoricalRecords
 from apps.core.models import CompanyDefaults
 
 SYSTEM_AUTOMATION_EMAIL = "system.automation@docketworks.local"
+
+# The one Django group with meaning: is_staff_manager() checks it and the
+# staff admin API's checkbox manages it. Seeded nowhere — writers get_or_create.
+STAFF_MANAGER_GROUP_NAME = "StaffManager"
 
 
 class StaffManager(BaseUserManager["Staff"]):
@@ -202,7 +208,31 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             models.CheckConstraint(
                 condition=~models.Q(pay_basis=""), name="staff_pay_basis_not_blank"
             ),
+            # Fable: the database's answer to the race clean() cannot close —
+            # two concurrent writes of case-variant emails both pass the
+            # iexact query and both save, and StaffEmailBackend then locks
+            # both accounts out. clean() stays for the user-facing 400.
+            models.UniqueConstraint(Lower("office_email"), name="staff_office_email_ci_unique"),
         ]
+
+    def clean(self) -> None:
+        """Normalise the login email and enforce its case-insensitive uniqueness.
+
+        Fable: the column's UNIQUE constraint is case-sensitive, but
+        StaffEmailBackend matches office_email with iexact and returns None on
+        multiple hits — so a case-variant duplicate would silently lock BOTH
+        accounts out of login. full_clean is the write-path gate the staff
+        admin endpoints already run, so the check lives here, not in a handler.
+        """
+        super().clean()
+        self.office_email = StaffManager.normalize_email(self.office_email)
+        collision = (
+            Staff.objects.exclude(pk=self.pk)
+            .filter(office_email__iexact=self.office_email)
+            .exists()
+        )
+        if collision:
+            raise ValidationError("A staff member with this office email already exists.")
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """Save the row, refreshing updated_at and the computed wage_rate."""
@@ -279,7 +309,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
 
     def is_staff_manager(self) -> bool:
         """Check StaffManager group membership (superusers always qualify)."""
-        return self.groups.filter(name="StaffManager").exists() or self.is_superuser
+        return self.groups.filter(name=STAFF_MANAGER_GROUP_NAME).exists() or self.is_superuser
 
     @classmethod
     def get_automation_user(cls) -> "Staff":

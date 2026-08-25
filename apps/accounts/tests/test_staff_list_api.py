@@ -80,5 +80,7 @@ class TestList:
         body = client_for(superuser).get(URL).json()
 
         row = next(item for item in body if item["office_email"] == "paid@example.com")
-        assert Decimal(row["base_wage_rate"]) == Decimal("40.00")
-        assert Decimal(row["wage_rate"]) == worker.wage_rate
+        # str() first: the wire carries JSON numbers (ADR 0046), and
+        # Decimal(float) would materialise binary representation error.
+        assert Decimal(str(row["base_wage_rate"])) == Decimal("40.00")
+        assert Decimal(str(row["wage_rate"])) == worker.wage_rate

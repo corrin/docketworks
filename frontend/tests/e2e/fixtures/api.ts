@@ -93,9 +93,11 @@ export async function getTimesheetJobs(page: Page): Promise<TimesheetJob[]> {
 const staffListItemSchema = z.object({
   id: z.string(),
   office_email: z.string(),
-  wage_rate: z.string(),
-  base_wage_rate: z.string(),
+  preferred_name: z.string().nullable(),
+  wage_rate: z.number(),
+  base_wage_rate: z.number(),
   date_left: z.string().nullable(),
+  icon_url: z.string().nullable(),
 })
 export type StaffListItem = z.infer<typeof staffListItemSchema>
 

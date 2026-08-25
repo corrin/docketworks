@@ -75,6 +75,16 @@ Quantity = Annotated[
     WithJsonSchema({"type": "number"}),
 ]
 
+#: A Quantity that a request may not take below zero — wage rates, hours.
+#: The published minimum reaches the generated client, so the constraint is
+#: declared once here rather than re-validated in every consumer.
+NonNegativeQuantity = Annotated[
+    Decimal,
+    Field(ge=0),
+    PlainSerializer(float, return_type=float),
+    WithJsonSchema({"type": "number", "minimum": 0}),
+]
+
 
 def _drop_default(schema: dict[str, Any]) -> None:
     """Remove the default from the published schema.

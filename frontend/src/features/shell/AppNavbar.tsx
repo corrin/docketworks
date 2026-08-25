@@ -142,6 +142,11 @@ export function AppNavbar() {
             <NavMenuLink to="/admin/integrations" automationId="AppNavbar-integrations">
               Integrations
             </NavMenuLink>
+            {/* Superuser only: every staff endpoint uses SuperuserCookieJWTAuth,
+                matching the menu gate. */}
+            <NavMenuLink to="/admin/staff" automationId="AppNavbar-staff">
+              Staff
+            </NavMenuLink>
           </NavMenu>
         )}
       </div>

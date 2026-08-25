@@ -10354,6 +10354,116 @@ components:
       - title
       title: SettingsSectionOut
       type: object
+    StaffCreateIn:
+      additionalProperties: false
+      description: "Create body for POST /api/accounts/staff/.\n\nUnknown keys are rejected rather than\
+        \ dropped (``extra=\"forbid\"``): the\nderived ``wage_rate`` in a payload must be a 422, not a\
+        \ silent no-op.\nOmitted fields take the model defaults \u2014 the handler dumps with\n``exclude_unset``\
+        \ and never reads the placeholders here."
+      properties:
+        base_wage_rate:
+          minimum: 0
+          title: Base Wage Rate
+          type: number
+        date_left:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Date Left
+        employment_start_date:
+          format: date
+          title: Employment Start Date
+          type: string
+        first_name:
+          minLength: 1
+          title: First Name
+          type: string
+        hours_fri:
+          minimum: 0
+          title: Hours Fri
+          type: number
+        hours_mon:
+          minimum: 0
+          title: Hours Mon
+          type: number
+        hours_sat:
+          minimum: 0
+          title: Hours Sat
+          type: number
+        hours_sun:
+          minimum: 0
+          title: Hours Sun
+          type: number
+        hours_thu:
+          minimum: 0
+          title: Hours Thu
+          type: number
+        hours_tue:
+          minimum: 0
+          title: Hours Tue
+          type: number
+        hours_wed:
+          minimum: 0
+          title: Hours Wed
+          type: number
+        is_office_staff:
+          title: Is Office Staff
+          type: boolean
+        is_staff_manager:
+          title: Is Staff Manager
+          type: boolean
+        is_superuser:
+          title: Is Superuser
+          type: boolean
+        is_workshop_staff:
+          title: Is Workshop Staff
+          type: boolean
+        last_name:
+          minLength: 1
+          title: Last Name
+          type: string
+        office_email:
+          minLength: 1
+          title: Office Email
+          type: string
+        password:
+          minLength: 1
+          title: Password
+          type: string
+        pay_basis:
+          anyOf:
+          - enum:
+            - hourly
+            - salary
+            type: string
+          - type: 'null'
+          title: Pay Basis
+        payroll_email:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Payroll Email
+        preferred_name:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Preferred Name
+        xero_user_id:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Xero User Id
+      required:
+      - office_email
+      - first_name
+      - last_name
+      - password
+      title: StaffCreateIn
+      type: object
     StaffDailyDataOut:
       description: Wire contract for StaffDailyDataOut.
       properties:
@@ -10489,18 +10599,27 @@ components:
       title: StaffJobBreakdownOut
       type: object
     StaffListItemOut:
-      description: One row of the staff admin list (GET /api/accounts/staff/).
+      description: 'One row of the staff admin list (GET /api/accounts/staff/).
+
+
+        Also the response of every staff write: the admin screen''s edit modal is
+
+        populated from this row (there is no retrieve endpoint), so the full
+
+        editable field set rides here.'
       properties:
         base_wage_rate:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Base Wage Rate
-          type: string
+          type: number
         date_left:
           anyOf:
           - format: date
             type: string
           - type: 'null'
           title: Date Left
+        display_name:
+          title: Display Name
+          type: string
         employment_start_date:
           format: date
           title: Employment Start Date
@@ -10508,12 +10627,47 @@ components:
         first_name:
           title: First Name
           type: string
+        hours_fri:
+          title: Hours Fri
+          type: number
+        hours_mon:
+          title: Hours Mon
+          type: number
+        hours_sat:
+          title: Hours Sat
+          type: number
+        hours_sun:
+          title: Hours Sun
+          type: number
+        hours_thu:
+          title: Hours Thu
+          type: number
+        hours_tue:
+          title: Hours Tue
+          type: number
+        hours_wed:
+          title: Hours Wed
+          type: number
+        icon_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Icon Url
         id:
           format: uuid
           title: Id
           type: string
         is_office_staff:
           title: Is Office Staff
+          type: boolean
+        is_staff_manager:
+          title: Is Staff Manager
+          type: boolean
+        is_superuser:
+          title: Is Superuser
+          type: boolean
+        is_workshop_staff:
+          title: Is Workshop Staff
           type: boolean
         last_name:
           title: Last Name
@@ -10531,14 +10685,25 @@ components:
           - type: string
           - type: 'null'
           title: Payroll Email
+        preferred_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preferred Name
         wage_rate:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Wage Rate
-          type: string
+          type: number
+        xero_user_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Xero User Id
       required:
       - id
       - first_name
       - last_name
+      - preferred_name
+      - display_name
       - office_email
       - payroll_email
       - employment_start_date
@@ -10546,7 +10711,19 @@ components:
       - wage_rate
       - base_wage_rate
       - date_left
+      - xero_user_id
       - is_office_staff
+      - is_workshop_staff
+      - is_superuser
+      - is_staff_manager
+      - hours_mon
+      - hours_tue
+      - hours_wed
+      - hours_thu
+      - hours_fri
+      - hours_sat
+      - hours_sun
+      - icon_url
       title: StaffListItemOut
       type: object
     StaffListResponse:
@@ -10640,6 +10817,111 @@ components:
       - staff
       - period_summary
       title: StaffPerformanceResponse
+      type: object
+    StaffUpdateIn:
+      additionalProperties: false
+      description: "Partial-update body for PATCH /api/accounts/staff/{staff_id}/.\n\nEverything omittable:\
+        \ omission leaves the stored value alone. On the\nnullable fields ``null`` is a real value \u2014\
+        \ ``date_left: null`` reinstates a\ndeparted staff member (ADR 0040). ``password`` is presence-only:\
+        \ null is\nnever a password value, so only supplying one changes it."
+      properties:
+        base_wage_rate:
+          minimum: 0
+          title: Base Wage Rate
+          type: number
+        date_left:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Date Left
+        employment_start_date:
+          format: date
+          title: Employment Start Date
+          type: string
+        first_name:
+          minLength: 1
+          title: First Name
+          type: string
+        hours_fri:
+          minimum: 0
+          title: Hours Fri
+          type: number
+        hours_mon:
+          minimum: 0
+          title: Hours Mon
+          type: number
+        hours_sat:
+          minimum: 0
+          title: Hours Sat
+          type: number
+        hours_sun:
+          minimum: 0
+          title: Hours Sun
+          type: number
+        hours_thu:
+          minimum: 0
+          title: Hours Thu
+          type: number
+        hours_tue:
+          minimum: 0
+          title: Hours Tue
+          type: number
+        hours_wed:
+          minimum: 0
+          title: Hours Wed
+          type: number
+        is_office_staff:
+          title: Is Office Staff
+          type: boolean
+        is_staff_manager:
+          title: Is Staff Manager
+          type: boolean
+        is_superuser:
+          title: Is Superuser
+          type: boolean
+        is_workshop_staff:
+          title: Is Workshop Staff
+          type: boolean
+        last_name:
+          minLength: 1
+          title: Last Name
+          type: string
+        office_email:
+          minLength: 1
+          title: Office Email
+          type: string
+        password:
+          minLength: 1
+          title: Password
+          type: string
+        pay_basis:
+          anyOf:
+          - enum:
+            - hourly
+            - salary
+            type: string
+          - type: 'null'
+          title: Pay Basis
+        payroll_email:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Payroll Email
+        preferred_name:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Preferred Name
+        xero_user_id:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Xero User Id
+      title: StaffUpdateIn
       type: object
     StaffWeekPostResultOut:
       description: 'One staff member''s outcome, as the run reports it.
@@ -13870,6 +14152,30 @@ paths:
       summary: The staff admin list, departed members included
       tags:
       - accounts
+    post:
+      description: "Create a staff member; omitted fields take the model defaults.\n\nThe password is\
+        \ hashed via set_password and never logged. wage_rate is\nabsent from the schema \u2014 it derives\
+        \ from base_wage_rate on save."
+      operationId: accounts_staff_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffCreateIn'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffListItemOut'
+          description: Created
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Create a staff member
+      tags:
+      - accounts
   /api/accounts/staff/all/:
     get:
       description: 'List staff for the kanban board''s staff panel.
@@ -13922,6 +14228,102 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: "The kanban board's staff panel \u2014 every authenticated user"
+      tags:
+      - accounts
+  /api/accounts/staff/{staff_id}/:
+    patch:
+      description: Apply only the fields the caller sent; omission leaves values alone.
+      operationId: accounts_staff_partial_update
+      parameters:
+      - in: path
+        name: staff_id
+        required: true
+        schema:
+          format: uuid
+          title: Staff Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffUpdateIn'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffListItemOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Update some fields of a staff member
+      tags:
+      - accounts
+  /api/accounts/staff/{staff_id}/icon/:
+    delete:
+      description: 'Clear the icon and delete the stored file; idempotent by design.
+
+
+        The E2E database restore does not clean MEDIA_ROOT, so spec cleanup needs
+
+        this endpoint; it may run against any state, hence 200 either way.'
+      operationId: accounts_staff_icon_destroy
+      parameters:
+      - in: path
+        name: staff_id
+        required: true
+        schema:
+          format: uuid
+          title: Staff Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffListItemOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Remove a staff profile icon
+      tags:
+      - accounts
+    post:
+      description: Save the uploaded icon and delete the file it replaces.
+      operationId: accounts_staff_icon_create
+      parameters:
+      - in: path
+        name: staff_id
+        required: true
+        schema:
+          format: uuid
+          title: Staff Id
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  format: binary
+                  title: File
+                  type: string
+              required:
+              - file
+              title: FileParams
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffListItemOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Upload a staff profile icon
       tags:
       - accounts
   /api/accounts/token/:

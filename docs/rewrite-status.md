@@ -43,10 +43,10 @@ done only when that spec is green.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **42 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
-| Backend operations still to port | **71** (see below; 34 more exist but nothing calls them) |
-| API operations v2 exposes | 219 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2550 (all passing) |
+| E2E specs ported | **43 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
+| Backend operations still to port | **68** (see below; 33 more exist but nothing calls them) |
+| API operations v2 exposes | 223 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 2605 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 112 recorded deviations |
@@ -59,9 +59,8 @@ written measures typing, not delivery.
 
 ### Specs still to port
 
-Three, plus `example`, which is a placeholder to delete rather than port:
-`process-documents/form-entries-page-scroll`, `staff/create-staff`,
-`timesheet/workshop-my-time-view`.
+Two, plus `example`, which is a placeholder to delete rather than port:
+`process-documents/form-entries-page-scroll`, `timesheet/workshop-my-time-view`.
 
 - `workshop-my-time-view` is a rebuild, not a port —
   `@kodeglot/vue-calendar` has no React equivalent.
@@ -79,10 +78,6 @@ operations v1's frontend called, never what shape v2 must serve.
 - **Record every rename by hand as you port it.** 17 `workflow_*` operations
   still to come. An unrecorded rename makes the v1 name read as missing *and*
   the v2 name look brand new, corrupting the count in both directions.
-- **Staff:** `accounts_staff_all_list`, `_create`, `_partial_update`,
-  `_icon_create` (a multipart image upload — generalise the company-defaults
-  logo seam in `apps/core/api.py` (`_validate_logo_upload` /
-  `_delete_stored_logo`), never a sibling). Unblocks `staff/create-staff`.
 - **Process forms:** enough of `apps/process` to serve
   `process_forms_entries_list`. Models are partial and there is no category
   model, so `process_categories_retrieve` is greenfield.

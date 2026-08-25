@@ -114,7 +114,7 @@ def test_delete_clears_the_logo(superuser_api: Client) -> None:
 def test_delete_leaves_a_non_company_logos_file_on_disk(
     superuser_api: Client, tmp_path: Path
 ) -> None:
-    """The company_logos/ guard in _delete_stored_logo protects a file outside
+    """The company_logos/ guard in delete_stored_image protects a file outside
     it — e.g. a git-tracked seed asset a restored row points at — from being
     unlinked by DELETE. Exercises the guard's protective branch directly: the
     row is pointed at a file under a different directory (never through the

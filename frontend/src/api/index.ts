@@ -307,10 +307,21 @@ export {
 } from './generated/@tanstack/react-query.gen'
 export type { CompanyDetailResponse, SupplierSearchAliasOut } from './generated/types.gen'
 
+// Staff admin (/admin/staff: list + create/edit modal + icon upload).
+// accounts_staff_icon_destroy is deliberately not re-exported: its only
+// consumer is the E2E spec's MEDIA_ROOT cleanup, over a raw request.
+export {
+  accountsStaffCreateMutation,
+  accountsStaffIconCreateMutation,
+  accountsStaffListOptions,
+  accountsStaffListQueryKey,
+  accountsStaffPartialUpdateMutation,
+} from './generated/@tanstack/react-query.gen'
+export type { StaffCreateIn, StaffListItemOut, StaffUpdateIn } from './generated/types.gen'
+
 // Timesheets (daily overview + entry grid; cost-line mutations shared with the
 // quote workspace group above)
 export {
-  accountsStaffListOptions,
   approveCostLineMutation,
   getDailyTimesheetSummaryByDateOptions,
   jobJobsCostSetsActualCostLinesCreateMutation,
@@ -361,7 +372,6 @@ export type {
 export type {
   CostLineApprovalResponse,
   DailyTimesheetSummaryOut,
-  StaffListItemOut,
   TimesheetCostLineOut,
   TimesheetEntriesOut,
   TimesheetJobOut,
