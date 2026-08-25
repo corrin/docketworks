@@ -440,15 +440,20 @@ def _scrub_procedures() -> None:
 
 
 def _scrub_process_entries() -> None:
-    """Redact free-text form-entry content; everything structurally-typed survives.
+    """Redact free-text form-entry content; only matched structural fields survive.
 
     A text/textarea field is exactly where an incident form carries a named
     person's injury or witness details, so its value is replaced. Date,
     boolean, number and select values are closed shapes with no room for a
     name; staff/entry_ref values are ids, and the identity a staff id
     resolves to is anonymised at the Staff table itself (``_scrub_staff``) —
-    none of those five types are touched. An entry whose form schema no
-    longer parses is not skipped: its whole ``data`` is replaced and the
+    those five types are kept, but only when the key still names a field of
+    the CURRENT schema. A key with no current field — free text written under
+    a schema version that has since dropped or retyped it — is exactly the
+    unaudited content this scrub exists to remove, so it is redacted too,
+    never kept and never dropped: the key survives with the placeholder so
+    the row's shape stays inspectable. An entry whose form schema no longer
+    parses is not skipped either: its whole ``data`` is replaced and the
     count is logged, because a corrupt schema is exactly the case a silent
     skip would hide.
     """
@@ -461,9 +466,11 @@ def _scrub_process_entries() -> None:
             entry.data = {}
             entry.save(using=SCRUB_ALIAS, update_fields=["data"])
             continue
-        text_keys = {field.key for field in spec.fields if field.type in _FREE_TEXT_FIELD_TYPES}
+        structured_keys = {
+            field.key for field in spec.fields if field.type not in _FREE_TEXT_FIELD_TYPES
+        }
         redacted = {
-            key: (_TEXT_SCRUB_TOKEN if key in text_keys else value)
+            key: (value if key in structured_keys else _TEXT_SCRUB_TOKEN)
             for key, value in entry.data.items()
         }
         if redacted != entry.data:

@@ -614,6 +614,36 @@ class TestScrubProcessEntries:
         entry.refresh_from_db()
         assert entry.data == {}
 
+    def test_a_key_absent_from_the_current_schema_is_redacted_not_kept(self) -> None:
+        # A key an older schema version declared, since dropped or retyped,
+        # is unaudited free text that would otherwise ride an unrelated
+        # field's type check straight past the scrub — keeping it is the
+        # unsafe default, so an unmatched key is redacted like free text,
+        # not passed through like a matched structural field.
+        form = _incident_form(
+            form_schema={
+                "fields": [
+                    {
+                        "key": "severity",
+                        "label": "Severity",
+                        "type": "select",
+                        "options": ["low", "high"],
+                    }
+                ]
+            }
+        )
+        entry = FormEntry.objects.create(
+            form=form,
+            entry_date="2026-08-25",
+            data={"severity": "high", "old_witness_notes": "Jane Smith saw the forklift tip over"},
+        )
+
+        db_scrubber._scrub_process_entries()
+
+        entry.refresh_from_db()
+        assert entry.data["severity"] == "high"
+        assert entry.data["old_witness_notes"] == db_scrubber._TEXT_SCRUB_TOKEN
+
 
 @pytest.mark.django_db
 @pytest.mark.usefixtures("_scrub_the_test_database")
