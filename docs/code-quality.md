@@ -15,13 +15,13 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | metric | count |
 |---|---:|
 | type: ignore | 9 |
-| pragma: no cover | 10 |
+| pragma: no cover | 11 |
 | noqa (no rule code) | 0 |
 | @ts-ignore | 0 |
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 9 |
-| TOTAL suppressions | 687 |
+| TOTAL suppressions | 688 |
 | noqa: DJ001 | 161 |
 | noqa: PLC0415 | 128 |
 | noqa: E402 | 105 |
@@ -69,8 +69,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 238 |
-| in docstrings | 381 |
+| in comments | 239 |
+| in docstrings | 383 |
 
 ## Exception handling
 
@@ -78,10 +78,10 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 385 |
-| except handlers | 417 |
+| try statements | 387 |
+| except handlers | 419 |
 | re-raises or converts | 269 |
-| returns instead | 85 |
+| returns instead | 87 |
 | falls through | 50 |
 | continue/break in a loop | 12 |
 | pass (silent) | 1 |
@@ -103,7 +103,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 204 |
-| non-test functions | 2479 |
+| non-test functions | 2485 |
 
 ## Wire contract (response side)
 

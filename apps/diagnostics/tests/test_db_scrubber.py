@@ -618,6 +618,56 @@ class TestScrubProcessEntries:
         entry.refresh_from_db()
         assert entry.data == {}
 
+    def test_a_conforming_select_value_survives(self) -> None:
+        form = _incident_form(
+            form_schema={
+                "fields": [
+                    {
+                        "key": "severity",
+                        "label": "Severity",
+                        "type": "select",
+                        "options": ["low", "high"],
+                    }
+                ]
+            }
+        )
+        entry = FormEntry.objects.create(
+            form=form, entry_date="2026-08-25", data={"severity": "high"}
+        )
+
+        db_scrubber._scrub_process_entries()
+
+        entry.refresh_from_db()
+        assert entry.data["severity"] == "high"
+
+    def test_free_text_in_a_select_field_is_redacted(self) -> None:
+        # v1 accepted arbitrary JSON into FormEntry.data, so a restored row
+        # can hold free text under a key the CURRENT schema types as select —
+        # a value that is not one of the field's options is not a select
+        # value at all, so it must not survive the scrub unredacted.
+        form = _incident_form(
+            form_schema={
+                "fields": [
+                    {
+                        "key": "severity",
+                        "label": "Severity",
+                        "type": "select",
+                        "options": ["low", "high"],
+                    }
+                ]
+            }
+        )
+        entry = FormEntry.objects.create(
+            form=form,
+            entry_date="2026-08-25",
+            data={"severity": "Jane Smith saw the forklift tip over"},
+        )
+
+        db_scrubber._scrub_process_entries()
+
+        entry.refresh_from_db()
+        assert entry.data["severity"] == db_scrubber._TEXT_SCRUB_TOKEN
+
     def test_a_key_absent_from_the_current_schema_is_redacted_not_kept(self) -> None:
         # A key an older schema version declared, since dropped or retyped,
         # is unaudited free text that would otherwise ride an unrelated
@@ -699,6 +749,22 @@ class TestScrubProcessEvents:
         assert event.delta_before is None
         assert event.delta_after is None
         assert event.detail == {}
+
+    def test_a_malformed_changes_value_is_replaced_with_an_empty_list(
+        self, office_staff: Staff
+    ) -> None:
+        # A non-list `changes` cannot be redacted field-by-field, and passing
+        # it through unredacted would ship whatever content it holds in a
+        # "scrubbed" dump — scrub-by-default collapses it instead.
+        form = _incident_form(form_schema={"fields": []})
+        event = ProcessEvent.objects.create(
+            form=form, staff=office_staff, event_type="form_updated", detail={"changes": "junk"}
+        )
+
+        db_scrubber._scrub_process_events()
+
+        event.refresh_from_db()
+        assert event.detail == {"changes": []}
 
 
 @pytest.mark.django_db

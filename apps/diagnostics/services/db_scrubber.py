@@ -56,6 +56,7 @@ this module's whole burden.
 import logging
 import uuid
 from collections.abc import Callable
+from datetime import date
 
 from django.apps import apps as django_apps
 from django.conf import settings
@@ -79,6 +80,7 @@ from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.diagnostics.services.staff_anonymization import create_staff_profile
 from apps.process.models import FormEntry, Procedure, ProcessEvent
+from apps.process.schemas import FormFieldSchema
 from apps.process.services.entry_validation import parse_schema
 from apps.quoting.models import SupplierScraperConfig
 
@@ -439,23 +441,95 @@ def _scrub_procedures() -> None:
     )
 
 
+def _select_conforms(field: FormFieldSchema, value: object) -> bool:
+    return value in (field.options or [])
+
+
+def _number_conforms(_field: FormFieldSchema, value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _boolean_conforms(_field: FormFieldSchema, value: object) -> bool:
+    return isinstance(value, bool)
+
+
+def _date_conforms(_field: FormFieldSchema, value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        date.fromisoformat(value)
+    # deliberate-swallow: a non-ISO string fails the conformance check, which
+    # is the answer this predicate reports either way.
+    except ValueError:
+        return False
+    return True
+
+
+def _uuid_conforms(_field: FormFieldSchema, value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        uuid.UUID(value)
+    # deliberate-swallow: a non-UUID string fails the conformance check, which
+    # is the answer this predicate reports either way.
+    except ValueError:
+        return False
+    return True
+
+
+# staff/entry_ref share one checker: both are id strings, and confirming the
+# referenced row still exists is deliberately NOT part of this check (see
+# _field_value_conforms's docstring).
+_CONFORMANCE_CHECKERS: dict[str, Callable[[FormFieldSchema, object], bool]] = {
+    "select": _select_conforms,
+    "number": _number_conforms,
+    "boolean": _boolean_conforms,
+    "date": _date_conforms,
+    "staff": _uuid_conforms,
+    "entry_ref": _uuid_conforms,
+}
+
+
+def _field_value_conforms(field: FormFieldSchema, value: object) -> bool:
+    """Report whether ``value`` structurally matches ``field.type`` — no DB lookups.
+
+    Not ``apps.process.services.entry_validation``'s ``_check_staff``/
+    ``_check_entry_ref``: those also confirm the referenced row still
+    exists, which needs a query against ``SCRUB_ALIAS`` this module has no
+    reason to thread through the validation layer for, and existence is not
+    the question a scrub asks — a dangling but well-typed id is still a
+    UUID, not the free text this pass exists to catch. v1 accepted arbitrary
+    JSON into ``FormEntry.data``, so a restored row's value under a
+    structurally-typed key (e.g. ``severity`` typed ``select`` today) can
+    hold free text written before the form ever had that type — this is the
+    gate that catches it.
+    """
+    checker = _CONFORMANCE_CHECKERS.get(field.type)
+    if checker is None:  # pragma: no cover - caller excludes text/textarea; FieldType is closed
+        raise AssertionError(f"Unhandled field type {field.type}")
+    return checker(field, value)
+
+
 def _scrub_process_entries() -> None:
-    """Redact free-text form-entry content; only matched structural fields survive.
+    """Redact free-text form-entry content; only conforming structural values survive.
 
     A text/textarea field is exactly where an incident form carries a named
-    person's injury or witness details, so its value is replaced. Date,
-    boolean, number and select values are closed shapes with no room for a
-    name; staff/entry_ref values are ids, and the identity a staff id
-    resolves to is anonymised at the Staff table itself (``_scrub_staff``) —
-    those five types are kept, but only when the key still names a field of
-    the CURRENT schema. A key with no current field — free text written under
-    a schema version that has since dropped or retyped it — is exactly the
-    unaudited content this scrub exists to remove, so it is redacted too,
-    never kept and never dropped: the key survives with the placeholder so
-    the row's shape stays inspectable. An entry whose form schema no longer
-    parses is not skipped either: its whole ``data`` is replaced and the
-    count is logged, because a corrupt schema is exactly the case a silent
-    skip would hide.
+    person's injury or witness details, so its value is replaced
+    unconditionally. Date, boolean, number and select values are closed
+    shapes with no room for a name and staff/entry_ref values are ids — but
+    v1 accepted arbitrary JSON into this field, so a restored row can hold
+    free text under a key whose CURRENT schema types it as one of those five:
+    a value survives only when it both names a field of the current schema
+    AND structurally conforms to that field's type (``_field_value_conforms``).
+    A key with no current field, or a value that fails its field's type check
+    — free text written under a schema version that has since dropped,
+    retyped it, or never validated it at all — is exactly the unaudited
+    content this scrub exists to remove, so it is redacted too, never kept
+    and never dropped: the key survives with the placeholder so the row's
+    shape stays inspectable. An entry whose form schema no longer parses is
+    not skipped either: its whole ``data`` is replaced and the count is
+    logged, because a corrupt schema is exactly the case a silent skip would
+    hide.
     """
     unparseable = 0
     for entry in FormEntry.objects.using(SCRUB_ALIAS).select_related("form"):
@@ -469,11 +543,15 @@ def _scrub_process_entries() -> None:
             entry.data = {}
             entry.save(using=SCRUB_ALIAS, update_fields=["data"])
             continue
-        structured_keys = {
-            field.key for field in spec.fields if field.type not in _FREE_TEXT_FIELD_TYPES
+        structured_fields = {
+            field.key: field for field in spec.fields if field.type not in _FREE_TEXT_FIELD_TYPES
         }
         redacted = {
-            key: (value if key in structured_keys else _TEXT_SCRUB_TOKEN)
+            key: (
+                value
+                if key in structured_fields and _field_value_conforms(structured_fields[key], value)
+                else _TEXT_SCRUB_TOKEN
+            )
             for key, value in entry.data.items()
         }
         if redacted != entry.data:
@@ -489,20 +567,24 @@ def _scrub_process_entries() -> None:
 def _redact_detail_changes(detail: dict[str, object]) -> dict[str, object] | None:
     """Return ``detail`` with every changes[].old_value/new_value redacted, or None if unchanged.
 
-    field_name is left alone — it names the schema field, not its content —
-    and a malformed changes list (not a list of dicts) is passed through
-    unredacted rather than raised on: detail is free-form JSON, not a
-    validated contract, so this is display metadata, not the PII boundary.
+    field_name is left alone — it names the schema field, not its content.
+    A ``detail`` with no ``changes`` key at all (e.g. a form_created event
+    written with no field changes) is a normal shape, not malformed, and is
+    left alone. Fable: scrub-by-default — a ``changes`` that IS present but
+    malformed (not a list, or a list holding a non-dict entry) is replaced
+    with an empty changes list rather than passed through unredacted: detail
+    is free-form JSON, not a validated contract, so audit fidelity in a
+    scrubbed dump is expendable, but a redaction gap that ships real content
+    through an unparseable shape is not.
     """
-    changes = detail.get("changes")
-    if not isinstance(changes, list):
+    if "changes" not in detail:
         return None
+    changes = detail["changes"]
+    if not isinstance(changes, list) or any(not isinstance(change, dict) for change in changes):
+        return {"changes": []}
     redacted_changes = []
     changed = False
     for change in changes:
-        if not isinstance(change, dict):
-            redacted_changes.append(change)
-            continue
         redacted_change = dict(change)
         for key in ("old_value", "new_value"):
             if key in redacted_change:
