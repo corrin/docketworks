@@ -31,13 +31,17 @@ class StaffManager(BaseUserManager["Staff"]):
     """
 
     def create_user(
-        self, office_email: str, password: str | None = None, **extra_fields: Any
+        self, office_email: str | None, password: str | None = None, **extra_fields: Any
     ) -> "Staff":
-        """Create and save a Staff user with a normalised email address."""
-        if not office_email:
-            raise ValueError("The Email field must be set")
+        """Create and save a Staff user with a normalised office email."""
+        if not office_email and not extra_fields.get("payroll_email"):
+            raise ValueError("A staff member needs at least one email address.")
 
-        office_email = self.normalize_email(office_email)
+        if office_email is not None:
+            office_email = self.normalize_email(office_email)
+        # Fable: payroll_email is stored verbatim as Xero holds it — the login
+        # backend matches with iexact, so normalising it here would diverge
+        # from the sync's direct writes without buying anything.
         user = self.model(office_email=office_email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -83,7 +87,11 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     icon = models.ImageField(upload_to="staff_icons/", null=True, blank=True)
     password_needs_reset = models.BooleanField(default=False)
-    office_email = models.EmailField(unique=True)
+    # Fable: neither address is individually required — wage staff often have
+    # only a payroll mailbox, office staff often only this one (owner ruling
+    # 2026-08-26). The staff_at_least_one_email constraint holds the floor,
+    # and StaffEmailBackend signs a staff member in with either address.
+    office_email = models.EmailField(unique=True, null=True, blank=True)
     payroll_email = models.EmailField(unique=True, null=True, blank=True)
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
@@ -208,6 +216,15 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             models.CheckConstraint(
                 condition=~models.Q(pay_basis=""), name="staff_pay_basis_not_blank"
             ),
+            models.CheckConstraint(
+                condition=~models.Q(office_email=""), name="staff_office_email_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(office_email__isnull=False)
+                | models.Q(payroll_email__isnull=False),
+                name="staff_at_least_one_email",
+                violation_error_message="A staff member needs at least one email address.",
+            ),
             # Fable: the database's answer to the race clean() cannot close —
             # two concurrent writes of case-variant emails both pass the
             # iexact query and both save, and StaffEmailBackend then locks
@@ -225,6 +242,11 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         admin endpoints already run, so the check lives here, not in a handler.
         """
         super().clean()
+        if self.office_email is None:
+            # Fable: normalize_email coerces None to "" (email or "") — running
+            # it on an unset address would launder NULL into the blank string
+            # every constraint forbids (ADR 0040), so unset skips this block.
+            return
         self.office_email = StaffManager.normalize_email(self.office_email)
         collision = (
             Staff.objects.exclude(pk=self.pk)

@@ -264,6 +264,7 @@ class TestScrubStaff:
         db_scrubber._scrub_staff()
 
         staff.refresh_from_db()
+        assert staff.office_email is not None
         assert staff.office_email != "jane.real@customer-corp.example"
         assert staff.office_email.endswith("@example.com")
         assert staff.first_name
@@ -310,6 +311,41 @@ class TestScrubStaff:
         automation.refresh_from_db()
         assert automation.office_email == SYSTEM_AUTOMATION_EMAIL
         assert automation.first_name == original_first_name
+
+    def test_a_payroll_only_staff_member_is_still_scrubbed(self) -> None:
+        """``exclude(office_email=...)`` silently drops NULL rows (SQL NULL
+        semantics), which would leave a payroll-only staff member's real
+        identity in the scrubbed archive."""
+        staff = Staff.objects.create_user(
+            office_email=None,
+            password="real-password-1!",
+            payroll_email="wage.real@customer-corp.example",
+            first_name="Wage",
+            last_name="Real",
+        )
+        original_password = staff.password
+
+        db_scrubber._scrub_staff()
+
+        staff.refresh_from_db()
+        assert staff.password != original_password
+        assert staff.payroll_email != "wage.real@customer-corp.example"
+        # The NULL shape survives: scrubbing must not invent an office mailbox.
+        assert staff.office_email is None
+
+    def test_payroll_email_never_survives_a_scrub(self) -> None:
+        staff = Staff.objects.create_user(
+            office_email="jane.real@customer-corp.example",
+            password="pw-1!",
+            payroll_email="jane.payroll@customer-corp.example",
+            first_name="Jane",
+            last_name="Real",
+        )
+
+        db_scrubber._scrub_staff()
+
+        staff.refresh_from_db()
+        assert staff.payroll_email != "jane.payroll@customer-corp.example"
 
     def test_scrubbed_emails_are_unique(self) -> None:
         for index in range(4):

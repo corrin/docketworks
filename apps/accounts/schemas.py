@@ -70,7 +70,7 @@ class UserProfile(ResponseSchema):
     """
 
     id: UUID
-    office_email: str
+    office_email: str | None
     payroll_email: str | None
     first_name: str
     last_name: str
@@ -101,7 +101,7 @@ class StaffListItemOut(Schema):
     # plus last name) — carried on the wire so no client re-derives it with
     # different semantics and hashes a different avatar colour than kanban.
     display_name: str
-    office_email: str
+    office_email: str | None
     payroll_email: str | None
     employment_start_date: date
     pay_basis: str | None
@@ -156,7 +156,7 @@ class StaffCreateIn(Schema):
 
     model_config = ConfigDict(extra="forbid")
 
-    office_email: NonBlankText
+    office_email: NullableText = omittable(None)
     first_name: NonBlankText
     last_name: NonBlankText
     password: NonBlankText
@@ -191,7 +191,7 @@ class StaffUpdateIn(Schema):
 
     model_config = ConfigDict(extra="forbid")
 
-    office_email: NonBlankText = omittable("")
+    office_email: NullableText = omittable(None)
     first_name: NonBlankText = omittable("")
     last_name: NonBlankText = omittable("")
     password: NonBlankText = omittable("")

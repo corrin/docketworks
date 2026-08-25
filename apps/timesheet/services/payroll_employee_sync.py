@@ -87,7 +87,7 @@ class StaffSummary(TypedDict):
     """Data contract for StaffSummary."""
 
     staff_id: str
-    office_email: str
+    office_email: str | None
     first_name: str
     last_name: str
 
@@ -187,9 +187,14 @@ def match_staff_to_employee(staff: Staff, index: EmployeeIndex) -> EmployeeRecor
     if staff_id in index.by_staff_id:
         return index.by_staff_id[staff_id]
 
-    email = staff.office_email.strip().lower()
-    if email and email in index.by_email:
-        return index.by_email[email]
+    # Fable: either address may be the one Xero holds — payroll-only staff
+    # have office_email NULL, and payroll_email IS the Xero employee mailbox.
+    for address in (staff.office_email, staff.payroll_email):
+        if not address:
+            continue
+        email = address.strip().lower()
+        if email in index.by_email:
+            return index.by_email[email]
 
     first = staff.first_name.strip().lower()
     last = staff.last_name.strip().lower()
@@ -355,7 +360,7 @@ def _creation_refusals(staff: Staff) -> list[str]:
     refusals: list[str] = []
     if not clean_string(staff.first_name) or not clean_string(staff.last_name):
         refusals.append("missing first or last name")
-    if not clean_string(staff.office_email):
+    if not clean_string(staff.office_email) and not clean_string(staff.payroll_email):
         refusals.append("missing email")
     if staff.base_wage_rate <= Decimal("0"):
         refusals.append(f"base_wage_rate is {staff.base_wage_rate}")
@@ -378,7 +383,7 @@ def _creation_refusals(staff: Staff) -> list[str]:
 def _assert_creatable(staff_members: Sequence[Staff]) -> None:
     """Refuse the whole batch, naming every unusable row, before any write."""
     problems = [
-        f"  {staff.office_email}: {'; '.join(refusals)}"
+        f"  {staff.office_email or staff.payroll_email}: {'; '.join(refusals)}"
         for staff in staff_members
         if (refusals := _creation_refusals(staff))
     ]
@@ -399,7 +404,9 @@ def _employee_spec(
     """
     first_name = clean_string(staff.first_name, 35)
     last_name = clean_string(staff.last_name, 35)
-    email = clean_string(staff.office_email, 255)
+    # Fable: office first to preserve the proven both-emails behaviour; for
+    # payroll-only staff the payroll address IS the mailbox Xero should hold.
+    email = clean_string(staff.office_email, 255) or clean_string(staff.payroll_email, 255)
     if first_name is None or last_name is None or email is None:
         raise StaffNotPayrollReadyError(f"Staff {staff.id} has no usable name or email")
 

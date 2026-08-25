@@ -339,3 +339,18 @@ Health & Safety Annual Tasks Ongoing 2017, MSM Health & Safety Annual Plan,
 Maintenance Inspection Procedures v2, MSM Health and Safety Statement, MSM
 Health and Safety Policy, MSM Health Safety System - latest, MSM Health
 Safety Document List. The fix task is in `rewrite-status.md`.
+
+**Staff need at least one email address; either one signs them in,
+2026-08-26.** Owner ruling from UAT of the process-forms slice (which hit
+"Office email is required" creating a wage worker): `office_email` and
+`payroll_email` are both individually optional, a database constraint
+(`staff_at_least_one_email`) requires one of them, and the existing
+dual-match login backend accepts either. The field names are deliberately
+kept — only the requiredness was wrong. An earlier same-day ruling to invert
+the rule (payroll required, USERNAME_FIELD swap, backfill) was superseded:
+it would have forced inventing payroll addresses for the nine
+admin/system/office rows that lack one. Two adjacent defects fixed with it:
+the scrubber excluded the automation account by email, which silently
+dropped NULL-office-email rows from the identity scrub (SQL NULL
+semantics), and it never scrubbed `payroll_email` at all — it now excludes
+by pk and scrubs a set payroll address while preserving NULL shape.

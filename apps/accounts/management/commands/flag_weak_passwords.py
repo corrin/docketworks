@@ -22,6 +22,8 @@ class Command(BaseCommand):
             user.password_needs_reset = True
             user.save(update_fields=["password_needs_reset", "updated_at"])
             count += 1
-            self.stdout.write(f"User {user.office_email} marked for password reset")
+            self.stdout.write(
+                f"User {user.office_email or user.payroll_email} marked for password reset"
+            )
 
         self.stdout.write(self.style.SUCCESS(f"{count} users marked to reset their passwords"))

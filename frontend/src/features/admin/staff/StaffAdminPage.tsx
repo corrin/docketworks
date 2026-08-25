@@ -78,7 +78,7 @@ export function StaffAdminPage() {
                 </span>
               </div>
             </td>
-            <td className={CELL}>{row.office_email}</td>
+            <td className={CELL}>{row.office_email ?? row.payroll_email}</td>
             <td className={CELL}>{formatDate(row.employment_start_date)}</td>
             <td className={CELL}>{formatCurrency(row.wage_rate)}</td>
             <td className={CELL}>

@@ -9732,7 +9732,7 @@ export type StaffCreateIn = {
     /**
      * Office Email
      */
-    office_email: string;
+    office_email?: string | null;
     /**
      * Password
      */
@@ -9976,7 +9976,7 @@ export type StaffListItemOut = {
     /**
      * Office Email
      */
-    office_email: string;
+    office_email: string | null;
     /**
      * Pay Basis
      */
@@ -10179,7 +10179,7 @@ export type StaffUpdateIn = {
     /**
      * Office Email
      */
-    office_email?: string;
+    office_email?: string | null;
     /**
      * Password
      */
@@ -11336,7 +11336,7 @@ export type TimesheetStaffOut = {
     /**
      * Office Email
      */
-    office_email: string;
+    office_email: string | null;
     /**
      * Pay Basis
      */
@@ -11406,7 +11406,7 @@ export type UserProfile = {
     /**
      * Office Email
      */
-    office_email: string;
+    office_email: string | null;
     /**
      * Payroll Email
      */

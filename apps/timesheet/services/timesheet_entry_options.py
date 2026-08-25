@@ -43,7 +43,7 @@ class TimesheetStaffData(TypedDict):
     name: str
     firstName: str
     lastName: str
-    office_email: str
+    office_email: str | None
     icon_url: str | None
     wageRate: Decimal
     pay_basis: str | None

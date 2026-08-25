@@ -97,6 +97,54 @@ describe('StaffAdminPage', () => {
     await screen.findByText('new@example.com')
   })
 
+  it('a payroll-only staff member submits without an office email', async () => {
+    const bodies: unknown[] = []
+    const created = staffRow({
+      id: '33333333-3333-3333-3333-333333333333',
+      first_name: 'Wage',
+      office_email: null,
+      payroll_email: 'wage@example.com',
+    })
+    server.use(
+      http.post(LIST, async ({ request }) => {
+        bodies.push(await request.json())
+        return HttpResponse.json(created, { status: 201 })
+      }),
+    )
+    const { user } = await renderPage()
+
+    await user.click(autoId('StaffAdminPage-new-staff'))
+    await screen.findByText('New Staff')
+    await user.type(autoId('StaffFormDialog-first-name'), 'Wage')
+    await user.type(autoId('StaffFormDialog-last-name'), 'Worker')
+    await user.type(autoId('StaffFormDialog-payroll-email'), 'wage@example.com')
+    await user.type(autoId('StaffFormDialog-password'), 'a-Password-1!')
+    await user.type(autoId('StaffFormDialog-password-confirm'), 'a-Password-1!')
+    await user.click(autoId('StaffFormDialog-submit'))
+
+    await waitFor(() => expect(bodies).toHaveLength(1))
+    expect(bodies[0]).toMatchObject({ payroll_email: 'wage@example.com' })
+    expect(bodies[0]).not.toHaveProperty('office_email')
+    // The list identifies the new row by the one address it has.
+    await screen.findByText('wage@example.com')
+  })
+
+  it('with both emails blank the dialog refuses locally', async () => {
+    const { user } = await renderPage()
+
+    await user.click(autoId('StaffAdminPage-new-staff'))
+    await screen.findByText('New Staff')
+    await user.type(autoId('StaffFormDialog-first-name'), 'No')
+    await user.type(autoId('StaffFormDialog-last-name'), 'Email')
+    await user.type(autoId('StaffFormDialog-password'), 'a-Password-1!')
+    await user.type(autoId('StaffFormDialog-password-confirm'), 'a-Password-1!')
+    await user.click(autoId('StaffFormDialog-submit'))
+
+    expect(autoId('StaffFormDialog-validation')).toHaveTextContent(
+      'At least one email is required.',
+    )
+  })
+
   it('a typed negative wage is refused locally, not sent', async () => {
     const { user } = await renderPage()
 
