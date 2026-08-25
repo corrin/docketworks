@@ -594,6 +594,10 @@ renamed:
   # a different form), so the URL no longer depends on the owning form.
   process_forms_entries_partial_update: process_entries_partial_update
   process_forms_entries_destroy: process_entries_destroy
+  # PUT became PATCH on the same resource; the shape of the change (partial
+  # update semantics) is the same rename pattern as the entry moves above.
+  process_forms_update: process_forms_partial_update
+  process_forms_entries_update: process_entries_partial_update
 introduced:
 # Specified by ADR 0007 and the payroll UI contract but never built in v1:
 # what Xero holds for a week, read live, beside what the timesheet recorded.
@@ -642,3 +646,9 @@ dropped:
     Mirror hygiene is the server's job, not a button: the posting preflight
     refreshes the mirror before judging the week, and the hourly sync keeps it
     roughly current for reads. The panel's postable-week banner is advisory.
+  process_forms_destroy: >-
+    Archive replaces delete: a form's audit trail cannot vanish with the form
+    (owner ruling, design doc 2026-08-25).
+  process_forms_fill_create: >-
+    Fill is entry-create: one operation (process_forms_entries_create) serves
+    both the entries page and the Fill dialog.

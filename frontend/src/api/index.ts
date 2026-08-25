@@ -413,3 +413,29 @@ export type {
   KanbanJobPersonOut,
   KanbanStaffOut,
 } from './generated/types.gen'
+
+// Process documents (forms list/create/edit, entries with audit history,
+// categories; procedures arrive with their slice)
+export {
+  processCategoriesRetrieveOptions,
+  processEntriesDestroyMutation,
+  processEntriesHistoryListOptions,
+  processEntriesListOptions,
+  processEntriesListQueryKey,
+  processEntriesPartialUpdateMutation,
+  processFormsCreateMutation,
+  processFormsEntriesCreateMutation,
+  processFormsEntriesListOptions,
+  processFormsEntriesListQueryKey,
+  processFormsListOptions,
+  processFormsListQueryKey,
+  processFormsPartialUpdateMutation,
+  processFormsRetrieveOptions,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  CategoriesOut,
+  EntryEventOut,
+  EntryOut,
+  FormOut,
+  PaginatedEntryList,
+} from './generated/types.gen'
