@@ -38,6 +38,8 @@ import { Route as AuthedCrmPeoplePersonIdRouteImport } from './routes/_authed/cr
 import { Route as AuthedPurchasingPoIndexRouteImport } from './routes/_authed/purchasing/po/index'
 import { Route as AuthedPurchasingPoPoIdRouteImport } from './routes/_authed/purchasing/po/$poId'
 import { Route as AuthedPurchasingPoCreateRouteImport } from './routes/_authed/purchasing/po/create'
+import { Route as AuthedProcessDocumentsFormsCategoryIndexRouteImport } from './routes/_authed/process-documents/forms/$category/index'
+import { Route as AuthedProcessDocumentsFormsCategoryFormIdRouteImport } from './routes/_authed/process-documents/forms/$category/$formId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -191,6 +193,18 @@ const AuthedPurchasingPoCreateRoute =
     path: '/purchasing/po/create',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedProcessDocumentsFormsCategoryIndexRoute =
+  AuthedProcessDocumentsFormsCategoryIndexRouteImport.update({
+    id: '/process-documents/forms/$category/',
+    path: '/process-documents/forms/$category/',
+    getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedProcessDocumentsFormsCategoryFormIdRoute =
+  AuthedProcessDocumentsFormsCategoryFormIdRouteImport.update({
+    id: '/process-documents/forms/$category/$formId',
+    path: '/process-documents/forms/$category/$formId',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -221,6 +235,8 @@ export interface FileRoutesByFullPath {
   '/crm/companies/': typeof AuthedCrmCompaniesIndexRoute
   '/crm/people/': typeof AuthedCrmPeopleIndexRoute
   '/purchasing/po/': typeof AuthedPurchasingPoIndexRoute
+  '/process-documents/forms/$category/$formId': typeof AuthedProcessDocumentsFormsCategoryFormIdRoute
+  '/process-documents/forms/$category/': typeof AuthedProcessDocumentsFormsCategoryIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -251,6 +267,8 @@ export interface FileRoutesByTo {
   '/crm/companies': typeof AuthedCrmCompaniesIndexRoute
   '/crm/people': typeof AuthedCrmPeopleIndexRoute
   '/purchasing/po': typeof AuthedPurchasingPoIndexRoute
+  '/process-documents/forms/$category/$formId': typeof AuthedProcessDocumentsFormsCategoryFormIdRoute
+  '/process-documents/forms/$category': typeof AuthedProcessDocumentsFormsCategoryIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -283,6 +301,8 @@ export interface FileRoutesById {
   '/_authed/crm/companies/': typeof AuthedCrmCompaniesIndexRoute
   '/_authed/crm/people/': typeof AuthedCrmPeopleIndexRoute
   '/_authed/purchasing/po/': typeof AuthedPurchasingPoIndexRoute
+  '/_authed/process-documents/forms/$category/$formId': typeof AuthedProcessDocumentsFormsCategoryFormIdRoute
+  '/_authed/process-documents/forms/$category/': typeof AuthedProcessDocumentsFormsCategoryIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -315,6 +335,8 @@ export interface FileRouteTypes {
     | '/crm/companies/'
     | '/crm/people/'
     | '/purchasing/po/'
+    | '/process-documents/forms/$category/$formId'
+    | '/process-documents/forms/$category/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -345,6 +367,8 @@ export interface FileRouteTypes {
     | '/crm/companies'
     | '/crm/people'
     | '/purchasing/po'
+    | '/process-documents/forms/$category/$formId'
+    | '/process-documents/forms/$category'
   id:
     | '__root__'
     | '/'
@@ -376,6 +400,8 @@ export interface FileRouteTypes {
     | '/_authed/crm/companies/'
     | '/_authed/crm/people/'
     | '/_authed/purchasing/po/'
+    | '/_authed/process-documents/forms/$category/$formId'
+    | '/_authed/process-documents/forms/$category/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -590,6 +616,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedPurchasingPoCreateRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/process-documents/forms/$category/': {
+      id: '/_authed/process-documents/forms/$category/'
+      path: '/process-documents/forms/$category'
+      fullPath: '/process-documents/forms/$category/'
+      preLoaderRoute: typeof AuthedProcessDocumentsFormsCategoryIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/process-documents/forms/$category/$formId': {
+      id: '/_authed/process-documents/forms/$category/$formId'
+      path: '/process-documents/forms/$category/$formId'
+      fullPath: '/process-documents/forms/$category/$formId'
+      preLoaderRoute: typeof AuthedProcessDocumentsFormsCategoryFormIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
@@ -619,6 +659,8 @@ interface AuthedRouteChildren {
   AuthedCrmCompaniesIndexRoute: typeof AuthedCrmCompaniesIndexRoute
   AuthedCrmPeopleIndexRoute: typeof AuthedCrmPeopleIndexRoute
   AuthedPurchasingPoIndexRoute: typeof AuthedPurchasingPoIndexRoute
+  AuthedProcessDocumentsFormsCategoryFormIdRoute: typeof AuthedProcessDocumentsFormsCategoryFormIdRoute
+  AuthedProcessDocumentsFormsCategoryIndexRoute: typeof AuthedProcessDocumentsFormsCategoryIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -649,6 +691,10 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedCrmCompaniesIndexRoute: AuthedCrmCompaniesIndexRoute,
   AuthedCrmPeopleIndexRoute: AuthedCrmPeopleIndexRoute,
   AuthedPurchasingPoIndexRoute: AuthedPurchasingPoIndexRoute,
+  AuthedProcessDocumentsFormsCategoryFormIdRoute:
+    AuthedProcessDocumentsFormsCategoryFormIdRoute,
+  AuthedProcessDocumentsFormsCategoryIndexRoute:
+    AuthedProcessDocumentsFormsCategoryIndexRoute,
 }
 
 const AuthedRouteWithChildren =

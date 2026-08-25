@@ -436,6 +436,10 @@ export type {
   CategoriesOut,
   EntryEventOut,
   EntryOut,
+  FormCreateIn,
+  FormFieldSchema,
   FormOut,
+  FormSchemaSpec,
+  FormUpdateIn,
   PaginatedEntryList,
 } from './generated/types.gen'
