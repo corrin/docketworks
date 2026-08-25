@@ -69,8 +69,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 234 |
-| in docstrings | 377 |
+| in comments | 235 |
+| in docstrings | 378 |
 
 ## Exception handling
 

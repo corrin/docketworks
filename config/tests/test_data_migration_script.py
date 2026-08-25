@@ -73,6 +73,9 @@ DATA_MIGRATIONS_RERUN_AFTER_RESTORE = {
     # with the restore and the files with the archive copy, so the empty-
     # database run finds nothing to measure.
     ("crm", "0003_phonecallrecording_duration_ms"),
+    # Derives the stored category from v1 tags; the rows it fixes arrive with
+    # the restore, so the empty-database run finds none.
+    ("process", "0003_backfill_categories"),
 }
 
 

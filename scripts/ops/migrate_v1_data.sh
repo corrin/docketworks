@@ -147,6 +147,11 @@ DB_NAME="$V2_DB" uv run python manage.py migrate core 0003 --no-input
 # archive copy was skipped.
 DB_NAME="$V2_DB" uv run python manage.py migrate crm 0002 --no-input
 DB_NAME="$V2_DB" uv run python manage.py migrate crm 0003 --no-input
+# process/0003 derives each document's stored category from its v1 tags. The
+# rows it fixes arrive with the restore; its reverse is a no-op, so replaying
+# it here is the same tested code against the rows that now exist.
+DB_NAME="$V2_DB" uv run python manage.py migrate process 0002 --no-input
+DB_NAME="$V2_DB" uv run python manage.py migrate process 0003 --no-input
 
 echo "==> NOTE: formerly-encrypted credential columns"
 cat <<'NOTE'
