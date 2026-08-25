@@ -152,8 +152,13 @@ def process_forms_list(
     ``status`` names exactly one status to show; omitted, the list excludes
     archived forms so the picker never routes staff toward a defunct form.
     """
-    forms = Form.objects.annotate(
-        entry_count_annotated=Count("entries", filter=Q(entries__is_active=True))
+    forms = (
+        Form.objects.annotate(
+            entry_count_annotated=Count("entries", filter=Q(entries__is_active=True))
+        )
+        # Explicit despite Meta.ordering: annotate()'s GROUP BY silently drops
+        # the model's default ordering, and the list needs a stable order.
+        .order_by("-created_at")
     )
     forms = forms.filter(status=status) if status is not None else forms.exclude(status="archived")
     if category is not None:

@@ -7,9 +7,9 @@ empty database at provision time (finds nothing) and again after the v1
 data restore (see scripts/ops/migrate_v1_data.sh), which is when it works.
 """
 
-from typing import Any
-
 from django.db import migrations
+from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+from django.db.migrations.state import StateApps
 
 from apps.process.migrations._0003_helpers import (
     form_category,
@@ -17,7 +17,7 @@ from apps.process.migrations._0003_helpers import (
 )
 
 
-def backfill_categories(apps: Any, schema_editor: Any) -> None:
+def backfill_categories(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
     """Set category on every row where it is NULL; refuse to leave any NULL."""
     Form = apps.get_model("process", "Form")
     Procedure = apps.get_model("process", "Procedure")

@@ -58,12 +58,26 @@ def _resolve_parent_entry(parent_id: UUID | None) -> FormEntry | None:
     return parent
 
 
+def _require_form_not_archived(form: Form) -> None:
+    """Refuse a write against an archived form's entries.
+
+    v1 had no such guard (docs/accepted-api-differences.yml). Archiving a
+    form is the office-only signal that it is retired; without this check a
+    regular staff member could keep signing new entries against a form
+    nobody is meant to use any more. Archiving/unarchiving the FORM itself
+    stays reachable through the existing office-only PATCH regardless.
+    """
+    if form.status == "archived":
+        raise HttpError(400, f"Form '{form.title}' is archived; its entries cannot be written.")
+
+
 def create_form_entry(*, staff: Staff, form: Form, payload: EntryCreateIn) -> FormEntry:
     """Create a form entry and its entry_created event.
 
     ``entered_by`` is always the authenticated caller; ``staff`` (the entry's
     subject, e.g. an inductee) is never invented and stays NULL when omitted.
     """
+    _require_form_not_archived(form)
     validate_entry_data(form, payload.data)
     subject_staff = _resolve_staff(payload.staff)
     job = _resolve_job(payload.job)
@@ -164,6 +178,7 @@ def update_form_entry(*, staff: Staff, entry: FormEntry, payload: EntryUpdateIn)
     match nothing are a transparent 400 naming the missing referent, resolved
     before anything is written.
     """
+    _require_form_not_archived(entry.form)
     supplied = payload.model_dump(exclude_unset=True)
     new_data = supplied.get("data", entry.data)
     if "data" in supplied:
@@ -193,6 +208,12 @@ def update_form_entry(*, staff: Staff, entry: FormEntry, payload: EntryUpdateIn)
         )
     )
 
+    # A PATCH that changes nothing must not save: entry.save() would still
+    # bump updated_at (auto_now) with no event to explain why, a write with
+    # no visible cause. Mirrors forms_service.update_form.
+    if not changes:
+        return entry
+
     entry.entry_date = new_entry_date
     entry.data = new_data
     entry.staff = new_staff
@@ -201,10 +222,7 @@ def update_form_entry(*, staff: Staff, entry: FormEntry, payload: EntryUpdateIn)
 
     with transaction.atomic():
         entry.save()
-        if changes:
-            record_entry_event(
-                entry=entry, staff=staff, event_type="entry_updated", changes=changes
-            )
+        record_entry_event(entry=entry, staff=staff, event_type="entry_updated", changes=changes)
     return entry
 
 
@@ -215,6 +233,10 @@ def archive_entry(*, staff: Staff, entry: FormEntry) -> None:
     actual active -> archived transition, never on repeating an already
     -archived entry, so a second DELETE stays 204 without doubling the
     audit trail.
+
+    No ``_require_form_not_archived`` call, unlike create/update: archiving
+    an entry removes residue rather than adding a record, so it stays
+    reachable even against an archived form.
     """
     if not entry.is_active:
         return

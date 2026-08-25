@@ -10,8 +10,9 @@ import pytest
 from ninja.errors import HttpError
 
 from apps.accounts.models import Staff
+from apps.core.models import AppError
 from apps.process.models import Form, FormEntry
-from apps.process.services.entry_validation import display_data, validate_entry_data
+from apps.process.services.entry_validation import display_data, parse_schema, validate_entry_data
 
 pytestmark = pytest.mark.django_db
 
@@ -115,6 +116,18 @@ class TestValidateEntryData:
             validate_entry_data(maintenance, {"asset": str(other_entry.id)})
 
 
+class TestParseSchema:
+    def test_a_corrupted_stored_schema_is_a_500_and_persists_an_app_error(self) -> None:
+        form = make_form(schema={"not_fields": []})
+        before = AppError.objects.count()
+
+        with pytest.raises(HttpError) as caught:
+            parse_schema(form)
+
+        assert caught.value.status_code == 500
+        assert AppError.objects.count() == before + 1
+
+
 class TestDisplayData:
     def test_staff_and_entry_ref_values_resolve_to_names(self) -> None:
         staff = make_staff()
@@ -152,6 +165,44 @@ class TestDisplayData:
         missing = str(uuid4())
         resolved = display_data(maintenance, {"asset": missing})
         assert resolved == {"asset": missing}
+
+    def test_an_entry_of_the_wrong_form_renders_the_raw_id(self) -> None:
+        # A real FormEntry id that belongs to a DIFFERENT form than the
+        # field's source_form must not resolve — a stale/miskeyed reference
+        # is exactly as unresolvable as a missing one.
+        register = make_form(
+            schema={"fields": [{"key": "name", "label": "Name", "type": "text"}]},
+            category=Form.Category.REGISTER,
+            document_type="register",
+            title="Asset register",
+        )
+        other_form = make_form(
+            schema={"fields": [{"key": "name", "label": "Name", "type": "text"}]},
+            category=Form.Category.REGISTER,
+            document_type="register",
+            title="Other register",
+        )
+        wrong_form_entry = FormEntry.objects.create(
+            form=other_form, entry_date="2026-08-25", data={"name": "Not this register"}
+        )
+        maintenance = make_form(
+            schema={
+                "fields": [
+                    {
+                        "key": "asset",
+                        "label": "Asset",
+                        "type": "entry_ref",
+                        "source_form": str(register.id),
+                        "display_key": "name",
+                    }
+                ]
+            },
+            title="Maintenance record",
+        )
+
+        resolved = display_data(maintenance, {"asset": str(wrong_form_entry.id)})
+
+        assert resolved == {"asset": str(wrong_form_entry.id)}
 
     def test_non_uuid_string_in_reference_field_renders_as_itself(self) -> None:
         form = make_form()

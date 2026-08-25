@@ -195,6 +195,17 @@ class TestList:
 
         assert [row["title"] for row in body] == ["Fire Drill Register"]
 
+    def test_list_is_newest_first_despite_the_entry_count_annotation(self) -> None:
+        # annotate()'s GROUP BY silently drops Meta.ordering; process_forms_list
+        # must set order_by explicitly or this goes stable-but-arbitrary.
+        older = make_form(title="Older form")
+        newer = make_form(title="Newer form")
+
+        body = any_staff_client().get(FORMS_URL).json()
+
+        ids = [row["id"] for row in body]
+        assert ids.index(str(newer.id)) < ids.index(str(older.id))
+
     def test_rows_carry_entry_count(self) -> None:
         form = make_form(title="Inspection")
         FormEntry.objects.create(form=form, entry_date="2026-08-25", data={})
@@ -225,6 +236,16 @@ class TestPartialUpdate:
         form.refresh_from_db()
         assert form.status == "archived"
         assert ProcessEvent.objects.filter(form=form, event_type="form_archived").count() == 1
+
+    def test_no_change_patch_leaves_updated_at_untouched(self) -> None:
+        form = make_form()
+        original_updated_at = form.updated_at
+
+        response = patch(office_client(), form.id, title=form.title)
+
+        assert response.status_code == 200
+        form.refresh_from_db()
+        assert form.updated_at == original_updated_at
 
     def test_no_destroy_route_exists(self) -> None:
         form = make_form()

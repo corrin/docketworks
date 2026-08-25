@@ -1198,6 +1198,20 @@
     UUID and an entry_ref value must be an active entry of its configured
     source form.
 
+- operation: process_forms_entries_create / process_entries_partial_update (archived forms)
+  change: "Creating or editing an entry against an archived form is a 400 naming the form; v1 accepted writes to entries of an archived form"
+  reason: >
+    v1 had no such guard: archiving a form (or its v1 tag equivalent) never
+    stopped staff from continuing to sign new entries or edit existing ones
+    against it, so a retired form kept accumulating live records after the
+    office archived it. v2's create_form_entry/update_form_entry
+    (apps/process/services/entries_service.py, _require_form_not_archived)
+    refuse both writes with HttpError(400) naming the form. The entries
+    DELETE route (process_entries_destroy, a soft archive) is unaffected —
+    removing residue is not adding a record, so it stays reachable even
+    against an archived form. Design doc,
+    docs/superpowers/specs/2026-08-25-process-documents-design.md.
+
 - operation: process_forms_entries_list / process_entries_list
   change: "Both entries listings are paginated (page/page_size query params, page size 50); v1 served process_forms_entries_list as a bare array"
   reason: >

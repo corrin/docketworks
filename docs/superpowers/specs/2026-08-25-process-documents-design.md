@@ -153,8 +153,9 @@ Entries:
 - **history** — the ProcessEvent read for one entry, newest first
 
 Entry `data` is validated against the form's schema at write time: unknown
-keys are a 422, required fields must be present, values must match the field
-type. (v1 accepted anything.)
+keys, missing required fields and type mismatches are 400 — post-parse
+business validation against the stored schema, not the 422 the request
+boundary uses for schema STRUCTURE. (v1 accepted anything.)
 
 Categories:
 - one GET returning both choice lists with machine keys and display labels;

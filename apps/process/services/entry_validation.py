@@ -11,6 +11,7 @@ from uuid import UUID
 from ninja.errors import HttpError
 
 from apps.accounts.models import Staff
+from apps.core.errors import AppErrorContext, persist_app_error
 from apps.process.models import Form, FormEntry
 from apps.process.schemas import FormFieldSchema, FormSchemaSpec
 
@@ -19,11 +20,19 @@ def parse_schema(form: Form) -> FormSchemaSpec:
     """Re-validate the stored schema.
 
     Loud on corruption: every write path validates, so an unparseable stored
-    schema is data damage, not input.
+    schema is data damage, not input — persisted as an AppError before the
+    500 that reports it, so the corruption is discoverable outside the one
+    request that hit it.
     """
     try:
         return FormSchemaSpec.model_validate(form.form_schema)
     except ValueError as exc:
+        persist_app_error(
+            exc,
+            AppErrorContext(
+                additional_context={"form_id": str(form.pk), "operation": "parse_schema"}
+            ),
+        )
         raise HttpError(500, f"Stored schema for form '{form.title}' is invalid: {exc}") from exc
 
 
@@ -160,7 +169,20 @@ def display_data(form: Form, data: dict[str, object]) -> dict[str, str]:
             staff = Staff.objects.filter(pk=value).first() if _is_uuid(value) else None
             resolved[field.key] = staff.get_display_full_name() if staff else value
         elif field.type == "entry_ref":
-            source = FormEntry.objects.filter(pk=value).first() if _is_uuid(value) else None
+            if field.source_form is None:  # pragma: no cover - _coherent forbids this
+                # Fable: FormFieldSchema._coherent guarantees source_form is set
+                # whenever type == "entry_ref"; this branch documents that
+                # invariant for mypy rather than adding a new runtime check.
+                raise AssertionError(f"entry_ref field '{field.key}' has no source_form")
+            # form_id=field.source_form, not pk alone: a stale reference to
+            # another form's entry (that form's schema changed, or the id
+            # was recycled from a different field) must render as the raw
+            # id, not another form's row mislabelled as this field's value.
+            source = (
+                FormEntry.objects.filter(pk=value, form_id=field.source_form).first()
+                if _is_uuid(value)
+                else None
+            )
             if source is None:
                 resolved[field.key] = value
             else:

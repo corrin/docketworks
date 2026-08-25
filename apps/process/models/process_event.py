@@ -8,7 +8,8 @@ mechanism into apps/core is recorded post-cutover work (see the design doc).
 """
 
 import uuid
-from typing import Any, ClassVar
+from collections.abc import Mapping
+from typing import ClassVar
 
 from django.db import models
 from django.utils.timezone import now
@@ -18,9 +19,9 @@ def _default_descriptor(field_name: str, old: object, new: object) -> str:
     return f"{field_name} changed from '{old}' to '{new}'"
 
 
-def _render_change(change: dict[str, Any]) -> str:
+def _render_change(change: Mapping[str, object]) -> str:
     return _default_descriptor(
-        change.get("field_name", ""), change.get("old_value", ""), change.get("new_value", "")
+        str(change.get("field_name", "")), change.get("old_value", ""), change.get("new_value", "")
     )
 
 

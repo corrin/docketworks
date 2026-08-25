@@ -163,6 +163,17 @@ class TestCreate:
         child = FormEntry.objects.get(pk=body["id"])
         assert child.parent_entry == parent
 
+    def test_create_on_an_archived_form_is_a_400(self) -> None:
+        # v1 had no such guard (docs/accepted-api-differences.yml); v2 refuses
+        # new entries against a form the office has retired.
+        form = make_form(status="archived")
+
+        response = create(any_staff_client(), form.id)
+
+        assert response.status_code == 400
+        assert form.title in response.json()["detail"]
+        assert not FormEntry.objects.filter(form=form).exists()
+
     def test_unknown_parent_entry_is_a_400(self) -> None:
         form = make_form()
         missing = str(uuid4())
@@ -296,8 +307,48 @@ class TestUpdate:
         assert str(entry.entry_date) == "2026-08-26"
         assert entry.data == {"area": "Bay 1"}
 
+    def test_no_change_patch_leaves_updated_at_untouched(self) -> None:
+        form = make_form()
+        entry = make_entry(form, data={"area": "Bay 1"})
+        original_updated_at = entry.updated_at
+
+        response = patch(any_staff_client(), entry.id, data={"area": "Bay 1"})
+
+        assert response.status_code == 200
+        entry.refresh_from_db()
+        assert entry.updated_at == original_updated_at
+
+
+class TestUpdateAgainstArchivedForm:
+    def test_patch_on_an_archived_form_is_a_400(self) -> None:
+        form = make_form()
+        entry = make_entry(form, data={"area": "Bay 1"})
+        form.status = "archived"
+        form.save(update_fields=["status"])
+
+        response = patch(any_staff_client(), entry.id, data={"area": "Bay 2"})
+
+        assert response.status_code == 400
+        assert form.title in response.json()["detail"]
+        entry.refresh_from_db()
+        assert entry.data == {"area": "Bay 1"}
+
 
 class TestArchive:
+    def test_delete_still_works_on_an_archived_form(self) -> None:
+        # Removing residue is not adding a record, so archiving an entry
+        # stays reachable even once its form is archived.
+        form = make_form()
+        entry = make_entry(form)
+        form.status = "archived"
+        form.save(update_fields=["status"])
+
+        response = any_staff_client().delete(ENTRY_DETAIL_URL.format(id=entry.id))
+
+        assert response.status_code == 204
+        entry.refresh_from_db()
+        assert entry.is_active is False
+
     def test_delete_is_soft_and_audited(self) -> None:
         # DELETE -> 204; row is_active=False; entry_archived event exists
         form = make_form()

@@ -43,10 +43,12 @@ def update_form(*, staff: Staff, form: Form, payload: FormUpdateIn) -> Form:
     against the schema's placeholder defaults), then goes one step further:
     presence is not "changed" — a supplied field whose value equals the
     stored one (a redundant re-archive included) is dropped before the event
-    is built. A PATCH that changes nothing writes no event at all — the
-    fail-early-honest reading of "nothing happened" over "diff against
-    nothing". ``form_archived`` fires only on an actual active -> archived
-    transition, never on repeating an already-archived status.
+    is built. A PATCH that changes nothing writes no event at all, and does
+    not save the row either: full_clean/save would still bump updated_at
+    (auto_now) for a write with no visible cause — the fail-early-honest
+    reading of "nothing happened" over "diff against nothing".
+    ``form_archived`` fires only on an actual active -> archived transition,
+    never on repeating an already-archived status.
     """
     supplied = payload.model_dump(exclude_unset=True)
     if "form_schema" in supplied:
@@ -73,6 +75,12 @@ def update_form(*, staff: Staff, form: Form, payload: FormUpdateIn) -> Form:
         )
         setattr(form, field, value)
 
+    # A PATCH that changes nothing must not save: full_clean/save would still
+    # bump updated_at (auto_now) with no event to explain why, a write with
+    # no visible cause.
+    if not changes:
+        return form
+
     try:
         form.full_clean()
     except DjangoValidationError as exc:
@@ -83,15 +91,14 @@ def update_form(*, staff: Staff, form: Form, payload: FormUpdateIn) -> Form:
 
     with transaction.atomic():
         form.save()
-        if changes:
-            archived_now = "status" in changed_fields and form.status == "archived"
-            if archived_now and prior_status != "archived":
-                event_type = "form_archived"
-            elif "form_schema" in changed_fields:
-                event_type = "schema_updated"
-            else:
-                event_type = "form_updated"
-            record_form_event(form=form, staff=staff, event_type=event_type, changes=changes)
+        archived_now = "status" in changed_fields and form.status == "archived"
+        if archived_now and prior_status != "archived":
+            event_type = "form_archived"
+        elif "form_schema" in changed_fields:
+            event_type = "schema_updated"
+        else:
+            event_type = "form_updated"
+        record_form_event(form=form, staff=staff, event_type=event_type, changes=changes)
     return form
 
 
