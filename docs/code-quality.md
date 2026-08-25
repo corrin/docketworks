@@ -15,13 +15,13 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | metric | count |
 |---|---:|
 | type: ignore | 9 |
-| pragma: no cover | 6 |
+| pragma: no cover | 7 |
 | noqa (no rule code) | 0 |
 | @ts-ignore | 0 |
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 7 |
-| TOTAL suppressions | 679 |
+| TOTAL suppressions | 680 |
 | noqa: DJ001 | 161 |
 | noqa: PLC0415 | 128 |
 | noqa: E402 | 105 |
@@ -70,7 +70,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 | metric | count |
 |---|---:|
 | in comments | 235 |
-| in docstrings | 379 |
+| in docstrings | 380 |
 
 ## Exception handling
 
@@ -78,11 +78,11 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 379 |
-| except handlers | 411 |
-| re-raises or converts | 267 |
-| returns instead | 83 |
-| falls through | 49 |
+| try statements | 383 |
+| except handlers | 415 |
+| re-raises or converts | 268 |
+| returns instead | 85 |
+| falls through | 50 |
 | continue/break in a loop | 11 |
 | pass (silent) | 1 |
 
@@ -93,7 +93,7 @@ The narrow subset of the above: functions whose ENTIRE body is one single-statem
 | metric | count |
 |---|---:|
 | passthrough | 0 |
-| rethrow | 15 |
+| rethrow | 16 |
 | fallback | 3 |
 
 ## Optional returns
@@ -102,8 +102,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 195 |
-| non-test functions | 2425 |
+| functions returning `X \| None` | 196 |
+| non-test functions | 2438 |
 
 ## Wire contract (response side)
 
