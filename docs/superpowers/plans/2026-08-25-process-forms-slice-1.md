@@ -178,12 +178,19 @@ def make_form(**overrides: object) -> Form:
 class TestCategory:
     def test_form_categories_are_the_five_agreed_values(self) -> None:
         assert [choice[0] for choice in Form.Category.choices] == [
-            "safety", "training", "incident", "meeting", "register",
+            "safety",
+            "training",
+            "incident",
+            "meeting",
+            "register",
         ]
 
     def test_procedure_categories_are_the_four_agreed_values(self) -> None:
         assert [choice[0] for choice in Procedure.Category.choices] == [
-            "safety", "jsa", "training", "reference",
+            "safety",
+            "jsa",
+            "training",
+            "reference",
         ]
 
 
@@ -191,18 +198,14 @@ class TestFormEntryLinks:
     def test_an_entry_can_link_to_a_parent_entry_on_another_form(self) -> None:
         minutes_form = make_form(category=Form.Category.MEETING, title="Meeting minutes")
         actions_form = make_form(category=Form.Category.MEETING, title="Actions")
-        minutes = FormEntry.objects.create(
-            form=minutes_form, entry_date="2026-08-25", data={}
-        )
+        minutes = FormEntry.objects.create(form=minutes_form, entry_date="2026-08-25", data={})
         action = FormEntry.objects.create(
             form=actions_form, entry_date="2026-08-25", data={}, parent_entry=minutes
         )
         assert list(minutes.child_entries.all()) == [action]
 
     def test_entries_carry_updated_at(self) -> None:
-        entry = FormEntry.objects.create(
-            form=make_form(), entry_date="2026-08-25", data={}
-        )
+        entry = FormEntry.objects.create(form=make_form(), entry_date="2026-08-25", data={})
         assert entry.updated_at is not None
 
 
@@ -428,9 +431,7 @@ def backfill_categories(apps: Any, schema_editor: Any) -> None:
         form.category = form_category(form.document_type, list(form.tags))
         form.save(update_fields=["category"])
     for procedure in Procedure.objects.filter(category__isnull=True):
-        procedure.category = procedure_category(
-            procedure.document_type, list(procedure.tags)
-        )
+        procedure.category = procedure_category(procedure.document_type, list(procedure.tags))
         procedure.save(update_fields=["category"])
 
     remaining = (
@@ -461,9 +462,9 @@ class Migration(migrations.Migration):
 In `config/tests/test_data_migration_script.py`, add to `DATA_MIGRATIONS_RERUN_AFTER_RESTORE`:
 
 ```python
-    # Derives the stored category from v1 tags; the rows it fixes arrive with
-    # the restore, so the empty-database run finds none.
-    ("process", "0003_backfill_categories"),
+# Derives the stored category from v1 tags; the rows it fixes arrive with
+# the restore, so the empty-database run finds none.
+(("process", "0003_backfill_categories"),)
 ```
 
 In `scripts/ops/migrate_v1_data.sh`, after the `pg_restore --data-only` line, following the existing unapply/reapply pattern:
@@ -583,9 +584,7 @@ class TestRecordEntryEvent:
 
     def test_events_cascade_with_their_entry(self) -> None:
         entry = make_entry()
-        record_entry_event(
-            entry=entry, staff=make_staff(), event_type="entry_created", changes=[]
-        )
+        record_entry_event(entry=entry, staff=make_staff(), event_type="entry_created", changes=[])
         entry.delete()
         assert ProcessEvent.objects.count() == 0
 ```
@@ -643,15 +642,24 @@ class ProcessEvent(models.Model):
     staff = models.ForeignKey("accounts.Staff", on_delete=models.PROTECT)
     event_type = models.CharField(max_length=50)
     form = models.ForeignKey(
-        "process.Form", on_delete=models.CASCADE, null=True, blank=True,
+        "process.Form",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="events",
     )
     form_entry = models.ForeignKey(
-        "process.FormEntry", on_delete=models.CASCADE, null=True, blank=True,
+        "process.FormEntry",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="events",
     )
     procedure = models.ForeignKey(
-        "process.Procedure", on_delete=models.CASCADE, null=True, blank=True,
+        "process.Procedure",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="events",
     )
     delta_before = models.JSONField(null=True, blank=True)
@@ -781,18 +789,49 @@ git commit -m "ProcessEvent: the process domain's audit trail, JobEvent-shaped w
 FieldType = Literal["text", "textarea", "date", "boolean", "number", "select", "staff", "entry_ref"]
 FormCategory = Literal["safety", "training", "incident", "meeting", "register"]
 
-class FormFieldSchema(Schema): ...      # key, label, type, required, options?, source_form?, display_key?
-class FormSchemaSpec(Schema): ...       # fields: list[FormFieldSchema]; rejects duplicate keys
-class FormCreateIn(Schema): ...         # document_type, category, title, document_number?, tags?, form_schema
-class FormUpdateIn(Schema): ...         # all-optional PATCH body (exclude_unset)
-class FormOut(Schema): ...              # id, document_type, category, title, document_number, tags, status, form_schema, entry_count, created_at, updated_at
-class EntryCreateIn(Schema): ...        # entry_date, data, job?, staff?, parent_entry?
-class EntryUpdateIn(Schema): ...        # all-optional PATCH body
-class EntryOut(Schema): ...             # id, form, entry_date, staff, staff_name, entered_by, entered_by_name, job, parent_entry, child_count, data, display_data, is_active, created_at, updated_at
-class PaginatedEntryList(Schema): ...   # results, count, page, page_size, total_pages
-class CategoryOut(Schema): ...          # key, label
-class CategoriesOut(Schema): ...        # forms: list[CategoryOut], procedures: list[CategoryOut]
-class EntryEventOut(Schema): ...        # id, timestamp, event_type, staff_name, description, changes
+
+class FormFieldSchema(
+    Schema
+): ...  # key, label, type, required, options?, source_form?, display_key?
+
+
+class FormSchemaSpec(Schema): ...  # fields: list[FormFieldSchema]; rejects duplicate keys
+
+
+class FormCreateIn(
+    Schema
+): ...  # document_type, category, title, document_number?, tags?, form_schema
+
+
+class FormUpdateIn(Schema): ...  # all-optional PATCH body (exclude_unset)
+
+
+class FormOut(
+    Schema
+): ...  # id, document_type, category, title, document_number, tags, status, form_schema, entry_count, created_at, updated_at
+
+
+class EntryCreateIn(Schema): ...  # entry_date, data, job?, staff?, parent_entry?
+
+
+class EntryUpdateIn(Schema): ...  # all-optional PATCH body
+
+
+class EntryOut(
+    Schema
+): ...  # id, form, entry_date, staff, staff_name, entered_by, entered_by_name, job, parent_entry, child_count, data, display_data, is_active, created_at, updated_at
+
+
+class PaginatedEntryList(Schema): ...  # results, count, page, page_size, total_pages
+
+
+class CategoryOut(Schema): ...  # key, label
+
+
+class CategoriesOut(Schema): ...  # forms: list[CategoryOut], procedures: list[CategoryOut]
+
+
+class EntryEventOut(Schema): ...  # id, timestamp, event_type, staff_name, description, changes
 ```
 
 - [ ] **Step 1: Write the failing test**
@@ -892,9 +931,7 @@ from pydantic import ConfigDict, model_validator
 from apps.core.schemas import NonBlankText, NullableText, omittable
 from apps.process.models import Form, FormEntry
 
-FieldType = Literal[
-    "text", "textarea", "date", "boolean", "number", "select", "staff", "entry_ref"
-]
+FieldType = Literal["text", "textarea", "date", "boolean", "number", "select", "staff", "entry_ref"]
 FormCategory = Literal["safety", "training", "incident", "meeting", "register"]
 FormDocumentType = Literal["form", "register"]
 FormStatus = Literal["active", "archived"]
@@ -1177,9 +1214,7 @@ class TestValidateEntryData:
             title="Maintenance record",
         )
         validate_entry_data(maintenance, {"asset": str(asset.id)})
-        other_entry = FormEntry.objects.create(
-            form=maintenance, entry_date="2026-08-25", data={}
-        )
+        other_entry = FormEntry.objects.create(form=maintenance, entry_date="2026-08-25", data={})
         with pytest.raises(HttpError):
             validate_entry_data(maintenance, {"asset": str(other_entry.id)})
 
@@ -1224,9 +1259,7 @@ def parse_schema(form: Form) -> FormSchemaSpec:
     try:
         return FormSchemaSpec.model_validate(form.form_schema)
     except ValueError as exc:
-        raise HttpError(
-            500, f"Stored schema for form '{form.title}' is invalid: {exc}"
-        ) from exc
+        raise HttpError(500, f"Stored schema for form '{form.title}' is invalid: {exc}") from exc
 
 
 def _check_value(field: FormFieldSchema, value: object, problems: list[str]) -> None:
@@ -1256,12 +1289,13 @@ def _check_value(field: FormFieldSchema, value: object, problems: list[str]) -> 
             problems.append(f"'{field.key}' does not name a known staff member.")
     elif field.type == "entry_ref":
         entry_id = _as_uuid(field.key, value, problems)
-        if entry_id is not None and not FormEntry.objects.filter(
-            pk=entry_id, form_id=field.source_form, is_active=True
-        ).exists():
-            problems.append(
-                f"'{field.key}' does not name an active entry of its source form."
-            )
+        if (
+            entry_id is not None
+            and not FormEntry.objects.filter(
+                pk=entry_id, form_id=field.source_form, is_active=True
+            ).exists()
+        ):
+            problems.append(f"'{field.key}' does not name an active entry of its source form.")
     else:  # pragma: no cover - FieldType is a closed Literal
         raise AssertionError(f"Unhandled field type {field.type}")
 
@@ -1287,7 +1321,9 @@ def validate_entry_data(form: Form, data: dict[str, object]) -> None:
         if key not in by_key:
             problems.append(f"'{key}' is not a field of this form.")
     for field in spec.fields:
-        if field.required and (key_missing := field.key not in data or data[field.key] in ("", None)):
+        if field.required and (
+            key_missing := field.key not in data or data[field.key] in ("", None)
+        ):
             del key_missing  # explicit: required means present and non-empty
             problems.append(f"'{field.key}' is required.")
             continue
@@ -1317,9 +1353,7 @@ def display_data(form: Form, data: dict[str, object]) -> dict[str, str]:
             staff = Staff.objects.filter(pk=value).first() if _is_uuid(value) else None
             resolved[field.key] = staff.get_display_full_name() if staff else value
         elif field.type == "entry_ref":
-            source = (
-                FormEntry.objects.filter(pk=value).first() if _is_uuid(value) else None
-            )
+            source = FormEntry.objects.filter(pk=value).first() if _is_uuid(value) else None
             if source is None:
                 resolved[field.key] = value
             else:
@@ -1396,10 +1430,10 @@ CREATE_PAYLOAD = {
 
 
 class TestAuth:
-    def test_anonymous_cannot_list(self) -> None: ...          # 401
-    def test_any_staff_can_list(self) -> None: ...             # 200 via non-office staff client
-    def test_non_office_staff_cannot_create(self) -> None: ... # 403
-    def test_non_office_staff_cannot_update(self) -> None: ... # 403
+    def test_anonymous_cannot_list(self) -> None: ...  # 401
+    def test_any_staff_can_list(self) -> None: ...  # 200 via non-office staff client
+    def test_non_office_staff_cannot_create(self) -> None: ...  # 403
+    def test_non_office_staff_cannot_update(self) -> None: ...  # 403
 
 
 class TestCategories:
@@ -1414,14 +1448,17 @@ class TestCreate:
     def test_office_staff_creates_a_form_and_an_event(self) -> None:
         # 201; Form row exists; ProcessEvent(event_type="form_created") exists
         ...
+
     def test_blank_title_is_a_422(self) -> None: ...
     def test_unknown_category_is_a_422(self) -> None: ...
     def test_malformed_schema_is_a_422(self) -> None:
         # form_schema={"fields": [{"key": "a", "label": "A", "type": "rating"}]}
         ...
+
     def test_entry_ref_source_form_must_exist(self) -> None:
         # structurally valid schema whose source_form UUID matches no Form -> 400
         ...
+
     def test_blank_document_number_is_a_422(self) -> None: ...
 
 
@@ -1472,9 +1509,7 @@ Categories:
 def process_categories_retrieve(request: HttpRequest) -> dict[str, object]:
     return {
         "forms": [{"key": key, "label": label} for key, label in Form.Category.choices],
-        "procedures": [
-            {"key": key, "label": label} for key, label in Procedure.Category.choices
-        ],
+        "procedures": [{"key": key, "label": label} for key, label in Procedure.Category.choices],
     }
 ```
 
@@ -1493,9 +1528,7 @@ def create_form(*, staff: Staff, payload: FormCreateIn) -> Form:
             form_schema=payload.form_schema.model_dump(mode="json", exclude_none=True),
             status="active",
         )
-        record_form_event(
-            form=form, staff=staff, event_type="form_created", changes=[]
-        )
+        record_form_event(form=form, staff=staff, event_type="form_created", changes=[])
     return form
 
 
@@ -1551,22 +1584,26 @@ The schema-export and status-table hooks will regenerate `frontend/schema.v2.yml
 
 ```python
 class TestAuth:
-    def test_anonymous_cannot_list_or_create(self) -> None: ...   # 401 both
+    def test_anonymous_cannot_list_or_create(self) -> None: ...  # 401 both
     def test_regular_staff_can_create_edit_and_archive(self) -> None:
         """The domain's point: regular staff sign forms; the audit trail is
         the control, not a permission gate."""
         ...
+
 
 class TestCreate:
     def test_creates_entry_stamps_entered_by_and_writes_event(self) -> None: ...
     def test_invalid_data_is_a_transparent_400(self) -> None:
         # unknown key -> 400, message names the key
         ...
+
     def test_staff_defaults_are_not_invented(self) -> None:
         # omitted staff stays NULL — the API never guesses who an entry is about
         ...
+
     def test_parent_entry_links_across_forms(self) -> None: ...
     def test_unknown_parent_entry_is_a_400(self) -> None: ...
+
 
 class TestList:
     def test_paginated_envelope_with_page_size_50_default(self) -> None: ...
@@ -1574,18 +1611,22 @@ class TestList:
     def test_flat_list_filters_by_parent(self) -> None: ...
     def test_rows_resolve_display_data_for_staff_fields(self) -> None: ...
 
+
 class TestUpdate:
     def test_edit_writes_entry_updated_with_field_labels(self) -> None:
         # PATCH data {"area": "Bay 2"}; event.description mentions "Area" and both values
         ...
+
     def test_merged_data_is_validated(self) -> None:
         # PATCH with a key not in schema -> 400, entry unchanged, no event
         ...
+
 
 class TestArchive:
     def test_delete_is_soft_and_audited(self) -> None:
         # DELETE -> 204; row is_active=False; entry_archived event exists
         ...
+
 
 class TestHistory:
     def test_history_lists_events_newest_first_with_staff_names(self) -> None: ...
