@@ -5,7 +5,7 @@ rather than prose (which lives in Google Docs).
 """
 
 import uuid
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from django.db import models
 
@@ -16,6 +16,15 @@ class FormEntry(models.Model):
     The `data` JSON field schema varies by document type. Each form type
     defines its own expected fields.
     """
+
+    if TYPE_CHECKING:
+        # Not a model field: apps/process/schemas.py's EntryOut declares
+        # display_data as a plain field with no resolve_* fallback, so every
+        # endpoint returning an entry must set this attribute on the instance
+        # before serialisation (apps/process/api.py). TYPE_CHECKING-only so
+        # mypy accepts that assignment without Django ever seeing a real
+        # field to migrate.
+        display_data: dict[str, str]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 

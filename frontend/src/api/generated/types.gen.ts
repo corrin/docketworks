@@ -2614,6 +2614,195 @@ export type DuplicatePhonesResponse = {
 };
 
 /**
+ * EntryCreateIn
+ *
+ * POST body for creating a form/register entry.
+ */
+export type EntryCreateIn = {
+    /**
+     * Data
+     */
+    data: {
+        [key: string]: unknown;
+    };
+    /**
+     * Entry Date
+     */
+    entry_date: string;
+    /**
+     * Job
+     */
+    job?: string | null;
+    /**
+     * Parent Entry
+     */
+    parent_entry?: string | null;
+    /**
+     * Staff
+     */
+    staff?: string | null;
+};
+
+/**
+ * EntryEventOut
+ *
+ * One audit event on a form entry, for the entry's history panel.
+ */
+export type EntryEventOut = {
+    /**
+     * Changes
+     */
+    changes: Array<{
+        [key: string]: string;
+    }>;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Event Type
+     */
+    event_type: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+};
+
+/**
+ * EntryOut
+ *
+ * One form entry — the entry list row and the entry detail alike.
+ *
+ * ``display_data`` carries server-resolved labels for staff/entry_ref values
+ * (e.g. a staff UUID's display name, a referenced entry's display_key value)
+ * so the client renders a row with no follow-up join. It is a plain
+ * declared field, not a ``resolve_*`` staticmethod: computing it needs the
+ * form's schema plus, for entry_ref fields, the referenced entry, which a
+ * single-hop ``resolve_*(obj)`` cannot reach, so the endpoint (Task 8) must
+ * set ``entry.display_data`` on the ORM instance itself before
+ * serialisation.
+ *
+ * Fable: a ``resolve_*`` fallback such as ``getattr(obj, "display_data",
+ * {})`` was rejected — it would turn a missing enrichment pass into a
+ * silent empty dict instead of the loud ``AttributeError`` a plain field
+ * raises at serialisation time, and fail-early treats "the endpoint forgot
+ * to enrich this entry" as a bug to surface, not a value to default over.
+ */
+export type EntryOut = {
+    /**
+     * Child Count
+     */
+    child_count: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Data
+     */
+    data: {
+        [key: string]: unknown;
+    };
+    /**
+     * Display Data
+     */
+    display_data: {
+        [key: string]: string;
+    };
+    /**
+     * Entered By
+     */
+    entered_by: string | null;
+    /**
+     * Entered By Name
+     */
+    entered_by_name: string | null;
+    /**
+     * Entry Date
+     */
+    entry_date: string;
+    /**
+     * Form
+     */
+    form: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Job
+     */
+    job: string | null;
+    /**
+     * Parent Entry
+     */
+    parent_entry: string | null;
+    /**
+     * Staff
+     */
+    staff: string | null;
+    /**
+     * Staff Name
+     */
+    staff_name: string | null;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * EntryUpdateIn
+ *
+ * PATCH body; omission leaves a field alone (exclude_unset).
+ *
+ * ``data``, when sent, replaces the entry's data whole — the entry form
+ * always submits every field, so this is a full replacement, not a
+ * per-key partial merge.
+ *
+ * Fable: defaults below are placeholders never read by handlers (they parse
+ * with ``model_dump(exclude_unset=True)``), same convention as
+ * ``StaffUpdateIn``.
+ */
+export type EntryUpdateIn = {
+    /**
+     * Data
+     */
+    data?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Entry Date
+     */
+    entry_date?: string;
+    /**
+     * Job
+     */
+    job?: string | null;
+    /**
+     * Parent Entry
+     */
+    parent_entry?: string | null;
+    /**
+     * Staff
+     */
+    staff?: string | null;
+};
+
+/**
  * FetchAllJobsResponse
  *
  * Wire contract for FetchAllJobsResponse.
@@ -6189,6 +6378,34 @@ export type PaginatedContactMethodList = {
      * Results
      */
     results: Array<ContactMethodOut>;
+    /**
+     * Total Pages
+     */
+    total_pages: number;
+};
+
+/**
+ * PaginatedEntryList
+ *
+ * Wire contract for a paginated list of form entries.
+ */
+export type PaginatedEntryList = {
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Page
+     */
+    page: number;
+    /**
+     * Page Size
+     */
+    page_size: number;
+    /**
+     * Results
+     */
+    results: Array<EntryOut>;
     /**
      * Total Pages
      */
@@ -15897,6 +16114,108 @@ export type ProcessCategoriesRetrieveResponses = {
 
 export type ProcessCategoriesRetrieveResponse = ProcessCategoriesRetrieveResponses[keyof ProcessCategoriesRetrieveResponses];
 
+export type ProcessEntriesListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Parent
+         */
+        parent?: string | null;
+        /**
+         * Staff
+         */
+        staff?: string | null;
+        /**
+         * Job
+         */
+        job?: string | null;
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number | null;
+    };
+    url: '/api/process/entries/';
+};
+
+export type ProcessEntriesListResponses = {
+    /**
+     * OK
+     */
+    200: PaginatedEntryList;
+};
+
+export type ProcessEntriesListResponse = ProcessEntriesListResponses[keyof ProcessEntriesListResponses];
+
+export type ProcessEntriesDestroyData = {
+    body?: never;
+    path: {
+        /**
+         * Entry Id
+         */
+        entry_id: string;
+    };
+    query?: never;
+    url: '/api/process/entries/{entry_id}/';
+};
+
+export type ProcessEntriesDestroyResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type ProcessEntriesDestroyResponse = ProcessEntriesDestroyResponses[keyof ProcessEntriesDestroyResponses];
+
+export type ProcessEntriesPartialUpdateData = {
+    body: EntryUpdateIn;
+    path: {
+        /**
+         * Entry Id
+         */
+        entry_id: string;
+    };
+    query?: never;
+    url: '/api/process/entries/{entry_id}/';
+};
+
+export type ProcessEntriesPartialUpdateResponses = {
+    /**
+     * OK
+     */
+    200: EntryOut;
+};
+
+export type ProcessEntriesPartialUpdateResponse = ProcessEntriesPartialUpdateResponses[keyof ProcessEntriesPartialUpdateResponses];
+
+export type ProcessEntriesHistoryListData = {
+    body?: never;
+    path: {
+        /**
+         * Entry Id
+         */
+        entry_id: string;
+    };
+    query?: never;
+    url: '/api/process/entries/{entry_id}/history/';
+};
+
+export type ProcessEntriesHistoryListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<EntryEventOut>;
+};
+
+export type ProcessEntriesHistoryListResponse = ProcessEntriesHistoryListResponses[keyof ProcessEntriesHistoryListResponses];
+
 export type ProcessFormsListData = {
     body?: never;
     path?: never;
@@ -15985,6 +16304,57 @@ export type ProcessFormsPartialUpdateResponses = {
 };
 
 export type ProcessFormsPartialUpdateResponse = ProcessFormsPartialUpdateResponses[keyof ProcessFormsPartialUpdateResponses];
+
+export type ProcessFormsEntriesListData = {
+    body?: never;
+    path: {
+        /**
+         * Form Id
+         */
+        form_id: string;
+    };
+    query?: {
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number | null;
+    };
+    url: '/api/process/forms/{form_id}/entries/';
+};
+
+export type ProcessFormsEntriesListResponses = {
+    /**
+     * OK
+     */
+    200: PaginatedEntryList;
+};
+
+export type ProcessFormsEntriesListResponse = ProcessFormsEntriesListResponses[keyof ProcessFormsEntriesListResponses];
+
+export type ProcessFormsEntriesCreateData = {
+    body: EntryCreateIn;
+    path: {
+        /**
+         * Form Id
+         */
+        form_id: string;
+    };
+    query?: never;
+    url: '/api/process/forms/{form_id}/entries/';
+};
+
+export type ProcessFormsEntriesCreateResponses = {
+    /**
+     * Created
+     */
+    201: EntryOut;
+};
+
+export type ProcessFormsEntriesCreateResponse = ProcessFormsEntriesCreateResponses[keyof ProcessFormsEntriesCreateResponses];
 
 export type PurchasingAllJobsRetrieveData = {
     body?: never;

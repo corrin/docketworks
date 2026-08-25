@@ -587,6 +587,13 @@ renamed:
   company_defaults_upload_logo_destroy: company_defaults_logo_destroy
   getPhoneProviderSettings: integration_settings_retrieve
   updatePhoneProviderSettings: integration_settings_partial_update
+  # v2 flattens entry mutations to a top-level /entries/{id}/ resource instead
+  # of nesting under /forms/{category}/{document_pk}/: an entry id is a
+  # globally unique UUID, and process_entries_list's parent_entry filter needs
+  # entries reachable across forms (a meeting entry lists action entries from
+  # a different form), so the URL no longer depends on the owning form.
+  process_forms_entries_partial_update: process_entries_partial_update
+  process_forms_entries_destroy: process_entries_destroy
 introduced:
 # Specified by ADR 0007 and the payroll UI contract but never built in v1:
 # what Xero holds for a week, read live, beside what the timesheet recorded.
@@ -618,6 +625,13 @@ introduced:
 # no such screen, and its pickers were fed by whichever domain list the page
 # already loaded — which is how v2 briefly grew a third job-option schema.
 - job_jobs_options_list
+# v1's entry endpoints were nested one level under a single owning form and
+# carried no audit trail. v2 adds a flat, cross-form entry list — the same
+# resource an entry's parent_entry link already reaches across forms (a
+# meeting entry's action items) — and a per-entry history read backed by
+# ProcessEvent, which v1 had no equivalent model for.
+- process_entries_list
+- process_entries_history_list
 dropped:
   timesheets_payroll_pay_runs_create_create: >-
     Creating the Draft pay run is a step of posting, not an operator intent:

@@ -21,11 +21,11 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 7 |
-| TOTAL suppressions | 682 |
+| TOTAL suppressions | 683 |
 | noqa: DJ001 | 161 |
 | noqa: PLC0415 | 128 |
 | noqa: E402 | 105 |
-| noqa: PLR0913 | 45 |
+| noqa: PLR0913 | 46 |
 | noqa: ARG002 | 37 |
 | noqa: BLE001 | 36 |
 | noqa: C901 | 21 |
@@ -102,8 +102,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 196 |
-| non-test functions | 2447 |
+| functions returning `X \| None` | 203 |
+| non-test functions | 2468 |
 
 ## Wire contract (response side)
 
@@ -111,7 +111,7 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 278 |
-| response properties | 1819 |
+| response schemas | 281 |
+| response properties | 1845 |
 | optional (pinned at zero) | 0 |
-| nullable | 399 |
+| nullable | 405 |

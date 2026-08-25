@@ -2958,6 +2958,213 @@ components:
       - checked_at
       title: DuplicatePhonesResponse
       type: object
+    EntryCreateIn:
+      additionalProperties: false
+      description: POST body for creating a form/register entry.
+      properties:
+        data:
+          additionalProperties: true
+          title: Data
+          type: object
+        entry_date:
+          format: date
+          title: Entry Date
+          type: string
+        job:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job
+        parent_entry:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Parent Entry
+        staff:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff
+      required:
+      - entry_date
+      - data
+      title: EntryCreateIn
+      type: object
+    EntryEventOut:
+      description: One audit event on a form entry, for the entry's history panel.
+      properties:
+        changes:
+          items:
+            additionalProperties:
+              type: string
+            type: object
+          title: Changes
+          type: array
+        description:
+          title: Description
+          type: string
+        event_type:
+          title: Event Type
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        staff_name:
+          title: Staff Name
+          type: string
+        timestamp:
+          format: date-time
+          title: Timestamp
+          type: string
+      required:
+      - id
+      - timestamp
+      - event_type
+      - staff_name
+      - description
+      - changes
+      title: EntryEventOut
+      type: object
+    EntryOut:
+      description: "One form entry \u2014 the entry list row and the entry detail alike.\n\n``display_data``\
+        \ carries server-resolved labels for staff/entry_ref values\n(e.g. a staff UUID's display name,\
+        \ a referenced entry's display_key value)\nso the client renders a row with no follow-up join.\
+        \ It is a plain\ndeclared field, not a ``resolve_*`` staticmethod: computing it needs the\nform's\
+        \ schema plus, for entry_ref fields, the referenced entry, which a\nsingle-hop ``resolve_*(obj)``\
+        \ cannot reach, so the endpoint (Task 8) must\nset ``entry.display_data`` on the ORM instance\
+        \ itself before\nserialisation.\n\nFable: a ``resolve_*`` fallback such as ``getattr(obj, \"display_data\"\
+        ,\n{})`` was rejected \u2014 it would turn a missing enrichment pass into a\nsilent empty dict\
+        \ instead of the loud ``AttributeError`` a plain field\nraises at serialisation time, and fail-early\
+        \ treats \"the endpoint forgot\nto enrich this entry\" as a bug to surface, not a value to default\
+        \ over."
+      properties:
+        child_count:
+          title: Child Count
+          type: integer
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        data:
+          additionalProperties: true
+          title: Data
+          type: object
+        display_data:
+          additionalProperties:
+            type: string
+          title: Display Data
+          type: object
+        entered_by:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Entered By
+        entered_by_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entered By Name
+        entry_date:
+          format: date
+          title: Entry Date
+          type: string
+        form:
+          format: uuid
+          title: Form
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        is_active:
+          title: Is Active
+          type: boolean
+        job:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job
+        parent_entry:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Parent Entry
+        staff:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff
+        staff_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Staff Name
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - id
+      - form
+      - entry_date
+      - staff
+      - staff_name
+      - entered_by
+      - entered_by_name
+      - job
+      - parent_entry
+      - child_count
+      - data
+      - display_data
+      - is_active
+      - created_at
+      - updated_at
+      title: EntryOut
+      type: object
+    EntryUpdateIn:
+      additionalProperties: false
+      description: "PATCH body; omission leaves a field alone (exclude_unset).\n\n``data``, when sent,\
+        \ replaces the entry's data whole \u2014 the entry form\nalways submits every field, so this is\
+        \ a full replacement, not a\nper-key partial merge.\n\nFable: defaults below are placeholders\
+        \ never read by handlers (they parse\nwith ``model_dump(exclude_unset=True)``), same convention\
+        \ as\n``StaffUpdateIn``."
+      properties:
+        data:
+          additionalProperties: true
+          title: Data
+          type: object
+        entry_date:
+          format: date
+          title: Entry Date
+          type: string
+        job:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job
+        parent_entry:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Parent Entry
+        staff:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff
+      title: EntryUpdateIn
+      type: object
     FetchAllJobsResponse:
       description: Wire contract for FetchAllJobsResponse.
       properties:
@@ -6922,6 +7129,34 @@ components:
       - page_size
       - total_pages
       title: PaginatedContactMethodList
+      type: object
+    PaginatedEntryList:
+      description: Wire contract for a paginated list of form entries.
+      properties:
+        count:
+          title: Count
+          type: integer
+        page:
+          title: Page
+          type: integer
+        page_size:
+          title: Page Size
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/EntryOut'
+          title: Results
+          type: array
+        total_pages:
+          title: Total Pages
+          type: integer
+      required:
+      - results
+      - count
+      - page
+      - page_size
+      - total_pages
+      title: PaginatedEntryList
       type: object
     PaginatedPersonSummaryList:
       description: Wire contract for PaginatedPersonSummaryList.
@@ -18475,6 +18710,145 @@ paths:
       summary: Form and procedure category lists
       tags:
       - process
+  /api/process/entries/:
+    get:
+      description: "Flat, cross-form entry list \u2014 how a meeting entry lists its actions."
+      operationId: process_entries_list
+      parameters:
+      - in: query
+        name: parent
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Parent
+      - in: query
+        name: staff
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff
+      - in: query
+        name: job
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Page Size
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEntryList'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: List entries across forms
+      tags:
+      - process
+  /api/process/entries/{entry_id}/:
+    delete:
+      description: "Soft-delete: set is_active=False and write entry_archived.\n\nThe row and its audit\
+        \ trail both survive \u2014 nothing is hard-deleted."
+      operationId: process_entries_destroy
+      parameters:
+      - in: path
+        name: entry_id
+        required: true
+        schema:
+          format: uuid
+          title: Entry Id
+          type: string
+      responses:
+        '204':
+          description: No Content
+      security:
+      - CookieJWTAuth: []
+      summary: Archive a form entry (soft delete)
+      tags:
+      - process
+    patch:
+      description: Apply only the fields the caller sent; write at most one audit event.
+      operationId: process_entries_partial_update
+      parameters:
+      - in: path
+        name: entry_id
+        required: true
+        schema:
+          format: uuid
+          title: Entry Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntryUpdateIn'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryOut'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Update some fields of a form entry
+      tags:
+      - process
+  /api/process/entries/{entry_id}/history/:
+    get:
+      description: 'List every ProcessEvent recorded against one entry.
+
+
+        Newest first (ProcessEvent.Meta ordering).'
+      operationId: process_entries_history_list
+      parameters:
+      - in: path
+        name: entry_id
+        required: true
+        schema:
+          format: uuid
+          title: Entry Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/EntryEventOut'
+                title: Response
+                type: array
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: An entry's audit history, newest first
+      tags:
+      - process
   /api/process/forms/:
     get:
       description: 'List forms, newest first; archived rows are hidden unless asked for.
@@ -18605,6 +18979,74 @@ paths:
       security:
       - OfficeStaffCookieJWTAuth: []
       summary: Update some fields of a form, or archive it
+      tags:
+      - process
+  /api/process/forms/{form_id}/entries/:
+    get:
+      description: List one form's active entries, newest first (model Meta ordering).
+      operationId: process_forms_entries_list
+      parameters:
+      - in: path
+        name: form_id
+        required: true
+        schema:
+          format: uuid
+          title: Form Id
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Page Size
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEntryList'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: List one form's entries
+      tags:
+      - process
+    post:
+      description: Create an entry against one form; stamps entered_by and writes entry_created.
+      operationId: process_forms_entries_create
+      parameters:
+      - in: path
+        name: form_id
+        required: true
+        schema:
+          format: uuid
+          title: Form Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntryCreateIn'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryOut'
+          description: Created
+      security:
+      - CookieJWTAuth: []
+      summary: Create a form entry
       tags:
       - process
   /api/purchasing/all-jobs/:

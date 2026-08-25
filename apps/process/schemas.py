@@ -146,6 +146,10 @@ class EntryCreateIn(Schema):
 class EntryUpdateIn(Schema):
     """PATCH body; omission leaves a field alone (exclude_unset).
 
+    ``data``, when sent, replaces the entry's data whole — the entry form
+    always submits every field, so this is a full replacement, not a
+    per-key partial merge.
+
     Fable: defaults below are placeholders never read by handlers (they parse
     with ``model_dump(exclude_unset=True)``), same convention as
     ``StaffUpdateIn``.
@@ -196,14 +200,43 @@ class EntryOut(Schema):
     updated_at: datetime
 
     @staticmethod
+    def resolve_form(obj: FormEntry) -> UUID:
+        """Read the FK id directly.
+
+        ``obj.form`` is the related Form instance, not a UUID, so the plain
+        field above cannot resolve from attribute access alone.
+        """
+        return obj.form_id
+
+    @staticmethod
+    def resolve_staff(obj: FormEntry) -> UUID | None:
+        """Read the subject-staff FK id (obj.staff is the Staff instance)."""
+        return obj.staff_id
+
+    @staticmethod
     def resolve_staff_name(obj: FormEntry) -> str | None:
         """Resolve the subject staff member's display name, or None if unset."""
         return obj.staff.get_display_full_name() if obj.staff else None
 
     @staticmethod
+    def resolve_entered_by(obj: FormEntry) -> UUID | None:
+        """Read the recording-staff FK id (obj.entered_by is the Staff instance)."""
+        return obj.entered_by_id
+
+    @staticmethod
     def resolve_entered_by_name(obj: FormEntry) -> str | None:
         """Resolve the recording staff member's display name, or None if unset."""
         return obj.entered_by.get_display_full_name() if obj.entered_by else None
+
+    @staticmethod
+    def resolve_job(obj: FormEntry) -> UUID | None:
+        """Read the linked-job FK id (obj.job is the Job instance)."""
+        return obj.job_id
+
+    @staticmethod
+    def resolve_parent_entry(obj: FormEntry) -> UUID | None:
+        """Read the parent-entry FK id (obj.parent_entry is the FormEntry instance)."""
+        return obj.parent_entry_id
 
     @staticmethod
     def resolve_child_count(obj: FormEntry) -> int:

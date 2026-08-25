@@ -1036,6 +1036,92 @@ export const zDuplicatePhonesResponse = z.object({
 });
 
 /**
+ * EntryCreateIn
+ *
+ * POST body for creating a form/register entry.
+ */
+export const zEntryCreateIn = z.object({
+    data: z.record(z.string(), z.unknown()),
+    entry_date: z.iso.date(),
+    job: z.uuid().nullish(),
+    parent_entry: z.uuid().nullish(),
+    staff: z.uuid().nullish()
+});
+
+/**
+ * EntryEventOut
+ *
+ * One audit event on a form entry, for the entry's history panel.
+ */
+export const zEntryEventOut = z.object({
+    changes: z.array(z.record(z.string(), z.string())),
+    description: z.string(),
+    event_type: z.string(),
+    id: z.uuid(),
+    staff_name: z.string(),
+    timestamp: z.iso.datetime()
+});
+
+/**
+ * EntryOut
+ *
+ * One form entry — the entry list row and the entry detail alike.
+ *
+ * ``display_data`` carries server-resolved labels for staff/entry_ref values
+ * (e.g. a staff UUID's display name, a referenced entry's display_key value)
+ * so the client renders a row with no follow-up join. It is a plain
+ * declared field, not a ``resolve_*`` staticmethod: computing it needs the
+ * form's schema plus, for entry_ref fields, the referenced entry, which a
+ * single-hop ``resolve_*(obj)`` cannot reach, so the endpoint (Task 8) must
+ * set ``entry.display_data`` on the ORM instance itself before
+ * serialisation.
+ *
+ * Fable: a ``resolve_*`` fallback such as ``getattr(obj, "display_data",
+ * {})`` was rejected — it would turn a missing enrichment pass into a
+ * silent empty dict instead of the loud ``AttributeError`` a plain field
+ * raises at serialisation time, and fail-early treats "the endpoint forgot
+ * to enrich this entry" as a bug to surface, not a value to default over.
+ */
+export const zEntryOut = z.object({
+    child_count: z.int(),
+    created_at: z.iso.datetime(),
+    data: z.record(z.string(), z.unknown()),
+    display_data: z.record(z.string(), z.string()),
+    entered_by: z.uuid().nullable(),
+    entered_by_name: z.string().nullable(),
+    entry_date: z.iso.date(),
+    form: z.uuid(),
+    id: z.uuid(),
+    is_active: z.boolean(),
+    job: z.uuid().nullable(),
+    parent_entry: z.uuid().nullable(),
+    staff: z.uuid().nullable(),
+    staff_name: z.string().nullable(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * EntryUpdateIn
+ *
+ * PATCH body; omission leaves a field alone (exclude_unset).
+ *
+ * ``data``, when sent, replaces the entry's data whole — the entry form
+ * always submits every field, so this is a full replacement, not a
+ * per-key partial merge.
+ *
+ * Fable: defaults below are placeholders never read by handlers (they parse
+ * with ``model_dump(exclude_unset=True)``), same convention as
+ * ``StaffUpdateIn``.
+ */
+export const zEntryUpdateIn = z.object({
+    data: z.record(z.string(), z.unknown()).optional(),
+    entry_date: z.iso.date().optional(),
+    job: z.uuid().nullish(),
+    parent_entry: z.uuid().nullish(),
+    staff: z.uuid().nullish()
+});
+
+/**
  * FetchStatusValuesResponse
  *
  * Wire contract for FetchStatusValuesResponse.
@@ -2618,6 +2704,19 @@ export const zPaginatedContactMethodList = z.object({
     page: z.int(),
     page_size: z.int(),
     results: z.array(zContactMethodOut),
+    total_pages: z.int()
+});
+
+/**
+ * PaginatedEntryList
+ *
+ * Wire contract for a paginated list of form entries.
+ */
+export const zPaginatedEntryList = z.object({
+    count: z.int(),
+    page: z.int(),
+    page_size: z.int(),
+    results: z.array(zEntryOut),
     total_pages: z.int()
 });
 
@@ -7111,6 +7210,50 @@ export const zPeopleContactMethodsPartialUpdateResponse = zContactMethodOut;
  */
 export const zProcessCategoriesRetrieveResponse = zCategoriesOut;
 
+export const zProcessEntriesListQuery = z.object({
+    parent: z.uuid().nullish(),
+    staff: z.uuid().nullish(),
+    job: z.uuid().nullish(),
+    page: z.int().optional().default(1),
+    page_size: z.int().nullish()
+});
+
+/**
+ * OK
+ */
+export const zProcessEntriesListResponse = zPaginatedEntryList;
+
+export const zProcessEntriesDestroyPath = z.object({
+    entry_id: z.uuid()
+});
+
+/**
+ * No Content
+ */
+export const zProcessEntriesDestroyResponse = z.void();
+
+export const zProcessEntriesPartialUpdateBody = zEntryUpdateIn;
+
+export const zProcessEntriesPartialUpdatePath = z.object({
+    entry_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zProcessEntriesPartialUpdateResponse = zEntryOut;
+
+export const zProcessEntriesHistoryListPath = z.object({
+    entry_id: z.uuid()
+});
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zProcessEntriesHistoryListResponse = z.array(zEntryEventOut);
+
 export const zProcessFormsListQuery = z.object({
     category: z.enum([
         'safety',
@@ -7156,6 +7299,31 @@ export const zProcessFormsPartialUpdatePath = z.object({
  * OK
  */
 export const zProcessFormsPartialUpdateResponse = zFormOut;
+
+export const zProcessFormsEntriesListPath = z.object({
+    form_id: z.uuid()
+});
+
+export const zProcessFormsEntriesListQuery = z.object({
+    page: z.int().optional().default(1),
+    page_size: z.int().nullish()
+});
+
+/**
+ * OK
+ */
+export const zProcessFormsEntriesListResponse = zPaginatedEntryList;
+
+export const zProcessFormsEntriesCreateBody = zEntryCreateIn;
+
+export const zProcessFormsEntriesCreatePath = z.object({
+    form_id: z.uuid()
+});
+
+/**
+ * Created
+ */
+export const zProcessFormsEntriesCreateResponse = zEntryOut;
 
 export const zPurchasingAllJobsRetrieveQuery = z.object({
     q: z.string().optional().default('')

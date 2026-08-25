@@ -2,15 +2,26 @@
 
 Paths and operationIds are the stable contract:
 
-- GET    /api/process/categories/          process_categories_retrieve   (any staff)
-- GET    /api/process/forms/               process_forms_list            (any staff)
-- POST   /api/process/forms/               process_forms_create          (office staff)
-- GET    /api/process/forms/{form_id}/     process_forms_retrieve        (any staff)
-- PATCH  /api/process/forms/{form_id}/     process_forms_partial_update  (office staff)
+- GET    /api/process/categories/                 process_categories_retrieve    (any staff)
+- GET    /api/process/forms/                       process_forms_list             (any staff)
+- POST   /api/process/forms/                       process_forms_create           (office staff)
+- GET    /api/process/forms/{form_id}/              process_forms_retrieve         (any staff)
+- PATCH  /api/process/forms/{form_id}/              process_forms_partial_update   (office staff)
+- GET    /api/process/forms/{form_id}/entries/      process_forms_entries_list     (any staff)
+- POST   /api/process/forms/{form_id}/entries/      process_forms_entries_create   (any staff)
+- GET    /api/process/entries/                     process_entries_list           (any staff)
+- PATCH  /api/process/entries/{entry_id}/           process_entries_partial_update (any staff)
+- DELETE /api/process/entries/{entry_id}/           process_entries_destroy        (any staff)
+- GET    /api/process/entries/{entry_id}/history/   process_entries_history_list   (any staff)
 
 There is deliberately no DELETE route on forms: archiving (PATCH
 ``{"status": "archived"}``) replaces delete, so a form's audit trail cannot
-vanish along with the form.
+vanish along with the form. Entries get a real DELETE route, but it is soft
+(``is_active=False`` plus an ``entry_archived`` event) for the same reason.
+
+Entry reads and writes are any-staff (``CookieJWTAuth``), unlike forms'
+office-staff-only writes: regular staff sign forms day to day, and the
+ProcessEvent audit trail — not a permission gate — is what makes that safe.
 
 Integration wiring (config/api.py): ``api.add_router("/process/", router)``.
 """
@@ -18,7 +29,7 @@ Integration wiring (config/api.py): ``api.add_router("/process/", router)``.
 import logging
 from uuid import UUID
 
-from django.db.models import Count, Q
+from django.db.models import Count, Q, QuerySet
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router
@@ -27,15 +38,27 @@ from ninja.responses import Status
 
 from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
-from apps.process.models import Form, Procedure
+from apps.core.pagination import paginate
+from apps.process.models import Form, FormEntry, Procedure, ProcessEvent
 from apps.process.schemas import (
     CategoriesOut,
+    EntryCreateIn,
+    EntryEventOut,
+    EntryOut,
+    EntryUpdateIn,
     FormCategory,
     FormCreateIn,
     FormOut,
     FormStatus,
     FormUpdateIn,
+    PaginatedEntryList,
 )
+from apps.process.services.entries_service import (
+    archive_entry,
+    create_form_entry,
+    update_form_entry,
+)
+from apps.process.services.entry_validation import display_data
 from apps.process.services.forms_service import create_form, update_form
 
 logger = logging.getLogger(__name__)
@@ -134,3 +157,152 @@ def process_forms_partial_update(
     """Apply only the fields the caller sent; write exactly one audit event."""
     form = get_object_or_404(Form, pk=form_id)
     return update_form(staff=_staff(request), form=form, payload=payload)
+
+
+def _enrich(entries: list[FormEntry]) -> list[FormEntry]:
+    """Attach display_data to every row.
+
+    See EntryOut's docstring for why this is a required step rather than a
+    resolve_* fallback.
+    """
+    for entry in entries:
+        entry.display_data = display_data(entry.form, entry.data)
+    return entries
+
+
+def _entries_page(
+    queryset: QuerySet[FormEntry], *, page: int, page_size: int | None
+) -> dict[str, object]:
+    """Paginate an entries queryset into the five-key envelope, rows enriched."""
+    page_data = paginate(queryset, page=page, page_size=page_size)
+    return {
+        "results": _enrich(page_data.rows),
+        "count": page_data.count,
+        "page": page_data.page,
+        "page_size": page_data.page_size,
+        "total_pages": page_data.total_pages,
+    }
+
+
+@router.get(
+    "/forms/{uuid:form_id}/entries/",
+    auth=auth,
+    operation_id="process_forms_entries_list",
+    response=PaginatedEntryList,
+    summary="List one form's entries",
+)
+def process_forms_entries_list(
+    request: HttpRequest, form_id: UUID, page: int = 1, page_size: int | None = None
+) -> dict[str, object]:
+    """List one form's active entries, newest first (model Meta ordering)."""
+    form = get_object_or_404(Form, pk=form_id)
+    entries = (
+        FormEntry.objects.filter(form=form, is_active=True)
+        .select_related("form", "staff", "entered_by")
+        .annotate(
+            child_count_annotated=Count("child_entries", filter=Q(child_entries__is_active=True))
+        )
+        # Explicit despite Meta.ordering: annotate()'s GROUP BY silently drops
+        # the model's default ordering, and pagination needs a stable order.
+        .order_by("-entry_date", "-created_at")
+    )
+    return _entries_page(entries, page=page, page_size=page_size)
+
+
+@router.post(
+    "/forms/{uuid:form_id}/entries/",
+    auth=auth,
+    operation_id="process_forms_entries_create",
+    response={201: EntryOut},
+    summary="Create a form entry",
+)
+def process_forms_entries_create(
+    request: HttpRequest, form_id: UUID, payload: EntryCreateIn
+) -> Status[FormEntry]:
+    """Create an entry against one form; stamps entered_by and writes entry_created."""
+    form = get_object_or_404(Form, pk=form_id)
+    entry = create_form_entry(staff=_staff(request), form=form, payload=payload)
+    entry.display_data = display_data(entry.form, entry.data)
+    return Status(201, entry)
+
+
+@router.get(
+    "/entries/",
+    auth=auth,
+    operation_id="process_entries_list",
+    response=PaginatedEntryList,
+    summary="List entries across forms",
+)
+def process_entries_list(  # noqa: PLR0913, PLR0917 -- One argument per public list filter.
+    request: HttpRequest,
+    parent: UUID | None = None,
+    staff: UUID | None = None,
+    job: UUID | None = None,
+    page: int = 1,
+    page_size: int | None = None,
+) -> dict[str, object]:
+    """Flat, cross-form entry list — how a meeting entry lists its actions."""
+    entries = FormEntry.objects.filter(is_active=True).select_related("form", "staff", "entered_by")
+    entries = entries.annotate(
+        child_count_annotated=Count("child_entries", filter=Q(child_entries__is_active=True))
+    )
+    if parent is not None:
+        entries = entries.filter(parent_entry_id=parent)
+    if staff is not None:
+        entries = entries.filter(staff_id=staff)
+    if job is not None:
+        entries = entries.filter(job_id=job)
+    # Explicit despite Meta.ordering: annotate()'s GROUP BY silently drops the
+    # model's default ordering, and pagination needs a stable order.
+    entries = entries.order_by("-entry_date", "-created_at")
+    return _entries_page(entries, page=page, page_size=page_size)
+
+
+@router.patch(
+    "/entries/{uuid:entry_id}/",
+    auth=auth,
+    operation_id="process_entries_partial_update",
+    response=EntryOut,
+    summary="Update some fields of a form entry",
+)
+def process_entries_partial_update(
+    request: HttpRequest, entry_id: UUID, payload: EntryUpdateIn
+) -> FormEntry:
+    """Apply only the fields the caller sent; write at most one audit event."""
+    entry = get_object_or_404(FormEntry, pk=entry_id)
+    entry = update_form_entry(staff=_staff(request), entry=entry, payload=payload)
+    entry.display_data = display_data(entry.form, entry.data)
+    return entry
+
+
+@router.delete(
+    "/entries/{uuid:entry_id}/",
+    auth=auth,
+    operation_id="process_entries_destroy",
+    response={204: None},
+    summary="Archive a form entry (soft delete)",
+)
+def process_entries_destroy(request: HttpRequest, entry_id: UUID) -> Status[None]:
+    """Soft-delete: set is_active=False and write entry_archived.
+
+    The row and its audit trail both survive — nothing is hard-deleted.
+    """
+    entry = get_object_or_404(FormEntry, pk=entry_id)
+    archive_entry(staff=_staff(request), entry=entry)
+    return Status(204, None)
+
+
+@router.get(
+    "/entries/{uuid:entry_id}/history/",
+    auth=auth,
+    operation_id="process_entries_history_list",
+    response=list[EntryEventOut],
+    summary="An entry's audit history, newest first",
+)
+def process_entries_history_list(request: HttpRequest, entry_id: UUID) -> list[ProcessEvent]:
+    """List every ProcessEvent recorded against one entry.
+
+    Newest first (ProcessEvent.Meta ordering).
+    """
+    entry = get_object_or_404(FormEntry, pk=entry_id)
+    return list(ProcessEvent.objects.filter(form_entry=entry).select_related("staff"))
