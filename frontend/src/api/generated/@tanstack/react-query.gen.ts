@@ -3654,8 +3654,8 @@ export const processFormsPartialUpdateMutation = (options?: Partial<Options<Proc
  *
  * Record a read receipt for the requesting staff member; repeats allowed.
  *
- * Self-only by construction: there is no ``staff`` field to accept on the
- * wire, so the row always names ``request.user``.
+ * Self-only by construction: ``AcknowledgeIn`` has no ``staff`` field to
+ * accept on the wire, so the row always names ``request.user``.
  */
 export const processFormsAcknowledgeCreateMutation = (options?: Partial<Options<ProcessFormsAcknowledgeCreateData>>): UseMutationOptions<ProcessFormsAcknowledgeCreateResponse, AxiosError<DefaultError>, Options<ProcessFormsAcknowledgeCreateData>> => {
     const mutationOptions: UseMutationOptions<ProcessFormsAcknowledgeCreateResponse, AxiosError<DefaultError>, Options<ProcessFormsAcknowledgeCreateData>> = {

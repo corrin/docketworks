@@ -3,6 +3,20 @@
 import * as z from 'zod';
 
 /**
+ * AcknowledgeIn
+ *
+ * POST body for acknowledging a form: empty by design.
+ *
+ * ``staff`` is always ``request.user`` — self-only by construction — so
+ * the contract has no fields for a caller to fill in. ``extra="forbid"``
+ * still gives the endpoint a real body schema: a client-supplied
+ * ``{"staff": ...}`` goes through the same RequestValidationError
+ * machinery every other endpoint's unexpected-key check does, rather than
+ * a bespoke hand-rolled body guard.
+ */
+export const zAcknowledgeIn = z.record(z.string(), z.never());
+
+/**
  * AcknowledgementOut
  *
  * One staff member's read receipt against a form (or, slice 2, a procedure).
@@ -7322,6 +7336,8 @@ export const zProcessFormsPartialUpdatePath = z.object({
  * OK
  */
 export const zProcessFormsPartialUpdateResponse = zFormOut;
+
+export const zProcessFormsAcknowledgeCreateBody = zAcknowledgeIn;
 
 export const zProcessFormsAcknowledgeCreatePath = z.object({
     form_id: z.uuid()

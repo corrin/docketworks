@@ -1,5 +1,15 @@
 components:
   schemas:
+    AcknowledgeIn:
+      additionalProperties: false
+      description: "POST body for acknowledging a form: empty by design.\n\n``staff`` is always ``request.user``\
+        \ \u2014 self-only by construction \u2014 so\nthe contract has no fields for a caller to fill\
+        \ in. ``extra=\"forbid\"``\nstill gives the endpoint a real body schema: a client-supplied\n``{\"\
+        staff\": ...}`` goes through the same RequestValidationError\nmachinery every other endpoint's\
+        \ unexpected-key check does, rather than\na bespoke hand-rolled body guard."
+      properties: {}
+      title: AcknowledgeIn
+      type: object
     AcknowledgementOut:
       description: One staff member's read receipt against a form (or, slice 2, a procedure).
       properties:
@@ -19030,9 +19040,9 @@ paths:
       description: 'Record a read receipt for the requesting staff member; repeats allowed.
 
 
-        Self-only by construction: there is no ``staff`` field to accept on the
+        Self-only by construction: ``AcknowledgeIn`` has no ``staff`` field to
 
-        wire, so the row always names ``request.user``.'
+        accept on the wire, so the row always names ``request.user``.'
       operationId: process_forms_acknowledge_create
       parameters:
       - in: path
@@ -19042,6 +19052,12 @@ paths:
           format: uuid
           title: Form Id
           type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcknowledgeIn'
+        required: true
       responses:
         '201':
           content:

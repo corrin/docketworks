@@ -278,6 +278,20 @@ class StaffOptionOut(Schema):
     name: str
 
 
+class AcknowledgeIn(Schema):
+    """POST body for acknowledging a form: empty by design.
+
+    ``staff`` is always ``request.user`` — self-only by construction — so
+    the contract has no fields for a caller to fill in. ``extra="forbid"``
+    still gives the endpoint a real body schema: a client-supplied
+    ``{"staff": ...}`` goes through the same RequestValidationError
+    machinery every other endpoint's unexpected-key check does, rather than
+    a bespoke hand-rolled body guard.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class AcknowledgementOut(Schema):
     """One staff member's read receipt against a form (or, slice 2, a procedure)."""
 

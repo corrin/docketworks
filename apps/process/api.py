@@ -33,18 +33,18 @@ Entry reads and writes are any-staff (``CookieJWTAuth``), unlike forms'
 office-staff-only writes: regular staff sign forms day to day, and the
 ProcessEvent audit trail — not a permission gate — is what makes that safe.
 
-``process_forms_acknowledge_create`` declares no payload class — Fable: a
-``staff`` field on the wire was rejected, since acknowledging a document on
-someone else's behalf is not a thing this endpoint does; ``staff`` is always
-``request.user``. A body carrying content is a 422 all the same: ninja only
-validates a request body against a declared schema, so with none declared it
-would otherwise ignore (rather than reject) a ``{"staff": ...}`` payload — the
-handler checks for one explicitly instead of leaving that silent gap open.
+``process_forms_acknowledge_create`` takes ``AcknowledgeIn`` (schemas.py), a
+deliberately empty ``extra="forbid"`` schema — Fable: a ``staff`` field on
+the wire was rejected, since acknowledging a document on someone else's
+behalf is not a thing this endpoint does; ``staff`` is always
+``request.user``. Declaring the empty schema (rather than no payload
+parameter at all) keeps a client-supplied ``{"staff": ...}`` going through
+the same RequestValidationError machinery — and the same 422 wire shape —
+every other endpoint's unexpected-key rejection uses.
 
 Integration wiring (config/api.py): ``api.add_router("/process/", router)``.
 """
 
-import json
 import logging
 from uuid import UUID
 
@@ -61,6 +61,7 @@ from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
 from apps.core.pagination import paginate
 from apps.process.models import Acknowledgement, Form, FormEntry, Procedure, ProcessEvent
 from apps.process.schemas import (
+    AcknowledgeIn,
     AcknowledgementOut,
     CategoriesOut,
     EntryCreateIn,
@@ -268,25 +269,6 @@ def process_forms_entries_create(
     return Status(201, entry)
 
 
-def _reject_unexpected_body(request: HttpRequest) -> None:
-    """Refuse any request body content on a self-only, no-payload endpoint.
-
-    With no ``payload: Schema`` parameter declared, ninja never looks at the
-    request body at all, so a client-supplied ``{"staff": ...}`` would
-    otherwise be silently ignored rather than rejected — accepting it would
-    invite a caller to believe a staff field works here. Checked explicitly so
-    the field's absence from the wire is enforced, not merely undocumented.
-    """
-    if not request.body:
-        return
-    try:
-        parsed = json.loads(request.body)
-    except ValueError as exc:
-        raise HttpError(422, "Request body must be empty or valid JSON.") from exc
-    if parsed not in ({}, None):
-        raise HttpError(422, "This endpoint takes no request body.")
-
-
 @router.post(
     "/forms/{uuid:form_id}/acknowledge/",
     auth=auth,
@@ -295,14 +277,13 @@ def _reject_unexpected_body(request: HttpRequest) -> None:
     summary="Acknowledge that the caller read and understood a form",
 )
 def process_forms_acknowledge_create(
-    request: HttpRequest, form_id: UUID
+    request: HttpRequest, form_id: UUID, payload: AcknowledgeIn
 ) -> Status[Acknowledgement]:
     """Record a read receipt for the requesting staff member; repeats allowed.
 
-    Self-only by construction: there is no ``staff`` field to accept on the
-    wire, so the row always names ``request.user``.
+    Self-only by construction: ``AcknowledgeIn`` has no ``staff`` field to
+    accept on the wire, so the row always names ``request.user``.
     """
-    _reject_unexpected_body(request)
     form = get_object_or_404(Form, pk=form_id)
     row = Acknowledgement.objects.create(staff=_staff(request), form=form)
     return Status(201, row)
@@ -320,7 +301,11 @@ def process_forms_acknowledgements_list(
 ) -> list[Acknowledgement]:
     """List every acknowledgement recorded against one form (Meta ordering)."""
     form = get_object_or_404(Form, pk=form_id)
-    return list(Acknowledgement.objects.filter(form=form).select_related("staff"))
+    # "form", "procedure": description's self.form.title / self.procedure.title
+    # access would otherwise re-fetch the linked document once per row.
+    return list(
+        Acknowledgement.objects.filter(form=form).select_related("staff", "form", "procedure")
+    )
 
 
 @router.get(

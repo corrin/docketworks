@@ -3090,8 +3090,8 @@ export const processFormsPartialUpdate = <ThrowOnError extends boolean = false>(
  *
  * Record a read receipt for the requesting staff member; repeats allowed.
  *
- * Self-only by construction: there is no ``staff`` field to accept on the
- * wire, so the row always names ``request.user``.
+ * Self-only by construction: ``AcknowledgeIn`` has no ``staff`` field to
+ * accept on the wire, so the row always names ``request.user``.
  */
 export const processFormsAcknowledgeCreate = <ThrowOnError extends boolean = false>(options: Options<ProcessFormsAcknowledgeCreateData, ThrowOnError>): RequestResult<ProcessFormsAcknowledgeCreateResponses, unknown, ThrowOnError> => (options.client ?? client).post<ProcessFormsAcknowledgeCreateResponses, unknown, ThrowOnError>({
     responseType: 'json',
@@ -3102,7 +3102,11 @@ export const processFormsAcknowledgeCreate = <ThrowOnError extends boolean = fal
             type: 'apiKey'
         }],
     url: '/api/process/forms/{form_id}/acknowledge/',
-    ...options
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 /**

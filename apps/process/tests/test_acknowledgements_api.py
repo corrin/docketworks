@@ -84,6 +84,17 @@ class TestAcknowledge:
         assert row.form_id == form.id
         assert body["staff_name"] == staff.get_display_full_name()
 
+    def test_no_body_at_all_succeeds(self) -> None:
+        """The real acknowledge click sends no body content, not even "{}" —
+        confirms AcknowledgeIn's all-optional fields don't turn a missing
+        body into a required-field 422."""
+        form = make_form()
+        client = any_staff_client()
+
+        response = client.post(ACKNOWLEDGE_URL.format(id=form.id), content_type="application/json")
+
+        assert response.status_code == 201
+
     def test_body_staff_is_rejected(self) -> None:
         form = make_form()
         other = make_staff("other@example.com")
