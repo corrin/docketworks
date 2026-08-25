@@ -2,7 +2,13 @@ import { screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { EntryOut, FormOut, PaginatedEntryList, StaffOptionOut } from '@/api'
+import type {
+  AcknowledgementOut,
+  EntryOut,
+  FormOut,
+  PaginatedEntryList,
+  StaffOptionOut,
+} from '@/api'
 import { autoId, queryAutoId } from '@/test/auto-id'
 import { mockUser } from '@/test/me'
 import { server } from '@/test/msw'
@@ -20,6 +26,8 @@ const FORMS_LIST_URL = '*/api/process/forms/'
 const STAFF_OPTIONS_URL = '*/api/process/staff-options/'
 const ALL_JOBS_URL = '*/api/purchasing/all-jobs/'
 const STATUS_CHOICES_URL = '*/api/job/jobs/status-choices/'
+const ACKNOWLEDGEMENTS_URL = `*/api/process/forms/${FORM_ID}/acknowledgements/`
+const ACKNOWLEDGE_URL = `*/api/process/forms/${FORM_ID}/acknowledge/`
 
 const STAFF_OPTIONS: StaffOptionOut[] = [
   { id: '11111111-1111-1111-1111-111111111111', name: 'Some One' },
@@ -64,6 +72,17 @@ function entryRow(overrides: Partial<EntryOut> = {}): EntryOut {
   }
 }
 
+function acknowledgementRow(overrides: Partial<AcknowledgementOut> = {}): AcknowledgementOut {
+  return {
+    id: '55555555-5555-5555-5555-555555555555',
+    staff: '11111111-1111-1111-1111-111111111111',
+    staff_name: 'Some One',
+    acknowledged_at: '2026-01-15T03:00:00Z',
+    description: 'Toolbox Talk',
+    ...overrides,
+  }
+}
+
 function entriesPage(
   rows: EntryOut[],
   overrides: Partial<PaginatedEntryList> = {},
@@ -89,6 +108,7 @@ describe('FormEntriesPage', () => {
       http.get(ALL_JOBS_URL, () => HttpResponse.json({ success: true, jobs: [] })),
       http.get(STATUS_CHOICES_URL, () => HttpResponse.json({ statuses: {} })),
       http.get(FORMS_LIST_URL, () => HttpResponse.json([form()])),
+      http.get(ACKNOWLEDGEMENTS_URL, () => HttpResponse.json([])),
     )
   })
 
@@ -245,5 +265,59 @@ describe('FormEntriesPage', () => {
 
     await waitFor(() => expect(bodies).toHaveLength(1))
     expect(bodies[0]).toMatchObject({ parent_entry: entry.id, data: { notes: 'Follow up' } })
+  })
+
+  it('shows only the latest acknowledgement per staff member', async () => {
+    server.use(
+      http.get(ACKNOWLEDGEMENTS_URL, () =>
+        HttpResponse.json([
+          // Newest first (Meta ordering): a repeat acknowledgement's earlier
+          // row must not also render.
+          acknowledgementRow({ id: 'ack-2', acknowledged_at: '2026-01-16T03:00:00Z' }),
+          acknowledgementRow({ id: 'ack-1', acknowledged_at: '2026-01-15T03:00:00Z' }),
+        ]),
+      ),
+    )
+    await renderPage({}, [entryRow()])
+
+    await waitFor(() =>
+      expect(autoId('Acknowledgements-count')).toHaveTextContent('Acknowledgements (1)'),
+    )
+    expect(autoId('Acknowledgements-row-ack-2')).toBeInTheDocument()
+    expect(queryAutoId('Acknowledgements-row-ack-1')).toBeNull()
+  })
+
+  it('relabels the button when the signed-in user already acknowledged', async () => {
+    server.use(http.get(ACKNOWLEDGEMENTS_URL, () => HttpResponse.json([acknowledgementRow()])))
+    await renderPage({}, [entryRow()])
+
+    await waitFor(() =>
+      expect(autoId('Acknowledgements-button')).toHaveTextContent('Acknowledge again'),
+    )
+  })
+
+  it('shows the default label when the signed-in user has not acknowledged', async () => {
+    await renderPage({}, [entryRow()])
+
+    expect(autoId('Acknowledgements-button')).toHaveTextContent(
+      'I have read and understood this document',
+    )
+  })
+
+  it('acknowledges the form with an empty body and refreshes the list', async () => {
+    const bodies: unknown[] = []
+    server.use(
+      http.post(ACKNOWLEDGE_URL, async ({ request }) => {
+        bodies.push(await request.json())
+        return HttpResponse.json(acknowledgementRow(), { status: 201 })
+      }),
+    )
+    const { user } = await renderPage({}, [entryRow()])
+
+    await user.click(autoId('Acknowledgements-button'))
+
+    await waitFor(() => expect(bodies).toHaveLength(1))
+    expect(bodies[0]).toEqual({})
+    await screen.findByText('Acknowledged')
   })
 })

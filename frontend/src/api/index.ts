@@ -423,6 +423,9 @@ export {
   processEntriesListOptions,
   processEntriesListQueryKey,
   processEntriesPartialUpdateMutation,
+  processFormsAcknowledgeCreateMutation,
+  processFormsAcknowledgementsListOptions,
+  processFormsAcknowledgementsListQueryKey,
   processFormsCreateMutation,
   processFormsEntriesCreateMutation,
   processFormsEntriesListOptions,
@@ -438,6 +441,7 @@ export {
   processStaffOptionsListOptions,
 } from './generated/@tanstack/react-query.gen'
 export type {
+  AcknowledgementOut,
   CategoriesOut,
   EntryCreateIn,
   EntryEventOut,

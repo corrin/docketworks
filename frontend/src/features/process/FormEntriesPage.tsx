@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { meQueryOptions } from '@/features/auth'
 
+import { AcknowledgementsPanel } from './AcknowledgementsPanel'
 import { EntriesTable } from './EntriesTable'
 import { EntryForm, type EntryFormSubmitBody } from './EntryForm'
 import { EntryHistoryDialog } from './EntryHistoryDialog'
@@ -177,6 +178,7 @@ export function FormEntriesPage({ formId }: { category: string; formId: string }
             <span className="rounded bg-slate-100 px-2 py-0.5">{form.document_type}</span>
             <span className="rounded bg-slate-100 px-2 py-0.5">{form.status}</span>
           </div>
+          <AcknowledgementsPanel formId={formId} />
         </div>
       </div>
 

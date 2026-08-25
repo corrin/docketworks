@@ -116,6 +116,30 @@ test.describe.serial('form lifecycle', () => {
       await expect(autoId(page, 'FormEntries-entries-count')).toHaveText('Entries (1)')
     })
 
+    await test.step('acknowledging the form records a read receipt for the signed-in user', async () => {
+      await dismissToasts(page)
+      await expect(autoId(page, 'Acknowledgements-count')).toHaveText('Acknowledgements (0)')
+      await expect(autoId(page, 'Acknowledgements-button')).toHaveText(
+        'I have read and understood this document',
+      )
+
+      const acknowledged = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === `/api/process/forms/${formId}/acknowledge/` &&
+          response.request().method() === 'POST' &&
+          response.status() === 201,
+      )
+      await autoId(page, 'Acknowledgements-button').click()
+      await acknowledged
+
+      await expect(page.locator('[data-sonner-toast]').first()).toContainText('Acknowledged')
+      await expect(autoId(page, 'Acknowledgements-count')).toHaveText('Acknowledgements (1)')
+      await expect(page.locator('[data-automation-id^="Acknowledgements-row-"]')).toContainText(
+        'E2E Test',
+      )
+      await expect(autoId(page, 'Acknowledgements-button')).toHaveText('Acknowledge again')
+    })
+
     await test.step("a linked entry on the same form raises the row's links count to 1", async () => {
       await dismissToasts(page)
       await autoId(page, `EntriesTable-links-${entryId}`).click()
