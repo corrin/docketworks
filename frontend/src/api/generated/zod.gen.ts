@@ -141,6 +141,26 @@ export const zBuildId = z.object({
 });
 
 /**
+ * CategoryOut
+ *
+ * One selectable category (key/label pair) for a document picker.
+ */
+export const zCategoryOut = z.object({
+    key: z.string(),
+    label: z.string()
+});
+
+/**
+ * CategoriesOut
+ *
+ * The category pickers for forms/registers and procedures.
+ */
+export const zCategoriesOut = z.object({
+    forms: z.array(zCategoryOut),
+    procedures: z.array(zCategoryOut)
+});
+
+/**
  * CompanyCreateRequest
  *
  * Wire contract for CompanyCreateRequest.
@@ -1080,6 +1100,107 @@ export const zForecastMonthOut = z.object({
     variance: z.number(),
     variance_pct: z.number(),
     xero_sales: z.number()
+});
+
+/**
+ * FormFieldSchema
+ *
+ * One field of a form's entry schema.
+ *
+ * options only on select; source_form + display_key exactly on entry_ref —
+ * an Asset Register is just another form, and a maintenance record's asset
+ * field is an entry_ref into it.
+ */
+export const zFormFieldSchema = z.object({
+    display_key: z.string().min(1).nullish(),
+    key: z.string().min(1),
+    label: z.string().min(1),
+    options: z.array(z.string().min(1)).nullish(),
+    required: z.boolean().optional().default(false),
+    source_form: z.uuid().nullish(),
+    type: z.enum([
+        'text',
+        'textarea',
+        'date',
+        'boolean',
+        'number',
+        'select',
+        'staff',
+        'entry_ref'
+    ])
+});
+
+/**
+ * FormOut
+ *
+ * One form, list row and detail alike (the edit dialog reads the row).
+ */
+export const zFormOut = z.object({
+    category: z.string(),
+    created_at: z.iso.datetime(),
+    document_number: z.string().nullable(),
+    document_type: z.string(),
+    entry_count: z.int(),
+    form_schema: z.record(z.string(), z.unknown()),
+    id: z.uuid(),
+    status: z.string(),
+    tags: z.array(z.string()),
+    title: z.string(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * FormSchemaSpec
+ *
+ * A form's whole entry schema; keys must be unique.
+ */
+export const zFormSchemaSpec = z.object({
+    fields: z.array(zFormFieldSchema)
+});
+
+/**
+ * FormCreateIn
+ *
+ * POST body. Unknown keys are a 422, not a silent drop.
+ */
+export const zFormCreateIn = z.object({
+    category: z.enum([
+        'safety',
+        'training',
+        'incident',
+        'meeting',
+        'register'
+    ]),
+    document_number: z.string().min(1).nullish(),
+    document_type: z.enum(['form', 'register']),
+    form_schema: zFormSchemaSpec,
+    tags: z.array(z.string().min(1)).optional(),
+    title: z.string().min(1)
+});
+
+/**
+ * FormUpdateIn
+ *
+ * PATCH body; omission leaves a field alone (exclude_unset).
+ *
+ * Fable: defaults below are placeholders never read by handlers (they parse
+ * with ``model_dump(exclude_unset=True)``); ``FormSchemaSpec(fields=[])`` is
+ * a fresh instance per default-factory call, not a shared mutable default,
+ * matching the same-file convention on ``EntryUpdateIn``.
+ */
+export const zFormUpdateIn = z.object({
+    category: z.enum([
+        'safety',
+        'training',
+        'incident',
+        'meeting',
+        'register'
+    ]).optional(),
+    document_number: z.string().min(1).nullish(),
+    form_schema: zFormSchemaSpec.optional(),
+    status: z.enum(['active', 'archived']).optional(),
+    tags: z.array(z.string().min(1)).optional(),
+    title: z.string().min(1).optional()
 });
 
 /**
@@ -6984,6 +7105,57 @@ export const zPeopleContactMethodsPartialUpdatePath = z.object({
  * OK
  */
 export const zPeopleContactMethodsPartialUpdateResponse = zContactMethodOut;
+
+/**
+ * OK
+ */
+export const zProcessCategoriesRetrieveResponse = zCategoriesOut;
+
+export const zProcessFormsListQuery = z.object({
+    category: z.enum([
+        'safety',
+        'training',
+        'incident',
+        'meeting',
+        'register'
+    ]).nullish(),
+    q: z.string().optional().default(''),
+    status: z.enum(['active', 'archived']).nullish()
+});
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zProcessFormsListResponse = z.array(zFormOut);
+
+export const zProcessFormsCreateBody = zFormCreateIn;
+
+/**
+ * Created
+ */
+export const zProcessFormsCreateResponse = zFormOut;
+
+export const zProcessFormsRetrievePath = z.object({
+    form_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zProcessFormsRetrieveResponse = zFormOut;
+
+export const zProcessFormsPartialUpdateBody = zFormUpdateIn;
+
+export const zProcessFormsPartialUpdatePath = z.object({
+    form_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zProcessFormsPartialUpdateResponse = zFormOut;
 
 export const zPurchasingAllJobsRetrieveQuery = z.object({
     q: z.string().optional().default('')

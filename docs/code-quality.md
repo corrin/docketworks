@@ -15,13 +15,13 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | metric | count |
 |---|---:|
 | type: ignore | 9 |
-| pragma: no cover | 8 |
+| pragma: no cover | 9 |
 | noqa (no rule code) | 0 |
 | @ts-ignore | 0 |
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 7 |
-| TOTAL suppressions | 681 |
+| TOTAL suppressions | 682 |
 | noqa: DJ001 | 161 |
 | noqa: PLC0415 | 128 |
 | noqa: E402 | 105 |
@@ -78,9 +78,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 383 |
-| except handlers | 415 |
-| re-raises or converts | 268 |
+| try statements | 384 |
+| except handlers | 416 |
+| re-raises or converts | 269 |
 | returns instead | 85 |
 | falls through | 50 |
 | continue/break in a loop | 11 |
@@ -103,7 +103,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 196 |
-| non-test functions | 2438 |
+| non-test functions | 2447 |
 
 ## Wire contract (response side)
 
@@ -111,7 +111,7 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 275 |
-| response properties | 1804 |
+| response schemas | 278 |
+| response properties | 1819 |
 | optional (pinned at zero) | 0 |
-| nullable | 398 |
+| nullable | 399 |

@@ -333,6 +333,38 @@ export type BuildId = {
 };
 
 /**
+ * CategoriesOut
+ *
+ * The category pickers for forms/registers and procedures.
+ */
+export type CategoriesOut = {
+    /**
+     * Forms
+     */
+    forms: Array<CategoryOut>;
+    /**
+     * Procedures
+     */
+    procedures: Array<CategoryOut>;
+};
+
+/**
+ * CategoryOut
+ *
+ * One selectable category (key/label pair) for a document picker.
+ */
+export type CategoryOut = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
  * CompanyCreateRequest
  *
  * Wire contract for CompanyCreateRequest.
@@ -2823,6 +2855,175 @@ export type ForecastMonthOut = {
      * Xero Sales
      */
     xero_sales: number;
+};
+
+/**
+ * FormCreateIn
+ *
+ * POST body. Unknown keys are a 422, not a silent drop.
+ */
+export type FormCreateIn = {
+    /**
+     * Category
+     */
+    category: 'safety' | 'training' | 'incident' | 'meeting' | 'register';
+    /**
+     * Document Number
+     */
+    document_number?: string | null;
+    /**
+     * Document Type
+     */
+    document_type: 'form' | 'register';
+    form_schema: FormSchemaSpec;
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Title
+     */
+    title: string;
+};
+
+/**
+ * FormFieldSchema
+ *
+ * One field of a form's entry schema.
+ *
+ * options only on select; source_form + display_key exactly on entry_ref —
+ * an Asset Register is just another form, and a maintenance record's asset
+ * field is an entry_ref into it.
+ */
+export type FormFieldSchema = {
+    /**
+     * Display Key
+     */
+    display_key?: string | null;
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Options
+     */
+    options?: Array<string> | null;
+    /**
+     * Required
+     */
+    required?: boolean;
+    /**
+     * Source Form
+     */
+    source_form?: string | null;
+    /**
+     * Type
+     */
+    type: 'text' | 'textarea' | 'date' | 'boolean' | 'number' | 'select' | 'staff' | 'entry_ref';
+};
+
+/**
+ * FormOut
+ *
+ * One form, list row and detail alike (the edit dialog reads the row).
+ */
+export type FormOut = {
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Document Number
+     */
+    document_number: string | null;
+    /**
+     * Document Type
+     */
+    document_type: string;
+    /**
+     * Entry Count
+     */
+    entry_count: number;
+    /**
+     * Form Schema
+     */
+    form_schema: {
+        [key: string]: unknown;
+    };
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Tags
+     */
+    tags: Array<string>;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * FormSchemaSpec
+ *
+ * A form's whole entry schema; keys must be unique.
+ */
+export type FormSchemaSpec = {
+    /**
+     * Fields
+     */
+    fields: Array<FormFieldSchema>;
+};
+
+/**
+ * FormUpdateIn
+ *
+ * PATCH body; omission leaves a field alone (exclude_unset).
+ *
+ * Fable: defaults below are placeholders never read by handlers (they parse
+ * with ``model_dump(exclude_unset=True)``); ``FormSchemaSpec(fields=[])`` is
+ * a fresh instance per default-factory call, not a shared mutable default,
+ * matching the same-file convention on ``EntryUpdateIn``.
+ */
+export type FormUpdateIn = {
+    /**
+     * Category
+     */
+    category?: 'safety' | 'training' | 'incident' | 'meeting' | 'register';
+    /**
+     * Document Number
+     */
+    document_number?: string | null;
+    form_schema?: FormSchemaSpec;
+    /**
+     * Status
+     */
+    status?: 'active' | 'archived';
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Title
+     */
+    title?: string;
 };
 
 /**
@@ -15679,6 +15880,111 @@ export type PeopleContactMethodsPartialUpdateResponses = {
 };
 
 export type PeopleContactMethodsPartialUpdateResponse = PeopleContactMethodsPartialUpdateResponses[keyof PeopleContactMethodsPartialUpdateResponses];
+
+export type ProcessCategoriesRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/process/categories/';
+};
+
+export type ProcessCategoriesRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: CategoriesOut;
+};
+
+export type ProcessCategoriesRetrieveResponse = ProcessCategoriesRetrieveResponses[keyof ProcessCategoriesRetrieveResponses];
+
+export type ProcessFormsListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Category
+         */
+        category?: 'safety' | 'training' | 'incident' | 'meeting' | 'register' | null;
+        /**
+         * Q
+         */
+        q?: string;
+        /**
+         * Status
+         */
+        status?: 'active' | 'archived' | null;
+    };
+    url: '/api/process/forms/';
+};
+
+export type ProcessFormsListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<FormOut>;
+};
+
+export type ProcessFormsListResponse = ProcessFormsListResponses[keyof ProcessFormsListResponses];
+
+export type ProcessFormsCreateData = {
+    body: FormCreateIn;
+    path?: never;
+    query?: never;
+    url: '/api/process/forms/';
+};
+
+export type ProcessFormsCreateResponses = {
+    /**
+     * Created
+     */
+    201: FormOut;
+};
+
+export type ProcessFormsCreateResponse = ProcessFormsCreateResponses[keyof ProcessFormsCreateResponses];
+
+export type ProcessFormsRetrieveData = {
+    body?: never;
+    path: {
+        /**
+         * Form Id
+         */
+        form_id: string;
+    };
+    query?: never;
+    url: '/api/process/forms/{form_id}/';
+};
+
+export type ProcessFormsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: FormOut;
+};
+
+export type ProcessFormsRetrieveResponse = ProcessFormsRetrieveResponses[keyof ProcessFormsRetrieveResponses];
+
+export type ProcessFormsPartialUpdateData = {
+    body: FormUpdateIn;
+    path: {
+        /**
+         * Form Id
+         */
+        form_id: string;
+    };
+    query?: never;
+    url: '/api/process/forms/{form_id}/';
+};
+
+export type ProcessFormsPartialUpdateResponses = {
+    /**
+     * OK
+     */
+    200: FormOut;
+};
+
+export type ProcessFormsPartialUpdateResponse = ProcessFormsPartialUpdateResponses[keyof ProcessFormsPartialUpdateResponses];
 
 export type PurchasingAllJobsRetrieveData = {
     body?: never;
