@@ -76,10 +76,10 @@ def _check_staff(field: FormFieldSchema, value: object, problems: list[str]) -> 
 
 def _check_entry_ref(field: FormFieldSchema, value: object, problems: list[str]) -> None:
     entry_id = _as_uuid(field.key, value, problems)
-    if field.source_form is None:
-        # FormFieldSchema._coherent guarantees source_form is set whenever
-        # type == "entry_ref"; this branch documents that invariant for mypy
-        # rather than adding a new runtime check.
+    if field.source_form is None:  # pragma: no cover - FormFieldSchema._coherent forbids this
+        # Fable: FormFieldSchema._coherent guarantees source_form is set
+        # whenever type == "entry_ref"; this branch documents that invariant
+        # for mypy rather than adding a new runtime check.
         raise AssertionError(f"entry_ref field '{field.key}' has no source_form")
     if (
         entry_id is not None
@@ -126,7 +126,7 @@ def validate_entry_data(form: Form, data: dict[str, object]) -> None:
             _check_value(field, data[field.key], problems)
 
     if problems:
-        raise HttpError(400, " ".join(problems))
+        raise HttpError(400, "; ".join(problems))
 
 
 def _is_uuid(value: str) -> bool:

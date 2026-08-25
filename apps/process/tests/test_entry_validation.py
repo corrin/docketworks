@@ -121,3 +121,39 @@ class TestDisplayData:
         form = make_form()
         resolved = display_data(form, {"area": "Bay 1", "injured": str(staff.id)})
         assert resolved == {"injured": staff.get_display_full_name()}
+
+    def test_dangling_staff_uuid_renders_the_raw_id(self) -> None:
+        form = make_form()
+        missing = str(uuid4())
+        resolved = display_data(form, {"injured": missing})
+        assert resolved == {"injured": missing}
+
+    def test_dangling_entry_ref_uuid_renders_the_raw_id(self) -> None:
+        register = make_form(
+            schema={"fields": [{"key": "name", "label": "Name", "type": "text"}]},
+            category=Form.Category.REGISTER,
+            document_type="register",
+            title="Asset register",
+        )
+        maintenance = make_form(
+            schema={
+                "fields": [
+                    {
+                        "key": "asset",
+                        "label": "Asset",
+                        "type": "entry_ref",
+                        "source_form": str(register.id),
+                        "display_key": "name",
+                    }
+                ]
+            },
+            title="Maintenance record",
+        )
+        missing = str(uuid4())
+        resolved = display_data(maintenance, {"asset": missing})
+        assert resolved == {"asset": missing}
+
+    def test_non_uuid_string_in_reference_field_renders_as_itself(self) -> None:
+        form = make_form()
+        resolved = display_data(form, {"injured": "not-a-uuid"})
+        assert resolved == {"injured": "not-a-uuid"}
