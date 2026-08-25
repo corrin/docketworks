@@ -1,7 +1,7 @@
 """Scrub a restored copy of prod (the ``scrub`` DB alias) of all PII.
 
 Ported from v1's ``apps/workflow/services/db_scrubber.py`` with v2 model
-homes; the physical tables are unchanged (workflow_* db_table pins). Four
+homes; the physical tables are unchanged (workflow_* db_table pins). Six
 behaviours, in order:
 
   1. Anonymise the PII columns: staff identities, pay-slip employee names
@@ -11,20 +11,30 @@ behaviours, in order:
      ``raw_json`` PII paths.
   2. Delete accounting records not linked to a job.
   3. Anonymise the surviving accounting documents' contact blocks.
-  4. Truncate the excluded tables.
-  5. Prove every database-backed external-system credential table is empty.
+  4. Redact process-domain entry data and its audit-trail delta snapshots.
+  5. Truncate the excluded tables.
+  6. Prove every database-backed external-system credential table is empty.
 
 Deliberate, not omissions: ``xero_user_id`` is left alone (it is the marker
 the seed's employees phase re-reads, and it names a Xero employee record
 rather than a person), and ``CompanyDefaults.test_company_name`` plus the
 shop and enabled-scraper supplier companies keep their real names.
 
-Fable: process_form, process_formentry, process_procedure and
-process_processevent carry no name/email/address PII of their own — a
-FormEntry or ProcessEvent identifies a staff member only through a
-``staff``/``entered_by`` FK, already anonymised at the Staff table itself —
-so, like job's own audit trail (JobEvent), they need no scrub or
-excluded-table entry here.
+Fable: process_form and process_procedure metadata (title, tags, document
+number, ``form_schema``'s field structure, Google Doc ids/urls) carry no PII
+of their own, and identify staff only through FKs already anonymised at the
+Staff table — matching job's own audit trail (JobEvent) — so that metadata
+needs no excluded-table entry. ``Procedure.site_location`` is the one
+exception in that pair: a free-text site field can hold a residential
+address, so it is scrubbed like ``Company.address`` (see
+``_scrub_companies``). ``FormEntry.data`` is schema-driven user content, not
+metadata — an incident form's text/textarea fields are exactly where a named
+person's injury or witness details live — so it is redacted field-by-field
+against its form's schema (see ``_scrub_process_entries``), never exempted.
+``ProcessEvent``'s own columns (``event_type``, ``staff``, ``timestamp``) are
+metadata like ``JobEvent``'s, but its ``delta_before``/``delta_after`` and
+``detail.changes`` are snapshots of that same entry data, so they are
+redacted alongside it (see ``_scrub_process_events``).
 
 v1 also left staff PASSWORDS alone, on the reasoning that the restore runbook
 resets them. v2 does not: the reset happens after the archive has already
@@ -43,6 +53,7 @@ HERE, and the fix belongs here — which is why completeness (KAN-340/341) is
 this module's whole burden.
 """
 
+import logging
 import uuid
 from collections.abc import Callable
 
@@ -51,6 +62,7 @@ from django.conf import settings
 from django.contrib.auth.hashers import make_password
 from django.db import connections, transaction
 from faker import Faker
+from ninja.errors import HttpError
 
 from apps.accounting.models import (
     Bill,
@@ -66,10 +78,21 @@ from apps.company.models import Company, CompanyPersonLink, ContactMethod, Perso
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.diagnostics.services.staff_anonymization import create_staff_profile
+from apps.process.models import FormEntry, Procedure, ProcessEvent
+from apps.process.services.entry_validation import parse_schema
 from apps.quoting.models import SupplierScraperConfig
+
+logger = logging.getLogger("apps.diagnostics.services.db_scrubber")
 
 SCRUB_ALIAS = "scrub"
 _GENERATE_ATTEMPTS = 100
+
+# Fable: form/entry free text and event deltas get one fixed placeholder, not
+# Faker output — unlike a company name or an email, nothing downstream needs
+# this text to look plausible, and one literal makes "scrubbed" trivially
+# greppable in a restored dump.
+_TEXT_SCRUB_TOKEN = "[SCRUBBED]"  # noqa: S105 -- a redaction placeholder, not a credential
+_FREE_TEXT_FIELD_TYPES = ("text", "textarea")
 
 
 def _assert_scrub_alias_is_safe() -> None:
@@ -400,6 +423,118 @@ def _scrub_contact_methods(fake: Faker, preserved: set[str]) -> None:
     )
 
 
+def _scrub_procedures() -> None:
+    """Anonymise Procedure.site_location; every other field is metadata (see module docstring).
+
+    Mirrors ``Company.address`` in ``_scrub_companies``: a free-text site
+    field can hold a residential address as easily as a work-site name.
+    """
+    fake = Faker()
+    procedures_to_update = []
+    for procedure in Procedure.objects.using(SCRUB_ALIAS).exclude(site_location=None):
+        procedure.site_location = fake.address()
+        procedures_to_update.append(procedure)
+    Procedure.objects.using(SCRUB_ALIAS).bulk_update(
+        procedures_to_update, ["site_location"], batch_size=500
+    )
+
+
+def _scrub_process_entries() -> None:
+    """Redact free-text form-entry content; everything structurally-typed survives.
+
+    A text/textarea field is exactly where an incident form carries a named
+    person's injury or witness details, so its value is replaced. Date,
+    boolean, number and select values are closed shapes with no room for a
+    name; staff/entry_ref values are ids, and the identity a staff id
+    resolves to is anonymised at the Staff table itself (``_scrub_staff``) —
+    none of those five types are touched. An entry whose form schema no
+    longer parses is not skipped: its whole ``data`` is replaced and the
+    count is logged, because a corrupt schema is exactly the case a silent
+    skip would hide.
+    """
+    unparseable = 0
+    for entry in FormEntry.objects.using(SCRUB_ALIAS).select_related("form"):
+        try:
+            spec = parse_schema(entry.form)
+        except HttpError:
+            unparseable += 1
+            entry.data = {}
+            entry.save(using=SCRUB_ALIAS, update_fields=["data"])
+            continue
+        text_keys = {field.key for field in spec.fields if field.type in _FREE_TEXT_FIELD_TYPES}
+        redacted = {
+            key: (_TEXT_SCRUB_TOKEN if key in text_keys else value)
+            for key, value in entry.data.items()
+        }
+        if redacted != entry.data:
+            entry.data = redacted
+            entry.save(using=SCRUB_ALIAS, update_fields=["data"])
+    if unparseable:
+        logger.warning(
+            "Scrub wiped data on %d form entries whose form schema would not parse.",
+            unparseable,
+        )
+
+
+def _redact_detail_changes(detail: dict[str, object]) -> dict[str, object] | None:
+    """Return ``detail`` with every changes[].old_value/new_value redacted, or None if unchanged.
+
+    field_name is left alone — it names the schema field, not its content —
+    and a malformed changes list (not a list of dicts) is passed through
+    unredacted rather than raised on: detail is free-form JSON, not a
+    validated contract, so this is display metadata, not the PII boundary.
+    """
+    changes = detail.get("changes")
+    if not isinstance(changes, list):
+        return None
+    redacted_changes = []
+    changed = False
+    for change in changes:
+        if not isinstance(change, dict):
+            redacted_changes.append(change)
+            continue
+        redacted_change = dict(change)
+        for key in ("old_value", "new_value"):
+            if key in redacted_change:
+                redacted_change[key] = _TEXT_SCRUB_TOKEN
+                changed = True
+        redacted_changes.append(redacted_change)
+    if not changed:
+        return None
+    return {**detail, "changes": redacted_changes}
+
+
+def _scrub_process_events() -> None:
+    """Null the delta snapshots and redact changed values; field names stay.
+
+    ``delta_before``/``delta_after`` and ``detail.changes[].old_value``/
+    ``new_value`` are snapshots of ``FormEntry.data`` taken at edit time — the
+    same free text ``_scrub_process_entries`` just redacted on the live row
+    would otherwise survive unredacted in the audit trail. Scrubbed
+    environments lose exact audit display fidelity (old/new values read as
+    the placeholder); that is an acceptable loss, the same trade
+    ``_scrub_process_entries`` makes on the live data.
+    """
+    events_to_update: list[ProcessEvent] = []
+    for event in ProcessEvent.objects.using(SCRUB_ALIAS).all():
+        changed = False
+        if event.delta_before is not None:
+            event.delta_before = None
+            changed = True
+        if event.delta_after is not None:
+            event.delta_after = None
+            changed = True
+        redacted_detail = _redact_detail_changes(event.detail or {})
+        if redacted_detail is not None:
+            event.detail = redacted_detail
+            changed = True
+        if changed:
+            events_to_update.append(event)
+    ProcessEvent.objects.using(SCRUB_ALIAS).bulk_update(
+        events_to_update, ["delta_before", "delta_after", "detail"], batch_size=500
+    )
+
+
 # Every accounting model whose raw_json can carry a Xero contact block. Quote
 # is here even though v1's scrubber omitted it: job-linked quotes survive the
 # unlinked-delete with their contact block intact, so leaving them out ships
@@ -544,6 +679,12 @@ def scrub() -> None:
             # job-less Invoice/Quote, was faked and saved, then deleted).
             _delete_unlinked_accounting()
             _scrub_accounting_contacts()
+            _scrub_procedures()
+            # Independent of each other (each touches its own table and reads
+            # nothing the other writes); ordered entries-then-events only to
+            # read in the same order as the module docstring's list.
+            _scrub_process_entries()
+            _scrub_process_events()
             _truncate_excluded_tables()
             _assert_private_config_removed()
     except Exception as exc:
