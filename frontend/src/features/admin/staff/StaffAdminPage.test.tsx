@@ -97,6 +97,20 @@ describe('StaffAdminPage', () => {
     await screen.findByText('new@example.com')
   })
 
+  it('a typed negative wage is refused locally, not sent', async () => {
+    const { user } = await renderPage()
+
+    await user.click(autoId('StaffAdminPage-edit-staff-11111111-1111-1111-1111-111111111111'))
+    await screen.findByText('Edit Staff')
+    await user.clear(autoId('StaffFormDialog-base-wage-rate'))
+    await user.type(autoId('StaffFormDialog-base-wage-rate'), '-5')
+    await user.click(autoId('StaffFormDialog-submit'))
+
+    expect(autoId('StaffFormDialog-validation')).toHaveTextContent(
+      'The base wage rate cannot be negative.',
+    )
+  })
+
   it('editing sends only the dirty fields', async () => {
     const bodies: unknown[] = []
     server.use(

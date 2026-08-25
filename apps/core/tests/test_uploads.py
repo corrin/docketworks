@@ -100,3 +100,23 @@ class TestValidateImageUpload:
         bad = _upload("mugshot.png", b"not an image")
         with pytest.raises(HttpError):
             validate_image_upload(bad)
+
+    def test_rejects_an_allowed_suffix_hiding_a_disallowed_format(self) -> None:
+        """Pillow probes every registered decoder, so a BMP payload named
+        .png would open and verify; the format allowlist must bind content,
+        not just the filename."""
+        buffer = BytesIO()
+        Image.new("RGB", (10, 10), "white").save(buffer, format="BMP")
+        with pytest.raises(HttpError):
+            validate_image_upload(_upload("mugshot.png", buffer.getvalue()))
+
+    def test_rejects_a_warning_range_decompression_bomb(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Between MAX_IMAGE_PIXELS and twice it Pillow only WARNS; the
+        validator must treat that range as a 400 too, not accept it."""
+        monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 100)
+        big = BytesIO()
+        Image.new("RGB", (12, 10), "white").save(big, format="PNG")  # 120 px: warn, not raise
+        with pytest.raises(HttpError):
+            validate_image_upload(_upload("mugshot.png", big.getvalue()))

@@ -9,6 +9,7 @@ from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models.functions import Lower
 from django.utils import timezone
 from django.utils.timezone import now as timezone_now
 from simple_history.models import HistoricalRecords
@@ -207,6 +208,11 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             models.CheckConstraint(
                 condition=~models.Q(pay_basis=""), name="staff_pay_basis_not_blank"
             ),
+            # Fable: the database's answer to the race clean() cannot close —
+            # two concurrent writes of case-variant emails both pass the
+            # iexact query and both save, and StaffEmailBackend then locks
+            # both accounts out. clean() stays for the user-facing 400.
+            models.UniqueConstraint(Lower("office_email"), name="staff_office_email_ci_unique"),
         ]
 
     def clean(self) -> None:

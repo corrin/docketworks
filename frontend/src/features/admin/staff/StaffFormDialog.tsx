@@ -248,9 +248,15 @@ export function StaffFormDialog({ open, onOpenChange, staff }: Props) {
     if (drafts.base_wage_rate === '' || Number.isNaN(Number(drafts.base_wage_rate))) {
       return 'A base wage rate is required.'
     }
+    // min={0} on the input does not stop a typed negative: there is no <form>
+    // submission here to trigger native constraint validation.
+    if (Number(drafts.base_wage_rate) < 0) return 'The base wage rate cannot be negative.'
     for (const [key, label] of HOUR_KEYS) {
       if (drafts.hours[key] === '' || Number.isNaN(Number(drafts.hours[key]))) {
         return `Working hours are required for ${label} (0 for a non-working day).`
+      }
+      if (Number(drafts.hours[key]) < 0) {
+        return `Working hours for ${label} cannot be negative.`
       }
     }
     if (drafts.employment_start_date === '') return 'An employment start date is required.'

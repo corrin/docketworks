@@ -7,6 +7,7 @@ a sibling.
 """
 
 import os
+import warnings
 from pathlib import Path
 
 # Fable: Django's UploadedFile, not ninja's subclass — the helpers need only
@@ -24,6 +25,10 @@ from PIL import Image
 # an allowlisted-but-unopenable format would 400 at upload only to 500 every
 # PO/workshop PDF later.
 ALLOWED_IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp"})
+# Fable: The suffixes' Pillow format identifiers, passed to Image.open so the
+# allowlist binds CONTENT — without it Pillow probes every registered decoder
+# and a BMP payload named .png sails through the suffix check.
+_ALLOWED_IMAGE_FORMATS = ("PNG", "JPEG", "GIF", "WEBP")
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 
@@ -61,11 +66,16 @@ def validate_image_upload(file: UploadedFile, *, label: str = "Image") -> None:
     # the stream unusable for the caller's subsequent save.
     # DecompressionBombError is Image.DecompressionBombError, not an OSError
     # subclass — without it a small PNG declaring absurd dimensions raises
-    # past this except tuple and 500s instead of 400ing.
+    # past this except tuple and 500s instead of 400ing. The error only fires
+    # above TWICE MAX_IMAGE_PIXELS; between one and two times the limit Pillow
+    # merely warns, so the warning is promoted to an error here — that range
+    # is still a quarter-gigabyte allocation nothing on this site needs.
     try:
-        with Image.open(file) as image:
-            image.verify()
-    except (OSError, Image.DecompressionBombError) as exc:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(file, formats=_ALLOWED_IMAGE_FORMATS) as image:
+                image.verify()
+    except (OSError, Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
         raise HttpError(400, "Uploaded file is not a valid image") from exc
     finally:
         file.seek(0)
