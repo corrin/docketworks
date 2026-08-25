@@ -307,3 +307,15 @@ recording is evidence only its own row holds), and a job-linked row is never
 suppressed. The nullable identity columns match through Coalesce-to-"" keys
 because SQL NULL never equals NULL, and "" cannot collide with data ADR 0040
 bans from those columns.
+
+**Process forms slice complete, 2026-08-25.** A stored, exclusive `category`
+field on `Form` (and `Procedure`) replaced v1's overlapping tags-array
+filter, so a document that carried more than one matching tag — incident
+forms 202/205, tagged both safety and incident — no longer lists twice.
+Every entry write and archive is recorded on `ProcessEvent`, the domain's
+own append-only audit trail (`JobEvent`'s shape without the optimistic-
+concurrency machinery a form entry does not need). Acknowledgements are a
+dedicated append-only record (`Acknowledgement`): a self-only "I have read
+this" receipt per staff member per form, never an inference over
+`ProcessEvent`. Design doc:
+`docs/superpowers/specs/2026-08-25-process-documents-design.md`.

@@ -1153,3 +1153,53 @@
     scripts/v1-frontend-operations.yml): creating the run is a step of posting
     (leave reconciles before the draft exists, KAN-326), and mirror hygiene is
     not an operator job.
+
+- operation: (process forms/entries — deletion)
+  change: "Deleting a form or an entry archives it (a status update, or is_active=False); v2 has no destroy endpoint for forms, and the one DELETE route on an entry archives rather than removing the row"
+  reason: >
+    v1 exposed process_forms_destroy, process_procedures_destroy and
+    process_forms_entries_destroy, all hard deletes that discarded the row
+    outright — a form's own audit trail could vanish with the form, and any
+    entry, event or acknowledgement referencing it was orphaned. v2 drops
+    the form/procedure destroy operations entirely (archive replaces delete,
+    owner ruling); the entries DELETE route (process_entries_destroy) sets
+    FormEntry.is_active=False and writes an entry_archived ProcessEvent
+    instead of removing the row. Rows are never hard-deleted, so dangling
+    references cannot arise through the app. Design doc,
+    docs/superpowers/specs/2026-08-25-process-documents-design.md.
+
+- operation: process_categories_retrieve / process_forms_list
+  change: "category is a stored, exclusive field on Form (and Procedure); a document lists in exactly one category (v1 filtered a free-text tags array, so a document carrying more than one matching tag listed under more than one category)"
+  reason: >
+    v1's screens filtered forms/procedures by matching entries in a JSON
+    tags array against a per-screen tag set, so a doc tagged with two
+    matching tags appeared twice — incident forms 202 and 205, tagged both
+    safety and incident, listed under both Safety and Incident. v2 stores
+    one category per Form, backfilled from tags by a fixed
+    most-specific-first order (forms: incident > register > meeting >
+    training > safety; procedures: jsa > reference > training > safety), so
+    every document has exactly one home and the category listing is a
+    stored fact rather than a query-time coincidence. Design doc,
+    docs/superpowers/specs/2026-08-25-process-documents-design.md.
+
+- operation: process_forms_entries_create / process_entries_partial_update
+  change: "Entry data is validated against the form's stored schema at write time — unknown keys, missing required fields and type mismatches are 422 (v1 accepted anything into the JSONField)"
+  reason: >
+    v1's entry data was an opaque JSONField with no server-side shape check,
+    so a form's schema was purely advisory for whichever frontend view
+    happened to render it. v2's form_schema is a typed FormSchemaSpec
+    (fields declaring key/label/type/required/options), validated at
+    form-write time (422 on a malformed schema definition) and again at
+    entry-write time against every entry's data
+    (apps/process/services/entry_validation.py): a staff-type field's value
+    must be an existing staff UUID and an entry_ref value must be an active
+    entry of its configured source form.
+
+- operation: process_forms_entries_list / process_entries_list
+  change: "Both entries listings are paginated (page/page_size query params, page size 50); v1 served process_forms_entries_list as a bare array"
+  reason: >
+    Entries grow without bound (inspections, meeting actions, incident
+    reports) unlike Forms, whose ~30 authored definitions stay unpaginated.
+    v2 wraps both entry endpoints in the same {results, count, page,
+    page_size, total_pages} envelope apps/core's paginate() already
+    produces elsewhere, rather than adding a fourth ad hoc paging shape.
