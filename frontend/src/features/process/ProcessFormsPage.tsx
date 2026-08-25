@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 
 import { processFormsListOptions, type FormOut } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -128,7 +128,19 @@ export function ProcessFormsPage({ category }: { category: string }) {
               })
             }}
           >
-            <td className={`${CELL} font-medium text-gray-900`}>{form.title}</td>
+            <td className={`${CELL} font-medium text-gray-900`}>
+              {/* A real link so keyboard users can open the entries page; the
+                  row onClick is the mouse-only whole-row affordance (same
+                  pattern as PoListPage/CompaniesListPage). */}
+              <Link
+                to="/process-documents/forms/$category/$formId"
+                params={{ category, formId: form.id }}
+                className="hover:underline"
+                onClick={(event) => event.stopPropagation()}
+              >
+                {form.title}
+              </Link>
+            </td>
             <td className={CELL}>{form.document_number ?? '—'}</td>
             <td className={CELL}>{form.tags.join(', ') || '—'}</td>
             <td className={`${CELL} text-right tabular-nums`}>{form.entry_count}</td>

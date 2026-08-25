@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -11,6 +11,7 @@ import { renderWithProviders } from '@/test/render'
 import { ProcessFormsPage } from './ProcessFormsPage'
 
 const LIST = '*/api/process/forms/'
+const DETAIL = '*/api/process/forms/:formId/'
 const CATEGORIES = '*/api/process/categories/'
 
 const CATEGORIES_RESPONSE: CategoriesOut = {
@@ -163,5 +164,66 @@ describe('ProcessFormsPage', () => {
       document_type: 'form',
       form_schema: { fields: [] },
     })
+  })
+
+  it('round-trips an edited schema: pre-populated, then PATCHes only the edit', async () => {
+    // The regression this dialog exists to fix: v1's edit form never loaded
+    // form_schema into the textarea and never sent it back on save, so every
+    // edit silently wiped the form's fields.
+    const bodies: unknown[] = []
+    server.use(
+      http.patch(DETAIL, async ({ request }) => {
+        bodies.push(await request.json())
+        return HttpResponse.json(formRow())
+      }),
+    )
+    const { user } = await renderPage()
+
+    await user.click(autoId('ProcessFormsPage-edit-11111111-1111-1111-1111-111111111111'))
+    await screen.findByText('Edit Form')
+
+    const original = formRow()
+    expect(autoId('FormDialog-schema')).toHaveValue(JSON.stringify(original.form_schema, null, 2))
+
+    // Braces defeat userEvent.type's key-sequence parser, so the edit is
+    // applied as a single programmatic value change rather than keystrokes.
+    const edited = { fields: [{ key: 'notes', label: 'Notes Updated', type: 'textarea' }] }
+    fireEvent.change(autoId('FormDialog-schema'), {
+      target: { value: JSON.stringify(edited, null, 2) },
+    })
+    await user.click(autoId('FormDialog-submit'))
+
+    await waitFor(() => expect(bodies).toHaveLength(1))
+    // Only form_schema changed — title/category/document_number/tags/status
+    // must stay off the wire (exclude_unset dirty-only PATCH).
+    expect(bodies[0]).toEqual({ form_schema: edited })
+  })
+
+  it('archiving a form via the dialog sends only the status flip', async () => {
+    const bodies: unknown[] = []
+    server.use(
+      http.patch(DETAIL, async ({ request }) => {
+        bodies.push(await request.json())
+        return HttpResponse.json(formRow({ status: 'archived' }))
+      }),
+    )
+    const { user } = await renderPage()
+
+    await user.click(autoId('ProcessFormsPage-edit-11111111-1111-1111-1111-111111111111'))
+    await screen.findByText('Edit Form')
+    expect(autoId('FormDialog-archived')).not.toBeChecked()
+
+    await user.click(autoId('FormDialog-archived'))
+    await user.click(autoId('FormDialog-submit'))
+
+    await waitFor(() => expect(bodies).toHaveLength(1))
+    expect(bodies[0]).toEqual({ status: 'archived' })
+  })
+
+  it('the archive control is absent when creating a new form', async () => {
+    const { user } = await renderPage()
+    await user.click(autoId('ProcessFormsPage-new-form'))
+    await waitFor(() => expect(queryAutoId('FormDialog-cancel')).not.toBeNull())
+    expect(queryAutoId('FormDialog-archived')).toBeNull()
   })
 })

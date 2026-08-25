@@ -52,6 +52,20 @@ function requireDocumentType(value: string): DocumentType {
   return value
 }
 
+// Form.Status has exactly these two values; FormUpdateIn.status mirrors them
+// as a closed literal union on the wire.
+const FORM_STATUS_VALUES = ['active', 'archived'] as const
+type FormStatus = (typeof FORM_STATUS_VALUES)[number]
+
+function isFormStatus(value: string): value is FormStatus {
+  return (FORM_STATUS_VALUES as readonly string[]).includes(value)
+}
+
+function requireFormStatus(value: string): FormStatus {
+  if (!isFormStatus(value)) throw new Error(`Unexpected form status "${value}".`)
+  return value
+}
+
 const FIELD_TYPES = [
   'text',
   'textarea',
@@ -118,6 +132,9 @@ interface Drafts {
   tags: string
   /** The JSON source for form_schema; parsed live for validation and the preview. */
   schemaText: string
+  /** Edit mode only — the create endpoint has no status field; a new form is
+      always active. */
+  status: string
 }
 
 function snapshot(form: FormOut | null): Drafts {
@@ -133,6 +150,7 @@ function snapshot(form: FormOut | null): Drafts {
     // this textarea (load, edit, PATCH back) is the fix this dialog exists
     // to ship.
     schemaText: form ? JSON.stringify(form.form_schema, null, 2) : DEFAULT_SCHEMA_TEXT,
+    status: form?.status ?? 'active',
   }
 }
 
@@ -233,6 +251,7 @@ export function FormDialog({ open, onOpenChange, form }: Props) {
     if (current.schemaText !== JSON.stringify(existing.form_schema, null, 2)) {
       patch.form_schema = schema
     }
+    if (current.status !== existing.status) patch.status = requireFormStatus(current.status)
     return patch
   }
 
@@ -417,22 +436,42 @@ export function FormDialog({ open, onOpenChange, form }: Props) {
           )}
         </div>
 
-        <DialogFooter>
-          <Button
-            variant="outline"
-            disabled={saving}
-            onClick={() => onOpenChange(false)}
-            data-automation-id="FormDialog-cancel"
-          >
-            Cancel
-          </Button>
-          <Button
-            disabled={saving}
-            onClick={() => void save()}
-            data-automation-id="FormDialog-submit"
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </Button>
+        <DialogFooter className={form !== null ? 'sm:justify-between' : undefined}>
+          {/* Archiving replaces delete (apps/process/api.py: "there is
+              deliberately no DELETE route on forms"), so this is the only
+              archive control there is — create mode has no existing row to
+              archive, and the create endpoint has no status field. */}
+          {form !== null && (
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-300"
+                checked={drafts.status === 'archived'}
+                onChange={(event) =>
+                  setDraft('status', event.target.checked ? 'archived' : 'active')
+                }
+                data-automation-id="FormDialog-archived"
+              />
+              <span className="text-slate-700">Archived</span>
+            </label>
+          )}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              disabled={saving}
+              onClick={() => onOpenChange(false)}
+              data-automation-id="FormDialog-cancel"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={saving}
+              onClick={() => void save()}
+              data-automation-id="FormDialog-submit"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
