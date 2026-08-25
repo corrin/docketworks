@@ -319,3 +319,23 @@ dedicated append-only record (`Acknowledgement`): a self-only "I have read
 this" receipt per staff member per form, never an inference over
 `ProcessEvent`. Design doc:
 `docs/superpowers/specs/2026-08-25-process-documents-design.md`.
+
+**The real production procedures verified through the slice's seams,
+2026-08-26.** With the production service-account key
+(`gcp-credentials-prod.json`, gitignored in the repo root), the outbound-link
+probe asked Drive for every one of the 54 restored `Procedure.google_doc_id`
+rows — first as the raw production service account, then delegated as the
+real Workspace user (`--google-as delegated` with `GCP_DELEGATED_SUBJECT`,
+since the scrubbed dev `company_email` is a placeholder). Both identities
+agree: 46 docs answer, 8 are broken, and the delegated run also proved the
+three gdocs-manifest docs a service-account run cannot see. The restore and
+category backfill hold on real data — 54 rows, zero NULL categories
+(43 safety, 9 reference, 1 training, 1 jsa) — and the scrubber's
+titles-are-metadata policy is confirmed intact (`site_location` is the one
+anonymised field). The 8 broken rows are production data rot, not a code
+defect: Doc.363 Milling Machine SOP is **trashed** (restorable from Drive
+trash), and seven H&S admin docs are gone even to the Workspace owner —
+Health & Safety Annual Tasks Ongoing 2017, MSM Health & Safety Annual Plan,
+Maintenance Inspection Procedures v2, MSM Health and Safety Statement, MSM
+Health and Safety Policy, MSM Health Safety System - latest, MSM Health
+Safety Document List. The fix task is in `rewrite-status.md`.

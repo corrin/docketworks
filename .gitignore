@@ -16,6 +16,9 @@ logs/
 node_modules/
 frontend/dist/
 # Dev private-config fixtures hold real credentials; commit the .example files only.
+# The production Google service-account key sits in the repo root when a
+# validation run needs it (outbound-link probe against real Drive docs).
+gcp-credentials*.json
 apps/xero/fixtures/xero_apps.json
 apps/ai/fixtures/ai_providers.json
 apps/core/fixtures/integration_settings.json

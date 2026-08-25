@@ -352,6 +352,14 @@ rather than anywhere else. This file is finished when it is empty.
   calling `geocoding_service` against Address Validation; the outbound-link
   probe skips `v1:validateAddress` because it is POST-only, so only that test
   proves the endpoint exists.
+- **Eight production `Procedure` rows link dead Google Docs** (probe run
+  2026-08-26 with the production key; the row list is in `rewrite-history.md`).
+  Untrash Doc.363 Milling Machine SOP from Drive trash before its 30-day
+  purge. The other seven are invisible even to the Workspace owner; the owner
+  arbitrates restore-from-backup vs archive per doc, then the surviving rows
+  are relinked or archived on the production instance — a data fix, never a
+  read-side fallback (ADR 0015). Re-verify with
+  `outbound_links_probe --kind google_file --google-as delegated`.
 - **Read-side fallback cleanup** ([KAN-338](https://docketworks.atlassian.net/browse/KAN-338)).
   ~40 reads of our own JSON shapes violate ADR 0015/0028/0045, concentrated in
   JSONField payloads mypy cannot see into. The `is_billable` divergence between
