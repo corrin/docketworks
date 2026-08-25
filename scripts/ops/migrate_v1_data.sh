@@ -153,6 +153,18 @@ DB_NAME="$V2_DB" uv run python manage.py migrate core 0003 --no-input
 # archive copy was skipped.
 DB_NAME="$V2_DB" uv run python manage.py migrate crm 0002 --no-input
 DB_NAME="$V2_DB" uv run python manage.py migrate crm 0003 --no-input
+# process/0007 backfills FormEntry.updated_at (0006 makes the column
+# nullable so pg_restore's COPY, which supplies no value for a column v1's
+# table never had, does not violate NOT NULL). This pair must run BEFORE the
+# process 0002/0003 rewind below: that rewind reverses every process
+# migration after 0003, including 0006's null=True, and reversing 0006 while
+# a restored row still has a NULL updated_at would violate the column's own
+# NOT NULL constraint. Running the backfill first empties that NULL set, so
+# the later rewind's reversal of 0006 (and the final catch-all's reapply of
+# it) both succeed. Reverse is a no-op, so replaying it here is the same
+# tested code against the rows that now exist.
+DB_NAME="$V2_DB" uv run python manage.py migrate process 0006 --no-input
+DB_NAME="$V2_DB" uv run python manage.py migrate process 0007 --no-input
 # process/0003 derives each document's stored category from its v1 tags. The
 # rows it fixes arrive with the restore; its reverse is a no-op, so replaying
 # it here is the same tested code against the rows that now exist.

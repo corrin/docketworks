@@ -89,7 +89,14 @@ class FormEntry(models.Model):
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+
+    # Fable: null=True at the database, matching Form.category — the v1 data
+    # restore is data-only into this schema and v1's formentry table predates
+    # this column, so pg_restore's COPY supplies no value for it and auto_now
+    # (a Python-side default) never runs during a raw restore. The backfill
+    # migration (0007) reruns after the restore and every save() sets this via
+    # auto_now, so NULL never survives past provisioning.
+    updated_at = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         ordering: ClassVar = ["-entry_date", "-created_at"]

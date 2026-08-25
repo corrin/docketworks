@@ -20,8 +20,8 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-ignore | 0 |
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
-| oxlint-disable | 7 |
-| TOTAL suppressions | 685 |
+| oxlint-disable | 9 |
+| TOTAL suppressions | 687 |
 | noqa: DJ001 | 161 |
 | noqa: PLC0415 | 128 |
 | noqa: E402 | 105 |
@@ -69,7 +69,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 235 |
+| in comments | 238 |
 | in docstrings | 381 |
 
 ## Exception handling

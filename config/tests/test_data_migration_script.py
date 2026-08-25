@@ -76,6 +76,11 @@ DATA_MIGRATIONS_RERUN_AFTER_RESTORE = {
     # Derives the stored category from v1 tags; the rows it fixes arrive with
     # the restore, so the empty-database run finds none.
     ("process", "0003_backfill_categories"),
+    # v1's formentry table predates updated_at (process/0002 added it with
+    # auto_now=True, a Python-side default pg_restore's COPY never invokes),
+    # so the restored rows land with updated_at NULL. The rows it fixes
+    # arrive with the restore, so the empty-database run finds none.
+    ("process", "0007_backfill_form_entry_updated_at"),
 }
 
 
