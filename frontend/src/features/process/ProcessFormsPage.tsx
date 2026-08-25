@@ -9,6 +9,7 @@ import {
   processFormsEntriesCreateMutation,
   processFormsEntriesListQueryKey,
   processFormsListOptions,
+  processFormsListQueryKey,
   processStaffOptionsListOptions,
   type FormOut,
 } from '@/api'
@@ -66,6 +67,10 @@ export function ProcessFormsPage({ category }: { category: string }) {
         queryKey: processFormsEntriesListQueryKey({ path: { form_id: form.id } }),
       })
       await queryClient.invalidateQueries({ queryKey: processEntriesListQueryKey() })
+      // Bare, prefix-match: the forms list's entry_count annotation is now
+      // stale for this row too, regardless of which category/status/search
+      // variant is currently mounted.
+      await queryClient.invalidateQueries({ queryKey: processFormsListQueryKey() })
       toast.success('Entry saved')
       setFilling(null)
     } catch (error) {

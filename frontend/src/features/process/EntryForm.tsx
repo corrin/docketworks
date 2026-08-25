@@ -361,20 +361,37 @@ export function EntryForm({
         </label>
         <div className="flex flex-col gap-1 text-sm font-medium md:col-span-2">
           <span className="text-slate-700">Job (optional)</span>
-          <div className="rounded-md border border-slate-200">
-            <JobPicker
-              automationIdPrefix={`${automationIdPrefix}-job`}
-              ariaLabel="Linked job"
-              jobs={jobs}
-              selected={selectedJob}
-              disabled={disabled}
-              loading={jobsQuery.isPending}
-              placeholder="No job linked"
-              triggerLabel={(job) => (job === null ? '' : `#${job.job_number} - ${job.name}`)}
-              typedSearchLimit={null}
-              commitOnTab={false}
-              onSelect={(job) => setJobId(job.id)}
-            />
+          <div className="flex items-center gap-2">
+            <div className="flex-1 rounded-md border border-slate-200">
+              <JobPicker
+                automationIdPrefix={`${automationIdPrefix}-job`}
+                ariaLabel="Linked job"
+                jobs={jobs}
+                selected={selectedJob}
+                disabled={disabled}
+                loading={jobsQuery.isPending}
+                placeholder="No job linked"
+                triggerLabel={(job) => (job === null ? '' : `#${job.job_number} - ${job.name}`)}
+                typedSearchLimit={null}
+                commitOnTab={false}
+                onSelect={(job) => setJobId(job.id)}
+              />
+            </div>
+            {/* JobPicker's onSelect only hands back a chosen job, never null —
+                there is no way to clear the link from inside the picker
+                itself, so a plain secondary button submits job: null. */}
+            {selectedJob !== null && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={disabled}
+                onClick={() => setJobId(null)}
+                data-automation-id={`${automationIdPrefix}-job-clear`}
+              >
+                Clear
+              </Button>
+            )}
           </div>
         </div>
       </div>

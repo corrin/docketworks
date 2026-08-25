@@ -33,7 +33,7 @@ import { extractFields, isFormSchemaSpec } from './formSchema'
 const CATEGORY_VALUES = ['safety', 'training', 'incident', 'meeting', 'register'] as const
 type Category = (typeof CATEGORY_VALUES)[number]
 
-function isCategory(value: string): value is Category {
+export function isCategory(value: string): value is Category {
   return (CATEGORY_VALUES as readonly string[]).includes(value)
 }
 

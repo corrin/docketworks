@@ -157,6 +157,49 @@ describe('ProcessFormsPage', () => {
     expect(bodies[0]).toMatchObject({ data: { notes: 'All clear' } })
   })
 
+  it('Fill success invalidates the forms list so entry_count refreshes', async () => {
+    let listCalls = 0
+    server.use(
+      http.get(LIST, () => {
+        listCalls += 1
+        // Second (post-invalidation) call reports the bumped count.
+        return HttpResponse.json([formRow({ entry_count: listCalls === 1 ? 4 : 5 })])
+      }),
+      http.post('*/api/process/forms/:formId/entries/', () =>
+        HttpResponse.json(
+          {
+            id: 'e1111111-1111-1111-1111-111111111111',
+            form: '11111111-1111-1111-1111-111111111111',
+            entry_date: '2026-01-10',
+            staff: null,
+            staff_name: null,
+            entered_by: '11111111-1111-1111-1111-111111111111',
+            entered_by_name: 'Some One',
+            job: null,
+            parent_entry: null,
+            child_count: 0,
+            data: { notes: 'All clear' },
+            display_data: {},
+            is_active: true,
+            created_at: '2026-01-10T00:00:00Z',
+            updated_at: '2026-01-10T00:00:00Z',
+          },
+          { status: 201 },
+        ),
+      ),
+    )
+    const { user } = await renderPage()
+    const row = autoId('ProcessFormsPage-row-11111111-1111-1111-1111-111111111111')
+    expect(row).toHaveTextContent('4')
+
+    await user.click(autoId('ProcessFormsPage-fill-11111111-1111-1111-1111-111111111111'))
+    await waitFor(() => expect(queryAutoId('EntryForm-field-notes')).not.toBeNull())
+    await user.type(autoId('EntryForm-field-notes'), 'All clear')
+    await user.click(autoId('EntryForm-submit'))
+
+    await waitFor(() => expect(row).toHaveTextContent('5'))
+  })
+
   it('Fill shows the no-schema message for a form with no fields', async () => {
     server.use(http.get(LIST, () => HttpResponse.json([formRow({ form_schema: { fields: [] } })])))
     const { user } = await renderPage()

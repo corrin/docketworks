@@ -55,8 +55,16 @@ function entryRow(overrides: Partial<EntryOut> = {}): EntryOut {
   }
 }
 
-function mockJobs(): void {
-  server.use(http.get(ALL_JOBS, () => HttpResponse.json({ success: true, jobs: [] })))
+const JOB_ROW = {
+  id: 'job-1',
+  job_number: 1001,
+  name: 'Widget repair',
+  status: 'in_progress',
+  company_name: 'Acme Co',
+}
+
+function mockJobs(jobs: unknown[] = []): void {
+  server.use(http.get(ALL_JOBS, () => HttpResponse.json({ success: true, jobs })))
   // The status vocabulary JobPicker reads on mount; not what any test here asserts.
   server.use(
     http.get('*/api/job/jobs/status-choices/', () =>
@@ -211,6 +219,26 @@ describe('EntryForm', () => {
     expect(autoId('EntryForm-entry-date')).toBeDisabled()
     expect(autoId('EntryForm-staff')).toBeDisabled()
     expect(autoId('EntryForm-submit')).toBeDisabled()
+  })
+
+  it('clears a linked job and submits job: null', async () => {
+    mockJobs([JOB_ROW])
+    const onSubmit = vi.fn()
+    const { user } = renderForm({
+      onSubmit,
+      schema: [],
+      initial: { job: 'job-1' },
+    })
+    await waitFor(() => expect(autoId('EntryForm-job-trigger')).toHaveTextContent('1001'))
+    expect(autoId('EntryForm-job-clear')).toBeInTheDocument()
+
+    await user.click(autoId('EntryForm-job-clear'))
+    await waitFor(() => expect(queryAutoId('EntryForm-job-clear')).toBeNull())
+
+    await user.click(autoId('EntryForm-submit'))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ job: null }))
   })
 
   it('scopes every id under a distinct automationIdPrefix so two instances never collide', async () => {
