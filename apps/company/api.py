@@ -14,13 +14,11 @@ paths below carry their own full prefixes.
 """
 
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.core.paginator import InvalidPage, Paginator
 from django.db import IntegrityError, transaction
-from django.db.models import Model, QuerySet
 from django.http import Http404, HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Query, Router
@@ -122,6 +120,7 @@ from apps.company.services.person_service import (
 )
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
 from apps.core.errors import persist_app_error
+from apps.core.pagination import MAX_PAGE_SIZE, paginate
 
 logger = logging.getLogger(__name__)
 
@@ -135,50 +134,6 @@ router = Router()
 
 auth = CookieJWTAuth()
 office_auth = OfficeStaffCookieJWTAuth()
-
-
-# ── Pagination (v1 PageSizePagination wire contract) ─────────────────────
-
-DEFAULT_PAGE_SIZE = 50
-MAX_PAGE_SIZE = 100
-
-
-@dataclass(frozen=True, slots=True)
-class PageData[M: Model]:
-    """One page of rows plus the v1 pagination envelope numbers."""
-
-    rows: list[M]
-    count: int
-    page: int
-    page_size: int
-    total_pages: int
-
-
-def paginate[M: Model](queryset: QuerySet[M], *, page: int, page_size: int | None) -> PageData[M]:
-    """Slice ``queryset`` DRF-style; raise Http404 for an out-of-range page.
-
-    Envelope: ``{"results", "count", "page", "page_size", "total_pages"}``
-    with a default page size of 50 and a ``page_size`` query param capped at
-    100 (v1 ``PageSizePagination``). Lives here because the company app is
-    currently its only consumer; hoist to ``apps/core`` when a second domain
-    app pages a list.
-    """
-    if page_size is None or page_size <= 0:
-        effective_size = DEFAULT_PAGE_SIZE
-    else:
-        effective_size = min(page_size, MAX_PAGE_SIZE)
-    paginator = Paginator(queryset, effective_size)
-    try:
-        page_obj = paginator.page(page)
-    except InvalidPage as exc:
-        raise Http404(f"Invalid page ({page}): {exc}") from exc
-    return PageData(
-        rows=list(page_obj.object_list),
-        count=paginator.count,
-        page=page_obj.number,
-        page_size=effective_size,
-        total_pages=paginator.num_pages,
-    )
 
 
 def validation_message(exc: Exception) -> str:
