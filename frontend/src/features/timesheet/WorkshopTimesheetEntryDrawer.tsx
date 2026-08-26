@@ -153,7 +153,10 @@ export function WorkshopTimesheetEntryDrawer({
     <Drawer
       open={open}
       onOpenChange={(nowOpen) => {
-        if (!nowOpen) onClose()
+        // Dismissal is blocked while a write is pending: closing this drawer
+        // and opening another entry's would let the first write's completion
+        // close the second drawer.
+        if (!nowOpen && !saving) onClose()
       }}
     >
       <DrawerContent className="max-h-[90vh]">
@@ -276,6 +279,7 @@ export function WorkshopTimesheetEntryDrawer({
               </Button>
               <Button
                 variant="outline"
+                disabled={saving}
                 data-automation-id="WorkshopTimesheetEntryDrawer-cancel"
                 onClick={onClose}
               >

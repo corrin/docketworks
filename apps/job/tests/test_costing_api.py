@@ -205,17 +205,18 @@ class TestCostLineCreate:
         shape is enforceable.
         """
         workshop = LabourSubtype.default_workshop()
-        response = client.post(
-            f"/api/job/jobs/{job.id}/cost_sets/estimate/cost_lines/",
-            data=self._payload(
-                kind="time",
-                labour_subtype=str(workshop.id),
-                meta={"start_time": "morning"},
-            ),
-            content_type="application/json",
-        )
-        assert response.status_code == 400
-        assert "start_time" in response.json()["detail"]
+        for bad_time in ("morning", "25:00:00", "08:61:00"):
+            response = client.post(
+                f"/api/job/jobs/{job.id}/cost_sets/estimate/cost_lines/",
+                data=self._payload(
+                    kind="time",
+                    labour_subtype=str(workshop.id),
+                    meta={"start_time": bad_time},
+                ),
+                content_type="application/json",
+            )
+            assert response.status_code == 400, bad_time
+            assert "start_time" in response.json()["detail"]
 
     def test_time_line_with_labour_subtype_created(self, client: Client, job: Job) -> None:
         workshop = LabourSubtype.default_workshop()

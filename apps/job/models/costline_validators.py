@@ -19,7 +19,7 @@ BOOLEAN_OR_NULL = {"type": ["boolean", "null"]}
 # applies "pattern" to strings only, so null still passes.
 CLOCK_TIME_OR_NULL = {
     "type": ["string", "null"],
-    "pattern": r"^\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?$",
+    "pattern": r"^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d{1,6})?)?$",
 }
 
 
