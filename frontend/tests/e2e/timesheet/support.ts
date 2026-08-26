@@ -18,6 +18,14 @@ export function getLatestWeekdayDate(): string {
   return `${now.getFullYear()}-${month}-${date}`
 }
 
+/** The freshly created job's number, read off the job view header. */
+export async function readJobNumber(page: Page): Promise<number> {
+  const text = await autoId(page, 'JobView-job-number').first().innerText()
+  const match = /#(\d+)/.exec(text)
+  if (!match) throw new Error(`Job number not found in header text: ${text}`)
+  return Number(match[1])
+}
+
 /** Daily page → click the first staff row → land on the entry page. */
 export async function openEntryViaDaily(page: Page, date: string): Promise<void> {
   await page.goto(`/timesheets/daily?date=${date}`)

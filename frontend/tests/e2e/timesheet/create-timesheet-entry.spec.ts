@@ -1,8 +1,12 @@
-import type { Page } from '@playwright/test'
-
 import { test, expect } from '../fixtures/auth'
 import { autoId, createTestJob, getPhantomRowIndex } from '../helpers'
-import { enterHours, getLatestWeekdayDate, openEntryViaDaily, selectJobByNumber } from './support'
+import {
+  enterHours,
+  getLatestWeekdayDate,
+  openEntryViaDaily,
+  readJobNumber,
+  selectJobByNumber,
+} from './support'
 
 /**
  * Timesheet entry operations end to end: create an entry against a fresh
@@ -15,13 +19,6 @@ import { enterHours, getLatestWeekdayDate, openEntryViaDaily, selectJobByNumber 
  *   payItem span after the row is SAVED (the span resolves the server-picked
  *   pay item; drafts render it empty).
  */
-
-async function readJobNumber(page: Page): Promise<number> {
-  const text = await autoId(page, 'JobView-job-number').first().innerText()
-  const match = /#(\d+)/.exec(text)
-  if (!match) throw new Error(`Job number not found in header text: ${text}`)
-  return Number(match[1])
-}
 
 test.describe.serial('timesheet entry operations', () => {
   let jobUrl = ''

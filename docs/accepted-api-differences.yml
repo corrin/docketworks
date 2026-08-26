@@ -1220,3 +1220,32 @@
     v2 wraps both entry endpoints in the same {results, count, page,
     page_size, total_pages} envelope apps/core's paginate() already
     produces elsewhere, rather than adding a fourth ad hoc paging shape.
+
+- operation: job_workshop_timesheets_create / job_workshop_timesheets_partial_update
+  change: "A start/end pair must agree with itself and with hours (400); v1 accepted any trio"
+  reason: >
+    The wire carries start_time, end_time and hours as three independent
+    fields, and v1 accepted "08:00-09:00, 8 hours" (and end-before-start), so
+    payroll cost could silently disagree with the calendar block. v2 refuses
+    end-at-or-before-start and an hours value more than 0.01 from the pair's
+    duration; a PATCH is validated on the merged entry, and clearing a time
+    lifts the requirement. The my-time drawer never offers an hours field —
+    it derives hours from the pair.
+
+- operation: timesheets_jobs_retrieve
+  change: "Self-service (any authenticated staff); v1 gated it superuser-only"
+  reason: >
+    It is the job picker behind the workshop my-time page, which exists for
+    ordinary workshop staff — v1's gate 403'd that page's picker for its own
+    audience. The payload carries charge-out rates, never wages, so the
+    wage-exposure rule that keeps the management reads superuser-only does
+    not apply.
+
+- operation: (workshop my-time page)
+  change: "Over-budget red event colouring dropped"
+  reason: >
+    v1 computed overBudget per job via one job-summary fetch per selected job,
+    then its own main.css forced every calendar event to sky-blue with
+    !important — the red state could never render. v2 does not reproduce the
+    feature or its N-per-day fetches; budget visibility belongs to the job
+    screens.
