@@ -129,6 +129,32 @@ def _meta_time(meta: dict[str, object], key: str) -> time | None:
     return time.fromisoformat(value)
 
 
+# Not exact equality: clients derive hours from the minute-grained time pair
+# and round to two decimals, so a 20-minute booking is 0.33 hours against a
+# 0.3333… duration.
+_TIME_AGREEMENT_TOLERANCE = Decimal("0.01")
+
+
+def _validate_time_consistency(start: time | None, end: time | None, hours: Decimal) -> None:
+    """Refuse a start/end pair that disagrees with itself or with ``hours``.
+
+    The wire carries all three fields, so without this a caller can book
+    "08:00-09:00, 8 hours" and payroll cost silently disagrees with the
+    calendar block. A single missing time carries no duration and is exempt.
+    """
+    if start is None or end is None:
+        return
+    if end <= start:
+        raise ValueError("end_time must be after start_time.")
+    elapsed = datetime.combine(date.min, end) - datetime.combine(date.min, start)
+    duration = Decimal(elapsed.total_seconds()) / Decimal(3600)
+    if abs(duration - hours) > _TIME_AGREEMENT_TOLERANCE:
+        raise ValueError(
+            f"hours ({hours}) must match the start_time-end_time duration "
+            f"({duration.quantize(Decimal('0.01'))})."
+        )
+
+
 def _meta_multiplier(meta: dict[str, object], key: str, default: Decimal) -> Decimal:
     """Read a multiplier out of ``meta``; unset falls back to ``default``.
 
@@ -327,6 +353,7 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
     """Create a time line for the authenticated staff member."""
     job = Job.objects.select_related("company", "default_xero_pay_item").get(id=data["job_id"])
     wage_rate_multiplier = data.get("wage_rate_multiplier", Decimal("1.0"))
+    _validate_time_consistency(data.get("start_time"), data.get("end_time"), data["hours"])
 
     with transaction.atomic():
         cost_set = get_or_create_cost_set(job, "actual")
@@ -464,6 +491,12 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
 
         if not changed:
             raise ValueError("No changes supplied.")
+
+        # Validated on the merged entry, not the patch alone: a PATCH that moves
+        # one time (or hours) can break agreement with the stored other half.
+        _validate_time_consistency(
+            _meta_time(meta, "start_time"), _meta_time(meta, "end_time"), line.quantity
+        )
 
         line.meta = meta
         line.save()
