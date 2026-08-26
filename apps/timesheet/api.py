@@ -218,7 +218,11 @@ def job_timesheet_entries_retrieve(
 
 @router.get(
     "/timesheets/jobs/",
-    auth=manage_auth,
+    # Self-service, not manage: this is the picker behind the workshop
+    # "my time" page, so any staff member booking their own time reads it.
+    # Its payload carries charge-out rates, never wages, so the
+    # wage-exposure rule gating the management reads does not apply.
+    auth=self_service_auth,
     operation_id="timesheets_jobs_retrieve",
     response=JobsListResponse,
     summary="Get list of active jobs for timesheet entries using CostSet system",

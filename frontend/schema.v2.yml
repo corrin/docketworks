@@ -20078,7 +20078,7 @@ paths:
                 $ref: '#/components/schemas/JobsListResponse'
           description: OK
       security:
-      - SuperuserCookieJWTAuth: []
+      - CookieJWTAuth: []
       summary: Get list of active jobs for timesheet entries using CostSet system
       tags:
       - timesheets
