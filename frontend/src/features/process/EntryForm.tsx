@@ -275,11 +275,10 @@ export function EntryForm({
   // one general, company-unscoped job list already wired to the shared
   // JobPicker, unlike purchasing's own usePoJobSearch background search
   // (a PO-specific `q` reach into archived jobs this simpler picker skips).
-  // NOT timesheetsJobsRetrieveOptions: that endpoint is
-  // SuperuserCookieJWTAuth-gated (apps/timesheet/api.py:219-221,
-  // `manage_auth`), the same reason staff-options got its own any-staff
-  // endpoint — purchasingAllJobsRetrieveOptions is CookieJWTAuth, reachable
-  // by whichever staff member is filling this form.
+  // NOT timesheetsJobsRetrieveOptions: although the my-time slice made that
+  // endpoint self-service too, its payload is time-entry pricing (labour
+  // rates, pay items, shop_job) this form never reads — the plain list is
+  // the narrower fit.
   const jobsQuery = useQuery(purchasingAllJobsRetrieveOptions())
   const jobs = jobsQuery.data?.jobs ?? []
   const selectedJob: JobPickerOption | null = jobs.find((job) => job.id === jobId) ?? null

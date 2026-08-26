@@ -19,9 +19,11 @@ function report(error: unknown, fallback: string): void {
  * One staff member's own day on the workshop calendar: the day query plus the
  * three self-service writes. Server state lives in the TanStack cache only.
  *
- * Writes settle before the UI moves on (the drawer stays open on failure), so
- * these are plain await-then-invalidate — no optimistic layer. Every failure
- * toasts: the E2E console guard fails a spec on an unhandled console.error.
+ * Fable: Writes settle before the UI moves on (the drawer stays open on
+ * failure), so these are plain await-then-invalidate — the optimistic layer
+ * useTimesheetEntries carries exists for a grid whose focus keeps moving,
+ * which a modal drawer does not have. Every failure toasts: the E2E console
+ * guard fails a spec on an unhandled console.error.
  */
 export function useWorkshopDay(date: string) {
   const queryClient = useQueryClient()
@@ -33,9 +35,9 @@ export function useWorkshopDay(date: string) {
   const updateMutation = useMutation(jobWorkshopTimesheetsPartialUpdateMutation())
   const deleteMutation = useMutation(jobWorkshopTimesheetsDestroyMutation())
 
-  // Entries carry an accounting_date, so a write can move one off this day —
-  // every settle invalidates the whole surface (the optionless key partially
-  // matches every date's key) rather than only this day's.
+  // Fable: Entries carry an accounting_date, so a write can move one off this
+  // day — every settle invalidates the whole surface (the optionless key
+  // partially matches every date's key) rather than only this day's.
   const invalidateDays = () =>
     void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
 

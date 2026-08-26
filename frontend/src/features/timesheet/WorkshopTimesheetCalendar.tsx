@@ -43,8 +43,9 @@ export function WorkshopTimesheetCalendar({
       data-automation-id="WorkshopTimesheetCalendar"
     >
       <FullCalendar
-        // Remounting per day is the supported way to change initialDate; a
-        // one-day time grid is cheap to rebuild and needs no imperative API.
+        // Fable: Remounting per day rather than driving gotoDate through a
+        // ref — a one-day time grid is cheap to rebuild, and the imperative
+        // API is the only alternative FullCalendar offers for initialDate.
         key={date}
         plugins={[timeGridPlugin, interactionPlugin]}
         initialView="timeGridDay"

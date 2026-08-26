@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { timesheetsJobsRetrieveOptions } from '@/api'
@@ -20,7 +20,7 @@ import {
 import { JobPicker } from '@/features/shared/JobPicker'
 
 import { formatHoursDisplay } from './hours'
-import { deriveHoursFromTimes } from './myTime'
+import { deriveHoursFromTimes, entryUpdateBody } from './myTime'
 import { useTimesheetJobSearch } from './useTimesheetJobSearch'
 
 export type EntryDrawerState =
@@ -47,10 +47,11 @@ function inputTime(value: string | null): string {
 /**
  * Add/edit drawer for one workshop entry: job, start/end time, description.
  *
- * Hours are always derived from the time pair (the server refuses a trio
- * that disagrees), so the drawer shows the duration instead of asking for
- * it, and a shop job books non-billable because billable shop time is
- * refused at the model.
+ * Fable: Hours are always derived from the time pair (the server refuses a
+ * trio that disagrees), so the drawer shows the duration instead of asking
+ * for it. Billability follows the job type on create and on any job move —
+ * billable shop time is refused at the model. An entry with no stored times
+ * may be edited without imposing a pair; its hours then stay untouched.
  */
 export function WorkshopTimesheetEntryDrawer({
   state,
@@ -93,38 +94,59 @@ export function WorkshopTimesheetEntryDrawer({
   const selected = jobs.find((job) => job.id === jobId) ?? null
 
   const hours = deriveHoursFromTimes(start, end)
-  const canSubmit = jobId !== null && hours !== null && !saving
+  // An entry that has no stored times may be saved without a pair — that is
+  // the description/job-only edit; entryUpdateBody then leaves hours and
+  // times untouched. Creation always needs the pair.
+  const untimedEdit =
+    entry !== null &&
+    entry.start_time === null &&
+    entry.end_time === null &&
+    start === '' &&
+    end === ''
+  const canSubmit = jobId !== null && !saving && (hours !== null || untimedEdit)
+
+  // A ref, not mutation isPending: the disabled state lands on the next
+  // render, so a double-click could otherwise book the entry twice.
+  const inFlightRef = useRef(false)
 
   const submit = async () => {
-    if (jobId === null || hours === null) return
+    if (jobId === null || inFlightRef.current) return
+    if (hours === null && !untimedEdit) return
+    inFlightRef.current = true
     let saved: boolean
-    if (entry === null) {
-      saved = await onCreate({
-        job_id: jobId,
-        accounting_date: date,
-        hours,
-        start_time: `${start}:00`,
-        end_time: `${end}:00`,
-        description: description.trim() === '' ? null : description.trim(),
-        is_billable: !shopJob,
-      })
-    } else {
-      saved = await onUpdate({
-        entry_id: entry.id,
-        // The job field is only a move when it actually changed.
-        ...(jobId === entry.job_id ? {} : { job_id: jobId }),
-        hours,
-        start_time: `${start}:00`,
-        end_time: `${end}:00`,
-        description: description.trim() === '' ? null : description.trim(),
-      })
+    try {
+      if (entry === null) {
+        if (hours === null) return
+        saved = await onCreate({
+          job_id: jobId,
+          accounting_date: date,
+          hours,
+          start_time: `${start}:00`,
+          end_time: `${end}:00`,
+          description: description.trim() === '' ? null : description.trim(),
+          is_billable: !shopJob,
+        })
+      } else {
+        saved = await onUpdate(
+          entryUpdateBody(entry, { jobId, shopJob, start, end, hours, description }),
+        )
+      }
+    } finally {
+      inFlightRef.current = false
     }
     if (saved) onClose()
   }
 
   const remove = async () => {
-    if (entry === null) return
-    if (await onDelete(entry.id)) onClose()
+    if (entry === null || inFlightRef.current) return
+    inFlightRef.current = true
+    let deleted: boolean
+    try {
+      deleted = await onDelete(entry.id)
+    } finally {
+      inFlightRef.current = false
+    }
+    if (deleted) onClose()
   }
 
   return (
@@ -216,9 +238,11 @@ export function WorkshopTimesheetEntryDrawer({
               className="text-sm text-gray-500"
               data-automation-id="WorkshopTimesheetEntryDrawer-duration"
             >
-              {hours === null
-                ? 'Pick a start and an end time.'
-                : `Duration: ${formatHoursDisplay(hours)}`}
+              {hours !== null && `Duration: ${formatHoursDisplay(hours)}`}
+              {hours === null &&
+                (entry !== null && untimedEdit
+                  ? `No times recorded — ${formatHoursDisplay(entry.hours)} stays as booked. Add a pair to place it on the calendar.`
+                  : 'Pick a start and an end time.')}
             </p>
 
             <div>

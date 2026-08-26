@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest'
 
 import type { WorkshopTimesheetEntryOut } from '@/api'
 
-import { calendarEvent, deriveHoursFromTimes, eventTitle, splitDayEntries } from './myTime'
+import {
+  calendarEvent,
+  deriveHoursFromTimes,
+  entryUpdateBody,
+  eventTitle,
+  jobChangeFields,
+  splitDayEntries,
+} from './myTime'
 
 function makeEntry(overrides: Partial<WorkshopTimesheetEntryOut> = {}): WorkshopTimesheetEntryOut {
   return {
@@ -61,6 +68,67 @@ describe('splitDayEntries', () => {
 describe('eventTitle', () => {
   it('carries the job number, name, and humanised duration', () => {
     expect(eventTitle(makeEntry())).toBe('#42 Handrail (2h 30m)')
+  })
+})
+
+describe('jobChangeFields', () => {
+  it('is empty when the job did not change', () => {
+    expect(jobChangeFields(makeEntry(), 'j1', false)).toEqual({})
+  })
+
+  it('moving to a normal job re-bills the entry', () => {
+    expect(jobChangeFields(makeEntry({ is_billable: false }), 'j2', false)).toEqual({
+      job_id: 'j2',
+      is_billable: true,
+    })
+  })
+
+  it('moving to a shop job books it non-billable', () => {
+    expect(jobChangeFields(makeEntry(), 'j2', true)).toEqual({
+      job_id: 'j2',
+      is_billable: false,
+    })
+  })
+})
+
+describe('entryUpdateBody', () => {
+  const form = {
+    jobId: 'j1',
+    shopJob: false,
+    start: '08:00',
+    end: '09:30',
+    hours: 1.5,
+    description: 'Welding',
+  }
+
+  it('carries the pair, derived hours, and description', () => {
+    expect(entryUpdateBody(makeEntry(), form)).toEqual({
+      entry_id: 'e1',
+      hours: 1.5,
+      start_time: '08:00:00',
+      end_time: '09:30:00',
+      description: 'Welding',
+    })
+  })
+
+  it('leaves times and hours alone on an untimed entry edited without them', () => {
+    const untimed = makeEntry({ start_time: null, end_time: null })
+
+    expect(entryUpdateBody(untimed, { ...form, start: '', end: '', hours: null })).toEqual({
+      entry_id: 'e1',
+      description: 'Welding',
+    })
+  })
+
+  it('folds in the job-change fields when the job moved', () => {
+    const body = entryUpdateBody(makeEntry(), { ...form, jobId: 'j2', shopJob: true })
+
+    expect(body.job_id).toBe('j2')
+    expect(body.is_billable).toBe(false)
+  })
+
+  it('sends null to clear a blank description', () => {
+    expect(entryUpdateBody(makeEntry(), { ...form, description: '  ' }).description).toBeNull()
   })
 })
 

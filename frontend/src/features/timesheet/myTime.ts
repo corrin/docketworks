@@ -7,7 +7,7 @@
  * field for the user to contradict.
  */
 
-import type { WorkshopTimesheetEntryOut } from '@/api'
+import type { WorkshopTimesheetEntryOut, WorkshopTimesheetEntryUpdateRequest } from '@/api'
 
 import { formatHoursDisplay } from './hours'
 
@@ -61,6 +61,58 @@ export function splitDayEntries(entries: WorkshopTimesheetEntryOut[]): DayEntrie
   return {
     timed: entries.filter(isTimed),
     untimed: entries.filter((entry) => !isTimed(entry)),
+  }
+}
+
+/**
+ * The PATCH fields a job repick contributes. Billability follows the job
+ * type on any move — the same rule creation applies — because a billable
+ * entry landing on a shop job is refused at the model, and a shop entry
+ * landing on a normal job would otherwise keep earning zero revenue.
+ */
+export function jobChangeFields(
+  entry: WorkshopTimesheetEntryOut,
+  jobId: string,
+  shopJob: boolean,
+): { job_id?: string; is_billable?: boolean } {
+  if (jobId === entry.job_id) return {}
+  return { job_id: jobId, is_billable: !shopJob }
+}
+
+/** What the drawer's form holds when the user submits an edit. */
+export interface EntryFormValues {
+  jobId: string
+  /** Whether the SELECTED job is a shop job (only read when the job moved). */
+  shopJob: boolean
+  start: string
+  end: string
+  /** Derived from the pair; null means both time inputs are blank. */
+  hours: number | null
+  description: string
+}
+
+/**
+ * The PATCH body for an edited entry. With no derived hours the times and
+ * hours are left untouched — that is the untimed-entry edit (description or
+ * job only), where imposing a pair would also silently replace the stored
+ * hours.
+ */
+export function entryUpdateBody(
+  entry: WorkshopTimesheetEntryOut,
+  form: EntryFormValues,
+): WorkshopTimesheetEntryUpdateRequest {
+  const trimmed = form.description.trim()
+  return {
+    entry_id: entry.id,
+    ...jobChangeFields(entry, form.jobId, form.shopJob),
+    ...(form.hours === null
+      ? {}
+      : {
+          hours: form.hours,
+          start_time: `${form.start}:00`,
+          end_time: `${form.end}:00`,
+        }),
+    description: trimmed === '' ? null : trimmed,
   }
 }
 

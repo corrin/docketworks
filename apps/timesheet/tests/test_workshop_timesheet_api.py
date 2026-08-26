@@ -502,6 +502,55 @@ class TestDelete:
         assert response.status_code == 404
 
 
+class TestLeaveManagedLines:
+    """Leave lines appear in the day but belong to the leave workflow.
+
+    They satisfy every my-time filter (kind, staff, date, meta.staff_id), so
+    without a guard a workshop staff member could edit one — desyncing
+    CostLine.quantity from LeaveDay.hours — or delete one, which LeaveDay's
+    PROTECT turns into a 500.
+    """
+
+    def _leave_line(self, job: Job, worker: Staff) -> CostLine:
+        line = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="8.000")
+        line.managed_by = "leave"
+        line.save()
+        return line
+
+    def test_leave_lines_are_listed(self, worker_client: Client, job: Job, worker: Staff) -> None:
+        line = self._leave_line(job, worker)
+
+        body = worker_client.get(f"{URL}?date={ENTRY_DATE.isoformat()}").json()
+
+        assert [entry["id"] for entry in body["entries"]] == [str(line.id)]
+
+    def test_a_leave_line_cannot_be_edited_here(
+        self, worker_client: Client, job: Job, worker: Staff
+    ) -> None:
+        line = self._leave_line(job, worker)
+
+        response = worker_client.patch(
+            URL,
+            data={"entry_id": str(line.id), "hours": "1.00"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        assert "Timesheets → Leave" in response.json()["detail"]
+        assert CostLine.objects.get(id=line.id).quantity == Decimal("8.000")
+
+    def test_a_leave_line_cannot_be_deleted_here(
+        self, worker_client: Client, job: Job, worker: Staff
+    ) -> None:
+        line = self._leave_line(job, worker)
+
+        response = worker_client.delete(f"{URL}?entry_id={line.id}")
+
+        assert response.status_code == 400
+        assert "Timesheets → Leave" in response.json()["detail"]
+        assert CostLine.objects.filter(id=line.id).exists()
+
+
 class TestEntrySequencing:
     def test_entries_are_listed_in_entry_sequence(self, worker_client: Client, job: Job) -> None:
         first = _create(worker_client, job, description="First")

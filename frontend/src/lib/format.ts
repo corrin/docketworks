@@ -49,6 +49,22 @@ export function formatDate(isoDate: string): string {
   return NZ_DATE.format(new Date(isoDate))
 }
 
+const NZ_DATE_LONG = new Intl.DateTimeFormat('en-NZ', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  // Same date-only rule as NZ_DATE: the input parses as UTC midnight.
+  timeZone: 'UTC',
+})
+
+/** The one long-form date formatter (weekday plus full month) — page-header
+    dates go through here, for the same cross-page string-equality reason as
+    formatDate. */
+export function formatDateLong(isoDate: string): string {
+  return NZ_DATE_LONG.format(new Date(isoDate))
+}
+
 /** Today as YYYY-MM-DD in the browser's timezone (UTC slicing shifts NZ dates). */
 export function localIsoDate(): string {
   const now = new Date()

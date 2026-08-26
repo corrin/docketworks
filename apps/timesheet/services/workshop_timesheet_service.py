@@ -23,7 +23,12 @@ from apps.accounts.models import Staff
 from apps.core.errors import AccessDeniedError
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.job.services.job_service import CostLineData, cost_line_data, get_or_create_cost_set
+from apps.job.services.job_service import (
+    CostLineData,
+    cost_line_data,
+    get_or_create_cost_set,
+    refuse_leave_managed,
+)
 from apps.job.services.time_entry_rates import (
     ZERO_MULTIPLIER,
     normalize_multiplier,
@@ -129,9 +134,10 @@ def _meta_time(meta: dict[str, object], key: str) -> time | None:
     return time.fromisoformat(value)
 
 
-# Not exact equality: clients derive hours from the minute-grained time pair
-# and round to two decimals, so a 20-minute booking is 0.33 hours against a
-# 0.3333… duration.
+# Fable: Not exact equality: clients derive hours from the minute-grained time
+# pair and round to two decimals, so a 20-minute booking is 0.33 hours against
+# a 0.3333… duration. Rounding alone bounds the error at 0.005; the full 0.01
+# is deliberate headroom, and at most 36 seconds of wage per entry.
 _TIME_AGREEMENT_TOLERANCE = Decimal("0.01")
 
 
@@ -403,6 +409,7 @@ def _owned_line(staff: Staff, entry_id: UUID) -> CostLine:
     ).get(id=entry_id, kind="time")
     if line.meta.get("staff_id") != str(staff.id):
         raise EntryOwnershipError("You can only update your own timesheet entries.")
+    refuse_leave_managed(line, "edit")
     return line
 
 
@@ -511,5 +518,6 @@ def delete_entry(staff: Staff, entry_id: UUID) -> None:
     line = CostLine.objects.get(id=entry_id, kind="time")
     if line.meta.get("staff_id") != str(staff.id):
         raise EntryOwnershipError("You can only delete your own timesheet entries.")
+    refuse_leave_managed(line, "cancel")
     line.delete()
     logger.info("Deleted workshop timesheet entry %s for staff %s", entry_id, staff.id)

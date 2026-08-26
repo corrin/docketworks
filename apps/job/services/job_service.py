@@ -2228,14 +2228,27 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
     return line
 
 
+def refuse_leave_managed(line: CostLine, remedy: str) -> None:
+    """Refuse a write to a line the leave workflow owns.
+
+    The one guard for every cost-line write surface — leave lines satisfy the
+    timesheet filters (kind, staff, date), so any path that skips this lets an
+    edit desync ``CostLine.quantity`` from ``LeaveDay.hours``, and a delete
+    trips LeaveDay's PROTECT into a 500.
+    """
+    if line.managed_by == "leave":
+        raise ValueError(
+            f"This line belongs to a leave request; {remedy} it from Timesheets → Leave."
+        )
+
+
 def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
     """Update a cost line from a partial payload.
 
     A quantity change on a line with ``ext_refs.stock_id`` adjusts the
     Stock row by the difference.
     """
-    if line.managed_by == "leave":
-        raise ValueError("This line belongs to a leave request; edit it from Timesheets → Leave.")
+    refuse_leave_managed(line, "edit")
     _validate_costline_write(data)
 
     kind = data.get("kind") or line.kind
@@ -2268,8 +2281,7 @@ def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
 
 def delete_cost_line(line: CostLine) -> None:
     """Delete a cost line, returning any consumed stock."""
-    if line.managed_by == "leave":
-        raise ValueError("This line belongs to a leave request; cancel it from Timesheets → Leave.")
+    refuse_leave_managed(line, "cancel")
     with transaction.atomic():
         stock_id = (line.ext_refs or {}).get("stock_id")
         # Only ACTUAL lines consumed anything; deleting an estimate or quote

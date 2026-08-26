@@ -5,7 +5,7 @@ import type { WorkshopTimesheetEntryOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { QueryState } from '@/features/shared/QueryState'
 import { SummaryCard } from '@/features/shared/SummaryCard'
-import { localIsoDate } from '@/lib/format'
+import { formatDateLong, localIsoDate } from '@/lib/format'
 import { shiftDate } from '@/lib/dates'
 
 import { formatHoursDisplay } from './hours'
@@ -21,18 +21,6 @@ export interface MyTimeSearch {
 interface WorkshopMyTimePageProps {
   search: MyTimeSearch
   onDateChange: (date: string) => void
-}
-
-const DATE_LABEL = new Intl.DateTimeFormat('en-NZ', {
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-})
-
-function dateLabel(isoDate: string): string {
-  const [year, month, day] = isoDate.split('-').map(Number)
-  return DATE_LABEL.format(new Date(year ?? 0, (month ?? 1) - 1, day ?? 1))
 }
 
 /**
@@ -75,7 +63,7 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
             className="min-w-56 text-center text-sm font-medium text-gray-700"
             data-automation-id="WorkshopMyTimeHeader-date"
           >
-            {dateLabel(date)}
+            {formatDateLong(date)}
           </span>
           <Button
             variant="outline"
