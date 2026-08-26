@@ -141,6 +141,7 @@ class TestMatching:
 
     def test_email_beats_name(self) -> None:
         staff = self._staff()
+        assert staff.office_email is not None
         index = sync.index_employees(
             [
                 ref("emp-name", first_name="Ana", last_name="Silva"),
@@ -161,6 +162,24 @@ class TestMatching:
 
         assert match is not None
         assert match.employee_id == "emp-name"
+
+    def test_a_payroll_only_staff_member_matches_by_payroll_email(self) -> None:
+        """Wage staff often carry only the payroll address — the very email
+        Xero's employee record holds — so matching must not read
+        office_email unguarded (it is NULL for them)."""
+        staff = Staff.objects.create_user(
+            office_email=None,
+            password="pw-1!",
+            payroll_email="wage@example.com",
+            first_name="Ana",
+            last_name="Silva",
+        )
+        index = sync.index_employees([ref("emp-email", email="wage@example.com")])
+
+        match = sync.match_staff_to_employee(staff, index)
+
+        assert match is not None
+        assert match.employee_id == "emp-email"
 
     def test_no_match_returns_none(self) -> None:
         staff = self._staff()
@@ -320,6 +339,27 @@ class TestSyncStaff:
         assert len(result.created) == 1
         staff.refresh_from_db()
         assert (staff.xero_user_id, staff.xero_tenant_id) == ("created-1", TENANT)
+
+    @pytest.mark.usefixtures("employer_address")
+    def test_a_payroll_only_staff_member_is_created_with_the_payroll_address(self) -> None:
+        """office_email is NULL for wage staff; the payroll address is the
+        one Xero should hold, so creation must not refuse them as
+        "missing email"."""
+        staff = Staff.objects.create_user(
+            office_email=None,
+            password="pw-1!",
+            payroll_email="wage@example.com",
+            first_name="Bo",
+            last_name="Kim",
+            xero_user_id="prod-3",
+            base_wage_rate=Decimal("40.00"),
+        )
+        provider = FakeProvider()
+
+        run_sync(provider, [staff], allow_create=True)
+
+        assert len(provider.created) == 1
+        assert provider.created[0].email == "wage@example.com"
 
     @pytest.mark.usefixtures("employer_address")
     def test_the_creation_spec_carries_what_relinking_a_restore_depends_on(self) -> None:

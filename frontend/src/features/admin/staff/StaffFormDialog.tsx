@@ -125,12 +125,13 @@ function buildCreateBody(drafts: Drafts): StaffCreateIn {
   const body: StaffCreateIn = {
     first_name: drafts.first_name.trim(),
     last_name: drafts.last_name.trim(),
-    office_email: drafts.office_email.trim(),
     password: drafts.password,
     base_wage_rate: Number(drafts.base_wage_rate),
     employment_start_date: drafts.employment_start_date,
     ...drafts.flags,
   }
+  const office = textOrNull(drafts.office_email)
+  if (office !== null) body.office_email = office
   const preferred = textOrNull(drafts.preferred_name)
   if (preferred !== null) body.preferred_name = preferred
   const payroll = textOrNull(drafts.payroll_email)
@@ -151,8 +152,8 @@ function buildPatch(drafts: Drafts, staff: StaffListItemOut): StaffUpdateIn {
   const patch: StaffUpdateIn = {}
   if (drafts.first_name.trim() !== staff.first_name) patch.first_name = drafts.first_name.trim()
   if (drafts.last_name.trim() !== staff.last_name) patch.last_name = drafts.last_name.trim()
-  if (drafts.office_email.trim() !== staff.office_email) {
-    patch.office_email = drafts.office_email.trim()
+  if (textOrNull(drafts.office_email) !== staff.office_email) {
+    patch.office_email = textOrNull(drafts.office_email)
   }
   if (textOrNull(drafts.preferred_name) !== staff.preferred_name) {
     patch.preferred_name = textOrNull(drafts.preferred_name)
@@ -240,7 +241,9 @@ export function StaffFormDialog({ open, onOpenChange, staff }: Props) {
     if (drafts.first_name.trim() === '' || drafts.last_name.trim() === '') {
       return 'First and last name are required.'
     }
-    if (drafts.office_email.trim() === '') return 'Office email is required.'
+    if (drafts.office_email.trim() === '' && drafts.payroll_email.trim() === '') {
+      return 'At least one email is required.'
+    }
     if (staff === null && drafts.password === '') return 'A password is required.'
     if (drafts.password !== drafts.password_confirm) return 'The passwords do not match.'
     // An emptied number box must be an error, never a silent 0 — zeroing

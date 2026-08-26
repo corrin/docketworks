@@ -153,8 +153,15 @@ def _scrub_staff() -> None:
         automation.set_unusable_password()
         automation.save(using=SCRUB_ALIAS, update_fields=["password"])
 
+    # Fable: excluding by email would silently skip payroll-only rows —
+    # exclude(office_email=X) on a NULL office_email evaluates NOT(NULL=X)
+    # to NULL and drops the row from the queryset, leaving real identities
+    # in the archive. Exclude the one known row by pk instead.
+    to_scrub = Staff.objects.using(SCRUB_ALIAS).all()
+    if automation is not None:
+        to_scrub = to_scrub.exclude(pk=automation.pk)
     used_emails: set[str] = set()
-    for staff in Staff.objects.using(SCRUB_ALIAS).exclude(office_email=SYSTEM_AUTOMATION_EMAIL):
+    for staff in to_scrub:
         for _ in range(_GENERATE_ATTEMPTS):
             profile = create_staff_profile()
             if profile["email"] not in used_emails:
@@ -165,7 +172,14 @@ def _scrub_staff() -> None:
                 f"{_GENERATE_ATTEMPTS} attempts; {len(used_emails)} in use."
             )
         used_emails.add(profile["email"])
-        staff.office_email = profile["email"]
+        # Fable: NULL-ness is shape, not secret — an unset address stays
+        # unset so scrubbed data keeps the payroll-only/office-only mix the
+        # at-least-one-email rule exists for. A set payroll_email is a real
+        # mailbox and never survives; the prefix keeps it unique per row.
+        if staff.office_email is not None:
+            staff.office_email = profile["email"]
+        if staff.payroll_email is not None:
+            staff.payroll_email = f"payroll.{profile['email']}"
         staff.first_name = profile["first_name"]
         staff.last_name = profile["last_name"]
         staff.preferred_name = profile["preferred_name"]
@@ -175,6 +189,7 @@ def _scrub_staff() -> None:
             using=SCRUB_ALIAS,
             update_fields=[
                 "office_email",
+                "payroll_email",
                 "first_name",
                 "last_name",
                 "preferred_name",

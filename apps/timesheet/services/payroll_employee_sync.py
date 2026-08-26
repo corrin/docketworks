@@ -87,7 +87,7 @@ class StaffSummary(TypedDict):
     """Data contract for StaffSummary."""
 
     staff_id: str
-    office_email: str
+    office_email: str | None
     first_name: str
     last_name: str
 
@@ -187,15 +187,25 @@ def match_staff_to_employee(staff: Staff, index: EmployeeIndex) -> EmployeeRecor
     if staff_id in index.by_staff_id:
         return index.by_staff_id[staff_id]
 
-    email = staff.office_email.strip().lower()
-    if email and email in index.by_email:
-        return index.by_email[email]
+    # Fable: either address may be the one Xero holds — payroll-only staff
+    # have office_email NULL, and payroll_email IS the Xero employee mailbox.
+    for address in (staff.office_email, staff.payroll_email):
+        if not address:
+            continue
+        email = address.strip().lower()
+        if email in index.by_email:
+            return index.by_email[email]
 
     first = staff.first_name.strip().lower()
     last = staff.last_name.strip().lower()
     if not first and not last:
         return None
     return index.by_name.get((first, last))
+
+
+def email_label(staff: Staff) -> str | None:
+    """Whichever address identifies this staff member in diagnostics."""
+    return staff.office_email or staff.payroll_email
 
 
 def staff_summary(staff: Staff) -> StaffSummary:
@@ -240,7 +250,7 @@ def hours_per_week(staff: Staff) -> dict[str, float]:
     missing = [name for name, value in zip(WEEKDAYS, hours, strict=True) if value is None]
     if missing:
         raise ValueError(
-            f"Staff {staff.id} ({staff.office_email}) missing hours for: {', '.join(missing)}"
+            f"Staff {staff.id} ({email_label(staff)}) missing hours for: {', '.join(missing)}"
         )
     return {name: float(value) for name, value in zip(WEEKDAYS, hours, strict=True)}
 
@@ -278,7 +288,7 @@ def link_staff(staff: Staff, employee_id: str, tenant_id: str) -> None:
     logger.info(
         "Linking staff %s (%s) to payroll employee %s in %s",
         staff.id,
-        staff.office_email,
+        email_label(staff),
         employee_id,
         tenant_id,
     )
@@ -355,7 +365,7 @@ def _creation_refusals(staff: Staff) -> list[str]:
     refusals: list[str] = []
     if not clean_string(staff.first_name) or not clean_string(staff.last_name):
         refusals.append("missing first or last name")
-    if not clean_string(staff.office_email):
+    if not clean_string(staff.office_email) and not clean_string(staff.payroll_email):
         refusals.append("missing email")
     if staff.base_wage_rate <= Decimal("0"):
         refusals.append(f"base_wage_rate is {staff.base_wage_rate}")
@@ -378,7 +388,7 @@ def _creation_refusals(staff: Staff) -> list[str]:
 def _assert_creatable(staff_members: Sequence[Staff]) -> None:
     """Refuse the whole batch, naming every unusable row, before any write."""
     problems = [
-        f"  {staff.office_email}: {'; '.join(refusals)}"
+        f"  {email_label(staff)}: {'; '.join(refusals)}"
         for staff in staff_members
         if (refusals := _creation_refusals(staff))
     ]
@@ -399,7 +409,9 @@ def _employee_spec(
     """
     first_name = clean_string(staff.first_name, 35)
     last_name = clean_string(staff.last_name, 35)
-    email = clean_string(staff.office_email, 255)
+    # Fable: office first to preserve the proven both-emails behaviour; for
+    # payroll-only staff the payroll address IS the mailbox Xero should hold.
+    email = clean_string(staff.office_email, 255) or clean_string(staff.payroll_email, 255)
     if first_name is None or last_name is None or email is None:
         raise StaffNotPayrollReadyError(f"Staff {staff.id} has no usable name or email")
 
@@ -447,7 +459,7 @@ def _partition(
         previous = claimed.get(match.employee_id)
         if previous is not None:
             raise StaffNotPayrollReadyError(
-                f"Staff {previous.office_email} and {staff.office_email} both match "
+                f"Staff {email_label(previous)} and {email_label(staff)} both match "
                 "payroll employee "
                 f"{match.employee_id} ({match.first_name} {match.last_name}). Give one of "
                 "them a distinct name or email, or stamp the intended Staff UUID into the "
@@ -519,7 +531,7 @@ def sync_staff(
                 "Created payroll employee %d/%d (%s)",
                 position,
                 len(to_create),
-                staff.office_email,
+                email_label(staff),
             )
 
     if not allow_create:

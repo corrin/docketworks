@@ -166,6 +166,32 @@ class TestCreate:
     def test_negative_hours_are_rejected(self) -> None:
         assert create(superuser_client(), hours_mon="-1").status_code == 422
 
+    def test_payroll_only_create_succeeds(self) -> None:
+        """Wage staff often have no office mailbox; the payroll address alone
+        is enough (owner ruling, 2026-08-26)."""
+        payload = {k: v for k, v in CREATE_PAYLOAD.items() if k != "office_email"}
+        payload["payroll_email"] = "wage@example.com"
+
+        response = superuser_client().post(URL, data=payload, content_type="application/json")
+
+        assert response.status_code == 201
+        body = response.json()
+        assert body["office_email"] is None
+        created = Staff.objects.get(pk=body["id"])
+        assert created.office_email is None
+        assert created.payroll_email == "wage@example.com"
+
+    def test_no_email_at_all_is_a_400_naming_email(self) -> None:
+        payload = {k: v for k, v in CREATE_PAYLOAD.items() if k != "office_email"}
+
+        response = superuser_client().post(URL, data=payload, content_type="application/json")
+
+        assert response.status_code == 400
+        assert "email" in response.json()["detail"].lower()
+
+    def test_blank_office_email_is_a_422(self) -> None:
+        assert create(superuser_client(), office_email="").status_code == 422
+
     def test_staff_manager_true_creates_and_joins_the_group(self) -> None:
         response = create(superuser_client(), is_staff_manager=True)
 
@@ -298,6 +324,27 @@ class TestPartialUpdate:
         response = patch(superuser_client(), target.id, office_email="taken@example.com")
 
         assert response.status_code == 400
+
+    def test_clearing_office_email_with_payroll_present_succeeds(self) -> None:
+        target = make_staff("target@example.com", payroll_email="wage@example.com")
+
+        response = patch(superuser_client(), target.id, office_email=None)
+
+        assert response.status_code == 200
+        target.refresh_from_db()
+        assert target.office_email is None
+
+    def test_clearing_the_only_email_is_a_400(self) -> None:
+        """The at-least-one rule must surface as a readable refusal, not an
+        IntegrityError 500."""
+        target = make_staff("target@example.com")
+
+        response = patch(superuser_client(), target.id, office_email=None)
+
+        assert response.status_code == 400
+        assert "email" in response.json()["detail"].lower()
+        target.refresh_from_db()
+        assert target.office_email == "target@example.com"
 
 
 class TestListExtensions:

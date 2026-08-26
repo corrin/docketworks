@@ -319,3 +319,38 @@ dedicated append-only record (`Acknowledgement`): a self-only "I have read
 this" receipt per staff member per form, never an inference over
 `ProcessEvent`. Design doc:
 `docs/superpowers/specs/2026-08-25-process-documents-design.md`.
+
+**The real production procedures verified through the slice's seams,
+2026-08-26.** With the production service-account key
+(`gcp-credentials-prod.json`, gitignored in the repo root), the outbound-link
+probe asked Drive for every one of the 54 restored `Procedure.google_doc_id`
+rows — first as the raw production service account, then delegated as the
+real Workspace user (`--google-as delegated` with `GCP_DELEGATED_SUBJECT`,
+since the scrubbed dev `company_email` is a placeholder). Both identities
+agree: 46 docs answer, 8 are broken, and the delegated run also proved the
+three gdocs-manifest docs a service-account run cannot see. The restore and
+category backfill hold on real data — 54 rows, zero NULL categories
+(43 safety, 9 reference, 1 training, 1 jsa) — and the scrubber's
+titles-are-metadata policy is confirmed intact (`site_location` is the one
+anonymised field). The 8 broken rows are production data rot, not a code
+defect: Doc.363 Milling Machine SOP is **trashed** (restorable from Drive
+trash), and seven H&S admin docs are gone even to the Workspace owner —
+Health & Safety Annual Tasks Ongoing 2017, MSM Health & Safety Annual Plan,
+Maintenance Inspection Procedures v2, MSM Health and Safety Statement, MSM
+Health and Safety Policy, MSM Health Safety System - latest, MSM Health
+Safety Document List. The fix task is in `rewrite-status.md`.
+
+**Staff need at least one email address; either one signs them in,
+2026-08-26.** Owner ruling from UAT of the process-forms slice (which hit
+"Office email is required" creating a wage worker): `office_email` and
+`payroll_email` are both individually optional, a database constraint
+(`staff_at_least_one_email`) requires one of them, and the existing
+dual-match login backend accepts either. The field names are deliberately
+kept — only the requiredness was wrong. An earlier same-day ruling to invert
+the rule (payroll required, USERNAME_FIELD swap, backfill) was superseded:
+it would have forced inventing payroll addresses for the nine
+admin/system/office rows that lack one. Two adjacent defects fixed with it:
+the scrubber excluded the automation account by email, which silently
+dropped NULL-office-email rows from the identity scrub (SQL NULL
+semantics), and it never scrubbed `payroll_email` at all — it now excludes
+by pk and scrubs a set payroll address while preserving NULL shape.

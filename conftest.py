@@ -165,7 +165,11 @@ _CREDENTIAL_MODELS: tuple[tuple[str, str, tuple[str, ...], tuple[str, ...]], ...
     # rather than have a foreign id forced onto it — which trips the unique
     # constraint on office_email instead. XeroApp keeps its id, which the active-app
     # lookup and its cache resolve against.
-    ("accounts", "Staff", ("office_email",), ("default_labour_subtype_id", "id")),
+    # Fable: keyed on BOTH emails, not office_email alone — office_email is
+    # NULL for payroll-only staff, and update_or_create(office_email=None)
+    # matches ANY such row. The pair is unique: each column is unique when
+    # set and the at-least-one constraint forbids both NULL.
+    ("accounts", "Staff", ("office_email", "payroll_email"), ("default_labour_subtype_id", "id")),
     # Opus: The test fixtures seed pay items with PLACEHOLDER xero_ids
     # ("xero-earnings-1.00"). They are truthy, so the posting preflight passes
     # them, and then Xero rejects the timesheet with "The earnings rate is

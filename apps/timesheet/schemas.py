@@ -215,7 +215,7 @@ class TimesheetStaffOut(Schema):
     name: str
     firstName: str  # noqa: N815 -- public API uses camelCase
     lastName: str  # noqa: N815 -- public API uses camelCase
-    office_email: str
+    office_email: str | None
     icon_url: str | None
     wageRate: Decimal  # noqa: N815 -- public API uses camelCase
     pay_basis: str | None

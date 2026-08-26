@@ -4343,7 +4343,7 @@ export const zStaffCreateIn = z.object({
     is_superuser: z.boolean().optional(),
     is_workshop_staff: z.boolean().optional(),
     last_name: z.string().min(1),
-    office_email: z.string().min(1),
+    office_email: z.string().min(1).nullish(),
     password: z.string().min(1),
     pay_basis: z.enum(['hourly', 'salary']).nullish(),
     payroll_email: z.string().min(1).nullish(),
@@ -4425,7 +4425,7 @@ export const zStaffListItemOut = z.object({
     is_superuser: z.boolean(),
     is_workshop_staff: z.boolean(),
     last_name: z.string(),
-    office_email: z.string(),
+    office_email: z.string().nullable(),
     pay_basis: z.string().nullable(),
     payroll_email: z.string().nullable(),
     preferred_name: z.string().nullable(),
@@ -4490,7 +4490,7 @@ export const zStaffUpdateIn = z.object({
     is_superuser: z.boolean().optional(),
     is_workshop_staff: z.boolean().optional(),
     last_name: z.string().min(1).optional(),
-    office_email: z.string().min(1).optional(),
+    office_email: z.string().min(1).nullish(),
     password: z.string().min(1).optional(),
     pay_basis: z.enum(['hourly', 'salary']).nullish(),
     payroll_email: z.string().min(1).nullish(),
@@ -5092,7 +5092,7 @@ export const zTimesheetStaffOut = z.object({
     id: z.string(),
     lastName: z.string(),
     name: z.string(),
-    office_email: z.string(),
+    office_email: z.string().nullable(),
     pay_basis: z.string().nullable(),
     wageRate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
 });
@@ -5140,7 +5140,7 @@ export const zUserProfile = z.object({
     is_office_staff: z.boolean(),
     is_superuser: z.boolean(),
     last_name: z.string(),
-    office_email: z.string(),
+    office_email: z.string().nullable(),
     payroll_email: z.string().nullable(),
     preferred_name: z.string().nullable()
 });

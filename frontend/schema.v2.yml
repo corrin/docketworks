@@ -10950,9 +10950,11 @@ components:
           title: Last Name
           type: string
         office_email:
-          minLength: 1
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
           title: Office Email
-          type: string
         password:
           minLength: 1
           title: Password
@@ -10984,7 +10986,6 @@ components:
           - type: 'null'
           title: Xero User Id
       required:
-      - office_email
       - first_name
       - last_name
       - password
@@ -11199,8 +11200,10 @@ components:
           title: Last Name
           type: string
         office_email:
+          anyOf:
+          - type: string
+          - type: 'null'
           title: Office Email
-          type: string
         pay_basis:
           anyOf:
           - type: string
@@ -11429,9 +11432,11 @@ components:
           title: Last Name
           type: string
         office_email:
-          minLength: 1
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
           title: Office Email
-          type: string
         password:
           minLength: 1
           title: Password
@@ -12769,8 +12774,10 @@ components:
           title: Name
           type: string
         office_email:
+          anyOf:
+          - type: string
+          - type: 'null'
           title: Office Email
-          type: string
         pay_basis:
           anyOf:
           - type: string
@@ -12837,8 +12844,10 @@ components:
           title: Last Name
           type: string
         office_email:
+          anyOf:
+          - type: string
+          - type: 'null'
           title: Office Email
-          type: string
         payroll_email:
           anyOf:
           - type: string

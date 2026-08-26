@@ -46,7 +46,7 @@ done only when that spec is green.
 | E2E specs ported | **45 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
 | Backend operations still to port | **58** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 237 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2718 (all passing) |
+| Unit tests | 2737 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 117 recorded deviations |
@@ -352,6 +352,14 @@ rather than anywhere else. This file is finished when it is empty.
   calling `geocoding_service` against Address Validation; the outbound-link
   probe skips `v1:validateAddress` because it is POST-only, so only that test
   proves the endpoint exists.
+- **Eight production `Procedure` rows link dead Google Docs** (probe run
+  2026-08-26 with the production key; the row list is in `rewrite-history.md`).
+  Untrash Doc.363 Milling Machine SOP from Drive trash before its 30-day
+  purge. The other seven are invisible even to the Workspace owner; the owner
+  arbitrates restore-from-backup vs archive per doc, then the surviving rows
+  are relinked or archived on the production instance — a data fix, never a
+  read-side fallback (ADR 0015). Re-verify with
+  `outbound_links_probe --kind google_file --google-as delegated`.
 - **Read-side fallback cleanup** ([KAN-338](https://docketworks.atlassian.net/browse/KAN-338)).
   ~40 reads of our own JSON shapes violate ADR 0015/0028/0045, concentrated in
   JSONField payloads mypy cannot see into. The `is_billable` divergence between
