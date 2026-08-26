@@ -71,6 +71,28 @@ class TestModelRule:
 
         assert Staff.objects.filter(office_email__isnull=True).count() == 2
 
+    def test_case_variant_duplicate_payroll_email_is_refused_with_a_readable_message(self) -> None:
+        """StaffEmailBackend matches payroll_email with iexact and returns
+        None on multiple hits — a case-variant duplicate would lock BOTH
+        accounts out of login, same as the office_email rule."""
+        payroll_only_staff("wage@example.com")
+        staff = Staff(payroll_email="WAGE@example.com", first_name="Two", last_name="Worker")
+        staff.set_password(PASSWORD)
+
+        with pytest.raises(ValidationError) as excinfo:
+            staff.full_clean()
+
+        assert "payroll email" in " ".join(excinfo.value.messages).lower()
+
+    def test_case_variant_duplicate_payroll_email_is_refused_by_the_database(self) -> None:
+        """The database's answer to the race clean() cannot close."""
+        payroll_only_staff("wage@example.com")
+        staff = Staff(payroll_email="WAGE@example.com", first_name="Two", last_name="Worker")
+        staff.set_password(PASSWORD)
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            staff.save()
+
     def test_blank_office_email_is_refused_by_the_database(self) -> None:
         staff = Staff(
             office_email="",

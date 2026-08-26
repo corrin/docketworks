@@ -229,7 +229,9 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             # two concurrent writes of case-variant emails both pass the
             # iexact query and both save, and StaffEmailBackend then locks
             # both accounts out. clean() stays for the user-facing 400.
+            # Both login columns need it: the backend matches each with iexact.
             models.UniqueConstraint(Lower("office_email"), name="staff_office_email_ci_unique"),
+            models.UniqueConstraint(Lower("payroll_email"), name="staff_payroll_email_ci_unique"),
         ]
 
     def clean(self) -> None:
@@ -242,6 +244,14 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         admin endpoints already run, so the check lives here, not in a handler.
         """
         super().clean()
+        if self.payroll_email is not None:
+            payroll_collision = (
+                Staff.objects.exclude(pk=self.pk)
+                .filter(payroll_email__iexact=self.payroll_email)
+                .exists()
+            )
+            if payroll_collision:
+                raise ValidationError("A staff member with this payroll email already exists.")
         if self.office_email is None:
             # Fable: normalize_email coerces None to "" (email or "") — running
             # it on an unset address would launder NULL into the blank string
