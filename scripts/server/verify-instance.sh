@@ -122,7 +122,7 @@ check "backup-db-$INSTANCE.timer active" systemctl is-active --quiet "backup-db-
 check "backup-files-$INSTANCE.timer active" systemctl is-active --quiet "backup-files-$INSTANCE.timer"
 
 # --- Backup upload path ---
-# An active timer proves nothing about the remote: prod's unit was red every
+# Fable: an active timer proves nothing about the remote: prod's unit was red every
 # night for months on a zero-quota service-account remote while a root cron
 # quietly did the real uploads. Round-trip one probe file exactly the way
 # the nightly unit uploads — same user, same RCLONE_CONFIG — so a remote

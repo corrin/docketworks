@@ -20,8 +20,10 @@ REMOTE_BASE = "gdrive:dw_backups"
 #              each with its <dump>.migrations.json sidecar.
 #   monthly:   monthly_<YYYYMM>.sql.gz (backup_db.sh); keep most recent N,
 #              each with its <dump>.migrations.json sidecar.
-#   *_sha:     retired release-commit sidecars; recognised so retention
-#              deletes them, never written or kept any more.
+#   *_sha:     Fable: retired release-commit sidecars; recognised so
+#              retention deletes them, never written or kept any more.
+#   stale_tmp: a daily/monthly .tmp left by a crash mid-write; the writer
+#              renames tmp->final, so a surviving .tmp is garbage.
 # Any other entry (logs, ad-hoc files) is left untouched.
 TS_DIR_RE = re.compile(r"^\d{8}_\d{6}$")
 PREDEPLOY_RE = re.compile(r"^predeploy_(\d{8}_\d{6})_[0-9a-f]+\.sql\.gz$")
@@ -32,6 +34,7 @@ DAILY_SHA_RE = re.compile(r"^daily_(\d{8})\.sha$")
 MONTHLY_RE = re.compile(r"^monthly_(\d{6})\.sql\.gz$")
 MONTHLY_SNAPSHOT_RE = re.compile(r"^monthly_(\d{6})\.sql\.gz\.migrations\.json$")
 MONTHLY_SHA_RE = re.compile(r"^monthly_(\d{6})\.sha$")
+STALE_TMP_RE = re.compile(r"^(?:daily_\d{8}|monthly_\d{6})\.sql\.gz(?:\.migrations\.json)?\.tmp$")
 
 CLASSIFIERS: list[tuple[re.Pattern[str], str]] = [
     (TS_DIR_RE, "ts_dir"),
@@ -43,6 +46,7 @@ CLASSIFIERS: list[tuple[re.Pattern[str], str]] = [
     (MONTHLY_SNAPSHOT_RE, "monthly_snapshot"),
     (MONTHLY_RE, "monthly"),
     (MONTHLY_SHA_RE, "monthly_sha"),
+    (STALE_TMP_RE, "stale_tmp"),
 ]
 
 PREDEPLOY_RETENTION_DAYS = 30

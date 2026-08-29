@@ -70,17 +70,23 @@ pg_dump -h "${DB_HOST:-/var/run/postgresql}" -p "${DB_PORT:-5432}" \
     -U "$DB_USER" "$DB_NAME" | gzip > "$DAILY_TMP"
 mv "$DAILY_TMP" "$DAILY"
 
-# The sidecar restores actually consume (migrate_to_snapshot.py): which
-# migration state this dump matches. The retired .sha sidecar recorded the
-# release commit instead, which no restore path ever read.
-(cd "$APP_DIR" && .venv/bin/python manage.py snapshot_migrations --dump "$DAILY")
-
-# Monthly backup on 1st
+# Fable: the monthly dump copies BEFORE the sidecar step — it is written only
+# on the 1st, so a sidecar failure aborting the run must not cost the month
+# its monthly backup.
 if [ "$(date +%d)" = "01" ]; then
     echo "Writing monthly copy $MONTHLY"
     cp "$DAILY" "$MONTHLY_TMP"
     mv "$MONTHLY_TMP" "$MONTHLY"
-    cp "$DAILY.migrations.json" "$MONTHLY.migrations.json"
+fi
+
+# Fable: this is the sidecar restores actually consume (migrate_to_snapshot.py): which
+# migration state this dump matches. The retired .sha sidecar recorded the
+# release commit instead, which no restore path ever read.
+(cd "$APP_DIR" && .venv/bin/python manage.py snapshot_migrations --dump "$DAILY")
+
+if [ "$(date +%d)" = "01" ]; then
+    cp "$DAILY.migrations.json" "$MONTHLY.migrations.json.tmp"
+    mv "$MONTHLY.migrations.json.tmp" "$MONTHLY.migrations.json"
 fi
 
 echo "Applying retention and syncing to Google Drive"

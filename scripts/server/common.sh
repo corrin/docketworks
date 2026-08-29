@@ -219,7 +219,7 @@ write_instance_rclone_config() {
     local team_drive_id="${4:-}"
     local config_path
 
-    # A service account has zero My-Drive quota, so without a shared drive
+    # Fable: a service account has zero My-Drive quota, so without a shared drive
     # every upload 403s (storageQuotaExceeded) — sharing a personal folder to
     # the SA stopped working when Google changed quota attribution in 2021.
     # Prod ran that exact config, red every night, while a root cron with a

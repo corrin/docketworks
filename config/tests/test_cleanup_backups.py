@@ -54,6 +54,34 @@ def test_orphan_snapshot_without_its_dump_is_deleted() -> None:
     assert to_delete == ["daily_20260101.sql.gz.migrations.json"]
 
 
+def test_kept_monthlies_keep_their_snapshot_sidecars() -> None:
+    dumps = [f"monthly_2026{month:02d}.sql.gz" for month in range(1, 9)]
+    entries = dumps + [paired_snapshot_name(name) for name in dumps]
+
+    keep_sets, to_delete = plan_retention(entries, NOW)
+
+    assert keep_sets["monthly"] == set(dumps)
+    assert keep_sets["monthly_snapshot"] == {paired_snapshot_name(n) for n in dumps}
+    assert to_delete == []
+
+
+def test_stale_tmp_leftovers_are_deleted() -> None:
+    entries = [
+        "daily_20260829.sql.gz",
+        "daily_20260828.sql.gz.tmp",
+        "daily_20260828.sql.gz.migrations.json.tmp",
+        "monthly_202608.sql.gz.migrations.json.tmp",
+    ]
+
+    _, to_delete = plan_retention(entries, NOW)
+
+    assert to_delete == [
+        "daily_20260828.sql.gz.migrations.json.tmp",
+        "daily_20260828.sql.gz.tmp",
+        "monthly_202608.sql.gz.migrations.json.tmp",
+    ]
+
+
 def test_unmanaged_names_are_neither_kept_nor_deleted() -> None:
     keep_sets, to_delete = plan_retention(["restore.log", "adhoc-notes.txt"], NOW)
 
