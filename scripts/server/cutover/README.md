@@ -18,10 +18,12 @@ v1's git objects.
    - The v2 repo has the branch each instance's tracked ref points at
      (`production` for prod instances — create it if only `main` exists).
    - Each instance's `/opt/docketworks/config/<instance>.credentials.env`
-     satisfies v2's required list (`instance.sh` errors name anything
-     missing). If `GCP_CREDENTIALS` points at a path that no longer
-     exists, point it at the instance's existing copy:
-     `/opt/docketworks/instances/<instance>/gcp-credentials.json`.
+     satisfies v2's required list — `sudo ../instance.sh validate-config
+     <client> <env>` names anything missing (v1 files lack v2-only keys
+     such as `BACKUP_GDRIVE_TEAM_DRIVE_ID`); cutover-instance.sh runs the
+     same check before it stops anything. If `GCP_CREDENTIALS` points at
+     a path that no longer exists, point it at the instance's existing
+     copy: `/opt/docketworks/instances/<instance>/gcp-credentials.json`.
    - The data migration has been rehearsed against a copy of this
      instance's database (`docs/cutover-checklist.md`).
 
@@ -32,12 +34,16 @@ v1's git objects.
    `server-setup.sh` to converge UFW, fail2ban and v2 tooling.
 
 3. `sudo ./cutover-instance.sh <client> <env> [--ref <ref>]` — per
-   instance. Stops v1 services, takes a verified final v1 backup, builds
+   instance. Validates the credentials and company-defaults files against
+   v2's contract (aborting before anything stops if the operator must fix
+   them), stops v1 services, takes a verified final v1 backup, builds
    the v2 release, reconfigures the instance onto it (new `.env` contract;
    preserved DB password and SECRET_KEY; fresh JWT_SIGNING_KEY, so every
-   session re-logs-in), migrates the data into a fresh v2-schema database,
-   swaps the databases, starts services and verifies. The v1 database
-   survives as `<db>_v1_final_<timestamp>`.
+   session re-logs-in; DB fixture loads deferred, since the database is
+   still v1 schema), migrates the data into a fresh v2-schema database,
+   swaps the databases, loads the credential-derived DB rows, starts
+   services and verifies. The v1 database survives as
+   `<db>_v1_final_<timestamp>`.
 
 4. `sudo ../verify-instance.sh <client> <env>` — the permanent verifier;
    also runs automatically at the end of cutover-instance.sh.

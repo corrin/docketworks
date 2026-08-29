@@ -136,6 +136,15 @@ if [[ -f "$COMPANY_DEFAULTS_FILE" ]] && grep -q '"workflow\.companydefaults"' "$
     sed -i 's/"workflow\.companydefaults"/"core.companydefaults"/' "$COMPANY_DEFAULTS_FILE"
 fi
 
+# --- Prove the reconfigure below will pass, while v1 is still up ---
+# Fable: relying on reconfigure's own validation is rejected — it runs
+# after the service stop, the final backup and the release flip, so a v1
+# credentials file missing a v2-only key (BACKUP_GDRIVE_TEAM_DRIVE_ID on
+# the first live run) strands the instance down on v2 config with the
+# data not yet migrated. Same checks, nothing changed yet; sits after the
+# label rewrite above because the validator requires the v2 model label.
+"$SERVER_DIR/instance.sh" validate-config "$CLIENT" "$ENV"
+
 # --- Stop v1 and take the verified final v1 backup ---
 stop_instance_services_strict "$INSTANCE"
 # The backup timers stay down for the whole migration: a nightly pg_dump
@@ -171,13 +180,18 @@ chown -h "$INST_USER:$INST_USER" "$INSTANCE_DIR/app"
 # restart services — .dr-mode holds them down until the database swap
 # below, because v2 code against the not-yet-migrated v1 schema serves
 # only errors.
+# --skip-db-fixtures: the database is still v1 schema here, and the
+# credential-derived rows touch v2-only columns (the Maps key lives in
+# crm_phoneprovidersettings.google_maps_api_key) — loaded after the swap
+# below. Fable: moving the whole reconfigure past the swap was rejected:
+# the migration stages source the v2 .env this reconfigure renders.
 touch "$INSTANCE_DIR/.dr-mode"
 if [[ "$HAD_DR_MODE" == "false" ]]; then
     # Marks the .dr-mode as this script's own hold-down, so a retry after
     # a mid-flow failure does not mistake it for a genuine DR posture.
     touch "$INSTANCE_DIR/.dr-mode.cutover"
 fi
-"$SERVER_DIR/instance.sh" reconfigure "$CLIENT" "$ENV"
+"$SERVER_DIR/instance.sh" reconfigure "$CLIENT" "$ENV" --skip-db-fixtures
 # reconfigure enable --now'd the backup timers; hold them down again
 # until the database swap is done.
 systemctl stop "backup-db-$INSTANCE.timer" 2>/dev/null || true
@@ -236,6 +250,12 @@ WHERE datname IN (:'db_name', :'scratch_db')
 SELECT format('ALTER DATABASE %I RENAME TO %I', :'db_name', :'v1_final_db') \gexec
 SELECT format('ALTER DATABASE %I RENAME TO %I', :'scratch_db', :'db_name') \gexec
 EOSQL
+
+# --- Load the credential-derived DB rows, now the schema is v2 ---
+# Deferred from reconfigure above (--skip-db-fixtures). Before go-live so
+# the app never serves without the integration settings; idempotent, so a
+# retry that finds rows already present (or migrated from v1) skips them.
+"$SERVER_DIR/instance.sh" load-db-fixtures "$CLIENT" "$ENV"
 
 # --- Go live ---
 # Backup timers come back in both postures: DR standbys back up too (they

@@ -5,6 +5,8 @@ set -euo pipefail
 # Usage: instance.sh prepare-config <client> <env> [--seed]
 #        instance.sh create <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]
 #        instance.sh reconfigure <client> <env> [--fqdn <hostname>] [--no-start]
+#        instance.sh validate-config <client> <env>
+#        instance.sh load-db-fixtures <client> <env>
 #        instance.sh destroy <client> <env>
 #        instance.sh status <client> <env>
 #        instance.sh history <client> <env>
@@ -398,6 +400,48 @@ render_integration_settings_fixture() {
 # ============================================================
 # create / reconfigure
 # ============================================================
+# Load the credential-derived database rows: AI providers, Xero apps,
+# integration settings. Requires the instance database to already carry
+# the v2 schema — load_integration_settings touches v2-only columns
+# (crm_phoneprovidersettings.google_maps_api_key), which is why a v1->v2
+# cutover defers this past the database swap (--skip-db-fixtures on
+# reconfigure, then the load-db-fixtures subcommand) instead of running
+# it from reconfigure while the data is still v1-shaped.
+# Callers provide INSTANCE, INSTANCE_DIR, INSTANCE_USER and the sourced
+# credentials (require_instance_credentials).
+load_db_fixtures() {
+    render_ai_providers_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
+    log "Loading AI providers..."
+    local AI_PROVIDERS_FIXTURE="$INSTANCE_DIR/.fixtures/ai_providers.json"
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
+        "from django.core.management import call_command; from apps.ai.models import AIProvider; print('AIProvider already configured; skipping ai_providers.json load') if AIProvider.objects.exists() else call_command('loaddata', '$AI_PROVIDERS_FIXTURE')"
+    rm -f "$AI_PROVIDERS_FIXTURE"
+
+    render_xero_apps_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
+    log "Loading Xero apps..."
+    local XERO_APPS_FIXTURE="$INSTANCE_DIR/.fixtures/xero_apps.json"
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
+        "from django.core.management import call_command; from apps.xero.models import XeroApp; print('XeroApp already configured; skipping xero_apps.json load') if XeroApp.objects.exists() else call_command('loaddata', '$XERO_APPS_FIXTURE')"
+    rm -f "$XERO_APPS_FIXTURE"
+
+    render_integration_settings_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
+    log "Loading integration settings..."
+    local INTEGRATION_SETTINGS_FIXTURE="$INSTANCE_DIR/.fixtures/integration_settings.json"
+    # Fable: not loaddata: the row holds several integrations, and a restored
+    # instance that already carries the phone login must still receive the
+    # Maps key without that login being overwritten. The command applies each
+    # integration only while its columns are unset, and creates the row when a
+    # scrubbed restore left the table empty.
+    # The rendered fixture holds the key and the phone password; it is gone
+    # whether the loader succeeds or not.
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py load_integration_settings \
+        "$INTEGRATION_SETTINGS_FIXTURE" || {
+        rm -f "$INTEGRATION_SETTINGS_FIXTURE"
+        exit 1
+    }
+    rm -f "$INTEGRATION_SETTINGS_FIXTURE"
+}
+
 validate_company_defaults_config() {
     local config_file="$1"
 
@@ -449,13 +493,14 @@ do_configure() {
     local REF="origin/production"
     local REF_SET=false
     local ALLOW_PROD_REF=false
+    local SKIP_DB_FIXTURES=false
     local parsed
-    local long_opts="ref:,allow-prod-ref,fqdn:,no-start"
+    local long_opts="ref:,allow-prod-ref,fqdn:,no-start,skip-db-fixtures"
     if ! parsed=$(getopt -o '' --long "$long_opts" -n "$(basename "$0") $command_name" -- "$@"); then
         if [[ "$command_name" == "create" ]]; then
             echo "Usage: $(basename "$0") $command_name <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]" >&2
         else
-            echo "Usage: $(basename "$0") $command_name <client> <env> [--fqdn <hostname>] [--no-start]" >&2
+            echo "Usage: $(basename "$0") $command_name <client> <env> [--fqdn <hostname>] [--no-start] [--skip-db-fixtures]" >&2
         fi
         exit 1
     fi
@@ -466,6 +511,7 @@ do_configure() {
             --allow-prod-ref) ALLOW_PROD_REF=true; shift ;;
             --fqdn)     CUSTOM_FQDN="$2";       shift 2 ;;
             --no-start) NO_START=true;          shift ;;
+            --skip-db-fixtures) SKIP_DB_FIXTURES=true; shift ;;
             --)         shift; break ;;
         esac
     done
@@ -475,6 +521,10 @@ do_configure() {
     fi
     if [[ "$REF_SET" == "true" && "$command_name" != "create" ]]; then
         echo "ERROR: '$command_name' does not accept --ref; use 'deploy.sh --ref' to re-point an existing instance." >&2
+        exit 1
+    fi
+    if [[ "$SKIP_DB_FIXTURES" == "true" && "$command_name" == "create" ]]; then
+        echo "ERROR: 'create' does not accept --skip-db-fixtures; a fresh instance needs its DB rows." >&2
         exit 1
     fi
 
@@ -699,36 +749,13 @@ EOSQL
         rm -f "$COMPANY_DEFAULTS_FIXTURE"
     fi
 
-    render_ai_providers_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
-    log "Loading AI providers..."
-    local AI_PROVIDERS_FIXTURE="$INSTANCE_DIR/.fixtures/ai_providers.json"
-    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
-        "from django.core.management import call_command; from apps.ai.models import AIProvider; print('AIProvider already configured; skipping ai_providers.json load') if AIProvider.objects.exists() else call_command('loaddata', '$AI_PROVIDERS_FIXTURE')"
-    rm -f "$AI_PROVIDERS_FIXTURE"
-
-    render_xero_apps_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
-    log "Loading Xero apps..."
-    local XERO_APPS_FIXTURE="$INSTANCE_DIR/.fixtures/xero_apps.json"
-    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
-        "from django.core.management import call_command; from apps.xero.models import XeroApp; print('XeroApp already configured; skipping xero_apps.json load') if XeroApp.objects.exists() else call_command('loaddata', '$XERO_APPS_FIXTURE')"
-    rm -f "$XERO_APPS_FIXTURE"
-
-    render_integration_settings_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
-    log "Loading integration settings..."
-    local INTEGRATION_SETTINGS_FIXTURE="$INSTANCE_DIR/.fixtures/integration_settings.json"
-    # Fable: not loaddata: the row holds several integrations, and a restored
-    # instance that already carries the phone login must still receive the
-    # Maps key without that login being overwritten. The command applies each
-    # integration only while its columns are unset, and creates the row when a
-    # scrubbed restore left the table empty.
-    # The rendered fixture holds the key and the phone password; it is gone
-    # whether the loader succeeds or not.
-    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py load_integration_settings \
-        "$INTEGRATION_SETTINGS_FIXTURE" || {
-        rm -f "$INTEGRATION_SETTINGS_FIXTURE"
-        exit 1
-    }
-    rm -f "$INTEGRATION_SETTINGS_FIXTURE"
+    if [[ "$SKIP_DB_FIXTURES" == "true" ]]; then
+        # The caller loads them itself once the schema is v2 — see the
+        # cutover script's post-swap `instance.sh load-db-fixtures`.
+        log "Skipping credential-derived DB fixtures (--skip-db-fixtures)."
+    else
+        load_db_fixtures
+    fi
 
     if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
         # No scripted admin bootstrap: a stored bootstrap password is a
@@ -869,6 +896,41 @@ do_create() {
 
 do_reconfigure() {
     do_configure reconfigure "$@"
+}
+
+# ============================================================
+# validate-config
+# ============================================================
+# The exact config checks create/reconfigure run before touching state,
+# callable on their own. Read-only: exists so a preflight (the cutover
+# script) can prove a later reconfigure will pass while the instance is
+# still up, instead of discovering a missing v2-only credential after
+# services are stopped and the release symlink is flipped.
+do_validate_config() {
+    parse_client_env "$@"
+    require_instance_credentials "$CONFIG_DIR/$INSTANCE.credentials.env"
+    validate_company_defaults_config "$CONFIG_DIR/$INSTANCE.company-defaults.json"
+    log "Config for $INSTANCE satisfies the v2 contract."
+}
+
+# ============================================================
+# load-db-fixtures
+# ============================================================
+# The credential-derived DB rows on their own, for a caller that ran
+# reconfigure --skip-db-fixtures because the database did not yet have
+# the v2 schema (the cutover script, after its database swap).
+do_load_db_fixtures() {
+    parse_client_env "$@"
+    local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
+    local INSTANCE_USER
+    INSTANCE_USER="$(instance_user "$INSTANCE")"
+    if [[ ! -f "$INSTANCE_DIR/.env" || ( ! -L "$INSTANCE_DIR/app" && ! -L "$INSTANCE_DIR/current" ) ]]; then
+        echo "ERROR: $INSTANCE is not a complete instance (no .env or release link)." >&2
+        exit 1
+    fi
+    require_instance_credentials "$CONFIG_DIR/$INSTANCE.credentials.env"
+    load_db_fixtures
+    log "Credential-derived DB rows loaded for $INSTANCE."
 }
 
 # ============================================================
@@ -1134,13 +1196,15 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
 fi
 
 if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|history|list} [args...]"
-    echo "  prepare-config <client> <env> [--seed]"
-    echo "  create         <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]"
-    echo "  reconfigure    <client> <env> [--fqdn <hostname>] [--no-start]"
-    echo "  destroy        <client> <env>"
-    echo "  status         <client> <env>"
-    echo "  history        <client> <env>"
+    echo "Usage: $0 {prepare-config|create|reconfigure|validate-config|load-db-fixtures|destroy|status|history|list} [args...]"
+    echo "  prepare-config   <client> <env> [--seed]"
+    echo "  create           <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]"
+    echo "  reconfigure      <client> <env> [--fqdn <hostname>] [--no-start] [--skip-db-fixtures]"
+    echo "  validate-config  <client> <env>"
+    echo "  load-db-fixtures <client> <env>"
+    echo "  destroy          <client> <env>"
+    echo "  status           <client> <env>"
+    echo "  history          <client> <env>"
     echo "  list"
     exit 1
 fi
@@ -1153,12 +1217,14 @@ if [[ "$COMMAND" != "list" && $EUID -ne 0 ]]; then
 fi
 
 case "$COMMAND" in
-    prepare-config) do_prepare_config "$@" ;;
-    create)         do_create "$@" ;;
-    reconfigure)    do_reconfigure "$@" ;;
-    destroy)        do_destroy "$@" ;;
-    status)         do_status "$@" ;;
-    history)        do_history "$@" ;;
-    list)           do_list ;;
-    *)              echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|history|list}"; exit 1 ;;
+    prepare-config)   do_prepare_config "$@" ;;
+    create)           do_create "$@" ;;
+    reconfigure)      do_reconfigure "$@" ;;
+    validate-config)  do_validate_config "$@" ;;
+    load-db-fixtures) do_load_db_fixtures "$@" ;;
+    destroy)          do_destroy "$@" ;;
+    status)           do_status "$@" ;;
+    history)          do_history "$@" ;;
+    list)             do_list ;;
+    *)                echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|validate-config|load-db-fixtures|destroy|status|history|list}"; exit 1 ;;
 esac
