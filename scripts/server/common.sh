@@ -276,3 +276,28 @@ render_backup_units() {
         "$template_dir/backup-files-instance.timer.template" \
         > "/etc/systemd/system/backup-files-$instance.timer"
 }
+
+# Fable: "ufw status" is never trusted below as proof the firewall works.
+# It derives "Status: active" from the existence of the ufw-* chains, not
+# from the INPUT jumps that make them reachable — so it stayed green
+# through the 2026-08-29 UAT lockout (INPUT flushed under an active ufw).
+# While the chains exist, every ufw command (default/allow/enable/reload/
+# force-reload) skips rule installation, so the broken state is
+# unrepairable from inside ufw. The INPUT jump is the only reliable
+# signal that the ruleset is actually wired in.
+ufw_reports_active() {
+    ufw status 2>/dev/null | grep -q '^Status: active'
+}
+
+assert_ufw_effective() {
+    if ! iptables -C INPUT -j ufw-before-input 2>/dev/null; then
+        echo "ERROR: ufw reports active but INPUT does not jump into ufw-before-input." >&2
+        echo "  The kernel is not running ufw's ruleset; the next ufw policy change" >&2
+        echo "  would silently drop all traffic (no established-connections rule," >&2
+        echo "  no allows, no logging) — the 2026-08-29 UAT lockout." >&2
+        echo "  Recover with a reboot (boot-time ufw-init performs a genuine" >&2
+        echo "  install), or delete every ufw chain (iptables -F && iptables -X)" >&2
+        echo "  so 'ufw --force enable' reinstalls from scratch, then re-run." >&2
+        return 1
+    fi
+}

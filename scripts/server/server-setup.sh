@@ -420,6 +420,13 @@ if systemctl is-enabled --quiet netfilter-persistent 2>/dev/null; then
     exit 1
 fi
 
+# Fable: checked BEFORE any ufw command, because the first policy change
+# ("ufw default deny incoming") takes effect immediately and is the line
+# that locked the UAT host out on 2026-08-29 when the jumps were missing.
+if ufw_reports_active; then
+    assert_ufw_effective
+fi
+
 log "Configuring UFW firewall (deny incoming; allow SSH rate-limited, 80, 443)..."
 if ! grep -q '^IPV6=yes' /etc/default/ufw; then
     sed -i 's/^IPV6=.*/IPV6=yes/' /etc/default/ufw
@@ -440,6 +447,7 @@ if ! ufw status verbose | grep -q '^Status: active'; then
     echo "ERROR: UFW failed to activate." >&2
     exit 1
 fi
+assert_ufw_effective
 ufw status verbose | tee -a "$SETUP_LOG"
 log "UFW active."
 
