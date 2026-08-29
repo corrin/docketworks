@@ -380,3 +380,24 @@ for the `.migrations.json` snapshot restores actually read, through one
 shared producer. The Morris Sheetmetal Admin shared drive
 (`0AIH4oBEFMDckUk9PVA`) is proven writable by the instance service account;
 an independent copy of the 2026-08-29 dump sits there.
+
+**A cutover-host.sh re-run locked the UAT host out for 9.5 hours,
+2026-08-29.** The re-run (done for the repo-remote swap) flushed INPUT
+under an active ufw, deleting the six jumps into the ufw-* chains while
+leaving the chains. ufw derives `Status: active` from chain existence, and
+while its chains exist every ufw command — default, allow, `--force
+enable`, reload, disable+enable, `ufw-init force-reload` — skips rule
+installation, so `ufw default deny incoming` in the following
+server-setup.sh converge set INPUT policy DROP with no
+established-connections rule, no allows and no logging: every inbound
+packet and every reply to outbound traffic silently dropped, `ufw status`
+green throughout. Only a reboot (boot-time install from a chainless
+kernel) or deleting every ufw chain then enabling recovers; all facts
+reproduced in a NET_ADMIN container on the host
+(`scripts/server/test_ufw_lockout_guard.sh` pins them). Recovery was an
+OCI SOFTRESET; the persisted ufw config was always correct. Durable fix:
+`assert_ufw_effective` (`common.sh`) checks the INPUT jump — never `ufw
+status` — before server-setup.sh touches ufw and after it enables it, and
+cutover-host.sh refuses to run at all once ufw is active. Exonerated by
+evidence: the Deploy-to-UAT workflow, fail2ban, the rpcbind change and
+the OCI network.

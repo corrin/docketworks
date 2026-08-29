@@ -276,3 +276,44 @@ render_backup_units() {
         "$template_dir/backup-files-instance.timer.template" \
         > "/etc/systemd/system/backup-files-$instance.timer"
 }
+
+# Fable: "ufw status" is never trusted below as proof the firewall works.
+# It derives "Status: active" from the existence of the ufw-* chains, not
+# from the INPUT jumps that make them reachable — so it stayed green
+# through the 2026-08-29 UAT lockout (INPUT flushed under an active ufw).
+# While the chains exist, every ufw command (default/allow/enable/reload/
+# force-reload) skips rule installation, so the broken state is
+# unrepairable from inside ufw. The INPUT jump is the only reliable
+# signal that the ruleset is actually wired in.
+ufw_reports_active() {
+    ufw status 2>/dev/null | grep -q '^Status: active'
+}
+
+ufw_recovery_hint() {
+    echo "  The kernel is not running ufw's ruleset; the next ufw policy change" >&2
+    echo "  would silently drop all traffic (no established-connections rule," >&2
+    echo "  no allows, no logging) — the 2026-08-29 UAT lockout." >&2
+    echo "  Recover with a REBOOT: boot-time ufw-init performs a genuine install." >&2
+    echo "  The in-place alternative (iptables -F && iptables -X, both families," >&2
+    echo "  then 'ufw --force enable') resets the ENTIRE filter table — it" >&2
+    echo "  destroys rules owned by others (Docker, Oracle InstanceServices), so" >&2
+    echo "  it is only for hosts where ufw is the sole iptables user. ufw ships" >&2
+    echo "  no scoped teardown: 'ufw-init flush-all' also clears foreign chains." >&2
+}
+
+assert_ufw_effective() {
+    if ! iptables -C INPUT -j ufw-before-input 2>/dev/null; then
+        echo "ERROR: ufw reports active but INPUT does not jump into ufw-before-input." >&2
+        ufw_recovery_hint
+        return 1
+    fi
+    # Fable: the incident flushed ip6tables too; a v4-wired/v6-orphaned host
+    # would pass a v4-only check while IPv6 policy is unwired (and, after a
+    # flush, wide open — policy ACCEPT), so both families are asserted.
+    if grep -q '^IPV6=yes' /etc/default/ufw 2>/dev/null \
+            && ! ip6tables -C INPUT -j ufw6-before-input 2>/dev/null; then
+        echo "ERROR: ufw reports active but ip6tables INPUT does not jump into ufw6-before-input." >&2
+        ufw_recovery_hint
+        return 1
+    fi
+}

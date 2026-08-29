@@ -52,6 +52,20 @@ if [[ ! -f /etc/letsencrypt/cert-domains.txt && ! -d /etc/letsencrypt/live/docke
     exit 1
 fi
 
+# Fable: refusal, not skip-and-continue — re-running the migration on a
+# converged host (2026-08-29) flushed INPUT under the active ufw, a
+# lockout no ufw command repairs. The re-run's real goal was the repo
+# remote swap, which never needed this script; a converged host entering
+# the migration again is operator error to surface, not accommodate.
+if ufw_reports_active; then
+    echo "ERROR: ufw is already active — this host's cutover has already happened." >&2
+    echo "  Re-running the host migration is not meaningful. For the tasks it" >&2
+    echo "  bundles, use the tools directly:" >&2
+    echo "    converge host state:   sudo bash $SERVER_DIR/server-setup.sh" >&2
+    echo "    repo remote or branch: sudo -u docketworks git -C $LOCAL_REPO ..." >&2
+    exit 1
+fi
+
 STATE_DIR="/opt/docketworks/cutover-state/host-$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$STATE_DIR"
 chmod 700 "$STATE_DIR"
