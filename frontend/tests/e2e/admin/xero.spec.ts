@@ -41,8 +41,8 @@ test.describe('Xero connection page', () => {
 
   test('is reachable from the navbar via the Admin menu', async ({ authenticatedPage: page }) => {
     await page.goto('/kanban')
-    // Owner ruling 2026-08-30: the entry lives under Admin (superuser menu),
-    // even though the page's endpoints are office_auth.
+    // Owner ruling 2026-08-30: the entry lives under Admin for navbar
+    // simplicity, not access control — the endpoints stay office_auth.
     await autoId(page, 'AppNavbar-admin-menu').click()
     await autoId(page, 'AppNavbar-xero').click()
     await autoId(page, 'XeroPage-root').waitFor({ timeout: 30000 })

@@ -191,10 +191,10 @@ export function AppNavbar() {
             <NavMenuLink to="/admin/staff" automationId="AppNavbar-staff">
               Staff
             </NavMenuLink>
-            {/* Fable: owner ruling 2026-08-30 — Xero lives under Admin even
-                though its endpoints are office_auth, so the superuser menu
-                gate is stricter than the API (the Purchases menu records the
-                same accepted shape in reverse). */}
+            {/* Fable: owner ruling 2026-08-30 — Xero lives under Admin to
+                keep the navbar uncluttered for staff who never use it, NOT
+                as access control (its endpoints stay office_auth and the
+                page works for any office login that knows the URL). */}
             <NavMenuLink to="/admin/xero" automationId="AppNavbar-xero">
               Xero
             </NavMenuLink>
