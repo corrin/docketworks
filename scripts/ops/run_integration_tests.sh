@@ -26,6 +26,12 @@ cd "$ROOT"
 # grep cannot see the database the run will actually use.
 uv run python -m scripts.ops.assert_integration_target
 
+# The ufw lockout-guard repro needs docker with NET_ADMIN (a root-owned
+# network namespace) — CI has no docker, same hermeticity rule as the
+# vendor credentials above. The script skips itself, loudly, when docker
+# is unavailable; run it on a docker host (the UAT box qualifies).
+bash scripts/server/test_ufw_lockout_guard.sh
+
 # -p no:randomly and a single worker: these tests share one external tenant, so
 # concurrent runs would fight over the same pay run, contact or leave record.
 # Slow and correct beats fast and racing.
