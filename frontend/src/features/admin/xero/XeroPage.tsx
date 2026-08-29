@@ -6,6 +6,8 @@ import {
   apiErrorId,
   apiErrorMessage,
   isApiErrorStatus,
+  runXeroSyncStream,
+  type XeroSyncEvent,
   xeroDisconnectCreateMutation,
   xeroPingRetrieveOptions,
   xeroPingRetrieveQueryKey,
@@ -13,7 +15,6 @@ import {
   xeroSyncInfoRetrieveOptions,
   xeroSyncInfoRetrieveQueryKey,
 } from '@/api'
-import { runXeroSyncStream, type XeroSyncEvent } from '@/api/xero-sync-stream'
 import { Button } from '@/components/ui/button'
 import { QueryState } from '@/features/shared/QueryState'
 
@@ -72,27 +73,30 @@ export function XeroPage() {
 
   const [log, setLog] = useState<(XeroSyncEvent & { seq: number })[]>([])
   const seqRef = useRef(0)
-  // The terminal event both toasts and refreshes queries; a ref keeps the
-  // stream callback off the effect's dependency list.
-  const onEventRef = useRef<(event: XeroSyncEvent) => void>(() => {})
-  onEventRef.current = (event) => {
-    seqRef.current += 1
-    setLog((lines) => [...lines.slice(-(LOG_LIMIT - 1)), { ...event, seq: seqRef.current }])
-    if (event.sync_status && event.message === 'Sync stream ended') {
-      if (event.sync_status === 'success') toast.success('Xero sync complete')
-      else if (event.sync_status === 'aborted') toast.warning('Xero sync aborted')
-      else toast.error('Xero sync failed')
-      void queryClient.invalidateQueries({ queryKey: xeroSyncInfoRetrieveQueryKey() })
-      void queryClient.invalidateQueries({ queryKey: xeroPingRetrieveQueryKey() })
-    }
-  }
 
   useEffect(() => {
     if (!connected) return undefined
     const controller = new AbortController()
+    // Defined inside the effect (setLog and queryClient are both stable), the
+    // repo's stream-consumer shape — no render-phase ref assignment.
+    const handleEvent = (event: XeroSyncEvent): void => {
+      seqRef.current += 1
+      setLog((lines) => [...lines.slice(-(LOG_LIMIT - 1)), { ...event, seq: seqRef.current }])
+      // Any event carrying sync_status is terminal: the worker sets it on the
+      // "Sync stream ended" pair AND on single abort markers (XERO_READONLY,
+      // sync disabled) that no ended-message follows — matching on the prose
+      // left those runs stuck on "Sync running..." forever.
+      if (event.sync_status) {
+        if (event.sync_status === 'success') toast.success('Xero sync complete')
+        else if (event.sync_status === 'aborted') toast.warning('Xero sync aborted')
+        else toast.error('Xero sync failed')
+        void queryClient.invalidateQueries({ queryKey: xeroSyncInfoRetrieveQueryKey() })
+        void queryClient.invalidateQueries({ queryKey: xeroPingRetrieveQueryKey() })
+      }
+    }
     void runXeroSyncStream({
       signal: controller.signal,
-      onEvent: (event) => onEventRef.current(event),
+      onEvent: handleEvent,
       onStreamOpen: () => {
         // A late joiner missed any in-flight run's earlier events; the
         // polling sibling says whether one is running.
@@ -110,8 +114,10 @@ export function XeroPage() {
     },
     onError: (error) => {
       if (isApiErrorStatus(error, 409)) {
-        // The run's progress arrives on the already-open stream either way.
+        // Someone else's run: its progress arrives on the already-open
+        // stream, and sync-info is refreshed so the button reads as running.
         toast.info('A Xero sync is already running')
+        void queryClient.invalidateQueries({ queryKey: xeroSyncInfoRetrieveQueryKey() })
         return
       }
       if (isApiErrorStatus(error, 401)) {

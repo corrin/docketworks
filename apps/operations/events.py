@@ -20,41 +20,15 @@ library's ``stream-open`` event.
 """
 
 from django.conf import settings
-from django.http import HttpRequest, JsonResponse
+from django.http import HttpRequest
 from django.http.response import HttpResponseBase
 from django.views.decorators.http import require_GET
-from django_eventstream.views import events
 
-from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth
+from apps.core.events import authed_event_stream
 
 
 @require_GET
 def data_versions_stream(request: HttpRequest) -> HttpResponseBase:
     """Serve an EventSource stream of ``data_versions`` events."""
-    auth = CookieJWTAuth()
-    try:
-        user = auth.authenticate(request, request.COOKIES.get(auth.param_name))
-    # deliberate-swallow: every auth failure mode has the same one answer, the
-    # 401 below — whose body mirrors ninja's envelope wording
-    except Exception:  # noqa: BLE001
-        user = None
-    if user is None:
-        return JsonResponse({"detail": "Authentication credentials were not provided."}, status=401)
-    if not isinstance(user, Staff):
-        raise TypeError(f"Cookie JWT resolved a non-Staff principal: {type(user)!r}")
-
-    # django-eventstream reads ``request.user`` itself rather than taking a
-    # user argument (its eventrequest.py), and AuthenticationMiddleware left
-    # it anonymous — that middleware reads the Django session, not the JWT
-    # cookie this contract authenticates with.
-    request.user = user
-
-    response = events(request, channels=[settings.DATA_VERSIONS_CHANNEL])
-    # GZipMiddleware sits second in MIDDLEWARE and does compress streaming
-    # responses, which buffers events into compression blocks; it skips any
-    # response that already declares a Content-Encoding. Cache-Control and
-    # X-Accel-Buffering are already set by the library's add_default_headers,
-    # so they are not repeated here.
-    response["Content-Encoding"] = "identity"
-    return response
+    return authed_event_stream(request, CookieJWTAuth(), settings.DATA_VERSIONS_CHANNEL)

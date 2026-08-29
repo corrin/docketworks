@@ -174,15 +174,15 @@ export function AppNavbar() {
             )}
           </NavMenu>
         )}
-        {/* Fable: office staff, not superuser — every Xero connection
-            endpoint (ping, sync, sync-info, disconnect, the OAuth entry) is
-            office_auth, and the menu gate must match the endpoint's auth
-            class. A standalone link rather than an Admin entry, because the
-            Admin menu's gate is superuser. */}
+        {/* Fable: office staff, not superuser — sync, sync-info, disconnect
+            and the OAuth entry are office_auth (ping alone is any-staff), and
+            the gate must match the page's auth class. A plain top-level Link
+            like Create Job, not a NavMenuLink: Radix menu items throw
+            outside a NavMenu, and the Admin menu's gate is superuser. */}
         {user.is_office_staff && (
-          <NavMenuLink to="/admin/xero" automationId="AppNavbar-xero">
+          <Link to="/admin/xero" data-automation-id="AppNavbar-xero" className="text-sm">
             Xero
-          </NavMenuLink>
+          </Link>
         )}
         {user.is_superuser && (
           <NavMenu label="Admin" automationId="AppNavbar-admin-menu">

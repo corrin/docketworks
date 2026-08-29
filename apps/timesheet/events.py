@@ -26,46 +26,16 @@ so it is superuser-only — sharing a channel would push other people's pay to
 every logged-in worker's open stream.
 """
 
-import logging
-
 from django.conf import settings
-from django.http import HttpRequest, JsonResponse
+from django.http import HttpRequest
 from django.http.response import HttpResponseBase
 from django.views.decorators.http import require_GET
-from django_eventstream import views as eventstream_views
 
-from apps.accounts.models import Staff
 from apps.core.auth import SuperuserCookieJWTAuth
-
-logger = logging.getLogger(__name__)
+from apps.core.events import authed_event_stream
 
 
 @require_GET
 def payroll_runs_stream(request: HttpRequest) -> HttpResponseBase:
     """Stream this organisation's payroll run documents to the weekly page."""
-    auth = SuperuserCookieJWTAuth()
-    try:
-        user = auth.authenticate(request, request.COOKIES.get(auth.param_name))
-    # deliberate-swallow: Opus: this stream reports other staff members' pay, so an
-    # unreadable, expired or non-superuser token must all land on the same
-    # unrevealing 401 — telling an unauthorised caller WHICH of those it was
-    # would confirm the run exists
-    except Exception:  # noqa: BLE001
-        user = None
-    if user is None:
-        return JsonResponse({"detail": "Authentication credentials were not provided."}, status=401)
-    if not isinstance(user, Staff):
-        raise TypeError(f"Cookie JWT resolved a non-Staff principal: {type(user)!r}")
-
-    # Opus: django-eventstream reads ``request.user`` itself rather than taking a
-    # user argument (its eventrequest.py), and AuthenticationMiddleware left it
-    # anonymous — that middleware reads the Django session, not the JWT cookie
-    # this contract authenticates with.
-    request.user = user
-
-    response = eventstream_views.events(request, channels=[settings.PAYROLL_RUNS_CHANNEL])
-    # Opus: GZipMiddleware compresses streaming responses, batching events into
-    # compression blocks; it skips any response already declaring an encoding.
-    # Cache-Control and X-Accel-Buffering come from the library's own defaults.
-    response["Content-Encoding"] = "identity"
-    return response
+    return authed_event_stream(request, SuperuserCookieJWTAuth(), settings.PAYROLL_RUNS_CHANNEL)

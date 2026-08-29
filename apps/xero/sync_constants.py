@@ -65,7 +65,7 @@ def release_sync_lock(owner: str) -> bool:
     making progress. Do not add a compare-and-delete Lua script or a
     django-redis Lock for it: django-redis is not installed, the "shared"
     alias is LocMemCache under test settings, and the lock VALUE is the run's
-    task id — the routing key for the progress-stream cache keys and the
+    task id — the task id the sync-info API reports and the
     ``task_id`` the API hands clients — so it cannot become an opaque token.
     """
     if _sync_cache.get(SYNC_STATUS_KEY) != owner:

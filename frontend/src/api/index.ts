@@ -373,6 +373,7 @@ export {
   timesheetsWeeklyRetrieveQueryKey,
 } from './generated/@tanstack/react-query.gen'
 export { runPayrollRunsStream } from './payroll-runs-stream'
+export { runXeroSyncStream, type XeroSyncEvent } from './xero-sync-stream'
 export type {
   PayRunListItemOut,
   PayRunListResponse,
