@@ -17,6 +17,7 @@ from django.contrib.auth import get_user_model
 from django.http import HttpRequest, JsonResponse
 from django.http.response import HttpResponseBase
 from django_eventstream import views as eventstream_views
+from ninja.errors import AuthenticationError, AuthorizationError
 
 from apps.core.auth import CookieJWTAuth
 
@@ -27,10 +28,14 @@ def authed_event_stream(
     """Authenticate with ``auth`` and open an eventstream on ``channel``."""
     try:
         user = auth.authenticate(request, request.COOKIES.get(auth.param_name))
-    # deliberate-swallow: Fable: an unreadable, expired or under-privileged
-    # token must all land on the same unrevealing 401 — telling an
-    # unauthorised caller WHICH of those it was only helps the caller.
-    except Exception:  # noqa: BLE001
+    # deliberate-swallow: Fable: the auth classes' two typed refusals (bad or
+    # expired token; wrong role) must both land on the same unrevealing 401 —
+    # telling an unauthorised caller WHICH it was only helps the caller.
+    # Anything else is an infrastructure or programming failure and
+    # propagates to the error-persisting layer instead of masquerading as a
+    # quiet 401 (the blanket catch this narrows was inherited from the
+    # pre-hoist views).
+    except (AuthenticationError, AuthorizationError):
         user = None
     if user is None:
         return JsonResponse({"detail": "Authentication credentials were not provided."}, status=401)
