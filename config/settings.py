@@ -284,6 +284,13 @@ DATA_VERSIONS_CHANNEL = f"data-versions-{DATABASES['default']['NAME']}"
 # database for the same reason as its sibling.
 PAYROLL_RUNS_CHANNEL = f"payroll-runs-{DATABASES['default']['NAME']}"
 
+# Fable: Xero sync progress gets its OWN channel for the same authorisation
+# reason as payroll: data-versions authenticates any staff member, while sync
+# progress is office-only (it carries AppError ids and per-entity operational
+# detail, and its page's every action is office_auth). Namespaced by database
+# like its siblings.
+XERO_SYNC_CHANNEL = f"xero-sync-{DATABASES['default']['NAME']}"
+
 # django-solo caches CompanyDefaults.get_solo() across reads; routed onto
 # "shared" makes edits propagate to every worker immediately.
 SOLO_CACHE: str | None = "shared"  # settings_test overrides to None (no caching across tests)

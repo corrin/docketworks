@@ -10,6 +10,12 @@ the readonly provider's ``run_full_sync`` override; v2's worker calls the
 sync engine directly, so the gate lives here. Blanket-blocked on purpose:
 the full sync both pushes local stock to Xero and pulls tenant data into
 the local DB, and neither belongs in a read-only test run.
+
+Fable: progress goes out as django-eventstream publishes on
+``settings.XERO_SYNC_CHANNEL`` (read by ``apps.xero.events.xero_sync_stream``),
+not into cache buffers. The buffer scheme this replaces wrote message lists
+nobody read — its readers were deleted as dead code — and re-reading a
+growing list on every event made each publish O(run length).
 """
 
 import logging
@@ -23,26 +29,32 @@ from apps.core.errors import persist_app_error
 from apps.xero.client import XeroQuotaFloorReached, XeroSyncDisabled, XeroSyncLockLost
 from apps.xero.sync_constants import SYNC_STATUS_KEY, release_sync_lock, require_sync_lock
 
-# The writer (this worker) and the readers (gunicorn SSE view) run in
-# different processes, so route Xero sync state through the Redis-backed
+# The lock's writer (this worker) and readers (gunicorn views) run in
+# different processes, so sync state routes through the Redis-backed
 # "shared" alias.
 _sync_cache = caches["shared"]
 
 logger = logging.getLogger(__name__)
 
 
-def _append_sync_failure_messages(
+def _publish(payload: dict[str, object]) -> None:
+    """Publish one progress event to the sync stream's channel."""
+    # Call-time import: django_eventstream reads Django settings at import.
+    from django_eventstream import send_event  # noqa: PLC0415
+
+    send_event(settings.XERO_SYNC_CHANNEL, "message", payload)
+
+
+def _publish_sync_failure(
     *,
-    messages_key: str,
     task_id: str,
     message: str,
     sync_status: str,
     app_error_id: str | None = None,
 ) -> None:
-    msgs = _sync_cache.get(messages_key, [])
-    # An abort is operational, not an error: the SSE stream derives its
-    # terminal sync_status from error-severity messages, and an aborted run
-    # must not read back as a failed one.
+    # An abort is operational, not an error: the page derives its terminal
+    # toast from sync_status, and an aborted run must not read back as a
+    # failed one.
     severity = "warning" if sync_status == "aborted" else "error"
     error_payload: dict[str, object] = {
         "datetime": timezone.now().isoformat(),
@@ -54,8 +66,8 @@ def _append_sync_failure_messages(
     }
     if app_error_id:
         error_payload["error_id"] = app_error_id
-    msgs.append(error_payload)
-    msgs.append(
+    _publish(error_payload)
+    _publish(
         {
             "datetime": timezone.now().isoformat(),
             "entity": "sync",
@@ -66,12 +78,10 @@ def _append_sync_failure_messages(
             "task_id": task_id,
         }
     )
-    _sync_cache.set(messages_key, msgs, timeout=86400)
 
 
-def _append_abort_marker(messages_key: str, task_id: str, message: str) -> None:
-    msgs = _sync_cache.get(messages_key, [])
-    msgs.append(
+def _publish_abort_marker(task_id: str, message: str) -> None:
+    _publish(
         {
             "datetime": timezone.now().isoformat(),
             "entity": "sync",
@@ -82,19 +92,17 @@ def _append_abort_marker(messages_key: str, task_id: str, message: str) -> None:
             "sync_status": "aborted",
         }
     )
-    _sync_cache.set(messages_key, msgs, timeout=86400)
 
 
 @shared_task(name="apps.xero.tasks.xero_sync_task")
-def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay, and every terminal marker
+def xero_sync_task(
     task_id: str,
 ) -> None:
     """Execute one Xero sync run end-to-end.
 
     Dispatched by ``XeroSyncService.start_sync()`` after it has acquired the
-    Redis lock and seeded the message-buffer cache keys. django_celery_results
-    records the real outcome of each run (SUCCESS, FAILURE-with-traceback,
-    REVOKED on worker crash).
+    Redis lock. django_celery_results records the real outcome of each run
+    (SUCCESS, FAILURE-with-traceback, REVOKED on worker crash).
 
     The dispatcher holds the SYNC_STATUS_KEY lock (value = this task id)
     until the finally block releases it — and the release is owner-checked,
@@ -106,15 +114,10 @@ def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay
     # Call-time import: the sync engine pulls in the whole transform tree.
     from apps.xero.sync import ENTITY_CONFIGS, synchronise_xero_data  # noqa: PLC0415
 
-    messages_key = f"xero_sync_messages_{task_id}"
-    current_key = f"xero_sync_current_entity_{task_id}"
-    progress_key = f"xero_sync_entity_progress_{task_id}"
-    overall_key = f"xero_sync_overall_progress_{task_id}"
-
     # Redelivery guard: acks_late + a Redis visibility timeout shorter than a
     # deep sync means the broker CAN redeliver a live run's message. The lock
     # value is the owning task id; a delivery that no longer owns the lock
-    # must not run a second concurrent sync (or touch the message buffer).
+    # must not run a second concurrent sync (or publish over the live run).
     if _sync_cache.get(SYNC_STATUS_KEY) != task_id:
         logger.warning("Xero sync task %s skipped: lock not held (redelivery or expiry)", task_id)
         return
@@ -123,11 +126,10 @@ def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay
         if settings.XERO_READONLY:
             # v1 parity: XeroReadOnlyProvider.run_full_sync skipped the whole
             # run with this message.
-            _append_abort_marker(messages_key, task_id, "Sync skipped: XERO_READONLY is set")
+            _publish_abort_marker(task_id, "Sync skipped: XERO_READONLY is set")
             logger.info("Xero sync task %s skipped: XERO_READONLY", task_id)
             return
 
-        msgs = _sync_cache.get(messages_key, [])
         processed = 0
         # +2: the pay_items pseudo-entity the orchestrator emits first, and
         # the stock_local_to_xero push that also emits a Completed event.
@@ -143,22 +145,16 @@ def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay
             # Indexed, not .get(): every event declares an entity, so a
             # missing one is a producer defect and must not read as "sync".
             entity = message["entity"]
-            if entity != "sync":
-                _sync_cache.set(current_key, entity, timeout=86400)
-                if "entity_progress" in enriched:
-                    _sync_cache.set(progress_key, enriched["entity_progress"], timeout=86400)
-                if enriched.get("status") == "Completed":
-                    processed += 1
+            if entity != "sync" and enriched.get("status") == "Completed":
+                processed += 1
 
             overall = processed / total_entities if total_entities > 0 else 0.0
             enriched["overall_progress"] = round(overall, 3)
-            _sync_cache.set(overall_key, overall, timeout=86400)
 
             if "recordsUpdated" in enriched:
                 enriched["records_updated"] = enriched["recordsUpdated"]
 
-            msgs.append(enriched)
-            _sync_cache.set(messages_key, msgs, timeout=86400)
+            _publish(enriched)
             # Renew the lock's lease on every progress event, so it means
             # "four hours since this run last made progress" rather than
             # "four hours since it started". A deep sync (5000 days back on a
@@ -170,7 +166,7 @@ def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay
             # mechanism, when the progress stream already is one).
             require_sync_lock(task_id)
 
-        msgs.append(
+        _publish(
             {
                 "datetime": timezone.now().isoformat(),
                 "entity": "sync",
@@ -182,7 +178,6 @@ def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay
                 "task_id": task_id,
             }
         )
-        _sync_cache.set(messages_key, msgs, timeout=86400)
         logger.info("Completed Xero sync task %s", task_id)
 
     # deliberate-swallow: the gate is off, which is configuration, not a
@@ -192,7 +187,7 @@ def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay
     # what made the gate a four-way policy.
     except XeroSyncDisabled as exc:
         logger.info("Xero sync task %s skipped: %s", task_id, exc)
-        _append_abort_marker(messages_key, task_id, f"Sync skipped: {exc}")
+        _publish_abort_marker(task_id, f"Sync skipped: {exc}")
 
     # deliberate-swallow: operational abort, not a defect. Do NOT
     # persist_app_error (24+ rows/day at the floor would be noise), do not
@@ -206,8 +201,7 @@ def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay
     # outcome — an aborted run.
     except (XeroQuotaFloorReached, XeroSyncLockLost) as exc:
         logger.warning("Xero sync %s aborted: %s", task_id, exc)
-        _append_sync_failure_messages(
-            messages_key=messages_key,
+        _publish_sync_failure(
             task_id=task_id,
             message=f"Sync aborted: {exc}",
             sync_status="aborted",
@@ -215,8 +209,7 @@ def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay
 
     except Exception as exc:
         err = persist_app_error(exc)
-        _append_sync_failure_messages(
-            messages_key=messages_key,
+        _publish_sync_failure(
             task_id=task_id,
             message=f"Error during sync: {exc}",
             sync_status="error",
@@ -225,6 +218,4 @@ def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay
         raise
 
     finally:
-        _sync_cache.delete(current_key)
-        _sync_cache.delete(progress_key)
         release_sync_lock(task_id)

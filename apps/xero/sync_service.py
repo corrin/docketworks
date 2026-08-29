@@ -67,10 +67,6 @@ class XeroSyncService:
             release_sync_lock(task_id)
             return XeroSyncStartResult(started=False, reason="no_valid_token")
 
-        _sync_cache.set(f"xero_sync_messages_{task_id}", [], timeout=86400)
-        _sync_cache.set(f"xero_sync_current_entity_{task_id}", None, timeout=86400)
-        _sync_cache.set(f"xero_sync_entity_progress_{task_id}", 0.0, timeout=86400)
-
         try:
             xero_sync_task.delay(task_id)
         except Exception:
@@ -82,24 +78,6 @@ class XeroSyncService:
 
         logger.info("Dispatched Xero sync task %s", task_id)
         return XeroSyncStartResult(started=True, reason="started", task_id=task_id)
-
-    @staticmethod
-    def get_messages(task_id: str, since_index: int = 0) -> list[dict[str, object]]:
-        """Return sync messages for ``task_id`` starting from ``since_index``."""
-        msgs: list[dict[str, object]] = _sync_cache.get(f"xero_sync_messages_{task_id}", [])
-        return msgs[since_index:] if since_index < len(msgs) else []
-
-    @staticmethod
-    def get_current_entity(task_id: str) -> str | None:
-        """Get the entity currently being processed for ``task_id``."""
-        entity: str | None = _sync_cache.get(f"xero_sync_current_entity_{task_id}")
-        return entity
-
-    @staticmethod
-    def get_entity_progress(task_id: str) -> float:
-        """Retrieve progress (0.0-1.0) for ``task_id``."""
-        progress: float = _sync_cache.get(f"xero_sync_entity_progress_{task_id}", 0.0)
-        return progress
 
     @staticmethod
     def get_active_task_id() -> str | None:
