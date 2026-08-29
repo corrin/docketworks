@@ -389,6 +389,19 @@ else
     log "Logrotate config already installed, skipping."
 fi
 
+# --- rpcbind ---
+# Ubuntu server images ship rpcbind enabled and publicly bound on port
+# 111; no docketworks host uses NFS. Fable: disabling only
+# rpcbind.service is rejected — rpcbind.socket re-activates it on the
+# next connection — so both units go together; the unit-file guard skips
+# hosts where the package is absent.
+
+if systemctl list-unit-files rpcbind.socket &>/dev/null; then
+    log "Disabling rpcbind (unused; publicly bound on port 111)..."
+    systemctl disable --now rpcbind.socket rpcbind.service
+    log "  rpcbind disabled (socket and service)."
+fi
+
 # --- Firewall (UFW) ---
 # UFW is the sole host firewall: default-deny incoming, IPv4 and IPv6,
 # with only SSH (rate-limited), HTTP and HTTPS exposed. Raw iptables +

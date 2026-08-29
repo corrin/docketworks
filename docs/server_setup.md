@@ -91,6 +91,8 @@ It is **idempotent** — safe to re-run on an already-configured server.
 - Build dependencies (build-essential, libpq-dev, pkg-config)
 - uv (for the `docketworks` system user; release builds run `uv sync --frozen`)
 - UFW: default-deny incoming on IPv4 and IPv6; only rate-limited SSH, 80 and 443 open
+- rpcbind disabled, socket and service — Ubuntu ships it publicly bound on
+  port 111 and no docketworks host uses NFS
 - Fail2ban: an sshd jail plus two jails watching the nginx access logs for
   HTTP 401s on `POST /api/accounts/token/` (10/10min, 1h ban) and
   `POST /api/accounts/token/refresh/` (60/10min, 15min ban), banning via UFW.

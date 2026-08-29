@@ -218,9 +218,6 @@ First work on v2, in this order:
 - **MariaDB archaeology on the prod host**: localhost-only MariaDB holds
   `jobs_manager` (the pre-DocketWorks ancestor) and a legacy mysql-era
   `dw_msm_prod`. Identify any consumer, archive, remove the service.
-- **Remove rpcbind on the UAT box** if the shakedown run has not already
-  (`systemctl disable --now rpcbind.socket rpcbind.service`; nothing uses
-  NFS there).
 - **Supplier-scraper ruling**: the Steel & Tube scrape has been silently
   dead since Feb 2026 — decide deliberate-stop vs site-change, then fix or
   record (cutover-checklist row).
