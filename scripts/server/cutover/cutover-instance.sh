@@ -136,6 +136,15 @@ if [[ -f "$COMPANY_DEFAULTS_FILE" ]] && grep -q '"workflow\.companydefaults"' "$
     sed -i 's/"workflow\.companydefaults"/"core.companydefaults"/' "$COMPANY_DEFAULTS_FILE"
 fi
 
+# --- Prove the reconfigure below will pass, while v1 is still up ---
+# Fable: relying on reconfigure's own validation is rejected — it runs
+# after the service stop, the final backup and the release flip, so a v1
+# credentials file missing a v2-only key (BACKUP_GDRIVE_TEAM_DRIVE_ID on
+# the first live run) strands the instance down on v2 config with the
+# data not yet migrated. Same checks, nothing changed yet; sits after the
+# label rewrite above because the validator requires the v2 model label.
+"$SERVER_DIR/instance.sh" validate-config "$CLIENT" "$ENV"
+
 # --- Stop v1 and take the verified final v1 backup ---
 stop_instance_services_strict "$INSTANCE"
 # The backup timers stay down for the whole migration: a nightly pg_dump

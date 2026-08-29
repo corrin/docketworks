@@ -5,6 +5,7 @@ set -euo pipefail
 # Usage: instance.sh prepare-config <client> <env> [--seed]
 #        instance.sh create <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]
 #        instance.sh reconfigure <client> <env> [--fqdn <hostname>] [--no-start]
+#        instance.sh validate-config <client> <env>
 #        instance.sh destroy <client> <env>
 #        instance.sh status <client> <env>
 #        instance.sh history <client> <env>
@@ -872,6 +873,21 @@ do_reconfigure() {
 }
 
 # ============================================================
+# validate-config
+# ============================================================
+# The exact config checks create/reconfigure run before touching state,
+# callable on their own. Read-only: exists so a preflight (the cutover
+# script) can prove a later reconfigure will pass while the instance is
+# still up, instead of discovering a missing v2-only credential after
+# services are stopped and the release symlink is flipped.
+do_validate_config() {
+    parse_client_env "$@"
+    require_instance_credentials "$CONFIG_DIR/$INSTANCE.credentials.env"
+    validate_company_defaults_config "$CONFIG_DIR/$INSTANCE.company-defaults.json"
+    log "Config for $INSTANCE satisfies the v2 contract."
+}
+
+# ============================================================
 # destroy
 # ============================================================
 do_destroy() {
@@ -1134,13 +1150,14 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
 fi
 
 if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|history|list} [args...]"
-    echo "  prepare-config <client> <env> [--seed]"
-    echo "  create         <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]"
-    echo "  reconfigure    <client> <env> [--fqdn <hostname>] [--no-start]"
-    echo "  destroy        <client> <env>"
-    echo "  status         <client> <env>"
-    echo "  history        <client> <env>"
+    echo "Usage: $0 {prepare-config|create|reconfigure|validate-config|destroy|status|history|list} [args...]"
+    echo "  prepare-config  <client> <env> [--seed]"
+    echo "  create          <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]"
+    echo "  reconfigure     <client> <env> [--fqdn <hostname>] [--no-start]"
+    echo "  validate-config <client> <env>"
+    echo "  destroy         <client> <env>"
+    echo "  status          <client> <env>"
+    echo "  history         <client> <env>"
     echo "  list"
     exit 1
 fi
@@ -1153,12 +1170,13 @@ if [[ "$COMMAND" != "list" && $EUID -ne 0 ]]; then
 fi
 
 case "$COMMAND" in
-    prepare-config) do_prepare_config "$@" ;;
-    create)         do_create "$@" ;;
-    reconfigure)    do_reconfigure "$@" ;;
-    destroy)        do_destroy "$@" ;;
-    status)         do_status "$@" ;;
-    history)        do_history "$@" ;;
-    list)           do_list ;;
-    *)              echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|history|list}"; exit 1 ;;
+    prepare-config)  do_prepare_config "$@" ;;
+    create)          do_create "$@" ;;
+    reconfigure)     do_reconfigure "$@" ;;
+    validate-config) do_validate_config "$@" ;;
+    destroy)         do_destroy "$@" ;;
+    status)          do_status "$@" ;;
+    history)         do_history "$@" ;;
+    list)            do_list ;;
+    *)               echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|validate-config|destroy|status|history|list}"; exit 1 ;;
 esac
