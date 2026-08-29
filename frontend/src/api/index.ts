@@ -471,3 +471,22 @@ export type {
   PaginatedEntryList,
   StaffOptionOut,
 } from './generated/types.gen'
+
+// Xero connection page (/admin/xero): status, connect/disconnect, manual sync.
+// The OAuth authenticate endpoint and the progress stream are deliberately
+// outside the generated client (never-ending / redirect responses); the page
+// navigates to /api/xero/authenticate/ directly and streams via
+// ./xero-sync-stream.
+export {
+  xeroDisconnectCreateMutation,
+  xeroPingRetrieveQueryKey,
+  xeroSyncCreateMutation,
+  xeroSyncInfoRetrieveOptions,
+  xeroSyncInfoRetrieveQueryKey,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  XeroPingErrorOut,
+  XeroPingOut,
+  XeroSyncInfoOut,
+  XeroSyncStartOut,
+} from './generated/types.gen'

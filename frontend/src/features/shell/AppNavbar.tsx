@@ -174,6 +174,16 @@ export function AppNavbar() {
             )}
           </NavMenu>
         )}
+        {/* Fable: office staff, not superuser — every Xero connection
+            endpoint (ping, sync, sync-info, disconnect, the OAuth entry) is
+            office_auth, and the menu gate must match the endpoint's auth
+            class. A standalone link rather than an Admin entry, because the
+            Admin menu's gate is superuser. */}
+        {user.is_office_staff && (
+          <NavMenuLink to="/admin/xero" automationId="AppNavbar-xero">
+            Xero
+          </NavMenuLink>
+        )}
         {user.is_superuser && (
           <NavMenu label="Admin" automationId="AppNavbar-admin-menu">
             <NavMenuLink to="/admin/leave-settings" automationId="AppNavbar-leave-settings">
