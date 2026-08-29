@@ -18,6 +18,9 @@ jobs:
           # runs scripts/server/deploy.sh to release. reset --hard, not pull:
           # the mirror is never committed to locally, and reset survives a
           # force-pushed main where --ff-only would wedge.
+          # The mirror is owned by the docketworks user (server-setup.sh);
+          # the deploy login is ubuntu, so act as the owner rather than
+          # loosening the mirror's ownership.
           script: |
-            git -C /opt/docketworks/repo fetch origin
-            git -C /opt/docketworks/repo reset --hard origin/main
+            sudo -u docketworks git -C /opt/docketworks/repo fetch origin
+            sudo -u docketworks git -C /opt/docketworks/repo reset --hard origin/main
