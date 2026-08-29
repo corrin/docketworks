@@ -245,6 +245,22 @@ JAIL="$TEMPLATE_DIR/fail2ban-jail-docketworks.conf"
 grep -q '^banaction = ufw' "$JAIL" || fail "jail: UFW must be the ban action"
 grep -q 'docketworks_\*_access.log' "$JAIL" || fail "jail: per-instance access-log glob missing"
 
+# --- company-defaults label rewrite: v1 spelling becomes v2's, once ---
+LABEL_TMP="$(mktemp)"
+LABEL_OUT="$(
+    # shellcheck source=common.sh
+    source "$SCRIPT_DIR/common.sh"
+    printf '[{"model": "workflow.companydefaults"}, {"model": "company.company"}]' > "$LABEL_TMP"
+    rewrite_v1_company_defaults_labels "$LABEL_TMP" && echo "REWROTE"
+    rewrite_v1_company_defaults_labels "$LABEL_TMP" || echo "SECOND_RUN_NOOP"
+    cat "$LABEL_TMP"
+)"
+echo "$LABEL_OUT" | grep -q "REWROTE" || fail "label rewrite: did not report rewriting a v1 file"
+echo "$LABEL_OUT" | grep -q "SECOND_RUN_NOOP" || fail "label rewrite: not idempotent"
+echo "$LABEL_OUT" | grep -q '"core.companydefaults"' || fail "label rewrite: v2 label missing after rewrite"
+echo "$LABEL_OUT" | grep -q '"workflow.companydefaults"' && fail "label rewrite: v1 label survived"
+rm -f "$LABEL_TMP"
+
 # --- rclone config writer: a bare service account is refused ---
 # A service account without a shared drive has zero quota, so that config
 # uploads nothing — prod ran it red every night. chown/chmod are shadowed

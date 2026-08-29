@@ -133,7 +133,7 @@ COMPANY_DEFAULTS_FILE="$CONFIG_DIR/$INSTANCE.company-defaults.json"
 if [[ -f "$COMPANY_DEFAULTS_FILE" ]] && grep -q '"workflow\.companydefaults"' "$COMPANY_DEFAULTS_FILE"; then
     log "Rewriting v1 model label in $COMPANY_DEFAULTS_FILE (workflow.companydefaults -> core.companydefaults)"
     cp -p "$COMPANY_DEFAULTS_FILE" "$STATE_DIR/company-defaults.v1.json"
-    sed -i 's/"workflow\.companydefaults"/"core.companydefaults"/' "$COMPANY_DEFAULTS_FILE"
+    rewrite_v1_company_defaults_labels "$COMPANY_DEFAULTS_FILE"
 fi
 
 # --- Prove the reconfigure below will pass, while v1 is still up ---

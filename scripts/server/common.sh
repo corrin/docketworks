@@ -110,6 +110,23 @@ instance_rclone_config() {
     echo "$RCLONE_CONFIG_DIR/$instance.conf"
 }
 
+# Rewrite the v1 spelling of the CompanyDefaults model label in a
+# company-defaults bootstrap JSON. v1 hosts' files predate CompanyDefaults'
+# move to apps/core, and v2's validator (correctly) refuses the old label.
+# One implementation shared by the cutover (in place, after preserving the
+# original) and the read-only validate-config preflight (on a temp copy),
+# so the preflight predicts exactly what reconfigure will see instead of
+# false-negativing on every not-yet-cut-over host. Idempotent; returns 0
+# when it rewrote, 1 when the file already carried the v2 label.
+rewrite_v1_company_defaults_labels() {
+    local file="$1"
+    if grep -q '"workflow\.companydefaults"' "$file"; then
+        sed -i 's/"workflow\.companydefaults"/"core.companydefaults"/' "$file"
+        return 0
+    fi
+    return 1
+}
+
 instance_backup_dir() {
     local instance="$1"
     echo "$INSTANCES_DIR/$instance/backups"
