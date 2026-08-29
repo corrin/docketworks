@@ -24,8 +24,9 @@ fi
 docker run --rm --cap-add=NET_ADMIN -v "$REPO_ROOT":/repo:ro ubuntu:24.04 bash -euo pipefail -c '
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq >/dev/null && apt-get install -y -qq ufw >/dev/null
-    sed -i "s/^IPV6=yes/IPV6=no/" /etc/default/ufw   # container has no v6 stack
     truncate -s 0 /etc/ufw/sysctl.conf               # sysctl is read-only in containers
+    # IPV6=yes stays: the incident host runs dual-stack and ip6tables works
+    # in a NET_ADMIN container, so both families are exercised.
     # common.sh log() writes /var/log/docketworks-setup.log; fine in a container.
     source /repo/scripts/server/common.sh
 
@@ -35,10 +36,12 @@ docker run --rm --cap-add=NET_ADMIN -v "$REPO_ROOT":/repo:ro ubuntu:24.04 bash -
     ufw limit 22/tcp >/dev/null; ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null
     ufw --force enable >/dev/null
     assert_ufw_effective || { echo "FAIL: healthy converge did not satisfy assert_ufw_effective"; exit 1; }
+    ip6tables -C INPUT -j ufw6-before-input || { echo "FAIL: healthy converge left IPv6 unwired"; exit 1; }
     ufw_reports_active || { echo "FAIL: ufw_reports_active false on an enabled ufw"; exit 1; }
 
-    echo "--- flush INPUT under active ufw (the incident state)"
+    echo "--- flush INPUT under active ufw (the incident state, both families)"
     iptables -P INPUT ACCEPT; iptables -F INPUT
+    ip6tables -P INPUT ACCEPT; ip6tables -F INPUT
     ufw_reports_active || { echo "FAIL: premise gone — ufw status no longer lies after a flush"; exit 1; }
     if assert_ufw_effective 2>/dev/null; then
         echo "FAIL: assert_ufw_effective passed on the lockout state"; exit 1
@@ -50,9 +53,15 @@ docker run --rm --cap-add=NET_ADMIN -v "$REPO_ROOT":/repo:ro ubuntu:24.04 bash -
         echo "FAIL: ufw enable/reload repaired the jumps — guard premise gone, re-examine the fix"; exit 1
     fi
 
-    echo "--- prove the documented recovery works"
-    iptables -F; iptables -X
+    echo "--- prove the documented in-place recovery works (container has no foreign chains — on a real host this resets Docker et al.; reboot is the primary recovery)"
+    iptables -F; iptables -X; ip6tables -F; ip6tables -X
     ufw --force enable >/dev/null
     assert_ufw_effective || { echo "FAIL: recovery path did not restore the jumps"; exit 1; }
+
+    echo "--- v4 wired but v6 orphaned must still fail the assert"
+    ip6tables -P INPUT ACCEPT; ip6tables -F INPUT
+    if assert_ufw_effective 2>/dev/null; then
+        echo "FAIL: assert_ufw_effective ignored a v6-orphaned firewall"; exit 1
+    fi
     echo "PASS: lockout state detected; recovery path verified"
 '

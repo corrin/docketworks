@@ -59,10 +59,31 @@ Capture with `tee` if a copy is wanted.
 cutover-host.sh refuses — the migration has happened, and its bundled
 steps are available directly (`../server-setup.sh` for convergence, plain
 git for the repo). server-setup.sh verifies the ruleset is genuinely
-wired in (`assert_ufw_effective`) before and after touching ufw; if that
-check fails, do not retry ufw commands — none of them repair the state.
-Reboot, or delete every ufw chain (`iptables -F && iptables -X`) and
-re-run.
+wired in (`assert_ufw_effective`, both address families) before and
+after touching ufw; if that check fails, do not retry ufw commands —
+none of them repair the state. **Reboot**: boot-time ufw-init performs a
+genuine install. The in-place alternative (`iptables -F && iptables -X`
+plus the `ip6tables` pair, then `ufw --force enable`) resets the entire
+filter table and destroys rules owned by others (Docker, Oracle
+InstanceServices) — only for hosts where ufw is the sole iptables user;
+ufw ships no scoped teardown (`ufw-init flush-all` also clears foreign
+chains).
+
+**On a host with no out-of-band console (production is a physical
+machine in a locked room), arm a dead-man switch before any
+firewall-touching run.** `ufw --force disable` restores `INPUT ACCEPT`
+even from the lockout state (verified in the container repro), so a
+pre-armed timed disable converts the worst case into "firewall briefly
+open, still reachable":
+
+```shell
+# arm (before the run; 20 min covers a full converge with margin):
+sudo systemd-run --on-active=20min --timer-property=AccuracySec=1s \
+    --unit=ufw-deadman /usr/sbin/ufw --force disable
+# disarm (after assert_ufw_effective has passed and SSH is confirmed):
+sudo systemctl stop ufw-deadman.timer
+# if it fired: the host is open — fix, then 'ufw --force enable' and verify.
+```
 
 ## If it goes wrong
 
