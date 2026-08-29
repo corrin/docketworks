@@ -443,7 +443,7 @@ ufw limit 22/tcp
 ufw allow 80/tcp
 ufw allow 443/tcp
 ufw --force enable
-if ! ufw status verbose | grep -q '^Status: active'; then
+if ! ufw_reports_active; then
     echo "ERROR: UFW failed to activate." >&2
     exit 1
 fi
