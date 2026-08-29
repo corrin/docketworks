@@ -909,7 +909,27 @@ do_reconfigure() {
 do_validate_config() {
     parse_client_env "$@"
     require_instance_credentials "$CONFIG_DIR/$INSTANCE.credentials.env"
-    validate_company_defaults_config "$CONFIG_DIR/$INSTANCE.company-defaults.json"
+    # Validate what reconfigure will actually see: the cutover rewrites the
+    # v1 CompanyDefaults model label in place before reconfigure, so this
+    # read-only preflight applies the same rewrite to a temp copy. Without
+    # it a v1-era file fails a check the cutover itself cures — a false
+    # negative on every not-yet-cut-over host.
+    local defaults_file="$CONFIG_DIR/$INSTANCE.company-defaults.json"
+    if [[ ! -f "$defaults_file" ]]; then
+        validate_company_defaults_config "$defaults_file"
+    fi
+    local preview_dir preview
+    preview_dir="$(mktemp -d)"
+    chmod 755 "$preview_dir"
+    preview="$preview_dir/$INSTANCE.company-defaults.json"
+    cp "$defaults_file" "$preview"
+    chown root:root "$preview"
+    chmod 600 "$preview"
+    if rewrite_v1_company_defaults_labels "$preview"; then
+        log "company-defaults carries the v1 model label; the cutover rewrites it — validating the rewritten form"
+    fi
+    validate_company_defaults_config "$preview"
+    rm -rf "$preview_dir"
     log "Config for $INSTANCE satisfies the v2 contract."
 }
 
