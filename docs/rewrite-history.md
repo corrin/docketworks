@@ -354,3 +354,29 @@ the scrubber excluded the automation account by email, which silently
 dropped NULL-office-email rows from the identity scrub (SQL NULL
 semantics), and it never scrubbed `payroll_email` at all — it now excludes
 by pk and scrubs a set payroll address while preserving NULL shape.
+
+**The flip and its triage, 2026-08-29.** Production cuts over to v2 the
+night of 2026-08-29; v1 is never deployed again unless something goes very
+wrong, with `rollback-instance.sh` plus the preserved v1-final database as
+the escape hatch and Monday 07:00 as the decide-by point. Owner triage the
+same day: the weak-password path, AccessLogging/DisallowedHost, the
+one-implementation gate expansion and the 500-line passes are DEFERRED —
+large refactors days before a flip add regression risk and remove none.
+The `production` branch tracks main's flip SHA (`bfaba5d`).
+
+**Prod backups had two upload paths; only the undocumented one worked,
+2026-08-29.** The systemd `backup-db-msm-prod` unit failed nightly since at
+least July: its per-instance rclone remote was a bare service account,
+which has zero My-Drive quota, so every upload 403s — a config that had
+been hand-fixed on 2026-07-02 and silently regenerated broken by the
+2026-08-08 deploy from a stale credentials file. The real off-site copies
+rode a root crontab (00:00 dump, 00:10 cleanup-as-root) whose rclone config
+holds a personal OAuth token. Durable fix shipped in PR #105: a
+service-account remote without a shared drive is refused at render time,
+`BACKUP_GDRIVE_TEAM_DRIVE_ID` is a required credentials value, and
+`verify-instance.sh` round-trips a probe upload as the instance user. The
+same PR retired the `.sha` release-pointer sidecar (consumed by nothing)
+for the `.migrations.json` snapshot restores actually read, through one
+shared producer. The Morris Sheetmetal Admin shared drive
+(`0AIH4oBEFMDckUk9PVA`) is proven writable by the instance service account;
+an independent copy of the 2026-08-29 dump sits there.

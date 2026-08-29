@@ -17,22 +17,22 @@ links there.
 v1, which cannot rot. Estimates of unfinished work belong nowhere — say
 which thing is bigger, never by how much.
 
-## The gate: Saturday 22 August 2026
+## The gate: Saturday 29 August 2026 (owner ruling, supersedes 22 August)
 
 **Go/no-go is two independent questions; either one is grounds to reject.**
 
 1. **Does this replicate all the functionality the business needs?** MUST-tier
-   E2E specs green is the measurable proxy. A red MUST spec means no release.
+   E2E specs green is the measurable proxy. All 46 specs are green on main;
+   the remaining proxy evidence is the full suite against a fresh
+   production restore.
 2. **Is this materially better architecture and code?** Judged directly, not
    proxied by any gate. v1 already proves the functionality works, so the
    architecture is the rewrite's only reason to exist.
 
-If either fails the answer is **abort and stay on v1** — never ship anyway.
-Declining to cut over is always safe; shipping worse architecture never is.
-
-**Checkpoint Wednesday 19 August:** count MUST specs green; if the trajectory
-misses, the call is made then, not on the night. Scope is frozen — nothing new
-enters MUST.
+The flip runs the night of 2026-08-29 after the pre-window gates in the
+approved plan. v1 is never deployed again unless something goes very wrong;
+`rollback-instance.sh` plus the preserved v1-final database is the escape
+hatch, decided by Monday 07:00 or v2 rides forward.
 
 **Tiers.** MUST is release-blocking and is always the next work while any MUST
 is open. SHOULD is wanted before the flip and never displaces a MUST. DEFERRED
@@ -71,33 +71,16 @@ operations v1's frontend called, never what shape v2 must serve.
 
 ### Cross-cutting controls v1 has and v2 lacks
 
-- [ ] `FrontendRedirect` (serves the SPA — needed, not optional),
-      `AccessLogging`, `DisallowedHost`.
-- [ ] The complete weak-password path: validation, an authenticated
-      password-change API and UI, and enforcement of `password_needs_reset`.
-      Returning the flag from login while the frontend ignores it is not a
-      security control. Forgotten-password email stays the separate
-      `blocked-by:email-feature` slice.
+Re-tiered to DEFERRED by owner ruling 2026-08-29 (see that section); the
+SPA-serving concern is covered by `verify-instance.sh`'s index.html check
+at the flip.
 
 ### Architecture — what can still change the verdict
 
-- [ ] **Make the one-implementation rule cover the whole application.** Run the
-      Python gate over `apps/`, add an equivalent TypeScript check over
-      `frontend/src/`, hoist the four Celery connection-hygiene copies into
-      `apps/core`, and add a root test guard failing any unmarked real network
-      call. `find_duplicates.py` is `types: [python]`, so nothing on the
-      frontend is checked at all — three parallel job pickers coexisted through
-      every green tier until a human caught them.
-- [ ] **Bring every handwritten file back under 500 lines.** Baseline 2026-08-16:
-      42 production and 21 test files over, largest
-      `apps/job/services/job_service.py` (2,837), `apps/job/api.py` (1,810),
-      `apps/job/services/workshop_pdf_service.py` (1,582). Four passes:
-      inventory plus CI gate with no new offenders; split everything over 1,000
-      lines; split the rest; split the test files by behaviour under test.
-      Generated files stay exempt — their schema, not their emitted layout, is
-      the maintainable unit. Line count says *where* to decompose, never *how*:
-      moving line ranges into vaguely named helpers satisfies the number and
-      preserves the defect.
+The one-implementation gate expansion and the 500-line passes are re-tiered
+to DEFERRED by owner ruling 2026-08-29: large refactors days before a flip
+add regression risk and remove none, and gate question 2 is judged directly.
+
 - [ ] **Ship an honest release surface.** Every route linked from navigation
       works, every implemented route is reachable (gated in the integration
       tier by `scripts/checks/route_reachability.py`), and no visible tab leads
@@ -189,6 +172,66 @@ rather than anywhere else. This file is finished when it is empty.
   because it destroys data.
 
 ## DEFERRED — after cutover
+
+### Re-tiered at the flip (owner rulings, 2026-08-29)
+
+First work on v2, in this order:
+
+- **The complete weak-password path**: validation, an authenticated
+  password-change API and UI, and enforcement of `password_needs_reset`.
+  Returning the flag from login while the frontend ignores it is not a
+  security control. Forgotten-password email stays the separate
+  `blocked-by:email-feature` slice. First slice after the flip.
+- **`AccessLogging` and `DisallowedHost` middleware** (v1 parity;
+  `FrontendRedirect` is not needed — the SPA serving path is proven by
+  `verify-instance.sh`).
+- **Make the one-implementation rule cover the whole application.** Run the
+  Python gate over `apps/`, add an equivalent TypeScript check over
+  `frontend/src/`, hoist the four Celery connection-hygiene copies into
+  `apps/core` (including `apps/crm/tasks.py`'s two unguarded
+  `close_old_connections()` calls), and add a root test guard failing any
+  unmarked real network call. `find_duplicates.py` is `types: [python]`, so
+  nothing on the frontend is checked at all — three parallel job pickers
+  coexisted through every green tier until a human caught them.
+- **Bring every handwritten file back under 500 lines.** Baseline 2026-08-16:
+  42 production and 21 test files over, largest
+  `apps/job/services/job_service.py` (2,837), `apps/job/api.py` (1,810),
+  `apps/job/services/workshop_pdf_service.py` (1,582). Four passes:
+  inventory plus CI gate with no new offenders; split everything over 1,000
+  lines; split the rest; split the test files by behaviour under test.
+  Generated files stay exempt. Line count says *where* to decompose, never
+  *how*: moving line ranges into vaguely named helpers satisfies the number
+  and preserves the defect.
+
+### Operations follow-ups from the 2026-08-29 flip preparation
+
+- **Retire the prod root backup cron pair** (00:00 backup + 00:10
+  cleanup-as-root) only AFTER one green manual run of
+  `backup-db-msm-prod.service` — the root cron's rclone-as-root upload is
+  the load-bearing off-site path until the unit works.
+- **Migrate the ~11.3 GiB of backup history** out of the personal Drive
+  into the client's Admin shared drive (owner ruled: client backups live in
+  the client's drive). Copy, verify, then remove the personal-Drive copies.
+- **Make `backend` and `frontend` required status checks** in GitHub branch
+  protection — PR #105 auto-merged while the backend suite was still
+  running.
+- **MariaDB archaeology on the prod host**: localhost-only MariaDB holds
+  `jobs_manager` (the pre-DocketWorks ancestor) and a legacy mysql-era
+  `dw_msm_prod`. Identify any consumer, archive, remove the service.
+- **Remove rpcbind on the UAT box** if the shakedown run has not already
+  (`systemctl disable --now rpcbind.socket rpcbind.service`; nothing uses
+  NFS there).
+- **Supplier-scraper ruling**: the Steel & Tube scrape has been silently
+  dead since Feb 2026 — decide deliberate-stop vs site-change, then fix or
+  record (cutover-checklist row).
+- **Credential rotations recorded in the cutover checklist**: the Google
+  service-account key committed in v1's history, and `frontend/.env.test`
+  in this repo's history.
+- **Backup-system consolidation handoff**: fold the prod-side diagnosis
+  (Part B of the prod host's
+  `/root/.claude/plans/right-obviously-the-systemd-shimmying-origami.md`,
+  file:line pointers included) into the work above; it documents the
+  two-upload-path history and the config-only fix.
 
 ### Payroll and Xero
 
