@@ -48,6 +48,22 @@ v1's git objects.
 4. `sudo ../verify-instance.sh <client> <env>` — the permanent verifier;
    also runs automatically at the end of cutover-instance.sh.
 
+## Running rules
+
+**Run these scripts with plain output.** Never pipe them through anything
+that can close early (`head`, `grep -m`); with `set -o pipefail` a closed
+pipe kills the run mid-step, and the firewall steps are not safe to kill.
+Capture with `tee` if a copy is wanted.
+
+**The host step runs once, and enforces it:** once ufw is active,
+cutover-host.sh refuses — the migration has happened, and its bundled
+steps are available directly (`../server-setup.sh` for convergence, plain
+git for the repo). server-setup.sh verifies the ruleset is genuinely
+wired in (`assert_ufw_effective`) before and after touching ufw; if that
+check fails, do not retry ufw commands — none of them repair the state.
+Reboot, or delete every ufw chain (`iptables -F && iptables -X`) and
+re-run.
+
 ## If it goes wrong
 
 `sudo ./rollback-instance.sh <client> <env>` restores the recorded v1
