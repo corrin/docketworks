@@ -8,7 +8,7 @@ INSTANCES_DIR="$BASE_DIR/instances"
 CONFIG_DIR="$BASE_DIR/config"
 LOCAL_REPO="$BASE_DIR/repo"
 RELEASES_DIR="$BASE_DIR/releases"
-REMOTE_REPO_URL="https://github.com/corrin/docketworks_v2.git"
+REMOTE_REPO_URL="https://github.com/corrin/docketworks.git"
 RCLONE_CONFIG_DIR="$CONFIG_DIR/rclone"
 
 VALID_ENVS="dev uat staging prod demo"
