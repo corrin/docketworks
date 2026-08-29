@@ -191,7 +191,7 @@ export function AppNavbar() {
             <NavMenuLink to="/admin/staff" automationId="AppNavbar-staff">
               Staff
             </NavMenuLink>
-            {/* Fable: owner ruling 2026-08-30 — Xero lives under Admin to
+            {/* Owner ruling 2026-08-30 — Xero lives under Admin to
                 keep the navbar uncluttered for staff who never use it, NOT
                 as access control (its endpoints stay office_auth and the
                 page works for any office login that knows the URL). */}
