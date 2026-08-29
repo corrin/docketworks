@@ -219,6 +219,17 @@ write_instance_rclone_config() {
     local team_drive_id="${4:-}"
     local config_path
 
+    # A service account has zero My-Drive quota, so without a shared drive
+    # every upload 403s (storageQuotaExceeded) — sharing a personal folder to
+    # the SA stopped working when Google changed quota attribution in 2021.
+    # Prod ran that exact config, red every night, while a root cron with a
+    # personal OAuth token did the real uploads. Refuse it at render time.
+    if [[ -z "$team_drive_id" ]]; then
+        echo "ERROR: BACKUP_GDRIVE_TEAM_DRIVE_ID is required: a service-account" >&2
+        echo "remote without a shared drive cannot upload anything (no quota)." >&2
+        return 1
+    fi
+
     config_path="$(instance_rclone_config "$instance")"
     mkdir -p "$RCLONE_CONFIG_DIR"
     chmod 755 "$RCLONE_CONFIG_DIR"
@@ -227,9 +238,7 @@ write_instance_rclone_config() {
         echo "type = drive"
         echo "scope = drive"
         echo "service_account_file = $INSTANCES_DIR/$instance/gcp-credentials.json"
-        if [[ -n "$team_drive_id" ]]; then
-            echo "team_drive = $team_drive_id"
-        fi
+        echo "team_drive = $team_drive_id"
         if [[ -n "$root_folder_id" ]]; then
             echo "root_folder_id = $root_folder_id"
         fi

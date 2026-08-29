@@ -245,6 +245,35 @@ JAIL="$TEMPLATE_DIR/fail2ban-jail-docketworks.conf"
 grep -q '^banaction = ufw' "$JAIL" || fail "jail: UFW must be the ban action"
 grep -q 'docketworks_\*_access.log' "$JAIL" || fail "jail: per-instance access-log glob missing"
 
+# --- rclone config writer: a bare service account is refused ---
+# A service account without a shared drive has zero quota, so that config
+# uploads nothing — prod ran it red every night. chown/chmod are shadowed
+# so the happy path runs without root.
+RCLONE_TMP="$(mktemp -d)"
+RCLONE_OUT="$(
+    # Subshell so common.sh's vars and the shadowing stay contained.
+    set +e
+    # shellcheck source=common.sh
+    source "$SCRIPT_DIR/common.sh"
+    RCLONE_CONFIG_DIR="$RCLONE_TMP"
+    chown() { :; }
+    chmod() { :; }
+    if write_instance_rclone_config "test-uat" "dw_test_uat" "" "" 2>&1; then
+        echo "UNEXPECTED_SUCCESS"
+    fi
+    write_instance_rclone_config "test-uat" "dw_test_uat" "folder123" "drive456" 2>&1
+)"
+echo "$RCLONE_OUT" | grep -q "UNEXPECTED_SUCCESS" \
+    && fail "rclone writer: accepted a config with no shared drive"
+echo "$RCLONE_OUT" | grep -q "BACKUP_GDRIVE_TEAM_DRIVE_ID" \
+    || fail "rclone writer: refusal must name the missing value"
+RENDERED_RCLONE="$RCLONE_TMP/test-uat.conf"
+grep -q '^team_drive = drive456$' "$RENDERED_RCLONE" \
+    || fail "rclone writer: team_drive missing from rendered config"
+grep -q '^root_folder_id = folder123$' "$RENDERED_RCLONE" \
+    || fail "rclone writer: root_folder_id missing from rendered config"
+rm -rf "$RCLONE_TMP"
+
 if (( FAILURES > 0 )); then
     echo "$FAILURES server template check(s) failed." >&2
     exit 1
