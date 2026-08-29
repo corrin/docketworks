@@ -175,6 +175,14 @@ required to match v1's except where an external party holds the URL.
       rows or implement a second rate limiter.
 - [ ] `CACHES["shared"]` Redis reachable (PDF-refresh dedup, django-solo
       propagation) — v2 fails at commit time on `Job.save()` without it.
+- [ ] **The instance's rclone remote actually uploads, as the instance user.**
+      Prod's per-instance config carried a bare service account (zero My-Drive
+      quota, 403 every night since at least July 2026) while the real off-site
+      sync rode a root cron with a personal OAuth token. v2 installs only the
+      systemd backup units, so at cutover the per-instance `[gdrive]` remote
+      must be a service account on a shared/team drive, proven by one green
+      manual run of `backup-db-<instance>.service`; retire the root cron pair
+      only after that run. A personal token is never the load-bearing path.
 - [ ] Required env vars present per `.env.example` (settings validate
       fail-fast at boot, so a missing one stops the service immediately).
 - [ ] **Install-level credentials are database rows, not env** (ADR 0053).
