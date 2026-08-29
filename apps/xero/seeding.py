@@ -324,7 +324,11 @@ def fetch_xero_entity_lookup(
     api_func = _resolve_api_method(api_method)
 
     params: dict[str, Any] = {"xero_tenant_id": get_tenant_id()}
-    if pagination_mode == "page":
+    # Same param quirk the sync engine applies (sync.py's pagination setup):
+    # get_quotes and get_accounts accept `page` but not `page_size`; their
+    # pages are Xero-fixed at 100, which is LOOKUP_PAGE_SIZE, so the
+    # short-page termination below still holds.
+    if pagination_mode == "page" and entity_name not in ["quotes", "accounts"]:
         params["page_size"] = LOOKUP_PAGE_SIZE
     if config_params:
         params.update(config_params)

@@ -195,14 +195,37 @@ class TestFetchXeroEntityLookup:
         assert xero_api.get_invoices.call_args_list[1].kwargs["page"] == 2
 
     def test_single_fetch_entities_are_not_paged(self, xero_api: MagicMock) -> None:
-        xero_api.get_quotes.return_value = MagicMock(
-            quotes=[MagicMock(quote_number="QU-1", quote_id="q-1")]
-        )
+        sales = MagicMock(account_id="a-1")
+        sales.name = "Sales"  # `name` is MagicMock's own kwarg, so set it after
+        xero_api.get_accounts.return_value = MagicMock(accounts=[sales])
+
+        lookup = fetch_xero_entity_lookup("accounts", lambda a: a.name, lambda a: a.account_id)
+
+        assert lookup == {"Sales": "a-1"}
+        assert "page" not in xero_api.get_accounts.call_args.kwargs
+
+    def test_quotes_page_with_the_page_param_only(self, xero_api: MagicMock) -> None:
+        """get_quotes pages at a Xero-fixed 100 and accepts no page_size.
+
+        A single fetch capped the lookup at the first hundred quotes, so the
+        seed re-created documents the org already held and Xero renumbered
+        them — found live against 1,086 restored quotes on 2026-08-29.
+        """
+        first_page = [MagicMock(quote_number=f"QU-{i}", quote_id=f"q-{i}") for i in range(100)]
+        second_page = [MagicMock(quote_number="QU-tail", quote_id="q-tail")]
+        xero_api.get_quotes.side_effect = [
+            MagicMock(quotes=first_page),
+            MagicMock(quotes=second_page),
+        ]
 
         lookup = fetch_xero_entity_lookup("quotes", lambda q: q.quote_number, lambda q: q.quote_id)
 
-        assert lookup == {"QU-1": "q-1"}
-        assert "page" not in xero_api.get_quotes.call_args.kwargs
+        assert len(lookup) == 101
+        assert lookup["QU-tail"] == "q-tail"
+        for call in xero_api.get_quotes.call_args_list:
+            assert "page_size" not in call.kwargs
+        assert xero_api.get_quotes.call_args_list[0].kwargs["page"] == 1
+        assert xero_api.get_quotes.call_args_list[1].kwargs["page"] == 2
 
     def test_none_response_is_an_error(self, xero_api: MagicMock) -> None:
         xero_api.get_quotes.return_value = None

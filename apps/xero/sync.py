@@ -386,7 +386,13 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "get_quotes",
         lambda items: sync_entities(items, Quote, "quote_id", transform_quote),
         None,
-        "single",
+        # Fable: "page", not "single" — get_quotes returns at most 100 rows per
+        # call, so a single fetch silently dropped every quote past the first
+        # hundred: the sync lost them until the deep sync, and the seed's
+        # existence lookup missed them and re-created documents Xero already
+        # held (which Xero then renumbered). get_quotes accepts `page` but not
+        # `page_size`/`order`; the param quirk is handled at both call sites.
+        "page",
     ),
     "purchase_orders": (
         "purchase_orders",
