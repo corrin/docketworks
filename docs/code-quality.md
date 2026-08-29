@@ -78,9 +78,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 387 |
-| except handlers | 420 |
-| re-raises or converts | 270 |
+| try statements | 389 |
+| except handlers | 422 |
+| re-raises or converts | 272 |
 | returns instead | 87 |
 | falls through | 50 |
 | continue/break in a loop | 12 |
@@ -93,7 +93,7 @@ The narrow subset of the above: functions whose ENTIRE body is one single-statem
 | metric | count |
 |---|---:|
 | passthrough | 0 |
-| rethrow | 15 |
+| rethrow | 16 |
 | fallback | 3 |
 
 ## Optional returns
@@ -103,7 +103,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 205 |
-| non-test functions | 2489 |
+| non-test functions | 2493 |
 
 ## Wire contract (response side)
 

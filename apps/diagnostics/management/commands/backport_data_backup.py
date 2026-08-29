@@ -14,16 +14,17 @@ empty the scrub schema again. The consumer-side acceptance check is
 ``scripts/ops/verify_scrubbed_backup.py``.
 """
 
-import json
 import os
-from datetime import UTC, datetime
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError, CommandParser
-from django.db import connections
 
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.diagnostics.services import db_scrubber, scrub_pipeline
+from apps.diagnostics.services.migrations_snapshot import (
+    EmptyMigrationLedgerError,
+    write_migrations_snapshot,
+)
 
 
 class Command(BaseCommand):
@@ -135,23 +136,9 @@ class Command(BaseCommand):
         """Snapshot django_migrations from the scrub DB beside the archive.
 
         Read from the scrub alias, not default, so the snapshot describes
-        exactly the ledger the archive carries. Format matches what
-        ``scripts/ops/migrate_to_snapshot.py`` consumes (v1's
-        ``create_migrations_snapshot`` payload): ``{"dumped_at", "rows":
-        [{"app", "name", "applied"}]}``.
+        exactly the ledger the archive carries.
         """
-        snapshot_path = Path(f"{dump_path}.migrations.json")
-        with connections[db_scrubber.SCRUB_ALIAS].cursor() as cur:
-            cur.execute("SELECT app, name, applied FROM django_migrations ORDER BY id")
-            rows = [
-                {"app": app, "name": name, "applied": applied.isoformat()}
-                for app, name, applied in cur.fetchall()
-            ]
-        if not rows:
-            raise CommandError("django_migrations in the scrub DB holds zero rows")
-        payload = {
-            "dumped_at": datetime.now(UTC).isoformat(),
-            "rows": rows,
-        }
-        snapshot_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        return snapshot_path
+        try:
+            return write_migrations_snapshot(db_scrubber.SCRUB_ALIAS, dump_path)
+        except EmptyMigrationLedgerError as exc:
+            raise CommandError(str(exc)) from exc
