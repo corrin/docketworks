@@ -16,25 +16,37 @@ REMOTE_BASE = "gdrive:dw_backups"
 #   predeploy: predeploy_<ts>_<hash>.sql.gz (predeploy_backup.sh); 30 days.
 #   pre_reset: pre_reset_<db>_<ts>.sql.gz (manage.py reset_public_schema's
 #              pre-wipe snapshot, ADR 0048); 7 days.
-#   daily:     daily_<YYYYMMDD>.sql.gz (backup_db.sh); keep most recent N.
-#   monthly:   monthly_<YYYYMM>.sql.gz (backup_db.sh); keep most recent N.
+#   daily:     daily_<YYYYMMDD>.sql.gz (backup_db.sh); keep most recent N,
+#              each with its <dump>.migrations.json sidecar.
+#   monthly:   monthly_<YYYYMM>.sql.gz (backup_db.sh); keep most recent N,
+#              each with its <dump>.migrations.json sidecar.
+#   *_sha:     Fable: retired release-commit sidecars; recognised so
+#              retention deletes them, never written or kept any more.
+#   stale_tmp: a daily/monthly .tmp left by a crash mid-write; the writer
+#              renames tmp->final, so a surviving .tmp is garbage.
 # Any other entry (logs, ad-hoc files) is left untouched.
 TS_DIR_RE = re.compile(r"^\d{8}_\d{6}$")
 PREDEPLOY_RE = re.compile(r"^predeploy_(\d{8}_\d{6})_[0-9a-f]+\.sql\.gz$")
 PRE_RESET_RE = re.compile(r"^pre_reset_.+_(\d{8}_\d{6})\.sql\.gz$")
 DAILY_RE = re.compile(r"^daily_(\d{8})\.sql\.gz$")
+DAILY_SNAPSHOT_RE = re.compile(r"^daily_(\d{8})\.sql\.gz\.migrations\.json$")
 DAILY_SHA_RE = re.compile(r"^daily_(\d{8})\.sha$")
 MONTHLY_RE = re.compile(r"^monthly_(\d{6})\.sql\.gz$")
+MONTHLY_SNAPSHOT_RE = re.compile(r"^monthly_(\d{6})\.sql\.gz\.migrations\.json$")
 MONTHLY_SHA_RE = re.compile(r"^monthly_(\d{6})\.sha$")
+STALE_TMP_RE = re.compile(r"^(?:daily_\d{8}|monthly_\d{6})\.sql\.gz(?:\.migrations\.json)?\.tmp$")
 
 CLASSIFIERS: list[tuple[re.Pattern[str], str]] = [
     (TS_DIR_RE, "ts_dir"),
     (PREDEPLOY_RE, "predeploy"),
     (PRE_RESET_RE, "pre_reset"),
+    (DAILY_SNAPSHOT_RE, "daily_snapshot"),
     (DAILY_RE, "daily"),
     (DAILY_SHA_RE, "daily_sha"),
+    (MONTHLY_SNAPSHOT_RE, "monthly_snapshot"),
     (MONTHLY_RE, "monthly"),
     (MONTHLY_SHA_RE, "monthly_sha"),
+    (STALE_TMP_RE, "stale_tmp"),
 ]
 
 PREDEPLOY_RETENTION_DAYS = 30
@@ -134,8 +146,8 @@ def compute_window_keep(
     return keep
 
 
-def paired_sha_name(name: str) -> str:
-    return name.replace(".sql.gz", ".sha")
+def paired_snapshot_name(name: str) -> str:
+    return f"{name}.migrations.json"
 
 
 def compute_recent_keep(
@@ -234,6 +246,44 @@ def bucket_entries(entries: list[str]) -> dict[str, list[str]]:
     return buckets
 
 
+def plan_retention(entries: list[str], now: datetime) -> tuple[dict[str, set[str]], list[str]]:
+    """Decide what stays and what goes; pure so retention is testable.
+
+    Returns per-kind keep sets and the sorted deletion list. A kept dump
+    keeps its ``.migrations.json`` sidecar; legacy ``.sha`` sidecars are
+    never kept; unmanaged names appear in neither.
+    """
+    buckets = bucket_entries(entries)
+
+    ts_dir_pairs = parse_ts_dir_pairs(buckets["ts_dir"])
+    daily_keep = compute_recent_keep(buckets["daily"], DAILY_RE, "%Y%m%d", DAILY_RETENTION_COUNT)
+    monthly_keep = compute_recent_keep(
+        buckets["monthly"], MONTHLY_RE, "%Y%m", MONTHLY_RETENTION_COUNT
+    )
+    keep_sets = {
+        "ts_dir": compute_ts_dir_keep(ts_dir_pairs, now),
+        "predeploy": compute_window_keep(
+            buckets["predeploy"], PREDEPLOY_RE, PREDEPLOY_RETENTION_DAYS, now
+        ),
+        "pre_reset": compute_window_keep(
+            buckets["pre_reset"], PRE_RESET_RE, PRE_RESET_RETENTION_DAYS, now
+        ),
+        "daily": daily_keep,
+        "daily_snapshot": {paired_snapshot_name(name) for name in daily_keep},
+        "monthly": monthly_keep,
+        "monthly_snapshot": {paired_snapshot_name(name) for name in monthly_keep},
+        "other": set(),
+    }
+
+    managed = {name for kind, names in buckets.items() if kind != "other" for name in names}
+    keep: set[str] = set()
+    for kept in keep_sets.values():
+        keep |= kept
+    to_delete = sorted(managed - keep)
+    keep_sets["other"] = set(buckets["other"])
+    return keep_sets, to_delete
+
+
 def main() -> None:
     args = parse_arguments()
     dry_run = not args.delete
@@ -243,46 +293,18 @@ def main() -> None:
         sys.exit(f"ERROR: expected backup_dir to end with '/backups': {args.backup_dir}")
     remote = REMOTE_BASE
 
-    buckets = bucket_entries(list_backup_dirs(backup_dir))
-
     now = datetime.now().astimezone()
+    keep_sets, to_delete = plan_retention(list_backup_dirs(backup_dir), now)
 
-    ts_dir_pairs = parse_ts_dir_pairs(buckets["ts_dir"])
-    ts_dir_keep = compute_ts_dir_keep(ts_dir_pairs, now)
-    predeploy_keep = compute_window_keep(
-        buckets["predeploy"], PREDEPLOY_RE, PREDEPLOY_RETENTION_DAYS, now
-    )
-    pre_reset_keep = compute_window_keep(
-        buckets["pre_reset"], PRE_RESET_RE, PRE_RESET_RETENTION_DAYS, now
-    )
-    daily_keep = compute_recent_keep(buckets["daily"], DAILY_RE, "%Y%m%d", DAILY_RETENTION_COUNT)
-    monthly_keep = compute_recent_keep(
-        buckets["monthly"], MONTHLY_RE, "%Y%m", MONTHLY_RETENTION_COUNT
-    )
-    daily_sha_keep = {paired_sha_name(name) for name in daily_keep}
-    monthly_sha_keep = {paired_sha_name(name) for name in monthly_keep}
-
-    managed = {name for kind, names in buckets.items() if kind != "other" for name in names}
-    keep = (
-        ts_dir_keep
-        | predeploy_keep
-        | pre_reset_keep
-        | daily_keep
-        | daily_sha_keep
-        | monthly_keep
-        | monthly_sha_keep
-    )
-    to_delete = sorted(managed - keep)
-
-    print("Keeping (ts_dir):", sorted(ts_dir_keep))
-    print("Keeping (predeploy):", sorted(predeploy_keep))
-    print("Keeping (pre_reset):", sorted(pre_reset_keep))
-    print("Keeping (daily):", sorted(daily_keep))
-    print("Keeping (daily sha):", sorted(daily_sha_keep))
-    print("Keeping (monthly):", sorted(monthly_keep))
-    print("Keeping (monthly sha):", sorted(monthly_sha_keep))
-    if buckets["other"]:
-        print("Leaving untouched (unmanaged pattern):", sorted(buckets["other"]))
+    print("Keeping (ts_dir):", sorted(keep_sets["ts_dir"]))
+    print("Keeping (predeploy):", sorted(keep_sets["predeploy"]))
+    print("Keeping (pre_reset):", sorted(keep_sets["pre_reset"]))
+    print("Keeping (daily):", sorted(keep_sets["daily"]))
+    print("Keeping (daily snapshots):", sorted(keep_sets["daily_snapshot"]))
+    print("Keeping (monthly):", sorted(keep_sets["monthly"]))
+    print("Keeping (monthly snapshots):", sorted(keep_sets["monthly_snapshot"]))
+    if keep_sets["other"]:
+        print("Leaving untouched (unmanaged pattern):", sorted(keep_sets["other"]))
 
     remote_delete_plan = remote_delete_commands(backup_dir, to_delete)
 

@@ -190,6 +190,7 @@ require_instance_credentials() {
     # App-runtime settings come from .env.example's contract, not here.
     local MISSING=()
     [[ -z "${GCP_CREDENTIALS:-}" ]] && MISSING+=("GCP_CREDENTIALS")
+    [[ -z "${BACKUP_GDRIVE_TEAM_DRIVE_ID:-}" ]] && MISSING+=("BACKUP_GDRIVE_TEAM_DRIVE_ID")
     [[ -z "${ANTHROPIC_API_KEY:-}" ]] && MISSING+=("ANTHROPIC_API_KEY")
     [[ -z "${GEMINI_API_KEY:-}" ]] && MISSING+=("GEMINI_API_KEY")
     [[ -z "${MISTRAL_API_KEY:-}" ]] && MISSING+=("MISTRAL_API_KEY")

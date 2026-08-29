@@ -61,38 +61,38 @@ DAILY="$BACKUP_DIR/daily_$TODAY.sql.gz"
 DAILY_TMP="$DAILY.tmp"
 MONTHLY="$BACKUP_DIR/monthly_$MONTH.sql.gz"
 MONTHLY_TMP="$MONTHLY.tmp"
-DAILY_SHA="$BACKUP_DIR/daily_$TODAY.sha"
-DAILY_SHA_TMP="$DAILY_SHA.tmp"
-MONTHLY_SHA="$BACKUP_DIR/monthly_$MONTH.sha"
-MONTHLY_SHA_TMP="$MONTHLY_SHA.tmp"
-RELEASE_SHA_FILE="$INSTANCE_DIR/app/.release-sha"
-
-if [[ ! -f "$RELEASE_SHA_FILE" ]]; then
-    echo "Error: release SHA file not found at $RELEASE_SHA_FILE" >&2
-    exit 1
-fi
-RELEASE_SHA="$(tr -d '[:space:]' < "$RELEASE_SHA_FILE")"
-if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-    echo "Error: invalid release SHA in $RELEASE_SHA_FILE: $RELEASE_SHA" >&2
-    exit 1
-fi
+APP_DIR="$INSTANCE_DIR/app"
 
 export PGPASSWORD="$DB_PASSWORD"
 
 echo "Backing up $DB_NAME to $DAILY"
 pg_dump -h "${DB_HOST:-/var/run/postgresql}" -p "${DB_PORT:-5432}" \
     -U "$DB_USER" "$DB_NAME" | gzip > "$DAILY_TMP"
-printf '%s\n' "$RELEASE_SHA" > "$DAILY_SHA_TMP"
 mv "$DAILY_TMP" "$DAILY"
-mv "$DAILY_SHA_TMP" "$DAILY_SHA"
 
-# Monthly backup on 1st
+# Fable: the monthly dump copies BEFORE the sidecar step — it is written only
+# on the 1st, so a sidecar failure aborting the run must not cost the month
+# its monthly backup.
 if [ "$(date +%d)" = "01" ]; then
     echo "Writing monthly copy $MONTHLY"
     cp "$DAILY" "$MONTHLY_TMP"
-    printf '%s\n' "$RELEASE_SHA" > "$MONTHLY_SHA_TMP"
     mv "$MONTHLY_TMP" "$MONTHLY"
-    mv "$MONTHLY_SHA_TMP" "$MONTHLY_SHA"
+fi
+
+# Fable: this is the sidecar restores actually consume (migrate_to_snapshot.py): which
+# migration state this dump matches. The retired .sha sidecar recorded the
+# release commit instead, which no restore path ever read.
+# Fable: read AFTER pg_dump deliberately, not in one coordinated snapshot: a
+# migration committing in between makes the sidecar LEAD the dump, and
+# migrate_to_snapshot migrates the restored database up to the sidecar, so
+# that direction is consumed correctly. Only a rollback inside this
+# seconds-wide midnight window would mislead, and migrations only run at
+# deploys, which take predeploy_backup first.
+(cd "$APP_DIR" && .venv/bin/python manage.py snapshot_migrations --dump "$DAILY")
+
+if [ "$(date +%d)" = "01" ]; then
+    cp "$DAILY.migrations.json" "$MONTHLY.migrations.json.tmp"
+    mv "$MONTHLY.migrations.json.tmp" "$MONTHLY.migrations.json"
 fi
 
 echo "Applying retention and syncing to Google Drive"

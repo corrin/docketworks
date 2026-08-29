@@ -176,7 +176,7 @@ sudo systemctl start backup-db-<instance>.service
 sudo journalctl -u backup-db-<instance>.service -n 100
 ```
 
-DB backups run as `dw_<instance>` and use `/opt/docketworks/config/rclone/<instance>.conf`, which points at the instance's copied `gcp-credentials.json`. Local dumps live in `/opt/docketworks/instances/<instance>/backups`; remote dumps live under `gdrive:dw_backups/`. Cleanup copies local dumps before pruning and purges only the same expired backup names remotely, so unrelated remote-only history is not mirrored away. Each DB dump has a sibling `.sha` file recording the deployed release SHA from `app/.release-sha`.
+DB backups run as `dw_<instance>` and use `/opt/docketworks/config/rclone/<instance>.conf`, which points at the instance's copied `gcp-credentials.json`. Local dumps live in `/opt/docketworks/instances/<instance>/backups`; remote dumps live under `gdrive:dw_backups/`. Cleanup copies local dumps before pruning and purges only the same expired backup names remotely, so unrelated remote-only history is not mirrored away. Each DB dump has a sibling `<dump>.migrations.json` sidecar recording the database's migration state (the snapshot `migrate_to_snapshot.py` consumes); legacy `.sha` release-pointer sidecars are deleted by the next retention run.
 
 Mutable instance file backups run separately via `backup-files-<instance>.timer`. They incrementally sync `phone-recordings`, `session-replays`, and `mediafiles` to `gdrive:dw_backups/files/current/`, with replaced/deleted remote files moved into `files/archive/<timestamp>/` for 30 days. `dropbox`, `adhoc`, `backups`, `app`, logs, sockets, env files, and credentials are not included.
 

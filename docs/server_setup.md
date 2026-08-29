@@ -281,7 +281,7 @@ The job runs as the instance user (`dw_<name>`), writes local dumps under
 `/opt/docketworks/instances/<name>/backups`, applies retention, and syncs to
 Google Drive under `gdrive:dw_backups/`. Cleanup copies local dumps
 before pruning and purges only the same expired backup names remotely, so
-unrelated remote-only history is not mirrored away. Each DB dump has a sibling `.sha` file recording the deployed release SHA from `app/.release-sha`.
+unrelated remote-only history is not mirrored away. Each DB dump has a sibling `<dump>.migrations.json` sidecar recording the database's migration state (the snapshot `migrate_to_snapshot.py` consumes); legacy `.sha` release-pointer sidecars are deleted by the next retention run.
 
 Mutable instance file backups run separately via `backup-files-<name>.timer`.
 They incrementally sync `phone-recordings`, `session-replays`, and `mediafiles`

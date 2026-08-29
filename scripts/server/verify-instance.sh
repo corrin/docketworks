@@ -121,6 +121,28 @@ check "nginx config valid" nginx -t
 check "backup-db-$INSTANCE.timer active" systemctl is-active --quiet "backup-db-$INSTANCE.timer"
 check "backup-files-$INSTANCE.timer active" systemctl is-active --quiet "backup-files-$INSTANCE.timer"
 
+# --- Backup upload path ---
+# Fable: an active timer proves nothing about the remote: prod's unit was red every
+# night for months on a zero-quota service-account remote while a root cron
+# quietly did the real uploads. Round-trip one probe file exactly the way
+# the nightly unit uploads — same user, same RCLONE_CONFIG — so a remote
+# that cannot receive an upload fails verification here, not at 03:05.
+INSTANCE_USER="$(instance_user "$INSTANCE")"
+RCLONE_CONF="$(instance_rclone_config "$INSTANCE")"
+# System python3 like cleanup_backups.sh: the module is stdlib-only, and
+# importing the constant keeps the remote defined in exactly one place.
+REMOTE_BASE="$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); from cleanup_backups import REMOTE_BASE; print(REMOTE_BASE)' "$SCRIPT_DIR/..")"
+PROBE_NAME="verify_probe_${INSTANCE}_$(date +%Y%m%d_%H%M%S)"
+PROBE_LOCAL="$(sudo -u "$INSTANCE_USER" mktemp "/tmp/$PROBE_NAME.XXXXXX")"
+backup_upload_probe() {
+    sudo -u "$INSTANCE_USER" env RCLONE_CONFIG="$RCLONE_CONF" \
+        rclone copyto "$PROBE_LOCAL" "$REMOTE_BASE/$PROBE_NAME" \
+    && sudo -u "$INSTANCE_USER" env RCLONE_CONFIG="$RCLONE_CONF" \
+        rclone deletefile "$REMOTE_BASE/$PROBE_NAME"
+}
+check "backup remote accepts an upload as $INSTANCE_USER" backup_upload_probe
+sudo -u "$INSTANCE_USER" rm -f "$PROBE_LOCAL"
+
 echo ""
 if (( FAILURES > 0 )); then
     echo "$FAILURES verification check(s) FAILED for $INSTANCE."
