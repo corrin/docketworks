@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from django.db import connections
+from django.db.migrations.recorder import MigrationRecorder
 
 
 class EmptyMigrationLedgerError(Exception):
@@ -28,12 +29,11 @@ def write_migrations_snapshot(alias: str, dump_path: Path) -> Path:
     ``migrate_to_snapshot.py`` consumes.
     """
     snapshot_path = Path(f"{dump_path}.migrations.json")
-    with connections[alias].cursor() as cur:
-        cur.execute("SELECT app, name, applied FROM django_migrations ORDER BY id")
-        rows = [
-            {"app": app, "name": name, "applied": applied.isoformat()}
-            for app, name, applied in cur.fetchall()
-        ]
+    recorder_qs = MigrationRecorder(connections[alias]).migration_qs.order_by("id")
+    rows = [
+        {"app": migration.app, "name": migration.name, "applied": migration.applied.isoformat()}
+        for migration in recorder_qs
+    ]
     if not rows:
         raise EmptyMigrationLedgerError(
             f"django_migrations on alias {alias!r} holds zero rows; refusing to "
