@@ -92,6 +92,9 @@ export function AppNavbar() {
           </NavMenuLink>
         </NavMenu>
         <NavMenu label="Timesheets" automationId="AppNavbar-timesheets-menu">
+          <NavMenuLink to="/timesheets/my-time" automationId="AppNavbar-my-time">
+            My time
+          </NavMenuLink>
           <NavMenuLink to="/timesheets/daily" automationId="AppNavbar-daily-timesheets">
             Daily
           </NavMenuLink>

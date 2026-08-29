@@ -3788,7 +3788,7 @@ export const getDailyTimesheetSummaryByDate = <ThrowOnError extends boolean = fa
 export const timesheetsJobsRetrieve = <ThrowOnError extends boolean = false>(options?: Options<TimesheetsJobsRetrieveData, ThrowOnError>): RequestResult<TimesheetsJobsRetrieveResponses, unknown, ThrowOnError> => (options?.client ?? client).get<TimesheetsJobsRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',
     security: [{
-            key: 'SuperuserCookieJWTAuth',
+            key: 'CookieJWTAuth',
             in: 'cookie',
             name: 'access_token',
             type: 'apiKey'

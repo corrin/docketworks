@@ -30,11 +30,26 @@ WEDNESDAY = WEEK_START + timedelta(days=2)
 MANAGEMENT_ENDPOINTS = (
     ("get", "/api/timesheets/daily/2026-05-06/"),
     ("get", "/api/timesheets/staff/"),
-    ("get", "/api/timesheets/jobs/"),
     ("get", "/api/timesheets/weekly/"),
     ("get", "/api/timesheets/payroll/pay-runs/"),
     ("post", "/api/timesheets/payroll/post-staff-week/"),
 )
+
+
+class TestJobListAuth:
+    """The bookable-jobs list is self-service, not management.
+
+    It is the picker behind the workshop "my time" page, which any staff
+    member uses to book their own time; its payload carries charge-out
+    rates, never wages, so the wage-exposure rule gating the management
+    reads does not apply.
+    """
+
+    def test_anonymous_is_rejected(self) -> None:
+        assert Client().get("/api/timesheets/jobs/").status_code == 401
+
+    def test_any_authenticated_staff_may_read(self, worker_client: Client) -> None:
+        assert worker_client.get("/api/timesheets/jobs/").status_code == 200
 
 
 class TestManagementSurfaceAuth:

@@ -218,7 +218,11 @@ def job_timesheet_entries_retrieve(
 
 @router.get(
     "/timesheets/jobs/",
-    auth=manage_auth,
+    # Fable: Self-service, not manage: this is the picker behind the workshop
+    # "my time" page, so any staff member booking their own time reads it.
+    # Its payload carries charge-out rates, never wages, so the
+    # wage-exposure rule gating the management reads does not apply.
+    auth=self_service_auth,
     operation_id="timesheets_jobs_retrieve",
     response=JobsListResponse,
     summary="Get list of active jobs for timesheet entries using CostSet system",
@@ -460,4 +464,7 @@ def job_workshop_timesheets_destroy(request: HttpRequest, entry_id: UUID) -> Sta
         workshop_timesheet_service.delete_entry(authenticated_staff(request), entry_id)
     except CostLine.DoesNotExist as exc:
         raise HttpError(404, "Timesheet entry not found.") from exc
+    except ValueError as exc:
+        # A leave-managed line: the leave workflow owns it (ADR 0038).
+        raise HttpError(400, str(exc)) from exc
     return Status(204, None)

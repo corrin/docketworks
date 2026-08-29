@@ -262,6 +262,99 @@ class TestRequestValidation:
         assert CostLine.objects.get(id=_entry_id(entry)).quantity == Decimal("4.000")
 
 
+class TestTimeConsistency:
+    """When both times are present they must agree with each other and with hours.
+
+    The calendar client derives ``hours`` from the start/end pair, but the wire
+    carries all three, so a direct caller could book "08:00-09:00, 8 hours" and
+    the payroll cost would silently disagree with the calendar block.
+    """
+
+    def test_end_at_or_before_start_is_rejected(self, worker_client: Client, job: Job) -> None:
+        payload: dict[str, object] = {
+            "job_id": str(job.id),
+            "accounting_date": ENTRY_DATE.isoformat(),
+            "hours": "4.00",
+            "start_time": "12:00:00",
+            "end_time": "08:00:00",
+        }
+        response = worker_client.post(URL, data=payload, content_type="application/json")
+
+        assert response.status_code == 400, response.content
+        assert "after" in response.json()["detail"]
+        assert not CostLine.objects.filter(cost_set__job=job).exists()
+
+    def test_hours_disagreeing_with_the_times_are_rejected(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        payload: dict[str, object] = {
+            "job_id": str(job.id),
+            "accounting_date": ENTRY_DATE.isoformat(),
+            "hours": "8.00",
+            "start_time": "08:00:00",
+            "end_time": "09:00:00",
+        }
+        response = worker_client.post(URL, data=payload, content_type="application/json")
+
+        assert response.status_code == 400, response.content
+        assert not CostLine.objects.filter(cost_set__job=job).exists()
+
+    def test_hours_matching_the_times_are_accepted(self, worker_client: Client, job: Job) -> None:
+        body = _create(worker_client, job, hours="1.50", start_time="08:00:00", end_time="09:30:00")
+
+        assert body["hours"] == 1.5
+
+    def test_times_without_hours_agreement_is_checked_on_patch(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        """A PATCH is validated against the merged entry, not the patch alone."""
+        entry = _create(
+            worker_client, job, hours="4.00", start_time="08:00:00", end_time="12:00:00"
+        )
+
+        response = worker_client.patch(
+            URL,
+            data={"entry_id": entry["id"], "end_time": "07:00:00"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400, response.content
+        line = CostLine.objects.get(id=_entry_id(entry))
+        assert line.meta["end_time"] == "12:00:00"
+
+    def test_patching_hours_away_from_the_stored_times_is_rejected(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        entry = _create(
+            worker_client, job, hours="4.00", start_time="08:00:00", end_time="12:00:00"
+        )
+
+        response = worker_client.patch(
+            URL,
+            data={"entry_id": entry["id"], "hours": "6.00"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400, response.content
+        assert CostLine.objects.get(id=_entry_id(entry)).quantity == Decimal("4.000")
+
+    def test_clearing_a_time_lifts_the_agreement_requirement(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        entry = _create(
+            worker_client, job, hours="4.00", start_time="08:00:00", end_time="12:00:00"
+        )
+
+        response = worker_client.patch(
+            URL,
+            data={"entry_id": entry["id"], "end_time": None, "hours": "6.00"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200, response.content
+        assert response.json()["hours"] == 6.0
+
+
 class TestUpdate:
     def test_hours_and_description_are_updated(self, worker_client: Client, job: Job) -> None:
         entry = _create(worker_client, job)
@@ -407,6 +500,55 @@ class TestDelete:
     def test_unknown_entry_is_404(self, worker_client: Client) -> None:
         response = worker_client.delete(f"{URL}?entry_id=00000000-0000-0000-0000-000000000000")
         assert response.status_code == 404
+
+
+class TestLeaveManagedLines:
+    """Leave lines appear in the day but belong to the leave workflow.
+
+    They satisfy every my-time filter (kind, staff, date, meta.staff_id), so
+    without a guard a workshop staff member could edit one — desyncing
+    CostLine.quantity from LeaveDay.hours — or delete one, which LeaveDay's
+    PROTECT turns into a 500.
+    """
+
+    def _leave_line(self, job: Job, worker: Staff) -> CostLine:
+        line = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="8.000")
+        line.managed_by = "leave"
+        line.save()
+        return line
+
+    def test_leave_lines_are_listed(self, worker_client: Client, job: Job, worker: Staff) -> None:
+        line = self._leave_line(job, worker)
+
+        body = worker_client.get(f"{URL}?date={ENTRY_DATE.isoformat()}").json()
+
+        assert [entry["id"] for entry in body["entries"]] == [str(line.id)]
+
+    def test_a_leave_line_cannot_be_edited_here(
+        self, worker_client: Client, job: Job, worker: Staff
+    ) -> None:
+        line = self._leave_line(job, worker)
+
+        response = worker_client.patch(
+            URL,
+            data={"entry_id": str(line.id), "hours": "1.00"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        assert "Timesheets → Leave" in response.json()["detail"]
+        assert CostLine.objects.get(id=line.id).quantity == Decimal("8.000")
+
+    def test_a_leave_line_cannot_be_deleted_here(
+        self, worker_client: Client, job: Job, worker: Staff
+    ) -> None:
+        line = self._leave_line(job, worker)
+
+        response = worker_client.delete(f"{URL}?entry_id={line.id}")
+
+        assert response.status_code == 400
+        assert "Timesheets → Leave" in response.json()["detail"]
+        assert CostLine.objects.filter(id=line.id).exists()
 
 
 class TestEntrySequencing:

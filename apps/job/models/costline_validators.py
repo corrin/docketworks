@@ -14,6 +14,13 @@ from django.core.exceptions import ValidationError
 STRING_OR_NULL = {"type": ["string", "null"]}
 NUMBER_OR_NULL = {"type": ["number", "integer", "null"]}
 BOOLEAN_OR_NULL = {"type": ["boolean", "null"]}
+# What time.fromisoformat parses: the my-time calendar reads these back, so a
+# freer string (e.g. "morning") would turn that GET into a 500. jsonschema
+# applies "pattern" to strings only, so null still passes.
+CLOCK_TIME_OR_NULL = {
+    "type": ["string", "null"],
+    "pattern": r"^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d{1,6})?)?$",
+}
 
 
 def _validate_mapping(value: Mapping[str, Any] | None, field_label: str) -> Mapping[str, Any]:
@@ -44,8 +51,8 @@ TIME_META_SCHEMA: dict[str, Any] = {
         "staff_id": STRING_OR_NULL,
         "date": STRING_OR_NULL,
         "is_billable": BOOLEAN_OR_NULL,
-        "start_time": STRING_OR_NULL,
-        "end_time": STRING_OR_NULL,
+        "start_time": CLOCK_TIME_OR_NULL,
+        "end_time": CLOCK_TIME_OR_NULL,
         "wage_rate_multiplier": NUMBER_OR_NULL,
         "bill_rate_multiplier": NUMBER_OR_NULL,
         "note": STRING_OR_NULL,

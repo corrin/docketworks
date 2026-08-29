@@ -43,27 +43,19 @@ done only when that spec is green.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **45 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
+| E2E specs ported | **46 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
 | Backend operations still to port | **58** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 237 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2737 (all passing) |
+| Unit tests | 2747 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
-| Behaviour ledger | 117 recorded deviations |
+| Behaviour ledger | 120 recorded deviations |
 | ADRs | 40 (v1's 26 carried forward + 0038–0041, 0043, 0045–0053 written here) |
 
 **Written is not ported.** Report progress as specs green; a count of endpoints
 written measures typing, not delivery.
 
 ## MUST — release-blocking
-
-### Specs still to port
-
-One, plus `example`, which is a placeholder to delete rather than port:
-`timesheet/workshop-my-time-view`.
-
-- `workshop-my-time-view` is a rebuild, not a port —
-  `@kodeglot/vue-calendar` has no React equivalent.
 
 ### Backend still to port
 
@@ -483,6 +475,14 @@ other surfaces join as they arrive (ADR 0047) — never a second stream.
   `LayersContract` appears to ignore it — the gate currently refuses even
   TYPE_CHECKING-only imports across layers (stricter than configured, so no
   hole, but the config line claims a behaviour the gate does not deliver).
+- **The time-pair/hours agreement holds per write path, not per row.** The
+  workshop endpoints refuse an inconsistent trio and `CostLine.meta` now
+  refuses non-clock time strings, but the cost-line grid endpoints can still
+  change `quantity` on a line whose meta carries a start/end pair — the
+  my-time calendar then draws a block whose size and title disagree. The fix
+  is the same validation in `CostLine.clean` for time lines, plus a decision
+  about what the office grid (which has no time fields) should do to a timed
+  line's pair when it edits hours.
 - `to_optional_decimal` has a sibling `_decimal_or_none`
   (`crm/services/phone_call_service.py`) with no `is_finite()` check, writing
   `Decimal("NaN")` into the call `charge` money column.
@@ -540,6 +540,15 @@ other surfaces join as they arrive (ADR 0047) — never a second stream.
    `total_rev == 0` inclusion gate drops cost-only jobs from the `method=cost`
    view (v1 identical). Both are faithful ports whose fix changes report
    numbers.
+3. **Two my-time rulings to ratify (ADR 0051).** (a) `timesheets_jobs_retrieve`
+   is now self-service so the workshop job picker works for its own audience —
+   which shows every staff member per-job charge-out `labour_rates`,
+   `estimated_hours` and the whole-table `q` search, not just the four fields
+   the picker reads. The ledger records the change; the wage rule is untouched.
+   (b) The my-time page navigates to and books weekends regardless of
+   `weekend_timesheets_enabled` (v1 identical), while the office entry page
+   cannot reach a weekend date with the flag off. Say whether workshop
+   self-service should honour the flag.
 
 ## Constraints that cost a day if rediscovered
 

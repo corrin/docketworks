@@ -27,6 +27,7 @@ import { Route as AuthedReportsWipRouteImport } from './routes/_authed/reports/w
 import { Route as AuthedTimesheetsDailyRouteImport } from './routes/_authed/timesheets/daily'
 import { Route as AuthedTimesheetsEntryRouteImport } from './routes/_authed/timesheets/entry'
 import { Route as AuthedTimesheetsLeaveRouteImport } from './routes/_authed/timesheets/leave'
+import { Route as AuthedTimesheetsMyTimeRouteImport } from './routes/_authed/timesheets/my-time'
 import { Route as AuthedTimesheetsWeeklyRouteImport } from './routes/_authed/timesheets/weekly'
 import { Route as AuthedAdminCompanyDefaultsIndexRouteImport } from './routes/_authed/admin/company-defaults/index'
 import { Route as AuthedAdminCompanyDefaultsSectionRouteImport } from './routes/_authed/admin/company-defaults/$section'
@@ -134,6 +135,11 @@ const AuthedTimesheetsLeaveRoute = AuthedTimesheetsLeaveRouteImport.update({
   path: '/timesheets/leave',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedTimesheetsMyTimeRoute = AuthedTimesheetsMyTimeRouteImport.update({
+  id: '/timesheets/my-time',
+  path: '/timesheets/my-time',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedTimesheetsWeeklyRoute = AuthedTimesheetsWeeklyRouteImport.update({
   id: '/timesheets/weekly',
   path: '/timesheets/weekly',
@@ -224,6 +230,7 @@ export interface FileRoutesByFullPath {
   '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
   '/timesheets/leave': typeof AuthedTimesheetsLeaveRoute
+  '/timesheets/my-time': typeof AuthedTimesheetsMyTimeRoute
   '/timesheets/weekly': typeof AuthedTimesheetsWeeklyRoute
   '/admin/company-defaults/$section': typeof AuthedAdminCompanyDefaultsSectionRoute
   '/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
@@ -256,6 +263,7 @@ export interface FileRoutesByTo {
   '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
   '/timesheets/leave': typeof AuthedTimesheetsLeaveRoute
+  '/timesheets/my-time': typeof AuthedTimesheetsMyTimeRoute
   '/timesheets/weekly': typeof AuthedTimesheetsWeeklyRoute
   '/admin/company-defaults/$section': typeof AuthedAdminCompanyDefaultsSectionRoute
   '/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
@@ -290,6 +298,7 @@ export interface FileRoutesById {
   '/_authed/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/_authed/timesheets/entry': typeof AuthedTimesheetsEntryRoute
   '/_authed/timesheets/leave': typeof AuthedTimesheetsLeaveRoute
+  '/_authed/timesheets/my-time': typeof AuthedTimesheetsMyTimeRoute
   '/_authed/timesheets/weekly': typeof AuthedTimesheetsWeeklyRoute
   '/_authed/admin/company-defaults/$section': typeof AuthedAdminCompanyDefaultsSectionRoute
   '/_authed/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
@@ -324,6 +333,7 @@ export interface FileRouteTypes {
     | '/timesheets/daily'
     | '/timesheets/entry'
     | '/timesheets/leave'
+    | '/timesheets/my-time'
     | '/timesheets/weekly'
     | '/admin/company-defaults/$section'
     | '/crm/companies/$companyId'
@@ -356,6 +366,7 @@ export interface FileRouteTypes {
     | '/timesheets/daily'
     | '/timesheets/entry'
     | '/timesheets/leave'
+    | '/timesheets/my-time'
     | '/timesheets/weekly'
     | '/admin/company-defaults/$section'
     | '/crm/companies/$companyId'
@@ -389,6 +400,7 @@ export interface FileRouteTypes {
     | '/_authed/timesheets/daily'
     | '/_authed/timesheets/entry'
     | '/_authed/timesheets/leave'
+    | '/_authed/timesheets/my-time'
     | '/_authed/timesheets/weekly'
     | '/_authed/admin/company-defaults/$section'
     | '/_authed/crm/companies/$companyId'
@@ -539,6 +551,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedTimesheetsLeaveRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/timesheets/my-time': {
+      id: '/_authed/timesheets/my-time'
+      path: '/timesheets/my-time'
+      fullPath: '/timesheets/my-time'
+      preLoaderRoute: typeof AuthedTimesheetsMyTimeRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/timesheets/weekly': {
       id: '/_authed/timesheets/weekly'
       path: '/timesheets/weekly'
@@ -648,6 +667,7 @@ interface AuthedRouteChildren {
   AuthedTimesheetsDailyRoute: typeof AuthedTimesheetsDailyRoute
   AuthedTimesheetsEntryRoute: typeof AuthedTimesheetsEntryRoute
   AuthedTimesheetsLeaveRoute: typeof AuthedTimesheetsLeaveRoute
+  AuthedTimesheetsMyTimeRoute: typeof AuthedTimesheetsMyTimeRoute
   AuthedTimesheetsWeeklyRoute: typeof AuthedTimesheetsWeeklyRoute
   AuthedAdminCompanyDefaultsSectionRoute: typeof AuthedAdminCompanyDefaultsSectionRoute
   AuthedCrmCompaniesCompanyIdRoute: typeof AuthedCrmCompaniesCompanyIdRoute
@@ -679,6 +699,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedTimesheetsDailyRoute: AuthedTimesheetsDailyRoute,
   AuthedTimesheetsEntryRoute: AuthedTimesheetsEntryRoute,
   AuthedTimesheetsLeaveRoute: AuthedTimesheetsLeaveRoute,
+  AuthedTimesheetsMyTimeRoute: AuthedTimesheetsMyTimeRoute,
   AuthedTimesheetsWeeklyRoute: AuthedTimesheetsWeeklyRoute,
   AuthedAdminCompanyDefaultsSectionRoute:
     AuthedAdminCompanyDefaultsSectionRoute,

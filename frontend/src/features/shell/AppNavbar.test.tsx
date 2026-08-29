@@ -55,6 +55,16 @@ describe('AppNavbar — the weekly timesheets link', () => {
     await waitFor(() => expect(queryAutoId('AppNavbar-leave')).toBeNull())
   })
 
+  it('offers my time to every staff member', async () => {
+    // The workshop my-time page is the one timesheet surface open to
+    // ordinary workshop staff, so its link carries no role gate.
+    mockUser({ is_office_staff: false, is_superuser: false })
+    const { user } = renderWithProviders(<AppNavbar />)
+
+    await openMenu(user, 'AppNavbar-timesheets-menu')
+    await waitFor(() => expect(queryAutoId('AppNavbar-my-time')).not.toBeNull())
+  })
+
   it('is withheld from office staff who are not superusers', async () => {
     // Opus: The page and every payroll endpoint behind it use SuperuserCookieJWTAuth,
     // so offering this link to office staff sent them to a 403 — a link that

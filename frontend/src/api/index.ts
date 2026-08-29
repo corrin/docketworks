@@ -344,6 +344,22 @@ export {
   timesheetsLeaveSettingsRetrieveQueryKey,
   timesheetsLeaveSettingsUpdateMutation,
 } from './generated/@tanstack/react-query.gen'
+// Workshop "my time" (self-service single-day calendar; any staff member,
+// own entries only — ownership is enforced server-side)
+export {
+  jobWorkshopTimesheetsCreateMutation,
+  jobWorkshopTimesheetsDestroyMutation,
+  jobWorkshopTimesheetsPartialUpdateMutation,
+  jobWorkshopTimesheetsRetrieveOptions,
+  jobWorkshopTimesheetsRetrieveQueryKey,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  WorkshopTimesheetEntryOut,
+  WorkshopTimesheetEntryRequest,
+  WorkshopTimesheetEntryUpdateRequest,
+  WorkshopTimesheetListResponse,
+  WorkshopTimesheetSummaryOut,
+} from './generated/types.gen'
 // Opus: Weekly overview + the Xero payroll pay-run surface it posts through.
 export {
   timesheetsPayrollPayRunsRetrieveOptions,
