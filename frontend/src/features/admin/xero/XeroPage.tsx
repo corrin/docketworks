@@ -75,7 +75,13 @@ export function XeroPage() {
   const seqRef = useRef(0)
 
   useEffect(() => {
-    if (!connected) return undefined
+    // Fable: gate on sync-info's SUCCESS, not just ping's connected. Ping is
+    // any-staff while the stream is office-gated; a workshop user reaching
+    // this URL directly would otherwise open a stream that answers 401, and
+    // the SSE client's deliberately-unbounded reconnect would hammer it
+    // forever. sync-info shares the stream's office_auth, so its success is
+    // this session's proof it may open the stream.
+    if (!connected || !syncInfo.isSuccess) return undefined
     const controller = new AbortController()
     // Defined inside the effect (setLog and queryClient are both stable), the
     // repo's stream-consumer shape — no render-phase ref assignment.
@@ -104,7 +110,7 @@ export function XeroPage() {
       },
     })
     return () => controller.abort()
-  }, [connected, queryClient])
+  }, [connected, syncInfo.isSuccess, queryClient])
 
   const startSync = useMutation({
     ...xeroSyncCreateMutation(),
