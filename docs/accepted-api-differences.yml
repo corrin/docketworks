@@ -1257,3 +1257,12 @@
     an AppError id) into the same "expired or not connected" banner as a
     clean disconnect, hiding the id. The page now shows the error and its id
     per ADR 0038; reconnecting remains the remedy either way.
+
+- operation: accounts_password_reset_create
+  change: "Forgot-password flow added with no request rate limiting"
+  reason: >
+    v1 had no forgot-password flow at all. The endpoint is anonymous and
+    sends real email, so the abuse ceiling is unsolicited reset emails to
+    known staff addresses (it never reveals which addresses exist — the
+    response is a fixed 200 either way). Accepted for the first slice as a
+    handful of staff per instance; revisit with a limiter if abuse appears.

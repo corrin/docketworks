@@ -7,6 +7,8 @@ Paths and operationIds are the stable contract:
 - POST /api/accounts/logout/         accounts_logout_create
 - GET  /api/accounts/me/             accounts_me_retrieve
 - POST /api/accounts/me/password/    accounts_me_password_create    (authenticated)
+- POST /api/accounts/password-reset/          accounts_password_reset_create         (anonymous)
+- POST /api/accounts/password-reset/confirm/  accounts_password_reset_confirm_create (anonymous)
 - GET  /api/accounts/staff/          accounts_staff_list            (superuser)
 - POST /api/accounts/staff/          accounts_staff_create          (superuser)
 - PATCH /api/accounts/staff/{staff_id}/    accounts_staff_partial_update  (superuser)
@@ -23,10 +25,13 @@ from uuid import UUID
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import Group
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from ninja import File, Query, Router
 from ninja.errors import AuthenticationError, HttpError
 from ninja.files import UploadedFile
@@ -44,6 +49,11 @@ from apps.accounts.schemas import (
     LogoutResponse,
     PasswordChangeRequest,
     PasswordChangeResponse,
+    PasswordResetConfirmRequest,
+    PasswordResetConfirmResponse,
+    PasswordResetErrorOut,
+    PasswordResetRequest,
+    PasswordResetResponse,
     StaffCreateIn,
     StaffListItemOut,
     StaffUpdateIn,
@@ -60,6 +70,7 @@ from apps.core.auth import (
     set_access_cookie,
     set_refresh_cookie,
 )
+from apps.core.gmail import send_company_email
 from apps.core.schemas import AuthErrorOut, auth_error
 from apps.core.uploads import delete_stored_image, validate_image_upload
 
@@ -230,6 +241,87 @@ def accounts_me_password_create(
     user.save(update_fields=["password", "password_needs_reset", "updated_at"])
     logger.info("PASSWORD CHANGED - pk=%s", user.pk)
     return PasswordChangeResponse()
+
+
+INVALID_RESET_LINK_DETAIL = "This reset link is invalid or has expired."
+
+
+@router.post(
+    "/password-reset/",
+    auth=None,
+    operation_id="accounts_password_reset_create",
+    response={200: PasswordResetResponse},
+    summary="Request a password-reset email",
+)
+def accounts_password_reset_create(
+    request: HttpRequest, payload: PasswordResetRequest
+) -> PasswordResetResponse:
+    """Email a reset link to the address, if an active account holds it.
+
+    Fixed 200 either way: the anonymous contract must not reveal which
+    addresses have accounts (ADR 0038's public contract). A failed Gmail send
+    raises — masked to a public 500, persisted as an AppError.
+    """
+    staff = Staff.objects.filter(office_email__iexact=payload.email.strip()).first()
+    if staff is None or staff.office_email is None or not staff.is_currently_active:
+        logger.info("PASSWORD RESET REQUESTED - no active account for the submitted email")
+        return PasswordResetResponse()
+    uid = urlsafe_base64_encode(force_bytes(staff.pk))
+    token = default_token_generator.make_token(staff)
+    # Single origin serves SPA and API, so the request's own host is the
+    # right base — no frontend-URL setting to drift per instance.
+    link = request.build_absolute_uri(f"/reset-password?uid={uid}&token={token}")
+    send_company_email(
+        to=staff.office_email,
+        subject="Reset your DocketWorks password",
+        body=(
+            f"Someone asked to reset the DocketWorks password for {staff.office_email}.\n\n"
+            f"Use this link to choose a new password:\n\n{link}\n\n"
+            "If you did not ask for this, you can ignore this email — your "
+            "password is unchanged."
+        ),
+    )
+    logger.info("PASSWORD RESET EMAIL SENT - pk=%s", staff.pk)
+    return PasswordResetResponse()
+
+
+@router.post(
+    "/password-reset/confirm/",
+    auth=None,
+    operation_id="accounts_password_reset_confirm_create",
+    response={200: PasswordResetConfirmResponse, 400: PasswordResetErrorOut},
+    summary="Set a new password from a reset link",
+)
+def accounts_password_reset_confirm_create(
+    request: HttpRequest, payload: PasswordResetConfirmRequest
+) -> Status[PasswordResetConfirmResponse | PasswordResetErrorOut]:
+    """Exchange a valid uid/token pair for a new password.
+
+    The token hashes the current password (Django's generator), so a
+    successful reset burns the link. Refusals are declared 400 bodies, not
+    HttpErrors — see PasswordResetErrorOut.
+    """
+    try:
+        staff = Staff.objects.get(pk=force_str(urlsafe_base64_decode(payload.uid)))
+    # deliberate-swallow: a garbled uid must be indistinguishable from an
+    # unknown one — both are the fixed invalid-link refusal.
+    except (ValueError, DjangoValidationError, Staff.DoesNotExist):
+        logger.info("PASSWORD RESET CONFIRM REFUSED - undecodable or unknown uid")
+        return Status(400, PasswordResetErrorOut(detail=INVALID_RESET_LINK_DETAIL))
+    if not staff.is_currently_active or not default_token_generator.check_token(
+        staff, payload.token
+    ):
+        logger.info("PASSWORD RESET CONFIRM REFUSED - pk=%s", staff.pk)
+        return Status(400, PasswordResetErrorOut(detail=INVALID_RESET_LINK_DETAIL))
+    try:
+        _set_staff_password(staff, payload.new_password)
+    except HttpError as exc:
+        # Reshaped, not re-raised: the envelope would mask an anonymous
+        # HttpError's text, and the validator's reason is the response.
+        return Status(400, PasswordResetErrorOut(detail=str(exc)))
+    staff.save(update_fields=["password", "password_needs_reset", "updated_at"])
+    logger.info("PASSWORD RESET COMPLETE - pk=%s", staff.pk)
+    return Status(200, PasswordResetConfirmResponse())
 
 
 @router.get(

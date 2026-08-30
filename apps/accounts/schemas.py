@@ -62,6 +62,47 @@ class PasswordChangeResponse(ResponseSchema):
     """
 
 
+class PasswordResetRequest(Schema):
+    """Body for POST /api/accounts/password-reset/ — just the login email."""
+
+    email: str
+
+
+class PasswordResetResponse(ResponseSchema):
+    """Fixed empty 200 for the reset request.
+
+    The same body whether or not the email has an account, so the anonymous
+    contract reveals nothing about which addresses exist.
+    """
+
+
+class PasswordResetConfirmRequest(Schema):
+    """Body for POST /api/accounts/password-reset/confirm/.
+
+    ``uid``/``token`` come verbatim from the emailed link; ``new_password``
+    is plain ``str`` like every password field — never whitespace-stripped.
+    """
+
+    uid: str
+    token: str
+    new_password: str
+
+
+class PasswordResetConfirmResponse(ResponseSchema):
+    """Empty 200: the caller's next step is simply logging in."""
+
+
+class PasswordResetErrorOut(ResponseSchema):
+    """DECLARED 400 body for the confirm endpoint.
+
+    A declared response rather than an HttpError because the envelope masks
+    exception text on anonymous requests (ADR 0038) — and both refusals here
+    (dead link, weak password) are exactly what this caller must read.
+    """
+
+    detail: str
+
+
 class TokenRefreshRequest(Schema):
     """Token-refresh body; the refresh cookie supplies an omitted token."""
 

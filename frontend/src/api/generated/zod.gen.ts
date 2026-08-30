@@ -2772,6 +2772,59 @@ export const zPasswordChangeRequest = z.object({
 export const zPasswordChangeResponse = z.record(z.string(), z.unknown());
 
 /**
+ * PasswordResetConfirmRequest
+ *
+ * Body for POST /api/accounts/password-reset/confirm/.
+ *
+ * ``uid``/``token`` come verbatim from the emailed link; ``new_password``
+ * is plain ``str`` like every password field — never whitespace-stripped.
+ */
+export const zPasswordResetConfirmRequest = z.object({
+    new_password: z.string(),
+    token: z.string(),
+    uid: z.string()
+});
+
+/**
+ * PasswordResetConfirmResponse
+ *
+ * Empty 200: the caller's next step is simply logging in.
+ */
+export const zPasswordResetConfirmResponse = z.record(z.string(), z.unknown());
+
+/**
+ * PasswordResetErrorOut
+ *
+ * DECLARED 400 body for the confirm endpoint.
+ *
+ * A declared response rather than an HttpError because the envelope masks
+ * exception text on anonymous requests (ADR 0038) — and both refusals here
+ * (dead link, weak password) are exactly what this caller must read.
+ */
+export const zPasswordResetErrorOut = z.object({
+    detail: z.string()
+});
+
+/**
+ * PasswordResetRequest
+ *
+ * Body for POST /api/accounts/password-reset/ — just the login email.
+ */
+export const zPasswordResetRequest = z.object({
+    email: z.string()
+});
+
+/**
+ * PasswordResetResponse
+ *
+ * Fixed empty 200 for the reset request.
+ *
+ * The same body whether or not the email has an account, so the anonymous
+ * contract reveals nothing about which addresses exist.
+ */
+export const zPasswordResetResponse = z.record(z.string(), z.unknown());
+
+/**
  * PatchedContactMethodRequest
  *
  * Wire contract for PatchedContactMethodRequest.
@@ -5954,6 +6007,20 @@ export const zAccountsMePasswordCreateBody = zPasswordChangeRequest;
  * OK
  */
 export const zAccountsMePasswordCreateResponse = zPasswordChangeResponse;
+
+export const zAccountsPasswordResetCreateBody = zPasswordResetRequest;
+
+/**
+ * OK
+ */
+export const zAccountsPasswordResetCreateResponse = zPasswordResetResponse;
+
+export const zAccountsPasswordResetConfirmCreateBody = zPasswordResetConfirmRequest;
+
+/**
+ * OK
+ */
+export const zAccountsPasswordResetConfirmCreateResponse = zPasswordResetConfirmResponse;
 
 /**
  * Response

@@ -7335,6 +7335,63 @@ components:
       properties: {}
       title: PasswordChangeResponse
       type: object
+    PasswordResetConfirmRequest:
+      description: "Body for POST /api/accounts/password-reset/confirm/.\n\n``uid``/``token`` come verbatim\
+        \ from the emailed link; ``new_password``\nis plain ``str`` like every password field \u2014 never\
+        \ whitespace-stripped."
+      properties:
+        new_password:
+          title: New Password
+          type: string
+        token:
+          title: Token
+          type: string
+        uid:
+          title: Uid
+          type: string
+      required:
+      - uid
+      - token
+      - new_password
+      title: PasswordResetConfirmRequest
+      type: object
+    PasswordResetConfirmResponse:
+      description: 'Empty 200: the caller''s next step is simply logging in.'
+      properties: {}
+      title: PasswordResetConfirmResponse
+      type: object
+    PasswordResetErrorOut:
+      description: "DECLARED 400 body for the confirm endpoint.\n\nA declared response rather than an\
+        \ HttpError because the envelope masks\nexception text on anonymous requests (ADR 0038) \u2014\
+        \ and both refusals here\n(dead link, weak password) are exactly what this caller must read."
+      properties:
+        detail:
+          title: Detail
+          type: string
+      required:
+      - detail
+      title: PasswordResetErrorOut
+      type: object
+    PasswordResetRequest:
+      description: "Body for POST /api/accounts/password-reset/ \u2014 just the login email."
+      properties:
+        email:
+          title: Email
+          type: string
+      required:
+      - email
+      title: PasswordResetRequest
+      type: object
+    PasswordResetResponse:
+      description: 'Fixed empty 200 for the reset request.
+
+
+        The same body whether or not the email has an account, so the anonymous
+
+        contract reveals nothing about which addresses exist.'
+      properties: {}
+      title: PasswordResetResponse
+      type: object
     PatchedContactMethodRequest:
       description: "Wire contract for PatchedContactMethodRequest.\n\nDefaults are presence markers, never\
         \ values \u2014 the handler reads\n``model_fields_set``. These four must carry a value when supplied\n\
@@ -14755,6 +14812,58 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Change the authenticated user's own password
+      tags:
+      - accounts
+  /api/accounts/password-reset/:
+    post:
+      description: "Email a reset link to the address, if an active account holds it.\n\nFixed 200 either\
+        \ way: the anonymous contract must not reveal which\naddresses have accounts (ADR 0038's public\
+        \ contract). A failed Gmail send\nraises \u2014 masked to a public 500, persisted as an AppError."
+      operationId: accounts_password_reset_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetResponse'
+          description: OK
+      summary: Request a password-reset email
+      tags:
+      - accounts
+  /api/accounts/password-reset/confirm/:
+    post:
+      description: "Exchange a valid uid/token pair for a new password.\n\nThe token hashes the current\
+        \ password (Django's generator), so a\nsuccessful reset burns the link. Refusals are declared\
+        \ 400 bodies, not\nHttpErrors \u2014 see PasswordResetErrorOut."
+      operationId: accounts_password_reset_confirm_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetConfirmResponse'
+          description: OK
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetErrorOut'
+          description: Bad Request
+      summary: Set a new password from a reset link
       tags:
       - accounts
   /api/accounts/staff/:
