@@ -334,6 +334,20 @@ for unit in gunicorn celery-worker celery-beat; do
     grep -qF "unit_running_stably \"$unit-\$INSTANCE\"" "$SCRIPT_DIR/verify-instance.sh" \
         || fail "verify-instance: $unit check must use the crash-loop-aware stability probe"
 done
+# The 12s window is sound only while it exceeds every template's RestartSec.
+# Pin both sides so a change to either forces revisiting the pair together.
+# shellcheck disable=SC2031
+grep -qE '^sleep 12$' "$SCRIPT_DIR/verify-instance.sh" \
+    || fail "verify-instance: the 12s stability window is missing"
+# shellcheck disable=SC2031
+grep -q '^RestartSec=10$' "$TEMPLATE_DIR/celery-beat-instance.service.template" \
+    || fail "celery-beat template: RestartSec changed — re-derive the verifier's stability window"
+# shellcheck disable=SC2031
+grep -q '^RestartSec=10$' "$TEMPLATE_DIR/celery-worker-instance.service.template" \
+    || fail "celery-worker template: RestartSec changed — re-derive the verifier's stability window"
+# shellcheck disable=SC2031
+grep -q '^RestartSec=5$' "$TEMPLATE_DIR/gunicorn-instance.service.template" \
+    || fail "gunicorn template: RestartSec changed — re-derive the verifier's stability window"
 
 # The permanent verifier's final success must include the real DB-backed
 # integration probe; a standalone restore check cannot make that claim true.
