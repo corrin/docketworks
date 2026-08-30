@@ -416,3 +416,18 @@ and replay purge is not scheduled before any ingestion path exists. The AI
 gateway/provider plumbing remains because deferred features share it. The
 observed Celery Beat startup delay and fresh in-code schedule tables required
 no fix.
+
+**Beat's schedule shelve and the verifier's crash-loop blindness, 2026-08-30.**
+Celery beat's PersistentScheduler writes its last-run shelve file to CWD, and
+every rendered beat unit set WorkingDirectory to the `app` symlink into the
+immutable release dir, so beat crash-looped on permission denied on every
+instance created since releases became immutable (msm-uat reached
+NRestarts>1900). verify-instance.sh reported it healthy anyway: with
+Restart=always/RestartSec=10 a crash-looping unit is "active" for a slice of
+every cycle, so a bare is-active check passes intermittently — a verifier
+bug, not a flake. Durable fixes: the unit template passes
+`--schedule=<instance root>/celerybeat-schedule` (pinned by the template
+test), and the verifier requires NRestarts unchanged across a 12s window
+plus a recheck at the end of the run; the window and the templates'
+RestartSec values are pinned as a pair. Celery ships no sd_notify, so a
+readiness signal was not an available alternative.
