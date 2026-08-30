@@ -23,6 +23,7 @@ Follow these in order:
 | [server_setup.md](server_setup.md) | Multi-instance server: base setup, instance provisioning, deploy/rollback, backups, CD wiring |
 | [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md) | Rebuilding a dev or UAT installation from production data and re-pointing its Xero mirror |
 | [restore-prod-to-hotfix.md](restore-prod-to-hotfix.md) | The hotfix checkout: verbatim production restore under the production role, and its repairs |
+| [release-process.md](release-process.md) | Promoting main to production, the prod-* GitHub Release per deploy, and the user-focused release-notes convention |
 | [xero_setup.md](xero_setup.md) | Xero-side prerequisites: pay items, payroll calendar, developer app, OAuth callback, webhook key |
 | [client_onboarding.md](client_onboarding.md) | Signed contract → running instance, in seven phases: collection, Xero, Google, AI, email, create, configure |
 | [instance-setup-demo.md](instance-setup-demo.md) | Demo-variant instance creation, the monthly demo-org reset playbook, and acceptance criteria |
