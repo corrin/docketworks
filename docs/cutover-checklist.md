@@ -95,22 +95,28 @@ required to match v1's except where an external party holds the URL.
       `create_leave_entries.py` carried — the ADR 0049 counterexample), so a
       separate v1 history purge before switch day would be redundant. The
       local mirror keeps that history on private disk only.
-- [ ] **Formerly-encrypted credentials.** The five columns that were Fernet
-      ciphertext in v1 (the phone provider's username/password, now
-      `IntegrationSettings.phone_provider_*`, and quoting
-      `SupplierCredential.username/password/api_key`) are plain text in v2:
-      `migrate_v1_data.sh` clears the complete phone credential group so the
-      post-swap instance fixture reloads it atomically, and clears the three
-      supplier fields so ciphertext is never used as plaintext. Production
-      runs phone-call ingestion LIVE, and a disabled phone group passes the
-      verifier by design — so `msm-prod.credentials.env` MUST carry
-      `PHONE_PROVIDER_ENABLED=true` plus the full `PHONE_PROVIDER_*` group
-      before the window (`instance.sh` refuses enabled-without-values), or
-      call ingestion silently stays off after an all-green cutover. Re-enter
-      supplier credentials with
+- [ ] **Formerly-encrypted credentials — extract them in phase 0.** The five
+      columns that were Fernet ciphertext in v1 (the phone provider's
+      username/password, now `IntegrationSettings.phone_provider_*`, and
+      quoting `SupplierCredential.username/password/api_key`) are plain text in
+      v2. On a REAL cutover, decrypt them while v1 is still up — only v1's own
+      `.env` holds the key:
+      `python scripts/ops/extract_v1_credentials.py --env-file
+      /opt/docketworks/instances/msm-prod/.env --output
+      <state-dir>/v1-credentials.json`, where `<state-dir>` is the
+      `/opt/docketworks/cutover-state/msm-prod-<ts>` directory
+      `cutover-instance.sh` will create — or place the file there once it
+      exists; `cutover-instance.sh` applies it on the live database after the
+      swap and before the fixture load, so the phone group arrives configured
+      and the fixture loader honours it. Without the file (a scrubbed restore,
+      or no key), the migration's clearing stands: then `msm-prod.credentials.env`
+      MUST carry `PHONE_PROVIDER_ENABLED=true` plus the full `PHONE_PROVIDER_*`
+      group before the window (`instance.sh` refuses enabled-without-values,
+      and a disabled group passes the verifier by design so a live integration
+      would silently stay off), and supplier credentials are re-entered with
       `dw-run.sh <instance> python manage.py set_supplier_credential
       "<supplier>" "<label>"` (prompted, never argv) before a scraper runs.
-      There is no decrypt helper.
+      There is no in-database decrypt helper — the extract runs against v1.
 
 ## Rehearsed mechanics (see the plan's Data migration section)
 
