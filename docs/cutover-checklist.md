@@ -117,6 +117,17 @@ required to match v1's except where an external party holds the URL.
       `dw-run.sh <instance> python manage.py set_supplier_credential
       "<supplier>" "<label>"` (prompted, never argv) before a scraper runs.
       There is no in-database decrypt helper — the extract runs against v1.
+- [ ] **Per-instance company-defaults file — generate it in phase 0.**
+      `cutover-instance.sh` validates `<instance>.company-defaults.json` (a
+      v1-format fixture carrying the real `xero_tenant_id`); on a cutover it is
+      validated, not loaded — the live CompanyDefaults arrives with the data
+      migration. There is no hand-curation: the same extract script builds it
+      from v1's live singleton and shop company,
+      `python scripts/ops/extract_v1_credentials.py --env-file
+      /opt/docketworks/instances/msm-prod/.env --company-defaults
+      /opt/docketworks/config/msm-prod.company-defaults.json` (then
+      `chown root:root` + `chmod 600`). Re-run `instance.sh validate-config`
+      until green.
 
 ## Rehearsed mechanics (see the plan's Data migration section)
 

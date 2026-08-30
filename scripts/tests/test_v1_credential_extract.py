@@ -77,3 +77,50 @@ def test_env_parse_strips_quotes_and_comments(tmp_path: Path) -> None:
     assert parsed["SECRET_KEY"] == "quoted value"
     assert parsed["DB_NAME"] == "plain"
     assert parsed["DB_USER"] == ""
+
+
+class _FakeCursor:
+    """Minimal psycopg-cursor stand-in: scripted (description, rows) per execute."""
+
+    def __init__(self, script: dict[str, tuple[list[str], list[tuple[object, ...]]]]) -> None:
+        self._script = script
+        self.description: list[object] | None = None
+        self._rows: list[tuple[object, ...]] = []
+
+    def execute(self, sql: str, _params: tuple[object, ...] = ()) -> None:
+        for key, (cols, rows) in self._script.items():
+            if key in sql:
+                self.description = [type("Col", (), {"name": c}) for c in cols]
+                self._rows = list(rows)
+                return
+        raise AssertionError(f"unscripted SQL: {sql}")
+
+    def fetchone(self) -> tuple[object, ...] | None:
+        return self._rows[0] if self._rows else None
+
+
+def test_company_defaults_is_a_valid_two_record_fixture() -> None:
+    import uuid
+
+    shop_id = uuid.uuid4()
+    cur = _FakeCursor(
+        {
+            "workflow_companydefaults": (
+                ["id", "company_name", "xero_tenant_id", "enable_xero_sync", "shop_company_id"],
+                [(1, "MSM", str(uuid.uuid4()), True, shop_id)],
+            ),
+            "company_company": (
+                ["id", "name"],
+                [(shop_id, "MSM Shop")],
+            ),
+        }
+    )
+    records = extract.build_company_defaults(cur)
+
+    assert [r["model"] for r in records] == ["company.company", "workflow.companydefaults"]
+    defaults = next(r for r in records if r["model"] == "workflow.companydefaults")["fields"]
+    # The gate the validator enforces:
+    assert defaults["enable_xero_sync"] is False  # forced closed, though v1 had it True
+    __import__("uuid").UUID(defaults["xero_tenant_id"])  # a real, parseable tenant id
+    assert "shop_company" in defaults and "shop_company_id" not in defaults
+    assert "id" not in defaults  # promoted to pk
