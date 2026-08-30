@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import {
@@ -222,6 +222,16 @@ function LoginPage() {
               )}
             </button>
           </form>
+
+          <div className="animate-fade-in-up animation-delay-1200 mt-4 text-center">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-blue-600 hover:underline"
+              data-automation-id="login-forgot-password"
+            >
+              Forgot password?
+            </Link>
+          </div>
 
           {/* Footer */}
           <div className="animate-fade-in-up animation-delay-1200 mt-8 text-center">

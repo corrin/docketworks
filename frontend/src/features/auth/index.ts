@@ -10,6 +10,8 @@ import {
   accountsMePasswordCreateMutation,
   accountsMeRetrieveOptions,
   accountsMeRetrieveQueryKey,
+  accountsPasswordResetConfirmCreateMutation,
+  accountsPasswordResetCreateMutation,
   accountsTokenCreateMutation,
   isApiErrorStatus,
   isAvailabilityError,
@@ -92,6 +94,16 @@ export function useChangePassword() {
       queryClient.removeQueries({ queryKey: accountsMeRetrieveQueryKey() })
     },
   })
+}
+
+/** POST /api/accounts/password-reset/ — always a fixed 200; anonymous. */
+export function useRequestPasswordReset() {
+  return useMutation(accountsPasswordResetCreateMutation())
+}
+
+/** POST /api/accounts/password-reset/confirm/ — exchange uid+token for a new password. */
+export function useConfirmPasswordReset() {
+  return useMutation(accountsPasswordResetConfirmCreateMutation())
 }
 
 /** POST /api/accounts/logout/ — server clears the JWT cookies. */
