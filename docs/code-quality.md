@@ -103,7 +103,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 205 |
-| non-test functions | 2507 |
+| non-test functions | 2508 |
 
 ## Wire contract (response side)
 

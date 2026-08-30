@@ -15,7 +15,7 @@ import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Literal, Protocol, cast, runtime_checkable
+from typing import Final, Literal, Protocol, cast, runtime_checkable
 
 from django.conf import settings
 from django.contrib.auth.base_user import AbstractBaseUser
@@ -32,6 +32,28 @@ logger = logging.getLogger(__name__)
 
 
 SameSite = Literal["Lax", "Strict", "None"]
+
+
+class PasswordChangeRequiredError(Exception):
+    """Authenticated, but the account's password must be changed first.
+
+    Its own type, not NinjaAuthorizationError: the envelope must emit a stable
+    machine code with error_id null and persist no AppError (an expected
+    security outcome, ADR 0013/0038), where AuthorizationError persists.
+    """
+
+
+# ADR 0002's shape, one layer up: while password_needs_reset is set these are
+# the ONLY reachable authenticated paths, so "what can a flagged session do?"
+# is answered by reading this list. Literal paths, same reasoning as
+# AUTH_ANON_ALLOWLIST. /me/ stays reachable so the SPA can resolve the session
+# and read the flag; /me/password/ is the exit.
+PASSWORD_CHANGE_ALLOWED_PATHS: Final[frozenset[str]] = frozenset(
+    {
+        "/api/accounts/me/",
+        "/api/accounts/me/password/",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,8 +182,18 @@ class CookieJWTAuth(JWTBaseAuthentication, APIKeyCookie):
         if not _user_is_currently_active(user):
             logger.info("JWT AUTH REJECTED - inactive user pk=%s path=%s", user.pk, request.path)
             raise NinjaAuthenticationError(message="User is inactive.")
-        if getattr(user, "password_needs_reset", False):
-            logger.warning("User pk=%s authenticated via JWT but needs to reset password.", user.pk)
+        if getattr(user, "password_needs_reset", False) and (
+            request.path not in PASSWORD_CHANGE_ALLOWED_PATHS
+        ):
+            # Fable: refused at the auth layer, not by a frontend redirect —
+            # a redirect the API does not back leaves every endpoint serving
+            # a session whose credential we have decided not to trust.
+            logger.info(
+                "JWT AUTH REFUSED - password change required pk=%s path=%s",
+                user.pk,
+                request.path,
+            )
+            raise PasswordChangeRequiredError
         return user
 
 
