@@ -8,6 +8,23 @@ Actions that must happen around the v1 → v2 switch, discovered as the rewrite
 proceeds. Add to this file the moment a slice turns up an operational
 prerequisite; do not rely on remembering it on the night.
 
+## Carry-over inventory — the complete surface
+
+Every category of v1 state and how it reaches v2. Verified 2026-08-30, so
+this is the whole surface, not a running discovery log: if something a
+cutover needs is not below, it is a genuine gap, not an oversight to patch
+in silence.
+
+| v1 state | Mechanism | Kind |
+|---|---|---|
+| All table data | `migrate_v1_data.sh` (data-only dump/restore into a freshly-migrated v2 DB; excludes infra tables; rewinds seed rows so pre-rename columns land; deletes UNIQUE-colliding seeds; replays data-normalising migrations; resets and verifies sequences) | automated |
+| The 5 Fernet columns (phone username/password; supplier username/password/api_key) | Phase 0 `scripts/ops/extract_v1_credentials.py --output` (decrypts with v1's own key while v1 is up) → post-swap `scripts/ops/apply_v1_credentials.py` (called by `cutover-instance.sh` when the file exists). Fallback with no file: the migration NULLs them, the operator supplies `PHONE_PROVIDER_*` in the credentials file and re-enters suppliers via `manage.py set_supplier_credential` | automated (extracted) / manual (fallback) |
+| `<instance>.company-defaults.json` (bootstrap; real `xero_tenant_id`) | Phase 0 `extract_v1_credentials.py --company-defaults` dumps v1's live singleton + shop company. On a cutover it is validated, not loaded — the real CompanyDefaults arrives with the table migration | automated |
+| Xero OAuth tokens | Straight table migration — v1 stores them plaintext, the fixture loader preserves the migrated row. Reconnect at `/admin/xero` ONLY if absent or past Xero's refresh window (a scrubbed dump strips them; a real dump does not) | automated |
+| Google Maps API key | `GOOGLE_MAPS_API_KEY` in the credentials file → `load_integration_settings` (ADR 0053; v1 held it in the environment, v2 in a DB row). This is the SOLE env→DB-row case — every other secret maps to a migrating table row | manual entry + automated load |
+| On-disk bytes: `mediafiles/`, `phone-recordings/`, `gcp-credentials.json` | **In-place cutover: nothing to do — they persist.** v1 and v2 use the identical instance layout (`/opt/docketworks/instances/<instance>/…`) and the cutover reuses that directory. The phone-recording/media COPY steps below apply only to a fresh-host restore (a different machine loading a dump), never to the in-place flip — do not copy redundantly or raise a false alarm | in-place: none; fresh host: manual copy |
+| Staff wage rates; supplier-cred currency; GCP key rotation; `JWT_SIGNING_KEY`; rclone team-drive | Operator actions with a mechanism; each has its own checklist item below | manual |
+
 ## The release gate
 
 Go/no-go is two independent questions; either failing is grounds to reject
@@ -95,22 +112,39 @@ required to match v1's except where an external party holds the URL.
       `create_leave_entries.py` carried — the ADR 0049 counterexample), so a
       separate v1 history purge before switch day would be redundant. The
       local mirror keeps that history on private disk only.
-- [ ] **Formerly-encrypted credentials.** The five columns that were Fernet
-      ciphertext in v1 (the phone provider's username/password, now
-      `IntegrationSettings.phone_provider_*`, and quoting
-      `SupplierCredential.username/password/api_key`) are plain text in v2:
-      `migrate_v1_data.sh` clears the complete phone credential group so the
-      post-swap instance fixture reloads it atomically, and clears the three
-      supplier fields so ciphertext is never used as plaintext. Production
-      runs phone-call ingestion LIVE, and a disabled phone group passes the
-      verifier by design — so `msm-prod.credentials.env` MUST carry
-      `PHONE_PROVIDER_ENABLED=true` plus the full `PHONE_PROVIDER_*` group
-      before the window (`instance.sh` refuses enabled-without-values), or
-      call ingestion silently stays off after an all-green cutover. Re-enter
-      supplier credentials with
+- [ ] **Formerly-encrypted credentials — extract them in phase 0.** The five
+      columns that were Fernet ciphertext in v1 (the phone provider's
+      username/password, now `IntegrationSettings.phone_provider_*`, and
+      quoting `SupplierCredential.username/password/api_key`) are plain text in
+      v2. On a REAL cutover, decrypt them while v1 is still up — only v1's own
+      `.env` holds the key:
+      `python scripts/ops/extract_v1_credentials.py --env-file
+      /opt/docketworks/instances/msm-prod/.env --output
+      <state-dir>/v1-credentials.json`, where `<state-dir>` is the
+      `/opt/docketworks/cutover-state/msm-prod-<ts>` directory
+      `cutover-instance.sh` will create — or place the file there once it
+      exists; `cutover-instance.sh` applies it on the live database after the
+      swap and before the fixture load, so the phone group arrives configured
+      and the fixture loader honours it. Without the file (a scrubbed restore,
+      or no key), the migration's clearing stands: then `msm-prod.credentials.env`
+      MUST carry `PHONE_PROVIDER_ENABLED=true` plus the full `PHONE_PROVIDER_*`
+      group before the window (`instance.sh` refuses enabled-without-values,
+      and a disabled group passes the verifier by design so a live integration
+      would silently stay off), and supplier credentials are re-entered with
       `dw-run.sh <instance> python manage.py set_supplier_credential
       "<supplier>" "<label>"` (prompted, never argv) before a scraper runs.
-      There is no decrypt helper.
+      There is no in-database decrypt helper — the extract runs against v1.
+- [ ] **Per-instance company-defaults file — generate it in phase 0.**
+      `cutover-instance.sh` validates `<instance>.company-defaults.json` (a
+      v1-format fixture carrying the real `xero_tenant_id`); on a cutover it is
+      validated, not loaded — the live CompanyDefaults arrives with the data
+      migration. There is no hand-curation: the same extract script builds it
+      from v1's live singleton and shop company,
+      `python scripts/ops/extract_v1_credentials.py --env-file
+      /opt/docketworks/instances/msm-prod/.env --company-defaults
+      /opt/docketworks/config/msm-prod.company-defaults.json` (then
+      `chown root:root` + `chmod 600`). Re-run `instance.sh validate-config`
+      until green.
 
 ## Rehearsed mechanics (see the plan's Data migration section)
 

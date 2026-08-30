@@ -251,6 +251,26 @@ SELECT format('ALTER DATABASE %I RENAME TO %I', :'db_name', :'v1_final_db') \gex
 SELECT format('ALTER DATABASE %I RENAME TO %I', :'scratch_db', :'db_name') \gexec
 EOSQL
 
+# --- Restore v1's formerly-encrypted credentials, if extracted ---
+# Fable: extract_v1_credentials.py decrypts the five Fernet columns to a file
+# in phase 0, while v1 is intact and its key readable. Applying it HERE — on
+# the live database, after the swap and BEFORE load-db-fixtures — is what
+# lets the fixture loader see a configured phone group and honour it rather
+# than the migration's cleared placeholders. Absent file = a scrubbed or
+# key-less restore; migrate_v1_data.sh's clearing stands and the operator
+# re-enters by hand.
+CREDENTIALS_FILE="$STATE_DIR/v1-credentials.json"
+if [[ -f "$CREDENTIALS_FILE" ]]; then
+    log "Applying extracted v1 credentials from $CREDENTIALS_FILE..."
+    install -o "$INST_USER" -g "$INST_USER" -m 600 "$CREDENTIALS_FILE" \
+        "$INSTANCE_DIR/v1-credentials.json"
+    run_release_command "$INSTANCE" "$TARGET_SHA" "$DB_NAME" \
+        python scripts/ops/apply_v1_credentials.py "$INSTANCE_DIR/v1-credentials.json"
+    rm -f "$INSTANCE_DIR/v1-credentials.json"
+else
+    log "No extracted v1 credentials at $CREDENTIALS_FILE; using cleared columns (re-enter by hand)."
+fi
+
 # --- Load the credential-derived DB rows, now the schema is v2 ---
 # Deferred from reconfigure above (--skip-db-fixtures). Before go-live so
 # the app never serves without the integration settings; idempotent, so a
