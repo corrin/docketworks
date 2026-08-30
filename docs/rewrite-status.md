@@ -317,7 +317,11 @@ First work on v2, in this order:
 - **Session replays** — capture, ingestion APIs, admin playback and the storage
   decision are deferred; no spec covers them and `rrweb` is not in the
   frontend. The carried models and purge task are not a live feature, and the
-  purge stays out of Beat until ingestion lands with its own spec.
+  purge stays out of Beat until ingestion lands with its own spec. The cutover
+  restore carries up to 14 days of v1 replay rows, retained deliberately
+  (owner: deferred features keep their data) — a bounded set whose PROTECT
+  user FKs keep the referenced staff rows undeletable until this slice
+  returns with the purge schedule and storage decision.
 - **Email delivery** — SMTP backend/configuration, password-reset delivery and
   system notifications are deferred, not retired. The slice adds typed SMTP
   columns to `IntegrationSettings` (ADR 0053), restores the blocked password-

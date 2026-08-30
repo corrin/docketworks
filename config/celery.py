@@ -106,9 +106,13 @@ app.conf.beat_schedule = _with_periodic_task_headers(
             "kwargs": {"limit": 50},
         },
         # Codex: session replay ingestion and playback are deferred. The
-        # model and purge task stay ready for that slice, but scheduling a
-        # cleanup for rows no live path can create falsely presents the
-        # feature as active.
+        # model and purge task stay ready for that slice; scheduling the
+        # cleanup now would present the feature as active. Fable: the cutover
+        # restore DOES carry up to 14 days of v1 replay rows — retained
+        # deliberately (owner: deferred features keep their data), a bounded
+        # set with no ongoing growth. Until the ingestion slice returns the
+        # schedule, those recordings' PROTECT user FKs keep their staff rows
+        # undeletable.
         # Add the daily entry with ingestion, alongside its storage decision.
         # workflow/0003 seed: the weekly supplier-price scrape, Sunday 15:00 NZT.
         # Sunday afternoon because a full Steel & Tube run is hours of browser work
