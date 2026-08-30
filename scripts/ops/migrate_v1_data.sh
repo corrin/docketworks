@@ -150,12 +150,19 @@ echo "==> Clearing credentials whose v1 ciphertext is not valid v2 plaintext"
 # Codex: clearing only username/password was rejected because the atomic
 # loader's base_url or account_code would remain non-NULL, so the loader would
 # correctly treat the group as already configured and leave the Fernet
-# ciphertext in place. Disable and clear the complete group so it is either
-# reloaded whole or fails the live verifier as unconfigured.
+# ciphertext in place. Disable and clear the complete group so the post-swap
+# fixture load either reloads it whole or leaves it disabled — and because a
+# disabled group passes the live verifier by design, an instance that ran
+# phone ingestion in production MUST carry PHONE_PROVIDER_ENABLED=true plus
+# the full group in its credentials file (enforced by instance.sh), or the
+# integration silently stays off.
 # Codex: supplier credentials have no fixture loader. NULL makes their existing
 # fail-early validation name the row that needs manual re-entry instead of
 # sending ciphertext to the supplier as though it were a password or API key.
+# One transaction, matching the seed-clearing block above: a partial failure
+# must not commit the phone clear while supplier ciphertext survives.
 psql "$@" -d "$V2_DB" -v ON_ERROR_STOP=1 <<'SQL'
+BEGIN;
 UPDATE crm_phoneprovidersettings
    SET phone_provider_enabled = FALSE,
        phone_provider_recording_deletion_enabled = FALSE,
@@ -167,6 +174,7 @@ UPDATE quoting_suppliercredential
    SET username = NULL,
        password = NULL,
        api_key = NULL;
+COMMIT;
 SQL
 # crm/0003 measures every archived recording's length from its file under
 # PHONE_RECORDING_STORAGE_ROOT. The rows arrive with the restore above and the

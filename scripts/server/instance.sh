@@ -213,6 +213,18 @@ require_instance_credentials() {
         esac
     done
 
+    # Fable: enabled=true with an incomplete group would render nulls, the
+    # loader would leave the row unset, and the verifier's disabled branch
+    # would pass — a deliberately-enabled integration silently off. Enabling
+    # the switch is what makes the group required (one-enabled-switch rule:
+    # the flag gates, the values must then exist).
+    if [[ "$PHONE_PROVIDER_ENABLED" == "true" ]]; then
+        [[ -z "${PHONE_PROVIDER_BASE_URL:-}" ]] && MISSING+=("PHONE_PROVIDER_BASE_URL")
+        [[ -z "${PHONE_PROVIDER_USERNAME:-}" ]] && MISSING+=("PHONE_PROVIDER_USERNAME")
+        [[ -z "${PHONE_PROVIDER_PASSWORD:-}" ]] && MISSING+=("PHONE_PROVIDER_PASSWORD")
+        [[ -z "${PHONE_PROVIDER_ACCOUNT_CODE:-}" ]] && MISSING+=("PHONE_PROVIDER_ACCOUNT_CODE")
+    fi
+
     if [[ ${#MISSING[@]} -gt 0 ]]; then
         echo "ERROR: Missing required values in $creds_file:"
         for var in "${MISSING[@]}"; do

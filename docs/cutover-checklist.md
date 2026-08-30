@@ -101,9 +101,16 @@ required to match v1's except where an external party holds the URL.
       `SupplierCredential.username/password/api_key`) are plain text in v2:
       `migrate_v1_data.sh` clears the complete phone credential group so the
       post-swap instance fixture reloads it atomically, and clears the three
-      supplier fields so ciphertext is never used as plaintext. Re-enter any
-      supplier credentials on their rows before running a scraper. There is no
-      decrypt helper.
+      supplier fields so ciphertext is never used as plaintext. Production
+      runs phone-call ingestion LIVE, and a disabled phone group passes the
+      verifier by design — so `msm-prod.credentials.env` MUST carry
+      `PHONE_PROVIDER_ENABLED=true` plus the full `PHONE_PROVIDER_*` group
+      before the window (`instance.sh` refuses enabled-without-values), or
+      call ingestion silently stays off after an all-green cutover. Re-enter
+      supplier credentials with
+      `dw-run.sh <instance> python manage.py set_supplier_credential
+      "<supplier>" "<label>"` (prompted, never argv) before a scraper runs.
+      There is no decrypt helper.
 
 ## Rehearsed mechanics (see the plan's Data migration section)
 

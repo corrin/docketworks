@@ -39,8 +39,9 @@ class SupplierCredential(models.Model):
     )
     # Plaintext by decision (2026-08-01): field-level encryption dropped in v2 —
     # per-instance DBs owned by per-client roles make it key-management theatre
-    # (v1 already stored Xero tokens unencrypted). v1 ciphertext in these columns
-    # must be decrypted (or re-entered) during the one-time data migration.
+    # (v1 already stored Xero tokens unencrypted). The one-time data migration
+    # CLEARS these columns (no decrypt helper exists); values are re-entered
+    # with manage.py set_supplier_credential before a scraper runs.
     username = models.TextField(blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
     password = models.TextField(blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
     api_key = models.TextField(blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
@@ -107,15 +108,31 @@ class SupplierCredential(models.Model):
         if self.credential_type == self.CredentialType.USERNAME_PASSWORD:
             return {"username": self.username, "password": self.password}
         if self.credential_type == self.CredentialType.API_KEY:
+            self._require_api_key()
             return {"api_key": self.api_key}
         if self.credential_type == self.CredentialType.API_KEY_HEADER:
             header_name = self.extra_config.get("header_name")
             if not header_name:
                 raise ValueError("api_key_header credentials require header_name")
+            self._require_api_key()
             return {"header_name": header_name, "api_key": self.api_key}
         if self.credential_type == self.CredentialType.OAUTH2:
             return dict(self.extra_config)
         raise ValueError(f"Unknown credential type: {self.credential_type}")
+
+    def _require_api_key(self) -> None:
+        """Refuse to hand out a NULL api_key as credential material.
+
+        Fable: the username/password path already fails early in
+        ``portal_login``; without this, an API_KEY-type row cleared by the
+        data migration flows ``None`` to its consumer and fails deep with a
+        vendor 401 instead of naming the row to re-enter.
+        """
+        if not self.api_key:
+            raise ValueError(
+                f"SupplierCredential {self.supplier.name} - {self.label} has no api_key; "
+                "re-enter it with manage.py set_supplier_credential."
+            )
 
 
 class SupplierScraperConfig(models.Model):

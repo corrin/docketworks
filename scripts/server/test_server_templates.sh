@@ -9,7 +9,6 @@ set -euo pipefail
 # Runs anywhere (no root, no services); wired into the cheap gate tier.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SERVER_SUITE_DIR="$SCRIPT_DIR"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
 
@@ -250,6 +249,9 @@ grep -q 'docketworks_\*_access.log' "$JAIL" || fail "jail: per-instance access-l
 LABEL_TMP="$(mktemp)"
 LABEL_OUT="$(
     # shellcheck source=common.sh
+    # Sourced scripts reassign SCRIPT_DIR inside this subshell only; the
+    # outer value is untouched by construction.
+    # shellcheck disable=SC2031
     source "$SCRIPT_DIR/common.sh"
     printf '[{"model": "workflow.companydefaults"}, {"model": "company.company"}]' > "$LABEL_TMP"
     rewrite_v1_company_defaults_labels "$LABEL_TMP" && echo "REWROTE"
@@ -284,7 +286,10 @@ printf '%s\n' \
 CREDENTIAL_OUT="$CREDENTIAL_TMP/output"
 if (
     # shellcheck source=instance.sh
-    source "$SERVER_SUITE_DIR/instance.sh"
+    # Sourced scripts reassign SCRIPT_DIR inside this subshell only; the
+    # outer value is untouched by construction.
+    # shellcheck disable=SC2031
+    source "$SCRIPT_DIR/instance.sh"
     require_root_owned_credentials_file() { :; }
     require_instance_credentials "$CREDENTIAL_FILE"
 ) > "$CREDENTIAL_OUT" 2>&1; then
@@ -295,7 +300,10 @@ grep -q 'GOOGLE_MAPS_API_KEY' "$CREDENTIAL_OUT" \
 sed -i 's/^GOOGLE_MAPS_API_KEY=$/GOOGLE_MAPS_API_KEY=maps-key/' "$CREDENTIAL_FILE"
 if ! (
     # shellcheck source=instance.sh
-    source "$SERVER_SUITE_DIR/instance.sh"
+    # Sourced scripts reassign SCRIPT_DIR inside this subshell only; the
+    # outer value is untouched by construction.
+    # shellcheck disable=SC2031
+    source "$SCRIPT_DIR/instance.sh"
     require_root_owned_credentials_file() { :; }
     require_instance_credentials "$CREDENTIAL_FILE"
 ) > "$CREDENTIAL_OUT" 2>&1; then
@@ -305,9 +313,15 @@ rm -rf "$CREDENTIAL_TMP"
 
 # The permanent verifier's final success must include the real DB-backed
 # integration probe; a standalone restore check cannot make that claim true.
-grep -q 'scripts.ops.restore_checks.check_integration_settings' \
-    "$SERVER_SUITE_DIR/verify-instance.sh" \
-    || fail "verify-instance: IntegrationSettings live probe missing"
+# Anchored on the live invocation (uncommented `check`, dw-run, module path
+# across its continuation lines), so commenting the block out while
+# debugging cannot leave this gate green.
+# The $-signs are literal pattern text; SCRIPT_DIR's subshell reassignments
+# never reach this scope.
+# shellcheck disable=SC2016,SC2031
+grep -Pzoq '(?m)^check --verbose "IntegrationSettings live connections" \\\n\s*"\$SCRIPT_DIR/dw-run\.sh" "\$INSTANCE" \\\n\s*python -m scripts\.ops\.restore_checks\.check_integration_settings' \
+    "$SCRIPT_DIR/verify-instance.sh" \
+    || fail "verify-instance: live IntegrationSettings probe invocation missing or disabled"
 
 # --- rclone config writer: a bare service account is refused ---
 # A service account without a shared drive has zero quota, so that config
@@ -318,7 +332,8 @@ RCLONE_OUT="$(
     # Subshell so common.sh's vars and the shadowing stay contained.
     set +e
     # shellcheck source=common.sh
-    source "$SERVER_SUITE_DIR/common.sh"
+    # shellcheck disable=SC2031
+    source "$SCRIPT_DIR/common.sh"
     RCLONE_CONFIG_DIR="$RCLONE_TMP"
     chown() { :; }
     chmod() { :; }
