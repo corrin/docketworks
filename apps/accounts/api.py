@@ -247,12 +247,10 @@ def _apply_staff_fields(staff: Staff, supplied: dict[str, object]) -> Staff:
 def _set_staff_password(staff: Staff, password: str) -> None:
     """Validate and hash a new password onto the unsaved staff row.
 
-    Fable: validate_password runs AUTH_PASSWORD_VALIDATORS — none are
-    configured today, so this is a no-op that becomes enforcing the moment the
-    weak-password slice configures them, with no change here. A fresh password
-    also clears password_needs_reset: this is the codebase's one set-password
-    surface, and nothing else ever clears the flag the weak-password sweep and
-    the scrubber set.
+    The one set-password surface: validate_password runs
+    AUTH_PASSWORD_VALIDATORS, and a fresh password clears
+    password_needs_reset — nothing else ever clears the flag the
+    flag_weak_passwords sweep and the scrubber set.
     """
     try:
         validate_password(password, staff)
