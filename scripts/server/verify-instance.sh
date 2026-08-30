@@ -30,10 +30,26 @@ INSTANCE="${CLIENT}-${ENV}"
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
 
 FAILURES=0
+# --verbose keeps the command's own output (diagnostic checks name their
+# failing integration); default suppresses it (binary checks).
 check() {
+    local verbose=false
+    if [[ "$1" == "--verbose" ]]; then
+        verbose=true
+        shift
+    fi
     local label="$1"
     shift
-    if "$@" >/dev/null 2>&1; then
+    if [[ "$verbose" == "true" ]]; then
+        echo "CHECK: $label"
+    fi
+    local result=0
+    if [[ "$verbose" == "true" ]]; then
+        "$@" || result=1
+    else
+        "$@" >/dev/null 2>&1 || result=1
+    fi
+    if [[ "$result" -eq 0 ]]; then
         echo "PASS: $label"
     else
         echo "FAIL: $label"
@@ -111,6 +127,15 @@ else
     echo "FAIL: /index.html returned $STATUS, expected 200"
     FAILURES=$((FAILURES + 1))
 fi
+
+# --- Database-backed integrations ---
+# Codex: the permanent verifier's final all-clear includes the live services
+# the instance is configured to use and preserves their diagnostic output; a
+# blank key and an upstream refusal must name the failing integration instead
+# of collapsing into an unexplained green cutover.
+check --verbose "IntegrationSettings live connections" \
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" \
+    python -m scripts.ops.restore_checks.check_integration_settings
 
 # --- Host security posture ---
 check "UFW active" bash -c "ufw status | grep -q '^Status: active'"

@@ -161,12 +161,11 @@ class TestXeroBeatEntries:
 
 
 class TestMaintenanceBeatEntries:
-    """The catch-up parse and replay purge, whose loss is silent until data piles up.
+    """The catch-up parse whose loss is silent until data piles up.
 
     parse_unparsed_stock_items_task existed in this codebase for weeks with no
     beat entry at all — nothing failed, rows just stayed unparsed — so the
-    entry is pinned the same way the Xero entries are. The replay purge is the
-    only bound on workflow_sessionreplay* table growth.
+    entry is pinned the same way the Xero entries are.
     """
 
     def test_stock_catchup_parse_hourly_at_half_past(self) -> None:
@@ -175,10 +174,8 @@ class TestMaintenanceBeatEntries:
         assert entry["schedule"] == crontab(minute="30")
         assert entry["kwargs"] == {"limit": 50}
 
-    def test_session_replay_purge_daily_at_0130(self) -> None:
-        entry = app.conf.beat_schedule["purge_old_session_replays_daily"]
-        assert entry["task"] == "apps.diagnostics.tasks.purge_old_session_replays_task"
-        assert entry["schedule"] == crontab(minute="30", hour="1")
+    def test_session_replay_purge_waits_for_ingestion(self) -> None:
+        assert "purge_old_session_replays_daily" not in app.conf.beat_schedule
 
 
 def test_task_results_outlive_the_longest_schedule_interval() -> None:

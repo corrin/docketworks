@@ -21,7 +21,9 @@ v1's git objects.
      satisfies v2's required list — `sudo ../instance.sh validate-config
      <client> <env>` names anything missing (v1 files lack v2-only keys
      such as `BACKUP_GDRIVE_TEAM_DRIVE_ID`); cutover-instance.sh runs the
-     same check before it stops anything. If `GCP_CREDENTIALS` points at
+     same check before it stops anything. `GOOGLE_MAPS_API_KEY` is required
+     here because v1 held it only in the process environment; no database row
+     can supply it after the restore. If `GCP_CREDENTIALS` points at
      a path that no longer exists, point it at the instance's existing
      copy: `/opt/docketworks/instances/<instance>/gcp-credentials.json`.
    - The data migration has been rehearsed against a copy of this
@@ -42,7 +44,10 @@ v1's git objects.
    session re-logs-in; DB fixture loads deferred, since the database is
    still v1 schema), migrates the data into a fresh v2-schema database,
    swaps the databases, loads the credential-derived DB rows, starts
-   services and verifies. The v1 database survives as
+   services and verifies. A real v1 dump carries the live `XeroApp` token row,
+   so reconnect through `/admin/xero` only when the post-cutover connection
+   check says the token expired; scrubbed non-production dumps remove that row
+   and do require OAuth. The v1 database survives as
    `<db>_v1_final_<timestamp>`.
 
 4. `sudo ../verify-instance.sh <client> <env>` — the permanent verifier;

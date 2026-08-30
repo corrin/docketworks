@@ -286,8 +286,9 @@ before pruning and purges only the same expired backup names remotely, so
 unrelated remote-only history is not mirrored away. Each DB dump has a sibling `<dump>.migrations.json` sidecar recording the database's migration state (the snapshot `migrate_to_snapshot.py` consumes); legacy `.sha` release-pointer sidecars are deleted by the next retention run.
 
 Mutable instance file backups run separately via `backup-files-<name>.timer`.
-They incrementally sync `phone-recordings`, `session-replays`, and `mediafiles`
-to `gdrive:dw_backups/files/current/`, preserving replaced/deleted
+They incrementally sync `phone-recordings`, `mediafiles`, and the currently
+unused `session-replays` reservation to `gdrive:dw_backups/files/current/`,
+preserving replaced/deleted
 remote files under `files/archive/<timestamp>/` for 30 days.
 
 Before enabling backups for a new instance, share a backup Shared Drive with

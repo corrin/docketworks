@@ -144,6 +144,38 @@ DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0004 --no-input
 # adds the Maps key; core/0003 creates the IntegrationSettings row when the
 # dump carried none (get_or_create keeps a restored row as-is).
 DB_NAME="$V2_DB" uv run python manage.py migrate core 0003 --no-input
+
+echo "==> Clearing credentials whose v1 ciphertext is not valid v2 plaintext"
+# The phone group is loaded atomically from the root-owned instance credentials
+# Codex: clearing only username/password was rejected because the atomic
+# loader's base_url or account_code would remain non-NULL, so the loader would
+# correctly treat the group as already configured and leave the Fernet
+# ciphertext in place. Disable and clear the complete group so the post-swap
+# fixture load either reloads it whole or leaves it disabled — and because a
+# disabled group passes the live verifier by design, an instance that ran
+# phone ingestion in production MUST carry PHONE_PROVIDER_ENABLED=true plus
+# the full group in its credentials file (enforced by instance.sh), or the
+# integration silently stays off.
+# Codex: supplier credentials have no fixture loader. NULL makes their existing
+# fail-early validation name the row that needs manual re-entry instead of
+# sending ciphertext to the supplier as though it were a password or API key.
+# One transaction, matching the seed-clearing block above: a partial failure
+# must not commit the phone clear while supplier ciphertext survives.
+psql "$@" -d "$V2_DB" -v ON_ERROR_STOP=1 <<'SQL'
+BEGIN;
+UPDATE crm_phoneprovidersettings
+   SET phone_provider_enabled = FALSE,
+       phone_provider_recording_deletion_enabled = FALSE,
+       phone_provider_base_url = NULL,
+       phone_provider_username = NULL,
+       phone_provider_password = NULL,
+       phone_provider_account_code = NULL;
+UPDATE quoting_suppliercredential
+   SET username = NULL,
+       password = NULL,
+       api_key = NULL;
+COMMIT;
+SQL
 # crm/0003 measures every archived recording's length from its file under
 # PHONE_RECORDING_STORAGE_ROOT. The rows arrive with the restore above and the
 # files with the archive copy (cutover checklist), so the empty-database run
@@ -171,14 +203,16 @@ DB_NAME="$V2_DB" uv run python manage.py migrate process 0007 --no-input
 DB_NAME="$V2_DB" uv run python manage.py migrate process 0002 --no-input
 DB_NAME="$V2_DB" uv run python manage.py migrate process 0003 --no-input
 
-echo "==> NOTE: formerly-encrypted credential columns"
+echo "==> NOTE: formerly-encrypted credentials require re-entry"
 cat <<'NOTE'
 v1 stored Fernet ciphertext in crm_phoneprovidersettings.username/.password and
 quoting_suppliercredential.username/.password/.api_key; v2 stores plaintext
-(encryption dropped by decision 2026-08-01). Either run the decrypt helper with
-v1's FIELD_ENCRYPTION_KEY after this restore, or re-enter the handful of
-credentials by hand post-cutover: the phone provider's and the Google Maps key
-on Admin > Integrations (they are IntegrationSettings columns now, not .env).
+(encryption dropped by decision 2026-08-01). The migration cleared those values:
+the phone group is reloaded from the instance credentials file after the database
+swap, and supplier credentials must be re-entered on their SupplierCredential
+rows before their scraper runs. No decrypt helper exists. The Google Maps key was
+never encrypted or stored in v1's database; it loads separately from the required
+GOOGLE_MAPS_API_KEY value in the instance credentials file.
 NOTE
 
 echo "==> Resetting sequences"

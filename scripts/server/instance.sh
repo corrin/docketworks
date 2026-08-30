@@ -187,8 +187,8 @@ require_instance_credentials() {
     source "$creds_file"
     set +a
 
-    # The required list mirrors what v2 actually consumes: Xero app + AI
-    # provider fixtures (database rows) and the backup service account.
+    # The required list mirrors what v2 actually consumes: integration,
+    # Xero-app and AI-provider fixtures (database rows), plus backups.
     # App-runtime settings come from .env.example's contract, not here.
     local MISSING=()
     [[ -z "${GCP_CREDENTIALS:-}" ]] && MISSING+=("GCP_CREDENTIALS")
@@ -200,6 +200,7 @@ require_instance_credentials() {
     [[ -z "${XERO_CLIENT_SECRET:-}" ]] && MISSING+=("XERO_CLIENT_SECRET")
     [[ -z "${XERO_WEBHOOK_KEY:-}" ]] && MISSING+=("XERO_WEBHOOK_KEY")
     [[ -z "${XERO_REDIRECT_URI:-}" ]] && MISSING+=("XERO_REDIRECT_URI")
+    [[ -z "${GOOGLE_MAPS_API_KEY:-}" ]] && MISSING+=("GOOGLE_MAPS_API_KEY")
 
     PHONE_PROVIDER_ENABLED="${PHONE_PROVIDER_ENABLED:-false}"
     PHONE_PROVIDER_RECORDING_DELETION_ENABLED="${PHONE_PROVIDER_RECORDING_DELETION_ENABLED:-false}"
@@ -211,6 +212,18 @@ require_instance_credentials() {
             *) echo "ERROR: $flag must be exactly 'true' or 'false' in $creds_file (got '${!flag}')"; exit 1 ;;
         esac
     done
+
+    # Fable: enabled=true with an incomplete group would render nulls, the
+    # loader would leave the row unset, and the verifier's disabled branch
+    # would pass — a deliberately-enabled integration silently off. Enabling
+    # the switch is what makes the group required (one-enabled-switch rule:
+    # the flag gates, the values must then exist).
+    if [[ "$PHONE_PROVIDER_ENABLED" == "true" ]]; then
+        [[ -z "${PHONE_PROVIDER_BASE_URL:-}" ]] && MISSING+=("PHONE_PROVIDER_BASE_URL")
+        [[ -z "${PHONE_PROVIDER_USERNAME:-}" ]] && MISSING+=("PHONE_PROVIDER_USERNAME")
+        [[ -z "${PHONE_PROVIDER_PASSWORD:-}" ]] && MISSING+=("PHONE_PROVIDER_PASSWORD")
+        [[ -z "${PHONE_PROVIDER_ACCOUNT_CODE:-}" ]] && MISSING+=("PHONE_PROVIDER_ACCOUNT_CODE")
+    fi
 
     if [[ ${#MISSING[@]} -gt 0 ]]; then
         echo "ERROR: Missing required values in $creds_file:"

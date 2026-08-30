@@ -278,6 +278,13 @@ write_deploy_state \
 log "Running verification..."
 if [[ "$HAD_DR_MODE" == "true" ]]; then
     log "  Skipping verify-instance.sh (DR mode: services deliberately down)."
+    # Fable: the service checks are meaningless on a standby, but the
+    # DB-backed integration probe needs only the venv and the swapped
+    # database, both up — without it a bad Maps key or a dropped phone group
+    # on a DR host surfaces only at failover, on the newly promoted primary.
+    log "  Probing DB-backed integrations (valid on a standby)..."
+    "$SERVER_DIR/dw-run.sh" "$INSTANCE" \
+        python -m scripts.ops.restore_checks.check_integration_settings
 else
     "$SERVER_DIR/verify-instance.sh" "$CLIENT" "$ENV"
 fi

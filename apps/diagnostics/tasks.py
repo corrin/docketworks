@@ -17,23 +17,23 @@ from apps.diagnostics.models import SessionReplayRecording
 logger = logging.getLogger("apps.diagnostics.tasks")
 
 # v1 required this via the SESSION_REPLAY_RETENTION_DAYS env var, but every
-# environment set 14 — the knob never varied. With beat schedules now living in
-# code, the retention that pairs with the purge cadence is code too, reviewed
-# in the same diff as the schedule that applies it.
+# environment set 14 — the knob never varied. Codex: the task is deliberately
+# not scheduled until replay ingestion lands; retention returns with that
+# schedule.
 SESSION_REPLAY_RETENTION_DAYS = 14
 
 
 @shared_task(name="apps.diagnostics.tasks.purge_old_session_replays_task")
 def purge_old_session_replays_task() -> None:
-    """Beat-scheduled daily purge of session replays past retention.
+    """Purge session replays past retention once ingestion is available.
 
     v1's purge also unlinked each chunk's payload file under
     SESSION_REPLAY_STORAGE_ROOT; v2 has no such setting and no replay
     ingestion (rrweb is not in the frontend), so the rows are the whole store
     to prune. Chunks go with their recording via CASCADE, and an AppError that
-    referenced a purged recording keeps the error and loses only the link
-    (SET_NULL on ``AppError.session_replay``). When replay capture is ported,
-    its storage layer must own payload cleanup alongside this row purge.
+    references a purged recording keeps the error and loses only the link
+    (SET_NULL on ``AppError.session_replay``). Replay capture must add the Beat
+    schedule and make its storage layer own payload cleanup with this row purge.
     """
     logger.info("Running purge_old_session_replays_task.")
     try:

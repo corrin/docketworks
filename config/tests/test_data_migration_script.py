@@ -194,6 +194,23 @@ def test_script_reapplies_data_migrations_after_the_restore() -> None:
         )
 
 
+def test_script_clears_v1_ciphertext_after_phone_columns_are_renamed() -> None:
+    """Encrypted bytes must not survive as apparently valid plaintext credentials."""
+    script = MIGRATE_SCRIPT.read_text()
+    restore_at = script.index("pg_restore --data-only")
+    core_rename_at = script.index("migrate core 0003", restore_at)
+    phone_clear_at = script.index("UPDATE crm_phoneprovidersettings", core_rename_at)
+    supplier_clear_at = script.index("UPDATE quoting_suppliercredential", phone_clear_at)
+
+    assert "phone_provider_username = NULL" in script[phone_clear_at:supplier_clear_at]
+    assert "phone_provider_password = NULL" in script[phone_clear_at:supplier_clear_at]
+    assert "phone_provider_base_url = NULL" in script[phone_clear_at:supplier_clear_at]
+    assert "phone_provider_account_code = NULL" in script[phone_clear_at:supplier_clear_at]
+    assert "username = NULL" in script[supplier_clear_at:]
+    assert "password = NULL" in script[supplier_clear_at:]
+    assert "api_key = NULL" in script[supplier_clear_at:]
+
+
 @pytest.mark.django_db
 def test_restoring_v1s_row_collides_until_the_seed_is_cleared() -> None:
     """Demonstrate the failure the clearing step exists to prevent.

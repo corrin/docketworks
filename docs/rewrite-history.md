@@ -401,3 +401,18 @@ status` — before server-setup.sh touches ufw and after it enables it, and
 cutover-host.sh refuses to run at all once ufw is active. Exonerated by
 evidence: the Deploy-to-UAT workflow, fail2ban, the rpcbind change and
 the OCI network.
+
+**UAT integration triage corrected two false premises and exposed the real
+credential gaps, 2026-08-30.** The Maps key existed only in v1's runtime env,
+never its database, so the durable fix is a required per-instance credential
+plus a live probe inside `verify-instance.sh`. A real cutover preserves the
+plaintext `workflow_xeroapp` token row; UAT needed OAuth only because its
+scrubbed source deliberately removed that row. The migration did carry Fernet
+ciphertext for the phone and supplier credentials into plaintext columns, so
+it now clears those groups for trusted fixture reload or explicit re-entry.
+The adjacent classifications were corrected at the same time: outgoing email,
+AI product work and session-replay capture are deferred rather than retired,
+and replay purge is not scheduled before any ingestion path exists. The AI
+gateway/provider plumbing remains because deferred features share it. The
+observed Celery Beat startup delay and fresh in-code schedule tables required
+no fix.
