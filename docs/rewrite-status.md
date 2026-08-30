@@ -174,11 +174,6 @@ rather than anywhere else. This file is finished when it is empty.
 
 First work on v2, in this order:
 
-- **The complete weak-password path**: validation, an authenticated
-  password-change API and UI, and enforcement of `password_needs_reset`.
-  Returning the flag from login while the frontend ignores it is not a
-  security control. Forgotten-password email stays the separate
-  `blocked-by:email-feature` slice. First slice after the flip.
 - **`AccessLogging` and `DisallowedHost` middleware** (v1 parity;
   `FrontendRedirect` is not needed — the SPA serving path is proven by
   `verify-instance.sh`).
@@ -322,11 +317,12 @@ First work on v2, in this order:
   (owner: deferred features keep their data) — a bounded set whose PROTECT
   user FKs keep the referenced staff rows undeletable until this slice
   returns with the purge schedule and storage decision.
-- **Email delivery** — SMTP backend/configuration, password-reset delivery and
-  system notifications are deferred, not retired. The slice adds typed SMTP
-  columns to `IntegrationSettings` (ADR 0053), restores the blocked password-
-  reset flow and authors its own spec; the current PO `mailto:` composer is a
-  separate capability and remains unchanged.
+- **Email delivery** — general SMTP backend/configuration and system
+  notifications are deferred, not retired (password-reset delivery shipped
+  2026-08-31 via the delegated Gmail sender in `apps/core/gmail.py`). The
+  slice adds typed SMTP columns to `IntegrationSettings` (ADR 0053) or
+  extends the Gmail sender, and authors its own spec; the current PO
+  `mailto:` composer is a separate capability and remains unchanged.
 - **AI product work** — quote chat, safety AI, quote-to-PO, AI-provider
   administration and NotebookLM CRUD are deferred, not retired. Provider
   credential loading and the shared gateway already exist because every slice

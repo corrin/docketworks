@@ -13,7 +13,6 @@
 import { z } from 'zod'
 
 import { expect, test } from './fixtures/auth'
-import { UNAUTHENTICATED_SESSION_CHECK_CONSOLE_ERROR } from './fixtures/authConsoleErrors'
 import { autoId } from './helpers'
 
 import type { Page } from '@playwright/test'
@@ -33,13 +32,13 @@ async function loginAs(page: Page, username: string, password: string): Promise<
 }
 
 test.describe.serial('weak password path', () => {
+  // One pattern, not two: Playwright parses a two-element test.use() array
+  // whose second entry is an object (a RegExp is one) as a [value, options]
+  // fixture tuple, handing the filter a bare string. 401s are the deliberate
+  // unauthenticated /me probes around manual logins; 400s are the weak change
+  // attempt and the dead reset link.
   test.use({
-    expectedConsoleErrors: [
-      // Deliberate unauthenticated visits (login page, logout) probe /me.
-      UNAUTHENTICATED_SESSION_CHECK_CONSOLE_ERROR,
-      // The weak change attempt and the dead reset link are 400s by design.
-      /the server responded with a status of 400/,
-    ],
+    expectedConsoleErrors: [/the server responded with a status of (400|401)/],
   })
 
   test('an admin can create a staff member who must change at next login', async ({
