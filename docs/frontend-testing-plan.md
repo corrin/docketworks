@@ -5,7 +5,7 @@ the frontend was the auth-only scaffold.
 
 - **Landmine 2 is FIXED.** `scripts/checks/export_openapi.py` exists, `frontend/schema.v2.yml`
   is committed and is the codegen input, and CI fails on a stale client. `frontend/schema.yml`
-  (v1's frozen baseline) and `schema_parity_diff.py` are **deleted** — read `../docketworks`
+  (v1's frozen baseline) and `schema_parity_diff.py` are **deleted** — read `../docketworks_v1`
   when you need v1's contract. Ignore the parts below that describe doing this.
 - **The reusable test foundation is DONE**: separate Node/jsdom Vitest projects, Testing
   Library providers, MSW v2, axe checks, and a measured coverage ratchet now run in CI.
@@ -20,7 +20,7 @@ the frontend was the auth-only scaffold.
 Fields kept being added to the v1 frontend without regression tests. Canonical instance:
 unticking "price TBC" on a purchase order clobbered unrelated fields. Root cause was payload
 construction, not missing E2E coverage — v1's PO editor
-(`../docketworks/frontend/src/pages/purchasing/po/[id].vue`, `saveLines()`) rebuilt a full
+(`../docketworks_v1/frontend/src/pages/purchasing/po/[id].vue`, `saveLines()`) rebuilt a full
 12-field payload for any changed line (`item_code: line.item_code || ''` …), and the backend
 coerced `''` → NULL. A one-checkbox PATCH was effectively a whole-line PUT. No test covered
 it (`grep -ri tbc frontend/tests/` in v1: zero hits), and the 25-minute E2E suite never

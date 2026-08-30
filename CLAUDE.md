@@ -1,6 +1,6 @@
 # CLAUDE.md — Docketworks v2
 
-Full rewrite of `../docketworks` (v1) with no functional changes. The approved plan lives at
+Full rewrite of `../docketworks_v1` (v1) with no functional changes. The approved plan lives at
 `/home/corrin/.claude/plans/the-docketworks-project-docketworks-cozy-steele.md`; read it before non-trivial work.
 **Remaining work and open decisions live in
 [`docs/rewrite-status.md`](docs/rewrite-status.md)** — read it before picking up work, and
@@ -179,7 +179,7 @@ not by adding another linter.
   CRM phone ingestion, ServiceApiKey consumers. **Everywhere else the API is free** — v1's schema
   is a reference while porting, never an authority, and nothing gates on it. v1 is being replaced
   because its architecture was wrong, so preserving its contract preserves the mistake. Read
-  `../docketworks` (the live v1 repo) when you need to know what v1 did; this repo no longer
+  `../docketworks_v1` (the frozen v1 repo) when you need to know what v1 did; this repo no longer
   carries a copy. `docs/accepted-api-differences.yml` now records **behaviour** changes worth
   remembering, not schema deviations needing permission.
 - Tests port only if they assert real business behaviour; drop tests that mirror implementation
