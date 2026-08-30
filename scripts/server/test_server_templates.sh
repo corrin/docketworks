@@ -150,6 +150,12 @@ grep -q -- '-A config beat' <<<"$BEAT" || fail "celery-beat: must target -A conf
 if grep -q 'DatabaseScheduler' <<<"$BEAT"; then
     fail "celery-beat: DatabaseScheduler leaked (v2 schedules in code)"
 fi
+# Without --schedule, PersistentScheduler writes its shelve file to CWD —
+# the app symlink into the immutable release dir — and beat crash-loops on
+# permission denied (msm-uat, NRestarts>1900). The file must live in the
+# instance root, the writable dir the instance user owns.
+grep -q -- '--schedule=/opt/docketworks/instances/test-uat/celerybeat-schedule' <<<"$BEAT" \
+    || fail "celery-beat: --schedule must point at the instance root, not default to the immutable release CWD"
 
 WORKER="$(render "$TEMPLATE_DIR/celery-worker-instance.service.template")"
 assert_no_tokens "celery-worker unit" "$WORKER"
@@ -310,6 +316,21 @@ if ! (
     fail "credentials: refused a complete credentials file with a Maps key"
 fi
 rm -rf "$CREDENTIAL_TMP"
+
+# The verifier's service checks must catch a crash loop: with
+# Restart=always a crash-looping unit is "active" for a slice of every
+# RestartSec cycle, so a bare is-active check verified UAT's broken beat
+# green. Pin the NRestarts-stability probe and its use for all three
+# runtime units.
+# SCRIPT_DIR's subshell reassignments never reach this scope.
+# shellcheck disable=SC2031
+grep -q 'NRestarts' "$SCRIPT_DIR/verify-instance.sh" \
+    || fail "verify-instance: service checks must assert NRestarts stability, not bare is-active"
+for unit in gunicorn celery-worker celery-beat; do
+    # shellcheck disable=SC2031
+    grep -qF "unit_running_stably \"$unit-\$INSTANCE\"" "$SCRIPT_DIR/verify-instance.sh" \
+        || fail "verify-instance: $unit check must use the crash-loop-aware stability probe"
+done
 
 # The permanent verifier's final success must include the real DB-backed
 # integration probe; a standalone restore check cannot make that claim true.
