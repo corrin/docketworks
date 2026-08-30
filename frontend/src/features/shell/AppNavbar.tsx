@@ -204,6 +204,13 @@ export function AppNavbar() {
       <div className="flex items-center space-x-4">
         <KanbanSearchInput />
         <span className="text-sm text-gray-700">Welcome, {user.fullName}!</span>
+        <Link
+          to="/change-password"
+          data-automation-id="AppNavbar-change-password"
+          className="text-sm text-gray-700 hover:text-gray-900 hover:underline"
+        >
+          Change password
+        </Link>
         <button
           type="button"
           data-automation-id="AppNavbar-logout"

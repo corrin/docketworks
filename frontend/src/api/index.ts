@@ -22,6 +22,7 @@ export {
 // Auth (accounts endpoints)
 export {
   accountsLogoutCreateMutation,
+  accountsMePasswordCreateMutation,
   accountsMeRetrieveOptions,
   accountsMeRetrieveQueryKey,
   accountsTokenCreateMutation,

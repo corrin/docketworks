@@ -7,6 +7,7 @@ import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-q
 
 import {
   accountsLogoutCreateMutation,
+  accountsMePasswordCreateMutation,
   accountsMeRetrieveOptions,
   accountsMeRetrieveQueryKey,
   accountsTokenCreateMutation,
@@ -74,6 +75,20 @@ export function useLogin() {
     ...accountsTokenCreateMutation(),
     onSuccess: () => {
       // Drop any cached pre-login /me result so guards refetch with the new session.
+      queryClient.removeQueries({ queryKey: accountsMeRetrieveQueryKey() })
+    },
+  })
+}
+
+/** POST /api/accounts/me/password/ — the self-service credential write. */
+export function useChangePassword() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    ...accountsMePasswordCreateMutation(),
+    onSuccess: () => {
+      // A successful change clears password_needs_reset server-side; drop the
+      // cached /me so route guards refetch the cleared flag (same pattern as
+      // useLogin — the cached profile is authoritative for navigation).
       queryClient.removeQueries({ queryKey: accountsMeRetrieveQueryKey() })
     },
   })
