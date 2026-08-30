@@ -185,6 +185,16 @@ backup_upload_probe() {
 check "backup remote accepts an upload as $INSTANCE_USER" backup_upload_probe
 sudo -u "$INSTANCE_USER" rm -f "$PROBE_LOCAL"
 
+# --- Runtime units: still stable after the full verification run ---
+# Fable: the 12s window catches only a fast crash loop; a unit that dies
+# tens of seconds in outlives it. Rechecking the same baselines here
+# stretches the observed window to the whole verifier run. A readiness
+# signal was the rejected alternative: celery ships no sd_notify support,
+# so Type=notify cannot cover beat or the worker.
+for unit in "${RUNTIME_UNITS[@]}"; do
+    check "$unit stable through verification" unit_running_stably "$unit"
+done
+
 echo ""
 if (( FAILURES > 0 )); then
     echo "$FAILURES verification check(s) FAILED for $INSTANCE."

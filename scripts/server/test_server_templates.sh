@@ -322,9 +322,12 @@ rm -rf "$CREDENTIAL_TMP"
 # RestartSec cycle, so a bare is-active check verified UAT's broken beat
 # green. Pin the NRestarts-stability probe and its use for all three
 # runtime units.
+# Pinned on the executable comparison, not the word NRestarts: a comment
+# alone must not satisfy this gate.
 # SCRIPT_DIR's subshell reassignments never reach this scope.
-# shellcheck disable=SC2031
-grep -q 'NRestarts' "$SCRIPT_DIR/verify-instance.sh" \
+# shellcheck disable=SC2016,SC2031
+grep -qF '[[ "$(systemctl show "$unit" -p NRestarts --value)" == "${NRESTARTS_BEFORE[$unit]}" ]]' \
+    "$SCRIPT_DIR/verify-instance.sh" \
     || fail "verify-instance: service checks must assert NRestarts stability, not bare is-active"
 for unit in gunicorn celery-worker celery-beat; do
     # shellcheck disable=SC2031
