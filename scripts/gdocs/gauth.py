@@ -1,67 +1,43 @@
-"""Service-account auth shared by the Google Docs/Drive authoring scripts.
+"""Client builders shared by the Google Docs/Drive authoring scripts.
 
-One credential builder for the whole toolchain (ADR 0039) — v1 carried a
-near-identical copy of this in every script.
-
-The service-account key file comes from the ``GCP_CREDENTIALS`` env var.
-Scripts that touch the company Shared Drive must impersonate a real Workspace
-user via domain-wide delegation — raw service-account credentials see only the
-service account's empty My Drive, and ``root``/``about`` never expose Shared
-Drives. The impersonated subject is ``GCP_DELEGATED_SUBJECT`` when set,
-otherwise ``CompanyDefaults.company_email`` — the per-instance Workspace user
-delegation acts as. The env override exists for a dev box pointed at a
-client's Shared Drive: the dev DB's ``company_email`` is a demo placeholder,
-not a real Workspace user. Key and subject both fail loud when missing
-(ADR 0015). Domain-wide delegation matches scope strings literally.
+The credential builders live in ``apps/core/gauth.py`` (one implementation,
+ADR 0039 — they moved there when the password-reset email gave application
+code its first Google call; scripts may import apps, never the reverse).
+This module keeps the Drive/Docs client constructors and scope constants the
+authoring toolchain shares.
 """
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
 from typing import TYPE_CHECKING
 
-from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
+from apps.core.gauth import (
+    delegated_credentials,
+    service_account_credentials,
+)
+
 if TYPE_CHECKING:
+    from google.oauth2 import service_account
     from googleapiclient._apis.docs.v1.resources import DocsResource
     from googleapiclient._apis.drive.v3.resources import DriveResource
+
+__all__ = [
+    "DOCS_SCOPE",
+    "DRIVE_SCOPE",
+    "SHEETS_SCOPE",
+    "build_delegated_drive",
+    "build_delegated_drive_and_docs",
+    "build_drive",
+    "build_service_account_drive",
+    "delegated_credentials",
+    "service_account_credentials",
+]
 
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
 DOCS_SCOPE = "https://www.googleapis.com/auth/documents"
 SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
-
-
-def service_account_credentials(scopes: list[str]) -> service_account.Credentials:
-    """Raw service-account credentials (no impersonation) for the given scopes."""
-    key_file = os.environ.get("GCP_CREDENTIALS")
-    if not key_file:
-        raise RuntimeError("GCP_CREDENTIALS environment variable not set")
-    if not Path(key_file).exists():
-        raise RuntimeError(f"Google service account key file not found: {key_file}")
-    return service_account.Credentials.from_service_account_file(key_file, scopes=scopes)
-
-
-def delegated_credentials(scopes: list[str]) -> service_account.Credentials:
-    """Credentials impersonating the resolved Workspace subject.
-
-    The caller must have run ``django.setup()`` first: the subject falls back
-    from ``GCP_DELEGATED_SUBJECT`` to ``CompanyDefaults.company_email``.
-    """
-    # Imported here, not at module top, so Django-free scripts (get_gapi_token,
-    # create_master_template) can import this module without a configured
-    # Django and a database.
-    from apps.core.models import CompanyDefaults
-
-    subject = os.environ.get("GCP_DELEGATED_SUBJECT") or CompanyDefaults.get_solo().company_email
-    if not subject:
-        raise RuntimeError(
-            "No impersonation subject: set GCP_DELEGATED_SUBJECT or populate "
-            "CompanyDefaults.company_email in Settings. Google Workspace "
-            "domain-wide delegation needs a real Workspace user to impersonate."
-        )
-    return service_account_credentials(scopes).with_subject(subject)
 
 
 def build_drive(credentials: service_account.Credentials) -> DriveResource:
