@@ -10911,7 +10911,9 @@ components:
       description: "Create body for POST /api/accounts/staff/.\n\nUnknown keys are rejected rather than\
         \ dropped (``extra=\"forbid\"``): the\nderived ``wage_rate`` in a payload must be a 422, not a\
         \ silent no-op.\nOmitted fields take the model defaults \u2014 the handler dumps with\n``exclude_unset``\
-        \ and never reads the placeholders here."
+        \ and never reads the placeholders here.\n\n``password_needs_reset`` is the admin's \"must change\
+        \ at next login\"\ncontrol \u2014 and, because the gate lives at the auth layer, the only way\
+        \ an\nexisting session (not just the next login) gets locked to the change\nscreen."
       properties:
         base_wage_rate:
           minimum: 0
@@ -10985,6 +10987,9 @@ components:
           minLength: 1
           title: Password
           type: string
+        password_needs_reset:
+          title: Password Needs Reset
+          type: boolean
         pay_basis:
           anyOf:
           - enum:
@@ -11230,6 +11235,9 @@ components:
           - type: string
           - type: 'null'
           title: Office Email
+        password_needs_reset:
+          title: Password Needs Reset
+          type: boolean
         pay_basis:
           anyOf:
           - type: string
@@ -11271,6 +11279,7 @@ components:
       - is_workshop_staff
       - is_superuser
       - is_staff_manager
+      - password_needs_reset
       - hours_mon
       - hours_tue
       - hours_wed
@@ -11393,7 +11402,9 @@ components:
       description: "Partial-update body for PATCH /api/accounts/staff/{staff_id}/.\n\nEverything omittable:\
         \ omission leaves the stored value alone. On the\nnullable fields ``null`` is a real value \u2014\
         \ ``date_left: null`` reinstates a\ndeparted staff member (ADR 0040). ``password`` is presence-only:\
-        \ null is\nnever a password value, so only supplying one changes it."
+        \ null is\nnever a password value, so only supplying one changes it.\n\n``password_needs_reset``\
+        \ is the admin's \"must change at next login\"\ncontrol. Supplied alongside ``password``, the\
+        \ explicit flag wins over the\nset-password clear (_set_staff_password runs before _apply_staff_fields)."
       properties:
         base_wage_rate:
           minimum: 0
@@ -11467,6 +11478,9 @@ components:
           minLength: 1
           title: Password
           type: string
+        password_needs_reset:
+          title: Password Needs Reset
+          type: boolean
         pay_basis:
           anyOf:
           - enum:
@@ -12874,6 +12888,9 @@ components:
           - type: string
           - type: 'null'
           title: Office Email
+        password_needs_reset:
+          title: Password Needs Reset
+          type: boolean
         payroll_email:
           anyOf:
           - type: string
@@ -12892,6 +12909,7 @@ components:
       - is_superuser
       - last_name
       - office_email
+      - password_needs_reset
       - payroll_email
       - preferred_name
       title: UserProfile

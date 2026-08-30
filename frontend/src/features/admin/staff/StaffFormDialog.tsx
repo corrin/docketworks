@@ -45,6 +45,7 @@ const FLAG_KEYS = [
   'is_workshop_staff',
   'is_superuser',
   'is_staff_manager',
+  'password_needs_reset',
 ] as const
 type FlagKey = (typeof FLAG_KEYS)[number]
 
@@ -110,6 +111,7 @@ function snapshot(staff: StaffListItemOut | null): Drafts {
       is_workshop_staff: staff?.is_workshop_staff ?? true,
       is_superuser: staff?.is_superuser ?? false,
       is_staff_manager: staff?.is_staff_manager ?? false,
+      password_needs_reset: staff?.password_needs_reset ?? false,
     },
   }
 }
@@ -390,6 +392,14 @@ export function StaffFormDialog({ open, onOpenChange, staff }: Props) {
                 automationId="StaffFormDialog-password-confirm"
                 value={drafts.password_confirm}
                 onChange={(value) => setDraft('password_confirm', value)}
+              />
+              <FlagField
+                label="Require password change at next login"
+                automationId="StaffFormDialog-password-needs-reset"
+                checked={drafts.flags.password_needs_reset}
+                onChange={(value) =>
+                  setDraft('flags', { ...drafts.flags, password_needs_reset: value })
+                }
               />
               <NumberField
                 label="Base wage rate"

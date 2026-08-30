@@ -9695,6 +9695,11 @@ export type SettingsSectionOut = {
  * derived ``wage_rate`` in a payload must be a 422, not a silent no-op.
  * Omitted fields take the model defaults — the handler dumps with
  * ``exclude_unset`` and never reads the placeholders here.
+ *
+ * ``password_needs_reset`` is the admin's "must change at next login"
+ * control — and, because the gate lives at the auth layer, the only way an
+ * existing session (not just the next login) gets locked to the change
+ * screen.
  */
 export type StaffCreateIn = {
     /**
@@ -9769,6 +9774,10 @@ export type StaffCreateIn = {
      * Password
      */
     password: string;
+    /**
+     * Password Needs Reset
+     */
+    password_needs_reset?: boolean;
     /**
      * Pay Basis
      */
@@ -10010,6 +10019,10 @@ export type StaffListItemOut = {
      */
     office_email: string | null;
     /**
+     * Password Needs Reset
+     */
+    password_needs_reset: boolean;
+    /**
      * Pay Basis
      */
     pay_basis: string | null;
@@ -10142,6 +10155,10 @@ export type StaffPerformanceResponse = {
  * nullable fields ``null`` is a real value — ``date_left: null`` reinstates a
  * departed staff member (ADR 0040). ``password`` is presence-only: null is
  * never a password value, so only supplying one changes it.
+ *
+ * ``password_needs_reset`` is the admin's "must change at next login"
+ * control. Supplied alongside ``password``, the explicit flag wins over the
+ * set-password clear (_set_staff_password runs before _apply_staff_fields).
  */
 export type StaffUpdateIn = {
     /**
@@ -10216,6 +10233,10 @@ export type StaffUpdateIn = {
      * Password
      */
     password?: string;
+    /**
+     * Password Needs Reset
+     */
+    password_needs_reset?: boolean;
     /**
      * Pay Basis
      */
@@ -11439,6 +11460,10 @@ export type UserProfile = {
      * Office Email
      */
     office_email: string | null;
+    /**
+     * Password Needs Reset
+     */
+    password_needs_reset: boolean;
     /**
      * Payroll Email
      */

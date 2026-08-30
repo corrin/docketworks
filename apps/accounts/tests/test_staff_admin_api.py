@@ -229,6 +229,15 @@ class TestCreate:
         created = Staff.objects.get(pk=response.json()["id"])
         assert created.groups.filter(name="StaffManager").exists()
 
+    def test_password_needs_reset_true_survives_the_password_set(self) -> None:
+        """An admin may issue a known temporary password and force its change;
+        the explicit flag must outlive _set_staff_password's clear."""
+        response = create(superuser_client(), password_needs_reset=True)
+
+        assert response.status_code == 201
+        created = Staff.objects.get(pk=response.json()["id"])
+        assert created.password_needs_reset is True
+
 
 class TestPartialUpdate:
     def test_a_single_field_patch_leaves_the_rest_alone(self) -> None:
@@ -281,6 +290,30 @@ class TestPartialUpdate:
         patch(superuser_client(), target.id, first_name="Renamed")
 
         target.refresh_from_db()
+        assert target.password_needs_reset is True
+
+    def test_patching_the_flag_true_forces_a_change_at_next_login(self) -> None:
+        target = make_staff("target@example.com")
+
+        response = patch(superuser_client(), target.id, password_needs_reset=True)
+
+        assert response.status_code == 200
+        target.refresh_from_db()
+        assert target.password_needs_reset is True
+
+    def test_an_explicit_flag_wins_over_a_password_sets_clear(self) -> None:
+        """_set_staff_password runs before _apply_staff_fields, so an admin
+        sending a temporary password plus the flag gets both: the new
+        password, still flagged for change."""
+        target = make_staff("target@example.com")
+
+        response = patch(
+            superuser_client(), target.id, password="Fresh-Pass-9!", password_needs_reset=True
+        )
+
+        assert response.status_code == 200
+        target.refresh_from_db()
+        assert target.check_password("Fresh-Pass-9!")
         assert target.password_needs_reset is True
 
     def test_setting_date_left_offboards(self) -> None:

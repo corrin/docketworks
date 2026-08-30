@@ -4349,6 +4349,11 @@ export const zCompanyDefaultsSchemaOut = z.object({
  * derived ``wage_rate`` in a payload must be a 422, not a silent no-op.
  * Omitted fields take the model defaults — the handler dumps with
  * ``exclude_unset`` and never reads the placeholders here.
+ *
+ * ``password_needs_reset`` is the admin's "must change at next login"
+ * control — and, because the gate lives at the auth layer, the only way an
+ * existing session (not just the next login) gets locked to the change
+ * screen.
  */
 export const zStaffCreateIn = z.object({
     base_wage_rate: z.number().gte(0).optional(),
@@ -4369,6 +4374,7 @@ export const zStaffCreateIn = z.object({
     last_name: z.string().min(1),
     office_email: z.string().min(1).nullish(),
     password: z.string().min(1),
+    password_needs_reset: z.boolean().optional(),
     pay_basis: z.enum(['hourly', 'salary']).nullish(),
     payroll_email: z.string().min(1).nullish(),
     preferred_name: z.string().min(1).nullish(),
@@ -4450,6 +4456,7 @@ export const zStaffListItemOut = z.object({
     is_workshop_staff: z.boolean(),
     last_name: z.string(),
     office_email: z.string().nullable(),
+    password_needs_reset: z.boolean(),
     pay_basis: z.string().nullable(),
     payroll_email: z.string().nullable(),
     preferred_name: z.string().nullable(),
@@ -4496,6 +4503,10 @@ export const zStaffOptionOut = z.object({
  * nullable fields ``null`` is a real value — ``date_left: null`` reinstates a
  * departed staff member (ADR 0040). ``password`` is presence-only: null is
  * never a password value, so only supplying one changes it.
+ *
+ * ``password_needs_reset`` is the admin's "must change at next login"
+ * control. Supplied alongside ``password``, the explicit flag wins over the
+ * set-password clear (_set_staff_password runs before _apply_staff_fields).
  */
 export const zStaffUpdateIn = z.object({
     base_wage_rate: z.number().gte(0).optional(),
@@ -4516,6 +4527,7 @@ export const zStaffUpdateIn = z.object({
     last_name: z.string().min(1).optional(),
     office_email: z.string().min(1).nullish(),
     password: z.string().min(1).optional(),
+    password_needs_reset: z.boolean().optional(),
     pay_basis: z.enum(['hourly', 'salary']).nullish(),
     payroll_email: z.string().min(1).nullish(),
     preferred_name: z.string().min(1).nullish(),
@@ -5165,6 +5177,7 @@ export const zUserProfile = z.object({
     is_superuser: z.boolean(),
     last_name: z.string(),
     office_email: z.string().nullable(),
+    password_needs_reset: z.boolean(),
     payroll_email: z.string().nullable(),
     preferred_name: z.string().nullable()
 });

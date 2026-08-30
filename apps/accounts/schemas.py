@@ -98,6 +98,9 @@ class UserProfile(ResponseSchema):
     full_name: str = Field(serialization_alias="fullName")
     is_office_staff: bool
     is_superuser: bool
+    # The SPA's route guard reads the flag from /me/; the auth-layer gate is
+    # the control, this field is what makes the guard's navigation informed.
+    password_needs_reset: bool
 
     @staticmethod
     def resolve_full_name(obj: Staff) -> str:
@@ -133,6 +136,10 @@ class StaffListItemOut(Schema):
     is_workshop_staff: bool
     is_superuser: bool
     is_staff_manager: bool
+    # Editable via the admin's force-change checkbox, so the edit modal must
+    # see the stored value — an always-unchecked box on a flagged account
+    # would clear the flag on the next unrelated save.
+    password_needs_reset: bool
     hours_mon: Quantity
     hours_tue: Quantity
     hours_wed: Quantity
@@ -172,6 +179,11 @@ class StaffCreateIn(Schema):
     derived ``wage_rate`` in a payload must be a 422, not a silent no-op.
     Omitted fields take the model defaults — the handler dumps with
     ``exclude_unset`` and never reads the placeholders here.
+
+    ``password_needs_reset`` is the admin's "must change at next login"
+    control — and, because the gate lives at the auth layer, the only way an
+    existing session (not just the next login) gets locked to the change
+    screen.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -180,6 +192,7 @@ class StaffCreateIn(Schema):
     first_name: NonBlankText
     last_name: NonBlankText
     password: NonBlankText
+    password_needs_reset: bool = omittable(False)
     preferred_name: NullableText = omittable(None)
     payroll_email: NullableText = omittable(None)
     xero_user_id: NullableText = omittable(None)
@@ -207,6 +220,10 @@ class StaffUpdateIn(Schema):
     nullable fields ``null`` is a real value — ``date_left: null`` reinstates a
     departed staff member (ADR 0040). ``password`` is presence-only: null is
     never a password value, so only supplying one changes it.
+
+    ``password_needs_reset`` is the admin's "must change at next login"
+    control. Supplied alongside ``password``, the explicit flag wins over the
+    set-password clear (_set_staff_password runs before _apply_staff_fields).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -215,6 +232,7 @@ class StaffUpdateIn(Schema):
     first_name: NonBlankText = omittable("")
     last_name: NonBlankText = omittable("")
     password: NonBlankText = omittable("")
+    password_needs_reset: bool = omittable(False)
     preferred_name: NullableText = omittable(None)
     payroll_email: NullableText = omittable(None)
     xero_user_id: NullableText = omittable(None)

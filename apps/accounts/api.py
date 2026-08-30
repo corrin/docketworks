@@ -326,6 +326,10 @@ def accounts_staff_create(request: HttpRequest, payload: StaffCreateIn) -> Statu
     supplied.pop("is_staff_manager", None)
     staff = Staff(**supplied)
     _set_staff_password(staff, payload.password)
+    if payload.password_needs_reset:
+        # An admin may issue a known temporary password and force its change;
+        # the explicit flag outlives _set_staff_password's clear.
+        staff.password_needs_reset = True
     with transaction.atomic():
         _apply_staff_fields(staff, {})
         if payload.is_staff_manager:
