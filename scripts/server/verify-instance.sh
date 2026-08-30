@@ -41,6 +41,18 @@ check() {
     fi
 }
 
+check_verbose() {
+    local label="$1"
+    shift
+    echo "CHECK: $label"
+    if "$@"; then
+        echo "PASS: $label"
+    else
+        echo "FAIL: $label"
+        FAILURES=$((FAILURES + 1))
+    fi
+}
+
 FQDN_FILE="$INSTANCE_DIR/.fqdn"
 if [[ -f "$FQDN_FILE" ]]; then
     FQDN="$(cat "$FQDN_FILE")"
@@ -111,6 +123,15 @@ else
     echo "FAIL: /index.html returned $STATUS, expected 200"
     FAILURES=$((FAILURES + 1))
 fi
+
+# --- Database-backed integrations ---
+# Codex: the permanent verifier's final all-clear includes the live services
+# the instance is configured to use and preserves their diagnostic output; a
+# blank key and an upstream refusal must name the failing integration instead
+# of collapsing into an unexplained green cutover.
+check_verbose "IntegrationSettings live connections" \
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" \
+    python -m scripts.ops.restore_checks.check_integration_settings
 
 # --- Host security posture ---
 check "UFW active" bash -c "ufw status | grep -q '^Status: active'"

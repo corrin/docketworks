@@ -232,7 +232,8 @@ which seeded nine periodic tasks into the django-celery-beat tables.
 
 | v1 beat entry | disposition | note |
 |---|---|---|
-| `xero_heartbeat`, `xero_regular_sync`, `xero_30_day_sync`, `run_all_scrapers_weekly`, `set_paid_flag_jobs`, `auto_archive_completed_jobs`, `parse_unparsed_stock_items_hourly`, `purge_old_session_replays_daily` | ported | `config/celery.py` — the schedule lives in code, not in seed migrations, each entry stamped with its `periodic_task_name` header (see that module for why). The `SESSION_REPLAY_RETENTION_DAYS` env knob is folded into code at `apps/diagnostics/tasks.py`: every v1 environment set 14 and the knob never varied. |
+| `xero_heartbeat`, `xero_regular_sync`, `xero_30_day_sync`, `run_all_scrapers_weekly`, `set_paid_flag_jobs`, `auto_archive_completed_jobs`, `parse_unparsed_stock_items_hourly` | ported | `config/celery.py` — the schedule lives in code, not in seed migrations, each entry stamped with its `periodic_task_name` header (see that module for why). |
+| `purge_old_session_replays_daily` | blocked-by:session-replays | The task and fixed 14-day retention exist in `apps/diagnostics/tasks.py`, but replay ingestion, playback and storage are deferred. Beat must not advertise maintenance for a feature no live path can populate; the schedule returns with ingestion. |
 | `recompute_workshop_schedule` | blocked-by:operations-scheduling | The task does not exist in v2 — operations scheduling is a schema shell (`rewrite-status.md`). `config/celery.py` records the pending entry in a comment where the schedule lives; the beat entry lands with the algorithm, never before, because scheduling a task that dispatches nothing fails silently. |
 
 ## Fixtures

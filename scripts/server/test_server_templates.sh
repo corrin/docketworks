@@ -9,6 +9,7 @@ set -euo pipefail
 # Runs anywhere (no root, no services); wired into the cheap gate tier.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SERVER_SUITE_DIR="$SCRIPT_DIR"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
 
@@ -261,6 +262,53 @@ echo "$LABEL_OUT" | grep -q '"core.companydefaults"' || fail "label rewrite: v2 
 echo "$LABEL_OUT" | grep -q '"workflow.companydefaults"' && fail "label rewrite: v1 label survived"
 rm -f "$LABEL_TMP"
 
+# --- instance credentials: Maps is required before any instance mutation ---
+CREDENTIAL_TMP="$(mktemp -d)"
+CREDENTIAL_FILE="$CREDENTIAL_TMP/test-uat.credentials.env"
+GCP_TEST_KEY="$CREDENTIAL_TMP/gcp.json"
+touch "$GCP_TEST_KEY"
+printf '%s\n' \
+    "GCP_CREDENTIALS=$GCP_TEST_KEY" \
+    "BACKUP_GDRIVE_TEAM_DRIVE_ID=drive" \
+    "ANTHROPIC_API_KEY=anthropic" \
+    "GEMINI_API_KEY=gemini" \
+    "MISTRAL_API_KEY=mistral" \
+    "XERO_CLIENT_ID=client" \
+    "XERO_CLIENT_SECRET=secret" \
+    "XERO_WEBHOOK_KEY=webhook" \
+    "XERO_REDIRECT_URI=https://test-uat.docketworks.site/api/xero/oauth/callback/" \
+    "GOOGLE_MAPS_API_KEY=" \
+    "PHONE_PROVIDER_ENABLED=false" \
+    "PHONE_PROVIDER_RECORDING_DELETION_ENABLED=false" \
+    > "$CREDENTIAL_FILE"
+CREDENTIAL_OUT="$CREDENTIAL_TMP/output"
+if (
+    # shellcheck source=instance.sh
+    source "$SERVER_SUITE_DIR/instance.sh"
+    require_root_owned_credentials_file() { :; }
+    require_instance_credentials "$CREDENTIAL_FILE"
+) > "$CREDENTIAL_OUT" 2>&1; then
+    fail "credentials: accepted a blank GOOGLE_MAPS_API_KEY"
+fi
+grep -q 'GOOGLE_MAPS_API_KEY' "$CREDENTIAL_OUT" \
+    || fail "credentials: refusal did not name GOOGLE_MAPS_API_KEY"
+sed -i 's/^GOOGLE_MAPS_API_KEY=$/GOOGLE_MAPS_API_KEY=maps-key/' "$CREDENTIAL_FILE"
+if ! (
+    # shellcheck source=instance.sh
+    source "$SERVER_SUITE_DIR/instance.sh"
+    require_root_owned_credentials_file() { :; }
+    require_instance_credentials "$CREDENTIAL_FILE"
+) > "$CREDENTIAL_OUT" 2>&1; then
+    fail "credentials: refused a complete credentials file with a Maps key"
+fi
+rm -rf "$CREDENTIAL_TMP"
+
+# The permanent verifier's final success must include the real DB-backed
+# integration probe; a standalone restore check cannot make that claim true.
+grep -q 'scripts.ops.restore_checks.check_integration_settings' \
+    "$SERVER_SUITE_DIR/verify-instance.sh" \
+    || fail "verify-instance: IntegrationSettings live probe missing"
+
 # --- rclone config writer: a bare service account is refused ---
 # A service account without a shared drive has zero quota, so that config
 # uploads nothing — prod ran it red every night. chown/chmod are shadowed
@@ -270,7 +318,7 @@ RCLONE_OUT="$(
     # Subshell so common.sh's vars and the shadowing stay contained.
     set +e
     # shellcheck source=common.sh
-    source "$SCRIPT_DIR/common.sh"
+    source "$SERVER_SUITE_DIR/common.sh"
     RCLONE_CONFIG_DIR="$RCLONE_TMP"
     chown() { :; }
     chmod() { :; }

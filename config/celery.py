@@ -105,14 +105,10 @@ app.conf.beat_schedule = _with_periodic_task_headers(
             "schedule": crontab(minute="30"),
             "kwargs": {"limit": 50},
         },
-        # workflow/0003 seed: daily replay purge at 01:30 NZT, before the 02:00
-        # and 03:00 job-maintenance tasks. Retention lives beside the task
-        # (apps/diagnostics/tasks.py) — see there for the v1 disk-store
-        # adaptation.
-        "purge_old_session_replays_daily": {
-            "task": "apps.diagnostics.tasks.purge_old_session_replays_task",
-            "schedule": crontab(minute="30", hour="1"),
-        },
+        # Session replay ingestion and playback are deferred. The model and
+        # purge task stay ready for that slice, but scheduling a cleanup for
+        # rows no live path can create falsely presents the feature as active.
+        # Add the daily entry with ingestion, alongside its storage decision.
         # workflow/0003 seed: the weekly supplier-price scrape, Sunday 15:00 NZT.
         # Sunday afternoon because a full Steel & Tube run is hours of browser work
         # against their portal and must land before Monday's quoting.

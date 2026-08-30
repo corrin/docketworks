@@ -99,8 +99,11 @@ required to match v1's except where an external party holds the URL.
       ciphertext in v1 (the phone provider's username/password, now
       `IntegrationSettings.phone_provider_*`, and quoting
       `SupplierCredential.username/password/api_key`) are plain text in v2:
-      decrypt with v1's `FIELD_ENCRYPTION_KEY` during the load, or re-enter
-      them after cutover. See `scripts/ops/migrate_v1_data.sh`.
+      `migrate_v1_data.sh` clears the complete phone credential group so the
+      post-swap instance fixture reloads it atomically, and clears the three
+      supplier fields so ciphertext is never used as plaintext. Re-enter any
+      supplier credentials on their rows before running a scraper. There is no
+      decrypt helper.
 
 ## Rehearsed mechanics (see the plan's Data migration section)
 
@@ -186,14 +189,18 @@ required to match v1's except where an external party holds the URL.
 - [ ] Required env vars present per `.env.example` (settings validate
       fail-fast at boot, so a missing one stops the service immediately).
 - [ ] **Install-level credentials are database rows, not env** (ADR 0053).
-      After the data migration, `instance.sh reconfigure` loads the Google
-      Maps key from the credentials file; enter the phone provider's login on
-      Admin > Integrations (v1 stored it as Fernet ciphertext, so it is
-      re-entered, not carried). Then
-      `uv run python -m scripts.ops.restore_checks.check_integration_settings`
-      proves the key with a live Address Validation call. `shared.env` is
-      gone and no process environment carries the key; it lives in the
-      root-owned credentials file and on the `IntegrationSettings` row.
+      `GOOGLE_MAPS_API_KEY` is required in the per-instance credentials file
+      because v1 held it only in its runtime environment. After the data
+      migration, `instance.sh` loads the Maps and complete phone groups from
+      that file. `verify-instance.sh` then runs the live Address Validation and
+      enabled-phone probes; each run makes a real, billable Maps request.
+      `shared.env` is gone and no process environment carries the key.
+- [ ] **Prove Xero token continuity; do not assume re-consent.** A real v1 dump
+      carries the plaintext `workflow_xeroapp` token row and the fixture loader
+      preserves it, so Admin > Xero should remain connected after cutover.
+      Reconnect there only when the token is absent or past Xero's refresh
+      window. A scrubbed non-production dump deliberately removes the row and
+      therefore does require OAuth before its Xero checks.
 - [ ] **The hosts run the ASGI serving model.**
       `scripts/server/templates/gunicorn-instance.service.template` renders
       `gunicorn -k uvicorn_worker.UvicornWorker --workers 4 --timeout 180

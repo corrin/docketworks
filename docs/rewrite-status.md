@@ -46,7 +46,7 @@ done only when that spec is green.
 | E2E specs ported | **47 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
 | Backend operations still to port | **58** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 237 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2761 (all passing) |
+| Unit tests | 2764 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 121 recorded deviations |
@@ -152,9 +152,6 @@ rather than anywhere else. This file is finished when it is empty.
   work if it slips: labour rates, archive jobs, the month-end UI (backend done)
   and the AppError viewer (write path done everywhere; the read/grouping API and
   page are unbuilt). None has a spec; each slice authors its own.
-- **AI product work**: quote chat, safety AI, AI-provider administration,
-  NotebookLM CRUD, quote-to-PO (v1's inline Gemini client moves to the
-  gateway). All of it routes through `apps/ai` (ADR 0041).
 - **No timeout, retry or spend cap at the LLM boundary.** litellm's default
   `request_timeout` is 6000s, so a hung vendor pins a worker for 100 minutes.
   ADR 0041 claims the gateway is where these live; make that true.
@@ -317,9 +314,20 @@ First work on v2, in this order:
   `operations_workshop_schedule_retrieve` / `_recalculate_create` at pick-up.
 - **Process documents** — forms, procedures, JSA and the categories endpoint.
   JSA and SWP are `document_type` variants of `Procedure`, not a third model.
-- **Session replays** — no spec covers it and `rrweb` is not in v2's frontend.
-- **AI providers and NotebookLM CRUD** — admin screens behind the navbar menu.
-  The local Gemini key lives in an `AIProvider` row, not env.
+- **Session replays** — capture, ingestion APIs, admin playback and the storage
+  decision are deferred; no spec covers them and `rrweb` is not in the
+  frontend. The carried models and purge task are not a live feature, and the
+  purge stays out of Beat until ingestion lands with its own spec.
+- **Email delivery** — SMTP backend/configuration, password-reset delivery and
+  system notifications are deferred, not retired. The slice adds typed SMTP
+  columns to `IntegrationSettings` (ADR 0053), restores the blocked password-
+  reset flow and authors its own spec; the current PO `mailto:` composer is a
+  separate capability and remains unchanged.
+- **AI product work** — quote chat, safety AI, quote-to-PO, AI-provider
+  administration and NotebookLM CRUD are deferred, not retired. Provider
+  credential loading and the shared gateway already exist because every slice
+  routes through `apps/ai` (ADR 0041); the local Gemini key lives in an
+  `AIProvider` row, not env. Each user-facing slice authors its own spec.
 - **Job — quote:** `_apply_create`, `_link_create`, `_preview_create` are Google
   Sheets sync; the dependency is the real cost, not the endpoints. When that
   Drive client lands in `apps/`, `scripts/ops/outbound_links_probe.py` becomes
