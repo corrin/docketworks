@@ -105,9 +105,10 @@ app.conf.beat_schedule = _with_periodic_task_headers(
             "schedule": crontab(minute="30"),
             "kwargs": {"limit": 50},
         },
-        # Session replay ingestion and playback are deferred. The model and
-        # purge task stay ready for that slice, but scheduling a cleanup for
-        # rows no live path can create falsely presents the feature as active.
+        # Codex: session replay ingestion and playback are deferred. The
+        # model and purge task stay ready for that slice, but scheduling a
+        # cleanup for rows no live path can create falsely presents the
+        # feature as active.
         # Add the daily entry with ingestion, alongside its storage decision.
         # workflow/0003 seed: the weekly supplier-price scrape, Sunday 15:00 NZT.
         # Sunday afternoon because a full Steel & Tube run is hours of browser work

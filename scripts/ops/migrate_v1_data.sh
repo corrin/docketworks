@@ -152,7 +152,7 @@ echo "==> Clearing credentials whose v1 ciphertext is not valid v2 plaintext"
 # correctly treat the group as already configured and leave the Fernet
 # ciphertext in place. Disable and clear the complete group so it is either
 # reloaded whole or fails the live verifier as unconfigured.
-# Supplier credentials have no fixture loader. NULL makes their existing
+# Codex: supplier credentials have no fixture loader. NULL makes their existing
 # fail-early validation name the row that needs manual re-entry instead of
 # sending ciphertext to the supplier as though it were a password or API key.
 psql "$@" -d "$V2_DB" -v ON_ERROR_STOP=1 <<'SQL'

@@ -17,8 +17,9 @@ from apps.diagnostics.models import SessionReplayRecording
 logger = logging.getLogger("apps.diagnostics.tasks")
 
 # v1 required this via the SESSION_REPLAY_RETENTION_DAYS env var, but every
-# environment set 14 — the knob never varied. The task is deliberately not
-# scheduled until replay ingestion lands; retention returns with that schedule.
+# environment set 14 — the knob never varied. Codex: the task is deliberately
+# not scheduled until replay ingestion lands; retention returns with that
+# schedule.
 SESSION_REPLAY_RETENTION_DAYS = 14
 
 
