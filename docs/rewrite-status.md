@@ -43,13 +43,13 @@ done only when that spec is green.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **46 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
+| E2E specs ported | **47 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
 | Backend operations still to port | **58** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 237 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2758 (all passing) |
+| Unit tests | 2761 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
-| Behaviour ledger | 120 recorded deviations |
+| Behaviour ledger | 121 recorded deviations |
 | ADRs | 40 (v1's 26 carried forward + 0038–0041, 0043, 0045–0053 written here) |
 
 **Written is not ported.** Report progress as specs green; a count of endpoints
@@ -276,22 +276,17 @@ First work on v2, in this order:
   `existing_timesheets_for_week` returns the posted ids; the at-risk set is the
   difference. Two per-employee facts are still missing: calendar assignment and
   termination.
-- **Delete the dead sync progress readers.** `XeroSyncService.get_messages`,
-  `get_current_entity` and `get_entity_progress` have no caller outside tests
-  while `sync_worker` still writes the keys they read. Keep the lock, which
-  `apps/xero/api.py` reads live. Left in place it is a template for a fourth
-  progress implementation.
 - **The overtime repair commands have no tests.** `create_overtime_entries`,
   `reclassify_overtime_entries` and `_repair_shared` write real payroll cost
   lines and are covered by nothing. Dry-run and read the CSV before running
   either. They also price 1.5x/2x pay-item lines at the base wage — a preserved
   v1 defect, ruled ticket-not-fix; [KAN-339](https://docketworks.atlassian.net/browse/KAN-339)
   carries the fix and the historical-row question.
-- **Xero remainder:** `xero_sync_create`, `_sync_info_retrieve`, `_ping_retrieve`,
-  `_disconnect_create`, `_create_invoice_create`, `_delete_invoice_destroy`,
-  `_create_quote_create`, `_delete_quote_destroy`,
-  `_create_purchase_order_create`, `_branding_themes_list`; plus the five
-  `xero_errors_*` admin views. No spec gates any of them.
+- **Xero remainder:** the five `xero_errors_*` admin views. Everything else
+  this row once listed is done and consumed: ping, sync, sync-info and
+  disconnect by the `/admin/xero` connection page (spec
+  `admin/xero.spec.ts`), invoice/quote/PO create-delete by the job and
+  purchasing screens, branding-themes by the company-defaults screen.
 
 ### Screens
 

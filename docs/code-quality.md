@@ -20,15 +20,15 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-ignore | 0 |
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
-| oxlint-disable | 9 |
-| TOTAL suppressions | 689 |
+| oxlint-disable | 7 |
+| TOTAL suppressions | 685 |
 | noqa: DJ001 | 161 |
-| noqa: PLC0415 | 128 |
+| noqa: PLC0415 | 129 |
 | noqa: E402 | 105 |
 | noqa: PLR0913 | 46 |
 | noqa: ARG002 | 37 |
-| noqa: BLE001 | 36 |
-| noqa: C901 | 21 |
+| noqa: BLE001 | 34 |
+| noqa: C901 | 20 |
 | noqa: ARG001 | 18 |
 | noqa: S603 | 14 |
 | noqa: TRY300 | 9 |
@@ -70,7 +70,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 | metric | count |
 |---|---:|
 | in comments | 240 |
-| in docstrings | 384 |
+| in docstrings | 385 |
 
 ## Exception handling
 
@@ -79,10 +79,10 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 | metric | count |
 |---|---:|
 | try statements | 389 |
-| except handlers | 422 |
+| except handlers | 421 |
 | re-raises or converts | 272 |
 | returns instead | 87 |
-| falls through | 50 |
+| falls through | 49 |
 | continue/break in a loop | 12 |
 | pass (silent) | 1 |
 
@@ -102,7 +102,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 205 |
+| functions returning `X \| None` | 204 |
 | non-test functions | 2493 |
 
 ## Wire contract (response side)

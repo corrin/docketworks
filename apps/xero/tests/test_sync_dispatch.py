@@ -8,9 +8,11 @@ The beat entries that drive the hourly/weekly runs are pinned in
 """
 
 from collections.abc import Iterator
+from contextlib import contextmanager
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+from django.conf import settings
 from django.core.cache import caches
 from django.test import Client, override_settings
 
@@ -211,9 +213,18 @@ class TestSyncInfo:
         assert api.get(SYNC_INFO_URL).json()["sync_in_progress"] is True
 
 
-def _messages(task_id: str) -> list[dict[str, object]]:
-    msgs: list[dict[str, object]] = _shared.get(f"xero_sync_messages_{task_id}", [])
-    return msgs
+@contextmanager
+def _captured_events() -> Iterator[list[dict[str, object]]]:
+    """Capture the worker's eventstream publishes (channel and type pinned)."""
+    events: list[dict[str, object]] = []
+
+    def _capture(channel: str, event_type: str, payload: dict[str, object]) -> None:
+        assert channel == settings.XERO_SYNC_CHANNEL
+        assert event_type == "message"
+        events.append(payload)
+
+    with patch("django_eventstream.send_event", side_effect=_capture):
+        yield events
 
 
 @pytest.mark.django_db
@@ -231,9 +242,10 @@ class TestXeroSyncWorker:
         to Xero or pull tenant data, and must say so rather than fake success."""
         _shared.set(SYNC_STATUS_KEY, "t-readonly")
 
-        xero_sync_task("t-readonly")
+        with _captured_events() as events:
+            xero_sync_task("t-readonly")
 
-        marker = _messages("t-readonly")[-1]
+        marker = events[-1]
         assert marker["message"] == "Sync skipped: XERO_READONLY is set"
         assert marker["sync_status"] == "aborted"
         assert _shared.get(SYNC_STATUS_KEY) is None
@@ -251,9 +263,10 @@ class TestXeroSyncWorker:
         _shared.set(SYNC_STATUS_KEY, "t-disabled")
         before = AppError.objects.count()
 
-        xero_sync_task("t-disabled")
+        with _captured_events() as events:
+            xero_sync_task("t-disabled")
 
-        marker = _messages("t-disabled")[-1]
+        marker = events[-1]
         assert marker["sync_status"] == "aborted"
         assert "enable_xero_sync is False" in str(marker["message"])
         assert AppError.objects.count() == before
@@ -265,7 +278,6 @@ class TestXeroSyncWorker:
         deep sync outliving a fixed lease drops its lock mid-run, and the next
         hourly dispatch then starts a second concurrent sync."""
         _shared.set(SYNC_STATUS_KEY, "t-lease")
-        _shared.set("xero_sync_messages_t-lease", [])
 
         def _events() -> Iterator[dict[str, object]]:
             yield {
@@ -284,6 +296,7 @@ class TestXeroSyncWorker:
         with (
             patch("apps.xero.sync.synchronise_xero_data", return_value=_events()),
             patch("apps.xero.sync_worker._sync_cache.touch", wraps=_shared.touch) as touch,
+            _captured_events(),
         ):
             xero_sync_task("t-lease")
 
@@ -297,13 +310,15 @@ class TestXeroSyncWorker:
         _shared.set(SYNC_STATUS_KEY, "t-quota")
         before = AppError.objects.count()
 
-        with patch(
-            "apps.xero.sync.synchronise_xero_data",
-            side_effect=XeroQuotaFloorReached("day quota 80 at floor 100"),
+        with (
+            patch(
+                "apps.xero.sync.synchronise_xero_data",
+                side_effect=XeroQuotaFloorReached("day quota 80 at floor 100"),
+            ),
+            _captured_events() as msgs,
         ):
             xero_sync_task("t-quota")  # must not raise
 
-        msgs = _messages("t-quota")
         assert msgs[-1]["sync_status"] == "aborted"
         abort_message = msgs[-2]
         assert "Sync aborted" in str(abort_message["message"])
@@ -323,13 +338,13 @@ class TestXeroSyncWorker:
                 "apps.xero.sync.synchronise_xero_data",
                 side_effect=RuntimeError("xero exploded"),
             ),
+            _captured_events() as msgs,
             pytest.raises(RuntimeError),
         ):
             xero_sync_task("t-err")
 
         assert AppError.objects.count() == before + 1
         app_error = AppError.objects.latest("timestamp")
-        msgs = _messages("t-err")
         assert msgs[-1]["sync_status"] == "error"
         assert msgs[-2]["error_id"] == str(app_error.id)
         assert _shared.get(SYNC_STATUS_KEY) is None

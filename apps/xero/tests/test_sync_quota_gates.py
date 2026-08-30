@@ -247,13 +247,10 @@ class TestWorkerAbortedBranch:
     @pytest.fixture(autouse=True)
     def _clean_shared_cache(self) -> Iterator[None]:
         _shared.delete(SYNC_STATUS_KEY)
-        _shared.delete(f"xero_sync_messages_{self.TASK_ID}")
         yield
         _shared.delete(SYNC_STATUS_KEY)
-        _shared.delete(f"xero_sync_messages_{self.TASK_ID}")
 
     def test_quota_floor_emits_aborted_marker_and_skips_persist_app_error(self) -> None:
-        _shared.set(f"xero_sync_messages_{self.TASK_ID}", [], timeout=60)
         _shared.set(SYNC_STATUS_KEY, self.TASK_ID, timeout=60)
 
         def _gen() -> Iterator[dict[str, str]]:
@@ -264,9 +261,11 @@ class TestWorkerAbortedBranch:
         # No enable_xero_sync patch: the worker no longer reads that gate — the
         # engine owns it and raises XeroSyncDisabled, which is a different
         # branch from the quota abort under test here.
+        events: list[dict[str, object]] = []
         with (
             override_settings(XERO_READONLY=False),
             patch("apps.xero.sync.synchronise_xero_data", return_value=_gen()),
+            patch("django_eventstream.send_event", side_effect=lambda _c, _t, p: events.append(p)),
         ):
             xero_sync_task(self.TASK_ID)
 
@@ -275,16 +274,15 @@ class TestWorkerAbortedBranch:
         # No AppError row — the abort is not a defect to investigate.
         assert AppError.objects.count() == app_errors_before
 
-        msgs = _shared.get(f"xero_sync_messages_{self.TASK_ID}", [])
-        final = msgs[-1]
+        final = events[-1]
         assert final["sync_status"] == "aborted"
         # The penultimate message explains the abort. Severity is "warning",
         # not "error": the SSE stream derives its terminal sync_status from
         # error-severity messages, and an aborted run must not read back as
         # a failed one (review fix over v1, which used "error").
-        penultimate = msgs[-2]
+        penultimate = events[-2]
         assert penultimate["severity"] == "warning"
-        assert "abort" in penultimate["message"].lower()
+        assert "abort" in str(penultimate["message"]).lower()
 
 
 @pytest.mark.django_db

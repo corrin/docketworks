@@ -6,6 +6,7 @@ from django.urls import path
 
 from apps.operations.events import data_versions_stream
 from apps.timesheet.events import payroll_runs_stream
+from apps.xero.events import xero_sync_stream
 from apps.xero.oauth_views import xero_authenticate, xero_oauth_callback
 from apps.xero.webhooks import XeroWebhookView
 from config.api import api
@@ -32,6 +33,10 @@ urlpatterns = [
         payroll_runs_stream,
         name="payroll_runs_stream",
     ),
+    # Fable: sync progress published by apps.xero.sync_worker; office-gated.
+    # Beside its polling sibling /api/xero/sync-info/ for the same
+    # findability reason as data-versions.
+    path("api/xero/sync/stream/", xero_sync_stream, name="xero_sync_stream"),
     path("api/", api.urls),
 ]
 

@@ -1249,3 +1249,11 @@
     !important — the red state could never render. v2 does not reproduce the
     feature or its N-per-day fetches; budget visibility belongs to the job
     screens.
+
+- operation: (xero connection page)
+  change: "Token-refresh failure is its own UI state, not the disconnected banner"
+  reason: >
+    v1 collapsed a ping 500 (a refresh that reached Xero and failed, carrying
+    an AppError id) into the same "expired or not connected" banner as a
+    clean disconnect, hiding the id. The page now shows the error and its id
+    per ADR 0038; reconnecting remains the remedy either way.
