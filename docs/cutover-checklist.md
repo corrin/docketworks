@@ -8,6 +8,23 @@ Actions that must happen around the v1 → v2 switch, discovered as the rewrite
 proceeds. Add to this file the moment a slice turns up an operational
 prerequisite; do not rely on remembering it on the night.
 
+## Carry-over inventory — the complete surface
+
+Every category of v1 state and how it reaches v2. Verified 2026-08-30, so
+this is the whole surface, not a running discovery log: if something a
+cutover needs is not below, it is a genuine gap, not an oversight to patch
+in silence.
+
+| v1 state | Mechanism | Kind |
+|---|---|---|
+| All table data | `migrate_v1_data.sh` (data-only dump/restore into a freshly-migrated v2 DB; excludes infra tables; rewinds seed rows so pre-rename columns land; deletes UNIQUE-colliding seeds; replays data-normalising migrations; resets and verifies sequences) | automated |
+| The 5 Fernet columns (phone username/password; supplier username/password/api_key) | Phase 0 `scripts/ops/extract_v1_credentials.py --output` (decrypts with v1's own key while v1 is up) → post-swap `scripts/ops/apply_v1_credentials.py` (called by `cutover-instance.sh` when the file exists). Fallback with no file: the migration NULLs them, the operator supplies `PHONE_PROVIDER_*` in the credentials file and re-enters suppliers via `manage.py set_supplier_credential` | automated (extracted) / manual (fallback) |
+| `<instance>.company-defaults.json` (bootstrap; real `xero_tenant_id`) | Phase 0 `extract_v1_credentials.py --company-defaults` dumps v1's live singleton + shop company. On a cutover it is validated, not loaded — the real CompanyDefaults arrives with the table migration | automated |
+| Xero OAuth tokens | Straight table migration — v1 stores them plaintext, the fixture loader preserves the migrated row. Reconnect at `/admin/xero` ONLY if absent or past Xero's refresh window (a scrubbed dump strips them; a real dump does not) | automated |
+| Google Maps API key | `GOOGLE_MAPS_API_KEY` in the credentials file → `load_integration_settings` (ADR 0053; v1 held it in the environment, v2 in a DB row). This is the SOLE env→DB-row case — every other secret maps to a migrating table row | manual entry + automated load |
+| On-disk bytes: `mediafiles/`, `phone-recordings/`, `gcp-credentials.json` | **In-place cutover: nothing to do — they persist.** v1 and v2 use the identical instance layout (`/opt/docketworks/instances/<instance>/…`) and the cutover reuses that directory. The phone-recording/media COPY steps below apply only to a fresh-host restore (a different machine loading a dump), never to the in-place flip — do not copy redundantly or raise a false alarm | in-place: none; fresh host: manual copy |
+| Staff wage rates; supplier-cred currency; GCP key rotation; `JWT_SIGNING_KEY`; rclone team-drive | Operator actions with a mechanism; each has its own checklist item below | manual |
+
 ## The release gate
 
 Go/no-go is two independent questions; either failing is grounds to reject

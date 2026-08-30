@@ -124,3 +124,41 @@ def test_company_defaults_is_a_valid_two_record_fixture() -> None:
     __import__("uuid").UUID(defaults["xero_tenant_id"])  # a real, parseable tenant id
     assert "shop_company" in defaults and "shop_company_id" not in defaults
     assert "id" not in defaults  # promoted to pk
+
+
+# --- apply-side cross-check (imported the same way, no Django needed) ---
+_APPLY_PATH = Path(__file__).resolve().parents[1] / "ops" / "apply_v1_credentials.py"
+_apply_spec = importlib.util.spec_from_file_location("apply_v1_credentials", _APPLY_PATH)
+assert _apply_spec and _apply_spec.loader
+apply = importlib.util.module_from_spec(_apply_spec)
+sys.modules["apply_v1_credentials"] = apply
+_apply_spec.loader.exec_module(apply)
+
+
+class _Cred:
+    def __init__(self, label: str) -> None:
+        self.label = label
+
+
+def test_cross_check_resolves_matching_rows() -> None:
+    rows = {"a": _Cred("Steel & Tube"), "b": _Cred("BHP")}
+    suppliers = [
+        {"id": "a", "label": "Steel & Tube"},
+        {"id": "b", "label": "BHP"},
+    ]
+    resolved, problems = apply.cross_check_suppliers(suppliers, rows.get)
+    assert problems == []
+    assert [entry["id"] for _, entry in resolved] == ["a", "b"]
+
+
+def test_cross_check_flags_a_label_mismatch_and_a_missing_row() -> None:
+    rows = {"a": _Cred("Renamed Supplier")}
+    suppliers = [
+        {"id": "a", "label": "Steel & Tube"},  # pk hit, label differs
+        {"id": "gone", "label": "BHP"},  # pk miss
+    ]
+    resolved, problems = apply.cross_check_suppliers(suppliers, rows.get)
+    assert resolved == []
+    assert len(problems) == 2
+    assert any("label mismatch" in p for p in problems)
+    assert any("not in the migrated database" in p for p in problems)
