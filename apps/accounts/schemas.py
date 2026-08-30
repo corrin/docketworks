@@ -42,6 +42,26 @@ class LoginResponse(ResponseSchema):
     password_needs_reset: bool = False
 
 
+class PasswordChangeRequest(Schema):
+    """Self-service change body for POST /api/accounts/me/password/.
+
+    Plain ``str`` like LoginRequest: a password is never whitespace-stripped
+    or length-coerced on the way in — the validators judge the new value and
+    check_password judges the old.
+    """
+
+    current_password: str
+    new_password: str
+
+
+class PasswordChangeResponse(ResponseSchema):
+    """Empty 200 body for the self-service password change.
+
+    The change's effect is the cleared ``password_needs_reset``, which the
+    client re-reads from ``/me/``.
+    """
+
+
 class TokenRefreshRequest(Schema):
     """Token-refresh body; the refresh cookie supplies an omitted token."""
 

@@ -6,6 +6,7 @@ Paths and operationIds are the stable contract:
 - POST /api/accounts/token/refresh/  accounts_token_refresh_create
 - POST /api/accounts/logout/         accounts_logout_create
 - GET  /api/accounts/me/             accounts_me_retrieve
+- POST /api/accounts/me/password/    accounts_me_password_create    (authenticated)
 - GET  /api/accounts/staff/          accounts_staff_list            (superuser)
 - POST /api/accounts/staff/          accounts_staff_create          (superuser)
 - PATCH /api/accounts/staff/{staff_id}/    accounts_staff_partial_update  (superuser)
@@ -41,6 +42,8 @@ from apps.accounts.schemas import (
     LoginRequest,
     LoginResponse,
     LogoutResponse,
+    PasswordChangeRequest,
+    PasswordChangeResponse,
     StaffCreateIn,
     StaffListItemOut,
     StaffUpdateIn,
@@ -195,6 +198,38 @@ def me(request: HttpRequest) -> Staff:
     if not isinstance(user, Staff):  # pragma: no cover - CookieJWTAuth guarantees Staff
         raise AuthenticationError
     return user
+
+
+@router.post(
+    "/me/password/",
+    auth=CookieJWTAuth(),
+    operation_id="accounts_me_password_create",
+    response={200: PasswordChangeResponse, 401: AuthErrorOut},
+    summary="Change the authenticated user's own password",
+)
+def accounts_me_password_create(
+    request: HttpRequest, payload: PasswordChangeRequest
+) -> PasswordChangeResponse:
+    """Verify the current password, then validate and set the new one.
+
+    The one self-service credential write. _set_staff_password also clears
+    password_needs_reset, which is what releases a flagged session from the
+    auth-layer password gate (apps/core/auth.py).
+    """
+    user = request.user
+    if not isinstance(user, Staff):  # pragma: no cover - CookieJWTAuth guarantees Staff
+        raise AuthenticationError
+    if not user.check_password(payload.current_password):
+        # ADR 0038: transparent after authentication — a wrong current
+        # password here is the caller's error to fix, not an authentication
+        # event, so it is a 400 with the real reason rather than a 401.
+        raise HttpError(400, "Current password is incorrect.")
+    _set_staff_password(user, payload.new_password)
+    # update_fields skips Staff.save()'s wage recompute (nothing wage-related
+    # changes) and must name updated_at, which save() assigns manually.
+    user.save(update_fields=["password", "password_needs_reset", "updated_at"])
+    logger.info("PASSWORD CHANGED - pk=%s", user.pk)
+    return PasswordChangeResponse()
 
 
 @router.get(

@@ -645,6 +645,9 @@ introduced:
 # (owner addition 2026-08-25); v1 had no acknowledgement concept at all.
 - process_forms_acknowledge_create
 - process_forms_acknowledgements_list
+# v1 had no self-service credential write at all — an admin reset was the only
+# path. The password_needs_reset gate needs an exit the flagged user can reach.
+- accounts_me_password_create
 dropped:
   timesheets_payroll_pay_runs_create_create: >-
     Creating the Draft pay run is a step of posting, not an operator intent:

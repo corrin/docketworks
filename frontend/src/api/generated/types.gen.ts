@@ -6561,6 +6561,38 @@ export type PaginatedScheduledTaskList = {
 };
 
 /**
+ * PasswordChangeRequest
+ *
+ * Self-service change body for POST /api/accounts/me/password/.
+ *
+ * Plain ``str`` like LoginRequest: a password is never whitespace-stripped
+ * or length-coerced on the way in — the validators judge the new value and
+ * check_password judges the old.
+ */
+export type PasswordChangeRequest = {
+    /**
+     * Current Password
+     */
+    current_password: string;
+    /**
+     * New Password
+     */
+    new_password: string;
+};
+
+/**
+ * PasswordChangeResponse
+ *
+ * Empty 200 body for the self-service password change.
+ *
+ * The change's effect is the cleared ``password_needs_reset``, which the
+ * client re-reads from ``/me/``.
+ */
+export type PasswordChangeResponse = {
+    [key: string]: unknown;
+};
+
+/**
  * PatchedContactMethodRequest
  *
  * Wire contract for PatchedContactMethodRequest.
@@ -12974,6 +13006,31 @@ export type AccountsMeRetrieveResponses = {
 };
 
 export type AccountsMeRetrieveResponse = AccountsMeRetrieveResponses[keyof AccountsMeRetrieveResponses];
+
+export type AccountsMePasswordCreateData = {
+    body: PasswordChangeRequest;
+    path?: never;
+    query?: never;
+    url: '/api/accounts/me/password/';
+};
+
+export type AccountsMePasswordCreateErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorOut;
+};
+
+export type AccountsMePasswordCreateError = AccountsMePasswordCreateErrors[keyof AccountsMePasswordCreateErrors];
+
+export type AccountsMePasswordCreateResponses = {
+    /**
+     * OK
+     */
+    200: PasswordChangeResponse;
+};
+
+export type AccountsMePasswordCreateResponse = AccountsMePasswordCreateResponses[keyof AccountsMePasswordCreateResponses];
 
 export type AccountsStaffListData = {
     body?: never;

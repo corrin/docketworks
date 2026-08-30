@@ -2748,6 +2748,30 @@ export const zPaginatedEntryList = z.object({
 });
 
 /**
+ * PasswordChangeRequest
+ *
+ * Self-service change body for POST /api/accounts/me/password/.
+ *
+ * Plain ``str`` like LoginRequest: a password is never whitespace-stripped
+ * or length-coerced on the way in — the validators judge the new value and
+ * check_password judges the old.
+ */
+export const zPasswordChangeRequest = z.object({
+    current_password: z.string(),
+    new_password: z.string()
+});
+
+/**
+ * PasswordChangeResponse
+ *
+ * Empty 200 body for the self-service password change.
+ *
+ * The change's effect is the cleared ``password_needs_reset``, which the
+ * client re-reads from ``/me/``.
+ */
+export const zPasswordChangeResponse = z.record(z.string(), z.unknown());
+
+/**
  * PatchedContactMethodRequest
  *
  * Wire contract for PatchedContactMethodRequest.
@@ -5910,6 +5934,13 @@ export const zAccountsLogoutCreateResponse = zLogoutResponse;
  * OK
  */
 export const zAccountsMeRetrieveResponse = zUserProfile;
+
+export const zAccountsMePasswordCreateBody = zPasswordChangeRequest;
+
+/**
+ * OK
+ */
+export const zAccountsMePasswordCreateResponse = zPasswordChangeResponse;
 
 /**
  * Response

@@ -7309,6 +7309,32 @@ components:
       - results
       title: PaginatedScheduledTaskList
       type: object
+    PasswordChangeRequest:
+      description: "Self-service change body for POST /api/accounts/me/password/.\n\nPlain ``str`` like\
+        \ LoginRequest: a password is never whitespace-stripped\nor length-coerced on the way in \u2014\
+        \ the validators judge the new value and\ncheck_password judges the old."
+      properties:
+        current_password:
+          title: Current Password
+          type: string
+        new_password:
+          title: New Password
+          type: string
+      required:
+      - current_password
+      - new_password
+      title: PasswordChangeRequest
+      type: object
+    PasswordChangeResponse:
+      description: 'Empty 200 body for the self-service password change.
+
+
+        The change''s effect is the cleared ``password_needs_reset``, which the
+
+        client re-reads from ``/me/``.'
+      properties: {}
+      title: PasswordChangeResponse
+      type: object
     PatchedContactMethodRequest:
       description: "Wire contract for PatchedContactMethodRequest.\n\nDefaults are presence markers, never\
         \ values \u2014 the handler reads\n``model_fields_set``. These four must carry a value when supplied\n\
@@ -14675,6 +14701,42 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Returns the current authenticated user profile
+      tags:
+      - accounts
+  /api/accounts/me/password/:
+    post:
+      description: 'Verify the current password, then validate and set the new one.
+
+
+        The one self-service credential write. _set_staff_password also clears
+
+        password_needs_reset, which is what releases a flagged session from the
+
+        auth-layer password gate (apps/core/auth.py).'
+      operationId: accounts_me_password_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChangeRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordChangeResponse'
+          description: OK
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorOut'
+          description: Unauthorized
+      security:
+      - CookieJWTAuth: []
+      summary: Change the authenticated user's own password
       tags:
       - accounts
   /api/accounts/staff/:
