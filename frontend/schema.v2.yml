@@ -10519,6 +10519,90 @@ components:
       - online_url
       title: QuoteOut
       type: object
+    QuoteRevisionCostLineOut:
+      description: 'One archived cost line inside a quote revision.
+
+
+        Floats, not Decimals: these are JSON snapshots written by
+
+        ``_archive_quote_revision``, not live CostLine rows.'
+      properties:
+        desc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Desc
+        ext_refs:
+          additionalProperties: true
+          title: Ext Refs
+          type: object
+        id:
+          title: Id
+          type: string
+        kind:
+          title: Kind
+          type: string
+        meta:
+          additionalProperties: true
+          title: Meta
+          type: object
+        quantity:
+          title: Quantity
+          type: number
+        total_cost:
+          title: Total Cost
+          type: number
+        total_rev:
+          title: Total Rev
+          type: number
+        unit_cost:
+          title: Unit Cost
+          type: number
+        unit_rev:
+          title: Unit Rev
+          type: number
+      required:
+      - id
+      - kind
+      - desc
+      - quantity
+      - unit_cost
+      - unit_rev
+      - total_cost
+      - total_rev
+      - ext_refs
+      - meta
+      title: QuoteRevisionCostLineOut
+      type: object
+    QuoteRevisionOut:
+      description: Wire contract for one archived quote revision.
+      properties:
+        archived_at:
+          title: Archived At
+          type: string
+        cost_lines:
+          items:
+            $ref: '#/components/schemas/QuoteRevisionCostLineOut'
+          title: Cost Lines
+          type: array
+        quote_revision:
+          title: Quote Revision
+          type: integer
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        summary:
+          $ref: '#/components/schemas/QuoteRevisionSummaryOut'
+      required:
+      - quote_revision
+      - archived_at
+      - reason
+      - summary
+      - cost_lines
+      title: QuoteRevisionOut
+      type: object
     QuoteRevisionRequest:
       description: Wire contract for QuoteRevisionRequest.
       properties:
@@ -10556,6 +10640,24 @@ components:
       - job_id
       title: QuoteRevisionResponse
       type: object
+    QuoteRevisionSummaryOut:
+      description: Totals of one archived quote revision, as stored at archive time.
+      properties:
+        cost:
+          title: Cost
+          type: number
+        hours:
+          title: Hours
+          type: number
+        rev:
+          title: Rev
+          type: number
+      required:
+      - cost
+      - rev
+      - hours
+      title: QuoteRevisionSummaryOut
+      type: object
     QuoteRevisionsListResponse:
       description: Wire contract for QuoteRevisionsListResponse.
       properties:
@@ -10570,8 +10672,7 @@ components:
           type: integer
         revisions:
           items:
-            additionalProperties: true
-            type: object
+            $ref: '#/components/schemas/QuoteRevisionOut'
           title: Revisions
           type: array
         total_revisions:

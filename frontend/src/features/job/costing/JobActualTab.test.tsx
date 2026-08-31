@@ -55,6 +55,9 @@ describe('JobActualTab', () => {
     renderWithProviders(<JobActualTab jobId="job-1" />)
 
     await screen.findByRole('heading', { name: 'Actual Summary' })
+    // The cost figure appears only in the panel (the chip shows revenue), so
+    // waiting on it also waits out the panel's Loading state.
+    await screen.findByText('$1,137.33')
     const summary = document.querySelector('[data-automation-id="JobActualTab-summary"]')
     expect(summary).toHaveTextContent('$1,840.00')
     expect(summary).toHaveTextContent('$1,137.33')

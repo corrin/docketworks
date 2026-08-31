@@ -9372,6 +9372,86 @@ export type QuoteOut = {
 };
 
 /**
+ * QuoteRevisionCostLineOut
+ *
+ * One archived cost line inside a quote revision.
+ *
+ * Floats, not Decimals: these are JSON snapshots written by
+ * ``_archive_quote_revision``, not live CostLine rows.
+ */
+export type QuoteRevisionCostLineOut = {
+    /**
+     * Desc
+     */
+    desc: string | null;
+    /**
+     * Ext Refs
+     */
+    ext_refs: {
+        [key: string]: unknown;
+    };
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Meta
+     */
+    meta: {
+        [key: string]: unknown;
+    };
+    /**
+     * Quantity
+     */
+    quantity: number;
+    /**
+     * Total Cost
+     */
+    total_cost: number;
+    /**
+     * Total Rev
+     */
+    total_rev: number;
+    /**
+     * Unit Cost
+     */
+    unit_cost: number;
+    /**
+     * Unit Rev
+     */
+    unit_rev: number;
+};
+
+/**
+ * QuoteRevisionOut
+ *
+ * Wire contract for one archived quote revision.
+ */
+export type QuoteRevisionOut = {
+    /**
+     * Archived At
+     */
+    archived_at: string;
+    /**
+     * Cost Lines
+     */
+    cost_lines: Array<QuoteRevisionCostLineOut>;
+    /**
+     * Quote Revision
+     */
+    quote_revision: number;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    summary: QuoteRevisionSummaryOut;
+};
+
+/**
  * QuoteRevisionRequest
  *
  * Wire contract for QuoteRevisionRequest.
@@ -9412,6 +9492,26 @@ export type QuoteRevisionResponse = {
 };
 
 /**
+ * QuoteRevisionSummaryOut
+ *
+ * Totals of one archived quote revision, as stored at archive time.
+ */
+export type QuoteRevisionSummaryOut = {
+    /**
+     * Cost
+     */
+    cost: number;
+    /**
+     * Hours
+     */
+    hours: number;
+    /**
+     * Rev
+     */
+    rev: number;
+};
+
+/**
  * QuoteRevisionsListResponse
  *
  * Wire contract for QuoteRevisionsListResponse.
@@ -9432,9 +9532,7 @@ export type QuoteRevisionsListResponse = {
     /**
      * Revisions
      */
-    revisions: Array<{
-        [key: string]: unknown;
-    }>;
+    revisions: Array<QuoteRevisionOut>;
     /**
      * Total Revisions
      */

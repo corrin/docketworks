@@ -782,8 +782,18 @@ class TestQuoteRevisions:
         assert job.quote_acceptance_date is None
 
         # Listing reflects the archive; a second revision numbers itself 2.
+        # The revision entries cross the wire typed (the revisions-history UI
+        # consumes them), so the shape is contract, not incidental storage.
         listing = client.get(f"/api/job/jobs/{job.id}/cost_sets/quote/revise/").json()
         assert listing["total_revisions"] == 1
+        listed = listing["revisions"][0]
+        assert listed["quote_revision"] == 1
+        assert listed["reason"] == "customer changed scope"
+        assert listed["archived_at"]
+        assert listed["summary"] == {"cost": 180.0, "rev": 360.0, "hours": 2.0}
+        assert len(listed["cost_lines"]) == 2
+        line_out = listed["cost_lines"][0]
+        assert set(line_out) >= {"kind", "desc", "quantity", "unit_cost", "unit_rev", "total_rev"}
         _make_line(quote, kind="material")
         second = client.post(
             f"/api/job/jobs/{job.id}/cost_sets/quote/revise/",

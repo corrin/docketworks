@@ -156,6 +156,53 @@ describe('JobQuoteTab', () => {
     expect(bodies).toEqual([{ archive_existing: false }, { archive_existing: true }])
   })
 
+  it('lists archived revisions in the history dialog', async () => {
+    stubTabData()
+    server.use(
+      http.get('*/api/job/jobs/*/cost_sets/quote/revise/', () =>
+        HttpResponse.json({
+          job_id: 'job-1',
+          job_number: 1,
+          current_cost_set_rev: 2,
+          total_revisions: 1,
+          revisions: [
+            {
+              quote_revision: 1,
+              archived_at: '2026-08-30T02:15:00+00:00',
+              reason: 'customer changed scope',
+              summary: { cost: 180, rev: 360, hours: 2 },
+              cost_lines: [
+                {
+                  id: 'line-1',
+                  kind: 'material',
+                  desc: 'Sheet steel',
+                  quantity: 1,
+                  unit_cost: 100,
+                  unit_rev: 150,
+                  total_cost: 100,
+                  total_rev: 150,
+                  ext_refs: {},
+                  meta: {},
+                },
+              ],
+            },
+          ],
+        }),
+      ),
+    )
+    const user = userEvent.setup()
+
+    renderWithProviders(<JobQuoteTab jobId="job-1" job={baseJob} />)
+
+    await user.click(await screen.findByRole('button', { name: /Revisions/ }))
+
+    await screen.findByText('Quote Revisions History')
+    expect(screen.getByText(/Revision 1/)).toBeInTheDocument()
+    expect(screen.getByText('customer changed scope')).toBeInTheDocument()
+    expect(screen.getByText('$360.00')).toBeInTheDocument()
+    expect(screen.getByText('Sheet steel')).toBeInTheDocument()
+  })
+
   it('refuses to render a quote workspace for a T&M job', async () => {
     stubTabData()
     const tmJob: JobDetail = { ...baseJob, pricing_methodology: 'time_materials' }

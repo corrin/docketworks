@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
-import { Copy } from 'lucide-react'
+import { BookOpen, Copy } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
   apiErrorMessage,
   getFullJobOptions,
   jobJobsCostSetsQuoteCopyFromEstimateCreateMutation,
+  jobJobsCostSetsQuoteReviseRetrieveQueryKey,
   jobJobsCostSetsRetrieveOptions,
   jobJobsCostSetsRetrieveQueryKey,
 } from '@/api'
@@ -24,6 +25,7 @@ import { formatCurrency } from '@/lib/format'
 import { invalidateJobViews } from '../invalidateJobViews'
 import { CostLineGrid } from './CostLineGrid'
 import { CostSetSummaryPanel } from './CostSetSummaryPanel'
+import { QuoteRevisionsDialog } from './QuoteRevisionsDialog'
 import { XeroQuoteCard } from './XeroQuoteCard'
 
 interface JobQuoteTabProps {
@@ -49,6 +51,7 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
   const summary = costSetQuery.data?.summary
 
   const [showArchiveDialog, setShowArchiveDialog] = useState(false)
+  const [showRevisionsDialog, setShowRevisionsDialog] = useState(false)
   const copyFromEstimate = useMutation(jobJobsCostSetsQuoteCopyFromEstimateCreateMutation())
 
   const executeCopy = (archiveExisting: boolean) => {
@@ -61,6 +64,10 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
           toast.success(response.message)
           void queryClient.invalidateQueries({
             queryKey: jobJobsCostSetsRetrieveQueryKey({ path: { job_id: jobId, kind: 'quote' } }),
+          })
+          // An archive-and-replace grew the revision history.
+          void queryClient.invalidateQueries({
+            queryKey: jobJobsCostSetsQuoteReviseRetrieveQueryKey({ path: { job_id: jobId } }),
           })
           // The costs summary and header totals read the quote through the
           // full-job payload, so the grid's query alone is not enough.
@@ -104,16 +111,27 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
                 </span>
               )}
             </h2>
-            <Button
-              variant="outline"
-              size="sm"
-              data-automation-id="JobQuoteTab-copy-from-estimate"
-              disabled={copyFromEstimate.isPending}
-              onClick={() => executeCopy(false)}
-            >
-              <Copy className="mr-1 h-4 w-4" />
-              {copyFromEstimate.isPending ? 'Copying…' : 'Copy from Estimate'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                data-automation-id="JobQuoteTab-revisions"
+                onClick={() => setShowRevisionsDialog(true)}
+              >
+                <BookOpen className="mr-1 h-4 w-4" />
+                Revisions
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                data-automation-id="JobQuoteTab-copy-from-estimate"
+                disabled={copyFromEstimate.isPending}
+                onClick={() => executeCopy(false)}
+              >
+                <Copy className="mr-1 h-4 w-4" />
+                {copyFromEstimate.isPending ? 'Copying…' : 'Copy from Estimate'}
+              </Button>
+            </div>
           </div>
           <div className="mt-3">
             <CostLineGrid
@@ -136,6 +154,12 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
           <XeroQuoteCard jobId={jobId} />
         </div>
       </div>
+
+      <QuoteRevisionsDialog
+        jobId={jobId}
+        open={showRevisionsDialog}
+        onOpenChange={setShowRevisionsDialog}
+      />
 
       <Dialog open={showArchiveDialog} onOpenChange={setShowArchiveDialog}>
         <DialogContent className="sm:max-w-md">
