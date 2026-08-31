@@ -240,6 +240,7 @@ export {
   jobCostLinesDeleteDestroyMutation,
   jobCostLinesPartialUpdateMutation,
   jobJobsCostSetsCostLinesCreateMutation,
+  jobJobsCostSetsQuoteCopyFromEstimateCreateMutation,
   jobJobsCostSetsRetrieveOptions,
   jobJobsCostSetsRetrieveQueryKey,
   jobJobsLabourRatesListOptions,
