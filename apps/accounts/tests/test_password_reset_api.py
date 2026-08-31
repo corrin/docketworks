@@ -80,6 +80,13 @@ def confirm(uid: str, token: str, new_password: str) -> "_MonkeyPatchedWSGIRespo
     )
 
 
+def request_reset_ok(email: str, outbox: list[SentEmail]) -> tuple[str, str]:
+    """Request a reset and return the link parts, failing loudly on a 500."""
+    response = request_reset(email)
+    assert response.status_code == 200, response.json()
+    return link_parts(outbox)
+
+
 def link_parts(outbox: list[SentEmail]) -> tuple[str, str]:
     assert len(outbox) == 1
     match = LINK_PATTERN.search(outbox[0].body)
@@ -160,8 +167,7 @@ class TestPasswordResetConfirm:
     def test_a_wrong_token_is_refused_and_changes_nothing(
         self, staff: Staff, outbox: list[SentEmail]
     ) -> None:
-        request_reset("jo@example.com")
-        uid, _token = link_parts(outbox)
+        uid, _token = request_reset_ok("jo@example.com", outbox)
         before = staff.password
 
         response = confirm(uid, "garbage-token", NEW_PASSWORD)
@@ -181,8 +187,7 @@ class TestPasswordResetConfirm:
     def test_a_weak_new_password_is_refused_with_the_validator_reason(
         self, outbox: list[SentEmail]
     ) -> None:
-        request_reset("jo@example.com")
-        uid, token = link_parts(outbox)
+        uid, token = request_reset_ok("jo@example.com", outbox)
 
         response = confirm(uid, token, "password")
 
@@ -192,8 +197,7 @@ class TestPasswordResetConfirm:
     @pytest.mark.usefixtures("staff")
     def test_a_used_link_does_not_work_twice(self, outbox: list[SentEmail]) -> None:
         """The token hashes the password, so a successful reset burns it."""
-        request_reset("jo@example.com")
-        uid, token = link_parts(outbox)
+        uid, token = request_reset_ok("jo@example.com", outbox)
         assert confirm(uid, token, NEW_PASSWORD).status_code == 200
 
         response = confirm(uid, token, "Another-Pass-7!")

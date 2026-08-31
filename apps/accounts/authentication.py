@@ -3,7 +3,6 @@
 from typing import Any
 
 from django.contrib.auth.backends import ModelBackend
-from django.db.models import Q
 from django.http import HttpRequest
 
 from apps.accounts.models import Staff
@@ -24,18 +23,12 @@ class StaffEmailBackend(ModelBackend):
         if username is None or password is None:
             return None
 
-        normalized = Staff.objects.normalize_email(username).strip()
-        matches = list(
-            Staff.objects.filter(
-                Q(office_email__iexact=normalized) | Q(payroll_email__iexact=normalized)
-            )[:2]
-        )
-        if len(matches) != 1:
+        user = Staff.objects.sole_login_match(username)
+        if user is None:
             # Match Django's default backend timing for an unknown login.
             Staff().set_password(password)
             return None
 
-        user = matches[0]
         if user.check_password(password) and self.user_can_authenticate(user):
             return user
         return None

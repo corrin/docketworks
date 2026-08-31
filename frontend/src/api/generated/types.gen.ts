@@ -6593,6 +6593,24 @@ export type PasswordChangeResponse = {
 };
 
 /**
+ * PasswordErrorOut
+ *
+ * DECLARED 400 body for the credential endpoints (change and reset).
+ *
+ * A declared response rather than an HttpError: the envelope masks
+ * exception text on anonymous requests (ADR 0038), a declared shape rides
+ * the exported schema into the generated client, and every refusal here
+ * (dead link, wrong current password, weak new password) is exactly what
+ * the caller must read.
+ */
+export type PasswordErrorOut = {
+    /**
+     * Detail
+     */
+    detail: string;
+};
+
+/**
  * PasswordResetConfirmRequest
  *
  * Body for POST /api/accounts/password-reset/confirm/.
@@ -6622,22 +6640,6 @@ export type PasswordResetConfirmRequest = {
  */
 export type PasswordResetConfirmResponse = {
     [key: string]: unknown;
-};
-
-/**
- * PasswordResetErrorOut
- *
- * DECLARED 400 body for the confirm endpoint.
- *
- * A declared response rather than an HttpError because the envelope masks
- * exception text on anonymous requests (ADR 0038) — and both refusals here
- * (dead link, weak password) are exactly what this caller must read.
- */
-export type PasswordResetErrorOut = {
-    /**
-     * Detail
-     */
-    detail: string;
 };
 
 /**
@@ -13113,6 +13115,10 @@ export type AccountsMePasswordCreateData = {
 
 export type AccountsMePasswordCreateErrors = {
     /**
+     * Bad Request
+     */
+    400: PasswordErrorOut;
+    /**
      * Unauthorized
      */
     401: AuthErrorOut;
@@ -13156,7 +13162,7 @@ export type AccountsPasswordResetConfirmCreateErrors = {
     /**
      * Bad Request
      */
-    400: PasswordResetErrorOut;
+    400: PasswordErrorOut;
 };
 
 export type AccountsPasswordResetConfirmCreateError = AccountsPasswordResetConfirmCreateErrors[keyof AccountsPasswordResetConfirmCreateErrors];

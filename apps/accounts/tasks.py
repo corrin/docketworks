@@ -10,7 +10,7 @@ import logging
 
 from celery import shared_task
 
-from apps.core.errors import persist_app_error
+from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.gmail import send_company_email
 
 logger = logging.getLogger(__name__)
@@ -32,6 +32,8 @@ def send_password_reset_email_task(recipient: str, link: str) -> None:
         )
     except Exception as exc:
         # A failed reset email is invisible from the fixed-200 endpoint by
-        # design, so the AppError row is its only trace.
-        persist_app_error(exc)
+        # design, so the AppError row is its only trace — and the recipient
+        # is the fact an operator needs to re-send by hand (no retry here:
+        # nothing else may send credential email on its own schedule).
+        persist_app_error(exc, AppErrorContext(additional_context={"recipient": recipient}))
         raise

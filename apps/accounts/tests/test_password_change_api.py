@@ -110,6 +110,20 @@ class TestPasswordChange:
     def test_anonymous_is_401(self) -> None:
         assert change(Client(), PASSWORD, NEW_PASSWORD).status_code == 401
 
+    def test_reentering_the_current_password_is_refused(self, staff: Staff) -> None:
+        """A forced change satisfied by the admin-issued temp password would
+        keep the account on a credential someone else knows."""
+        staff.password_needs_reset = True
+        staff.save(update_fields=["password_needs_reset", "updated_at"])
+        client = logged_in_client(staff)
+
+        response = change(client, PASSWORD, PASSWORD)
+
+        assert response.status_code == 400
+        assert "must be different" in response.json()["detail"]
+        staff.refresh_from_db()
+        assert staff.password_needs_reset is True
+
     def test_a_change_evicts_every_other_session(self, staff: Staff) -> None:
         """Tokens carry a password fingerprint: the attacker who knew the old
         password and holds cookies is who the change exists to lock out."""

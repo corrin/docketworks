@@ -374,7 +374,9 @@ export const accountsMeRetrieveOptions = (options?: Options<AccountsMeRetrieveDa
  *
  * The one self-service credential write. _set_staff_password also clears
  * password_needs_reset, which is what releases a flagged session from the
- * auth-layer password gate (apps/core/auth.py).
+ * auth-layer password gate (apps/core/auth.py). Refusals are declared 400
+ * bodies, not HttpErrors — the wire contract carries their shape, and an
+ * expected refusal writes no AppError row.
  */
 export const accountsMePasswordCreateMutation = (options?: Partial<Options<AccountsMePasswordCreateData>>): UseMutationOptions<AccountsMePasswordCreateResponse, AxiosError<AccountsMePasswordCreateError>, Options<AccountsMePasswordCreateData>> => {
     const mutationOptions: UseMutationOptions<AccountsMePasswordCreateResponse, AxiosError<AccountsMePasswordCreateError>, Options<AccountsMePasswordCreateData>> = {
@@ -400,8 +402,8 @@ export const accountsMePasswordCreateMutation = (options?: Partial<Options<Accou
  * QUEUED, not made in-request — a synchronous Gmail round trip runs only
  * for addresses with accounts, which makes response latency (and a Gmail
  * outage's 500) an account-existence oracle; the enqueue costs the same
- * either way. The match mirrors the login backend: either email field,
- * exactly one row, so anyone who can sign in can reset.
+ * either way. The match is the login backend's own (sole_login_match), so
+ * anyone who can sign in can reset.
  */
 export const accountsPasswordResetCreateMutation = (options?: Partial<Options<AccountsPasswordResetCreateData>>): UseMutationOptions<AccountsPasswordResetCreateResponse, AxiosError<DefaultError>, Options<AccountsPasswordResetCreateData>> => {
     const mutationOptions: UseMutationOptions<AccountsPasswordResetCreateResponse, AxiosError<DefaultError>, Options<AccountsPasswordResetCreateData>> = {
@@ -424,7 +426,7 @@ export const accountsPasswordResetCreateMutation = (options?: Partial<Options<Ac
  *
  * The token hashes the current password (Django's generator), so a
  * successful reset burns the link. Refusals are declared 400 bodies, not
- * HttpErrors — see PasswordResetErrorOut.
+ * HttpErrors — see PasswordErrorOut.
  */
 export const accountsPasswordResetConfirmCreateMutation = (options?: Partial<Options<AccountsPasswordResetConfirmCreateData>>): UseMutationOptions<AccountsPasswordResetConfirmCreateResponse, AxiosError<AccountsPasswordResetConfirmCreateError>, Options<AccountsPasswordResetConfirmCreateData>> => {
     const mutationOptions: UseMutationOptions<AccountsPasswordResetConfirmCreateResponse, AxiosError<AccountsPasswordResetConfirmCreateError>, Options<AccountsPasswordResetConfirmCreateData>> = {

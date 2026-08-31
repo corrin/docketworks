@@ -84,8 +84,10 @@ function LoginPage() {
       const result = await login.mutateAsync({ body: { username, password } })
       if (result.password_needs_reset) {
         // The auth layer refuses every other path anyway; going straight to
-        // the change screen just spares the user the bounced navigation.
-        await router.navigate({ to: '/change-password' })
+        // the change screen just spares the user the bounced navigation. The
+        // redirect rides along so the deep link that started this login
+        // still lands after the forced change.
+        await router.navigate({ to: '/change-password', search: { redirect: search.redirect } })
         return
       }
       await router.navigate({ href: search.redirect ?? '/kanban' })

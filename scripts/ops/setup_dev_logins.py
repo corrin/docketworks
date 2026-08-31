@@ -76,7 +76,12 @@ def main() -> None:
     staff_count = 0
     for staff in Staff.objects.exclude(office_email=ADMIN_EMAIL):
         staff.set_password(STAFF_PASSWORD)
-        staff.password_needs_reset = True
+        # False, not True: the flag now locks every session to the change
+        # screen (apps/core/auth.py), and these logins exist so a dev can act
+        # AS a staff member with the printed shared password — flagging them
+        # would force each one onto a private password and break the sheet.
+        # The gate itself is exercised by its own unit and E2E tests.
+        staff.password_needs_reset = False
         staff.save()
         staff_count += 1
 

@@ -72,6 +72,15 @@ def password_fingerprint(user: AbstractBaseUser) -> str:
     return hashlib.sha256(user.password.encode()).hexdigest()[:16]
 
 
+def token_fingerprint_is_current(token: Token, user: AbstractBaseUser) -> bool:
+    """Whether the token's password fingerprint matches the stored hash.
+
+    The one comparison (used at cookie authentication and at refresh): a
+    claimless token fails it the same way — never grandfathered (ADR 0017).
+    """
+    return bool(token.get(PASSWORD_FINGERPRINT_CLAIM) == password_fingerprint(user))
+
+
 def issue_refresh_token(user: AbstractBaseUser) -> RefreshToken:
     """Mint the session's refresh token: for_user plus the password fingerprint.
 
@@ -191,13 +200,10 @@ class CookieJWTAuth(JWTBaseAuthentication, APIKeyCookie):
 
         A token minted before the last password change authenticates a
         credential we no longer trust — the change/reset endpoints exist to
-        evict exactly that holder. Every valid token carries the claim
-        (issue_refresh_token is the one mint), so one without it is refused
-        by the same comparison, never grandfathered (ADR 0017).
+        evict exactly that holder.
         """
         user = super().get_user(validated_token)
-        claimed = validated_token.get(PASSWORD_FINGERPRINT_CLAIM)
-        if claimed != password_fingerprint(user):
+        if not token_fingerprint_is_current(validated_token, user):
             logger.info("JWT AUTH REJECTED - stale password fingerprint pk=%s", user.pk)
             raise AuthenticationFailed("Token predates the last password change.")
         return user

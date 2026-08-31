@@ -298,7 +298,9 @@ export const accountsMeRetrieve = <ThrowOnError extends boolean = false>(options
  *
  * The one self-service credential write. _set_staff_password also clears
  * password_needs_reset, which is what releases a flagged session from the
- * auth-layer password gate (apps/core/auth.py).
+ * auth-layer password gate (apps/core/auth.py). Refusals are declared 400
+ * bodies, not HttpErrors — the wire contract carries their shape, and an
+ * expected refusal writes no AppError row.
  */
 export const accountsMePasswordCreate = <ThrowOnError extends boolean = false>(options: Options<AccountsMePasswordCreateData, ThrowOnError>): RequestResult<AccountsMePasswordCreateResponses, AccountsMePasswordCreateErrors, ThrowOnError> => (options.client ?? client).post<AccountsMePasswordCreateResponses, AccountsMePasswordCreateErrors, ThrowOnError>({
     responseType: 'json',
@@ -326,8 +328,8 @@ export const accountsMePasswordCreate = <ThrowOnError extends boolean = false>(o
  * QUEUED, not made in-request — a synchronous Gmail round trip runs only
  * for addresses with accounts, which makes response latency (and a Gmail
  * outage's 500) an account-existence oracle; the enqueue costs the same
- * either way. The match mirrors the login backend: either email field,
- * exactly one row, so anyone who can sign in can reset.
+ * either way. The match is the login backend's own (sole_login_match), so
+ * anyone who can sign in can reset.
  */
 export const accountsPasswordResetCreate = <ThrowOnError extends boolean = false>(options: Options<AccountsPasswordResetCreateData, ThrowOnError>): RequestResult<AccountsPasswordResetCreateResponses, unknown, ThrowOnError> => (options.client ?? client).post<AccountsPasswordResetCreateResponses, unknown, ThrowOnError>({
     responseType: 'json',
@@ -346,7 +348,7 @@ export const accountsPasswordResetCreate = <ThrowOnError extends boolean = false
  *
  * The token hashes the current password (Django's generator), so a
  * successful reset burns the link. Refusals are declared 400 bodies, not
- * HttpErrors — see PasswordResetErrorOut.
+ * HttpErrors — see PasswordErrorOut.
  */
 export const accountsPasswordResetConfirmCreate = <ThrowOnError extends boolean = false>(options: Options<AccountsPasswordResetConfirmCreateData, ThrowOnError>): RequestResult<AccountsPasswordResetConfirmCreateResponses, AccountsPasswordResetConfirmCreateErrors, ThrowOnError> => (options.client ?? client).post<AccountsPasswordResetConfirmCreateResponses, AccountsPasswordResetConfirmCreateErrors, ThrowOnError>({
     responseType: 'json',

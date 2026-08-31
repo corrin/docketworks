@@ -26,8 +26,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_SRC = REPO_ROOT / "frontend" / "src"
 
-#: The app's entry point: the browser lands on it, nothing links to it.
-ENTRY_ROUTES = frozenset({"/"})
+#: Routes the browser lands on from OUTSIDE the app — nothing inside links to
+#: them by design. "/" is the entry point; "/reset-password" is reached only
+#: by the uid+token link in the reset email (an in-app link without the
+#: params would just render its invalid-link state).
+ENTRY_ROUTES = frozenset({"/", "/reset-password"})
 
 _ROUTE_RE = re.compile(r"createFileRoute\(\s*'([^']+)'\s*\)")
 # to="/x" | to='/x' | to: '/x' | to: "/x" | href="/x" — a value starting with

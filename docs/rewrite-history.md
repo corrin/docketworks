@@ -41,6 +41,15 @@ hours on specs for unbuilt screens.
 
 ## Rulings that closed a question
 
+**Password tokens are fingerprint-bound with no grandfathering; the deploy
+carrying it logs every session out once (2026-08-31).** Every JWT now carries
+a fingerprint of the password hash (`apps/core/auth.py`), so a change or
+reset evicts every other session. Tokens minted before the claim existed fail
+the same comparison — owner accepted the one-time fleet-wide re-login
+(overnight deploys make it a non-event) over a 90-day window in which a
+pre-deploy token would outlive the password it was issued against (ADR 0017:
+no transitional code).
+
 **v1's `pages/purchasing/pricing.vue` is not the pricing-upload feature; the
 file is not ported (2026-08-14).** The page as deployed — verified on v1's
 `origin/production` — accepts a dropped file and discards it: the handler is a

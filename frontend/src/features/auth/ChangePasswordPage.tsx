@@ -1,22 +1,30 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
-import { useRouter } from '@tanstack/react-router'
+import { Link, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { apiErrorMessage } from '@/api'
 import { Button } from '@/components/ui/button'
 
 import { AuthCard, FormAlert, PasswordField } from './AuthCard'
-import { meQueryOptions, useChangePassword } from './index'
+import { meQueryOptions, useChangePassword, useLogout } from './index'
+
+interface Props {
+  /** Where success lands — the deep link that started the session. */
+  redirect?: string
+}
 
 /**
  * The self-service password change screen. Serves two arrivals: a flagged
- * session locked here by the auth gate (forced copy, no way back), and a
- * voluntary visit from the navbar (cancel returns to where they were).
+ * session locked here by the auth gate (forced copy, no cancel — but sign
+ * out and forgot-password stay reachable: a user who lost the admin-issued
+ * temp password must have a way off this screen), and a voluntary visit
+ * from the navbar (cancel returns to where they were).
  */
-export function ChangePasswordPage() {
+export function ChangePasswordPage({ redirect }: Props) {
   const router = useRouter()
   const { data: user } = useSuspenseQuery(meQueryOptions())
   const changePassword = useChangePassword()
+  const logout = useLogout()
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -43,7 +51,7 @@ export function ChangePasswordPage() {
       await changePassword.mutateAsync({
         body: { current_password: currentPassword, new_password: newPassword },
       })
-      await router.navigate({ to: '/kanban' })
+      await router.navigate({ href: redirect ?? '/kanban' })
     } catch (err) {
       // The 400 detail carries the validator's reason ("too common", "too
       // similar to…") — exactly what the user needs to pick a better one.
@@ -105,6 +113,30 @@ export function ChangePasswordPage() {
             {submitting ? 'Changing…' : 'Change password'}
           </Button>
         </div>
+
+        {forced && (
+          <div className="mt-4 flex items-center justify-between border-t border-gray-200 pt-4">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-gray-600 hover:underline"
+              data-automation-id="ChangePasswordPage-forgot"
+            >
+              Forgot your current password?
+            </Link>
+            <button
+              type="button"
+              className="text-sm text-gray-600 hover:underline"
+              data-automation-id="ChangePasswordPage-sign-out"
+              onClick={() => {
+                void logout.mutateAsync({}).finally(() => {
+                  void router.navigate({ to: '/login', search: {} })
+                })
+              }}
+            >
+              Sign out
+            </button>
+          </div>
+        )}
       </form>
     </AuthCard>
   )

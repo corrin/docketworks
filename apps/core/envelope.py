@@ -167,21 +167,27 @@ def _handle_application_error(
     )
 
 
+def password_change_required_body() -> dict[str, str | None]:
+    """Build the typed refusal body for a flagged session.
+
+    One shape for the ninja envelope and the plain-Django SSE views
+    (apps/core/events.py) — the SPA's interceptor matches the code string, so
+    two hand-written copies would be one silent drift from a broken gate.
+    """
+    return {
+        "detail": "Password change required.",
+        "code": "password_change_required",
+        "error_id": None,
+    }
+
+
 def _handle_password_change_required(
     api: NinjaAPI, request: HttpRequest, exc: PasswordChangeRequiredError
 ) -> HttpResponse:
     """Render the typed refusal that locks a flagged session to the change screen."""
     # Expected security outcome (ADR 0013): stable code, no AppError row.
     _log_auth_warning("Password change required", request, exc)
-    return api.create_response(
-        request,
-        {
-            "detail": "Password change required.",
-            "code": "password_change_required",
-            "error_id": None,
-        },
-        status=403,
-    )
+    return api.create_response(request, password_change_required_body(), status=403)
 
 
 def register_exception_handlers(api: NinjaAPI) -> None:

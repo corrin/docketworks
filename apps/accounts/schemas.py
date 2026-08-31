@@ -92,12 +92,14 @@ class PasswordResetConfirmResponse(ResponseSchema):
     """Empty 200: the caller's next step is simply logging in."""
 
 
-class PasswordResetErrorOut(ResponseSchema):
-    """DECLARED 400 body for the confirm endpoint.
+class PasswordErrorOut(ResponseSchema):
+    """DECLARED 400 body for the credential endpoints (change and reset).
 
-    A declared response rather than an HttpError because the envelope masks
-    exception text on anonymous requests (ADR 0038) — and both refusals here
-    (dead link, weak password) are exactly what this caller must read.
+    A declared response rather than an HttpError: the envelope masks
+    exception text on anonymous requests (ADR 0038), a declared shape rides
+    the exported schema into the generated client, and every refusal here
+    (dead link, wrong current password, weak new password) is exactly what
+    the caller must read.
     """
 
     detail: str
