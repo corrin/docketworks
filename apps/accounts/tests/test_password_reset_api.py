@@ -37,25 +37,32 @@ INVALID_LINK_DETAIL = "This reset link is invalid or has expired."
 LINK_PATTERN = re.compile(r"/reset-password\?uid=(?P<uid>[^&\s]+)&token=(?P<token>[^&\s]+)")
 
 
-class SentEmail:
-    def __init__(self, to: str, subject: str, body: str) -> None:
-        self.to = to
-        self.subject = subject
-        self.body = body
+class QueuedReset:
+    def __init__(self, recipient: str, link: str) -> None:
+        self.recipient = recipient
+        self.link = link
 
 
 @pytest.fixture
-def outbox(monkeypatch: pytest.MonkeyPatch) -> list[SentEmail]:
-    sent: list[SentEmail] = []
+def outbox(monkeypatch: pytest.MonkeyPatch) -> list[QueuedReset]:
+    """Capture what the endpoint ENQUEUES, not what eager Celery executes.
 
-    def capture(to: str, subject: str, body: str) -> str:
-        sent.append(SentEmail(to, subject, body))
-        return "fake-gmail-id"
+    The endpoint owes the flow a queued job with the right recipient and
+    link; the email itself is the task's contract (tested directly below).
+    Relying on CELERY_TASK_ALWAYS_EAGER to run the send inline is "a
+    property of the test settings, not of the product"
+    (apps/job/tests/test_job_files_api.py) — and eager execution proved
+    non-deterministic on CI's runner where a live redis service exists.
+    """
+    queued: list[QueuedReset] = []
 
-    # Patched at the task's own import (CELERY_TASK_ALWAYS_EAGER runs the
-    # queued send inline in tests), so the enqueue path is exercised too.
-    monkeypatch.setattr(accounts_tasks, "send_company_email", capture)
-    return sent
+    def capture_delay(recipient: str, link: str) -> None:
+        queued.append(QueuedReset(recipient, link))
+
+    # The defining module's name, not api's re-import: the same task object
+    # either way, but mypy only treats the origin as an export.
+    monkeypatch.setattr(accounts_tasks.send_password_reset_email_task, "delay", capture_delay)
+    return queued
 
 
 @pytest.fixture
@@ -80,17 +87,17 @@ def confirm(uid: str, token: str, new_password: str) -> "_MonkeyPatchedWSGIRespo
     )
 
 
-def request_reset_ok(email: str, outbox: list[SentEmail]) -> tuple[str, str]:
+def request_reset_ok(email: str, outbox: list[QueuedReset]) -> tuple[str, str]:
     """Request a reset and return the link parts, failing loudly on a 500."""
     response = request_reset(email)
     assert response.status_code == 200, response.json()
     return link_parts(outbox)
 
 
-def link_parts(outbox: list[SentEmail]) -> tuple[str, str]:
+def link_parts(outbox: list[QueuedReset]) -> tuple[str, str]:
     assert len(outbox) == 1
-    match = LINK_PATTERN.search(outbox[0].body)
-    assert match is not None, f"no reset link in email body: {outbox[0].body!r}"
+    match = LINK_PATTERN.search(outbox[0].link)
+    assert match is not None, f"no reset link in queued job: {outbox[0].link!r}"
     return match.group("uid"), match.group("token")
 
 
@@ -104,7 +111,7 @@ def login_response(username: str, password: str) -> "_MonkeyPatchedWSGIResponse"
 
 class TestPasswordResetRequest:
     def test_known_email_gets_a_link_that_resets_the_password(
-        self, staff: Staff, outbox: list[SentEmail]
+        self, staff: Staff, outbox: list[QueuedReset]
     ) -> None:
         staff.password_needs_reset = True
         staff.save(update_fields=["password_needs_reset", "updated_at"])
@@ -113,7 +120,7 @@ class TestPasswordResetRequest:
 
         assert response.status_code == 200
         uid, token = link_parts(outbox)
-        assert outbox[0].to == "jo@example.com"
+        assert outbox[0].recipient == "jo@example.com"
 
         confirm_response = confirm(uid, token, NEW_PASSWORD)
 
@@ -123,13 +130,15 @@ class TestPasswordResetRequest:
         assert fresh_login.status_code == 200
         assert fresh_login.json()["password_needs_reset"] is False
 
-    def test_unknown_email_is_the_same_200_and_sends_nothing(self, outbox: list[SentEmail]) -> None:
+    def test_unknown_email_is_the_same_200_and_sends_nothing(
+        self, outbox: list[QueuedReset]
+    ) -> None:
         response = request_reset("nobody@example.com")
 
         assert response.status_code == 200
         assert outbox == []
 
-    def test_departed_staff_get_no_email(self, staff: Staff, outbox: list[SentEmail]) -> None:
+    def test_departed_staff_get_no_email(self, staff: Staff, outbox: list[QueuedReset]) -> None:
         staff.date_left = date(2020, 1, 1)
         staff.save()
 
@@ -139,13 +148,13 @@ class TestPasswordResetRequest:
         assert outbox == []
 
     @pytest.mark.usefixtures("staff")
-    def test_email_match_is_case_insensitive(self, outbox: list[SentEmail]) -> None:
+    def test_email_match_is_case_insensitive(self, outbox: list[QueuedReset]) -> None:
         response = request_reset("JO@example.com")
 
         assert response.status_code == 200
         assert len(outbox) == 1
 
-    def test_a_payroll_only_address_gets_its_reset(self, outbox: list[SentEmail]) -> None:
+    def test_a_payroll_only_address_gets_its_reset(self, outbox: list[QueuedReset]) -> None:
         """Login accepts either email field, so reset must too — wage staff
         often hold only a payroll mailbox."""
         Staff.objects.create_user(
@@ -160,12 +169,12 @@ class TestPasswordResetRequest:
 
         assert response.status_code == 200
         assert len(outbox) == 1
-        assert outbox[0].to == "wages@example.com"
+        assert outbox[0].recipient == "wages@example.com"
 
 
 class TestPasswordResetConfirm:
     def test_a_wrong_token_is_refused_and_changes_nothing(
-        self, staff: Staff, outbox: list[SentEmail]
+        self, staff: Staff, outbox: list[QueuedReset]
     ) -> None:
         uid, _token = request_reset_ok("jo@example.com", outbox)
         before = staff.password
@@ -185,7 +194,7 @@ class TestPasswordResetConfirm:
 
     @pytest.mark.usefixtures("staff")
     def test_a_weak_new_password_is_refused_with_the_validator_reason(
-        self, outbox: list[SentEmail]
+        self, outbox: list[QueuedReset]
     ) -> None:
         uid, token = request_reset_ok("jo@example.com", outbox)
 
@@ -195,7 +204,7 @@ class TestPasswordResetConfirm:
         assert "too common" in response.json()["detail"]
 
     @pytest.mark.usefixtures("staff")
-    def test_a_used_link_does_not_work_twice(self, outbox: list[SentEmail]) -> None:
+    def test_a_used_link_does_not_work_twice(self, outbox: list[QueuedReset]) -> None:
         """The token hashes the password, so a successful reset burns it."""
         uid, token = request_reset_ok("jo@example.com", outbox)
         assert confirm(uid, token, NEW_PASSWORD).status_code == 200
@@ -204,3 +213,26 @@ class TestPasswordResetConfirm:
 
         assert response.status_code == 400
         assert response.json()["detail"] == INVALID_LINK_DETAIL
+
+
+class TestResetEmailTask:
+    def test_the_task_sends_the_link_to_the_recipient(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The task's whole job, run directly (never via eager .delay)."""
+        sent: dict[str, str] = {}
+
+        def capture(to: str, subject: str, body: str) -> str:
+            sent.update(to=to, subject=subject, body=body)
+            return "fake-gmail-id"
+
+        monkeypatch.setattr(accounts_tasks, "send_company_email", capture)
+
+        accounts_tasks.send_password_reset_email_task(
+            recipient="jo@example.com", link="https://example.com/reset-password?uid=u&token=t"
+        )
+
+        assert sent["to"] == "jo@example.com"
+        assert "Reset" in sent["subject"]
+        assert "https://example.com/reset-password?uid=u&token=t" in sent["body"]
+        assert "your password is unchanged" in sent["body"]
