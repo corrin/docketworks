@@ -1792,6 +1792,46 @@ export type ContactMethodRequest = {
 };
 
 /**
+ * CopyEstimateToQuoteRequest
+ *
+ * Wire contract for CopyEstimateToQuoteRequest.
+ */
+export type CopyEstimateToQuoteRequest = {
+    /**
+     * Archive Existing
+     */
+    archive_existing?: boolean;
+};
+
+/**
+ * CopyEstimateToQuoteResponse
+ *
+ * Wire contract for CopyEstimateToQuoteResponse.
+ */
+export type CopyEstimateToQuoteResponse = {
+    /**
+     * Archived Quote Revision
+     */
+    archived_quote_revision: number | null;
+    /**
+     * Copied Cost Lines Count
+     */
+    copied_cost_lines_count: number;
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Success
+     */
+    success: boolean;
+};
+
+/**
  * CostLineApprovalResponse
  *
  * Success body for cost-line approval.
@@ -9332,6 +9372,86 @@ export type QuoteOut = {
 };
 
 /**
+ * QuoteRevisionCostLineOut
+ *
+ * One archived cost line inside a quote revision.
+ *
+ * Floats, not Decimals: these are JSON snapshots written by
+ * ``_archive_quote_revision``, not live CostLine rows.
+ */
+export type QuoteRevisionCostLineOut = {
+    /**
+     * Desc
+     */
+    desc: string | null;
+    /**
+     * Ext Refs
+     */
+    ext_refs: {
+        [key: string]: unknown;
+    };
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Meta
+     */
+    meta: {
+        [key: string]: unknown;
+    };
+    /**
+     * Quantity
+     */
+    quantity: number;
+    /**
+     * Total Cost
+     */
+    total_cost: number;
+    /**
+     * Total Rev
+     */
+    total_rev: number;
+    /**
+     * Unit Cost
+     */
+    unit_cost: number;
+    /**
+     * Unit Rev
+     */
+    unit_rev: number;
+};
+
+/**
+ * QuoteRevisionOut
+ *
+ * Wire contract for one archived quote revision.
+ */
+export type QuoteRevisionOut = {
+    /**
+     * Archived At
+     */
+    archived_at: string;
+    /**
+     * Cost Lines
+     */
+    cost_lines: Array<QuoteRevisionCostLineOut>;
+    /**
+     * Quote Revision
+     */
+    quote_revision: number;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    summary: QuoteRevisionSummaryOut;
+};
+
+/**
  * QuoteRevisionRequest
  *
  * Wire contract for QuoteRevisionRequest.
@@ -9372,6 +9492,26 @@ export type QuoteRevisionResponse = {
 };
 
 /**
+ * QuoteRevisionSummaryOut
+ *
+ * Totals of one archived quote revision, as stored at archive time.
+ */
+export type QuoteRevisionSummaryOut = {
+    /**
+     * Cost
+     */
+    cost: number;
+    /**
+     * Hours
+     */
+    hours: number;
+    /**
+     * Rev
+     */
+    rev: number;
+};
+
+/**
  * QuoteRevisionsListResponse
  *
  * Wire contract for QuoteRevisionsListResponse.
@@ -9392,9 +9532,7 @@ export type QuoteRevisionsListResponse = {
     /**
      * Revisions
      */
-    revisions: Array<{
-        [key: string]: unknown;
-    }>;
+    revisions: Array<QuoteRevisionOut>;
     /**
      * Total Revisions
      */
@@ -15175,6 +15313,27 @@ export type JobJobsCostSetsActualCostLinesCreateResponses = {
 };
 
 export type JobJobsCostSetsActualCostLinesCreateResponse = JobJobsCostSetsActualCostLinesCreateResponses[keyof JobJobsCostSetsActualCostLinesCreateResponses];
+
+export type JobJobsCostSetsQuoteCopyFromEstimateCreateData = {
+    body: CopyEstimateToQuoteRequest;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/job/jobs/{job_id}/cost_sets/quote/copy_from_estimate/';
+};
+
+export type JobJobsCostSetsQuoteCopyFromEstimateCreateResponses = {
+    /**
+     * OK
+     */
+    200: CopyEstimateToQuoteResponse;
+};
+
+export type JobJobsCostSetsQuoteCopyFromEstimateCreateResponse = JobJobsCostSetsQuoteCopyFromEstimateCreateResponses[keyof JobJobsCostSetsQuoteCopyFromEstimateCreateResponses];
 
 export type JobJobsCostSetsQuoteReviseRetrieveData = {
     body?: never;

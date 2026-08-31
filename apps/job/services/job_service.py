@@ -10,6 +10,7 @@ import hashlib
 import json
 import logging
 import math
+from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -933,22 +934,54 @@ def create_job(data: JobCreateData, user: Staff) -> Job:  # noqa: C901, PLR0912,
         # For fixed_price jobs, copy estimate lines to the quote CostSet
         if job.pricing_methodology == "fixed_price":
             quote_costset = job.cost_sets.get(kind="quote")
-            for estimate_line in estimate_costset.cost_lines.all():
-                CostLine.objects.create(
-                    cost_set=quote_costset,
-                    kind=estimate_line.kind,
-                    desc=estimate_line.desc,
-                    quantity=estimate_line.quantity,
-                    unit_cost=estimate_line.unit_cost,
-                    unit_rev=estimate_line.unit_rev,
-                    accounting_date=estimate_line.accounting_date,
-                    ext_refs=estimate_line.ext_refs.copy() if estimate_line.ext_refs else {},
-                    meta=estimate_line.meta.copy() if estimate_line.meta else {},
-                    xero_pay_item_id=estimate_line.xero_pay_item_id,
-                    labour_subtype_id=estimate_line.labour_subtype_id,
-                )
+            _copy_cost_lines(estimate_costset, quote_costset)
 
     return job
+
+
+# The one list of what a cost-line copy carries. _copy_cost_lines writes
+# exactly these fields and _cost_line_contents compares exactly these fields;
+# deriving both from one tuple is what keeps "already matches the estimate"
+# true — a field added to the copy but not the comparison would make fresh
+# copies compare equal to stale ones (and vice versa).
+_COPIED_LINE_FIELDS = (
+    "kind",
+    "desc",
+    "quantity",
+    "unit_cost",
+    "unit_rev",
+    "accounting_date",
+    "ext_refs",
+    "meta",
+    "xero_pay_item_id",
+    "labour_subtype_id",
+)
+
+
+def _copied_line_values(line: CostLine) -> dict[str, object]:
+    """One line's copyable field values, with JSON dicts defensively copied."""
+    values: dict[str, object] = {}
+    for field_name in _COPIED_LINE_FIELDS:
+        value: object = getattr(line, field_name)
+        if field_name in ("ext_refs", "meta"):
+            values[field_name] = dict(value) if isinstance(value, dict) else {}
+        else:
+            values[field_name] = value
+    return values
+
+
+def _copy_cost_lines(source: CostSet, dest: CostSet) -> int:
+    """Copy every cost line of ``source`` onto ``dest``; returns the count copied.
+
+    Per-line ``objects.create`` rather than ``bulk_create``: CostLine.save()
+    owns entry_seq assignment and the summary recompute, and bulk_create
+    would bypass both.
+    """
+    copied = 0
+    for line in source.cost_lines.all():
+        CostLine.objects.create(cost_set=dest, **_copied_line_values(line))
+        copied += 1
+    return copied
 
 
 # ── Reads ────────────────────────────────────────────────────────────────
@@ -2424,6 +2457,131 @@ def create_quote_revision(job: Job, reason: str | None, user: Staff) -> QuoteRev
         "message": "Quote revision created successfully. Ready for new quote.",
         "quote_revision": quote_revision,
         "archived_cost_lines_count": len(cost_lines),
+        "job_id": str(job.id),
+    }
+
+
+class QuoteNotBlankError(Exception):
+    """The quote holds priced lines and the caller did not ask to archive them."""
+
+
+class CopyEstimateToQuoteResultData(TypedDict):
+    """Data contract for CopyEstimateToQuoteResultData."""
+
+    success: bool
+    message: str
+    copied_cost_lines_count: int
+    archived_quote_revision: int | None
+    job_id: str
+
+
+def _serialize_copied_field(value: object) -> str:
+    """Canonical string form of one copyable field value.
+
+    Dicts go through sorted-key JSON so key order never breaks equality.
+    Everything else is str(): exact, not numeric, on purpose — a copy
+    preserves the source Decimal verbatim, so Decimal("100.00") equalling
+    only itself (never "100.0") is the right notion of "identical copy".
+    """
+    if isinstance(value, dict):
+        return json.dumps(value, sort_keys=True)
+    return str(value)
+
+
+def _serialize_copied_line(line: CostLine) -> tuple[str, ...]:
+    """One line's copyable content as a canonical, hashable tuple."""
+    return tuple(_serialize_copied_field(value) for value in _copied_line_values(line).values())
+
+
+def _cost_line_contents(lines: list[CostLine]) -> Counter[tuple[str, ...]]:
+    """Build a multiset of everything ``_copy_cost_lines`` carries, for equality tests.
+
+    Derived from ``_COPIED_LINE_FIELDS`` so copy and comparison cannot drift;
+    entry_seq and ids stay out — two copies of the same content must compare
+    equal. A multiset, not a set: two identical lines are real duplication a
+    user entered, and collapsing them would call a one-line quote equal to a
+    two-line one.
+    """
+    return Counter(_serialize_copied_line(line) for line in lines)
+
+
+def copy_estimate_to_quote(
+    job: Job, archive_existing: bool, user: Staff
+) -> CopyEstimateToQuoteResultData:
+    """Replace the quote's cost lines with a copy of the estimate's.
+
+    A blank quote — no lines, or only lines carrying zero cost and zero
+    revenue (the $0 creation seed) — is overwritten without ceremony. A quote
+    with real money on it refuses unless ``archive_existing`` is set, which
+    archives it as a revision first (one atomic step with the copy).
+    """
+    estimate = job.get_latest("estimate")
+    quote = job.get_latest("quote")
+    if estimate is None or quote is None:
+        raise ValueError("Job is missing its estimate or quote cost set.")
+    if not estimate.cost_lines.exists():
+        raise ValueError("The estimate has no cost lines to copy.")
+
+    archived_quote_revision: int | None = None
+    with transaction.atomic():
+        # Deciding outside the transaction was the reviewed-away shape: a line
+        # created between the blank/equality reads and the replace would be
+        # bulk-deleted without ever reaching the archive. The CostSet row lock
+        # serializes concurrent copies and pins one consistent view from
+        # decision to replace (CodeRabbit, PR #123).
+        quote = CostSet.objects.select_for_update().get(pk=quote.pk)
+
+        # Fable: a quote already matching the estimate is answered as a no-op,
+        # not re-archived — a double press must never stack identical
+        # revisions, and returning 409 here would pop the archive dialog over
+        # nothing.
+        quote_lines = list(quote.cost_lines.all())
+        if _cost_line_contents(quote_lines) == _cost_line_contents(list(estimate.cost_lines.all())):
+            return {
+                "success": True,
+                "message": "The quote already matches the estimate.",
+                "copied_cost_lines_count": 0,
+                "archived_quote_revision": None,
+                "job_id": str(job.id),
+            }
+
+        # Fable: blank is judged per LINE TOTAL — not per unit price, and not
+        # the set's total. The creation seed's time lines carry real
+        # wage/charge-out rates at quantity 0 (nonzero unit prices, $0 line),
+        # so a unit-price test called the untouched seed "priced" (caught by
+        # the E2E gate, 2026-08-31); a set-total test fails the other way —
+        # offsetting adjustments (+$500/-$500) sum to zero but are entered
+        # work that must go through the archive path, not be silently
+        # destroyed.
+        is_blank = all(line.total_cost == 0 and line.total_rev == 0 for line in quote_lines)
+        if not is_blank and not archive_existing:
+            raise QuoteNotBlankError(
+                "The quote already has priced cost lines. "
+                "Pass archive_existing to archive them as a revision first."
+            )
+
+        if is_blank:
+            # Bulk delete skips CostLine.delete()'s per-line summary refresh;
+            # the copy below recomputes the summary from scratch and the
+            # estimate is known non-empty, so no line ever refreshes over a
+            # stale total. A $0 seed is noise, not history: no revision.
+            quote.cost_lines.all().delete()
+        else:
+            revision = create_quote_revision(job, "Replaced by copy from estimate", user)
+            archived_quote_revision = revision["quote_revision"]
+        copied = _copy_cost_lines(estimate, quote)
+
+    logger.info(
+        "Copied %s estimate cost lines to quote for job %s (archived revision: %s)",
+        copied,
+        job.job_number,
+        archived_quote_revision,
+    )
+    return {
+        "success": True,
+        "message": "Estimate copied to quote.",
+        "copied_cost_lines_count": copied,
+        "archived_quote_revision": archived_quote_revision,
         "job_id": str(job.id),
     }
 

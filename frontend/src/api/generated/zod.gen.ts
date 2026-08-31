@@ -662,6 +662,28 @@ export const zContactMethodRequest = z.object({
 });
 
 /**
+ * CopyEstimateToQuoteRequest
+ *
+ * Wire contract for CopyEstimateToQuoteRequest.
+ */
+export const zCopyEstimateToQuoteRequest = z.object({
+    archive_existing: z.boolean().optional().default(false)
+});
+
+/**
+ * CopyEstimateToQuoteResponse
+ *
+ * Wire contract for CopyEstimateToQuoteResponse.
+ */
+export const zCopyEstimateToQuoteResponse = z.object({
+    archived_quote_revision: z.int().nullable(),
+    copied_cost_lines_count: z.int(),
+    job_id: z.string(),
+    message: z.string(),
+    success: z.boolean()
+});
+
+/**
  * CostLineCreateRequest
  *
  * Wire contract for CostLineCreateRequest.
@@ -4129,6 +4151,27 @@ export const zJobQuoteResponse = z.object({
 });
 
 /**
+ * QuoteRevisionCostLineOut
+ *
+ * One archived cost line inside a quote revision.
+ *
+ * Floats, not Decimals: these are JSON snapshots written by
+ * ``_archive_quote_revision``, not live CostLine rows.
+ */
+export const zQuoteRevisionCostLineOut = z.object({
+    desc: z.string().nullable(),
+    ext_refs: z.record(z.string(), z.unknown()),
+    id: z.string(),
+    kind: z.string(),
+    meta: z.record(z.string(), z.unknown()),
+    quantity: z.number(),
+    total_cost: z.number(),
+    total_rev: z.number(),
+    unit_cost: z.number(),
+    unit_rev: z.number()
+});
+
+/**
  * QuoteRevisionRequest
  *
  * Wire contract for QuoteRevisionRequest.
@@ -4151,6 +4194,30 @@ export const zQuoteRevisionResponse = z.object({
 });
 
 /**
+ * QuoteRevisionSummaryOut
+ *
+ * Totals of one archived quote revision, as stored at archive time.
+ */
+export const zQuoteRevisionSummaryOut = z.object({
+    cost: z.number(),
+    hours: z.number(),
+    rev: z.number()
+});
+
+/**
+ * QuoteRevisionOut
+ *
+ * Wire contract for one archived quote revision.
+ */
+export const zQuoteRevisionOut = z.object({
+    archived_at: z.string(),
+    cost_lines: z.array(zQuoteRevisionCostLineOut),
+    quote_revision: z.int(),
+    reason: z.string().nullable(),
+    summary: zQuoteRevisionSummaryOut
+});
+
+/**
  * QuoteRevisionsListResponse
  *
  * Wire contract for QuoteRevisionsListResponse.
@@ -4159,7 +4226,7 @@ export const zQuoteRevisionsListResponse = z.object({
     current_cost_set_rev: z.int(),
     job_id: z.string(),
     job_number: z.int(),
-    revisions: z.array(z.record(z.string(), z.unknown())),
+    revisions: z.array(zQuoteRevisionOut),
     total_revisions: z.int()
 });
 
@@ -6846,6 +6913,17 @@ export const zJobJobsCostSetsActualCostLinesCreatePath = z.object({
  * Created
  */
 export const zJobJobsCostSetsActualCostLinesCreateResponse = zCostLineOut;
+
+export const zJobJobsCostSetsQuoteCopyFromEstimateCreateBody = zCopyEstimateToQuoteRequest;
+
+export const zJobJobsCostSetsQuoteCopyFromEstimateCreatePath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zJobJobsCostSetsQuoteCopyFromEstimateCreateResponse = zCopyEstimateToQuoteResponse;
 
 export const zJobJobsCostSetsQuoteReviseRetrievePath = z.object({
     job_id: z.uuid()

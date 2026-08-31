@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import type { JobDetail } from '@/api'
@@ -92,6 +93,114 @@ describe('JobQuoteTab', () => {
     expect(summary).toHaveTextContent('38.2%')
     // The grid arrived in quote mode alongside it.
     expect(document.querySelector('.smart-costlines-table')).not.toBeNull()
+  })
+
+  it('copies the estimate in one press when the server accepts', async () => {
+    stubTabData()
+    const bodies: unknown[] = []
+    server.use(
+      http.post('*/api/job/jobs/*/cost_sets/quote/copy_from_estimate/', async ({ request }) => {
+        bodies.push(await request.json())
+        return HttpResponse.json({
+          success: true,
+          message: 'Estimate copied to quote.',
+          copied_cost_lines_count: 3,
+          archived_quote_revision: null,
+          job_id: 'job-1',
+        })
+      }),
+    )
+    const user = userEvent.setup()
+
+    renderWithProviders(<JobQuoteTab jobId="job-1" job={baseJob} />)
+
+    await user.click(await screen.findByRole('button', { name: /Copy from Estimate/ }))
+
+    await screen.findByText('Estimate copied to quote.')
+    expect(bodies).toEqual([{ archive_existing: false }])
+    // No dialog on the happy path: a blank quote is replaced without ceremony.
+    expect(screen.queryByRole('button', { name: /Archive & replace/ })).toBeNull()
+  })
+
+  it('offers archive-and-replace when the server refuses a priced quote', async () => {
+    stubTabData()
+    const bodies: unknown[] = []
+    server.use(
+      http.post('*/api/job/jobs/*/cost_sets/quote/copy_from_estimate/', async ({ request }) => {
+        bodies.push(await request.json())
+        // First press refuses (priced quote); the dialog's re-post succeeds.
+        if (bodies.length === 1) {
+          return HttpResponse.json(
+            { detail: 'The quote already has priced cost lines.' },
+            { status: 409 },
+          )
+        }
+        return HttpResponse.json({
+          success: true,
+          message: 'Estimate copied to quote.',
+          copied_cost_lines_count: 3,
+          archived_quote_revision: 1,
+          job_id: 'job-1',
+        })
+      }),
+    )
+    const user = userEvent.setup()
+
+    renderWithProviders(<JobQuoteTab jobId="job-1" job={baseJob} />)
+
+    await user.click(await screen.findByRole('button', { name: /Copy from Estimate/ }))
+    await user.click(await screen.findByRole('button', { name: /Archive & replace/ }))
+
+    // findAll: sonner keeps the previous test's identical toast in the DOM.
+    await screen.findAllByText('Estimate copied to quote.')
+    expect(bodies).toEqual([{ archive_existing: false }, { archive_existing: true }])
+  })
+
+  it('lists archived revisions in the history dialog', async () => {
+    stubTabData()
+    server.use(
+      http.get('*/api/job/jobs/*/cost_sets/quote/revise/', () =>
+        HttpResponse.json({
+          job_id: 'job-1',
+          job_number: 1,
+          current_cost_set_rev: 2,
+          total_revisions: 1,
+          revisions: [
+            {
+              quote_revision: 1,
+              archived_at: '2026-08-30T02:15:00+00:00',
+              reason: 'customer changed scope',
+              summary: { cost: 180, rev: 360, hours: 2 },
+              cost_lines: [
+                {
+                  id: 'line-1',
+                  kind: 'material',
+                  desc: 'Sheet steel',
+                  quantity: 1,
+                  unit_cost: 100,
+                  unit_rev: 150,
+                  total_cost: 100,
+                  total_rev: 150,
+                  ext_refs: {},
+                  meta: {},
+                },
+              ],
+            },
+          ],
+        }),
+      ),
+    )
+    const user = userEvent.setup()
+
+    renderWithProviders(<JobQuoteTab jobId="job-1" job={baseJob} />)
+
+    await user.click(await screen.findByRole('button', { name: /Revisions/ }))
+
+    await screen.findByText('Quote Revisions History')
+    expect(screen.getByText(/Revision 1/)).toBeInTheDocument()
+    expect(screen.getByText('customer changed scope')).toBeInTheDocument()
+    expect(screen.getByText('$360.00')).toBeInTheDocument()
+    expect(screen.getByText('Sheet steel')).toBeInTheDocument()
   })
 
   it('refuses to render a quote workspace for a T&M job', async () => {
