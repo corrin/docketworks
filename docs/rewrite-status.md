@@ -307,6 +307,12 @@ First work on v2, in this order:
   models are a schema shell and there is no scheduling algorithm in either
   repo's backend, so it is algorithm plus page plus fresh spec. Scope v1's
   `operations_workshop_schedule_retrieve` / `_recalculate_create` at pick-up.
+- **Attachment thumbnails and click-to-view** (prod bug report 2026-08-31).
+  v1's attachments tab rendered a thumbnail per file and clicking it viewed
+  the image; v2's `JobAttachmentsTab.tsx` renders only download/delete icons
+  and nothing in `frontend/src/` calls the ported `getJobFileThumbnail`
+  endpoint. Port the thumbnail-and-view UI and extend
+  `job-attachments.spec.ts` to assert a thumbnail renders and opens.
 - **Process documents** — forms, procedures, JSA and the categories endpoint.
   JSA and SWP are `document_type` variants of `Procedure`, not a third model.
 - **Session replays** — capture, ingestion APIs, admin playback and the storage
