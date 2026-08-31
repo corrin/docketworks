@@ -2395,6 +2395,9 @@ export const jobJobsCostSetsActualCostLinesCreateMutation = (options?: Partial<O
  * Replace the quote's cost lines with a copy of the estimate's
  *
  * Copy the estimate onto the quote; 409 unless a priced quote is archived first.
+ *
+ * QuoteNotBlankError is a ConflictError, so the core envelope answers its
+ * 409 — no local catch.
  */
 export const jobJobsCostSetsQuoteCopyFromEstimateCreateMutation = (options?: Partial<Options<JobJobsCostSetsQuoteCopyFromEstimateCreateData>>): UseMutationOptions<JobJobsCostSetsQuoteCopyFromEstimateCreateResponse, AxiosError<DefaultError>, Options<JobJobsCostSetsQuoteCopyFromEstimateCreateData>> => {
     const mutationOptions: UseMutationOptions<JobJobsCostSetsQuoteCopyFromEstimateCreateResponse, AxiosError<DefaultError>, Options<JobJobsCostSetsQuoteCopyFromEstimateCreateData>> = {

@@ -149,11 +149,52 @@ describe('JobQuoteTab', () => {
     renderWithProviders(<JobQuoteTab jobId="job-1" job={baseJob} />)
 
     await user.click(await screen.findByRole('button', { name: /Copy from Estimate/ }))
+
+    // The dialog states BOTH totals (a cost-only or offsetting-adjustments
+    // quote reads "$0.00" on revenue alone) and discloses the acceptance
+    // reset, which is what the server actually does.
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('$1,840.00')
+    expect(dialog).toHaveTextContent('$1,137.33')
+    expect(dialog).toHaveTextContent(/acceptance/i)
+
     await user.click(await screen.findByRole('button', { name: /Archive & replace/ }))
 
     // findAll: sonner keeps the previous test's identical toast in the DOM.
     await screen.findAllByText('Estimate copied to quote.')
     expect(bodies).toEqual([{ archive_existing: false }, { archive_existing: true }])
+  })
+
+  it('warns in the dialog when the quote is already in Xero', async () => {
+    stubTabData()
+    server.use(
+      http.get('*/api/job/jobs/*/quote/', () =>
+        HttpResponse.json({
+          quote: {
+            id: 'xq-1',
+            number: 'QU-0042',
+            status: 'SENT',
+            date: '2026-08-20',
+            total_excl_tax: 1840,
+            online_url: 'https://go.xero.com/quote/xq-1',
+          },
+        }),
+      ),
+      http.post('*/api/job/jobs/*/cost_sets/quote/copy_from_estimate/', () =>
+        HttpResponse.json({ detail: 'priced' }, { status: 409 }),
+      ),
+    )
+    const user = userEvent.setup()
+
+    renderWithProviders(<JobQuoteTab jobId="job-1" job={baseJob} />)
+
+    await user.click(await screen.findByRole('button', { name: /Copy from Estimate/ }))
+
+    // Replacing the lines does not touch the Xero document — say so where
+    // the decision is made, not after the customer-facing quote goes stale.
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent(/Xero/)
+    expect(dialog).toHaveTextContent('QU-0042')
   })
 
   it('lists archived revisions in the history dialog', async () => {

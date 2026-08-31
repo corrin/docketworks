@@ -56,6 +56,7 @@ render() {
         -e "s|__JWT_SIGNING_KEY__|jwtk|g" \
         -e "s|__REDIS_DB__|3|g" \
         -e "s|__DROPBOX_WORKFLOW_FOLDER__|/opt/docketworks/instances/test-uat/dropbox|g" \
+        -e "s|__GCP_CREDENTIALS__|/opt/docketworks/instances/test-uat/gcp-credentials.json|g" \
         -e "s|__RCLONE_CONFIG__|/opt/docketworks/config/rclone/test-uat.conf|g" \
         "$template"
 }
@@ -170,6 +171,19 @@ while IFS='=' read -r var _; do
     grep -q "^$var=" <<<"$ENV_RENDERED" \
         || fail "env template: $var is in .env.example but not in env-instance.template"
 done < "$REPO_ROOT/.env.example"
+# Every token the env template declares must be substituted by instance.sh.
+# assert_no_tokens above cannot show this: it renders through THIS file's
+# render(), a second substitution list that can agree with the template while
+# instance.sh does not — and the instance is what ships.
+while read -r token; do
+    grep -qF "s|$token|" "$SCRIPT_DIR/instance.sh" \
+        || fail "env template: $token is never substituted by instance.sh"
+done < <(grep -o '__[A-Z0-9_]*__' "$TEMPLATE_DIR/env-instance.template" | sort -u)
+# The service-account key the app reads (apps/core/gauth.py) must point at the
+# instance's own copy — the path instance.sh chmod-600s beside the .env, not
+# the operator's download path, and never blank.
+grep -q '^GCP_CREDENTIALS=/opt/docketworks/instances/test-uat/gcp-credentials.json$' <<<"$ENV_RENDERED" \
+    || fail "env template: GCP_CREDENTIALS must resolve to the instance's own key copy"
 
 # --- JSON fixture templates: a rendered fixture must parse, or loaddata is the first to know ---
 for json_template in ai-providers xero-apps integration-settings; do

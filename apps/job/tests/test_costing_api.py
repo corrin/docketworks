@@ -21,7 +21,9 @@ from django.test import Client
 from django.utils import timezone
 
 from apps.accounts.models import Staff
+from apps.company.models import Company
 from apps.company.tests.conftest import authenticate
+from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine, CostSet
 from apps.purchasing.models import Stock
@@ -556,6 +558,18 @@ class TestCostLineDelete:
 
 
 class TestCopyEstimateToQuote:
+    @pytest.fixture
+    def job(self, company: Company, office_staff: Staff) -> Job:
+        """A FIXED-PRICE job — overriding the T&M shared fixture on purpose.
+
+        Copy-from-estimate exists only for a job that carries a quote; the
+        shared fixture's time_materials default let these tests exercise a
+        state the endpoint now refuses (and the UI never offers).
+        """
+        return make_job(
+            company, office_staff, name="Fixture Job", pricing_methodology="fixed_price"
+        )
+
     def _copy(self, client: Client, job: Job, **body: object) -> "_MonkeyPatchedWSGIResponse":
         return client.post(
             f"/api/job/jobs/{job.id}/cost_sets/quote/copy_from_estimate/",
@@ -690,6 +704,38 @@ class TestCopyEstimateToQuote:
         # The live summary is the copied estimate, not the archive's zeroes.
         assert quote.summary["rev"] == 360.0
 
+        job.refresh_from_db()
+        assert job.quote_acceptance_date is None
+
+    def test_time_materials_job_is_refused(
+        self, client: Client, job: Job, office_staff: Staff
+    ) -> None:
+        # The UI hides the Quote tab for T&M, but kanban/pipeline/aging all
+        # read latest_quote unconditionally — a direct API copy would flip
+        # an over-budget badge with no visible quote anywhere.
+        job.pricing_methodology = "time_materials"
+        job.save(staff=office_staff)
+        self._real_estimate(job)
+
+        response = self._copy(client, job)
+
+        assert response.status_code == 400
+        assert "time and materials" in response.json()["detail"].lower()
+
+    def test_blank_path_resets_acceptance(
+        self, client: Client, job: Job, office_staff: Staff
+    ) -> None:
+        # Same rule as the archive path: replaced content is content the
+        # customer never accepted, whichever branch replaced it.
+        self._real_estimate(job)
+        self._seed_blank_quote(job)
+        job.refresh_from_db()
+        job.quote_acceptance_date = timezone.now()
+        job.save(staff=office_staff)
+
+        response = self._copy(client, job)
+
+        assert response.status_code == 200
         job.refresh_from_db()
         assert job.quote_acceptance_date is None
 

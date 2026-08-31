@@ -17606,7 +17606,8 @@ paths:
       - job
   /api/job/jobs/{job_id}/cost_sets/quote/copy_from_estimate/:
     post:
-      description: Copy the estimate onto the quote; 409 unless a priced quote is archived first.
+      description: "Copy the estimate onto the quote; 409 unless a priced quote is archived first.\n\n\
+        QuoteNotBlankError is a ConflictError, so the core envelope answers its\n409 \u2014 no local catch."
       operationId: job_jobs_cost_sets_quote_copy_from_estimate_create
       parameters:
       - in: path

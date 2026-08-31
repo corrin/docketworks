@@ -193,7 +193,7 @@ def _fetch_payslip(pay_run_id: str, staff: Staff) -> XeroPaySlip:
         f"Xero holds {len(mine)} pay slips for {staff.get_display_full_name()} "
         f"in pay run {pay_run_id}"
     )
-    transformed = transform_pay_slip(mine[0], str(mine[0].pay_slip_id))
+    transformed = transform_pay_slip(mine[0], str(mine[0].pay_slip_id), tenant_id=get_tenant_id())
     assert transformed is not None, "the pay run mirror did not carry this slip's parent"
     return transformed[0]
 
