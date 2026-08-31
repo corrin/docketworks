@@ -7,7 +7,6 @@ too (``test_seeding.py::TestSeedAccountsFromXero``).
 """
 
 import uuid
-from unittest.mock import patch
 
 import pytest
 from django.utils import timezone
@@ -19,12 +18,6 @@ from apps.xero.transforms import sync_accounts
 TENANT = "demo-tenant-id"
 SALES_ID = str(uuid.uuid4())
 MISSING_DATE_ID = str(uuid.uuid4())
-
-
-@pytest.fixture(autouse=True)
-def _tenant() -> object:
-    with patch("apps.xero.transforms.get_tenant_id", return_value=TENANT) as patched:
-        yield patched
 
 
 @pytest.mark.django_db
@@ -42,7 +35,7 @@ class TestSyncAccounts:
             updated_date_utc=modified,
         )
 
-        sync_accounts([account])
+        sync_accounts([account], tenant_id=TENANT)
 
         row = XeroAccount.objects.get(xero_id=SALES_ID)
         assert row.account_name == "Sales"
@@ -59,7 +52,8 @@ class TestSyncAccounts:
         # left to surface as an IntegrityError from inside the loop.
         with pytest.raises(ValueError, match="missing id, name or updated_date_utc"):
             sync_accounts(
-                [Account(account_id=MISSING_DATE_ID, name="Sales", updated_date_utc=None)]
+                [Account(account_id=MISSING_DATE_ID, name="Sales", updated_date_utc=None)],
+                tenant_id=TENANT,
             )
 
         assert not XeroAccount.objects.filter(xero_id=MISSING_DATE_ID).exists()

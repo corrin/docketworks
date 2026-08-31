@@ -112,7 +112,7 @@ class TestSyncXeroDataPerPageGate:
                     xero_entity_type="invoices",
                     our_entity_type="invoices",
                     xero_api_fetch_function=fetch,
-                    sync_function=lambda _items: None,
+                    sync_function=lambda _items, _tenant_id: None,
                     last_modified_time="2026-01-01",
                     xero_tenant_id="test-tenant",
                 )
@@ -131,7 +131,7 @@ class TestSyncXeroDataPerPageGate:
                     xero_entity_type="invoices",
                     our_entity_type="invoices",
                     xero_api_fetch_function=fetch,
-                    sync_function=lambda _items: None,
+                    sync_function=lambda _items, _tenant_id: None,
                     last_modified_time="2026-01-01",
                     xero_tenant_id="test-tenant",
                 )
