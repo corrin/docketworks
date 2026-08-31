@@ -1,14 +1,14 @@
 # v1 port baseline
 
 v2's bootstrap commit (`ec2c30f`, 2026-08-01 19:10 +1200) was written against v1
-(`../docketworks`) at **`2594e93f`** — "Merge pull request #505" (KAN-321 null-only text
+(`../docketworks_v1`) at **`2594e93f`** — "Merge pull request #505" (KAN-321 null-only text
 migration), the tip of v1 `main` that morning. This hash was reconstructed from v1's `main`
 reflog and both repos' commit timestamps; it was not recorded at the time, which is why this
 file now exists.
 
 ## Ports read the live tree, not a pinned hash
 
-Each port phase reads whatever `../docketworks` has checked out at that moment, so v1 work
+Each port phase reads whatever `../docketworks_v1` has checked out at that moment, so v1 work
 landing mid-rewrite is picked up by later phases and silently missing from earlier ones.
 **When starting a port phase, note v1's current HEAD here** so the drift stays auditable.
 
@@ -18,7 +18,7 @@ landing mid-rewrite is picked up by later phases and silently missing from earli
 | Phase 2 models (2026-08-01 22:34) | post-PR #511 working tree (KAN-323 Job checklist fields included) |
 | Phase 3a company (2026-08-02 15:00) | KAN-325 branch working tree (PR #516 merge fixes included, pre-merge) |
 
-Before each future port phase, update v1's local `main` (`git -C ../docketworks pull` on
+Before each future port phase, update v1's local `main` (`git -C ../docketworks_v1 pull` on
 `main`) so the port reads current v1, and add a row above.
 
 ## v1 changes after `2594e93f` — port status

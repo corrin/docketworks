@@ -2031,6 +2031,43 @@ components:
       - value
       title: ContactMethodRequest
       type: object
+    CopyEstimateToQuoteRequest:
+      description: Wire contract for CopyEstimateToQuoteRequest.
+      properties:
+        archive_existing:
+          default: false
+          title: Archive Existing
+          type: boolean
+      title: CopyEstimateToQuoteRequest
+      type: object
+    CopyEstimateToQuoteResponse:
+      description: Wire contract for CopyEstimateToQuoteResponse.
+      properties:
+        archived_quote_revision:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Archived Quote Revision
+        copied_cost_lines_count:
+          title: Copied Cost Lines Count
+          type: integer
+        job_id:
+          title: Job Id
+          type: string
+        message:
+          title: Message
+          type: string
+        success:
+          title: Success
+          type: boolean
+      required:
+      - success
+      - message
+      - copied_cost_lines_count
+      - archived_quote_revision
+      - job_id
+      title: CopyEstimateToQuoteResponse
+      type: object
     CostLineApprovalResponse:
       description: 'Success body for cost-line approval.
 
@@ -7309,6 +7346,98 @@ components:
       - results
       title: PaginatedScheduledTaskList
       type: object
+    PasswordChangeRequest:
+      description: "Self-service change body for POST /api/accounts/me/password/.\n\nPlain ``str`` like\
+        \ LoginRequest: a password is never whitespace-stripped\nor length-coerced on the way in \u2014\
+        \ the validators judge the new value and\ncheck_password judges the old."
+      properties:
+        current_password:
+          title: Current Password
+          type: string
+        new_password:
+          title: New Password
+          type: string
+      required:
+      - current_password
+      - new_password
+      title: PasswordChangeRequest
+      type: object
+    PasswordChangeResponse:
+      description: 'Empty 200 body for the self-service password change.
+
+
+        The change''s effect is the cleared ``password_needs_reset``, which the
+
+        client re-reads from ``/me/``.'
+      properties: {}
+      title: PasswordChangeResponse
+      type: object
+    PasswordErrorOut:
+      description: 'DECLARED 400 body for the credential endpoints (change and reset).
+
+
+        A declared response rather than an HttpError: the envelope masks
+
+        exception text on anonymous requests (ADR 0038), a declared shape rides
+
+        the exported schema into the generated client, and every refusal here
+
+        (dead link, wrong current password, weak new password) is exactly what
+
+        the caller must read.'
+      properties:
+        detail:
+          title: Detail
+          type: string
+      required:
+      - detail
+      title: PasswordErrorOut
+      type: object
+    PasswordResetConfirmRequest:
+      description: "Body for POST /api/accounts/password-reset/confirm/.\n\n``uid``/``token`` come verbatim\
+        \ from the emailed link; ``new_password``\nis plain ``str`` like every password field \u2014 never\
+        \ whitespace-stripped."
+      properties:
+        new_password:
+          title: New Password
+          type: string
+        token:
+          title: Token
+          type: string
+        uid:
+          title: Uid
+          type: string
+      required:
+      - uid
+      - token
+      - new_password
+      title: PasswordResetConfirmRequest
+      type: object
+    PasswordResetConfirmResponse:
+      description: 'Empty 200: the caller''s next step is simply logging in.'
+      properties: {}
+      title: PasswordResetConfirmResponse
+      type: object
+    PasswordResetRequest:
+      description: "Body for POST /api/accounts/password-reset/ \u2014 just the login email."
+      properties:
+        email:
+          title: Email
+          type: string
+      required:
+      - email
+      title: PasswordResetRequest
+      type: object
+    PasswordResetResponse:
+      description: 'Fixed empty 200 for the reset request.
+
+
+        The same body whether or not the email has an account, so the anonymous
+
+        contract reveals nothing about which addresses exist.'
+      properties: {}
+      title: PasswordResetResponse
+      type: object
     PatchedContactMethodRequest:
       description: "Wire contract for PatchedContactMethodRequest.\n\nDefaults are presence markers, never\
         \ values \u2014 the handler reads\n``model_fields_set``. These four must carry a value when supplied\n\
@@ -10390,6 +10519,90 @@ components:
       - online_url
       title: QuoteOut
       type: object
+    QuoteRevisionCostLineOut:
+      description: 'One archived cost line inside a quote revision.
+
+
+        Floats, not Decimals: these are JSON snapshots written by
+
+        ``_archive_quote_revision``, not live CostLine rows.'
+      properties:
+        desc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Desc
+        ext_refs:
+          additionalProperties: true
+          title: Ext Refs
+          type: object
+        id:
+          title: Id
+          type: string
+        kind:
+          title: Kind
+          type: string
+        meta:
+          additionalProperties: true
+          title: Meta
+          type: object
+        quantity:
+          title: Quantity
+          type: number
+        total_cost:
+          title: Total Cost
+          type: number
+        total_rev:
+          title: Total Rev
+          type: number
+        unit_cost:
+          title: Unit Cost
+          type: number
+        unit_rev:
+          title: Unit Rev
+          type: number
+      required:
+      - id
+      - kind
+      - desc
+      - quantity
+      - unit_cost
+      - unit_rev
+      - total_cost
+      - total_rev
+      - ext_refs
+      - meta
+      title: QuoteRevisionCostLineOut
+      type: object
+    QuoteRevisionOut:
+      description: Wire contract for one archived quote revision.
+      properties:
+        archived_at:
+          title: Archived At
+          type: string
+        cost_lines:
+          items:
+            $ref: '#/components/schemas/QuoteRevisionCostLineOut'
+          title: Cost Lines
+          type: array
+        quote_revision:
+          title: Quote Revision
+          type: integer
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        summary:
+          $ref: '#/components/schemas/QuoteRevisionSummaryOut'
+      required:
+      - quote_revision
+      - archived_at
+      - reason
+      - summary
+      - cost_lines
+      title: QuoteRevisionOut
+      type: object
     QuoteRevisionRequest:
       description: Wire contract for QuoteRevisionRequest.
       properties:
@@ -10427,6 +10640,24 @@ components:
       - job_id
       title: QuoteRevisionResponse
       type: object
+    QuoteRevisionSummaryOut:
+      description: Totals of one archived quote revision, as stored at archive time.
+      properties:
+        cost:
+          title: Cost
+          type: number
+        hours:
+          title: Hours
+          type: number
+        rev:
+          title: Rev
+          type: number
+      required:
+      - cost
+      - rev
+      - hours
+      title: QuoteRevisionSummaryOut
+      type: object
     QuoteRevisionsListResponse:
       description: Wire contract for QuoteRevisionsListResponse.
       properties:
@@ -10441,8 +10672,7 @@ components:
           type: integer
         revisions:
           items:
-            additionalProperties: true
-            type: object
+            $ref: '#/components/schemas/QuoteRevisionOut'
           title: Revisions
           type: array
         total_revisions:
@@ -10885,7 +11115,9 @@ components:
       description: "Create body for POST /api/accounts/staff/.\n\nUnknown keys are rejected rather than\
         \ dropped (``extra=\"forbid\"``): the\nderived ``wage_rate`` in a payload must be a 422, not a\
         \ silent no-op.\nOmitted fields take the model defaults \u2014 the handler dumps with\n``exclude_unset``\
-        \ and never reads the placeholders here."
+        \ and never reads the placeholders here.\n\n``password_needs_reset`` is the admin's \"must change\
+        \ at next login\"\ncontrol \u2014 and, because the gate lives at the auth layer, the only way\
+        \ an\nexisting session (not just the next login) gets locked to the change\nscreen."
       properties:
         base_wage_rate:
           minimum: 0
@@ -10959,6 +11191,9 @@ components:
           minLength: 1
           title: Password
           type: string
+        password_needs_reset:
+          title: Password Needs Reset
+          type: boolean
         pay_basis:
           anyOf:
           - enum:
@@ -11204,6 +11439,9 @@ components:
           - type: string
           - type: 'null'
           title: Office Email
+        password_needs_reset:
+          title: Password Needs Reset
+          type: boolean
         pay_basis:
           anyOf:
           - type: string
@@ -11245,6 +11483,7 @@ components:
       - is_workshop_staff
       - is_superuser
       - is_staff_manager
+      - password_needs_reset
       - hours_mon
       - hours_tue
       - hours_wed
@@ -11367,7 +11606,9 @@ components:
       description: "Partial-update body for PATCH /api/accounts/staff/{staff_id}/.\n\nEverything omittable:\
         \ omission leaves the stored value alone. On the\nnullable fields ``null`` is a real value \u2014\
         \ ``date_left: null`` reinstates a\ndeparted staff member (ADR 0040). ``password`` is presence-only:\
-        \ null is\nnever a password value, so only supplying one changes it."
+        \ null is\nnever a password value, so only supplying one changes it.\n\n``password_needs_reset``\
+        \ is the admin's \"must change at next login\"\ncontrol. Supplied alongside ``password``, the\
+        \ explicit flag wins over the\nset-password clear (_set_staff_password runs before _apply_staff_fields)."
       properties:
         base_wage_rate:
           minimum: 0
@@ -11441,6 +11682,9 @@ components:
           minLength: 1
           title: Password
           type: string
+        password_needs_reset:
+          title: Password Needs Reset
+          type: boolean
         pay_basis:
           anyOf:
           - enum:
@@ -12848,6 +13092,9 @@ components:
           - type: string
           - type: 'null'
           title: Office Email
+        password_needs_reset:
+          title: Password Needs Reset
+          type: boolean
         payroll_email:
           anyOf:
           - type: string
@@ -12866,6 +13113,7 @@ components:
       - is_superuser
       - last_name
       - office_email
+      - password_needs_reset
       - payroll_email
       - preferred_name
       title: UserProfile
@@ -14675,6 +14923,100 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Returns the current authenticated user profile
+      tags:
+      - accounts
+  /api/accounts/me/password/:
+    post:
+      description: "Verify the current password, then validate and set the new one.\n\nThe one self-service\
+        \ credential write. _set_staff_password also clears\npassword_needs_reset, which is what releases\
+        \ a flagged session from the\nauth-layer password gate (apps/core/auth.py). Refusals are declared\
+        \ 400\nbodies, not HttpErrors \u2014 the wire contract carries their shape, and an\nexpected refusal\
+        \ writes no AppError row."
+      operationId: accounts_me_password_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChangeRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordChangeResponse'
+          description: OK
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordErrorOut'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorOut'
+          description: Unauthorized
+      security:
+      - CookieJWTAuth: []
+      summary: Change the authenticated user's own password
+      tags:
+      - accounts
+  /api/accounts/password-reset/:
+    post:
+      description: "Email a reset link to the address, if an active account holds it.\n\nFixed 200 either\
+        \ way: the anonymous contract must not reveal which\naddresses have accounts (ADR 0038's public\
+        \ contract). The send is\nQUEUED, not made in-request \u2014 a synchronous Gmail round trip runs\
+        \ only\nfor addresses with accounts, which makes response latency (and a Gmail\noutage's 500)\
+        \ an account-existence oracle; the enqueue costs the same\neither way. The match is the login\
+        \ backend's own (sole_login_match), so\nanyone who can sign in can reset."
+      operationId: accounts_password_reset_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetResponse'
+          description: OK
+      summary: Request a password-reset email
+      tags:
+      - accounts
+  /api/accounts/password-reset/confirm/:
+    post:
+      description: "Exchange a valid uid/token pair for a new password.\n\nThe token hashes the current\
+        \ password (Django's generator), so a\nsuccessful reset burns the link. Refusals are declared\
+        \ 400 bodies, not\nHttpErrors \u2014 see PasswordErrorOut."
+      operationId: accounts_password_reset_confirm_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetConfirmResponse'
+          description: OK
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordErrorOut'
+          description: Bad Request
+      summary: Set a new password from a reset link
       tags:
       - accounts
   /api/accounts/staff/:
@@ -17260,6 +17602,36 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Create a cost line on the actual cost set
+      tags:
+      - job
+  /api/job/jobs/{job_id}/cost_sets/quote/copy_from_estimate/:
+    post:
+      description: Copy the estimate onto the quote; 409 unless a priced quote is archived first.
+      operationId: job_jobs_cost_sets_quote_copy_from_estimate_create
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          format: uuid
+          title: Job Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CopyEstimateToQuoteRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CopyEstimateToQuoteResponse'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Replace the quote's cost lines with a copy of the estimate's
       tags:
       - job
   /api/job/jobs/{job_id}/cost_sets/quote/revise/:

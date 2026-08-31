@@ -17,6 +17,7 @@ import { trimStringsDeep } from '@/lib/sanitize'
 
 import { installAuthRecovery } from './auth-recovery'
 import { client } from './generated/client.gen'
+import { installPasswordGate } from './password-gate'
 import { accountsTokenRefreshCreate } from './generated/sdk.gen'
 
 client.setConfig({
@@ -44,5 +45,7 @@ client.instance.interceptors.response.use(
 installAuthRecovery(client.instance, async () => {
   await accountsTokenRefreshCreate({ body: {}, throwOnError: true })
 })
+
+installPasswordGate(client.instance)
 
 export { client }

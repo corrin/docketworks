@@ -1792,6 +1792,46 @@ export type ContactMethodRequest = {
 };
 
 /**
+ * CopyEstimateToQuoteRequest
+ *
+ * Wire contract for CopyEstimateToQuoteRequest.
+ */
+export type CopyEstimateToQuoteRequest = {
+    /**
+     * Archive Existing
+     */
+    archive_existing?: boolean;
+};
+
+/**
+ * CopyEstimateToQuoteResponse
+ *
+ * Wire contract for CopyEstimateToQuoteResponse.
+ */
+export type CopyEstimateToQuoteResponse = {
+    /**
+     * Archived Quote Revision
+     */
+    archived_quote_revision: number | null;
+    /**
+     * Copied Cost Lines Count
+     */
+    copied_cost_lines_count: number;
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Success
+     */
+    success: boolean;
+};
+
+/**
  * CostLineApprovalResponse
  *
  * Success body for cost-line approval.
@@ -6561,6 +6601,112 @@ export type PaginatedScheduledTaskList = {
 };
 
 /**
+ * PasswordChangeRequest
+ *
+ * Self-service change body for POST /api/accounts/me/password/.
+ *
+ * Plain ``str`` like LoginRequest: a password is never whitespace-stripped
+ * or length-coerced on the way in — the validators judge the new value and
+ * check_password judges the old.
+ */
+export type PasswordChangeRequest = {
+    /**
+     * Current Password
+     */
+    current_password: string;
+    /**
+     * New Password
+     */
+    new_password: string;
+};
+
+/**
+ * PasswordChangeResponse
+ *
+ * Empty 200 body for the self-service password change.
+ *
+ * The change's effect is the cleared ``password_needs_reset``, which the
+ * client re-reads from ``/me/``.
+ */
+export type PasswordChangeResponse = {
+    [key: string]: unknown;
+};
+
+/**
+ * PasswordErrorOut
+ *
+ * DECLARED 400 body for the credential endpoints (change and reset).
+ *
+ * A declared response rather than an HttpError: the envelope masks
+ * exception text on anonymous requests (ADR 0038), a declared shape rides
+ * the exported schema into the generated client, and every refusal here
+ * (dead link, wrong current password, weak new password) is exactly what
+ * the caller must read.
+ */
+export type PasswordErrorOut = {
+    /**
+     * Detail
+     */
+    detail: string;
+};
+
+/**
+ * PasswordResetConfirmRequest
+ *
+ * Body for POST /api/accounts/password-reset/confirm/.
+ *
+ * ``uid``/``token`` come verbatim from the emailed link; ``new_password``
+ * is plain ``str`` like every password field — never whitespace-stripped.
+ */
+export type PasswordResetConfirmRequest = {
+    /**
+     * New Password
+     */
+    new_password: string;
+    /**
+     * Token
+     */
+    token: string;
+    /**
+     * Uid
+     */
+    uid: string;
+};
+
+/**
+ * PasswordResetConfirmResponse
+ *
+ * Empty 200: the caller's next step is simply logging in.
+ */
+export type PasswordResetConfirmResponse = {
+    [key: string]: unknown;
+};
+
+/**
+ * PasswordResetRequest
+ *
+ * Body for POST /api/accounts/password-reset/ — just the login email.
+ */
+export type PasswordResetRequest = {
+    /**
+     * Email
+     */
+    email: string;
+};
+
+/**
+ * PasswordResetResponse
+ *
+ * Fixed empty 200 for the reset request.
+ *
+ * The same body whether or not the email has an account, so the anonymous
+ * contract reveals nothing about which addresses exist.
+ */
+export type PasswordResetResponse = {
+    [key: string]: unknown;
+};
+
+/**
  * PatchedContactMethodRequest
  *
  * Wire contract for PatchedContactMethodRequest.
@@ -9226,6 +9372,86 @@ export type QuoteOut = {
 };
 
 /**
+ * QuoteRevisionCostLineOut
+ *
+ * One archived cost line inside a quote revision.
+ *
+ * Floats, not Decimals: these are JSON snapshots written by
+ * ``_archive_quote_revision``, not live CostLine rows.
+ */
+export type QuoteRevisionCostLineOut = {
+    /**
+     * Desc
+     */
+    desc: string | null;
+    /**
+     * Ext Refs
+     */
+    ext_refs: {
+        [key: string]: unknown;
+    };
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Meta
+     */
+    meta: {
+        [key: string]: unknown;
+    };
+    /**
+     * Quantity
+     */
+    quantity: number;
+    /**
+     * Total Cost
+     */
+    total_cost: number;
+    /**
+     * Total Rev
+     */
+    total_rev: number;
+    /**
+     * Unit Cost
+     */
+    unit_cost: number;
+    /**
+     * Unit Rev
+     */
+    unit_rev: number;
+};
+
+/**
+ * QuoteRevisionOut
+ *
+ * Wire contract for one archived quote revision.
+ */
+export type QuoteRevisionOut = {
+    /**
+     * Archived At
+     */
+    archived_at: string;
+    /**
+     * Cost Lines
+     */
+    cost_lines: Array<QuoteRevisionCostLineOut>;
+    /**
+     * Quote Revision
+     */
+    quote_revision: number;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    summary: QuoteRevisionSummaryOut;
+};
+
+/**
  * QuoteRevisionRequest
  *
  * Wire contract for QuoteRevisionRequest.
@@ -9266,6 +9492,26 @@ export type QuoteRevisionResponse = {
 };
 
 /**
+ * QuoteRevisionSummaryOut
+ *
+ * Totals of one archived quote revision, as stored at archive time.
+ */
+export type QuoteRevisionSummaryOut = {
+    /**
+     * Cost
+     */
+    cost: number;
+    /**
+     * Hours
+     */
+    hours: number;
+    /**
+     * Rev
+     */
+    rev: number;
+};
+
+/**
  * QuoteRevisionsListResponse
  *
  * Wire contract for QuoteRevisionsListResponse.
@@ -9286,9 +9532,7 @@ export type QuoteRevisionsListResponse = {
     /**
      * Revisions
      */
-    revisions: Array<{
-        [key: string]: unknown;
-    }>;
+    revisions: Array<QuoteRevisionOut>;
     /**
      * Total Revisions
      */
@@ -9663,6 +9907,11 @@ export type SettingsSectionOut = {
  * derived ``wage_rate`` in a payload must be a 422, not a silent no-op.
  * Omitted fields take the model defaults — the handler dumps with
  * ``exclude_unset`` and never reads the placeholders here.
+ *
+ * ``password_needs_reset`` is the admin's "must change at next login"
+ * control — and, because the gate lives at the auth layer, the only way an
+ * existing session (not just the next login) gets locked to the change
+ * screen.
  */
 export type StaffCreateIn = {
     /**
@@ -9737,6 +9986,10 @@ export type StaffCreateIn = {
      * Password
      */
     password: string;
+    /**
+     * Password Needs Reset
+     */
+    password_needs_reset?: boolean;
     /**
      * Pay Basis
      */
@@ -9978,6 +10231,10 @@ export type StaffListItemOut = {
      */
     office_email: string | null;
     /**
+     * Password Needs Reset
+     */
+    password_needs_reset: boolean;
+    /**
      * Pay Basis
      */
     pay_basis: string | null;
@@ -10110,6 +10367,10 @@ export type StaffPerformanceResponse = {
  * nullable fields ``null`` is a real value — ``date_left: null`` reinstates a
  * departed staff member (ADR 0040). ``password`` is presence-only: null is
  * never a password value, so only supplying one changes it.
+ *
+ * ``password_needs_reset`` is the admin's "must change at next login"
+ * control. Supplied alongside ``password``, the explicit flag wins over the
+ * set-password clear (_set_staff_password runs before _apply_staff_fields).
  */
 export type StaffUpdateIn = {
     /**
@@ -10184,6 +10445,10 @@ export type StaffUpdateIn = {
      * Password
      */
     password?: string;
+    /**
+     * Password Needs Reset
+     */
+    password_needs_reset?: boolean;
     /**
      * Pay Basis
      */
@@ -11407,6 +11672,10 @@ export type UserProfile = {
      * Office Email
      */
     office_email: string | null;
+    /**
+     * Password Needs Reset
+     */
+    password_needs_reset: boolean;
     /**
      * Payroll Email
      */
@@ -12974,6 +13243,76 @@ export type AccountsMeRetrieveResponses = {
 };
 
 export type AccountsMeRetrieveResponse = AccountsMeRetrieveResponses[keyof AccountsMeRetrieveResponses];
+
+export type AccountsMePasswordCreateData = {
+    body: PasswordChangeRequest;
+    path?: never;
+    query?: never;
+    url: '/api/accounts/me/password/';
+};
+
+export type AccountsMePasswordCreateErrors = {
+    /**
+     * Bad Request
+     */
+    400: PasswordErrorOut;
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorOut;
+};
+
+export type AccountsMePasswordCreateError = AccountsMePasswordCreateErrors[keyof AccountsMePasswordCreateErrors];
+
+export type AccountsMePasswordCreateResponses = {
+    /**
+     * OK
+     */
+    200: PasswordChangeResponse;
+};
+
+export type AccountsMePasswordCreateResponse = AccountsMePasswordCreateResponses[keyof AccountsMePasswordCreateResponses];
+
+export type AccountsPasswordResetCreateData = {
+    body: PasswordResetRequest;
+    path?: never;
+    query?: never;
+    url: '/api/accounts/password-reset/';
+};
+
+export type AccountsPasswordResetCreateResponses = {
+    /**
+     * OK
+     */
+    200: PasswordResetResponse;
+};
+
+export type AccountsPasswordResetCreateResponse = AccountsPasswordResetCreateResponses[keyof AccountsPasswordResetCreateResponses];
+
+export type AccountsPasswordResetConfirmCreateData = {
+    body: PasswordResetConfirmRequest;
+    path?: never;
+    query?: never;
+    url: '/api/accounts/password-reset/confirm/';
+};
+
+export type AccountsPasswordResetConfirmCreateErrors = {
+    /**
+     * Bad Request
+     */
+    400: PasswordErrorOut;
+};
+
+export type AccountsPasswordResetConfirmCreateError = AccountsPasswordResetConfirmCreateErrors[keyof AccountsPasswordResetConfirmCreateErrors];
+
+export type AccountsPasswordResetConfirmCreateResponses = {
+    /**
+     * OK
+     */
+    200: PasswordResetConfirmResponse;
+};
+
+export type AccountsPasswordResetConfirmCreateResponse = AccountsPasswordResetConfirmCreateResponses[keyof AccountsPasswordResetConfirmCreateResponses];
 
 export type AccountsStaffListData = {
     body?: never;
@@ -14974,6 +15313,27 @@ export type JobJobsCostSetsActualCostLinesCreateResponses = {
 };
 
 export type JobJobsCostSetsActualCostLinesCreateResponse = JobJobsCostSetsActualCostLinesCreateResponses[keyof JobJobsCostSetsActualCostLinesCreateResponses];
+
+export type JobJobsCostSetsQuoteCopyFromEstimateCreateData = {
+    body: CopyEstimateToQuoteRequest;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/job/jobs/{job_id}/cost_sets/quote/copy_from_estimate/';
+};
+
+export type JobJobsCostSetsQuoteCopyFromEstimateCreateResponses = {
+    /**
+     * OK
+     */
+    200: CopyEstimateToQuoteResponse;
+};
+
+export type JobJobsCostSetsQuoteCopyFromEstimateCreateResponse = JobJobsCostSetsQuoteCopyFromEstimateCreateResponses[keyof JobJobsCostSetsQuoteCopyFromEstimateCreateResponses];
 
 export type JobJobsCostSetsQuoteReviseRetrieveData = {
     body?: never;

@@ -22,8 +22,8 @@ One-off dev-machine setup. These steps persist across restores.
 ## Clone and install
 
 ```bash
-git clone https://github.com/corrin/docketworks_v2.git
-cd docketworks_v2
+git clone https://github.com/corrin/docketworks.git
+cd docketworks
 uv sync                       # creates .venv and installs backend + dev deps
 pre-commit install
 cd frontend && npm install && npx playwright install --with-deps && cd ..

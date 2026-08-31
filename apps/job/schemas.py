@@ -605,6 +605,59 @@ class QuoteRevisionResponse(Schema):
     job_id: str
 
 
+class CopyEstimateToQuoteRequest(Schema):
+    """Wire contract for CopyEstimateToQuoteRequest."""
+
+    archive_existing: bool = False
+
+
+class CopyEstimateToQuoteResponse(Schema):
+    """Wire contract for CopyEstimateToQuoteResponse."""
+
+    success: bool
+    message: str
+    copied_cost_lines_count: int
+    archived_quote_revision: int | None
+    job_id: str
+
+
+class QuoteRevisionSummaryOut(Schema):
+    """Totals of one archived quote revision, as stored at archive time."""
+
+    cost: float
+    rev: float
+    hours: float
+
+
+class QuoteRevisionCostLineOut(Schema):
+    """One archived cost line inside a quote revision.
+
+    Floats, not Decimals: these are JSON snapshots written by
+    ``_archive_quote_revision``, not live CostLine rows.
+    """
+
+    id: str
+    kind: str
+    desc: str | None
+    quantity: float
+    unit_cost: float
+    unit_rev: float
+    total_cost: float
+    total_rev: float
+    ext_refs: dict[str, object]
+    meta: dict[str, object]
+
+
+class QuoteRevisionOut(Schema):
+    """Wire contract for one archived quote revision."""
+
+    quote_revision: int
+    archived_at: str
+    reason: str | None
+    summary: QuoteRevisionSummaryOut
+    cost_lines: list[QuoteRevisionCostLineOut]
+
+
 class QuoteRevisionsListResponse(Schema):
     """Wire contract for QuoteRevisionsListResponse."""
 
@@ -612,7 +665,7 @@ class QuoteRevisionsListResponse(Schema):
     job_number: int
     current_cost_set_rev: int
     total_revisions: int
-    revisions: list[dict[str, object]]
+    revisions: list[QuoteRevisionOut]
 
 
 class JobCostSummaryResponse(Schema):

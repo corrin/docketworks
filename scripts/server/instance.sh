@@ -299,10 +299,16 @@ render_instance_env() {
 
     local env_file="$instance_dir/.env"
     local db_password test_db_password secret_key jwt_signing_key redis_db
+    local dropbox_workflow_folder
     db_password="$(read_env_value "$env_file" DB_PASSWORD)"
     test_db_password="$(read_env_value "$env_file" TEST_DB_PASSWORD)"
     secret_key="$(read_env_value "$env_file" SECRET_KEY)"
     jwt_signing_key="$(read_env_value "$env_file" JWT_SIGNING_KEY)"
+    # Fable: read back like the credentials, not re-rendered: a Dropbox-
+    # synced client points this at the synced workflow folder by hand, and
+    # a reconfigure that reverted it to the empty instance dir would 404
+    # every attachment (2026-08-31 production incident).
+    dropbox_workflow_folder="$(read_env_value "$env_file" DROPBOX_WORKFLOW_FOLDER)"
     redis_db="$(allocate_redis_db "$env_file")"
 
     [[ -n "$db_password" ]] || db_password="$(generate_password)"
@@ -311,6 +317,8 @@ render_instance_env() {
     # Generated independently of SECRET_KEY: settings.py refuses to boot
     # when the two match, and rotating one must not rotate the other.
     [[ -n "$jwt_signing_key" ]] || jwt_signing_key="$(generate_secret)"
+    [[ -n "$dropbox_workflow_folder" ]] ||
+        dropbox_workflow_folder="$instance_dir/dropbox"
 
     local tmp_env
     tmp_env="$(mktemp "$instance_dir/.env.tmp.XXXXXX")"
@@ -327,6 +335,7 @@ render_instance_env() {
         -e "s|__SECRET_KEY__|$secret_key|g" \
         -e "s|__JWT_SIGNING_KEY__|$jwt_signing_key|g" \
         -e "s|__REDIS_DB__|$redis_db|g" \
+        -e "s|__DROPBOX_WORKFLOW_FOLDER__|$(sed_escape "$dropbox_workflow_folder")|g" \
         "$TEMPLATE_DIR/env-instance.template" > "$tmp_env"
 
     chown "$instance_user:$instance_user" "$tmp_env"

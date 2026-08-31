@@ -22,8 +22,11 @@ export {
 // Auth (accounts endpoints)
 export {
   accountsLogoutCreateMutation,
+  accountsMePasswordCreateMutation,
   accountsMeRetrieveOptions,
   accountsMeRetrieveQueryKey,
+  accountsPasswordResetConfirmCreateMutation,
+  accountsPasswordResetCreateMutation,
   accountsTokenCreateMutation,
   accountsTokenRefreshCreateMutation,
 } from './generated/@tanstack/react-query.gen'
@@ -237,6 +240,9 @@ export {
   jobCostLinesDeleteDestroyMutation,
   jobCostLinesPartialUpdateMutation,
   jobJobsCostSetsCostLinesCreateMutation,
+  jobJobsCostSetsQuoteCopyFromEstimateCreateMutation,
+  jobJobsCostSetsQuoteReviseRetrieveOptions,
+  jobJobsCostSetsQuoteReviseRetrieveQueryKey,
   jobJobsCostSetsRetrieveOptions,
   jobJobsCostSetsRetrieveQueryKey,
   jobJobsLabourRatesListOptions,
@@ -251,6 +257,7 @@ export type {
   CostLineOut,
   CostLineUpdateRequest,
   CostSetOut,
+  QuoteRevisionOut,
   JobLabourRateOut,
   QuoteOut,
   StockItem,

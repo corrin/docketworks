@@ -10,7 +10,11 @@ decision, conditional GET).
 
 from datetime import date
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import uuid4
+
+if TYPE_CHECKING:
+    from django.test.client import _MonkeyPatchedWSGIResponse
 
 import pytest
 from django.test import Client
@@ -551,6 +555,169 @@ class TestCostLineDelete:
         assert client.delete(f"/api/job/cost_lines/{uuid4()}/delete/").status_code == 404
 
 
+class TestCopyEstimateToQuote:
+    def _copy(self, client: Client, job: Job, **body: object) -> "_MonkeyPatchedWSGIResponse":
+        return client.post(
+            f"/api/job/jobs/{job.id}/cost_sets/quote/copy_from_estimate/",
+            data=body,
+            content_type="application/json",
+        )
+
+    def _seed_blank_quote(self, job: Job) -> None:
+        """Recreate the $0 creation seed faithfully.
+
+        The seeded time lines carry the real wage and charge-out rates with
+        quantity 0 — nonzero unit prices, zero totals — which is exactly the
+        shape that exposed a per-unit-price blank test as wrong (E2E run
+        2026-08-31).
+        """
+        quote = job.cost_sets.get(kind="quote")
+        _make_line(quote, kind="material", quantity="1.000", unit_cost="0.00", unit_rev="0.00")
+        _make_line(quote, kind="time", quantity="0.000", unit_cost="48.00", unit_rev="105.00")
+
+    def _real_estimate(self, job: Job) -> None:
+        estimate = job.cost_sets.get(kind="estimate")
+        _make_line(
+            estimate,
+            kind="material",
+            quantity="1.000",
+            unit_cost="100.00",
+            unit_rev="150.00",
+            xero_pay_item=None,
+        )
+        _make_line(
+            estimate,
+            kind="time",
+            quantity="2.000",
+            unit_cost="40.00",
+            unit_rev="105.00",
+            xero_pay_item=job.default_xero_pay_item,
+        )
+
+    def test_copy_is_office_only(self, job: Job, workshop_staff: Staff) -> None:
+        response = _workshop_client(workshop_staff).post(
+            f"/api/job/jobs/{job.id}/cost_sets/quote/copy_from_estimate/",
+            data={},
+            content_type="application/json",
+        )
+        assert response.status_code == 403
+
+    def test_unknown_job_is_404(self, client: Client) -> None:
+        response = client.post(
+            f"/api/job/jobs/{uuid4()}/cost_sets/quote/copy_from_estimate/",
+            data={},
+            content_type="application/json",
+        )
+        assert response.status_code == 404
+
+    def test_empty_estimate_is_400(self, client: Client, job: Job) -> None:
+        response = self._copy(client, job)
+        assert response.status_code == 400
+        assert "estimate has no cost lines" in response.json()["detail"]
+
+    def test_blank_quote_is_replaced_without_a_revision(self, client: Client, job: Job) -> None:
+        self._real_estimate(job)
+        self._seed_blank_quote(job)
+
+        response = self._copy(client, job)
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["copied_cost_lines_count"] == 2
+        assert body["archived_quote_revision"] is None
+
+        quote = job.cost_sets.get(kind="quote")
+        lines = {line.kind: line for line in quote.cost_lines.all()}
+        assert set(lines) == {"material", "time"}
+        assert lines["material"].unit_cost == Decimal("100.00")
+        assert lines["material"].unit_rev == Decimal("150.00")
+        assert lines["time"].quantity == Decimal("2.000")
+        # Subtype and pay item ride along so rate provenance survives the copy.
+        estimate_time = job.cost_sets.get(kind="estimate").cost_lines.get(kind="time")
+        assert lines["time"].labour_subtype_id == estimate_time.labour_subtype_id
+        assert lines["time"].xero_pay_item_id == estimate_time.xero_pay_item_id
+        # cost = 100 + 2*40 = 180; rev = 150 + 2*105 = 360; hours = 2
+        assert quote.summary["cost"] == 180.0
+        assert quote.summary["rev"] == 360.0
+        assert quote.summary["hours"] == 2.0
+        # A $0 seed is noise, not history: nothing archived.
+        assert quote.summary.get("revisions", []) == []
+
+    def test_real_quote_refuses_without_archive_flag(self, client: Client, job: Job) -> None:
+        self._real_estimate(job)
+        quote = job.cost_sets.get(kind="quote")
+        _make_line(quote, kind="material", quantity="1.000", unit_cost="10.00", unit_rev="20.00")
+
+        response = self._copy(client, job)
+
+        assert response.status_code == 409
+        quote.refresh_from_db()
+        assert quote.cost_lines.count() == 1
+        assert quote.cost_lines.get().unit_rev == Decimal("20.00")
+
+    def test_zero_total_quote_with_real_lines_still_refuses(self, client: Client, job: Job) -> None:
+        # Offsetting adjustments sum to $0 but are entered work; the blank
+        # test is per-line, never total == 0.
+        self._real_estimate(job)
+        quote = job.cost_sets.get(kind="quote")
+        _make_line(quote, kind="adjust", quantity="1.000", unit_cost="0.00", unit_rev="500.00")
+        _make_line(quote, kind="adjust", quantity="1.000", unit_cost="0.00", unit_rev="-500.00")
+
+        assert self._copy(client, job).status_code == 409
+
+    def test_archive_flag_archives_then_copies(
+        self, client: Client, job: Job, office_staff: Staff
+    ) -> None:
+        self._real_estimate(job)
+        quote = job.cost_sets.get(kind="quote")
+        _make_line(quote, kind="material", quantity="1.000", unit_cost="10.00", unit_rev="20.00")
+        job.refresh_from_db()
+        job.quote_acceptance_date = timezone.now()
+        job.save(staff=office_staff)
+
+        response = self._copy(client, job, archive_existing=True)
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["copied_cost_lines_count"] == 2
+        assert body["archived_quote_revision"] == 1
+
+        quote.refresh_from_db()
+        assert quote.cost_lines.count() == 2
+        archived = quote.summary["revisions"]
+        assert len(archived) == 1
+        assert archived[0]["summary"] == {"cost": 10.0, "rev": 20.0, "hours": 0.0}
+        # The live summary is the copied estimate, not the archive's zeroes.
+        assert quote.summary["rev"] == 360.0
+
+        job.refresh_from_db()
+        assert job.quote_acceptance_date is None
+
+    def test_second_press_creates_no_second_archive(self, client: Client, job: Job) -> None:
+        # Double-pressing the button must not stack identical archives: once
+        # the quote already matches the estimate there is nothing to archive
+        # and nothing to copy, and no 409 either — the UI shows no dialog.
+        self._real_estimate(job)
+        quote = job.cost_sets.get(kind="quote")
+        _make_line(quote, kind="material", quantity="1.000", unit_cost="10.00", unit_rev="20.00")
+
+        first = self._copy(client, job, archive_existing=True)
+        assert first.status_code == 200
+        assert first.json()["archived_quote_revision"] == 1
+
+        second = self._copy(client, job)
+
+        assert second.status_code == 200
+        body = second.json()
+        assert body["copied_cost_lines_count"] == 0
+        assert body["archived_quote_revision"] is None
+
+        quote.refresh_from_db()
+        assert len(quote.summary["revisions"]) == 1
+        assert quote.cost_lines.count() == 2
+        assert quote.summary["rev"] == 360.0
+
+
 class TestQuoteRevisions:
     def test_list_is_empty_before_any_revision(self, client: Client, job: Job) -> None:
         response = client.get(f"/api/job/jobs/{job.id}/cost_sets/quote/revise/")
@@ -615,8 +782,18 @@ class TestQuoteRevisions:
         assert job.quote_acceptance_date is None
 
         # Listing reflects the archive; a second revision numbers itself 2.
+        # The revision entries cross the wire typed (the revisions-history UI
+        # consumes them), so the shape is contract, not incidental storage.
         listing = client.get(f"/api/job/jobs/{job.id}/cost_sets/quote/revise/").json()
         assert listing["total_revisions"] == 1
+        listed = listing["revisions"][0]
+        assert listed["quote_revision"] == 1
+        assert listed["reason"] == "customer changed scope"
+        assert listed["archived_at"]
+        assert listed["summary"] == {"cost": 180.0, "rev": 360.0, "hours": 2.0}
+        assert len(listed["cost_lines"]) == 2
+        line_out = listed["cost_lines"][0]
+        assert set(line_out) >= {"kind", "desc", "quantity", "unit_cost", "unit_rev", "total_rev"}
         _make_line(quote, kind="material")
         second = client.post(
             f"/api/job/jobs/{job.id}/cost_sets/quote/revise/",

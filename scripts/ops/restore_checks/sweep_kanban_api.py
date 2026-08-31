@@ -3,7 +3,7 @@
 
 Deviation from v1: authentication is a JWT access-token cookie
 (apps/core/auth.py), not a Django session, so this uses
-ninja_jwt.tokens.RefreshToken instead of v1's client.force_login().
+the fingerprinted JWT mint (apps/core/auth.py) instead of v1's client.force_login().
 """
 
 import os
@@ -24,9 +24,9 @@ _domain = os.environ["APP_DOMAIN"]
 setup_django()
 
 from django.test import Client  # noqa: E402 -- Django must be configured first
-from ninja_jwt.tokens import RefreshToken  # noqa: E402
 
 from apps.accounts.models import Staff  # noqa: E402
+from apps.core.auth import issue_refresh_token  # noqa: E402
 
 
 def test_kanban_api() -> bool:
@@ -45,7 +45,9 @@ def test_kanban_api() -> bool:
     # logged-in browser has it, matching apps/company/tests/conftest.py's
     # authenticate() helper.
     client = Client()
-    refresh = RefreshToken.for_user(admin_user)
+    # Through the one mint: issued tokens carry the password fingerprint, and
+    # a bare RefreshToken.for_user token is rejected as stale.
+    refresh = issue_refresh_token(admin_user)
     client.cookies["access_token"] = str(refresh.access_token)
 
     response = client.get("/api/job/jobs/fetch-all/", HTTP_HOST=_domain)

@@ -24,6 +24,7 @@ export function mockUser(overrides: Partial<UserProfile> = {}): void {
         fullName: 'Some One',
         is_office_staff: true,
         is_superuser: false,
+        password_needs_reset: false,
         ...overrides,
       }),
     ),

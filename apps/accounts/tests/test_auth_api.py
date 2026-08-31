@@ -216,6 +216,7 @@ class TestMe:
             "fullName": "Jo Bloggs",
             "is_office_staff": True,
             "is_superuser": False,
+            "password_needs_reset": False,
         }
 
     def test_me_rejected_for_departed_staff(self, staff: Staff) -> None:

@@ -43,4 +43,31 @@ describe('JobEstimateTab', () => {
       expect(document.querySelector('.smart-costlines-table')).not.toBeNull()
     })
   })
+
+  it('shows the server-owned estimate summary beside the grid', async () => {
+    stubTabData()
+    // Later handlers win in msw, so this priced summary overrides the stub's.
+    server.use(
+      http.get('*/api/job/jobs/*/cost_sets/estimate/', () =>
+        HttpResponse.json({
+          cost_lines: [],
+          created: '2026-08-09T00:00:00Z',
+          id: 'cost-set-est',
+          job: 'job-1',
+          kind: 'estimate',
+          rev: 0,
+          summary: { cost: 1137.33, rev: 1840, hours: 9, profitMargin: 38.2 },
+        }),
+      ),
+    )
+
+    renderWithProviders(<JobEstimateTab jobId="job-1" />)
+
+    await screen.findByText('$1,840.00')
+    const summary = document.querySelector('[data-automation-id="JobEstimateTab-summary"]')
+    expect(summary).toHaveTextContent('Estimate Summary')
+    expect(summary).toHaveTextContent('$1,840.00')
+    expect(summary).toHaveTextContent('$1,137.33')
+    expect(summary).toHaveTextContent('38.2%')
+  })
 })

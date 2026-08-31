@@ -38,6 +38,9 @@ AUTH_ANON_ALLOWLIST_PREFIXES: Final[tuple[str, ...]] = (
     # token_verify / api_logout (ninja-jwt endpoints under the accounts router).
     "/api/accounts/token/",
     "/api/accounts/logout/",
+    # Forgot-password (2026-08-31): the emailed uid+token pair is the
+    # credential, so both the request and confirm endpoints are anonymous.
+    "/api/accounts/password-reset/",
 )
 
 

@@ -4,10 +4,10 @@ from datetime import datetime
 
 from django.test import Client
 from django.utils import timezone
-from ninja_jwt.tokens import RefreshToken
 
 from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, Person
+from apps.core.auth import issue_refresh_token
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.job.models import Job
 
@@ -17,7 +17,7 @@ PASSWORD = "testpass-123!"
 def cookie_client(staff: Staff) -> Client:
     """A django test Client authenticated via the HttpOnly JWT cookie."""
     client = Client()
-    refresh = RefreshToken.for_user(staff)
+    refresh = issue_refresh_token(staff)
     client.cookies["access_token"] = str(refresh.access_token)
     return client
 

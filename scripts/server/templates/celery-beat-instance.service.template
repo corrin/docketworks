@@ -8,8 +8,11 @@ User=__INSTANCE_USER__
 Group=www-data
 WorkingDirectory=/opt/docketworks/instances/__INSTANCE__/app
 # No --scheduler flag: beat schedules live in code (config/celery.py),
-# not django_celery_beat's database scheduler.
-ExecStart=/opt/docketworks/instances/__INSTANCE__/app/.venv/bin/celery -A config beat --loglevel=info
+# not django_celery_beat's database scheduler. --schedule is different: it
+# is the PersistentScheduler's last-run shelve file, which defaults to CWD —
+# here the app symlink into the immutable release dir, where the write is
+# denied and beat crash-loops. It lives in the instance root instead.
+ExecStart=/opt/docketworks/instances/__INSTANCE__/app/.venv/bin/celery -A config beat --loglevel=info --schedule=/opt/docketworks/instances/__INSTANCE__/celerybeat-schedule
 EnvironmentFile=/opt/docketworks/instances/__INSTANCE__/.env
 Environment=PYTHONDONTWRITEBYTECODE=1
 Restart=always

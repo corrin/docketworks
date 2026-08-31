@@ -1,4 +1,11 @@
-"""Force a password reset for every user at next login."""
+"""Force a password change for EVERY user — including live sessions.
+
+Despite the historical name, this flags every Staff row, not just weak
+passwords. Since the auth-layer gate landed (apps/core/auth.py), the flag
+confines every EXISTING session — superusers included — to the change screen
+immediately, not merely at next login. Run it only when a company-wide
+credential rotation is the intent.
+"""
 
 from django.core.management.base import BaseCommand
 
@@ -6,9 +13,12 @@ from apps.accounts.models import Staff
 
 
 class Command(BaseCommand):
-    """Mark every Staff row as requiring a password reset on next login."""
+    """Mark every Staff row as requiring a password change."""
 
-    help = "Marks all users to require password reset on next login"
+    help = (
+        "Flags EVERY user (admins included) to change their password; live "
+        "sessions are locked to the change screen immediately."
+    )
 
     def handle(self, *_args: object, **_options: object) -> None:
         """Set ``password_needs_reset`` on every user, one save per row.

@@ -44,6 +44,19 @@ dependencies = [
     # rejects the result at employee-creation time.
     "python-stdnum>=2.1",
     "tinytag>=2.3.0",
+    # Main, not dev: scripts/ops/extract_v1_credentials.py decrypts v1's
+    # Fernet columns on the production host during cutover phase 0, in the
+    # `uv sync --frozen --no-dev` venv. Was only transitive before, which
+    # deptry rightly refuses (DEP003).
+    "cryptography>=46.0",
+    # Main, not dev: apps/core/gmail.py (the password-reset sender, imported
+    # by apps/accounts/tasks.py at Celery worker boot) and the per-client
+    # H&S onboarding command import_dropbox_hs_documents both run in the
+    # production `uv sync --frozen --no-dev` venv. Dev-only was the
+    # 2026-08-31 finding: the prod worker cannot even import its tasks
+    # without them.
+    "google-api-python-client>=2.198.0",
+    "google-auth>=2.56.3",
 ]
 
 [dependency-groups]
@@ -69,8 +82,6 @@ dev = [
     "types-requests>=2.33.0.20260712",
     "freezegun>=1.5.5",
     "types-reportlab>=4.5.1",
-    "google-api-python-client>=2.198.0",
-    "google-auth>=2.56.3",
     "google-api-python-client-stubs>=1.39.0",
     "httplib2>=0.32.0",
 ]
@@ -174,19 +185,19 @@ DEP002 = [
 ]
 # Test modules importing dev-group tools is correct; scripts/ are dev/CI
 # tooling, so pyyaml (the schema exporter), coverage (the status table,
-# reading the total out of the .coverage file CI already wrote) and the Google
-# API client (`google` = google-auth, `googleapiclient` = the Docs/Drive
-# authoring scripts in scripts/gdocs/; `httplib2` = the Response type a
-# Drive HttpError is built from, in the link probe's tests) stay in the dev
-# group. None ship in the application.
+# reading the total out of the .coverage file CI already wrote) and
+# httplib2 (the Response type a Drive HttpError is built from, in the link
+# probe's tests) stay in the dev group. The Google API client itself is a
+# MAIN dependency (apps/core/gmail.py, import_dropbox_hs_documents) and is
+# deliberately absent from this list so deptry gates it again — a stale
+# entry here is what let it ship dev-only while apps/ imported it
+# (2026-08-31 production finding).
 DEP004 = [
     "pytest",
     "pytest_django",
     "yaml",
     "freezegun",
     "coverage",
-    "google",
-    "googleapiclient",
     "httplib2",
 ]
 

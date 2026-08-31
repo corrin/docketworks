@@ -44,6 +44,12 @@ export const Route = createFileRoute('/_authed')({
     if (session.state === 'unavailable') {
       throw redirect({ to: '/session-check', search: { redirect: location.href } })
     }
+    if (session.user.password_needs_reset) {
+      // Navigation only — the server-side auth gate is the control; without
+      // this the user would land on a page whose every request 403s. The
+      // attempted path rides along so it still lands after the change.
+      throw redirect({ to: '/change-password', search: { redirect: location.href } })
+    }
     await ensureAppShellData(context.queryClient)
   },
   component: AuthedLayout,

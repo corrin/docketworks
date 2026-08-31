@@ -5,7 +5,7 @@ frontend actually called are constants. Recording them lets
 `scripts.checks.status_table` derive "how much is left" from v2's live schema
 alone — which is the only way that count can be gated, because CI checks out
 this repo and nothing else (`.github/workflows/ci.yml` has one `actions/checkout`
-and no submodules), so `../docketworks` does not exist there.
+and no submodules), so `../docketworks_v1` does not exist there.
 
 This is a WORK LIST, not a contract authority. It records which operation names
 v1's frontend called; it never says what shape v2 must serve. That distinction
@@ -28,7 +28,7 @@ import yaml
 
 from scripts import REPO_ROOT
 
-V1_REPO = REPO_ROOT.parent / "docketworks"
+V1_REPO = REPO_ROOT.parent / "docketworks_v1"
 V1_SCHEMA = V1_REPO / "frontend" / "schema.yml"
 V1_FRONTEND_SRC = V1_REPO / "frontend" / "src"
 
@@ -49,7 +49,7 @@ HEADER = """\
 # lists; do hand-edit `renamed` when v2 deliberately renames an operation.
 #
 # WHY THIS EXISTS: the remaining-work count has to be derivable in CI, and CI
-# checks out only this repo -- ../docketworks is not there. v1 is frozen, so its
+# checks out only this repo -- ../docketworks_v1 is not there. v1 is frozen, so its
 # totals are constants and can simply be stored.
 #
 # WHAT THIS IS NOT: an authority on v2's contract. It records which operation

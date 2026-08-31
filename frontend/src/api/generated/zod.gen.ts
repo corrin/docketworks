@@ -662,6 +662,28 @@ export const zContactMethodRequest = z.object({
 });
 
 /**
+ * CopyEstimateToQuoteRequest
+ *
+ * Wire contract for CopyEstimateToQuoteRequest.
+ */
+export const zCopyEstimateToQuoteRequest = z.object({
+    archive_existing: z.boolean().optional().default(false)
+});
+
+/**
+ * CopyEstimateToQuoteResponse
+ *
+ * Wire contract for CopyEstimateToQuoteResponse.
+ */
+export const zCopyEstimateToQuoteResponse = z.object({
+    archived_quote_revision: z.int().nullable(),
+    copied_cost_lines_count: z.int(),
+    job_id: z.string(),
+    message: z.string(),
+    success: z.boolean()
+});
+
+/**
  * CostLineCreateRequest
  *
  * Wire contract for CostLineCreateRequest.
@@ -2748,6 +2770,85 @@ export const zPaginatedEntryList = z.object({
 });
 
 /**
+ * PasswordChangeRequest
+ *
+ * Self-service change body for POST /api/accounts/me/password/.
+ *
+ * Plain ``str`` like LoginRequest: a password is never whitespace-stripped
+ * or length-coerced on the way in — the validators judge the new value and
+ * check_password judges the old.
+ */
+export const zPasswordChangeRequest = z.object({
+    current_password: z.string(),
+    new_password: z.string()
+});
+
+/**
+ * PasswordChangeResponse
+ *
+ * Empty 200 body for the self-service password change.
+ *
+ * The change's effect is the cleared ``password_needs_reset``, which the
+ * client re-reads from ``/me/``.
+ */
+export const zPasswordChangeResponse = z.record(z.string(), z.unknown());
+
+/**
+ * PasswordErrorOut
+ *
+ * DECLARED 400 body for the credential endpoints (change and reset).
+ *
+ * A declared response rather than an HttpError: the envelope masks
+ * exception text on anonymous requests (ADR 0038), a declared shape rides
+ * the exported schema into the generated client, and every refusal here
+ * (dead link, wrong current password, weak new password) is exactly what
+ * the caller must read.
+ */
+export const zPasswordErrorOut = z.object({
+    detail: z.string()
+});
+
+/**
+ * PasswordResetConfirmRequest
+ *
+ * Body for POST /api/accounts/password-reset/confirm/.
+ *
+ * ``uid``/``token`` come verbatim from the emailed link; ``new_password``
+ * is plain ``str`` like every password field — never whitespace-stripped.
+ */
+export const zPasswordResetConfirmRequest = z.object({
+    new_password: z.string(),
+    token: z.string(),
+    uid: z.string()
+});
+
+/**
+ * PasswordResetConfirmResponse
+ *
+ * Empty 200: the caller's next step is simply logging in.
+ */
+export const zPasswordResetConfirmResponse = z.record(z.string(), z.unknown());
+
+/**
+ * PasswordResetRequest
+ *
+ * Body for POST /api/accounts/password-reset/ — just the login email.
+ */
+export const zPasswordResetRequest = z.object({
+    email: z.string()
+});
+
+/**
+ * PasswordResetResponse
+ *
+ * Fixed empty 200 for the reset request.
+ *
+ * The same body whether or not the email has an account, so the anonymous
+ * contract reveals nothing about which addresses exist.
+ */
+export const zPasswordResetResponse = z.record(z.string(), z.unknown());
+
+/**
  * PatchedContactMethodRequest
  *
  * Wire contract for PatchedContactMethodRequest.
@@ -4050,6 +4151,27 @@ export const zJobQuoteResponse = z.object({
 });
 
 /**
+ * QuoteRevisionCostLineOut
+ *
+ * One archived cost line inside a quote revision.
+ *
+ * Floats, not Decimals: these are JSON snapshots written by
+ * ``_archive_quote_revision``, not live CostLine rows.
+ */
+export const zQuoteRevisionCostLineOut = z.object({
+    desc: z.string().nullable(),
+    ext_refs: z.record(z.string(), z.unknown()),
+    id: z.string(),
+    kind: z.string(),
+    meta: z.record(z.string(), z.unknown()),
+    quantity: z.number(),
+    total_cost: z.number(),
+    total_rev: z.number(),
+    unit_cost: z.number(),
+    unit_rev: z.number()
+});
+
+/**
  * QuoteRevisionRequest
  *
  * Wire contract for QuoteRevisionRequest.
@@ -4072,6 +4194,30 @@ export const zQuoteRevisionResponse = z.object({
 });
 
 /**
+ * QuoteRevisionSummaryOut
+ *
+ * Totals of one archived quote revision, as stored at archive time.
+ */
+export const zQuoteRevisionSummaryOut = z.object({
+    cost: z.number(),
+    hours: z.number(),
+    rev: z.number()
+});
+
+/**
+ * QuoteRevisionOut
+ *
+ * Wire contract for one archived quote revision.
+ */
+export const zQuoteRevisionOut = z.object({
+    archived_at: z.string(),
+    cost_lines: z.array(zQuoteRevisionCostLineOut),
+    quote_revision: z.int(),
+    reason: z.string().nullable(),
+    summary: zQuoteRevisionSummaryOut
+});
+
+/**
  * QuoteRevisionsListResponse
  *
  * Wire contract for QuoteRevisionsListResponse.
@@ -4080,7 +4226,7 @@ export const zQuoteRevisionsListResponse = z.object({
     current_cost_set_rev: z.int(),
     job_id: z.string(),
     job_number: z.int(),
-    revisions: z.array(z.record(z.string(), z.unknown())),
+    revisions: z.array(zQuoteRevisionOut),
     total_revisions: z.int()
 });
 
@@ -4325,6 +4471,11 @@ export const zCompanyDefaultsSchemaOut = z.object({
  * derived ``wage_rate`` in a payload must be a 422, not a silent no-op.
  * Omitted fields take the model defaults — the handler dumps with
  * ``exclude_unset`` and never reads the placeholders here.
+ *
+ * ``password_needs_reset`` is the admin's "must change at next login"
+ * control — and, because the gate lives at the auth layer, the only way an
+ * existing session (not just the next login) gets locked to the change
+ * screen.
  */
 export const zStaffCreateIn = z.object({
     base_wage_rate: z.number().gte(0).optional(),
@@ -4345,6 +4496,7 @@ export const zStaffCreateIn = z.object({
     last_name: z.string().min(1),
     office_email: z.string().min(1).nullish(),
     password: z.string().min(1),
+    password_needs_reset: z.boolean().optional(),
     pay_basis: z.enum(['hourly', 'salary']).nullish(),
     payroll_email: z.string().min(1).nullish(),
     preferred_name: z.string().min(1).nullish(),
@@ -4426,6 +4578,7 @@ export const zStaffListItemOut = z.object({
     is_workshop_staff: z.boolean(),
     last_name: z.string(),
     office_email: z.string().nullable(),
+    password_needs_reset: z.boolean(),
     pay_basis: z.string().nullable(),
     payroll_email: z.string().nullable(),
     preferred_name: z.string().nullable(),
@@ -4472,6 +4625,10 @@ export const zStaffOptionOut = z.object({
  * nullable fields ``null`` is a real value — ``date_left: null`` reinstates a
  * departed staff member (ADR 0040). ``password`` is presence-only: null is
  * never a password value, so only supplying one changes it.
+ *
+ * ``password_needs_reset`` is the admin's "must change at next login"
+ * control. Supplied alongside ``password``, the explicit flag wins over the
+ * set-password clear (_set_staff_password runs before _apply_staff_fields).
  */
 export const zStaffUpdateIn = z.object({
     base_wage_rate: z.number().gte(0).optional(),
@@ -4492,6 +4649,7 @@ export const zStaffUpdateIn = z.object({
     last_name: z.string().min(1).optional(),
     office_email: z.string().min(1).nullish(),
     password: z.string().min(1).optional(),
+    password_needs_reset: z.boolean().optional(),
     pay_basis: z.enum(['hourly', 'salary']).nullish(),
     payroll_email: z.string().min(1).nullish(),
     preferred_name: z.string().min(1).nullish(),
@@ -5141,6 +5299,7 @@ export const zUserProfile = z.object({
     is_superuser: z.boolean(),
     last_name: z.string(),
     office_email: z.string().nullable(),
+    password_needs_reset: z.boolean(),
     payroll_email: z.string().nullable(),
     preferred_name: z.string().nullable()
 });
@@ -5910,6 +6069,27 @@ export const zAccountsLogoutCreateResponse = zLogoutResponse;
  * OK
  */
 export const zAccountsMeRetrieveResponse = zUserProfile;
+
+export const zAccountsMePasswordCreateBody = zPasswordChangeRequest;
+
+/**
+ * OK
+ */
+export const zAccountsMePasswordCreateResponse = zPasswordChangeResponse;
+
+export const zAccountsPasswordResetCreateBody = zPasswordResetRequest;
+
+/**
+ * OK
+ */
+export const zAccountsPasswordResetCreateResponse = zPasswordResetResponse;
+
+export const zAccountsPasswordResetConfirmCreateBody = zPasswordResetConfirmRequest;
+
+/**
+ * OK
+ */
+export const zAccountsPasswordResetConfirmCreateResponse = zPasswordResetConfirmResponse;
 
 /**
  * Response
@@ -6733,6 +6913,17 @@ export const zJobJobsCostSetsActualCostLinesCreatePath = z.object({
  * Created
  */
 export const zJobJobsCostSetsActualCostLinesCreateResponse = zCostLineOut;
+
+export const zJobJobsCostSetsQuoteCopyFromEstimateCreateBody = zCopyEstimateToQuoteRequest;
+
+export const zJobJobsCostSetsQuoteCopyFromEstimateCreatePath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zJobJobsCostSetsQuoteCopyFromEstimateCreateResponse = zCopyEstimateToQuoteResponse;
 
 export const zJobJobsCostSetsQuoteReviseRetrievePath = z.object({
     job_id: z.uuid()

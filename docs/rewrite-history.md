@@ -41,6 +41,15 @@ hours on specs for unbuilt screens.
 
 ## Rulings that closed a question
 
+**Password tokens are fingerprint-bound with no grandfathering; the deploy
+carrying it logs every session out once (2026-08-31).** Every JWT now carries
+a fingerprint of the password hash (`apps/core/auth.py`), so a change or
+reset evicts every other session. Tokens minted before the claim existed fail
+the same comparison — owner accepted the one-time fleet-wide re-login
+(overnight deploys make it a non-event) over a 90-day window in which a
+pre-deploy token would outlive the password it was issued against (ADR 0017:
+no transitional code).
+
 **v1's `pages/purchasing/pricing.vue` is not the pricing-upload feature; the
 file is not ported (2026-08-14).** The page as deployed — verified on v1's
 `origin/production` — accepts a dropped file and discards it: the handler is a
@@ -416,3 +425,35 @@ and replay purge is not scheduled before any ingestion path exists. The AI
 gateway/provider plumbing remains because deferred features share it. The
 observed Celery Beat startup delay and fresh in-code schedule tables required
 no fix.
+
+**Beat's schedule shelve and the verifier's crash-loop blindness, 2026-08-30.**
+Celery beat's PersistentScheduler writes its last-run shelve file to CWD, and
+every rendered beat unit set WorkingDirectory to the `app` symlink into the
+immutable release dir, so beat crash-looped on permission denied on every
+instance created since releases became immutable (msm-uat reached
+NRestarts>1900). verify-instance.sh reported it healthy anyway: with
+Restart=always/RestartSec=10 a crash-looping unit is "active" for a slice of
+every cycle, so a bare is-active check passes intermittently — a verifier
+bug, not a flake. Durable fixes: the unit template passes
+`--schedule=<instance root>/celerybeat-schedule` (pinned by the template
+test), and the verifier requires NRestarts unchanged across a 12s window
+plus a recheck at the end of the run; the window and the templates'
+RestartSec values are pinned as a pair. Celery ships no sd_notify, so a
+readiness signal was not an available alternative.
+
+**Copy from Estimate was never ported, and the restore made it atomic,
+2026-08-31 (KAN-346).** A prod report surfaced that v1's Quote-tab "Copy from
+Estimate" button had no v2 equivalent: the tab was rebuilt lean, the button
+had no E2E spec to miss it, and no ledger recorded the drop. v1 implemented
+it as a client-side loop (fetch estimate lines, delete quote lines, create
+each), so a mid-flight failure left a half-copied quote; v2 restores it as
+one server call (`copy_from_estimate`, sharing the creation-time seeding's
+copy loop). Rulings made with the owner: a blank quote — every line totalling zero cost
+and zero revenue, which is what the $0 creation seed produces — is replaced
+silently with no revision recorded; blankness is judged per line TOTAL (the
+seed's time lines carry real rates at quantity 0, so a unit-price test
+wrongly called the seed priced — caught by the E2E gate), never the set's
+total, so offsetting adjustments still archive; a priced quote
+answers 409 and the UI offers archive-and-replace through the existing quote
+revision machinery; and a quote already matching the estimate answers as a
+no-op so a double press cannot stack identical archives.

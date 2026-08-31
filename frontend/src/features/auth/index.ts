@@ -7,8 +7,11 @@ import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-q
 
 import {
   accountsLogoutCreateMutation,
+  accountsMePasswordCreateMutation,
   accountsMeRetrieveOptions,
   accountsMeRetrieveQueryKey,
+  accountsPasswordResetConfirmCreateMutation,
+  accountsPasswordResetCreateMutation,
   accountsTokenCreateMutation,
   isApiErrorStatus,
   isAvailabilityError,
@@ -77,6 +80,30 @@ export function useLogin() {
       queryClient.removeQueries({ queryKey: accountsMeRetrieveQueryKey() })
     },
   })
+}
+
+/** POST /api/accounts/me/password/ — the self-service credential write. */
+export function useChangePassword() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    ...accountsMePasswordCreateMutation(),
+    onSuccess: () => {
+      // A successful change clears password_needs_reset server-side; drop the
+      // cached /me so route guards refetch the cleared flag (same pattern as
+      // useLogin — the cached profile is authoritative for navigation).
+      queryClient.removeQueries({ queryKey: accountsMeRetrieveQueryKey() })
+    },
+  })
+}
+
+/** POST /api/accounts/password-reset/ — always a fixed 200; anonymous. */
+export function useRequestPasswordReset() {
+  return useMutation(accountsPasswordResetCreateMutation())
+}
+
+/** POST /api/accounts/password-reset/confirm/ — exchange uid+token for a new password. */
+export function useConfirmPasswordReset() {
+  return useMutation(accountsPasswordResetConfirmCreateMutation())
 }
 
 /** POST /api/accounts/logout/ — server clears the JWT cookies. */

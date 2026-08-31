@@ -32,6 +32,7 @@ function staffRow(overrides: Partial<StaffListItemOut> = {}): StaffListItemOut {
     is_workshop_staff: true,
     is_superuser: false,
     is_staff_manager: false,
+    password_needs_reset: false,
     hours_mon: 8,
     hours_tue: 8,
     hours_wed: 8,

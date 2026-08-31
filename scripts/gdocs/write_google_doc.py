@@ -18,7 +18,8 @@ whose revisionId has changed (a human edited it), is REFUSED. To manage an
 existing human doc, `seed` it first (baselines its current revision); a later
 `import` then replaces it, refusing if a human edited it in between.
 
-Auth is the shared delegated convention (scripts/gdocs/gauth.py), same as
+Auth is the shared delegated convention (credentials from apps/core/gauth.py,
+clients from scripts/gdocs/gauth.py), same as
 read_google_doc.py.
 
 Usage (uv run python -m scripts.gdocs.write_google_doc ...):

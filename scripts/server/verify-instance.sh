@@ -69,9 +69,26 @@ fi
 CURL=(curl -sS --max-time 15 --resolve "$FQDN:443:127.0.0.1")
 
 # --- Services ---
-check "gunicorn-$INSTANCE active" systemctl is-active --quiet "gunicorn-$INSTANCE"
-check "celery-worker-$INSTANCE active" systemctl is-active --quiet "celery-worker-$INSTANCE"
-check "celery-beat-$INSTANCE active" systemctl is-active --quiet "celery-beat-$INSTANCE"
+# Fable: bare is-active cannot see a crash loop — with Restart=always and
+# RestartSec=10 a unit that dies on startup is "active" for a slice of
+# every cycle, which is how a beat crash-looping on its schedule file
+# verified green on UAT. NRestarts must also hold still across a window
+# longer than every unit's RestartSec (10s beat/worker, 5s gunicorn), so
+# a loop is forced to tick at least once inside it.
+RUNTIME_UNITS=("gunicorn-$INSTANCE" "celery-worker-$INSTANCE" "celery-beat-$INSTANCE")
+declare -A NRESTARTS_BEFORE
+for unit in "${RUNTIME_UNITS[@]}"; do
+    NRESTARTS_BEFORE[$unit]="$(systemctl show "$unit" -p NRestarts --value)"
+done
+sleep 12
+unit_running_stably() {
+    local unit="$1"
+    systemctl is-active --quiet "$unit" || return 1
+    [[ "$(systemctl show "$unit" -p NRestarts --value)" == "${NRESTARTS_BEFORE[$unit]}" ]]
+}
+check "gunicorn-$INSTANCE active and stable" unit_running_stably "gunicorn-$INSTANCE"
+check "celery-worker-$INSTANCE active and stable" unit_running_stably "celery-worker-$INSTANCE"
+check "celery-beat-$INSTANCE active and stable" unit_running_stably "celery-beat-$INSTANCE"
 
 # --- Serving path: build-id through nginx+TLS must match the release link ---
 # Retried: this is the first HTTP probe after a restart, and gunicorn may
@@ -137,6 +154,15 @@ check --verbose "IntegrationSettings live connections" \
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" \
     python -m scripts.ops.restore_checks.check_integration_settings
 
+# Fable: every JobFile row's bytes must exist under DROPBOX_WORKFLOW_FOLDER.
+# Process liveness cannot catch the failure class this guards: a root
+# pointed one directory too high 404s every attachment while Dropbox
+# sync, systemd and disk all report healthy (2026-08-31 production
+# incident — the media probe above only proves MEDIA_ROOT).
+check --verbose "JobFile attachments resolve on disk" \
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" \
+    python -m scripts.ops.restore_checks.check_jobfiles
+
 # --- Host security posture ---
 check "UFW active" bash -c "ufw status | grep -q '^Status: active'"
 check "fail2ban jail sshd" fail2ban-client status sshd
@@ -167,6 +193,16 @@ backup_upload_probe() {
 }
 check "backup remote accepts an upload as $INSTANCE_USER" backup_upload_probe
 sudo -u "$INSTANCE_USER" rm -f "$PROBE_LOCAL"
+
+# --- Runtime units: still stable after the full verification run ---
+# Fable: the 12s window catches only a fast crash loop; a unit that dies
+# tens of seconds in outlives it. Rechecking the same baselines here
+# stretches the observed window to the whole verifier run. A readiness
+# signal was the rejected alternative: celery ships no sd_notify support,
+# so Type=notify cannot cover beat or the worker.
+for unit in "${RUNTIME_UNITS[@]}"; do
+    check "$unit stable through verification" unit_running_stably "$unit"
+done
 
 echo ""
 if (( FAILURES > 0 )); then

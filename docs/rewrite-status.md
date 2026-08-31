@@ -43,13 +43,13 @@ done only when that spec is green.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **47 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
+| E2E specs ported | **49 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
 | Backend operations still to port | **58** (see below; 32 more exist but nothing calls them) |
-| API operations v2 exposes | 237 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2764 (all passing) |
+| API operations v2 exposes | 241 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 2813 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
-| Behaviour ledger | 121 recorded deviations |
+| Behaviour ledger | 122 recorded deviations |
 | ADRs | 40 (v1's 26 carried forward + 0038–0041, 0043, 0045–0053 written here) |
 
 **Written is not ported.** Report progress as specs green; a count of endpoints
@@ -174,11 +174,6 @@ rather than anywhere else. This file is finished when it is empty.
 
 First work on v2, in this order:
 
-- **The complete weak-password path**: validation, an authenticated
-  password-change API and UI, and enforcement of `password_needs_reset`.
-  Returning the flag from login while the frontend ignores it is not a
-  security control. Forgotten-password email stays the separate
-  `blocked-by:email-feature` slice. First slice after the flip.
 - **`AccessLogging` and `DisallowedHost` middleware** (v1 parity;
   `FrontendRedirect` is not needed — the SPA serving path is proven by
   `verify-instance.sh`).
@@ -212,6 +207,13 @@ First work on v2, in this order:
 - **Make `backend` and `frontend` required status checks** in GitHub branch
   protection — PR #105 auto-merged while the backend suite was still
   running.
+- **Alert on a paused Maestral, not a dead one.** 22–23 Aug: a transient
+  Dropbox API error paused sync for 26 hours while the process stayed
+  alive, so `systemctl` reported active and `Restart=always` never fired.
+  Any alert must parse `maestral status` output (paused/sync errors), not
+  process liveness. `verify-instance.sh` now gates JobFile bytes on disk,
+  which catches a long outage's *effect* at verify time only — a periodic
+  host-side check is still unbuilt.
 - **MariaDB archaeology on the prod host**: localhost-only MariaDB holds
   `jobs_manager` (the pre-DocketWorks ancestor) and a legacy mysql-era
   `dw_msm_prod`. Identify any consumer, archive, remove the service.
@@ -312,6 +314,12 @@ First work on v2, in this order:
   models are a schema shell and there is no scheduling algorithm in either
   repo's backend, so it is algorithm plus page plus fresh spec. Scope v1's
   `operations_workshop_schedule_retrieve` / `_recalculate_create` at pick-up.
+- **Attachment thumbnails and click-to-view** (prod bug report 2026-08-31).
+  v1's attachments tab rendered a thumbnail per file and clicking it viewed
+  the image; v2's `JobAttachmentsTab.tsx` renders only download/delete icons
+  and nothing in `frontend/src/` calls the ported `getJobFileThumbnail`
+  endpoint. Port the thumbnail-and-view UI and extend
+  `job-attachments.spec.ts` to assert a thumbnail renders and opens.
 - **Process documents** — forms, procedures, JSA and the categories endpoint.
   JSA and SWP are `document_type` variants of `Procedure`, not a third model.
 - **Session replays** — capture, ingestion APIs, admin playback and the storage
@@ -322,11 +330,12 @@ First work on v2, in this order:
   (owner: deferred features keep their data) — a bounded set whose PROTECT
   user FKs keep the referenced staff rows undeletable until this slice
   returns with the purge schedule and storage decision.
-- **Email delivery** — SMTP backend/configuration, password-reset delivery and
-  system notifications are deferred, not retired. The slice adds typed SMTP
-  columns to `IntegrationSettings` (ADR 0053), restores the blocked password-
-  reset flow and authors its own spec; the current PO `mailto:` composer is a
-  separate capability and remains unchanged.
+- **Email delivery** — general outbound email and system notifications are
+  deferred, not retired (password-reset delivery shipped 2026-08-31). The
+  slice will most likely extend the delegated Gmail sender in
+  `apps/core/gmail.py` rather than add SMTP configuration (owner ruling
+  2026-08-31), and authors its own spec; the current PO `mailto:` composer
+  is a separate capability and remains unchanged.
 - **AI product work** — quote chat, safety AI, quote-to-PO, AI-provider
   administration and NotebookLM CRUD are deferred, not retired. Provider
   credential loading and the shared gateway already exist because every slice

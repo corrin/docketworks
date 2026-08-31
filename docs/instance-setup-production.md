@@ -55,6 +55,19 @@ sudo scripts/server/dw-run.sh <client>-prod python -m scripts.ops.restore_checks
 sudo scripts/server/dw-run.sh <client>-prod python -m scripts.ops.restore_checks.check_integration_settings
 ```
 
+### Point the workflow folder at the client's real files
+
+`create` renders `DROPBOX_WORKFLOW_FOLDER` in the instance `.env` as an empty
+instance-local directory. For a client whose job folders are Dropbox-synced
+(Maestral on the host), edit the value to the synced directory that
+**directly contains** the `Job-<number>` folders — the workflow subfolder,
+never the Dropbox root — and keep the value quoted: `dw-run.sh` sources the
+file, and an unquoted path containing a space aborts the source. One level too high 404s every attachment and creates
+new job folders at the Dropbox top level while every daemon reports healthy
+(2026-08-31 production incident). The edit survives `reconfigure`
+(`render_instance_env` reads it back), and `verify-instance.sh` gates on
+every `JobFile` row resolving to a file under the configured root.
+
 ## 3. Start services and authorise Xero
 
 Sign in with the admin login, open Admin > Xero, and complete the OAuth flow.
