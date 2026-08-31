@@ -939,6 +939,37 @@ def create_job(data: JobCreateData, user: Staff) -> Job:  # noqa: C901, PLR0912,
     return job
 
 
+# The one list of what a cost-line copy carries. _copy_cost_lines writes
+# exactly these fields and _cost_line_contents compares exactly these fields;
+# deriving both from one tuple is what keeps "already matches the estimate"
+# true — a field added to the copy but not the comparison would make fresh
+# copies compare equal to stale ones (and vice versa).
+_COPIED_LINE_FIELDS = (
+    "kind",
+    "desc",
+    "quantity",
+    "unit_cost",
+    "unit_rev",
+    "accounting_date",
+    "ext_refs",
+    "meta",
+    "xero_pay_item_id",
+    "labour_subtype_id",
+)
+
+
+def _copied_line_values(line: CostLine) -> dict[str, object]:
+    """One line's copyable field values, with JSON dicts defensively copied."""
+    values: dict[str, object] = {}
+    for field_name in _COPIED_LINE_FIELDS:
+        value: object = getattr(line, field_name)
+        if field_name in ("ext_refs", "meta"):
+            values[field_name] = dict(value) if isinstance(value, dict) else {}
+        else:
+            values[field_name] = value
+    return values
+
+
 def _copy_cost_lines(source: CostSet, dest: CostSet) -> int:
     """Copy every cost line of ``source`` onto ``dest``; returns the count copied.
 
@@ -948,19 +979,7 @@ def _copy_cost_lines(source: CostSet, dest: CostSet) -> int:
     """
     copied = 0
     for line in source.cost_lines.all():
-        CostLine.objects.create(
-            cost_set=dest,
-            kind=line.kind,
-            desc=line.desc,
-            quantity=line.quantity,
-            unit_cost=line.unit_cost,
-            unit_rev=line.unit_rev,
-            accounting_date=line.accounting_date,
-            ext_refs=line.ext_refs.copy() if line.ext_refs else {},
-            meta=line.meta.copy() if line.meta else {},
-            xero_pay_item_id=line.xero_pay_item_id,
-            labour_subtype_id=line.labour_subtype_id,
-        )
+        CostLine.objects.create(cost_set=dest, **_copied_line_values(line))
         copied += 1
     return copied
 
@@ -2456,28 +2475,34 @@ class CopyEstimateToQuoteResultData(TypedDict):
     job_id: str
 
 
+def _serialize_copied_field(value: object) -> str:
+    """Canonical string form of one copyable field value.
+
+    Dicts go through sorted-key JSON so key order never breaks equality.
+    Everything else is str(): exact, not numeric, on purpose — a copy
+    preserves the source Decimal verbatim, so Decimal("100.00") equalling
+    only itself (never "100.0") is the right notion of "identical copy".
+    """
+    if isinstance(value, dict):
+        return json.dumps(value, sort_keys=True)
+    return str(value)
+
+
+def _serialize_copied_line(line: CostLine) -> tuple[str, ...]:
+    """One line's copyable content as a canonical, hashable tuple."""
+    return tuple(_serialize_copied_field(value) for value in _copied_line_values(line).values())
+
+
 def _cost_line_contents(lines: list[CostLine]) -> Counter[tuple[str, ...]]:
     """Build a multiset of everything ``_copy_cost_lines`` carries, for equality tests.
 
-    Dicts and Decimals go through str() so the tuples are hashable and
-    order-insensitive; entry_seq and ids stay out — two copies of the same
-    content must compare equal.
+    Derived from ``_COPIED_LINE_FIELDS`` so copy and comparison cannot drift;
+    entry_seq and ids stay out — two copies of the same content must compare
+    equal. A multiset, not a set: two identical lines are real duplication a
+    user entered, and collapsing them would call a one-line quote equal to a
+    two-line one.
     """
-    return Counter(
-        (
-            line.kind,
-            str(line.desc),
-            str(line.quantity),
-            str(line.unit_cost),
-            str(line.unit_rev),
-            str(line.accounting_date),
-            json.dumps(line.ext_refs or {}, sort_keys=True),
-            json.dumps(line.meta or {}, sort_keys=True),
-            str(line.xero_pay_item_id),
-            str(line.labour_subtype_id),
-        )
-        for line in lines
-    )
+    return Counter(_serialize_copied_line(line) for line in lines)
 
 
 def copy_estimate_to_quote(
@@ -2497,35 +2522,44 @@ def copy_estimate_to_quote(
     if not estimate.cost_lines.exists():
         raise ValueError("The estimate has no cost lines to copy.")
 
-    # Fable: a quote already matching the estimate is answered as a no-op,
-    # not re-archived — a double press must never stack identical revisions,
-    # and returning 409 here would pop the archive dialog over nothing.
-    quote_lines = list(quote.cost_lines.all())
-    if _cost_line_contents(quote_lines) == _cost_line_contents(list(estimate.cost_lines.all())):
-        return {
-            "success": True,
-            "message": "The quote already matches the estimate.",
-            "copied_cost_lines_count": 0,
-            "archived_quote_revision": None,
-            "job_id": str(job.id),
-        }
-
-    # Fable: blank is judged per LINE TOTAL — not per unit price, and not the
-    # set's total. The creation seed's time lines carry real wage/charge-out
-    # rates at quantity 0 (nonzero unit prices, $0 line), so a unit-price test
-    # called the untouched seed "priced" (caught by the E2E gate, 2026-08-31);
-    # a set-total test fails the other way — offsetting adjustments
-    # (+$500/-$500) sum to zero but are entered work that must go through the
-    # archive path, not be silently destroyed.
-    is_blank = all(line.total_cost == 0 and line.total_rev == 0 for line in quote_lines)
-    if not is_blank and not archive_existing:
-        raise QuoteNotBlankError(
-            "The quote already has priced cost lines. "
-            "Pass archive_existing to archive them as a revision first."
-        )
-
     archived_quote_revision: int | None = None
     with transaction.atomic():
+        # Deciding outside the transaction was the reviewed-away shape: a line
+        # created between the blank/equality reads and the replace would be
+        # bulk-deleted without ever reaching the archive. The CostSet row lock
+        # serializes concurrent copies and pins one consistent view from
+        # decision to replace (CodeRabbit, PR #123).
+        quote = CostSet.objects.select_for_update().get(pk=quote.pk)
+
+        # Fable: a quote already matching the estimate is answered as a no-op,
+        # not re-archived — a double press must never stack identical
+        # revisions, and returning 409 here would pop the archive dialog over
+        # nothing.
+        quote_lines = list(quote.cost_lines.all())
+        if _cost_line_contents(quote_lines) == _cost_line_contents(list(estimate.cost_lines.all())):
+            return {
+                "success": True,
+                "message": "The quote already matches the estimate.",
+                "copied_cost_lines_count": 0,
+                "archived_quote_revision": None,
+                "job_id": str(job.id),
+            }
+
+        # Fable: blank is judged per LINE TOTAL — not per unit price, and not
+        # the set's total. The creation seed's time lines carry real
+        # wage/charge-out rates at quantity 0 (nonzero unit prices, $0 line),
+        # so a unit-price test called the untouched seed "priced" (caught by
+        # the E2E gate, 2026-08-31); a set-total test fails the other way —
+        # offsetting adjustments (+$500/-$500) sum to zero but are entered
+        # work that must go through the archive path, not be silently
+        # destroyed.
+        is_blank = all(line.total_cost == 0 and line.total_rev == 0 for line in quote_lines)
+        if not is_blank and not archive_existing:
+            raise QuoteNotBlankError(
+                "The quote already has priced cost lines. "
+                "Pass archive_existing to archive them as a revision first."
+            )
+
         if is_blank:
             # Bulk delete skips CostLine.delete()'s per-line summary refresh;
             # the copy below recomputes the summary from scratch and the
