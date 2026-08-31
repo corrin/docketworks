@@ -408,14 +408,17 @@ def superuser() -> "Staff":
 
 
 def _authenticated(staff: "Staff") -> "Client":
-    """A client carrying the HttpOnly access-token cookie a browser would."""
-    from django.test import Client
-    from ninja_jwt.tokens import RefreshToken
+    """A client carrying the HttpOnly access-token cookie a browser would.
 
-    from apps.core.auth import jwt_cookie_config
+    Through the one mint, not RefreshToken.for_user — issued tokens carry the
+    password fingerprint, and a bare for_user token is rejected as stale.
+    """
+    from django.test import Client
+
+    from apps.core.auth import issue_refresh_token, jwt_cookie_config
 
     client = Client()
-    refresh = RefreshToken.for_user(staff)
+    refresh = issue_refresh_token(staff)
     client.cookies[jwt_cookie_config().access_name] = str(refresh.access_token)
     return client
 

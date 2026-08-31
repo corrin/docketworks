@@ -21,7 +21,7 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 7 |
-| TOTAL suppressions | 688 |
+| TOTAL suppressions | 689 |
 | noqa: DJ001 | 161 |
 | noqa: PLC0415 | 130 |
 | noqa: E402 | 105 |
@@ -37,9 +37,9 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: F405 | 6 |
 | noqa: RUF001 | 6 |
 | noqa: TRY004 | 6 |
+| noqa: S105 | 5 |
 | noqa: S608 | 5 |
 | noqa: N815 | 4 |
-| noqa: S105 | 4 |
 | noqa: S311 | 4 |
 | noqa: ARG005 | 3 |
 | noqa: N818 | 3 |
@@ -79,10 +79,10 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 393 |
-| except handlers | 425 |
-| re-raises or converts | 272 |
-| returns instead | 89 |
+| try statements | 394 |
+| except handlers | 427 |
+| re-raises or converts | 273 |
+| returns instead | 90 |
 | falls through | 51 |
 | continue/break in a loop | 12 |
 | pass (silent) | 1 |
@@ -104,7 +104,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 205 |
-| non-test functions | 2513 |
+| non-test functions | 2518 |
 
 ## Wire contract (response side)
 

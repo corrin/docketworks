@@ -292,6 +292,15 @@ class TestPartialUpdate:
         target.refresh_from_db()
         assert target.password_needs_reset is True
 
+    def test_patching_the_flag_false_alone_unflags(self) -> None:
+        target = make_staff("target@example.com", password_needs_reset=True)
+
+        response = patch(superuser_client(), target.id, password_needs_reset=False)
+
+        assert response.status_code == 200
+        target.refresh_from_db()
+        assert target.password_needs_reset is False
+
     def test_patching_the_flag_true_forces_a_change_at_next_login(self) -> None:
         target = make_staff("target@example.com")
 

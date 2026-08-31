@@ -19,7 +19,7 @@ from django.http.response import HttpResponseBase
 from django_eventstream import views as eventstream_views
 from ninja.errors import AuthenticationError, AuthorizationError
 
-from apps.core.auth import CookieJWTAuth
+from apps.core.auth import CookieJWTAuth, PasswordChangeRequiredError
 
 
 def authed_event_stream(
@@ -37,6 +37,19 @@ def authed_event_stream(
     # pre-hoist views).
     except (AuthenticationError, AuthorizationError):
         user = None
+    except PasswordChangeRequiredError:
+        # The plain-Django streams sit outside the ninja envelope, so the
+        # typed refusal is rendered here — a flagged SPA session keeps a
+        # reconnecting EventSource open, and letting this propagate would
+        # turn an expected security outcome into a 500 loop.
+        return JsonResponse(
+            {
+                "detail": "Password change required.",
+                "code": "password_change_required",
+                "error_id": None,
+            },
+            status=403,
+        )
     if user is None:
         return JsonResponse({"detail": "Authentication credentials were not provided."}, status=401)
     if not isinstance(user, get_user_model()):

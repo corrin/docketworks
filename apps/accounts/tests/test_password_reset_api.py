@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import pytest
 from django.test import Client
 
-import apps.accounts.api as accounts_api
+import apps.accounts.tasks as accounts_tasks
 from apps.accounts.models import Staff
 
 if TYPE_CHECKING:
@@ -52,7 +52,9 @@ def outbox(monkeypatch: pytest.MonkeyPatch) -> list[SentEmail]:
         sent.append(SentEmail(to, subject, body))
         return "fake-gmail-id"
 
-    monkeypatch.setattr(accounts_api, "send_company_email", capture)
+    # Patched at the task's own import (CELERY_TASK_ALWAYS_EAGER runs the
+    # queued send inline in tests), so the enqueue path is exercised too.
+    monkeypatch.setattr(accounts_tasks, "send_company_email", capture)
     return sent
 
 
@@ -135,6 +137,23 @@ class TestPasswordResetRequest:
 
         assert response.status_code == 200
         assert len(outbox) == 1
+
+    def test_a_payroll_only_address_gets_its_reset(self, outbox: list[SentEmail]) -> None:
+        """Login accepts either email field, so reset must too — wage staff
+        often hold only a payroll mailbox."""
+        Staff.objects.create_user(
+            office_email=None,
+            payroll_email="wages@example.com",
+            password=PASSWORD,
+            first_name="Pay",
+            last_name="Roll",
+        )
+
+        response = request_reset("wages@example.com")
+
+        assert response.status_code == 200
+        assert len(outbox) == 1
+        assert outbox[0].to == "wages@example.com"
 
 
 class TestPasswordResetConfirm:

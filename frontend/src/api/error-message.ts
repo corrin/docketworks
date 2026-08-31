@@ -57,6 +57,14 @@ export function isSessionAuthenticationError(error: unknown): boolean {
   return error.response.data.code === 'authentication_required'
 }
 
+/** The auth layer's typed refusal while password_needs_reset is set. */
+export function isPasswordChangeRequiredError(error: unknown): boolean {
+  if (!isAxiosError(error) || error.response?.status !== 403 || !isRecord(error.response.data)) {
+    return false
+  }
+  return error.response.data.code === 'password_change_required'
+}
+
 /** A transport outage worth a brief retry and a recoverable connection screen. */
 export function isAvailabilityError(error: unknown): boolean {
   if (!isAxiosError(error) || error.code === 'ERR_CANCELED') return false

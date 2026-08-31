@@ -11,6 +11,7 @@ cookie contract; the accounts login/refresh/logout endpoints use them so the
 auth class and the endpoints can never disagree on names or flags.
 """
 
+import hashlib
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -25,6 +26,7 @@ from ninja.errors import AuthorizationError as NinjaAuthorizationError
 from ninja.security import APIKeyCookie, APIKeyHeader
 from ninja_jwt.authentication import JWTBaseAuthentication
 from ninja_jwt.exceptions import AuthenticationFailed, InvalidToken, TokenError
+from ninja_jwt.tokens import RefreshToken, Token
 
 from apps.core.models import ServiceAPIKey
 
@@ -54,6 +56,34 @@ PASSWORD_CHANGE_ALLOWED_PATHS: Final[frozenset[str]] = frozenset(
         "/api/accounts/me/password/",
     }
 )
+
+
+PASSWORD_FINGERPRINT_CLAIM: Final = "pwd_fp"  # noqa: S105 - a JWT claim NAME, not a secret
+
+
+def password_fingerprint(user: AbstractBaseUser) -> str:
+    """Fingerprint the stored password hash for binding into issued tokens.
+
+    Fable: a digest of the salted hash, not the hash itself — a JWT payload
+    is base64-readable by anyone holding the cookie value, and the stored
+    hash is crack material. Sixteen hex chars is collision room to spare for
+    an equality check against one user's own history.
+    """
+    return hashlib.sha256(user.password.encode()).hexdigest()[:16]
+
+
+def issue_refresh_token(user: AbstractBaseUser) -> RefreshToken:
+    """Mint the session's refresh token: for_user plus the password fingerprint.
+
+    The one mint. The fingerprint makes a password change invalidate every
+    other session's tokens (checked in CookieJWTAuth.get_user and the refresh
+    endpoint) — chosen over installing token_blacklist because a blacklist
+    row per logout is state to manage, while the fingerprint is derived from
+    what the change already writes.
+    """
+    refresh = RefreshToken.for_user(user)
+    refresh[PASSWORD_FINGERPRINT_CLAIM] = password_fingerprint(user)
+    return refresh
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,6 +185,22 @@ class CookieJWTAuth(JWTBaseAuthentication, APIKeyCookie):
         self.param_name = jwt_cookie_config().access_name
         super().__init__()
         self.csrf = False  # SameSite cookie contract; see class docstring.
+
+    def get_user(self, validated_token: Token) -> AbstractBaseUser:
+        """Resolve the token's user, then require its password fingerprint current.
+
+        A token minted before the last password change authenticates a
+        credential we no longer trust — the change/reset endpoints exist to
+        evict exactly that holder. Every valid token carries the claim
+        (issue_refresh_token is the one mint), so one without it is refused
+        by the same comparison, never grandfathered (ADR 0017).
+        """
+        user = super().get_user(validated_token)
+        claimed = validated_token.get(PASSWORD_FINGERPRINT_CLAIM)
+        if claimed != password_fingerprint(user):
+            logger.info("JWT AUTH REJECTED - stale password fingerprint pk=%s", user.pk)
+            raise AuthenticationFailed("Token predates the last password change.")
+        return user
 
     def authenticate(self, request: HttpRequest, key: str | None) -> AbstractBaseUser | None:
         """Validate the access-token cookie and return its active user, else None."""

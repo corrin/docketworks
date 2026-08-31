@@ -1,22 +1,9 @@
 import type { AxiosInstance } from 'axios'
-import { isAxiosError } from 'axios'
 
-function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
-  return typeof value === 'object' && value !== null
-}
+import { isPasswordChangeRequiredError } from './error-message'
 
-/** The auth layer's typed refusal while password_needs_reset is set. */
-function isPasswordChangeRequired(error: unknown): boolean {
-  return (
-    isAxiosError(error) &&
-    error.response?.status === 403 &&
-    isRecord(error.response.data) &&
-    error.response.data.code === 'password_change_required'
-  )
-}
-
-/** Hard navigation, not router state: the typed 403 can surface from any
- * stale tab or background query, contexts with no router in scope. */
+/** Fable: hard navigation, not router state — the typed 403 can surface from
+ * any stale tab or background query, contexts with no router in scope. */
 export function hardNavigateToChangePassword(): void {
   if (window.location.pathname !== '/change-password') {
     window.location.assign('/change-password')
@@ -35,7 +22,7 @@ export function installPasswordGate(
   navigate: () => void = hardNavigateToChangePassword,
 ): void {
   instance.interceptors.response.use(undefined, (error: unknown) => {
-    if (isPasswordChangeRequired(error)) {
+    if (isPasswordChangeRequiredError(error)) {
       navigate()
     }
     throw error

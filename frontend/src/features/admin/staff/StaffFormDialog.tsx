@@ -83,7 +83,7 @@ interface Drafts {
   flags: Record<FlagKey, boolean>
 }
 
-function snapshot(staff: StaffListItemOut | null): Drafts {
+export function snapshot(staff: StaffListItemOut | null): Drafts {
   return {
     first_name: staff?.first_name ?? '',
     last_name: staff?.last_name ?? '',
@@ -150,7 +150,7 @@ function buildCreateBody(drafts: Drafts): StaffCreateIn {
 
 /** Dirty fields only — exclude_unset is the wire contract, so an untouched
  * field must not appear at all. */
-function buildPatch(drafts: Drafts, staff: StaffListItemOut): StaffUpdateIn {
+export function buildPatch(drafts: Drafts, staff: StaffListItemOut): StaffUpdateIn {
   const patch: StaffUpdateIn = {}
   if (drafts.first_name.trim() !== staff.first_name) patch.first_name = drafts.first_name.trim()
   if (drafts.last_name.trim() !== staff.last_name) patch.last_name = drafts.last_name.trim()
@@ -166,7 +166,14 @@ function buildPatch(drafts: Drafts, staff: StaffListItemOut): StaffUpdateIn {
   if (textOrNull(drafts.xero_user_id) !== staff.xero_user_id) {
     patch.xero_user_id = textOrNull(drafts.xero_user_id)
   }
-  if (drafts.password !== '') patch.password = drafts.password
+  if (drafts.password !== '') {
+    patch.password = drafts.password
+    // Fable: sent explicitly, never dirty-diffed — the server clears the
+    // flag on every password set, so an already-flagged account whose box
+    // is still checked would otherwise send only the password and silently
+    // un-flag itself with an admin-known temp password.
+    patch.password_needs_reset = drafts.flags.password_needs_reset
+  }
   if (Number(drafts.base_wage_rate) !== staff.base_wage_rate) {
     patch.base_wage_rate = Number(drafts.base_wage_rate)
   }

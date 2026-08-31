@@ -14818,7 +14818,10 @@ paths:
     post:
       description: "Email a reset link to the address, if an active account holds it.\n\nFixed 200 either\
         \ way: the anonymous contract must not reveal which\naddresses have accounts (ADR 0038's public\
-        \ contract). A failed Gmail send\nraises \u2014 masked to a public 500, persisted as an AppError."
+        \ contract). The send is\nQUEUED, not made in-request \u2014 a synchronous Gmail round trip runs\
+        \ only\nfor addresses with accounts, which makes response latency (and a Gmail\noutage's 500)\
+        \ an account-existence oracle; the enqueue costs the same\neither way. The match mirrors the login\
+        \ backend: either email field,\nexactly one row, so anyone who can sign in can reset."
       operationId: accounts_password_reset_create
       parameters: []
       requestBody:

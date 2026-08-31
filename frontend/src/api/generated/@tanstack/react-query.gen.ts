@@ -396,8 +396,12 @@ export const accountsMePasswordCreateMutation = (options?: Partial<Options<Accou
  * Email a reset link to the address, if an active account holds it.
  *
  * Fixed 200 either way: the anonymous contract must not reveal which
- * addresses have accounts (ADR 0038's public contract). A failed Gmail send
- * raises — masked to a public 500, persisted as an AppError.
+ * addresses have accounts (ADR 0038's public contract). The send is
+ * QUEUED, not made in-request — a synchronous Gmail round trip runs only
+ * for addresses with accounts, which makes response latency (and a Gmail
+ * outage's 500) an account-existence oracle; the enqueue costs the same
+ * either way. The match mirrors the login backend: either email field,
+ * exactly one row, so anyone who can sign in can reset.
  */
 export const accountsPasswordResetCreateMutation = (options?: Partial<Options<AccountsPasswordResetCreateData>>): UseMutationOptions<AccountsPasswordResetCreateResponse, AxiosError<DefaultError>, Options<AccountsPasswordResetCreateData>> => {
     const mutationOptions: UseMutationOptions<AccountsPasswordResetCreateResponse, AxiosError<DefaultError>, Options<AccountsPasswordResetCreateData>> = {

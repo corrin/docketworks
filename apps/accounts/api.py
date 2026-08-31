@@ -28,6 +28,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils.encoding import force_bytes, force_str
@@ -62,15 +63,18 @@ from apps.accounts.schemas import (
     UserProfile,
 )
 from apps.accounts.staff_directory import get_displayable_staff, list_all_staff
+from apps.accounts.tasks import send_password_reset_email_task
 from apps.core.auth import (
+    PASSWORD_FINGERPRINT_CLAIM,
     CookieJWTAuth,
     SuperuserCookieJWTAuth,
     clear_auth_cookies,
+    issue_refresh_token,
     jwt_cookie_config,
+    password_fingerprint,
     set_access_cookie,
     set_refresh_cookie,
 )
-from apps.core.gmail import send_company_email
 from apps.core.schemas import AuthErrorOut, auth_error
 from apps.core.uploads import delete_stored_image, validate_image_upload
 
@@ -105,7 +109,7 @@ def login(
         # trap them in a silent login/redirect loop.
         logger.warning("JWT LOGIN REJECTED - inactive user pk=%s", user.pk)
         return Status(401, auth_error("invalid_credentials"))
-    refresh = RefreshToken.for_user(user)
+    refresh = issue_refresh_token(user)
     set_access_cookie(response, str(refresh.access_token))
     set_refresh_cookie(response, str(refresh))
     logger.info("JWT LOGIN SUCCESS - username=%s", payload.username)
@@ -166,6 +170,16 @@ def token_refresh(
         logger.info("JWT REFRESH FAILURE - inactive user pk=%s", user.pk)
         clear_auth_cookies(response)
         return Status(401, auth_error("authentication_required"))
+    # A claimless token fails the same comparison — never grandfathered
+    # (ADR 0017).
+    claimed_fingerprint = refresh.get(PASSWORD_FINGERPRINT_CLAIM)
+    if claimed_fingerprint != password_fingerprint(user):
+        # A refresh token minted before the last password change must not
+        # keep minting access tokens — it is exactly the credential a
+        # change/reset exists to evict.
+        logger.info("JWT REFRESH FAILURE - stale password fingerprint pk=%s", user.pk)
+        clear_auth_cookies(response)
+        return Status(401, auth_error("authentication_required"))
     set_access_cookie(response, str(refresh.access_token))
     return Status(200, TokenRefreshResponse())
 
@@ -219,7 +233,7 @@ def me(request: HttpRequest) -> Staff:
     summary="Change the authenticated user's own password",
 )
 def accounts_me_password_create(
-    request: HttpRequest, payload: PasswordChangeRequest
+    request: HttpRequest, response: HttpResponse, payload: PasswordChangeRequest
 ) -> PasswordChangeResponse:
     """Verify the current password, then validate and set the new one.
 
@@ -239,11 +253,34 @@ def accounts_me_password_create(
     # update_fields skips Staff.save()'s wage recompute (nothing wage-related
     # changes) and must name updated_at, which save() assigns manually.
     user.save(update_fields=["password", "password_needs_reset", "updated_at"])
+    # Every issued token carries the password fingerprint, so this change
+    # just killed the caller's own cookies too; re-minting here keeps the
+    # changer signed in while every other session's tokens die.
+    refresh = issue_refresh_token(user)
+    set_access_cookie(response, str(refresh.access_token))
+    set_refresh_cookie(response, str(refresh))
     logger.info("PASSWORD CHANGED - pk=%s", user.pk)
     return PasswordChangeResponse()
 
 
 INVALID_RESET_LINK_DETAIL = "This reset link is invalid or has expired."
+
+
+def _stored_email_matching(staff: Staff, normalized: str) -> str:
+    """Return the stored email column the submitted address matched.
+
+    The stored value, not the submitted string: the emailed copy should carry
+    the canonical casing the row holds, and matching it here means a payroll
+    address gets its reset at the payroll mailbox.
+    """
+    lowered = normalized.lower()
+    if staff.office_email is not None and staff.office_email.lower() == lowered:
+        return staff.office_email
+    if staff.payroll_email is not None and staff.payroll_email.lower() == lowered:
+        return staff.payroll_email
+    raise ValueError(
+        "The matched staff row holds neither submitted email; filter and resolution disagree."
+    )
 
 
 @router.post(
@@ -259,29 +296,31 @@ def accounts_password_reset_create(
     """Email a reset link to the address, if an active account holds it.
 
     Fixed 200 either way: the anonymous contract must not reveal which
-    addresses have accounts (ADR 0038's public contract). A failed Gmail send
-    raises — masked to a public 500, persisted as an AppError.
+    addresses have accounts (ADR 0038's public contract). The send is
+    QUEUED, not made in-request — a synchronous Gmail round trip runs only
+    for addresses with accounts, which makes response latency (and a Gmail
+    outage's 500) an account-existence oracle; the enqueue costs the same
+    either way. The match mirrors the login backend: either email field,
+    exactly one row, so anyone who can sign in can reset.
     """
-    staff = Staff.objects.filter(office_email__iexact=payload.email.strip()).first()
-    if staff is None or staff.office_email is None or not staff.is_currently_active:
-        logger.info("PASSWORD RESET REQUESTED - no active account for the submitted email")
+    normalized = Staff.objects.normalize_email(payload.email).strip()
+    matches = list(
+        Staff.objects.filter(
+            Q(office_email__iexact=normalized) | Q(payroll_email__iexact=normalized)
+        )[:2]
+    )
+    if len(matches) != 1 or not matches[0].is_currently_active:
+        logger.info("PASSWORD RESET REQUESTED - no single active account for the submitted email")
         return PasswordResetResponse()
+    staff = matches[0]
+    recipient = _stored_email_matching(staff, normalized)
     uid = urlsafe_base64_encode(force_bytes(staff.pk))
     token = default_token_generator.make_token(staff)
-    # Single origin serves SPA and API, so the request's own host is the
-    # right base — no frontend-URL setting to drift per instance.
+    # Fable: single origin serves SPA and API, so the request's own host is
+    # the right base — a frontend-URL setting would drift per instance.
     link = request.build_absolute_uri(f"/reset-password?uid={uid}&token={token}")
-    send_company_email(
-        to=staff.office_email,
-        subject="Reset your DocketWorks password",
-        body=(
-            f"Someone asked to reset the DocketWorks password for {staff.office_email}.\n\n"
-            f"Use this link to choose a new password:\n\n{link}\n\n"
-            "If you did not ask for this, you can ignore this email — your "
-            "password is unchanged."
-        ),
-    )
-    logger.info("PASSWORD RESET EMAIL SENT - pk=%s", staff.pk)
+    send_password_reset_email_task.delay(recipient=recipient, link=link)
+    logger.info("PASSWORD RESET EMAIL QUEUED - pk=%s", staff.pk)
     return PasswordResetResponse()
 
 
@@ -374,7 +413,7 @@ def _apply_staff_fields(staff: Staff, supplied: dict[str, object]) -> Staff:
 def _set_staff_password(staff: Staff, password: str) -> None:
     """Validate and hash a new password onto the unsaved staff row.
 
-    The one set-password surface: validate_password runs
+    Fable: the one set-password surface: validate_password runs
     AUTH_PASSWORD_VALIDATORS, and a fresh password clears
     password_needs_reset — nothing else ever clears the flag the
     flag_weak_passwords sweep and the scrubber set.
@@ -419,8 +458,8 @@ def accounts_staff_create(request: HttpRequest, payload: StaffCreateIn) -> Statu
     staff = Staff(**supplied)
     _set_staff_password(staff, payload.password)
     if payload.password_needs_reset:
-        # An admin may issue a known temporary password and force its change;
-        # the explicit flag outlives _set_staff_password's clear.
+        # Fable: an admin may issue a known temporary password and force its
+        # change; the explicit flag outlives _set_staff_password's clear.
         staff.password_needs_reset = True
     with transaction.atomic():
         _apply_staff_fields(staff, {})

@@ -46,7 +46,7 @@ done only when that spec is green.
 | E2E specs ported | **48 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
 | Backend operations still to port | **58** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 240 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2799 (all passing) |
+| Unit tests | 2803 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 122 recorded deviations |
@@ -317,12 +317,12 @@ First work on v2, in this order:
   (owner: deferred features keep their data) — a bounded set whose PROTECT
   user FKs keep the referenced staff rows undeletable until this slice
   returns with the purge schedule and storage decision.
-- **Email delivery** — general SMTP backend/configuration and system
-  notifications are deferred, not retired (password-reset delivery shipped
-  2026-08-31 via the delegated Gmail sender in `apps/core/gmail.py`). The
-  slice adds typed SMTP columns to `IntegrationSettings` (ADR 0053) or
-  extends the Gmail sender, and authors its own spec; the current PO
-  `mailto:` composer is a separate capability and remains unchanged.
+- **Email delivery** — general outbound email and system notifications are
+  deferred, not retired (password-reset delivery shipped 2026-08-31). The
+  slice will most likely extend the delegated Gmail sender in
+  `apps/core/gmail.py` rather than add SMTP configuration (owner ruling
+  2026-08-31), and authors its own spec; the current PO `mailto:` composer
+  is a separate capability and remains unchanged.
 - **AI product work** — quote chat, safety AI, quote-to-PO, AI-provider
   administration and NotebookLM CRUD are deferred, not retired. Provider
   credential loading and the shared gateway already exist because every slice

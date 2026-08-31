@@ -109,3 +109,30 @@ class TestPasswordChange:
 
     def test_anonymous_is_401(self) -> None:
         assert change(Client(), PASSWORD, NEW_PASSWORD).status_code == 401
+
+    def test_a_change_evicts_every_other_session(self, staff: Staff) -> None:
+        """Tokens carry a password fingerprint: the attacker who knew the old
+        password and holds cookies is who the change exists to lock out."""
+        changer = logged_in_client(staff)
+        other_session = logged_in_client(staff)
+        assert other_session.get("/api/accounts/me/").status_code == 200
+
+        assert change(changer, PASSWORD, NEW_PASSWORD).status_code == 200
+
+        assert other_session.get("/api/accounts/me/").status_code == 401
+        # The stale refresh token must not mint its way back in either.
+        assert (
+            other_session.post(
+                "/api/accounts/token/refresh/", data={}, content_type="application/json"
+            ).status_code
+            == 401
+        )
+
+    def test_the_changer_stays_signed_in(self, staff: Staff) -> None:
+        """The change response re-mints the caller's own cookies — without
+        that, changing your password would log you out mid-session."""
+        client = logged_in_client(staff)
+
+        assert change(client, PASSWORD, NEW_PASSWORD).status_code == 200
+
+        assert client.get("/api/accounts/me/").status_code == 200

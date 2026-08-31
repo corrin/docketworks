@@ -1263,6 +1263,8 @@
   reason: >
     v1 had no forgot-password flow at all. The endpoint is anonymous and
     sends real email, so the abuse ceiling is unsolicited reset emails to
-    known staff addresses (it never reveals which addresses exist — the
-    response is a fixed 200 either way). Accepted for the first slice as a
-    handful of staff per instance; revisit with a limiter if abuse appears.
+    known staff addresses and burned Gmail quota. The response body is a
+    fixed 200 either way and the send is queued, so neither body nor send
+    latency reveals which addresses exist; the residual oracle is the
+    difference between one indexed query and query-plus-enqueue, accepted.
+    Revisit with a limiter if abuse appears.
