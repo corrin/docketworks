@@ -36,10 +36,21 @@ SCRUB_DB_NAME=__SCRUB_DB_NAME__
 TEST_DB_USER=__TEST_DB_USER__
 TEST_DB_PASSWORD=__TEST_DB_PASSWORD__
 
-# Optional — only the scripts/gdocs/ authoring toolchain reads these (never
-# the app). Left empty on instances; the toolchain is run from a developer
-# checkout, and each script fails early when the key path is unset.
-GCP_CREDENTIALS=
+# Google service-account key. The app reads it (apps/core/gauth.py): the
+# password-reset email sends through Gmail and the health-and-safety import
+# writes to Drive, as well as the rclone backup upload and the scripts/gdocs/
+# authoring toolchain.
+#
+# Opus: the instance's own copy, NOT the path the operator wrote in the
+# credentials file — that one is a download on the admin's machine which
+# client_onboarding.md tells them to delete once instance.sh has copied it.
+# Not blank either: gauth fails loud on an unset key, so a blank value here
+# takes out Gmail and the Drive import on an instance that holds the key.
+#
+# GCP_DELEGATED_SUBJECT overrides the Workspace user domain-wide delegation
+# impersonates. Left empty on instances: gauth falls back to
+# CompanyDefaults.company_email, which on a real instance IS that user.
+GCP_CREDENTIALS=__GCP_CREDENTIALS__
 GCP_DELEGATED_SUBJECT=
 
 # Redis. The database number is allocated per instance by instance.sh —
