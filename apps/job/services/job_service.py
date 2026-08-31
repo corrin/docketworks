@@ -2510,13 +2510,14 @@ def copy_estimate_to_quote(
             "job_id": str(job.id),
         }
 
-    # Fable: blank is judged per line, never total == 0 — offsetting
-    # adjustments (+$500/-$500) sum to zero but are entered work that must
-    # go through the archive path, not be silently destroyed.
-    is_blank = all(
-        line.unit_cost == Decimal("0.00") and line.unit_rev == Decimal("0.00")
-        for line in quote_lines
-    )
+    # Fable: blank is judged per LINE TOTAL — not per unit price, and not the
+    # set's total. The creation seed's time lines carry real wage/charge-out
+    # rates at quantity 0 (nonzero unit prices, $0 line), so a unit-price test
+    # called the untouched seed "priced" (caught by the E2E gate, 2026-08-31);
+    # a set-total test fails the other way — offsetting adjustments
+    # (+$500/-$500) sum to zero but are entered work that must go through the
+    # archive path, not be silently destroyed.
+    is_blank = all(line.total_cost == 0 and line.total_rev == 0 for line in quote_lines)
     if not is_blank and not archive_existing:
         raise QuoteNotBlankError(
             "The quote already has priced cost lines. "

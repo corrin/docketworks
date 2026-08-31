@@ -564,10 +564,16 @@ class TestCopyEstimateToQuote:
         )
 
     def _seed_blank_quote(self, job: Job) -> None:
-        """Recreate the $0 creation seed: lines exist but carry no money."""
+        """Recreate the $0 creation seed faithfully.
+
+        The seeded time lines carry the real wage and charge-out rates with
+        quantity 0 — nonzero unit prices, zero totals — which is exactly the
+        shape that exposed a per-unit-price blank test as wrong (E2E run
+        2026-08-31).
+        """
         quote = job.cost_sets.get(kind="quote")
         _make_line(quote, kind="material", quantity="1.000", unit_cost="0.00", unit_rev="0.00")
-        _make_line(quote, kind="time", quantity="0.000", unit_cost="0.00", unit_rev="0.00")
+        _make_line(quote, kind="time", quantity="0.000", unit_cost="48.00", unit_rev="105.00")
 
     def _real_estimate(self, job: Job) -> None:
         estimate = job.cost_sets.get(kind="estimate")
