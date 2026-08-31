@@ -207,6 +207,13 @@ First work on v2, in this order:
 - **Make `backend` and `frontend` required status checks** in GitHub branch
   protection — PR #105 auto-merged while the backend suite was still
   running.
+- **Alert on a paused Maestral, not a dead one.** 22–23 Aug: a transient
+  Dropbox API error paused sync for 26 hours while the process stayed
+  alive, so `systemctl` reported active and `Restart=always` never fired.
+  Any alert must parse `maestral status` output (paused/sync errors), not
+  process liveness. `verify-instance.sh` now gates JobFile bytes on disk,
+  which catches a long outage's *effect* at verify time only — a periodic
+  host-side check is still unbuilt.
 - **MariaDB archaeology on the prod host**: localhost-only MariaDB holds
   `jobs_manager` (the pre-DocketWorks ancestor) and a legacy mysql-era
   `dw_msm_prod`. Identify any consumer, archive, remove the service.
