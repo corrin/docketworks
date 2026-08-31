@@ -1,7 +1,8 @@
 """Print a Google Doc's text (exported as Markdown) via the service account.
 
 Read companion to explore_google_drive.py — that lists the Drive tree, this
-reads a document's content. Same delegated auth (scripts/gdocs/gauth.py).
+reads a document's content. Same delegated auth (credentials from
+apps/core/gauth.py via scripts/gdocs/gauth.py).
 
 Usage:
     GCP_CREDENTIALS=<key.json> uv run python -m scripts.gdocs.read_google_doc <doc_id>

@@ -22,8 +22,11 @@ export {
 // Auth (accounts endpoints)
 export {
   accountsLogoutCreateMutation,
+  accountsMePasswordCreateMutation,
   accountsMeRetrieveOptions,
   accountsMeRetrieveQueryKey,
+  accountsPasswordResetConfirmCreateMutation,
+  accountsPasswordResetCreateMutation,
   accountsTokenCreateMutation,
   accountsTokenRefreshCreateMutation,
 } from './generated/@tanstack/react-query.gen'

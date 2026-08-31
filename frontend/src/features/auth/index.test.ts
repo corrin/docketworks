@@ -15,6 +15,7 @@ const USER: UserProfile = {
   fullName: 'Staff Member',
   is_office_staff: true,
   is_superuser: false,
+  password_needs_reset: false,
 }
 
 function failure(status: number): Error {

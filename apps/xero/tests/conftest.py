@@ -9,10 +9,9 @@ from unittest.mock import patch
 import pytest
 from django.test import Client
 from django.utils import timezone as dj_timezone
-from ninja_jwt.tokens import RefreshToken
 
 from apps.accounts.models import Staff
-from apps.core.auth import jwt_cookie_config
+from apps.core.auth import issue_refresh_token, jwt_cookie_config
 from apps.xero.models import XeroApp
 
 TEST_TENANT_ID = "test-tenant-id"
@@ -108,6 +107,6 @@ def non_office_api() -> Client:
         is_office_staff=False,
     )
     client = Client()
-    refresh = RefreshToken.for_user(staff)
+    refresh = issue_refresh_token(staff)
     client.cookies[jwt_cookie_config().access_name] = str(refresh.access_token)
     return client

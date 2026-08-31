@@ -11,11 +11,12 @@ cookie contract; the accounts login/refresh/logout endpoints use them so the
 auth class and the endpoints can never disagree on names or flags.
 """
 
+import hashlib
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Literal, Protocol, cast, runtime_checkable
+from typing import Final, Literal, Protocol, cast, runtime_checkable
 
 from django.conf import settings
 from django.contrib.auth.base_user import AbstractBaseUser
@@ -25,6 +26,7 @@ from ninja.errors import AuthorizationError as NinjaAuthorizationError
 from ninja.security import APIKeyCookie, APIKeyHeader
 from ninja_jwt.authentication import JWTBaseAuthentication
 from ninja_jwt.exceptions import AuthenticationFailed, InvalidToken, TokenError
+from ninja_jwt.tokens import RefreshToken, Token
 
 from apps.core.models import ServiceAPIKey
 
@@ -32,6 +34,65 @@ logger = logging.getLogger(__name__)
 
 
 SameSite = Literal["Lax", "Strict", "None"]
+
+
+class PasswordChangeRequiredError(Exception):
+    """Authenticated, but the account's password must be changed first.
+
+    Its own type, not NinjaAuthorizationError: the envelope must emit a stable
+    machine code with error_id null and persist no AppError (an expected
+    security outcome, ADR 0013/0038), where AuthorizationError persists.
+    """
+
+
+# ADR 0002's shape, one layer up: while password_needs_reset is set these are
+# the ONLY reachable authenticated paths, so "what can a flagged session do?"
+# is answered by reading this list. Literal paths, same reasoning as
+# AUTH_ANON_ALLOWLIST. /me/ stays reachable so the SPA can resolve the session
+# and read the flag; /me/password/ is the exit.
+PASSWORD_CHANGE_ALLOWED_PATHS: Final[frozenset[str]] = frozenset(
+    {
+        "/api/accounts/me/",
+        "/api/accounts/me/password/",
+    }
+)
+
+
+PASSWORD_FINGERPRINT_CLAIM: Final = "pwd_fp"  # noqa: S105 - a JWT claim NAME, not a secret
+
+
+def password_fingerprint(user: AbstractBaseUser) -> str:
+    """Fingerprint the stored password hash for binding into issued tokens.
+
+    Fable: a digest of the salted hash, not the hash itself — a JWT payload
+    is base64-readable by anyone holding the cookie value, and the stored
+    hash is crack material. Sixteen hex chars is collision room to spare for
+    an equality check against one user's own history.
+    """
+    return hashlib.sha256(user.password.encode()).hexdigest()[:16]
+
+
+def token_fingerprint_is_current(token: Token, user: AbstractBaseUser) -> bool:
+    """Whether the token's password fingerprint matches the stored hash.
+
+    The one comparison (used at cookie authentication and at refresh): a
+    claimless token fails it the same way — never grandfathered (ADR 0017).
+    """
+    return bool(token.get(PASSWORD_FINGERPRINT_CLAIM) == password_fingerprint(user))
+
+
+def issue_refresh_token(user: AbstractBaseUser) -> RefreshToken:
+    """Mint the session's refresh token: for_user plus the password fingerprint.
+
+    The one mint. The fingerprint makes a password change invalidate every
+    other session's tokens (checked in CookieJWTAuth.get_user and the refresh
+    endpoint) — chosen over installing token_blacklist because a blacklist
+    row per logout is state to manage, while the fingerprint is derived from
+    what the change already writes.
+    """
+    refresh = RefreshToken.for_user(user)
+    refresh[PASSWORD_FINGERPRINT_CLAIM] = password_fingerprint(user)
+    return refresh
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,6 +195,19 @@ class CookieJWTAuth(JWTBaseAuthentication, APIKeyCookie):
         super().__init__()
         self.csrf = False  # SameSite cookie contract; see class docstring.
 
+    def get_user(self, validated_token: Token) -> AbstractBaseUser:
+        """Resolve the token's user, then require its password fingerprint current.
+
+        A token minted before the last password change authenticates a
+        credential we no longer trust — the change/reset endpoints exist to
+        evict exactly that holder.
+        """
+        user = super().get_user(validated_token)
+        if not token_fingerprint_is_current(validated_token, user):
+            logger.info("JWT AUTH REJECTED - stale password fingerprint pk=%s", user.pk)
+            raise AuthenticationFailed("Token predates the last password change.")
+        return user
+
     def authenticate(self, request: HttpRequest, key: str | None) -> AbstractBaseUser | None:
         """Validate the access-token cookie and return its active user, else None."""
         if not key:
@@ -160,8 +234,18 @@ class CookieJWTAuth(JWTBaseAuthentication, APIKeyCookie):
         if not _user_is_currently_active(user):
             logger.info("JWT AUTH REJECTED - inactive user pk=%s path=%s", user.pk, request.path)
             raise NinjaAuthenticationError(message="User is inactive.")
-        if getattr(user, "password_needs_reset", False):
-            logger.warning("User pk=%s authenticated via JWT but needs to reset password.", user.pk)
+        if getattr(user, "password_needs_reset", False) and (
+            request.path not in PASSWORD_CHANGE_ALLOWED_PATHS
+        ):
+            # Fable: refused at the auth layer, not by a frontend redirect —
+            # a redirect the API does not back leaves every endpoint serving
+            # a session whose credential we have decided not to trust.
+            logger.info(
+                "JWT AUTH REFUSED - password change required pk=%s path=%s",
+                user.pk,
+                request.path,
+            )
+            raise PasswordChangeRequiredError
         return user
 
 

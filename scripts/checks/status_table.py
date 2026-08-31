@@ -21,7 +21,7 @@ them.
 The port-progress rows derive from `scripts/v1-frontend-operations.yml` against
 the live `frontend/schema.v2.yml`. v1 is frozen, so storing its totals is what
 lets these be measured in CI at all — CI checks out this repo and nothing else,
-so `../docketworks` is not there. Porting an operation lowers the count with no
+so `../docketworks_v1` is not there. Porting an operation lowers the count with no
 edit to any file.
 
 The doc quotes these numbers in prose as well as in the table. The table is the

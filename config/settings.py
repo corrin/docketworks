@@ -93,6 +93,30 @@ INSTALLED_APPS = [
 AUTH_USER_MODEL = "accounts.Staff"
 AUTHENTICATION_BACKENDS = ["apps.accounts.authentication.StaffEmailBackend"]
 
+# Enforced wherever validate_password runs: the staff-admin write paths and the
+# self-service change endpoint, all through _set_staff_password.
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        # Fable: attributes named explicitly — the validator's defaults are
+        # username/first_name/last_name/email, and Staff has no username or
+        # email attribute, so the defaults would silently compare against
+        # nothing for the address a person is most likely to reuse.
+        "OPTIONS": {
+            "user_attributes": [
+                "office_email",
+                "payroll_email",
+                "first_name",
+                "last_name",
+                "preferred_name",
+            ]
+        },
+    },
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
 SITE_ID = 1
 
 # JWT signatures have their own deployment-managed key. Coupling them to

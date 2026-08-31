@@ -6,6 +6,9 @@ Paths and operationIds are the stable contract:
 - POST /api/accounts/token/refresh/  accounts_token_refresh_create
 - POST /api/accounts/logout/         accounts_logout_create
 - GET  /api/accounts/me/             accounts_me_retrieve
+- POST /api/accounts/me/password/    accounts_me_password_create    (authenticated)
+- POST /api/accounts/password-reset/          accounts_password_reset_create         (anonymous)
+- POST /api/accounts/password-reset/confirm/  accounts_password_reset_confirm_create (anonymous)
 - GET  /api/accounts/staff/          accounts_staff_list            (superuser)
 - POST /api/accounts/staff/          accounts_staff_create          (superuser)
 - PATCH /api/accounts/staff/{staff_id}/    accounts_staff_partial_update  (superuser)
@@ -19,13 +22,17 @@ Integration wiring (config/api.py): ``api.add_router("/accounts/", router)``.
 import logging
 from uuid import UUID
 
+from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import Group
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from ninja import File, Query, Router
 from ninja.errors import AuthenticationError, HttpError
 from ninja.files import UploadedFile
@@ -41,6 +48,13 @@ from apps.accounts.schemas import (
     LoginRequest,
     LoginResponse,
     LogoutResponse,
+    PasswordChangeRequest,
+    PasswordChangeResponse,
+    PasswordErrorOut,
+    PasswordResetConfirmRequest,
+    PasswordResetConfirmResponse,
+    PasswordResetRequest,
+    PasswordResetResponse,
     StaffCreateIn,
     StaffListItemOut,
     StaffUpdateIn,
@@ -49,13 +63,16 @@ from apps.accounts.schemas import (
     UserProfile,
 )
 from apps.accounts.staff_directory import get_displayable_staff, list_all_staff
+from apps.accounts.tasks import send_password_reset_email_task
 from apps.core.auth import (
     CookieJWTAuth,
     SuperuserCookieJWTAuth,
     clear_auth_cookies,
+    issue_refresh_token,
     jwt_cookie_config,
     set_access_cookie,
     set_refresh_cookie,
+    token_fingerprint_is_current,
 )
 from apps.core.schemas import AuthErrorOut, auth_error
 from apps.core.uploads import delete_stored_image, validate_image_upload
@@ -91,7 +108,7 @@ def login(
         # trap them in a silent login/redirect loop.
         logger.warning("JWT LOGIN REJECTED - inactive user pk=%s", user.pk)
         return Status(401, auth_error("invalid_credentials"))
-    refresh = RefreshToken.for_user(user)
+    refresh = issue_refresh_token(user)
     set_access_cookie(response, str(refresh.access_token))
     set_refresh_cookie(response, str(refresh))
     logger.info("JWT LOGIN SUCCESS - username=%s", payload.username)
@@ -152,6 +169,15 @@ def token_refresh(
         logger.info("JWT REFRESH FAILURE - inactive user pk=%s", user.pk)
         clear_auth_cookies(response)
         return Status(401, auth_error("authentication_required"))
+    if not token_fingerprint_is_current(refresh, user):
+        # A refresh token minted before the last password change must not
+        # keep minting access tokens — it is exactly the credential a
+        # change/reset exists to evict. Deliberately NO cookie clear here:
+        # a request racing a successful self-service change can land this
+        # 401 AFTER the change response set fresh cookies, and a clear
+        # would delete the session the changer was just re-minted.
+        logger.info("JWT REFRESH FAILURE - stale password fingerprint pk=%s", user.pk)
+        return Status(401, auth_error("authentication_required"))
     set_access_cookie(response, str(refresh.access_token))
     return Status(200, TokenRefreshResponse())
 
@@ -195,6 +221,159 @@ def me(request: HttpRequest) -> Staff:
     if not isinstance(user, Staff):  # pragma: no cover - CookieJWTAuth guarantees Staff
         raise AuthenticationError
     return user
+
+
+@router.post(
+    "/me/password/",
+    auth=CookieJWTAuth(),
+    operation_id="accounts_me_password_create",
+    response={200: PasswordChangeResponse, 400: PasswordErrorOut, 401: AuthErrorOut},
+    summary="Change the authenticated user's own password",
+)
+def accounts_me_password_create(
+    request: HttpRequest, response: HttpResponse, payload: PasswordChangeRequest
+) -> Status[PasswordChangeResponse | PasswordErrorOut]:
+    """Verify the current password, then validate and set the new one.
+
+    The one self-service credential write. _set_staff_password also clears
+    password_needs_reset, which is what releases a flagged session from the
+    auth-layer password gate (apps/core/auth.py). Refusals are declared 400
+    bodies, not HttpErrors — the wire contract carries their shape, and an
+    expected refusal writes no AppError row.
+    """
+    user = request.user
+    if not isinstance(user, Staff):  # pragma: no cover - CookieJWTAuth guarantees Staff
+        raise AuthenticationError
+    if not user.check_password(payload.current_password):
+        # ADR 0038: transparent after authentication — a wrong current
+        # password here is the caller's error to fix, not an authentication
+        # event, so it is a 400 with the real reason rather than a 401.
+        return Status(400, PasswordErrorOut(detail="Current password is incorrect."))
+    if payload.new_password == payload.current_password:
+        # A forced change satisfied by re-entering the admin-issued temp
+        # password would leave the account on a credential someone else
+        # knows — the exact state the password_needs_reset gate exists to
+        # end.
+        return Status(
+            400, PasswordErrorOut(detail="The new password must be different from the current one.")
+        )
+    try:
+        _set_staff_password(user, payload.new_password)
+    # deliberate-swallow: the self-service change returns the validator's
+    # refusal as its declared 400 — an expected weak-password rejection must
+    # not write an AppError row the way a raised HttpError would.
+    except HttpError as exc:
+        return Status(400, PasswordErrorOut(detail=str(exc)))
+    # update_fields skips Staff.save()'s wage recompute (nothing wage-related
+    # changes) and must name updated_at, which save() assigns manually.
+    user.save(update_fields=["password", "password_needs_reset", "updated_at"])
+    # Every issued token carries the password fingerprint, so this change
+    # just killed the caller's own cookies too; re-minting here keeps the
+    # changer signed in while every other session's tokens die.
+    refresh = issue_refresh_token(user)
+    set_access_cookie(response, str(refresh.access_token))
+    set_refresh_cookie(response, str(refresh))
+    logger.info("PASSWORD CHANGED - pk=%s", user.pk)
+    return Status(200, PasswordChangeResponse())
+
+
+INVALID_RESET_LINK_DETAIL = "This reset link is invalid or has expired."
+
+
+def _stored_email_matching(staff: Staff, normalized: str) -> str:
+    """Return the stored email column the submitted address matched.
+
+    The stored value, not the submitted string: the emailed copy should carry
+    the canonical casing the row holds, and matching it here means a payroll
+    address gets its reset at the payroll mailbox.
+    """
+    lowered = normalized.lower()
+    if staff.office_email is not None and staff.office_email.lower() == lowered:
+        return staff.office_email
+    if staff.payroll_email is not None and staff.payroll_email.lower() == lowered:
+        return staff.payroll_email
+    raise ValueError(
+        "The matched staff row holds neither submitted email; filter and resolution disagree."
+    )
+
+
+@router.post(
+    "/password-reset/",
+    auth=None,
+    operation_id="accounts_password_reset_create",
+    response={200: PasswordResetResponse},
+    summary="Request a password-reset email",
+)
+def accounts_password_reset_create(
+    request: HttpRequest, payload: PasswordResetRequest
+) -> PasswordResetResponse:
+    """Email a reset link to the address, if an active account holds it.
+
+    Fixed 200 either way: the anonymous contract must not reveal which
+    addresses have accounts (ADR 0038's public contract). The send is
+    QUEUED, not made in-request — a synchronous Gmail round trip runs only
+    for addresses with accounts, which makes response latency (and a Gmail
+    outage's 500) an account-existence oracle; the enqueue costs the same
+    either way. The match is the login backend's own (sole_login_match), so
+    anyone who can sign in can reset.
+    """
+    staff = Staff.objects.sole_login_match(payload.email)
+    if staff is None or not staff.is_currently_active:
+        logger.info("PASSWORD RESET REQUESTED - no single active account for the submitted email")
+        return PasswordResetResponse()
+    recipient = _stored_email_matching(staff, Staff.objects.normalize_email(payload.email).strip())
+    uid = urlsafe_base64_encode(force_bytes(staff.pk))
+    token = default_token_generator.make_token(staff)
+    # Fable: host pinned to settings.APP_DOMAIN, NOT request.build_absolute_uri
+    # — ALLOWED_HOSTS also accepts localhost, and USE_X_FORWARDED_HOST means an
+    # anonymous caller could poison the victim's genuine reset email with a
+    # dead localhost link via X-Forwarded-Host.
+    scheme = "https" if request.is_secure() else "http"
+    link = f"{scheme}://{settings.APP_DOMAIN}/reset-password?uid={uid}&token={token}"
+    send_password_reset_email_task.delay(recipient=recipient, link=link)
+    logger.info("PASSWORD RESET EMAIL QUEUED - pk=%s", staff.pk)
+    return PasswordResetResponse()
+
+
+@router.post(
+    "/password-reset/confirm/",
+    auth=None,
+    operation_id="accounts_password_reset_confirm_create",
+    response={200: PasswordResetConfirmResponse, 400: PasswordErrorOut},
+    summary="Set a new password from a reset link",
+)
+def accounts_password_reset_confirm_create(
+    request: HttpRequest, payload: PasswordResetConfirmRequest
+) -> Status[PasswordResetConfirmResponse | PasswordErrorOut]:
+    """Exchange a valid uid/token pair for a new password.
+
+    The token hashes the current password (Django's generator), so a
+    successful reset burns the link. Refusals are declared 400 bodies, not
+    HttpErrors — see PasswordErrorOut.
+    """
+    try:
+        staff = Staff.objects.get(pk=force_str(urlsafe_base64_decode(payload.uid)))
+    # deliberate-swallow: a garbled uid must be indistinguishable from an
+    # unknown one — both are the fixed invalid-link refusal (ValueError also
+    # covers UnicodeDecodeError: valid base64 decoding to invalid UTF-8).
+    except (ValueError, DjangoValidationError, Staff.DoesNotExist):
+        logger.info("PASSWORD RESET CONFIRM REFUSED - undecodable or unknown uid")
+        return Status(400, PasswordErrorOut(detail=INVALID_RESET_LINK_DETAIL))
+    if not staff.is_currently_active or not default_token_generator.check_token(
+        staff, payload.token
+    ):
+        logger.info("PASSWORD RESET CONFIRM REFUSED - pk=%s", staff.pk)
+        return Status(400, PasswordErrorOut(detail=INVALID_RESET_LINK_DETAIL))
+    try:
+        _set_staff_password(staff, payload.new_password)
+    # deliberate-swallow: the ANONYMOUS confirm cannot raise — the envelope
+    # masks pre-auth HttpError text (ADR 0038), and the validator's reason is
+    # exactly what the reset-link holder must read.
+    except HttpError as exc:
+        return Status(400, PasswordErrorOut(detail=str(exc)))
+    staff.save(update_fields=["password", "password_needs_reset", "updated_at"])
+    logger.info("PASSWORD RESET COMPLETE - pk=%s", staff.pk)
+    return Status(200, PasswordResetConfirmResponse())
 
 
 @router.get(
@@ -247,12 +426,10 @@ def _apply_staff_fields(staff: Staff, supplied: dict[str, object]) -> Staff:
 def _set_staff_password(staff: Staff, password: str) -> None:
     """Validate and hash a new password onto the unsaved staff row.
 
-    Fable: validate_password runs AUTH_PASSWORD_VALIDATORS — none are
-    configured today, so this is a no-op that becomes enforcing the moment the
-    weak-password slice configures them, with no change here. A fresh password
-    also clears password_needs_reset: this is the codebase's one set-password
-    surface, and nothing else ever clears the flag the weak-password sweep and
-    the scrubber set.
+    Fable: the one set-password surface: validate_password runs
+    AUTH_PASSWORD_VALIDATORS, and a fresh password clears
+    password_needs_reset — nothing else ever clears the flag the
+    flag_weak_passwords sweep and the scrubber set.
     """
     try:
         validate_password(password, staff)
@@ -293,6 +470,10 @@ def accounts_staff_create(request: HttpRequest, payload: StaffCreateIn) -> Statu
     supplied.pop("is_staff_manager", None)
     staff = Staff(**supplied)
     _set_staff_password(staff, payload.password)
+    if payload.password_needs_reset:
+        # Fable: an admin may issue a known temporary password and force its
+        # change; the explicit flag outlives _set_staff_password's clear.
+        staff.password_needs_reset = True
     with transaction.atomic():
         _apply_staff_fields(staff, {})
         if payload.is_staff_manager:

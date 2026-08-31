@@ -30,6 +30,26 @@ class StaffManager(BaseUserManager["Staff"]):
     creation, and proper defaults for staff-specific fields.
     """
 
+    def sole_login_match(self, email: str) -> "Staff | None":
+        """Resolve the single staff row a login email identifies, else None.
+
+        The one definition of "which account does this address name": either
+        email column, case-insensitive, exactly one row — shared by the login
+        backend and the password-reset request so they can never disagree on
+        who an address belongs to. None is a real business state (unknown or
+        ambiguous address) with a real branch at both callers (ADR 0045).
+        """
+        normalized = self.normalize_email(email).strip()
+        matches = list(
+            self.filter(
+                models.Q(office_email__iexact=normalized)
+                | models.Q(payroll_email__iexact=normalized)
+            )[:2]
+        )
+        if len(matches) != 1:
+            return None
+        return matches[0]
+
     def create_user(
         self, office_email: str | None, password: str | None = None, **extra_fields: Any
     ) -> "Staff":

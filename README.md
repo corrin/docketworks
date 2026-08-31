@@ -4,7 +4,7 @@ Job/docket management for jobbing shops — businesses that do lots of small-to-
 clients (fabrication shops, trades, IT consultancies). Jobs on a Kanban board, quoting, time
 tracking, materials, invoicing and payroll reporting, with Xero handling the accounting around it.
 
-This is a full rewrite of [`../docketworks`](../docketworks) (v1) with no functional changes:
+This is a full rewrite of [`../docketworks_v1`](../docketworks_v1) (v1) with no functional changes:
 Django 6 + django-ninja backend, React/Vite frontend, PostgreSQL, Redis, Celery. See
 [`CLAUDE.md`](CLAUDE.md) for the architecture and the rules that govern changes, and
 [`docs/adr/`](docs/adr/README.md) for the decisions behind them.
