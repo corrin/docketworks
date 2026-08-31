@@ -79,12 +79,12 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 396 |
-| except handlers | 429 |
+| try statements | 397 |
+| except handlers | 430 |
 | re-raises or converts | 274 |
 | returns instead | 91 |
 | falls through | 51 |
-| continue/break in a loop | 12 |
+| continue/break in a loop | 13 |
 | pass (silent) | 1 |
 
 ## Shim-shaped functions

@@ -55,6 +55,7 @@ render() {
         -e "s|__SECRET_KEY__|sk|g" \
         -e "s|__JWT_SIGNING_KEY__|jwtk|g" \
         -e "s|__REDIS_DB__|3|g" \
+        -e "s|__DROPBOX_WORKFLOW_FOLDER__|/opt/docketworks/instances/test-uat/dropbox|g" \
         -e "s|__RCLONE_CONFIG__|/opt/docketworks/config/rclone/test-uat.conf|g" \
         "$template"
 }

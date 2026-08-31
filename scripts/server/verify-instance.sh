@@ -154,6 +154,15 @@ check --verbose "IntegrationSettings live connections" \
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" \
     python -m scripts.ops.restore_checks.check_integration_settings
 
+# Fable: every JobFile row's bytes must exist under DROPBOX_WORKFLOW_FOLDER.
+# Process liveness cannot catch the failure class this guards: a root
+# pointed one directory too high 404s every attachment while Dropbox
+# sync, systemd and disk all report healthy (2026-08-31 production
+# incident — the media probe above only proves MEDIA_ROOT).
+check --verbose "JobFile attachments resolve on disk" \
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" \
+    python -m scripts.ops.restore_checks.check_jobfiles
+
 # --- Host security posture ---
 check "UFW active" bash -c "ufw status | grep -q '^Status: active'"
 check "fail2ban jail sshd" fail2ban-client status sshd

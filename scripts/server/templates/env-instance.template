@@ -63,5 +63,14 @@ XERO_READONLY=False
 # the next deploy discards. The other two are reachable only through
 # authenticated endpoints.
 MEDIA_ROOT=/opt/docketworks/instances/__INSTANCE__/mediafiles
-DROPBOX_WORKFLOW_FOLDER=/opt/docketworks/instances/__INSTANCE__/dropbox
+# Fable: must be the directory that DIRECTLY contains the Job-<number>
+# folders. On a client whose workflow folder is Dropbox-synced, point this
+# at the synced workflow subfolder (e.g. .../Dropbox/MSM Workflow), never
+# the Dropbox root: one level too high 404s every attachment while new job
+# folders spawn at the Dropbox top level, with every daemon healthy
+# (2026-08-31 production incident). An operator edit here survives
+# reconfigure — render_instance_env reads the value back like the
+# generated credentials. Keep the quotes: dw-run.sh SOURCES this file, and
+# an unquoted path containing a space aborts the source mid-file.
+DROPBOX_WORKFLOW_FOLDER="__DROPBOX_WORKFLOW_FOLDER__"
 PHONE_RECORDING_STORAGE_ROOT=/opt/docketworks/instances/__INSTANCE__/phone-recordings
