@@ -1993,6 +1993,9 @@ export const jobJobsCostSetsActualCostLinesCreate = <ThrowOnError extends boolea
  * Replace the quote's cost lines with a copy of the estimate's
  *
  * Copy the estimate onto the quote; 409 unless a priced quote is archived first.
+ *
+ * QuoteNotBlankError is a ConflictError, so the core envelope answers its
+ * 409 — no local catch.
  */
 export const jobJobsCostSetsQuoteCopyFromEstimateCreate = <ThrowOnError extends boolean = false>(options: Options<JobJobsCostSetsQuoteCopyFromEstimateCreateData, ThrowOnError>): RequestResult<JobJobsCostSetsQuoteCopyFromEstimateCreateResponses, unknown, ThrowOnError> => (options.client ?? client).post<JobJobsCostSetsQuoteCopyFromEstimateCreateResponses, unknown, ThrowOnError>({
     responseType: 'json',

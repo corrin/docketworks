@@ -6,10 +6,12 @@ import { toast } from 'sonner'
 import {
   apiErrorMessage,
   getFullJobOptions,
+  isApiErrorStatus,
   jobJobsCostSetsQuoteCopyFromEstimateCreateMutation,
   jobJobsCostSetsQuoteReviseRetrieveQueryKey,
   jobJobsCostSetsRetrieveOptions,
   jobJobsCostSetsRetrieveQueryKey,
+  jobJobsQuoteRetrieveOptions,
 } from '@/api'
 import type { JobDetail } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -50,6 +52,11 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
   })
   const summary = costSetQuery.data?.summary
 
+  // Cache share with XeroQuoteCard, not a second fetch: the archive dialog
+  // must be able to warn that the exported quote will go stale.
+  const xeroQuoteQuery = useQuery(jobJobsQuoteRetrieveOptions({ path: { job_id: jobId } }))
+  const xeroQuote = xeroQuoteQuery.data?.quote ?? null
+
   const [showArchiveDialog, setShowArchiveDialog] = useState(false)
   const [showRevisionsDialog, setShowRevisionsDialog] = useState(false)
   const copyFromEstimate = useMutation(jobJobsCostSetsQuoteCopyFromEstimateCreateMutation())
@@ -74,11 +81,11 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
           void invalidateJobViews(queryClient, jobId)
         },
         onError: (error) => {
-          // 409 is the contract's "this quote holds real work" answer, not a
-          // failure: it opens the archive-and-replace decision instead of a
-          // toast. The server owns the blank-vs-priced call — the client
+          // Fable: 409 is the contract's "this quote holds real work" answer,
+          // not a failure: it opens the archive-and-replace decision instead
+          // of a toast. The server owns the blank-vs-priced call — the client
           // never re-derives it from loaded lines that may be stale.
-          if (error.response?.status === 409) {
+          if (isApiErrorStatus(error, 409)) {
             setShowArchiveDialog(true)
             return
           }
@@ -166,11 +173,27 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
           <DialogHeader>
             <DialogTitle>Replace this quote?</DialogTitle>
             <DialogDescription>
+              {/* Both totals: the server judges "priced" on cost OR revenue,
+                  so a cost-only or offsetting-adjustments quote would read
+                  "$0.00" on revenue alone and invite discarding real work. */}
               The quote already has priced cost lines
-              {summary ? ` totalling ${formatCurrency(summary.rev)}` : ''}. Archiving keeps them as
-              a revision you can still see; the quote is then replaced with the current estimate.
+              {summary
+                ? ` totalling ${formatCurrency(summary.rev)} revenue and ${formatCurrency(summary.cost)} cost`
+                : ''}
+              . Archiving keeps them as a revision you can still see; the quote is then replaced
+              with the current estimate. Any quote acceptance is cleared — the replaced figures are
+              not what the customer accepted.
             </DialogDescription>
           </DialogHeader>
+          {xeroQuote && (
+            // Replacing the cost lines does not touch the Xero document, so
+            // it silently goes stale. Say it where the decision is made.
+            <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+              This quote was exported to Xero as <strong>{xeroQuote.number ?? 'a quote'}</strong>.
+              Replacing the lines here does not update Xero — the exported quote will no longer
+              match.
+            </p>
+          )}
           <DialogFooter>
             <Button
               variant="ghost"

@@ -775,12 +775,14 @@ def job_jobs_cost_sets_quote_revise_create(
 def job_jobs_cost_sets_quote_copy_from_estimate_create(
     request: HttpRequest, job_id: UUID, payload: CopyEstimateToQuoteRequest
 ) -> job_service.CopyEstimateToQuoteResultData:
-    """Copy the estimate onto the quote; 409 unless a priced quote is archived first."""
+    """Copy the estimate onto the quote; 409 unless a priced quote is archived first.
+
+    QuoteNotBlankError is a ConflictError, so the core envelope answers its
+    409 — no local catch.
+    """
     job = _get_job_or_404(job_id)
     try:
         return job_service.copy_estimate_to_quote(job, payload.archive_existing, _staff(request))
-    except job_service.QuoteNotBlankError as exc:
-        raise HttpError(409, str(exc)) from exc
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
 
