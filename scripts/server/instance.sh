@@ -304,9 +304,9 @@ render_instance_env() {
     test_db_password="$(read_env_value "$env_file" TEST_DB_PASSWORD)"
     secret_key="$(read_env_value "$env_file" SECRET_KEY)"
     jwt_signing_key="$(read_env_value "$env_file" JWT_SIGNING_KEY)"
-    # Read back like the credentials, not re-rendered: a Dropbox-synced
-    # client points this at the synced workflow folder by hand, and a
-    # reconfigure that reverted it to the empty instance dir would 404
+    # Fable: read back like the credentials, not re-rendered: a Dropbox-
+    # synced client points this at the synced workflow folder by hand, and
+    # a reconfigure that reverted it to the empty instance dir would 404
     # every attachment (2026-08-31 production incident).
     dropbox_workflow_folder="$(read_env_value "$env_file" DROPBOX_WORKFLOW_FOLDER)"
     redis_db="$(allocate_redis_db "$env_file")"
@@ -318,7 +318,7 @@ render_instance_env() {
     # when the two match, and rotating one must not rotate the other.
     [[ -n "$jwt_signing_key" ]] || jwt_signing_key="$(generate_secret)"
     [[ -n "$dropbox_workflow_folder" ]] ||
-        dropbox_workflow_folder="/opt/docketworks/instances/$INSTANCE/dropbox"
+        dropbox_workflow_folder="$instance_dir/dropbox"
 
     local tmp_env
     tmp_env="$(mktemp "$instance_dir/.env.tmp.XXXXXX")"
