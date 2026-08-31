@@ -2031,6 +2031,43 @@ components:
       - value
       title: ContactMethodRequest
       type: object
+    CopyEstimateToQuoteRequest:
+      description: Wire contract for CopyEstimateToQuoteRequest.
+      properties:
+        archive_existing:
+          default: false
+          title: Archive Existing
+          type: boolean
+      title: CopyEstimateToQuoteRequest
+      type: object
+    CopyEstimateToQuoteResponse:
+      description: Wire contract for CopyEstimateToQuoteResponse.
+      properties:
+        archived_quote_revision:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Archived Quote Revision
+        copied_cost_lines_count:
+          title: Copied Cost Lines Count
+          type: integer
+        job_id:
+          title: Job Id
+          type: string
+        message:
+          title: Message
+          type: string
+        success:
+          title: Success
+          type: boolean
+      required:
+      - success
+      - message
+      - copied_cost_lines_count
+      - archived_quote_revision
+      - job_id
+      title: CopyEstimateToQuoteResponse
+      type: object
     CostLineApprovalResponse:
       description: 'Success body for cost-line approval.
 
@@ -17464,6 +17501,36 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Create a cost line on the actual cost set
+      tags:
+      - job
+  /api/job/jobs/{job_id}/cost_sets/quote/copy_from_estimate/:
+    post:
+      description: Copy the estimate onto the quote; 409 unless a priced quote is archived first.
+      operationId: job_jobs_cost_sets_quote_copy_from_estimate_create
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          format: uuid
+          title: Job Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CopyEstimateToQuoteRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CopyEstimateToQuoteResponse'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Replace the quote's cost lines with a copy of the estimate's
       tags:
       - job
   /api/job/jobs/{job_id}/cost_sets/quote/revise/:

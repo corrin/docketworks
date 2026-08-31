@@ -56,6 +56,8 @@ from apps.job.schemas import (
     AdvancedSearchResponse,
     AssignJobRequest,
     AssignJobResponse,
+    CopyEstimateToQuoteRequest,
+    CopyEstimateToQuoteResponse,
     CostLineApprovalResponse,
     CostLineCreateRequest,
     CostLineOut,
@@ -758,6 +760,27 @@ def job_jobs_cost_sets_quote_revise_create(
         raise HttpError(404, "No quote found for this job. Cannot create revision.")
     try:
         return job_service.create_quote_revision(job, payload.reason, _staff(request))
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
+
+
+@router.post(
+    "/job/jobs/{uuid:job_id}/cost_sets/quote/copy_from_estimate/",
+    auth=office_auth,
+    operation_id="job_jobs_cost_sets_quote_copy_from_estimate_create",
+    response=CopyEstimateToQuoteResponse,
+    summary="Replace the quote's cost lines with a copy of the estimate's",
+    tags=["job"],
+)
+def job_jobs_cost_sets_quote_copy_from_estimate_create(
+    request: HttpRequest, job_id: UUID, payload: CopyEstimateToQuoteRequest
+) -> job_service.CopyEstimateToQuoteResultData:
+    """Copy the estimate onto the quote; 409 unless a priced quote is archived first."""
+    job = _get_job_or_404(job_id)
+    try:
+        return job_service.copy_estimate_to_quote(job, payload.archive_existing, _staff(request))
+    except job_service.QuoteNotBlankError as exc:
+        raise HttpError(409, str(exc)) from exc
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
 

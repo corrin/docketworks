@@ -1792,6 +1792,46 @@ export type ContactMethodRequest = {
 };
 
 /**
+ * CopyEstimateToQuoteRequest
+ *
+ * Wire contract for CopyEstimateToQuoteRequest.
+ */
+export type CopyEstimateToQuoteRequest = {
+    /**
+     * Archive Existing
+     */
+    archive_existing?: boolean;
+};
+
+/**
+ * CopyEstimateToQuoteResponse
+ *
+ * Wire contract for CopyEstimateToQuoteResponse.
+ */
+export type CopyEstimateToQuoteResponse = {
+    /**
+     * Archived Quote Revision
+     */
+    archived_quote_revision: number | null;
+    /**
+     * Copied Cost Lines Count
+     */
+    copied_cost_lines_count: number;
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Success
+     */
+    success: boolean;
+};
+
+/**
  * CostLineApprovalResponse
  *
  * Success body for cost-line approval.
@@ -15175,6 +15215,27 @@ export type JobJobsCostSetsActualCostLinesCreateResponses = {
 };
 
 export type JobJobsCostSetsActualCostLinesCreateResponse = JobJobsCostSetsActualCostLinesCreateResponses[keyof JobJobsCostSetsActualCostLinesCreateResponses];
+
+export type JobJobsCostSetsQuoteCopyFromEstimateCreateData = {
+    body: CopyEstimateToQuoteRequest;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/job/jobs/{job_id}/cost_sets/quote/copy_from_estimate/';
+};
+
+export type JobJobsCostSetsQuoteCopyFromEstimateCreateResponses = {
+    /**
+     * OK
+     */
+    200: CopyEstimateToQuoteResponse;
+};
+
+export type JobJobsCostSetsQuoteCopyFromEstimateCreateResponse = JobJobsCostSetsQuoteCopyFromEstimateCreateResponses[keyof JobJobsCostSetsQuoteCopyFromEstimateCreateResponses];
 
 export type JobJobsCostSetsQuoteReviseRetrieveData = {
     body?: never;

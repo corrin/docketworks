@@ -653,6 +653,11 @@ introduced:
 # confirm exchanges its uid+token for a new password.
 - accounts_password_reset_create
 - accounts_password_reset_confirm_create
+# v1's Copy from Estimate was a client-side loop (fetch estimate lines, delete
+# quote lines, create each) — no endpoint, and a mid-flight failure left a
+# half-copied quote. v2 makes it one atomic server call, archiving a priced
+# quote as a revision first (KAN-346).
+- job_jobs_cost_sets_quote_copy_from_estimate_create
 dropped:
   timesheets_payroll_pay_runs_create_create: >-
     Creating the Draft pay run is a step of posting, not an operator intent:

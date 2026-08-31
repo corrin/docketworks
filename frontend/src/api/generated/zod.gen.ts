@@ -662,6 +662,28 @@ export const zContactMethodRequest = z.object({
 });
 
 /**
+ * CopyEstimateToQuoteRequest
+ *
+ * Wire contract for CopyEstimateToQuoteRequest.
+ */
+export const zCopyEstimateToQuoteRequest = z.object({
+    archive_existing: z.boolean().optional().default(false)
+});
+
+/**
+ * CopyEstimateToQuoteResponse
+ *
+ * Wire contract for CopyEstimateToQuoteResponse.
+ */
+export const zCopyEstimateToQuoteResponse = z.object({
+    archived_quote_revision: z.int().nullable(),
+    copied_cost_lines_count: z.int(),
+    job_id: z.string(),
+    message: z.string(),
+    success: z.boolean()
+});
+
+/**
  * CostLineCreateRequest
  *
  * Wire contract for CostLineCreateRequest.
@@ -6846,6 +6868,17 @@ export const zJobJobsCostSetsActualCostLinesCreatePath = z.object({
  * Created
  */
 export const zJobJobsCostSetsActualCostLinesCreateResponse = zCostLineOut;
+
+export const zJobJobsCostSetsQuoteCopyFromEstimateCreateBody = zCopyEstimateToQuoteRequest;
+
+export const zJobJobsCostSetsQuoteCopyFromEstimateCreatePath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zJobJobsCostSetsQuoteCopyFromEstimateCreateResponse = zCopyEstimateToQuoteResponse;
 
 export const zJobJobsCostSetsQuoteReviseRetrievePath = z.object({
     job_id: z.uuid()

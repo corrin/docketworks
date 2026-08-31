@@ -605,6 +605,22 @@ class QuoteRevisionResponse(Schema):
     job_id: str
 
 
+class CopyEstimateToQuoteRequest(Schema):
+    """Wire contract for CopyEstimateToQuoteRequest."""
+
+    archive_existing: bool = False
+
+
+class CopyEstimateToQuoteResponse(Schema):
+    """Wire contract for CopyEstimateToQuoteResponse."""
+
+    success: bool
+    message: str
+    copied_cost_lines_count: int
+    archived_quote_revision: int | None
+    job_id: str
+
+
 class QuoteRevisionsListResponse(Schema):
     """Wire contract for QuoteRevisionsListResponse."""
 
