@@ -11,13 +11,13 @@ Two import paths based on DOC_MAPPING:
 - Form/register definitions: Django-only Form records, no Google Doc.
 """
 
+import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
 
 from django.core.management.base import BaseCommand, CommandError, CommandParser
-from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from googleapiclient._apis.drive.v3.schemas import File
 
 from apps.core.errors import persist_app_error
+from apps.core.gauth import delegated_credentials, delegated_subject
 from apps.core.models import CompanyDefaults
 from apps.process.models import Form, Procedure
 
@@ -446,7 +447,7 @@ class Command(BaseCommand):
     help = "Import Dropbox Health & Safety documents into Procedure/Form records"
 
     def add_arguments(self, parser: CommandParser) -> None:
-        """Declare the source folder, dry-run flag, and Google credentials path."""
+        """Declare the source folder and dry-run flag."""
         parser.add_argument(
             "--folder",
             required=True,
@@ -456,14 +457,6 @@ class Command(BaseCommand):
             "--dry-run",
             action="store_true",
             help="Preview without uploading or creating records",
-        )
-        parser.add_argument(
-            "--credentials",
-            help=(
-                "Path to a Google service account JSON key file with domain-wide "
-                "delegation. Required unless --dry-run: prose documents are "
-                "uploaded to Google Drive."
-            ),
         )
 
     def handle(self, *_args: object, **options: object) -> None:
@@ -477,13 +470,10 @@ class Command(BaseCommand):
     def _handle(self, **options: object) -> None:
         folder = options["folder"]
         dry_run = options["dry_run"]
-        credentials = options["credentials"]
         if not isinstance(folder, str):
             raise TypeError("The folder option must be a string")
         if not isinstance(dry_run, bool):
             raise TypeError("The dry-run option must be a boolean")
-        if credentials is not None and not isinstance(credentials, str):
-            raise TypeError("The credentials option must be a string")
 
         folder_path = Path(folder)
         if not folder_path.exists():
@@ -491,7 +481,7 @@ class Command(BaseCommand):
         if not folder_path.is_dir():
             raise CommandError(f"Path is not a directory: {folder_path}")
 
-        reference_folder_id = self._validate_configuration(dry_run=dry_run, credentials=credentials)
+        reference_folder_id = self._validate_configuration(dry_run=dry_run)
 
         resolved = self._resolve_duplicates(self._discover_files(folder_path))
         imported, skipped_existing, skipped_no_mapping = self._import_documents(
@@ -508,34 +498,33 @@ class Command(BaseCommand):
             )
         )
 
-    def _validate_configuration(self, *, dry_run: bool, credentials: str | None) -> str | None:
+    def _validate_configuration(self, *, dry_run: bool) -> str | None:
         """Check upload prerequisites upfront and return the Drive folder id.
 
         Dry runs create and upload nothing, so they may proceed unconfigured.
+        Credentials come from the one builder (apps/core/gauth.py:
+        GCP_CREDENTIALS key file, delegated subject) — this command carried
+        its own --credentials path while it was v2's only Google client,
+        which stopped being true when the Gmail sender landed (ADR 0039).
         """
         company = CompanyDefaults.get_solo()
         reference_folder_id = company.gdrive_reference_library_folder_id
         if not dry_run:
-            # v1 could fall back to ambient application credentials; v2 has no
-            # Google client elsewhere yet, so the key file is the only path.
-            if not credentials:
+            if not os.environ.get("GCP_CREDENTIALS"):
                 raise CommandError(
-                    "--credentials is required for a real import: prose documents "
-                    "are uploaded to Google Drive. Use --dry-run to preview without it."
+                    "GCP_CREDENTIALS is not set: prose documents are uploaded to "
+                    "Google Drive. Point it at the service-account key file, or "
+                    "use --dry-run to preview without it."
                 )
             if not reference_folder_id:
                 raise CommandError(
                     "CompanyDefaults.gdrive_reference_library_folder_id is not configured. "
                     "Set it in Settings before uploading."
                 )
-            if not company.company_email:
-                raise CommandError(
-                    "CompanyDefaults.company_email is not set. "
-                    "Google Workspace domain-wide delegation needs a user to impersonate — "
-                    "populate CompanyDefaults.company_email in Settings."
-                )
-        self._credentials_file = credentials
-        self._impersonate_email = company.company_email
+            try:
+                delegated_subject()
+            except RuntimeError as exc:
+                raise CommandError(str(exc)) from exc
         return reference_folder_id
 
     def _import_documents(
@@ -743,17 +732,9 @@ class Command(BaseCommand):
         self, file_path: Path, title: str, folder_id: str
     ) -> tuple[str, str]:
         """Upload a .doc/.docx to Drive converting to Google Docs; return (id, url)."""
-        if not self._credentials_file:
-            raise CommandError("Google credentials are required to upload prose documents.")
-        if not self._impersonate_email:
-            raise CommandError(
-                "CompanyDefaults.company_email is not set; there is no Workspace "
-                "user to impersonate for the upload."
-            )
-        creds = service_account.Credentials.from_service_account_file(
-            self._credentials_file, scopes=GOOGLE_SCOPES
-        ).with_subject(self._impersonate_email)
-        drive_service = build("drive", "v3", credentials=creds, cache_discovery=False)
+        drive_service = build(
+            "drive", "v3", credentials=delegated_credentials(GOOGLE_SCOPES), cache_discovery=False
+        )
 
         ext = file_path.suffix.lower()
         mime_types = {

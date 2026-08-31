@@ -1,7 +1,7 @@
 """The import_dropbox_hs_documents command: discovery, mapping, refusals, uploads.
 
-The Google seams (service-account credentials and the Drive client factory)
-are faked where the command bound them at import; the folder tree is real
+The Google seams (the shared delegated-credentials builder and the Drive
+client factory) are faked where the command bound them at import; the folder tree is real
 files under tmp_path, so discovery, skip rules and duplicate resolution all
 run for real.
 """
@@ -29,8 +29,6 @@ from apps.process.migrations._0003_helpers import (
 from apps.process.models import Form, Procedure
 
 pytestmark = pytest.mark.django_db
-
-CREDENTIALS_ARG = "/keys/service-account.json"
 
 # Every fixture document is stamped with this, so the timestamp assertions can
 # be literals. Re-deriving the expectation from stat() — which is what these
@@ -65,8 +63,8 @@ def drive(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     """Stub the Google seams; returns the Drive service mock."""
     drive_service = MagicMock()
     drive_service.files.return_value.create.return_value.execute.return_value = {"id": "gdoc-1"}
-    service_account = MagicMock()
-    monkeypatch.setattr(import_module, "service_account", service_account)
+    monkeypatch.setenv("GCP_CREDENTIALS", "/keys/service-account.json")
+    monkeypatch.setattr(import_module, "delegated_credentials", MagicMock())
     monkeypatch.setattr(import_module, "build", MagicMock(return_value=drive_service))
     return drive_service
 
@@ -86,23 +84,35 @@ class TestRefusals:
         with pytest.raises(CommandError, match="Path is not a directory"):
             _run("--folder", str(file_path), "--dry-run")
 
-    def test_real_import_requires_credentials(self, tmp_path: Path) -> None:
-        with pytest.raises(CommandError, match="--credentials is required for a real import"):
+    def test_real_import_requires_credentials(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("GCP_CREDENTIALS", raising=False)
+
+        with pytest.raises(CommandError, match="GCP_CREDENTIALS is not set"):
             _run("--folder", str(tmp_path))
 
-    def test_real_import_requires_reference_folder_id(self, tmp_path: Path) -> None:
+    def test_real_import_requires_reference_folder_id(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("GCP_CREDENTIALS", "/keys/service-account.json")
+
         with pytest.raises(
             CommandError, match="gdrive_reference_library_folder_id is not configured"
         ):
-            _run("--folder", str(tmp_path), "--credentials", CREDENTIALS_ARG)
+            _run("--folder", str(tmp_path))
 
-    def test_real_import_requires_company_email(self, tmp_path: Path) -> None:
+    def test_real_import_requires_an_impersonation_subject(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("GCP_CREDENTIALS", "/keys/service-account.json")
+        monkeypatch.delenv("GCP_DELEGATED_SUBJECT", raising=False)
         defaults = CompanyDefaults.get_solo()
         defaults.gdrive_reference_library_folder_id = "folder-1"
         defaults.save(update_fields=["gdrive_reference_library_folder_id"])
 
-        with pytest.raises(CommandError, match="company_email is not set"):
-            _run("--folder", str(tmp_path), "--credentials", CREDENTIALS_ARG)
+        with pytest.raises(CommandError, match="No impersonation subject"):
+            _run("--folder", str(tmp_path))
 
 
 class TestDryRun:
@@ -156,7 +166,7 @@ class TestImport:
         _write_doc(tmp_path, "Doc.108 Maintenance Request.doc")
         _write_doc(tmp_path, "Doc.380 Hazard Register.doc")
 
-        output = _run("--folder", str(tmp_path), "--credentials", CREDENTIALS_ARG)
+        output = _run("--folder", str(tmp_path))
 
         assert "Imported 2 documents, skipped 0 (already exist), skipped 0 (no mapping)" in output
         form = Form.objects.get(document_number="108")
@@ -181,7 +191,7 @@ class TestImport:
         _configure_upload_prereqs()
         _write_doc(tmp_path, "Doc.100 Health and Safety Policy.doc")
 
-        output = _run("--folder", str(tmp_path), "--credentials", CREDENTIALS_ARG)
+        output = _run("--folder", str(tmp_path))
 
         assert "Imported 1 documents" in output
         procedure = Procedure.objects.get(document_number="100")
@@ -212,7 +222,7 @@ class TestImport:
         _write_doc(tmp_path, "Doc.108 Maintenance Request.doc")
         _write_doc(tmp_path, "Doc.100 Health and Safety Policy.doc")
 
-        output = _run("--folder", str(tmp_path), "--credentials", CREDENTIALS_ARG)
+        output = _run("--folder", str(tmp_path))
 
         assert "Imported 0 documents, skipped 2 (already exist), skipped 0 (no mapping)" in output
         assert Form.objects.get(document_number="108").title == "Original"
@@ -227,7 +237,7 @@ class TestImport:
         base = doc_file.stat().st_mtime
         os.utime(docx_file, (base + 3600, base + 3600))
 
-        output = _run("--folder", str(tmp_path), "--credentials", CREDENTIALS_ARG)
+        output = _run("--folder", str(tmp_path))
 
         assert "Imported 1 documents" in output
         assert Procedure.objects.count() == 1
