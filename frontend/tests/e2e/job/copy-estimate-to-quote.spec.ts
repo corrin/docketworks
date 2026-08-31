@@ -133,9 +133,11 @@ test.describe.serial('copy estimate to quote', () => {
     // The archived quote stays visible: the Revisions history holds what the
     // replace displaced, including the line it archived.
     await autoId(page, 'JobQuoteTab-revisions').click()
-    await expect(page.getByText('Quote Revisions History')).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText('Revision 1')).toBeVisible()
     const dialog = page.getByRole('dialog')
+    await expect(dialog.getByText('Quote Revisions History')).toBeVisible({ timeout: 10000 })
+    // Scoped to the dialog: the tab header also says "Revision 1" (the live
+    // CostSet rev), which is a different number than the archive's.
+    await expect(dialog.getByText('Revision 1')).toBeVisible()
     await expect(dialog.getByText('Straightening charge')).toBeVisible()
     await page.keyboard.press('Escape')
   })
