@@ -14,7 +14,11 @@ import { autoId, createTestJob, waitForAutosave } from '../helpers'
  *   never stacks a second identical archive.
  */
 
-async function openTab(page: Page, jobUrl: string, tab: 'estimate' | 'quote'): Promise<void> {
+async function openTab(
+  page: Page,
+  jobUrl: string,
+  tab: 'estimate' | 'quote' | 'actual',
+): Promise<void> {
   if (!jobUrl) {
     throw new Error(
       'Serial suite: the shared job is created by the first test — run the whole file, not a grep of a later test.',
@@ -26,7 +30,12 @@ async function openTab(page: Page, jobUrl: string, tab: 'estimate' | 'quote'): P
   await tabButton.waitFor({ state: 'visible' })
   await tabButton.click()
   await page.waitForLoadState('networkidle')
-  await page.locator('[data-row-id]').last().waitFor({ state: 'visible', timeout: 3000 })
+  if (tab !== 'actual') {
+    // Estimate and quote grids always render at least the phantom row; the
+    // actual grid can be legitimately empty, so its ready signal is the
+    // summary panel instead (asserted by the caller).
+    await page.locator('[data-row-id]').last().waitFor({ state: 'visible', timeout: 3000 })
+  }
 }
 
 /**
@@ -90,6 +99,12 @@ test.describe.serial('copy estimate to quote', () => {
     await openTab(page, jobUrl, 'estimate')
     await addEstimateAdjustment(page, 'Straightening charge', '1', '100')
 
+    // KAN-349: the Estimate tab shows the server-owned summary — the $100
+    // adjustment cost must land in it (revenue derivation is unit-tested).
+    await expect(autoId(page, 'JobEstimateTab-summary')).toContainText('$100.00', {
+      timeout: 10000,
+    })
+
     await openTab(page, jobUrl, 'quote')
     await autoId(page, 'JobQuoteTab-copy-from-estimate').click()
 
@@ -126,5 +141,18 @@ test.describe.serial('copy estimate to quote', () => {
       timeout: 10000,
     })
     await expect(page.getByText('Replace this quote?')).toBeHidden()
+  })
+
+  test('the Actual tab carries the same summary panel (KAN-349)', async ({
+    authenticatedPage: page,
+  }) => {
+    await openTab(page, jobUrl, 'actual')
+
+    const summaryPanel = autoId(page, 'JobActualTab-summary')
+    await expect(summaryPanel).toBeVisible({ timeout: 10000 })
+    await expect(summaryPanel).toContainText('Actual Summary')
+    // Nothing has been booked to actuals: the server answers $0.00, and the
+    // panel must render that answer rather than a loading or error state.
+    await expect(summaryPanel).toContainText('$0.00')
   })
 })
