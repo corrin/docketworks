@@ -71,7 +71,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 | metric | count |
 |---|---:|
 | in comments | 245 |
-| in docstrings | 412 |
+| in docstrings | 411 |
 
 ## Exception handling
 
@@ -104,7 +104,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 208 |
-| non-test functions | 2534 |
+| non-test functions | 2535 |
 
 ## Wire contract (response side)
 
@@ -115,4 +115,4 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 | response schemas | 291 |
 | response properties | 1883 |
 | optional (pinned at zero) | 0 |
-| nullable | 411 |
+| nullable | 412 |

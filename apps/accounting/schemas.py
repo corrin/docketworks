@@ -9,6 +9,11 @@ from uuid import UUID
 
 from ninja import Schema
 
+# Opus: the wire type is imported from the service that produces it, rather
+# than restated here, so the categories a cell can report and the categories
+# the ladder can return are one definition. types.py is not the home for it —
+# that module is scoped to the provider abstraction (ADR 0012).
+from apps.accounting.services.kpi_service import DayCategory, DayColor
 from apps.accounting.types import PayrollRowStatus, PayrollXeroSource
 from apps.core.schemas import ResponseSchema
 
@@ -262,9 +267,13 @@ class KPIDayDataOut(ResponseSchema):
     shop_hours: float
     shop_percentage: float
     gross_profit: float
-    color_hours: str
-    color_gp: str
-    gp_target_achievement: float
+    # "weekend" is a category, not a missing value: an ungraded day is not a
+    # day whose grade went astray (owner ruling, 2026-09-01). The achievement
+    # IS null there — a weekend is owed no target, so the percentage has no
+    # denominator, which is a real absence rather than a fake one.
+    color_hours: DayCategory
+    color_gp: DayCategory
+    gp_target_achievement: float | None
     details: KPIDetailsOut
 
 
@@ -308,9 +317,11 @@ class KPIMonthlyTotalsOut(Schema):
     avg_weekday_gp: float
     avg_active_day_gp: float
     avg_active_day_billable_hours: float
-    color_hours: str
-    color_gp: str
-    color_shop: str
+    # The month is always graded, so these are the three-rung ladder rather
+    # than the day's four categories — a month is never "weekend".
+    color_hours: DayColor
+    color_gp: DayColor
+    color_shop: DayColor
 
 
 class KPIThresholdsOut(Schema):

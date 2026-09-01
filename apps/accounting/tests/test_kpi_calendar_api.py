@@ -151,15 +151,15 @@ class TestKPICalendar:
         # June 2026's 22 weekdays plus its 8 weekend days.
         assert body["monthly_totals"]["working_days"] == 30
 
-    def test_weekend_work_reaches_the_month_only_when_the_flag_is_on(
+    def test_weekend_work_reaches_the_month_whatever_the_flag_says(
         self, authenticated_client: Client, thresholds: CompanyDefaults
     ) -> None:
-        """The flag governs the money, not just the columns.
+        """The flag governs the cells drawn, never the money counted.
 
-        With weekends off a Saturday's cost lines are absent from the month
-        rather than merely hidden, so gross profit omits them entirely. That
-        is v1 behaviour, kept so enabling the flag is the only thing that
-        ever restates a past month.
+        A Saturday's lines still count in WIP and job costing, so a KPI month
+        that dropped them would disagree with those reports about the same
+        job. With weekends off the day has no cell to appear in — the money
+        reaches the monthly total and nothing else.
         """
         worker = make_staff("weekend@example.com")
         company = make_company("Weekend Co")
@@ -174,16 +174,20 @@ class TestKPICalendar:
             unit_rev="120.00",
         )
 
-        off = authenticated_client.get(URL, JUNE).json()["monthly_totals"]
-        assert off["billable_hours"] == 0.0
-        assert off["gross_profit"] == 0.0
+        body = authenticated_client.get(URL, JUNE).json()
+        off = body["monthly_totals"]
+        assert off["billable_hours"] == 8.0
+        assert off["gross_profit"] == 8 * (120.0 - 40.0)
+        assert "2026-06-13" not in body["calendar_data"]  # counted, not drawn
 
         thresholds.weekend_timesheets_enabled = True
         thresholds.save()
 
-        on = authenticated_client.get(URL, JUNE).json()["monthly_totals"]
-        assert on["billable_hours"] == 8.0
-        assert on["gross_profit"] == 8 * (120.0 - 40.0)
+        body = authenticated_client.get(URL, JUNE).json()
+        on = body["monthly_totals"]
+        assert on["billable_hours"] == off["billable_hours"]
+        assert on["gross_profit"] == off["gross_profit"]
+        assert "2026-06-13" in body["calendar_data"]  # now drawn too
 
     def test_showing_weekends_moves_no_money_figure(
         self, authenticated_client: Client, thresholds: CompanyDefaults
@@ -216,6 +220,11 @@ class TestKPICalendar:
         on = authenticated_client.get(URL, JUNE).json()["monthly_totals"]
 
         for field in (
+            "days_green",
+            "days_amber",
+            "days_red",
+            "labour_red_days",
+            "profit_red_days",
             "gross_profit",
             "labour_profit",
             "total_revenue",
@@ -236,6 +245,30 @@ class TestKPICalendar:
         # empty ones are below threshold like any other unworked day.
         assert off["working_days"] == 22
         assert on["working_days"] == 30
+
+    def test_a_weekend_cell_carries_money_but_no_grade(
+        self, authenticated_client: Client, thresholds: CompanyDefaults
+    ) -> None:
+        """$0 earned against $0 owed is blank, not red.
+
+        A weekend is never apportioned overhead, so it cannot fall short of
+        it. Grading an untouched Saturday red would let a display setting
+        turn a good month into a bad-looking one.
+        """
+        thresholds.weekend_timesheets_enabled = True
+        thresholds.save()
+
+        days = authenticated_client.get(URL, JUNE).json()["calendar_data"]
+        saturday = days["2026-06-06"]
+        assert saturday["color_hours"] == "weekend"
+        assert saturday["color_gp"] == "weekend"
+        # The achievement IS null: no target means no denominator.
+        assert saturday["gp_target_achievement"] is None
+        assert saturday["gross_profit"] == 0.0
+
+        # A weekday with nothing on it DID fall short of its overhead.
+        assert days["2026-06-11"]["color_hours"] == "red"
+        assert days["2026-06-11"]["gp_target_achievement"] == 0.0
 
     def test_monthly_totals_roll_up_elapsed_performance(self, authenticated_client: Client) -> None:
         worker = make_staff("totals@example.com")

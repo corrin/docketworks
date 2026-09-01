@@ -4906,11 +4906,11 @@ export type KpiDayDataOut = {
     /**
      * Color Gp
      */
-    color_gp: string;
+    color_gp: 'green' | 'amber' | 'red' | 'weekend';
     /**
      * Color Hours
      */
-    color_hours: string;
+    color_hours: 'green' | 'amber' | 'red' | 'weekend';
     /**
      * Date
      */
@@ -4923,7 +4923,7 @@ export type KpiDayDataOut = {
     /**
      * Gp Target Achievement
      */
-    gp_target_achievement: number;
+    gp_target_achievement: number | null;
     /**
      * Gross Profit
      */
@@ -5092,15 +5092,15 @@ export type KpiMonthlyTotalsOut = {
     /**
      * Color Gp
      */
-    color_gp: string;
+    color_gp: 'green' | 'amber' | 'red';
     /**
      * Color Hours
      */
-    color_hours: string;
+    color_hours: 'green' | 'amber' | 'red';
     /**
      * Color Shop
      */
-    color_shop: string;
+    color_shop: 'green' | 'amber' | 'red';
     /**
      * Days Amber
      */

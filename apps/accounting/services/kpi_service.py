@@ -149,10 +149,19 @@ def _get_holidays(year: int, month: int | None = None) -> dict[date, str]:
     return dict(nz_holidays)
 
 
-#: The rungs a day can land on. Named because the monthly counters are keyed
-#: by it (``days_green``, ``labour_amber_days``), so the ladder's range and
-#: those key names are one fact, not two that can drift apart.
+#: The rungs a GRADED day can land on. Named because the monthly counters are
+#: keyed by it (``days_green``, ``labour_amber_days``), so the ladder's range
+#: and those key names are one fact, not two that can drift apart.
 DayColor = Literal["green", "amber", "red"]
+
+#: What a cell reports. ``weekend`` is the fourth category rather than a null,
+#: so a consumer's switch is exhaustive and no branch has to ask whether a
+#: colour is missing (owner ruling 2026-09-01): a weekend is not a day whose
+#: grade went astray, it is a day that is not graded.
+DayCategory = Literal["green", "amber", "red", "weekend"]
+
+#: The category every ungraded day reports on both ladders.
+WEEKEND_CATEGORY: DayCategory = "weekend"
 
 
 def _get_color(value: float | Decimal, green_threshold: float, amber_threshold: float) -> DayColor:
@@ -353,38 +362,19 @@ class _DayFigures:
         return revenue - cost
 
 
-def _tally_day(
-    totals: dict[str, float],
-    day: _DayFigures,
-    thresholds: Thresholds,
-    *,
-    elapsed: bool,
-) -> _DayColors:
-    """Fold one day into the monthly totals; return the day's two colours."""
-    billable_hours = day.time["billable_hours"]
-    gross_profit = day.gross_profit
+def _tally_money(totals: dict[str, float], day: _DayFigures) -> None:
+    """Fold one day's money and hours into the month.
 
-    color = _hours_color(billable_hours, thresholds)
-    profit_color = _profit_color(gross_profit, thresholds)
-    match color:
-        case "green":
-            totals["days_green"] += 1
-        case "amber":
-            totals["days_amber"] += 1
-        case _:
-            totals["days_red"] += 1
-
-    if elapsed:
-        totals[f"labour_{color}_days"] += 1
-        totals[f"profit_{profit_color}_days"] += 1
-
-        if day.time["total_hours"] > 0:
-            totals["active_workdays"] += 1
-
-    totals["billable_hours"] += float(billable_hours)
+    Owner ruling 2026-09-01: this runs for every day of the month, weekend or
+    not, whatever the display flag says. A Saturday's stock issue is real
+    money that still counts in WIP and job costing, so a KPI month that
+    dropped it would disagree with those reports about the same job. The flag
+    governs which cells are DRAWN, never which money is counted.
+    """
+    totals["billable_hours"] += float(day.time["billable_hours"])
     totals["total_hours"] += float(day.time["total_hours"])
     totals["shop_hours"] += float(day.time["shop_hours"])
-    totals["gross_profit"] += float(gross_profit)
+    totals["gross_profit"] += float(day.gross_profit)
     totals["material_revenue"] += float(day.material["revenue"])
     totals["adjustment_revenue"] += float(day.adjustment["revenue"])
     totals["time_revenue"] += float(day.time["time_revenue"])
@@ -393,13 +383,37 @@ def _tally_day(
     totals["adjustment_cost"] += float(day.adjustment["cost"])
     totals["material_profit"] += float(day.material["revenue"] - day.material["cost"])
     totals["adjustment_profit"] += float(day.adjustment["revenue"] - day.adjustment["cost"])
+
+
+def _score_day(
+    totals: dict[str, float],
+    day: _DayFigures,
+    thresholds: Thresholds,
+    *,
+    elapsed: bool,
+) -> _DayColors:
+    """Grade one WEEKDAY against the ladders and count it in the tallies.
+
+    Weekends never reach here (owner ruling 2026-09-01): they are owed no
+    share of the overhead, so they cannot fall short of it, and counting an
+    untouched Saturday as a red day would let a display setting turn a good
+    month into a bad-looking one.
+    """
+    color = _hours_color(day.time["billable_hours"], thresholds)
+    profit_color = _profit_color(day.gross_profit, thresholds)
+    totals[f"days_{color}"] += 1
+    if elapsed:
+        totals[f"labour_{color}_days"] += 1
+        totals[f"profit_{profit_color}_days"] += 1
+        if day.time["total_hours"] > 0:
+            totals["active_workdays"] += 1
     return _DayColors(hours=color, gp=profit_color)
 
 
 def _build_day_entry(  # noqa: PLR0913, PLR0917 -- one argument per precomputed month aggregate
     current: date,
     day: _DayFigures,
-    colors: _DayColors,
+    colors: _DayColors | None,
     holiday_dates: dict[date, str],
     thresholds: Thresholds,
     job_breakdown: list[JobBreakdownRow],
@@ -433,13 +447,19 @@ def _build_day_entry(  # noqa: PLR0913, PLR0917 -- one argument per precomputed 
             # the viewer choose which ladder tints the calendar, hours default.
             # Both are served so the browser never re-derives one that could
             # fork from the ladder the month counters use.
-            "color_hours": colors.hours,
-            "color_gp": colors.gp,
-            "gp_target_achievement": float(
-                Decimal(gross_profit) / Decimal(thresholds["kpi_daily_gp_target"]) * 100
-            )
-            if thresholds["kpi_daily_gp_target"] > 0
-            else 0.0,
+            #
+            # $0 earned against $0 owed is neither good nor bad, so a weekend
+            # reports its own category and the cell draws blank — where red
+            # would claim a failure the day was never set up to have.
+            "color_hours": colors.hours if colors else WEEKEND_CATEGORY,
+            "color_gp": colors.gp if colors else WEEKEND_CATEGORY,
+            # Null alongside the colours: a weekend is owed no share of the
+            # overhead, so "percent of target achieved" has no denominator.
+            "gp_target_achievement": (
+                float(Decimal(gross_profit) / Decimal(thresholds["kpi_daily_gp_target"]) * 100)
+                if colors and thresholds["kpi_daily_gp_target"] > 0
+                else None
+            ),
             "details": {
                 "time_revenue": float(day.time["time_revenue"]),
                 "material_revenue": float(day.material["revenue"]),
@@ -496,25 +516,7 @@ def get_calendar_data(year: int, month: int) -> dict[str, object]:
 
     current = start_date
     while current <= end_date:
-        if not weekend_enabled and current.weekday() >= 5:  # Saturday/Sunday
-            current += timedelta(days=1)
-            continue
-
-        # All weekdays count as working days, holidays included (see module
-        # docstring); holidays can still carry financial activity.
-        totals["working_days"] += 1
-        if current <= today:
-            totals["elapsed_workdays"] += 1
-
-        # Owner ruling 2026-09-01 (weekend work is bonus, see module docstring):
-        # a Saturday can
-        # EARN gross profit but is never OWED a daily target, because the
-        # month's overhead is already spread across its weekdays.
-        if current.weekday() < 5:
-            totals["weekdays"] += 1
-            if current <= today:
-                totals["elapsed_weekdays"] += 1
-
+        is_weekday = current.weekday() < 5
         day = _DayFigures(
             time=time_by_date.get(current, _empty_time_agg()),
             material=material_by_date.get(
@@ -524,15 +526,38 @@ def get_calendar_data(year: int, month: int) -> dict[str, object]:
                 current, _RevCostAgg(revenue=Decimal("0"), cost=Decimal("0"))
             ),
         )
-        colors = _tally_day(totals, day, thresholds, elapsed=current <= today)
-        calendar_data[current.isoformat()] = _build_day_entry(
-            current,
-            day,
-            colors,
-            holiday_dates,
-            thresholds,
-            breakdown_by_date.get(current, []),
-        )
+
+        # Money counts on all seven days; grading and the day tallies are for
+        # weekdays only. See _tally_money and _score_day.
+        _tally_money(totals, day)
+
+        if is_weekday:
+            totals["weekdays"] += 1
+            totals["working_days"] += 1
+            if current <= today:
+                totals["elapsed_weekdays"] += 1
+                totals["elapsed_workdays"] += 1
+            colors: _DayColors | None = _score_day(
+                totals, day, thresholds, elapsed=current <= today
+            )
+        else:
+            colors = None
+            if weekend_enabled:
+                # A drawn weekend is a day on the calendar, but an ungraded
+                # one — it never earns a colour and never carries a target.
+                totals["working_days"] += 1
+                if current <= today:
+                    totals["elapsed_workdays"] += 1
+
+        if is_weekday or weekend_enabled:
+            calendar_data[current.isoformat()] = _build_day_entry(
+                current,
+                day,
+                colors,
+                holiday_dates,
+                thresholds,
+                breakdown_by_date.get(current, []),
+            )
         current += timedelta(days=1)
 
     return {

@@ -2029,9 +2029,21 @@ export const zKpiMonthlyTotalsOut = z.object({
     avg_weekday_gp: z.number(),
     billable_hours: z.number(),
     billable_percentage: z.number(),
-    color_gp: z.string(),
-    color_hours: z.string(),
-    color_shop: z.string(),
+    color_gp: z.enum([
+        'green',
+        'amber',
+        'red'
+    ]),
+    color_hours: z.enum([
+        'green',
+        'amber',
+        'red'
+    ]),
+    color_shop: z.enum([
+        'green',
+        'amber',
+        'red'
+    ]),
     days_amber: z.int(),
     days_green: z.int(),
     days_red: z.int(),
@@ -2098,12 +2110,22 @@ export const zKpiDetailsOut = z.object({
  */
 export const zKpiDayDataOut = z.object({
     billable_hours: z.number(),
-    color_gp: z.string(),
-    color_hours: z.string(),
+    color_gp: z.enum([
+        'green',
+        'amber',
+        'red',
+        'weekend'
+    ]),
+    color_hours: z.enum([
+        'green',
+        'amber',
+        'red',
+        'weekend'
+    ]),
     date: z.iso.date(),
     day: z.int(),
     details: zKpiDetailsOut,
-    gp_target_achievement: z.number(),
+    gp_target_achievement: z.number().nullable(),
     gross_profit: z.number(),
     holiday: z.boolean(),
     holiday_name: z.string().nullable(),

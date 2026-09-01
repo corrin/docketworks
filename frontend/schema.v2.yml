@@ -5550,9 +5550,19 @@ components:
           title: Billable Hours
           type: number
         color_gp:
+          enum:
+          - green
+          - amber
+          - red
+          - weekend
           title: Color Gp
           type: string
         color_hours:
+          enum:
+          - green
+          - amber
+          - red
+          - weekend
           title: Color Hours
           type: string
         date:
@@ -5565,8 +5575,10 @@ components:
         details:
           $ref: '#/components/schemas/KPIDetailsOut'
         gp_target_achievement:
+          anyOf:
+          - type: number
+          - type: 'null'
           title: Gp Target Achievement
-          type: number
         gross_profit:
           title: Gross Profit
           type: number
@@ -5731,12 +5743,24 @@ components:
           title: Billable Percentage
           type: number
         color_gp:
+          enum:
+          - green
+          - amber
+          - red
           title: Color Gp
           type: string
         color_hours:
+          enum:
+          - green
+          - amber
+          - red
           title: Color Hours
           type: string
         color_shop:
+          enum:
+          - green
+          - amber
+          - red
           title: Color Shop
           type: string
         days_amber:
