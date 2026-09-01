@@ -396,6 +396,12 @@ First work on v2, in this order:
   cost sets by their own endpoint. Drop the embedded cost sets and page the
   events. This is now on a hot path: the response is refetched after every
   settled cost-line write.
+- **Teach the outbound-link probe to verify Google place ids.** Both
+  `SupplierPickupAddress.google_place_id` and `CompanyDefaults.google_place_id`
+  are excused as unverifiable, which stopped being true when
+  `apps.core.geocoding.fetch_place` landed: re-reading a place by its id is the
+  check. Needs a `google_place` link kind, a pooled adapter beside the Google
+  Drive one, and enumeration wiring.
 - **Eight production `Procedure` rows link dead Google Docs** (probe run
   2026-08-26 with the production key; the row list is in `rewrite-history.md`).
   Untrash Doc.363 Milling Machine SOP from Drive trash before its 30-day

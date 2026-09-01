@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 """Backfill geocoding for SupplierPickupAddress rows missing lat/lng.
 
-Reuses apps/company/services/geocoding_service.py — the same Google Address
-Validation client the on-write path uses — rather than carrying a second
-Google API implementation (ADR 0039).
+Reuses apps/core/geocoding.py — the one Google lookup in the codebase, the
+same one the address picker calls — rather than carrying a second client
+(ADR 0039). Nothing geocodes on write: a row gets coordinates when a person
+picks a candidate in the address modal, and this sweep is for the rows that
+predate that, chiefly the addresses mirrored in from Xero.
 
 Usage:
     uv run python -m scripts.ops.geocode_addresses              # missing lat/lng only
@@ -22,7 +24,7 @@ from scripts.bootstrap import setup_django
 setup_django()
 
 from apps.company.models import SupplierPickupAddress  # noqa: E402 -- needs django.setup()
-from apps.company.services.geocoding_service import (  # noqa: E402
+from apps.core.geocoding import (  # noqa: E402
     GeocodingError,
     GeocodingNotConfiguredError,
     get_api_key,

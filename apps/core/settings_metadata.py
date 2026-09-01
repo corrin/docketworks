@@ -89,7 +89,11 @@ FIELD_TYPE_RULES: tuple[FieldTypeRule, ...] = (
 # Renaming is excluded from this form because company_name is the identity the
 # settings screen is organised around; dedicated identity workflows may still
 # change it elsewhere.
-COMPANY_DEFAULTS_READ_ONLY_FIELDS: frozenset[str] = frozenset({"company_name"})
+COMPANY_DEFAULTS_READ_ONLY_FIELDS: frozenset[str] = frozenset(
+    # company_name is the identity the screen is organised around; the other
+    # two are Google's answer about the address, not a preference to set.
+    {"company_name", "formatted_address", "region"}
+)
 
 # There is deliberately no CRM section. Its only fields moved to the
 # IntegrationSettings singleton (ADR 0053: credentials never sit on the
@@ -104,6 +108,15 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, RegistrySectionKey] = {
     "city": "company",
     "post_code": "company",
     "country": "company",
+    # Derived from the address by Google, shown read-only so nobody types a
+    # region the holiday calendar then disagrees with.
+    "formatted_address": "company",
+    "region": "company",
+    # The same lookup's machine detail: no operator sets or reads these.
+    "google_place_id": "internal",
+    "latitude": "internal",
+    "longitude": "internal",
+    "address_raw_json": "internal",
     "company_email": "company",
     "company_url": "company",
     "logo": "company",

@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from apps.company.services.geocoding_service import GeocodingNotConfiguredError
+from apps.core.geocoding import GeocodingNotConfiguredError
 from apps.core.models import IntegrationSettings
 from scripts.ops.restore_checks import check_integration_settings
 
@@ -16,7 +16,7 @@ def test_blank_maps_key_fails_without_an_http_request() -> None:
     IntegrationSettings.objects.filter(pk=1).update(google_maps_api_key=None)
 
     with (
-        patch("apps.company.services.geocoding_service.requests.post") as post,
+        patch("apps.core.geocoding.requests.post") as post,
         pytest.raises(GeocodingNotConfiguredError, match="Google Maps API key not set"),
     ):
         check_integration_settings.main()

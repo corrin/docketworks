@@ -520,6 +520,14 @@ export type CompanyDefaultsOut = {
      */
     address_line2: string | null;
     /**
+     * Address Raw Json
+     *
+     * Raw JSON data from Google Places for the address above
+     */
+    address_raw_json: {
+        [key: string]: unknown;
+    } | null;
+    /**
      * City
      *
      * City
@@ -576,6 +584,12 @@ export type CompanyDefaultsOut = {
      */
     financial_year_start_month: number;
     /**
+     * Address as Google has it
+     *
+     * The address Google matched, filled in when someone picks a candidate on this screen. Read-only: it records what was confirmed, not what was typed.
+     */
+    formatted_address: string | null;
+    /**
      * Fri End
      */
     fri_end: string;
@@ -613,6 +627,10 @@ export type CompanyDefaultsOut = {
      * Folder ID for '02 - SOPs' (standard operating procedures)
      */
     gdrive_sops_folder_id: string | null;
+    /**
+     * Google Place Id
+     */
+    google_place_id: string | null;
     /**
      * Google Shared Drive Id
      *
@@ -696,6 +714,10 @@ export type CompanyDefaultsOut = {
      */
     last_xero_sync: string | null;
     /**
+     * Latitude
+     */
+    latitude: string | null;
+    /**
      * Logo Url
      */
     logo_url: string | null;
@@ -703,6 +725,10 @@ export type CompanyDefaultsOut = {
      * Logo Wide Url
      */
     logo_wide_url: string | null;
+    /**
+     * Longitude
+     */
+    longitude: string | null;
     /**
      * Master Quote Template Id
      *
@@ -739,6 +765,12 @@ export type CompanyDefaultsOut = {
      * Postal/ZIP code
      */
     post_code: string | null;
+    /**
+     * Region
+     *
+     * The region Google reports for the address above — 'Canterbury Region', or plainly 'Auckland'. Read-only, and the basis for which public holidays this business observes.
+     */
+    region: string | null;
     /**
      * Shop Company
      *
@@ -892,6 +924,14 @@ export type CompanyDefaultsPatchIn = {
      */
     address_line2?: string | null;
     /**
+     * Address Raw Json
+     *
+     * Raw JSON data from Google Places for the address above
+     */
+    address_raw_json?: {
+        [key: string]: unknown;
+    } | null;
+    /**
      * City
      *
      * City
@@ -944,6 +984,12 @@ export type CompanyDefaultsPatchIn = {
      */
     financial_year_start_month?: number | null;
     /**
+     * Address as Google has it
+     *
+     * The address Google matched, filled in when someone picks a candidate on this screen. Read-only: it records what was confirmed, not what was typed.
+     */
+    formatted_address?: string | null;
+    /**
      * Fri End
      */
     fri_end?: string | null;
@@ -981,6 +1027,10 @@ export type CompanyDefaultsPatchIn = {
      * Folder ID for '02 - SOPs' (standard operating procedures)
      */
     gdrive_sops_folder_id?: string | null;
+    /**
+     * Google Place Id
+     */
+    google_place_id?: string | null;
     /**
      * Google Shared Drive Id
      *
@@ -1060,6 +1110,14 @@ export type CompanyDefaultsPatchIn = {
      */
     last_xero_sync?: string | null;
     /**
+     * Latitude
+     */
+    latitude?: number | string | null;
+    /**
+     * Longitude
+     */
+    longitude?: number | string | null;
+    /**
      * Master Quote Template Id
      *
      * Google Sheets ID for the quote template
@@ -1095,6 +1153,12 @@ export type CompanyDefaultsPatchIn = {
      * Postal/ZIP code
      */
     post_code?: string | null;
+    /**
+     * Region
+     *
+     * The region Google reports for the address above — 'Canterbury Region', or plainly 'Auckland'. Read-only, and the basis for which public holidays this business observes.
+     */
+    region?: string | null;
     /**
      * Shop Company
      *

@@ -96,11 +96,6 @@ from apps.company.services.duplicate_phone_report import (
     DuplicatePhoneReportService,
     DuplicatePhonesReport,
 )
-from apps.company.services.geocoding_service import (
-    GeocodingError,
-    GeocodingNotConfiguredError,
-    search_places,
-)
 from apps.company.services.person_service import (
     CompanyLinkData,
     CompanyPersonData,
@@ -119,6 +114,11 @@ from apps.company.services.person_service import (
 )
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
 from apps.core.errors import persist_app_error
+from apps.core.geocoding import (
+    GeocodingError,
+    GeocodingNotConfiguredError,
+    search_places,
+)
 from apps.core.pagination import MAX_PAGE_SIZE, paginate
 
 logger = logging.getLogger(__name__)

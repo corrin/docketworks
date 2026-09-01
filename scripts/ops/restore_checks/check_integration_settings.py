@@ -13,7 +13,7 @@ from scripts.bootstrap import setup_django
 
 setup_django()
 
-from apps.company.services.geocoding_service import search_places  # noqa: E402 -- Django first
+from apps.core.geocoding import search_places  # noqa: E402 -- Django first
 from apps.core.models import IntegrationSettings  # noqa: E402
 from apps.crm.services.phone_call_service import verify_portal_login  # noqa: E402
 

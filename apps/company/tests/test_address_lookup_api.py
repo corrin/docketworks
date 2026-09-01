@@ -12,8 +12,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.test import Client
 
-from apps.company.tests.test_place_lookup import PLACES_RESPONSE
 from apps.core.models import IntegrationSettings
+from apps.core.tests.test_place_lookup import PLACES_RESPONSE
 
 pytestmark = [
     pytest.mark.django_db,
@@ -21,7 +21,7 @@ pytestmark = [
 ]
 
 PATH = "/api/companies/addresses/validate/"
-POST_TARGET = "apps.company.services.geocoding_service.requests.post"
+POST_TARGET = "apps.core.geocoding.requests.post"
 
 
 def _google_ok(payload: dict[str, Any]) -> MagicMock:

@@ -21,8 +21,8 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 7 |
-| TOTAL suppressions | 690 |
-| noqa: DJ001 | 162 |
+| TOTAL suppressions | 693 |
+| noqa: DJ001 | 165 |
 | noqa: PLC0415 | 130 |
 | noqa: E402 | 105 |
 | noqa: PLR0913 | 46 |
@@ -113,6 +113,6 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 | metric | count |
 |---|---:|
 | response schemas | 291 |
-| response properties | 1885 |
+| response properties | 1891 |
 | optional (pinned at zero) | 0 |
-| nullable | 413 |
+| nullable | 419 |
