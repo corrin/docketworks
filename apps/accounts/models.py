@@ -135,6 +135,12 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         max_length=255, null=True, blank=True
     )
     xero_last_modified = models.DateTimeField(null=True, blank=True)
+    xero_fields_checksum = models.CharField(  # noqa: DJ001 -- NULL means never synced
+        max_length=64,
+        null=True,
+        blank=True,
+        help_text=("SHA-256 of the last applied Xero employee fields and payroll-term history"),
+    )
     employment_start_date = models.DateField(default=timezone.localdate)
     pay_basis = models.CharField(  # noqa: DJ001 -- NULL means not classified by payroll
         max_length=10,
@@ -229,6 +235,10 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             ),
             models.CheckConstraint(
                 condition=~models.Q(xero_tenant_id=""), name="staff_xero_tenant_id_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(xero_fields_checksum=""),
+                name="staff_xero_fields_checksum_not_blank",
             ),
             models.CheckConstraint(
                 condition=~models.Q(payroll_email=""), name="staff_payroll_email_not_blank"

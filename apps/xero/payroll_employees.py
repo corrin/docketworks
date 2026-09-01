@@ -19,12 +19,14 @@ sleeping Retry-After and retrying. A second pacing layer on top would be our
 own invented constraint over a mechanism that already handles it.
 """
 
+import hashlib
+import json
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
@@ -535,8 +537,110 @@ def _plan_employee_changes(
     return planned
 
 
+def _normalise_checksum_value(value: Any) -> Any:
+    """Return a deterministic JSON value for one Xero-owned payroll fact."""
+    if value is None or isinstance(value, str | bool):
+        return value
+    if isinstance(value, datetime):
+        if timezone.is_aware(value):
+            value = value.astimezone(UTC)
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, Decimal | int | float):
+        return format(Decimal(str(value)).normalize(), "f")
+    if isinstance(value, dict):
+        return {
+            str(key): _normalise_checksum_value(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    if isinstance(value, list | tuple):
+        return [_normalise_checksum_value(item) for item in value]
+    raise TypeError(f"Unsupported Xero checksum value: {type(value).__name__}")
+
+
+def _xero_fields_checksum(projection: dict[str, Any]) -> str:
+    """Hash the complete Xero-owned employee projection deterministically."""
+    serialised = json.dumps(
+        _normalise_checksum_value(projection),
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(serialised.encode()).hexdigest()
+
+
+def _term_projection(term: PayrollTermSnapshot | StaffPayrollTerm) -> dict[str, Any]:
+    """Project either side of a payroll term into the checksum contract."""
+    if isinstance(term, PayrollTermSnapshot):
+        salary_wage_id = term.salary_wage_id
+        working_pattern_id = term.working_pattern_id
+    else:
+        salary_wage_id = term.xero_salary_wage_id
+        working_pattern_id = term.xero_working_pattern_id
+    return {
+        "effective_from": term.effective_from,
+        "pay_basis": term.pay_basis,
+        "annual_salary": term.annual_salary,
+        "hourly_rate": term.hourly_rate,
+        "working_weeks": term.working_weeks,
+        "xero_salary_wage_id": salary_wage_id,
+        "xero_working_pattern_id": working_pattern_id,
+    }
+
+
+def _incoming_employee_projection(
+    snapshot: PayrollEmployeeSnapshot, *, current_date_left: date | None
+) -> dict[str, Any]:
+    """Build the local state this snapshot is allowed to produce."""
+    return {
+        "xero_tenant_id": snapshot.tenant_id,
+        "xero_user_id": snapshot.employee_id,
+        "first_name": snapshot.first_name,
+        "last_name": snapshot.last_name,
+        "payroll_email": snapshot.email,
+        "employment_start_date": snapshot.start_date,
+        # Xero null means "not yet terminated there", never "reinstate here".
+        "date_left": snapshot.end_date if snapshot.end_date is not None else current_date_left,
+        "pay_basis": snapshot.pay_basis,
+        "base_wage_rate": (
+            snapshot.hourly_rate if snapshot.hourly_rate is not None else Decimal("0")
+        ),
+        "xero_last_modified": snapshot.updated_date_utc,
+        "payroll_terms": [_term_projection(term) for term in snapshot.payroll_terms],
+    }
+
+
+def _current_employee_projection(staff: Staff) -> dict[str, Any]:
+    """Build the currently persisted side of the Xero checksum contract."""
+    terms = sorted(
+        staff.payroll_terms.all(),
+        key=lambda term: (
+            term.effective_from,
+            term.xero_salary_wage_id or "",
+            term.xero_working_pattern_id or "",
+        ),
+    )
+    return {
+        "xero_tenant_id": staff.xero_tenant_id,
+        "xero_user_id": staff.xero_user_id,
+        "first_name": staff.first_name,
+        "last_name": staff.last_name,
+        "payroll_email": staff.payroll_email,
+        "employment_start_date": staff.employment_start_date,
+        "date_left": staff.date_left,
+        "pay_basis": staff.pay_basis,
+        "base_wage_rate": staff.base_wage_rate,
+        "xero_last_modified": staff.xero_last_modified,
+        "payroll_terms": [_term_projection(term) for term in terms],
+    }
+
+
 def _apply_employee_change(
-    snapshot: PayrollEmployeeSnapshot, staff: Staff | None, tenant_id: str
+    snapshot: PayrollEmployeeSnapshot,
+    staff: Staff | None,
+    tenant_id: str,
+    checksum: str,
 ) -> Staff:
     """Apply one already-validated and already-matched employee change."""
     base_wage_rate = snapshot.hourly_rate if snapshot.hourly_rate is not None else Decimal("0")
@@ -554,6 +658,7 @@ def _apply_employee_change(
             xero_user_id=snapshot.employee_id,
             xero_tenant_id=tenant_id,
             xero_last_modified=snapshot.updated_date_utc,
+            xero_fields_checksum=checksum,
         )
 
     staff.first_name = snapshot.first_name
@@ -563,6 +668,7 @@ def _apply_employee_change(
     staff.xero_user_id = snapshot.employee_id
     staff.xero_tenant_id = tenant_id
     staff.xero_last_modified = snapshot.updated_date_utc
+    staff.xero_fields_checksum = checksum
     staff.pay_basis = snapshot.pay_basis
     staff.base_wage_rate = base_wage_rate
     updated_fields = [
@@ -573,6 +679,7 @@ def _apply_employee_change(
         "xero_user_id",
         "xero_tenant_id",
         "xero_last_modified",
+        "xero_fields_checksum",
         "pay_basis",
         "base_wage_rate",
         "wage_rate",
@@ -621,9 +728,19 @@ def sync_employees(snapshots: list[PayrollEmployeeSnapshot]) -> None:
     if any(snapshot.tenant_id != tenant_id for snapshot in snapshots):
         raise ValueError("An employee sync batch cannot contain multiple Xero tenants")
     with transaction.atomic():
-        planned = _plan_employee_changes(snapshots, list(Staff.objects.select_for_update()))
+        staff_rows = list(Staff.objects.select_for_update().prefetch_related("payroll_terms"))
+        planned = _plan_employee_changes(snapshots, staff_rows)
         for snapshot, staff in planned:
-            changed = _apply_employee_change(snapshot, staff, tenant_id)
+            incoming_checksum = _xero_fields_checksum(
+                _incoming_employee_projection(
+                    snapshot, current_date_left=staff.date_left if staff is not None else None
+                )
+            )
+            if staff is not None:
+                current_checksum = _xero_fields_checksum(_current_employee_projection(staff))
+                if staff.xero_fields_checksum == incoming_checksum == current_checksum:
+                    continue
+            changed = _apply_employee_change(snapshot, staff, tenant_id, incoming_checksum)
             _replace_payroll_terms(changed, snapshot)
 
 
