@@ -70,7 +70,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 242 |
+| in comments | 243 |
 | in docstrings | 410 |
 
 ## Exception handling
@@ -113,6 +113,6 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 | metric | count |
 |---|---:|
 | response schemas | 291 |
-| response properties | 1879 |
+| response properties | 1880 |
 | optional (pinned at zero) | 0 |
 | nullable | 411 |

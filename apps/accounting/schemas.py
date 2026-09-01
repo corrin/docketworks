@@ -293,6 +293,7 @@ class KPIMonthlyTotalsOut(Schema):
     staff_cost: float
     material_cost: float
     adjustment_cost: float
+    labour_profit: float
     material_profit: float
     adjustment_profit: float
     total_revenue: float

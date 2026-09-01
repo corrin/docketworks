@@ -5130,6 +5130,10 @@ export type KpiMonthlyTotalsOut = {
      */
     labour_green_days: number;
     /**
+     * Labour Profit
+     */
+    labour_profit: number;
+    /**
      * Labour Red Days
      */
     labour_red_days: number;

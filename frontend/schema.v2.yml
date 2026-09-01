@@ -5759,6 +5759,9 @@ components:
         labour_green_days:
           title: Labour Green Days
           type: integer
+        labour_profit:
+          title: Labour Profit
+          type: number
         labour_red_days:
           title: Labour Red Days
           type: integer
@@ -5834,6 +5837,7 @@ components:
       - staff_cost
       - material_cost
       - adjustment_cost
+      - labour_profit
       - material_profit
       - adjustment_profit
       - total_revenue

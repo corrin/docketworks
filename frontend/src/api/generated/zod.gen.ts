@@ -2040,6 +2040,7 @@ export const zKpiMonthlyTotalsOut = z.object({
     gross_profit: z.number(),
     labour_amber_days: z.int(),
     labour_green_days: z.int(),
+    labour_profit: z.number(),
     labour_red_days: z.int(),
     material_cost: z.number(),
     material_profit: z.number(),

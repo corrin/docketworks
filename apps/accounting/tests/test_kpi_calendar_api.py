@@ -171,6 +171,11 @@ class TestKPICalendar:
         totals = authenticated_client.get(URL, JUNE).json()["monthly_totals"]
         assert totals["billable_hours"] == 8.0
         assert totals["gross_profit"] == 640.0 + 500.0
+        # The three profit components are served, so no client subtracts them:
+        # 8h x (120 - 40) labour, and 600 - 100 material.
+        assert totals["labour_profit"] == 640.0
+        assert totals["material_profit"] == 500.0
+        assert totals["labour_profit"] + totals["material_profit"] == totals["gross_profit"]
         assert totals["days_green"] == 1
         assert totals["days_red"] == 21  # every other working day had no hours
         assert totals["active_workdays"] == 1  # only days with hours count

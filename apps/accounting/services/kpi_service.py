@@ -521,6 +521,11 @@ def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -
         totals["time_revenue"] + totals["material_revenue"] + totals["adjustment_revenue"]
     )
     final["total_cost"] = totals["staff_cost"] + totals["material_cost"] + totals["adjustment_cost"]
+    # Served rather than left to the client: `material_profit` and
+    # `adjustment_profit` already ship, so a missing labour twin is the one
+    # figure a page would have to subtract for itself — which is how v1 ended
+    # up with cards and modals computing the same number two different ways.
+    final["labour_profit"] = totals["time_revenue"] - totals["staff_cost"]
 
     # Net profit approximates operating expenses as the daily GP target over
     # the elapsed working days.
