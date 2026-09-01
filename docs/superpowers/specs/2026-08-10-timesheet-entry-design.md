@@ -183,7 +183,7 @@ implementation and record anything new in rewrite-status:
 
 - An **"Annual Leave" job** findable by name in the picker and mapped to the
   Annual Leave pay item.
-- `annual_leave_loading > 0` in company defaults.
+- `labour_cost_loading > 0` in company defaults.
 - At least one active staff member (`date_left` null) with
   `base_wage_rate > 0`.
 - The E2E user passes superuser auth (the management-surface ops require it).

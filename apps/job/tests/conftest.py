@@ -29,7 +29,7 @@ def office_staff() -> Staff:
     """An office staff member (may mutate jobs), with a configured wage rate.
 
     Time pricing refuses to cost a staff member with no wage rate, so every
-    fixture that can book time carries one (base 40.00 + 20% leave loading =
+    fixture that can book time carries one (base 40.00 + 20% labour cost loading =
     wage_rate 48.00).
     """
     return Staff.objects.create_user(
@@ -71,7 +71,7 @@ def unpaid_staff() -> Staff:
 def timesheet_worker() -> Staff:
     """A workshop worker with a known wage rate, for time-entry pricing tests.
 
-    ``base_wage_rate`` 40.00 with the default 20% leave loading gives
+    ``base_wage_rate`` 40.00 with the default 20% labour cost loading gives
     ``wage_rate`` 48.00; the root conftest provides the CompanyDefaults the
     loading calculation and the default-subtype assignment need.
     """

@@ -299,8 +299,8 @@ def test_live_week_reconciliation_sees_both_sides_and_the_unposted_employee(
     # Real money, not two zeroes agreeing with each other.
     assert mine["xero_gross"] > 0.0
     assert mine["jm_base_pay"] > 0.0
-    # Base is what reconciles; loaded carries the annual leave loading Xero
-    # does not pay, so it sits above the gross by that much.
+    # Base is what reconciles; loaded allocates paid non-worked time that is not
+    # in this worked-time gross, so it sits above the gross by that much.
     assert mine["jm_base_pay"] < mine["jm_cost"]
     assert mine["hours_diff"] == 0.0
 

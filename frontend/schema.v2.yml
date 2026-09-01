@@ -540,11 +540,6 @@ components:
           - type: 'null'
           description: Street address line 2 (optional)
           title: Address Line2
-        annual_leave_loading:
-          description: Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-          title: Annual Leave Loading
-          type: string
         city:
           anyOf:
           - maxLength: 100
@@ -700,6 +695,14 @@ components:
           description: Target gross profit percentage for individual jobs
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Target GP % per job
+          type: string
+        labour_cost_loading:
+          description: Percentage added to each base wage to recover paid non-worked time in the labour
+            cost assigned to worked hours. Include annual leave, public holidays, sick leave, bereavement
+            leave, and employer-paid ACC time; measure the percentage for this business (20.00 turns $40.00
+            into $48.00).
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Labour Cost Loading
           type: string
         last_xero_deep_sync:
           anyOf:
@@ -895,7 +898,6 @@ components:
       - accounting_provider
       - address_line1
       - address_line2
-      - annual_leave_loading
       - city
       - company_acronym
       - company_email
@@ -924,6 +926,7 @@ components:
       - kpi_daily_gp_target
       - kpi_daily_shop_hours_percentage
       - kpi_job_gp_target_percentage
+      - labour_cost_loading
       - last_xero_deep_sync
       - last_xero_sync
       - logo_url
@@ -985,14 +988,6 @@ components:
           - type: 'null'
           description: Street address line 2 (optional)
           title: Address Line2
-        annual_leave_loading:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
-          - type: 'null'
-          description: Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)
-          title: Annual Leave Loading
         city:
           anyOf:
           - maxLength: 100
@@ -1181,6 +1176,17 @@ components:
           - type: 'null'
           description: Target gross profit percentage for individual jobs
           title: Target GP % per job
+        labour_cost_loading:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          description: Percentage added to each base wage to recover paid non-worked time in the labour
+            cost assigned to worked hours. Include annual leave, public holidays, sick leave, bereavement
+            leave, and employer-paid ACC time; measure the percentage for this business (20.00 turns $40.00
+            into $48.00).
+          title: Labour Cost Loading
         last_xero_deep_sync:
           anyOf:
           - format: date-time

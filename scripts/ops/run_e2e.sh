@@ -59,6 +59,9 @@ for port in 4173 8000 4040; do
 done
 
 cd "$ROOT"
+# Codex: Cleanup imports the current models, so the database must reach the
+# current schema before cleanup queries any renamed or newly added column.
+"$ROOT/.venv/bin/python" manage.py migrate --no-input
 npm --prefix "$FRONTEND" run test:e2e:reset -- --confirm
 rm -rf "$FRONTEND/test-results" "$FRONTEND/playwright-report" "$LOG_DIR"
 mkdir -p "$LOG_DIR"

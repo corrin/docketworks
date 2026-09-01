@@ -124,7 +124,7 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, RegistrySectionKey] = {
     "materials_markup": "finances",
     "gst_rate": "finances",
     "wage_rate": "finances",
-    "annual_leave_loading": "finances",
+    "labour_cost_loading": "finances",
     "financial_year_start_month": "finances",
     "kpi_daily_billable_hours_green": "kpi",
     "kpi_daily_billable_hours_amber": "kpi",

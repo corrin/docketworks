@@ -9,8 +9,8 @@ import {
 } from '../timesheet/support'
 
 /**
- * Annual-leave wage loading: Staff.wage_rate is base_wage_rate with the
- * company's annual_leave_loading applied, and the entry grid's wage column
+ * Labour cost loading: Staff.wage_rate is base_wage_rate with the
+ * company's labour_cost_loading applied, and the entry grid's wage column
  * prices hours at the LOADED rate, never the base rate.
  *
  * Port deviation from v1: the shared job is created by the first serial test
@@ -31,10 +31,10 @@ test.describe.serial('staff wage loading', () => {
     )
 
     const defaults = await getCompanyDefaults(page)
-    loadingPercent = Number(defaults.annual_leave_loading)
+    loadingPercent = Number(defaults.labour_cost_loading)
     if (!(loadingPercent > 0)) {
       throw new Error(
-        `annual_leave_loading must be > 0 for this spec (got ${String(defaults.annual_leave_loading)})`,
+        `labour_cost_loading must be > 0 for this spec (got ${String(defaults.labour_cost_loading)})`,
       )
     }
 

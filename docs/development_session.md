@@ -106,7 +106,7 @@ See [`../CLAUDE.md`](../CLAUDE.md) for the standards these gates enforce.
   restore does not carry them, and the specs fail in oblique ways without
   them. The timesheet specs additionally rely on restore data that already
   holds: an "Annual Leave" job findable by name whose default pay item is
-  the Annual Leave pay item, `annual_leave_loading > 0` in company
+  the Annual Leave pay item, `labour_cost_loading > 0` in company
   defaults, and at least one active staff member with `base_wage_rate > 0`.
 - A Gemini API key lives in the local `AIProvider` row: DB only, not in the
   repo or env files. Anything needing the LLM path needs that row.

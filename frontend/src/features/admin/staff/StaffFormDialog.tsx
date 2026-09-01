@@ -426,7 +426,7 @@ export function StaffFormDialog({ open, onOpenChange, staff }: Props) {
                   data-automation-id="StaffFormDialog-wage-rate"
                 />
                 <span className="text-xs font-normal text-slate-500">
-                  Computed from the base rate with annual leave loading.
+                  Computed from the base rate with labour cost loading.
                 </span>
               </label>
               <DateField

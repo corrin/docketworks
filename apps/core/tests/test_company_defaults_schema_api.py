@@ -80,6 +80,18 @@ def test_company_name_is_read_only(api: Client) -> None:
 
 
 @pytest.mark.django_db
+def test_labour_cost_loading_names_and_explains_the_whole_cost(api: Client) -> None:
+    """An operator must not mistake the setting for annual leave alone again."""
+    by_key = {field.key: field for field in _section(_schema(api), "finances").fields}
+
+    loading = by_key["labour_cost_loading"]
+    assert loading.label == "Labour Cost Loading"
+    assert "paid non-worked time" in loading.help_text
+    assert "annual leave, public holidays, sick leave, bereavement leave" in loading.help_text
+    assert "$40.00 into $48.00" in loading.help_text
+
+
+@pytest.mark.django_db
 def test_branding_theme_gets_its_picker_widget(api: Client) -> None:
     """Class-only dispatch would render the Xero theme UUID as text instead of its remote picker."""
     by_key = {field.key: field for field in _section(_schema(api), "xero").fields}
