@@ -1,9 +1,11 @@
 /**
- * Hours input parsing and display for the timesheet entry grid.
+ * Hours input parsing for the timesheet entry grid.
  *
- * Both are v1-exact: the E2E specs assert the humanised display as the hours
- * input's VALUE ('2h', '3h 30m'), and entry habits like "1 1/4" must keep
- * working for the workshop.
+ * v1-exact: entry habits like "1 1/4" must keep working for the workshop.
+ * Its display counterpart is formatHoursDisplay in lib/format.ts — it moved
+ * there once the KPI report needed it too, since a second hours formatter
+ * would diverge invisibly. The round-trip between the two is asserted in
+ * hours.test.ts.
  */
 
 /**
@@ -41,16 +43,4 @@ export function parseHoursInput(raw: string, fallback: number): number {
   }
   if (!Number.isFinite(parsed) || parsed < 0) return fallback
   return Math.round(Math.min(parsed, 24) * 100) / 100
-}
-
-/** Humanised hours: 2 → '2h', 3.5 → '3h 30m', 0.25 → '15m', 0/garbage → '0h'. */
-export function formatHoursDisplay(hours: number | null | undefined): string {
-  if (hours === null || hours === undefined || !Number.isFinite(hours)) return '0h'
-  const totalMinutes = Math.round(hours * 60)
-  const wholeHours = Math.floor(totalMinutes / 60)
-  const minutes = totalMinutes % 60
-  if (wholeHours === 0 && minutes === 0) return '0h'
-  if (wholeHours === 0) return `${minutes}m`
-  if (minutes === 0) return `${wholeHours}h`
-  return `${wholeHours}h ${minutes}m`
 }

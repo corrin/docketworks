@@ -14,6 +14,28 @@ export function formatCurrency(value: number): string {
   return NZD.format(value)
 }
 
+const NZD_WHOLE = new Intl.NumberFormat('en-NZ', {
+  style: 'currency',
+  currency: 'NZD',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+})
+
+/**
+ * Whole-dollar money, for reports that offer a precision setting (Xero's
+ * model: the choice belongs to the report, not the column). A separate
+ * exported function rather than an option on formatCurrency, so the two
+ * outputs stay individually assertable and no call site can silently pick a
+ * precision its neighbours did not.
+ *
+ * A report choosing this must use it EVERYWHERE it shows money — the same
+ * figure rendering $1,234 in a cell and $1,234.00 in the dialog one click
+ * away is the divergence formatCurrency's docstring exists to prevent.
+ */
+export function formatWholeCurrency(value: number): string {
+  return NZD_WHOLE.format(value)
+}
+
 /**
  * toFixed(1), not Intl percent formatting: rates travel as percentage
  * points (0-100, ADR 0046), and Intl's percent style would multiply by
@@ -71,6 +93,44 @@ export function localIsoDate(): string {
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
   return `${now.getFullYear()}-${month}-${day}`
+}
+
+/** This month as YYYY-MM, carrying localIsoDate's timezone constraint. */
+export function localIsoMonth(): string {
+  return localIsoDate().slice(0, 7)
+}
+
+/**
+ * A YYYY-MM month as 'Sept 2026'. Short-form to match formatDate's
+ * '02 Sept 2026' — en-NZ's own abbreviations, so the two agree by
+ * construction rather than by a hardcoded table. v1's KPI page spelled the
+ * month out in full, and two month spellings in one reports directory is the
+ * divergence this module exists to prevent.
+ *
+ * UTC timezone on the formatter, because the input is a bare month: parsing
+ * `${isoMonth}-01` yields UTC midnight, which local formatting would render
+ * as the previous month for anywhere behind UTC.
+ */
+export function formatMonth(isoMonth: string): string {
+  return NZ_MONTH.format(new Date(`${isoMonth}-01`))
+}
+
+const NZ_MONTH = new Intl.DateTimeFormat('en-NZ', {
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
+
+/** Humanised hours: 2 → '2h', 3.5 → '3h 30m', 0.25 → '15m', 0/garbage → '0h'. */
+export function formatHoursDisplay(hours: number | null | undefined): string {
+  if (hours === null || hours === undefined || !Number.isFinite(hours)) return '0h'
+  const totalMinutes = Math.round(hours * 60)
+  const wholeHours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (wholeHours === 0 && minutes === 0) return '0h'
+  if (wholeHours === 0) return `${minutes}m`
+  if (minutes === 0) return `${wholeHours}h`
+  return `${wholeHours}h ${minutes}m`
 }
 
 const NZ_DATE_TIME = new Intl.DateTimeFormat('en-NZ', {

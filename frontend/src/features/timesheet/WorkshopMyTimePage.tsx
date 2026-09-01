@@ -8,7 +8,7 @@ import { SummaryCard } from '@/features/shared/SummaryCard'
 import { formatDateLong, localIsoDate } from '@/lib/format'
 import { shiftDate } from '@/lib/dates'
 
-import { formatHoursDisplay } from './hours'
+import { formatHoursDisplay } from '@/lib/format'
 import { calendarEvent, splitDayEntries } from './myTime'
 import { useWorkshopDay } from './useWorkshopDay'
 import { WorkshopTimesheetCalendar } from './WorkshopTimesheetCalendar'

@@ -30,7 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { formatHoursDisplay, parseHoursInput } from './hours'
+import { formatHoursDisplay } from '@/lib/format'
+import { parseHoursInput } from './hours'
 import { rateForSubtype, subtypeName } from './labourRates'
 import { lineBillMultiplier, lineIsBillable, lineMeta, lineWageMultiplier } from './lineMeta'
 import { useTimesheetJobSearch } from './useTimesheetJobSearch'

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { nextWeekday, shiftDate, weekdayAdjusted } from './dates'
+import { isIsoMonthString, nextWeekday, shiftDate, shiftMonth, weekdayAdjusted } from './dates'
 
 // 2026-08-07 is a Friday; 08/08 Sat, 09/08 Sun, 10/08 Mon.
 
@@ -35,5 +35,40 @@ describe('weekdayAdjusted', () => {
   it('leaves weekdays and enabled weekends alone', () => {
     expect(weekdayAdjusted('2026-08-07', false)).toBe('2026-08-07')
     expect(weekdayAdjusted('2026-08-08', true)).toBe('2026-08-08')
+  })
+})
+
+describe('isIsoMonthString', () => {
+  it('accepts a real month in the range the reports API serves', () => {
+    expect(isIsoMonthString('2026-09')).toBe(true)
+    expect(isIsoMonthString('2000-01')).toBe(true)
+  })
+
+  it('rejects years the server would 422', () => {
+    // The bound mirrors apps/accounting/api.py so a hand-edited URL falls
+    // back to the current month instead of rendering a server error.
+    expect(isIsoMonthString('1999-06')).toBe(false)
+    expect(isIsoMonthString('2101-06')).toBe(false)
+  })
+
+  it('rejects malformed and over-specified values', () => {
+    expect(isIsoMonthString('2026-13')).toBe(false)
+    expect(isIsoMonthString('2026-00')).toBe(false)
+    expect(isIsoMonthString('2026-9')).toBe(false)
+    expect(isIsoMonthString('2026-09-01')).toBe(false)
+    expect(isIsoMonthString('')).toBe(false)
+  })
+})
+
+describe('shiftMonth', () => {
+  it('rolls the year over in both directions', () => {
+    expect(shiftMonth('2026-01', -1)).toBe('2025-12')
+    expect(shiftMonth('2026-12', 1)).toBe('2027-01')
+  })
+
+  it('shifts within a year and pads the month', () => {
+    expect(shiftMonth('2026-09', -1)).toBe('2026-08')
+    expect(shiftMonth('2026-09', 1)).toBe('2026-10')
+    expect(shiftMonth('2026-11', -2)).toBe('2026-09')
   })
 })

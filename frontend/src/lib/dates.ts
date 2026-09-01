@@ -45,6 +45,34 @@ export function isIsoDateString(value: string): boolean {
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
 }
 
+/**
+ * Whether a string is a real YYYY-MM month within the range the reports API
+ * accepts. The year bound mirrors the server's own (apps/accounting/api.py),
+ * so a hand-edited URL falls back to the current month rather than
+ * round-tripping to a 422 the page would have to render as an error.
+ */
+export function isIsoMonthString(value: string): boolean {
+  if (!/^\d{4}-\d{2}$/.test(value)) return false
+  const [yearPart, monthPart] = value.split('-')
+  const year = Number(yearPart)
+  const month = Number(monthPart)
+  return year >= 2000 && year <= 2100 && month >= 1 && month <= 12
+}
+
+/** Shift a YYYY-MM month by whole months, rolling the year over. */
+export function shiftMonth(isoMonth: string, months: number): string {
+  const [yearPart, monthPart] = isoMonth.split('-')
+  const year = Number(yearPart)
+  const month = Number(monthPart)
+  if (Number.isNaN(year) || Number.isNaN(month)) {
+    throw new Error(`Not a YYYY-MM month: ${isoMonth}`)
+  }
+  // Date normalises out-of-range months into the neighbouring year, which is
+  // the whole reason this goes through Date rather than modular arithmetic.
+  const shifted = new Date(year, month - 1 + months, 1)
+  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}`
+}
+
 /** Shift a local date by whole days. */
 export function shiftDate(isoDate: string, days: number): string {
   const date = parseLocal(isoDate)

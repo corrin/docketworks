@@ -9,7 +9,7 @@
 
 import type { WorkshopTimesheetEntryOut, WorkshopTimesheetEntryUpdateRequest } from '@/api'
 
-import { formatHoursDisplay } from './hours'
+import { formatHoursDisplay } from '@/lib/format'
 
 /** A timed entry carries a full pair; the guard narrows both nulls away. */
 export interface TimedEntry extends WorkshopTimesheetEntryOut {
