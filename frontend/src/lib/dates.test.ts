@@ -66,6 +66,13 @@ describe('shiftMonth', () => {
     expect(shiftMonth('2026-12', 1)).toBe('2027-01')
   })
 
+  it('refuses a full date rather than silently dropping the day', () => {
+    // shiftDate has the same signature and DOES take YYYY-MM-DD, so passing
+    // one here is the likely mistake; before the guard it returned '2026-10'.
+    expect(() => shiftMonth('2026-09-15', 1)).toThrow(/Not a YYYY-MM month/)
+    expect(() => shiftMonth('1999-06', 1)).toThrow(/Not a YYYY-MM month/)
+  })
+
   it('shifts within a year and pads the month', () => {
     expect(shiftMonth('2026-09', -1)).toBe('2026-08')
     expect(shiftMonth('2026-09', 1)).toBe('2026-10')

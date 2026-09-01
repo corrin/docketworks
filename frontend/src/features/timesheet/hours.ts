@@ -2,10 +2,11 @@
  * Hours input parsing for the timesheet entry grid.
  *
  * v1-exact: entry habits like "1 1/4" must keep working for the workshop.
- * Its display counterpart is formatHoursDisplay in lib/format.ts — it moved
- * there once the KPI report needed it too, since a second hours formatter
- * would diverge invisibly. The round-trip between the two is asserted in
- * hours.test.ts.
+ * Its display counterpart is formatHoursDisplay in lib/format.ts.
+ *
+ * Opus: the formatter moved there once the KPI report needed it too — a
+ * second hours formatter would diverge invisibly. The round-trip between the
+ * two is asserted in hours.test.ts, where the parser lives.
  */
 
 /**

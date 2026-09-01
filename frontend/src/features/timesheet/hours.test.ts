@@ -14,10 +14,10 @@ describe('parseHoursInput', () => {
     expect(parseHoursInput('3/4', 0)).toBe(0.75)
   })
 
-  // formatHoursDisplay lives in lib/format.ts; its own cases are tested
-  // there. What must be asserted HERE is that the two still meet — a change
-  // to the display form that the parser cannot read back breaks the hours
-  // input, and neither file's own tests would notice.
+  // Opus: formatHoursDisplay lives in lib/format.ts and its own cases are
+  // tested there. What must be asserted HERE is that the two still meet — a
+  // display change the parser cannot read back breaks the hours input, and
+  // neither file's own tests would notice.
   it('round-trips the humanised display form', () => {
     expect(parseHoursInput(formatHoursDisplay(3.5), 0)).toBe(3.5)
     expect(parseHoursInput(formatHoursDisplay(0.75), 0)).toBe(0.75)

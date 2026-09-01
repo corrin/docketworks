@@ -214,7 +214,7 @@ class StaffPerformanceResponse(Schema):
 class KPIProfitBreakdownOut(Schema):
     """Wire contract for KPIProfitBreakdownOut."""
 
-    labor_profit: float
+    labour_profit: float
     material_profit: float
     adjustment_profit: float
 

@@ -1,3 +1,5 @@
+import { isIsoMonthString } from './dates'
+
 const NZD = new Intl.NumberFormat('en-NZ', {
   style: 'currency',
   currency: 'NZD',
@@ -23,14 +25,14 @@ const NZD_WHOLE = new Intl.NumberFormat('en-NZ', {
 
 /**
  * Whole-dollar money, for reports that offer a precision setting (Xero's
- * model: the choice belongs to the report, not the column). A separate
- * exported function rather than an option on formatCurrency, so the two
- * outputs stay individually assertable and no call site can silently pick a
- * precision its neighbours did not.
+ * model: the choice belongs to the report, not the column).
  *
- * A report choosing this must use it EVERYWHERE it shows money — the same
- * figure rendering $1,234 in a cell and $1,234.00 in the dialog one click
- * away is the divergence formatCurrency's docstring exists to prevent.
+ * Opus: a separate exported function rather than an option on
+ * formatCurrency, so the two outputs stay individually assertable and no call
+ * site can silently pick a precision its neighbours did not. A report
+ * choosing this must use it EVERYWHERE it shows money — the same figure
+ * rendering $1,234 in a cell and $1,234.00 in the dialog one click away is
+ * the divergence formatCurrency's docstring exists to prevent.
  */
 export function formatWholeCurrency(value: number): string {
   return NZD_WHOLE.format(value)
@@ -100,26 +102,31 @@ export function localIsoMonth(): string {
   return localIsoDate().slice(0, 7)
 }
 
-/**
- * A YYYY-MM month as 'Sept 2026'. Short-form to match formatDate's
- * '02 Sept 2026' — en-NZ's own abbreviations, so the two agree by
- * construction rather than by a hardcoded table. v1's KPI page spelled the
- * month out in full, and two month spellings in one reports directory is the
- * divergence this module exists to prevent.
- *
- * UTC timezone on the formatter, because the input is a bare month: parsing
- * `${isoMonth}-01` yields UTC midnight, which local formatting would render
- * as the previous month for anywhere behind UTC.
- */
-export function formatMonth(isoMonth: string): string {
-  return NZ_MONTH.format(new Date(`${isoMonth}-01`))
-}
-
 const NZ_MONTH = new Intl.DateTimeFormat('en-NZ', {
   month: 'short',
   year: 'numeric',
   timeZone: 'UTC',
 })
+
+/**
+ * A YYYY-MM month as 'Sept 2026', matching formatDate's '02 Sept 2026'.
+ *
+ * Opus: short-form via en-NZ's own abbreviations, so the two agree by
+ * construction rather than by a hardcoded table; v1's KPI page spelled the
+ * month out in full, and two month spellings in one reports directory is the
+ * divergence this module exists to prevent. UTC on the formatter because the
+ * input is a bare month — parsing `${isoMonth}-01` yields UTC midnight, which
+ * local formatting would render as the previous month behind UTC.
+ */
+export function formatMonth(isoMonth: string): string {
+  // Opus: named up front rather than letting Intl throw a bare "Invalid time
+  // value" from inside a render — an exported helper should say which of its
+  // arguments was wrong.
+  if (!isIsoMonthString(isoMonth)) {
+    throw new Error(`Not a YYYY-MM month: ${isoMonth}`)
+  }
+  return NZ_MONTH.format(new Date(`${isoMonth}-01`))
+}
 
 /** Humanised hours: 2 → '2h', 3.5 → '3h 30m', 0.25 → '15m', 0/garbage → '0h'. */
 export function formatHoursDisplay(hours: number | null | undefined): string {

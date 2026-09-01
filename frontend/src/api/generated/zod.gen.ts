@@ -2069,7 +2069,7 @@ export const zKpiMonthlyTotalsOut = z.object({
  */
 export const zKpiProfitBreakdownOut = z.object({
     adjustment_profit: z.number(),
-    labor_profit: z.number(),
+    labour_profit: z.number(),
     material_profit: z.number()
 });
 

@@ -5872,14 +5872,14 @@ components:
         adjustment_profit:
           title: Adjustment Profit
           type: number
-        labor_profit:
-          title: Labor Profit
+        labour_profit:
+          title: Labour Profit
           type: number
         material_profit:
           title: Material Profit
           type: number
       required:
-      - labor_profit
+      - labour_profit
       - material_profit
       - adjustment_profit
       title: KPIProfitBreakdownOut

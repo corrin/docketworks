@@ -122,3 +122,13 @@ describe('formatHoursDisplay', () => {
     expect(formatHoursDisplay(undefined)).toBe('0h')
   })
 })
+
+describe('month helpers refuse what they cannot format', () => {
+  it('formatMonth names the bad argument instead of throwing from Intl', () => {
+    // Intl's own failure is "Invalid time value", which says nothing about
+    // which argument was wrong or where it came from.
+    expect(() => formatMonth('2026-13')).toThrow(/Not a YYYY-MM month/)
+    expect(() => formatMonth('2026-09-01')).toThrow(/Not a YYYY-MM month/)
+    expect(() => formatMonth('')).toThrow(/Not a YYYY-MM month/)
+  })
+})

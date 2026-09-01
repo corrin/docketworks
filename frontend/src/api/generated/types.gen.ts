@@ -5226,9 +5226,9 @@ export type KpiProfitBreakdownOut = {
      */
     adjustment_profit: number;
     /**
-     * Labor Profit
+     * Labour Profit
      */
-    labor_profit: number;
+    labour_profit: number;
     /**
      * Material Profit
      */

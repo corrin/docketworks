@@ -47,9 +47,11 @@ export function isIsoDateString(value: string): boolean {
 
 /**
  * Whether a string is a real YYYY-MM month within the range the reports API
- * accepts. The year bound mirrors the server's own (apps/accounting/api.py),
- * so a hand-edited URL falls back to the current month rather than
- * round-tripping to a 422 the page would have to render as an error.
+ * accepts (year bound mirrors apps/accounting/api.py).
+ *
+ * Opus: bounded here as well as server-side so a hand-edited URL falls back
+ * to the current month rather than round-tripping to a 422 the page would
+ * have to render as an error.
  */
 export function isIsoMonthString(value: string): boolean {
   if (!/^\d{4}-\d{2}$/.test(value)) return false
@@ -61,14 +63,17 @@ export function isIsoMonthString(value: string): boolean {
 
 /** Shift a YYYY-MM month by whole months, rolling the year over. */
 export function shiftMonth(isoMonth: string, months: number): string {
+  // Opus: the full validator, not a NaN check. Splitting alone accepts
+  // '2026-09-15' and silently returns '2026-10' — a live hazard with
+  // shiftDate's identical signature eleven lines below taking YYYY-MM-DD.
+  if (!isIsoMonthString(isoMonth)) {
+    throw new Error(`Not a YYYY-MM month: ${isoMonth}`)
+  }
   const [yearPart, monthPart] = isoMonth.split('-')
   const year = Number(yearPart)
   const month = Number(monthPart)
-  if (Number.isNaN(year) || Number.isNaN(month)) {
-    throw new Error(`Not a YYYY-MM month: ${isoMonth}`)
-  }
-  // Date normalises out-of-range months into the neighbouring year, which is
-  // the whole reason this goes through Date rather than modular arithmetic.
+  // Opus: Date normalises out-of-range months into the neighbouring year,
+  // which is the whole reason this goes through Date, not modular arithmetic.
   const shifted = new Date(year, month - 1 + months, 1)
   return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}`
 }

@@ -87,7 +87,7 @@ class TestKPICalendar:
         assert details["time_revenue"] == 720.0
         assert details["material_revenue"] == 400.0
         assert details["total_cost"] == 390.0
-        assert details["profit_breakdown"]["labor_profit"] == 480.0
+        assert details["profit_breakdown"]["labour_profit"] == 480.0
         breakdown = details["job_breakdown"]
         assert breakdown[0]["job_number"] == str(job.job_number)
         assert breakdown[0]["profit"] == 730.0

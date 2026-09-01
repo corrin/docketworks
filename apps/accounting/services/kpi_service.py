@@ -11,32 +11,34 @@ Accepted report semantics:
   because including them would restate the gross profit of every past month.
 - ``days_green/amber/red`` count every working day including future ones;
   ``labour_*_days`` and ``profit_*_days`` count elapsed days only.
-- **What the daily GP target IS.** ``kpi_daily_gp_target`` is the business's
-  monthly operating expense amortised over weekdays — roughly $20,000/month
-  over ~20 weekdays, so ~$1,000 a weekday and $0 at the weekend (owner, 2026-09).
-  A day therefore reads green once it has covered its share of the overhead,
-  and ``gp_target_achievement`` is the percentage of that day's overhead the
-  day paid for. Read it as a cost allowance, not an aspiration.
-- **Weekend work is bonus, not baseline.** That is why the target and
-  ``avg_weekday_gp`` are measured over WEEKDAYS, never over the days the
-  calendar happens to show: no overhead is apportioned to a Saturday, because
-  the month's overhead is already fully spread across its weekdays. A
-  Saturday's gross profit counts toward the month in full, is never OWED a
-  target, and never dilutes the weekday average — working a weekend is
-  abnormal, so it beats the target rather than raising it. Enabling the
-  weekend flag therefore moves no money figure at all: it adds cells, not
-  expectations. The rejected alternative was scaling the daily target to 5/7
-  when weekends show, which both makes one configured number mean two things
-  and misstates the overhead, which did not change.
-- Averages name their divisor: ``avg_weekday_gp`` over weekdays,
-  ``avg_active_day_gp`` and ``avg_active_day_billable_hours`` over days that
-  actually carried hours.
-- **Each day ships two colours and the report picks one.** ``color_hours``
-  runs the billable-hours ladder, ``color_gp`` the gross-profit one. v1 drew
-  the hours ladder only, and deliberately: dollars are the goal, but a noisy
-  daily signal, while billed hours lead them — bill enough hours and the money
-  follows. Hours therefore stays the default. Both are served rather than one
-  derived in the browser, so the two ladders cannot fork.
+- **``kpi_daily_gp_target`` is OVERHEAD, not an aspiration** (owner ruling,
+  2026-09-01). It is the business's monthly operating expense amortised over
+  weekdays — roughly $20,000 a month over ~20 weekdays, so ~$1,000 a weekday
+  and $0 at the weekend, because working a weekend is abnormal. So a day reads
+  green once it has covered its share of the overhead, and
+  ``gp_target_achievement`` is the percentage of that share the day paid for.
+  ``net_profit`` is a real net profit — gross profit less overhead incurred —
+  but only while the threshold stays set to the opex share; retuned upward as
+  a stretch goal it becomes a variance, and v1's KPI page proves the cost of
+  misreading it (it built a "projected expenses" row from ``gp_green`` and
+  ``working_days``, so the arithmetic on screen never reached the field).
+- **Weekend work is bonus, not baseline** (owner ruling, 2026-09-01). The
+  target and ``avg_weekday_gp`` count WEEKDAYS, never the days the calendar
+  happens to show: the month's overhead is already fully spread across its
+  weekdays, so a Saturday earns without being charged and beats the target
+  rather than raising it. Turning the weekend flag on must therefore move no
+  money figure at all — it adds cells, not expectations, and
+  ``test_showing_weekends_moves_no_money_figure`` pins that. The rejected
+  alternative was scaling the daily target to 5/7 when weekends show, which
+  makes one configured number mean two things and misstates an overhead that
+  did not change. Averages name their divisor: ``avg_active_day_gp`` and
+  ``avg_active_day_billable_hours`` divide by days that carried hours.
+- **Each day ships both ladders and the report picks one** (owner ruling,
+  2026-09-01). ``color_hours`` runs the billable-hours ladder, ``color_gp``
+  the gross-profit one, and hours is the default because dollars are the goal
+  but a noisy daily signal while billed hours lead them — bill enough hours
+  and the money follows. Both are served rather than one derived in the
+  browser, so the two ladders cannot fork from the month counters'.
 - The profit day-colour ladder is green >= gp_target, amber >= gp_green — the
   ``_amber`` threshold field is unused there; changing it changes report data.
 - ``color_shop`` can only be green (shop share <= 20%) or red. Amber is
@@ -47,7 +49,7 @@ import calendar
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import NamedTuple, TypedDict
+from typing import Literal, NamedTuple, TypedDict
 from uuid import UUID
 
 import holidays
@@ -147,7 +149,13 @@ def _get_holidays(year: int, month: int | None = None) -> dict[date, str]:
     return dict(nz_holidays)
 
 
-def _get_color(value: float | Decimal, green_threshold: float, amber_threshold: float) -> str:
+#: The rungs a day can land on. Named because the monthly counters are keyed
+#: by it (``days_green``, ``labour_amber_days``), so the ladder's range and
+#: those key names are one fact, not two that can drift apart.
+DayColor = Literal["green", "amber", "red"]
+
+
+def _get_color(value: float | Decimal, green_threshold: float, amber_threshold: float) -> DayColor:
     if value >= green_threshold:
         return "green"
     if value >= amber_threshold:
@@ -158,11 +166,11 @@ def _get_color(value: float | Decimal, green_threshold: float, amber_threshold: 
 class _DayColors(NamedTuple):
     """A day's two colour ladders. The report chooses which one it draws."""
 
-    hours: str
-    gp: str
+    hours: DayColor
+    gp: DayColor
 
 
-def _hours_color(billable_hours: float | Decimal, thresholds: Thresholds) -> str:
+def _hours_color(billable_hours: float | Decimal, thresholds: Thresholds) -> DayColor:
     """Green once the day billed enough hours, amber part-way."""
     return _get_color(
         billable_hours,
@@ -171,7 +179,7 @@ def _hours_color(billable_hours: float | Decimal, thresholds: Thresholds) -> str
     )
 
 
-def _profit_color(gross_profit: float | Decimal, thresholds: Thresholds) -> str:
+def _profit_color(gross_profit: float | Decimal, thresholds: Thresholds) -> DayColor:
     """Green once the day covered its overhead, amber part-way.
 
     Green >= gp_target, amber >= gp_green — the ``_amber`` threshold is
@@ -421,11 +429,10 @@ def _build_day_entry(  # noqa: PLR0913, PLR0917 -- one argument per precomputed 
             "shop_hours": float(day.time["shop_hours"]),
             "shop_percentage": float(shop_percentage),
             "gross_profit": float(gross_profit),
-            # Both ladders ship, because the report lets the viewer choose
-            # which one tints the calendar. Hours is the default and v1's only
-            # option: dollars are the goal but a noisy daily signal, while
-            # billed hours lead them — bill enough and the money follows.
-            # Deriving the unshipped one client-side would fork the ladder.
+            # Owner ruling 2026-09-01 (see module docstring): the report lets
+            # the viewer choose which ladder tints the calendar, hours default.
+            # Both are served so the browser never re-derives one that could
+            # fork from the ladder the month counters use.
             "color_hours": colors.hours,
             "color_gp": colors.gp,
             "gp_target_achievement": float(
@@ -442,8 +449,13 @@ def _build_day_entry(  # noqa: PLR0913, PLR0917 -- one argument per precomputed 
                 "material_cost": float(day.material["cost"]),
                 "adjustment_cost": float(day.adjustment["cost"]),
                 "total_cost": float(total_cost),
+                # Opus: `labour_profit`, not v1's `labor_profit`. Adding the
+                # monthly twin put both spellings in one response body, so a
+                # client reconciling the daily breakdown against the month had
+                # to know two names for one concept. Changed while nothing
+                # consumes either.
                 "profit_breakdown": {
-                    "labor_profit": float(day.time["time_revenue"] - day.time["staff_cost"]),
+                    "labour_profit": float(day.time["time_revenue"] - day.time["staff_cost"]),
                     "material_profit": float(day.material["revenue"] - day.material["cost"]),
                     "adjustment_profit": float(day.adjustment["revenue"] - day.adjustment["cost"]),
                 },
@@ -494,12 +506,10 @@ def get_calendar_data(year: int, month: int) -> dict[str, object]:
         if current <= today:
             totals["elapsed_workdays"] += 1
 
-        # Counted separately from working_days so the GP target never moves
-        # when weekends are switched on: a Saturday can EARN gross profit but
-        # is never OWED a daily target. Multiplying the target across shown
-        # days instead would raise a seven-day shop's monthly target by a
-        # third for turning on a display setting, and the alternative of
-        # scaling the daily figure to 5/7 makes one number mean two things.
+        # Owner ruling 2026-09-01 (weekend work is bonus, see module docstring):
+        # a Saturday can
+        # EARN gross profit but is never OWED a daily target, because the
+        # month's overhead is already spread across its weekdays.
         if current.weekday() < 5:
             totals["weekdays"] += 1
             if current <= today:
@@ -531,10 +541,10 @@ def get_calendar_data(year: int, month: int) -> dict[str, object]:
         "thresholds": thresholds,
         "year": year,
         "month": month,
-        # The grid's column count travels with the data it describes: a client
-        # reading the flag from CompanyDefaults separately could draw seven
-        # columns over a five-day payload, or the reverse, whenever the two
-        # requests straddle a settings change.
+        # Opus: the grid's column count travels with the data it describes. A
+        # client reading the flag from CompanyDefaults on its own request could
+        # draw seven columns over a five-day payload, or the reverse, whenever
+        # the two straddle a settings change.
         "weekend_enabled": weekend_enabled,
     }
 
@@ -580,25 +590,22 @@ def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -
         totals["time_revenue"] + totals["material_revenue"] + totals["adjustment_revenue"]
     )
     final["total_cost"] = totals["staff_cost"] + totals["material_cost"] + totals["adjustment_cost"]
-    # Served rather than left to the client: `material_profit` and
+    # Opus: served rather than left to the client. `material_profit` and
     # `adjustment_profit` already ship, so a missing labour twin is the one
-    # figure a page would have to subtract for itself — which is how v1 ended
-    # up with cards and modals computing the same number two different ways.
+    # figure a page must subtract for itself — which is how v1 ended up with
+    # cards and modals computing the same number two different ways.
     final["labour_profit"] = totals["time_revenue"] - totals["staff_cost"]
 
-    # A real net profit, because kpi_daily_gp_target IS the overhead: the
-    # month's opex amortised over its weekdays (see the module docstring).
-    # Gross profit less the overhead incurred so far is what the business
-    # calls net profit, and it is what this field means.
+    # Owner ruling 2026-09-01 (the daily GP target is overhead, see module
+    # docstring): gross profit less overhead incurred is the net profit. It is an
+    # ALLOWANCE rather than booked expenses, so it holds only while that
+    # threshold stays set to the opex share.
     #
-    # It is an ALLOWANCE, not booked expenses, so it holds only while that
-    # threshold stays set to the opex share; retuned upward as a stretch
-    # goal, this stops being a profit and becomes a variance. v1's error was
-    # never the name — it was the "Projected Expenses" row its KPI page built
-    # to explain this field, from `gp_green` rather than `gp_target` and
-    # `working_days` rather than the elapsed count, so the subtraction shown
-    # on screen did not reach the number beneath it. Show `elapsed_target`
-    # itself rather than recomputing an expense figure to display.
+    # Opus: v1's error was never this name — it was the "Projected Expenses"
+    # row its KPI page built to explain the field, from `gp_green` rather than
+    # `gp_target` and `working_days` rather than the elapsed count, so the
+    # subtraction on screen never reached the number beneath it. A consumer
+    # should display `elapsed_target` itself rather than recompute one.
     elapsed_target = thresholds["kpi_daily_gp_target"] * totals["elapsed_weekdays"]
     final["elapsed_target"] = elapsed_target
     final["net_profit"] = totals["gross_profit"] - elapsed_target
@@ -620,9 +627,9 @@ def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -
             round(Decimal(totals["shop_hours"] / totals["total_hours"]) * 100, 1)
         )
 
-    # Over weekdays, for the same reason elapsed_target is: dividing by shown
-    # days would drop a seven-day shop's average GP by a third on a display
-    # setting, with no change to the gross profit being averaged.
+    # Over weekdays for the same reason elapsed_target is: dividing by the
+    # days shown would drop a seven-day shop's average GP on a display
+    # setting, with no change to the profit being averaged.
     if totals["weekdays"] > 0:
         avg_weekday_gp = float(round(Decimal(totals["gross_profit"] / totals["weekdays"]), 2))
 
