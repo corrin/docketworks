@@ -698,8 +698,15 @@ class CompanyDefaults(SingletonModel):
         update_fields: Iterable[str] | None = None,
     ) -> None:
         """Save the singleton, recomputing staff wage rates if the loading changed."""
+        # ``update_fields`` is the caller's write intent, not merely a SQL
+        # optimisation. A long-running Xero sync holds this singleton in memory
+        # and later saves only its cursor timestamps; comparing an excluded
+        # loading against the current row mistakes a stale instance for a
+        # loading edit and recomputes every Staff rate from the stale value.
+        writes_loading = update_fields is None or "labour_cost_loading" in update_fields
+
         loading_changed = False
-        if self.pk:
+        if writes_loading and self.pk:
             try:
                 old = CompanyDefaults.objects.get(pk=self.pk)
                 loading_changed = old.labour_cost_loading != self.labour_cost_loading

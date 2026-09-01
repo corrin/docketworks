@@ -21,6 +21,7 @@ from django.utils import timezone
 from pytest_django.fixtures import SettingsWrapper
 
 from apps.accounting.models import Invoice
+from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.models import AppError, CompanyDefaults
 from apps.purchasing.models import Stock
@@ -87,6 +88,44 @@ class TestSynchroniseXeroDataOrchestratorGate:
         defaults = CompanyDefaults.get_solo()
         assert defaults.last_xero_sync is None
         assert defaults.last_xero_deep_sync is None
+
+    def test_completion_stamp_preserves_loading_changed_during_the_run(self) -> None:
+        """The hours-long sync window must not replay the loading captured at its start."""
+        set_active_quota(day_remaining=500)
+        defaults = CompanyDefaults.get_solo()
+        defaults.labour_cost_loading = Decimal("20.00")
+        defaults.last_xero_deep_sync = timezone.now()
+        defaults.save(update_fields=["labour_cost_loading", "last_xero_deep_sync"])
+        staff = Staff.objects.create_user(
+            office_email="sync-loading@example.test",
+            password=None,
+            first_name="Sync",
+            last_name="Loading",
+            base_wage_rate=Decimal("33.40"),
+        )
+
+        pay_items = {
+            "leave_types": {"created": 0, "updated": 0},
+            "earnings_rates": {"created": 0, "updated": 0},
+            "records_updated": 0,
+        }
+        with (
+            patch("apps.xero.sync._require_sync_enabled"),
+            patch("apps.xero.sync.sync_xero_pay_items", return_value=pay_items),
+            patch("apps.xero.sync.one_way_sync_all_xero_data", return_value=iter(())),
+        ):
+            events = synchronise_xero_data()
+            next(events)  # CompanyDefaults is now captured by the running generator.
+
+            current_defaults = CompanyDefaults.get_solo()
+            current_defaults.labour_cost_loading = Decimal("23.00")
+            current_defaults.save(update_fields=["labour_cost_loading"])
+
+            list(events)
+
+        staff.refresh_from_db()
+        assert CompanyDefaults.get_solo().labour_cost_loading == Decimal("23.00")
+        assert staff.wage_rate == Decimal("41.08")
 
 
 @pytest.mark.django_db
