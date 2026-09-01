@@ -79,9 +79,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 398 |
-| except handlers | 431 |
-| re-raises or converts | 275 |
+| try statements | 399 |
+| except handlers | 433 |
+| re-raises or converts | 277 |
 | returns instead | 91 |
 | falls through | 51 |
 | continue/break in a loop | 13 |
@@ -103,8 +103,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 210 |
-| non-test functions | 2549 |
+| functions returning `X \| None` | 211 |
+| non-test functions | 2551 |
 
 ## Wire contract (response side)
 

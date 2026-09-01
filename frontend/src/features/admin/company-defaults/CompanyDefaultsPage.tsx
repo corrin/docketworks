@@ -173,6 +173,10 @@ function SectionForm({
     setDrafts((previous) => ({ ...previous, [key]: value }))
   }
 
+  const applyDrafts = (values: Record<string, FieldValue>): void => {
+    setDrafts((previous) => ({ ...previous, ...values }))
+  }
+
   async function save(): Promise<void> {
     if (saving) return
     setSaving(true)
@@ -216,6 +220,7 @@ function SectionForm({
                 section={section.key}
                 value={value}
                 onChange={(next) => setDraft(field.key, next)}
+                onApplyMany={applyDrafts}
               />
               {field.help_text && (
                 <span className="text-xs font-normal text-slate-500">{field.help_text}</span>
@@ -263,6 +268,7 @@ function SectionForm({
                         section={section.key}
                         value={drafts[key] ?? null}
                         onChange={(value) => setDraft(key, value)}
+                        onApplyMany={applyDrafts}
                       />
                     </label>
                   )

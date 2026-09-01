@@ -112,8 +112,12 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, RegistrySectionKey] = {
     # region the holiday calendar then disagrees with.
     "formatted_address": "company",
     "region": "company",
+    # In the company section, but never typed: the address picker carries it,
+    # and SettingsFieldInput renders it as nothing. It has to be a section
+    # field because buildPatch only sends keys the schema names, and the picked
+    # id is what the server re-reads the rest of the geocode from.
+    "google_place_id": "company",
     # The same lookup's machine detail: no operator sets or reads these.
-    "google_place_id": "internal",
     "latitude": "internal",
     "longitude": "internal",
     "address_raw_json": "internal",

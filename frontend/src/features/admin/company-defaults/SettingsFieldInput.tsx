@@ -1,5 +1,6 @@
-import type { SettingsFieldOut } from '@/api'
+import type { AddressCandidate, SettingsFieldOut } from '@/api'
 import { INPUT_CLASS } from '@/components/ui/field'
+import { AddressAutocompleteInput } from '@/features/shared/address/AddressAutocompleteInput'
 
 import { BrandingThemeSelect } from './BrandingThemeSelect'
 import { CompanySelect } from './CompanySelect'
@@ -15,15 +16,34 @@ import { fromDateTimeLocalInput, toDateTimeLocalInput, type FieldValue } from '.
 // counter, a blank warning and a link out to Xero, none of which the schema
 // can describe.
 const XERO_QUOTE_TERMS_KEY = 'xero_quote_terms'
+// Two more sanctioned field-name exceptions, for the same reason: the schema
+// cannot describe them. Picking an address candidate writes SIX fields at once
+// and is the only way google_place_id is ever set, so the street box is an
+// autocomplete and the id is carried invisibly beside it. The id has to be a
+// section field even though nobody types it: buildPatch only sends keys the
+// schema names, and the id is what the server re-reads the geocode from.
+const ADDRESS_STREET_KEY = 'address_line1'
+const ADDRESS_PLACE_ID_KEY = 'google_place_id'
 const XERO_QUOTE_TERMS_MAX_LENGTH = 4000
 const XERO_QUOTE_TERMS_WARNING_LENGTH = 3600
 const XERO_INVOICE_SETTINGS_URL = 'https://go.xero.com/InvoiceSettings/InvoiceSettings.aspx'
 
-export interface SettingsFieldInputProps {
+/** What every field control needs. The single-field controls take only this. */
+export interface SettingsFieldControlProps {
   field: SettingsFieldOut
   value: FieldValue
   onChange: (value: FieldValue) => void
   section: string
+}
+
+export interface SettingsFieldInputProps extends SettingsFieldControlProps {
+  /**
+   * Set several drafts at once; one picked address fills the whole block.
+   *
+   * Required rather than optional: a caller that forgot it would render an
+   * address box that silently discards the pick.
+   */
+  onApplyMany: (values: Record<string, FieldValue>) => void
 }
 
 // Total over the widget types the generic branch serves: when the backend grows
@@ -44,8 +64,41 @@ const INPUT_TYPE: Record<GenericFieldType, string> = {
   text: 'text',
 }
 
-export function SettingsFieldInput({ field, value, onChange, section }: SettingsFieldInputProps) {
+export function SettingsFieldInput({
+  field,
+  value,
+  onChange,
+  onApplyMany,
+  section,
+}: SettingsFieldInputProps) {
   const automationId = fieldAutomationId(section, field.key)
+
+  // Rendered as nothing on purpose: it travels with the save so the server can
+  // re-read the geocode, and there is no id a person should be typing.
+  if (field.key === ADDRESS_PLACE_ID_KEY) {
+    return null
+  }
+
+  if (field.key === ADDRESS_STREET_KEY) {
+    const applyCandidate = (candidate: AddressCandidate): void => {
+      onApplyMany({
+        [ADDRESS_STREET_KEY]: candidate.street,
+        suburb: candidate.suburb,
+        city: candidate.city,
+        post_code: candidate.postal_code,
+        country: candidate.country,
+        [ADDRESS_PLACE_ID_KEY]: candidate.google_place_id,
+      })
+    }
+    return (
+      <AddressAutocompleteInput
+        id={automationId}
+        value={typeof value === 'string' ? value : ''}
+        onChange={onChange}
+        onSelectCandidate={applyCandidate}
+      />
+    )
+  }
 
   // Special-type branches precede the generic INPUT_TYPE lookup: each one
   // narrows field.type away from GenericFieldType, so moving one below the

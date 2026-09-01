@@ -16245,7 +16245,9 @@ paths:
     patch:
       description: "Apply only the fields the caller sent.\n\nPresence comes from ``model_fields_set``,\
         \ so omitting a field leaves the\nstored value alone \u2014 the whole point of a settings screen\
-        \ that submits one\nsection at a time."
+        \ that submits one\nsection at a time.\n\nA ``google_place_id`` in the body means someone picked\
+        \ an address candidate;\nthe derived columns are re-read from Google rather than taken from the\
+        \ body\n(see ``_apply_picked_place``)."
       operationId: company_defaults_partial_update
       parameters: []
       requestBody:

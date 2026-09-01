@@ -1088,6 +1088,10 @@ export const companyDefaultsRetrieve = <ThrowOnError extends boolean = false>(op
  * Presence comes from ``model_fields_set``, so omitting a field leaves the
  * stored value alone — the whole point of a settings screen that submits one
  * section at a time.
+ *
+ * A ``google_place_id`` in the body means someone picked an address candidate;
+ * the derived columns are re-read from Google rather than taken from the body
+ * (see ``_apply_picked_place``).
  */
 export const companyDefaultsPartialUpdate = <ThrowOnError extends boolean = false>(options: Options<CompanyDefaultsPartialUpdateData, ThrowOnError>): RequestResult<CompanyDefaultsPartialUpdateResponses, unknown, ThrowOnError> => (options.client ?? client).patch<CompanyDefaultsPartialUpdateResponses, unknown, ThrowOnError>({
     responseType: 'json',
