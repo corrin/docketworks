@@ -61,6 +61,12 @@ done
 cd "$ROOT"
 # Codex: Cleanup imports the current models, so the database must reach the
 # current schema before cleanup queries any renamed or newly added column.
+# Opus: cleanup has to run before Playwright starts, so this necessarily lands
+# before global-setup takes the pre-test pg_dump — unlike every other change a
+# run makes, the migration is INSIDE that backup and global-teardown restores
+# it rather than reverting it. Deliberate: the dev database belongs at head.
+# The cost is that checking out a branch behind head after a run meets a schema
+# newer than its code.
 "$ROOT/.venv/bin/python" manage.py migrate --no-input
 npm --prefix "$FRONTEND" run test:e2e:reset -- --confirm
 rm -rf "$FRONTEND/test-results" "$FRONTEND/playwright-report" "$LOG_DIR"
