@@ -5534,6 +5534,9 @@ components:
           $ref: '#/components/schemas/KPIMonthlyTotalsOut'
         thresholds:
           $ref: '#/components/schemas/KPIThresholdsOut'
+        weekend_enabled:
+          title: Weekend Enabled
+          type: boolean
         year:
           title: Year
           type: integer
@@ -5543,6 +5546,7 @@ components:
       - thresholds
       - year
       - month
+      - weekend_enabled
       title: KPICalendarResponse
       type: object
     KPIDayDataOut:
@@ -5551,8 +5555,21 @@ components:
         billable_hours:
           title: Billable Hours
           type: number
-        color:
-          title: Color
+        color_gp:
+          enum:
+          - green
+          - amber
+          - red
+          - weekend
+          title: Color Gp
+          type: string
+        color_hours:
+          enum:
+          - green
+          - amber
+          - red
+          - weekend
+          title: Color Hours
           type: string
         date:
           format: date
@@ -5564,8 +5581,10 @@ components:
         details:
           $ref: '#/components/schemas/KPIDetailsOut'
         gp_target_achievement:
+          anyOf:
+          - type: number
+          - type: 'null'
           title: Gp Target Achievement
-          type: number
         gross_profit:
           title: Gross Profit
           type: number
@@ -5588,7 +5607,8 @@ components:
           type: number
       required:
       - billable_hours
-      - color
+      - color_gp
+      - color_hours
       - date
       - day
       - details
@@ -5701,8 +5721,8 @@ components:
     KPIMonthlyTotalsOut:
       description: Wire contract for KPIMonthlyTotalsOut.
       properties:
-        active_workdays:
-          title: Active Workdays
+        active_days:
+          title: Active Days
           type: integer
         adjustment_cost:
           title: Adjustment Cost
@@ -5713,14 +5733,14 @@ components:
         adjustment_revenue:
           title: Adjustment Revenue
           type: number
-        avg_billable_hours_so_far:
-          title: Avg Billable Hours So Far
+        avg_active_day_billable_hours:
+          title: Avg Active Day Billable Hours
           type: number
-        avg_daily_gp:
-          title: Avg Daily Gp
+        avg_active_day_gp:
+          title: Avg Active Day Gp
           type: number
-        avg_daily_gp_so_far:
-          title: Avg Daily Gp So Far
+        avg_weekday_gp:
+          title: Avg Weekday Gp
           type: number
         billable_hours:
           title: Billable Hours
@@ -5729,12 +5749,24 @@ components:
           title: Billable Percentage
           type: number
         color_gp:
+          enum:
+          - green
+          - amber
+          - red
           title: Color Gp
           type: string
         color_hours:
+          enum:
+          - green
+          - amber
+          - red
           title: Color Hours
           type: string
         color_shop:
+          enum:
+          - green
+          - amber
+          - red
           title: Color Shop
           type: string
         days_amber:
@@ -5749,6 +5781,9 @@ components:
         elapsed_target:
           title: Elapsed Target
           type: number
+        elapsed_weekdays:
+          title: Elapsed Weekdays
+          type: integer
         elapsed_workdays:
           title: Elapsed Workdays
           type: integer
@@ -5761,6 +5796,9 @@ components:
         labour_green_days:
           title: Labour Green Days
           type: integer
+        labour_profit:
+          title: Labour Profit
+          type: number
         labour_red_days:
           title: Labour Red Days
           type: integer
@@ -5784,6 +5822,9 @@ components:
           type: integer
         profit_red_days:
           title: Profit Red Days
+          type: integer
+        remaining_weekdays:
+          title: Remaining Weekdays
           type: integer
         remaining_workdays:
           title: Remaining Workdays
@@ -5809,6 +5850,9 @@ components:
         total_revenue:
           title: Total Revenue
           type: number
+        weekdays:
+          title: Weekdays
+          type: integer
         working_days:
           title: Working Days
           type: integer
@@ -5828,14 +5872,18 @@ components:
       - profit_red_days
       - working_days
       - elapsed_workdays
-      - active_workdays
+      - weekdays
+      - elapsed_weekdays
+      - active_days
       - remaining_workdays
+      - remaining_weekdays
       - time_revenue
       - material_revenue
       - adjustment_revenue
       - staff_cost
       - material_cost
       - adjustment_cost
+      - labour_profit
       - material_profit
       - adjustment_profit
       - total_revenue
@@ -5844,9 +5892,9 @@ components:
       - net_profit
       - billable_percentage
       - shop_percentage
-      - avg_daily_gp
-      - avg_daily_gp_so_far
-      - avg_billable_hours_so_far
+      - avg_weekday_gp
+      - avg_active_day_gp
+      - avg_active_day_billable_hours
       - color_hours
       - color_gp
       - color_shop
@@ -5858,14 +5906,14 @@ components:
         adjustment_profit:
           title: Adjustment Profit
           type: number
-        labor_profit:
-          title: Labor Profit
+        labour_profit:
+          title: Labour Profit
           type: number
         material_profit:
           title: Material Profit
           type: number
       required:
-      - labor_profit
+      - labour_profit
       - material_profit
       - adjustment_profit
       title: KPIProfitBreakdownOut

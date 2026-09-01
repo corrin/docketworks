@@ -2020,26 +2020,40 @@ export const zKpiJobBreakdownOut = z.object({
  * Wire contract for KPIMonthlyTotalsOut.
  */
 export const zKpiMonthlyTotalsOut = z.object({
-    active_workdays: z.int(),
+    active_days: z.int(),
     adjustment_cost: z.number(),
     adjustment_profit: z.number(),
     adjustment_revenue: z.number(),
-    avg_billable_hours_so_far: z.number(),
-    avg_daily_gp: z.number(),
-    avg_daily_gp_so_far: z.number(),
+    avg_active_day_billable_hours: z.number(),
+    avg_active_day_gp: z.number(),
+    avg_weekday_gp: z.number(),
     billable_hours: z.number(),
     billable_percentage: z.number(),
-    color_gp: z.string(),
-    color_hours: z.string(),
-    color_shop: z.string(),
+    color_gp: z.enum([
+        'green',
+        'amber',
+        'red'
+    ]),
+    color_hours: z.enum([
+        'green',
+        'amber',
+        'red'
+    ]),
+    color_shop: z.enum([
+        'green',
+        'amber',
+        'red'
+    ]),
     days_amber: z.int(),
     days_green: z.int(),
     days_red: z.int(),
     elapsed_target: z.number(),
+    elapsed_weekdays: z.int(),
     elapsed_workdays: z.int(),
     gross_profit: z.number(),
     labour_amber_days: z.int(),
     labour_green_days: z.int(),
+    labour_profit: z.number(),
     labour_red_days: z.int(),
     material_cost: z.number(),
     material_profit: z.number(),
@@ -2048,6 +2062,7 @@ export const zKpiMonthlyTotalsOut = z.object({
     profit_amber_days: z.int(),
     profit_green_days: z.int(),
     profit_red_days: z.int(),
+    remaining_weekdays: z.int(),
     remaining_workdays: z.int(),
     shop_hours: z.number(),
     shop_percentage: z.number(),
@@ -2056,6 +2071,7 @@ export const zKpiMonthlyTotalsOut = z.object({
     total_cost: z.number(),
     total_hours: z.number(),
     total_revenue: z.number(),
+    weekdays: z.int(),
     working_days: z.int()
 });
 
@@ -2066,7 +2082,7 @@ export const zKpiMonthlyTotalsOut = z.object({
  */
 export const zKpiProfitBreakdownOut = z.object({
     adjustment_profit: z.number(),
-    labor_profit: z.number(),
+    labour_profit: z.number(),
     material_profit: z.number()
 });
 
@@ -2095,11 +2111,22 @@ export const zKpiDetailsOut = z.object({
  */
 export const zKpiDayDataOut = z.object({
     billable_hours: z.number(),
-    color: z.string(),
+    color_gp: z.enum([
+        'green',
+        'amber',
+        'red',
+        'weekend'
+    ]),
+    color_hours: z.enum([
+        'green',
+        'amber',
+        'red',
+        'weekend'
+    ]),
     date: z.iso.date(),
     day: z.int(),
     details: zKpiDetailsOut,
-    gp_target_achievement: z.number(),
+    gp_target_achievement: z.number().nullable(),
     gross_profit: z.number(),
     holiday: z.boolean(),
     holiday_name: z.string().nullable(),
@@ -2132,6 +2159,7 @@ export const zKpiCalendarResponse = z.object({
     month: z.int(),
     monthly_totals: zKpiMonthlyTotalsOut,
     thresholds: zKpiThresholdsOut,
+    weekend_enabled: z.boolean(),
     year: z.int()
 });
 

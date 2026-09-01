@@ -45,6 +45,48 @@ export function isIsoDateString(value: string): boolean {
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
 }
 
+/**
+ * Whether a string is a real YYYY-MM month within the range the reports API
+ * accepts (year bound mirrors apps/accounting/api.py).
+ *
+ * Opus: bounded here as well as server-side so a hand-edited URL falls back
+ * to the current month rather than round-tripping to a 422 the page would
+ * have to render as an error.
+ */
+export function isIsoMonthString(value: string): boolean {
+  if (!/^\d{4}-\d{2}$/.test(value)) return false
+  const [yearPart, monthPart] = value.split('-')
+  const year = Number(yearPart)
+  const month = Number(monthPart)
+  return year >= 2000 && year <= 2100 && month >= 1 && month <= 12
+}
+
+/** Shift a YYYY-MM month by whole months, rolling the year over. */
+export function shiftMonth(isoMonth: string, months: number): string {
+  // Opus: the full validator, not a NaN check. Splitting alone accepts
+  // '2026-09-15' and silently returns '2026-10' — a live hazard with
+  // shiftDate's identical signature eleven lines below taking YYYY-MM-DD.
+  if (!isIsoMonthString(isoMonth)) {
+    throw new Error(`Not a YYYY-MM month: ${isoMonth}`)
+  }
+  const [yearPart, monthPart] = isoMonth.split('-')
+  const year = Number(yearPart)
+  const month = Number(monthPart)
+  // Opus: Date normalises out-of-range months into the neighbouring year,
+  // which is the whole reason this goes through Date, not modular arithmetic.
+  const shifted = new Date(year, month - 1 + months, 1)
+  const result = `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}`
+  // Opus: the output needs the bound the input got. '2000-01' stepped back is
+  // '1999-12', which isIsoMonthString rejects and formatMonth throws on, so a
+  // prev-month control would crash out of render one click past the boundary.
+  // Refused here rather than clamped: silently returning the same month would
+  // make the control look enabled and do nothing.
+  if (!isIsoMonthString(result)) {
+    throw new Error(`Month out of range: ${result}`)
+  }
+  return result
+}
+
 /** Shift a local date by whole days. */
 export function shiftDate(isoDate: string, days: number): string {
   const date = parseLocal(isoDate)

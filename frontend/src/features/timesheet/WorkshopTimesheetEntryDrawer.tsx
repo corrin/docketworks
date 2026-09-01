@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/drawer'
 import { JobPicker } from '@/features/shared/JobPicker'
 
-import { formatHoursDisplay } from './hours'
+import { formatHoursDisplay } from '@/lib/format'
 import { deriveHoursFromTimes, entryUpdateBody } from './myTime'
 import { useTimesheetJobSearch } from './useTimesheetJobSearch'
 

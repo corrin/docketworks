@@ -21,6 +21,7 @@ from apps.accounting.services import (
 )
 from apps.company.tests.conftest import make_company
 from apps.company.tests.job_fixtures import make_invoice, make_job, make_material_line
+from apps.core.models import CompanyDefaults
 from apps.timesheet.tests.conftest import make_staff, make_time_line
 
 pytestmark = [
@@ -99,6 +100,33 @@ def test_kpi_calendar_query_count_is_flat_across_the_month() -> None:
 
     assert len(captured) <= 10
     assert data["calendar_data"]
+
+
+def test_kpi_calendar_query_count_is_flat_with_weekends_enabled() -> None:
+    """The weekend flag must not be re-read per day.
+
+    The sibling test above cannot see this: a lookup added inside the
+    weekend-enabled branch costs nothing while the flag is off, and the flag
+    is the obvious place to reach for `get_solo()` again when deciding
+    whether a day counts.
+    """
+    defaults = CompanyDefaults.get_solo()
+    defaults.weekend_timesheets_enabled = True
+    defaults.save()
+
+    staff = make_staff("nplusone-weekend@example.com")
+    company = make_company("Nplusone Weekend Co")
+    job = make_job(company, staff, name="Weekend calendar job")
+    make_time_line(job, staff, accounting_date=TARGET_DATE)
+
+    with CaptureQueriesContext(connection) as captured:
+        data = kpi_service.get_calendar_data(2026, 6)
+
+    assert len(captured) <= 10
+    # The service's return is dict[str, object], so narrow before subscripting.
+    calendar_data = data["calendar_data"]
+    assert isinstance(calendar_data, dict)
+    assert "2026-06-06" in calendar_data  # a Saturday
 
 
 def test_wip_report_query_count_is_flat_across_jobs() -> None:

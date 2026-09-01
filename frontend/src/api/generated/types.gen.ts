@@ -4884,6 +4884,10 @@ export type KpiCalendarResponse = {
     monthly_totals: KpiMonthlyTotalsOut;
     thresholds: KpiThresholdsOut;
     /**
+     * Weekend Enabled
+     */
+    weekend_enabled: boolean;
+    /**
      * Year
      */
     year: number;
@@ -4900,9 +4904,13 @@ export type KpiDayDataOut = {
      */
     billable_hours: number;
     /**
-     * Color
+     * Color Gp
      */
-    color: string;
+    color_gp: 'green' | 'amber' | 'red' | 'weekend';
+    /**
+     * Color Hours
+     */
+    color_hours: 'green' | 'amber' | 'red' | 'weekend';
     /**
      * Date
      */
@@ -4915,7 +4923,7 @@ export type KpiDayDataOut = {
     /**
      * Gp Target Achievement
      */
-    gp_target_achievement: number;
+    gp_target_achievement: number | null;
     /**
      * Gross Profit
      */
@@ -5046,9 +5054,9 @@ export type KpiJobBreakdownOut = {
  */
 export type KpiMonthlyTotalsOut = {
     /**
-     * Active Workdays
+     * Active Days
      */
-    active_workdays: number;
+    active_days: number;
     /**
      * Adjustment Cost
      */
@@ -5062,17 +5070,17 @@ export type KpiMonthlyTotalsOut = {
      */
     adjustment_revenue: number;
     /**
-     * Avg Billable Hours So Far
+     * Avg Active Day Billable Hours
      */
-    avg_billable_hours_so_far: number;
+    avg_active_day_billable_hours: number;
     /**
-     * Avg Daily Gp
+     * Avg Active Day Gp
      */
-    avg_daily_gp: number;
+    avg_active_day_gp: number;
     /**
-     * Avg Daily Gp So Far
+     * Avg Weekday Gp
      */
-    avg_daily_gp_so_far: number;
+    avg_weekday_gp: number;
     /**
      * Billable Hours
      */
@@ -5084,15 +5092,15 @@ export type KpiMonthlyTotalsOut = {
     /**
      * Color Gp
      */
-    color_gp: string;
+    color_gp: 'green' | 'amber' | 'red';
     /**
      * Color Hours
      */
-    color_hours: string;
+    color_hours: 'green' | 'amber' | 'red';
     /**
      * Color Shop
      */
-    color_shop: string;
+    color_shop: 'green' | 'amber' | 'red';
     /**
      * Days Amber
      */
@@ -5110,6 +5118,10 @@ export type KpiMonthlyTotalsOut = {
      */
     elapsed_target: number;
     /**
+     * Elapsed Weekdays
+     */
+    elapsed_weekdays: number;
+    /**
      * Elapsed Workdays
      */
     elapsed_workdays: number;
@@ -5125,6 +5137,10 @@ export type KpiMonthlyTotalsOut = {
      * Labour Green Days
      */
     labour_green_days: number;
+    /**
+     * Labour Profit
+     */
+    labour_profit: number;
     /**
      * Labour Red Days
      */
@@ -5158,6 +5174,10 @@ export type KpiMonthlyTotalsOut = {
      */
     profit_red_days: number;
     /**
+     * Remaining Weekdays
+     */
+    remaining_weekdays: number;
+    /**
      * Remaining Workdays
      */
     remaining_workdays: number;
@@ -5190,6 +5210,10 @@ export type KpiMonthlyTotalsOut = {
      */
     total_revenue: number;
     /**
+     * Weekdays
+     */
+    weekdays: number;
+    /**
      * Working Days
      */
     working_days: number;
@@ -5206,9 +5230,9 @@ export type KpiProfitBreakdownOut = {
      */
     adjustment_profit: number;
     /**
-     * Labor Profit
+     * Labour Profit
      */
-    labor_profit: number;
+    labour_profit: number;
     /**
      * Material Profit
      */
