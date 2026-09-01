@@ -9,7 +9,7 @@ import {
 } from '../timesheet/support'
 
 /**
- * Annual-leave wage loading: Staff.wage_rate is base_wage_rate with the
+ * Labour cost loading: Staff.wage_rate is base_wage_rate with the
  * company's labour_cost_loading applied, and the entry grid's wage column
  * prices hours at the LOADED rate, never the base rate.
  *
