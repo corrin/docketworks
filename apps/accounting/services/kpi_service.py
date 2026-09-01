@@ -11,6 +11,26 @@ Accepted report semantics:
   because including them would restate the gross profit of every past month.
 - ``days_green/amber/red`` count every working day including future ones;
   ``labour_*_days`` and ``profit_*_days`` count elapsed days only.
+- **What the daily GP target IS.** ``kpi_daily_gp_target`` is the business's
+  monthly operating expense amortised over weekdays — roughly $20,000/month
+  over ~20 weekdays, so ~$1,000 a weekday and $0 at the weekend (owner, 2026-09).
+  A day therefore reads green once it has covered its share of the overhead,
+  and ``gp_target_achievement`` is the percentage of that day's overhead the
+  day paid for. Read it as a cost allowance, not an aspiration.
+- **Weekend work is bonus, not baseline.** That is why the target and
+  ``avg_weekday_gp`` are measured over WEEKDAYS, never over the days the
+  calendar happens to show: no overhead is apportioned to a Saturday, because
+  the month's overhead is already fully spread across its weekdays. A
+  Saturday's gross profit counts toward the month in full, is never OWED a
+  target, and never dilutes the weekday average — working a weekend is
+  abnormal, so it beats the target rather than raising it. Enabling the
+  weekend flag therefore moves no money figure at all: it adds cells, not
+  expectations. The rejected alternative was scaling the daily target to 5/7
+  when weekends show, which both makes one configured number mean two things
+  and misstates the overhead, which did not change.
+- Averages name their divisor: ``avg_weekday_gp`` over weekdays,
+  ``avg_active_day_gp`` and ``avg_active_day_billable_hours`` over days that
+  actually carried hours.
 - The profit day-colour ladder is green >= gp_target, amber >= gp_green — the
   ``_amber`` threshold field is unused there; changing it changes report data.
 - ``color_shop`` can only be green (shop share <= 20%) or red. Amber is
@@ -448,6 +468,17 @@ def get_calendar_data(year: int, month: int) -> dict[str, object]:
         if current <= today:
             totals["elapsed_workdays"] += 1
 
+        # Counted separately from working_days so the GP target never moves
+        # when weekends are switched on: a Saturday can EARN gross profit but
+        # is never OWED a daily target. Multiplying the target across shown
+        # days instead would raise a seven-day shop's monthly target by a
+        # third for turning on a display setting, and the alternative of
+        # scaling the daily figure to 5/7 makes one number mean two things.
+        if current.weekday() < 5:
+            totals["weekdays"] += 1
+            if current <= today:
+                totals["elapsed_weekdays"] += 1
+
         day = _DayFigures(
             time=time_by_date.get(current, _empty_time_agg()),
             material=material_by_date.get(
@@ -499,6 +530,8 @@ def _empty_monthly_totals() -> dict[str, float]:
         "profit_red_days",
         "working_days",
         "elapsed_workdays",
+        "weekdays",
+        "elapsed_weekdays",
         "active_workdays",
         "remaining_workdays",
         "time_revenue",
@@ -527,22 +560,28 @@ def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -
     # up with cards and modals computing the same number two different ways.
     final["labour_profit"] = totals["time_revenue"] - totals["staff_cost"]
 
-    # Named for what it is: gross profit against the month-to-date GP target.
-    # v1 called this `net_profit`, and the name cost it a page — believing the
-    # field, its KPI report invented a "projected expenses" row to close the
-    # arithmetic, using a different threshold and a different day count than
-    # the line below, so the subtraction it displayed never balanced. This
-    # response carries no operating-expense figure of any kind, so no net
-    # profit can be computed here; operating expenses live in Xero's P&L.
-    elapsed_target = thresholds["kpi_daily_gp_target"] * totals["elapsed_workdays"]
+    # A real net profit, because kpi_daily_gp_target IS the overhead: the
+    # month's opex amortised over its weekdays (see the module docstring).
+    # Gross profit less the overhead incurred so far is what the business
+    # calls net profit, and it is what this field means.
+    #
+    # It is an ALLOWANCE, not booked expenses, so it holds only while that
+    # threshold stays set to the opex share; retuned upward as a stretch
+    # goal, this stops being a profit and becomes a variance. v1's error was
+    # never the name — it was the "Projected Expenses" row its KPI page built
+    # to explain this field, from `gp_green` rather than `gp_target` and
+    # `working_days` rather than the elapsed count, so the subtraction shown
+    # on screen did not reach the number beneath it. Show `elapsed_target`
+    # itself rather than recomputing an expense figure to display.
+    elapsed_target = thresholds["kpi_daily_gp_target"] * totals["elapsed_weekdays"]
     final["elapsed_target"] = elapsed_target
-    final["gp_variance_to_elapsed_target"] = totals["gross_profit"] - elapsed_target
+    final["net_profit"] = totals["gross_profit"] - elapsed_target
 
     billable_percentage = 0.0
     shop_percentage = 0.0
-    avg_daily_gp = 0.0
-    avg_daily_gp_so_far = 0.0
-    avg_billable_hours_so_far = 0.0
+    avg_weekday_gp = 0.0
+    avg_active_day_gp = 0.0
+    avg_active_day_billable_hours = 0.0
 
     if totals["total_hours"] > 0:
         billable_percentage = float(
@@ -555,16 +594,19 @@ def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -
             round(Decimal(totals["shop_hours"] / totals["total_hours"]) * 100, 1)
         )
 
-    if totals["working_days"] > 0:
-        avg_daily_gp = float(round(Decimal(totals["gross_profit"] / totals["working_days"]), 2))
+    # Over weekdays, for the same reason elapsed_target is: dividing by shown
+    # days would drop a seven-day shop's average GP by a third on a display
+    # setting, with no change to the gross profit being averaged.
+    if totals["weekdays"] > 0:
+        avg_weekday_gp = float(round(Decimal(totals["gross_profit"] / totals["weekdays"]), 2))
 
     # Averages divide by days that actually have hours so idle days don't
     # dilute them.
     if totals["active_workdays"] > 0:
-        avg_daily_gp_so_far = float(
+        avg_active_day_gp = float(
             round(Decimal(totals["gross_profit"]) / Decimal(totals["active_workdays"]), 2)
         )
-        avg_billable_hours_so_far = float(
+        avg_active_day_billable_hours = float(
             round(
                 Decimal(totals["billable_hours"]) / Decimal(totals["active_workdays"]),
                 1,
@@ -573,17 +615,17 @@ def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -
 
     final["billable_percentage"] = billable_percentage
     final["shop_percentage"] = shop_percentage
-    final["avg_daily_gp"] = avg_daily_gp
-    final["avg_daily_gp_so_far"] = avg_daily_gp_so_far
-    final["avg_billable_hours_so_far"] = avg_billable_hours_so_far
+    final["avg_weekday_gp"] = avg_weekday_gp
+    final["avg_active_day_gp"] = avg_active_day_gp
+    final["avg_active_day_billable_hours"] = avg_active_day_billable_hours
 
     final["color_hours"] = _get_color(
-        avg_billable_hours_so_far,
+        avg_active_day_billable_hours,
         thresholds["kpi_daily_billable_hours_green"],
         thresholds["kpi_daily_billable_hours_amber"],
     )
     final["color_gp"] = _get_color(
-        avg_daily_gp_so_far,
+        avg_active_day_gp,
         thresholds["kpi_daily_gp_target"],
         thresholds["kpi_daily_gp_target"] / 2,
     )

@@ -2024,9 +2024,9 @@ export const zKpiMonthlyTotalsOut = z.object({
     adjustment_cost: z.number(),
     adjustment_profit: z.number(),
     adjustment_revenue: z.number(),
-    avg_billable_hours_so_far: z.number(),
-    avg_daily_gp: z.number(),
-    avg_daily_gp_so_far: z.number(),
+    avg_active_day_billable_hours: z.number(),
+    avg_active_day_gp: z.number(),
+    avg_weekday_gp: z.number(),
     billable_hours: z.number(),
     billable_percentage: z.number(),
     color_gp: z.string(),
@@ -2036,8 +2036,8 @@ export const zKpiMonthlyTotalsOut = z.object({
     days_green: z.int(),
     days_red: z.int(),
     elapsed_target: z.number(),
+    elapsed_weekdays: z.int(),
     elapsed_workdays: z.int(),
-    gp_variance_to_elapsed_target: z.number(),
     gross_profit: z.number(),
     labour_amber_days: z.int(),
     labour_green_days: z.int(),
@@ -2046,6 +2046,7 @@ export const zKpiMonthlyTotalsOut = z.object({
     material_cost: z.number(),
     material_profit: z.number(),
     material_revenue: z.number(),
+    net_profit: z.number(),
     profit_amber_days: z.int(),
     profit_green_days: z.int(),
     profit_red_days: z.int(),
@@ -2057,6 +2058,7 @@ export const zKpiMonthlyTotalsOut = z.object({
     total_cost: z.number(),
     total_hours: z.number(),
     total_revenue: z.number(),
+    weekdays: z.int(),
     working_days: z.int()
 });
 

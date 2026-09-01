@@ -153,6 +153,58 @@ class TestKPICalendar:
         assert on["billable_hours"] == 8.0
         assert on["gross_profit"] == 8 * (120.0 - 40.0)
 
+    def test_showing_weekends_moves_no_money_figure(
+        self, authenticated_client: Client, thresholds: CompanyDefaults
+    ) -> None:
+        """Weekend work is bonus, not baseline.
+
+        Overhead is the month's opex spread across its weekdays, so no share
+        of it lands on a Saturday. Switching the weekend columns on adds
+        cells and nothing else: an empty weekend contributes $0 of gross
+        profit and must also add $0 of target. If this fails, a shop that
+        turned on weekend visibility just had its monthly overhead raised by
+        a third and its average GP cut by a quarter.
+        """
+        worker = make_staff("bonus@example.com")
+        job = make_job(make_company("Bonus Co"), worker)
+        # Weekdays only, so every weekend day in the month is genuinely empty.
+        for day in (10, 11, 12):  # Wed, Thu, Fri
+            make_time_line(
+                job,
+                worker,
+                accounting_date=date(2026, 6, day),
+                hours="8.000",
+                unit_cost="40.00",
+                unit_rev="120.00",
+            )
+
+        off = authenticated_client.get(URL, JUNE).json()["monthly_totals"]
+        thresholds.weekend_timesheets_enabled = True
+        thresholds.save()
+        on = authenticated_client.get(URL, JUNE).json()["monthly_totals"]
+
+        for field in (
+            "gross_profit",
+            "labour_profit",
+            "total_revenue",
+            "total_cost",
+            "elapsed_target",
+            "net_profit",
+            "avg_weekday_gp",
+            "avg_active_day_gp",
+            "avg_active_day_billable_hours",
+            "weekdays",
+            "elapsed_weekdays",
+            "color_gp",
+            "color_hours",
+        ):
+            assert off[field] == on[field], field
+
+        # What legitimately does change: the calendar gained real cells, and
+        # empty ones are below threshold like any other unworked day.
+        assert off["working_days"] == 22
+        assert on["working_days"] == 30
+
     def test_monthly_totals_roll_up_elapsed_performance(self, authenticated_client: Client) -> None:
         worker = make_staff("totals@example.com")
         company = make_company("Totals Co")
@@ -179,11 +231,12 @@ class TestKPICalendar:
         assert totals["days_green"] == 1
         assert totals["days_red"] == 21  # every other working day had no hours
         assert totals["active_workdays"] == 1  # only days with hours count
-        # June 2026 is fully elapsed, so the variance is GP less the daily GP
-        # target across all 22 of its elapsed working days. Not a net profit:
-        # nothing in this response measures operating expenses.
+        # June 2026 is fully elapsed. Net profit is gross profit less the
+        # overhead incurred: the daily GP target IS the opex share, charged
+        # across the month's 22 WEEKDAYS.
         assert totals["elapsed_workdays"] == 22
-        assert totals["gp_variance_to_elapsed_target"] == (640.0 + 500.0) - 1000.0 * 22
+        assert totals["elapsed_weekdays"] == 22
+        assert totals["net_profit"] == (640.0 + 500.0) - 1000.0 * 22
         # Averages divide by active workdays so idle days don't dilute them.
-        assert totals["avg_billable_hours_so_far"] == 8.0
+        assert totals["avg_active_day_billable_hours"] == 8.0
         assert totals["color_hours"] == "green"

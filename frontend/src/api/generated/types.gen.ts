@@ -5066,17 +5066,17 @@ export type KpiMonthlyTotalsOut = {
      */
     adjustment_revenue: number;
     /**
-     * Avg Billable Hours So Far
+     * Avg Active Day Billable Hours
      */
-    avg_billable_hours_so_far: number;
+    avg_active_day_billable_hours: number;
     /**
-     * Avg Daily Gp
+     * Avg Active Day Gp
      */
-    avg_daily_gp: number;
+    avg_active_day_gp: number;
     /**
-     * Avg Daily Gp So Far
+     * Avg Weekday Gp
      */
-    avg_daily_gp_so_far: number;
+    avg_weekday_gp: number;
     /**
      * Billable Hours
      */
@@ -5114,13 +5114,13 @@ export type KpiMonthlyTotalsOut = {
      */
     elapsed_target: number;
     /**
+     * Elapsed Weekdays
+     */
+    elapsed_weekdays: number;
+    /**
      * Elapsed Workdays
      */
     elapsed_workdays: number;
-    /**
-     * Gp Variance To Elapsed Target
-     */
-    gp_variance_to_elapsed_target: number;
     /**
      * Gross Profit
      */
@@ -5153,6 +5153,10 @@ export type KpiMonthlyTotalsOut = {
      * Material Revenue
      */
     material_revenue: number;
+    /**
+     * Net Profit
+     */
+    net_profit: number;
     /**
      * Profit Amber Days
      */
@@ -5197,6 +5201,10 @@ export type KpiMonthlyTotalsOut = {
      * Total Revenue
      */
     total_revenue: number;
+    /**
+     * Weekdays
+     */
+    weekdays: number;
     /**
      * Working Days
      */

@@ -5711,14 +5711,14 @@ components:
         adjustment_revenue:
           title: Adjustment Revenue
           type: number
-        avg_billable_hours_so_far:
-          title: Avg Billable Hours So Far
+        avg_active_day_billable_hours:
+          title: Avg Active Day Billable Hours
           type: number
-        avg_daily_gp:
-          title: Avg Daily Gp
+        avg_active_day_gp:
+          title: Avg Active Day Gp
           type: number
-        avg_daily_gp_so_far:
-          title: Avg Daily Gp So Far
+        avg_weekday_gp:
+          title: Avg Weekday Gp
           type: number
         billable_hours:
           title: Billable Hours
@@ -5747,12 +5747,12 @@ components:
         elapsed_target:
           title: Elapsed Target
           type: number
+        elapsed_weekdays:
+          title: Elapsed Weekdays
+          type: integer
         elapsed_workdays:
           title: Elapsed Workdays
           type: integer
-        gp_variance_to_elapsed_target:
-          title: Gp Variance To Elapsed Target
-          type: number
         gross_profit:
           title: Gross Profit
           type: number
@@ -5776,6 +5776,9 @@ components:
           type: number
         material_revenue:
           title: Material Revenue
+          type: number
+        net_profit:
+          title: Net Profit
           type: number
         profit_amber_days:
           title: Profit Amber Days
@@ -5810,6 +5813,9 @@ components:
         total_revenue:
           title: Total Revenue
           type: number
+        weekdays:
+          title: Weekdays
+          type: integer
         working_days:
           title: Working Days
           type: integer
@@ -5829,6 +5835,8 @@ components:
       - profit_red_days
       - working_days
       - elapsed_workdays
+      - weekdays
+      - elapsed_weekdays
       - active_workdays
       - remaining_workdays
       - time_revenue
@@ -5843,12 +5851,12 @@ components:
       - total_revenue
       - total_cost
       - elapsed_target
-      - gp_variance_to_elapsed_target
+      - net_profit
       - billable_percentage
       - shop_percentage
-      - avg_daily_gp
-      - avg_daily_gp_so_far
-      - avg_billable_hours_so_far
+      - avg_weekday_gp
+      - avg_active_day_gp
+      - avg_active_day_billable_hours
       - color_hours
       - color_gp
       - color_shop

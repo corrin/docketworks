@@ -285,6 +285,8 @@ class KPIMonthlyTotalsOut(Schema):
     profit_red_days: int
     working_days: int
     elapsed_workdays: int
+    weekdays: int
+    elapsed_weekdays: int
     active_workdays: int
     remaining_workdays: int
     time_revenue: float
@@ -299,12 +301,12 @@ class KPIMonthlyTotalsOut(Schema):
     total_revenue: float
     total_cost: float
     elapsed_target: float
-    gp_variance_to_elapsed_target: float
+    net_profit: float
     billable_percentage: float
     shop_percentage: float
-    avg_daily_gp: float
-    avg_daily_gp_so_far: float
-    avg_billable_hours_so_far: float
+    avg_weekday_gp: float
+    avg_active_day_gp: float
+    avg_active_day_billable_hours: float
     color_hours: str
     color_gp: str
     color_shop: str
