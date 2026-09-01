@@ -5054,9 +5054,9 @@ export type KpiJobBreakdownOut = {
  */
 export type KpiMonthlyTotalsOut = {
     /**
-     * Active Workdays
+     * Active Days
      */
-    active_workdays: number;
+    active_days: number;
     /**
      * Adjustment Cost
      */
@@ -5173,6 +5173,10 @@ export type KpiMonthlyTotalsOut = {
      * Profit Red Days
      */
     profit_red_days: number;
+    /**
+     * Remaining Weekdays
+     */
+    remaining_weekdays: number;
     /**
      * Remaining Workdays
      */

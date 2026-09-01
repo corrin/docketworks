@@ -9,6 +9,7 @@ from decimal import Decimal
 
 import pytest
 from django.test import Client
+from django.utils import timezone
 
 from apps.company.tests.conftest import make_company
 from apps.company.tests.job_fixtures import (
@@ -295,7 +296,7 @@ class TestKPICalendar:
         assert totals["labour_profit"] + totals["material_profit"] == totals["gross_profit"]
         assert totals["days_green"] == 1
         assert totals["days_red"] == 21  # every other working day had no hours
-        assert totals["active_workdays"] == 1  # only days with hours count
+        assert totals["active_days"] == 1  # only days with hours count
         # June 2026 is fully elapsed. Net profit is gross profit less the
         # overhead incurred: the daily GP target IS the opex share, charged
         # across the month's 22 WEEKDAYS.
@@ -305,3 +306,75 @@ class TestKPICalendar:
         # Averages divide by active workdays so idle days don't dilute them.
         assert totals["avg_active_day_billable_hours"] == 8.0
         assert totals["color_hours"] == "green"
+
+    def test_a_worked_weekend_counts_in_the_divisor_it_earns_into(
+        self, authenticated_client: Client, thresholds: CompanyDefaults
+    ) -> None:
+        """avg_active_day_* must divide by every day that carried hours.
+
+        The money already includes a worked Saturday whatever the flag says,
+        so a divisor counting weekdays alone put seven days of earnings over
+        five days of count. The month's own colour is read off these averages,
+        so amber weekdays plus busy Saturdays graded the month green without a
+        single green day in it.
+        """
+        worker = make_staff("divisor@example.com")
+        company = make_company("Divisor Co")
+        job = make_job(company, worker)
+        for worked in (date(2026, 6, 12), date(2026, 6, 13)):  # Friday, then Saturday
+            make_time_line(
+                job,
+                worker,
+                accounting_date=worked,
+                hours="8.000",
+                unit_cost="40.00",
+                unit_rev="120.00",
+            )
+
+        off = authenticated_client.get(URL, JUNE).json()["monthly_totals"]
+
+        assert off["billable_hours"] == 16.0
+        assert off["active_days"] == 2
+        assert off["avg_active_day_billable_hours"] == 8.0
+        assert off["avg_active_day_gp"] == 8 * (120.0 - 40.0)
+
+        thresholds.weekend_timesheets_enabled = True
+        thresholds.save()
+        on = authenticated_client.get(URL, JUNE).json()["monthly_totals"]
+
+        assert on["active_days"] == off["active_days"]
+        assert on["avg_active_day_gp"] == off["avg_active_day_gp"]
+        assert on["avg_active_day_billable_hours"] == off["avg_active_day_billable_hours"]
+
+    def test_the_weekday_counters_do_not_move_when_weekend_cells_appear(
+        self,
+        authenticated_client: Client,
+        thresholds: CompanyDefaults,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """remaining_weekdays is the counter target arithmetic may multiply.
+
+        Placed mid-month so the month has a future to have remaining days in.
+        The service's own "today" is patched rather than the clock: freezing
+        time invalidates the session the authenticated client holds, and this
+        is the only date the calculation reads.
+        working_days counts drawn cells, so it and remaining_workdays swing
+        when the display flag flips; multiplying remaining_workdays by
+        kpi_daily_gp_target claims four more days of overhead still to cover
+        than the business owes. The weekday counters do not move, which is
+        what makes them the safe ones to multiply.
+        """
+        monkeypatch.setattr(timezone, "localdate", lambda: date(2026, 6, 15))
+        off = authenticated_client.get(URL, JUNE).json()["monthly_totals"]
+
+        thresholds.weekend_timesheets_enabled = True
+        thresholds.save()
+        on = authenticated_client.get(URL, JUNE).json()["monthly_totals"]
+
+        # June 2026 starts on a Monday: 22 weekdays, 8 weekend days, and by the
+        # 15th eleven weekdays and four weekend days have elapsed.
+        assert off["remaining_workdays"] == 11
+        assert on["remaining_workdays"] == 15
+        assert off["remaining_weekdays"] == on["remaining_weekdays"] == 11
+        assert on["weekdays"] == off["weekdays"] == 22
+        assert on["elapsed_weekdays"] == off["elapsed_weekdays"] == 11

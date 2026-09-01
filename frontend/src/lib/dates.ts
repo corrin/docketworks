@@ -75,7 +75,16 @@ export function shiftMonth(isoMonth: string, months: number): string {
   // Opus: Date normalises out-of-range months into the neighbouring year,
   // which is the whole reason this goes through Date, not modular arithmetic.
   const shifted = new Date(year, month - 1 + months, 1)
-  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}`
+  const result = `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}`
+  // Opus: the output needs the bound the input got. '2000-01' stepped back is
+  // '1999-12', which isIsoMonthString rejects and formatMonth throws on, so a
+  // prev-month control would crash out of render one click past the boundary.
+  // Refused here rather than clamped: silently returning the same month would
+  // make the control look enabled and do nothing.
+  if (!isIsoMonthString(result)) {
+    throw new Error(`Month out of range: ${result}`)
+  }
+  return result
 }
 
 /** Shift a local date by whole days. */

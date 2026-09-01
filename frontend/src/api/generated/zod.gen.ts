@@ -2020,7 +2020,7 @@ export const zKpiJobBreakdownOut = z.object({
  * Wire contract for KPIMonthlyTotalsOut.
  */
 export const zKpiMonthlyTotalsOut = z.object({
-    active_workdays: z.int(),
+    active_days: z.int(),
     adjustment_cost: z.number(),
     adjustment_profit: z.number(),
     adjustment_revenue: z.number(),
@@ -2062,6 +2062,7 @@ export const zKpiMonthlyTotalsOut = z.object({
     profit_amber_days: z.int(),
     profit_green_days: z.int(),
     profit_red_days: z.int(),
+    remaining_weekdays: z.int(),
     remaining_workdays: z.int(),
     shop_hours: z.number(),
     shop_percentage: z.number(),

@@ -5721,8 +5721,8 @@ components:
     KPIMonthlyTotalsOut:
       description: Wire contract for KPIMonthlyTotalsOut.
       properties:
-        active_workdays:
-          title: Active Workdays
+        active_days:
+          title: Active Days
           type: integer
         adjustment_cost:
           title: Adjustment Cost
@@ -5823,6 +5823,9 @@ components:
         profit_red_days:
           title: Profit Red Days
           type: integer
+        remaining_weekdays:
+          title: Remaining Weekdays
+          type: integer
         remaining_workdays:
           title: Remaining Workdays
           type: integer
@@ -5871,8 +5874,9 @@ components:
       - elapsed_workdays
       - weekdays
       - elapsed_weekdays
-      - active_workdays
+      - active_days
       - remaining_workdays
+      - remaining_weekdays
       - time_revenue
       - material_revenue
       - adjustment_revenue

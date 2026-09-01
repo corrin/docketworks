@@ -6,11 +6,14 @@ Accepted report semantics:
   set, the same flag the timesheet grids honour; public holidays are flagged
   but still count as working days (the sales-pipeline report excludes them
   from ITS working days — a cross-report divergence recorded in
-  rewrite-status). With the flag off, weekend cost lines are absent from the
-  month entirely rather than merely hidden — v1 behaviour, kept deliberately
-  because including them would restate the gross profit of every past month.
-- ``days_green/amber/red`` count every working day including future ones;
-  ``labour_*_days`` and ``profit_*_days`` count elapsed days only.
+  rewrite-status). The flag governs which cells are DRAWN and nothing else:
+  weekend cost lines always reach the month's money, because a Saturday's
+  stock issue counts in WIP and job costing and a KPI month that dropped it
+  would disagree with those reports about the same job.
+- ``days_green/amber/red`` count WEEKDAYS, present and future — weekends are
+  never graded. ``labour_*_days`` and ``profit_*_days`` count elapsed
+  weekdays only, so the day colours sum to ``weekdays``, not to
+  ``working_days``, which counts every drawn cell.
 - **``kpi_daily_gp_target`` is OVERHEAD, not an aspiration** (owner ruling,
   2026-09-01). It is the business's monthly operating expense amortised over
   weekdays — roughly $20,000 a month over ~20 weekdays, so ~$1,000 a weekday
@@ -405,8 +408,6 @@ def _score_day(
     if elapsed:
         totals[f"labour_{color}_days"] += 1
         totals[f"profit_{profit_color}_days"] += 1
-        if day.time["total_hours"] > 0:
-            totals["active_workdays"] += 1
     return _DayColors(hours=color, gp=profit_color)
 
 
@@ -453,8 +454,11 @@ def _build_day_entry(  # noqa: PLR0913, PLR0917 -- one argument per precomputed 
             # would claim a failure the day was never set up to have.
             "color_hours": colors.hours if colors else WEEKEND_CATEGORY,
             "color_gp": colors.gp if colors else WEEKEND_CATEGORY,
-            # Null alongside the colours: a weekend is owed no share of the
-            # overhead, so "percent of target achieved" has no denominator.
+            # Null means there is no share to have achieved: a weekend, which
+            # is owed none, or an install with no target configured. It is NOT
+            # the weekend signal — color_hours/color_gp carry that as an
+            # explicit category, and a consumer must branch on those rather
+            # than read a null here as "this cell is a weekend".
             "gp_target_achievement": (
                 float(Decimal(gross_profit) / Decimal(thresholds["kpi_daily_gp_target"]) * 100)
                 if colors and thresholds["kpi_daily_gp_target"] > 0
@@ -531,6 +535,16 @@ def get_calendar_data(year: int, month: int) -> dict[str, object]:
         # weekdays only. See _tally_money and _score_day.
         _tally_money(totals, day)
 
+        # Counted here rather than in _score_day, and deliberately not gated on
+        # the display flag, for the same reason the money is not: this is the
+        # divisor of avg_active_day_gp and avg_active_day_billable_hours, whose
+        # numerators already include a worked Saturday. Counting only weekdays
+        # divided seven days of earnings by five days of count — twenty amber
+        # weekdays plus four busy Saturdays reported a green month in which no
+        # graded day was green.
+        if current <= today and day.time["total_hours"] > 0:
+            totals["active_days"] += 1
+
         if is_weekday:
             totals["weekdays"] += 1
             totals["working_days"] += 1
@@ -593,7 +607,7 @@ def _empty_monthly_totals() -> dict[str, float]:
         "elapsed_workdays",
         "weekdays",
         "elapsed_weekdays",
-        "active_workdays",
+        "active_days",
         "remaining_workdays",
         "time_revenue",
         "material_revenue",
@@ -611,6 +625,10 @@ def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -
     """Return the response totals: accumulators plus derived values and colours."""
     final: dict[str, object] = dict(totals)
     final["remaining_workdays"] = totals["working_days"] - totals["elapsed_workdays"]
+    # The one to multiply by kpi_daily_gp_target. remaining_workdays counts
+    # drawn cells, so turning weekends on swings it by eight and overstates the
+    # overhead still to cover by about a third; weekends are owed no share.
+    final["remaining_weekdays"] = totals["weekdays"] - totals["elapsed_weekdays"]
     final["total_revenue"] = (
         totals["time_revenue"] + totals["material_revenue"] + totals["adjustment_revenue"]
     )
@@ -660,13 +678,13 @@ def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -
 
     # Averages divide by days that actually have hours so idle days don't
     # dilute them.
-    if totals["active_workdays"] > 0:
+    if totals["active_days"] > 0:
         avg_active_day_gp = float(
-            round(Decimal(totals["gross_profit"]) / Decimal(totals["active_workdays"]), 2)
+            round(Decimal(totals["gross_profit"]) / Decimal(totals["active_days"]), 2)
         )
         avg_active_day_billable_hours = float(
             round(
-                Decimal(totals["billable_hours"]) / Decimal(totals["active_workdays"]),
+                Decimal(totals["billable_hours"]) / Decimal(totals["active_days"]),
                 1,
             )
         )

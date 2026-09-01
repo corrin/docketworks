@@ -78,4 +78,12 @@ describe('shiftMonth', () => {
     expect(shiftMonth('2026-09', 1)).toBe('2026-10')
     expect(shiftMonth('2026-11', -2)).toBe('2026-09')
   })
+
+  it('refuses to step outside the range it accepts', () => {
+    // The input guard alone let a prev/next control walk one month past the
+    // bound and hand formatMonth a value it throws on, crashing out of render
+    // instead of the caller disabling the control.
+    expect(() => shiftMonth('2000-01', -1)).toThrow(/Month out of range/)
+    expect(() => shiftMonth('2100-12', 1)).toThrow(/Month out of range/)
+  })
 })

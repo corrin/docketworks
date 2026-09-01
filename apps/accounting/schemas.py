@@ -297,8 +297,9 @@ class KPIMonthlyTotalsOut(Schema):
     elapsed_workdays: int
     weekdays: int
     elapsed_weekdays: int
-    active_workdays: int
+    active_days: int
     remaining_workdays: int
+    remaining_weekdays: int
     time_revenue: float
     material_revenue: float
     adjustment_revenue: float
