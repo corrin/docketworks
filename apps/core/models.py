@@ -12,7 +12,7 @@ import logging
 import secrets
 import uuid
 from collections.abc import Iterable
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import ClassVar, Protocol, cast
 
 from django.apps import apps as django_apps
@@ -222,6 +222,26 @@ class _WageBearingStaff(Protocol):
     def save(self, *, update_fields: Iterable[str] | None = None) -> None: ...
 
 
+def loaded_wage_rate(base_wage_rate: Decimal, loading_percent: Decimal) -> Decimal:
+    """Return the costing wage rate a base rate carries at this labour-cost loading.
+
+    The one home for this arithmetic. accounts.Staff._compute_wage_rate, the
+    recompute below and the Xero employee checksum all need it, and the first
+    two had already drifted — one normalised through ``str``, the other did not.
+
+    ROUND_HALF_UP rather than Decimal's default ROUND_HALF_EVEN: the result
+    lands in a ``numeric(_, 2)`` column and Postgres rounds halves away from
+    zero, so banker's rounding would disagree with the database at exactly .xx5
+    and store a rate the caller cannot reproduce.
+    """
+    if not base_wage_rate:
+        return Decimal("0")
+    multiplier = Decimal("1") + loading_percent / Decimal("100")
+    return (Decimal(str(base_wage_rate)) * multiplier).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+
+
 class CompanyDefaults(SingletonModel):
     """Singleton company configuration managed by django-solo.
 
@@ -269,8 +289,12 @@ class CompanyDefaults(SingletonModel):
         ),
     )
     wage_rate = models.DecimalField(max_digits=6, decimal_places=2, default=32.00)  # rate per hour
-    # Owner: This is an indicative starting point. Each business measures its own
-    # annual leave, public holiday, sick leave, bereavement leave, and ACC cost.
+    # KAN-351: An indicative starting point, never a measurement. The components
+    # are annual leave (~8%), public holidays (~6%), sick leave (~4%),
+    # bereavement leave and employer-paid ACC (~2%), ESCT at 0% — but the total
+    # is per-business and measurable, as booked paid non-worked hours over
+    # worked hours. MSM's own data puts it near 23%. Setting this to the
+    # annual-leave component alone is what mispriced ~19k cost lines.
     labour_cost_loading = models.DecimalField(
         max_digits=5,
         decimal_places=2,
@@ -703,6 +727,13 @@ class CompanyDefaults(SingletonModel):
         # and later saves only its cursor timestamps; comparing an excluded
         # loading against the current row mistakes a stale instance for a
         # loading edit and recomputes every Staff rate from the stale value.
+        #
+        # Materialised before the membership test: the parameter is an
+        # ``Iterable[str]`` and Django only freezes it inside ``Model.save``, so
+        # asking a generator whether it contains the loading would consume it and
+        # leave super().save() an empty update — a silent no-op write.
+        if update_fields is not None:
+            update_fields = frozenset(update_fields)
         writes_loading = update_fields is None or "labour_cost_loading" in update_fields
 
         loading_changed = False
@@ -737,13 +768,12 @@ class CompanyDefaults(SingletonModel):
         # core sits below accounts in the layer contract, so even a function-level
         # import is off-limits. The cast to the protocol carries the field typing.
         staff_model = django_apps.get_model("accounts", "Staff")
-        loading_multiplier = Decimal("1") + self.labour_cost_loading / Decimal("100")
         staff_rows = cast(
             "Iterable[_WageBearingStaff]",
             staff_model._default_manager.filter(base_wage_rate__gt=0),
         )
         for staff in staff_rows:
-            staff.wage_rate = (staff.base_wage_rate * loading_multiplier).quantize(Decimal("0.01"))
+            staff.wage_rate = loaded_wage_rate(staff.base_wage_rate, self.labour_cost_loading)
             staff.save(update_fields=["wage_rate", "updated_at"])
 
     # v1's ``llm_api_key`` property (the active AIProvider's key) is NOT ported:

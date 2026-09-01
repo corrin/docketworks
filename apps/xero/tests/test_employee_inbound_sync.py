@@ -148,6 +148,54 @@ def test_unchanged_remote_checksum_does_not_hide_local_xero_field_drift() -> Non
     assert staff.xero_fields_checksum == original_checksum
 
 
+def test_a_rate_finer_than_the_column_still_reaches_a_no_op() -> None:
+    """Xero quotes rates to four decimals and the columns hold two.
+
+    Rounding only at the database leaves the incoming and stored projections
+    permanently unequal, so these employees are rewritten — with a fresh payroll
+    term history row — on every hourly sync forever.
+    """
+    incoming = replace(
+        snapshot("employee-1", "ana.payroll@example.com", hourly_rate=Decimal("24.0385")),
+        payroll_terms=(payroll_term(hourly_rate=Decimal("24.0385")),),
+    )
+    sync_employees([incoming])
+    staff = Staff.objects.get(xero_user_id="employee-1")
+    original_staff_updated_at = staff.updated_at
+    original_history_count = staff.history.count()
+    original_term = StaffPayrollTerm.objects.get(staff=staff)
+
+    sync_employees([incoming])
+
+    staff.refresh_from_db()
+    term = StaffPayrollTerm.objects.get(staff=staff)
+    assert staff.base_wage_rate == Decimal("24.04")
+    assert staff.updated_at == original_staff_updated_at
+    assert staff.history.count() == original_history_count
+    assert term.id == original_term.id
+
+
+def test_a_wage_rate_written_from_a_stale_loading_is_re_derived() -> None:
+    """The skip must not make the KAN-350 damage permanent.
+
+    wage_rate is derived from base_wage_rate and the labour cost loading, so a
+    rate that no longer matches that product is drift the sync owns — exactly
+    the state the stale-singleton save left behind.
+    """
+    incoming = snapshot("employee-1", "ana.payroll@example.com")
+    sync_employees([incoming])
+    staff = Staff.objects.get(xero_user_id="employee-1")
+    correct_wage_rate = staff.wage_rate
+    # update() bypasses Staff.save()'s recompute, which is what makes this a
+    # faithful reproduction: the incident wrote wage_rate directly too.
+    Staff.objects.filter(pk=staff.pk).update(wage_rate=Decimal("1.23"))
+
+    sync_employees([incoming])
+
+    staff.refresh_from_db()
+    assert staff.wage_rate == correct_wage_rate
+
+
 def test_an_active_xero_employee_never_clears_a_recorded_departure() -> None:
     """Xero having no end date means nobody told Xero, not that they came back.
 

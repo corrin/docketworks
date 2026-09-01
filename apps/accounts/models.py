@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.utils.timezone import now as timezone_now
 from simple_history.models import HistoricalRecords
 
-from apps.core.models import CompanyDefaults
+from apps.core.models import CompanyDefaults, loaded_wage_rate
 
 SYSTEM_AUTOMATION_EMAIL = "system.automation@docketworks.local"
 
@@ -334,9 +334,11 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         # ADR 0015: no read-side fallback (v1 substituted 8.00 here — dead code
         # via get_solo's get_or_create, and contradicting the real 20.00
         # default). If the singleton genuinely cannot exist, crashing is correct.
+        # Guarded rather than folded into loaded_wage_rate: a zero base rate has
+        # no loading to apply, and reaching the singleton anyway would add a
+        # query to every salaried staff save.
         loading = CompanyDefaults.get_solo().labour_cost_loading
-        multiplier = Decimal("1") + loading / Decimal("100")
-        self.wage_rate = (Decimal(str(self.base_wage_rate)) * multiplier).quantize(Decimal("0.01"))
+        self.wage_rate = loaded_wage_rate(self.base_wage_rate, loading)
 
     def __str__(self) -> str:
         return f"{self.first_name} {self.last_name}"
