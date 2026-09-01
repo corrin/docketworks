@@ -173,10 +173,10 @@ class PayrollStaffWeekRow(TypedDict):
     jm_hours: float
     jm_cost: float
     jm_rate: float
-    #: The base-wage figure: ``jm_cost`` with the annual leave loading taken
-    #: off. Xero pays the base wage, so this is the side of DocketWorks that
-    #: reconciles against a gross; ``jm_cost`` answers the costing question
-    #: instead — what this time cost the jobs.
+    #: The base-wage figure: ``jm_cost`` with the labour cost loading taken off.
+    #: This is the side of DocketWorks that reconciles against gross pay for the
+    #: worked hours; ``jm_cost`` also allocates paid non-worked time to those
+    #: hours and therefore answers the job-costing question instead.
     jm_base_pay: float
     #: ``jm_base_pay - xero_gross``. Small rather than zero: payroll carries
     #: rules we do not model, so the pair is expected to be close, and a large

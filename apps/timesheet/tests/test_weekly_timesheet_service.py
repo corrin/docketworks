@@ -102,13 +102,13 @@ class TestWeekShape:
 
 
 class TestWeeklyCosts:
-    def test_cash_and_loaded_costs_use_the_annual_leave_loading(
+    def test_cash_and_loaded_costs_use_the_labour_cost_loading(
         self, job: Job, worker: Staff
     ) -> None:
-        """Regression risk: weekly_cost carries the leave loading, base cost does not."""
+        """Regression risk: weekly_cost carries the labour loading; base cost does not."""
         defaults = CompanyDefaults.get_solo()
-        defaults.annual_leave_loading = Decimal("20.00")
-        defaults.save(update_fields=["annual_leave_loading"])
+        defaults.labour_cost_loading = Decimal("20.00")
+        defaults.save(update_fields=["labour_cost_loading"])
         for offset in range(5):
             make_time_line(
                 job,
@@ -134,8 +134,8 @@ class TestWeeklyCosts:
         against the 100.00 shown beside it.
         """
         defaults = CompanyDefaults.get_solo()
-        defaults.annual_leave_loading = Decimal("20.00")
-        defaults.save(update_fields=["annual_leave_loading"])
+        defaults.labour_cost_loading = Decimal("20.00")
+        defaults.save(update_fields=["labour_cost_loading"])
         make_time_line(job, worker, accounting_date=WEEK_START, hours="1.000", unit_cost="100.00")
         make_time_line(job, worker, accounting_date=WEEK_START, hours="0.001", unit_cost="5.00")
 

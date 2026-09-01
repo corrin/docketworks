@@ -208,7 +208,7 @@ class TestWeekDiffMath:
             # wage-basis toggle stays presentation. Without them the browser
             # re-summed the base column — a business value computed twice, and
             # the one every row's status is judged on (ADR 0020). Base sits
-            # BELOW loaded by the annual-leave loading Xero does not pay.
+            # BELOW loaded with paid non-worked time not earned in this week.
             "jm_base_pay": 320.0,
             "pay_diff": -80.0,
         }
@@ -225,7 +225,7 @@ class TestWeekDiffMath:
         """``jm_cost`` cannot be compared with Xero's gross; ``jm_base_pay`` can.
 
         The costing pipeline prices time at the LOADED rate (48.00 = Wendy's
-        40.00 base plus 20% annual leave loading), because that is what the job
+        40.00 base plus 20% labour cost loading), because that is what the job
         is charged. Xero pays the base rate. Comparing ``jm_cost`` against
         ``xero_gross`` therefore reports every employee as 20% wrong every
         week, which buries the errors that are real — so the reconciliation
@@ -257,7 +257,7 @@ class TestWeekDiffMath:
         """Base pay comes from the line's own rate, never from today's setting.
 
         ``CostLine.unit_cost`` is denormalised at write time and frozen; the
-        annual leave loading is a setting that can change at any moment. So
+        labour cost loading is a setting that can change at any moment. So
         recovering base pay by dividing the cost by the CURRENT loading is
         wrong for every line written under a different one — which is every
         line in the restored data, priced at 1.08 while the column now reads
@@ -274,7 +274,7 @@ class TestWeekDiffMath:
         )
 
         defaults = CompanyDefaults.get_solo()
-        defaults.annual_leave_loading = Decimal("50.00")
+        defaults.labour_cost_loading = Decimal("50.00")
         defaults.save()
 
         data = payroll_reconciliation_service.get_reconciliation_data(MONDAY, date(2026, 5, 10))
@@ -347,7 +347,7 @@ class TestWeekDiffMath:
         8h at Wendy's 40.00 base is 320.00; Xero paid 322.00, which is inside
         the proportional band. Judged on BASE pay against the gross — the two
         figures that describe the same thing — rather than on the loaded wage,
-        which carries the annual leave loading Xero never pays.
+        which allocates paid non-worked time that is not in this week's gross.
         """
         make_time_line(job, wendy, accounting_date=date(2026, 5, 5), hours="8.000")
         pay_run = _posted_pay_run()

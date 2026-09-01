@@ -151,7 +151,7 @@ class TestPriceTimeEntry:
     ) -> None:
         unpaid_staff.pay_basis = "salary"
         unpaid_staff.save(update_fields=["pay_basis", "updated_at"])
-        CompanyDefaults.objects.update(annual_leave_loading=Decimal("20.00"))
+        CompanyDefaults.objects.update(labour_cost_loading=Decimal("20.00"))
         term = StaffPayrollTerm.objects.create(
             staff=unpaid_staff,
             effective_from=date(2026, 1, 1),
