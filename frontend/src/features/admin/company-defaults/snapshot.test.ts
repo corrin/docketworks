@@ -29,7 +29,7 @@ const defaults: CompanyDefaultsOut = {
   accounting_provider: 'Xero',
   address_line1: null,
   address_line2: null,
-  annual_leave_loading: '0.00',
+  labour_cost_loading: '0.00',
   city: null,
   company_acronym: null,
   company_email: null,

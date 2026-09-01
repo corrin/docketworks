@@ -510,12 +510,6 @@ export type CompanyDefaultsOut = {
      */
     address_line2: string | null;
     /**
-     * Annual Leave Loading
-     *
-     * Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)
-     */
-    annual_leave_loading: string;
-    /**
      * City
      *
      * City
@@ -673,6 +667,12 @@ export type CompanyDefaultsOut = {
      * Target gross profit percentage for individual jobs
      */
     kpi_job_gp_target_percentage: string;
+    /**
+     * Labour Cost Loading
+     *
+     * Percentage added to each base wage to recover paid non-worked time in the labour cost assigned to worked hours. Include annual leave, public holidays, sick leave, bereavement leave, and employer-paid ACC time; measure the percentage for this business (20.00 turns $40.00 into $48.00).
+     */
+    labour_cost_loading: string;
     /**
      * Last Xero Deep Sync
      *
@@ -882,12 +882,6 @@ export type CompanyDefaultsPatchIn = {
      */
     address_line2?: string | null;
     /**
-     * Annual Leave Loading
-     *
-     * Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)
-     */
-    annual_leave_loading?: number | string | null;
-    /**
      * City
      *
      * City
@@ -1037,6 +1031,12 @@ export type CompanyDefaultsPatchIn = {
      * Target gross profit percentage for individual jobs
      */
     kpi_job_gp_target_percentage?: number | string | null;
+    /**
+     * Labour Cost Loading
+     *
+     * Percentage added to each base wage to recover paid non-worked time in the labour cost assigned to worked hours. Include annual leave, public holidays, sick leave, bereavement leave, and employer-paid ACC time; measure the percentage for this business (20.00 turns $40.00 into $48.00).
+     */
+    labour_cost_loading?: number | string | null;
     /**
      * Last Xero Deep Sync
      *

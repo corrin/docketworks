@@ -269,13 +269,18 @@ class CompanyDefaults(SingletonModel):
         ),
     )
     wage_rate = models.DecimalField(max_digits=6, decimal_places=2, default=32.00)  # rate per hour
-    # Approximate payroll loading: 8% annual leave, ~6% public holidays,
-    # ~4% sick leave, ~2% ACC, 0% ESCT.
-    annual_leave_loading = models.DecimalField(
+    # Owner: This is an indicative starting point. Each business measures its own
+    # annual leave, public holiday, sick leave, bereavement leave, and ACC cost.
+    labour_cost_loading = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         default=20.00,
-        help_text="Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)",
+        help_text=(
+            "Percentage added to each base wage to recover paid non-worked time in "
+            "the labour cost assigned to worked hours. Include annual leave, public "
+            "holidays, sick leave, bereavement leave, and employer-paid ACC time; "
+            "measure the percentage for this business (20.00 turns $40.00 into $48.00)."
+        ),
     )
     workshop_efficiency_factor = models.DecimalField(
         max_digits=4,
@@ -693,12 +698,11 @@ class CompanyDefaults(SingletonModel):
         update_fields: Iterable[str] | None = None,
     ) -> None:
         """Save the singleton, recomputing staff wage rates if the loading changed."""
-        # Check if annual_leave_loading changed - if so, recompute all staff wage_rates
         loading_changed = False
         if self.pk:
             try:
                 old = CompanyDefaults.objects.get(pk=self.pk)
-                loading_changed = old.annual_leave_loading != self.annual_leave_loading
+                loading_changed = old.labour_cost_loading != self.labour_cost_loading
             # deliberate-swallow: no prior row means no prior loading to compare
             except CompanyDefaults.DoesNotExist:
                 pass
@@ -721,12 +725,12 @@ class CompanyDefaults(SingletonModel):
         company_defaults.save(update_fields=["enable_xero_sync"])
 
     def _recompute_all_staff_wage_rates(self) -> None:
-        """Bulk-recompute wage_rate for all staff based on current annual_leave_loading."""
+        """Bulk-recompute staff wage rates from the current labour-cost loading."""
         # App-registry lookup instead of `from apps.accounts.models import Staff`:
         # core sits below accounts in the layer contract, so even a function-level
         # import is off-limits. The cast to the protocol carries the field typing.
         staff_model = django_apps.get_model("accounts", "Staff")
-        loading_multiplier = Decimal("1") + self.annual_leave_loading / Decimal("100")
+        loading_multiplier = Decimal("1") + self.labour_cost_loading / Decimal("100")
         staff_rows = cast(
             "Iterable[_WageBearingStaff]",
             staff_model._default_manager.filter(base_wage_rate__gt=0),

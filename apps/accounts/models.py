@@ -122,7 +122,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         max_digits=10,
         decimal_places=2,
         default=0,
-        help_text="Actual hourly pay rate. wage_rate is auto-computed with leave loading.",
+        help_text="Actual hourly pay rate. wage_rate is auto-computed with labour cost loading.",
     )
     wage_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     xero_user_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
@@ -292,7 +292,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         # so auto_now_add doesn't work
         self.updated_at = timezone_now()
 
-        # Auto-compute wage_rate from base_wage_rate + annual leave loading
+        # Auto-compute wage_rate from base_wage_rate + labour cost loading
         # Skip if update_fields is specified and doesn't include base_wage_rate
         # (avoids circular recompute when CompanyDefaults bulk-updates wage_rate)
         update_fields = kwargs.get("update_fields")
@@ -317,14 +317,14 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             self.default_labour_subtype = LabourSubtype.default_non_workshop()
 
     def _compute_wage_rate(self) -> None:
-        """Set wage_rate = base_wage_rate * (1 + annual_leave_loading/100)."""
+        """Set wage_rate = base_wage_rate * (1 + labour_cost_loading/100)."""
         if not self.base_wage_rate:
             self.wage_rate = Decimal("0")
             return
         # ADR 0015: no read-side fallback (v1 substituted 8.00 here — dead code
         # via get_solo's get_or_create, and contradicting the real 20.00
         # default). If the singleton genuinely cannot exist, crashing is correct.
-        loading = CompanyDefaults.get_solo().annual_leave_loading
+        loading = CompanyDefaults.get_solo().labour_cost_loading
         multiplier = Decimal("1") + loading / Decimal("100")
         self.wage_rate = (Decimal(str(self.base_wage_rate)) * multiplier).quantize(Decimal("0.01"))
 

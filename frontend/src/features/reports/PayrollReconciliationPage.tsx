@@ -115,8 +115,8 @@ export function PayrollReconciliationPage({ weekStart }: { weekStart: string }) 
         ))}
         {wageBasis === 'loaded' && (
           <span className="text-amber-800" data-automation-id="PayrollReconciliation-loadedNote">
-            Loaded wages carry the annual leave loading, which Xero does not pay — the difference
-            column is not a reconciliation in this mode.
+            Loaded wages allocate paid non-worked time to worked hours, while this week&rsquo;s Xero
+            gross does not — the difference column is not a reconciliation in this mode.
           </span>
         )}
       </div>

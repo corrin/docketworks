@@ -198,7 +198,7 @@ def test_script_clears_v1_ciphertext_after_phone_columns_are_renamed() -> None:
     """Encrypted bytes must not survive as apparently valid plaintext credentials."""
     script = MIGRATE_SCRIPT.read_text()
     restore_at = script.index("pg_restore --data-only")
-    core_rename_at = script.index("migrate core 0003", restore_at)
+    core_rename_at = script.index("migrate core 0004", restore_at)
     phone_clear_at = script.index("UPDATE crm_phoneprovidersettings", core_rename_at)
     supplier_clear_at = script.index("UPDATE quoting_suppliercredential", phone_clear_at)
 

@@ -229,7 +229,6 @@ export const zCompanyDefaultsOut = z.object({
     accounting_provider: z.string().max(20),
     address_line1: z.string().max(255).nullable(),
     address_line2: z.string().max(255).nullable(),
-    annual_leave_loading: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     city: z.string().max(100).nullable(),
     company_acronym: z.string().max(10).nullable(),
     company_email: z.string().max(254).nullable(),
@@ -258,6 +257,7 @@ export const zCompanyDefaultsOut = z.object({
     kpi_daily_gp_target: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     kpi_daily_shop_hours_percentage: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     kpi_job_gp_target_percentage: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    labour_cost_loading: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     last_xero_deep_sync: z.iso.datetime().nullable(),
     last_xero_sync: z.iso.datetime().nullable(),
     logo_url: z.string().nullable(),
@@ -304,10 +304,6 @@ export const zCompanyDefaultsPatchIn = z.object({
     accounting_provider: z.string().max(20).nullish(),
     address_line1: z.string().max(255).nullish(),
     address_line2: z.string().max(255).nullish(),
-    annual_leave_loading: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish(),
     city: z.string().max(100).nullish(),
     company_acronym: z.string().max(10).nullish(),
     company_email: z.string().max(254).nullish(),
@@ -358,6 +354,10 @@ export const zCompanyDefaultsPatchIn = z.object({
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
     ]).nullish(),
     kpi_job_gp_target_percentage: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    labour_cost_loading: z.union([
         z.number(),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
     ]).nullish(),

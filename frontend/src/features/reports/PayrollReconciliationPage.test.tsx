@@ -72,7 +72,7 @@ function response(
 describe('PayrollReconciliationPage', () => {
   it('shows the loading-free figure, never the job-costing one', async () => {
     // Opus: The whole page turns on this. jm_cost prices time at the loaded
-    // rate (base + 20% annual leave loading) because that is what the job was
+    // rate (base + 20% labour cost loading) because that is what the job was
     // charged; Xero pays the base rate. Rendering jm_cost would show a
     // difference on every employee every week and bury the real ones.
     server.use(http.get(ENDPOINT, () => HttpResponse.json(response([row()]))))
