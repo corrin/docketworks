@@ -163,7 +163,7 @@ class StaffListItemOut(Schema):
     first_name: str
     last_name: str
     email: str
-    wage_rate: Decimal  # the loaded rate (base * (1 + labour_cost_loading/100))
+    wage_rate: Decimal  # the loaded rate (base * (1 + annual_leave_loading/100))
     base_wage_rate: Decimal
     date_left: date | None
     is_office_staff: bool
@@ -449,7 +449,7 @@ Sources: `/home/corrin/src/docketworks/frontend/tests/timesheet/*.spec.ts`, `tes
 
 - v1's manual `#username`/`#password` logins in `beforeAll` become v2's existing login/fixture helpers (see how v2's `job/` specs create their own jobs — reuse `createTestJob` from v2 helpers, which already exists for the job cluster).
 - v1's selector and keyboard contracts port **verbatim** (they are the point). Wire assertions adapt to v2's schema where it differs (v1 reference, not authority) — e.g. the staff fixture's `wageRate` key, the `getLatestWeekdayDate` helper (port it or reuse a v2 twin if one exists).
-- Environmental preflight, verified against the E2E database before first run and recorded in `docs/rewrite-status.md` if new: an "Annual Leave" job searchable in the picker and mapped to the Annual Leave pay item; `labour_cost_loading > 0`; ≥1 active staff with `base_wage_rate > 0`; the E2E user is a superuser (management-surface ops require it — check `is_superuser` in the dev DB the way `is_office_staff` and `wage_rate` were).
+- Environmental preflight, verified against the E2E database before first run and recorded in `docs/rewrite-status.md` if new: an "Annual Leave" job searchable in the picker and mapped to the Annual Leave pay item; `annual_leave_loading > 0`; ≥1 active staff with `base_wage_rate > 0`; the E2E user is a superuser (management-surface ops require it — check `is_superuser` in the dev DB the way `is_office_staff` and `wage_rate` were).
 
 - [ ] **Step 1:** Port the five specs + fixture helpers; `npx tsc` over the tests via the repo's config (`npm run type-check` covers them if included — verify).
 - [ ] **Step 2:** Verify environment prerequisites with direct DB/API checks; fix data or record.

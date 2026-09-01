@@ -46,7 +46,7 @@ done only when that spec is green.
 | E2E specs ported | **49 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
 | Backend operations still to port | **58** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 241 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2820 (all passing) |
+| Unit tests | 2829 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 122 recorded deviations |

@@ -58,7 +58,7 @@ test.describe('payroll reconciliation', () => {
     const base = await total.textContent()
 
     await autoId(page, 'PayrollReconciliation-wageBasis-loaded').click()
-    // Opus: The warning is the point of the toggle having two states. Loaded
+    // Opus: The warning is the point of the toggle having two states. The
     // loaded rate allocates paid non-worked time absent from this week's gross, so the
     // difference column stops being a reconciliation — the page has to say so
     // rather than let someone read a variance off it.

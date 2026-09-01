@@ -19,12 +19,14 @@ sleeping Retry-After and retrying. A second pacing layer on top would be our
 own invented constraint over a mechanism that already handles it.
 """
 
+import hashlib
+import json
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime
-from decimal import Decimal
-from typing import Literal, cast
+from datetime import UTC, date, datetime
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Any, Literal, TypedDict, cast
 
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
@@ -50,7 +52,7 @@ from apps.accounting.types import NewPayrollEmployee, PayrollEmployeeRef, Payrol
 from apps.accounts.models import Staff, StaffPayrollTerm
 from apps.accounts.services.payroll_terms import WEEKDAYS
 from apps.core.errors import AppErrorContext, persist_app_error
-from apps.core.models import CompanyDefaults
+from apps.core.models import CompanyDefaults, loaded_wage_rate
 from apps.timesheet.services.leave_settings import employee_leave_mappings
 from apps.xero import payroll_sdk  # imported for its side effect too: applies the v1 SDK fixes
 from apps.xero.auth import get_api_client, get_tenant_id
@@ -535,11 +537,185 @@ def _plan_employee_changes(
     return planned
 
 
+class _XeroTermProjection(TypedDict):
+    """One payroll term as the checksum sees it, from either side."""
+
+    effective_from: date
+    pay_basis: str
+    annual_salary: Decimal | None
+    hourly_rate: Decimal | None
+    working_weeks: list[dict[str, float]]
+    xero_salary_wage_id: str | None
+    xero_working_pattern_id: str | None
+
+
+class _XeroEmployeeProjection(TypedDict):
+    """The complete Xero-owned state of one employee, from either side.
+
+    Named rather than ``dict[str, Any]`` so the incoming and stored builders are
+    provably the same shape. A field added to one and not the other would not be
+    a visible failure — it would be a checksum that stops matching, and an
+    employee silently rewritten on every hourly sync.
+    """
+
+    xero_tenant_id: str | None
+    xero_user_id: str | None
+    first_name: str
+    last_name: str
+    payroll_email: str | None
+    employment_start_date: date | None
+    date_left: date | None
+    # Nullable because Staff.pay_basis is: NULL means payroll has not classified
+    # this person yet, and the stored side has to be able to say so. An incoming
+    # snapshot always carries one, so a NULL here differs and forces the write
+    # that classifies them.
+    pay_basis: str | None
+    base_wage_rate: Decimal
+    wage_rate: Decimal
+    xero_last_modified: datetime | None
+    payroll_terms: list[_XeroTermProjection]
+
+
+def _money(value: Decimal) -> Decimal:
+    """Round one Xero money figure to the precision its column can hold.
+
+    Applied at the write as well as in the checksum. Xero sends rates to four
+    decimals (24.0385) while every money column here is ``numeric(_, 2)``, so
+    letting the database do the rounding leaves the incoming value and the
+    stored value permanently unequal — a checksum that can never match, and an
+    employee rewritten with a fresh payroll-term history every hour.
+
+    ROUND_HALF_UP because Postgres rounds halves away from zero; Decimal's
+    default ROUND_HALF_EVEN would disagree with the column at exactly .xx5 and
+    reintroduce the same mismatch for those rates alone.
+    """
+    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _optional_money(value: Decimal | None) -> Decimal | None:
+    """Round a nullable money figure, leaving "Xero sent nothing" as NULL."""
+    return None if value is None else _money(value)
+
+
+def _normalise_checksum_value(value: Any) -> Any:
+    """Return a deterministic JSON value for one Xero-owned payroll fact."""
+    if value is None or isinstance(value, str | bool):
+        return value
+    if isinstance(value, datetime):
+        if timezone.is_aware(value):
+            value = value.astimezone(UTC)
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, Decimal | int | float):
+        return format(Decimal(str(value)).normalize(), "f")
+    if isinstance(value, dict):
+        return {
+            str(key): _normalise_checksum_value(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    if isinstance(value, list | tuple):
+        return [_normalise_checksum_value(item) for item in value]
+    raise TypeError(f"Unsupported Xero checksum value: {type(value).__name__}")
+
+
+def _xero_fields_checksum(projection: _XeroEmployeeProjection) -> str:
+    """Hash the complete Xero-owned employee projection deterministically."""
+    serialised = json.dumps(
+        _normalise_checksum_value(projection),
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(serialised.encode()).hexdigest()
+
+
+def _term_projection(term: PayrollTermSnapshot | StaffPayrollTerm) -> _XeroTermProjection:
+    """Project either side of a payroll term into the checksum contract."""
+    if isinstance(term, PayrollTermSnapshot):
+        salary_wage_id = term.salary_wage_id
+        working_pattern_id = term.working_pattern_id
+    else:
+        salary_wage_id = term.xero_salary_wage_id
+        working_pattern_id = term.xero_working_pattern_id
+    return {
+        "effective_from": term.effective_from,
+        "pay_basis": term.pay_basis,
+        "annual_salary": _optional_money(term.annual_salary),
+        "hourly_rate": _optional_money(term.hourly_rate),
+        "working_weeks": term.working_weeks,
+        "xero_salary_wage_id": salary_wage_id,
+        "xero_working_pattern_id": working_pattern_id,
+    }
+
+
+def _snapshot_base_wage_rate(snapshot: PayrollEmployeeSnapshot) -> Decimal:
+    """Return the base rate this snapshot writes, rounded as the column stores it."""
+    rate = snapshot.hourly_rate
+    return Decimal("0") if rate is None else _money(rate)
+
+
+def _incoming_employee_projection(
+    snapshot: PayrollEmployeeSnapshot, *, current_date_left: date | None, loading: Decimal
+) -> _XeroEmployeeProjection:
+    """Build the local state this snapshot is allowed to produce."""
+    base_wage_rate = _snapshot_base_wage_rate(snapshot)
+    return {
+        "xero_tenant_id": snapshot.tenant_id,
+        "xero_user_id": snapshot.employee_id,
+        "first_name": snapshot.first_name,
+        "last_name": snapshot.last_name,
+        "payroll_email": snapshot.email,
+        "employment_start_date": snapshot.start_date,
+        # Xero null means "not yet terminated there", never "reinstate here".
+        "date_left": snapshot.end_date if snapshot.end_date is not None else current_date_left,
+        "pay_basis": snapshot.pay_basis,
+        "base_wage_rate": base_wage_rate,
+        # The derived rate is in the projection because it is the field the
+        # KAN-350 incident corrupts and nothing else here implies it: leave it
+        # out and a wage_rate written from a stale loading still matches the
+        # checksum, so the sync skips the one write that would re-derive it.
+        # Including it also makes a loading change reach every employee.
+        "wage_rate": loaded_wage_rate(base_wage_rate, loading),
+        "xero_last_modified": snapshot.updated_date_utc,
+        "payroll_terms": [_term_projection(term) for term in snapshot.payroll_terms],
+    }
+
+
+def _current_employee_projection(staff: Staff) -> _XeroEmployeeProjection:
+    """Build the currently persisted side of the Xero checksum contract."""
+    terms = sorted(
+        staff.payroll_terms.all(),
+        key=lambda term: (
+            term.effective_from,
+            term.xero_salary_wage_id or "",
+            term.xero_working_pattern_id or "",
+        ),
+    )
+    return {
+        "xero_tenant_id": staff.xero_tenant_id,
+        "xero_user_id": staff.xero_user_id,
+        "first_name": staff.first_name,
+        "last_name": staff.last_name,
+        "payroll_email": staff.payroll_email,
+        "employment_start_date": staff.employment_start_date,
+        "date_left": staff.date_left,
+        "pay_basis": staff.pay_basis,
+        "base_wage_rate": _money(staff.base_wage_rate),
+        "wage_rate": staff.wage_rate,
+        "xero_last_modified": staff.xero_last_modified,
+        "payroll_terms": [_term_projection(term) for term in terms],
+    }
+
+
 def _apply_employee_change(
-    snapshot: PayrollEmployeeSnapshot, staff: Staff | None, tenant_id: str
+    snapshot: PayrollEmployeeSnapshot,
+    staff: Staff | None,
+    tenant_id: str,
+    checksum: str,
 ) -> Staff:
     """Apply one already-validated and already-matched employee change."""
-    base_wage_rate = snapshot.hourly_rate if snapshot.hourly_rate is not None else Decimal("0")
+    base_wage_rate = _snapshot_base_wage_rate(snapshot)
     if staff is None:
         return Staff.objects.create_user(
             office_email=snapshot.email,
@@ -554,6 +730,7 @@ def _apply_employee_change(
             xero_user_id=snapshot.employee_id,
             xero_tenant_id=tenant_id,
             xero_last_modified=snapshot.updated_date_utc,
+            xero_fields_checksum=checksum,
         )
 
     staff.first_name = snapshot.first_name
@@ -563,6 +740,7 @@ def _apply_employee_change(
     staff.xero_user_id = snapshot.employee_id
     staff.xero_tenant_id = tenant_id
     staff.xero_last_modified = snapshot.updated_date_utc
+    staff.xero_fields_checksum = checksum
     staff.pay_basis = snapshot.pay_basis
     staff.base_wage_rate = base_wage_rate
     updated_fields = [
@@ -573,6 +751,7 @@ def _apply_employee_change(
         "xero_user_id",
         "xero_tenant_id",
         "xero_last_modified",
+        "xero_fields_checksum",
         "pay_basis",
         "base_wage_rate",
         "wage_rate",
@@ -602,8 +781,8 @@ def _replace_payroll_terms(staff: Staff, snapshot: PayrollEmployeeSnapshot) -> N
                 staff=staff,
                 effective_from=term.effective_from,
                 pay_basis=term.pay_basis,
-                annual_salary=term.annual_salary,
-                hourly_rate=term.hourly_rate,
+                annual_salary=_optional_money(term.annual_salary),
+                hourly_rate=_optional_money(term.hourly_rate),
                 working_weeks=term.working_weeks,
                 xero_salary_wage_id=term.salary_wage_id,
                 xero_working_pattern_id=term.working_pattern_id,
@@ -621,9 +800,25 @@ def sync_employees(snapshots: list[PayrollEmployeeSnapshot]) -> None:
     if any(snapshot.tenant_id != tenant_id for snapshot in snapshots):
         raise ValueError("An employee sync batch cannot contain multiple Xero tenants")
     with transaction.atomic():
-        planned = _plan_employee_changes(snapshots, list(Staff.objects.select_for_update()))
+        staff_rows = list(Staff.objects.select_for_update().prefetch_related("payroll_terms"))
+        planned = _plan_employee_changes(snapshots, staff_rows)
+        # Read once for the batch, not once per employee: the projection needs
+        # the loading only to derive wage_rate, and every employee in a batch
+        # derives it from the same singleton inside this transaction.
+        loading = CompanyDefaults.get_solo().labour_cost_loading
         for snapshot, staff in planned:
-            changed = _apply_employee_change(snapshot, staff, tenant_id)
+            incoming_checksum = _xero_fields_checksum(
+                _incoming_employee_projection(
+                    snapshot,
+                    current_date_left=staff.date_left if staff is not None else None,
+                    loading=loading,
+                )
+            )
+            if staff is not None:
+                current_checksum = _xero_fields_checksum(_current_employee_projection(staff))
+                if staff.xero_fields_checksum == incoming_checksum == current_checksum:
+                    continue
+            changed = _apply_employee_change(snapshot, staff, tenant_id, incoming_checksum)
             _replace_payroll_terms(changed, snapshot)
 
 

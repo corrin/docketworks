@@ -144,9 +144,6 @@ DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0004 --no-input
 # adds the Maps key; core/0003 creates the IntegrationSettings row when the
 # dump carried none (get_or_create keeps a restored row as-is).
 DB_NAME="$V2_DB" uv run python manage.py migrate core 0003 --no-input
-# core/0004 then renames annual_leave_loading after the v1 row has landed under
-# its original column name, preserving the restored business-specific percentage.
-DB_NAME="$V2_DB" uv run python manage.py migrate core 0004 --no-input
 
 echo "==> Clearing credentials whose v1 ciphertext is not valid v2 plaintext"
 # The phone group is loaded atomically from the root-owned instance credentials
