@@ -179,9 +179,11 @@ class TestKPICalendar:
         assert totals["days_green"] == 1
         assert totals["days_red"] == 21  # every other working day had no hours
         assert totals["active_workdays"] == 1  # only days with hours count
-        # June 2026 fully elapsed by 2026-08: net = GP - target x working days
+        # June 2026 is fully elapsed, so the variance is GP less the daily GP
+        # target across all 22 of its elapsed working days. Not a net profit:
+        # nothing in this response measures operating expenses.
         assert totals["elapsed_workdays"] == 22
-        assert totals["net_profit"] == (640.0 + 500.0) - 1000.0 * 22
+        assert totals["gp_variance_to_elapsed_target"] == (640.0 + 500.0) - 1000.0 * 22
         # Averages divide by active workdays so idle days don't dilute them.
         assert totals["avg_billable_hours_so_far"] == 8.0
         assert totals["color_hours"] == "green"

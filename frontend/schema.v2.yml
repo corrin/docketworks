@@ -5750,6 +5750,9 @@ components:
         elapsed_workdays:
           title: Elapsed Workdays
           type: integer
+        gp_variance_to_elapsed_target:
+          title: Gp Variance To Elapsed Target
+          type: number
         gross_profit:
           title: Gross Profit
           type: number
@@ -5773,9 +5776,6 @@ components:
           type: number
         material_revenue:
           title: Material Revenue
-          type: number
-        net_profit:
-          title: Net Profit
           type: number
         profit_amber_days:
           title: Profit Amber Days
@@ -5843,7 +5843,7 @@ components:
       - total_revenue
       - total_cost
       - elapsed_target
-      - net_profit
+      - gp_variance_to_elapsed_target
       - billable_percentage
       - shop_percentage
       - avg_daily_gp

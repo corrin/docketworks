@@ -5118,6 +5118,10 @@ export type KpiMonthlyTotalsOut = {
      */
     elapsed_workdays: number;
     /**
+     * Gp Variance To Elapsed Target
+     */
+    gp_variance_to_elapsed_target: number;
+    /**
      * Gross Profit
      */
     gross_profit: number;
@@ -5149,10 +5153,6 @@ export type KpiMonthlyTotalsOut = {
      * Material Revenue
      */
     material_revenue: number;
-    /**
-     * Net Profit
-     */
-    net_profit: number;
     /**
      * Profit Amber Days
      */

@@ -299,7 +299,7 @@ class KPIMonthlyTotalsOut(Schema):
     total_revenue: float
     total_cost: float
     elapsed_target: float
-    net_profit: float
+    gp_variance_to_elapsed_target: float
     billable_percentage: float
     shop_percentage: float
     avg_daily_gp: float

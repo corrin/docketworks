@@ -527,11 +527,16 @@ def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -
     # up with cards and modals computing the same number two different ways.
     final["labour_profit"] = totals["time_revenue"] - totals["staff_cost"]
 
-    # Net profit approximates operating expenses as the daily GP target over
-    # the elapsed working days.
+    # Named for what it is: gross profit against the month-to-date GP target.
+    # v1 called this `net_profit`, and the name cost it a page — believing the
+    # field, its KPI report invented a "projected expenses" row to close the
+    # arithmetic, using a different threshold and a different day count than
+    # the line below, so the subtraction it displayed never balanced. This
+    # response carries no operating-expense figure of any kind, so no net
+    # profit can be computed here; operating expenses live in Xero's P&L.
     elapsed_target = thresholds["kpi_daily_gp_target"] * totals["elapsed_workdays"]
     final["elapsed_target"] = elapsed_target
-    final["net_profit"] = totals["gross_profit"] - elapsed_target
+    final["gp_variance_to_elapsed_target"] = totals["gross_profit"] - elapsed_target
 
     billable_percentage = 0.0
     shop_percentage = 0.0
