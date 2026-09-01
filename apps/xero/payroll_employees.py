@@ -537,7 +537,7 @@ def _plan_employee_changes(
     return planned
 
 
-class _TermProjection(TypedDict):
+class _XeroTermProjection(TypedDict):
     """One payroll term as the checksum sees it, from either side."""
 
     effective_from: date
@@ -549,7 +549,7 @@ class _TermProjection(TypedDict):
     xero_working_pattern_id: str | None
 
 
-class _EmployeeProjection(TypedDict):
+class _XeroEmployeeProjection(TypedDict):
     """The complete Xero-owned state of one employee, from either side.
 
     Named rather than ``dict[str, Any]`` so the incoming and stored builders are
@@ -573,7 +573,7 @@ class _EmployeeProjection(TypedDict):
     base_wage_rate: Decimal
     wage_rate: Decimal
     xero_last_modified: datetime | None
-    payroll_terms: list[_TermProjection]
+    payroll_terms: list[_XeroTermProjection]
 
 
 def _money(value: Decimal) -> Decimal:
@@ -619,7 +619,7 @@ def _normalise_checksum_value(value: Any) -> Any:
     raise TypeError(f"Unsupported Xero checksum value: {type(value).__name__}")
 
 
-def _xero_fields_checksum(projection: _EmployeeProjection) -> str:
+def _xero_fields_checksum(projection: _XeroEmployeeProjection) -> str:
     """Hash the complete Xero-owned employee projection deterministically."""
     serialised = json.dumps(
         _normalise_checksum_value(projection),
@@ -630,7 +630,7 @@ def _xero_fields_checksum(projection: _EmployeeProjection) -> str:
     return hashlib.sha256(serialised.encode()).hexdigest()
 
 
-def _term_projection(term: PayrollTermSnapshot | StaffPayrollTerm) -> _TermProjection:
+def _term_projection(term: PayrollTermSnapshot | StaffPayrollTerm) -> _XeroTermProjection:
     """Project either side of a payroll term into the checksum contract."""
     if isinstance(term, PayrollTermSnapshot):
         salary_wage_id = term.salary_wage_id
@@ -657,7 +657,7 @@ def _snapshot_base_wage_rate(snapshot: PayrollEmployeeSnapshot) -> Decimal:
 
 def _incoming_employee_projection(
     snapshot: PayrollEmployeeSnapshot, *, current_date_left: date | None, loading: Decimal
-) -> _EmployeeProjection:
+) -> _XeroEmployeeProjection:
     """Build the local state this snapshot is allowed to produce."""
     base_wage_rate = _snapshot_base_wage_rate(snapshot)
     return {
@@ -682,7 +682,7 @@ def _incoming_employee_projection(
     }
 
 
-def _current_employee_projection(staff: Staff) -> _EmployeeProjection:
+def _current_employee_projection(staff: Staff) -> _XeroEmployeeProjection:
     """Build the currently persisted side of the Xero checksum contract."""
     terms = sorted(
         staff.payroll_terms.all(),
