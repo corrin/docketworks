@@ -1,29 +1,28 @@
-"""Google address lookups: Address Validation for supplier entry, Places for the shop.
+"""Google Places (New) address lookups — the one address lookup in this codebase.
 
-Two Google products, one credential, because they answer different questions.
+Both the supplier-address autocomplete (``companies_addresses_validate_create``,
+``/api/companies/addresses/validate/``) and the shop's own address come through
+here.
 
-``geocode_address`` calls **Address Validation** and backs the supplier-address
-autocomplete (``companies_addresses_validate_create``,
-``/api/companies/addresses/validate/``). It is the right product there: it
-grades what a person typed, returning a verdict — granularity, completeness,
-which components it had to infer.
+Places rather than the Address Validation API this used to call. Measured
+2026-09-02 against six real NZ addresses across four regions:
+``v1:validateAddress`` returns no ``administrative_area_level_1`` for any of
+them, so it cannot answer "which region is this business in" at all, and its
+``administrative_area_level_1 -> state`` mapping had never once fired — which is
+why 513 of 522 supplier ``state`` values were NULL. Address Validation does
+grade what a person typed and return a verdict Places has no equivalent for;
+that was not worth a second implementation of "look up an address" beside one
+that answers strictly more.
 
-``look_up_place`` calls **Places (New)** and backs the shop's own address. It
-exists because Address Validation does not answer the question the KPI calendar
-needs. Measured 2026-09-02 against six real NZ addresses across four regions:
-Address Validation returns NO ``administrative_area_level_1`` for any of them,
-so the region is simply absent from that product's reply. (The
-``administrative_area_level_1`` entry in ``_COMPONENT_FIELDS`` below is
-therefore dead for NZ, which is why almost every stored ``state`` is NULL.)
-
-Places over the classic Geocoding API, which also carries the region: Geocoding
-is GET-only and takes the key as a **query parameter**, and the fable on
-``geocode_address`` explains why a key in a URL ends up in the database. Places
-takes ``X-Goog-Api-Key``, so the same rule holds without a second mechanism to
-scrub URLs out of exceptions.
+Places rather than the classic Geocoding API, which also carries the region:
+Geocoding is GET-only with the key as a **query parameter**, and ``requests``
+copies the full URL into every ``RequestException`` message, which
+``persist_app_error`` then writes to the database. Places takes
+``X-Goog-Api-Key``, so a credential never enters a URL.
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import requests
@@ -32,33 +31,6 @@ from holidays.countries.new_zealand import NewZealand
 from apps.core.models import IntegrationSettings
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class GeocodingResult:
-    """Structured result from geocoding an address."""
-
-    formatted_address: str
-    street: str
-    suburb: str
-    city: str
-    state: str
-    postal_code: str
-    country: str
-    google_place_id: str
-    latitude: float | None
-    longitude: float | None
-
-
-_COMPONENT_FIELDS = {
-    "street_number": "street_number",
-    "route": "route",
-    "sublocality_level_1": "suburb",
-    "locality": "city",
-    "administrative_area_level_1": "state",
-    "postal_code": "postal_code",
-    "country": "country",
-}
 
 
 class GeocodingError(Exception):
@@ -83,110 +55,6 @@ def get_api_key() -> str:
     return api_key
 
 
-def geocode_address(address: str, api_key: str | None = None) -> GeocodingResult | None:
-    """Geocode a freetext address using the Google Address Validation API.
-
-    Args:
-        address: Freetext address string to geocode.
-        api_key: Optional API key (uses the environment variable if omitted).
-
-    Returns:
-        GeocodingResult with structured address data, or None if no result.
-
-    Raises:
-        GeocodingNotConfiguredError: if no API key is set.
-        GeocodingError: if the API call fails.
-    """
-    if not api_key:
-        api_key = get_api_key()
-
-    url = "https://addressvalidation.googleapis.com/v1:validateAddress"
-
-    payload = {
-        "address": {
-            "addressLines": [address],
-            "regionCode": "NZ",  # Default to New Zealand
-        },
-        "enableUspsCass": False,
-    }
-
-    # Fable: the key travels in a header, never the query string. requests
-    # puts the full URL into every RequestException message, and that message
-    # is persisted as an AppError and logged — so `?key=` would write the
-    # credential into the database on the first network blip.
-    try:
-        response = requests.post(
-            url,
-            json=payload,
-            headers={"X-Goog-Api-Key": api_key},
-            timeout=10,
-        )
-    except requests.RequestException as exc:
-        raise GeocodingError(f"Network error: {exc}") from exc
-
-    if response.status_code != 200:
-        logger.error(
-            "Google Address Validation API error: %s - %s",
-            response.status_code,
-            response.text,
-        )
-        detail = response.text
-        raise GeocodingError(f"Google API returned {response.status_code}: {detail}")
-
-    data: dict[str, object] = response.json()
-    return _parse_validation_result(data)
-
-
-def _parse_validation_result(data: dict[str, object]) -> GeocodingResult | None:
-    """Parse a Google Address Validation API response into a GeocodingResult."""
-    result = _dict(data.get("result"))
-    address_obj = _dict(result.get("address"))
-    geocode = _dict(result.get("geocode"))
-
-    formatted = _str(address_obj.get("formattedAddress"))
-    if not formatted:
-        return None
-
-    # Extract place ID and coordinates
-    place_id = _str(geocode.get("placeId"))
-    location = _dict(geocode.get("location"))
-    latitude = _float_or_none(location.get("latitude"))
-    longitude = _float_or_none(location.get("longitude"))
-
-    # Extract components
-    components: dict[str, str] = {}
-    raw_components = address_obj.get("addressComponents")
-    if isinstance(raw_components, list):
-        for component in raw_components:
-            comp = _dict(component)
-            comp_type = _str(comp.get("componentType"))
-            text = _str(_dict(comp.get("componentName")).get("text"))
-            field = _COMPONENT_FIELDS.get(comp_type)
-            if field:
-                components[field] = text
-
-    # Build street from number + route
-    street_parts = []
-    if components.get("street_number"):
-        street_parts.append(components["street_number"])
-    if components.get("route"):
-        street_parts.append(components["route"])
-    street = " ".join(street_parts)
-
-    return GeocodingResult(
-        formatted_address=formatted,
-        street=street,
-        suburb=components.get("suburb", ""),
-        city=components.get("city", ""),
-        state=components.get("state", ""),
-        postal_code=components.get("postal_code", ""),
-        country=components.get("country", "New Zealand"),
-        google_place_id=place_id,
-        latitude=latitude,
-        longitude=longitude,
-    )
-
-
 #: Google names most NZ regions "<Name> Region" but Auckland plainly "Auckland"
 #: (measured across six addresses, 2026-09-02). Strip the suffix and the
 #: holidays package's own alias table does the mapping — including its Māori
@@ -197,18 +65,25 @@ _REGION_SUFFIX = " Region"
 #: Places bills by field mask, so this is the list of things we actually keep.
 #: Widening it costs money on every lookup; narrowing it silently drops a field
 #: from the stored response.
-_PLACES_FIELD_MASK = ",".join(
-    (
-        "places.id",
-        "places.formattedAddress",
-        "places.shortFormattedAddress",
-        "places.addressComponents",
-        "places.location",
-        "places.viewport",
-        "places.types",
-        "places.postalAddress",
-    )
+_PLACE_FIELDS = (
+    "id",
+    "formattedAddress",
+    "shortFormattedAddress",
+    "addressComponents",
+    "location",
+    "viewport",
+    "types",
+    "postalAddress",
 )
+
+#: searchText returns a list, so its mask names the repeated field; places.get
+#: returns the resource itself and takes the bare names.
+_SEARCH_FIELD_MASK = ",".join(f"places.{name}" for name in _PLACE_FIELDS)
+_GET_FIELD_MASK = ",".join(_PLACE_FIELDS)
+
+#: Enough for a person to recognise their own address among near
+#: neighbours, few enough that a debounced keystroke stays cheap.
+_CANDIDATE_LIMIT = 5
 
 
 @dataclass(frozen=True)
@@ -216,15 +91,23 @@ class PlaceLookup:
     """One Places answer, alongside the whole reply it was read from."""
 
     formatted_address: str
-    place_id: str
-    latitude: float | None
-    longitude: float | None
+    street: str
+    suburb: str
+    city: str
     #: Google's own wording, e.g. "Canterbury Region" — kept verbatim so the
     #: stored value can be re-mapped if the holidays package renames a code.
     region: str
     #: The holidays-package subdivision, e.g. "CAN". None when Google named no
     #: region, or named one the package does not know.
     nz_subdivision: str | None
+    postal_code: str
+    country: str
+    place_id: str
+    latitude: float | None
+    longitude: float | None
+    #: The whole reply. Kept because re-fetching a field already paid for is
+    #: the failure mode, and because the confidence and geometry Google sends
+    #: have no column of their own yet.
     raw: dict[str, object]
 
 
@@ -246,28 +129,70 @@ def nz_subdivision_for_region(region: str) -> str | None:
     return aliases.get(region.removesuffix(_REGION_SUFFIX)) or aliases.get(region)
 
 
-def look_up_place(address: str, api_key: str | None = None) -> PlaceLookup | None:
-    """Resolve one freetext address through Places (New), keeping the whole reply.
+def search_places(
+    address: str, *, limit: int = _CANDIDATE_LIMIT, api_key: str | None = None
+) -> list[PlaceLookup]:
+    """Offer the candidates a person picks from, best match first.
 
-    Returns None when Google matched nothing — a real outcome for a typo, and
-    distinct from the errors raised below.
+    A list rather than one answer because the caller is a picker: the operator
+    confirms which address Google found, which is how they see "Mt Wellington"
+    become "St Johns" instead of having it substituted underneath them.
+
+    An empty list is a real outcome — a typo matches nothing — and is distinct
+    from the errors raised below.
     """
     if not address:
         raise ValueError("Cannot look up an empty address")
     if not api_key:
         api_key = get_api_key()
 
-    try:
-        response = requests.post(
+    payload = {"textQuery": address, "regionCode": "NZ", "maxResultCount": limit}
+    data = _places_call(
+        lambda: requests.post(
             "https://places.googleapis.com/v1/places:searchText",
-            json={"textQuery": address, "regionCode": "NZ", "maxResultCount": 1},
+            json=payload,
             # Header auth, as on Address Validation above and for the same
             # reason: the classic Geocoding API would have put the key in the
             # query string, and requests copies the full URL into every
             # RequestException message that persist_app_error then stores.
-            headers={"X-Goog-Api-Key": api_key, "X-Goog-FieldMask": _PLACES_FIELD_MASK},
+            headers={"X-Goog-Api-Key": api_key, "X-Goog-FieldMask": _SEARCH_FIELD_MASK},
             timeout=10,
         )
+    )
+    places = data.get("places")
+    if not isinstance(places, list):
+        return []
+    found = (_place_from_payload(_dict(place)) for place in places)
+    return [place for place in found if place is not None]
+
+
+def fetch_place(place_id: str, api_key: str | None = None) -> PlaceLookup | None:
+    """Re-read one place by the id a person already picked.
+
+    The save path uses this rather than storing the coordinates the browser
+    posted back: the id is the only part of a chosen candidate a client cannot
+    quietly swap for a different location, and re-reading is also what puts the
+    whole reply in our hands to store.
+    """
+    if not place_id:
+        raise ValueError("Cannot fetch an empty place id")
+    if not api_key:
+        api_key = get_api_key()
+
+    data = _places_call(
+        lambda: requests.get(
+            f"https://places.googleapis.com/v1/places/{place_id}",
+            headers={"X-Goog-Api-Key": api_key, "X-Goog-FieldMask": _GET_FIELD_MASK},
+            timeout=10,
+        )
+    )
+    return _place_from_payload(data)
+
+
+def _places_call(send: Callable[[], requests.Response]) -> dict[str, object]:
+    """Run one Places request, converting its two failure shapes."""
+    try:
+        response = send()
     except requests.RequestException as exc:
         raise GeocodingError(f"Network error: {exc}") from exc
 
@@ -275,40 +200,74 @@ def look_up_place(address: str, api_key: str | None = None) -> PlaceLookup | Non
         logger.error("Google Places API error: %s - %s", response.status_code, response.text)
         raise GeocodingError(f"Google Places returned {response.status_code}: {response.text}")
 
-    return _parse_place_result(response.json())
+    parsed: dict[str, object] = response.json()
+    return parsed
 
 
-def _parse_place_result(data: dict[str, object]) -> PlaceLookup | None:
-    """Read the first Places match, or None when Google matched nothing."""
-    places = data.get("places")
-    if not isinstance(places, list) or not places:
-        return None
-    place = _dict(places[0])
-
+def _place_from_payload(place: dict[str, object]) -> PlaceLookup | None:
+    """Read one place, whether it came from a search or a fetch by id."""
     formatted = _str(place.get("formattedAddress"))
     if not formatted:
         return None
 
+    components = _components_by_type(place.get("addressComponents"))
+    region = components.get("administrative_area_level_1", "")
     location = _dict(place.get("location"))
-    region = ""
-    components = place.get("addressComponents")
-    if isinstance(components, list):
-        for component in components:
-            entry = _dict(component)
-            types = entry.get("types")
-            if isinstance(types, list) and "administrative_area_level_1" in types:
-                region = _str(entry.get("longText"))
-                break
+    postal = _dict(place.get("postalAddress"))
 
     return PlaceLookup(
         formatted_address=formatted,
+        street=_street(postal, components),
+        suburb=components.get("sublocality_level_1", ""),
+        city=components.get("locality", ""),
+        region=region,
+        nz_subdivision=nz_subdivision_for_region(region),
+        postal_code=components.get("postal_code", ""),
+        country=components.get("country", ""),
         place_id=_str(place.get("id")),
         latitude=_float_or_none(location.get("latitude")),
         longitude=_float_or_none(location.get("longitude")),
-        region=region,
-        nz_subdivision=nz_subdivision_for_region(region),
         raw=place,
     )
+
+
+def _components_by_type(raw: object) -> dict[str, str]:
+    """Index a place's components by type.
+
+    Places gives each component a LIST of types (``["locality", "political"]``)
+    where Address Validation gave one string, so a component lands under every
+    type it claims. Reading it as a single value is the mistake that makes a
+    parser written against the older product return empty strings in silence.
+    """
+    indexed: dict[str, str] = {}
+    if not isinstance(raw, list):
+        return indexed
+    for component in raw:
+        entry = _dict(component)
+        types = entry.get("types")
+        if not isinstance(types, list):
+            continue
+        text = _str(entry.get("longText"))
+        for component_type in types:
+            if isinstance(component_type, str):
+                indexed.setdefault(component_type, text)
+    return indexed
+
+
+def _street(postal: dict[str, object], components: dict[str, str]) -> str:
+    """Google's own street line, falling back to rebuilding it.
+
+    ``postalAddress.addressLines`` already reads "3/41 Elizabeth Knox Place" —
+    rebuilding from ``street_number`` and ``route`` drops the unit, because the
+    unit is a separate ``subpremise`` component. Preferred for that reason.
+    """
+    lines = postal.get("addressLines")
+    if isinstance(lines, list) and lines:
+        first = _str(lines[0])
+        if first:
+            return first
+    parts = [components.get("street_number", ""), components.get("route", "")]
+    return " ".join(part for part in parts if part)
 
 
 def _dict(value: object) -> dict[str, object]:

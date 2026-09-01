@@ -40,7 +40,18 @@ components:
       title: AcknowledgementOut
       type: object
     AddressCandidate:
-      description: One structured candidate from the Google Address Validation API.
+      description: 'One address Google offers for a freetext search, for a person to pick from.
+
+
+        ``region`` rather than v1''s ``state``: this carries Google''s
+
+        ``administrative_area_level_1``, which in New Zealand is the region
+
+        ("Canterbury Region", or plainly "Auckland"). The old name described a
+
+        column that was empty in 513 of 522 rows, because the product it was read
+
+        from never returned the component at all.'
       properties:
         city:
           title: City
@@ -64,11 +75,16 @@ components:
           - type: number
           - type: 'null'
           title: Longitude
+        nz_subdivision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Nz Subdivision
         postal_code:
           title: Postal Code
           type: string
-        state:
-          title: State
+        region:
+          title: Region
           type: string
         street:
           title: Street
@@ -81,7 +97,8 @@ components:
       - street
       - suburb
       - city
-      - state
+      - region
+      - nz_subdivision
       - postal_code
       - country
       - google_place_id
@@ -15384,7 +15401,7 @@ paths:
       - build-id
   /api/companies/addresses/validate/:
     post:
-      description: 'Validate a freetext address and return structured candidates.
+      description: 'Offer the addresses Google matches, for a person to pick from.
 
 
         503 when the Google API is unavailable or the Google Maps API key is not

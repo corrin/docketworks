@@ -25,8 +25,8 @@ from apps.company.models import SupplierPickupAddress  # noqa: E402 -- needs dja
 from apps.company.services.geocoding_service import (  # noqa: E402
     GeocodingError,
     GeocodingNotConfiguredError,
-    geocode_address,
     get_api_key,
+    search_places,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,20 +49,27 @@ def build_freetext_address(address: SupplierPickupAddress) -> str:
 
 def apply_result(address: SupplierPickupAddress, freetext: str, api_key: str) -> bool:
     """Geocode one address and save the result; returns True on success."""
-    result = geocode_address(freetext, api_key)
-    if result is None:
+    # Best match only: a sweep has no operator to pick from a list, so it
+    # takes what a person would have been offered first and nothing else.
+    candidates = search_places(freetext, limit=1, api_key=api_key)
+    if not candidates:
         logger.warning("  -> No result returned")
         return False
+    result = candidates[0]
 
     address.latitude = result.latitude
     address.longitude = result.longitude
-    address.google_place_id = result.google_place_id
+    address.google_place_id = result.place_id
 
     # Fill blanks only: the operator-entered components stay authoritative.
     if not address.suburb and result.suburb:
         address.suburb = result.suburb
     if not address.postal_code and result.postal_code:
         address.postal_code = result.postal_code
+    # Newly reachable: the region was never returned by the product this
+    # swept with before, so every row it has already visited has a blank one.
+    if not address.state and result.region:
+        address.state = result.region
 
     address.save()
     logger.info("  -> %s, %s", result.latitude, result.longitude)

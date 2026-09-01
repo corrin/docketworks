@@ -1,21 +1,21 @@
-"""The Places and Address Validation calls against the real APIs (ADR 0050).
+"""Places (New) against the real API (ADR 0050).
 
 Closes the gap recorded in ``docs/rewrite-status.md``: the outbound-link probe
-skips ``v1:validateAddress`` because it is POST-only, so nothing proved either
-endpoint existed. A fake provider could only have confirmed what we already
-believed — and what we believed was wrong. Address Validation returns no region
-for New Zealand, which is why the shop's address goes through Places.
+skips this endpoint because it is POST-only, so nothing proved it existed. A
+fake provider could only have confirmed what we already believed — and what we
+believed was wrong, which is how the region came to be read from a product that
+never returns one.
 
-Read-only: both calls look up a public address and write nothing anywhere.
+Read-only: every call looks up a public address and writes nothing anywhere.
 
 **A 403 naming an IP address is not a code failure.** The key is IP-restricted
-and this machine's egress address has been observed to change mid-session; check
-the allowlist in the GCP project before reading anything into the error.
+and this machine's egress address has been seen to change mid-session; check the
+allowlist in the GCP project before reading anything into the error.
 """
 
 import pytest
 
-from apps.company.services.geocoding_service import geocode_address, look_up_place
+from apps.company.services.geocoding_service import fetch_place, search_places
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 
@@ -31,46 +31,53 @@ def _credentials(integration_credentials: None) -> None:
 ADDRESS = "45 Sir William Pickering Drive, Burnside, Christchurch, New Zealand"
 
 
-class TestPlacesLookup:
-    def test_a_real_lookup_returns_a_region_and_its_subdivision(self) -> None:
-        place = look_up_place(ADDRESS)
+class TestSearch:
+    def test_a_real_search_returns_a_region_and_its_subdivision(self) -> None:
+        candidates = search_places(ADDRESS)
 
-        assert place is not None
+        assert candidates
+        place = candidates[0]
         assert place.region == "Canterbury Region"
         assert place.nz_subdivision == "CAN"
+        assert place.city == "Christchurch"
+        assert place.country == "New Zealand"
         assert place.latitude is not None
         assert place.longitude is not None
         assert place.place_id != ""
 
     def test_the_whole_reply_is_kept(self) -> None:
         """The stored response must carry more than the fields read today."""
-        place = look_up_place(ADDRESS)
+        place = search_places(ADDRESS)[0]
 
-        assert place is not None
         assert {"viewport", "types", "postalAddress"} <= set(place.raw)
 
     def test_an_address_google_cannot_match_returns_nothing(self) -> None:
-        assert look_up_place("qqqzzz nowhere at all 99999, New Zealand") is None
+        assert search_places("qqqzzz nowhere at all 99999, New Zealand") == []
 
 
-class TestAddressValidation:
-    def test_the_supplier_path_still_reaches_google(self) -> None:
-        """Unchanged by the Places work; this is the PO-entry autocomplete."""
-        result = geocode_address(ADDRESS)
+class TestFetchById:
+    def test_a_picked_candidate_can_be_re_read_by_its_id(self) -> None:
+        """The save path re-reads rather than trusting geo fields from a browser."""
+        picked = search_places(ADDRESS)[0]
 
-        assert result is not None
-        assert result.city == "Christchurch"
-        assert result.latitude is not None
+        refetched = fetch_place(picked.place_id)
 
-    def test_address_validation_supplies_no_new_zealand_region(self) -> None:
-        """The measurement the whole design rests on, kept as a live check.
+        assert refetched is not None
+        assert refetched.place_id == picked.place_id
+        assert refetched.region == picked.region
+        assert refetched.latitude == pytest.approx(picked.latitude)
+        assert refetched.longitude == pytest.approx(picked.longitude)
 
-        If Google ever starts returning ``administrative_area_level_1`` here,
-        this fails — and the second API call for the shop's address stops being
-        necessary. That is worth being told about rather than discovering years
-        later, which is exactly what happened the first time.
+    def test_a_unit_address_re_reads_too(self) -> None:
+        """Google answers a subpremise with a long synthetic id, not a place id.
+
+        It still fetches, which is what lets the save path use the id alone —
+        checked live because the two id shapes are not documented as
+        interchangeable.
         """
-        result = geocode_address(ADDRESS)
+        picked = search_places("Unit 3, 41 Elizabeth Knox Place, Mt Wellington, Auckland")[0]
 
-        assert result is not None
-        assert result.state == ""
+        refetched = fetch_place(picked.place_id)
+
+        assert refetched is not None
+        assert refetched.nz_subdivision == "AUK"

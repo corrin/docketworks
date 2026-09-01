@@ -34,8 +34,8 @@ def test_success_reports_maps_and_skips_a_disabled_phone_provider(
     with (
         patch.object(
             check_integration_settings,
-            "geocode_address",
-            return_value=SimpleNamespace(formatted_address="1 Queen Street, Auckland"),
+            "search_places",
+            return_value=[SimpleNamespace(formatted_address="1 Queen Street, Auckland")],
         ),
         patch.object(check_integration_settings, "verify_portal_login") as phone_login,
     ):

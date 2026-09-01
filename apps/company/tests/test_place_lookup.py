@@ -1,11 +1,11 @@
 """Places (New) lookups for the shop's own address.
 
 ``PLACES_RESPONSE`` is a real reply, captured 2026-09-02 for 151 Captain
-Springs Road and pasted verbatim. That matters: the hand-written mock in
-``test_address_validation.py`` carries no ``administrative_area_level_1``, and
-because of it nobody noticed for a year that Address Validation never returns a
+Springs Road and pasted verbatim. That matters: the hand-written Address
+Validation mock this file replaced carried no ``administrative_area_level_1``,
+and because of it nobody noticed for a year that the product never returns a
 region for NZ at all. A mock authored from documentation asserts what we hoped
-the API does; this one asserts what it did.
+an API does; this one asserts what it did.
 
 Mocks at the HTTP boundary (``requests.post``) — Google is never hit here. The
 live call has its own test, marked ``integration`` (ADR 0050).
@@ -18,8 +18,8 @@ import pytest
 
 from apps.company.services.geocoding_service import (
     GeocodingError,
-    look_up_place,
     nz_subdivision_for_region,
+    search_places,
 )
 
 POST_TARGET = "apps.company.services.geocoding_service.requests.post"
@@ -103,7 +103,8 @@ def _ok(payload: dict[str, Any]) -> MagicMock:
 def test_a_lookup_reads_the_region_and_maps_it_to_a_holiday_subdivision() -> None:
     """The region is the whole reason this product is called instead of the other one."""
     with patch(POST_TARGET, return_value=_ok(PLACES_RESPONSE)):
-        place = look_up_place("151 Captain Springs Road, Onehunga, Auckland", api_key="k")
+        found = search_places("151 Captain Springs Road, Onehunga, Auckland", api_key="k")
+        place = found[0] if found else None
 
     assert place is not None
     assert place.region == "Auckland"
@@ -117,7 +118,7 @@ def test_a_lookup_reads_the_region_and_maps_it_to_a_holiday_subdivision() -> Non
 def test_the_whole_reply_is_kept_not_only_the_fields_read_today() -> None:
     """Re-fetching a field we already paid for is the failure this guards."""
     with patch(POST_TARGET, return_value=_ok(PLACES_RESPONSE)):
-        place = look_up_place("151 Captain Springs Road", api_key="k")
+        place = search_places("151 Captain Springs Road", api_key="k")[0]
 
     assert place is not None
     # None of these are read by PlaceLookup's own fields, which is the point.
@@ -132,7 +133,7 @@ def test_the_whole_reply_is_kept_not_only_the_fields_read_today() -> None:
 def test_the_key_travels_in_a_header_never_the_query_string() -> None:
     """A key in a URL reaches the AppError table on the first network blip."""
     with patch(POST_TARGET, return_value=_ok(PLACES_RESPONSE)) as post:
-        look_up_place("151 Captain Springs Road", api_key="secret-key")
+        search_places("151 Captain Springs Road", api_key="secret-key")
 
     args, kwargs = post.call_args
     url = args[0] if args else kwargs["url"]
@@ -144,7 +145,7 @@ def test_the_key_travels_in_a_header_never_the_query_string() -> None:
 def test_no_match_is_an_answer_not_an_error() -> None:
     """A typo returns nothing; that is a real outcome, not a failure."""
     with patch(POST_TARGET, return_value=_ok({"places": []})):
-        assert look_up_place("qqqzzz not an address", api_key="k") is None
+        assert search_places("qqqzzz not an address", api_key="k") == []
 
 
 def test_a_refused_call_raises_rather_than_reporting_no_match() -> None:
@@ -153,12 +154,12 @@ def test_a_refused_call_raises_rather_than_reporting_no_match() -> None:
     refused.status_code = 403
     refused.text = "IP address restriction"
     with patch(POST_TARGET, return_value=refused), pytest.raises(GeocodingError, match="403"):
-        look_up_place("151 Captain Springs Road", api_key="k")
+        search_places("151 Captain Springs Road", api_key="k")
 
 
 def test_an_empty_address_never_reaches_google() -> None:
     with patch(POST_TARGET) as post, pytest.raises(ValueError, match="empty address"):
-        look_up_place("", api_key="k")
+        search_places("", api_key="k")
     post.assert_not_called()
 
 

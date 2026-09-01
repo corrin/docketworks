@@ -32,7 +32,13 @@ export const zAcknowledgementOut = z.object({
 /**
  * AddressCandidate
  *
- * One structured candidate from the Google Address Validation API.
+ * One address Google offers for a freetext search, for a person to pick from.
+ *
+ * ``region`` rather than v1's ``state``: this carries Google's
+ * ``administrative_area_level_1``, which in New Zealand is the region
+ * ("Canterbury Region", or plainly "Auckland"). The old name described a
+ * column that was empty in 513 of 522 rows, because the product it was read
+ * from never returned the component at all.
  */
 export const zAddressCandidate = z.object({
     city: z.string(),
@@ -41,8 +47,9 @@ export const zAddressCandidate = z.object({
     google_place_id: z.string(),
     latitude: z.number().nullable(),
     longitude: z.number().nullable(),
+    nz_subdivision: z.string().nullable(),
     postal_code: z.string(),
-    state: z.string(),
+    region: z.string(),
     street: z.string(),
     suburb: z.string()
 });

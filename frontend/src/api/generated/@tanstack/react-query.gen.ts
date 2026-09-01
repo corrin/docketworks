@@ -671,7 +671,7 @@ export const buildIdRetrieveOptions = (options?: Options<BuildIdRetrieveData>) =
 /**
  * Companies Addresses Validate Create
  *
- * Validate a freetext address and return structured candidates.
+ * Offer the addresses Google matches, for a person to pick from.
  *
  * 503 when the Google API is unavailable or the Google Maps API key is not
  * configured (v1 behaviour).
