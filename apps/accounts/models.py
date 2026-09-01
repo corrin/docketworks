@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.utils.timezone import now as timezone_now
 from simple_history.models import HistoricalRecords
 
-from apps.core.models import CompanyDefaults
+from apps.core.models import CompanyDefaults, loaded_wage_rate
 
 SYSTEM_AUTOMATION_EMAIL = "system.automation@docketworks.local"
 
@@ -135,6 +135,12 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         max_length=255, null=True, blank=True
     )
     xero_last_modified = models.DateTimeField(null=True, blank=True)
+    xero_fields_checksum = models.CharField(  # noqa: DJ001 -- NULL means never synced
+        max_length=64,
+        null=True,
+        blank=True,
+        help_text=("SHA-256 of the last applied Xero employee fields and payroll-term history"),
+    )
     employment_start_date = models.DateField(default=timezone.localdate)
     pay_basis = models.CharField(  # noqa: DJ001 -- NULL means not classified by payroll
         max_length=10,
@@ -231,6 +237,10 @@ class Staff(AbstractBaseUser, PermissionsMixin):
                 condition=~models.Q(xero_tenant_id=""), name="staff_xero_tenant_id_not_blank"
             ),
             models.CheckConstraint(
+                condition=~models.Q(xero_fields_checksum=""),
+                name="staff_xero_fields_checksum_not_blank",
+            ),
+            models.CheckConstraint(
                 condition=~models.Q(payroll_email=""), name="staff_payroll_email_not_blank"
             ),
             models.CheckConstraint(
@@ -324,9 +334,11 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         # ADR 0015: no read-side fallback (v1 substituted 8.00 here — dead code
         # via get_solo's get_or_create, and contradicting the real 20.00
         # default). If the singleton genuinely cannot exist, crashing is correct.
+        # Guarded rather than folded into loaded_wage_rate: a zero base rate has
+        # no loading to apply, and reaching the singleton anyway would add a
+        # query to every salaried staff save.
         loading = CompanyDefaults.get_solo().labour_cost_loading
-        multiplier = Decimal("1") + loading / Decimal("100")
-        self.wage_rate = (Decimal(str(self.base_wage_rate)) * multiplier).quantize(Decimal("0.01"))
+        self.wage_rate = loaded_wage_rate(self.base_wage_rate, loading)
 
     def __str__(self) -> str:
         return f"{self.first_name} {self.last_name}"

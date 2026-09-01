@@ -457,3 +457,16 @@ total, so offsetting adjustments still archive; a priced quote
 answers 409 and the UI offers archive-and-replace through the existing quote
 revision machinery; and a quote already matching the estimate answers as a
 no-op so a double press cannot stack identical archives.
+
+**A partial singleton save cannot trigger consequences for an excluded field,
+2026-09-01 (KAN-350).** Production proved the hourly Xero completion stamp held
+a stale `CompanyDefaults` instance: `update_fields` protected the current
+`labour_cost_loading` column while the model override still recomputed every
+Staff wage rate from its old in-memory value. The override now treats
+`update_fields` as write intent before comparing or propagating the loading.
+The adjacent employee mirror also stops rewriting unchanged Staff and payroll
+terms every hour: Xero supplies `Employee.updatedDateUTC`, but the separately
+fetched salary and working-pattern resources have no modification timestamp,
+so Staff materialises a canonical checksum of the complete enriched Xero
+projection. A no-op requires both that stored digest and the current local
+projection to match, so a stale digest cannot hide local drift.

@@ -18,10 +18,11 @@ from decimal import Decimal
 
 import pytest
 from django.core.management import call_command
+from pytest_django.fixtures import SettingsWrapper
 
 from apps.accounting.services import payroll_reconciliation_service
 from apps.accounting.types import StaffWeekPosting, StaffWeekPostResult
-from apps.accounts.models import Staff
+from apps.accounts.models import Staff, StaffPayrollTerm
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
 from apps.timesheet.services.leave_settings import employee_leave_mappings
@@ -61,7 +62,7 @@ def postable_week() -> date:
 
 
 @pytest.fixture
-def payroll_staff(postable_week: date) -> Staff:
+def payroll_staff(postable_week: date, settings: SettingsWrapper) -> Staff:
     # Fable: Converge employees INBOUND before choosing one. The test database
     # is cloned from the dev database, whose base_wage_rate can lag the rate
     # Xero currently pays — the hourly employee sync is what heals that in
@@ -69,6 +70,9 @@ def payroll_staff(postable_week: date) -> Staff:
     # stale local rate fails the test with a "mismatch" the product would
     # have already repaired. First seen live 2026-08-21: a cloned 40.00/h
     # against Xero's 32.00/h reported a 40-dollar pay_diff on a correct post.
+    # pytest sets DEBUG=False, which the sync correctly treats as a production
+    # install; this test database is a non-production mirror of the demo tenant.
+    settings.DEBUG = True
     errors = [
         event["message"]
         for event in one_way_sync_all_xero_data(entities=["employees"], force=True)
@@ -154,6 +158,32 @@ def _post(week: date, staff: Staff) -> StaffWeekPostResult:
     assert result.success, result.error
     assert not result.skipped, result.reason
     return result
+
+
+def test_live_unchanged_employee_resync_is_a_local_noop(payroll_staff: Staff) -> None:
+    """The composite checksum agrees with the enriched snapshot returned by real Xero."""
+    payroll_staff.refresh_from_db()
+    assert payroll_staff.xero_fields_checksum is not None
+    original_checksum = payroll_staff.xero_fields_checksum
+    original_updated_at = payroll_staff.updated_at
+    original_terms = list(
+        StaffPayrollTerm.objects.filter(staff=payroll_staff).values_list("id", "updated_at")
+    )
+
+    errors = [
+        event["message"]
+        for event in one_way_sync_all_xero_data(entities=["employees"], force=True)
+        if event["severity"] == "error"
+    ]
+
+    assert errors == []
+    payroll_staff.refresh_from_db()
+    assert payroll_staff.xero_fields_checksum == original_checksum
+    assert payroll_staff.updated_at == original_updated_at
+    assert (
+        list(StaffPayrollTerm.objects.filter(staff=payroll_staff).values_list("id", "updated_at"))
+        == original_terms
+    )
 
 
 def test_live_employee_leave_balances_cover_configured_mappings(
