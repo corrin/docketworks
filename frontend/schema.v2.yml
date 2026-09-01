@@ -5549,8 +5549,11 @@ components:
         billable_hours:
           title: Billable Hours
           type: number
-        color:
-          title: Color
+        color_gp:
+          title: Color Gp
+          type: string
+        color_hours:
+          title: Color Hours
           type: string
         date:
           format: date
@@ -5586,7 +5589,8 @@ components:
           type: number
       required:
       - billable_hours
-      - color
+      - color_gp
+      - color_hours
       - date
       - day
       - details

@@ -4904,9 +4904,13 @@ export type KpiDayDataOut = {
      */
     billable_hours: number;
     /**
-     * Color
+     * Color Gp
      */
-    color: string;
+    color_gp: string;
+    /**
+     * Color Hours
+     */
+    color_hours: string;
     /**
      * Date
      */

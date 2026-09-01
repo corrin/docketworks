@@ -2098,7 +2098,8 @@ export const zKpiDetailsOut = z.object({
  */
 export const zKpiDayDataOut = z.object({
     billable_hours: z.number(),
-    color: z.string(),
+    color_gp: z.string(),
+    color_hours: z.string(),
     date: z.iso.date(),
     day: z.int(),
     details: zKpiDetailsOut,

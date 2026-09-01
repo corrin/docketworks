@@ -31,6 +31,12 @@ Accepted report semantics:
 - Averages name their divisor: ``avg_weekday_gp`` over weekdays,
   ``avg_active_day_gp`` and ``avg_active_day_billable_hours`` over days that
   actually carried hours.
+- **Each day ships two colours and the report picks one.** ``color_hours``
+  runs the billable-hours ladder, ``color_gp`` the gross-profit one. v1 drew
+  the hours ladder only, and deliberately: dollars are the goal, but a noisy
+  daily signal, while billed hours lead them — bill enough hours and the money
+  follows. Hours therefore stays the default. Both are served rather than one
+  derived in the browser, so the two ladders cannot fork.
 - The profit day-colour ladder is green >= gp_target, amber >= gp_green — the
   ``_amber`` threshold field is unused there; changing it changes report data.
 - ``color_shop`` can only be green (shop share <= 20%) or red. Amber is
@@ -41,7 +47,7 @@ import calendar
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import TypedDict
+from typing import NamedTuple, TypedDict
 from uuid import UUID
 
 import holidays
@@ -147,6 +153,35 @@ def _get_color(value: float | Decimal, green_threshold: float, amber_threshold: 
     if value >= amber_threshold:
         return "amber"
     return "red"
+
+
+class _DayColors(NamedTuple):
+    """A day's two colour ladders. The report chooses which one it draws."""
+
+    hours: str
+    gp: str
+
+
+def _hours_color(billable_hours: float | Decimal, thresholds: Thresholds) -> str:
+    """Green once the day billed enough hours, amber part-way."""
+    return _get_color(
+        billable_hours,
+        thresholds["kpi_daily_billable_hours_green"],
+        thresholds["kpi_daily_billable_hours_amber"],
+    )
+
+
+def _profit_color(gross_profit: float | Decimal, thresholds: Thresholds) -> str:
+    """Green once the day covered its overhead, amber part-way.
+
+    Green >= gp_target, amber >= gp_green — the ``_amber`` threshold is
+    unused here (see module docstring), and changing that changes report data.
+    """
+    return _get_color(
+        gross_profit,
+        thresholds["kpi_daily_gp_target"],
+        thresholds["kpi_daily_gp_green"],
+    )
 
 
 def _aggregate_time_by_date(
@@ -316,16 +351,13 @@ def _tally_day(
     thresholds: Thresholds,
     *,
     elapsed: bool,
-) -> str:
-    """Fold one day into the monthly totals; return the day's colour."""
+) -> _DayColors:
+    """Fold one day into the monthly totals; return the day's two colours."""
     billable_hours = day.time["billable_hours"]
     gross_profit = day.gross_profit
 
-    color = _get_color(
-        billable_hours,
-        thresholds["kpi_daily_billable_hours_green"],
-        thresholds["kpi_daily_billable_hours_amber"],
-    )
+    color = _hours_color(billable_hours, thresholds)
+    profit_color = _profit_color(gross_profit, thresholds)
     match color:
         case "green":
             totals["days_green"] += 1
@@ -335,20 +367,8 @@ def _tally_day(
             totals["days_red"] += 1
 
     if elapsed:
-        if billable_hours >= thresholds["kpi_daily_billable_hours_green"]:
-            totals["labour_green_days"] += 1
-        elif billable_hours >= thresholds["kpi_daily_billable_hours_amber"]:
-            totals["labour_amber_days"] += 1
-        else:
-            totals["labour_red_days"] += 1
-
-        # Green >= gp_target, amber >= gp_green (see module docstring).
-        if gross_profit >= thresholds["kpi_daily_gp_target"]:
-            totals["profit_green_days"] += 1
-        elif gross_profit >= thresholds["kpi_daily_gp_green"]:
-            totals["profit_amber_days"] += 1
-        else:
-            totals["profit_red_days"] += 1
+        totals[f"labour_{color}_days"] += 1
+        totals[f"profit_{profit_color}_days"] += 1
 
         if day.time["total_hours"] > 0:
             totals["active_workdays"] += 1
@@ -365,13 +385,13 @@ def _tally_day(
     totals["adjustment_cost"] += float(day.adjustment["cost"])
     totals["material_profit"] += float(day.material["revenue"] - day.material["cost"])
     totals["adjustment_profit"] += float(day.adjustment["revenue"] - day.adjustment["cost"])
-    return color
+    return _DayColors(hours=color, gp=profit_color)
 
 
 def _build_day_entry(  # noqa: PLR0913, PLR0917 -- one argument per precomputed month aggregate
     current: date,
     day: _DayFigures,
-    color: str,
+    colors: _DayColors,
     holiday_dates: dict[date, str],
     thresholds: Thresholds,
     job_breakdown: list[JobBreakdownRow],
@@ -401,7 +421,13 @@ def _build_day_entry(  # noqa: PLR0913, PLR0917 -- one argument per precomputed 
             "shop_hours": float(day.time["shop_hours"]),
             "shop_percentage": float(shop_percentage),
             "gross_profit": float(gross_profit),
-            "color": color,
+            # Both ladders ship, because the report lets the viewer choose
+            # which one tints the calendar. Hours is the default and v1's only
+            # option: dollars are the goal but a noisy daily signal, while
+            # billed hours lead them — bill enough and the money follows.
+            # Deriving the unshipped one client-side would fork the ladder.
+            "color_hours": colors.hours,
+            "color_gp": colors.gp,
             "gp_target_achievement": float(
                 Decimal(gross_profit) / Decimal(thresholds["kpi_daily_gp_target"]) * 100
             )
@@ -488,11 +514,11 @@ def get_calendar_data(year: int, month: int) -> dict[str, object]:
                 current, _RevCostAgg(revenue=Decimal("0"), cost=Decimal("0"))
             ),
         )
-        color = _tally_day(totals, day, thresholds, elapsed=current <= today)
+        colors = _tally_day(totals, day, thresholds, elapsed=current <= today)
         calendar_data[current.isoformat()] = _build_day_entry(
             current,
             day,
-            color,
+            colors,
             holiday_dates,
             thresholds,
             breakdown_by_date.get(current, []),

@@ -74,7 +74,13 @@ class TestKPICalendar:
         day = body["calendar_data"]["2026-06-10"]
         assert day["billable_hours"] == 6.0
         assert day["total_hours"] == 6.0
-        assert day["color"] == "amber"
+        # Both ladders ship and each reads its own input: 6 billable hours is
+        # amber against the 8/5 hours rungs, and $730 gross profit is amber
+        # against the $1,000 overhead it did not quite cover. The report
+        # chooses which one tints the calendar.
+        assert day["color_hours"] == "amber"
+        assert day["color_gp"] == "amber"
+        assert day["gp_target_achievement"] == 73.0
         # GP = time rev 720 - staff cost 240 + material 400-150
         assert day["gross_profit"] == 720.0 - 240.0 + 250.0
         details = day["details"]
@@ -89,6 +95,32 @@ class TestKPICalendar:
         assert body["thresholds"]["kpi_daily_billable_hours_green"] == 8.0
         assert body["year"] == 2026
         assert body["month"] == 6
+
+    def test_the_two_day_ladders_can_disagree(self, authenticated_client: Client) -> None:
+        """Few hours, good money — red by hours, green by dollars.
+
+        This is why both ship. v1 tinted only by hours, deliberately: dollars
+        are the goal but a noisy daily signal, while billed hours lead them.
+        A viewer who wants the dollars view must not have it recomputed in the
+        browser off a forked ladder.
+        """
+        worker = make_staff("ladders@example.com")
+        job = make_job(make_company("Ladders Co"), worker)
+        # 2 billable hours: red on the 8/5 hours rungs.
+        make_time_line(
+            job,
+            worker,
+            accounting_date=WORKDAY,
+            hours="2.000",
+            unit_cost="40.00",
+            unit_rev="120.00",
+        )
+        # ...but a fat material margin clears the $1,000 overhead on its own.
+        add_material_line(job, on=WORKDAY, rev="1400.00", cost="200.00")
+
+        day = authenticated_client.get(URL, JUNE).json()["calendar_data"]["2026-06-10"]
+        assert day["color_hours"] == "red"
+        assert day["color_gp"] == "green"
 
     def test_weekends_excluded_and_holidays_flagged_but_counted_as_working_days(
         self, authenticated_client: Client

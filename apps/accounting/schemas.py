@@ -262,7 +262,8 @@ class KPIDayDataOut(ResponseSchema):
     shop_hours: float
     shop_percentage: float
     gross_profit: float
-    color: str
+    color_hours: str
+    color_gp: str
     gp_target_achievement: float
     details: KPIDetailsOut
 
