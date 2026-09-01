@@ -328,6 +328,7 @@ class KPICalendarResponse(Schema):
     thresholds: KPIThresholdsOut
     year: int
     month: int
+    weekend_enabled: bool
 
 
 class ForecastMonthOut(Schema):

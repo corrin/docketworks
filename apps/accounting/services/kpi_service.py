@@ -2,9 +2,13 @@
 
 Accepted report semantics:
 
-- Weekends are skipped; public holidays are flagged but still count as working
-  days (the sales-pipeline report excludes them from ITS working days — a
-  cross-report divergence recorded in rewrite-status).
+- Weekends appear only when ``CompanyDefaults.weekend_timesheets_enabled`` is
+  set, the same flag the timesheet grids honour; public holidays are flagged
+  but still count as working days (the sales-pipeline report excludes them
+  from ITS working days — a cross-report divergence recorded in
+  rewrite-status). With the flag off, weekend cost lines are absent from the
+  month entirely rather than merely hidden — v1 behaviour, kept deliberately
+  because including them would restate the gross profit of every past month.
 - ``days_green/amber/red`` count every working day including future ones;
   ``labour_*_days`` and ``profit_*_days`` count elapsed days only.
 - The profit day-colour ladder is green >= gp_target, amber >= gp_green — the
@@ -426,9 +430,15 @@ def get_calendar_data(year: int, month: int) -> dict[str, object]:
     totals = _empty_monthly_totals()
     today = timezone.localdate()
 
+    # Opus: The condition stays local rather than reusing
+    # `weekly_timesheet_service.week_days`, which counts 5 or 7 days forward
+    # from a Monday — it cannot walk a month that starts on any weekday, and
+    # borrowing it would couple accounting to timesheet for two lines.
+    weekend_enabled = defaults.weekend_timesheets_enabled
+
     current = start_date
     while current <= end_date:
-        if current.weekday() >= 5:  # Saturday/Sunday
+        if not weekend_enabled and current.weekday() >= 5:  # Saturday/Sunday
             current += timedelta(days=1)
             continue
 
@@ -464,6 +474,11 @@ def get_calendar_data(year: int, month: int) -> dict[str, object]:
         "thresholds": thresholds,
         "year": year,
         "month": month,
+        # The grid's column count travels with the data it describes: a client
+        # reading the flag from CompanyDefaults separately could draw seven
+        # columns over a five-day payload, or the reverse, whenever the two
+        # requests straddle a settings change.
+        "weekend_enabled": weekend_enabled,
     }
 
 

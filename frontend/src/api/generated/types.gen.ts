@@ -4884,6 +4884,10 @@ export type KpiCalendarResponse = {
     monthly_totals: KpiMonthlyTotalsOut;
     thresholds: KpiThresholdsOut;
     /**
+     * Weekend Enabled
+     */
+    weekend_enabled: boolean;
+    /**
      * Year
      */
     year: number;

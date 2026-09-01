@@ -2132,6 +2132,7 @@ export const zKpiCalendarResponse = z.object({
     month: z.int(),
     monthly_totals: zKpiMonthlyTotalsOut,
     thresholds: zKpiThresholdsOut,
+    weekend_enabled: z.boolean(),
     year: z.int()
 });
 

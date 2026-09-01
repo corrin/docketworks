@@ -97,12 +97,61 @@ class TestKPICalendar:
         days = body["calendar_data"]
         assert "2026-06-06" not in days  # Saturday
         assert "2026-06-07" not in days  # Sunday
+        assert body["weekend_enabled"] is False
         kings_birthday = days["2026-06-01"]
         assert kings_birthday["holiday"] is True
         assert kings_birthday["holiday_name"]
         # v1 counts holidays as working days (the sales-pipeline report makes
         # the opposite call — recorded divergence, ported faithfully).
         assert body["monthly_totals"]["working_days"] == 22
+
+    def test_weekend_flag_adds_saturday_and_sunday_as_working_days(
+        self, authenticated_client: Client, thresholds: CompanyDefaults
+    ) -> None:
+        thresholds.weekend_timesheets_enabled = True
+        thresholds.save()
+
+        body = authenticated_client.get(URL, JUNE).json()
+        days = body["calendar_data"]
+        assert body["weekend_enabled"] is True
+        assert "2026-06-06" in days  # Saturday
+        assert "2026-06-07" in days  # Sunday
+        # June 2026's 22 weekdays plus its 8 weekend days.
+        assert body["monthly_totals"]["working_days"] == 30
+
+    def test_weekend_work_reaches_the_month_only_when_the_flag_is_on(
+        self, authenticated_client: Client, thresholds: CompanyDefaults
+    ) -> None:
+        """The flag governs the money, not just the columns.
+
+        With weekends off a Saturday's cost lines are absent from the month
+        rather than merely hidden, so gross profit omits them entirely. That
+        is v1 behaviour, kept so enabling the flag is the only thing that
+        ever restates a past month.
+        """
+        worker = make_staff("weekend@example.com")
+        company = make_company("Weekend Co")
+        job = make_job(company, worker)
+        saturday = date(2026, 6, 13)
+        make_time_line(
+            job,
+            worker,
+            accounting_date=saturday,
+            hours="8.000",
+            unit_cost="40.00",
+            unit_rev="120.00",
+        )
+
+        off = authenticated_client.get(URL, JUNE).json()["monthly_totals"]
+        assert off["billable_hours"] == 0.0
+        assert off["gross_profit"] == 0.0
+
+        thresholds.weekend_timesheets_enabled = True
+        thresholds.save()
+
+        on = authenticated_client.get(URL, JUNE).json()["monthly_totals"]
+        assert on["billable_hours"] == 8.0
+        assert on["gross_profit"] == 8 * (120.0 - 40.0)
 
     def test_monthly_totals_roll_up_elapsed_performance(self, authenticated_client: Client) -> None:
         worker = make_staff("totals@example.com")

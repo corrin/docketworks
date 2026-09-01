@@ -5528,6 +5528,9 @@ components:
           $ref: '#/components/schemas/KPIMonthlyTotalsOut'
         thresholds:
           $ref: '#/components/schemas/KPIThresholdsOut'
+        weekend_enabled:
+          title: Weekend Enabled
+          type: boolean
         year:
           title: Year
           type: integer
@@ -5537,6 +5540,7 @@ components:
       - thresholds
       - year
       - month
+      - weekend_enabled
       title: KPICalendarResponse
       type: object
     KPIDayDataOut:
