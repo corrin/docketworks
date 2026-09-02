@@ -323,9 +323,11 @@ describe('useKanbanReconciliation', () => {
   })
 
   it('removes a card whose new status has no column on the office board', async () => {
+    // `special`, not `archived`: archived became a rendered column in
+    // KAN-353, and this case is specifically the statuses that have none.
     const loop = await setupLoop(
       { draft: column([card('a', 'draft', 90), card('b', 'draft', 70)]) },
-      () => HttpResponse.json(changes({ jobs: [card('b', 'archived', 70)] })),
+      () => HttpResponse.json(changes({ jobs: [card('b', 'special', 70)] })),
     )
 
     loop.poll(versions({ kanban: versionAt('2') }))
@@ -333,6 +335,25 @@ describe('useKanbanReconciliation', () => {
 
     expect(cachedIds(loop.queryClient, 'draft')).toEqual(['a'])
     expect(columnsHolding(loop.queryClient, 'b')).toEqual([])
+  })
+
+  it('moves a newly archived card into the archived column, not off the board', async () => {
+    // KAN-353: auto_archive_service archives recently_completed jobs nightly,
+    // and before archived had a column every one of those arrived here as a
+    // card that simply vanished from the board.
+    const loop = await setupLoop(
+      {
+        recently_completed: column([card('a', 'recently_completed', 90)]),
+        archived: column([card('z', 'archived', 50)]),
+      },
+      () => HttpResponse.json(changes({ jobs: [card('a', 'archived', 70)] })),
+    )
+
+    loop.poll(versions({ kanban: versionAt('2') }))
+    await loop.reconcile()
+
+    expect(cachedIds(loop.queryClient, 'recently_completed')).toEqual([])
+    expect(cachedIds(loop.queryClient, 'archived')).toEqual(['a', 'z'])
   })
 
   it('applies removed_job_ids', async () => {
@@ -824,5 +845,45 @@ describe('reconcile fires on release, without waiting for the next poll', () => 
     reorderResolved.resolve()
 
     await waitFor(() => expect(changesRequests).toEqual([versionAt('1')]))
+  })
+})
+
+describe('archiving from the status drawer', () => {
+  /**
+   * KAN-353: while archived had no column, updateStatus special-cased it to
+   * removeJob — the only optimistic move available, since applyJobUpsert had
+   * nowhere to insert. Now that archived IS a column, that special case would
+   * delete a card the user asked to move, so it is gone; this pins the move.
+   */
+  it('moves the card into the archived column instead of deleting it', async () => {
+    const queryClient = makeClient()
+    queryClient.setQueryData(dataVersionsQueryOptions().queryKey, versions())
+
+    server.use(
+      http.get(VERSIONS_URL, () => HttpResponse.json(versions())),
+      http.get(STATUS_VALUES_URL, () =>
+        HttpResponse.json({ success: true, statuses: {}, tooltips: {} }),
+      ),
+      http.get(COLUMN_URL, ({ params }) => {
+        const columnId = String(params.columnId)
+        if (columnId === 'recently_completed') {
+          return HttpResponse.json(column([card('done', 'recently_completed', 90)]))
+        }
+        if (columnId === 'archived') {
+          return HttpResponse.json(column([card('old', 'archived', 50)]))
+        }
+        return HttpResponse.json(column([]))
+      }),
+      http.post('*/api/job/jobs/:jobId/update-status/', () => HttpResponse.json({ success: true })),
+    )
+
+    const hook = renderHook(() => useKanbanBoard(''), { wrapper: wrapperFor(queryClient) })
+
+    await waitFor(() => expect(cachedIds(queryClient, 'archived')).toEqual(['old']))
+
+    await hook.result.current.updateStatus('done', 'archived')
+
+    expect(columnsHolding(queryClient, 'done')).toEqual(['archived'])
+    expect(cachedIds(queryClient, 'recently_completed')).toEqual([])
   })
 })
