@@ -19,6 +19,7 @@ import { Route as SessionCheckRouteImport } from './routes/session-check'
 import { Route as AuthedKanbanRouteImport } from './routes/_authed/kanban'
 import { Route as AuthedAdminIntegrationsRouteImport } from './routes/_authed/admin/integrations'
 import { Route as AuthedAdminLeaveSettingsRouteImport } from './routes/_authed/admin/leave-settings'
+import { Route as AuthedAdminReplaysRouteImport } from './routes/_authed/admin/replays'
 import { Route as AuthedAdminStaffRouteImport } from './routes/_authed/admin/staff'
 import { Route as AuthedAdminXeroRouteImport } from './routes/_authed/admin/xero'
 import { Route as AuthedJobsJobIdRouteImport } from './routes/_authed/jobs/$jobId'
@@ -96,6 +97,11 @@ const AuthedAdminLeaveSettingsRoute =
     path: '/admin/leave-settings',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedAdminReplaysRoute = AuthedAdminReplaysRouteImport.update({
+  id: '/admin/replays',
+  path: '/admin/replays',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedAdminStaffRoute = AuthedAdminStaffRouteImport.update({
   id: '/admin/staff',
   path: '/admin/staff',
@@ -246,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/kanban': typeof AuthedKanbanRoute
   '/admin/integrations': typeof AuthedAdminIntegrationsRoute
   '/admin/leave-settings': typeof AuthedAdminLeaveSettingsRoute
+  '/admin/replays': typeof AuthedAdminReplaysRoute
   '/admin/staff': typeof AuthedAdminStaffRoute
   '/admin/xero': typeof AuthedAdminXeroRoute
   '/jobs/$jobId': typeof AuthedJobsJobIdRoute
@@ -283,6 +290,7 @@ export interface FileRoutesByTo {
   '/kanban': typeof AuthedKanbanRoute
   '/admin/integrations': typeof AuthedAdminIntegrationsRoute
   '/admin/leave-settings': typeof AuthedAdminLeaveSettingsRoute
+  '/admin/replays': typeof AuthedAdminReplaysRoute
   '/admin/staff': typeof AuthedAdminStaffRoute
   '/admin/xero': typeof AuthedAdminXeroRoute
   '/jobs/$jobId': typeof AuthedJobsJobIdRoute
@@ -322,6 +330,7 @@ export interface FileRoutesById {
   '/_authed/kanban': typeof AuthedKanbanRoute
   '/_authed/admin/integrations': typeof AuthedAdminIntegrationsRoute
   '/_authed/admin/leave-settings': typeof AuthedAdminLeaveSettingsRoute
+  '/_authed/admin/replays': typeof AuthedAdminReplaysRoute
   '/_authed/admin/staff': typeof AuthedAdminStaffRoute
   '/_authed/admin/xero': typeof AuthedAdminXeroRoute
   '/_authed/jobs/$jobId': typeof AuthedJobsJobIdRoute
@@ -361,6 +370,7 @@ export interface FileRouteTypes {
     | '/kanban'
     | '/admin/integrations'
     | '/admin/leave-settings'
+    | '/admin/replays'
     | '/admin/staff'
     | '/admin/xero'
     | '/jobs/$jobId'
@@ -398,6 +408,7 @@ export interface FileRouteTypes {
     | '/kanban'
     | '/admin/integrations'
     | '/admin/leave-settings'
+    | '/admin/replays'
     | '/admin/staff'
     | '/admin/xero'
     | '/jobs/$jobId'
@@ -436,6 +447,7 @@ export interface FileRouteTypes {
     | '/_authed/kanban'
     | '/_authed/admin/integrations'
     | '/_authed/admin/leave-settings'
+    | '/_authed/admin/replays'
     | '/_authed/admin/staff'
     | '/_authed/admin/xero'
     | '/_authed/jobs/$jobId'
@@ -544,6 +556,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/leave-settings'
       fullPath: '/admin/leave-settings'
       preLoaderRoute: typeof AuthedAdminLeaveSettingsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/admin/replays': {
+      id: '/_authed/admin/replays'
+      path: '/admin/replays'
+      fullPath: '/admin/replays'
+      preLoaderRoute: typeof AuthedAdminReplaysRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/admin/staff': {
@@ -735,6 +754,7 @@ interface AuthedRouteChildren {
   AuthedKanbanRoute: typeof AuthedKanbanRoute
   AuthedAdminIntegrationsRoute: typeof AuthedAdminIntegrationsRoute
   AuthedAdminLeaveSettingsRoute: typeof AuthedAdminLeaveSettingsRoute
+  AuthedAdminReplaysRoute: typeof AuthedAdminReplaysRoute
   AuthedAdminStaffRoute: typeof AuthedAdminStaffRoute
   AuthedAdminXeroRoute: typeof AuthedAdminXeroRoute
   AuthedJobsJobIdRoute: typeof AuthedJobsJobIdRoute
@@ -767,6 +787,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedKanbanRoute: AuthedKanbanRoute,
   AuthedAdminIntegrationsRoute: AuthedAdminIntegrationsRoute,
   AuthedAdminLeaveSettingsRoute: AuthedAdminLeaveSettingsRoute,
+  AuthedAdminReplaysRoute: AuthedAdminReplaysRoute,
   AuthedAdminStaffRoute: AuthedAdminStaffRoute,
   AuthedAdminXeroRoute: AuthedAdminXeroRoute,
   AuthedJobsJobIdRoute: AuthedJobsJobIdRoute,

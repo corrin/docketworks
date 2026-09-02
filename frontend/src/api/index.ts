@@ -506,3 +506,18 @@ export type {
   XeroSyncInfoOut,
   XeroSyncStartOut,
 } from './generated/types.gen'
+
+// Session replays. The admin player (/admin/replays) uses queryOptions; the
+// three capture calls are raw SDK functions because capture runs OUTSIDE
+// React — rrweb's emit callback and the flush timer are not render-driven, so
+// there is no component whose lifecycle a query could hang from.
+export {
+  sessionReplayRecordingEventsRetrieveOptions,
+  sessionReplayRecordingsListOptions,
+} from './generated/@tanstack/react-query.gen'
+export {
+  sessionReplayFrontendErrorsCreate,
+  sessionReplayRecordingChunksCreate,
+  sessionReplayRecordingsCreate,
+} from './generated/sdk.gen'
+export type { RecordingEventsOut, RecordingOut } from './generated/types.gen'

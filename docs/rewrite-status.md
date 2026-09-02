@@ -43,7 +43,7 @@ done only when that spec is green.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **50 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
+| E2E specs ported | **51 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
 | Backend operations still to port | **53** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 247 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 2883 (all passing) |

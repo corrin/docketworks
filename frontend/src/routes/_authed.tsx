@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, redirect, useMatches } from '@tanstack/react-r
 import { useEffect } from 'react'
 
 import { resolveSession } from '@/features/auth'
+import { useSessionReplay } from '@/features/shared/session-replay'
 import { AppNavbar, ensureAppShellData } from '@/features/shell'
 import { DESKTOP_MEDIA_QUERY, useMediaQuery } from '@/lib/useMediaQuery'
 
@@ -57,6 +58,9 @@ export const Route = createFileRoute('/_authed')({
 
 function AuthedLayout() {
   useDesktopBodyScrollLock()
+  // Every authenticated page, not per-route: a replay that started on the
+  // kanban must keep recording when the user opens a job.
+  useSessionReplay(true)
   return (
     <div className="min-h-screen bg-background text-foreground">
       <AppNavbar />
