@@ -495,3 +495,22 @@ fetched salary and working-pattern resources have no modification timestamp,
 so Staff materialises a canonical checksum of the complete enriched Xero
 projection. A no-op requires both that stored digest and the current local
 projection to match, so a stale digest cannot hide local drift.
+
+**Access logging lands, and two v1 shapes that do not survive the port,
+2026-09-02.** The per-request access line is back, on its own `access` logger
+routed to the console: v1 gave it a rotating `access.log`, but journald already
+rotates, retains and greps, and a file handler would only put a second copy on
+disk for an operator to find and prune. Two v1 constructs were deliberately not
+carried across. First, `AccessLoggingMiddleware` must read the principal AFTER
+calling `get_response`. v1 checked `request.user.is_authenticated` on the way in
+and returned early when anonymous, which under ninja auth — it sets
+`request.user` during operation dispatch, after every middleware has run —
+would have logged nothing for any `/api/**` request, that is, for the whole
+application, while a v1-shaped test still passed. Second,
+`DisallowedHostMiddleware` never worked: `process_exception` fires only for
+exceptions raised by the view, and `DisallowedHost` comes out of
+`CommonMiddleware.process_request` above it. Django's own handler was returning
+the 400 in v1 too; only the traceback was ever the complaint, so v2 keeps the
+`django.security.DisallowedHost` record and strips its traceback with a logging
+filter. The middleware's JWT re-authentication block went with it — v2 is
+cookie-authenticated — and with it a bare `except Exception: pass`.

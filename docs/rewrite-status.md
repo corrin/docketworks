@@ -46,7 +46,7 @@ done only when that spec is green.
 | E2E specs ported | **50 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
 | Backend operations still to port | **58** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 241 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2866 (all passing) |
+| Unit tests | 2870 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 125 recorded deviations |
@@ -174,9 +174,6 @@ rather than anywhere else. This file is finished when it is empty.
 
 First work on v2, in this order:
 
-- **`AccessLogging` and `DisallowedHost` middleware** (v1 parity;
-  `FrontendRedirect` is not needed — the SPA serving path is proven by
-  `verify-instance.sh`).
 - **Make the one-implementation rule cover the whole application.** Run the
   Python gate over `apps/`, add an equivalent TypeScript check over
   `frontend/src/`, hoist the four Celery connection-hygiene copies into

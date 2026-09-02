@@ -150,6 +150,9 @@ SIMPLE_JWT = {
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Outside the auth gate so the logged status is the one the client saw,
+    # including the gate's own 401s and redirects.
+    "apps.core.middleware.AccessLoggingMiddleware",
     "django.middleware.gzip.GZipMiddleware",
     # Runs before the outer gzip middleware weakens the response ETag.
     "apps.core.middleware.ResourceVersionMiddleware",
@@ -351,6 +354,11 @@ PHONE_RECORDING_STORAGE_ROOT = os.environ["PHONE_RECORDING_STORAGE_ROOT"]
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {
+        "suppress_traceback": {
+            "()": "apps.core.logging_filters.SuppressTracebackFilter",
+        },
+    },
     "formatters": {
         "standard": {
             "format": "{asctime} {levelname} {name} {message}",
@@ -373,6 +381,23 @@ LOGGING = {
         "apps": {
             "handlers": ["console"],
             "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        # v1 gave this its own rotating access.log file. journald already
+        # rotates, retains and greps, so a file handler here would only add a
+        # second copy on disk for an operator to find and prune.
+        "access": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        # Host-header probing is expected hostile traffic, not an application
+        # fault. Django rejects it with 400 on its own; the record is kept as
+        # the record of the probe, and only its traceback is dropped.
+        "django.security.DisallowedHost": {
+            "handlers": ["console"],
+            "filters": ["suppress_traceback"],
+            "level": "WARNING",
             "propagate": False,
         },
         # django.db.backends at DEBUG logs every query; opt in deliberately, not
