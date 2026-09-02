@@ -13,6 +13,19 @@ durable).
 - **A release PR promotes `main` to `production`** after UAT verification.
   Production instances track `origin/production`.
 - Hotfixes merge into `production` and are back-merged to `main`.
+- **Release PRs and hotfix back-merges are merged with a merge commit — never
+  squashed, never rebased.** Squash is right for a feature PR, where one
+  reviewable change lands on `main`; it is wrong for a promotion, because the
+  squash commit records no parent on the source branch. The two branches then
+  hold identical trees while their merge base stays frozen at the last honest
+  merge, and the next release PR diffs from there and re-proposes every commit
+  since. Check the merge-method dropdown before merging either one.
+- After promotion `production` is an ancestor of `main`, so
+  `git merge-base --is-ancestor origin/production origin/main` succeeds. If it
+  fails, a promotion was squashed: repair it by merging `origin/production`
+  into `main` (the trees already agree, so the merge changes no file) rather
+  than by force-pushing `production`, which the prod hosts track and the
+  `prod-*` tags name.
 
 ## Every genuine production deploy gets a GitHub Release
 
