@@ -6,7 +6,6 @@ one recorded example of what this API actually returns rather than two hopeful
 ones.
 """
 
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -24,7 +23,7 @@ PATH = "/api/companies/addresses/validate/"
 POST_TARGET = "apps.core.geocoding.requests.post"
 
 
-def _google_ok(payload: dict[str, Any]) -> MagicMock:
+def _google_ok(payload: object) -> MagicMock:
     response = MagicMock()
     response.status_code = 200
     response.json.return_value = payload

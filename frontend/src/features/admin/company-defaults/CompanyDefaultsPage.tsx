@@ -41,6 +41,13 @@ const WORKING_DAYS: readonly { label: string; startKey: string; endKey: string }
 
 const WORKING_HOURS_TIME_KEYS = new Set(WORKING_DAYS.flatMap((day) => [day.startKey, day.endKey]))
 
+// Carried by the save but never drawn: google_place_id has to be a section
+// field so buildPatch sends it, and the address picker is the only thing that
+// sets it. Filtered here rather than by returning null from the control,
+// because the caption <span> below is rendered by this grid — a hidden control
+// alone leaves a labelled empty cell reading "Google Place Id".
+const UNDRAWN_KEYS = new Set(['google_place_id'])
+
 export function CompanyDefaultsPage({ section }: { section: string }) {
   // Opus: The shell owns this singleton's options (5-minute staleTime, preloaded for
   // every authenticated page); a second useQuery over the raw generated options
@@ -202,9 +209,10 @@ function SectionForm({
   const fieldsByKey = new Map(section.fields.map((field) => [field.key, field]))
   // The day grid draws the ten time fields itself, so the generic grid above it
   // renders only what is left (weekend timesheets, efficiency factor).
+  const drawableFields = section.fields.filter((field) => !UNDRAWN_KEYS.has(field.key))
   const genericFields = isWorkingHours
-    ? section.fields.filter((field) => !WORKING_HOURS_TIME_KEYS.has(field.key))
-    : section.fields
+    ? drawableFields.filter((field) => !WORKING_HOURS_TIME_KEYS.has(field.key))
+    : drawableFields
 
   return (
     <div className="flex flex-col gap-6">

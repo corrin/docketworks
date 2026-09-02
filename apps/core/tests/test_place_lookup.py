@@ -11,7 +11,6 @@ Mocks at the HTTP boundary (``requests.post``) — Google is never hit here. The
 live call has its own test, marked ``integration`` (ADR 0050).
 """
 
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -24,7 +23,7 @@ from apps.core.geocoding import (
 
 POST_TARGET = "apps.core.geocoding.requests.post"
 
-PLACES_RESPONSE: dict[str, Any] = {
+PLACES_RESPONSE = {
     "places": [
         {
             "addressComponents": [
@@ -93,7 +92,7 @@ PLACES_RESPONSE: dict[str, Any] = {
 }
 
 
-def _ok(payload: dict[str, Any]) -> MagicMock:
+def _ok(payload: object) -> MagicMock:
     response = MagicMock()
     response.status_code = 200
     response.json.return_value = payload
@@ -154,6 +153,31 @@ def test_a_refused_call_raises_rather_than_reporting_no_match() -> None:
     refused.status_code = 403
     refused.text = "IP address restriction"
     with patch(POST_TARGET, return_value=refused), pytest.raises(GeocodingError, match="403"):
+        search_places("151 Captain Springs Road", api_key="k")
+
+
+def test_a_body_that_is_not_json_is_a_geocoding_error() -> None:
+    """A 200 carrying HTML — a proxy error page — must not escape as a decode error."""
+    malformed = MagicMock()
+    malformed.status_code = 200
+    malformed.json.side_effect = ValueError("Expecting value: line 1 column 1 (char 0)")
+    with (
+        patch(POST_TARGET, return_value=malformed),
+        pytest.raises(GeocodingError, match="not JSON"),
+    ):
+        search_places("151 Captain Springs Road", api_key="k")
+
+
+def test_a_top_level_array_is_a_geocoding_error() -> None:
+    """Refused at the boundary, named.
+
+    A list would otherwise reach the parsers and surface as AttributeError on
+    ``.get`` several frames from the thing that actually went wrong.
+    """
+    with (
+        patch(POST_TARGET, return_value=_ok([])),
+        pytest.raises(GeocodingError, match="not a JSON object"),
+    ):
         search_places("151 Captain Springs Road", api_key="k")
 
 

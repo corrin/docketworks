@@ -151,9 +151,8 @@ def search_places(
         lambda: requests.post(
             "https://places.googleapis.com/v1/places:searchText",
             json=payload,
-            # Header auth, as on Address Validation above and for the same
-            # reason: the classic Geocoding API would have put the key in the
-            # query string, and requests copies the full URL into every
+            # Header auth: the classic Geocoding API would have put the key in
+            # the query string, and requests copies the full URL into every
             # RequestException message that persist_app_error then stores.
             headers={"X-Goog-Api-Key": api_key, "X-Goog-FieldMask": _SEARCH_FIELD_MASK},
             timeout=10,
@@ -190,7 +189,14 @@ def fetch_place(place_id: str, api_key: str | None = None) -> PlaceLookup | None
 
 
 def _places_call(send: Callable[[], requests.Response]) -> dict[str, object]:
-    """Run one Places request, converting its two failure shapes."""
+    """Run one Places request, converting every failure shape to GeocodingError.
+
+    The body is parsed here rather than by the caller so that a 200 carrying
+    something other than a JSON object fails at the boundary, named. Left to the
+    caller, malformed JSON escapes as a bare ``JSONDecodeError`` and a top-level
+    array reaches the parsers as a list, surfacing as ``AttributeError`` on
+    ``.get`` several frames from the thing that actually went wrong.
+    """
     try:
         response = send()
     except requests.RequestException as exc:
@@ -200,7 +206,16 @@ def _places_call(send: Callable[[], requests.Response]) -> dict[str, object]:
         logger.error("Google Places API error: %s - %s", response.status_code, response.text)
         raise GeocodingError(f"Google Places returned {response.status_code}: {response.text}")
 
-    parsed: dict[str, object] = response.json()
+    try:
+        parsed = response.json()
+    except ValueError as exc:
+        # requests' JSONDecodeError subclasses ValueError (and RequestException,
+        # but that is already past): catching ValueError covers both the stdlib
+        # and simplejson backings without naming either.
+        raise GeocodingError(f"Google Places returned a body that is not JSON: {exc}") from exc
+
+    if not isinstance(parsed, dict):
+        raise GeocodingError(f"Google Places returned {type(parsed).__name__}, not a JSON object")
     return parsed
 
 

@@ -16,12 +16,12 @@ import { fromDateTimeLocalInput, toDateTimeLocalInput, type FieldValue } from '.
 // counter, a blank warning and a link out to Xero, none of which the schema
 // can describe.
 const XERO_QUOTE_TERMS_KEY = 'xero_quote_terms'
-// Two more sanctioned field-name exceptions, for the same reason: the schema
-// cannot describe them. Picking an address candidate writes SIX fields at once
-// and is the only way google_place_id is ever set, so the street box is an
-// autocomplete and the id is carried invisibly beside it. The id has to be a
-// section field even though nobody types it: buildPatch only sends keys the
-// schema names, and the id is what the server re-reads the geocode from.
+// Another sanctioned field-name exception, for the same reason: the schema
+// cannot describe it. Picking an address candidate writes SIX fields at once,
+// and it is the only way google_place_id is ever set — the id has to be a
+// section field even though nobody types it, because buildPatch only sends keys
+// the schema names. CompanyDefaultsPage keeps it out of the drawn grid
+// (UNDRAWN_KEYS); this file only needs to know which key to write.
 const ADDRESS_STREET_KEY = 'address_line1'
 const ADDRESS_PLACE_ID_KEY = 'google_place_id'
 const XERO_QUOTE_TERMS_MAX_LENGTH = 4000
@@ -72,12 +72,6 @@ export function SettingsFieldInput({
   section,
 }: SettingsFieldInputProps) {
   const automationId = fieldAutomationId(section, field.key)
-
-  // Rendered as nothing on purpose: it travels with the save so the server can
-  // re-read the geocode, and there is no id a person should be typing.
-  if (field.key === ADDRESS_PLACE_ID_KEY) {
-    return null
-  }
 
   if (field.key === ADDRESS_STREET_KEY) {
     const applyCandidate = (candidate: AddressCandidate): void => {
