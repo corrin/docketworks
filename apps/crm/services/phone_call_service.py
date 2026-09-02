@@ -17,7 +17,6 @@ decision — do not re-add encryption).
 
 import hashlib
 import logging
-import os
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -39,6 +38,7 @@ from tinytag import TinyTag, TinyTagException
 
 from apps.company.models import Company, ContactMethod, Person
 from apps.core.errors import persist_app_error
+from apps.core.file_store import PrivateFileStore
 from apps.core.models import IntegrationSettings
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
 
@@ -238,7 +238,7 @@ def delete_local_recording(recording: PhoneCallRecording) -> None:
         recording.save(update_fields=["local_deleted_at", "updated_at"])
         return
 
-    _full_storage_path(recording.storage_path).unlink(missing_ok=True)
+    _store().delete(recording.storage_path)
     recording.storage_path = None
     recording.byte_size = None
     recording.duration_ms = None
@@ -1085,32 +1085,22 @@ def _decimal_or_none(value: object) -> Decimal | None:
         return None
 
 
-def _storage_root() -> Path:
-    storage_root = getattr(settings, "PHONE_RECORDING_STORAGE_ROOT", None)
-    if not storage_root:
-        raise ValueError("phone recording storage root is not configured")
-    return Path(storage_root).resolve()
+def _store() -> PrivateFileStore:
+    """Build the recordings store; per call, so a settings override applies."""
+    return PrivateFileStore(
+        root=settings.PHONE_RECORDING_STORAGE_ROOT,
+        label="phone call recording",
+    )
 
 
 def _full_storage_path(storage_path: str) -> Path:
-    root = _storage_root()
-    full_path = (root / storage_path).resolve()
-    if not full_path.is_relative_to(root):
-        raise ValueError("phone call recording storage path escapes storage root")
-    return full_path
+    return _store().full_path(storage_path)
 
 
 def _write_file(*, storage_path: str, payload: bytes) -> None:
-    full_path = _full_storage_path(storage_path)
-    full_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = full_path.with_name(f".{full_path.name}.{os.getpid()}.tmp")
-    try:
-        with temp_path.open("xb") as destination:
-            destination.write(payload)
-        temp_path.replace(full_path)
-    finally:
-        if temp_path.exists():
-            temp_path.unlink()
+    # overwrite=True preserves the prior behaviour here: a re-fetched recording
+    # for the same call is the same audio, and replacing it is harmless.
+    _store().write(storage_path=storage_path, payload=payload, overwrite=True)
 
 
 def _recording_storage_path(

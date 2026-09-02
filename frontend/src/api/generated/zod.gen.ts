@@ -195,6 +195,35 @@ export const zCategoriesOut = z.object({
 });
 
 /**
+ * ChunkCreateIn
+ *
+ * One batch of rrweb events, in capture order.
+ */
+export const zChunkCreateIn = z.object({
+    events_json: z.string().min(1),
+    first_event_timestamp_ms: z.int(),
+    job_id: z.uuid().nullish(),
+    last_event_timestamp_ms: z.int(),
+    path: z.string().min(1),
+    sequence: z.int(),
+    viewport_height: z.int().nullish(),
+    viewport_width: z.int().nullish()
+});
+
+/**
+ * ChunkOut
+ *
+ * Acknowledgement that a batch was stored.
+ */
+export const zChunkOut = z.object({
+    compressed_bytes: z.int(),
+    event_count: z.int(),
+    id: z.uuid(),
+    recording_id: z.uuid(),
+    sequence: z.int()
+});
+
+/**
  * CompanyCreateRequest
  *
  * Wire contract for CompanyCreateRequest.
@@ -282,6 +311,7 @@ export const zCompanyDefaultsOut = z.object({
     po_prefix: z.string().max(10),
     post_code: z.string().max(20).nullable(),
     region: z.string().max(100).nullable(),
+    session_replay_enabled: z.boolean(),
     shop_company: z.uuid(),
     starting_job_number: z.int(),
     starting_po_number: z.int(),
@@ -398,6 +428,7 @@ export const zCompanyDefaultsPatchIn = z.object({
     po_prefix: z.string().max(10).nullish(),
     post_code: z.string().max(20).nullish(),
     region: z.string().max(100).nullish(),
+    session_replay_enabled: z.boolean().nullish(),
     shop_company_id: z.uuid().nullish(),
     starting_job_number: z.int().nullish(),
     starting_po_number: z.int().nullish(),
@@ -1364,6 +1395,27 @@ export const zFormUpdateIn = z.object({
 });
 
 /**
+ * FrontendErrorIn
+ *
+ * An uncaught browser error, reported with the replay it happened in.
+ */
+export const zFrontendErrorIn = z.object({
+    message: z.string().min(1),
+    path: z.string().min(1),
+    session_replay_id: z.uuid().nullish(),
+    stack: z.string().nullish()
+});
+
+/**
+ * FrontendErrorOut
+ *
+ * The persisted error's id, so a browser log can name it.
+ */
+export const zFrontendErrorOut = z.object({
+    error_id: z.uuid().nullable()
+});
+
+/**
  * GroupedJobDeltaRejectionOut
  *
  * Wire contract for GroupedJobDeltaRejectionOut.
@@ -2019,6 +2071,15 @@ export const zJobUndoRequest = z.object({
     change_id: z.uuid(),
     undo_change_id: z.uuid().nullish()
 });
+
+export const zJsonValue = z.union([
+    z.string(),
+    z.int(),
+    z.number(),
+    z.boolean(),
+    z.array(z.lazy((): any => zJsonValue)),
+    z.record(z.string(), z.lazy((): any => zJsonValue))
+]).nullable();
 
 /**
  * KPIJobBreakdownOut
@@ -4353,6 +4414,76 @@ export const zRdtiSpendResponse = z.object({
     start_date: z.iso.date(),
     summary: z.array(zRdtiCategorySummaryOut),
     totals: zRdtiTotalsOut
+});
+
+/**
+ * RecordingCreateIn
+ *
+ * Open a recording for the calling user.
+ */
+export const zRecordingCreateIn = z.object({
+    initial_path: z.string().min(1),
+    job_id: z.uuid().nullish(),
+    viewport_height: z.int().nullish(),
+    viewport_width: z.int().nullish()
+});
+
+/**
+ * RecordingFilters
+ *
+ * Optional narrowing for the recordings list.
+ */
+export const zRecordingFilters = z.object({
+    job_id: z.uuid().nullish(),
+    started_after: z.iso.datetime().nullish(),
+    started_before: z.iso.datetime().nullish(),
+    user_id: z.uuid().nullish()
+});
+
+/**
+ * RecordingOut
+ *
+ * A recording as the admin list and the player header show it.
+ */
+export const zRecordingOut = z.object({
+    compressed_bytes: z.int(),
+    ended_at: z.iso.datetime().nullable(),
+    event_count: z.int(),
+    id: z.uuid(),
+    initial_path: z.string(),
+    job_id: z.uuid().nullable(),
+    last_seen_at: z.iso.datetime(),
+    latest_path: z.string(),
+    started_at: z.iso.datetime(),
+    user_email: z.string().nullable(),
+    user_id: z.uuid(),
+    viewport_height: z.int().nullable(),
+    viewport_width: z.int().nullable()
+});
+
+/**
+ * PaginatedRecordingList
+ *
+ * Wire contract for a paginated list of recordings.
+ */
+export const zPaginatedRecordingList = z.object({
+    count: z.int(),
+    page: z.int(),
+    page_size: z.int(),
+    results: z.array(zRecordingOut),
+    total_pages: z.int()
+});
+
+export const zReplayEvent = z.record(z.string(), zJsonValue);
+
+/**
+ * RecordingEventsOut
+ *
+ * Every event of a recording, concatenated in playback order.
+ */
+export const zRecordingEventsOut = z.object({
+    events: z.array(zReplayEvent),
+    recording_id: z.uuid()
 });
 
 /**
@@ -7915,6 +8046,63 @@ export const zQuotingScheduledTasksRetrievePath = z.object({
  * OK
  */
 export const zQuotingScheduledTasksRetrieveResponse = zScheduledTask;
+
+export const zSessionReplayFrontendErrorsCreateBody = zFrontendErrorIn;
+
+/**
+ * Created
+ */
+export const zSessionReplayFrontendErrorsCreateResponse = zFrontendErrorOut;
+
+export const zSessionReplayRecordingsListQuery = z.object({
+    user_id: z.uuid().nullish(),
+    job_id: z.uuid().nullish(),
+    started_after: z.iso.datetime().nullish(),
+    started_before: z.iso.datetime().nullish(),
+    page: z.int().optional().default(1),
+    page_size: z.int().nullish()
+});
+
+/**
+ * OK
+ */
+export const zSessionReplayRecordingsListResponse = zPaginatedRecordingList;
+
+export const zSessionReplayRecordingsCreateBody = zRecordingCreateIn;
+
+/**
+ * Created
+ */
+export const zSessionReplayRecordingsCreateResponse = zRecordingOut;
+
+export const zSessionReplayRecordingsRetrievePath = z.object({
+    recording_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zSessionReplayRecordingsRetrieveResponse = zRecordingOut;
+
+export const zSessionReplayRecordingChunksCreateBody = zChunkCreateIn;
+
+export const zSessionReplayRecordingChunksCreatePath = z.object({
+    recording_id: z.uuid()
+});
+
+/**
+ * Created
+ */
+export const zSessionReplayRecordingChunksCreateResponse = zChunkOut;
+
+export const zSessionReplayRecordingEventsRetrievePath = z.object({
+    recording_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zSessionReplayRecordingEventsRetrieveResponse = zRecordingEventsOut;
 
 export const zGetDailyTimesheetSummaryByDatePath = z.object({
     target_date: z.string()

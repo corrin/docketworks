@@ -453,6 +453,78 @@ components:
       - label
       title: CategoryOut
       type: object
+    ChunkCreateIn:
+      description: One batch of rrweb events, in capture order.
+      properties:
+        events_json:
+          minLength: 1
+          title: Events Json
+          type: string
+        first_event_timestamp_ms:
+          title: First Event Timestamp Ms
+          type: integer
+        job_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job Id
+        last_event_timestamp_ms:
+          title: Last Event Timestamp Ms
+          type: integer
+        path:
+          minLength: 1
+          title: Path
+          type: string
+        sequence:
+          title: Sequence
+          type: integer
+        viewport_height:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Viewport Height
+        viewport_width:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Viewport Width
+      required:
+      - sequence
+      - events_json
+      - first_event_timestamp_ms
+      - last_event_timestamp_ms
+      - path
+      title: ChunkCreateIn
+      type: object
+    ChunkOut:
+      description: Acknowledgement that a batch was stored.
+      properties:
+        compressed_bytes:
+          title: Compressed Bytes
+          type: integer
+        event_count:
+          title: Event Count
+          type: integer
+        id:
+          format: uuid
+          title: Id
+          type: string
+        recording_id:
+          format: uuid
+          title: Recording Id
+          type: string
+        sequence:
+          title: Sequence
+          type: integer
+      required:
+      - compressed_bytes
+      - event_count
+      - id
+      - recording_id
+      - sequence
+      title: ChunkOut
+      type: object
     CompanyCreateRequest:
       description: Wire contract for CompanyCreateRequest.
       properties:
@@ -822,6 +894,11 @@ components:
           description: "The region Google reports for the address above \u2014 'Canterbury Region', or\
             \ plainly 'Auckland'. Read-only, and the basis for which public holidays this business observes."
           title: Region
+        session_replay_enabled:
+          description: Record staff browser sessions for diagnostics. Recordings capture everything on
+            screen and are visible to superusers only.
+          title: Session Replay Enabled
+          type: boolean
         shop_company:
           description: Internal company used for tracking shop work.
           format: uuid
@@ -1001,6 +1078,7 @@ components:
       - po_prefix
       - post_code
       - region
+      - session_replay_enabled
       - shop_company
       - starting_job_number
       - starting_po_number
@@ -1352,6 +1430,13 @@ components:
           description: "The region Google reports for the address above \u2014 'Canterbury Region', or\
             \ plainly 'Auckland'. Read-only, and the basis for which public holidays this business observes."
           title: Region
+        session_replay_enabled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          description: Record staff browser sessions for diagnostics. Recordings capture everything on
+            screen and are visible to superusers only.
+          title: Session Replay Enabled
         shop_company_id:
           anyOf:
           - format: uuid
@@ -3855,6 +3940,46 @@ components:
           type: string
       title: FormUpdateIn
       type: object
+    FrontendErrorIn:
+      description: An uncaught browser error, reported with the replay it happened in.
+      properties:
+        message:
+          minLength: 1
+          title: Message
+          type: string
+        path:
+          minLength: 1
+          title: Path
+          type: string
+        session_replay_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Session Replay Id
+        stack:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stack
+      required:
+      - message
+      - path
+      title: FrontendErrorIn
+      type: object
+    FrontendErrorOut:
+      description: The persisted error's id, so a browser log can name it.
+      properties:
+        error_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Error Id
+      required:
+      - error_id
+      title: FrontendErrorOut
+      type: object
     GroupedJobDeltaRejectionListResponse:
       description: Wire contract for GroupedJobDeltaRejectionListResponse.
       properties:
@@ -5624,6 +5749,19 @@ components:
       - total_count
       title: JobsListResponse
       type: object
+    JsonValue:
+      anyOf:
+      - type: string
+      - type: integer
+      - type: number
+      - type: boolean
+      - items:
+          $ref: '#/components/schemas/JsonValue'
+        type: array
+      - additionalProperties:
+          $ref: '#/components/schemas/JsonValue'
+        type: object
+      - type: 'null'
     KPICalendarResponse:
       description: Wire contract for KPICalendarResponse.
       properties:
@@ -7448,6 +7586,34 @@ components:
       - page_size
       - total_pages
       title: PaginatedPhoneCallRecordsOut
+      type: object
+    PaginatedRecordingList:
+      description: Wire contract for a paginated list of recordings.
+      properties:
+        count:
+          title: Count
+          type: integer
+        page:
+          title: Page
+          type: integer
+        page_size:
+          title: Page Size
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/RecordingOut'
+          title: Results
+          type: array
+        total_pages:
+          title: Total Pages
+          type: integer
+      required:
+      - count
+      - page
+      - page_size
+      - results
+      - total_pages
+      title: PaginatedRecordingList
       type: object
     PaginatedScheduledTaskExecutionList:
       description: Cursor-style pagination envelope over task executions.
@@ -11007,6 +11173,157 @@ components:
       - cost
       - revenue
       title: RDTITotalsOut
+      type: object
+    RecordingCreateIn:
+      description: Open a recording for the calling user.
+      properties:
+        initial_path:
+          minLength: 1
+          title: Initial Path
+          type: string
+        job_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job Id
+        viewport_height:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Viewport Height
+        viewport_width:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Viewport Width
+      required:
+      - initial_path
+      title: RecordingCreateIn
+      type: object
+    RecordingEventsOut:
+      description: Every event of a recording, concatenated in playback order.
+      properties:
+        events:
+          items:
+            $ref: '#/components/schemas/ReplayEvent'
+          title: Events
+          type: array
+        recording_id:
+          format: uuid
+          title: Recording Id
+          type: string
+      required:
+      - events
+      - recording_id
+      title: RecordingEventsOut
+      type: object
+    RecordingFilters:
+      description: Optional narrowing for the recordings list.
+      properties:
+        job_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job Id
+        started_after:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Started After
+        started_before:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Started Before
+        user_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: User Id
+      title: RecordingFilters
+      type: object
+    RecordingOut:
+      description: A recording as the admin list and the player header show it.
+      properties:
+        compressed_bytes:
+          title: Compressed Bytes
+          type: integer
+        ended_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Ended At
+        event_count:
+          title: Event Count
+          type: integer
+        id:
+          format: uuid
+          title: Id
+          type: string
+        initial_path:
+          title: Initial Path
+          type: string
+        job_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job Id
+        last_seen_at:
+          format: date-time
+          title: Last Seen At
+          type: string
+        latest_path:
+          title: Latest Path
+          type: string
+        started_at:
+          format: date-time
+          title: Started At
+          type: string
+        user_email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Email
+        user_id:
+          format: uuid
+          title: User Id
+          type: string
+        viewport_height:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Viewport Height
+        viewport_width:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Viewport Width
+      required:
+      - compressed_bytes
+      - ended_at
+      - event_count
+      - id
+      - initial_path
+      - job_id
+      - last_seen_at
+      - latest_path
+      - started_at
+      - user_email
+      - user_id
+      - viewport_height
+      - viewport_width
+      title: RecordingOut
+      type: object
+    ReplayEvent:
+      additionalProperties:
+        $ref: '#/components/schemas/JsonValue'
       type: object
     SalesForecastMonthDetailResponse:
       description: Wire contract for SalesForecastMonthDetailResponse.
@@ -20566,6 +20883,206 @@ paths:
       summary: Retrieve one Celery Beat schedule entry
       tags:
       - quoting
+  /api/session-replays/frontend-errors/:
+    post:
+      description: 'Persist a browser-side failure, linked to the replay it happened in.
+
+
+        The exception is constructed here rather than raised: the failure already
+
+        happened in the browser, and this endpoint''s job is to file it, not to
+
+        fail. ``persist_app_error`` validates the replay id and demotes one that
+
+        is not the caller''s into the error''s data.'
+      operationId: session_replay_frontend_errors_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FrontendErrorIn'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FrontendErrorOut'
+          description: Created
+      security:
+      - CookieJWTAuth: []
+      summary: Report an uncaught browser error
+      tags:
+      - session-replays
+  /api/session-replays/recordings/:
+    get:
+      description: Return a page of recordings, newest first.
+      operationId: session_replay_recordings_list
+      parameters:
+      - in: query
+        name: user_id
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: User Id
+      - in: query
+        name: job_id
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job Id
+      - in: query
+        name: started_after
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Started After
+      - in: query
+        name: started_before
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Started Before
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Page Size
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRecordingList'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: List session replay recordings
+      tags:
+      - session-replays
+    post:
+      description: Open a recording owned by the caller.
+      operationId: session_replay_recordings_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordingCreateIn'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingOut'
+          description: Created
+      security:
+      - CookieJWTAuth: []
+      summary: Open a session replay recording
+      tags:
+      - session-replays
+  /api/session-replays/recordings/{recording_id}/:
+    get:
+      description: Return one recording's metadata.
+      operationId: session_replay_recordings_retrieve
+      parameters:
+      - in: path
+        name: recording_id
+        required: true
+        schema:
+          format: uuid
+          title: Recording Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Retrieve one session replay recording
+      tags:
+      - session-replays
+  /api/session-replays/recordings/{recording_id}/chunks/:
+    post:
+      description: Store one batch of events against the caller's own recording.
+      operationId: session_replay_recording_chunks_create
+      parameters:
+      - in: path
+        name: recording_id
+        required: true
+        schema:
+          format: uuid
+          title: Recording Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChunkCreateIn'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChunkOut'
+          description: Created
+      security:
+      - CookieJWTAuth: []
+      summary: Upload a batch of replay events
+      tags:
+      - session-replays
+  /api/session-replays/recordings/{recording_id}/events/:
+    get:
+      description: Return every event of a recording, in playback order.
+      operationId: session_replay_recording_events_retrieve
+      parameters:
+      - in: path
+        name: recording_id
+        required: true
+        schema:
+          format: uuid
+          title: Recording Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingEventsOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Retrieve a recording's events for playback
+      tags:
+      - session-replays
   /api/timesheets/daily/{target_date}/:
     get:
       description: Daily timesheet summary for every displayable staff member.

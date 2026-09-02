@@ -475,6 +475,13 @@ class CompanyDefaults(SingletonModel):
             "without blocking the save. Disable to reject stale updates."
         ),
     )
+    session_replay_enabled = models.BooleanField(
+        default=True,
+        help_text=(
+            "Record staff browser sessions for diagnostics. Recordings capture "
+            "everything on screen and are visible to superusers only."
+        ),
+    )
 
     # Default working hours (Mon-Fri, 7am - 3pm)
     mon_start = models.TimeField(default="07:00")

@@ -57,6 +57,7 @@ const defaults: CompanyDefaultsOut = {
   gst_rate: '0.00',
   id: null,
   job_delta_soft_fail: false,
+  session_replay_enabled: true,
   kpi_daily_billable_hours_amber: '',
   kpi_daily_billable_hours_green: '',
   kpi_daily_gp_amber: '',

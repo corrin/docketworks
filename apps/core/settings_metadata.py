@@ -165,6 +165,7 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, RegistrySectionKey] = {
     "shop_company": "setup",
     "test_company_name": "setup",
     "job_delta_soft_fail": "setup",
+    "session_replay_enabled": "setup",
     "accounting_provider": "xero",
     "xero_tenant_id": "xero",
     "xero_shortcode": "xero",

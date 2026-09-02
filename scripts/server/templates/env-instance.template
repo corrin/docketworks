@@ -85,3 +85,4 @@ MEDIA_ROOT=/opt/docketworks/instances/__INSTANCE__/mediafiles
 # an unquoted path containing a space aborts the source mid-file.
 DROPBOX_WORKFLOW_FOLDER="__DROPBOX_WORKFLOW_FOLDER__"
 PHONE_RECORDING_STORAGE_ROOT=/opt/docketworks/instances/__INSTANCE__/phone-recordings
+SESSION_REPLAY_STORAGE_ROOT=/opt/docketworks/instances/__INSTANCE__/session-replays

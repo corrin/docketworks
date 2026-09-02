@@ -34,6 +34,7 @@ REQUIRED_ENV_VARS = [
     "FRONT_END_URL",
     "DROPBOX_WORKFLOW_FOLDER",
     "PHONE_RECORDING_STORAGE_ROOT",
+    "SESSION_REPLAY_STORAGE_ROOT",
     "MEDIA_ROOT",
     "XERO_READONLY",
 ]
@@ -345,6 +346,9 @@ PRODUCTION_XERO_TENANT_IDS = ["75e57cfd-302d-4f84-8734-8aae354e76a7"]
 PRODUCTION_XERO_CLIENT_IDS = ["DB22E7201251487F83D98B130946DAC1"]
 DROPBOX_WORKFLOW_FOLDER = os.environ["DROPBOX_WORKFLOW_FOLDER"]
 PHONE_RECORDING_STORAGE_ROOT = os.environ["PHONE_RECORDING_STORAGE_ROOT"]
+# Required, not v1's bare getenv: an unset root turned every chunk upload into
+# a runtime TypeError deep in the storage layer instead of a boot failure.
+SESSION_REPLAY_STORAGE_ROOT = os.environ["SESSION_REPLAY_STORAGE_ROOT"]
 
 # Without an explicit LOGGING block Django installs a config that sends app
 # loggers nowhere unless DEBUG is on, so every logger.warning in a service, task

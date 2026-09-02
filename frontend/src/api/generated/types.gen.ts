@@ -419,6 +419,74 @@ export type CategoryOut = {
 };
 
 /**
+ * ChunkCreateIn
+ *
+ * One batch of rrweb events, in capture order.
+ */
+export type ChunkCreateIn = {
+    /**
+     * Events Json
+     */
+    events_json: string;
+    /**
+     * First Event Timestamp Ms
+     */
+    first_event_timestamp_ms: number;
+    /**
+     * Job Id
+     */
+    job_id?: string | null;
+    /**
+     * Last Event Timestamp Ms
+     */
+    last_event_timestamp_ms: number;
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * Sequence
+     */
+    sequence: number;
+    /**
+     * Viewport Height
+     */
+    viewport_height?: number | null;
+    /**
+     * Viewport Width
+     */
+    viewport_width?: number | null;
+};
+
+/**
+ * ChunkOut
+ *
+ * Acknowledgement that a batch was stored.
+ */
+export type ChunkOut = {
+    /**
+     * Compressed Bytes
+     */
+    compressed_bytes: number;
+    /**
+     * Event Count
+     */
+    event_count: number;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Recording Id
+     */
+    recording_id: string;
+    /**
+     * Sequence
+     */
+    sequence: number;
+};
+
+/**
  * CompanyCreateRequest
  *
  * Wire contract for CompanyCreateRequest.
@@ -771,6 +839,12 @@ export type CompanyDefaultsOut = {
      * The region Google reports for the address above — 'Canterbury Region', or plainly 'Auckland'. Read-only, and the basis for which public holidays this business observes.
      */
     region: string | null;
+    /**
+     * Session Replay Enabled
+     *
+     * Record staff browser sessions for diagnostics. Recordings capture everything on screen and are visible to superusers only.
+     */
+    session_replay_enabled: boolean;
     /**
      * Shop Company
      *
@@ -1159,6 +1233,12 @@ export type CompanyDefaultsPatchIn = {
      * The region Google reports for the address above — 'Canterbury Region', or plainly 'Auckland'. Read-only, and the basis for which public holidays this business observes.
      */
     region?: string | null;
+    /**
+     * Session Replay Enabled
+     *
+     * Record staff browser sessions for diagnostics. Recordings capture everything on screen and are visible to superusers only.
+     */
+    session_replay_enabled?: boolean | null;
     /**
      * Shop Company
      *
@@ -3374,6 +3454,42 @@ export type FormUpdateIn = {
 };
 
 /**
+ * FrontendErrorIn
+ *
+ * An uncaught browser error, reported with the replay it happened in.
+ */
+export type FrontendErrorIn = {
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * Session Replay Id
+     */
+    session_replay_id?: string | null;
+    /**
+     * Stack
+     */
+    stack?: string | null;
+};
+
+/**
+ * FrontendErrorOut
+ *
+ * The persisted error's id, so a browser log can name it.
+ */
+export type FrontendErrorOut = {
+    /**
+     * Error Id
+     */
+    error_id: string | null;
+};
+
+/**
  * GroupedJobDeltaRejectionListResponse
  *
  * Wire contract for GroupedJobDeltaRejectionListResponse.
@@ -4938,6 +5054,10 @@ export type JobsListResponse = {
      */
     total_count: number;
 };
+
+export type JsonValue = string | number | number | boolean | Array<JsonValue> | {
+    [key: string]: JsonValue;
+} | null;
 
 /**
  * KPICalendarResponse
@@ -6644,6 +6764,34 @@ export type PaginatedPhoneCallRecordsOut = {
      * Results
      */
     results: Array<PhoneCallRecordOut>;
+    /**
+     * Total Pages
+     */
+    total_pages: number;
+};
+
+/**
+ * PaginatedRecordingList
+ *
+ * Wire contract for a paginated list of recordings.
+ */
+export type PaginatedRecordingList = {
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Page
+     */
+    page: number;
+    /**
+     * Page Size
+     */
+    page_size: number;
+    /**
+     * Results
+     */
+    results: Array<RecordingOut>;
     /**
      * Total Pages
      */
@@ -9791,6 +9939,134 @@ export type RdtiTotalsOut = {
      * Revenue
      */
     revenue: number;
+};
+
+/**
+ * RecordingCreateIn
+ *
+ * Open a recording for the calling user.
+ */
+export type RecordingCreateIn = {
+    /**
+     * Initial Path
+     */
+    initial_path: string;
+    /**
+     * Job Id
+     */
+    job_id?: string | null;
+    /**
+     * Viewport Height
+     */
+    viewport_height?: number | null;
+    /**
+     * Viewport Width
+     */
+    viewport_width?: number | null;
+};
+
+/**
+ * RecordingEventsOut
+ *
+ * Every event of a recording, concatenated in playback order.
+ */
+export type RecordingEventsOut = {
+    /**
+     * Events
+     */
+    events: Array<ReplayEvent>;
+    /**
+     * Recording Id
+     */
+    recording_id: string;
+};
+
+/**
+ * RecordingFilters
+ *
+ * Optional narrowing for the recordings list.
+ */
+export type RecordingFilters = {
+    /**
+     * Job Id
+     */
+    job_id?: string | null;
+    /**
+     * Started After
+     */
+    started_after?: string | null;
+    /**
+     * Started Before
+     */
+    started_before?: string | null;
+    /**
+     * User Id
+     */
+    user_id?: string | null;
+};
+
+/**
+ * RecordingOut
+ *
+ * A recording as the admin list and the player header show it.
+ */
+export type RecordingOut = {
+    /**
+     * Compressed Bytes
+     */
+    compressed_bytes: number;
+    /**
+     * Ended At
+     */
+    ended_at: string | null;
+    /**
+     * Event Count
+     */
+    event_count: number;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Initial Path
+     */
+    initial_path: string;
+    /**
+     * Job Id
+     */
+    job_id: string | null;
+    /**
+     * Last Seen At
+     */
+    last_seen_at: string;
+    /**
+     * Latest Path
+     */
+    latest_path: string;
+    /**
+     * Started At
+     */
+    started_at: string;
+    /**
+     * User Email
+     */
+    user_email: string | null;
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * Viewport Height
+     */
+    viewport_height: number | null;
+    /**
+     * Viewport Width
+     */
+    viewport_width: number | null;
+};
+
+export type ReplayEvent = {
+    [key: string]: JsonValue;
 };
 
 /**
@@ -17594,6 +17870,142 @@ export type QuotingScheduledTasksRetrieveResponses = {
 };
 
 export type QuotingScheduledTasksRetrieveResponse = QuotingScheduledTasksRetrieveResponses[keyof QuotingScheduledTasksRetrieveResponses];
+
+export type SessionReplayFrontendErrorsCreateData = {
+    body: FrontendErrorIn;
+    path?: never;
+    query?: never;
+    url: '/api/session-replays/frontend-errors/';
+};
+
+export type SessionReplayFrontendErrorsCreateResponses = {
+    /**
+     * Created
+     */
+    201: FrontendErrorOut;
+};
+
+export type SessionReplayFrontendErrorsCreateResponse = SessionReplayFrontendErrorsCreateResponses[keyof SessionReplayFrontendErrorsCreateResponses];
+
+export type SessionReplayRecordingsListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * User Id
+         */
+        user_id?: string | null;
+        /**
+         * Job Id
+         */
+        job_id?: string | null;
+        /**
+         * Started After
+         */
+        started_after?: string | null;
+        /**
+         * Started Before
+         */
+        started_before?: string | null;
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number | null;
+    };
+    url: '/api/session-replays/recordings/';
+};
+
+export type SessionReplayRecordingsListResponses = {
+    /**
+     * OK
+     */
+    200: PaginatedRecordingList;
+};
+
+export type SessionReplayRecordingsListResponse = SessionReplayRecordingsListResponses[keyof SessionReplayRecordingsListResponses];
+
+export type SessionReplayRecordingsCreateData = {
+    body: RecordingCreateIn;
+    path?: never;
+    query?: never;
+    url: '/api/session-replays/recordings/';
+};
+
+export type SessionReplayRecordingsCreateResponses = {
+    /**
+     * Created
+     */
+    201: RecordingOut;
+};
+
+export type SessionReplayRecordingsCreateResponse = SessionReplayRecordingsCreateResponses[keyof SessionReplayRecordingsCreateResponses];
+
+export type SessionReplayRecordingsRetrieveData = {
+    body?: never;
+    path: {
+        /**
+         * Recording Id
+         */
+        recording_id: string;
+    };
+    query?: never;
+    url: '/api/session-replays/recordings/{recording_id}/';
+};
+
+export type SessionReplayRecordingsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: RecordingOut;
+};
+
+export type SessionReplayRecordingsRetrieveResponse = SessionReplayRecordingsRetrieveResponses[keyof SessionReplayRecordingsRetrieveResponses];
+
+export type SessionReplayRecordingChunksCreateData = {
+    body: ChunkCreateIn;
+    path: {
+        /**
+         * Recording Id
+         */
+        recording_id: string;
+    };
+    query?: never;
+    url: '/api/session-replays/recordings/{recording_id}/chunks/';
+};
+
+export type SessionReplayRecordingChunksCreateResponses = {
+    /**
+     * Created
+     */
+    201: ChunkOut;
+};
+
+export type SessionReplayRecordingChunksCreateResponse = SessionReplayRecordingChunksCreateResponses[keyof SessionReplayRecordingChunksCreateResponses];
+
+export type SessionReplayRecordingEventsRetrieveData = {
+    body?: never;
+    path: {
+        /**
+         * Recording Id
+         */
+        recording_id: string;
+    };
+    query?: never;
+    url: '/api/session-replays/recordings/{recording_id}/events/';
+};
+
+export type SessionReplayRecordingEventsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: RecordingEventsOut;
+};
+
+export type SessionReplayRecordingEventsRetrieveResponse = SessionReplayRecordingEventsRetrieveResponses[keyof SessionReplayRecordingEventsRetrieveResponses];
 
 export type GetDailyTimesheetSummaryByDateData = {
     body?: never;
