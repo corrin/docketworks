@@ -1,4 +1,4 @@
-import type { Page, Response } from '@playwright/test'
+import type { Locator, Page, Response } from '@playwright/test'
 import { expect, test } from '@playwright/test'
 import { appendFileSync, existsSync, mkdirSync } from 'fs'
 import path from 'path'
@@ -547,4 +547,145 @@ export async function createPersonViaSelectionModal(
   await autoId(page, 'PersonSelectionModal-phone-input').fill(phone)
   await autoId(page, 'PersonSelectionModal-submit').click()
   await autoId(page, 'PersonSelectionModal-container').waitFor({ state: 'hidden' })
+}
+
+/** A cost-line row and its index, which the SmartCostLinesTable automation
+    ids are keyed on. */
+export interface CostLineRowMatch {
+  row: Locator
+  index: number
+}
+
+/**
+ * One pass over the cost-line rows. Descriptions live in textareas, so a
+ * row's description is not matchable as row text.
+ *
+ * A detached read throws rather than reading as an empty description: a row
+ * that vanished mid-scan is a scan to retry, and swallowing it as `''` made
+ * it indistinguishable from a row whose description really is blank.
+ */
+export async function findCostLineRows(
+  page: Page,
+  description: string,
+  matcher: 'exact' | 'includes' = 'exact',
+): Promise<CostLineRowMatch[]> {
+  const allRows = page.locator('[data-automation-id^="DataTable-row-"]')
+  const rowCount = await allRows.count()
+  const matches: CostLineRowMatch[] = []
+
+  for (let i = 0; i < rowCount; i++) {
+    const row = allRows.nth(i)
+    const value = await row.locator('textarea').first().inputValue()
+    const matched = matcher === 'exact' ? value === description : value.includes(description)
+    if (matched) {
+      matches.push({ row, index: i })
+    }
+  }
+  return matches
+}
+
+/**
+ * Every matching cost-line row, retried until at least one matches.
+ *
+ * Every caller asserting presence goes through here, because the scan above
+ * is imperative: it reads rows one at a time while a settled cost-line write
+ * is followed by TWO refetches within about 80ms — the cost set, and the job
+ * itself (invalidateJobViews, because a cost-line write moves the job's
+ * ETag). A single pass can therefore read the table between frames and miss
+ * a row that is there. Filtering a locator by its input value is not
+ * expressible, so polling the scan is the honest form; v1 hid the same race
+ * behind waitForTimeout sleeps.
+ */
+export async function waitForCostLineRows(
+  page: Page,
+  description: string,
+  matcher: 'exact' | 'includes' = 'exact',
+): Promise<CostLineRowMatch[]> {
+  const found: CostLineRowMatch[] = []
+  await expect(async () => {
+    // Those refetches can also reorder rows, so an index read before they
+    // land addresses the wrong row by click time. A quiet network first.
+    await page.waitForLoadState('networkidle')
+    const matches = await findCostLineRows(page, description, matcher)
+    found.length = 0
+    found.push(...matches)
+    expect(found.length, `no row described "${description}"`).toBeGreaterThan(0)
+  }).toPass({ timeout: 10000 })
+  return found
+}
+
+/** The first matching cost-line row, retried until it appears. */
+export async function waitForCostLineRow(
+  page: Page,
+  description: string,
+): Promise<CostLineRowMatch> {
+  const [first] = await waitForCostLineRows(page, description)
+  if (first === undefined) {
+    throw new Error(`Row "${description}" vanished after the scan that found it`)
+  }
+  return first
+}
+
+/**
+ * Open a costing tab on a job's detail page and wait for it to settle.
+ *
+ * The estimate and quote grids always render at least the phantom row; the
+ * actual grid can legitimately be empty, so it gets no row wait.
+ */
+export async function openJobCostingTab(
+  page: Page,
+  jobUrl: string,
+  tab: 'estimate' | 'quote' | 'actual',
+): Promise<void> {
+  if (!jobUrl) {
+    throw new Error(
+      'Serial suite: the shared job is created by the first test — run the whole file, not a grep of a later test.',
+    )
+  }
+  await page.goto(jobUrl)
+  await page.waitForLoadState('networkidle')
+  const tabButton = autoId(page, `JobViewTabs-${tab}`)
+  await tabButton.waitFor({ state: 'visible' })
+  await tabButton.click()
+  await page.waitForLoadState('networkidle')
+  if (tab !== 'actual') {
+    await page.locator('[data-row-id]').last().waitFor({ state: 'visible', timeout: 3000 })
+  }
+}
+
+/** Start a new cost-line row and return its data-row-id. */
+export async function clickAddCostLineRow(page: Page): Promise<string> {
+  const selectItemButton = page.getByRole('button', { name: 'Select Item' }).last()
+  await selectItemButton.waitFor({ timeout: 10000 })
+  const row = selectItemButton.locator('xpath=ancestor::*[@data-row-id][1]')
+  const rowId = await row.getAttribute('data-row-id')
+  if (!rowId) throw new Error('Could not find phantom row')
+  await selectItemButton.click()
+  return rowId
+}
+
+/**
+ * Add a completed adjustment line to the open costing grid.
+ *
+ * Creation fires on row exit, so the exit gesture (a click on the section
+ * heading) is what persists the line — hence the section title parameter.
+ */
+export async function addAdjustmentCostLine(
+  page: Page,
+  sectionHeading: string,
+  description: string,
+  quantity: string,
+  unitCost: string,
+): Promise<void> {
+  const rowId = await clickAddCostLineRow(page)
+  await page.keyboard.press('Escape')
+
+  const newRow = page.locator(`[data-row-id="${rowId}"]`)
+  await newRow.locator('textarea').first().fill(description)
+  await newRow.locator('[data-automation-id^="SmartCostLinesTable-quantity-"]').fill(quantity)
+  await newRow.locator('[data-automation-id^="SmartCostLinesTable-unit-cost-"]').fill(unitCost)
+
+  const savePromise = waitForAutosave(page)
+  await page.getByRole('heading', { name: sectionHeading }).click()
+  await savePromise
 }

@@ -39,7 +39,7 @@ from django.utils import timezone
 
 from apps.accounting.models import Invoice, Quote
 from apps.accounts.models import Staff
-from apps.core.errors import AppErrorContext, persist_app_error
+from apps.core.errors import AppErrorContext, ConflictError, persist_app_error
 from apps.core.etag import (
     PreconditionFailedError,
     generate_updated_at_etag,
@@ -973,15 +973,27 @@ def _copied_line_values(line: CostLine) -> dict[str, object]:
 def _copy_cost_lines(source: CostSet, dest: CostSet) -> int:
     """Copy every cost line of ``source`` onto ``dest``; returns the count copied.
 
-    Per-line ``objects.create`` rather than ``bulk_create``: CostLine.save()
-    owns entry_seq assignment and the summary recompute, and bulk_create
-    would bypass both.
+    Fable: bulk_create plus ONE recompute — per-line ``objects.create`` was
+    reviewed away as O(n^2): every save re-reads the cost set, rewrites the
+    summary JSON and touches the job, and only the final state matters.
+    Skipping CostLine.save() costs nothing here: entry_seq is assigned only
+    on actual-kind sets (refused below), full_clean still runs per line, and
+    the shop-job no-revenue rule holds transitively — the source lines were
+    validated by their own writes and the copy carries values verbatim.
     """
-    copied = 0
-    for line in source.cost_lines.all():
-        CostLine.objects.create(cost_set=dest, **_copied_line_values(line))
-        copied += 1
-    return copied
+    if dest.kind == "actual":
+        raise ValueError("Cost lines are never copied onto an actual cost set.")
+
+    lines = [
+        CostLine(cost_set=dest, **_copied_line_values(line)) for line in source.cost_lines.all()
+    ]
+    if not lines:
+        return 0
+    for line in lines:
+        line.full_clean()
+    CostLine.objects.bulk_create(lines)
+    lines[-1].update_cost_set_summary()
+    return len(lines)
 
 
 # ── Reads ────────────────────────────────────────────────────────────────
@@ -2461,8 +2473,13 @@ def create_quote_revision(job: Job, reason: str | None, user: Staff) -> QuoteRev
     }
 
 
-class QuoteNotBlankError(Exception):
-    """The quote holds priced lines and the caller did not ask to archive them."""
+class QuoteNotBlankError(ConflictError):
+    """The quote holds priced lines and the caller did not ask to archive them.
+
+    A ConflictError so the core envelope answers 409 from ANY boundary — a
+    bespoke Exception needed a hand-mapped catch at each caller, and the
+    first caller to forget it would turn this business refusal into a 500.
+    """
 
 
 class CopyEstimateToQuoteResultData(TypedDict):
@@ -2515,6 +2532,12 @@ def copy_estimate_to_quote(
     with real money on it refuses unless ``archive_existing`` is set, which
     archives it as a revision first (one atomic step with the copy).
     """
+    # The UI hides the Quote tab for T&M, but kanban, sales-pipeline and
+    # job-aging read latest_quote unconditionally — a direct API copy would
+    # flip an over-budget badge with no visible quote anywhere.
+    if job.pricing_methodology == "time_materials":
+        raise ValueError("A time and materials job has no quote — there is nothing to copy onto.")
+
     estimate = job.get_latest("estimate")
     quote = job.get_latest("quote")
     if estimate is None or quote is None:
@@ -2561,11 +2584,16 @@ def copy_estimate_to_quote(
             )
 
         if is_blank:
-            # Bulk delete skips CostLine.delete()'s per-line summary refresh;
-            # the copy below recomputes the summary from scratch and the
-            # estimate is known non-empty, so no line ever refreshes over a
-            # stale total. A $0 seed is noise, not history: no revision.
+            # Fable: bulk delete skips CostLine.delete()'s per-line summary
+            # refresh; the copy below recomputes the summary from scratch and
+            # the estimate is known non-empty, so no line ever refreshes over
+            # a stale total. A $0 seed is noise, not history: no revision.
             quote.cost_lines.all().delete()
+            # Fable: same rule as the archive path (create_quote_revision):
+            # replaced content is content the customer never accepted,
+            # whichever branch replaced it.
+            job.quote_acceptance_date = None
+            job.save(staff=user)
         else:
             revision = create_quote_revision(job, "Replaced by copy from estimate", user)
             archived_quote_revision = revision["quote_revision"]

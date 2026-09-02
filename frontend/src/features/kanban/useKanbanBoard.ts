@@ -1,7 +1,7 @@
 /**
  * Everything the office board renders, assembled from the query cache.
  *
- * Six per-column queries, one status-values query, one search query. There is
+ * One query per OFFICE_COLUMN_IDS entry, one status-values query, one search query. There is
  * no store and no client-side sorting: the server returns each column in
  * `-priority` order and that array order is the render order, so "the top
  * card" means "the first element the server sent" at every layer.
@@ -31,7 +31,6 @@ import {
   columnFetchOptions,
   columnQueryKey,
   findColumnJob,
-  removeJob,
   restoreSnapshot,
   searchQueryKey,
   snapshotColumns,
@@ -73,9 +72,10 @@ export interface KanbanBoardModel {
   moveJob: (request: MoveJobRequest) => void
   /**
    * All seven columns the status-values endpoint knows about, office board
-   * order — the six visible columns plus `archived`, which the office board
-   * never renders as a column but the status drawer offers as a destination
-   * (v1 kanban.vue:133-206 exposes the same Archived option there).
+   * order. Since KAN-353 every one of them is also a rendered column, so this
+   * and OFFICE_COLUMN_IDS now describe the same set — the drawer still reads
+   * the endpoint rather than the array because the LABELS are the endpoint's
+   * to own (v1 kanban.vue:133-206 exposes the same Archived option here).
    */
   statusOptions: StatusOption[]
   /**
@@ -95,10 +95,15 @@ export interface KanbanBoardModel {
 
 /**
  * v1 jobMatchesStaffFilters (useOptimizedKanban.ts:214): a job matches when
- * any selected staff member is assigned to it OR created it. v1's leading
- * "archived jobs always show" branch is dropped, not lost: the office board
- * renders no archived column, so the branch is unreachable here — and it
- * tested the display label `status === 'Archived'`, which is presentation.
+ * any selected staff member is assigned to it OR created it.
+ *
+ * v1's leading "archived jobs always show" branch is deliberately NOT ported,
+ * now that KAN-353 gives archived a column and the branch would be reachable.
+ * Every column obeys the staff filter or none does; an exempt column that
+ * stayed full while its six neighbours emptied would read as the filter having
+ * failed. The known cost is that archiving clears job.people, so the archived
+ * column goes near-empty under any staff filter — the answer to "find an old
+ * job of X's" is the search box, which no staff filter touches.
  */
 function jobMatchesStaffFilters(job: KanbanJobOut, activeStaffIds: string[]): boolean {
   if (activeStaffIds.length === 0) return true
@@ -345,16 +350,12 @@ export function useKanbanBoard(
       const affected = job && job.status_key !== status ? [job.status_key, status] : [status]
       const snapshot = snapshotColumns(queryClient, affected)
 
-      // Archived is a hidden column with no backing query (columns.ts), so
-      // the only optimistic move available is dropping the card everywhere
-      // it's currently rendered — applyJobUpsert would silently insert
-      // nowhere and the card would just vanish with no explanation.
+      // Archived is an ordinary column since KAN-353, so archiving from the
+      // drawer moves the card there like any other status change. It used to
+      // call removeJob, which DELETED the card from the board — correct only
+      // while no archived column existed to receive it.
       if (job) {
-        if (status === 'archived') {
-          removeJob(queryClient, jobId)
-        } else {
-          applyJobUpsert(queryClient, { ...job, status_key: status })
-        }
+        applyJobUpsert(queryClient, { ...job, status_key: status })
       }
 
       return new Promise<boolean>((resolve) => {
@@ -373,7 +374,6 @@ export function useKanbanBoard(
               // is no in-flight gesture a refetch-flash could disrupt, and
               // the drawer's own spinner already covers the round trip.
               for (const columnId of affected) {
-                if (columnId === 'archived') continue
                 void queryClient.invalidateQueries({ queryKey: columnQueryKey(columnId) })
               }
               // Search results are rendered from the search query, which no

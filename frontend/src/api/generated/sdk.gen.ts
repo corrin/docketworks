@@ -568,7 +568,7 @@ export const buildIdRetrieve = <ThrowOnError extends boolean = false>(options?: 
 /**
  * Companies Addresses Validate Create
  *
- * Validate a freetext address and return structured candidates.
+ * Offer the addresses Google matches, for a person to pick from.
  *
  * 503 when the Google API is unavailable or the Google Maps API key is not
  * configured (v1 behaviour).
@@ -1088,6 +1088,10 @@ export const companyDefaultsRetrieve = <ThrowOnError extends boolean = false>(op
  * Presence comes from ``model_fields_set``, so omitting a field leaves the
  * stored value alone — the whole point of a settings screen that submits one
  * section at a time.
+ *
+ * A ``google_place_id`` in the body means someone picked an address candidate;
+ * the derived columns are re-read from Google rather than taken from the body
+ * (see ``_apply_picked_place``).
  */
 export const companyDefaultsPartialUpdate = <ThrowOnError extends boolean = false>(options: Options<CompanyDefaultsPartialUpdateData, ThrowOnError>): RequestResult<CompanyDefaultsPartialUpdateResponses, unknown, ThrowOnError> => (options.client ?? client).patch<CompanyDefaultsPartialUpdateResponses, unknown, ThrowOnError>({
     responseType: 'json',
@@ -1993,6 +1997,9 @@ export const jobJobsCostSetsActualCostLinesCreate = <ThrowOnError extends boolea
  * Replace the quote's cost lines with a copy of the estimate's
  *
  * Copy the estimate onto the quote; 409 unless a priced quote is archived first.
+ *
+ * QuoteNotBlankError is a ConflictError, so the core envelope answers its
+ * 409 — no local catch.
  */
 export const jobJobsCostSetsQuoteCopyFromEstimateCreate = <ThrowOnError extends boolean = false>(options: Options<JobJobsCostSetsQuoteCopyFromEstimateCreateData, ThrowOnError>): RequestResult<JobJobsCostSetsQuoteCopyFromEstimateCreateResponses, unknown, ThrowOnError> => (options.client ?? client).post<JobJobsCostSetsQuoteCopyFromEstimateCreateResponses, unknown, ThrowOnError>({
     responseType: 'json',

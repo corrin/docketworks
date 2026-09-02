@@ -71,7 +71,7 @@ class TestList:
         assert by_email["current@example.com"]["is_office_staff"] is False
 
     def test_wage_rate_is_the_loaded_rate(self) -> None:
-        """wage_rate carries the annual-leave-loaded rate the model computes on save."""
+        """wage_rate carries the labour-cost-loaded rate the model computes on save."""
         superuser = make_staff("super@example.com", is_superuser=True, is_office_staff=True)
         worker = make_staff("paid@example.com", base_wage_rate=Decimal("40.00"))
         worker.refresh_from_db()

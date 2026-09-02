@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 
 import { fieldAutomationId } from './fieldAutomationId'
 import { aspectRatioProblem } from './logoAspectRatio'
-import type { SettingsFieldInputProps } from './SettingsFieldInput'
+import type { SettingsFieldControlProps } from './SettingsFieldInput'
 
 // Mirrors apps/core/api.py's _ALLOWED_LOGO_SUFFIXES (png/jpg/jpeg/gif/webp,
 // no svg) — the server also PIL-verifies the upload, so the accept list here
@@ -35,7 +35,7 @@ function requireLogoFieldName(key: string): 'logo' | 'logo_wide' {
  * is the live `${field.key}_url` from the shell-owned company-defaults query,
  * not the mounted snapshot, so a fresh upload/delete shows immediately.
  */
-export function LogoField({ field, value, section }: SettingsFieldInputProps) {
+export function LogoField({ field, value, section }: SettingsFieldControlProps) {
   const queryClient = useQueryClient()
   const uploadMutation = useMutation(companyDefaultsLogoUpdateMutation())
   const destroyMutation = useMutation(companyDefaultsLogoDestroyMutation())

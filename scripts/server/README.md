@@ -91,7 +91,7 @@ XERO_REDIRECT_URI=
 ANTHROPIC_API_KEY=         → AIProvider rows
 GEMINI_API_KEY=
 MISTRAL_API_KEY=
-GCP_CREDENTIALS=           → <instance>/gcp-credentials.json (backups only)
+GCP_CREDENTIALS=           → <instance>/gcp-credentials.json, and .env points at it
 BACKUP_GDRIVE_ROOT_FOLDER_ID=
 BACKUP_GDRIVE_TEAM_DRIVE_ID=
 GOOGLE_MAPS_API_KEY=       → IntegrationSettings row (ADR 0053)
@@ -109,7 +109,7 @@ How to get them:
 2. **Set redirect URI** to `https://<instance>.docketworks.site/api/xero/oauth/callback/`
 3. **Copy Client ID, Client Secret, and webhook signing key** into the instance credentials file.
 4. **ANTHROPIC_API_KEY / GEMINI_API_KEY / MISTRAL_API_KEY:** loaded as `ai.AIProvider` rows for the LLM gateway.
-5. **GCP_CREDENTIALS:** Path to a GCP service account JSON key file, used by rclone to upload backups. Each instance gets its own service account; the key file is copied into the instance directory during creation.
+5. **GCP_CREDENTIALS:** Path to a GCP service account JSON key file. Used by rclone to upload backups, and by the app itself (`apps/core/gauth.py`) for the Gmail password-reset email and the health-and-safety Drive import. Each instance gets its own service account; the key file is copied into the instance directory during creation and the rendered `.env` points at that copy, so the original download can be deleted.
 6. **BACKUP_GDRIVE_TEAM_DRIVE_ID / BACKUP_GDRIVE_ROOT_FOLDER_ID:** Optional Shared Drive ID and parent folder ID for backup storage. Service-account backups should target a Shared Drive the service account can write to. Backups upload under `dw_backups/` from the configured root.
 
 ### `xero_tenant_id` in the company-defaults JSON

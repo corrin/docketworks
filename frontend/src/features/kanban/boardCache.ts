@@ -1,7 +1,7 @@
 /**
  * The only writers of the kanban column query caches.
  *
- * The board keeps no store: the six per-column TanStack queries ARE the
+ * The board keeps no store: the per-column TanStack queries ARE the
  * model, and render order is cache order is the server's `-priority` order.
  * Every optimistic move therefore has to edit those caches directly, and it
  * has to do it in exactly one place — v1 had the same edit open-coded in the

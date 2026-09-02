@@ -744,20 +744,25 @@ def require_no_blocking_draft(week_start_date: date, *, tenant_id: str) -> None:
         )
 
 
-def refresh_pay_runs(*, tenant_id: str) -> PayRunSyncResult:
-    """Re-sync the local pay-run mirror from Xero.
+def sync_pay_runs(pay_runs: Sequence[PayRun], *, tenant_id: str) -> PayRunSyncResult:
+    """Mirror a complete set of Xero pay runs locally, dropping what Xero no longer has.
 
-    Opus: The operator's recovery path after posting or deleting a run inside Xero,
-    so it reports what actually moved rather than a bare success. Orphans are
-    dropped: Xero is master for pay runs, and a run deleted there must not
-    keep blocking the one-draft rule locally.
+    Opus: The one implementation of the pay-run mirror. The hourly sync engine
+    reached the same table through its own ENTITY_CONFIGS entry, which passed
+    ``transform_pay_run`` to the generic persist loop without the tenant it
+    requires — so the engine's copy raised on every row while this one worked,
+    and the two also disagreed about the delete: the engine's was unscoped and
+    took every tenant's rows.
+
+    The caller must have fetched EVERY pay run the tenant has, because the
+    delete treats absence as deletion. Both callers use
+    ``get_pay_runs_for_sync``, which asks Xero for the lot.
     """
-    fetched = get_pay_runs_for_sync(xero_tenant_id=tenant_id).pay_runs
-    live_ids = {str(pay_run.pay_run_id) for pay_run in fetched}
+    live_ids = {str(pay_run.pay_run_id) for pay_run in pay_runs}
     XeroPayRun.objects.filter(xero_tenant_id=tenant_id).exclude(xero_id__in=live_ids).delete()
 
     created = updated = 0
-    for pay_run in fetched:
+    for pay_run in pay_runs:
         _, status = transform_pay_run(pay_run, str(pay_run.pay_run_id), tenant_id=tenant_id)
         if status == "created":
             created += 1
@@ -765,11 +770,24 @@ def refresh_pay_runs(*, tenant_id: str) -> PayRunSyncResult:
             updated += 1
     logger.info(
         "Refreshed pay-run mirror: %d fetched, %d created, %d updated",
-        len(fetched),
+        len(pay_runs),
         created,
         updated,
     )
-    return PayRunSyncResult(fetched=len(fetched), created=created, updated=updated)
+    return PayRunSyncResult(fetched=len(pay_runs), created=created, updated=updated)
+
+
+def refresh_pay_runs(*, tenant_id: str) -> PayRunSyncResult:
+    """Fetch every pay run from Xero and re-sync the local mirror.
+
+    Opus: The operator's recovery path after posting or deleting a run inside Xero,
+    so it reports what actually moved rather than a bare success. Orphans are
+    dropped: Xero is master for pay runs, and a run deleted there must not
+    keep blocking the one-draft rule locally.
+    """
+    return sync_pay_runs(
+        get_pay_runs_for_sync(xero_tenant_id=tenant_id).pay_runs, tenant_id=tenant_id
+    )
 
 
 # --- The posting run -----------------------------------------------------

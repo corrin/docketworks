@@ -12,7 +12,7 @@ import logging
 import secrets
 import uuid
 from collections.abc import Iterable
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import ClassVar, Protocol, cast
 
 from django.apps import apps as django_apps
@@ -130,7 +130,7 @@ class IntegrationSettings(models.Model):
 
     id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
 
-    # Google Address Validation, read by apps/company/services/geocoding_service.
+    # Google Places (New), read by apps/core/geocoding.
     google_maps_api_key = models.CharField(  # noqa: DJ001 -- unset is NULL (ADR 0040); a CHECK rejects ""
         max_length=255, null=True, blank=True
     )
@@ -222,6 +222,26 @@ class _WageBearingStaff(Protocol):
     def save(self, *, update_fields: Iterable[str] | None = None) -> None: ...
 
 
+def loaded_wage_rate(base_wage_rate: Decimal, loading_percent: Decimal) -> Decimal:
+    """Return the costing wage rate a base rate carries at this labour-cost loading.
+
+    The one home for this arithmetic. accounts.Staff._compute_wage_rate, the
+    recompute below and the Xero employee checksum all need it, and the first
+    two had already drifted — one normalised through ``str``, the other did not.
+
+    ROUND_HALF_UP rather than Decimal's default ROUND_HALF_EVEN: the result
+    lands in a ``numeric(_, 2)`` column and Postgres rounds halves away from
+    zero, so banker's rounding would disagree with the database at exactly .xx5
+    and store a rate the caller cannot reproduce.
+    """
+    if not base_wage_rate:
+        return Decimal("0")
+    multiplier = Decimal("1") + loading_percent / Decimal("100")
+    return (Decimal(str(base_wage_rate)) * multiplier).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+
+
 class CompanyDefaults(SingletonModel):
     """Singleton company configuration managed by django-solo.
 
@@ -269,13 +289,22 @@ class CompanyDefaults(SingletonModel):
         ),
     )
     wage_rate = models.DecimalField(max_digits=6, decimal_places=2, default=32.00)  # rate per hour
-    # Approximate payroll loading: 8% annual leave, ~6% public holidays,
-    # ~4% sick leave, ~2% ACC, 0% ESCT.
-    annual_leave_loading = models.DecimalField(
+    # KAN-351: An indicative starting point, never a measurement. The components
+    # are annual leave (~8%), public holidays (~6%), sick leave (~4%),
+    # bereavement leave and employer-paid ACC (~2%), ESCT at 0% — but the total
+    # is per-business and measurable, as booked paid non-worked hours over
+    # worked hours. MSM's own data puts it near 23%. Setting this to the
+    # annual-leave component alone is what mispriced ~19k cost lines.
+    labour_cost_loading = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         default=20.00,
-        help_text="Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)",
+        help_text=(
+            "Percentage added to each base wage to recover paid non-worked time in "
+            "the labour cost assigned to worked hours. Include annual leave, public "
+            "holidays, sick leave, bereavement leave, and employer-paid ACC time; "
+            "measure the percentage for this business (20.00 turns $40.00 into $48.00)."
+        ),
     )
     workshop_efficiency_factor = models.DecimalField(
         max_digits=4,
@@ -505,6 +534,49 @@ class CompanyDefaults(SingletonModel):
         default="New Zealand",
         help_text="Country name",
     )
+
+    # What Google knows about the address above, filled when an operator picks a
+    # candidate on the settings screen and refreshed only when they pick again.
+    # Column names follow SupplierPickupAddress, which stores the same facts for
+    # supplier addresses: one vocabulary, not two.
+    #
+    # The holidays subdivision is NOT stored. It is a pure function of `region`
+    # (apps.core.geocoding.nz_subdivision_for_region), and
+    # the mapping belongs to the holidays package — freezing it in a column
+    # would keep answering with last year's table after an upgrade renamed a
+    # code or added an alias.
+    formatted_address = models.CharField(  # noqa: DJ001 -- unset is NULL (ADR 0040); never geocoded
+        max_length=500,
+        null=True,
+        blank=True,
+        verbose_name="Address as Google has it",
+        help_text=(
+            "The address Google matched, filled in when someone picks a candidate on this "
+            "screen. Read-only: it records what was confirmed, not what was typed."
+        ),
+    )
+    region = models.CharField(  # noqa: DJ001 -- unset is NULL (ADR 0040); never geocoded
+        max_length=100,
+        null=True,
+        blank=True,
+        verbose_name="Region",
+        help_text=(
+            "The region Google reports for the address above — 'Canterbury Region', or "
+            "plainly 'Auckland'. Read-only, and the basis for which public holidays this "
+            "business observes."
+        ),
+    )
+    google_place_id = models.CharField(  # noqa: DJ001 -- unset is NULL (ADR 0040)
+        max_length=255, null=True, blank=True
+    )
+    latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    address_raw_json = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Raw JSON data from Google Places for the address above",
+    )
+
     company_email = models.EmailField(  # noqa: DJ001
         null=True,
         blank=True,
@@ -664,7 +736,15 @@ class CompanyDefaults(SingletonModel):
                 condition=~models.Q(master_quote_template_url=""),
                 name="master_quote_template_url_not_blank",
             ),
+            models.CheckConstraint(
+                condition=~models.Q(formatted_address=""), name="formatted_address_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(google_place_id=""),
+                name="companydefaults_google_place_id_not_blank",
+            ),
             models.CheckConstraint(condition=~models.Q(post_code=""), name="post_code_not_blank"),
+            models.CheckConstraint(condition=~models.Q(region=""), name="region_not_blank"),
             models.CheckConstraint(
                 condition=~models.Q(suburb=""),
                 name="workflow_companydefaults_suburb_not_blank",
@@ -693,12 +773,25 @@ class CompanyDefaults(SingletonModel):
         update_fields: Iterable[str] | None = None,
     ) -> None:
         """Save the singleton, recomputing staff wage rates if the loading changed."""
-        # Check if annual_leave_loading changed - if so, recompute all staff wage_rates
+        # ``update_fields`` is the caller's write intent, not merely a SQL
+        # optimisation. A long-running Xero sync holds this singleton in memory
+        # and later saves only its cursor timestamps; comparing an excluded
+        # loading against the current row mistakes a stale instance for a
+        # loading edit and recomputes every Staff rate from the stale value.
+        #
+        # Materialised before the membership test: the parameter is an
+        # ``Iterable[str]`` and Django only freezes it inside ``Model.save``, so
+        # asking a generator whether it contains the loading would consume it and
+        # leave super().save() an empty update — a silent no-op write.
+        if update_fields is not None:
+            update_fields = frozenset(update_fields)
+        writes_loading = update_fields is None or "labour_cost_loading" in update_fields
+
         loading_changed = False
-        if self.pk:
+        if writes_loading and self.pk:
             try:
                 old = CompanyDefaults.objects.get(pk=self.pk)
-                loading_changed = old.annual_leave_loading != self.annual_leave_loading
+                loading_changed = old.labour_cost_loading != self.labour_cost_loading
             # deliberate-swallow: no prior row means no prior loading to compare
             except CompanyDefaults.DoesNotExist:
                 pass
@@ -721,18 +814,17 @@ class CompanyDefaults(SingletonModel):
         company_defaults.save(update_fields=["enable_xero_sync"])
 
     def _recompute_all_staff_wage_rates(self) -> None:
-        """Bulk-recompute wage_rate for all staff based on current annual_leave_loading."""
+        """Bulk-recompute staff wage rates from the current labour-cost loading."""
         # App-registry lookup instead of `from apps.accounts.models import Staff`:
         # core sits below accounts in the layer contract, so even a function-level
         # import is off-limits. The cast to the protocol carries the field typing.
         staff_model = django_apps.get_model("accounts", "Staff")
-        loading_multiplier = Decimal("1") + self.annual_leave_loading / Decimal("100")
         staff_rows = cast(
             "Iterable[_WageBearingStaff]",
             staff_model._default_manager.filter(base_wage_rate__gt=0),
         )
         for staff in staff_rows:
-            staff.wage_rate = (staff.base_wage_rate * loading_multiplier).quantize(Decimal("0.01"))
+            staff.wage_rate = loaded_wage_rate(staff.base_wage_rate, self.labour_cost_loading)
             staff.save(update_fields=["wage_rate", "updated_at"])
 
     # v1's ``llm_api_key`` property (the active AIProvider's key) is NOT ported:

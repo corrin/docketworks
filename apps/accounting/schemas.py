@@ -9,6 +9,11 @@ from uuid import UUID
 
 from ninja import Schema
 
+# Opus: the wire type is imported from the service that produces it, rather
+# than restated here, so the categories a cell can report and the categories
+# the ladder can return are one definition. types.py is not the home for it —
+# that module is scoped to the provider abstraction (ADR 0012).
+from apps.accounting.services.kpi_service import DayCategory, DayColor
 from apps.accounting.types import PayrollRowStatus, PayrollXeroSource
 from apps.core.schemas import ResponseSchema
 
@@ -214,7 +219,7 @@ class StaffPerformanceResponse(Schema):
 class KPIProfitBreakdownOut(Schema):
     """Wire contract for KPIProfitBreakdownOut."""
 
-    labor_profit: float
+    labour_profit: float
     material_profit: float
     adjustment_profit: float
 
@@ -262,8 +267,13 @@ class KPIDayDataOut(ResponseSchema):
     shop_hours: float
     shop_percentage: float
     gross_profit: float
-    color: str
-    gp_target_achievement: float
+    # "weekend" is a category, not a missing value: an ungraded day is not a
+    # day whose grade went astray (owner ruling, 2026-09-01). The achievement
+    # IS null there — a weekend is owed no target, so the percentage has no
+    # denominator, which is a real absence rather than a fake one.
+    color_hours: DayCategory
+    color_gp: DayCategory
+    gp_target_achievement: float | None
     details: KPIDetailsOut
 
 
@@ -285,14 +295,18 @@ class KPIMonthlyTotalsOut(Schema):
     profit_red_days: int
     working_days: int
     elapsed_workdays: int
-    active_workdays: int
+    weekdays: int
+    elapsed_weekdays: int
+    active_days: int
     remaining_workdays: int
+    remaining_weekdays: int
     time_revenue: float
     material_revenue: float
     adjustment_revenue: float
     staff_cost: float
     material_cost: float
     adjustment_cost: float
+    labour_profit: float
     material_profit: float
     adjustment_profit: float
     total_revenue: float
@@ -301,12 +315,14 @@ class KPIMonthlyTotalsOut(Schema):
     net_profit: float
     billable_percentage: float
     shop_percentage: float
-    avg_daily_gp: float
-    avg_daily_gp_so_far: float
-    avg_billable_hours_so_far: float
-    color_hours: str
-    color_gp: str
-    color_shop: str
+    avg_weekday_gp: float
+    avg_active_day_gp: float
+    avg_active_day_billable_hours: float
+    # The month is always graded, so these are the three-rung ladder rather
+    # than the day's four categories — a month is never "weekend".
+    color_hours: DayColor
+    color_gp: DayColor
+    color_shop: DayColor
 
 
 class KPIThresholdsOut(Schema):
@@ -328,6 +344,7 @@ class KPICalendarResponse(Schema):
     thresholds: KPIThresholdsOut
     year: int
     month: int
+    weekend_enabled: bool
 
 
 class ForecastMonthOut(Schema):

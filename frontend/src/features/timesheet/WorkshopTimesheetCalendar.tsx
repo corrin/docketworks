@@ -1,11 +1,19 @@
-import type { EventContentArg } from '@fullcalendar/core'
-import interactionPlugin from '@fullcalendar/interaction'
+import type { EventDisplayInfo } from '@fullcalendar/react'
 import FullCalendar from '@fullcalendar/react'
-import timeGridPlugin from '@fullcalendar/timegrid'
+import interactionPlugin from '@fullcalendar/react/interaction'
+// FullCalendar 7 ships no styles and no default theme: the skeleton is
+// structural only, and a theme plugin plus its CSS is what draws the grid.
+// Imported here rather than in main.css so the bundle only pays for them on
+// the one route that mounts a calendar.
+import '@fullcalendar/react/skeleton.css'
+import classicThemePlugin from '@fullcalendar/react/themes/classic'
+import '@fullcalendar/react/themes/classic/palette.css'
+import '@fullcalendar/react/themes/classic/theme.css'
+import timeGridPlugin from '@fullcalendar/react/timegrid'
 
 import type { MyTimeCalendarEvent } from './myTime'
 
-function renderEventContent(arg: EventContentArg) {
+function renderEventContent(arg: EventDisplayInfo) {
   return (
     <div className="overflow-hidden px-1 text-xs" data-event-id={arg.event.id}>
       <span className="font-medium">{arg.timeText}</span> {arg.event.title}
@@ -47,7 +55,7 @@ export function WorkshopTimesheetCalendar({
         // ref — a one-day time grid is cheap to rebuild, and the imperative
         // API is the only alternative FullCalendar offers for initialDate.
         key={date}
-        plugins={[timeGridPlugin, interactionPlugin]}
+        plugins={[timeGridPlugin, interactionPlugin, classicThemePlugin]}
         initialView="timeGridDay"
         initialDate={date}
         headerToolbar={false}
@@ -56,7 +64,7 @@ export function WorkshopTimesheetCalendar({
         height="auto"
         slotDuration="00:30:00"
         // 24h faces, matching every other timesheet surface.
-        slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
+        slotHeaderFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
         eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
         events={events}
         eventClick={(info) => onEventClick(info.event.id)}

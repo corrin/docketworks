@@ -31,7 +31,7 @@ import type { StatusOption } from './useKanbanBoard'
 interface StatusDrawerProps {
   /** The job the drawer is open for; null means closed. */
   job: KanbanJobOut | null
-  /** All seven columns (six office + archived), office board order. */
+  /** All seven columns, office board order — the same set the board renders. */
   statusOptions: StatusOption[]
   onUpdateStatus: (jobId: string, status: string) => Promise<boolean>
   onClose: () => void

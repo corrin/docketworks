@@ -12,6 +12,7 @@ import time
 from collections.abc import Callable, Iterator, Sequence
 from datetime import timedelta
 from typing import Any, TypedDict
+from uuid import UUID
 
 from django.conf import settings
 from django.db import models
@@ -41,6 +42,7 @@ from apps.xero.payroll_employees import (
     get_employees_for_sync,
     sync_employees,
 )
+from apps.xero.payroll_push import sync_pay_runs
 from apps.xero.payroll_sync import (
     get_all_pay_slips_for_sync,
     get_pay_runs_for_sync,
@@ -54,7 +56,6 @@ from apps.xero.transforms import (
     transform_bill,
     transform_credit_note,
     transform_invoice,
-    transform_pay_run,
     transform_pay_slip,
     transform_purchase_order,
     transform_quote,
@@ -148,11 +149,20 @@ def update_sync_cursor(entity_key: str, timestamp: Any) -> None:
     )
 
 
+#: Opus: Every persist callable takes the run's tenant, including the six that
+#: do not use it. The alternative — a per-entry flag, or letting a transform
+#: read the tenant itself — is what put the wrong id on synced rows and what
+#: broke pay runs outright: the tenant is a property of the sync RUN (a posting
+#: run threads its dispatched organisation through), so the run must hand it
+#: down rather than each row asking again.
+EntityPersist = Callable[[list[Any], str], Any]
+
+
 def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported v1 engine loop; one pass owns fetch, gate, filter, persist, cursor
     xero_entity_type: str,
     our_entity_type: str,
     xero_api_fetch_function: Callable[..., Any],
-    sync_function: Callable[[list[Any]], Any],
+    sync_function: EntityPersist,
     last_modified_time: str,
     additional_params: dict[str, Any] | None = None,
     pagination_mode: str = "single",
@@ -255,7 +265,7 @@ def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported 
 
         if items_to_sync:
             try:
-                sync_function(items_to_sync)
+                sync_function(items_to_sync, xero_tenant_id)
                 # Fetched count: per-item failures inside sync_function are
                 # persisted as XeroError rows and the cursor still advances
                 # past them — a permanently-bad record is retried only by the
@@ -326,13 +336,13 @@ EntityConfig = tuple[
     str,
     type[models.Model],
     str,
-    Callable[[list[Any]], Any],
+    EntityPersist,
     dict[str, Any] | None,
     str,
 ]
 
 
-def _sync_employee_items(items: list[Any]) -> None:
+def _sync_employee_items(items: list[Any], _tenant_id: str) -> None:
     """Validate the generic registry boundary, then call the exact employee contract."""
     snapshots: list[PayrollEmployeeSnapshot] = []
     for item in items:
@@ -342,13 +352,22 @@ def _sync_employee_items(items: list[Any]) -> None:
     sync_employees(snapshots)
 
 
+def _persist_pay_slips(items: list[Any], tenant_id: str) -> int:
+    """Persist pay slips, stamping the run's tenant rather than re-reading it."""
+
+    def transform(xero_pay_slip: Any, xero_id: UUID | str, /) -> tuple[XeroPaySlip, str] | None:
+        return transform_pay_slip(xero_pay_slip, xero_id, tenant_id=tenant_id)
+
+    return sync_entities(items, XeroPaySlip, "pay_slip_id", transform)
+
+
 ENTITY_CONFIGS: dict[str, EntityConfig] = {
     "accounts": (
         "accounts",
         "accounts",
         XeroAccount,
         "get_accounts",
-        sync_accounts,
+        lambda items, tenant_id: sync_accounts(items, tenant_id=tenant_id),
         None,
         "single",
     ),
@@ -357,7 +376,7 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "contacts",
         Company,
         "get_contacts",
-        sync_companies,
+        lambda items, _tenant_id: sync_companies(items),
         {"include_archived": True},
         "page",
     ),
@@ -375,7 +394,7 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "invoices",
         Invoice,
         "get_invoices",
-        lambda items: sync_entities(items, Invoice, "invoice_id", transform_invoice),
+        lambda items, _tenant_id: sync_entities(items, Invoice, "invoice_id", transform_invoice),
         {"where": 'Type=="ACCREC"'},
         "page",
     ),
@@ -384,7 +403,7 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "quotes",
         Quote,
         "get_quotes",
-        lambda items: sync_entities(items, Quote, "quote_id", transform_quote),
+        lambda items, _tenant_id: sync_entities(items, Quote, "quote_id", transform_quote),
         None,
         # Fable: "page", not "single" — get_quotes returns at most 100 rows per
         # call, so a single fetch silently dropped every quote past the first
@@ -399,7 +418,7 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "purchase_orders",
         PurchaseOrder,
         "get_purchase_orders",
-        lambda items: sync_entities(
+        lambda items, _tenant_id: sync_entities(
             items, PurchaseOrder, "purchase_order_id", transform_purchase_order
         ),
         None,
@@ -410,7 +429,7 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "bills",
         Bill,
         "get_invoices",
-        lambda items: sync_entities(items, Bill, "invoice_id", transform_bill),
+        lambda items, _tenant_id: sync_entities(items, Bill, "invoice_id", transform_bill),
         {"where": 'Type=="ACCPAY"'},
         "page",
     ),
@@ -419,7 +438,7 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "stock",
         Stock,
         "get_xero_items",
-        lambda items: sync_entities(items, Stock, "item_id", transform_stock),
+        lambda items, _tenant_id: sync_entities(items, Stock, "item_id", transform_stock),
         None,
         "single",
     ),
@@ -428,7 +447,9 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "credit_notes",
         CreditNote,
         "get_credit_notes",
-        lambda items: sync_entities(items, CreditNote, "credit_note_id", transform_credit_note),
+        lambda items, _tenant_id: sync_entities(
+            items, CreditNote, "credit_note_id", transform_credit_note
+        ),
         None,
         "page",
     ),
@@ -439,9 +460,7 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "pay_runs",
         XeroPayRun,
         "get_pay_runs_for_sync",  # Custom API function
-        lambda items: sync_entities(
-            items, XeroPayRun, "pay_run_id", transform_pay_run, delete_orphans=True
-        ),
+        lambda items, tenant_id: sync_pay_runs(items, tenant_id=tenant_id),
         None,
         "single",  # No pagination for pay runs
     ),
@@ -450,7 +469,7 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "pay_slips",
         XeroPaySlip,
         "get_all_pay_slips_for_sync",  # Custom API function
-        lambda items: sync_entities(items, XeroPaySlip, "pay_slip_id", transform_pay_slip),
+        _persist_pay_slips,
         None,
         "single",  # All slips fetched at once
     ),

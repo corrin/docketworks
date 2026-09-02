@@ -336,6 +336,7 @@ render_instance_env() {
         -e "s|__JWT_SIGNING_KEY__|$jwt_signing_key|g" \
         -e "s|__REDIS_DB__|$redis_db|g" \
         -e "s|__DROPBOX_WORKFLOW_FOLDER__|$(sed_escape "$dropbox_workflow_folder")|g" \
+        -e "s|__GCP_CREDENTIALS__|$(sed_escape "$instance_dir/gcp-credentials.json")|g" \
         "$TEMPLATE_DIR/env-instance.template" > "$tmp_env"
 
     chown "$instance_user:$instance_user" "$tmp_env"
