@@ -452,7 +452,7 @@ class CostLine(models.Model):
             fields.add("staff")
         return fields
 
-    def _update_cost_set_summary(self) -> None:
+    def update_cost_set_summary(self) -> None:
         """Update cost set summary with aggregated data - PRESERVE existing data."""
         cost_set_id = self.cost_set_id
         cost_set = CostSet.objects.only("id", "job_id", "summary").get(id=cost_set_id)
@@ -508,10 +508,10 @@ class CostLine(models.Model):
 
         self.full_clean()
         super().save(*args, **kwargs)
-        self._update_cost_set_summary()
+        self.update_cost_set_summary()
 
     def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
         """Delete the line and refresh the CostSet summary."""
         result = super().delete(*args, **kwargs)
-        self._update_cost_set_summary()
+        self.update_cost_set_summary()
         return result

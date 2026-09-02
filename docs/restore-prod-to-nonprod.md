@@ -424,7 +424,7 @@ print(user.email, user.is_office_staff, user.is_superuser, user.wage_rate)
 `is_office_staff` gates the navbar's Create Job link, so the whole job cluster
 stalls without it. Superuser gates the timesheet management surface, so the
 timesheet cluster answers 403 without it. `wage_rate` is computed on save as
-`base_wage_rate` times one plus the annual leave loading — 20% in the demo
+`base_wage_rate` times one plus the labour cost loading — 20% in the demo
 company defaults, so 37.50 computes to exactly **45.00**, which is the value
 `job-cost-entry-data.spec.ts` pins as its environment prerequisite
 (`E2E_USER_WAGE_RATE`). Setting `base_wage_rate = 45.00` was the rejected

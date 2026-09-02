@@ -4,12 +4,12 @@ import { companiesAllListOptions } from '@/api'
 import { INPUT_CLASS } from '@/components/ui/field'
 
 import { fieldAutomationId } from './fieldAutomationId'
-import type { SettingsFieldInputProps } from './SettingsFieldInput'
+import type { SettingsFieldControlProps } from './SettingsFieldInput'
 
 /** Native `<select>` over the small companies list — matches LeaveSettingsPage's
  * raw-select house style rather than a searchable combobox, because the list
  * is short enough that scanning it beats typing into it. */
-export function CompanySelect({ field, value, onChange, section }: SettingsFieldInputProps) {
+export function CompanySelect({ field, value, onChange, section }: SettingsFieldControlProps) {
   const companiesQuery = useQuery(companiesAllListOptions())
   const automationId = fieldAutomationId(section, field.key)
 

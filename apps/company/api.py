@@ -14,7 +14,6 @@ paths below carry their own full prefixes.
 """
 
 import logging
-from dataclasses import asdict
 from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -97,11 +96,6 @@ from apps.company.services.duplicate_phone_report import (
     DuplicatePhoneReportService,
     DuplicatePhonesReport,
 )
-from apps.company.services.geocoding_service import (
-    GeocodingError,
-    GeocodingNotConfiguredError,
-    geocode_address,
-)
 from apps.company.services.person_service import (
     CompanyLinkData,
     CompanyPersonData,
@@ -120,6 +114,11 @@ from apps.company.services.person_service import (
 )
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
 from apps.core.errors import persist_app_error
+from apps.core.geocoding import (
+    GeocodingError,
+    GeocodingNotConfiguredError,
+    search_places,
+)
 from apps.core.pagination import MAX_PAGE_SIZE, paginate
 
 logger = logging.getLogger(__name__)
@@ -479,7 +478,7 @@ def companies_supplier_aliases_destroy(request: HttpRequest, alias_id: UUID) -> 
 def companies_addresses_validate_create(
     request: HttpRequest, payload: AddressValidateRequest
 ) -> dict[str, list[dict[str, object]]]:
-    """Validate a freetext address and return structured candidates.
+    """Offer the addresses Google matches, for a person to pick from.
 
     503 when the Google API is unavailable or the Google Maps API key is not
     configured (v1 behaviour).
@@ -489,17 +488,36 @@ def companies_addresses_validate_create(
         raise HttpError(400, "Address is required")
 
     try:
-        result = geocode_address(address)
+        places = search_places(address)
     except GeocodingNotConfiguredError as exc:
         logger.warning("Google Maps API key not set on IntegrationSettings")
         raise HttpError(503, "Address validation service not configured") from exc
     except GeocodingError as exc:
         persist_app_error(exc)
-        logger.exception("Address validation failed")
+        logger.exception("Address lookup failed")
         raise HttpError(503, str(exc)) from exc
-    if result is not None:
-        return {"candidates": [asdict(result)]}
-    return {"candidates": []}
+
+    # Mapped field by field rather than asdict: PlaceLookup carries the whole
+    # Google reply, which belongs in the database and not on a keystroke-rate
+    # response to a browser.
+    return {
+        "candidates": [
+            {
+                "formatted_address": place.formatted_address,
+                "street": place.street,
+                "suburb": place.suburb,
+                "city": place.city,
+                "region": place.region,
+                "nz_subdivision": place.nz_subdivision,
+                "postal_code": place.postal_code,
+                "country": place.country,
+                "google_place_id": place.place_id,
+                "latitude": place.latitude,
+                "longitude": place.longitude,
+            }
+            for place in places
+        ]
+    }
 
 
 # ── Contact methods (v1 ContactMethodViewSet) ────────────────────────────

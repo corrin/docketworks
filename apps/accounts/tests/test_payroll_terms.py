@@ -125,11 +125,11 @@ class TestWorkingPatternCompleteness:
     ) -> None:
         """The regression, pinned as a number.
 
-        Opus: $104,000 / 52 / 40h is $50.00, and 20% leave loading makes $60.00. With
+        Opus: $104,000 / 52 / 40h is $50.00, and 20% labour cost loading makes $60.00. With
         Friday's 8h defaulted to zero the divisor became 32h, giving $62.50 and
         a charged rate of $75.00 — a quarter over, on every hour booked.
         """
-        CompanyDefaults.objects.update(annual_leave_loading=Decimal("20.00"))
+        CompanyDefaults.objects.update(labour_cost_loading=Decimal("20.00"))
         complete = _term(salaried, [FULL_WEEK])
 
         assert salary_cost_rate(complete) == Decimal("60.00")

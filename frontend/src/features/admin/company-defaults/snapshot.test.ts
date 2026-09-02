@@ -29,7 +29,13 @@ const defaults: CompanyDefaultsOut = {
   accounting_provider: 'Xero',
   address_line1: null,
   address_line2: null,
-  annual_leave_loading: '0.00',
+  address_raw_json: null,
+  formatted_address: null,
+  google_place_id: null,
+  latitude: null,
+  longitude: null,
+  region: null,
+  labour_cost_loading: '0.00',
   city: null,
   company_acronym: null,
   company_email: null,
@@ -186,6 +192,20 @@ describe('dirtyKeys / buildPatch', () => {
       company_acronym: 'DW',
       // Opus: the wire reads shop_company but writes shop_company_id
       shop_company_id: 'uuid-2',
+    })
+  })
+  it('sends google_place_id, which the page carries but never draws', () => {
+    // The address picker is the only thing that sets it, and
+    // CompanyDefaultsPage keeps it out of the drawn grid (UNDRAWN_KEYS). It has
+    // to survive buildPatch anyway: it is what the server re-reads the geocode
+    // from, so dropping it from the section would silently stop the address
+    // ever being geocoded.
+    const withPlaceId = [...fields, field('google_place_id')]
+    const base = snapshotSection(defaults, withPlaceId)
+    const drafts = { ...base, google_place_id: 'ChIJCTlhFsxIDW0RYNfpF_7ReVA' }
+
+    expect(buildPatch(withPlaceId, drafts, base)).toEqual({
+      google_place_id: 'ChIJCTlhFsxIDW0RYNfpF_7ReVA',
     })
   })
   it('sends null, never empty string, for a cleared optional field', () => {

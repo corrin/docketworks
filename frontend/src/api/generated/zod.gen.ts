@@ -32,7 +32,13 @@ export const zAcknowledgementOut = z.object({
 /**
  * AddressCandidate
  *
- * One structured candidate from the Google Address Validation API.
+ * One address Google offers for a freetext search, for a person to pick from.
+ *
+ * ``region`` rather than v1's ``state``: this carries Google's
+ * ``administrative_area_level_1``, which in New Zealand is the region
+ * ("Canterbury Region", or plainly "Auckland"). The old name described a
+ * column that was empty in 513 of 522 rows, because the product it was read
+ * from never returned the component at all.
  */
 export const zAddressCandidate = z.object({
     city: z.string(),
@@ -41,8 +47,9 @@ export const zAddressCandidate = z.object({
     google_place_id: z.string(),
     latitude: z.number().nullable(),
     longitude: z.number().nullable(),
+    nz_subdivision: z.string().nullable(),
     postal_code: z.string(),
-    state: z.string(),
+    region: z.string(),
     street: z.string(),
     suburb: z.string()
 });
@@ -229,7 +236,7 @@ export const zCompanyDefaultsOut = z.object({
     accounting_provider: z.string().max(20),
     address_line1: z.string().max(255).nullable(),
     address_line2: z.string().max(255).nullable(),
-    annual_leave_loading: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    address_raw_json: z.record(z.string(), z.unknown()).nullable(),
     city: z.string().max(100).nullable(),
     company_acronym: z.string().max(10).nullable(),
     company_email: z.string().max(254).nullable(),
@@ -240,6 +247,7 @@ export const zCompanyDefaultsOut = z.object({
     daily_approved_hours_target: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     enable_xero_sync: z.boolean(),
     financial_year_start_month: z.int(),
+    formatted_address: z.string().max(500).nullable(),
     fri_end: z.iso.time(),
     fri_start: z.iso.time(),
     gdrive_how_we_work_folder_id: z.string().max(100).nullable(),
@@ -247,6 +255,7 @@ export const zCompanyDefaultsOut = z.object({
     gdrive_quotes_folder_url: z.string().nullable(),
     gdrive_reference_library_folder_id: z.string().max(100).nullable(),
     gdrive_sops_folder_id: z.string().max(100).nullable(),
+    google_place_id: z.string().max(255).nullable(),
     google_shared_drive_id: z.string().max(100).nullable(),
     gst_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     id: z.int().nullable(),
@@ -258,10 +267,13 @@ export const zCompanyDefaultsOut = z.object({
     kpi_daily_gp_target: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     kpi_daily_shop_hours_percentage: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     kpi_job_gp_target_percentage: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    labour_cost_loading: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     last_xero_deep_sync: z.iso.datetime().nullable(),
     last_xero_sync: z.iso.datetime().nullable(),
+    latitude: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
     logo_url: z.string().nullable(),
     logo_wide_url: z.string().nullable(),
+    longitude: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
     master_quote_template_id: z.string().max(100).nullable(),
     master_quote_template_url: z.string().nullable(),
     materials_markup: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
@@ -269,6 +281,7 @@ export const zCompanyDefaultsOut = z.object({
     mon_start: z.iso.time(),
     po_prefix: z.string().max(10),
     post_code: z.string().max(20).nullable(),
+    region: z.string().max(100).nullable(),
     shop_company: z.uuid(),
     starting_job_number: z.int(),
     starting_po_number: z.int(),
@@ -304,10 +317,7 @@ export const zCompanyDefaultsPatchIn = z.object({
     accounting_provider: z.string().max(20).nullish(),
     address_line1: z.string().max(255).nullish(),
     address_line2: z.string().max(255).nullish(),
-    annual_leave_loading: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish(),
+    address_raw_json: z.record(z.string(), z.unknown()).nullish(),
     city: z.string().max(100).nullish(),
     company_acronym: z.string().max(10).nullish(),
     company_email: z.string().max(254).nullish(),
@@ -320,6 +330,7 @@ export const zCompanyDefaultsPatchIn = z.object({
     ]).nullish(),
     enable_xero_sync: z.boolean().nullish(),
     financial_year_start_month: z.int().nullish(),
+    formatted_address: z.string().max(500).nullish(),
     fri_end: z.iso.time().nullish(),
     fri_start: z.iso.time().nullish(),
     gdrive_how_we_work_folder_id: z.string().max(100).nullish(),
@@ -327,6 +338,7 @@ export const zCompanyDefaultsPatchIn = z.object({
     gdrive_quotes_folder_url: z.string().nullish(),
     gdrive_reference_library_folder_id: z.string().max(100).nullish(),
     gdrive_sops_folder_id: z.string().max(100).nullish(),
+    google_place_id: z.string().max(255).nullish(),
     google_shared_drive_id: z.string().max(100).nullish(),
     gst_rate: z.union([
         z.number(),
@@ -361,8 +373,20 @@ export const zCompanyDefaultsPatchIn = z.object({
         z.number(),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
     ]).nullish(),
+    labour_cost_loading: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
     last_xero_deep_sync: z.iso.datetime().nullish(),
     last_xero_sync: z.iso.datetime().nullish(),
+    latitude: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    longitude: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
     master_quote_template_id: z.string().max(100).nullish(),
     master_quote_template_url: z.string().nullish(),
     materials_markup: z.union([
@@ -373,6 +397,7 @@ export const zCompanyDefaultsPatchIn = z.object({
     mon_start: z.iso.time().nullish(),
     po_prefix: z.string().max(10).nullish(),
     post_code: z.string().max(20).nullish(),
+    region: z.string().max(100).nullish(),
     shop_company_id: z.uuid().nullish(),
     starting_job_number: z.int().nullish(),
     starting_po_number: z.int().nullish(),
@@ -2020,26 +2045,40 @@ export const zKpiJobBreakdownOut = z.object({
  * Wire contract for KPIMonthlyTotalsOut.
  */
 export const zKpiMonthlyTotalsOut = z.object({
-    active_workdays: z.int(),
+    active_days: z.int(),
     adjustment_cost: z.number(),
     adjustment_profit: z.number(),
     adjustment_revenue: z.number(),
-    avg_billable_hours_so_far: z.number(),
-    avg_daily_gp: z.number(),
-    avg_daily_gp_so_far: z.number(),
+    avg_active_day_billable_hours: z.number(),
+    avg_active_day_gp: z.number(),
+    avg_weekday_gp: z.number(),
     billable_hours: z.number(),
     billable_percentage: z.number(),
-    color_gp: z.string(),
-    color_hours: z.string(),
-    color_shop: z.string(),
+    color_gp: z.enum([
+        'green',
+        'amber',
+        'red'
+    ]),
+    color_hours: z.enum([
+        'green',
+        'amber',
+        'red'
+    ]),
+    color_shop: z.enum([
+        'green',
+        'amber',
+        'red'
+    ]),
     days_amber: z.int(),
     days_green: z.int(),
     days_red: z.int(),
     elapsed_target: z.number(),
+    elapsed_weekdays: z.int(),
     elapsed_workdays: z.int(),
     gross_profit: z.number(),
     labour_amber_days: z.int(),
     labour_green_days: z.int(),
+    labour_profit: z.number(),
     labour_red_days: z.int(),
     material_cost: z.number(),
     material_profit: z.number(),
@@ -2048,6 +2087,7 @@ export const zKpiMonthlyTotalsOut = z.object({
     profit_amber_days: z.int(),
     profit_green_days: z.int(),
     profit_red_days: z.int(),
+    remaining_weekdays: z.int(),
     remaining_workdays: z.int(),
     shop_hours: z.number(),
     shop_percentage: z.number(),
@@ -2056,6 +2096,7 @@ export const zKpiMonthlyTotalsOut = z.object({
     total_cost: z.number(),
     total_hours: z.number(),
     total_revenue: z.number(),
+    weekdays: z.int(),
     working_days: z.int()
 });
 
@@ -2066,7 +2107,7 @@ export const zKpiMonthlyTotalsOut = z.object({
  */
 export const zKpiProfitBreakdownOut = z.object({
     adjustment_profit: z.number(),
-    labor_profit: z.number(),
+    labour_profit: z.number(),
     material_profit: z.number()
 });
 
@@ -2095,11 +2136,22 @@ export const zKpiDetailsOut = z.object({
  */
 export const zKpiDayDataOut = z.object({
     billable_hours: z.number(),
-    color: z.string(),
+    color_gp: z.enum([
+        'green',
+        'amber',
+        'red',
+        'weekend'
+    ]),
+    color_hours: z.enum([
+        'green',
+        'amber',
+        'red',
+        'weekend'
+    ]),
     date: z.iso.date(),
     day: z.int(),
     details: zKpiDetailsOut,
-    gp_target_achievement: z.number(),
+    gp_target_achievement: z.number().nullable(),
     gross_profit: z.number(),
     holiday: z.boolean(),
     holiday_name: z.string().nullable(),
@@ -2132,6 +2184,7 @@ export const zKpiCalendarResponse = z.object({
     month: z.int(),
     monthly_totals: zKpiMonthlyTotalsOut,
     thresholds: zKpiThresholdsOut,
+    weekend_enabled: z.boolean(),
     year: z.int()
 });
 

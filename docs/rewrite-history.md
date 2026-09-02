@@ -152,6 +152,31 @@ change. Unifying any of them is a user decision that has not been asked for.
 
 ## Measurements
 
+**Google returns no NZ region from Address Validation, 2026-09-02.** Measured
+against six real addresses across four regions: `v1:validateAddress` returns no
+`administrative_area_level_1` component for any New Zealand address, so the
+`administrative_area_level_1 -> state` entry in `geocoding_service`'s
+`_COMPONENT_FIELDS` has never fired here. That is why 513 of 522
+`SupplierPickupAddress` rows have a NULL `state`, and why the few non-NULL ones
+are v1 data-entry residue (`'Address changed 16/01/2012'`, `'1151'`,
+`'Madeupville'`). The shop's own address therefore goes through **Places (New)**,
+which does return it, and which takes the key in a header — the classic
+Geocoding API also carries the region but is GET-only with the key in the query
+string, which the credential-in-URL fable on `geocode_address` rules out.
+
+Two shapes worth keeping: Google names most regions `"<Name> Region"` but
+Auckland plainly `"Auckland"`, so the mapping strips an optional suffix before
+looking the name up in the `holidays` package's own alias table rather than
+maintaining a second copy. And **South Canterbury cannot be derived** — Google
+answers `"Canterbury Region"` for Timaru exactly as for Christchurch, while
+`holidays` carries South Canterbury as its own subdivision with its own
+anniversary day, so such a business needs its subdivision set by hand.
+
+The lesson generalised: the repo's hand-written Address Validation mock had no
+`administrative_area_level_1` in it, and was right by accident. A mock authored
+from documentation asserts what we hoped an API does. Capture a real response
+first.
+
 **Data scan, 2026-08-04.** Of 63 rows flagged as invalid, 32 were the model's
 own contract being stricter than its column, and one "junk" blank purchase-order
 line held $119.50 of received stock. Two rules came out of it, and they are the
@@ -457,3 +482,16 @@ total, so offsetting adjustments still archive; a priced quote
 answers 409 and the UI offers archive-and-replace through the existing quote
 revision machinery; and a quote already matching the estimate answers as a
 no-op so a double press cannot stack identical archives.
+
+**A partial singleton save cannot trigger consequences for an excluded field,
+2026-09-01 (KAN-350).** Production proved the hourly Xero completion stamp held
+a stale `CompanyDefaults` instance: `update_fields` protected the current
+`labour_cost_loading` column while the model override still recomputed every
+Staff wage rate from its old in-memory value. The override now treats
+`update_fields` as write intent before comparing or propagating the loading.
+The adjacent employee mirror also stops rewriting unchanged Staff and payroll
+terms every hour: Xero supplies `Employee.updatedDateUTC`, but the separately
+fetched salary and working-pattern resources have no modification timestamp,
+so Staff materialises a canonical checksum of the complete enriched Xero
+projection. A no-op requires both that stored digest and the current local
+projection to match, so a stale digest cannot hide local drift.

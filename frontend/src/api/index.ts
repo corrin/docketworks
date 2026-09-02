@@ -287,6 +287,7 @@ export type {
 
 // Accounting reports
 export {
+  accountingReportsCalendarRetrieveOptions,
   accountingReportsJobMovementRetrieveOptions,
   accountingReportsPayrollWeekReconciliationRetrieveOptions,
   accountingReportsWipRetrieveOptions,
@@ -296,6 +297,13 @@ export {
 export type {
   ForecastComparisonRowOut,
   ForecastMonthOut,
+  KpiCalendarResponse,
+  KpiDayDataOut,
+  KpiDetailsOut,
+  KpiJobBreakdownOut,
+  KpiMonthlyTotalsOut,
+  KpiProfitBreakdownOut,
+  KpiThresholdsOut,
   PayrollStaffWeekRowOut,
   PayrollWeekReconciliationResponse,
   SalesForecastListResponse,

@@ -167,7 +167,8 @@ export function PickupAddressModal({
       street: candidate.street,
       suburb: candidate.suburb,
       city: candidate.city,
-      state: candidate.state,
+      // The column is still called state; what Google returns is the region.
+      state: candidate.region,
       postal_code: candidate.postal_code,
       google_place_id: candidate.google_place_id,
       latitude: candidate.latitude,

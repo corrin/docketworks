@@ -139,6 +139,6 @@ def salary_cost_rate(term: StaffPayrollTerm, *, loaded: bool = True) -> Decimal:
         )
     rate = term.annual_salary / Decimal("52") / average_weekly_hours(term)
     if loaded:
-        loading = CompanyDefaults.get_solo().annual_leave_loading
+        loading = CompanyDefaults.get_solo().labour_cost_loading
         rate *= Decimal("1") + loading / Decimal("100")
     return rate.quantize(CENT)

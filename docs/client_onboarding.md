@@ -27,7 +27,7 @@ Get all of this before you start building anything.
 - [ ] Base wage rate (e.g. $32/hr)
 - [ ] Time markup percentage (e.g. 30%)
 - [ ] Materials markup percentage (e.g. 20%)
-- [ ] Annual leave loading percentage (e.g. 8%)
+- [ ] Labour cost loading percentage (measure paid non-worked time; 20% is the starting point)
 
 ### Staff List
 
@@ -310,7 +310,7 @@ Verify `CompanyDefaults` carries what Phase 1 collected (most of it arrives from
 `company-defaults.json` at create time):
 
 - Company name, acronym, address, email, website
-- Charge-out rate, wage rate, markups, leave loading
+- Charge-out rate, wage rate, markups, labour cost loading
 - Working hours
 - Shop company (must be the Xero contact created in Phase 2a — `shop_company` is NOT NULL)
 - Financial year start month

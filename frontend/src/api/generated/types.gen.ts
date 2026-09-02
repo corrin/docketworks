@@ -51,7 +51,13 @@ export type AcknowledgementOut = {
 /**
  * AddressCandidate
  *
- * One structured candidate from the Google Address Validation API.
+ * One address Google offers for a freetext search, for a person to pick from.
+ *
+ * ``region`` rather than v1's ``state``: this carries Google's
+ * ``administrative_area_level_1``, which in New Zealand is the region
+ * ("Canterbury Region", or plainly "Auckland"). The old name described a
+ * column that was empty in 513 of 522 rows, because the product it was read
+ * from never returned the component at all.
  */
 export type AddressCandidate = {
     /**
@@ -79,13 +85,17 @@ export type AddressCandidate = {
      */
     longitude: number | null;
     /**
+     * Nz Subdivision
+     */
+    nz_subdivision: string | null;
+    /**
      * Postal Code
      */
     postal_code: string;
     /**
-     * State
+     * Region
      */
-    state: string;
+    region: string;
     /**
      * Street
      */
@@ -510,11 +520,13 @@ export type CompanyDefaultsOut = {
      */
     address_line2: string | null;
     /**
-     * Annual Leave Loading
+     * Address Raw Json
      *
-     * Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)
+     * Raw JSON data from Google Places for the address above
      */
-    annual_leave_loading: string;
+    address_raw_json: {
+        [key: string]: unknown;
+    } | null;
     /**
      * City
      *
@@ -572,6 +584,12 @@ export type CompanyDefaultsOut = {
      */
     financial_year_start_month: number;
     /**
+     * Address as Google has it
+     *
+     * The address Google matched, filled in when someone picks a candidate on this screen. Read-only: it records what was confirmed, not what was typed.
+     */
+    formatted_address: string | null;
+    /**
      * Fri End
      */
     fri_end: string;
@@ -609,6 +627,10 @@ export type CompanyDefaultsOut = {
      * Folder ID for '02 - SOPs' (standard operating procedures)
      */
     gdrive_sops_folder_id: string | null;
+    /**
+     * Google Place Id
+     */
+    google_place_id: string | null;
     /**
      * Google Shared Drive Id
      *
@@ -674,6 +696,12 @@ export type CompanyDefaultsOut = {
      */
     kpi_job_gp_target_percentage: string;
     /**
+     * Labour Cost Loading
+     *
+     * Percentage added to each base wage to recover paid non-worked time in the labour cost assigned to worked hours. Include annual leave, public holidays, sick leave, bereavement leave, and employer-paid ACC time; measure the percentage for this business (20.00 turns $40.00 into $48.00).
+     */
+    labour_cost_loading: string;
+    /**
      * Last Xero Deep Sync
      *
      * The last time a deep Xero sync was performed (looking back 90 days)
@@ -686,6 +714,10 @@ export type CompanyDefaultsOut = {
      */
     last_xero_sync: string | null;
     /**
+     * Latitude
+     */
+    latitude: string | null;
+    /**
      * Logo Url
      */
     logo_url: string | null;
@@ -693,6 +725,10 @@ export type CompanyDefaultsOut = {
      * Logo Wide Url
      */
     logo_wide_url: string | null;
+    /**
+     * Longitude
+     */
+    longitude: string | null;
     /**
      * Master Quote Template Id
      *
@@ -729,6 +765,12 @@ export type CompanyDefaultsOut = {
      * Postal/ZIP code
      */
     post_code: string | null;
+    /**
+     * Region
+     *
+     * The region Google reports for the address above — 'Canterbury Region', or plainly 'Auckland'. Read-only, and the basis for which public holidays this business observes.
+     */
+    region: string | null;
     /**
      * Shop Company
      *
@@ -882,11 +924,13 @@ export type CompanyDefaultsPatchIn = {
      */
     address_line2?: string | null;
     /**
-     * Annual Leave Loading
+     * Address Raw Json
      *
-     * Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)
+     * Raw JSON data from Google Places for the address above
      */
-    annual_leave_loading?: number | string | null;
+    address_raw_json?: {
+        [key: string]: unknown;
+    } | null;
     /**
      * City
      *
@@ -940,6 +984,12 @@ export type CompanyDefaultsPatchIn = {
      */
     financial_year_start_month?: number | null;
     /**
+     * Address as Google has it
+     *
+     * The address Google matched, filled in when someone picks a candidate on this screen. Read-only: it records what was confirmed, not what was typed.
+     */
+    formatted_address?: string | null;
+    /**
      * Fri End
      */
     fri_end?: string | null;
@@ -977,6 +1027,10 @@ export type CompanyDefaultsPatchIn = {
      * Folder ID for '02 - SOPs' (standard operating procedures)
      */
     gdrive_sops_folder_id?: string | null;
+    /**
+     * Google Place Id
+     */
+    google_place_id?: string | null;
     /**
      * Google Shared Drive Id
      *
@@ -1038,6 +1092,12 @@ export type CompanyDefaultsPatchIn = {
      */
     kpi_job_gp_target_percentage?: number | string | null;
     /**
+     * Labour Cost Loading
+     *
+     * Percentage added to each base wage to recover paid non-worked time in the labour cost assigned to worked hours. Include annual leave, public holidays, sick leave, bereavement leave, and employer-paid ACC time; measure the percentage for this business (20.00 turns $40.00 into $48.00).
+     */
+    labour_cost_loading?: number | string | null;
+    /**
      * Last Xero Deep Sync
      *
      * The last time a deep Xero sync was performed (looking back 90 days)
@@ -1049,6 +1109,14 @@ export type CompanyDefaultsPatchIn = {
      * The last time Xero data was synchronized
      */
     last_xero_sync?: string | null;
+    /**
+     * Latitude
+     */
+    latitude?: number | string | null;
+    /**
+     * Longitude
+     */
+    longitude?: number | string | null;
     /**
      * Master Quote Template Id
      *
@@ -1085,6 +1153,12 @@ export type CompanyDefaultsPatchIn = {
      * Postal/ZIP code
      */
     post_code?: string | null;
+    /**
+     * Region
+     *
+     * The region Google reports for the address above — 'Canterbury Region', or plainly 'Auckland'. Read-only, and the basis for which public holidays this business observes.
+     */
+    region?: string | null;
     /**
      * Shop Company
      *
@@ -4884,6 +4958,10 @@ export type KpiCalendarResponse = {
     monthly_totals: KpiMonthlyTotalsOut;
     thresholds: KpiThresholdsOut;
     /**
+     * Weekend Enabled
+     */
+    weekend_enabled: boolean;
+    /**
      * Year
      */
     year: number;
@@ -4900,9 +4978,13 @@ export type KpiDayDataOut = {
      */
     billable_hours: number;
     /**
-     * Color
+     * Color Gp
      */
-    color: string;
+    color_gp: 'green' | 'amber' | 'red' | 'weekend';
+    /**
+     * Color Hours
+     */
+    color_hours: 'green' | 'amber' | 'red' | 'weekend';
     /**
      * Date
      */
@@ -4915,7 +4997,7 @@ export type KpiDayDataOut = {
     /**
      * Gp Target Achievement
      */
-    gp_target_achievement: number;
+    gp_target_achievement: number | null;
     /**
      * Gross Profit
      */
@@ -5046,9 +5128,9 @@ export type KpiJobBreakdownOut = {
  */
 export type KpiMonthlyTotalsOut = {
     /**
-     * Active Workdays
+     * Active Days
      */
-    active_workdays: number;
+    active_days: number;
     /**
      * Adjustment Cost
      */
@@ -5062,17 +5144,17 @@ export type KpiMonthlyTotalsOut = {
      */
     adjustment_revenue: number;
     /**
-     * Avg Billable Hours So Far
+     * Avg Active Day Billable Hours
      */
-    avg_billable_hours_so_far: number;
+    avg_active_day_billable_hours: number;
     /**
-     * Avg Daily Gp
+     * Avg Active Day Gp
      */
-    avg_daily_gp: number;
+    avg_active_day_gp: number;
     /**
-     * Avg Daily Gp So Far
+     * Avg Weekday Gp
      */
-    avg_daily_gp_so_far: number;
+    avg_weekday_gp: number;
     /**
      * Billable Hours
      */
@@ -5084,15 +5166,15 @@ export type KpiMonthlyTotalsOut = {
     /**
      * Color Gp
      */
-    color_gp: string;
+    color_gp: 'green' | 'amber' | 'red';
     /**
      * Color Hours
      */
-    color_hours: string;
+    color_hours: 'green' | 'amber' | 'red';
     /**
      * Color Shop
      */
-    color_shop: string;
+    color_shop: 'green' | 'amber' | 'red';
     /**
      * Days Amber
      */
@@ -5110,6 +5192,10 @@ export type KpiMonthlyTotalsOut = {
      */
     elapsed_target: number;
     /**
+     * Elapsed Weekdays
+     */
+    elapsed_weekdays: number;
+    /**
      * Elapsed Workdays
      */
     elapsed_workdays: number;
@@ -5125,6 +5211,10 @@ export type KpiMonthlyTotalsOut = {
      * Labour Green Days
      */
     labour_green_days: number;
+    /**
+     * Labour Profit
+     */
+    labour_profit: number;
     /**
      * Labour Red Days
      */
@@ -5158,6 +5248,10 @@ export type KpiMonthlyTotalsOut = {
      */
     profit_red_days: number;
     /**
+     * Remaining Weekdays
+     */
+    remaining_weekdays: number;
+    /**
      * Remaining Workdays
      */
     remaining_workdays: number;
@@ -5190,6 +5284,10 @@ export type KpiMonthlyTotalsOut = {
      */
     total_revenue: number;
     /**
+     * Weekdays
+     */
+    weekdays: number;
+    /**
      * Working Days
      */
     working_days: number;
@@ -5206,9 +5304,9 @@ export type KpiProfitBreakdownOut = {
      */
     adjustment_profit: number;
     /**
-     * Labor Profit
+     * Labour Profit
      */
-    labor_profit: number;
+    labour_profit: number;
     /**
      * Material Profit
      */

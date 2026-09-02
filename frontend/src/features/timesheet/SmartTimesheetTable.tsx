@@ -15,7 +15,7 @@ import type {
   TimesheetJobOut,
   XeroPayItemOut,
 } from '@/api'
-import { formatCurrency } from '@/lib/format'
+import { formatCurrency, formatHoursDisplay } from '@/lib/format'
 import { DataTable } from '@/features/shared/DataTable'
 import { JobPicker } from '@/features/shared/JobPicker'
 import { orNull } from '@/features/shared/nullableText'
@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { formatHoursDisplay, parseHoursInput } from './hours'
+import { parseHoursInput } from './hours'
 import { rateForSubtype, subtypeName } from './labourRates'
 import { lineBillMultiplier, lineIsBillable, lineMeta, lineWageMultiplier } from './lineMeta'
 import { useTimesheetJobSearch } from './useTimesheetJobSearch'

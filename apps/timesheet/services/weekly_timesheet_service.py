@@ -211,7 +211,7 @@ def _process_daily_lines(  # noqa: PLR0913 -- Opus: one argument per input the d
     daily_hours = categories.total
     leave_type = _leave_type(cost_lines, catalogue)
 
-    # v1 rounds the base cost to cents FIRST and applies the leave loading to the
+    # v1 rounds the base cost to cents FIRST and applies the labour cost loading to the
     # rounded figure, so an operator can reconcile daily_base_cost * loading
     # against daily_cost. Loading the unrounded sum drifts by a cent.
     daily_base_cost = _total(line.total_cost for line in cost_lines).quantize(CENTS)
@@ -403,7 +403,7 @@ def get_weekly_overview(start_date: date) -> WeeklyTimesheetData:
     """
     company_defaults = CompanyDefaults.get_solo()
     weekend_enabled = company_defaults.weekend_timesheets_enabled
-    loading_multiplier = Decimal("1") + company_defaults.annual_leave_loading / Decimal("100")
+    loading_multiplier = Decimal("1") + company_defaults.labour_cost_loading / Decimal("100")
 
     # Opus: Built over the PAYROLL week regardless of the flag, so nothing that will
     # be posted can be missing from what is reviewed.

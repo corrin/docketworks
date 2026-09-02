@@ -4,7 +4,7 @@ import { isApiErrorStatus, xeroBrandingThemesListOptions } from '@/api'
 import { INPUT_CLASS } from '@/components/ui/field'
 
 import { fieldAutomationId } from './fieldAutomationId'
-import type { SettingsFieldInputProps } from './SettingsFieldInput'
+import type { SettingsFieldControlProps } from './SettingsFieldInput'
 
 const NOT_CONNECTED_MESSAGE = 'Xero is not connected.'
 const LOAD_FAILED_MESSAGE = 'Could not load branding themes from Xero.'
@@ -19,7 +19,12 @@ const DISABLED_SELECT_CLASS = `${INPUT_CLASS} bg-slate-100 text-slate-500`
  * theme id is set, selecting a theme completes Xero setup, so an empty
  * selection is ignored rather than clearing the field.
  */
-export function BrandingThemeSelect({ field, value, onChange, section }: SettingsFieldInputProps) {
+export function BrandingThemeSelect({
+  field,
+  value,
+  onChange,
+  section,
+}: SettingsFieldControlProps) {
   const automationId = fieldAutomationId(section, field.key)
   // Opus: The endpoint's 401 means "Xero is not connected", a state to render, not
   // recover from by retrying — retry:false keeps that render immediate.

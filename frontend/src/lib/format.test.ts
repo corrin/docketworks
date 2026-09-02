@@ -4,8 +4,14 @@ import {
   formatClock,
   formatCurrency,
   formatDateTime,
+  formatDate,
   formatEventType,
+  formatHoursDisplay,
+  formatMonth,
   formatPercentage,
+  formatWholeCurrency,
+  localIsoDate,
+  localIsoMonth,
 } from './format'
 
 describe('formatCurrency', () => {
@@ -54,5 +60,75 @@ describe('formatClock', () => {
     expect(formatClock(7)).toBe('0:07')
     expect(formatClock(615.744)).toBe('10:15')
     expect(formatClock(4320)).toBe('72:00')
+  })
+})
+
+describe('formatWholeCurrency', () => {
+  it('drops the cents a precision-toggled report does not want', () => {
+    expect(formatWholeCurrency(1234)).toBe('$1,234')
+    expect(formatWholeCurrency(-1234.56)).toBe('-$1,235')
+  })
+
+  it('stays distinguishable from formatCurrency on the same value', () => {
+    // The two must never be interchangeable by accident: a report picks one
+    // and uses it everywhere, which is only enforceable if they differ.
+    expect(formatWholeCurrency(1234)).not.toBe(formatCurrency(1234))
+  })
+})
+
+describe('formatMonth', () => {
+  it('renders a YYYY-MM month short-form, matching formatDate', () => {
+    // en-NZ abbreviates September as 'Sept', which is exactly what
+    // formatDate emits ('02 Sept 2026') — the point is that they agree.
+    expect(formatMonth('2026-09')).toBe('Sept 2026')
+    expect(formatMonth('2026-01')).toBe('Jan 2026')
+    expect(formatMonth('2026-09')).toBe(formatDate('2026-09-02').slice(3))
+  })
+
+  it('does not slip to the previous month behind UTC', () => {
+    // Parsing '2026-09-01' yields UTC midnight; formatting it in a local
+    // timezone behind UTC would render August.
+    expect(formatMonth('2026-09')).toBe('Sept 2026')
+    expect(formatMonth('2026-12')).toBe('Dec 2026')
+  })
+})
+
+describe('localIsoMonth', () => {
+  it('is localIsoDate truncated, so both share one timezone rule', () => {
+    expect(localIsoMonth()).toBe(localIsoDate().slice(0, 7))
+    expect(localIsoMonth()).toMatch(/^\d{4}-\d{2}$/)
+  })
+})
+
+describe('formatHoursDisplay', () => {
+  it('formats whole hours as Nh', () => {
+    expect(formatHoursDisplay(2)).toBe('2h')
+    expect(formatHoursDisplay(8)).toBe('8h')
+  })
+
+  it('formats mixed hours as Nh Mm', () => {
+    expect(formatHoursDisplay(3.5)).toBe('3h 30m')
+    expect(formatHoursDisplay(1.25)).toBe('1h 15m')
+  })
+
+  it('formats sub-hour values as Mm', () => {
+    expect(formatHoursDisplay(0.25)).toBe('15m')
+  })
+
+  it('formats zero and non-finite as 0h', () => {
+    expect(formatHoursDisplay(0)).toBe('0h')
+    expect(formatHoursDisplay(Number.NaN)).toBe('0h')
+    expect(formatHoursDisplay(null)).toBe('0h')
+    expect(formatHoursDisplay(undefined)).toBe('0h')
+  })
+})
+
+describe('month helpers refuse what they cannot format', () => {
+  it('formatMonth names the bad argument instead of throwing from Intl', () => {
+    // Intl's own failure is "Invalid time value", which says nothing about
+    // which argument was wrong or where it came from.
+    expect(() => formatMonth('2026-13')).toThrow(/Not a YYYY-MM month/)
+    expect(() => formatMonth('2026-09-01')).toThrow(/Not a YYYY-MM month/)
+    expect(() => formatMonth('')).toThrow(/Not a YYYY-MM month/)
   })
 })

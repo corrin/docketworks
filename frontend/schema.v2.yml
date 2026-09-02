@@ -40,7 +40,18 @@ components:
       title: AcknowledgementOut
       type: object
     AddressCandidate:
-      description: One structured candidate from the Google Address Validation API.
+      description: 'One address Google offers for a freetext search, for a person to pick from.
+
+
+        ``region`` rather than v1''s ``state``: this carries Google''s
+
+        ``administrative_area_level_1``, which in New Zealand is the region
+
+        ("Canterbury Region", or plainly "Auckland"). The old name described a
+
+        column that was empty in 513 of 522 rows, because the product it was read
+
+        from never returned the component at all.'
       properties:
         city:
           title: City
@@ -64,11 +75,16 @@ components:
           - type: number
           - type: 'null'
           title: Longitude
+        nz_subdivision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Nz Subdivision
         postal_code:
           title: Postal Code
           type: string
-        state:
-          title: State
+        region:
+          title: Region
           type: string
         street:
           title: Street
@@ -81,7 +97,8 @@ components:
       - street
       - suburb
       - city
-      - state
+      - region
+      - nz_subdivision
       - postal_code
       - country
       - google_place_id
@@ -540,11 +557,12 @@ components:
           - type: 'null'
           description: Street address line 2 (optional)
           title: Address Line2
-        annual_leave_loading:
-          description: Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-          title: Annual Leave Loading
-          type: string
+        address_raw_json:
+          anyOf:
+          - type: object
+          - type: 'null'
+          description: Raw JSON data from Google Places for the address above
+          title: Address Raw Json
         city:
           anyOf:
           - maxLength: 100
@@ -600,6 +618,14 @@ components:
           description: Month the financial year starts (1=January, 4=April, 7=July, etc.)
           title: Financial Year Start Month
           type: integer
+        formatted_address:
+          anyOf:
+          - maxLength: 500
+            type: string
+          - type: 'null'
+          description: 'The address Google matched, filled in when someone picks a candidate on this screen.
+            Read-only: it records what was confirmed, not what was typed.'
+          title: Address as Google has it
         fri_end:
           format: time
           title: Fri End
@@ -642,6 +668,12 @@ components:
           - type: 'null'
           description: Folder ID for '02 - SOPs' (standard operating procedures)
           title: Gdrive Sops Folder Id
+        google_place_id:
+          anyOf:
+          - maxLength: 255
+            type: string
+          - type: 'null'
+          title: Google Place Id
         google_shared_drive_id:
           anyOf:
           - maxLength: 100
@@ -701,6 +733,14 @@ components:
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Target GP % per job
           type: string
+        labour_cost_loading:
+          description: Percentage added to each base wage to recover paid non-worked time in the labour
+            cost assigned to worked hours. Include annual leave, public holidays, sick leave, bereavement
+            leave, and employer-paid ACC time; measure the percentage for this business (20.00 turns $40.00
+            into $48.00).
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Labour Cost Loading
+          type: string
         last_xero_deep_sync:
           anyOf:
           - format: date-time
@@ -715,6 +755,12 @@ components:
           - type: 'null'
           description: The last time Xero data was synchronized
           title: Last Xero Sync
+        latitude:
+          anyOf:
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Latitude
         logo_url:
           anyOf:
           - type: string
@@ -725,6 +771,12 @@ components:
           - type: string
           - type: 'null'
           title: Logo Wide Url
+        longitude:
+          anyOf:
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Longitude
         master_quote_template_id:
           anyOf:
           - maxLength: 100
@@ -762,6 +814,14 @@ components:
           - type: 'null'
           description: Postal/ZIP code
           title: Post Code
+        region:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: "The region Google reports for the address above \u2014 'Canterbury Region', or\
+            \ plainly 'Auckland'. Read-only, and the basis for which public holidays this business observes."
+          title: Region
         shop_company:
           description: Internal company used for tracking shop work.
           format: uuid
@@ -895,7 +955,7 @@ components:
       - accounting_provider
       - address_line1
       - address_line2
-      - annual_leave_loading
+      - address_raw_json
       - city
       - company_acronym
       - company_email
@@ -906,6 +966,7 @@ components:
       - daily_approved_hours_target
       - enable_xero_sync
       - financial_year_start_month
+      - formatted_address
       - fri_end
       - fri_start
       - gdrive_how_we_work_folder_id
@@ -913,6 +974,7 @@ components:
       - gdrive_quotes_folder_url
       - gdrive_reference_library_folder_id
       - gdrive_sops_folder_id
+      - google_place_id
       - google_shared_drive_id
       - gst_rate
       - id
@@ -924,10 +986,13 @@ components:
       - kpi_daily_gp_target
       - kpi_daily_shop_hours_percentage
       - kpi_job_gp_target_percentage
+      - labour_cost_loading
       - last_xero_deep_sync
       - last_xero_sync
+      - latitude
       - logo_url
       - logo_wide_url
+      - longitude
       - master_quote_template_id
       - master_quote_template_url
       - materials_markup
@@ -935,6 +1000,7 @@ components:
       - mon_start
       - po_prefix
       - post_code
+      - region
       - shop_company
       - starting_job_number
       - starting_po_number
@@ -985,14 +1051,12 @@ components:
           - type: 'null'
           description: Street address line 2 (optional)
           title: Address Line2
-        annual_leave_loading:
+        address_raw_json:
           anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: object
           - type: 'null'
-          description: Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)
-          title: Annual Leave Loading
+          description: Raw JSON data from Google Places for the address above
+          title: Address Raw Json
         city:
           anyOf:
           - maxLength: 100
@@ -1055,6 +1119,14 @@ components:
           - type: 'null'
           description: Month the financial year starts (1=January, 4=April, 7=July, etc.)
           title: Financial Year Start Month
+        formatted_address:
+          anyOf:
+          - maxLength: 500
+            type: string
+          - type: 'null'
+          description: 'The address Google matched, filled in when someone picks a candidate on this screen.
+            Read-only: it records what was confirmed, not what was typed.'
+          title: Address as Google has it
         fri_end:
           anyOf:
           - format: time
@@ -1101,6 +1173,12 @@ components:
           - type: 'null'
           description: Folder ID for '02 - SOPs' (standard operating procedures)
           title: Gdrive Sops Folder Id
+        google_place_id:
+          anyOf:
+          - maxLength: 255
+            type: string
+          - type: 'null'
+          title: Google Place Id
         google_shared_drive_id:
           anyOf:
           - maxLength: 100
@@ -1181,6 +1259,17 @@ components:
           - type: 'null'
           description: Target gross profit percentage for individual jobs
           title: Target GP % per job
+        labour_cost_loading:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          description: Percentage added to each base wage to recover paid non-worked time in the labour
+            cost assigned to worked hours. Include annual leave, public holidays, sick leave, bereavement
+            leave, and employer-paid ACC time; measure the percentage for this business (20.00 turns $40.00
+            into $48.00).
+          title: Labour Cost Loading
         last_xero_deep_sync:
           anyOf:
           - format: date-time
@@ -1195,6 +1284,20 @@ components:
           - type: 'null'
           description: The last time Xero data was synchronized
           title: Last Xero Sync
+        latitude:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Latitude
+        longitude:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Longitude
         master_quote_template_id:
           anyOf:
           - maxLength: 100
@@ -1241,6 +1344,14 @@ components:
           - type: 'null'
           description: Postal/ZIP code
           title: Post Code
+        region:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: "The region Google reports for the address above \u2014 'Canterbury Region', or\
+            \ plainly 'Auckland'. Read-only, and the basis for which public holidays this business observes."
+          title: Region
         shop_company_id:
           anyOf:
           - format: uuid
@@ -5528,6 +5639,9 @@ components:
           $ref: '#/components/schemas/KPIMonthlyTotalsOut'
         thresholds:
           $ref: '#/components/schemas/KPIThresholdsOut'
+        weekend_enabled:
+          title: Weekend Enabled
+          type: boolean
         year:
           title: Year
           type: integer
@@ -5537,6 +5651,7 @@ components:
       - thresholds
       - year
       - month
+      - weekend_enabled
       title: KPICalendarResponse
       type: object
     KPIDayDataOut:
@@ -5545,8 +5660,21 @@ components:
         billable_hours:
           title: Billable Hours
           type: number
-        color:
-          title: Color
+        color_gp:
+          enum:
+          - green
+          - amber
+          - red
+          - weekend
+          title: Color Gp
+          type: string
+        color_hours:
+          enum:
+          - green
+          - amber
+          - red
+          - weekend
+          title: Color Hours
           type: string
         date:
           format: date
@@ -5558,8 +5686,10 @@ components:
         details:
           $ref: '#/components/schemas/KPIDetailsOut'
         gp_target_achievement:
+          anyOf:
+          - type: number
+          - type: 'null'
           title: Gp Target Achievement
-          type: number
         gross_profit:
           title: Gross Profit
           type: number
@@ -5582,7 +5712,8 @@ components:
           type: number
       required:
       - billable_hours
-      - color
+      - color_gp
+      - color_hours
       - date
       - day
       - details
@@ -5695,8 +5826,8 @@ components:
     KPIMonthlyTotalsOut:
       description: Wire contract for KPIMonthlyTotalsOut.
       properties:
-        active_workdays:
-          title: Active Workdays
+        active_days:
+          title: Active Days
           type: integer
         adjustment_cost:
           title: Adjustment Cost
@@ -5707,14 +5838,14 @@ components:
         adjustment_revenue:
           title: Adjustment Revenue
           type: number
-        avg_billable_hours_so_far:
-          title: Avg Billable Hours So Far
+        avg_active_day_billable_hours:
+          title: Avg Active Day Billable Hours
           type: number
-        avg_daily_gp:
-          title: Avg Daily Gp
+        avg_active_day_gp:
+          title: Avg Active Day Gp
           type: number
-        avg_daily_gp_so_far:
-          title: Avg Daily Gp So Far
+        avg_weekday_gp:
+          title: Avg Weekday Gp
           type: number
         billable_hours:
           title: Billable Hours
@@ -5723,12 +5854,24 @@ components:
           title: Billable Percentage
           type: number
         color_gp:
+          enum:
+          - green
+          - amber
+          - red
           title: Color Gp
           type: string
         color_hours:
+          enum:
+          - green
+          - amber
+          - red
           title: Color Hours
           type: string
         color_shop:
+          enum:
+          - green
+          - amber
+          - red
           title: Color Shop
           type: string
         days_amber:
@@ -5743,6 +5886,9 @@ components:
         elapsed_target:
           title: Elapsed Target
           type: number
+        elapsed_weekdays:
+          title: Elapsed Weekdays
+          type: integer
         elapsed_workdays:
           title: Elapsed Workdays
           type: integer
@@ -5755,6 +5901,9 @@ components:
         labour_green_days:
           title: Labour Green Days
           type: integer
+        labour_profit:
+          title: Labour Profit
+          type: number
         labour_red_days:
           title: Labour Red Days
           type: integer
@@ -5778,6 +5927,9 @@ components:
           type: integer
         profit_red_days:
           title: Profit Red Days
+          type: integer
+        remaining_weekdays:
+          title: Remaining Weekdays
           type: integer
         remaining_workdays:
           title: Remaining Workdays
@@ -5803,6 +5955,9 @@ components:
         total_revenue:
           title: Total Revenue
           type: number
+        weekdays:
+          title: Weekdays
+          type: integer
         working_days:
           title: Working Days
           type: integer
@@ -5822,14 +5977,18 @@ components:
       - profit_red_days
       - working_days
       - elapsed_workdays
-      - active_workdays
+      - weekdays
+      - elapsed_weekdays
+      - active_days
       - remaining_workdays
+      - remaining_weekdays
       - time_revenue
       - material_revenue
       - adjustment_revenue
       - staff_cost
       - material_cost
       - adjustment_cost
+      - labour_profit
       - material_profit
       - adjustment_profit
       - total_revenue
@@ -5838,9 +5997,9 @@ components:
       - net_profit
       - billable_percentage
       - shop_percentage
-      - avg_daily_gp
-      - avg_daily_gp_so_far
-      - avg_billable_hours_so_far
+      - avg_weekday_gp
+      - avg_active_day_gp
+      - avg_active_day_billable_hours
       - color_hours
       - color_gp
       - color_shop
@@ -5852,14 +6011,14 @@ components:
         adjustment_profit:
           title: Adjustment Profit
           type: number
-        labor_profit:
-          title: Labor Profit
+        labour_profit:
+          title: Labour Profit
           type: number
         material_profit:
           title: Material Profit
           type: number
       required:
-      - labor_profit
+      - labour_profit
       - material_profit
       - adjustment_profit
       title: KPIProfitBreakdownOut
@@ -15330,7 +15489,7 @@ paths:
       - build-id
   /api/companies/addresses/validate/:
     post:
-      description: 'Validate a freetext address and return structured candidates.
+      description: 'Offer the addresses Google matches, for a person to pick from.
 
 
         503 when the Google API is unavailable or the Google Maps API key is not
@@ -16086,7 +16245,9 @@ paths:
     patch:
       description: "Apply only the fields the caller sent.\n\nPresence comes from ``model_fields_set``,\
         \ so omitting a field leaves the\nstored value alone \u2014 the whole point of a settings screen\
-        \ that submits one\nsection at a time."
+        \ that submits one\nsection at a time.\n\nA ``google_place_id`` in the body means someone picked\
+        \ an address candidate;\nthe derived columns are re-read from Google rather than taken from the\
+        \ body\n(see ``_apply_picked_place``)."
       operationId: company_defaults_partial_update
       parameters: []
       requestBody:
@@ -17606,7 +17767,8 @@ paths:
       - job
   /api/job/jobs/{job_id}/cost_sets/quote/copy_from_estimate/:
     post:
-      description: Copy the estimate onto the quote; 409 unless a priced quote is archived first.
+      description: "Copy the estimate onto the quote; 409 unless a priced quote is archived first.\n\n\
+        QuoteNotBlankError is a ConflictError, so the core envelope answers its\n409 \u2014 no local catch."
       operationId: job_jobs_cost_sets_quote_copy_from_estimate_create
       parameters:
       - in: path

@@ -16,9 +16,10 @@ import time
 from collections.abc import Iterable
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Protocol
 from uuid import UUID
 
+from django.db import models
 from django.utils import timezone
 from xero_python.accounting import Account, AccountingApi
 
@@ -200,12 +201,32 @@ def resolve_company_from_xero_contact(contact: Any, reference: str | None = None
     return get_or_fetch_company(contact_id, reference)
 
 
+class XeroTransform(Protocol):
+    """The persist loop's call contract for a per-item transform.
+
+    Opus: Declared as a Protocol rather than left as ``Any`` because ``Any``
+    hid an arity mismatch that strict mypy would otherwise have caught:
+    ``transform_pay_run`` grew a keyword-only ``tenant_id``, the generic call
+    below never passed one, and every pay run raised TypeError into the
+    per-item handler — an entity reporting success having persisted nothing.
+    A transform needing more than the two arguments below binds the rest in a
+    closure at the call site, where the value is actually known.
+
+    Positional-only: the transforms name their first parameter for the payload
+    they take (``xero_invoice``, ``xero_pay_run``), and those names are not a
+    contract anyone calls by.
+    """
+
+    def __call__(self, xero_obj: Any, xero_id: UUID | str, /) -> tuple[models.Model, str] | None:
+        """Return the persisted instance and its sync status, or None to skip."""
+        ...
+
+
 def sync_entities(
     items: Iterable[Any],
     model_class: type[Any],
     xero_id_attr: str,
-    transform_func: Any,
-    delete_orphans: bool = False,
+    transform_func: XeroTransform,
 ) -> int:
     """Persist a batch of Xero objects.
 
@@ -214,23 +235,20 @@ def sync_entities(
         model_class: Django model used for storage.
         xero_id_attr: Attribute name of the Xero ID on each item.
         transform_func: Callable returning (instance, status) tuple or None.
-        delete_orphans: If True, delete local records not in the fetched set.
-            Use for cache-only entities where Xero is the master.
 
     Returns:
         Number of items successfully synced.
+
+    Opus: Deliberately cannot delete anything. It carried a ``delete_orphans``
+    flag whose delete was ``model_class.objects.exclude(xero_id__in=...)`` —
+    unscoped, so on a mirror keyed by tenant it removed the other tenant's
+    rows as well. Its one caller (pay runs) now owns a tenant-scoped delete
+    beside its own fetch, which is where the "is this really the whole set?"
+    question can actually be answered. Rebuilding the flag here would also
+    have to answer it, and cannot: this function is handed one page.
     """
-    # Convert to list if we need to iterate twice (for delete_orphans)
-    items_list = list(items) if delete_orphans else items
-
-    if delete_orphans:
-        xero_ids = {getattr(item, xero_id_attr) for item in items_list}
-        deleted, _ = model_class.objects.exclude(xero_id__in=xero_ids).delete()
-        if deleted:
-            logger.info("Deleted %d orphaned %s records", deleted, model_class.__name__)
-
     synced = 0
-    for item in items_list:
+    for item in items:
         xero_id = getattr(item, xero_id_attr)
 
         # Xero omits fields for deleted docs so we skip to avoid errors
@@ -778,8 +796,18 @@ def transform_pay_run(
     return pay_run, _build_sync_status(created, changed_fields)
 
 
-def transform_pay_slip(xero_pay_slip: Any, xero_id: UUID | str) -> tuple[XeroPaySlip, str] | None:
-    """Convert a Xero pay slip into a XeroPaySlip instance (None if pay run missing)."""
+def transform_pay_slip(
+    xero_pay_slip: Any, xero_id: UUID | str, *, tenant_id: str
+) -> tuple[XeroPaySlip, str] | None:
+    """Convert a Xero pay slip into a XeroPaySlip instance (None if pay run missing).
+
+    Opus: The tenant is the caller's, for the reason ``transform_pay_run``
+    states — this stamped it from a fresh ``get_tenant_id()`` per slip, which
+    is the read that misfiles rows during the documented five-minute swap
+    window. The rule was applied to the run transform and not to this one, so
+    a run and its own slips could disagree about which organisation they came
+    from.
+    """
     pay_run_id = getattr(xero_pay_slip, "pay_run_id", None)
     employee_id = getattr(xero_pay_slip, "employee_id", None)
     first_name = getattr(xero_pay_slip, "first_name", "")
@@ -833,7 +861,7 @@ def transform_pay_slip(xero_pay_slip: Any, xero_id: UUID | str) -> tuple[XeroPay
             leave_hours += Decimal(str(units))
 
     defaults: dict[str, Any] = {
-        "xero_tenant_id": get_tenant_id(),
+        "xero_tenant_id": tenant_id,
         "pay_run": pay_run,
         "xero_employee_id": employee_id,
         "employee_name": employee_name,
@@ -1007,8 +1035,13 @@ def sync_companies(
     return companies
 
 
-def sync_accounts(xero_accounts: Iterable[Account]) -> None:
-    """Sync Xero chart-of-accounts rows into XeroAccount."""
+def sync_accounts(xero_accounts: Iterable[Account], *, tenant_id: str) -> None:
+    """Sync Xero chart-of-accounts rows into XeroAccount.
+
+    Opus: Takes the caller's tenant for the reason ``transform_pay_run``
+    states; it previously re-read ``get_tenant_id()`` once per account, so a
+    tenant swap mid-batch could stamp one chart of accounts with two ids.
+    """
     for account in xero_accounts:
         # updated_date_utc joins the guard because xero_last_modified is NOT
         # NULL: the stub used to declare it Any, which let a None through to
@@ -1021,7 +1054,7 @@ def sync_accounts(xero_accounts: Iterable[Account]) -> None:
         XeroAccount.objects.update_or_create(
             xero_id=account.account_id,
             defaults={
-                "xero_tenant_id": get_tenant_id(),
+                "xero_tenant_id": tenant_id,
                 "account_code": account.code or None,
                 "account_name": account.name,
                 "description": account.description or None,

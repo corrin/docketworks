@@ -1268,3 +1268,41 @@
     latency reveals which addresses exist; the residual oracle is the
     difference between one indexed query and query-plus-enqueue, accepted.
     Revisit with a limiter if abuse appears.
+
+- operation: accounting_reports_calendar_retrieve
+  change: "Weekend cost lines now reach monthly_totals; v1 dropped them entirely"
+  reason: >
+    v1 skipped Saturday and Sunday before aggregating, so a weekend-dated
+    material or adjustment line never reached the month's gross profit,
+    revenue or cost — while the same line still counted in WIP and job
+    costing, leaving two reports disagreeing about the same job, gated on a
+    timesheet setting. Money now counts on all seven days; the weekend flag
+    governs which cells are DRAWN, never which money is counted. This
+    restates historical KPI months upward wherever weekend work exists
+    (owner ruling, 2026-09-01).
+
+- operation: accounting_reports_calendar_retrieve
+  change: "Weekends are shown when weekend_timesheets_enabled, and are ungraded"
+  reason: >
+    v1 skipped weekends unconditionally while the flag governed only the
+    timesheet grids, so a shop that worked weekends had a report that could
+    not see them. The calendar now reads the same flag and returns
+    weekend_enabled so the grid's columns cannot disagree with its days. A
+    weekend reports the fourth day category, "weekend", on both ladders and a
+    null gp_target_achievement: the daily GP target is overhead amortised
+    over WEEKDAYS, so a weekend is owed no share of it and cannot fall short
+    — grading one red would let a display setting turn a good month into a
+    bad-looking one. The target and avg_weekday_gp count weekdays for the
+    same reason, so enabling the flag moves no money figure at all.
+
+- operation: accounting_reports_calendar_retrieve
+  change: "Each day carries color_hours and color_gp; v1's single `color` is gone"
+  reason: >
+    v1 tinted days by billable hours only — deliberately, since dollars are
+    the goal but a noisy daily signal while billed hours lead them. Hours
+    remains the default, but the gross-profit ladder was already computed
+    per day and discarded, so both now ship and the report offers a target
+    selector. Serving both keeps a browser from re-deriving a ladder that
+    could fork from the one the month counters use. monthly_totals also
+    gains labour_profit, so no consumer subtracts time_revenue - staff_cost
+    for itself, and net_profit's divisor moved to elapsed WEEKDAYS.
