@@ -1,6 +1,6 @@
 /**
- * The office kanban board: staff strip above, then a desktop grid (six equal
- * columns) at `lg` and above, or KanbanMobileLayout's scroll-snap strip
+ * The office kanban board: staff strip above, then a desktop grid (one equal
+ * column per OFFICE_COLUMN_IDS entry) at `lg` and above, or KanbanMobileLayout's scroll-snap strip
  * below it. Layout is a real conditional render, not a CSS-only toggle: a
  * resize across the breakpoint unmounts one and mounts the other, which is
  * exactly the "stale sortable after layout switch" scenario

@@ -165,10 +165,11 @@ const VISIBLE_COLUMN_IDS: readonly string[] = OFFICE_COLUMN_IDS
 
 function applyChangedJob(queryClient: QueryClient, job: KanbanColumnJobOut): void {
   if (!VISIBLE_COLUMN_IDS.includes(job.status_key)) {
-    // Archived, special, rejected — the office board renders no column for
-    // these, so the card's new home is "nowhere on screen". Upserting would
-    // drop it from its old column and insert it into no column, which is the
-    // same outcome by a longer route; removeJob says what is happening.
+    // special, rejected — the office board renders no column for these, so
+    // the card's new home is "nowhere on screen". Upserting would drop it
+    // from its old column and insert it into no column, which is the same
+    // outcome by a longer route; removeJob says what is happening. Archived
+    // left this set in KAN-353 and now reconciles like any other column.
     removeJob(queryClient, job.id)
     return
   }
