@@ -129,6 +129,10 @@ def create_draft(
     draft_id: str = created["id"]
     # Gmail opens a draft by its MESSAGE id, not the draft id.
     message_id: str = created["message"]["id"]
+    # /u/<address>/ rather than /u/0/: the digit is the browser's account
+    # INDEX, so on an operator signed into a personal account first, /u/0/
+    # opens the wrong mailbox and the draft appears to be missing. Gmail
+    # accepts the address in that position and selects the right session.
     logger.info(
         "EMAIL DRAFTED - as=%s to=%s subject=%s draft=%s attachments=%s",
         as_user,
@@ -139,5 +143,5 @@ def create_draft(
     )
     return GmailDraft(
         draft_id=draft_id,
-        web_url=f"https://mail.google.com/mail/u/0/#drafts?compose={message_id}",
+        web_url=f"https://mail.google.com/mail/u/{as_user}/#drafts?compose={message_id}",
     )

@@ -273,8 +273,24 @@ def _get_po_or_error(po_id: UUID) -> PurchaseOrder:
     check-then-write race purchase_order_service.update_purchase_order
     documents as forbidden -- two deletes could both pass the precondition and
     both decrement received_quantity.
+
+    Only a caller inside ``transaction.atomic()`` may use this: Django refuses
+    ``select_for_update`` in autocommit, and this project sets no
+    ``ATOMIC_REQUESTS``, so a read path calling it raises
+    ``TransactionManagementError`` in production. Tests do not see that —
+    pytest wraps each one in a transaction — so a read must take
+    ``_read_po_or_error`` instead, and the two are kept apart for that reason
+    rather than as a performance nicety.
     """
     po = PurchaseOrder.objects.select_for_update(of=("self",)).filter(id=po_id).first()
+    if po is None:
+        raise AllocationDeletionError(f"Purchase Order {po_id} not found")
+    return po
+
+
+def _read_po_or_error(po_id: UUID) -> PurchaseOrder:
+    """Return the PO without locking it, for callers that only read."""
+    po = PurchaseOrder.objects.filter(id=po_id).first()
     if po is None:
         raise AllocationDeletionError(f"Purchase Order {po_id} not found")
     return po
@@ -469,7 +485,7 @@ def get_allocation_details(
     allocation_id: UUID,
 ) -> dict[str, object]:
     """Describe one allocation (used by the delete-confirmation dialog)."""
-    po = _get_po_or_error(po_id)
+    po = _read_po_or_error(po_id)
 
     if allocation_type == STOCK_ALLOCATION:
         stock_item = _get_stock_or_error(po, allocation_id)

@@ -59,8 +59,14 @@ Docketworks fact.
 
 **`xero_last_synced` could not answer "has our edit reached Xero" (2026-09-05).**
 It had two writers — every inbound pull stamped it — so the reconcile sweep that
-used it to find unsent work found nothing. Split into `xero_last_pushed` ("we
-sent") alongside `xero_last_synced` ("we looked"). One column, one meaning.
+used it to find unsent work found nothing. Split into `xero_agreed_at` — the
+moment the two copies were last known to match — alongside `xero_last_synced`
+("we looked"). The first attempt called it `xero_last_pushed`, which only the
+push could honestly write; absorbing an inbound edit then looked exactly like
+making a local one, and the sweep pushed the order straight back at Xero on
+every pull. `updated_at` cannot answer it either, being the row's ETag: it has
+to advance when the change came FROM Xero. One column, one meaning — and the
+meaning has to cover both ways of reaching agreement.
 
 **Password tokens are fingerprint-bound with no grandfathering; the deploy
 carrying it logs every session out once (2026-08-31).** Every JWT now carries

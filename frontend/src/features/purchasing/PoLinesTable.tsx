@@ -82,8 +82,8 @@ declare module '@tanstack/react-table' {
  * empty phantom row and no add-line button (the wire contract asserts the
  * button's absence). Typed drafts persist on row EXIT only — in this grid
  * that includes the spec's Tab out of unit-cost, because unit-cost is the
- * row's last focusable cell. The delete button is deliberately outside the
- * tab order so that stays true.
+ * row's last focusable cell on a DRAFT row: ActionsCell renders nothing
+ * except on server rows, so there is no trailing control to swallow the Tab.
  */
 export function PoLinesTable({
   lines,
@@ -375,10 +375,12 @@ function ActionsCell({ row, table }: CellProps) {
   return (
     <button
       type="button"
-      // Out of the tab order on purpose: unit-cost must stay the row's last
-      // FOCUSABLE cell, because Tab out of it is what commits a draft. A
-      // focusable trailing button would swallow that Tab and break the commit.
-      tabIndex={-1}
+      // Reachable by keyboard. It carried tabIndex={-1} to keep unit-cost the
+      // row's last focusable cell so Tab out of it commits a draft — but the
+      // early return above means a draft row renders no button at all, so the
+      // attribute protected nothing and left the only way to delete a line
+      // mouse-only. (CostLineGrid does render actions on draft rows, which is
+      // where that reasoning belongs.)
       disabled={context.readOnly}
       data-automation-id={`PoLinesTable-delete-${rowIndex}`}
       aria-label={`delete line ${rowIndex}`}
@@ -410,10 +412,11 @@ function TotalCell({ row }: CellProps) {
 const columnHelper = createColumnHelper<typeof editableGridFeatures, GridRow>()
 
 // Column order is load-bearing: unit_cost must be the LAST focusable cell in
-// a row so the wire contract's Tab out of it exits the row and fires the draft
-// commit. Total renders no input, and the actions button is tabIndex={-1}, so
-// neither takes focus. Price TBC sits BEFORE unit cost for the same reason —
-// it is a checkbox, and after unit cost it would swallow that Tab.
+// a DRAFT row so the wire contract's Tab out of it exits the row and fires the
+// draft commit. Total renders no input and actions renders nothing on a draft
+// row, so neither takes focus there. Price TBC sits BEFORE unit cost for the
+// same reason — it is a checkbox, it DOES render on drafts, and after unit
+// cost it would swallow that Tab.
 const COLUMNS = [
   columnHelper.display({ id: 'item', header: 'Item', cell: ItemCell }),
   columnHelper.display({ id: 'description', header: 'Description', cell: DescriptionCell }),

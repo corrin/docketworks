@@ -195,7 +195,15 @@ def _delete_previous_stock_for_line(line: PurchaseOrderLine, *, run_id: str) -> 
     (``models.py``) permits one live row per PO line, leaving re-receipting no
     other option. The movement ledger removes both.
     """
-    existing = Stock.objects.filter(source="purchase_order", source_purchase_order_line=line)
+    # Locked, not merely read: the guard below checks each row for consumption
+    # and then deletes it, and stock_service.consume_stock takes this same lock
+    # before writing a cost line that references the row. Without holding it,
+    # a consumption committing between the check and the delete leaves exactly
+    # the orphaned ext_refs.stock_id this function exists to prevent -- and the
+    # consumed quantity goes with the deleted row.
+    existing = Stock.objects.select_for_update().filter(
+        source="purchase_order", source_purchase_order_line=line
+    )
     for stock_item in existing:
         consumed_count = consuming_cost_lines(stock_item.id).count()
         if consumed_count:

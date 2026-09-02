@@ -86,7 +86,7 @@ def _sent_order(
         unit_cost=Decimal("12.50"),
     )
     # Sent after the last edit: nothing outstanding.
-    PurchaseOrder.objects.filter(id=po.id).update(xero_last_pushed=timezone.now())
+    PurchaseOrder.objects.filter(id=po.id).update(xero_agreed_at=timezone.now())
     po.refresh_from_db()
     return po
 
@@ -179,3 +179,60 @@ class TestBilledIsNotReceived:
         assert po.xero_status == "BILLED"
         assert po.status == "submitted", "Xero marked goods received that nobody receipted"
         assert not po.po_lines.filter(received_quantity__gt=0).exists()
+
+
+class TestAbsorbingXerosEditIsNotALocalOne:
+    """Taking Xero's version must not look like holding an edit for Xero.
+
+    ``updated_at`` is the row's ETag, so it advances whenever the row changes —
+    including when the change arrived FROM Xero. Measuring "we hold something
+    unsent" against it therefore made every inbound edit queue an outbound push,
+    whose write to Xero came back as another modification on the next pull. The
+    two systems would trade the order between them, hourly, forever, spending
+    the Xero call quota to do it — and each of those passes took the collision
+    branch, so the lines were never synced on exactly the orders that changed.
+    """
+
+    def test_a_second_sync_of_an_unchanged_order_pushes_nothing(self, supplier: Company) -> None:
+        xero_id = uuid4()
+        po = _sent_order(supplier, xero_id=xero_id)
+        incoming = _incoming(supplier, po.po_number, "SUBMITTED")
+
+        with patch(PUSH) as push:
+            transform_purchase_order(incoming, xero_id)
+            first_pass = push.call_count
+            transform_purchase_order(incoming, xero_id)
+
+        assert first_pass == 0, "absorbing Xero's edit is not an unsent local edit"
+        assert push.call_count == 0, "the order was pushed back at Xero on the next pull"
+
+    def test_absorbing_an_edit_still_advances_the_etag(self, supplier: Company) -> None:
+        """The fix must not buy the loop back by freezing the row's version.
+
+        ADR 0003 hands clients an ETag derived from ``updated_at``; if an
+        inbound change left it alone, a client holding the pre-sync version
+        would still match on If-Match and overwrite Xero's edit unnoticed.
+        """
+        xero_id = uuid4()
+        po = _sent_order(supplier, xero_id=xero_id)
+        before = po.updated_at
+
+        transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
+
+        po.refresh_from_db()
+        assert po.updated_at > before, "the row changed but its version did not"
+
+    def test_a_local_edit_after_agreement_is_still_published(self, supplier: Company) -> None:
+        """Silencing the loop must not silence a real unsent edit."""
+        xero_id = uuid4()
+        po = _sent_order(supplier, xero_id=xero_id)
+        transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
+
+        po.refresh_from_db()
+        po.reference = "Priced when the bill arrived"
+        po.save()
+
+        with patch(PUSH) as push:
+            transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
+
+        assert push.call_count == 1, "our own edit never reached Xero"

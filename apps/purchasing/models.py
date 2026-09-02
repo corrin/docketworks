@@ -93,15 +93,17 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
     updated_at = models.DateTimeField(auto_now=True)
     xero_last_modified = models.DateTimeField(null=True, blank=True)
     xero_last_synced = models.DateTimeField(null=True, blank=True, default=timezone.now)
-    xero_last_pushed = models.DateTimeField(
+    xero_agreed_at = models.DateTimeField(
         null=True,
         blank=True,
         help_text=(
-            "When our copy of this order last reached Xero. Distinct from "
-            "xero_last_synced, which records when we last LOOKED at Xero and is "
-            "written on every inbound sync — one column cannot answer both "
-            "questions, and using it for both hides an outstanding send behind "
-            "the next pull."
+            "When our copy of this order and Xero's were last known to match — "
+            "either because we sent ours or because we took theirs. Distinct "
+            "from xero_last_synced, which records when we last LOOKED at Xero "
+            "and is written on every inbound sync, so it hides an outstanding "
+            "send behind the next pull. It is also why updated_at cannot answer "
+            "this: updated_at is the row's ETag and must advance whenever the "
+            "row changes, including when the change came FROM Xero."
         ),
     )
     xero_status = models.CharField(  # noqa: DJ001 -- NULL means Xero has never reported one
@@ -135,6 +137,10 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
             models.CheckConstraint(
                 condition=~models.Q(xero_tenant_id=""),
                 name="purchasing_purchaseorder_xero_tenant_id_not_blank",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(xero_status=""),
+                name="purchasing_purchaseorder_xero_status_not_blank",
             ),
         ]
 

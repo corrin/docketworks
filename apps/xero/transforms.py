@@ -681,7 +681,7 @@ def _has_unsent_change(po: PurchaseOrder) -> bool:
 
     Only orders Docketworks sends can hold one: a draft nobody has submitted,
     or an order that arrived from Xero, is never waiting to be published.
-    ``xero_last_pushed`` answers this and ``xero_last_synced`` cannot — the
+    ``xero_agreed_at`` answers this and ``xero_last_synced`` cannot — the
     latter is stamped by every inbound sync, so it reports "up to date" the
     moment we look, whether or not the edit was ever sent.
     """
@@ -689,7 +689,28 @@ def _has_unsent_change(po: PurchaseOrder) -> bool:
         return False
     if po.xero_id is None and po.status == "draft":
         return False
-    return po.xero_last_pushed is None or po.updated_at > po.xero_last_pushed
+    return po.xero_agreed_at is None or po.updated_at > po.xero_agreed_at
+
+
+def _stamp_agreement(po: PurchaseOrder) -> None:
+    """Record that our copy and Xero's now hold the same version.
+
+    Written here as well as by the push because agreement is reached either
+    way — we sent ours, or we just took theirs. Without this, absorbing an
+    inbound edit is indistinguishable from making a local one: ``updated_at``
+    is the row's ETag (``apps/purchasing/etag.py``) and so must advance
+    whenever the row changes, including when the change came FROM Xero. The
+    sweep would then push the order straight back, Xero would report the
+    resulting modification on the next pull, and the pair would trade an
+    order back and forth for as long as the sync kept running.
+
+    ``QuerySet.update`` rather than ``save``: this is not a change to the
+    order, and bumping the ETag for it would invalidate every client's copy
+    on a row nobody edited.
+    """
+    stamp = timezone.now()
+    PurchaseOrder.objects.filter(id=po.id).update(xero_agreed_at=stamp)
+    po.xero_agreed_at = stamp
 
 
 def _purchase_order_sync_values(
@@ -786,10 +807,12 @@ def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[Purchas
     if unsent:
         # Our edit is newer than anything Xero holds, so taking Xero's lines
         # would revert it. Publish ours instead: both directions are handled,
-        # and the next sync finds the two agreeing.
+        # and the next sync finds the two agreeing. No agreement is stamped —
+        # the push stamps it once Xero has actually accepted ours.
         queue_purchase_order_push(po)
         return po, _build_sync_status(created, changed_fields)
 
+    _stamp_agreement(po)
     _sync_purchase_order_lines(po, xero_po, po_number, xero_id)
 
     # "linked" is special case for POs - existing PO matched by po_number

@@ -31,12 +31,34 @@ class TestTheSweep:
     """What makes a refused push heal instead of needing to be noticed."""
 
     def _behind(self, status: str) -> PurchaseOrder:
+        """An order that reached Xero once and was edited here afterwards.
+
+        The stamp has to be older than ``updated_at`` for that to be the state
+        under test. Setting ``xero_last_synced`` instead left every case in
+        this file on the ``isnull`` branch, so the predicate could have
+        regressed to the column that is written by every inbound pull and
+        nothing here would have gone red.
+        """
         po = make_purchase_order(status=status, created_by=Staff.get_automation_user())
-        # Sent to Xero, then edited afterwards: the edit has not reached it.
         PurchaseOrder.objects.filter(id=po.id).update(
-            xero_last_synced=timezone.now() - timedelta(hours=1)
+            xero_agreed_at=timezone.now() - timedelta(hours=1)
         )
+        po.refresh_from_db()
+        assert po.xero_agreed_at is not None, "the stale branch, not the null one"
+        assert po.xero_agreed_at < po.updated_at
         return po
+
+    def test_an_order_already_in_step_with_xero_is_left_alone(self) -> None:
+        """The negative twin: without it, a predicate that sweeps everything passes."""
+        po = make_purchase_order(status="submitted", created_by=Staff.get_automation_user())
+        PurchaseOrder.objects.filter(id=po.id).update(
+            xero_agreed_at=timezone.now() + timedelta(minutes=1)
+        )
+
+        with patch(PUSH) as delay:
+            reconcile_purchase_orders_to_xero()
+
+        assert str(po.id) not in [call.args[0] for call in delay.call_args_list]
 
     def test_an_edit_that_never_reached_xero_is_swept_up(self) -> None:
         po = self._behind("submitted")

@@ -321,7 +321,7 @@ def test_a_collision_publishes_ours_rather_than_dropping_either(
 
     # And Xero agrees now, which is the half that makes it a sync: re-read by
     # clearing our claim on the row so the next pull mirrors in full.
-    PurchaseOrder.objects.filter(id=po.id).update(created_by=None, xero_last_pushed=None)
+    PurchaseOrder.objects.filter(id=po.id).update(created_by=None, xero_agreed_at=None)
     _sync("purchase_orders")
     assert po.po_lines.filter(description="What the office confirmed").exists(), (
         "our edit never reached Xero"

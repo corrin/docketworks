@@ -224,7 +224,7 @@ def reconcile_purchase_orders_to_xero(limit: int = RECONCILE_LIMIT) -> None:
     voided in Xero — is prevented instead, because the inbound sync marks it
     deleted and a deleted order is never swept.
 
-    ``xero_last_pushed < updated_at`` is the whole staleness test: the push
+    ``xero_agreed_at < updated_at`` is the whole staleness test: the push
     stamps the former and Django stamps the latter, so an edit that has not
     reached Xero is exactly a row where the edit is newer than the send. It
     cannot use ``xero_last_synced`` — every inbound sync writes that one, so a
@@ -239,7 +239,7 @@ def reconcile_purchase_orders_to_xero(limit: int = RECONCILE_LIMIT) -> None:
     behind = (
         PurchaseOrder.objects.filter(created_by__isnull=False)
         .exclude(status__in=["draft", "deleted"])
-        .filter(Q(xero_last_pushed__isnull=True) | Q(xero_last_pushed__lt=F("updated_at")))
+        .filter(Q(xero_agreed_at__isnull=True) | Q(xero_agreed_at__lt=F("updated_at")))
         .order_by("created_at")
         .values_list("id", flat=True)[:limit]
     )
