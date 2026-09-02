@@ -7,9 +7,18 @@
  * `status_key`, and the reorder payload's `status`. No mapping table exists
  * here because a second table is a second place for the taxonomy to drift.
  *
- * `archived` and `special` are deliberately absent: the backend serves an
- * archived column, but the office board never renders it (2000+ rows), and
- * `special`/`rejected` are hidden statuses with no column at all.
+ * `special` and `rejected` are deliberately absent: they are hidden statuses
+ * with no column at all.
+ *
+ * `archived` IS rendered, last. It was omitted until KAN-353 on a planning
+ * brief's unexamined premise, which cost the board ~95% of the jobs it knows
+ * about (2287 archived against 117 everywhere else) and grew nightly, since
+ * auto_archive_service moves recently_completed jobs here 6+ days after
+ * completion. It is capped by the same COLUMN_MAX_JOBS as every other column
+ * rather than a shallower archived-only limit: a second ceiling would be a
+ * second thing to reason about on every windowing path (isBeyondColumnWindow,
+ * the count display), and the measured cost of the uniform 200 is one extra
+ * parallel query at ~31KB gzipped against a 100KB guard.
  *
  * SEAM: workshop mode (v1 WorkshopKanbanView) shows a different column set
  * for the same board. It arrives with the workshop slice and will add a
@@ -22,6 +31,7 @@ export const OFFICE_COLUMN_IDS = [
   'in_progress',
   'unusual',
   'recently_completed',
+  'archived',
 ] as const
 
 export type OfficeColumnId = (typeof OFFICE_COLUMN_IDS)[number]

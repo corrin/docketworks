@@ -14,13 +14,18 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 
+import { normaliseKanbanQuery } from '@/features/kanban'
 import { SEARCH_DEBOUNCE_MS } from '@/features/shared/useDebouncedValue'
 
 export function KanbanSearchInput() {
   const navigate = useNavigate()
   const onKanban = useRouterState({ select: (state) => state.location.pathname === '/kanban' })
+  // The PARSED search, not location.searchStr: navigate() writes through
+  // TanStack's stringifier, which JSON-quotes a job number, so reading the raw
+  // string handed a digit-leading term back with literal quote characters and
+  // the hydrate effect below typed them into the box (KAN-353).
   const urlQuery = useRouterState({
-    select: (state) => new URLSearchParams(state.location.searchStr).get('q') ?? '',
+    select: (state) => normaliseKanbanQuery(state.location.search.q) ?? '',
   })
 
   const [value, setValue] = useState(urlQuery)
