@@ -1,14 +1,19 @@
-# CLAUDE.md — Docketworks v2
+# CLAUDE.md — Docketworks
 
-Full rewrite of `../docketworks_v1` (v1) with no functional changes. The approved plan lives at
-`/home/corrin/.claude/plans/the-docketworks-project-docketworks-cozy-steele.md`; read it before non-trivial work.
-**Remaining work and open decisions live in
-[`docs/rewrite-status.md`](docs/rewrite-status.md)** — read it before picking up work, and
+The full rewrite of `../docketworks_v1` (v1) shipped: production has run this codebase since
+2026-08-29, and [`docs/release-process.md`](docs/release-process.md) is how a change reaches
+it. The approved plan lives at
+`/home/corrin/.claude/plans/the-docketworks-project-docketworks-cozy-steele.md`.
+**Work is tracked in two places and you check both.** A Jira ticket (KAN) is the authority
+wherever one exists — it carries the reproduction, the evidence and the acceptance criteria.
+Everything with no ticket — the tail of the port, cross-cutting debt, seams left inside
+completed slices, and decisions waiting on the owner — lives in
+**[`docs/rewrite-status.md`](docs/rewrite-status.md)**; read it before picking up work, and
 update it at the end of every slice. **That file only shrinks:** it holds tasks and nothing
 else, and finished work is deleted the moment it is finished. Anything worth recording that
 is NOT a task — a ruling, a finding, a measurement — goes to
 [`docs/rewrite-history.md`](docs/rewrite-history.md), never into the task list. Session
-transcripts are not durable; those files, the parity ledger, the ADRs, the cutover checklist
+transcripts are not durable; those files, the parity ledger, the ADRs, the cutover record
 and code-level seam comments are.
 Architectural decisions live in [`docs/adr/`](docs/adr/README.md) (carried forward from v1, numbering
 continuous) — read the index before non-trivial work; ADRs win over habit.

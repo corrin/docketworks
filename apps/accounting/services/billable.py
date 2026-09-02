@@ -4,7 +4,7 @@ Billable means the line's meta flag is set AND the job is not the shop
 company's — shop work never bills. One home (ADR 0039) because the KPI
 calendar and staff-performance reports must agree; the timesheet screens
 deliberately use a different definition (no shop exclusion — recorded
-cross-domain divergence in rewrite-status).
+cross-domain divergence in rewrite-history).
 """
 
 from uuid import UUID

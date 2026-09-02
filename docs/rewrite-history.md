@@ -7,7 +7,9 @@ asking *why is it like this?*
 **This file exists so [`rewrite-status.md`](rewrite-status.md) can only shrink.**
 Status is the task list and nothing else; anything worth saying that is not a
 task belongs here, so explaining a decision never grows the file a session reads
-to find its next job. Both are deleted at cutover.
+to find its next job. Neither is deleted now that the cutover has happened: the
+port has a tail, and the reasoning behind a decision outlives the release that
+carried it.
 
 **It is not a second copy of the ADRs, and keeping that boundary is what stops
 it becoming a third backlog.** A fact that constrains code lives in an ADR or a
@@ -514,3 +516,30 @@ the 400 in v1 too; only the traceback was ever the complaint, so v2 keeps the
 `django.security.DisallowedHost` record and strips its traceback with a logging
 filter. The middleware's JWT re-authentication block went with it — v2 is
 cookie-authenticated — and with it a bare `except Exception: pass`.
+
+**Two Jira tickets were closed with no commit behind them, 2026-09-02.** KAN-339 (the
+overtime repair commands price 1.5x/2x pay-item lines at the base wage) and KAN-354 (the
+pay-run mirror deletes history it never fetched) are both marked Done, and neither defect
+is fixed in the code. Recorded because a Done ticket is normally the strongest evidence a
+thing is finished, and here it is worth nothing; the tasks live on in `rewrite-status.md`
+saying so.
+
+**The 500-line baseline moved the wrong way, 2026-08-16 to 2026-09-02.** 42 production
+and 21 test Python files over the limit became 43 and 26, with ten handwritten frontend
+files the original baseline never counted. `apps/job/services/job_service.py` grew 2,837
+→ 3,044 and `apps/job/api.py` 1,810 → 1,863; twelve files now exceed 1,000 lines. Two
+weeks of ordinary slices with no gate is what that costs, which is the argument for
+adding one rather than against it.
+
+**Maestral paused for 26 hours without dying, 22–23 August 2026.** A transient Dropbox
+API error paused sync while the process stayed alive, so `systemctl` reported active and
+`Restart=always` never fired. The generalisable fact — liveness is not health for a
+sync daemon — is why the unbuilt alert in `rewrite-status.md` is specified against
+`maestral status` output rather than the process.
+
+**Session replay shipped 2026-09-02**, closing the storage decision this rewrite had
+deferred: chunk payloads go to a private disk root, the rows index the store rather than
+being it, and the purge is scheduled and deletes payloads. It is recorded here because
+two `blocked-by:` rows in `v1-disposition.md` were waiting on that decision and their
+disposition changes as a result.
+

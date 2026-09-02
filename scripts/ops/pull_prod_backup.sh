@@ -84,8 +84,9 @@ echo ">> Copying $DUMP_NAME to $LOCAL_DIR/..."
 scp "$REMOTE_USER@$REMOTE_HOST:$TMP_PATH" "$LOCAL_DIR/"
 # The producer writes a <dump>.migrations.json sidecar describing the archive's
 # own migration ledger; scripts/ops/migrate_to_snapshot.py consumes it. A v1-era
-# producer does not write one, so its ABSENCE is tolerated (v1 hosts stay live
-# until cutover) — but a sidecar that exists and fails to copy must fail the
+# producer does not write one, so its ABSENCE is tolerated (the v1 hosts still
+# run the scrubbed-dump producer) — but a sidecar that exists and fails to copy
+# must fail the
 # pull: `scp || echo` treated a network/permission error as "no sidecar" and
 # silently restored to the wrong migration graph.
 # shellcheck disable=SC2029  # values are meant to expand client-side

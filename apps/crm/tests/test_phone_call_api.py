@@ -169,9 +169,10 @@ class TestMalformedPathIdIsRejectedAtTheBoundary:
     happen for service-level client errors. That split is real and pre-dates
     this change: the envelope persists every RequestValidationError
     (apps/core/envelope.py, ADR 0019) while service 400s persist nothing. It is
-    open decision 3 in docs/rewrite-status.md — a client can now grow the
-    AppError table with malformed URLs. Asserted rather than described, so
-    whichever way that decision goes, this test fails and forces the update.
+    the "a client error IS an AppError" item in docs/rewrite-status.md — a client
+    can now grow the AppError table with malformed URLs. Asserted rather than
+    described, so whichever way that decision goes, this test fails and forces
+    the update.
     """
 
     def test_malformed_call_id_on_link(self, api: Client, job: Job) -> None:
@@ -189,7 +190,7 @@ class TestMalformedPathIdIsRejectedAtTheBoundary:
         assert response.status_code == 422
 
     def test_the_422_persists_an_app_error(self, api: Client) -> None:
-        """Pins the current behaviour, which open decision 3 may reverse."""
+        """Pins the current behaviour, which inverting that rule may reverse."""
         before = AppError.objects.count()
 
         response = api.delete(f"{CALLS_PATH}not-a-uuid/job-link/")
