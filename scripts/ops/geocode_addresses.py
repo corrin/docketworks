@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 """Backfill geocoding for SupplierPickupAddress rows missing lat/lng.
 
-Reuses apps/company/services/geocoding_service.py — the same Google Address
-Validation client the on-write path uses — rather than carrying a second
-Google API implementation (ADR 0039).
+Reuses apps/core/geocoding.py — the one Google lookup in the codebase, the
+same one the address picker calls — rather than carrying a second client
+(ADR 0039). Nothing geocodes on write: a row gets coordinates when a person
+picks a candidate in the address modal, and this sweep is for the rows that
+predate that, chiefly the addresses mirrored in from Xero.
 
 Usage:
     uv run python -m scripts.ops.geocode_addresses              # missing lat/lng only
@@ -22,11 +24,11 @@ from scripts.bootstrap import setup_django
 setup_django()
 
 from apps.company.models import SupplierPickupAddress  # noqa: E402 -- needs django.setup()
-from apps.company.services.geocoding_service import (  # noqa: E402
+from apps.core.geocoding import (  # noqa: E402
     GeocodingError,
     GeocodingNotConfiguredError,
-    geocode_address,
     get_api_key,
+    search_places,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,20 +51,27 @@ def build_freetext_address(address: SupplierPickupAddress) -> str:
 
 def apply_result(address: SupplierPickupAddress, freetext: str, api_key: str) -> bool:
     """Geocode one address and save the result; returns True on success."""
-    result = geocode_address(freetext, api_key)
-    if result is None:
+    # Best match only: a sweep has no operator to pick from a list, so it
+    # takes what a person would have been offered first and nothing else.
+    candidates = search_places(freetext, limit=1, api_key=api_key)
+    if not candidates:
         logger.warning("  -> No result returned")
         return False
+    result = candidates[0]
 
     address.latitude = result.latitude
     address.longitude = result.longitude
-    address.google_place_id = result.google_place_id
+    address.google_place_id = result.place_id
 
     # Fill blanks only: the operator-entered components stay authoritative.
     if not address.suburb and result.suburb:
         address.suburb = result.suburb
     if not address.postal_code and result.postal_code:
         address.postal_code = result.postal_code
+    # Newly reachable: the region was never returned by the product this
+    # swept with before, so every row it has already visited has a blank one.
+    if not address.state and result.region:
+        address.state = result.region
 
     address.save()
     logger.info("  -> %s, %s", result.latitude, result.longitude)

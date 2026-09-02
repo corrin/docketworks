@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 from datetime import datetime
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 from typing import ClassVar, Literal
@@ -32,6 +33,8 @@ from ninja.files import UploadedFile
 from pydantic import ConfigDict, model_validator
 
 from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
+from apps.core.errors import persist_app_error
+from apps.core.geocoding import GeocodingError, GeocodingNotConfiguredError, fetch_place
 from apps.core.models import CompanyDefaults, IntegrationSettings
 from apps.core.schemas import NullableText, derived_response, drop_model_defaults, omittable
 from apps.core.settings_metadata import CompanyDefaultsSchemaOut, build_company_defaults_schema
@@ -211,6 +214,61 @@ def company_defaults_retrieve(request: HttpRequest) -> CompanyDefaults:
     return CompanyDefaults.get_solo()
 
 
+#: The precision of CompanyDefaults.latitude/longitude. Google answers with far
+#: more (-36.922086199999995), and assigning that raw fails full_clean on
+#: decimal_places before it ever reaches the column.
+_COORDINATE = Decimal("0.0000001")
+
+
+def _apply_picked_place(instance: CompanyDefaults, place_id: object) -> dict[str, object]:
+    """Fill the geocode columns from the place the operator picked.
+
+    Re-read from Google rather than taken from the request body. The id is the
+    only part of a chosen candidate a client cannot quietly swap for somewhere
+    else, and re-reading is also what puts the whole reply in our hands to
+    store. Returns the fields it set, for ``update_fields``.
+    """
+    derived: dict[str, object] = {
+        "formatted_address": None,
+        "region": None,
+        "latitude": None,
+        "longitude": None,
+        "address_raw_json": None,
+    }
+    if place_id:
+        try:
+            place = fetch_place(str(place_id))
+        except GeocodingNotConfiguredError as exc:
+            raise HttpError(503, "Address lookup service not configured") from exc
+        except GeocodingError as exc:
+            persist_app_error(exc)
+            raise HttpError(503, str(exc)) from exc
+        if place is None:
+            # Fail rather than store the address without its geocode: the two
+            # are one fact, and a half-saved pair is the drift this avoids.
+            raise HttpError(400, f"Google no longer knows the place {place_id}")
+        derived.update(
+            {
+                "formatted_address": place.formatted_address,
+                "region": place.region or None,
+                "latitude": _coordinate(place.latitude),
+                "longitude": _coordinate(place.longitude),
+                "address_raw_json": place.raw,
+            }
+        )
+
+    for field, value in derived.items():
+        setattr(instance, field, value)
+    return derived
+
+
+def _coordinate(value: float | None) -> Decimal | None:
+    """Round one coordinate to what the column holds."""
+    if value is None:
+        return None
+    return Decimal(str(value)).quantize(_COORDINATE)
+
+
 # Opus: superuser, not office staff — this PATCH sets wage rates, markups, GST and
 # Xero identity; v1's effective gate was the superuser /admin route guard, and the
 # admin nav + leave-settings use the same class. GET stays any-staff: company
@@ -236,6 +294,10 @@ def company_defaults_partial_update(
     Presence comes from ``model_fields_set``, so omitting a field leaves the
     stored value alone — the whole point of a settings screen that submits one
     section at a time.
+
+    A ``google_place_id`` in the body means someone picked an address candidate;
+    the derived columns are re-read from Google rather than taken from the body
+    (see ``_apply_picked_place``).
     """
     instance = CompanyDefaults.get_solo()
     # by_alias=True: ninja's ModelSchema names the FK's pydantic attribute
@@ -255,6 +317,8 @@ def company_defaults_partial_update(
         return instance
     for field, value in supplied.items():
         setattr(instance, field, value)
+    if "google_place_id" in supplied:
+        supplied.update(_apply_picked_place(instance, supplied["google_place_id"]))
     try:
         instance.full_clean()
     except DjangoValidationError as exc:

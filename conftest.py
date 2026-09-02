@@ -72,7 +72,7 @@ _VENDOR_ENTRY_POINTS: dict[str, str] = {
     "xero_python.rest.RESTClientObject.request": "Xero",
     "apps.xero.auth.requests": "Xero's token endpoint",
     "litellm.completion": "the LLM gateway",
-    "apps.company.services.geocoding_service.requests": "Google Maps",
+    "apps.core.geocoding.requests": "Google Maps",
     "apps.crm.services.phone_call_service.requests": "the phone provider",
 }
 

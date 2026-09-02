@@ -46,7 +46,7 @@ done only when that spec is green.
 | E2E specs ported | **49 spec files** (v1 shipped 40; the specs still to port are listed under MUST) — green is the only measure that counts |
 | Backend operations still to port | **58** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 241 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2837 (all passing) |
+| Unit tests | 2866 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 125 recorded deviations |
@@ -396,10 +396,12 @@ First work on v2, in this order:
   cost sets by their own endpoint. Drop the embedded cost sets and page the
   events. This is now on a hot path: the response is refetched after every
   settled cost-line write.
-- **Geocoding integration test (ADR 0050).** Write an `integration`-marked test
-  calling `geocoding_service` against Address Validation; the outbound-link
-  probe skips `v1:validateAddress` because it is POST-only, so only that test
-  proves the endpoint exists.
+- **Teach the outbound-link probe to verify Google place ids.** Both
+  `SupplierPickupAddress.google_place_id` and `CompanyDefaults.google_place_id`
+  are excused as unverifiable, which stopped being true when
+  `apps.core.geocoding.fetch_place` landed: re-reading a place by its id is the
+  check. Needs a `google_place` link kind, a pooled adapter beside the Google
+  Drive one, and enumeration wiring.
 - **Eight production `Procedure` rows link dead Google Docs** (probe run
   2026-08-26 with the production key; the row list is in `rewrite-history.md`).
   Untrash Doc.363 Milling Machine SOP from Drive trash before its 30-day

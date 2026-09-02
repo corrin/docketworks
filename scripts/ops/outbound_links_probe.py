@@ -421,6 +421,9 @@ EXTERNAL_ID_FIELDS: dict[str, LinkKind] = {
 }
 
 _TENANT_PER_ROW = "Xero tenant per row: the singleton's tenant is checked"
+# Not "no verifier yet": apps.core.geocoding.fetch_place re-reads a place by
+# its id, which IS the check. What is missing is a Places adapter here.
+_PLACE_ID_UNVERIFIED = "Google Places id: fetch_place could verify it; no probe adapter yet"
 
 #: Vendor ids with no verifier yet: each is reported once, as skipped, so the
 #: report shows what it did not check. Adding a verifier moves the entry up.
@@ -435,7 +438,8 @@ UNVERIFIED_EXTERNAL_ID_FIELDS: dict[str, str] = {
     "company.Supplier.xero_contact_id": "Xero contact id: no verifier yet",
     "company.Supplier.xero_tenant_id": _TENANT_PER_ROW,
     "company.Supplier.xero_merged_into_id": "Xero contact id (merge target): no verifier yet",
-    "company.SupplierPickupAddress.google_place_id": "Google Places id: no verifier yet",
+    "company.SupplierPickupAddress.google_place_id": _PLACE_ID_UNVERIFIED,
+    "core.CompanyDefaults.google_place_id": _PLACE_ID_UNVERIFIED,
     "crm.PhoneCallRecord.provider_call_id": "phone provider call id: no verifier yet",
     "crm.PhoneCallRecording.provider_recording_id": "phone provider recording: no verifier yet",
     "job.CostLine.xero_time_id": "Xero Projects time id: no verifier yet",

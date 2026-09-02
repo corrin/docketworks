@@ -130,7 +130,7 @@ class IntegrationSettings(models.Model):
 
     id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
 
-    # Google Address Validation, read by apps/company/services/geocoding_service.
+    # Google Places (New), read by apps/core/geocoding.
     google_maps_api_key = models.CharField(  # noqa: DJ001 -- unset is NULL (ADR 0040); a CHECK rejects ""
         max_length=255, null=True, blank=True
     )
@@ -534,6 +534,49 @@ class CompanyDefaults(SingletonModel):
         default="New Zealand",
         help_text="Country name",
     )
+
+    # What Google knows about the address above, filled when an operator picks a
+    # candidate on the settings screen and refreshed only when they pick again.
+    # Column names follow SupplierPickupAddress, which stores the same facts for
+    # supplier addresses: one vocabulary, not two.
+    #
+    # The holidays subdivision is NOT stored. It is a pure function of `region`
+    # (apps.core.geocoding.nz_subdivision_for_region), and
+    # the mapping belongs to the holidays package — freezing it in a column
+    # would keep answering with last year's table after an upgrade renamed a
+    # code or added an alias.
+    formatted_address = models.CharField(  # noqa: DJ001 -- unset is NULL (ADR 0040); never geocoded
+        max_length=500,
+        null=True,
+        blank=True,
+        verbose_name="Address as Google has it",
+        help_text=(
+            "The address Google matched, filled in when someone picks a candidate on this "
+            "screen. Read-only: it records what was confirmed, not what was typed."
+        ),
+    )
+    region = models.CharField(  # noqa: DJ001 -- unset is NULL (ADR 0040); never geocoded
+        max_length=100,
+        null=True,
+        blank=True,
+        verbose_name="Region",
+        help_text=(
+            "The region Google reports for the address above — 'Canterbury Region', or "
+            "plainly 'Auckland'. Read-only, and the basis for which public holidays this "
+            "business observes."
+        ),
+    )
+    google_place_id = models.CharField(  # noqa: DJ001 -- unset is NULL (ADR 0040)
+        max_length=255, null=True, blank=True
+    )
+    latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    address_raw_json = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Raw JSON data from Google Places for the address above",
+    )
+
     company_email = models.EmailField(  # noqa: DJ001
         null=True,
         blank=True,
@@ -693,7 +736,15 @@ class CompanyDefaults(SingletonModel):
                 condition=~models.Q(master_quote_template_url=""),
                 name="master_quote_template_url_not_blank",
             ),
+            models.CheckConstraint(
+                condition=~models.Q(formatted_address=""), name="formatted_address_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(google_place_id=""),
+                name="companydefaults_google_place_id_not_blank",
+            ),
             models.CheckConstraint(condition=~models.Q(post_code=""), name="post_code_not_blank"),
+            models.CheckConstraint(condition=~models.Q(region=""), name="region_not_blank"),
             models.CheckConstraint(
                 condition=~models.Q(suburb=""),
                 name="workflow_companydefaults_suburb_not_blank",
