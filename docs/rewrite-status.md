@@ -424,6 +424,16 @@ never a second stream.
 
 ## Engineering backlog
 
+- **[KAN-357](https://docketworks.atlassian.net/browse/KAN-357): rebuild v2 as a clean
+  modular monolith.** Dissolve `apps.core` — today one module holds `AppError`,
+  `IntegrationSettings`, `CompanyDefaults` and `ServiceAPIKey` — and replace the
+  colon-separated domain tier with enforced context boundaries. **Gated on its own first
+  item:** it overturns the layout CLAUDE.md documents, so nothing starts before the
+  owner-ratified ADR exists. Scoping caution recorded on the ticket: the draft justified
+  the work as breaking seven ORM cycles, but a full traversal of the app registry finds
+  exactly one (`accounts` <-> `job`, via `Staff.default_labour_subtype`); the rest are
+  one-way and several already point where the target architecture wants them. The value is
+  ownership and enforceable boundaries, not cycle removal.
 - **Call-recording retention is a setting, not a literal** (owner, 2026-08-23). Two knobs:
   the provider-side deletion delay, a literal 31 days at
   `apps/crm/services/phone_call_service.py:187`, becomes
