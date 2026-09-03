@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **51 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **53** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 247 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2889 (all passing) |
+| Unit tests | 2891 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 125 recorded deviations |
@@ -315,6 +315,12 @@ same class: the post duplicates what Xero already holds, and then self-reports s
 
 ## Correctness and hygiene
 
+- **A Xero access token expiring mid-run makes concurrent requests fail rather than wait.**
+  `get_tenant_id` raises "No valid Xero token found. Please complete the authorization
+  workflow." when `get_valid_token()` finds the token expired, while another request is
+  already refreshing it — so a caller gets a 500 for a token that exists moments later.
+  Serialise the refresh so the second caller waits for the first instead of raising.
+  Evidence in `rewrite-history.md`.
 - **The session-replay events endpoint validates its own output.** `response=RecordingEventsOut`
   (`apps/diagnostics/api.py:210`) runs the whole payload through pydantic against a
   recursive `JsonValue` union; on a 4.28 MB replay that is 0.81s of `validate_python` plus

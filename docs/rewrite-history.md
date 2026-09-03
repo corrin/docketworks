@@ -125,6 +125,13 @@ foreign keys are SET_NULL, so a call the cleanup cannot name outlives its job
 and company as an orphan in the Unmatched queue with its recording file
 stranded under `PHONE_RECORDING_STORAGE_ROOT`.
 
+**The Xero token refresh has no mutual exclusion, measured 2026-09-03.** In an E2E run,
+`post-staff-week` answered 500 with "No valid Xero token found" at 16:43:21.052 and a
+refreshed token was stored at 16:43:21.260 — 208 ms later, by another request already in
+flight. The expiry simply fell inside the run. `weekly-payroll`'s out-of-order posting
+test is where it surfaces, and its recorded history (four passed, one failed, one timed
+out) is that race rather than anything about payroll.
+
 ## Cross-report divergences, ported faithfully (2026-08-04)
 
 v1's reports disagree with each other on definitions users can see side by side.

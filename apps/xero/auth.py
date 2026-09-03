@@ -15,6 +15,7 @@ import logging
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from time import monotonic, sleep
 from typing import Any, TypedDict
 from urllib.parse import quote, urlencode
 
@@ -60,6 +61,14 @@ class NoValidXeroTokenError(Exception):
 _api_client: ApiClient | None = None
 REFRESH_LOCK_KEY = "xero_token_refresh_lock"
 REFRESH_LOCK_TIMEOUT_SECONDS = 60
+# How long a caller that lost the refresh lock waits for the winner's token.
+# The winner is making one network round trip to Xero — measured at 208ms in an
+# E2E run where the loser gave up after a single immediate re-read and answered
+# 500 for a token that was stored a fifth of a second later. The wait is
+# bounded because the winner can also fail, and blocking a request thread
+# forever on that is worse than reporting not-connected.
+REFRESH_WAIT_SECONDS = 5.0
+REFRESH_WAIT_POLL_SECONDS = 0.1
 REFRESH_WINDOW = timedelta(seconds=60)
 _shared_cache = caches["shared"]
 
@@ -258,7 +267,34 @@ def _payload_needs_refresh(payload: TokenPayload) -> bool:
     return datetime.now(UTC) > expires_at_dt - REFRESH_WINDOW
 
 
-def get_valid_token() -> TokenPayload | None:  # noqa: PLR0911 -- a guard ladder: each return is one distinct not-connected case
+def _await_refreshed_token(app: XeroApp) -> TokenPayload | None:
+    """Wait for the holder of the refresh lock to write a token, then read it.
+
+    Waiting, not a single immediate re-read: the holder is mid-round-trip to
+    Xero and has written nothing yet when the loser arrives, so looking once
+    reports not-connected for a token that lands a fraction of a second later.
+    Bounded, because the holder can fail and blocking a request thread for the
+    lock's whole TTL on a broken connection is worse than saying so.
+    """
+    deadline = monotonic() + REFRESH_WAIT_SECONDS
+    while True:
+        try:
+            app.refresh_from_db()
+        # deliberate-swallow: the row vanished while another process held the refresh
+        # lock — report not-connected rather than racing the deleted row
+        except XeroApp.DoesNotExist:
+            return None
+        payload = _payload_from_row(app)
+        if payload and not _payload_needs_refresh(payload):
+            return payload
+        # The lock going away without a fresh token means the holder's refresh
+        # failed; there is nothing further to wait for.
+        if _shared_cache.get(REFRESH_LOCK_KEY) is None or monotonic() >= deadline:
+            return None
+        sleep(REFRESH_WAIT_POLL_SECONDS)
+
+
+def get_valid_token() -> TokenPayload | None:
     """Return a valid token, refreshing if possible when near expiry.
 
     ``None`` means the installation is not connected, or the active row lacks
@@ -295,19 +331,10 @@ def get_valid_token() -> TokenPayload | None:  # noqa: PLR0911 -- a guard ladder
             if _shared_cache.get(REFRESH_LOCK_KEY) == lock_owner:
                 _shared_cache.delete(REFRESH_LOCK_KEY)
 
-    # Another process is refreshing the rotating Xero token. Re-read the row:
-    # if it already wrote a fresh token, use it; otherwise report no valid
-    # token instead of racing the same refresh_token.
-    try:
-        app.refresh_from_db()
-    # deliberate-swallow: the row vanished while another process held the refresh lock —
-    # report not-connected rather than racing the deleted row
-    except XeroApp.DoesNotExist:
-        return None
-    payload = _payload_from_row(app)
-    if not payload or _payload_needs_refresh(payload):
-        return None
-    return payload
+    # Another process is refreshing the rotating Xero token. Wait for it rather
+    # than racing the same refresh_token: Xero rotates the refresh token on
+    # every use, so a second refresh would invalidate the first.
+    return _await_refreshed_token(app)
 
 
 def get_authentication_url(state: str) -> str:
