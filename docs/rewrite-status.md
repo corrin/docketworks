@@ -45,7 +45,7 @@ does not have.
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 125 recorded deviations |
-| ADRs | 40 (v1's 26 carried forward + 0038–0041, 0043, 0045–0053 written here) |
+| ADRs | 41 (v1's 26 carried forward + 0038–0041, 0043, 0045–0054 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints
 written measures typing, not delivery. Every slice below authors its own E2E spec and

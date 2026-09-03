@@ -110,6 +110,16 @@ import-linter were all running while the debt that cost three days to clear
 accumulated anyway — so speed is made safe by the spec shipping with the slice,
 not by adding another linter.
 
+**A screen that renders a collection is tested at production volume (ADR 0054).**
+`docs/prod-data-shape.yml` records how many rows production actually holds, per model;
+`scripts/checks/data_shape_gap.py` names the tables this database is too thin to exercise
+and `run_e2e.sh` prints it before every run. Read the shape before designing a list — a
+layout that is fine at the local count and unusable at the production one is a defect
+already written. Assert the mechanism (bounded scrollable pane, a count naming the
+server's total) so the assertion holds at any row count, and seed past the threshold
+where the property needs one. Volume alone catches nothing: the clipping defect that
+produced that ADR shipped on a database already holding hundreds of the rows.
+
 - `uv run mypy` — strict, ZERO baseline, covers `apps config manage.py scripts`.
   New code must be fully type-clean; no `Any`, no shotgun `# type: ignore`
   (specific error code + justification only).

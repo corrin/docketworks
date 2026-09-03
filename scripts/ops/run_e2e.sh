@@ -68,6 +68,11 @@ cd "$ROOT"
 # The cost is that checking out a branch behind head after a run meets a schema
 # newer than its code.
 "$ROOT/.venv/bin/python" manage.py migrate --no-input
+# Named before the suite runs, not after it is green: a screen's clipping,
+# paging and per-row query cost are invisible against a thin table, so a run
+# has to say which tables cannot exercise what production renders. Reports
+# rather than gates — see the script and ADR 0054 for why.
+"$ROOT/.venv/bin/python" "$ROOT/scripts/checks/data_shape_gap.py" || true
 npm --prefix "$FRONTEND" run test:e2e:reset -- --confirm
 rm -rf "$FRONTEND/test-results" "$FRONTEND/playwright-report" "$LOG_DIR"
 mkdir -p "$LOG_DIR"
