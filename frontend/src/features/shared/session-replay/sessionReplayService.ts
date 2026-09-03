@@ -22,6 +22,21 @@ import { getSessionReplayId, setSessionReplayId } from './replayId'
 type StopRecording = () => void
 
 const FLUSH_INTERVAL_MS = 10_000
+/**
+ * Django refuses a body over DATA_UPLOAD_MAX_MEMORY_SIZE (2.5 MB by default)
+ * before any view runs, and a chunk used to be bounded only by the 10s timer —
+ * so one burst of DOM churn buffered more than that in a single interval and
+ * the upload 500'd. The lost chunk was the smaller half of it: a 500 is
+ * neither a conflict nor a terminal failure, so the events went back on the
+ * front of the buffer and every later flush re-sent them plus everything
+ * since, larger each time, once per 10s for the life of the session.
+ *
+ * Well under the server's limit because this counts UTF-16 code units while
+ * the limit counts bytes, so a recording full of non-ASCII text measures
+ * smaller here than on the wire; the headroom absorbs that rather than a
+ * per-event byte count nobody can afford to compute on every flush.
+ */
+const MAX_CHUNK_CHARS = 1_000_000
 const E2E_DISABLE_KEY = 'e2e:disable-session-replay'
 
 let stopRecording: StopRecording | null = null
@@ -86,39 +101,74 @@ function discardRecordingState(): void {
   buffered = []
 }
 
+/**
+ * Take the longest run of buffered events that fits in one upload, removing
+ * it from the buffer. Always at least one event: an event bigger than the cap
+ * cannot be split, and holding it back would stall every event behind it
+ * forever.
+ */
+function takeChunk(): eventWithTime[] {
+  const taken: eventWithTime[] = []
+  let size = 2
+  for (const event of buffered) {
+    const eventSize = JSON.stringify(event).length + 1
+    if (taken.length > 0 && size + eventSize > MAX_CHUNK_CHARS) break
+    taken.push(event)
+    size += eventSize
+  }
+  buffered = buffered.slice(taken.length)
+  return taken
+}
+
 export async function flushSessionReplay(): Promise<void> {
   const recordingId = getSessionReplayId()
   if (!recordingId || isFlushing || buffered.length === 0) return
 
   isFlushing = true
-  const events = buffered
-  buffered = []
   try {
-    await sessionReplayRecordingChunksCreate({
-      path: { recording_id: recordingId },
-      body: {
-        sequence,
-        events_json: JSON.stringify(events),
-        first_event_timestamp_ms: events[0]?.timestamp ?? 0,
-        last_event_timestamp_ms: events[events.length - 1]?.timestamp ?? 0,
-        path: currentPath(),
-        job_id: currentJobId(),
-        ...viewport(),
-      },
-      throwOnError: true,
-    })
-    sequence += 1
-  } catch (error) {
-    if (isApiErrorStatus(error, 409)) {
-      // The chunk is already stored. Re-sending it would 409 forever, and
-      // these events are on the server, so advance past them.
-      sequence += 1
-    } else if (isTerminalUploadFailure(error)) {
-      discardRecordingState()
-    } else {
-      // Transient: put them back at the FRONT, ahead of whatever rrweb has
-      // emitted since, or the replay would play back out of order.
-      buffered = [...events, ...buffered]
+    // Drains in as many uploads as the backlog needs rather than one per
+    // interval: after a tab has been hidden for a while the buffer holds
+    // minutes of events, and one chunk per 10s would never catch up.
+    while (buffered.length > 0) {
+      const events = takeChunk()
+      try {
+        // The rule's Promise.all advice is wrong for this loop: chunks carry
+        // an ordered `sequence` that only advances on a success, and the
+        // failure branches below decide whether the REST of the backlog is
+        // still sendable. Uploading in parallel would number them by
+        // completion order and keep sending after a terminal refusal.
+        // oxlint-disable-next-line no-await-in-loop
+        await sessionReplayRecordingChunksCreate({
+          path: { recording_id: recordingId },
+          body: {
+            sequence,
+            events_json: JSON.stringify(events),
+            first_event_timestamp_ms: events[0]?.timestamp ?? 0,
+            last_event_timestamp_ms: events[events.length - 1]?.timestamp ?? 0,
+            path: currentPath(),
+            job_id: currentJobId(),
+            ...viewport(),
+          },
+          throwOnError: true,
+        })
+        sequence += 1
+      } catch (error) {
+        if (isApiErrorStatus(error, 409)) {
+          // The chunk is already stored. Re-sending it would 409 forever, and
+          // these events are on the server, so advance past them.
+          sequence += 1
+        } else if (isTerminalUploadFailure(error)) {
+          discardRecordingState()
+          return
+        } else {
+          // Transient: put them back at the FRONT, ahead of whatever rrweb has
+          // emitted since, or the replay would play back out of order. The
+          // rest of the backlog waits for the next flush rather than pushing
+          // past them into the same disorder.
+          buffered = [...events, ...buffered]
+          return
+        }
+      }
     }
   } finally {
     isFlushing = false
