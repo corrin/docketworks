@@ -315,6 +315,11 @@ same class: the post duplicates what Xero already holds, and then self-reports s
 
 ## Correctness and hygiene
 
+- **Thirteen tables cannot exercise what production renders**, so the screens over them have
+  unproven volume behaviour — `scripts/checks/data_shape_gap.py` names them and every E2E run
+  prints the list. Worst are `xero.XeroError`, `accounting.Bill*` and `core.AppError`, all short
+  by two orders of magnitude. Per ADR 0054 the work is per screen, not per table: the spec that
+  asserts a volume-sensitive property seeds its own table to production volume first.
 - **The session-replay events endpoint validates its own output.** `response=RecordingEventsOut`
   (`apps/diagnostics/api.py:210`) runs the whole payload through pydantic against a
   recursive `JsonValue` union; on a 4.28 MB replay that is 0.81s of `validate_python` plus
