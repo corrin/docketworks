@@ -1,0 +1,92 @@
+# Dependabot's pip ecosystem only proposes changes to pyproject.toml, so it
+# never sees an upgrade that already satisfies a declared range, and never
+# sees a transitive dependency at all. That blind spot let a Django security
+# release and 11 other advisories sit in uv.lock unnoticed (2026-09-02):
+# sqlparse is not in pyproject at all, and django 6.0.8 and pypdf 6.16.2 both
+# satisfied the ranges already written there.
+#
+# This is the Python half of the weekly dependency cadence: refresh uv.lock
+# inside the ranges pyproject already allows, and open one PR for CI and E2E
+# to judge. Range widening stays Dependabot's job.
+name: Weekly uv.lock refresh
+
+on:
+  schedule:
+    # Sundays 20:00 UTC — Monday morning NZ, so the PR is waiting at the start
+    # of the week rather than landing mid-weekend.
+    - cron: '0 20 * * 0'
+  workflow_dispatch:
+
+# The job-level grant below overrides the repository default of read-only,
+# but it is NOT sufficient on its own: Settings > Actions > General >
+# "Allow GitHub Actions to create and approve pull requests" is currently OFF
+# (API: can_approve_pull_request_reviews=false), and while it is off the
+# create-pull-request step fails with "GitHub Actions is not permitted to
+# create or approve pull requests". Enable it once, or give the step a PAT.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Refresh the lockfile within existing ranges
+        run: uv lock --upgrade
+
+      - name: Report what moved
+        id: changes
+        run: |
+          if git diff --quiet -- uv.lock; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            {
+              echo 'summary<<PYEOF'
+              git diff -- uv.lock | grep -E '^[+-]name = ' | sort -u | head -60
+              echo PYEOF
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      # Advisory, not a gate: the point is that the PR body names what is
+      # still vulnerable after the refresh, so a reviewer sees a package the
+      # declared ranges cannot reach rather than a silently clean upgrade.
+      - name: Audit the refreshed lockfile
+        if: steps.changes.outputs.changed == 'true'
+        continue-on-error: true
+        id: audit
+        run: uv run --with pip-audit python -m pip_audit | tail -40
+
+      - name: Open the PR
+        if: steps.changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/uv-lock-refresh
+          title: 'Weekly uv.lock refresh'
+          commit-message: |
+            Refresh uv.lock within the ranges pyproject already allows
+
+            Opened by .github/workflows/uv-lock-refresh.yml. Dependabot's pip
+            ecosystem only proposes pyproject.toml changes, so in-range and
+            transitive upgrades never reach it.
+          body: |
+            Automated weekly `uv lock --upgrade` — the Python half of the
+            dependency cadence Dependabot cannot cover, because its pip
+            ecosystem only proposes changes to `pyproject.toml` and so never
+            sees an in-range upgrade or a transitive dependency.
+
+            **Ranges are unchanged.** Every move here was already permitted by
+            `pyproject.toml`; widening a range stays Dependabot's job.
+
+            Packages that moved:
+
+            ```
+            ${{ steps.changes.outputs.summary }}
+            ```
+
+            Treat this the way any dependency PR is treated here: let CI run,
+            run E2E, ship if green.
+          labels: dependencies
