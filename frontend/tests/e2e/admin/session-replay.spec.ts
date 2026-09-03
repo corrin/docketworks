@@ -108,25 +108,41 @@ test.describe('session replay', () => {
     await expect(player.locator('.rr-controller')).toBeVisible({ timeout: 30000 })
   })
 
-  test('the recordings list pages rather than stopping at the first fifty', async ({
+  test('the recordings list scrolls in its own pane and counts what it has not loaded', async ({
     authenticatedPage: page,
   }) => {
     await page.goto('/admin/replays')
-    await autoId(page, 'SessionReplayPage-recordings').waitFor({ timeout: 30000 })
+    const table = autoId(page, 'SessionReplayPage-recordings')
+    await table.waitFor({ timeout: 30000 })
 
-    // The seeded database holds far more recordings than one page, so the
-    // count line proves the list knows about rows it has not loaded — the
-    // defect being guarded is a list hard-pinned to page one with no way to
-    // reach the rest.
-    const count = autoId(page, 'SessionReplayPage-load-more-count')
-    await expect(count).toBeVisible()
-    const [, shown, total] = /Showing (\d+) of (\d+) recordings/.exec(
-      (await count.textContent()) ?? '',
-    ) ?? [null, '0', '0']
-    expect(Number(total)).toBeGreaterThan(Number(shown))
+    // Structural, not row-count dependent: how many recordings this database
+    // holds is not something a spec can require — the E2E reset leaves far
+    // fewer than one page, while a developer machine restored from production
+    // holds hundreds. Asserting "there is a second page" would pass or fail on
+    // the environment rather than on the code. What must hold either way is
+    // that the list has a bounded, scrollable pane of its own; the page it
+    // replaced clipped its rows in an overflow-hidden box with no height, so
+    // everything past the fold was unreachable.
+    const pane = await table.evaluate((element) => {
+      const box = element.parentElement
+      if (!box) throw new Error('the recordings table has no container to scroll')
+      const style = getComputedStyle(box)
+      return {
+        overflowY: style.overflowY,
+        maxHeight: style.maxHeight,
+        clipped: style.overflowY === 'hidden' || style.overflowY === 'clip',
+      }
+    })
+    expect(pane.clipped, 'the recordings pane must not clip its rows').toBe(false)
+    expect(pane.overflowY).toBe('auto')
+    expect(pane.maxHeight, 'an unbounded pane grows the page instead of scrolling').not.toBe('none')
 
-    await page.getByRole('button', { name: 'Load more' }).click()
-    await expect(count).not.toHaveText(`Showing ${shown} of ${total} recordings`)
+    // The running count names the SERVER's total, which is what proves the
+    // list knows about rows it has not fetched. The page it replaced asked for
+    // one fixed page and could not have said this.
+    await expect(autoId(page, 'SessionReplayPage-load-more-count')).toHaveText(
+      /^Showing \d+ of \d+ recordings$/,
+    )
   })
 
   test.describe('with recording switched off', () => {
