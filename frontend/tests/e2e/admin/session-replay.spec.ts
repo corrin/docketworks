@@ -93,7 +93,11 @@ test.describe('session replay', () => {
     )
     await play.click()
     const events = await eventsLoaded
-    expect(events.status(), await events.text()).toBe(200)
+    if (events.status() !== 200) {
+      // The 409 body names the fix (run pull_prod_files.sh); a bare status
+      // assertion would throw that away.
+      throw new Error(`events endpoint returned ${events.status()}: ${await events.text()}`)
+    }
     const played: unknown = (await events.json()).events
     expect(Array.isArray(played) && played.length > 0).toBe(true)
     expect(eventFetches, 'loading a replay fetches it exactly once').toHaveLength(1)
@@ -125,37 +129,50 @@ test.describe('session replay', () => {
     await expect(count).not.toHaveText(`Showing ${shown} of ${total} recordings`)
   })
 
-  test('the company toggle stops recording entirely', async ({ authenticatedPage: page }) => {
-    await page.evaluate((key) => window.localStorage.removeItem(key), DISABLE_KEY)
+  test.describe('with recording switched off', () => {
+    // Chromium logs "Failed to load resource" for any non-2xx, and the 409
+    // this test asserts is a non-2xx by design. Scoped to this block so the
+    // playback test above keeps the strict console check — a 409 anywhere
+    // near the player would be a real fault. Only the browser's own resource
+    // line is allowed: the app itself must stay silent when the feature is
+    // off, which is what `startSessionReplay` converting the 409 buys, and an
+    // uncaught rejection here would not match this pattern.
+    test.use({
+      expectedConsoleErrors: [/Failed to load resource.*status of 409/],
+    })
 
-    await page.goto('/admin/company-defaults/setup')
-    const toggle = autoId(page, 'CompanyDefaultsPage-setup-field-session_replay_enabled')
-    await toggle.waitFor({ timeout: 30000 })
-    const wasEnabled = await toggle.isChecked()
-    if (wasEnabled) {
-      await toggle.click()
-      await autoId(page, 'CompanyDefaultsPage-save-button').click()
-      await expect(autoId(page, 'CompanyDefaultsPage-save-button')).toBeDisabled()
-    }
+    test('the company toggle stops recording entirely', async ({ authenticatedPage: page }) => {
+      await page.evaluate((key) => window.localStorage.removeItem(key), DISABLE_KEY)
 
-    try {
-      const refused = page.waitForResponse(
-        (response) =>
-          response.url().endsWith('/api/session-replays/recordings/') &&
-          response.request().method() === 'POST',
-        { timeout: 15000 },
-      )
-      await page.goto('/kanban')
-      expect((await refused).status()).toBe(409)
-    } finally {
-      // Leave the instance recording: every later spec shares this database.
+      await page.goto('/admin/company-defaults/setup')
+      const toggle = autoId(page, 'CompanyDefaultsPage-setup-field-session_replay_enabled')
+      await toggle.waitFor({ timeout: 30000 })
+      const wasEnabled = await toggle.isChecked()
       if (wasEnabled) {
-        await page.goto('/admin/company-defaults/setup')
-        const restore = autoId(page, 'CompanyDefaultsPage-setup-field-session_replay_enabled')
-        await restore.waitFor({ timeout: 30000 })
-        await restore.click()
+        await toggle.click()
         await autoId(page, 'CompanyDefaultsPage-save-button').click()
+        await expect(autoId(page, 'CompanyDefaultsPage-save-button')).toBeDisabled()
       }
-    }
+
+      try {
+        const refused = page.waitForResponse(
+          (response) =>
+            response.url().endsWith('/api/session-replays/recordings/') &&
+            response.request().method() === 'POST',
+          { timeout: 15000 },
+        )
+        await page.goto('/kanban')
+        expect((await refused).status()).toBe(409)
+      } finally {
+        // Leave the instance recording: every later spec shares this database.
+        if (wasEnabled) {
+          await page.goto('/admin/company-defaults/setup')
+          const restore = autoId(page, 'CompanyDefaultsPage-setup-field-session_replay_enabled')
+          await restore.waitFor({ timeout: 30000 })
+          await restore.click()
+          await autoId(page, 'CompanyDefaultsPage-save-button').click()
+        }
+      }
+    })
   })
 })

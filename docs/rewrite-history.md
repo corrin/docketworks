@@ -553,5 +553,7 @@ compressed** (mean 22,888), so one rrweb full-snapshot event exceeds the E2E wir
 `session-replay.spec.ts` rather than made to fit, and why the page must not fetch a replay
 until asked. Serialisation on the same 4.28 MB payload: `validate_python` 0.813s,
 `dump_json` 0.283s, `json.dumps` 0.133s, gzip level 6 0.049s — the compression everyone
-assumes is the cost is 5% of it.
+assumes is the cost is 5% of it. The E2E's own short recording measured
+147.18 KB on the wire against 1,800.74 KB decompressed, which is the response
+that used to fail the guard.
 

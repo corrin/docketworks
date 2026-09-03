@@ -103,11 +103,11 @@ export function enableNetworkLogging(
 
     // timing() never returns null; unavailable values are -1 (e.g. HAR
     // replay), which must not produce a negative duration in the CSV.
+    // responseEnd is ALREADY relative to startTime, while startTime is an
+    // epoch millisecond — subtracting one from the other wrote roughly
+    // -1.79e12 into every row this file has ever logged.
     const timing = request.timing()
-    const durationMs =
-      timing.responseEnd >= 0 && timing.startTime >= 0
-        ? String(Math.round(timing.responseEnd - timing.startTime))
-        : ''
+    const durationMs = timing.responseEnd >= 0 ? String(Math.round(timing.responseEnd)) : ''
 
     const row = [
       networkRunId,
