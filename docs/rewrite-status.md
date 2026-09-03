@@ -11,12 +11,19 @@ A task gets as many lines as a session needs to pick it up cold — no more. It 
 restates the code, re-derives a measurement, or narrates how it was found; where a fact
 must survive it belongs in an ADR or a seam comment, and the task links there.
 
-**This file and Jira are both live, and they hold different things.** A KAN ticket is
-the authority wherever one exists — it carries the reproduction, the evidence and the
-acceptance criteria, and this file links to it rather than restating it. What lives
-here is work with no ticket: the tail of the port, cross-cutting debt, seams left
-inside completed slices, and decisions waiting on the owner. Check both before picking
-up a slice.
+**Every KAN ticket raised from 2026-09-02 gets a line here, in the same sitting.** One
+or two lines, enough for a session to pick it up cold, linking to the ticket rather than
+restating it — the ticket stays the authority for the reproduction, the evidence and the
+acceptance criteria. The point is that finding the next job means reading one file.
+Raising a ticket and not logging it is how that stops being true.
+
+**The rule is forward-only, and this file is not yet the whole list.** 143 tickets
+predate it and live in Jira alone; they were not backfilled because most are long-tail
+wishes and this file's first line is that every entry is a requirement for the near
+future. Until that backlog is triaged, check Jira as well before concluding something
+is not already raised. Work with no ticket lives here in full: the tail of the port,
+cross-cutting debt, seams left inside completed slices, and decisions waiting on the
+owner.
 
 **Numbers.** Only two kinds belong in a file that is rewritten as often as this one:
 derived and gated by `status_table.py --check` (the table below owns them), or a frozen
@@ -317,11 +324,15 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   `find_duplicates.py` is `types: [python]`, so nothing on the frontend is checked at all
   — three parallel job pickers coexisted through every green tier until a human caught
   them.
-- **Bring every handwritten file back under 500 lines.** Baseline 2026-09-02: **43**
-  production and **26** test Python files over, plus **10** handwritten frontend files.
+- **Bring every handwritten file back under 500 lines.** Baseline 2026-09-02: **44**
+  production and **27** test Python files over, plus **10** handwritten frontend files.
+  Counted over git-tracked handwritten sources only — no `migrations/`, and on the
+  frontend no `generated/` or `routeTree.gen.ts` — so the number can be re-derived
+  rather than trusted.
   The largest are `apps/job/services/job_service.py` (3,044), `apps/job/api.py` (1,863)
-  and `apps/job/services/workshop_pdf_service.py` (1,582); twelve files exceed 1,000
-  lines. Four passes: inventory plus a CI gate admitting no new offenders; split
+  and `apps/job/services/workshop_pdf_service.py` (1,582); **19** handwritten files
+  exceed 1,000 lines (18 Python, 1 frontend). Four passes: inventory plus a CI gate
+  admitting no new offenders; split
   everything over 1,000 lines; split the rest; split the test files by behaviour under
   test. Generated files stay exempt. Line count says *where* to decompose, never *how*:
   moving line ranges into vaguely named helpers satisfies the number and preserves the

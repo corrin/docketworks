@@ -4,11 +4,14 @@ The full rewrite of `../docketworks_v1` (v1) shipped: production has run this co
 2026-08-29, and [`docs/release-process.md`](docs/release-process.md) is how a change reaches
 it. The approved plan lives at
 `/home/corrin/.claude/plans/the-docketworks-project-docketworks-cozy-steele.md`.
-**Work is tracked in two places and you check both.** A Jira ticket (KAN) is the authority
-wherever one exists — it carries the reproduction, the evidence and the acceptance criteria.
-Everything with no ticket — the tail of the port, cross-cutting debt, seams left inside
-completed slices, and decisions waiting on the owner — lives in
-**[`docs/rewrite-status.md`](docs/rewrite-status.md)**; read it before picking up work, and
+**[`docs/rewrite-status.md`](docs/rewrite-status.md) is the single to-do list.** A Jira
+ticket (KAN) is the authority wherever one exists — it carries the reproduction, the evidence
+and the acceptance criteria — but every ticket raised from 2026-09-02 also gets a line in
+that file, in the same sitting, so one file answers "what is there to do". The rule is
+forward-only: tickets that predate it are in Jira alone, so check both until that backlog is
+triaged. Work with no ticket — the tail of the port, cross-cutting debt, seams left inside
+completed slices, and decisions waiting on the owner — lives there in full; read it before
+picking up work, and
 update it at the end of every slice. **That file only shrinks:** it holds tasks and nothing
 else, and finished work is deleted the moment it is finished. Anything worth recording that
 is NOT a task — a ruling, a finding, a measurement — goes to
