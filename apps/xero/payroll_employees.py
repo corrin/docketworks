@@ -69,10 +69,18 @@ logger = logging.getLogger(__name__)
 ANNUAL_LEAVE_OPENING_HOURS = 160.0
 SICK_LEAVE_HOURS = 80.0
 
-# ESCT rate for the $16,801-$57,600 band, and the standard 3%/3% KiwiSaver
-# split. Demo-organisation values; a production org configures its own.
+# ESCT rate for the $16,801-$57,600 band, and the 3.5%/3.5% KiwiSaver split
+# (the statutory minimum since 1 April 2026, up from 3%).
+#
+# These are SEEDING values and reach Xero only through create_payroll_employee,
+# whose spec fills ird_number and bank_account_number from demo_payroll_data's
+# fabricated generators — so the path cannot be used against a real
+# organisation, and a production org configures its own rates. Read the spec
+# builder (timesheet/services/payroll_employee_sync.py:_employee_spec) before
+# concluding otherwise: the call chain alone runs through a sync that IS
+# production-capable, and stopping there reads as a payroll bug that is not one.
 ESCT_RATE_PERCENTAGE = 17.5
-KIWISAVER_CONTRIBUTION_PERCENTAGE = 3.0
+KIWISAVER_CONTRIBUTION_PERCENTAGE = 3.5
 
 # An NZ bank account is BB-bbbb-AAAAAAA-SSS. Xero wants the bank+branch as a
 # 6-digit sort code and the whole thing, undashed, as the account number.

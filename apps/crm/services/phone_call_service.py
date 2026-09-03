@@ -184,9 +184,12 @@ def _ingest_recording(
 
 
 def delete_archived_provider_recordings(*, limit: int = 100) -> PhoneCallDeleteResult:
-    """Delete provider-side recordings archived locally and past the 31-day window."""
+    """Delete provider-side recordings archived locally and past the retention window."""
     config = _config()
-    cutoff_date = timezone.localdate() - timedelta(days=31)
+    # Read straight off the model rather than through _config(): that type is
+    # the four login values, and a retention window is not one of them.
+    retention_days = IntegrationSettings.get_solo().phone_provider_recording_deletion_after_days
+    cutoff_date = timezone.localdate() - timedelta(days=retention_days)
     recordings = list(
         PhoneCallRecording.objects.select_related("call")
         .filter(

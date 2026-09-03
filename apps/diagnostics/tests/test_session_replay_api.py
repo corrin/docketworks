@@ -24,7 +24,6 @@ from django.utils import timezone
 from apps.core.models import AppError, CompanyDefaults
 from apps.diagnostics.models import SessionReplayChunk, SessionReplayRecording
 from apps.diagnostics.services import session_replay_service as replays
-from apps.diagnostics.tasks import SESSION_REPLAY_RETENTION_DAYS
 
 pytestmark = pytest.mark.django_db
 
@@ -263,11 +262,14 @@ def test_the_purge_deletes_payloads_as_well_as_rows(api: Client, replay_storage:
     assert stored.exists()
 
     SessionReplayRecording.objects.filter(id=recording_id).update(
-        started_at=timezone.now() - timedelta(days=SESSION_REPLAY_RETENTION_DAYS + 1)
+        started_at=timezone.now()
+        - timedelta(days=CompanyDefaults.get_solo().session_replay_retention_days + 1)
     )
     # The service, not the task: the task's close_old_connections() would drop
     # the connection this test's transaction is running on.
-    replays.purge_old_recordings(retention_days=SESSION_REPLAY_RETENTION_DAYS)
+    replays.purge_old_recordings(
+        retention_days=CompanyDefaults.get_solo().session_replay_retention_days
+    )
 
     assert not SessionReplayRecording.objects.exists()
     assert not SessionReplayChunk.objects.exists()
@@ -275,10 +277,39 @@ def test_the_purge_deletes_payloads_as_well_as_rows(api: Client, replay_storage:
     assert not stored.parent.exists()
 
 
+def test_the_purge_honours_a_changed_retention_setting(api: Client) -> None:
+    """The window is a setting, so changing it must change what survives.
+
+    Without this the field is a relocated literal: the purge would pass its
+    own test while still deleting on a fixed 14 days.
+    """
+    recording_id = _open_recording(api)
+    SessionReplayRecording.objects.filter(id=recording_id).update(
+        started_at=timezone.now() - timedelta(days=20)
+    )
+
+    defaults = CompanyDefaults.get_solo()
+    defaults.session_replay_retention_days = 30
+    defaults.save(update_fields=["session_replay_retention_days"])
+    replays.purge_old_recordings(
+        retention_days=CompanyDefaults.get_solo().session_replay_retention_days
+    )
+    assert SessionReplayRecording.objects.filter(id=recording_id).exists()
+
+    defaults.session_replay_retention_days = 7
+    defaults.save(update_fields=["session_replay_retention_days"])
+    replays.purge_old_recordings(
+        retention_days=CompanyDefaults.get_solo().session_replay_retention_days
+    )
+    assert not SessionReplayRecording.objects.filter(id=recording_id).exists()
+
+
 def test_a_recent_recording_survives_the_purge(api: Client) -> None:
     """The cutoff is a date, not a truncation."""
     _open_recording(api)
-    replays.purge_old_recordings(retention_days=SESSION_REPLAY_RETENTION_DAYS)
+    replays.purge_old_recordings(
+        retention_days=CompanyDefaults.get_solo().session_replay_retention_days
+    )
     assert SessionReplayRecording.objects.count() == 1
 
 

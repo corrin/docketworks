@@ -58,6 +58,8 @@ const defaults: CompanyDefaultsOut = {
   id: null,
   job_delta_soft_fail: false,
   session_replay_enabled: true,
+  session_replay_retention_days: 14,
+  quote_expiry_days: 30,
   kpi_daily_billable_hours_amber: '',
   kpi_daily_billable_hours_green: '',
   kpi_daily_gp_amber: '',

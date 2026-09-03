@@ -886,6 +886,10 @@ components:
           - type: 'null'
           description: Postal/ZIP code
           title: Post Code
+        quote_expiry_days:
+          description: Days a quote sent to a customer stays valid.
+          title: Quote Expiry Days
+          type: integer
         region:
           anyOf:
           - maxLength: 100
@@ -899,6 +903,11 @@ components:
             screen and are visible to superusers only.
           title: Session Replay Enabled
           type: boolean
+        session_replay_retention_days:
+          description: Days to keep session replays before the nightly purge deletes them and their stored
+            events. This is the only limit on how long a recording of someone's screen survives.
+          title: Session Replay Retention Days
+          type: integer
         shop_company:
           description: Internal company used for tracking shop work.
           format: uuid
@@ -1077,8 +1086,10 @@ components:
       - mon_start
       - po_prefix
       - post_code
+      - quote_expiry_days
       - region
       - session_replay_enabled
+      - session_replay_retention_days
       - shop_company
       - starting_job_number
       - starting_po_number
@@ -1422,6 +1433,12 @@ components:
           - type: 'null'
           description: Postal/ZIP code
           title: Post Code
+        quote_expiry_days:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Days a quote sent to a customer stays valid.
+          title: Quote Expiry Days
         region:
           anyOf:
           - maxLength: 100
@@ -1437,6 +1454,13 @@ components:
           description: Record staff browser sessions for diagnostics. Recordings capture everything on
             screen and are visible to superusers only.
           title: Session Replay Enabled
+        session_replay_retention_days:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Days to keep session replays before the nightly purge deletes them and their stored
+            events. This is the only limit on how long a recording of someone's screen survives.
+          title: Session Replay Retention Days
         shop_company_id:
           anyOf:
           - format: uuid

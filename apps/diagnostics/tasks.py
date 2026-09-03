@@ -10,14 +10,10 @@ from celery import shared_task
 from django.db import close_old_connections
 
 from apps.core.errors import persist_app_error
+from apps.core.models import CompanyDefaults
 from apps.diagnostics.services.session_replay_service import purge_old_recordings
 
 logger = logging.getLogger("apps.diagnostics.tasks")
-
-# v1 required this via the SESSION_REPLAY_RETENTION_DAYS env var, but every
-# environment set 14 — the knob never varied, so it is a constant rather than
-# a per-instance setting nobody would turn.
-SESSION_REPLAY_RETENTION_DAYS = 14
 
 
 @shared_task(name="apps.diagnostics.tasks.purge_old_session_replays_task")
@@ -34,11 +30,12 @@ def purge_old_session_replays_task() -> None:
     logger.info("Running purge_old_session_replays_task.")
     try:
         close_old_connections()
-        deleted = purge_old_recordings(retention_days=SESSION_REPLAY_RETENTION_DAYS)
+        retention_days = CompanyDefaults.get_solo().session_replay_retention_days
+        deleted = purge_old_recordings(retention_days=retention_days)
         logger.info(
             "Deleted %s session replay rows using %s day retention.",
             deleted,
-            SESSION_REPLAY_RETENTION_DAYS,
+            retention_days,
         )
     except Exception as exc:
         logger.exception("Error during session replay purge.")

@@ -834,6 +834,12 @@ export type CompanyDefaultsOut = {
      */
     post_code: string | null;
     /**
+     * Quote Expiry Days
+     *
+     * Days a quote sent to a customer stays valid.
+     */
+    quote_expiry_days: number;
+    /**
      * Region
      *
      * The region Google reports for the address above — 'Canterbury Region', or plainly 'Auckland'. Read-only, and the basis for which public holidays this business observes.
@@ -845,6 +851,12 @@ export type CompanyDefaultsOut = {
      * Record staff browser sessions for diagnostics. Recordings capture everything on screen and are visible to superusers only.
      */
     session_replay_enabled: boolean;
+    /**
+     * Session Replay Retention Days
+     *
+     * Days to keep session replays before the nightly purge deletes them and their stored events. This is the only limit on how long a recording of someone's screen survives.
+     */
+    session_replay_retention_days: number;
     /**
      * Shop Company
      *
@@ -1228,6 +1240,12 @@ export type CompanyDefaultsPatchIn = {
      */
     post_code?: string | null;
     /**
+     * Quote Expiry Days
+     *
+     * Days a quote sent to a customer stays valid.
+     */
+    quote_expiry_days?: number | null;
+    /**
      * Region
      *
      * The region Google reports for the address above — 'Canterbury Region', or plainly 'Auckland'. Read-only, and the basis for which public holidays this business observes.
@@ -1239,6 +1257,12 @@ export type CompanyDefaultsPatchIn = {
      * Record staff browser sessions for diagnostics. Recordings capture everything on screen and are visible to superusers only.
      */
     session_replay_enabled?: boolean | null;
+    /**
+     * Session Replay Retention Days
+     *
+     * Days to keep session replays before the nightly purge deletes them and their stored events. This is the only limit on how long a recording of someone's screen survives.
+     */
+    session_replay_retention_days?: number | null;
     /**
      * Shop Company
      *
