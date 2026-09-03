@@ -71,7 +71,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 | metric | count |
 |---|---:|
 | in comments | 252 |
-| in docstrings | 422 |
+| in docstrings | 423 |
 
 ## Exception handling
 
@@ -79,9 +79,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 400 |
-| except handlers | 434 |
-| re-raises or converts | 278 |
+| try statements | 401 |
+| except handlers | 435 |
+| re-raises or converts | 279 |
 | returns instead | 91 |
 | falls through | 51 |
 | continue/break in a loop | 13 |
@@ -104,7 +104,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 211 |
-| non-test functions | 2580 |
+| non-test functions | 2581 |
 
 ## Wire contract (response side)
 
@@ -113,6 +113,6 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 | metric | count |
 |---|---:|
 | response schemas | 298 |
-| response properties | 1918 |
+| response properties | 1919 |
 | optional (pinned at zero) | 0 |
 | nullable | 425 |

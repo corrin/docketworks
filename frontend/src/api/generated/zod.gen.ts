@@ -457,7 +457,7 @@ export const zCompanyDefaultsPatchIn = z.object({
     xero_payroll_calendar_id: z.uuid().nullish(),
     xero_payroll_calendar_name: z.string().max(100).nullish(),
     xero_payroll_start_date: z.iso.date().nullish(),
-    xero_quote_terms: z.string().max(4000).nullish(),
+    xero_quote_terms: z.string().nullish(),
     xero_sales_branding_theme_id: z.uuid().nullish(),
     xero_shortcode: z.string().max(20).nullish(),
     xero_tenant_id: z.string().max(100).nullish()
@@ -4429,11 +4429,16 @@ export const zRecordingCreateIn = z.object({
 });
 
 /**
- * RecordingFilters
+ * RecordingFiltersIn
  *
  * Optional narrowing for the recordings list.
+ *
+ * A ninja ``Schema``, not the service's dataclass: ``Query[...]`` flattens a
+ * Schema's fields into individual optional query params, while a plain
+ * dataclass is taken as ONE required param called ``filters`` — which made
+ * every unfiltered list call a 422.
  */
-export const zRecordingFilters = z.object({
+export const zRecordingFiltersIn = z.object({
     job_id: z.uuid().nullish(),
     started_after: z.iso.datetime().nullish(),
     started_before: z.iso.datetime().nullish(),
@@ -4454,6 +4459,7 @@ export const zRecordingOut = z.object({
     job_id: z.uuid().nullable(),
     last_seen_at: z.iso.datetime(),
     latest_path: z.string(),
+    payload_available: z.boolean(),
     started_at: z.iso.datetime(),
     user_email: z.string().nullable(),
     user_id: z.uuid(),

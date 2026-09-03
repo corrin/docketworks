@@ -1567,13 +1567,13 @@ components:
           title: Xero Payroll Start Date
         xero_quote_terms:
           anyOf:
-          - maxLength: 4000
-            type: string
+          - type: string
           - type: 'null'
           description: "Terms sent on every quote created by DocketWorks. Required \u2014 Xero does not\
             \ apply its own Terms (Quotes) default to quotes created through the API. Copy the same text\
             \ to Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use\
             \ the same terms."
+          maxLength: 4000
           title: Xero quote terms
         xero_sales_branding_theme_id:
           anyOf:
@@ -11218,8 +11218,11 @@ components:
       - recording_id
       title: RecordingEventsOut
       type: object
-    RecordingFilters:
-      description: Optional narrowing for the recordings list.
+    RecordingFiltersIn:
+      description: "Optional narrowing for the recordings list.\n\nA ninja ``Schema``, not the service's\
+        \ dataclass: ``Query[...]`` flattens a\nSchema's fields into individual optional query params,\
+        \ while a plain\ndataclass is taken as ONE required param called ``filters`` \u2014 which made\n\
+        every unfiltered list call a 422."
       properties:
         job_id:
           anyOf:
@@ -11245,7 +11248,7 @@ components:
             type: string
           - type: 'null'
           title: User Id
-      title: RecordingFilters
+      title: RecordingFiltersIn
       type: object
     RecordingOut:
       description: A recording as the admin list and the player header show it.
@@ -11282,6 +11285,9 @@ components:
         latest_path:
           title: Latest Path
           type: string
+        payload_available:
+          title: Payload Available
+          type: boolean
         started_at:
           format: date-time
           title: Started At
@@ -11314,6 +11320,7 @@ components:
       - job_id
       - last_seen_at
       - latest_path
+      - payload_available
       - started_at
       - user_email
       - user_id

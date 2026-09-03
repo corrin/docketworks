@@ -9982,11 +9982,16 @@ export type RecordingEventsOut = {
 };
 
 /**
- * RecordingFilters
+ * RecordingFiltersIn
  *
  * Optional narrowing for the recordings list.
+ *
+ * A ninja ``Schema``, not the service's dataclass: ``Query[...]`` flattens a
+ * Schema's fields into individual optional query params, while a plain
+ * dataclass is taken as ONE required param called ``filters`` — which made
+ * every unfiltered list call a 422.
  */
-export type RecordingFilters = {
+export type RecordingFiltersIn = {
     /**
      * Job Id
      */
@@ -10043,6 +10048,10 @@ export type RecordingOut = {
      * Latest Path
      */
     latest_path: string;
+    /**
+     * Payload Available
+     */
+    payload_available: boolean;
     /**
      * Started At
      */

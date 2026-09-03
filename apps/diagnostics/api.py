@@ -43,6 +43,7 @@ from apps.diagnostics.schemas import (
     PaginatedRecordingList,
     RecordingCreateIn,
     RecordingEventsOut,
+    RecordingFiltersIn,
     RecordingOut,
 )
 from apps.diagnostics.services import session_replay_service as replays
@@ -75,6 +76,7 @@ def _own_recording(request: HttpRequest, recording_id: UUID) -> SessionReplayRec
 def _recording_out(recording: SessionReplayRecording) -> dict[str, object]:
     """Flatten a recording for the wire, including the owner's email."""
     return {
+        "payload_available": replays.has_payloads(recording),
         "id": recording.id,
         "user_id": recording.user_id,
         "user_email": recording.user.office_email,
@@ -167,12 +169,18 @@ def session_replay_recording_chunks_create(
 )
 def session_replay_recordings_list(
     request: HttpRequest,
-    filters: Query[replays.RecordingFilters],
+    filters: Query[RecordingFiltersIn],
     page: int = 1,
     page_size: int | None = None,
 ) -> dict[str, object]:
     """Return a page of recordings, newest first."""
-    page_data = paginate(replays.recordings_queryset(filters), page=page, page_size=page_size)
+    narrowing = replays.RecordingFilters(
+        user_id=filters.user_id,
+        job_id=filters.job_id,
+        started_after=filters.started_after,
+        started_before=filters.started_before,
+    )
+    page_data = paginate(replays.recordings_queryset(narrowing), page=page, page_size=page_size)
     return {
         "results": [_recording_out(recording) for recording in page_data.rows],
         "count": page_data.count,
@@ -211,7 +219,22 @@ def session_replay_recording_events_retrieve(
 ) -> dict[str, object]:
     """Return every event of a recording, in playback order."""
     recording = get_object_or_404(SessionReplayRecording, id=recording_id)
-    return {"recording_id": recording.id, "events": replays.recording_events(recording)}
+    try:
+        events = replays.recording_events(recording)
+    except replays.ReplayPayloadMissingError as exc:
+        # 409, not 500: the rows are intact and the request is well formed —
+        # this environment simply does not hold the payloads, which no amount
+        # of retrying from this machine will change. The envelope persists an
+        # AppError for an HttpError too (envelope.py), so this does not save a
+        # row; what it buys is a caller who is told what to do instead of
+        # meeting "Unexpected server error" and a traceback.
+        raise HttpError(
+            409,
+            "This recording's events are not on this machine. Recording and chunk "
+            "rows travel inside a database restore; the payloads only arrive with "
+            "scripts/ops/pull_prod_files.sh.",
+        ) from exc
+    return {"recording_id": recording.id, "events": events}
 
 
 @router.post(

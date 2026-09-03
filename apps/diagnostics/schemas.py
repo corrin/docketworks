@@ -39,6 +39,21 @@ class ChunkCreateIn(ViewportIn):
     job_id: UUID | None = None
 
 
+class RecordingFiltersIn(Schema):
+    """Optional narrowing for the recordings list.
+
+    A ninja ``Schema``, not the service's dataclass: ``Query[...]`` flattens a
+    Schema's fields into individual optional query params, while a plain
+    dataclass is taken as ONE required param called ``filters`` — which made
+    every unfiltered list call a 422.
+    """
+
+    user_id: UUID | None = None
+    job_id: UUID | None = None
+    started_after: datetime | None = None
+    started_before: datetime | None = None
+
+
 class RecordingOut(ResponseSchema):
     """A recording as the admin list and the player header show it."""
 
@@ -55,6 +70,7 @@ class RecordingOut(ResponseSchema):
     viewport_height: int | None
     event_count: int
     compressed_bytes: int
+    payload_available: bool
 
 
 class PaginatedRecordingList(ResponseSchema):

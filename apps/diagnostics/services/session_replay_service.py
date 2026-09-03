@@ -72,6 +72,18 @@ class RecordingFilters:
     started_before: datetime | None = None
 
 
+class ReplayPayloadMissingError(Exception):
+    """A recording's rows are here but its chunk files are not.
+
+    The ordinary cause is a database restore: recording and chunk rows travel
+    inside the dump, while the payloads live on the source host's storage root
+    and only arrive if ``scripts/ops/pull_prod_files.sh`` has been run. That is
+    an environment fact, not a fault, so it is a typed refusal rather than an
+    unexpected error — a 500 per click would fill the AppError table with
+    something no one can fix from this machine.
+    """
+
+
 def _store() -> PrivateFileStore:
     """Build the replay store; per call, so a settings override applies."""
     return PrivateFileStore(root=settings.SESSION_REPLAY_STORAGE_ROOT, label="session replay")
@@ -204,8 +216,23 @@ def recordings_queryset(filters: RecordingFilters) -> QuerySet[SessionReplayReco
     return queryset
 
 
+def has_payloads(recording: SessionReplayRecording) -> bool:
+    """Whether this recording's events are actually on this machine.
+
+    Checks the first chunk only: payloads arrive as a directory per recording,
+    so the set is present or absent together, and stat-ing every chunk of a
+    600-chunk recording to render one list row is not worth the syscalls.
+    """
+    first = recording.chunks.order_by("sequence").first()
+    if first is None:
+        return False
+    return _store().full_path(first.storage_path).exists()
+
+
 def recording_events(recording: SessionReplayRecording) -> list[ReplayEvent]:
     """Return every event of a recording, in order, ready for the player."""
+    if not has_payloads(recording):
+        raise ReplayPayloadMissingError(str(recording.id))
     events: list[ReplayEvent] = []
     for chunk in recording.chunks.order_by("sequence"):
         events.extend(_read_chunk_events(chunk))

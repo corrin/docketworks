@@ -33,9 +33,18 @@ export function SessionReplayPage() {
     ...sessionReplayRecordingsListOptions({ query: { page_size: 50 } }),
   })
 
+  // A recording with no events has nothing to play: it is a session that was
+  // opened and abandoned before the first flush.
+  const rows = (recordings.data?.results ?? []).filter(
+    (recording: RecordingOut) => recording.event_count > 0,
+  )
+  const selected = rows.find((recording) => recording.id === selectedId) ?? null
+
   const events = useQuery({
     ...sessionReplayRecordingEventsRetrieveOptions({ path: { recording_id: selectedId ?? '' } }),
-    enabled: selectedId !== null,
+    // Not merely selected — selected AND holding its payloads. Asking for
+    // events this machine does not have is a guaranteed 409.
+    enabled: selected !== null && selected.payload_available,
   })
 
   // The viewer is itself being recorded. Without this flush its own events sit
@@ -68,13 +77,6 @@ export function SessionReplayPage() {
       host.replaceChildren()
     }
   }, [events.data])
-
-  // A recording with no events has nothing to play: it is a session that was
-  // opened and abandoned before the first flush.
-  const rows = (recordings.data?.results ?? []).filter(
-    (recording: RecordingOut) => recording.event_count > 0,
-  )
-  const selected = rows.find((recording) => recording.id === selectedId) ?? null
 
   return (
     <div className="p-4 space-y-4">
@@ -121,7 +123,17 @@ export function SessionReplayPage() {
                       {formatDateTime(recording.started_at)}
                     </td>
                     <td className="max-w-40 truncate p-2">{recording.user_email}</td>
-                    <td className="p-2 text-right tabular-nums">{recording.event_count}</td>
+                    <td className="p-2 text-right tabular-nums">
+                      {recording.event_count}
+                      {!recording.payload_available && (
+                        <span
+                          className="ml-2 rounded bg-muted px-1 text-xs text-muted-foreground"
+                          title="Recorded on another machine. The rows came in with a database restore; the events themselves arrive only with scripts/ops/pull_prod_files.sh."
+                        >
+                          no data
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {rows.length === 0 && (
@@ -145,11 +157,27 @@ export function SessionReplayPage() {
                 </div>
               </div>
             )}
-            <div
-              ref={playerHost}
-              className="min-h-[28rem] bg-background"
-              data-automation-id="SessionReplayPage-player"
-            />
+            {selected && !selected.payload_available ? (
+              <div
+                className="p-6 text-sm text-muted-foreground"
+                data-automation-id="SessionReplayPage-no-payload"
+              >
+                <p className="mb-2 font-medium text-foreground">
+                  This recording&rsquo;s events are not on this machine.
+                </p>
+                <p>
+                  Recording and chunk rows travel inside a database restore; the events themselves
+                  live on the machine that captured them and arrive only with{' '}
+                  <code>scripts/ops/pull_prod_files.sh</code>.
+                </p>
+              </div>
+            ) : (
+              <div
+                ref={playerHost}
+                className="min-h-[28rem] bg-background"
+                data-automation-id="SessionReplayPage-player"
+              />
+            )}
           </div>
         </div>
       </QueryState>
