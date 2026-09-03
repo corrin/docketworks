@@ -374,22 +374,33 @@ export async function waitForCurrentUrl(page: Page, expectedUrl: RegExp): Promis
   )
 }
 
+/** How many toasts one dismissal pass will clear before giving up. Bounded so a
+    toast that refuses to close cannot spin here; the caller's next interaction
+    is what reports it. */
+const MAX_TOASTS_PER_PASS = 10
+/** Long enough for a click to land, short enough that a toast which vanished
+    mid-click costs a moment rather than the whole test timeout. */
+const TOAST_CLICK_TIMEOUT_MS = 2000
+
 /** Dismiss any sonner toasts that might block interactions. */
 export async function dismissToasts(page: Page) {
   const toasts = page.locator('[data-sonner-toast]')
 
-  const toastCount = await toasts.count()
-  if (toastCount === 0) return
-
-  for (let i = 0; i < toastCount; i++) {
-    const toast = toasts.nth(i)
-    const closeBtn = toast.locator('button[aria-label="Close toast"]')
-    if (await closeBtn.count()) {
-      await closeBtn.click()
-    } else {
-      await toast.click()
-    }
-
+  // Sonner dismisses toasts on its own timer, so the set shrinks underneath
+  // this loop. Counting first and then clicking nth(i) waits out the FULL test
+  // timeout whenever that toast closed itself in between — 120s spent on an
+  // element that is already gone, which is how create-job-with-new-company
+  // failed. Always act on whichever toast is still first instead of on an
+  // index into a set that is changing.
+  for (let pass = 0; pass < MAX_TOASTS_PER_PASS; pass += 1) {
+    const first = toasts.first()
+    if (!(await first.isVisible())) break
+    const closeBtn = first.locator('button[aria-label="Close toast"]')
+    const target = (await closeBtn.count()) > 0 ? closeBtn : first
+    // deliberate-swallow: a toast closing itself mid-click IS the outcome this
+    // helper exists to produce. Only its absence matters to the caller, never
+    // which of us removed it.
+    await target.click({ timeout: TOAST_CLICK_TIMEOUT_MS }).catch(() => undefined)
     await page.waitForTimeout(100)
   }
 
