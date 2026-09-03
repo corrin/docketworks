@@ -129,10 +129,23 @@ export async function startSessionReplay(): Promise<void> {
   if (disabledForE2E()) return
   if (getSessionReplayId() || stopRecording) return
 
-  const created = await sessionReplayRecordingsCreate({
-    body: { initial_path: currentPath(), job_id: currentJobId(), ...viewport() },
-    throwOnError: true,
-  })
+  let created
+  try {
+    created = await sessionReplayRecordingsCreate({
+      body: { initial_path: currentPath(), job_id: currentJobId(), ...viewport() },
+      throwOnError: true,
+    })
+  } catch (error) {
+    // 409 is the company toggle: this instance does not record, which is an
+    // answer rather than a fault. Converted here rather than left to reject,
+    // because the caller starts capture with `void startSessionReplay()` and
+    // this module installs the `unhandledrejection` listener that reports
+    // uncaught errors — so a rejection here is caught by our own reporter and
+    // filed as a frontend error row on EVERY authenticated page load. Turning
+    // the feature off would generate an error per page view.
+    if (isApiErrorStatus(error, 409)) return
+    throw error
+  }
   setSessionReplayId(created.data.id)
 
   stopRecording =

@@ -105,3 +105,33 @@ describe('session replay uploads', () => {
     expect(chunksCreate).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('session replay start', () => {
+  beforeEach(async () => {
+    await stopSessionReplay()
+    vi.clearAllMocks()
+    emitted.length = 0
+    setSessionReplayId(null)
+    window.localStorage.clear()
+  })
+
+  // Callers start capture as a floating promise, and this module installs the
+  // unhandledrejection listener that reports uncaught errors — so a rejection
+  // here would be caught by our own reporter and filed as a frontend error row
+  // on every authenticated page load. An instance with recording switched off
+  // must be silent, not self-reporting.
+  it('is silent when the company has recording switched off', async () => {
+    recordingsCreate.mockRejectedValue(apiError(409))
+
+    await expect(startSessionReplay()).resolves.toBeUndefined()
+    expect(emitted).toHaveLength(0)
+  })
+
+  // A refusal is an answer; a broken server is not, and swallowing it would
+  // mean capture silently never runs with nothing to show why.
+  it('surfaces a server failure rather than swallowing it', async () => {
+    recordingsCreate.mockRejectedValue(apiError(500))
+
+    await expect(startSessionReplay()).rejects.toStrictEqual(apiError(500))
+  })
+})
