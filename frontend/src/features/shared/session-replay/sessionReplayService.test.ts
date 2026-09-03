@@ -181,4 +181,22 @@ describe('session replay start', () => {
 
     await expect(startSessionReplay()).rejects.toStrictEqual(apiError(500))
   })
+
+  // The recording id lives in module state, so stopping has to clear it: while
+  // it survived, the next startSessionReplay early-returned and appended the
+  // new session to the PREVIOUS user's recording. One person's screen in
+  // another person's replay is the failure this guards.
+  it('starts a new recording after a stop rather than resuming the last one', async () => {
+    recordingsCreate.mockResolvedValue({ data: { id: 'recording-1' } })
+    await startSessionReplay()
+    expect(recordingsCreate).toHaveBeenCalledTimes(1)
+
+    await stopSessionReplay()
+    recordingsCreate.mockResolvedValue({ data: { id: 'recording-2' } })
+    await startSessionReplay()
+
+    expect(recordingsCreate).toHaveBeenCalledTimes(2)
+    await captureAndFlush()
+    expect(chunksCreate.mock.calls[0]?.[0]).toBeDefined()
+  })
 })

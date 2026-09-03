@@ -204,8 +204,8 @@ export const zChunkCreateIn = z.object({
     first_event_timestamp_ms: z.int(),
     job_id: z.uuid().nullish(),
     last_event_timestamp_ms: z.int(),
-    path: z.string().min(1),
-    sequence: z.int(),
+    path: z.string().min(1).max(500),
+    sequence: z.int().gte(0),
     viewport_height: z.int().nullish(),
     viewport_width: z.int().nullish()
 });
@@ -4426,7 +4426,7 @@ export const zRdtiSpendResponse = z.object({
  * Open a recording for the calling user.
  */
 export const zRecordingCreateIn = z.object({
-    initial_path: z.string().min(1),
+    initial_path: z.string().min(1).max(500),
     job_id: z.uuid().nullish(),
     viewport_height: z.int().nullish(),
     viewport_width: z.int().nullish()

@@ -6,9 +6,11 @@ client that receives the events themselves.
 """
 
 from datetime import datetime
+from typing import Annotated
 from uuid import UUID
 
-from ninja import Schema
+from ninja import Field, Schema
+from pydantic import StringConstraints
 
 from apps.core.schemas import NonBlankText, ResponseSchema
 from apps.diagnostics.services.session_replay_service import ReplayEvent
@@ -21,21 +23,33 @@ class ViewportIn(Schema):
     viewport_height: int | None = None
 
 
+# The columns behind these are CharField(max_length=500) and a captured path
+# carries the search string and hash, so an unbounded field here turns a long
+# but ordinary URL into a DataError 500 and an AppError row instead of a 422 at
+# the boundary.
+CapturedPath = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
+]
+
+
 class RecordingCreateIn(ViewportIn):
     """Open a recording for the calling user."""
 
-    initial_path: NonBlankText
+    initial_path: CapturedPath
     job_id: UUID | None = None
 
 
 class ChunkCreateIn(ViewportIn):
     """One batch of rrweb events, in capture order."""
 
-    sequence: int
+    # ge=0 against the model's PositiveIntegerField: a negative sequence is an
+    # IntegrityError from the database CHECK, which is a 500 for what the
+    # schema can refuse.
+    sequence: int = Field(ge=0)
     events_json: NonBlankText
     first_event_timestamp_ms: int
     last_event_timestamp_ms: int
-    path: NonBlankText
+    path: CapturedPath
     job_id: UUID | None = None
 
 

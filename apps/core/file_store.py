@@ -9,8 +9,8 @@ indexes payloads by checksum must be able to refuse an overwrite rather than
 silently replace a chunk another request already stored.
 """
 
-import os
 from pathlib import Path
+from uuid import uuid4
 
 
 class PrivateFileStore:
@@ -48,18 +48,24 @@ class PrivateFileStore:
     def write(self, *, storage_path: str, payload: bytes, overwrite: bool) -> None:
         """Write payload atomically, optionally refusing an existing target.
 
-        The write goes to a pid-suffixed temporary name and is renamed into
-        place, so a reader never observes a partial file. ``overwrite`` is
+        The write goes to a temporary name unique to this call and is renamed
+        into place, so a reader never observes a partial file. ``overwrite`` is
         required rather than defaulted: for a checksum-indexed store, an
         existing target means two requests claimed the same slot, which the
         caller must hear about instead of losing one of them.
+
+        Unique per call, not per process: with a pid suffix two threads writing
+        one storage_path shared a temp name, so the second one's ``open("xb")``
+        raised and its cleanup deleted the FIRST one's half-written file — and
+        the winner's rename then failed on a path that had been removed
+        underneath it. Owning the temp name is what makes the cleanup safe.
         """
         full_path = self.full_path(storage_path)
         if not overwrite and full_path.exists():
             raise FileExistsError(f"{self._label} file already exists: {storage_path}")
 
         full_path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = full_path.with_name(f".{full_path.name}.{os.getpid()}.tmp")
+        temp_path = full_path.with_name(f".{full_path.name}.{uuid4().hex}.tmp")
         try:
             with temp_path.open("xb") as destination:
                 destination.write(payload)

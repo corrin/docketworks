@@ -8,7 +8,12 @@
  */
 import { useEffect } from 'react'
 
-import { flushSessionReplay, reportFrontendError, startSessionReplay } from './sessionReplayService'
+import {
+  flushSessionReplay,
+  reportFrontendError,
+  startSessionReplay,
+  stopSessionReplay,
+} from './sessionReplayService'
 
 function errorDetail(event: ErrorEvent | PromiseRejectionEvent): {
   message: string
@@ -54,7 +59,13 @@ export function useSessionReplay(enabled: boolean): void {
       window.removeEventListener('pagehide', flushNow)
       window.removeEventListener('error', captureError)
       window.removeEventListener('unhandledrejection', captureError)
-      void flushSessionReplay()
+      // Stop, not merely flush. Flushing left rrweb's observers and the 10s
+      // timer running past the authenticated layout, still buffering the login
+      // screen, and left the recording id in module state — so the NEXT login
+      // early-returned from startSessionReplay and appended one person's
+      // session to the previous person's recording. It self-healed only when a
+      // chunk upload eventually came back 401.
+      void stopSessionReplay()
     }
   }, [enabled])
 }

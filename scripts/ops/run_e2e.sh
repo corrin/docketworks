@@ -70,9 +70,12 @@ cd "$ROOT"
 "$ROOT/.venv/bin/python" manage.py migrate --no-input
 # Named before the suite runs, not after it is green: a screen's clipping,
 # paging and per-row query cost are invisible against a thin table, so a run
-# has to say which tables cannot exercise what production renders. Reports
-# rather than gates — see the script and ADR 0054 for why.
-"$ROOT/.venv/bin/python" "$ROOT/scripts/checks/data_shape_gap.py" || true
+# has to say which tables cannot exercise what production renders. The script
+# reports rather than gates (ADR 0054) and exits 0 on every reporting path, so
+# a non-zero exit here is the CHECK being broken — a missing shape file, a
+# Django that will not boot — and the run stops rather than proceeding with no
+# shape report at all.
+"$ROOT/.venv/bin/python" "$ROOT/scripts/checks/data_shape_gap.py"
 npm --prefix "$FRONTEND" run test:e2e:reset -- --confirm
 rm -rf "$FRONTEND/test-results" "$FRONTEND/playwright-report" "$LOG_DIR"
 mkdir -p "$LOG_DIR"

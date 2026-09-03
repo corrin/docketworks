@@ -28,6 +28,10 @@ from apps.diagnostics.models import SessionReplayChunk, SessionReplayRecording
 type JsonValue = str | int | float | bool | list["JsonValue"] | dict[str, "JsonValue"] | None
 type ReplayEvent = dict[str, JsonValue]
 
+# Recordings deleted per pass, so the first purge after a long gap does not
+# load an unbounded backlog into one task.
+PURGE_BATCH_SIZE = 200
+
 
 @dataclass(frozen=True, slots=True)
 class Viewport:
@@ -154,9 +158,13 @@ def append_chunk(new: NewChunk) -> SessionReplayChunk:
     """Store one batch of events and roll the recording's counters forward.
 
     The row is created first so the unique (recording, sequence) constraint
-    rejects a duplicate upload before any file is written. If the file write
-    then fails, the transaction rolls the row back and the file this call
-    created is removed, so a chunk row never outlives its payload.
+    rejects a duplicate upload before any file is written, and the file is
+    written LAST so nothing that can fail comes after it. Ordered that way
+    because a rollback does not remove a file: with the counter update sitting
+    between the write and the commit, a failure there rolled the row back and
+    left the payload, and the client's retry of that same sequence then met a
+    refusal to overwrite — a 500 the client reads as transient, so the
+    recording stalled on that sequence for the rest of the session.
     """
     recording = new.recording
     events = _decode_events(new.events_json)
@@ -178,11 +186,6 @@ def append_chunk(new: NewChunk) -> SessionReplayChunk:
         viewport_height=new.viewport.height,
     )
 
-    # overwrite=False: an existing file under a sequence the database just
-    # accepted means a previous attempt left a payload behind, and silently
-    # replacing it would destroy events the checksum no longer matches.
-    _store().write(storage_path=storage_path, payload=compressed, overwrite=False)
-
     recording.event_count += chunk.event_count
     recording.compressed_bytes += chunk.compressed_bytes
     recording.latest_path = new.path
@@ -200,6 +203,12 @@ def append_chunk(new: NewChunk) -> SessionReplayChunk:
             "last_seen_at",
         ]
     )
+
+    # Last, and inside the transaction: overwrite=False because an existing
+    # file under a sequence the database just accepted means a previous attempt
+    # left a payload behind, and silently replacing it would destroy events the
+    # checksum no longer matches.
+    _store().write(storage_path=storage_path, payload=compressed, overwrite=False)
     return chunk
 
 
@@ -230,18 +239,29 @@ def recordings_queryset(filters: RecordingFilters) -> QuerySet[SessionReplayReco
 def has_payloads(recording: SessionReplayRecording) -> bool:
     """Whether this recording's events are actually on this machine.
 
-    Checks the first chunk only: payloads arrive as a directory per recording,
-    so the set is present or absent together, and stat-ing every chunk of a
-    600-chunk recording to render one list row is not worth the syscalls.
+    Stats the recording's directory, which ``write`` creates alongside the
+    first payload — so it exists if and only if a chunk was ever written here.
+    One syscall and no query, which matters because the admin list asks this
+    for every row of every page (ADR 0054).
+
+    It replaces a check of chunk 0's file, which answered "not on this machine"
+    when only that one chunk was missing — a partial loss dressed up as an
+    absent restore. The cost of the directory test is the opposite mistake: an
+    empty directory left behind by an out-of-band ``rm`` of the files alone
+    reports available, and the read then fails. ``delete_recordings`` removes
+    the directory with the files, so nothing this code does produces one.
     """
-    first = recording.chunks.order_by("sequence").first()
-    if first is None:
-        return False
-    return _store().full_path(first.storage_path).exists()
+    return _store().full_path(str(recording.id)).is_dir()
 
 
 def recording_events(recording: SessionReplayRecording) -> list[ReplayEvent]:
     """Return every event of a recording, in order, ready for the player."""
+    # An empty list, not a missing payload: a session opened and abandoned
+    # before its first flush has nothing stored anywhere, and answering "these
+    # events are not on this machine" would send a superuser after files that
+    # were never written.
+    if not recording.chunks.exists():
+        return []
     if not has_payloads(recording):
         raise ReplayPayloadMissingError(str(recording.id))
     events: list[ReplayEvent] = []
@@ -271,9 +291,21 @@ def delete_recordings(recordings: list[SessionReplayRecording]) -> int:
 
 
 def purge_old_recordings(*, retention_days: int) -> int:
-    """Delete every recording older than the retention window."""
+    """Delete every recording older than the retention window, in batches.
+
+    Batched because the steady state is one day's worth but the first run after
+    a retention window is shortened — or after capture ships — is the entire
+    backlog, and loading every stale recording and all of its chunk rows into
+    one Celery task's memory scales with how long nobody ran this.
+    """
     cutoff = timezone.now() - timedelta(days=retention_days)
-    stale = list(
-        SessionReplayRecording.objects.filter(started_at__lt=cutoff).prefetch_related("chunks")
-    )
-    return delete_recordings(stale)
+    deleted = 0
+    while True:
+        batch = list(
+            SessionReplayRecording.objects.filter(started_at__lt=cutoff).prefetch_related("chunks")[
+                :PURGE_BATCH_SIZE
+            ]
+        )
+        if not batch:
+            return deleted
+        deleted += delete_recordings(batch)

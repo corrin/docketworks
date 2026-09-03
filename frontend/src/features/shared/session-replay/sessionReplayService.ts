@@ -49,19 +49,23 @@ let isFlushing = false
  * The E2E suite drives a real browser over ngrok. Recording every spec would
  * push chunk uploads through the same tunnel the run is already bottlenecked
  * on, so capture is off there — and only there.
+ *
+ * Keyed on `navigator.webdriver`, not `import.meta.env.DEV`: the managed run
+ * serves a PRODUCTION build (`vite build && vite preview`), where a DEV gate
+ * is false by construction — so the tunnel guard never fired and the opt-out
+ * key below was inert. webdriver is set only by automation, so a real browser
+ * reaches neither branch and records as it always did.
  */
 function disabledForE2E(): boolean {
-  const isPlaywrightOverNgrok =
-    navigator.webdriver && window.location.hostname.endsWith('.ngrok-free.app')
+  if (!navigator.webdriver) return false
+  if (window.location.hostname.endsWith('.ngrok-free.app')) return true
   try {
-    return (
-      import.meta.env.DEV &&
-      (isPlaywrightOverNgrok || window.localStorage.getItem(E2E_DISABLE_KEY) === 'true')
-    )
+    return window.localStorage.getItem(E2E_DISABLE_KEY) === 'true'
   } catch {
     // A browser configured to block site data throws on localStorage access.
-    // Recording is the safe default; only the explicit opt-out disables it.
-    return import.meta.env.DEV && isPlaywrightOverNgrok
+    // Recording is the safe default; only the explicit opt-out disables it,
+    // and an unreadable store is not one.
+    return false
   }
 }
 

@@ -13,6 +13,7 @@ import logging
 from collections.abc import Callable
 from time import perf_counter
 from typing import ClassVar, Final
+from uuid import UUID
 
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse, JsonResponse
@@ -96,11 +97,30 @@ class AccessLoggingMiddleware:
             request.method,
             response.status_code,
             duration_ms,
-            request.headers.get("X-Session-Replay-Id") or "-",
+            _replay_id_for_log(request.headers.get("X-Session-Replay-Id")),
             user.get_username(),
             request.path,
         )
         return response
+
+
+def _replay_id_for_log(header: str | None) -> str:
+    r"""Return the replay id only if it is one, so the log line stays parseable.
+
+    The access line is tab-delimited and this value is client-supplied. HTAB is
+    legal inside an HTTP field value, so an authenticated caller sending
+    `X-Session-Replay-Id: x\tuser=someone.else@example.com` would append fields
+    an operator greps for as though the server had written them. A UUID cannot
+    carry a delimiter, so requiring one is the whole defence.
+    """
+    if header is None:
+        return "-"
+    try:
+        return str(UUID(header))
+    # deliberate-swallow: a malformed header is a client's business, not an
+    # error of ours; the log records that it was not usable and moves on.
+    except ValueError:
+        return "-"
 
 
 class LoginRequiredMiddleware:

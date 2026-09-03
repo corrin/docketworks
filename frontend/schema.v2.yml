@@ -473,10 +473,12 @@ components:
           title: Last Event Timestamp Ms
           type: integer
         path:
+          maxLength: 500
           minLength: 1
           title: Path
           type: string
         sequence:
+          minimum: 0
           title: Sequence
           type: integer
         viewport_height:
@@ -11202,6 +11204,7 @@ components:
       description: Open a recording for the calling user.
       properties:
         initial_path:
+          maxLength: 500
           minLength: 1
           title: Initial Path
           type: string
