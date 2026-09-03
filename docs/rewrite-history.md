@@ -130,7 +130,8 @@ stranded under `PHONE_RECORDING_STORAGE_ROOT`.
 refreshed token was stored at 16:43:21.260 — 208 ms later, by another request already in
 flight. The expiry simply fell inside the run. `weekly-payroll`'s out-of-order posting
 test is where it surfaces, and its recorded history (four passed, one failed, one timed
-out) is that race rather than anything about payroll.
+out) is that race rather than anything about payroll. Fixed the same day: the caller
+that loses the lock now waits for the holder instead of looking once and giving up.
 
 ## Cross-report divergences, ported faithfully (2026-08-04)
 

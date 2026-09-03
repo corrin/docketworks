@@ -315,12 +315,6 @@ same class: the post duplicates what Xero already holds, and then self-reports s
 
 ## Correctness and hygiene
 
-- **A Xero access token expiring mid-run makes concurrent requests fail rather than wait.**
-  `get_tenant_id` raises "No valid Xero token found. Please complete the authorization
-  workflow." when `get_valid_token()` finds the token expired, while another request is
-  already refreshing it — so a caller gets a 500 for a token that exists moments later.
-  Serialise the refresh so the second caller waits for the first instead of raising.
-  Evidence in `rewrite-history.md`.
 - **The session-replay events endpoint validates its own output.** `response=RecordingEventsOut`
   (`apps/diagnostics/api.py:210`) runs the whole payload through pydantic against a
   recursive `JsonValue` union; on a 4.28 MB replay that is 0.81s of `validate_python` plus
