@@ -52,6 +52,7 @@ class RecordingFiltersIn(Schema):
     job_id: UUID | None = None
     started_after: datetime | None = None
     started_before: datetime | None = None
+    has_events: bool | None = None
 
 
 class RecordingOut(ResponseSchema):

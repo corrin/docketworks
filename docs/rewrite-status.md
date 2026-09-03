@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **51 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **53** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 247 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2887 (all passing) |
+| Unit tests | 2889 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 125 recorded deviations |
@@ -315,6 +315,27 @@ same class: the post duplicates what Xero already holds, and then self-reports s
 
 ## Correctness and hygiene
 
+- **The session-replay events endpoint validates its own output.** `response=RecordingEventsOut`
+  (`apps/diagnostics/api.py:210`) runs the whole payload through pydantic against a
+  recursive `JsonValue` union; on a 4.28 MB replay that is 0.81s of `validate_python` plus
+  0.28s of `dump_json`, against 0.05s of gzip. Return the joined chunks without
+  re-validating bytes the server just parsed. Measurements in `rewrite-history.md`.
+- **`payload_available` costs a query and a stat per listed recording.** `_recording_out`
+  (`apps/diagnostics/api.py:76`) calls `has_payloads`, which reads the first chunk row and
+  stats its file — 50 of each per page of the admin list. `prefetch_related` does not fix
+  it: the differing `order_by` defeats the prefetch. Stat the recording's directory
+  instead — `PrivateFileStore.write` creates `{root}/{recording_id}/`, so it exists iff a
+  chunk was ever written. That also stops a missing chunk 0 reporting "not on this
+  machine" when the payloads are merely partial; the cost is that an empty leftover
+  directory would report available and then fail on load.
+- **Session replays download whole.** The admin player fetches every event in one response
+  once the superuser asks to watch (hundreds of KB gzipped). `rrweb-player` exposes
+  `addEvent`, so progressive playback is feasible, but it does not reduce the bytes and
+  page one must still carry the full snapshot — do it for time-to-first-frame, not size.
+- **`DataTable` carries a private `joinClasses`** (`frontend/src/features/shared/DataTable.tsx:117`)
+  duplicating `cn` (`frontend/src/lib/utils.ts`). Not swapped in place because `cn` runs
+  `tailwind-merge`, which drops conflicting classes rather than concatenating — a
+  behaviour change on the editable grids that needs its own verification.
 - **Make the one-implementation rule cover the whole application.** Run the Python gate
   over `apps/`, add an equivalent TypeScript check over `frontend/src/`, hoist the Celery
   connection-hygiene copies into `apps/core` — seven task modules carry them

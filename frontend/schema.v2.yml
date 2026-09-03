@@ -11248,6 +11248,11 @@ components:
         \ while a plain\ndataclass is taken as ONE required param called ``filters`` \u2014 which made\n\
         every unfiltered list call a 422."
       properties:
+        has_events:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Has Events
         job_id:
           anyOf:
           - format: uuid
@@ -20987,6 +20992,14 @@ paths:
             type: string
           - type: 'null'
           title: Started Before
+      - in: query
+        name: has_events
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Has Events
       - in: query
         name: page
         required: false

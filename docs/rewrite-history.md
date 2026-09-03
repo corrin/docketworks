@@ -543,3 +543,15 @@ being it, and the purge is scheduled and deletes payloads. It is recorded here b
 two `blocked-by:` rows in `v1-disposition.md` were waiting on that decision and their
 disposition changes as a result.
 
+**A replay cannot be made small, measured 2026-09-03.** Recordings from the development
+database, served through `recording_events` and gzipped as the wire carries them: 162
+events = 1.77 MB raw / 162 KB gzipped; 592 = 3.84 MB / 334 KB; 1,180 = 5.35 MB / 557 KB.
+Across 14,891 stored chunks the largest single chunk is 940,739 bytes **already
+compressed** (mean 22,888), so one rrweb full-snapshot event exceeds the E2E wire guard's
+100 KB cap on its own and no chunk window, page or byte range can satisfy it. That is why
+`/api/session-replays/recordings/{id}/events/` is exempted per-spec in
+`session-replay.spec.ts` rather than made to fit, and why the page must not fetch a replay
+until asked. Serialisation on the same 4.28 MB payload: `validate_python` 0.813s,
+`dump_json` 0.283s, `json.dumps` 0.133s, gzip level 6 0.049s — the compression everyone
+assumes is the cost is 5% of it.
+

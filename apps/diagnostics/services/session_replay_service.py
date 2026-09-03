@@ -70,6 +70,11 @@ class RecordingFilters:
     job_id: UUID | None = None
     started_after: datetime | None = None
     started_before: datetime | None = None
+    # Opus: tri-state, not a bool. A recording opened and abandoned before its
+    # first flush has no events and nothing to play, so the admin player asks
+    # for has_events=True; None keeps the unfiltered list every other caller
+    # gets, and False is how the eventless ones are found deliberately.
+    has_events: bool | None = None
 
 
 class ReplayPayloadMissingError(Exception):
@@ -212,6 +217,12 @@ def recordings_queryset(filters: RecordingFilters) -> QuerySet[SessionReplayReco
         queryset = queryset.filter(started_at__gte=filters.started_after)
     if filters.started_before is not None:
         queryset = queryset.filter(started_at__lte=filters.started_before)
+    if filters.has_events is not None:
+        queryset = (
+            queryset.filter(event_count__gt=0)
+            if filters.has_events
+            else queryset.filter(event_count=0)
+        )
 
     return queryset
 

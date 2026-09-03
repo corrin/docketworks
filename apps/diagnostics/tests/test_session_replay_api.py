@@ -192,6 +192,50 @@ def test_the_list_still_narrows_when_a_filter_is_given(api: Client, superuser_ap
     assert matched.json()["count"] == 0
 
 
+def test_the_list_can_exclude_recordings_that_have_no_events(
+    api: Client, superuser_api: Client
+) -> None:
+    """The admin player lists only recordings there is something to watch.
+
+    A session opened and abandoned before its first flush holds no events, and
+    offering it as playable is a dead click. The narrowing belongs here rather
+    than in the browser: the page pages through this list, so a client-side
+    filter would count kept rows against a server total and quietly shrink
+    every page.
+    """
+    empty_id = _open_recording(api)
+    played_id = _open_recording(api)
+    assert _upload_chunk(api, played_id).status_code == 201
+
+    response = superuser_api.get("/api/session-replays/recordings/?has_events=true")
+
+    assert response.status_code == 200, response.content
+    listed = [row["id"] for row in response.json()["results"]]
+    assert played_id in listed
+    assert empty_id not in listed
+
+
+def test_the_list_can_ask_for_only_the_recordings_that_have_no_events(
+    api: Client, superuser_api: Client
+) -> None:
+    """False is a filter, not an absent one.
+
+    Reading the flag for truthiness would make has_events=false mean the same
+    as omitting it, so the abandoned sessions could never be listed on purpose
+    — which is the one query that finds capture failing for a user.
+    """
+    empty_id = _open_recording(api)
+    played_id = _open_recording(api)
+    assert _upload_chunk(api, played_id).status_code == 201
+
+    response = superuser_api.get("/api/session-replays/recordings/?has_events=false")
+
+    assert response.status_code == 200, response.content
+    listed = [row["id"] for row in response.json()["results"]]
+    assert empty_id in listed
+    assert played_id not in listed
+
+
 def test_reads_are_superuser_only(api: Client) -> None:
     """A replay is somebody's screen: office staff may record, not watch."""
     recording_id = _open_recording(api)

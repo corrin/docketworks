@@ -179,6 +179,7 @@ def session_replay_recordings_list(
         job_id=filters.job_id,
         started_after=filters.started_after,
         started_before=filters.started_before,
+        has_events=filters.has_events,
     )
     page_data = paginate(replays.recordings_queryset(narrowing), page=page, page_size=page_size)
     return {

@@ -10017,6 +10017,10 @@ export type RecordingEventsOut = {
  */
 export type RecordingFiltersIn = {
     /**
+     * Has Events
+     */
+    has_events?: boolean | null;
+    /**
      * Job Id
      */
     job_id?: string | null;
@@ -17940,6 +17944,10 @@ export type SessionReplayRecordingsListData = {
          * Started Before
          */
         started_before?: string | null;
+        /**
+         * Has Events
+         */
+        has_events?: boolean | null;
         /**
          * Page
          */

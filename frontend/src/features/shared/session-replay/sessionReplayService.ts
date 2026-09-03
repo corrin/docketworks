@@ -147,6 +147,14 @@ export async function startSessionReplay(): Promise<void> {
       recordCanvas: false,
       collectFonts: false,
       inlineImages: false,
+      // Never record the replay player. rrweb walks into same-origin iframes,
+      // and the player rebuilds a whole recorded page inside one — so without
+      // this, watching a replay re-records it: a single mutation adding 5,642
+      // nodes and over 1MB was how the E2E wire-size guard caught it. Worse
+      // than the size, the viewer's own recording would then CONTAIN the
+      // session they were watching, so one person's screen leaks into
+      // another's recording.
+      blockSelector: '[data-rrweb-block]',
       sampling: { mousemove: 200, scroll: 150, media: 800, input: 'last' },
     }) ?? null
 

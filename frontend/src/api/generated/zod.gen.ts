@@ -4443,6 +4443,7 @@ export const zRecordingCreateIn = z.object({
  * every unfiltered list call a 422.
  */
 export const zRecordingFiltersIn = z.object({
+    has_events: z.boolean().nullish(),
     job_id: z.uuid().nullish(),
     started_after: z.iso.datetime().nullish(),
     started_before: z.iso.datetime().nullish(),
@@ -8069,6 +8070,7 @@ export const zSessionReplayRecordingsListQuery = z.object({
     job_id: z.uuid().nullish(),
     started_after: z.iso.datetime().nullish(),
     started_before: z.iso.datetime().nullish(),
+    has_events: z.boolean().nullish(),
     page: z.int().optional().default(1),
     page_size: z.int().nullish()
 });

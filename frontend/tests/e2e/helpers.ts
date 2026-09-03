@@ -28,9 +28,10 @@ export const INFINITE_TIMEOUT = 120000
 export function enableNetworkLogging(
   page: Page,
   testName?: string,
-  options?: { maxResponseKB?: number },
+  options?: { maxResponseKB?: number; allowLargeResponses?: ReadonlyArray<string | RegExp> },
 ): () => Promise<void> {
   const maxResponseKB = options?.maxResponseKB ?? DEFAULT_MAX_RESPONSE_KB
+  const allowLarge = options?.allowLargeResponses ?? []
 
   if (!networkRunId) {
     networkRunId = Math.random().toString(36).substring(2, 10)
@@ -72,6 +73,14 @@ export function enableNetworkLogging(
     // listings, not flag legitimate document downloads.
     const isGeneratedPdfEndpoint =
       url.includes('/delivery-docket/') || url.includes('/workshop-pdf/')
+
+    // A payload a specific test deliberately downloads. Unlike the PDF
+    // endpoints above this is scoped to one spec, so every OTHER spec still
+    // fails if the same endpoint is fetched — which is what catches a page
+    // regressing into loading a bulk payload it was not asked for.
+    const isAllowedLargeResponse = allowLarge.some((pattern) =>
+      typeof pattern === 'string' ? shortUrl.includes(pattern) : pattern.test(shortUrl),
+    )
 
     const request = response.request()
     const method = request.method()
@@ -115,7 +124,7 @@ export function enableNetworkLogging(
     ].join(',')
     appendFileSync(networkCsvPath, row + '\n')
 
-    if (wireSizeKB > maxResponseKB && !isGeneratedPdfEndpoint) {
+    if (wireSizeKB > maxResponseKB && !isGeneratedPdfEndpoint && !isAllowedLargeResponse) {
       throw new Error(
         `API response too large on wire: ${method} ${shortUrl} transferred ${wireSizeKB.toFixed(1)}KB ` +
           `(decompressed: ${contentSizeKB.toFixed(1)}KB, max wire: ${maxResponseKB}KB). ` +
