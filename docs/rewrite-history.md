@@ -555,5 +555,7 @@ until asked. Serialisation on the same 4.28 MB payload: `validate_python` 0.813s
 `dump_json` 0.283s, `json.dumps` 0.133s, gzip level 6 0.049s — the compression everyone
 assumes is the cost is 5% of it. The E2E's own short recording measured
 147.18 KB on the wire against 1,800.74 KB decompressed, which is the response
-that used to fail the guard.
+that used to fail the guard. Falsifying the deferral assertion (ADR 0052) by
+restoring the fetch-on-select showed the eager page fetching the same replay
+THREE times for one row click, not once.
 
