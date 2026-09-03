@@ -49,6 +49,10 @@ os.environ.setdefault(
     "PHONE_RECORDING_STORAGE_ROOT",
     str(Path(__file__).resolve().parent.parent / ".test-phone-recordings"),
 )
+os.environ.setdefault(
+    "SESSION_REPLAY_STORAGE_ROOT",
+    str(Path(__file__).resolve().parent.parent / ".test-session-replays"),
+)
 os.environ.setdefault("MEDIA_ROOT", "mediafiles")
 
 from config.settings import *  # noqa: E402, F403 -- env fallbacks must be set before settings import

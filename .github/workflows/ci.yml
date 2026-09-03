@@ -11,12 +11,6 @@ jobs:
     env:
       SECRET_KEY: ci-only-django-secret-key-at-least-32-bytes
       JWT_SIGNING_KEY: ci-only-jwt-signing-key-at-least-32-bytes
-      # Required by config/settings.py, deliberately with no default: an unset
-      # root turned every chunk upload into a write against the process's
-      # working directory. Settings are imported by mypy's Django plugin as
-      # well as by the suite, so without this the plugin cannot construct and
-      # the whole backend job fails before a single check runs.
-      SESSION_REPLAY_STORAGE_ROOT: /tmp/ci-session-replays
     services:
       postgres:
         image: postgres:16

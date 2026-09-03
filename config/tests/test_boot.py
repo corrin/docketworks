@@ -1,17 +1,35 @@
 """Smoke tests: the project boots, the API mounts, the gates are on."""
 
+from pathlib import Path
+
 import pytest
 from django.conf import settings
 from django.test import Client
 
 from apps.core.environment import validate_scrub_db_name
-from config.settings import validate_required_settings
+from config.settings import REQUIRED_ENV_VARS, validate_required_settings
 
 
 def test_openapi_document_served() -> None:
     response = Client().get("/api/openapi.json")
     assert response.status_code == 200
     assert response.json()["info"]["title"] == "Docketworks API"
+
+
+def test_test_settings_supply_every_required_variable() -> None:
+    """CI has no `.env`, so `settings_test` is the only source of these.
+
+    A variable added to REQUIRED_ENV_VARS without a fallback here raises at
+    settings import on any machine without a populated `.env` — which is every
+    CI runner. That is not a test failure there but a collapse before the first
+    check: mypy's Django plugin imports these settings to construct, so the
+    whole backend job dies at the first step with an internal plugin error that
+    names nothing about the missing variable. SESSION_REPLAY_STORAGE_ROOT did
+    exactly that for seven consecutive runs.
+    """
+    source = (Path(settings.BASE_DIR) / "config" / "settings_test.py").read_text()
+    unsupplied = [name for name in REQUIRED_ENV_VARS if f'"{name}"' not in source]
+    assert unsupplied == []
 
 
 def test_jwt_signing_key_is_explicit_and_separate_from_django_secret() -> None:
