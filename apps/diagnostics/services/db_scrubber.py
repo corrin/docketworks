@@ -738,6 +738,12 @@ _EXCLUDED_TABLES = (
     # and CostLine in the dump. Pay item names aren't PII; letting prod's set
     # through is harmless.
     "accounts_historicalstaff",
+    # A replay is an unredacted recording of a real screen: client names,
+    # prices and addresses are in the pixels, so no field-level scrub can
+    # reach them. Truncating is the only honest answer, and chunks cascade
+    # from the recording. v1 instead blanked storage_path and sha256, which
+    # left the payloads on disk AND made the purge unable to ever find them.
+    "workflow_sessionreplayrecording",
 )
 
 

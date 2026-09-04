@@ -58,6 +58,12 @@ app.conf.beat_schedule = _with_periodic_task_headers(
             "task": "apps.crm.tasks.sync_phone_calls_task",
             "schedule": crontab(minute="*/5"),
         },
+        # Retention is session replay's only privacy control, so the schedule
+        # ships with the feature rather than after it. v1: 01:30 NZT daily.
+        "purge_old_session_replays_daily": {
+            "task": "apps.diagnostics.tasks.purge_old_session_replays_task",
+            "schedule": crontab(minute="30", hour="1"),
+        },
         "delete_archived_phone_recordings_daily": {
             "task": "apps.crm.tasks.delete_archived_phone_recordings_task",
             "schedule": crontab(minute="45", hour="1"),

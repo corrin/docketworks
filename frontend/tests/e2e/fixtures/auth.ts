@@ -131,6 +131,19 @@ type AuthFixtures = {
    * fails the test — every console.error must toast or throw.
    */
   expectedConsoleErrors: Array<string | RegExp>
+  /**
+   * URL patterns whose responses are exempt from the 100 KB wire-size guard,
+   * for the one spec that must download a bulk payload. Set via
+   * `test.use({ largeResponseAllowlist: [...] })`.
+   *
+   * Opus: per-test rather than a URL added to the guard's own exemption list
+   * (helpers.ts), because a global exemption blinds EVERY spec to that
+   * endpoint forever — including a page that regresses into fetching it
+   * eagerly. The spec that allows the payload owes an assertion that nothing
+   * else fetches it, which is only meaningful if the guard still watches the
+   * endpoint everywhere else.
+   */
+  largeResponseAllowlist: Array<string | RegExp>
 }
 
 type WorkerFixtures = {
@@ -145,6 +158,7 @@ type WorkerFixtures = {
 
 export const test = base.extend<AuthFixtures, WorkerFixtures>({
   expectedConsoleErrors: [[], { option: true }],
+  largeResponseAllowlist: [[], { option: true }],
   // Playwright's fixture API passes dependencies as the first parameter; this
   // fixture has none, but the destructuring slot cannot be omitted or renamed
   // without Playwright misreading the signature.
@@ -205,10 +219,16 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
     )
   },
 
-  authenticatedPage: async ({ page, sessionCheckConsoleAllowance }, use, testInfo) => {
+  authenticatedPage: async (
+    { page, sessionCheckConsoleAllowance, largeResponseAllowlist },
+    use,
+    testInfo,
+  ) => {
     const { username, password } = e2eCredentials()
 
-    const finishNetworkLogging = enableNetworkLogging(page, testInfo.title)
+    const finishNetworkLogging = enableNetworkLogging(page, testInfo.title, {
+      allowLargeResponses: largeResponseAllowlist,
+    })
 
     try {
       await base.step('authenticatedPage: login', async () => {

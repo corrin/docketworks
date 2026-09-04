@@ -140,6 +140,11 @@ class IntegrationSettings(models.Model):
     # values at the point of use and fail there, naming what is missing.
     phone_provider_enabled = models.BooleanField(default=False)
     phone_provider_recording_deletion_enabled = models.BooleanField(default=False)
+    # Owner ruling 2026-08-23: a retention window is a setting, not a literal.
+    # This is the delay before the PROVIDER deletes its copy, so it belongs
+    # beside the switch that turns that deletion on rather than in
+    # CompanyDefaults, whose GET is any-staff boot data.
+    phone_provider_recording_deletion_after_days = models.PositiveSmallIntegerField(default=31)
     phone_provider_base_url = models.URLField(null=True, blank=True, default=None)  # noqa: DJ001 -- unset is NULL (ADR 0040)
     phone_provider_username = models.TextField(blank=True, null=True)  # noqa: DJ001 -- unset is NULL (ADR 0040)
     phone_provider_password = models.TextField(blank=True, null=True)  # noqa: DJ001 -- unset is NULL (ADR 0040)
@@ -474,6 +479,25 @@ class CompanyDefaults(SingletonModel):
             "When enabled, job delta checksum mismatches are logged and recorded "
             "without blocking the save. Disable to reject stale updates."
         ),
+    )
+    session_replay_enabled = models.BooleanField(
+        default=True,
+        help_text=(
+            "Record staff browser sessions for diagnostics. Recordings capture "
+            "everything on screen and are visible to superusers only."
+        ),
+    )
+    session_replay_retention_days = models.PositiveSmallIntegerField(
+        default=14,
+        help_text=(
+            "Days to keep session replays before the nightly purge deletes them "
+            "and their stored events. This is the only limit on how long a "
+            "recording of someone's screen survives."
+        ),
+    )
+    quote_expiry_days = models.PositiveSmallIntegerField(
+        default=30,
+        help_text="Days a quote sent to a customer stays valid.",
     )
 
     # Default working hours (Mon-Fri, 7am - 3pm)

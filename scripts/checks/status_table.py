@@ -250,8 +250,8 @@ def _measure_specs_ported() -> str:
     # read "42 of 40" beside prose listing what is left.
     total = _v1_operations()["e2e_spec_files"]
     return (
-        f"**{ported} spec files** (v1 shipped {total}; the specs still to port "
-        f"are listed under MUST) — green is the only measure that counts"
+        f"**{ported} spec files** (v1 shipped {total}; the screens whose specs are "
+        f"still unwritten are listed below) — green is the only measure that counts"
     )
 
 

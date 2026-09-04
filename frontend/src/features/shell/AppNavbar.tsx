@@ -195,6 +195,12 @@ export function AppNavbar() {
                 keep the navbar uncluttered for staff who never use it, NOT
                 as access control (its endpoints stay office_auth and the
                 page works for any office login that knows the URL). */}
+            {/* Superuser only: the read endpoints use SuperuserCookieJWTAuth,
+                because a replay is an unredacted recording of a colleague's
+                screen. The menu gate matches. */}
+            <NavMenuLink to="/admin/replays" automationId="AppNavbar-replays">
+              Session Replays
+            </NavMenuLink>
             <NavMenuLink to="/admin/xero" automationId="AppNavbar-xero">
               Xero
             </NavMenuLink>

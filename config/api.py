@@ -14,6 +14,7 @@ from apps.company.api import router as company_router
 from apps.core.api import router as core_router
 from apps.core.envelope import register_exception_handlers
 from apps.crm.api import router as crm_router
+from apps.diagnostics.api import router as session_replay_router
 from apps.job.api import router as job_router
 from apps.operations.api import router as operations_router
 from apps.process.api import router as process_router
@@ -37,6 +38,7 @@ api.add_router("/", ai_router)
 api.add_router("/accounting/", accounting_router)
 api.add_router("/accounts/", accounts_router)
 api.add_router("/crm/", crm_router)
+api.add_router("/session-replays/", session_replay_router)
 # Company and job router paths carry their own prefixes (/companies/, /people/,
 # /job/... and data-quality paths), so they mount at the root.
 api.add_router("/", company_router)

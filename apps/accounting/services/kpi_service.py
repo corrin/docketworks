@@ -6,7 +6,7 @@ Accepted report semantics:
   set, the same flag the timesheet grids honour; public holidays are flagged
   but still count as working days (the sales-pipeline report excludes them
   from ITS working days — a cross-report divergence recorded in
-  rewrite-status). The flag governs which cells are DRAWN and nothing else:
+  rewrite-history). The flag governs which cells are DRAWN and nothing else:
   weekend cost lines always reach the month's money, because a Saturday's
   stock issue counts in WIP and job costing and a KPI month that dropped it
   would disagree with those reports about the same job.

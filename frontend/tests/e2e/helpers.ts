@@ -28,9 +28,10 @@ export const INFINITE_TIMEOUT = 120000
 export function enableNetworkLogging(
   page: Page,
   testName?: string,
-  options?: { maxResponseKB?: number },
+  options?: { maxResponseKB?: number; allowLargeResponses?: ReadonlyArray<string | RegExp> },
 ): () => Promise<void> {
   const maxResponseKB = options?.maxResponseKB ?? DEFAULT_MAX_RESPONSE_KB
+  const allowLarge = options?.allowLargeResponses ?? []
 
   if (!networkRunId) {
     networkRunId = Math.random().toString(36).substring(2, 10)
@@ -73,6 +74,14 @@ export function enableNetworkLogging(
     const isGeneratedPdfEndpoint =
       url.includes('/delivery-docket/') || url.includes('/workshop-pdf/')
 
+    // Opus: A payload a specific test deliberately downloads. Unlike the PDF
+    // endpoints above this is scoped to one spec, so every OTHER spec still
+    // fails if the same endpoint is fetched — which is what catches a page
+    // regressing into loading a bulk payload it was not asked for.
+    const isAllowedLargeResponse = allowLarge.some((pattern) =>
+      typeof pattern === 'string' ? shortUrl.includes(pattern) : pattern.test(shortUrl),
+    )
+
     const request = response.request()
     const method = request.method()
     const status = response.status()
@@ -94,11 +103,12 @@ export function enableNetworkLogging(
 
     // timing() never returns null; unavailable values are -1 (e.g. HAR
     // replay), which must not produce a negative duration in the CSV.
+    // Opus: responseEnd is ALREADY relative to startTime, while startTime is an
+    // epoch millisecond, so the duration is responseEnd alone. Subtracting the
+    // two yields roughly -1.79e12 — a number large enough that its wrongness
+    // is obvious, and small consolation for a column nothing reads.
     const timing = request.timing()
-    const durationMs =
-      timing.responseEnd >= 0 && timing.startTime >= 0
-        ? String(Math.round(timing.responseEnd - timing.startTime))
-        : ''
+    const durationMs = timing.responseEnd >= 0 ? String(Math.round(timing.responseEnd)) : ''
 
     const row = [
       networkRunId,
@@ -115,7 +125,7 @@ export function enableNetworkLogging(
     ].join(',')
     appendFileSync(networkCsvPath, row + '\n')
 
-    if (wireSizeKB > maxResponseKB && !isGeneratedPdfEndpoint) {
+    if (wireSizeKB > maxResponseKB && !isGeneratedPdfEndpoint && !isAllowedLargeResponse) {
       throw new Error(
         `API response too large on wire: ${method} ${shortUrl} transferred ${wireSizeKB.toFixed(1)}KB ` +
           `(decompressed: ${contentSizeKB.toFixed(1)}KB, max wire: ${maxResponseKB}KB). ` +
@@ -365,22 +375,32 @@ export async function waitForCurrentUrl(page: Page, expectedUrl: RegExp): Promis
   )
 }
 
+/** How many toasts one dismissal pass will clear before giving up. Bounded so a
+    toast that refuses to close cannot spin here; the caller's next interaction
+    is what reports it. */
+const MAX_TOASTS_PER_PASS = 10
+/** Long enough for a click to land, short enough that a toast which vanished
+    mid-click costs a moment rather than the whole test timeout. */
+const TOAST_CLICK_TIMEOUT_MS = 2000
+
 /** Dismiss any sonner toasts that might block interactions. */
 export async function dismissToasts(page: Page) {
   const toasts = page.locator('[data-sonner-toast]')
 
-  const toastCount = await toasts.count()
-  if (toastCount === 0) return
-
-  for (let i = 0; i < toastCount; i++) {
-    const toast = toasts.nth(i)
-    const closeBtn = toast.locator('button[aria-label="Close toast"]')
-    if (await closeBtn.count()) {
-      await closeBtn.click()
-    } else {
-      await toast.click()
-    }
-
+  // Opus: sonner dismisses toasts on its own timer, so the set shrinks
+  // underneath this loop. Counting first and then clicking nth(i) spends the
+  // whole test timeout whenever that toast closes itself in between — the
+  // click waits on an element that no longer exists. Acting on whichever toast
+  // is still first is what makes the loop independent of a set that changes.
+  for (let pass = 0; pass < MAX_TOASTS_PER_PASS; pass += 1) {
+    const first = toasts.first()
+    if (!(await first.isVisible())) break
+    const closeBtn = first.locator('button[aria-label="Close toast"]')
+    const target = (await closeBtn.count()) > 0 ? closeBtn : first
+    // Opus: deliberate-swallow: a toast closing itself mid-click IS the outcome this
+    // helper exists to produce. Only its absence matters to the caller, never
+    // which of us removed it.
+    await target.click({ timeout: TOAST_CLICK_TIMEOUT_MS }).catch(() => undefined)
     await page.waitForTimeout(100)
   }
 

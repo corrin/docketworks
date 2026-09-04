@@ -68,6 +68,14 @@ cd "$ROOT"
 # The cost is that checking out a branch behind head after a run meets a schema
 # newer than its code.
 "$ROOT/.venv/bin/python" manage.py migrate --no-input
+# Opus: Named before the suite runs, not after it is green: a screen's clipping,
+# paging and per-row query cost are invisible against a thin table, so a run
+# has to say which tables cannot exercise what production renders. The script
+# reports rather than gates (ADR 0054) and exits 0 on every reporting path, so
+# a non-zero exit here is the CHECK being broken — a missing shape file, a
+# Django that will not boot — and the run stops rather than proceeding with no
+# shape report at all.
+"$ROOT/.venv/bin/python" "$ROOT/scripts/checks/data_shape_gap.py"
 npm --prefix "$FRONTEND" run test:e2e:reset -- --confirm
 rm -rf "$FRONTEND/test-results" "$FRONTEND/playwright-report" "$LOG_DIR"
 mkdir -p "$LOG_DIR"

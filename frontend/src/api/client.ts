@@ -4,15 +4,15 @@
  * - cookies on every request (auth cookies are HttpOnly, server-set)
  * - deep-trim of all outbound string fields
  * - ETag/If-Match optimistic-concurrency interceptors (ADR 0003)
- *
- * STUB: X-Session-Replay-Id attachment remains deferred until session replay
- * state is implemented.
+ * - X-Session-Replay-Id, which links a request (and any error it persists)
+ *   back to the recording of the session that made it
  */
 import {
   attachIfMatch,
   captureResourceVersion,
   handleConcurrencyFailure,
 } from '@/lib/concurrency/interceptors'
+import { getSessionReplayId } from '@/features/shared/session-replay/replayId'
 import { trimStringsDeep } from '@/lib/sanitize'
 
 import { installAuthRecovery } from './auth-recovery'
@@ -33,6 +33,10 @@ client.instance.interceptors.request.use((config) => {
   }
   if (config.params !== undefined) {
     config.params = trimStringsDeep(config.params)
+  }
+  const sessionReplayId = getSessionReplayId()
+  if (sessionReplayId) {
+    config.headers['X-Session-Replay-Id'] = sessionReplayId
   }
   return attachIfMatch(config)
 })
