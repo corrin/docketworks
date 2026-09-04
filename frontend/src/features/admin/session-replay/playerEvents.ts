@@ -20,11 +20,19 @@ import type { RecordingEventsOut } from '@/api'
  */
 function isPlayerEvent(event: unknown): event is eventWithTime {
   if (typeof event !== 'object' || event === null || Array.isArray(event)) return false
+  // Opus: `data` is checked because rrweb's eventWithTime requires it and the
+  // player reads it for every event type. Its absence is exactly the shape
+  // drift this guard exists to catch, and without the check such an event
+  // reaches the replayer and produces the blank frame the guard is meant to
+  // prevent. Its CONTENTS are not checked: the shape varies per event type,
+  // and asserting one here would be a claim about rrweb's wire format that
+  // this file deliberately does not make.
   return (
     'type' in event &&
     typeof event.type === 'number' &&
     'timestamp' in event &&
-    typeof event.timestamp === 'number'
+    typeof event.timestamp === 'number' &&
+    'data' in event
   )
 }
 

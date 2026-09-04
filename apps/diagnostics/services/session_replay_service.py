@@ -15,7 +15,7 @@ from uuid import UUID
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import QuerySet
+from django.db.models import F, QuerySet
 from django.utils import timezone
 
 from apps.accounts.models import Staff
@@ -185,8 +185,14 @@ def append_chunk(new: NewChunk) -> SessionReplayChunk:
         viewport_height=new.viewport.height,
     )
 
-    recording.event_count += chunk.event_count
-    recording.compressed_bytes += chunk.compressed_bytes
+    # Opus: F(), not read-modify-write. Two uploads for one recording resolve
+    # concurrently — a browser draining a backlog sends them back to back — and
+    # both would read the same event_count and write their own total, losing a
+    # chunk's worth from a number the admin list shows. The remaining fields are
+    # last-writer-wins by nature: they describe where the session currently is,
+    # not a sum.
+    recording.event_count = F("event_count") + chunk.event_count
+    recording.compressed_bytes = F("compressed_bytes") + chunk.compressed_bytes
     recording.latest_path = new.path
     recording.job_id = new.job_id or recording.job_id
     recording.viewport_width = new.viewport.width
@@ -203,11 +209,27 @@ def append_chunk(new: NewChunk) -> SessionReplayChunk:
         ]
     )
 
-    # Opus: Last, and inside the transaction: overwrite=False because an existing
-    # file under a sequence the database just accepted means a previous attempt
-    # left a payload behind, and silently replacing it would destroy events the
-    # checksum no longer matches.
-    _store().write(storage_path=storage_path, payload=compressed, overwrite=False)
+    # Opus: last, and inside the transaction. overwrite=False because an
+    # existing file under a sequence the database just accepted means an
+    # earlier attempt left a payload behind, and replacing it silently would
+    # destroy events whose checksum no longer matches.
+    #
+    # Opus: an identical payload is accepted rather than refused. A commit that
+    # fails after this write rolls the row back and leaves the file, so the
+    # client's retry of that sequence meets a file it wrote itself — and a
+    # refusal there is permanent, because every later retry meets it too. Bytes
+    # hashing the same ARE this chunk, so there is nothing to lose by
+    # continuing; different bytes under one sequence still raise.
+    store = _store()
+    try:
+        store.write(storage_path=storage_path, payload=compressed, overwrite=False)
+    # deliberate-swallow: Opus: bytes hashing to this chunk's checksum ARE this
+    # chunk, already on disk from an attempt whose row did not commit. There is
+    # nothing to store and nothing to report; different bytes under the same
+    # sequence still raise.
+    except FileExistsError:
+        if hashlib.sha256(store.read(storage_path)).hexdigest() != chunk.sha256:
+            raise
     return chunk
 
 
@@ -276,6 +298,14 @@ def delete_recordings(recordings: list[SessionReplayRecording]) -> int:
     the row deletion succeeded and the unlink then failed, nothing would ever
     find those files again. Deleting a file whose row survives is merely a
     broken replay, which reads as an error the next time it is played.
+
+    Opus: staging the payloads and removing them after the row delete commits
+    was rejected for that asymmetry. It makes the two failures swap places —
+    a failed delete would leave rows and payloads consistent, but a failed
+    unlink after commit leaves files no row points at, and only a filesystem
+    sweep finds those. This order's failure is self-healing instead: the rows
+    survive, ``has_payloads`` reports them missing, playback answers the typed
+    409, and the next purge pass deletes them.
     """
     store = _store()
     for recording in recordings:

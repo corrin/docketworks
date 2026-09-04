@@ -7,7 +7,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { flushSessionReplay, startSessionReplay, stopSessionReplay } from './sessionReplayService'
-import { setSessionReplayId } from './replayId'
+import { getSessionReplayId, setSessionReplayId } from './replayId'
 
 interface ChunkBody {
   sequence: number
@@ -186,6 +186,52 @@ describe('session replay start', () => {
   // it survived, the next startSessionReplay early-returned and appended the
   // new session to the PREVIOUS user's recording. One person's screen in
   // another person's replay is the failure this guards.
+  // The create is awaited, and callers start capture as a floating promise, so
+  // a stop can land inside that window. Writing the id afterwards leaves an id
+  // with no recorder and no flush timer, which the guard at the top of
+  // startSessionReplay reads as already-recording — so capture never restarts
+  // and the session is silently lost.
+  it('does not adopt a recording that was stopped while it was being created', async () => {
+    // The stop runs INSIDE the awaited create, which is the race itself and
+    // needs no timing to reproduce.
+    recordingsCreate.mockImplementationOnce(async () => {
+      await stopSessionReplay()
+      return { data: { id: 'abandoned' } }
+    })
+
+    await startSessionReplay()
+
+    expect(getSessionReplayId()).toBeNull()
+
+    // And capture still starts afterwards, which a stale id would prevent.
+    recordingsCreate.mockResolvedValue({ data: { id: 'recording-2' } })
+    await startSessionReplay()
+    expect(getSessionReplayId()).toBe('recording-2')
+  })
+
+  // A flush in flight when capture stops must not re-queue its events: the
+  // buffer it would return them to belongs to whoever records next.
+  it('drops a failed upload rather than re-queueing it into the next recording', async () => {
+    recordingsCreate.mockResolvedValue({ data: { id: 'recording-1' } })
+    await startSessionReplay()
+    chunksCreate.mockImplementationOnce(async () => {
+      await stopSessionReplay()
+      throw apiError(503)
+    })
+    emitted[emitted.length - 1]?.({ type: 3, timestamp: 1 })
+
+    await flushSessionReplay()
+
+    recordingsCreate.mockResolvedValue({ data: { id: 'recording-2' } })
+    await startSessionReplay()
+    await captureAndFlush()
+
+    // One event — its own. Two would be the stopped recording's carried over.
+    const carried = chunkBody(chunksCreate.mock.calls.length - 1)
+    expect(JSON.parse(carried.events_json)).toHaveLength(1)
+    expect(carried.sequence).toBe(0)
+  })
+
   it('starts a new recording after a stop rather than resuming the last one', async () => {
     recordingsCreate.mockResolvedValue({ data: { id: 'recording-1' } })
     await startSessionReplay()

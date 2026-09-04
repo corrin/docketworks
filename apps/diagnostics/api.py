@@ -23,6 +23,7 @@ Integration wiring (config/api.py): ``api.add_router("/session-replays/", router
 import logging
 from uuid import UUID
 
+from django.db import IntegrityError
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Query, Router
@@ -136,18 +137,28 @@ def session_replay_recording_chunks_create(
         # landed, move on" rather than discarding the recording.
         raise HttpError(409, f"Chunk {payload.sequence} already stored.")
 
-    chunk = replays.append_chunk(
-        replays.NewChunk(
-            recording=recording,
-            sequence=payload.sequence,
-            events_json=payload.events_json,
-            first_event_timestamp_ms=payload.first_event_timestamp_ms,
-            last_event_timestamp_ms=payload.last_event_timestamp_ms,
-            path=payload.path,
-            viewport=replays.Viewport(width=payload.viewport_width, height=payload.viewport_height),
-            job_id=payload.job_id,
+    try:
+        chunk = replays.append_chunk(
+            replays.NewChunk(
+                recording=recording,
+                sequence=payload.sequence,
+                events_json=payload.events_json,
+                first_event_timestamp_ms=payload.first_event_timestamp_ms,
+                last_event_timestamp_ms=payload.last_event_timestamp_ms,
+                path=payload.path,
+                viewport=replays.Viewport(
+                    width=payload.viewport_width, height=payload.viewport_height
+                ),
+                job_id=payload.job_id,
+            )
         )
-    )
+    except IntegrityError as exc:
+        # Opus: the check above is a fast path with a clearer message, not the
+        # guarantee. Two uploads of one sequence both pass it, and the unique
+        # (recording, sequence) constraint refuses the second — the same
+        # already-stored answer, so it earns the same status. A 500 here would
+        # make the client treat an intact recording as a server fault.
+        raise HttpError(409, f"Chunk {payload.sequence} already stored.") from exc
     return Status(
         201,
         {

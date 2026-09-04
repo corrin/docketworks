@@ -9,6 +9,7 @@ indexes payloads by checksum must be able to refuse an overwrite rather than
 silently replace a chunk another request already stored.
 """
 
+import os
 from pathlib import Path
 from uuid import uuid4
 
@@ -54,12 +55,19 @@ class PrivateFileStore:
         existing target means two requests claimed the same slot, which the
         caller must hear about instead of losing one of them.
 
-        Opus: unique per call, not per process. Two threads writing one
-        storage_path share a pid, so a pid-suffixed temp name is the same name
-        for both: the loser's ``open("xb")`` raises, its cleanup removes the
-        file the winner is still writing, and the winner's rename then fails on
-        a path taken out from under it. Owning the temp name is what makes the
-        unconditional cleanup below safe.
+        Opus: the temp name is unique per call, not per process. Two threads
+        writing one storage_path share a pid, so a pid-suffixed name is the
+        same name for both: the loser's ``open("xb")`` raises and its cleanup
+        removes the file the winner is still writing. Owning the temp name is
+        what makes the unconditional cleanup below safe.
+
+        Opus: ``overwrite=False`` is enforced by ``os.link``, not by the
+        ``exists`` check above it. That check is a fast path with a clearer
+        message, but between it and a rename another writer can take the same
+        path and the rename replaces them silently — the exact loss the flag
+        exists to prevent. ``link`` refuses an existing target in one
+        filesystem operation, so the refusal is the same whoever else is
+        running.
         """
         full_path = self.full_path(storage_path)
         if not overwrite and full_path.exists():
@@ -70,7 +78,10 @@ class PrivateFileStore:
         try:
             with temp_path.open("xb") as destination:
                 destination.write(payload)
-            temp_path.replace(full_path)
+            if overwrite:
+                temp_path.replace(full_path)
+            else:
+                os.link(temp_path, full_path)
         finally:
             if temp_path.exists():
                 temp_path.unlink()

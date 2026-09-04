@@ -44,9 +44,3 @@ falsifiable still proves nothing about a screen it never drove past one page.
 - **Some corpora are bounded by policy, not by growth.** Session replays live inside a retention
   window, so their production count is a moving ceiling rather than an ever-rising floor. Read
   what bounds a table before treating its production count as a target.
-
-## Consequences
-
-The gap check is noisy by construction: thirteen tables were short of production the day this
-was written, several by two orders of magnitude, and that list is a work list rather than a
-failure. Screens over those tables are the ones whose volume behaviour is currently unproven.

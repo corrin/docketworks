@@ -43,6 +43,18 @@ let flushTimer: ReturnType<typeof setInterval> | null = null
 let sequence = 0
 let buffered: eventWithTime[] = []
 let isFlushing = false
+/**
+ * Opus: which recording the module is on. Both the create and every upload
+ * await, and a caller can stop capture inside that window — a logout, a route
+ * change, React re-running an effect. Without a way to tell that the recording
+ * changed underneath a resolved call, the late write lands on whatever is
+ * current now: an id restored over one `discardRecordingState` just cleared
+ * (leaving an id with no recorder, which the guard in `startSessionReplay`
+ * reads as already-recording, so capture never restarts), a sequence advanced
+ * past a counter that reset to 0, or one person's buffered events re-queued
+ * into the next person's recording.
+ */
+let generation = 0
 
 /**
  * The E2E suite drives a real browser over ngrok. Recording every spec would
@@ -91,6 +103,7 @@ function viewport(): { viewport_width: number; viewport_height: number } {
 }
 
 function discardRecordingState(): void {
+  generation += 1
   if (flushTimer !== null) {
     clearInterval(flushTimer)
     flushTimer = null
@@ -127,6 +140,7 @@ export async function flushSessionReplay(): Promise<void> {
   const recordingId = getSessionReplayId()
   if (!recordingId || isFlushing || buffered.length === 0) return
 
+  const flushing = generation
   isFlushing = true
   try {
     // Opus: Drains in as many uploads as the backlog needs rather than one per
@@ -154,8 +168,17 @@ export async function flushSessionReplay(): Promise<void> {
           },
           throwOnError: true,
         })
+        // Opus: the chunk landed, but against the recording this flush started
+        // on. If that is no longer the current one, `sequence` belongs to a
+        // recording that has already reset it to 0 and advancing it here would
+        // number the next recording's first chunk 1.
+        if (generation !== flushing) return
         sequence += 1
       } catch (error) {
+        // Opus: same window on the failure paths, and the cost is higher:
+        // re-queuing these events would carry one session's screen into the
+        // buffer of whoever is recording now.
+        if (generation !== flushing) return
         if (isApiErrorStatus(error, 409)) {
           // Opus: The chunk is already stored. Re-sending it would 409 forever, and
           // these events are on the server, so advance past them.
@@ -182,6 +205,7 @@ export async function startSessionReplay(): Promise<void> {
   if (disabledForE2E()) return
   if (getSessionReplayId() || stopRecording) return
 
+  const starting = generation
   let created
   try {
     created = await sessionReplayRecordingsCreate({
@@ -199,6 +223,12 @@ export async function startSessionReplay(): Promise<void> {
     if (isApiErrorStatus(error, 409)) return
     throw error
   }
+  // Opus: capture stopped while the create was in flight, so this recording has
+  // no owner to file events against. Writing its id would restore state the
+  // stop just cleared, and the guard above would then read it as recording
+  // when nothing is. The row is left empty and the server's has_events filter
+  // keeps it out of the admin list.
+  if (generation !== starting) return
   setSessionReplayId(created.data.id)
 
   stopRecording =

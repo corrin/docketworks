@@ -79,9 +79,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 403 |
-| except handlers | 437 |
-| re-raises or converts | 279 |
+| try statements | 405 |
+| except handlers | 439 |
+| re-raises or converts | 281 |
 | returns instead | 93 |
 | falls through | 51 |
 | continue/break in a loop | 13 |
