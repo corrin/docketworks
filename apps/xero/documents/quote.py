@@ -13,6 +13,7 @@ from apps.accounting.types import DocumentLineItem, DocumentResult, QuotePayload
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.errors import AppErrorContext, persist_app_error
+from apps.core.models import CompanyDefaults
 from apps.job.models import CostLine, Job
 from apps.xero.auth import get_tenant_id
 from apps.xero.documents.base import XeroDocumentManager, XeroDocumentResponse
@@ -24,8 +25,6 @@ logger = logging.getLogger(__name__)
 # CompanyDefaults model so the settings screen can hold a draft while the
 # operator trims it.
 XERO_QUOTE_TERMS_MAX_CHARS = 4000
-
-QUOTE_EXPIRY = timedelta(days=30)
 
 
 class XeroQuoteManager(XeroDocumentManager):
@@ -157,7 +156,7 @@ class XeroQuoteManager(XeroDocumentManager):
             company_name=self.company.name,
             line_items=line_items,
             date=quote_date,
-            expiry_date=quote_date + QUOTE_EXPIRY,
+            expiry_date=quote_date + timedelta(days=CompanyDefaults.get_solo().quote_expiry_days),
             document_theme_external_id=document_theme_external_id,
             terms=terms,
             # No `or None`: order_number is nullable-not-blank (ADR 0040), so

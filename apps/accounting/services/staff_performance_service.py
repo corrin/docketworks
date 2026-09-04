@@ -2,7 +2,7 @@
 
 Billable means the line's meta flag is true AND the job is not the shop
 company's — shop work never bills. Two accepted quirks are recorded in
-rewrite-status: total_revenue sums ALL lines (shop included) even though
+rewrite-history: total_revenue sums ALL lines (shop included) even though
 billable_hours excludes shop work, and the team billable_percentage is the
 unweighted mean of per-staff percentages (the timesheet screens compute the
 weighted total-over-total instead). Empty periods still return the complete

@@ -192,6 +192,78 @@ class TestGetValidToken:
         assert AppError.objects.count() == before + 1
         assert auth._shared_cache.get(auth.REFRESH_LOCK_KEY) is None
 
+    def test_waits_for_the_holder_of_the_refresh_lock(self) -> None:
+        # Opus: Xero rotates the refresh token on every use, so a caller that loses
+        # the lock must not refresh too. It used to re-read the row once and
+        # give up, which answered "not connected" for a token the winner wrote
+        # a fifth of a second later — a 500 on a working installation.
+        app = make_xero_app(
+            client_id="a1",
+            client_secret="s",
+            is_active=True,
+            access_token="OLD_AT",
+            refresh_token="OLD_RT",
+            token_type="Bearer",
+            expires_at=datetime.now(UTC) - timedelta(minutes=1),
+            scope="accounting.transactions",
+        )
+        auth._shared_cache.set(
+            auth.REFRESH_LOCK_KEY,
+            "another-process",
+            timeout=auth.REFRESH_LOCK_TIMEOUT_SECONDS,
+        )
+
+        # Opus: The winner writes its fresh token only after the loser has already
+        # looked once, which is the whole point: the row is still stale when
+        # the loser arrives.
+        def winner_writes_after_first_look(_seconds: float) -> None:
+            app.refresh_token = "NEW_RT"
+            app.access_token = "NEW_AT"
+            app.expires_at = datetime.now(UTC) + timedelta(minutes=30)
+            app.save()
+
+        with patch.object(auth, "sleep", side_effect=winner_writes_after_first_look):
+            payload = auth.get_valid_token()
+
+        assert payload is not None
+        assert payload["access_token"] == "NEW_AT"
+
+    def test_gives_up_when_the_lock_holder_never_writes_a_token(self) -> None:
+        # Opus: The winner's refresh can fail. Waiting is bounded so a request thread
+        # is not held for the lock's full TTL on a broken connection.
+        make_xero_app(
+            client_id="a1",
+            client_secret="s",
+            is_active=True,
+            access_token="OLD_AT",
+            refresh_token="OLD_RT",
+            token_type="Bearer",
+            expires_at=datetime.now(UTC) - timedelta(minutes=1),
+            scope="accounting.transactions",
+        )
+        auth._shared_cache.set(
+            auth.REFRESH_LOCK_KEY,
+            "another-process",
+            timeout=auth.REFRESH_LOCK_TIMEOUT_SECONDS,
+        )
+
+        # Opus: A fake clock, so the bound is asserted rather than waited out: with a
+        # no-op sleep the loop spins on real time and the test pays the whole
+        # five seconds to prove it stops.
+        elapsed = 0.0
+
+        def advance(seconds: float) -> None:
+            nonlocal elapsed
+            elapsed += seconds
+
+        with (
+            patch.object(auth, "monotonic", lambda: elapsed),
+            patch.object(auth, "sleep", side_effect=advance),
+        ):
+            assert auth.get_valid_token() is None
+
+        assert elapsed <= auth.REFRESH_WAIT_SECONDS + auth.REFRESH_WAIT_POLL_SECONDS
+
     def test_refresh_does_not_delete_reacquired_lock(self) -> None:
         # If the refresh outlives the lock TTL and another process takes the
         # lock, the finally-branch must not delete the new owner's lock.

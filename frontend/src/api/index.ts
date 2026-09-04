@@ -506,3 +506,20 @@ export type {
   XeroSyncInfoOut,
   XeroSyncStartOut,
 } from './generated/types.gen'
+
+// Opus: Session replays. The admin player (/admin/replays) pages the recordings
+// list as an infinite query and fetches one recording's events on demand; the
+// three capture calls are raw SDK functions because capture runs OUTSIDE
+// React — rrweb's emit callback and the flush timer are not render-driven, so
+// there is no component whose lifecycle a query could hang from.
+export {
+  sessionReplayRecordingEventsRetrieveOptions,
+  sessionReplayRecordingsListInfiniteOptions,
+  sessionReplayRecordingsListInfiniteQueryKey,
+} from './generated/@tanstack/react-query.gen'
+export {
+  sessionReplayFrontendErrorsCreate,
+  sessionReplayRecordingChunksCreate,
+  sessionReplayRecordingsCreate,
+} from './generated/sdk.gen'
+export type { RecordingEventsOut, RecordingOut } from './generated/types.gen'

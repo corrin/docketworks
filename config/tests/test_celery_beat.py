@@ -174,8 +174,17 @@ class TestMaintenanceBeatEntries:
         assert entry["schedule"] == crontab(minute="30")
         assert entry["kwargs"] == {"limit": 50}
 
-    def test_session_replay_purge_waits_for_ingestion(self) -> None:
-        assert "purge_old_session_replays_daily" not in app.conf.beat_schedule
+    def test_session_replay_purge_is_scheduled(self) -> None:
+        """Retention is session replay's only privacy control.
+
+        This entry was deliberately absent while ingestion was deferred — a
+        beat entry advertising maintenance for a feature nothing could
+        populate. It ships with capture, because without it recordings of
+        real screens accumulate forever.
+        """
+        entry = app.conf.beat_schedule["purge_old_session_replays_daily"]
+        assert entry["task"] == "apps.diagnostics.tasks.purge_old_session_replays_task"
+        assert entry["schedule"] == crontab(minute="30", hour="1")
 
 
 def test_task_results_outlive_the_longest_schedule_interval() -> None:

@@ -6,7 +6,7 @@ Report semantics:
   window every other report uses.
 - "Quotes submitted/accepted" count EVENTS, so a job bouncing in and out of
   awaiting_approval counts twice; the sales-pipeline report counts each job
-  once — a cross-report divergence recorded in rewrite-status.
+  once — a cross-report divergence recorded in rewrite-history.
 - "Won" and "rejected" read the job's CURRENT status/flag, not its state
   within the period.
 """

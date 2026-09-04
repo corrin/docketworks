@@ -1,5 +1,6 @@
 export { LeaveSettingsPage } from './LeaveSettingsPage'
 export { CompanyDefaultsPage } from './company-defaults/CompanyDefaultsPage'
 export { IntegrationsPage } from './IntegrationsPage'
+export { SessionReplayPage } from './session-replay/SessionReplayPage'
 export { StaffAdminPage } from './staff/StaffAdminPage'
 export { XeroPage } from './xero/XeroPage'

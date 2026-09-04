@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 
+import { cn } from '@/lib/utils'
+
 import { QueryState } from './QueryState'
 
 interface ListTableProps<TRow> {
@@ -22,6 +24,18 @@ interface ListTableProps<TRow> {
   /** Extra content rendered above the table once loaded (e.g. the WIP
       report's summary cards) — omit for the common rows-only case. */
   children?: ReactNode
+  /** Extra classes for the table's own scroll container — the same name and
+      role `DataTable` carries. A caller bounding the list's height must set
+      it here rather than wrapping the whole component: this div is
+      `overflow-x-auto`, which CSS resolves to `overflow-y: auto` too, so an
+      outer height cap would clip against a box that never scrolls. */
+  wrapperClassName?: string
+  /** Rendered inside the scroll container, below the rows. Where a caller
+      bounds the height, a load-more sentinel belongs here rather than after
+      the component: `IntersectionObserver` clips against every scrollable
+      ancestor, so a sentinel outside the box is permanently in view and
+      fetches every remaining page at once. */
+  footer?: ReactNode
 }
 
 /**
@@ -47,6 +61,8 @@ export function ListTable<TRow>({
   head,
   renderRow,
   children,
+  wrapperClassName,
+  footer,
 }: ListTableProps<TRow>) {
   return (
     <QueryState
@@ -60,7 +76,7 @@ export function ListTable<TRow>({
       {rows !== undefined && (
         <>
           {children}
-          <div className="mt-6 overflow-x-auto">
+          <div className={cn('mt-6 overflow-x-auto', wrapperClassName)}>
             <table data-automation-id={automationId} className="w-full border-collapse text-sm">
               <thead>{head}</thead>
               <tbody>{rows.map(renderRow)}</tbody>
@@ -68,6 +84,7 @@ export function ListTable<TRow>({
             {rows.length === 0 && (
               <div className="mt-8 text-center text-gray-500">{emptyLabel}</div>
             )}
+            {footer}
           </div>
         </>
       )}

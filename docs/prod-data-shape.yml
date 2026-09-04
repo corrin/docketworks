@@ -1,0 +1,78 @@
+# Row counts from a production instance, captured by
+# `manage.py data_shape --instance <name>`. Counts only — no
+# column values, so this is safe to commit and to read in review.
+#
+# Tests are built to these numbers rather than to whatever the local
+# corpus happens to hold; `scripts/checks/data_shape_gap.py` reports
+# where the two disagree. See ADR 0054.
+captured_at: 2026-09-04
+instance: msm-prod
+counts:
+  accounting.Bill: 14517
+  accounting.BillLineItem: 21580
+  accounting.CreditNote: 627
+  accounting.CreditNoteLineItem: 856
+  accounting.Invoice: 16185
+  accounting.InvoiceLineItem: 20970
+  accounting.Quote: 1553
+  accounts.HistoricalStaff: 1912
+  accounts.Staff: 27
+  accounts.StaffPayrollTerm: 20
+  ai.AIProvider: 5
+  ai.NotebookLmLink: 1
+  company.Company: 4213
+  company.CompanyPersonLink: 1063
+  company.ContactMethod: 4566
+  company.Person: 1042
+  company.Supplier: 4213
+  company.SupplierPickupAddress: 520
+  company.SupplierSearchAlias: 0
+  core.AppError: 28766
+  core.CompanyDefaults: 1
+  core.IntegrationSettings: 1
+  core.ServiceAPIKey: 0
+  crm.PhoneCallRecord: 46058
+  crm.PhoneCallRecording: 1234
+  crm.PhoneEndpoint: 3
+  diagnostics.SessionReplayChunk: 14442
+  diagnostics.SessionReplayRecording: 279
+  job.CostLine: 27249
+  job.CostSet: 7359
+  job.Job: 2453
+  job.JobDeltaRejection: 136
+  job.JobEvent: 80673
+  job.JobFile: 6113
+  job.JobLabourRate: 17171
+  job.JobQuoteChat: 64
+  job.LabourSubtype: 7
+  job.QuoteSpreadsheet: 0
+  operations.AllocationBlock: 607163
+  operations.JobProjection: 43311
+  operations.SchedulerRun: 3016
+  process.Acknowledgement: 0
+  process.Form: 29
+  process.FormEntry: 3
+  process.Procedure: 54
+  process.ProcessEvent: 0
+  purchasing.PurchaseOrder: 990
+  purchasing.PurchaseOrderEvent: 3
+  purchasing.PurchaseOrderLine: 2315
+  purchasing.PurchaseOrderSupplierQuote: 4
+  purchasing.Stock: 706
+  quoting.ProductParsingMapping: 1190
+  quoting.ScrapeJob: 115
+  quoting.SupplierCredential: 0
+  quoting.SupplierPriceList: 106
+  quoting.SupplierProduct: 7614
+  quoting.SupplierScraperConfig: 0
+  search.SearchTelemetryEvent: 12420
+  timesheet.LeaveDay: 0
+  timesheet.LeaveRequest: 0
+  timesheet.LeaveType: 5
+  xero.XeroAccount: 149
+  xero.XeroApp: 2
+  xero.XeroError: 3157
+  xero.XeroPayItem: 29
+  xero.XeroPayRun: 61
+  xero.XeroPaySlip: 579
+  xero.XeroSyncCursor: 9

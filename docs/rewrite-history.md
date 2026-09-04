@@ -7,7 +7,9 @@ asking *why is it like this?*
 **This file exists so [`rewrite-status.md`](rewrite-status.md) can only shrink.**
 Status is the task list and nothing else; anything worth saying that is not a
 task belongs here, so explaining a decision never grows the file a session reads
-to find its next job. Both are deleted at cutover.
+to find its next job. Neither is deleted now that the cutover has happened: the
+port has a tail, and the reasoning behind a decision outlives the release that
+carried it.
 
 **It is not a second copy of the ADRs, and keeping that boundary is what stops
 it becoming a third backlog.** A fact that constrains code lives in an ADR or a
@@ -122,6 +124,14 @@ selects calls by `description__startswith`. Both of `PhoneCallRecord`'s
 foreign keys are SET_NULL, so a call the cleanup cannot name outlives its job
 and company as an orphan in the Unmatched queue with its recording file
 stranded under `PHONE_RECORDING_STORAGE_ROOT`.
+
+**The Xero token refresh has no mutual exclusion, measured 2026-09-03.** In an E2E run,
+`post-staff-week` answered 500 with "No valid Xero token found" at 16:43:21.052 and a
+refreshed token was stored at 16:43:21.260 — 208 ms later, by another request already in
+flight. The expiry simply fell inside the run. `weekly-payroll`'s out-of-order posting
+test is where it surfaces, and its recorded history (four passed, one failed, one timed
+out) is that race rather than anything about payroll. Fixed the same day: the caller
+that loses the lock now waits for the holder instead of looking once and giving up.
 
 ## Cross-report divergences, ported faithfully (2026-08-04)
 
@@ -495,3 +505,65 @@ fetched salary and working-pattern resources have no modification timestamp,
 so Staff materialises a canonical checksum of the complete enriched Xero
 projection. A no-op requires both that stored digest and the current local
 projection to match, so a stale digest cannot hide local drift.
+
+**Access logging lands, and two v1 shapes that do not survive the port,
+2026-09-02.** The per-request access line is back, on its own `access` logger
+routed to the console: v1 gave it a rotating `access.log`, but journald already
+rotates, retains and greps, and a file handler would only put a second copy on
+disk for an operator to find and prune. Two v1 constructs were deliberately not
+carried across. First, `AccessLoggingMiddleware` must read the principal AFTER
+calling `get_response`. v1 checked `request.user.is_authenticated` on the way in
+and returned early when anonymous, which under ninja auth — it sets
+`request.user` during operation dispatch, after every middleware has run —
+would have logged nothing for any `/api/**` request, that is, for the whole
+application, while a v1-shaped test still passed. Second,
+`DisallowedHostMiddleware` never worked: `process_exception` fires only for
+exceptions raised by the view, and `DisallowedHost` comes out of
+`CommonMiddleware.process_request` above it. Django's own handler was returning
+the 400 in v1 too; only the traceback was ever the complaint, so v2 keeps the
+`django.security.DisallowedHost` record and strips its traceback with a logging
+filter. The middleware's JWT re-authentication block went with it — v2 is
+cookie-authenticated — and with it a bare `except Exception: pass`.
+
+**Two Jira tickets were closed with no commit behind them, 2026-09-02.** KAN-339 (the
+overtime repair commands price 1.5x/2x pay-item lines at the base wage) and KAN-354 (the
+pay-run mirror deletes history it never fetched) are both marked Done, and neither defect
+is fixed in the code. Recorded because a Done ticket is normally the strongest evidence a
+thing is finished, and here it is worth nothing; the tasks live on in `rewrite-status.md`
+saying so.
+
+**The 500-line baseline moved the wrong way, 2026-08-16 to 2026-09-02.** 42 production
+and 21 test Python files over the limit became 43 and 26, with ten handwritten frontend
+files the original baseline never counted. `apps/job/services/job_service.py` grew 2,837
+→ 3,044 and `apps/job/api.py` 1,810 → 1,863; twelve files now exceed 1,000 lines. Two
+weeks of ordinary slices with no gate is what that costs, which is the argument for
+adding one rather than against it.
+
+**Maestral paused for 26 hours without dying, 22–23 August 2026.** A transient Dropbox
+API error paused sync while the process stayed alive, so `systemctl` reported active and
+`Restart=always` never fired. The generalisable fact — liveness is not health for a
+sync daemon — is why the unbuilt alert in `rewrite-status.md` is specified against
+`maestral status` output rather than the process.
+
+**Session replay shipped 2026-09-02**, closing the storage decision this rewrite had
+deferred: chunk payloads go to a private disk root, the rows index the store rather than
+being it, and the purge is scheduled and deletes payloads. It is recorded here because
+two `blocked-by:` rows in `v1-disposition.md` were waiting on that decision and their
+disposition changes as a result.
+
+**A replay cannot be made small, measured 2026-09-03.** Recordings from the development
+database, served through `recording_events` and gzipped as the wire carries them: 162
+events = 1.77 MB raw / 162 KB gzipped; 592 = 3.84 MB / 334 KB; 1,180 = 5.35 MB / 557 KB.
+Across 14,891 stored chunks the largest single chunk is 940,739 bytes **already
+compressed** (mean 22,888), so one rrweb full-snapshot event exceeds the E2E wire guard's
+100 KB cap on its own and no chunk window, page or byte range can satisfy it. That is why
+`/api/session-replays/recordings/{id}/events/` is exempted per-spec in
+`session-replay.spec.ts` rather than made to fit, and why the page must not fetch a replay
+until asked. Serialisation on the same 4.28 MB payload: `validate_python` 0.813s,
+`dump_json` 0.283s, `json.dumps` 0.133s, gzip level 6 0.049s — the compression everyone
+assumes is the cost is 5% of it. The E2E's own short recording measured
+147.18 KB on the wire against 1,800.74 KB decompressed, which is the response
+that used to fail the guard. Falsifying the deferral assertion (ADR 0052) by
+restoring the fetch-on-select showed the eager page fetching the same replay
+THREE times for one row click, not once.
+

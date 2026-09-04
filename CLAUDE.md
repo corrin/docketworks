@@ -1,14 +1,22 @@
-# CLAUDE.md — Docketworks v2
+# CLAUDE.md — Docketworks
 
-Full rewrite of `../docketworks_v1` (v1) with no functional changes. The approved plan lives at
-`/home/corrin/.claude/plans/the-docketworks-project-docketworks-cozy-steele.md`; read it before non-trivial work.
-**Remaining work and open decisions live in
-[`docs/rewrite-status.md`](docs/rewrite-status.md)** — read it before picking up work, and
+The full rewrite of `../docketworks_v1` (v1) shipped: production has run this codebase since
+2026-08-29, and [`docs/release-process.md`](docs/release-process.md) is how a change reaches
+it. The approved plan lives at
+`/home/corrin/.claude/plans/the-docketworks-project-docketworks-cozy-steele.md`.
+**[`docs/rewrite-status.md`](docs/rewrite-status.md) is the single to-do list.** A Jira
+ticket (KAN) is the authority wherever one exists — it carries the reproduction, the evidence
+and the acceptance criteria — but every ticket raised from 2026-09-02 also gets a line in
+that file, in the same sitting, so one file answers "what is there to do". The rule is
+forward-only: tickets that predate it are in Jira alone, so check both until that backlog is
+triaged. Work with no ticket — the tail of the port, cross-cutting debt, seams left inside
+completed slices, and decisions waiting on the owner — lives there in full; read it before
+picking up work, and
 update it at the end of every slice. **That file only shrinks:** it holds tasks and nothing
 else, and finished work is deleted the moment it is finished. Anything worth recording that
 is NOT a task — a ruling, a finding, a measurement — goes to
 [`docs/rewrite-history.md`](docs/rewrite-history.md), never into the task list. Session
-transcripts are not durable; those files, the parity ledger, the ADRs, the cutover checklist
+transcripts are not durable; those files, the parity ledger, the ADRs, the cutover record
 and code-level seam comments are.
 Architectural decisions live in [`docs/adr/`](docs/adr/README.md) (carried forward from v1, numbering
 continuous) — read the index before non-trivial work; ADRs win over habit.
@@ -101,6 +109,16 @@ where this port's bugs have been. During 2–4 Aug ruff, mypy and
 import-linter were all running while the debt that cost three days to clear
 accumulated anyway — so speed is made safe by the spec shipping with the slice,
 not by adding another linter.
+
+**A screen that renders a collection is tested at production volume (ADR 0054).**
+`docs/prod-data-shape.yml` records how many rows production actually holds, per model;
+`scripts/checks/data_shape_gap.py` names the tables this database is too thin to exercise
+and `run_e2e.sh` prints it before every run. Read the shape before designing a list — a
+layout that is fine at the local count and unusable at the production one is a defect
+already written. Assert the mechanism (bounded scrollable pane, a count naming the
+server's total) so the assertion holds at any row count, and seed past the threshold
+where the property needs one. Volume alone catches nothing: the clipping defect that
+produced that ADR shipped on a database already holding hundreds of the rows.
 
 - `uv run mypy` — strict, ZERO baseline, covers `apps config manage.py scripts`.
   New code must be fully type-clean; no `Any`, no shotgun `# type: ignore`

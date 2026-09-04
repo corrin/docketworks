@@ -1,17 +1,28 @@
-"""Request middleware for authentication and resource versioning.
+"""Request middleware for access logging, authentication and resource versioning.
 
+- ``AccessLoggingMiddleware`` — one line per authenticated request on the
+  ``access`` logger, carrying the session-replay id that joins a request to its
+  recording.
 - ``LoginRequiredMiddleware`` — the ADR 0002 global auth gate with an explicit
   anonymous allowlist (module-level data below).
 - ``ResourceVersionMiddleware`` — preserves strong OCC ETags (ADR 0003) when
   gzip weakens representation ETags.
 """
 
+import logging
 from collections.abc import Callable
+from time import perf_counter
 from typing import ClassVar, Final
+from uuid import UUID
 
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect
+
+# Its own logger, not "apps.*": the per-request stream is high volume and an
+# operator filters or silences it (journalctl -t / a LOGGING level change)
+# without touching the business logging every service writes.
+access_logger = logging.getLogger("access")
 
 # --- ADR 0002: the anonymous surface, in one place ---------------------------
 #
@@ -48,6 +59,69 @@ AUTH_ANON_ALLOWLIST_PREFIXES: Final[tuple[str, ...]] = (
 # the API framework's own auth (ninja auth classes in v2, DRF in v1) is the
 # authoritative check and can produce a proper 401 envelope.
 API_PATH_PREFIXES: Final[tuple[str, ...]] = ("/api/",)
+
+
+class AccessLoggingMiddleware:
+    """Log one line per authenticated request on the ``access`` logger.
+
+    The principal is read AFTER ``get_response``. v1 checked
+    ``request.user.is_authenticated`` first and returned early when anonymous,
+    which in v2 would log nothing at all: ninja auth classes set
+    ``request.user`` during operation dispatch, after every middleware has run,
+    so every ``/api/**`` request still looks anonymous on the way in.
+
+    v1 also re-ran JWT authentication here to recover an email for token-auth
+    calls. v2 is cookie-authenticated and ninja resolves the principal, so
+    there is nothing left to recover.
+    """
+
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        """Store the next callable, per the Django middleware protocol."""
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        """Time the request, then log it once the principal is known."""
+        started_at = perf_counter()
+        response = self.get_response(request)
+        duration_ms = (perf_counter() - started_at) * 1000
+
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            return response
+
+        # No try/except around the format call: every value below is an
+        # already-read scalar, so a handler here could only convert a
+        # programming error into a 500 on an otherwise good response.
+        access_logger.info(
+            "method=%s\tstatus=%s\tduration_ms=%.2f\treplay=%s\tuser=%s\tpath=%s",
+            request.method,
+            response.status_code,
+            duration_ms,
+            _replay_id_for_log(request.headers.get("X-Session-Replay-Id")),
+            user.get_username(),
+            request.path,
+        )
+        return response
+
+
+def _replay_id_for_log(header: str | None) -> str:
+    r"""Return the replay id only if it is one, so the log line stays parseable.
+
+    Opus: the access line is tab-delimited and this value is client-supplied.
+    HTAB is
+    legal inside an HTTP field value, so an authenticated caller sending
+    `X-Session-Replay-Id: x\tuser=someone.else@example.com` would append fields
+    an operator greps for as though the server had written them. A UUID cannot
+    carry a delimiter, so requiring one is the whole defence.
+    """
+    if header is None:
+        return "-"
+    try:
+        return str(UUID(header))
+    # deliberate-swallow: Opus: a malformed header is a client's business, not an
+    # error of ours; the log records that it was not usable and moves on.
+    except ValueError:
+        return "-"
 
 
 class LoginRequiredMiddleware:

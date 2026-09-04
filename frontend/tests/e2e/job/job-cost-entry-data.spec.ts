@@ -21,7 +21,7 @@ import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
  *   v1 read `/api/accounts/staff/`, which belongs to the unported staff
  *   slice, and `/api/timesheets/staff/` is superuser-gated. The wage side
  *   asserts against E2E_USER_WAGE_RATE — the environment-prerequisite value
- *   documented in docs/rewrite-status.md — so a regression to a fallback
+ *   documented in docs/development_session.md — so a regression to a fallback
  *   wage source still fails; the charge-out side stays independently
  *   asserted from the job's labour rates. The workshop subtype is passed
  *   explicitly (v1's seed exercised staff default-subtype resolution).
@@ -40,7 +40,7 @@ import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
  */
 
 /** The E2E user's wage rate — an environment prerequisite (see the
- * Environment facts in docs/rewrite-status.md), pinned here so a regression
+ * Environment facts in docs/development_session.md), pinned here so a regression
  * to any fallback wage source fails instead of passing by arithmetic. */
 const E2E_USER_WAGE_RATE = 45
 
