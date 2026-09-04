@@ -59,12 +59,12 @@ export function useSessionReplay(enabled: boolean): void {
       window.removeEventListener('pagehide', flushNow)
       window.removeEventListener('error', captureError)
       window.removeEventListener('unhandledrejection', captureError)
-      // Opus: Stop, not merely flush. Flushing left rrweb's observers and the 10s
-      // timer running past the authenticated layout, still buffering the login
-      // screen, and left the recording id in module state — so the NEXT login
-      // early-returned from startSessionReplay and appended one person's
-      // session to the previous person's recording. It self-healed only when a
-      // chunk upload eventually came back 401.
+      // Opus: stop, not merely flush. A flush leaves rrweb's observers, the 10s
+      // timer and the recording id alive past the authenticated layout, so
+      // capture continues over the login screen and the next startSessionReplay
+      // finds an id already set and early-returns — appending one person's
+      // session to the previous person's recording. Only an upload's eventual
+      // 401 ends that, which is far too late for whose screen is in it.
       void stopSessionReplay()
     }
   }, [enabled])

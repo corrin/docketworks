@@ -118,7 +118,7 @@ def _replay_id_for_log(header: str | None) -> str:
         return "-"
     try:
         return str(UUID(header))
-    # Opus: deliberate-swallow: a malformed header is a client's business, not an
+    # deliberate-swallow: Opus: a malformed header is a client's business, not an
     # error of ours; the log records that it was not usable and moves on.
     except ValueError:
         return "-"

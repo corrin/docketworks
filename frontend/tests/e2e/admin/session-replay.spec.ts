@@ -115,14 +115,13 @@ test.describe('session replay', () => {
     const table = autoId(page, 'SessionReplayPage-recordings')
     await table.waitFor({ timeout: 30000 })
 
-    // Opus: Structural, not row-count dependent: how many recordings this database
-    // holds is not something a spec can require — the E2E reset leaves far
-    // fewer than one page, while a developer machine restored from production
-    // holds hundreds. Asserting "there is a second page" would pass or fail on
-    // the environment rather than on the code. What must hold either way is
-    // that the list has a bounded, scrollable pane of its own; the page it
-    // replaced clipped its rows in an overflow-hidden box with no height, so
-    // everything past the fold was unreachable.
+    // Opus: structural, not row-count dependent. How many recordings this
+    // database holds is not something a spec can require — retention caps the
+    // corpus at 14 days, so it is far under one page here and in the hundreds
+    // on a machine restored from production. "There is a second page" would
+    // therefore assert the environment rather than the code. What holds at any
+    // count is that the list owns a bounded, scrollable pane: without one it
+    // clips at the fold and the rows below are unreachable.
     const pane = await table.evaluate((element) => {
       const box = element.parentElement
       if (!box) throw new Error('the recordings table has no container to scroll')

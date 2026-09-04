@@ -54,11 +54,12 @@ class PrivateFileStore:
         existing target means two requests claimed the same slot, which the
         caller must hear about instead of losing one of them.
 
-        Unique per call, not per process: with a pid suffix two threads writing
-        one storage_path shared a temp name, so the second one's ``open("xb")``
-        raised and its cleanup deleted the FIRST one's half-written file — and
-        the winner's rename then failed on a path that had been removed
-        underneath it. Owning the temp name is what makes the cleanup safe.
+        Opus: unique per call, not per process. Two threads writing one
+        storage_path share a pid, so a pid-suffixed temp name is the same name
+        for both: the loser's ``open("xb")`` raises, its cleanup removes the
+        file the winner is still writing, and the winner's rename then fails on
+        a path taken out from under it. Owning the temp name is what makes the
+        unconditional cleanup below safe.
         """
         full_path = self.full_path(storage_path)
         if not overwrite and full_path.exists():

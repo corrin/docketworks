@@ -6,11 +6,11 @@ suite run against a thin corpus can be green and prove nothing about the
 screen production actually renders. This names the tables where that is true
 right now, against the counts committed in ``docs/prod-data-shape.yml``.
 
-It reports rather than fails. Thirteen tables were short of production the day
-it was written, so failing would have baselined the number instead of showing
-it moving — and a suite that refuses to run is a suite people stop running.
-Making a single surface representative is the work; the ADR 0054 rule is that
-the spec asserting a volume-sensitive property checks its own table here.
+Opus: it reports rather than fails. A threshold set where the corpus currently
+sits is a baseline, which this repository does not keep, and a suite that
+refuses to run is a suite people stop running. Making one surface
+representative is the work; the ADR 0054 rule is that the spec asserting a
+volume-sensitive property seeds its own table first.
 """
 
 import argparse

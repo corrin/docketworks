@@ -23,13 +23,12 @@ type StopRecording = () => void
 
 const FLUSH_INTERVAL_MS = 10_000
 /**
- * Django refuses a body over DATA_UPLOAD_MAX_MEMORY_SIZE (2.5 MB by default)
- * before any view runs, and a chunk used to be bounded only by the 10s timer —
- * so one burst of DOM churn buffered more than that in a single interval and
- * the upload 500'd. The lost chunk was the smaller half of it: a 500 is
- * neither a conflict nor a terminal failure, so the events went back on the
- * front of the buffer and every later flush re-sent them plus everything
- * since, larger each time, once per 10s for the life of the session.
+ * Opus: Django refuses a body over DATA_UPLOAD_MAX_MEMORY_SIZE (2.5 MB by
+ * default) before any view runs, and the 500 it answers with is neither a
+ * conflict nor a terminal failure — so an oversized chunk returns to the front
+ * of the buffer and every later flush carries it plus everything since, larger
+ * each time. Bounding the flush by time alone cannot prevent that: a burst of
+ * DOM churn crosses 2.5 MB well inside one interval.
  *
  * Well under the server's limit because this counts UTF-16 code units while
  * the limit counts bytes, so a recording full of non-ASCII text measures
@@ -50,11 +49,11 @@ let isFlushing = false
  * push chunk uploads through the same tunnel the run is already bottlenecked
  * on, so capture is off there — and only there.
  *
- * Keyed on `navigator.webdriver`, not `import.meta.env.DEV`: the managed run
- * serves a PRODUCTION build (`vite build && vite preview`), where a DEV gate
- * is false by construction — so the tunnel guard never fired and the opt-out
- * key below was inert. webdriver is set only by automation, so a real browser
- * reaches neither branch and records as it always did.
+ * Opus: keyed on `navigator.webdriver`, not `import.meta.env.DEV`. The managed
+ * run serves a PRODUCTION build (`vite build && vite preview`), so a DEV gate
+ * is false there by construction and would disable nothing. webdriver is set
+ * only by automation, which is what both branches below actually mean, and a
+ * real browser reaches neither.
  */
 function disabledForE2E(): boolean {
   if (!navigator.webdriver) return false
@@ -62,9 +61,9 @@ function disabledForE2E(): boolean {
   try {
     return window.localStorage.getItem(E2E_DISABLE_KEY) === 'true'
   } catch {
-    // A browser configured to block site data throws on localStorage access.
-    // Opus: Recording is the safe default; only the explicit opt-out disables it,
-    // and an unreadable store is not one.
+    // Opus: a browser configured to block site data throws on localStorage
+    // access. Recording is the safe default; only the explicit opt-out
+    // disables it, and an unreadable store is not one.
     return false
   }
 }
@@ -190,13 +189,13 @@ export async function startSessionReplay(): Promise<void> {
       throwOnError: true,
     })
   } catch (error) {
-    // Opus: 409 is the company toggle: this instance does not record, which is an
-    // answer rather than a fault. Converted here rather than left to reject,
-    // because the caller starts capture with `void startSessionReplay()` and
-    // this module installs the `unhandledrejection` listener that reports
-    // uncaught errors — so a rejection here is caught by our own reporter and
-    // filed as a frontend error row on EVERY authenticated page load. Turning
-    // the feature off would generate an error per page view.
+    // Opus: 409 is the company toggle — this instance does not record, which is
+    // an answer rather than a fault. Converted here rather than left to reject,
+    // because callers start capture as a floating promise and this module
+    // installs the `unhandledrejection` listener that reports uncaught errors:
+    // a rejection here is caught by our own reporter and filed as a frontend
+    // error row, once per authenticated page load, for a setting working as
+    // configured.
     if (isApiErrorStatus(error, 409)) return
     throw error
   }

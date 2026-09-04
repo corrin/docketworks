@@ -23,9 +23,9 @@ const ID = 'SessionReplayPage'
 const HEADER_CELL = 'border-b px-3 py-2 text-left font-medium'
 const CELL = 'border-b border-muted px-3 py-2'
 
-/** Opus: local, not in `lib/format`. It has one call site and no sibling
-    anywhere in `src/`, so a shared home would be a formatter nothing shares —
-    unlike `formatDateTime`, which this page used to duplicate. */
+/** Opus: local, not in `lib/format`. One call site and no sibling anywhere in
+    `src/`, so a shared home would be a formatter nothing shares. A second call
+    site is what moves it, as it did for `formatDateTime`. */
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} kB`
@@ -78,17 +78,16 @@ export function SessionReplayPage() {
 
   const events = useQuery({
     ...sessionReplayRecordingEventsRetrieveOptions({ path: { recording_id: playing?.id ?? '' } }),
-    // Opus: Nothing is fetched until the superuser asks to watch. A replay is
+    // Opus: nothing is fetched until the superuser asks to watch. A replay is
     // hundreds of KB on the wire even gzipped (measured: 162 events = 162 KB,
-    // 1180 events = 557 KB), so fetching it to render a row's metadata made
-    // browsing the list cost megabytes.
+    // 1180 events = 557 KB), so tying the fetch to selection would charge that
+    // to reading a row's metadata, once per row browsed.
     enabled: playing !== null,
-    // Opus: The client default is staleTime 30s with refetchOnWindowFocus on, which
-    // for this query means: tab away 30 seconds into a replay, come back, and
-    // the whole payload is re-downloaded, the events object identity changes,
-    // and the effect below tears the player down and rebuilds it at position
-    // zero. retry:1 would pay for a failure twice. gcTime 0 so a browsed-past
-    // recording is not held in the cache.
+    // Opus: the client defaults (staleTime 30s, refetchOnWindowFocus on,
+    // retry 1) are wrong for a payload this size. Under them, tabbing away 30
+    // seconds into a replay re-downloads it on return, which changes the events
+    // identity and so rebuilds the player at position zero, and a failure is
+    // paid for twice. gcTime 0 keeps a browsed-past recording out of the cache.
     staleTime: Infinity,
     gcTime: 0,
     refetchOnWindowFocus: false,
@@ -111,9 +110,10 @@ export function SessionReplayPage() {
     }
   }, [events.data])
 
-  // The viewer is itself being recorded. Without this flush its own events sit
-  // Opus: in the buffer, so its recording shows zero events and the server filters it
-  // out of the list below — the page appears to have lost the session it is in.
+  // Opus: the viewer is itself being recorded. Without this flush its own
+  // events sit in the buffer, so its recording shows zero events and the
+  // server filters it out of the list below — the page appears to have lost
+  // the session it is in.
   useEffect(() => {
     void flushSessionReplay()
   }, [])

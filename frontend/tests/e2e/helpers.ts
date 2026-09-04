@@ -104,8 +104,9 @@ export function enableNetworkLogging(
     // timing() never returns null; unavailable values are -1 (e.g. HAR
     // replay), which must not produce a negative duration in the CSV.
     // Opus: responseEnd is ALREADY relative to startTime, while startTime is an
-    // epoch millisecond — subtracting one from the other wrote roughly
-    // -1.79e12 into every row this file has ever logged.
+    // epoch millisecond, so the duration is responseEnd alone. Subtracting the
+    // two yields roughly -1.79e12 — a number large enough that its wrongness
+    // is obvious, and small consolation for a column nothing reads.
     const timing = request.timing()
     const durationMs = timing.responseEnd >= 0 ? String(Math.round(timing.responseEnd)) : ''
 
@@ -386,12 +387,11 @@ const TOAST_CLICK_TIMEOUT_MS = 2000
 export async function dismissToasts(page: Page) {
   const toasts = page.locator('[data-sonner-toast]')
 
-  // Opus: Sonner dismisses toasts on its own timer, so the set shrinks underneath
-  // this loop. Counting first and then clicking nth(i) waits out the FULL test
-  // timeout whenever that toast closed itself in between — 120s spent on an
-  // element that is already gone, which is how create-job-with-new-company
-  // failed. Always act on whichever toast is still first instead of on an
-  // index into a set that is changing.
+  // Opus: sonner dismisses toasts on its own timer, so the set shrinks
+  // underneath this loop. Counting first and then clicking nth(i) spends the
+  // whole test timeout whenever that toast closes itself in between — the
+  // click waits on an element that no longer exists. Acting on whichever toast
+  // is still first is what makes the loop independent of a set that changes.
   for (let pass = 0; pass < MAX_TOASTS_PER_PASS; pass += 1) {
     const first = toasts.first()
     if (!(await first.isVisible())) break

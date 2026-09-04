@@ -157,14 +157,13 @@ def create_recording(new: NewRecording) -> SessionReplayRecording:
 def append_chunk(new: NewChunk) -> SessionReplayChunk:
     """Store one batch of events and roll the recording's counters forward.
 
-    The row is created first so the unique (recording, sequence) constraint
-    rejects a duplicate upload before any file is written, and the file is
-    written LAST so nothing that can fail comes after it. Ordered that way
-    because a rollback does not remove a file: with the counter update sitting
-    between the write and the commit, a failure there rolled the row back and
-    left the payload, and the client's retry of that same sequence then met a
-    refusal to overwrite — a 500 the client reads as transient, so the
-    recording stalled on that sequence for the rest of the session.
+    Opus: the row is created first so the unique (recording, sequence)
+    constraint rejects a duplicate upload before any file is written, and the
+    file is written LAST because a rollback does not remove one. Anything that
+    can fail between the write and the commit strands a payload whose row is
+    gone, and the client's retry of that sequence then meets a refusal to
+    overwrite — a 500 it reads as transient, so the recording stalls on that
+    sequence for the rest of the session.
     """
     recording = new.recording
     events = _decode_events(new.events_json)
@@ -239,17 +238,17 @@ def recordings_queryset(filters: RecordingFilters) -> QuerySet[SessionReplayReco
 def has_payloads(recording: SessionReplayRecording) -> bool:
     """Whether this recording's events are actually on this machine.
 
-    Stats the recording's directory, which ``write`` creates alongside the
-    first payload — so it exists if and only if a chunk was ever written here.
-    One syscall and no query, which matters because the admin list asks this
-    for every row of every page (ADR 0054).
+    Opus: stats the recording's directory, which ``write`` creates alongside
+    the first payload, so it exists if and only if a chunk was ever written
+    here. One syscall and no query, which matters because the admin list asks
+    this for every row of every page (ADR 0054).
 
-    It replaces a check of chunk 0's file, which answered "not on this machine"
-    when only that one chunk was missing — a partial loss dressed up as an
-    absent restore. The cost of the directory test is the opposite mistake: an
-    empty directory left behind by an out-of-band ``rm`` of the files alone
-    reports available, and the read then fails. ``delete_recordings`` removes
-    the directory with the files, so nothing this code does produces one.
+    Testing one chunk's file instead would confuse a partial loss with an
+    absent restore: a missing chunk 0 is not the whole recording being
+    elsewhere. The directory test makes the opposite mistake — an empty
+    directory left by an out-of-band ``rm`` of the files alone reports
+    available and the read then fails — and nothing here produces one, because
+    ``delete_recordings`` removes the directory with the files.
     """
     return _store().full_path(str(recording.id)).is_dir()
 
@@ -293,10 +292,10 @@ def delete_recordings(recordings: list[SessionReplayRecording]) -> int:
 def purge_old_recordings(*, retention_days: int) -> int:
     """Delete every recording older than the retention window, in batches.
 
-    Batched because the steady state is one day's worth but the first run after
-    a retention window is shortened — or after capture ships — is the entire
-    backlog, and loading every stale recording and all of its chunk rows into
-    one Celery task's memory scales with how long nobody ran this.
+    Opus: batched because the size of a run is not bounded by the retention
+    window. Steady state is one day's worth, but shortening the window makes a
+    single run the whole backlog, and loading every stale recording with its
+    chunk rows scales with how long nobody ran this rather than with the day.
     """
     cutoff = timezone.now() - timedelta(days=retention_days)
     deleted = 0
