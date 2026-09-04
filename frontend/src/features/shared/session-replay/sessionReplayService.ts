@@ -63,7 +63,7 @@ function disabledForE2E(): boolean {
     return window.localStorage.getItem(E2E_DISABLE_KEY) === 'true'
   } catch {
     // A browser configured to block site data throws on localStorage access.
-    // Recording is the safe default; only the explicit opt-out disables it,
+    // Opus: Recording is the safe default; only the explicit opt-out disables it,
     // and an unreadable store is not one.
     return false
   }
@@ -130,13 +130,13 @@ export async function flushSessionReplay(): Promise<void> {
 
   isFlushing = true
   try {
-    // Drains in as many uploads as the backlog needs rather than one per
+    // Opus: Drains in as many uploads as the backlog needs rather than one per
     // interval: after a tab has been hidden for a while the buffer holds
     // minutes of events, and one chunk per 10s would never catch up.
     while (buffered.length > 0) {
       const events = takeChunk()
       try {
-        // The rule's Promise.all advice is wrong for this loop: chunks carry
+        // Opus: The rule's Promise.all advice is wrong for this loop: chunks carry
         // an ordered `sequence` that only advances on a success, and the
         // failure branches below decide whether the REST of the backlog is
         // still sendable. Uploading in parallel would number them by
@@ -158,14 +158,14 @@ export async function flushSessionReplay(): Promise<void> {
         sequence += 1
       } catch (error) {
         if (isApiErrorStatus(error, 409)) {
-          // The chunk is already stored. Re-sending it would 409 forever, and
+          // Opus: The chunk is already stored. Re-sending it would 409 forever, and
           // these events are on the server, so advance past them.
           sequence += 1
         } else if (isTerminalUploadFailure(error)) {
           discardRecordingState()
           return
         } else {
-          // Transient: put them back at the FRONT, ahead of whatever rrweb has
+          // Opus: Transient: put them back at the FRONT, ahead of whatever rrweb has
           // emitted since, or the replay would play back out of order. The
           // rest of the backlog waits for the next flush rather than pushing
           // past them into the same disorder.
@@ -190,7 +190,7 @@ export async function startSessionReplay(): Promise<void> {
       throwOnError: true,
     })
   } catch (error) {
-    // 409 is the company toggle: this instance does not record, which is an
+    // Opus: 409 is the company toggle: this instance does not record, which is an
     // answer rather than a fault. Converted here rather than left to reject,
     // because the caller starts capture with `void startSessionReplay()` and
     // this module installs the `unhandledrejection` listener that reports
@@ -214,7 +214,7 @@ export async function startSessionReplay(): Promise<void> {
       recordCanvas: false,
       collectFonts: false,
       inlineImages: false,
-      // Never record the replay player. rrweb walks into same-origin iframes,
+      // Opus: Never record the replay player. rrweb walks into same-origin iframes,
       // and the player rebuilds a whole recorded page inside one — so without
       // this, watching a replay re-records it: a single mutation adding 5,642
       // nodes and over 1MB was how the E2E wire-size guard caught it. Worse

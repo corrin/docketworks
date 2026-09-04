@@ -61,7 +61,7 @@ class NoValidXeroTokenError(Exception):
 _api_client: ApiClient | None = None
 REFRESH_LOCK_KEY = "xero_token_refresh_lock"
 REFRESH_LOCK_TIMEOUT_SECONDS = 60
-# How long a caller that lost the refresh lock waits for the winner's token.
+# Opus: How long a caller that lost the refresh lock waits for the winner's token.
 # The winner is making one network round trip to Xero — measured at 208ms in an
 # E2E run where the loser gave up after a single immediate re-read and answered
 # 500 for a token that was stored a fifth of a second later. The wait is
@@ -271,7 +271,7 @@ def _payload_if_fresh(app: XeroApp) -> TokenPayload | None:
     """Re-read the row and return its token only if it no longer needs refresh."""
     try:
         app.refresh_from_db()
-    # deliberate-swallow: the row vanished — report not-connected rather than
+    # Opus: deliberate-swallow: the row vanished — report not-connected rather than
     # racing a deleted row
     except XeroApp.DoesNotExist:
         return None
@@ -294,14 +294,14 @@ def _await_refreshed_token(app: XeroApp) -> TokenPayload | None:
     while True:
         try:
             app.refresh_from_db()
-        # deliberate-swallow: the row vanished while another process held the refresh
+        # Opus: deliberate-swallow: the row vanished while another process held the refresh
         # lock — report not-connected rather than racing the deleted row
         except XeroApp.DoesNotExist:
             return None
         payload = _payload_from_row(app)
         if payload and not _payload_needs_refresh(payload):
             return payload
-        # The lock going away means the holder finished. Read once more before
+        # Opus: The lock going away means the holder finished. Read once more before
         # concluding it failed: the row is read at the top of this loop and the
         # holder writes its token BEFORE releasing, so a holder that finished in
         # between leaves a stale read paired with a missing lock — the same
@@ -350,7 +350,7 @@ def get_valid_token() -> TokenPayload | None:
             if _shared_cache.get(REFRESH_LOCK_KEY) == lock_owner:
                 _shared_cache.delete(REFRESH_LOCK_KEY)
 
-    # Another process is refreshing the rotating Xero token. Wait for it rather
+    # Opus: Another process is refreshing the rotating Xero token. Wait for it rather
     # than racing the same refresh_token: Xero rotates the refresh token on
     # every use, so a second refresh would invalidate the first.
     return _await_refreshed_token(app)

@@ -193,7 +193,7 @@ class TestGetValidToken:
         assert auth._shared_cache.get(auth.REFRESH_LOCK_KEY) is None
 
     def test_waits_for_the_holder_of_the_refresh_lock(self) -> None:
-        # Xero rotates the refresh token on every use, so a caller that loses
+        # Opus: Xero rotates the refresh token on every use, so a caller that loses
         # the lock must not refresh too. It used to re-read the row once and
         # give up, which answered "not connected" for a token the winner wrote
         # a fifth of a second later — a 500 on a working installation.
@@ -213,7 +213,7 @@ class TestGetValidToken:
             timeout=auth.REFRESH_LOCK_TIMEOUT_SECONDS,
         )
 
-        # The winner writes its fresh token only after the loser has already
+        # Opus: The winner writes its fresh token only after the loser has already
         # looked once, which is the whole point: the row is still stale when
         # the loser arrives.
         def winner_writes_after_first_look(_seconds: float) -> None:
@@ -229,7 +229,7 @@ class TestGetValidToken:
         assert payload["access_token"] == "NEW_AT"
 
     def test_gives_up_when_the_lock_holder_never_writes_a_token(self) -> None:
-        # The winner's refresh can fail. Waiting is bounded so a request thread
+        # Opus: The winner's refresh can fail. Waiting is bounded so a request thread
         # is not held for the lock's full TTL on a broken connection.
         make_xero_app(
             client_id="a1",
@@ -247,7 +247,7 @@ class TestGetValidToken:
             timeout=auth.REFRESH_LOCK_TIMEOUT_SECONDS,
         )
 
-        # A fake clock, so the bound is asserted rather than waited out: with a
+        # Opus: A fake clock, so the bound is asserted rather than waited out: with a
         # no-op sleep the loop spins on real time and the test pays the whole
         # five seconds to prove it stops.
         elapsed = 0.0

@@ -61,13 +61,13 @@ export function SessionReplayPage() {
   const queryClient = useQueryClient()
 
   const recordings = useInfiniteQuery({
-    // has_events on the server, not a filter over the loaded rows: this list
+    // Opus: has_events on the server, not a filter over the loaded rows: this list
     // pages, so counting kept rows against a server total would make "Showing
     // N of M" wrong and shrink every page by however many were dropped.
     ...sessionReplayRecordingsListInfiniteOptions({ query: { has_events: true } }),
     initialPageParam: 1,
     getNextPageParam: nextPageParam,
-    // A refetch of an infinite query re-requests every loaded page in series,
+    // Opus: A refetch of an infinite query re-requests every loaded page in series,
     // so a window-focus refetch of a list scrolled ten pages deep is ten
     // requests for nothing.
     refetchOnWindowFocus: false,
@@ -78,12 +78,12 @@ export function SessionReplayPage() {
 
   const events = useQuery({
     ...sessionReplayRecordingEventsRetrieveOptions({ path: { recording_id: playing?.id ?? '' } }),
-    // Nothing is fetched until the superuser asks to watch. A replay is
+    // Opus: Nothing is fetched until the superuser asks to watch. A replay is
     // hundreds of KB on the wire even gzipped (measured: 162 events = 162 KB,
     // 1180 events = 557 KB), so fetching it to render a row's metadata made
     // browsing the list cost megabytes.
     enabled: playing !== null,
-    // The client default is staleTime 30s with refetchOnWindowFocus on, which
+    // Opus: The client default is staleTime 30s with refetchOnWindowFocus on, which
     // for this query means: tab away 30 seconds into a replay, come back, and
     // the whole payload is re-downloaded, the events object identity changes,
     // and the effect below tears the player down and rebuilds it at position
@@ -101,7 +101,7 @@ export function SessionReplayPage() {
     try {
       return { status: 'ready', events: toPlayerEvents(loaded) }
     } catch (error) {
-      // deliberate-swallow: an incompatible rrweb capture is an expected
+      // Opus: deliberate-swallow: an incompatible rrweb capture is an expected
       // refusal for a stored recording, converted here into a message in the
       // player pane. The message is the whole handling.
       return {
@@ -112,7 +112,7 @@ export function SessionReplayPage() {
   }, [events.data])
 
   // The viewer is itself being recorded. Without this flush its own events sit
-  // in the buffer, so its recording shows zero events and the server filters it
+  // Opus: in the buffer, so its recording shows zero events and the server filters it
   // out of the list below — the page appears to have lost the session it is in.
   useEffect(() => {
     void flushSessionReplay()
@@ -128,7 +128,7 @@ export function SessionReplayPage() {
         events: playable.events,
         width: Math.max(host.clientWidth, 900),
         height: 520,
-        // The superuser asked for playback, not for a loaded player they must
+        // Opus: The superuser asked for playback, not for a loaded player they must
         // then start.
         autoPlay: true,
         showController: true,
@@ -145,7 +145,7 @@ export function SessionReplayPage() {
 
   const select = (recording: RecordingOut) => {
     setSelected(recording)
-    // Selecting anything stops playback, including reselecting the same row:
+    // Opus: Selecting anything stops playback, including reselecting the same row:
     // otherwise the header would describe one recording while the player
     // showed another.
     setPlaying(null)
@@ -158,7 +158,7 @@ export function SessionReplayPage() {
         <Button
           variant="outline"
           size="sm"
-          // reset, not refetch: refetch on an infinite query re-requests every
+          // Opus: reset, not refetch: refetch on an infinite query re-requests every
           // loaded page in series, so Refresh on a deeply scrolled list would
           // be a dozen requests to see the newest recording. Reset drops back
           // to page one, which is where a new recording appears.
@@ -178,7 +178,7 @@ export function SessionReplayPage() {
       <div className="grid gap-4 lg:grid-cols-[minmax(20rem,26rem)_1fr]">
         <ListTable
           isPending={recordings.isPending}
-          // A failed FIRST load is the error state; an errored background
+          // Opus: A failed FIRST load is the error state; an errored background
           // refetch keeps the keepPreviousData rows on screen.
           isError={recordings.isError && recordings.data === undefined}
           onRetry={() => void recordings.refetch()}
@@ -359,7 +359,7 @@ function ReplayPane({
       ref={hostRef}
       className="min-h-[28rem] bg-background"
       data-automation-id={`${ID}-player`}
-      // Keeps our own recorder out of the player's iframe; see
+      // Opus: Keeps our own recorder out of the player's iframe; see
       // blockSelector in sessionReplayService.
       data-rrweb-block=""
     />

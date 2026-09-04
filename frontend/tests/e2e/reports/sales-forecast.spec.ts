@@ -68,7 +68,7 @@ test.describe('Sales Forecast Report', () => {
         cell.trim(),
       )
 
-    // The sort assertions need a month carrying two DIFFERENT companies.
+    // Opus: The sort assertions need a month carrying two DIFFERENT companies.
     // Reversing rows that all read the same name changes nothing, so a
     // same-company month satisfies every ordering assertion below without the
     // sort having run — and which month that is, this spec cannot choose: the
@@ -96,7 +96,7 @@ test.describe('Sales Forecast Report', () => {
     }
     expect(drilled, 'no month carried two different companies to sort').not.toBe('')
 
-    // The clicked month, not merely "a month": the label proves the row's
+    // Opus: The clicked month, not merely "a month": the label proves the row's
     // YYYY-MM survived the round trip through the path parameter.
     await expect(autoId(page, 'SalesForecastReport-detail-month')).toHaveText(drilled)
 

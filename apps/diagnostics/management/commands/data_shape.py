@@ -33,7 +33,7 @@ class Command(BaseCommand):
     def handle(self, *_args: object, **options: object) -> None:
         """Count every project model and print the shape."""
         instance = options["instance"]
-        # Narrowed rather than annotated: BaseCommand hands options through as
+        # Opus: Narrowed rather than annotated: BaseCommand hands options through as
         # object, and asserting a type here would be a claim about argparse
         # rather than a check of it.
         if not isinstance(instance, str):
@@ -41,7 +41,7 @@ class Command(BaseCommand):
 
         counts: dict[str, int] = {}
         for model in apps.get_models():
-            # Project models only: Django's own auth/contenttypes/sessions
+            # Opus: Project models only: Django's own auth/contenttypes/sessions
             # tables say nothing about the business data a screen renders.
             if not model._meta.app_config.name.startswith("apps."):
                 continue

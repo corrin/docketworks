@@ -28,7 +28,7 @@ from apps.diagnostics.models import SessionReplayChunk, SessionReplayRecording
 type JsonValue = str | int | float | bool | list["JsonValue"] | dict[str, "JsonValue"] | None
 type ReplayEvent = dict[str, JsonValue]
 
-# Recordings deleted per pass, so the first purge after a long gap does not
+# Opus: Recordings deleted per pass, so the first purge after a long gap does not
 # load an unbounded backlog into one task.
 PURGE_BATCH_SIZE = 200
 
@@ -204,7 +204,7 @@ def append_chunk(new: NewChunk) -> SessionReplayChunk:
         ]
     )
 
-    # Last, and inside the transaction: overwrite=False because an existing
+    # Opus: Last, and inside the transaction: overwrite=False because an existing
     # file under a sequence the database just accepted means a previous attempt
     # left a payload behind, and silently replacing it would destroy events the
     # checksum no longer matches.
@@ -256,7 +256,7 @@ def has_payloads(recording: SessionReplayRecording) -> bool:
 
 def recording_events(recording: SessionReplayRecording) -> list[ReplayEvent]:
     """Return every event of a recording, in order, ready for the player."""
-    # An empty list, not a missing payload: a session opened and abandoned
+    # Opus: An empty list, not a missing payload: a session opened and abandoned
     # before its first flush has nothing stored anywhere, and answering "these
     # events are not on this machine" would send a superuser after files that
     # were never written.

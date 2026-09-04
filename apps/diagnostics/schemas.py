@@ -23,7 +23,7 @@ class ViewportIn(Schema):
     viewport_height: int | None = None
 
 
-# The columns behind these are CharField(max_length=500) and a captured path
+# Opus: The columns behind these are CharField(max_length=500) and a captured path
 # carries the search string and hash, so an unbounded field here turns a long
 # but ordinary URL into a DataError 500 and an AppError row instead of a 422 at
 # the boundary.
@@ -42,7 +42,7 @@ class RecordingCreateIn(ViewportIn):
 class ChunkCreateIn(ViewportIn):
     """One batch of rrweb events, in capture order."""
 
-    # ge=0 against the model's PositiveIntegerField: a negative sequence is an
+    # Opus: ge=0 against the model's PositiveIntegerField: a negative sequence is an
     # IntegrityError from the database CHECK, which is a 500 for what the
     # schema can refuse.
     sequence: int = Field(ge=0)

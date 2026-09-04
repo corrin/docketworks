@@ -19,7 +19,7 @@ def test_openapi_document_served() -> None:
 def test_test_settings_supply_every_required_variable() -> None:
     """CI has no `.env`, so `settings_test` is the only source of these.
 
-    A variable added to REQUIRED_ENV_VARS without a fallback here raises at
+    Opus: a variable added to REQUIRED_ENV_VARS without a fallback here raises at
     settings import on any machine without a populated `.env` — which is every
     CI runner. That is not a test failure there but a collapse before the first
     check: mypy's Django plugin imports these settings to construct, so the

@@ -74,7 +74,7 @@ export function enableNetworkLogging(
     const isGeneratedPdfEndpoint =
       url.includes('/delivery-docket/') || url.includes('/workshop-pdf/')
 
-    // A payload a specific test deliberately downloads. Unlike the PDF
+    // Opus: A payload a specific test deliberately downloads. Unlike the PDF
     // endpoints above this is scoped to one spec, so every OTHER spec still
     // fails if the same endpoint is fetched — which is what catches a page
     // regressing into loading a bulk payload it was not asked for.
@@ -103,7 +103,7 @@ export function enableNetworkLogging(
 
     // timing() never returns null; unavailable values are -1 (e.g. HAR
     // replay), which must not produce a negative duration in the CSV.
-    // responseEnd is ALREADY relative to startTime, while startTime is an
+    // Opus: responseEnd is ALREADY relative to startTime, while startTime is an
     // epoch millisecond — subtracting one from the other wrote roughly
     // -1.79e12 into every row this file has ever logged.
     const timing = request.timing()
@@ -386,7 +386,7 @@ const TOAST_CLICK_TIMEOUT_MS = 2000
 export async function dismissToasts(page: Page) {
   const toasts = page.locator('[data-sonner-toast]')
 
-  // Sonner dismisses toasts on its own timer, so the set shrinks underneath
+  // Opus: Sonner dismisses toasts on its own timer, so the set shrinks underneath
   // this loop. Counting first and then clicking nth(i) waits out the FULL test
   // timeout whenever that toast closed itself in between — 120s spent on an
   // element that is already gone, which is how create-job-with-new-company
@@ -397,7 +397,7 @@ export async function dismissToasts(page: Page) {
     if (!(await first.isVisible())) break
     const closeBtn = first.locator('button[aria-label="Close toast"]')
     const target = (await closeBtn.count()) > 0 ? closeBtn : first
-    // deliberate-swallow: a toast closing itself mid-click IS the outcome this
+    // Opus: deliberate-swallow: a toast closing itself mid-click IS the outcome this
     // helper exists to produce. Only its absence matters to the caller, never
     // which of us removed it.
     await target.click({ timeout: TOAST_CLICK_TIMEOUT_MS }).catch(() => undefined)

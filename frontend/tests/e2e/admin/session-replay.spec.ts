@@ -18,7 +18,7 @@ const DISABLE_KEY = 'e2e:disable-session-replay'
 const CHUNK_UPLOAD = /\/api\/session-replays\/recordings\/[^/]+\/chunks\/$/
 const EVENTS_FETCH = /\/api\/session-replays\/recordings\/[^/]+\/events\/$/
 
-// rrweb-player renders the replay inside a SANDBOXED iframe so the recorded
+// Opus: rrweb-player renders the replay inside a SANDBOXED iframe so the recorded
 // page's scripts cannot execute in the admin panel — which is the behaviour we
 // want, and Chromium logs a console error each time it enforces it. Allowed
 // rather than fixed: suppressing it would mean un-sandboxing someone else's
@@ -27,7 +27,7 @@ test.use({
   expectedConsoleErrors: [
     /Blocked script execution in .* because the document's frame is sandboxed/,
   ],
-  // A replay is one recorded DOM stream, and the wire guard's 100 KB cap
+  // Opus: A replay is one recorded DOM stream, and the wire guard's 100 KB cap
   // cannot be met by any windowing of it: measured against the development
   // database, 162 events gzip to 162 KB and 1,180 to 557 KB, and the largest
   // single stored chunk is 940,739 bytes ALREADY compressed — so one rrweb
@@ -64,7 +64,7 @@ test.describe('session replay', () => {
     expect(chunkUploaded.status()).toBe(201)
     expect((await chunkUploaded.json()).event_count).toBeGreaterThan(0)
 
-    // Installed before the replays page is ever navigated to, or a fetch during
+    // Opus: Installed before the replays page is ever navigated to, or a fetch during
     // that first load would be invisible to the assertion below.
     const eventFetches: string[] = []
     page.on('request', (request) => {
@@ -77,14 +77,14 @@ test.describe('session replay', () => {
     const row = page.locator('[data-automation-id="SessionReplayPage-recording-row"]').first()
     await expect(row).toBeVisible()
 
-    // Selecting a recording shows its metadata and costs nothing. A replay is
+    // Opus: Selecting a recording shows its metadata and costs nothing. A replay is
     // hundreds of KB even gzipped, so browsing the list must not download one.
     await row.click()
     const play = autoId(page, 'SessionReplayPage-play')
     await expect(play).toBeVisible()
     expect(eventFetches, 'no replay may be fetched until it is loaded').toEqual([])
 
-    // Playback: the events come back off disk and the player mounts on them.
+    // Opus: Playback: the events come back off disk and the player mounts on them.
     // URL and method only, never status (ADR 0025) — a status-filtered wait
     // could not match the 409 a missing payload returns, so a real failure
     // would surface as a timeout instead of its own message.
@@ -94,7 +94,7 @@ test.describe('session replay', () => {
     await play.click()
     const events = await eventsLoaded
     if (events.status() !== 200) {
-      // The 409 body names the fix (run pull_prod_files.sh); a bare status
+      // Opus: The 409 body names the fix (run pull_prod_files.sh); a bare status
       // assertion would throw that away.
       throw new Error(`events endpoint returned ${events.status()}: ${await events.text()}`)
     }
@@ -115,7 +115,7 @@ test.describe('session replay', () => {
     const table = autoId(page, 'SessionReplayPage-recordings')
     await table.waitFor({ timeout: 30000 })
 
-    // Structural, not row-count dependent: how many recordings this database
+    // Opus: Structural, not row-count dependent: how many recordings this database
     // holds is not something a spec can require — the E2E reset leaves far
     // fewer than one page, while a developer machine restored from production
     // holds hundreds. Asserting "there is a second page" would pass or fail on
@@ -137,7 +137,7 @@ test.describe('session replay', () => {
     expect(pane.overflowY).toBe('auto')
     expect(pane.maxHeight, 'an unbounded pane grows the page instead of scrolling').not.toBe('none')
 
-    // The running count names the SERVER's total, which is what proves the
+    // Opus: The running count names the SERVER's total, which is what proves the
     // list knows about rows it has not fetched. The page it replaced asked for
     // one fixed page and could not have said this.
     await expect(autoId(page, 'SessionReplayPage-load-more-count')).toHaveText(
@@ -146,7 +146,7 @@ test.describe('session replay', () => {
   })
 
   test.describe('with recording switched off', () => {
-    // Chromium logs "Failed to load resource" for any non-2xx, and the 409
+    // Opus: Chromium logs "Failed to load resource" for any non-2xx, and the 409
     // this test asserts is a non-2xx by design. Scoped to this block so the
     // playback test above keeps the strict console check — a 409 anywhere
     // near the player would be a real fault. Only the browser's own resource
@@ -180,7 +180,7 @@ test.describe('session replay', () => {
         await page.goto('/kanban')
         expect((await refused).status()).toBe(409)
       } finally {
-        // Leave the instance recording: every later spec shares this database.
+        // Opus: Leave the instance recording: every later spec shares this database.
         if (wasEnabled) {
           await page.goto('/admin/company-defaults/setup')
           const restore = autoId(page, 'CompanyDefaultsPage-setup-field-session_replay_enabled')

@@ -117,7 +117,7 @@ describe('session replay uploads', () => {
     expect(JSON.parse(retried.events_json)).toHaveLength(2)
   })
 
-  // Django refuses a body over DATA_UPLOAD_MAX_MEMORY_SIZE before the view
+  // Opus: Django refuses a body over DATA_UPLOAD_MAX_MEMORY_SIZE before the view
   // runs, and the 500 that follows is neither a conflict nor terminal — so an
   // oversized chunk went back on the front of the buffer and every later flush
   // resent it, larger each time, for the life of the session. Bounding the
@@ -136,7 +136,7 @@ describe('session replay uploads', () => {
     for (const [options] of chunksCreate.mock.calls) {
       expect(options.body.events_json.length).toBeLessThanOrEqual(1_000_000)
     }
-    // Split, not dropped: every event reaches the server exactly once, in order.
+    // Opus: Split, not dropped: every event reaches the server exactly once, in order.
     const uploaded = chunksCreate.mock.calls.flatMap(([options]) =>
       uploadedTimestamps(options.body.events_json),
     )
@@ -162,7 +162,7 @@ describe('session replay start', () => {
     window.localStorage.clear()
   })
 
-  // Callers start capture as a floating promise, and this module installs the
+  // Opus: Callers start capture as a floating promise, and this module installs the
   // unhandledrejection listener that reports uncaught errors — so a rejection
   // here would be caught by our own reporter and filed as a frontend error row
   // on every authenticated page load. An instance with recording switched off
@@ -174,7 +174,7 @@ describe('session replay start', () => {
     expect(emitted).toHaveLength(0)
   })
 
-  // A refusal is an answer; a broken server is not, and swallowing it would
+  // Opus: A refusal is an answer; a broken server is not, and swallowing it would
   // mean capture silently never runs with nothing to show why.
   it('surfaces a server failure rather than swallowing it', async () => {
     recordingsCreate.mockRejectedValue(apiError(500))
@@ -182,7 +182,7 @@ describe('session replay start', () => {
     await expect(startSessionReplay()).rejects.toStrictEqual(apiError(500))
   })
 
-  // The recording id lives in module state, so stopping has to clear it: while
+  // Opus: The recording id lives in module state, so stopping has to clear it: while
   // it survived, the next startSessionReplay early-returned and appended the
   // new session to the PREVIOUS user's recording. One person's screen in
   // another person's replay is the failure this guards.

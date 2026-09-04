@@ -23,10 +23,10 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SHAPE_FILE = REPO_ROOT / "docs" / "prod-data-shape.yml"
 
-# Below this, a table is too small for its own count to say anything: a lookup
+# Opus: Below this, a table is too small for its own count to say anything: a lookup
 # table with five rows in production is not "thin" in the local copy.
 MEANINGFUL_ROWS = 50
-# Half of production is the line between "the same order of magnitude" and a
+# Opus: Half of production is the line between "the same order of magnitude" and a
 # corpus that cannot exercise what production does.
 THIN_FRACTION = 0.5
 

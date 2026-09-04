@@ -107,7 +107,8 @@ class AccessLoggingMiddleware:
 def _replay_id_for_log(header: str | None) -> str:
     r"""Return the replay id only if it is one, so the log line stays parseable.
 
-    The access line is tab-delimited and this value is client-supplied. HTAB is
+    Opus: the access line is tab-delimited and this value is client-supplied.
+    HTAB is
     legal inside an HTTP field value, so an authenticated caller sending
     `X-Session-Replay-Id: x\tuser=someone.else@example.com` would append fields
     an operator greps for as though the server had written them. A UUID cannot
@@ -117,7 +118,7 @@ def _replay_id_for_log(header: str | None) -> str:
         return "-"
     try:
         return str(UUID(header))
-    # deliberate-swallow: a malformed header is a client's business, not an
+    # Opus: deliberate-swallow: a malformed header is a client's business, not an
     # error of ours; the log records that it was not usable and moves on.
     except ValueError:
         return "-"
