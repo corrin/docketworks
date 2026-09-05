@@ -4165,7 +4165,11 @@ export const getAllocationDetailsOptions = (options: Options<GetAllocationDetail
 /**
  * Compose the supplier email for a purchase order
  *
- * Build the mailto payload, applying any recipient/message overrides.
+ * Draft the supplier email, with the order PDF attached, for this operator.
+ *
+ * The draft lands in the mailbox of whoever pressed the button — they signed
+ * in with that Workspace address, so it is a mailbox they have — and nothing
+ * is sent until they read it and send it.
  */
 export const getPurchaseOrderEmailMutation = (options?: Partial<Options<GetPurchaseOrderEmailData>>): UseMutationOptions<GetPurchaseOrderEmailResponse, AxiosError<DefaultError>, Options<GetPurchaseOrderEmailData>> => {
     const mutationOptions: UseMutationOptions<GetPurchaseOrderEmailResponse, AxiosError<DefaultError>, Options<GetPurchaseOrderEmailData>> = {

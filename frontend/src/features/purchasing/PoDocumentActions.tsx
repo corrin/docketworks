@@ -12,7 +12,11 @@ interface PoDocumentActionsProps {
 }
 
 /**
- * Sending the order to the supplier: print it, or mail it.
+ * Sending the order to the supplier: print it, or draft an email with it.
+ *
+ * The email is a Gmail draft in the operator's own mailbox with the order PDF
+ * attached, not a mailto: link. mailto cannot carry an attachment, so the old
+ * one composed a message saying "please find attached" and attached nothing.
  *
  * There is deliberately no "sync with Xero" button beside these. Xero holds a
  * copy so the supplier's bill has something to reconcile against, and keeping
@@ -27,17 +31,14 @@ export function PoDocumentActions({ po }: PoDocumentActionsProps) {
       { path: { po_id: po.id }, body: {} },
       {
         onSuccess: (email) => {
-          // The server composes subject and body from the order and returns the
-          // mailto URL; opening it hands the draft to whatever the operator
-          // actually uses for mail. Nothing is sent from here.
-          if (!email.mailto_url) {
-            toast.error(email.message ?? 'No email address for this supplier.')
-            return
-          }
-          window.open(email.mailto_url, '_blank', 'noopener,noreferrer')
+          // The server drafts the message in this operator's own mailbox with
+          // the order PDF attached, and hands back where to open it. Nothing is
+          // sent: they read it and send it themselves.
+          toast.success(email.message ?? 'Draft created')
+          window.open(email.draft_url, '_blank', 'noopener,noreferrer')
         },
         onError: (error) =>
-          toast.error(apiErrorMessage(error, 'Failed to compose the supplier email.')),
+          toast.error(apiErrorMessage(error, 'Failed to draft the supplier email.')),
       },
     )
   }
@@ -54,12 +55,16 @@ export function PoDocumentActions({ po }: PoDocumentActionsProps) {
       </Button>
       <Button
         variant="outline"
-        disabled={composeEmail.isPending || !po.supplier_id}
+        // Disabled with a reason rather than failing on click: the composer
+        // refuses a supplier with no address, and a button that cannot work
+        // should say so before it is pressed, as the Xero card does.
+        disabled={composeEmail.isPending || !po.supplier_has_email}
+        title={po.supplier_has_email ? undefined : 'This supplier has no email address on file'}
         data-automation-id="PoDetailView-email"
         onClick={emailSupplier}
       >
         <Mail className="mr-2 h-4 w-4" />
-        {composeEmail.isPending ? 'Preparing…' : 'Email supplier'}
+        {composeEmail.isPending ? 'Drafting…' : 'Email supplier'}
       </Button>
     </div>
   )

@@ -3512,7 +3512,11 @@ export const getAllocationDetails = <ThrowOnError extends boolean = false>(optio
 /**
  * Compose the supplier email for a purchase order
  *
- * Build the mailto payload, applying any recipient/message overrides.
+ * Draft the supplier email, with the order PDF attached, for this operator.
+ *
+ * The draft lands in the mailbox of whoever pressed the button — they signed
+ * in with that Workspace address, so it is a mailbox they have — and nothing
+ * is sent until they read it and send it.
  */
 export const getPurchaseOrderEmail = <ThrowOnError extends boolean = false>(options: Options<GetPurchaseOrderEmailData, ThrowOnError>): RequestResult<GetPurchaseOrderEmailResponses, unknown, ThrowOnError> => (options.client ?? client).post<GetPurchaseOrderEmailResponses, unknown, ThrowOnError>({
     responseType: 'json',

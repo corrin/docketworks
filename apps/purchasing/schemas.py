@@ -183,6 +183,7 @@ class PurchaseOrderDetail(Schema):
     supplier: str
     supplier_id: UUID | None
     supplier_has_xero_id: bool
+    supplier_has_email: bool
     lines: list[PurchaseOrderLineOut]
     pickup_address: SupplierPickupAddressOut | None
     created_by_name: str
@@ -319,10 +320,14 @@ class PurchaseOrderEmailResponse(ResponseSchema):
     """Wire contract for PurchaseOrderEmailResponse."""
 
     success: bool
-    email_subject: str | None = None
-    email_body: str | None = None
-    mailto_url: str | None = None
-    pdf_url: str | None = None
+    # Present whenever the endpoint answers 200: the composer raises rather than
+    # returning a message it could not address, and the handler builds all three
+    # from that result. Declaring them nullable told every caller to handle a
+    # success with no email in it, which the code cannot produce.
+    email_subject: str
+    email_body: str
+    draft_id: str
+    draft_url: str
     message: str | None = None
 
 

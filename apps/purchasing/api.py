@@ -39,6 +39,7 @@ from ninja.responses import Status
 from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth
 from apps.core.etag import if_none_match_satisfied
+from apps.core.gmail import Attachment, create_draft
 from apps.job.models import Job
 from apps.job.services import job_search, job_service
 from apps.purchasing.etag import purchase_order_etag
@@ -428,20 +429,43 @@ def get_purchase_order_pdf(request: HttpRequest, po_id: UUID) -> FileResponse:
 def get_purchase_order_email(
     request: HttpRequest, po_id: UUID, payload: PurchaseOrderEmailRequest
 ) -> dict[str, object]:
-    """Build the mailto payload, applying any recipient/message overrides."""
+    """Draft the supplier email, with the order PDF attached, for this operator.
+
+    The draft lands in the mailbox of whoever pressed the button — they signed
+    in with that Workspace address, so it is a mailbox they have — and nothing
+    is sent until they read it and send it.
+    """
     po = _get_po_or_404(po_id)
+    staff = _staff(request)
+    if not staff.office_email:
+        raise HttpError(400, "Your account has no office email to draft from.")
     try:
         email = create_purchase_order_email(
             po, recipient_email=payload.recipient_email, message=payload.message
         )
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
+
+    draft = create_draft(
+        as_user=staff.office_email,
+        to=email.email,
+        subject=email.subject,
+        body=email.body,
+        attachments=[
+            Attachment(
+                filename=f"Purchase_Order_{po.po_number}.pdf",
+                content=create_purchase_order_pdf(po).getvalue(),
+                mime_type="application/pdf",
+            )
+        ],
+    )
     return {
         "success": True,
         "email_subject": email.subject,
         "email_body": email.body,
-        "mailto_url": email.mailto_url,
-        "message": "Email data generated successfully",
+        "draft_id": draft.draft_id,
+        "draft_url": draft.web_url,
+        "message": f"Draft created in {staff.office_email}",
     }
 
 

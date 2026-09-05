@@ -7,6 +7,7 @@ stream.
 """
 
 from decimal import Decimal
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -16,11 +17,16 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company, SupplierPickupAddress
 from apps.company.tests.conftest import make_company
+from apps.core.gmail import GmailDraft
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 from apps.purchasing.tests.conftest import make_po_line, make_purchase_order
+
+#: The one seam to Gmail; the real API is exercised by the integration suite.
+DRAFT = "apps.purchasing.api.create_draft"
+STAFF_EMAIL = "purchasing-office@example.com"
 
 pytestmark = [
     pytest.mark.django_db,
@@ -910,35 +916,68 @@ class TestPurchaseOrderEvents:
 
 
 class TestPurchaseOrderEmail:
-    def test_composes_a_mailto_url_for_the_supplier(
+    """Drafting the supplier email, with Gmail stubbed at the one seam.
+
+    The draft itself is proven against the real API in
+    apps/core/tests/test_gmail_integration.py; what these cover is what we ask
+    Gmail for — the right mailbox, the right recipient, and the order PDF
+    actually attached, which is the whole reason this is a draft and not a
+    mailto link.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _logo(self, company_defaults: CompanyDefaults) -> None:
+        """Every draft renders the order PDF, which refuses without a logo."""
+        company_defaults.logo_wide = "app_images/docketworks_logo_wide.png"
+        company_defaults.save()
+
+    def test_drafts_to_the_supplier_in_the_operators_own_mailbox(
         self, client: Client, supplier: Company, company_defaults: CompanyDefaults
     ) -> None:
         po = make_purchase_order(supplier=supplier)
 
-        body = client.post(
-            f"{_detail_url(po)}email/", data={}, content_type="application/json"
-        ).json()
+        with patch(DRAFT) as draft:
+            draft.return_value = GmailDraft(draft_id="d1", web_url="https://mail.example/d1")
+            body = client.post(
+                f"{_detail_url(po)}email/", data={}, content_type="application/json"
+            ).json()
 
         assert body["success"] is True
         assert body["email_subject"] == f"Purchase Order {po.po_number}"
-        assert body["mailto_url"].startswith(f"mailto:{supplier.email}?subject=")
+        assert body["draft_url"] == "https://mail.example/d1"
         assert company_defaults.company_name in body["email_body"]
+        call = draft.call_args.kwargs
+        assert call["to"] == supplier.email
+        assert call["as_user"] == STAFF_EMAIL, "drafted somewhere the operator cannot see"
 
-    @pytest.mark.usefixtures("company_defaults")
+    def test_the_order_pdf_rides_along(self, client: Client, supplier: Company) -> None:
+        """The reason this is a draft: mailto could not carry the order."""
+        po = make_purchase_order(supplier=supplier)
+
+        with patch(DRAFT) as draft:
+            draft.return_value = GmailDraft(draft_id="d1", web_url="https://mail.example/d1")
+            client.post(f"{_detail_url(po)}email/", data={}, content_type="application/json")
+
+        attachment = draft.call_args.kwargs["attachments"][0]
+        assert attachment.filename == f"Purchase_Order_{po.po_number}.pdf"
+        assert attachment.mime_type == "application/pdf"
+        assert attachment.content.startswith(b"%PDF"), "not a PDF"
+
     def test_a_custom_message_is_prepended_to_the_body(
         self, client: Client, supplier: Company
     ) -> None:
         po = make_purchase_order(supplier=supplier)
 
-        body = client.post(
-            f"{_detail_url(po)}email/",
-            data={"message": "Urgent please"},
-            content_type="application/json",
-        ).json()
+        with patch(DRAFT) as draft:
+            draft.return_value = GmailDraft(draft_id="d1", web_url="https://mail.example/d1")
+            body = client.post(
+                f"{_detail_url(po)}email/",
+                data={"message": "Urgent please"},
+                content_type="application/json",
+            ).json()
 
         assert body["email_body"].startswith("Urgent please\n\n")
 
-    @pytest.mark.usefixtures("company_defaults")
     def test_a_po_without_a_supplier_is_400(self, client: Client) -> None:
         po = make_purchase_order()
 
@@ -947,8 +986,6 @@ class TestPurchaseOrderEmail:
         assert response.status_code == 400
         assert "must have a supplier" in response.json()["detail"]
 
-    @pytest.mark.usefixtures("company_defaults")
-    @pytest.mark.usefixtures("company_defaults")
     def test_an_invalid_recipient_email_is_rejected(
         self, client: Client, supplier: Company
     ) -> None:
@@ -964,19 +1001,20 @@ class TestPurchaseOrderEmail:
 
         assert response.status_code == 422
 
-    @pytest.mark.usefixtures("company_defaults")
     def test_a_valid_recipient_email_overrides_the_supplier_address(
         self, client: Client, supplier: Company
     ) -> None:
         po = make_purchase_order(supplier=supplier)
 
-        body = client.post(
-            f"{_detail_url(po)}email/",
-            data={"recipient_email": "yard@example.test"},
-            content_type="application/json",
-        ).json()
+        with patch(DRAFT) as draft:
+            draft.return_value = GmailDraft(draft_id="d1", web_url="https://mail.example/d1")
+            client.post(
+                f"{_detail_url(po)}email/",
+                data={"recipient_email": "yard@example.test"},
+                content_type="application/json",
+            )
 
-        assert body["mailto_url"].startswith("mailto:yard@example.test?subject=")
+        assert draft.call_args.kwargs["to"] == "yard@example.test"
 
     def test_a_supplier_without_an_email_is_400(self, client: Client) -> None:
         silent = Company.objects.create(name="No Email Ltd", xero_last_modified=timezone.now())

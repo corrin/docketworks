@@ -4001,11 +4001,11 @@ export const zPurchaseOrderEmailRequest = z.object({
  * Wire contract for PurchaseOrderEmailResponse.
  */
 export const zPurchaseOrderEmailResponse = z.object({
-    email_body: z.string().nullable(),
-    email_subject: z.string().nullable(),
-    mailto_url: z.string().nullable(),
+    draft_id: z.string(),
+    draft_url: z.string(),
+    email_body: z.string(),
+    email_subject: z.string(),
     message: z.string().nullable(),
-    pdf_url: z.string().nullable(),
     success: z.boolean()
 });
 
@@ -5177,6 +5177,7 @@ export const zPurchaseOrderDetail = z.object({
         'deleted'
     ]),
     supplier: z.string(),
+    supplier_has_email: z.boolean(),
     supplier_has_xero_id: z.boolean(),
     supplier_id: z.uuid().nullable(),
     xero_id: z.uuid().nullable()

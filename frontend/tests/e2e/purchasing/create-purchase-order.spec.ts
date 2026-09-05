@@ -160,15 +160,11 @@ test.describe.serial('purchase order operations', () => {
     log(`Assigned job ${jobNumber} to PO line`)
   })
 
-  test('the order can be printed and mailed to the supplier', async ({
+  test('the order prints, and email says why it is unavailable', async ({
     authenticatedPage: page,
   }) => {
     await page.goto(poUrl)
     await page.waitForLoadState('networkidle')
-    const heading = await page.locator('h1').first().innerText()
-    const poNumber = heading.replace('Purchase Order', '').trim()
-    expect(poNumber).not.toBe('')
-
     // Print: the PDF is fetched as a blob and handed to the browser. The
     // request is what this asserts — the new tab it opens is the browser's job.
     const pdf = page.waitForResponse(
@@ -179,21 +175,26 @@ test.describe.serial('purchase order operations', () => {
     const pdfResponse = await pdf
     expect(pdfResponse.headers()['content-type']).toContain('pdf')
 
-    // Email: the server composes the message and returns a mailto URL. Nothing
-    // is sent from the browser, so the URL is the whole contract.
-    const composed = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname.endsWith('/email/') &&
-        response.request().method() === 'POST' &&
-        response.status() === 200,
-      { timeout: 30000 },
-    )
-    await autoId(page, 'PoDetailView-email').click()
-    const email = await (await composed).json()
+    // Email is offered only when it can work. createTestPurchaseOrder
+    // quick-creates its supplier, which carries no email address, so the button
+    // states that rather than failing on click — the composer refuses a
+    // supplier it cannot address and would answer 400.
+    //
+    // The wire is asserted as well as the button, and that is the point: a
+    // disabled button is equally what you get when the server omits
+    // supplier_has_email entirely, so asserting the DOM alone passes against a
+    // backend that does not implement this at all. It did exactly that once.
+    const detail = await (
+      await page.request.get(`/api/purchasing/purchase-orders/${poUrl.split('/').pop()}/`)
+    ).json()
+    expect(detail).toHaveProperty('supplier_has_email')
+    expect(detail.supplier_has_email).toBe(false)
 
-    expect(email.mailto_url).toContain('mailto:')
-    expect(email.email_subject).toContain(poNumber)
-    log('Printed the PO and composed the supplier email')
+    const emailButton = autoId(page, 'PoDetailView-email')
+    await expect(emailButton).toBeDisabled()
+    await expect(emailButton).toHaveAttribute('title', /no email address/i)
+
+    log('Printed the PO; the email button states why it is unavailable')
   })
 
   test('expected delivery and the order value follow the lines', async ({
@@ -227,7 +228,11 @@ test.describe.serial('purchase order operations', () => {
     await expect(costInput).toBeEnabled()
 
     const autosavePromise = waitForPoAutosave(page)
-    await tbc.check()
+    // click + expect, not check(): the box is controlled by the optimistic
+    // cache write, so its state flips a render after the click and check()
+    // verifies too early.
+    await tbc.click()
+    await expect(tbc).toBeChecked()
     await autosavePromise
 
     // The service refuses a cost for a TBC line, so the input closes rather
@@ -240,7 +245,9 @@ test.describe.serial('purchase order operations', () => {
 
     // Put it back so the later status test is not blocked by an unpriced line.
     const restore = waitForPoAutosave(page)
-    await autoId(page, 'PoLinesTable-price-tbc-0').uncheck()
+    const reloaded = autoId(page, 'PoLinesTable-price-tbc-0')
+    await reloaded.click()
+    await expect(reloaded).not.toBeChecked()
     await restore
     log('Toggled Price TBC and confirmed the unit cost follows it')
   })

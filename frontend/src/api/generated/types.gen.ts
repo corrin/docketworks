@@ -9102,6 +9102,10 @@ export type PurchaseOrderDetail = {
      */
     supplier: string;
     /**
+     * Supplier Has Email
+     */
+    supplier_has_email: boolean;
+    /**
      * Supplier Has Xero Id
      */
     supplier_has_xero_id: boolean;
@@ -9138,25 +9142,25 @@ export type PurchaseOrderEmailRequest = {
  */
 export type PurchaseOrderEmailResponse = {
     /**
+     * Draft Id
+     */
+    draft_id: string;
+    /**
+     * Draft Url
+     */
+    draft_url: string;
+    /**
      * Email Body
      */
-    email_body: string | null;
+    email_body: string;
     /**
      * Email Subject
      */
-    email_subject: string | null;
-    /**
-     * Mailto Url
-     */
-    mailto_url: string | null;
+    email_subject: string;
     /**
      * Message
      */
     message: string | null;
-    /**
-     * Pdf Url
-     */
-    pdf_url: string | null;
     /**
      * Success
      */

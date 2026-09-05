@@ -240,6 +240,9 @@ def purchase_order_detail_data(po: PurchaseOrder) -> dict[str, object]:
         "supplier": supplier.name if supplier else "",
         "supplier_id": po.supplier_id,
         "supplier_has_xero_id": bool(supplier and supplier.xero_contact_id is not None),
+        # The email composer refuses a supplier with no address, so the screen
+        # needs to know before offering the button rather than surfacing a 400.
+        "supplier_has_email": bool(supplier and supplier.email),
         "lines": [purchase_order_line_data(line, usage_counts) for line in lines],
         "pickup_address": (pickup_address_data(po.pickup_address) if po.pickup_address else None),
         "created_by_name": po.created_by_name or "",

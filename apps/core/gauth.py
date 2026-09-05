@@ -55,6 +55,14 @@ def delegated_subject() -> str:
     return subject
 
 
-def delegated_credentials(scopes: list[str]) -> service_account.Credentials:
-    """Credentials impersonating the resolved Workspace subject."""
-    return service_account_credentials(scopes).with_subject(delegated_subject())
+def delegated_credentials(
+    scopes: list[str], subject: str | None = None
+) -> service_account.Credentials:
+    """Credentials impersonating ``subject``, or the resolved Workspace subject.
+
+    An explicit subject is how work is done AS a particular person rather than
+    as the company: a draft belongs in the mailbox of whoever will send it, and
+    they can only be looking at the screen that made it because they signed in
+    with that Workspace address.
+    """
+    return service_account_credentials(scopes).with_subject(subject or delegated_subject())

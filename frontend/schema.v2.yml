@@ -10237,6 +10237,9 @@ components:
         supplier:
           title: Supplier
           type: string
+        supplier_has_email:
+          title: Supplier Has Email
+          type: boolean
         supplier_has_xero_id:
           title: Supplier Has Xero Id
           type: boolean
@@ -10266,6 +10269,7 @@ components:
       - supplier
       - supplier_id
       - supplier_has_xero_id
+      - supplier_has_email
       - lines
       - pickup_address
       - created_by_name
@@ -10289,40 +10293,32 @@ components:
     PurchaseOrderEmailResponse:
       description: Wire contract for PurchaseOrderEmailResponse.
       properties:
+        draft_id:
+          title: Draft Id
+          type: string
+        draft_url:
+          title: Draft Url
+          type: string
         email_body:
-          anyOf:
-          - type: string
-          - type: 'null'
           title: Email Body
+          type: string
         email_subject:
-          anyOf:
-          - type: string
-          - type: 'null'
           title: Email Subject
-        mailto_url:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Mailto Url
+          type: string
         message:
           anyOf:
           - type: string
           - type: 'null'
           title: Message
-        pdf_url:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Pdf Url
         success:
           title: Success
           type: boolean
       required:
+      - draft_id
+      - draft_url
       - email_body
       - email_subject
-      - mailto_url
       - message
-      - pdf_url
       - success
       title: PurchaseOrderEmailResponse
       type: object
@@ -20474,7 +20470,10 @@ paths:
       - purchasing
   /api/purchasing/purchase-orders/{po_id}/email/:
     post:
-      description: Build the mailto payload, applying any recipient/message overrides.
+      description: "Draft the supplier email, with the order PDF attached, for this operator.\n\nThe draft\
+        \ lands in the mailbox of whoever pressed the button \u2014 they signed\nin with that Workspace\
+        \ address, so it is a mailbox they have \u2014 and nothing\nis sent until they read it and send\
+        \ it."
       operationId: getPurchaseOrderEmail
       parameters:
       - in: path
