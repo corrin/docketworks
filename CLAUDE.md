@@ -1,5 +1,31 @@
 # CLAUDE.md — Docketworks
 
+**Every line here is exhibited.** This codebase is presented publicly as an example of how the
+architecture should be done — read by people judging the work, not only by the next session
+maintaining it. It also replaced a system that already worked, so "working but structurally
+compromised" delivers nothing (ADR 0039). The standard is not "does it pass" but "would you
+show it", and it binds every line of every file: a test fixture, a comment, a migration, a
+throwaway helper. Scope bends; the standard does not. A defect shipped is embarrassing once,
+but a compromise shipped is on display until someone removes it.
+
+**Colliding with a rule means your approach is wrong — not that a rule is in the way.**
+Every ADR, linter, type error and layer contract you hit is evidence about the design you are
+part-way through building, and it arrives before you have paid for the mistake. The compliant
+version has been shorter and clearer every single time: a sentinel that needed a `type: ignore`
+wanted to be a boolean; a guard that would not typecheck was for a case the data never produces;
+a function too complex to pass wanted to be two functions; an import the layer contract refused
+belonged in the other app. So when something blocks you, **reconsider what you are building** —
+never search for the smallest edit that gets past it. A suppression, a cast, a widened
+annotation or a fallback default is the sound of a design being forced through a gap it does not
+fit, and it is always cheaper to stop at that moment than after the slice is written.
+
+**So stop, and think — the next thing you produce is a question, not a diff.** The failure is
+not ignorance of the rule; it is answering the obstacle in seconds with whatever satisfies it.
+Ask what belief the tool just contradicted, then go and check that belief against reality —
+query the data, read the writers, read the ADR in full — before deciding anything. A correction
+that arrives as fast as the mistake was written has not been thought about, and it is usually
+the same mistake wearing a compliant shape.
+
 The full rewrite of `../docketworks_v1` (v1) shipped: production has run this codebase since
 2026-08-29, and [`docs/release-process.md`](docs/release-process.md) is how a change reaches
 it. The approved plan lives at
@@ -150,6 +176,14 @@ produced that ADR shipped on a database already holding hundreds of the rows.
   required inputs upfront and crash if missing; no defaults that mask
   configuration or data problems. When a consumer meets malformed data, fix
   the data (migration) — never add a read-side fallback (ADR 0015).
+  **Recognise a fallback by its syntax**: `x if y else None`, `or None`,
+  `.get(k, default)`, `?? fallback`, `hasattr`. Each one is a claim that the
+  model permits the bad case, so check the claim — query the data and read the
+  writers — and then take one of the two exits: the case cannot occur, so delete
+  the branch; or it can, so raise and tighten whatever let it in. Where code and
+  a contract disagree about nullability or a value set, **the contract is
+  presumed right and the branch is the suspect**; never widen a contract to fit
+  code you found, however long it has been there.
 - **Guard-clause shape.** Unhappy path first, early return/raise. Never wrap
   the happy path in `if` and let the unhappy path fall through silently —
   `if ok: do_thing()` with no else-branch is a bug, not a style choice.
@@ -166,18 +200,6 @@ produced that ADR shipped on a database already holding hundreds of the rows.
   Complex inline types get a named type (dataclass, TypedDict, Protocol).
   `dict.get()` fallbacks and `hasattr` probes are smells — validate, then
   access directly.
-- **A defensive branch is a claim about the data model — check it (ADR 0028).**
-  `x if y else None`, `or None`, `.get(k, default)`, `?? fallback` and `hasattr`
-  each assert that the model permits the bad case. Query the data and read the
-  writers before writing one: if the case is real the model is too loose and
-  gets tightened; if it is not, the branch is a lie and a future reader will
-  preserve it. Where code and a contract disagree about nullability or a value
-  set, **the contract is presumed right and the branch is the suspect** — never
-  widen a contract to match code you found, however long it has been there.
-  `Stock.job` is the live example: nullable because the Xero item catalogue
-  shares that table and holds no job, yet every stock row that has one has the
-  stock-holding job, so a receipt allocation without a job is malformed data and
-  `list_allocations` raises instead of serving `null`.
 - **DRY is structural (ADR 0039).** One implementation per concept; search
   before implement; extending a near-match beats writing a sibling.
 - **Prefer libraries to DIY (ADR 0032).** Writing your own for something a
