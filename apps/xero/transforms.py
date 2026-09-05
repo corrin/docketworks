@@ -27,7 +27,11 @@ from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.company.models import Company
 from apps.core.errors import persist_app_error
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
-from apps.purchasing.tasks import enqueue_stock_metadata_parse, stock_metadata_parse_eligible
+from apps.purchasing.tasks import (
+    enqueue_stock_metadata_parse,
+    queue_purchase_order_push,
+    stock_metadata_parse_eligible,
+)
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.constants import SLEEP_TIME
 from apps.xero.models import XeroAccount, XeroError, XeroPayRun, XeroPaySlip
@@ -672,18 +676,32 @@ def _map_po_status(raw_status: str) -> str:
     return mapped
 
 
+def _has_unsent_change(po: PurchaseOrder) -> bool:
+    """Whether this order holds an edit that has not reached Xero yet.
+
+    Only orders Docketworks sends can hold one: a draft nobody has submitted,
+    or an order that arrived from Xero, is never waiting to be published.
+    ``xero_last_pushed`` answers this and ``xero_last_synced`` cannot — the
+    latter is stamped by every inbound sync, so it reports "up to date" the
+    moment we look, whether or not the edit was ever sent.
+    """
+    if po.created_by_id is None:
+        return False
+    if po.xero_id is None and po.status == "draft":
+        return False
+    return po.xero_last_pushed is None or po.updated_at > po.xero_last_pushed
+
+
 def _purchase_order_sync_values(
     po: PurchaseOrder, header: dict[str, Any], status: str
 ) -> dict[str, Any]:
-    """Return the fields this sync may write, given who owns the order.
+    """Return the fields this sync writes, deferring to an unsent local edit.
 
-    A purchase order Docketworks raised is Docketworks' document; Xero holds a
-    copy so the supplier's bill has something to reconcile against. Writing the
-    header or the lines back from that copy reverts whatever the office just
-    confirmed — a price entered here would be overwritten at the top of the
-    hour. `created_by` is the ownership test because this transform never sets
-    it, so an order with a creator was raised here and one without arrived from
-    Xero, which we do not own and still mirror in full.
+    The sync runs in both directions and neither is dropped. Xero's version is
+    taken, because an order edited there is an edit that has to land somewhere.
+    The exception is a genuine collision — we hold a change Xero has not seen —
+    and it is resolved rather than ignored: the older copy does not overwrite
+    the newer edit, and the caller publishes ours instead.
     """
     values: dict[str, Any] = {
         "xero_last_modified": header["xero_last_modified"],
@@ -691,21 +709,14 @@ def _purchase_order_sync_values(
         "xero_status": status,
         "raw_json": header["raw_json"],
     }
-    if po.created_by_id is None:
-        return values | {
-            "po_number": header["po_number"],
-            "order_date": header["order_date"],
-            "expected_delivery": header["delivery_date"],
-            "status": _map_po_status(status),
-        }
-    if status == "VOIDED":
-        # The one Xero status a Docketworks-owned order still honours. BILLED
-        # asserts that goods arrived, which only a delivery receipt can
-        # establish — but VOIDED reports the fate of Xero's own copy, and Xero
-        # refuses every later write to a voided document. Ignoring it would
-        # leave this order live here while every push at it failed forever.
-        values["status"] = "deleted"
-    return values
+    if _has_unsent_change(po):
+        return values
+    return values | {
+        "po_number": header["po_number"],
+        "order_date": header["order_date"],
+        "expected_delivery": header["delivery_date"],
+        "status": _map_po_status(status),
+    }
 
 
 def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[PurchaseOrder, str]:
@@ -756,7 +767,7 @@ def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[Purchas
         )
         created = True
 
-    dw_owned = po.created_by_id is not None
+    unsent = _has_unsent_change(po)
     new_values = _purchase_order_sync_values(
         po,
         {
@@ -772,9 +783,11 @@ def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[Purchas
     if changed_fields or created or linked:
         po.save()
 
-    if dw_owned:
-        # The lines are ours too; the accounts fields above are the whole of
-        # what this sync may say about a purchase order we raised.
+    if unsent:
+        # Our edit is newer than anything Xero holds, so taking Xero's lines
+        # would revert it. Publish ours instead: both directions are handled,
+        # and the next sync finds the two agreeing.
+        queue_purchase_order_push(po)
         return po, _build_sync_status(created, changed_fields)
 
     _sync_purchase_order_lines(po, xero_po, po_number, xero_id)

@@ -150,8 +150,8 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
     def _save_po_with_xero_data(self, xero_id: str | None, online_url: str | None) -> None:
         """Store the push outcome on the local row."""
         self.purchase_order.online_url = online_url
-        self.purchase_order.xero_last_synced = timezone.now()
-        update_fields = ["online_url", "xero_last_synced"]
+        self.purchase_order.xero_last_pushed = timezone.now()
+        update_fields = ["online_url", "xero_last_pushed"]
         # The zero-UUID check holds the module invariant: storing the sentinel
         # would make the next push read as an update against a document Xero
         # never acknowledged (and collide on the unique column).
@@ -266,10 +266,10 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
             # Cleared with the id, for the same reason it is written with it:
             # a tenant claim on a row that links to nothing is a lie.
             self.purchase_order.xero_tenant_id = None
-            self.purchase_order.xero_last_synced = timezone.now()
+            self.purchase_order.xero_last_pushed = timezone.now()
             self.purchase_order.status = "deleted"
             self.purchase_order.save(
-                update_fields=["xero_id", "xero_tenant_id", "xero_last_synced", "status"]
+                update_fields=["xero_id", "xero_tenant_id", "xero_last_pushed", "status"]
             )
 
             return {  # noqa: TRY300 -- returns a value built across the try body

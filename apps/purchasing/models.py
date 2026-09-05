@@ -93,6 +93,17 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
     updated_at = models.DateTimeField(auto_now=True)
     xero_last_modified = models.DateTimeField(null=True, blank=True)
     xero_last_synced = models.DateTimeField(null=True, blank=True, default=timezone.now)
+    xero_last_pushed = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "When our copy of this order last reached Xero. Distinct from "
+            "xero_last_synced, which records when we last LOOKED at Xero and is "
+            "written on every inbound sync — one column cannot answer both "
+            "questions, and using it for both hides an outstanding send behind "
+            "the next pull."
+        ),
+    )
     xero_status = models.CharField(  # noqa: DJ001 -- NULL means Xero has never reported one
         max_length=20,
         null=True,

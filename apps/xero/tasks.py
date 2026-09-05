@@ -224,10 +224,11 @@ def reconcile_purchase_orders_to_xero(limit: int = RECONCILE_LIMIT) -> None:
     voided in Xero — is prevented instead, because the inbound sync marks it
     deleted and a deleted order is never swept.
 
-    ``xero_last_synced < updated_at`` is the whole staleness test, from columns
-    the push already maintains: ``sync_to_xero`` stamps the former and Django
-    stamps the latter, so an edit that has not reached Xero is exactly a row
-    where the edit is newer than the send.
+    ``xero_last_pushed < updated_at`` is the whole staleness test: the push
+    stamps the former and Django stamps the latter, so an edit that has not
+    reached Xero is exactly a row where the edit is newer than the send. It
+    cannot use ``xero_last_synced`` — every inbound sync writes that one, so a
+    pull would report an outstanding send as delivered.
     """
     if quota_floor_breached(CompanyDefaults.get_solo().xero_automated_day_floor):
         # Not an error: the floor exists so automated work yields to
@@ -238,7 +239,7 @@ def reconcile_purchase_orders_to_xero(limit: int = RECONCILE_LIMIT) -> None:
     behind = (
         PurchaseOrder.objects.filter(created_by__isnull=False)
         .exclude(status__in=["draft", "deleted"])
-        .filter(Q(xero_id__isnull=True) | Q(xero_last_synced__lt=F("updated_at")))
+        .filter(Q(xero_last_pushed__isnull=True) | Q(xero_last_pushed__lt=F("updated_at")))
         .order_by("created_at")
         .values_list("id", flat=True)[:limit]
     )
