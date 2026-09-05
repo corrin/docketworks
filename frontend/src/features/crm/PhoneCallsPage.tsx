@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { INPUT_CLASS } from '@/components/ui/field'
 import { LoadMoreSentinel } from '@/features/shared/LoadMoreSentinel'
 import { nextPageParam } from '@/features/shared/nextPageParam'
+import { SearchInput } from '@/features/shared/SearchInput'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
 
 import { AssignCallNumberPanel } from './AssignCallNumberPanel'
@@ -112,15 +113,12 @@ export function PhoneCallsPage() {
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <input
-          type="text"
-          data-automation-id={`${ID}-search`}
-          placeholder="Search number, company, person, job, or description"
+        <SearchInput
           value={searchInput}
-          autoComplete="off"
-          aria-label="Search calls"
-          className="w-full max-w-md rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
-          onChange={(event) => setSearchInput(event.target.value)}
+          onChange={setSearchInput}
+          placeholder="Search number, company, person, job, or description"
+          automationId={`${ID}-search`}
+          label="Search calls"
         />
         <select
           data-automation-id={`${ID}-direction`}

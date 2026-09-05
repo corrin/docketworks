@@ -10,6 +10,7 @@ import { SortHeader } from '@/features/shared/SortHeader'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
 import { useSortState } from '@/features/shared/useSortState'
 import { formatCurrency } from '@/lib/format'
+import { SearchInput } from '@/features/shared/SearchInput'
 
 type SortColumn = 'name' | 'total_spend'
 
@@ -49,14 +50,12 @@ export function CompaniesListPage() {
       <h1 className="text-xl font-bold text-gray-900">Companies</h1>
 
       <div className="mt-4">
-        <input
-          type="text"
-          data-automation-id="CompaniesTable-search"
-          placeholder="Search companies..."
+        <SearchInput
           value={searchInput}
-          autoComplete="off"
-          className="w-full max-w-md rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
-          onChange={(event) => setSearchInput(event.target.value)}
+          onChange={setSearchInput}
+          placeholder="Search companies..."
+          automationId="CompaniesTable-search"
+          label="Search companies"
         />
       </div>
 

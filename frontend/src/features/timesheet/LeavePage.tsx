@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, History, Plus, Search } from 'lucide-react'
+import { CalendarDays, History, Plus } from 'lucide-react'
 
 import {
   apiErrorMessage,
@@ -19,6 +19,7 @@ import { formatDate, localIsoDate } from '@/lib/format'
 import { LeaveRequestDialog } from './LeaveRequestDialog'
 import { OfficeClosureDialog } from './OfficeClosureDialog'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
+import { SearchInput } from '@/features/shared/SearchInput'
 
 export type LeaveScope = 'current' | 'history'
 
@@ -106,16 +107,13 @@ export function LeavePage() {
               </button>
             ))}
           </div>
-          <label className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-1.5">
-            <Search className="h-4 w-4 text-slate-400" />
-            <span className="sr-only">Search leave</span>
-            <input
-              value={search}
-              placeholder="Search employee or leave type"
-              className="w-64 border-0 bg-transparent text-sm outline-none"
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </label>
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Search employee or leave type"
+            automationId="LeavePage-search"
+            label="Search leave"
+          />
         </div>
 
         {actionError && <p className="m-3 text-sm text-red-700">{actionError}</p>}
