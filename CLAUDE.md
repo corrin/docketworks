@@ -59,10 +59,11 @@ user-visible).
 
 ## Layout (one obvious home per concept)
 
-- Backend: `config/` (settings, celery beat-in-code, the single NinjaAPI) and `apps/` —
-  `core` (errors, etag, envelope, auth, middleware) ← domain apps (job, accounts, company, crm,
-  purchasing, quoting, accounting, timesheet, operations, process) ← integrations
-  (xero, ai, search, diagnostics). Enforced by import-linter.
+- Backend target: `config/` is the sole composition root; `apps/kernel`, `apps/platform`
+  and explicitly owned business contexts follow ADR 0055's dependency directions.
+  Migrate one deployable ownership slice at a time, with import and ORM checks on each
+  migrated boundary. Legacy apps retain the existing import-linter tiers until moved;
+  they are not a template for new contexts. Shared use does not mean shared ownership.
 - Frontend: `frontend/src/routes/` (thin) → `features/<domain>/` → generated API layer + `lib/`.
   Server state lives in TanStack Query only; no hand-written service layer.
 
