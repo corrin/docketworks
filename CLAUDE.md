@@ -166,6 +166,18 @@ produced that ADR shipped on a database already holding hundreds of the rows.
   Complex inline types get a named type (dataclass, TypedDict, Protocol).
   `dict.get()` fallbacks and `hasattr` probes are smells — validate, then
   access directly.
+- **A defensive branch is a claim about the data model — check it (ADR 0028).**
+  `x if y else None`, `or None`, `.get(k, default)`, `?? fallback` and `hasattr`
+  each assert that the model permits the bad case. Query the data and read the
+  writers before writing one: if the case is real the model is too loose and
+  gets tightened; if it is not, the branch is a lie and a future reader will
+  preserve it. Where code and a contract disagree about nullability or a value
+  set, **the contract is presumed right and the branch is the suspect** — never
+  widen a contract to match code you found, however long it has been there.
+  `Stock.job` is the live example: nullable because the Xero item catalogue
+  shares that table and holds no job, yet every stock row that has one has the
+  stock-holding job, so a receipt allocation without a job is malformed data and
+  `list_allocations` raises instead of serving `null`.
 - **DRY is structural (ADR 0039).** One implementation per concept; search
   before implement; extending a near-match beats writing a sibling.
 - **Prefer libraries to DIY (ADR 0032).** Writing your own for something a
