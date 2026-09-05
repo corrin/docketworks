@@ -280,6 +280,30 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   thumbnail-and-view UI and extend `job-attachments.spec.ts` to assert a thumbnail renders
   and opens. [KAN-334](https://docketworks.atlassian.net/browse/KAN-334) wants the same
   surface to preview more formats — do them together.
+- **Purchase orders — the tail of `feat/po-screens`** (16 commits, unmerged at 2026-09-05).
+  The branch restored the list, the grid, print, the supplier email and two-way Xero sync;
+  what it did not reach is below, and the first two items gate the merge.
+  - **The branch has not been through E2E.** The last run was at `7c82bbd`, purchasing
+    specs only — never the full suite. The commit after it, `b77acfe`, replaced the
+    `mailto:` composer with a real Gmail draft: it changed the wire contract
+    (`draft_id`/`draft_url` for `mailto_url`/`pdf_url`) and `PoDocumentActions.tsx`, and
+    no spec has run against it. `./scripts/ops/run_e2e.sh` before merge, not after.
+  - **The Xero sync has one clean integration pass, not two.** ADR 0050 wants the repeat;
+    the second attempt was refused by the day-quota floor, which is the guard working.
+    `./scripts/ops/run_integration_tests.sh` once quota resets.
+  - **The PO comments card.** Backend done and codegen'd (`listPurchaseOrderEvents`,
+    `createPurchaseOrderEvent`); nothing in `frontend/src/` calls either. Present it the
+    way `JobHistoryTab.tsx` presents job events.
+  - **No back-link from a job cost line to the PO that created it.** `CostLineGrid` has no
+    Source column, though the cost line already carries `meta.po_number` and
+    `ext_refs.purchase_order_id` — so this is a column, not a contract change.
+  - **Add and Deactivate on the stock page.** v1 had both, and the periodic stocktake is
+    how the owner actually corrects stock; without them a wrong quantity has no UI that
+    fixes it.
+  - **`docs/accepted-api-differences.yml` never recorded this branch's five behaviour
+    changes:** the list pagination envelope, `If-Match` on allocation delete, Xero's
+    `BILLED` no longer meaning goods received, `xero_last_pushed` splitting from
+    `xero_last_synced`, and the relaxed creation gate.
 - **Editing a purchase order's supplier after creation.** v1 allowed it while the order
   was `draft`; v2's detail card shows the supplier read-only. `CompanyLookup`
   (`frontend/src/features/shared/company/`) is controlled by a whole
@@ -299,8 +323,9 @@ same class: the post duplicates what Xero already holds, and then self-reports s
 - **Email delivery** — general outbound email and system notifications are deferred, not
   retired (password-reset delivery shipped 2026-08-31). The slice will most likely extend
   the delegated Gmail sender in `apps/core/gmail.py`, its only consumer today, rather than
-  add SMTP configuration (owner ruling 2026-08-31), and authors its own spec; the current
-  PO `mailto:` composer is a separate capability and remains unchanged.
+  add SMTP configuration (owner ruling 2026-08-31), and authors its own spec. The PO
+  supplier email is a separate capability and already extends that module: it drafts
+  rather than sends, as the signed-in operator rather than as the company.
   [KAN-345](https://docketworks.atlassian.net/browse/KAN-345) wants the password-reset
   loop proven end to end with a real delegated send.
 - **AI product work** — quote chat, safety AI, quote-to-PO, AI-provider administration and
@@ -602,6 +627,15 @@ never a second stream.
    of `weekend_timesheets_enabled` (v1 identical), while the office entry page cannot reach
    a weekend date with the flag off. Say whether workshop self-service should honour the
    flag.
+
+4. **The supplier email draft needs every operator to be a Workspace mailbox.** It is
+   created by impersonating the signed-in operator's `office_email` through domain-wide
+   delegation, so it fails for anyone whose login is not a real mailbox in the instance's
+   Workspace domain. Exposure could not be measured here — the dev database is scrubbed to
+   `example.com`, and dev linkage is never evidence about production. Say whether every
+   production login is a Workspace address; if any is not, the endpoint needs a decision
+   rather than a fallback (drafting as the company defeats the point, which was putting the
+   order where the person sending it will look).
 
 ## Constraints that cost a day if rediscovered
 
