@@ -183,6 +183,7 @@ export {
   deleteJobFile,
   generateDeliveryDocketRest,
   getJobFile,
+  getPurchaseOrderPdf,
   jobJobsWorkshopPdfRetrieve,
   uploadJobFiles,
 } from './generated/sdk.gen'
@@ -267,6 +268,7 @@ export type {
 // Purchasing (PO list/create/detail with line upserts; stock page)
 export {
   createPurchaseOrderMutation,
+  getPurchaseOrderEmailMutation,
   listPurchaseOrdersInfiniteOptions,
   listPurchaseOrdersOptions,
   purchasingAllJobsRetrieveOptions,

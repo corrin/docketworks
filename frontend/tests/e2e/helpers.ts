@@ -72,7 +72,9 @@ export function enableNetworkLogging(
     // the wire-size guard is meant to catch missing-filter bugs on JSON
     // listings, not flag legitimate document downloads.
     const isGeneratedPdfEndpoint =
-      url.includes('/delivery-docket/') || url.includes('/workshop-pdf/')
+      url.includes('/delivery-docket/') ||
+      url.includes('/workshop-pdf/') ||
+      (url.includes('/purchase-orders/') && url.includes('/pdf/'))
 
     // Opus: A payload a specific test deliberately downloads. Unlike the PDF
     // endpoints above this is scoped to one spec, so every OTHER spec still

@@ -160,6 +160,42 @@ test.describe.serial('purchase order operations', () => {
     log(`Assigned job ${jobNumber} to PO line`)
   })
 
+  test('the order can be printed and mailed to the supplier', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto(poUrl)
+    await page.waitForLoadState('networkidle')
+    const heading = await page.locator('h1').first().innerText()
+    const poNumber = heading.replace('Purchase Order', '').trim()
+    expect(poNumber).not.toBe('')
+
+    // Print: the PDF is fetched as a blob and handed to the browser. The
+    // request is what this asserts — the new tab it opens is the browser's job.
+    const pdf = page.waitForResponse(
+      (response) => new URL(response.url()).pathname.endsWith('/pdf/') && response.status() === 200,
+      { timeout: 30000 },
+    )
+    await autoId(page, 'PoDetailView-print').click()
+    const pdfResponse = await pdf
+    expect(pdfResponse.headers()['content-type']).toContain('pdf')
+
+    // Email: the server composes the message and returns a mailto URL. Nothing
+    // is sent from the browser, so the URL is the whole contract.
+    const composed = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith('/email/') &&
+        response.request().method() === 'POST' &&
+        response.status() === 200,
+      { timeout: 30000 },
+    )
+    await autoId(page, 'PoDetailView-email').click()
+    const email = await (await composed).json()
+
+    expect(email.mailto_url).toContain('mailto:')
+    expect(email.email_subject).toContain(poNumber)
+    log('Printed the PO and composed the supplier email')
+  })
+
   test('expected delivery and the order value follow the lines', async ({
     authenticatedPage: page,
   }) => {
