@@ -8,6 +8,7 @@ import { INPUT_CLASS } from '@/components/ui/field'
 import { LoadMoreSentinel } from '@/features/shared/LoadMoreSentinel'
 import { nextPageParam } from '@/features/shared/nextPageParam'
 import { SearchInput } from '@/features/shared/SearchInput'
+import { TabBar } from '@/features/shared/TabBar'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
 
 import { AssignCallNumberPanel } from './AssignCallNumberPanel'
@@ -80,23 +81,16 @@ export function PhoneCallsPage() {
         </Button>
       </div>
 
-      <nav className="mt-4 flex space-x-1 overflow-x-auto border-b border-gray-200">
-        {CALLS_TABS.map((candidate) => (
-          <button
-            key={candidate}
-            type="button"
-            data-automation-id={`${ID}-tab-${candidate}`}
-            className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-              tab === candidate
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-            onClick={() => setTab(candidate)}
-          >
-            {QUEUE_META[candidate].tab}
-          </button>
-        ))}
-      </nav>
+      <TabBar
+        tabs={CALLS_TABS.map((candidate) => ({
+          key: candidate,
+          label: QUEUE_META[candidate].tab,
+        }))}
+        activeKey={tab}
+        onChange={setTab}
+        idPrefix={`${ID}-tab`}
+        className="mt-4 overflow-x-auto"
+      />
 
       {/* Above the filters and the rows, where the people directory puts its
           create panel — below LoadMoreSentinel it would open off-screen on a

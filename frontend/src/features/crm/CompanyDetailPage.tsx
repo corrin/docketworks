@@ -15,6 +15,7 @@ import {
 } from '@/api'
 import { QueryState } from '@/features/shared/QueryState'
 import { formatCurrency } from '@/lib/format'
+import { TabBar } from '@/features/shared/TabBar'
 
 const TABS = [
   { key: 'contact', label: 'Contact Details' },
@@ -214,25 +215,13 @@ export function CompanyDetailPage({ companyId }: CompanyDetailPageProps) {
           <>
             <h1 className="mt-4 text-xl font-bold text-gray-900">{company.data.name}</h1>
 
-            <nav role="tablist" className="mt-4 flex space-x-1 border-b border-gray-200">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === tab.key}
-                  data-automation-id={`CompanyDetail-tab-${tab.key}`}
-                  className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-                    activeTab === tab.key
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-600 hover:text-gray-900'
-                  }`}
-                  onClick={() => setActiveTab(tab.key)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
+            <TabBar
+              tabs={TABS}
+              activeKey={activeTab}
+              onChange={setActiveTab}
+              idPrefix="CompanyDetail-tab"
+              className="mt-4"
+            />
 
             {activeTab === 'contact' && (
               <div role="tabpanel" className="mt-6 space-y-4">
