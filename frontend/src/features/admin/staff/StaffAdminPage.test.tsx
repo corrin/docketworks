@@ -27,6 +27,7 @@ function staffRow(overrides: Partial<StaffListItemOut> = {}): StaffListItemOut {
     wage_rate: 34.56,
     base_wage_rate: 32,
     date_left: null,
+    is_currently_active: true,
     xero_user_id: null,
     is_office_staff: false,
     is_workshop_staff: true,

@@ -4798,6 +4798,7 @@ export const zStaffListItemOut = z.object({
     hours_wed: z.number(),
     icon_url: z.string().nullable(),
     id: z.uuid(),
+    is_currently_active: z.boolean(),
     is_office_staff: z.boolean(),
     is_staff_manager: z.boolean(),
     is_superuser: z.boolean(),

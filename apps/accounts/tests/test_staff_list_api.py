@@ -5,11 +5,12 @@ screen and the wage-loading checks read them), unlike the timesheet's
 date-scoped displayable subset. Wage data makes it superuser surface.
 """
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
 from django.test import Client
+from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.company.tests.conftest import authenticate
@@ -69,6 +70,27 @@ class TestList:
         assert by_email["departed@example.com"]["date_left"] == "2025-12-31"
         assert by_email["current@example.com"]["date_left"] is None
         assert by_email["current@example.com"]["is_office_staff"] is False
+
+    def test_is_currently_active_follows_the_leaving_date_not_its_presence(self) -> None:
+        """The tabbed admin screen splits Current from Past on this field alone.
+
+        A refactor that computed it as ``date_left is None`` — the rule the screen
+        itself used before this field existed — would read identically for the null
+        and past cases and only diverge on a future leaving date. This test catches
+        that by giving one staff member notice: they have a date_left and are still
+        employed, so the flag must stay true and keep them out of the Past tab.
+        """
+        superuser = make_staff("super@example.com", is_superuser=True, is_office_staff=True)
+        make_staff("current@example.com")
+        make_staff("leaving@example.com", date_left=timezone.localdate() + timedelta(days=30))
+        make_staff("departed@example.com", date_left=timezone.localdate() - timedelta(days=1))
+
+        body = client_for(superuser).get(URL).json()
+
+        by_email = {row["office_email"]: row["is_currently_active"] for row in body}
+        assert by_email["current@example.com"] is True
+        assert by_email["leaving@example.com"] is True
+        assert by_email["departed@example.com"] is False
 
     def test_wage_rate_is_the_loaded_rate(self) -> None:
         """wage_rate carries the labour-cost-loaded rate the model computes on save."""
