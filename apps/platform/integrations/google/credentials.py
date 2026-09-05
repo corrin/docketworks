@@ -4,7 +4,7 @@ One credential builder (ADR 0039) — v1 carried a near-identical copy in every
 script, and the Docs/Drive authoring scripts under ``scripts/gdocs/`` now
 import these from here. Moved out of ``scripts/`` when the password-reset
 email gave application code its first Google call (Gmail send,
-``apps/core/gmail.py``); apps must never import from ``scripts``.
+``apps/platform/integrations/google/gmail.py``); apps must never import from ``scripts``.
 
 The service-account key file comes from the ``GCP_CREDENTIALS`` env var.
 Callers that act on Workspace data (Shared Drive, Gmail) must impersonate a
@@ -34,18 +34,14 @@ def service_account_credentials(scopes: list[str]) -> service_account.Credential
     return service_account.Credentials.from_service_account_file(key_file, scopes=scopes)
 
 
-def delegated_subject() -> str:
+def delegated_subject(company_email: str | None) -> str:
     """Resolve the Workspace user domain-wide delegation impersonates here.
 
-    The caller must have run ``django.setup()`` first: the subject falls back
-    from ``GCP_DELEGATED_SUBJECT`` to ``CompanyDefaults.company_email``.
+    The caller supplies its business setting; this adapter owns only the
+    environment override. A missing company address is valid when the
+    instance has explicitly configured its delegated Workspace user.
     """
-    # Imported here, not at module top, so Django-free scripts (get_gapi_token,
-    # create_master_template) can import this module without a configured
-    # Django and a database.
-    from apps.core.models import CompanyDefaults  # noqa: PLC0415
-
-    subject = os.environ.get("GCP_DELEGATED_SUBJECT") or CompanyDefaults.get_solo().company_email
+    subject = os.environ.get("GCP_DELEGATED_SUBJECT") or company_email
     if not subject:
         raise RuntimeError(
             "No impersonation subject: set GCP_DELEGATED_SUBJECT or populate "
@@ -55,14 +51,14 @@ def delegated_subject() -> str:
     return subject
 
 
-def delegated_credentials(
-    scopes: list[str], subject: str | None = None
-) -> service_account.Credentials:
-    """Credentials impersonating ``subject``, or the resolved Workspace subject.
+def delegated_credentials(scopes: list[str], subject: str) -> service_account.Credentials:
+    """Credentials impersonating the explicitly chosen Workspace subject.
 
     An explicit subject is how work is done AS a particular person rather than
     as the company: a draft belongs in the mailbox of whoever will send it, and
     they can only be looking at the screen that made it because they signed in
     with that Workspace address.
     """
-    return service_account_credentials(scopes).with_subject(subject or delegated_subject())
+    if not subject:
+        raise ValueError("A Workspace impersonation subject is required")
+    return service_account_credentials(scopes).with_subject(subject)

@@ -44,10 +44,10 @@ Search before implement; a near-match is extended, never given a sibling.
   irreversible step, and nothing in between. A check whose only possible
   trigger is a mocked-out collaborator — a re-count of what the previous line
   already raised on — is dead code, and goes.
-- **Shared concepts live in shared homes.** A domain module importing from
-  another domain module is the signal that the imported thing belongs to
-  neither — move it to the shared home (frontend `features/shared/`, backend
-  `apps/core`) in the same change. A domain feature is not a library.
+- **Shared use does not transfer ownership (ADR 0055).** Backend concepts stay
+  in their owning context and consumers use its public contracts; only genuinely
+  policy-free primitives belong in kernel/platform. Frontend shared primitives
+  belong in `features/shared/`. Never create a second implementation for a consumer.
 - **The bar is reference quality.** This codebase is presented as an example
   of coding best practice, and it replaced a system that already worked —
   so "working but structurally compromised" delivers nothing. Architectural

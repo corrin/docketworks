@@ -109,7 +109,7 @@ How to get them:
 2. **Set redirect URI** to `https://<instance>.docketworks.site/api/xero/oauth/callback/`
 3. **Copy Client ID, Client Secret, and webhook signing key** into the instance credentials file.
 4. **ANTHROPIC_API_KEY / GEMINI_API_KEY / MISTRAL_API_KEY:** loaded as `ai.AIProvider` rows for the LLM gateway.
-5. **GCP_CREDENTIALS:** Path to a GCP service account JSON key file. Used by rclone to upload backups, and by the app itself (`apps/core/gauth.py`) for the Gmail password-reset email and the health-and-safety Drive import. Each instance gets its own service account; the key file is copied into the instance directory during creation and the rendered `.env` points at that copy, so the original download can be deleted.
+5. **GCP_CREDENTIALS:** Path to a GCP service account JSON key file. Used by rclone to upload backups, and by the app itself (`apps/platform/integrations/google/credentials.py`) for the Gmail password-reset email and the health-and-safety Drive import. Each instance gets its own service account; the key file is copied into the instance directory during creation and the rendered `.env` points at that copy, so the original download can be deleted.
 6. **BACKUP_GDRIVE_TEAM_DRIVE_ID / BACKUP_GDRIVE_ROOT_FOLDER_ID:** Optional Shared Drive ID and parent folder ID for backup storage. Service-account backups should target a Shared Drive the service account can write to. Backups upload under `dw_backups/` from the configured root.
 
 ### `xero_tenant_id` in the company-defaults JSON
@@ -266,7 +266,7 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `templates/company-defaults-prospect.json.template` | Prospect Company/CompanyDefaults bootstrap fixture                                                   |
 | `templates/ai-providers.json.template`              | ai.AIProvider bootstrap fixture (LLM gateway keys)                                                   |
 | `templates/xero-apps.json.template`                 | xero.XeroApp bootstrap fixture                                                                       |
-| `templates/integration-settings.json.template`      | core.IntegrationSettings bootstrap fixture (Maps key, phone provider)                                |
+| `templates/integration-settings.json.template`      | integrations.IntegrationSettings bootstrap fixture (Maps key, phone provider)                                |
 | `templates/nginx-ratelimit.conf`                    | Per-IP auth rate-limit zones (http context, conf.d)                                                  |
 | `templates/fail2ban-jail-docketworks.conf`          | Fail2ban jails: sshd + the two 401-only auth jails, banning via UFW                                  |
 | `templates/fail2ban-filter-docketworks-auth-login.conf` | 401-only filter for POST /api/accounts/token/                                                    |

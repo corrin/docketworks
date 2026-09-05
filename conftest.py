@@ -72,7 +72,7 @@ _VENDOR_ENTRY_POINTS: dict[str, str] = {
     "xero_python.rest.RESTClientObject.request": "Xero",
     "apps.xero.auth.requests": "Xero's token endpoint",
     "litellm.completion": "the LLM gateway",
-    "apps.core.geocoding.requests": "Google Maps",
+    "apps.platform.integrations.google.places.requests": "Google Maps",
     "apps.crm.services.phone_call_service.requests": "the phone provider",
 }
 
@@ -154,7 +154,7 @@ class _Refusal:
 _CREDENTIAL_MODELS: tuple[tuple[str, str, tuple[str, ...], tuple[str, ...]], ...] = (
     ("xero", "XeroApp", ("client_id",), ()),
     ("ai", "AIProvider", ("name",), ()),
-    ("core", "IntegrationSettings", ("id",), ()),
+    ("integrations", "IntegrationSettings", ("id",), ()),
     # Fable: which numbers are OURS at the phone provider. Without them every
     # imported call classifies as unknown, so a direction assertion proves nothing.
     # No foreign keys, so the id travels with the row.
@@ -247,6 +247,14 @@ def integration_credentials(db: None) -> "Iterator[None]":  # noqa: ARG001 -- Op
     yield
 
     _write_back_rotated_token(xero_app, copied_token, source_dsn)
+
+
+@pytest.fixture
+def company_email() -> str | None:
+    """The instance's configured contact address, also used for delegation."""
+    from apps.core.models import CompanyDefaults
+
+    return CompanyDefaults.get_solo().company_email
 
 
 def _source_connection() -> str:

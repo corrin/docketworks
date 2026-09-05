@@ -23,14 +23,14 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | oxlint-disable | 8 |
 | TOTAL suppressions | 701 |
 | noqa: DJ001 | 166 |
-| noqa: PLC0415 | 130 |
+| noqa: PLC0415 | 129 |
 | noqa: E402 | 105 |
 | noqa: PLR0913 | 46 |
 | noqa: ARG002 | 37 |
 | noqa: BLE001 | 34 |
 | noqa: ARG001 | 21 |
 | noqa: C901 | 19 |
-| noqa: S603 | 14 |
+| noqa: S603 | 15 |
 | noqa: TRY300 | 9 |
 | noqa: TRY004 | 8 |
 | noqa: DJ008 | 7 |
@@ -70,7 +70,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 249 |
+| in comments | 250 |
 | in docstrings | 425 |
 
 ## Exception handling
@@ -79,7 +79,7 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 405 |
+| try statements | 407 |
 | except handlers | 439 |
 | re-raises or converts | 281 |
 | returns instead | 93 |
@@ -103,8 +103,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 212 |
-| non-test functions | 2597 |
+| functions returning `X \| None` | 213 |
+| non-test functions | 2601 |
 
 ## Wire contract (response side)
 

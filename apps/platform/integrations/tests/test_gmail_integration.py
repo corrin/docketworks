@@ -15,8 +15,8 @@ from io import BytesIO
 import pytest
 from reportlab.pdfgen.canvas import Canvas
 
-from apps.core.gauth import delegated_subject
-from apps.core.gmail import (
+from apps.platform.integrations.google.credentials import delegated_subject
+from apps.platform.integrations.google.gmail import (
     GMAIL_COMPOSE_SCOPE,
     Attachment,
     _build_gmail,
@@ -28,14 +28,15 @@ pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 
 
 class TestGmailSend:
-    def test_a_real_send_is_accepted(self) -> None:
-        recipient = delegated_subject()
+    def test_a_real_send_is_accepted(self, company_email: str | None) -> None:
+        recipient = delegated_subject(company_email)
 
         message_id = send_company_email(
+            company_email=company_email,
             to=recipient,
             subject="DocketWorks integration test — please ignore",
             body=(
-                "Sent by apps/core/tests/test_gmail_integration.py to prove "
+                "Sent by apps/platform/integrations/tests/test_gmail_integration.py to prove "
                 "the delegated gmail.send path end to end."
             ),
         )
@@ -52,8 +53,8 @@ class TestGmailDraft:
     proving a scope the application does not hold.
     """
 
-    def test_a_real_draft_carries_the_pdf(self) -> None:
-        subject_user = delegated_subject()
+    def test_a_real_draft_carries_the_pdf(self, company_email: str | None) -> None:
+        subject_user = delegated_subject(company_email)
         pdf = BytesIO()
         canvas = Canvas(pdf)
         canvas.drawString(100, 750, "DocketWorks integration test")
@@ -63,7 +64,7 @@ class TestGmailDraft:
             as_user=subject_user,
             to=subject_user,
             subject="DocketWorks integration test — please ignore",
-            body="Created by apps/core/tests/test_gmail_integration.py.",
+            body="Created by apps/platform/integrations/tests/test_gmail_integration.py.",
             attachments=[
                 Attachment(
                     filename="Purchase_Order_TEST.pdf",

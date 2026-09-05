@@ -17,6 +17,7 @@ from django.test import Client
 
 import apps.accounts.tasks as accounts_tasks
 from apps.accounts.models import Staff
+from apps.core.models import CompanyDefaults
 
 if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse
@@ -221,8 +222,12 @@ class TestResetEmailTask:
     ) -> None:
         """The task's whole job, run directly (never via eager .delay)."""
         sent: dict[str, str] = {}
+        defaults = CompanyDefaults.get_solo()
+        defaults.company_email = "company@example.com"
+        defaults.save(update_fields=["company_email"])
 
-        def capture(to: str, subject: str, body: str) -> str:
+        def capture(to: str, subject: str, body: str, *, company_email: str | None) -> str:
+            assert company_email == "company@example.com"
             sent.update(to=to, subject=subject, body=body)
             return "fake-gmail-id"
 

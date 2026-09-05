@@ -8,7 +8,7 @@
  * create-staff). The forgot-password submit uses an address with NO account:
  * the server's fixed 200 sends nothing, so the spec needs no Gmail
  * configuration — the real send is the integration test's job
- * (apps/core/tests/test_gmail_integration.py, ADR 0050).
+ * (apps/platform/integrations/tests/test_gmail_integration.py, ADR 0050).
  */
 import { z } from 'zod'
 

@@ -17,10 +17,10 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company, SupplierPickupAddress
 from apps.company.tests.conftest import make_company
-from apps.core.gmail import GmailDraft
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
+from apps.platform.integrations.google.gmail import GmailDraft
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 from apps.purchasing.tests.conftest import make_po_line, make_purchase_order
 
@@ -919,7 +919,7 @@ class TestPurchaseOrderEmail:
     """Drafting the supplier email, with Gmail stubbed at the one seam.
 
     The draft itself is proven against the real API in
-    apps/core/tests/test_gmail_integration.py; what these cover is what we ask
+    apps/platform/integrations/tests/test_gmail_integration.py; what these cover is what we ask
     Gmail for — the right mailbox, the right recipient, and the order PDF
     actually attached, which is the whole reason this is a draft and not a
     mailto link.

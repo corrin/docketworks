@@ -83,6 +83,11 @@ DATA_MIGRATIONS_RERUN_AFTER_RESTORE = {
     ("process", "0007_backfill_form_entry_updated_at"),
 }
 
+# GPT: content types and permissions are installation metadata, excluded from
+# the v1 domain-data restore. The dependency graph reverses/reapplies this
+# transfer with core; it is not a seed or a repair of restored business rows.
+METADATA_MIGRATIONS = {("integrations", "0002_transfer_content_type")}
+
 
 # Migrations the script unapplies BEFORE the restore. Restoring with them
 # applied is rejected because pg_dump --data-only names every column in its
@@ -114,7 +119,7 @@ def _seeded_tables() -> dict[str, tuple[str, str]]:
             "job",
             "0002_seed_labour_subtypes",
         ),
-        apps.get_model("core", "IntegrationSettings")._meta.db_table: (
+        apps.get_model("integrations", "IntegrationSettings")._meta.db_table: (
             "core",
             "0003_integration_settings_row",
         ),
@@ -130,7 +135,9 @@ def test_seed_migrations_actually_write_rows() -> None:
     """
     assert Staff.objects.filter(office_email=SYSTEM_AUTOMATION_EMAIL).exists()
     assert apps.get_model("job", "LabourSubtype")._default_manager.exists()
-    assert apps.get_model("core", "IntegrationSettings")._default_manager.filter(pk=1).exists()
+    assert (
+        apps.get_model("integrations", "IntegrationSettings")._default_manager.filter(pk=1).exists()
+    )
 
 
 def test_script_clears_every_seeded_table_before_restoring() -> None:
@@ -162,11 +169,14 @@ def test_no_unaccounted_data_writing_migrations() -> None:
     to the script either way, because both need handling there.
     """
     found: set[tuple[str, str]] = set()
-    for path in sorted(REPO_ROOT.glob("apps/*/migrations/[0-9]*.py")):
-        if "RunPython" in path.read_text():
-            found.add((path.parents[1].name, path.stem))
+    for app in apps.get_app_configs():
+        if not app.name.startswith("apps."):
+            continue
+        for path in sorted((Path(app.path) / "migrations").glob("[0-9]*.py")):
+            if "RunPython" in path.read_text():
+                found.add((app.label, path.stem))
 
-    assert found == SEEDING_MIGRATIONS | DATA_MIGRATIONS_RERUN_AFTER_RESTORE
+    assert found == SEEDING_MIGRATIONS | DATA_MIGRATIONS_RERUN_AFTER_RESTORE | METADATA_MIGRATIONS
 
 
 def test_script_reapplies_data_migrations_after_the_restore() -> None:

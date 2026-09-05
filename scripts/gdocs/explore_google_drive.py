@@ -5,8 +5,8 @@ given a driveId, walks that drive's folder/file tree.
 
 The content we care about (the Operations Manual) lives in a Shared Drive, not
 in anyone's My Drive, so every call passes the Shared-Drive flags and the
-client impersonates a real Workspace user (see apps/core/gauth.py for the
-credential and subject rules).
+client impersonates a real Workspace user (see
+apps/platform/integrations/google/credentials.py for the credential and subject rules).
 
 Usage:
     GCP_CREDENTIALS=<key.json> uv run python -m scripts.gdocs.explore_google_drive

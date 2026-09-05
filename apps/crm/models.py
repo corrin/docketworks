@@ -5,7 +5,7 @@ bit-identical to v1. That parity requirement is why ``null=True`` on string
 fields is kept verbatim (``# noqa: DJ001`` at each site).
 
 The phone provider's connection settings are columns on
-``apps.core.models.IntegrationSettings`` (ADR 0053), not a model here.
+``apps.platform.integrations.models.IntegrationSettings`` (ADR 0053), not a model here.
 """
 
 import uuid

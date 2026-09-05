@@ -15,7 +15,7 @@ allowlist in the GCP project before reading anything into the error.
 
 import pytest
 
-from apps.core.geocoding import fetch_place, search_places
+from apps.platform.integrations.google.places import fetch_place, search_places
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 

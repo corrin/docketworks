@@ -39,8 +39,8 @@ from tinytag import TinyTag, TinyTagException
 from apps.company.models import Company, ContactMethod, Person
 from apps.core.errors import persist_app_error
 from apps.core.file_store import PrivateFileStore
-from apps.core.models import IntegrationSettings
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
+from apps.platform.integrations.models import IntegrationSettings
 
 if TYPE_CHECKING:
     from apps.accounts.models import Staff

@@ -15,13 +15,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from apps.core.geocoding import (
+from apps.platform.integrations.google.places import (
     GeocodingError,
     nz_subdivision_for_region,
     search_places,
 )
 
-POST_TARGET = "apps.core.geocoding.requests.post"
+POST_TARGET = "apps.platform.integrations.google.places.requests.post"
 
 PLACES_RESPONSE = {
     "places": [

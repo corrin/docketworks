@@ -12,7 +12,7 @@ from email.policy import default as default_policy
 
 import pytest
 
-from apps.core import gmail
+from apps.platform.integrations.google import gmail
 
 
 class FakeSend:
@@ -83,10 +83,13 @@ class TestSendCompanyEmail:
             return FakeGmail(sent)
 
         monkeypatch.setattr(gmail, "_build_gmail", fake_build)
-        monkeypatch.setattr(gmail, "delegated_subject", lambda: "office@example.com")
+        monkeypatch.delenv("GCP_DELEGATED_SUBJECT", raising=False)
 
         message_id = gmail.send_company_email(
-            "person@example.com", "Reset your password", "The link is inside."
+            "person@example.com",
+            "Reset your password",
+            "The link is inside.",
+            company_email="office@example.com",
         )
 
         assert message_id == "gmail-message-id-1"

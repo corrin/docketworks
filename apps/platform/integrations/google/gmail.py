@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from googleapiclient.discovery import build
 
-from apps.core.gauth import delegated_credentials, delegated_subject
+from apps.platform.integrations.google.credentials import delegated_credentials, delegated_subject
 
 if TYPE_CHECKING:
     from googleapiclient._apis.gmail.v1.resources import GmailResource
@@ -47,7 +47,7 @@ def _build_gmail(scopes: list[str], subject: str) -> "GmailResource":
     )
 
 
-def send_company_email(to: str, subject: str, body: str) -> str:
+def send_company_email(to: str, subject: str, body: str, *, company_email: str | None) -> str:
     """Send a plain-text email from the instance's Workspace user; return the Gmail message id.
 
     No try/except: a failed send is the caller's operation failing (fail
@@ -55,7 +55,7 @@ def send_company_email(to: str, subject: str, body: str) -> str:
     authenticated user as From regardless; the explicit header keeps the
     stored copy honest.
     """
-    sender = delegated_subject()
+    sender = delegated_subject(company_email)
     message = EmailMessage()
     message["To"] = to
     message["From"] = sender

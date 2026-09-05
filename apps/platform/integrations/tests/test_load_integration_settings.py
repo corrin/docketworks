@@ -8,14 +8,16 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from apps.core.models import IntegrationSettings
+from apps.platform.integrations.models import IntegrationSettings
 
 pytestmark = pytest.mark.django_db
 
 
 def _fixture(tmp_path: Path, **fields: object) -> Path:
     path = tmp_path / "integration_settings.json"
-    path.write_text(json.dumps([{"model": "core.integrationsettings", "pk": 1, "fields": fields}]))
+    path.write_text(
+        json.dumps([{"model": "integrations.integrationsettings", "pk": 1, "fields": fields}])
+    )
     return path
 
 
@@ -82,11 +84,14 @@ def test_creates_the_row_after_a_scrubbed_restore(tmp_path: Path) -> None:
     assert IntegrationSettings.get_solo().google_maps_api_key == "maps-key"
 
 
-def test_refuses_a_fixture_for_another_model(tmp_path: Path) -> None:
+@pytest.mark.parametrize("model", ["core.companydefaults", "core.integrationsettings"])
+def test_refuses_a_fixture_for_another_model(tmp_path: Path, model: str) -> None:
     path = tmp_path / "wrong.json"
-    path.write_text(json.dumps([{"model": "core.companydefaults", "pk": 1, "fields": {}}]))
+    path.write_text(json.dumps([{"model": model, "pk": 1, "fields": {}}]))
 
-    with pytest.raises(CommandError, match="exactly one core"):
+    with pytest.raises(
+        CommandError, match=r"must hold exactly one integrations\.integrationsettings object"
+    ):
         _run(path)
     assert IntegrationSettings.get_solo().google_maps_api_key is None
 

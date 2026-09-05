@@ -28,7 +28,7 @@ from dataclasses import dataclass
 import requests
 from holidays.countries.new_zealand import NewZealand
 
-from apps.core.models import IntegrationSettings
+from apps.platform.integrations.models import IntegrationSettings
 
 logger = logging.getLogger(__name__)
 

@@ -114,12 +114,12 @@ from apps.company.services.person_service import (
 )
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
 from apps.core.errors import persist_app_error
-from apps.core.geocoding import (
+from apps.core.pagination import MAX_PAGE_SIZE, paginate
+from apps.platform.integrations.google.places import (
     GeocodingError,
     GeocodingNotConfiguredError,
     search_places,
 )
-from apps.core.pagination import MAX_PAGE_SIZE, paginate
 
 logger = logging.getLogger(__name__)
 

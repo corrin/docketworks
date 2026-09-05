@@ -41,11 +41,11 @@ does not have.
 | E2E specs ported | **52 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **53** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 247 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2946 (all passing) |
+| Unit tests | 2972 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 125 recorded deviations |
-| ADRs | 41 (v1's 26 carried forward + 0038–0041, 0043, 0045–0054 written here) |
+| ADRs | 42 (v1's 26 carried forward + 0038–0041, 0043, 0045–0055 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints
 written measures typing, not delivery. Every slice below authors its own E2E spec and
@@ -322,7 +322,7 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   spec asserts them.
 - **Email delivery** — general outbound email and system notifications are deferred, not
   retired (password-reset delivery shipped 2026-08-31). The slice will most likely extend
-  the delegated Gmail sender in `apps/core/gmail.py`, its only consumer today, rather than
+  the delegated Gmail sender in `apps/platform/integrations/google/gmail.py` rather than
   add SMTP configuration (owner ruling 2026-08-31), and authors its own spec. The PO
   supplier email is a separate capability and already extends that module: it drafts
   rather than sends, as the signed-in operator rather than as the company.
@@ -433,7 +433,7 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   values pass it. Log `responseEnd` directly.
 - **Teach the outbound-link probe to verify Google place ids.** Both
   `SupplierPickupAddress.google_place_id` and `CompanyDefaults.google_place_id` are excused
-  as unverifiable, which stopped being true when `apps.core.geocoding.fetch_place` landed:
+  as unverifiable, now covered by `apps.platform.integrations.google.places.fetch_place`:
   re-reading a place by its id is the check. Needs a `google_place` link kind, a pooled
   adapter beside the Google Drive one, and enumeration wiring.
 - **Read-side fallback cleanup**
@@ -495,15 +495,13 @@ never a second stream.
 ## Engineering backlog
 
 - **[KAN-357](https://docketworks.atlassian.net/browse/KAN-357): rebuild v2 as a clean
-  modular monolith.** Dissolve `apps.core` — today one module holds `AppError`,
-  `IntegrationSettings`, `CompanyDefaults` and `ServiceAPIKey` — and replace the
-  colon-separated domain tier with enforced context boundaries. **Gated on its own first
-  item:** it overturns the layout CLAUDE.md documents, so nothing starts before the
-  owner-ratified ADR exists. Scoping caution recorded on the ticket: the draft justified
-  the work as breaking seven ORM cycles, but a full traversal of the app registry finds
-  exactly one (`accounts` <-> `job`, via `Staff.default_labour_subtype`); the rest are
-  one-way and several already point where the target architecture wants them. The value is
-  ownership and enforceable boundaries, not cycle removal.
+  modular monolith (ADR 0055).** Move the remaining `apps.core` owners — `AppError`,
+  `CompanyDefaults` and `ServiceAPIKey` — and the remaining legacy contexts, replacing
+  the colon-separated domain tier with enforced directional public contracts. Each
+  ownership slice extends the import/ORM gates without new ignores. Platform.web's
+  slice removes integrations' dependency on the legacy core auth/schema primitives.
+  Remaining epic scope includes AI/Xero/phone ownership, workflows, read models,
+  the accounts/job ORM cycle and canonical database/migration names.
 - **Call-recording retention is a setting, not a literal** (owner, 2026-08-23). Two knobs:
   the provider-side deletion delay, a literal 31 days at
   `apps/crm/services/phone_call_service.py:187`, becomes
