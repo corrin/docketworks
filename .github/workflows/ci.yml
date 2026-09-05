@@ -38,6 +38,8 @@ jobs:
       - name: import-linter (layer contract)
         run: uv run lint-imports
       - name: ORM context boundaries (ADR 0055)
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings_test
         run: uv run python -m scripts.checks.context_dependencies
       - name: deptry (dependency hygiene)
         run: uv run deptry .

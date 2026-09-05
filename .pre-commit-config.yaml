@@ -36,7 +36,7 @@ repos:
         pass_filenames: false
       - id: context-dependencies
         name: ORM context boundaries (ADR 0055)
-        entry: uv run python -m scripts.checks.context_dependencies
+        entry: env DJANGO_SETTINGS_MODULE=config.settings_test uv run python -m scripts.checks.context_dependencies
         language: system
         types: [python]
         pass_filenames: false
