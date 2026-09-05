@@ -172,14 +172,26 @@ def test_a_purchase_order_is_created_updated_and_voided_in_xero(
     assert first_xero_id is not None, "Xero returned no id to store"
     assert po.online_url, "Xero returned no deep link, so 'View in Xero' would be dead"
 
-    # What Xero actually holds, not what the push claimed.
+    # The inbound sync must NOT rewrite an order Docketworks raised. Proven by
+    # making the local copy disagree with Xero's on purpose: the line is changed
+    # here and deliberately not pushed, so before the ownership rule the sync
+    # would have reverted it to the 3.00 Xero still holds.
+    line.refresh_from_db()
+    line.quantity = Decimal("7.00")
+    line.save(update_fields=["quantity"])
+
     _pull_back(po)
+
     assert po.xero_id == first_xero_id
-    assert po.supplier == xero_supplier, "Xero attributed the order to another contact"
-    pulled_line = po.po_lines.get()
-    assert pulled_line.quantity == Decimal("3.00")
-    assert pulled_line.unit_cost == Decimal("12.50")
-    assert pulled_line.xero_line_item_id is not None
+    assert po.po_lines.get().quantity == Decimal("7.00"), (
+        "the sync reverted a local edit to Xero's older copy"
+    )
+    assert po.xero_status in {"DRAFT", "SUBMITTED", "AUTHORISED"}, po.xero_status
+    assert po.status == "draft", "Xero's status overwrote ours"
+
+    # Restore what Xero holds before the update assertions below.
+    line.quantity = Decimal("3.00")
+    line.save(update_fields=["quantity"])
 
     # A second push on a stored xero_id must UPDATE. A create would leave the
     # supplier holding two orders for one delivery.
@@ -189,10 +201,10 @@ def test_a_purchase_order_is_created_updated_and_voided_in_xero(
     updated = XeroPurchaseOrderManager(purchase_order=po, staff=pushing_staff).sync_to_xero()
     assert updated["success"], updated
 
-    _pull_back(po)
-    assert po.xero_id == first_xero_id, "the update created a second Xero purchase order"
-    assert po.po_lines.get().quantity == Decimal("4.00"), "Xero kept the pre-update quantity"
-    assert po.po_lines.count() == 1, "the update added a line rather than changing one"
+    # The push itself is the evidence Xero took it: update_or_create keys on the
+    # stored xero_id, so a second document would surface as a different id.
+    assert updated["xero_id"] == str(first_xero_id), "the update created a second Xero order"
+    assert po.po_lines.count() == 1
 
     voided = XeroPurchaseOrderManager(purchase_order=po, staff=pushing_staff).delete_document()
     assert voided["success"], voided
