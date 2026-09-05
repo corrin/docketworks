@@ -1,6 +1,12 @@
 import debug from 'debug'
 import { test, expect } from '../fixtures/auth'
-import { autoId, createTestJob, createTestPurchaseOrder, waitForPoAutosave } from '../helpers'
+import {
+  autoId,
+  createTestJob,
+  createTestPurchaseOrder,
+  getPhantomRowIndex,
+  waitForPoAutosave,
+} from '../helpers'
 
 const log = debug('e2e:purchasing')
 
@@ -152,6 +158,64 @@ test.describe.serial('purchase order operations', () => {
     await expect(jobTrigger).toContainText(jobNumber)
 
     log(`Assigned job ${jobNumber} to PO line`)
+  })
+
+  test('price TBC closes the unit cost and survives a reload', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto(poUrl)
+    await page.waitForLoadState('networkidle')
+
+    const tbc = autoId(page, 'PoLinesTable-price-tbc-0')
+    const costInput = autoId(page, 'PoLinesTable-unit-cost-0')
+    await expect(costInput).toBeEnabled()
+
+    const autosavePromise = waitForPoAutosave(page)
+    await tbc.check()
+    await autosavePromise
+
+    // The service refuses a cost for a TBC line, so the input closes rather
+    // than accepting a value that would be dropped.
+    await expect(costInput).toBeDisabled()
+
+    await page.reload()
+    await page.waitForLoadState('networkidle')
+    await expect(autoId(page, 'PoLinesTable-price-tbc-0')).toBeChecked()
+
+    // Put it back so the later status test is not blocked by an unpriced line.
+    const restore = waitForPoAutosave(page)
+    await autoId(page, 'PoLinesTable-price-tbc-0').uncheck()
+    await restore
+    log('Toggled Price TBC and confirmed the unit cost follows it')
+  })
+
+  test('a line can be deleted, and Tab out of unit cost still commits a draft', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto(poUrl)
+    await page.waitForLoadState('networkidle')
+
+    // A draft committed by tabbing out of unit cost — the contract the new
+    // trailing actions column must not break by taking focus.
+    const rowsBefore = await getPhantomRowIndex(page)
+    await autoId(page, `PoLinesTable-description-${rowsBefore}`).fill('[TEST] Delete me')
+    await autoId(page, `PoLinesTable-quantity-${rowsBefore}`).fill('2')
+    const created = waitForPoAutosave(page)
+    await autoId(page, `PoLinesTable-unit-cost-${rowsBefore}`).click()
+    await page.keyboard.press('Tab')
+    await created
+    await expect(autoId(page, `PoLinesTable-description-${rowsBefore}`)).toHaveValue(
+      '[TEST] Delete me',
+    )
+
+    page.once('dialog', (dialog) => void dialog.accept())
+    const deleted = waitForPoAutosave(page)
+    await autoId(page, `PoLinesTable-delete-${rowsBefore}`).click()
+    await deleted
+
+    await expect(page.getByText('[TEST] Delete me')).toHaveCount(0)
+    expect(await getPhantomRowIndex(page)).toBe(rowsBefore)
+    log('Committed a draft by Tab and deleted the line')
   })
 
   test('verify purchase order status can be changed', async ({ authenticatedPage: page }) => {

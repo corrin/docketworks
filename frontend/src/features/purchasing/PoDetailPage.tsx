@@ -8,7 +8,7 @@ interface PoDetailPageProps {
 }
 
 export function PoDetailPage({ poId }: PoDetailPageProps) {
-  const { poQuery, patchHeader, patchLine, createLine } = usePoLines(poId)
+  const { poQuery, patchHeader, patchLine, createLine, deleteLine } = usePoLines(poId)
   const po = poQuery.data
 
   return (
@@ -28,7 +28,12 @@ export function PoDetailPage({ poId }: PoDetailPageProps) {
             <PoSummaryCard mode="detail" po={po} patchHeader={patchHeader} />
             <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
               <h2 className="mb-3 text-sm font-semibold text-gray-700">Line Items</h2>
-              <PoLinesTable lines={po.lines} patchLine={patchLine} createLine={createLine} />
+              <PoLinesTable
+                lines={po.lines}
+                patchLine={patchLine}
+                deleteLine={deleteLine}
+                createLine={createLine}
+              />
             </div>
           </div>
         )}

@@ -44,6 +44,13 @@ describe('PO line drafts', () => {
     expect('unit_cost' in body).toBe(false)
     expect('item_code' in body).toBe(false)
     expect('job_id' in body).toBe(false)
+    expect('price_tbc' in body).toBe(false)
+  })
+
+  it('the create body carries price_tbc only when the box is ticked', () => {
+    const draft = { ...emptyPoLineDraft(), description: 'Bar', price_tbc: true }
+
+    expect(draftCreateBody(draft).price_tbc).toBe(true)
   })
 
   it('the create body carries every set field and no id', () => {
@@ -51,6 +58,7 @@ describe('PO line drafts', () => {
       description: 'Bar',
       quantity: '5',
       unit_cost: '12.50',
+      price_tbc: false,
       item_code: 'RB5',
       metal_type: 'steel',
       alloy: '304',

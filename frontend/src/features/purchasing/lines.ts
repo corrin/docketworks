@@ -26,6 +26,7 @@ export interface PoLineDraft {
   description: string
   quantity: string
   unit_cost: string | null
+  price_tbc: boolean
   item_code: string | null
   metal_type: string | null
   alloy: string | null
@@ -41,6 +42,7 @@ export function emptyPoLineDraft(): PoLineDraft {
     description: '',
     quantity: '1',
     unit_cost: null,
+    price_tbc: false,
     item_code: null,
     metal_type: null,
     alloy: null,
@@ -90,6 +92,9 @@ export function draftCreateBody(draft: PoLineDraft): PurchaseOrderLineUpdateRequ
     quantity: draft.quantity,
   }
   if (draft.unit_cost !== null) body.unit_cost = draft.unit_cost
+  // Sent only when set, so an untouched draft does not assert "priced" against
+  // a service whose default is already false.
+  if (draft.price_tbc) body.price_tbc = true
   if (draft.item_code !== null) body.item_code = draft.item_code
   if (draft.metal_type !== null) body.metal_type = draft.metal_type
   if (draft.alloy !== null) body.alloy = draft.alloy
