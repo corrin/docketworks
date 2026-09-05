@@ -38,7 +38,7 @@ does not have.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **52 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
+| E2E specs ported | **53 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **53** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 247 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 2973 (all passing) |
