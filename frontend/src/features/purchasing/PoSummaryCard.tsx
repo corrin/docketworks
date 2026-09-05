@@ -12,15 +12,8 @@ import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { INPUT_CLASS } from '@/components/ui/field'
 import { formatDate } from '@/lib/format'
 import { PickupAddressSelector } from './PickupAddressSelector'
+import { PO_STATUS_OPTIONS, toPoStatus } from './status'
 import type { PoHeaderPatch } from './usePoLines'
-
-export const PO_STATUS_OPTIONS = [
-  { value: 'draft', label: 'Draft' },
-  { value: 'submitted', label: 'Submitted to Supplier' },
-  { value: 'partially_received', label: 'Partially Received' },
-  { value: 'fully_received', label: 'Fully Received' },
-  { value: 'deleted', label: 'Deleted' },
-] as const
 
 interface PoSummaryCardCreateProps {
   mode: 'create'
@@ -175,7 +168,10 @@ function DetailFields({ po, patchHeader }: PoSummaryCardDetailProps) {
       )}
       <div>
         <span className="mb-1 block text-sm font-medium text-gray-700">Status</span>
-        <Select value={po.status} onValueChange={(value) => patchHeader({ status: value })}>
+        <Select
+          value={po.status}
+          onValueChange={(value) => patchHeader({ status: toPoStatus(value) })}
+        >
           <SelectTrigger data-automation-id="PoSummaryCard-status-trigger" className="w-full">
             <SelectValue />
           </SelectTrigger>

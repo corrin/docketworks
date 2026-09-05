@@ -10,7 +10,6 @@ rather than behind a function-local import that hides the cycle.
 """
 
 import logging
-from uuid import UUID
 
 from apps.core.etag import (
     PreconditionFailedError,
@@ -25,12 +24,6 @@ logger = logging.getLogger(__name__)
 def purchase_order_etag(po: PurchaseOrder) -> str:
     """Return the strong ETag for a purchase order (resource label ``po``)."""
     return generate_updated_at_etag("po", po.id, po.updated_at)
-
-
-def current_purchase_order_etag(po_id: UUID) -> str | None:
-    """Return the current ETag for ``po_id``, or None when it does not exist."""
-    po = PurchaseOrder.objects.only("id", "updated_at").filter(id=po_id).first()
-    return purchase_order_etag(po) if po else None
 
 
 def require_current_etag(po: PurchaseOrder, if_match: str) -> None:

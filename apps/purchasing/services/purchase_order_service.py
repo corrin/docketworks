@@ -18,7 +18,7 @@ from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Count, IntegerField
+from django.db.models import Count, IntegerField, Q
 from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Cast, Substr
 from django.http import Http404
@@ -28,6 +28,7 @@ from apps.accounts.models import Staff
 from apps.company.models import Company, Supplier, SupplierPickupAddress
 from apps.company.services.company_rest_service import pickup_address_data
 from apps.core.models import CompanyDefaults
+from apps.core.pagination import paginate
 from apps.core.patching import apply_patch_fields
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
@@ -38,6 +39,7 @@ from apps.purchasing.models import (
     PurchaseOrderLine,
     Stock,
 )
+from apps.purchasing.schemas import PurchaseOrderStatus
 from apps.purchasing.services.allocation_service import (
     AllocationMetadata,
     create_costline_from_allocation,
@@ -46,12 +48,6 @@ from apps.purchasing.services.allocation_service import (
 )
 
 logger = logging.getLogger(__name__)
-
-# Validate status against model choices because they are not DB-enforced; a
-# client typo must be a visible 400 (ADR 0015).
-PURCHASE_ORDER_STATUSES: frozenset[str] = frozenset(
-    value for value, _label in PurchaseOrder._meta.get_field("status").choices or []
-)
 
 
 # ── Read shapes ──────────────────────────────────────────────────────────
@@ -79,6 +75,16 @@ class PurchaseOrderListData(TypedDict):
     jobs: list[PurchaseOrderJobData]
 
 
+class PurchaseOrderListPage(TypedDict):
+    """One page of PO list rows in the shared envelope (apps/core/pagination)."""
+
+    results: list[PurchaseOrderListData]
+    count: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class PurchaseOrderLineData(TypedDict):
     """Data contract for PurchaseOrderLineData."""
 
@@ -102,21 +108,49 @@ class PurchaseOrderLineData(TypedDict):
     times_used: int
 
 
-def list_purchase_orders(status_filter: str | None = None) -> list[PurchaseOrderListData]:
-    """List every purchase order with its distinct jobs.
+def _purchase_order_search_filter(query: str) -> Q:
+    """Match ``query`` against the three things an operator searches a PO by.
 
-    ``status_filter`` is the comma-separated ``?status=`` query value.
+    Opus: job number is matched only when the query is all digits. Casting the
+    integer column to text to allow icontains would forfeit its index on every
+    search, and no operator searches a job by a fragment of its number.
     """
-    allowed = {value.strip() for value in status_filter.split(",")} if status_filter else None
-    rows: list[PurchaseOrderListData] = []
+    matches = Q(po_number__icontains=query) | Q(supplier__name__icontains=query)
+    if query.isdigit():
+        matches |= Q(po_lines__job__job_number=int(query))
+    return matches
+
+
+def list_purchase_orders(
+    *, status_filter: str | None, query: str, page: int, page_size: int
+) -> PurchaseOrderListPage:
+    """One page of purchase orders with their distinct jobs.
+
+    ``status_filter`` is the comma-separated ``?status=`` query value. Both the
+    filter and the search run in the database: production holds 990 orders over
+    2,315 lines, so returning them all — which is what reading every row and
+    filtering in Python amounted to — is not a page any client can use (ADR
+    0054).
+    """
     purchase_orders = (
         PurchaseOrder.objects.select_related("supplier", "created_by")
         .prefetch_related("po_lines__job__company")
         .order_by("-created_at")
     )
-    for po in purchase_orders:
-        if allowed is not None and po.status not in allowed:
-            continue
+    if status_filter:
+        purchase_orders = purchase_orders.filter(
+            status__in={value.strip() for value in status_filter.split(",")}
+        )
+    trimmed = query.strip()
+    if trimmed:
+        # distinct() because the job-number branch joins po_lines, which
+        # multiplies a PO by its matching lines.
+        purchase_orders = purchase_orders.filter(_purchase_order_search_filter(trimmed)).distinct()
+
+    page_data = paginate(purchase_orders, page=page, page_size=page_size)
+
+    rows: list[PurchaseOrderListData] = []
+    for po in page_data.rows:
         seen_jobs: dict[UUID, PurchaseOrderJobData] = {}
         for line in po.po_lines.all():
             if line.job and line.job.id not in seen_jobs:
@@ -138,7 +172,13 @@ def list_purchase_orders(status_filter: str | None = None) -> list[PurchaseOrder
                 "jobs": sorted(seen_jobs.values(), key=lambda job: job["job_number"]),
             }
         )
-    return rows
+    return {
+        "results": rows,
+        "count": page_data.count,
+        "page": page_data.page,
+        "page_size": page_data.page_size,
+        "total_pages": page_data.total_pages,
+    }
 
 
 def _material_usage_counts(item_codes: list[str]) -> dict[str, int]:
@@ -257,7 +297,7 @@ class PurchaseOrderUpdateData(TypedDict, total=False):
     pickup_address_id: UUID | None
     reference: str | None
     expected_delivery: date | None
-    status: str
+    status: PurchaseOrderStatus
     lines_to_delete: list[UUID]
     lines: list[PurchaseOrderLineWriteData]
 
@@ -435,18 +475,13 @@ def _apply_purchase_order_fields(
     po: PurchaseOrder, data: PurchaseOrderUpdateData, staff: Staff
 ) -> None:
     if "reference" in data:
-        po.reference = data.get("reference")
+        po.reference = data["reference"]
     if "expected_delivery" in data:
         po.expected_delivery = data.get("expected_delivery")
     if "status" not in data:
         return
 
     new_status = data["status"]
-    if new_status not in PURCHASE_ORDER_STATUSES:
-        raise DjangoValidationError(
-            f"Invalid status '{new_status}'. Must be one of: "
-            f"{', '.join(sorted(PURCHASE_ORDER_STATUSES))}"
-        )
     logger.info("Updating PO %s status: %s -> %s", po.po_number, po.status, new_status)
     po.status = new_status
     if new_status != "fully_received":

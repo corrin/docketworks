@@ -3997,7 +3997,7 @@ export const listPurchaseOrdersQueryKey = (options?: Options<ListPurchaseOrdersD
 /**
  * List purchase orders
  *
- * List POs, optionally filtered to a comma-separated set of statuses.
+ * One page of POs, filtered by a comma-separated status set and ``q``.
  */
 export const listPurchaseOrdersOptions = (options?: Options<ListPurchaseOrdersData>) => queryOptions<ListPurchaseOrdersResponse, AxiosError<DefaultError>, ListPurchaseOrdersResponse, ReturnType<typeof listPurchaseOrdersQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -4011,6 +4011,38 @@ export const listPurchaseOrdersOptions = (options?: Options<ListPurchaseOrdersDa
     },
     queryKey: listPurchaseOrdersQueryKey(options)
 });
+
+export const listPurchaseOrdersInfiniteQueryKey = (options?: Options<ListPurchaseOrdersData>): QueryKey<Options<ListPurchaseOrdersData>> => createQueryKey('listPurchaseOrders', options, true);
+
+/**
+ * List purchase orders
+ *
+ * One page of POs, filtered by a comma-separated status set and ``q``.
+ */
+export const listPurchaseOrdersInfiniteOptions = (options?: Options<ListPurchaseOrdersData>) => {
+    const opts = infiniteQueryOptions<ListPurchaseOrdersResponse, AxiosError<DefaultError>, InfiniteData<ListPurchaseOrdersResponse>, QueryKey<Options<ListPurchaseOrdersData>>, number | Pick<QueryKey<Options<ListPurchaseOrdersData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListPurchaseOrdersData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    page: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listPurchaseOrders({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listPurchaseOrdersInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 /**
  * Create a purchase order

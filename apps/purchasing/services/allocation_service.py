@@ -543,16 +543,25 @@ def list_allocations(po: PurchaseOrder) -> dict[str, list[dict[str, object]]]:
     for stock_item in stock_items:
         line_id = str(stock_item.source_purchase_order_line_id)
         job = stock_item.job
+        if job is None:
+            # Opus: not tolerated on read. Receipt stock is only ever created on
+            # the stock-holding job -- _materialise routes any other job to a
+            # cost line instead -- so a purchase-order stock row without a job is
+            # malformed data, not a shape callers should handle. Serving None
+            # would encode it as valid (ADR 0015, ADR 0028). The nullable column
+            # exists for the Xero item catalogue, which shares this table and
+            # holds no job at all; separating the two is what makes it non-null.
+            raise ValueError(
+                f"Stock {stock_item.id} was received against a purchase order but holds no job"
+            )
         # An unpriced row has no markup to report; do not call retail_rate when
         # unit_cost is zero or unset.
         priced = bool(stock_item.unit_revenue) and stock_item.unit_cost > 0
         allocations.setdefault(line_id, []).append(
             {
                 "type": "stock",
-                "job_id": str(job.id) if job else None,
-                "job_name": "Stock"
-                if job and job.name == stock_holding_name
-                else (job.name if job else ""),
+                "job_id": str(job.id),
+                "job_name": "Stock" if job.name == stock_holding_name else job.name,
                 "quantity": float(stock_item.quantity),
                 "retail_rate": float(stock_item.retail_rate * 100) if priced else 0,
                 "allocation_date": stock_item.date,

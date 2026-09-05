@@ -332,12 +332,16 @@
     request. Phase 3c-2.
 
 - operation: purchasing_purchase_orders_partial_update
-  change: "An unknown PO status is rejected with 400 (v1 wrote any string to the column)"
+  change: "An unknown PO status is rejected with 422 (v1 wrote any string to the column)"
   reason: >
     status choices are not DB-enforced, so v1's CharField serializer let a
-    client typo through into the column. v2 validates against the model's own
-    choice set, the same posture taken for job_status in Phase 3b-1.
-    Phase 3c-2.
+    client typo through into the column. v2 declares the five states as a
+    union on the request schema, so a sixth is a 422 naming the field and the
+    generated client carries the union too — a client typed `str` cannot map
+    the value exhaustively, which is what kept a fallback branch on the list
+    screen for a status that cannot exist. The service's runtime re-check was
+    removed with it: once the contract carries the union, the check could not
+    fire (ADR 0028). Phase 3c-2; boundary contract 2026-09-05.
 
 - operation: deleteAllocation
   change: "Deleting an allocation always bumps the PO's updated_at (and therefore its ETag)"

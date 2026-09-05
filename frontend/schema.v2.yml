@@ -308,11 +308,9 @@ components:
           title: Description
           type: string
         job_id:
-          anyOf:
-          - format: uuid
-            type: string
-          - type: 'null'
+          format: uuid
           title: Job Id
+          type: string
         job_name:
           title: Job Name
           type: string
@@ -10228,6 +10226,12 @@ components:
           - type: 'null'
           title: Reference
         status:
+          enum:
+          - draft
+          - submitted
+          - partially_received
+          - fully_received
+          - deleted
           title: Status
           type: string
         supplier:
@@ -10691,6 +10695,12 @@ components:
           title: Po Number
           type: string
         status:
+          enum:
+          - draft
+          - submitted
+          - partially_received
+          - fully_received
+          - deleted
           title: Status
           type: string
         supplier:
@@ -10715,8 +10725,20 @@ components:
       title: PurchaseOrderList
       type: object
     PurchaseOrderListQuery:
-      description: Query parameters for purchase-order listing, including CSV statuses.
+      description: 'Query params for purchase-order listing: CSV statuses, search, paging.'
       properties:
+        page:
+          default: 1
+          title: Page
+          type: integer
+        page_size:
+          default: 50
+          title: Page Size
+          type: integer
+        q:
+          default: ''
+          title: Q
+          type: string
         status:
           anyOf:
           - type: string
@@ -10724,14 +10746,44 @@ components:
           title: Status
       title: PurchaseOrderListQuery
       type: object
+    PurchaseOrderListResponse:
+      description: One page of purchase orders in the shared pagination envelope.
+      properties:
+        count:
+          title: Count
+          type: integer
+        page:
+          title: Page
+          type: integer
+        page_size:
+          title: Page Size
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/PurchaseOrderList'
+          title: Results
+          type: array
+        total_pages:
+          title: Total Pages
+          type: integer
+      required:
+      - results
+      - count
+      - page
+      - page_size
+      - total_pages
+      title: PurchaseOrderListResponse
+      type: object
     PurchaseOrderUpdateRequest:
       description: "Partial purchase-order update in which field presence is significant.\n\n``supplier_id``,\
         \ ``pickup_address_id``, ``reference`` and\n``expected_delivery`` are nullable because each can\
         \ be CLEARED \u2014 the\ncolumns are nullable and NULL is what unset means there. ``status`` cannot:\n\
-        the column is NOT NULL, so a null is a 422 rather than something the\nhandler silently drops.\n\
-        \nThe two list fields are presence-only. A null list means nothing an empty\nlist does not, and\
-        \ reading them from ``model_fields_set`` rather than a\nnull check is what lets a caller send\
-        \ ``lines: []``."
+        the column is NOT NULL, so a null is a 422 rather than something the\nhandler silently drops.\
+        \ Its sentinel is ``\"draft\"`` (the model default)\nrather than ``\"\"`` because the annotation\
+        \ is the five-value union and the\nplaceholder must not contradict it; the handler reads presence\
+        \ from\n``model_fields_set`` and never the value.\n\nThe two list fields are presence-only. A\
+        \ null list means nothing an empty\nlist does not, and reading them from ``model_fields_set``\
+        \ rather than a\nnull check is what lets a caller send ``lines: []``."
       properties:
         expected_delivery:
           anyOf:
@@ -10763,6 +10815,12 @@ components:
           - type: 'null'
           title: Reference
         status:
+          enum:
+          - draft
+          - submitted
+          - partially_received
+          - fully_received
+          - deleted
           title: Status
           type: string
         supplier_id:
@@ -20215,7 +20273,7 @@ paths:
       - Product Mapping
   /api/purchasing/purchase-orders/:
     get:
-      description: List POs, optionally filtered to a comma-separated set of statuses.
+      description: One page of POs, filtered by a comma-separated status set and ``q``.
       operationId: listPurchaseOrders
       parameters:
       - in: query
@@ -20226,15 +20284,33 @@ paths:
           - type: string
           - type: 'null'
           title: Status
+      - in: query
+        name: q
+        required: false
+        schema:
+          default: ''
+          title: Q
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
+        required: false
+        schema:
+          default: 50
+          title: Page Size
+          type: integer
       responses:
         '200':
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/PurchaseOrderList'
-                title: Response
-                type: array
+                $ref: '#/components/schemas/PurchaseOrderListResponse'
           description: OK
       security:
       - CookieJWTAuth: []

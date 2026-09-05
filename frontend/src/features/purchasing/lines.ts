@@ -98,3 +98,19 @@ export function draftCreateBody(draft: PoLineDraft): PurchaseOrderLineUpdateRequ
   if (draft.job_id !== null) body.job_id = draft.job_id
   return body
 }
+
+/**
+ * The Jobs cell on the PO list: one number, two joined, or the first plus a
+ * count.
+ *
+ * Opus: a PO covering many jobs is normal, so the cell states how many rather
+ * than growing with them — the full set is on the row's title attribute and
+ * the detail page. An em dash means the order is not booked to a job at all,
+ * which is different from having none listed.
+ */
+export function poListJobsLabel(jobs: readonly { job_number: string }[]): string {
+  if (jobs.length === 0) return '—'
+  if (jobs.length === 1) return jobs[0]!.job_number
+  if (jobs.length === 2) return `${jobs[0]!.job_number}, ${jobs[1]!.job_number}`
+  return `${jobs[0]!.job_number} +${jobs.length - 1} others`
+}

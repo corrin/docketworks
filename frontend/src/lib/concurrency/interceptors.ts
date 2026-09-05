@@ -63,7 +63,6 @@ interface ResourceRule {
   isVersionedEndpoint: (url: string) => boolean
   /** Endpoints whose mutations require If-Match. */
   isMutationEndpoint: (url: string) => boolean
-  idFromUrl: (url: string) => string | null
   /** Resource id for a mutation — usually from the URL, but delivery receipts carry it in the body. */
   idForMutation: (url: string, body: unknown) => string | null
   conflict: StatusMessages // 412
@@ -121,7 +120,6 @@ const RULES: readonly ResourceRule[] = [
       !url.includes('/jobs/status-choices') &&
       !url.includes('/jobs/weekly-metrics'),
     isMutationEndpoint: (url) => JOB_MUTATION_PATTERNS.some((pattern) => pattern.test(url)),
-    idFromUrl: jobIdFromUrl,
     idForMutation: (url) => jobIdFromUrl(url),
     conflict: {
       toast: 'This job was updated by another user. Data reloaded.',
@@ -136,7 +134,6 @@ const RULES: readonly ResourceRule[] = [
     kind: 'po',
     isVersionedEndpoint: (url) => /\/api\/purchasing\/purchase-orders\//.test(url),
     isMutationEndpoint: (url) => PO_MUTATION_PATTERNS.some((pattern) => pattern.test(url)),
-    idFromUrl: poIdFromUrl,
     idForMutation: poIdForMutation,
     conflict: {
       toast: 'This purchase order was updated elsewhere. Data reloaded.',
@@ -229,10 +226,11 @@ export function captureResourceVersion<T extends ConcurrencyResponse>(response: 
     // left a stale version in the store and 412'd the next PO mutation until a
     // refetch landed.
     if (!rule.isVersionedEndpoint(url) && !rule.isMutationEndpoint(url)) continue
-    // The URL is tried first and the body only as a fallback: a URL-addressed
-    // response is unambiguous, while the body form exists solely for endpoints
-    // that carry the id there.
-    const id = rule.idFromUrl(url) ?? rule.idForMutation(url, response.config.data)
+    // idForMutation is the one resolver that knows where each endpoint keeps
+    // its id: it reads the body for delivery receipts and falls back to the URL
+    // for everything else. A second URL-only resolver alongside it was one
+    // answer too many, and it was the one that dropped the receipt's ETag.
+    const id = rule.idForMutation(url, response.config.data)
     if (id) {
       setEtag(etagKey(rule.kind, id), version)
     }

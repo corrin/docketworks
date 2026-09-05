@@ -24,9 +24,12 @@ from apps.job.schemas import CostLineOut
 
 
 class PurchaseOrderListQuery(Schema):
-    """Query parameters for purchase-order listing, including CSV statuses."""
+    """Query params for purchase-order listing: CSV statuses, search, paging."""
 
     status: str | None = None
+    q: str = ""
+    page: int = 1
+    page_size: int = 50
 
 
 class StockSearchQuery(Schema):
@@ -99,6 +102,16 @@ class PurchasingJob(Schema):
 # ── Purchase orders ──────────────────────────────────────────────────────
 
 
+#: The five states a purchase order can be in, mirroring PurchaseOrder.status's
+#: choices. Declared as a Literal rather than ``str`` so the generated client
+#: gets the union too: a client typed ``str`` cannot exhaustively map the value,
+#: which is what forced the list screen to keep a fallback branch for a sixth
+#: status that cannot exist (ADR 0028).
+PurchaseOrderStatus = Literal[
+    "draft", "submitted", "partially_received", "fully_received", "deleted"
+]
+
+
 class PurchaseOrderJob(Schema):
     """Wire contract for PurchaseOrderJob."""
 
@@ -112,13 +125,23 @@ class PurchaseOrderList(Schema):
 
     id: UUID
     po_number: str
-    status: str
+    status: PurchaseOrderStatus
     order_date: date
     supplier: str
     supplier_id: UUID | None
     created_by_id: UUID | None
     created_by_name: str
     jobs: list[PurchaseOrderJob]
+
+
+class PurchaseOrderListResponse(Schema):
+    """One page of purchase orders in the shared pagination envelope."""
+
+    results: list[PurchaseOrderList]
+    count: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class PurchaseOrderLineOut(Schema):
@@ -150,7 +173,7 @@ class PurchaseOrderDetail(Schema):
     id: UUID
     po_number: str
     reference: str | None
-    status: str
+    status: PurchaseOrderStatus
     order_date: date
     expected_delivery: date | None
     online_url: str | None
@@ -212,7 +235,10 @@ class PurchaseOrderUpdateRequest(Schema):
     ``expected_delivery`` are nullable because each can be CLEARED — the
     columns are nullable and NULL is what unset means there. ``status`` cannot:
     the column is NOT NULL, so a null is a 422 rather than something the
-    handler silently drops.
+    handler silently drops. Its sentinel is ``"draft"`` (the model default)
+    rather than ``""`` because the annotation is the five-value union and the
+    placeholder must not contradict it; the handler reads presence from
+    ``model_fields_set`` and never the value.
 
     The two list fields are presence-only. A null list means nothing an empty
     list does not, and reading them from ``model_fields_set`` rather than a
@@ -223,7 +249,7 @@ class PurchaseOrderUpdateRequest(Schema):
     pickup_address_id: UUID | None = None
     reference: NullableText = None
     expected_delivery: date | None = None
-    status: str = omittable("")
+    status: PurchaseOrderStatus = omittable("draft")
     lines_to_delete: list[UUID] = omittable([])
     lines: list[PurchaseOrderLineUpdateRequest] = omittable([])
 
@@ -345,11 +371,7 @@ class AllocationItem(ResponseSchema):
     """Wire contract for AllocationItem."""
 
     type: Literal["stock", "job"]
-    # Opus: nullable because Stock.job is on_delete=SET_NULL (models.py:350), so a
-    # stock allocation outlives the job it was received against and
-    # list_allocations emits None for it. Declaring UUID here made the endpoint
-    # fail its own response validation on such a row rather than serve it.
-    job_id: UUID | None
+    job_id: UUID
     job_name: str
     quantity: float
     retail_rate: float = 0

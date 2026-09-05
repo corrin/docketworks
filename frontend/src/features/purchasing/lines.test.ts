@@ -9,6 +9,7 @@ import {
   poLineDraftIsReady,
   poLineItemLabel,
   poLineJobLabel,
+  poListJobsLabel,
 } from './lines'
 
 describe('PO line drafts', () => {
@@ -138,5 +139,25 @@ describe('jobsBookableOnPoLine', () => {
 
   it('matches status case-insensitively', () => {
     expect(jobsBookableOnPoLine([job({ id: 'f', status: 'ARCHIVED' })])).toEqual([])
+  })
+})
+
+describe('poListJobsLabel', () => {
+  it('is an em dash when the order is booked to no job', () => {
+    expect(poListJobsLabel([])).toBe('—')
+  })
+
+  it('is the number alone for one job', () => {
+    expect(poListJobsLabel([{ job_number: '97391' }])).toBe('97391')
+  })
+
+  it('joins two', () => {
+    expect(poListJobsLabel([{ job_number: '97391' }, { job_number: '97392' }])).toBe('97391, 97392')
+  })
+
+  it('counts the rest past two, so the cell does not grow with the order', () => {
+    expect(
+      poListJobsLabel([{ job_number: '97391' }, { job_number: '97392' }, { job_number: '97393' }]),
+    ).toBe('97391 +2 others')
   })
 })

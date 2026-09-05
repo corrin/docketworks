@@ -291,7 +291,7 @@ export type AllocationItem = {
     /**
      * Job Id
      */
-    job_id: string | null;
+    job_id: string;
     /**
      * Job Name
      */
@@ -9096,7 +9096,7 @@ export type PurchaseOrderDetail = {
     /**
      * Status
      */
-    status: string;
+    status: 'draft' | 'submitted' | 'partially_received' | 'fully_received' | 'deleted';
     /**
      * Supplier
      */
@@ -9477,7 +9477,7 @@ export type PurchaseOrderList = {
     /**
      * Status
      */
-    status: string;
+    status: 'draft' | 'submitted' | 'partially_received' | 'fully_received' | 'deleted';
     /**
      * Supplier
      */
@@ -9491,13 +9491,53 @@ export type PurchaseOrderList = {
 /**
  * PurchaseOrderListQuery
  *
- * Query parameters for purchase-order listing, including CSV statuses.
+ * Query params for purchase-order listing: CSV statuses, search, paging.
  */
 export type PurchaseOrderListQuery = {
+    /**
+     * Page
+     */
+    page?: number;
+    /**
+     * Page Size
+     */
+    page_size?: number;
+    /**
+     * Q
+     */
+    q?: string;
     /**
      * Status
      */
     status?: string | null;
+};
+
+/**
+ * PurchaseOrderListResponse
+ *
+ * One page of purchase orders in the shared pagination envelope.
+ */
+export type PurchaseOrderListResponse = {
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Page
+     */
+    page: number;
+    /**
+     * Page Size
+     */
+    page_size: number;
+    /**
+     * Results
+     */
+    results: Array<PurchaseOrderList>;
+    /**
+     * Total Pages
+     */
+    total_pages: number;
 };
 
 /**
@@ -9509,7 +9549,10 @@ export type PurchaseOrderListQuery = {
  * ``expected_delivery`` are nullable because each can be CLEARED — the
  * columns are nullable and NULL is what unset means there. ``status`` cannot:
  * the column is NOT NULL, so a null is a 422 rather than something the
- * handler silently drops.
+ * handler silently drops. Its sentinel is ``"draft"`` (the model default)
+ * rather than ``""`` because the annotation is the five-value union and the
+ * placeholder must not contradict it; the handler reads presence from
+ * ``model_fields_set`` and never the value.
  *
  * The two list fields are presence-only. A null list means nothing an empty
  * list does not, and reading them from ``model_fields_set`` rather than a
@@ -9539,7 +9582,7 @@ export type PurchaseOrderUpdateRequest = {
     /**
      * Status
      */
-    status?: string;
+    status?: 'draft' | 'submitted' | 'partially_received' | 'fully_received' | 'deleted';
     /**
      * Supplier Id
      */
@@ -17349,17 +17392,27 @@ export type ListPurchaseOrdersData = {
          * Status
          */
         status?: string | null;
+        /**
+         * Q
+         */
+        q?: string;
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
     };
     url: '/api/purchasing/purchase-orders/';
 };
 
 export type ListPurchaseOrdersResponses = {
     /**
-     * Response
-     *
      * OK
      */
-    200: Array<PurchaseOrderList>;
+    200: PurchaseOrderListResponse;
 };
 
 export type ListPurchaseOrdersResponse = ListPurchaseOrdersResponses[keyof ListPurchaseOrdersResponses];

@@ -66,8 +66,8 @@ from apps.purchasing.schemas import (
     PurchaseOrderLastNumberResponse,
     PurchaseOrderLineCreateRequest,
     PurchaseOrderLineUpdateRequest,
-    PurchaseOrderList,
     PurchaseOrderListQuery,
+    PurchaseOrderListResponse,
     PurchaseOrderUpdateRequest,
     PurchaseOrderUpdateResponse,
     PurchasingJob,
@@ -233,15 +233,20 @@ def purchasing_jobs_retrieve(request: HttpRequest) -> list[dict[str, object]]:
     "/purchasing/purchase-orders/",
     auth=auth,
     operation_id="listPurchaseOrders",
-    response=list[PurchaseOrderList],
+    response=PurchaseOrderListResponse,
     summary="List purchase orders",
     tags=["purchasing"],
 )
 def list_purchase_orders(
     request: HttpRequest, params: Query[PurchaseOrderListQuery]
-) -> list[purchase_order_service.PurchaseOrderListData]:
-    """List POs, optionally filtered to a comma-separated set of statuses."""
-    return purchase_order_service.list_purchase_orders(params.status)
+) -> purchase_order_service.PurchaseOrderListPage:
+    """One page of POs, filtered by a comma-separated status set and ``q``."""
+    return purchase_order_service.list_purchase_orders(
+        status_filter=params.status,
+        query=params.q,
+        page=params.page,
+        page_size=params.page_size,
+    )
 
 
 @router.post(

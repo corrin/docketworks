@@ -81,7 +81,8 @@ class TestPurchaseOrderList:
         make_po_line(po, job=job, description="First")
         make_po_line(po, job=job, description="Second")
 
-        rows = client.get(PO_LIST_URL).json()
+        body = client.get(PO_LIST_URL).json()
+        rows = body["results"]
 
         assert len(rows) == 1
         assert rows[0]["po_number"] == po.po_number
@@ -98,9 +99,76 @@ class TestPurchaseOrderList:
         submitted = make_purchase_order(status="submitted")
         make_purchase_order(status="deleted")
 
-        rows = client.get(f"{PO_LIST_URL}?status=draft,submitted").json()
+        body = client.get(f"{PO_LIST_URL}?status=draft,submitted").json()
 
-        assert {row["po_number"] for row in rows} == {draft.po_number, submitted.po_number}
+        assert {row["po_number"] for row in body["results"]} == {
+            draft.po_number,
+            submitted.po_number,
+        }
+        # The count names the filtered total, not the table's.
+        assert body["count"] == 2
+
+    def test_a_page_carries_the_servers_total_not_the_rows_returned(self, client: Client) -> None:
+        """The mechanism, not the symptom: production holds 990 orders."""
+        for _ in range(5):
+            make_purchase_order()
+
+        body = client.get(f"{PO_LIST_URL}?page_size=2").json()
+
+        assert len(body["results"]) == 2
+        assert body["count"] == 5
+        assert body["page"] == 1
+        assert body["page_size"] == 2
+        assert body["total_pages"] == 3
+
+    def test_paging_walks_every_order_exactly_once(self, client: Client) -> None:
+        made = {make_purchase_order().po_number for _ in range(5)}
+
+        seen: set[str] = set()
+        for page in (1, 2, 3):
+            body = client.get(f"{PO_LIST_URL}?page_size=2&page={page}").json()
+            seen.update(row["po_number"] for row in body["results"])
+
+        assert seen == made
+
+    def test_search_matches_the_po_number(self, client: Client) -> None:
+        wanted = make_purchase_order()
+        make_purchase_order()
+
+        body = client.get(f"{PO_LIST_URL}?q={wanted.po_number}").json()
+
+        assert [row["po_number"] for row in body["results"]] == [wanted.po_number]
+        assert body["count"] == 1
+
+    def test_search_matches_the_supplier_name(self, client: Client, supplier: Company) -> None:
+        wanted = make_purchase_order(supplier=supplier)
+        make_purchase_order()
+
+        body = client.get(f"{PO_LIST_URL}?q={supplier.name[:6]}").json()
+
+        assert [row["po_number"] for row in body["results"]] == [wanted.po_number]
+
+    def test_search_matches_a_line_job_number_without_duplicating_the_order(
+        self, client: Client, job: Job
+    ) -> None:
+        """Two matching lines must not return the order twice."""
+        wanted = make_purchase_order()
+        make_po_line(wanted, job=job, description="First")
+        make_po_line(wanted, job=job, description="Second")
+        make_purchase_order()
+
+        body = client.get(f"{PO_LIST_URL}?q={job.job_number}").json()
+
+        assert [row["po_number"] for row in body["results"]] == [wanted.po_number]
+        assert body["count"] == 1
+
+    def test_a_search_matching_nothing_is_an_empty_page(self, client: Client) -> None:
+        make_purchase_order()
+
+        body = client.get(f"{PO_LIST_URL}?q=no-such-order").json()
+
+        assert body["results"] == []
+        assert body["count"] == 0
 
     def test_unauthenticated_requests_are_rejected(self) -> None:
         assert Client().get(PO_LIST_URL).status_code == 401
@@ -697,7 +765,10 @@ class TestPurchaseOrderUpdate:
         assert "not found on PO" in response.json()["detail"]
 
     def test_an_unknown_status_is_rejected(self, client: Client) -> None:
-        # v1 wrote any string into the column; choices are not DB-enforced.
+        # v1 wrote any string into the column; choices are not DB-enforced, so
+        # the five live in the request schema as a union and a sixth is a 422
+        # naming the field. The service used to re-check them at runtime; with
+        # the contract carrying the union that check could not fire.
         po = make_purchase_order()
         etag = _current_etag(client, po)
 
@@ -708,8 +779,7 @@ class TestPurchaseOrderUpdate:
             headers={"If-Match": etag},
         )
 
-        assert response.status_code == 400
-        assert "Invalid status" in response.json()["detail"]
+        assert response.status_code == 422
         po.refresh_from_db()
         assert po.status == "draft"
 

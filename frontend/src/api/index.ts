@@ -267,6 +267,7 @@ export type {
 // Purchasing (PO list/create/detail with line upserts; stock page)
 export {
   createPurchaseOrderMutation,
+  listPurchaseOrdersInfiniteOptions,
   listPurchaseOrdersOptions,
   purchasingAllJobsRetrieveOptions,
   purchasingPurchaseOrdersPartialUpdateMutation,

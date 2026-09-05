@@ -3385,7 +3385,7 @@ export const validateProductMapping = <ThrowOnError extends boolean = false>(opt
 /**
  * List purchase orders
  *
- * List POs, optionally filtered to a comma-separated set of statuses.
+ * One page of POs, filtered by a comma-separated status set and ``q``.
  */
 export const listPurchaseOrders = <ThrowOnError extends boolean = false>(options?: Options<ListPurchaseOrdersData, ThrowOnError>): RequestResult<ListPurchaseOrdersResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListPurchaseOrdersResponses, unknown, ThrowOnError>({
     responseType: 'json',
