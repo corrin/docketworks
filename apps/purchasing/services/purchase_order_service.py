@@ -374,9 +374,7 @@ def create_purchase_order(
         po = PurchaseOrder.objects.create(
             supplier=supplier,
             pickup_address=pickup_address,
-            # Blank reference means unset: the reference_not_blank constraint
-            # rejects ""; validate before reaching the database constraint.
-            reference=data.get("reference") or None,
+            reference=data.get("reference"),
             order_date=data.get("order_date") or timezone.localdate(),
             # A missing expected-delivery date defaults to today rather than NULL.
             expected_delivery=data.get("expected_delivery") or timezone.localdate(),
@@ -437,8 +435,7 @@ def _apply_purchase_order_fields(
     po: PurchaseOrder, data: PurchaseOrderUpdateData, staff: Staff
 ) -> None:
     if "reference" in data:
-        # Blank means unset (reference_not_blank), same rule as create.
-        po.reference = data.get("reference") or None
+        po.reference = data.get("reference")
     if "expected_delivery" in data:
         po.expected_delivery = data.get("expected_delivery")
     if "status" not in data:

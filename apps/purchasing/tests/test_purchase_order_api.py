@@ -189,16 +189,39 @@ class TestPurchaseOrderCreate:
         # The create response carries the ETag the client needs to mutate.
         assert response.headers["ETag"].startswith('"po:')
 
-    def test_blank_reference_is_stored_as_unset(self, client: Client) -> None:
-        # v1 wrote "" here and tripped its own reference_not_blank constraint.
-        # That constraint is NOT visible in v1's models.py — it was added by a
-        # raw-SQL migration and lives only in the live schema (verified against
-        # v1 production: 0 blank, 167 NULL of 913 purchase orders). Do not
-        # "correct" this test by reading v1's model file.
+    def test_a_blank_reference_is_a_validation_error(self, client: Client) -> None:
+        # The reference_not_blank constraint is NOT visible in v1's models.py --
+        # it was added by a raw-SQL migration and lives only in the live schema
+        # (verified against v1 production: 0 blank, 167 NULL of 913 purchase
+        # orders). So "" can never be stored, and NullableText refuses it at the
+        # boundary with a 422 naming the field rather than letting it reach the
+        # constraint (ADR 0040). Do not "correct" this by reading v1's models.
         response = client.post(PO_LIST_URL, data={"reference": ""}, content_type="application/json")
+
+        assert response.status_code == 422
+        assert not PurchaseOrder.objects.exists()
+
+    def test_an_omitted_reference_is_stored_as_unset(self, client: Client) -> None:
+        response = client.post(PO_LIST_URL, data={}, content_type="application/json")
 
         assert response.status_code == 201
         assert PurchaseOrder.objects.get(id=response.json()["id"]).reference is None
+
+    def test_an_explicit_null_reference_is_stored_as_unset(self, client: Client) -> None:
+        response = client.post(
+            PO_LIST_URL, data={"reference": None}, content_type="application/json"
+        )
+
+        assert response.status_code == 201
+        assert PurchaseOrder.objects.get(id=response.json()["id"]).reference is None
+
+    def test_surrounding_whitespace_is_trimmed_from_a_reference(self, client: Client) -> None:
+        response = client.post(
+            PO_LIST_URL, data={"reference": "  PO-42  "}, content_type="application/json"
+        )
+
+        assert response.status_code == 201
+        assert PurchaseOrder.objects.get(id=response.json()["id"]).reference == "PO-42"
 
     def test_price_tbc_clears_the_unit_cost(self, client: Client) -> None:
         response = client.post(

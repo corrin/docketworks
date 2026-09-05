@@ -4104,7 +4104,7 @@ export const zPurchaseOrderCreateRequest = z.object({
     lines: z.array(zPurchaseOrderLineCreateRequest).optional().default([]),
     order_date: z.iso.date().nullish(),
     pickup_address_id: z.uuid().nullish(),
-    reference: z.string().nullish(),
+    reference: z.string().min(1).nullish(),
     supplier_id: z.uuid().nullish()
 });
 
@@ -4206,7 +4206,7 @@ export const zPurchaseOrderUpdateRequest = z.object({
     lines: z.array(zPurchaseOrderLineUpdateRequest).optional(),
     lines_to_delete: z.array(z.uuid()).optional(),
     pickup_address_id: z.uuid().nullish(),
-    reference: z.string().nullish(),
+    reference: z.string().min(1).nullish(),
     status: z.string().optional(),
     supplier_id: z.uuid().nullish()
 });

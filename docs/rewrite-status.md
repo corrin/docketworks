@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **51 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **53** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 247 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2896 (all passing) |
+| Unit tests | 2899 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 125 recorded deviations |
@@ -548,11 +548,6 @@ never a second stream.
   today, which is exactly what
   [KAN-335](https://docketworks.atlassian.net/browse/KAN-335) fixes; do them together rather
   than reading each app's `services/*.py` against its `schemas.py` by hand.
-- **PO `reference` should be `NullableText`, not a service coercion**
-  ([KAN-330](https://docketworks.atlassian.net/browse/KAN-330)). The production 500 the
-  ticket opens with was a v1 defect and died at cutover; what survives is that
-  `purchase_order_service.py` coerces blank to `None` in the service, the pattern ADR 0040
-  forbids. Declare it at the boundary, drop the two coercions, regenerate the client.
 - **Three defects the handler-gate annotation surfaced**, deferred so a behaviour change
   would not ride a test-gate PR: `time_entry_rates.py` (`to_decimal` maps an unparseable
   stored multiplier to the default — absent keeps the default, present-but-unparseable

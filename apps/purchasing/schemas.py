@@ -192,7 +192,7 @@ class PurchaseOrderCreateRequest(Schema):
 
     supplier_id: UUID | None = None
     pickup_address_id: UUID | None = None
-    reference: str | None = None
+    reference: NullableText = None
     order_date: date | None = None
     expected_delivery: date | None = None
     lines: list[PurchaseOrderLineCreateRequest] = []  # noqa: RUF012 -- pydantic copies defaults
@@ -221,7 +221,7 @@ class PurchaseOrderUpdateRequest(Schema):
 
     supplier_id: UUID | None = None
     pickup_address_id: UUID | None = None
-    reference: str | None = None
+    reference: NullableText = None
     expected_delivery: date | None = None
     status: str = omittable("")
     lines_to_delete: list[UUID] = omittable([])

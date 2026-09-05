@@ -10146,7 +10146,8 @@ components:
           title: Pickup Address Id
         reference:
           anyOf:
-          - type: string
+          - minLength: 1
+            type: string
           - type: 'null'
           title: Reference
         supplier_id:
@@ -10757,7 +10758,8 @@ components:
           title: Pickup Address Id
         reference:
           anyOf:
-          - type: string
+          - minLength: 1
+            type: string
           - type: 'null'
           title: Reference
         status:
