@@ -27,15 +27,11 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company, Supplier, SupplierPickupAddress
 from apps.company.services.company_rest_service import pickup_address_data
-from apps.core.etag import (
-    PreconditionFailedError,
-    generate_updated_at_etag,
-    if_match_satisfied,
-)
 from apps.core.models import CompanyDefaults
 from apps.core.patching import apply_patch_fields
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
+from apps.purchasing.etag import require_current_etag
 from apps.purchasing.models import (
     PurchaseOrder,
     PurchaseOrderEvent,
@@ -56,30 +52,6 @@ logger = logging.getLogger(__name__)
 PURCHASE_ORDER_STATUSES: frozenset[str] = frozenset(
     value for value, _label in PurchaseOrder._meta.get_field("status").choices or []
 )
-
-
-# ── ETag (ADR 0003) ──────────────────────────────────────────────────────
-
-
-def purchase_order_etag(po: PurchaseOrder) -> str:
-    """Return the strong ETag for a purchase order (resource label ``po``)."""
-    return generate_updated_at_etag("po", po.id, po.updated_at)
-
-
-def current_purchase_order_etag(po_id: UUID) -> str | None:
-    """Return the current ETag for ``po_id``, or None when it does not exist."""
-    po = PurchaseOrder.objects.only("id", "updated_at").filter(id=po_id).first()
-    return purchase_order_etag(po) if po else None
-
-
-def require_current_etag(po: PurchaseOrder, if_match: str) -> None:
-    """Raise ``PreconditionFailedError`` unless ``if_match`` names this version."""
-    current = purchase_order_etag(po)
-    if not if_match_satisfied(if_match, current):
-        logger.warning(
-            "ETag mismatch on PO %s: client sent %r, current %r", po.id, if_match, current
-        )
-        raise PreconditionFailedError("Purchase order modified since it was fetched.")
 
 
 # ── Read shapes ──────────────────────────────────────────────────────────

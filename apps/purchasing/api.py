@@ -41,6 +41,7 @@ from apps.core.auth import CookieJWTAuth
 from apps.core.etag import if_none_match_satisfied
 from apps.job.models import Job
 from apps.job.services import job_search, job_service
+from apps.purchasing.etag import purchase_order_etag
 from apps.purchasing.models import PurchaseOrder, Stock
 from apps.purchasing.schemas import (
     AllJobsResponse,
@@ -270,7 +271,7 @@ def create_purchase_order(
         po = purchase_order_service.create_purchase_order(data, created_by=_staff(request))
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
-    response.headers["ETag"] = purchase_order_service.purchase_order_etag(po)
+    response.headers["ETag"] = purchase_order_etag(po)
     return Status(201, {"id": po.id, "po_number": po.po_number})
 
 
@@ -300,7 +301,7 @@ def retrieve_purchase_order(
 ) -> Status[None] | dict[str, object]:
     """Fetch PO details (conditional GET via If-None-Match, ADR 0003)."""
     po = _get_po_or_404(po_id)
-    etag = purchase_order_service.purchase_order_etag(po)
+    etag = purchase_order_etag(po)
     response.headers["ETag"] = etag
     if_none_match = request.headers.get("If-None-Match")
     if if_none_match and if_none_match_satisfied(if_none_match, etag):
@@ -389,7 +390,7 @@ def purchasing_purchase_orders_partial_update(
         # refuses a line whose price is still TBC. That is a bad request, not
         # a crash. Stock and job allocations use the same 400 contract.
         raise HttpError(400, str(exc)) from exc
-    response.headers["ETag"] = purchase_order_service.purchase_order_etag(po)
+    response.headers["ETag"] = purchase_order_etag(po)
     return {"id": po.id, "status": po.status}
 
 
@@ -529,17 +530,30 @@ def get_allocation_details(
     tags=["purchasing"],
 )
 def delete_allocation(
-    request: HttpRequest, po_id: UUID, line_id: UUID, payload: AllocationDeleteRequest
+    request: HttpRequest,
+    po_id: UUID,
+    line_id: UUID,
+    payload: AllocationDeleteRequest,
+    response: HttpResponse,
 ) -> dict[str, object]:
-    """Delete a Stock or CostLine allocation and recompute the PO status."""
+    """Delete a Stock or CostLine allocation (If-Match required, ADR 0003).
+
+    The delete decrements ``received_quantity`` and recomputes the PO status, so
+    it carries the same precondition as the PO PATCH and answers with the
+    refreshed ETag -- without that header the client's stored version goes stale
+    and its next mutation 412s for no reason.
+    """
+    if_match = _require_if_match(request)
     try:
-        result = allocation_service.delete_allocation(
+        po, result = allocation_service.delete_allocation(
             po_id=po_id,
             allocation_type=payload.allocation_type,
             allocation_id=payload.allocation_id,
+            if_match=if_match,
         )
     except allocation_service.AllocationDeletionError as exc:
         raise HttpError(400, str(exc)) from exc
+    response.headers["ETag"] = purchase_order_etag(po)
     return {
         "success": result.success,
         "message": result.message,
@@ -593,7 +607,7 @@ def purchasing_delivery_receipts_create(
         )
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
-    response.headers["ETag"] = purchase_order_service.purchase_order_etag(po)
+    response.headers["ETag"] = purchase_order_etag(po)
     return {"success": True}
 
 

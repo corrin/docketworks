@@ -291,7 +291,7 @@ export type AllocationItem = {
     /**
      * Job Id
      */
-    job_id: string;
+    job_id: string | null;
     /**
      * Job Name
      */

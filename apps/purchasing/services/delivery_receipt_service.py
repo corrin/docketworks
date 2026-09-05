@@ -31,6 +31,7 @@ from django.db.models import F
 from apps.accounts.models import Staff
 from apps.core.errors import AppErrorContext, InvalidInputError, persist_app_error
 from apps.job.models import Job
+from apps.purchasing.etag import require_current_etag
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.services.allocation_service import (
     AllocationMetadata,
@@ -39,7 +40,6 @@ from apps.purchasing.services.allocation_service import (
     default_retail_rate_pct,
     recompute_purchase_order_status,
 )
-from apps.purchasing.services.purchase_order_service import require_current_etag
 
 logger = logging.getLogger(__name__)
 

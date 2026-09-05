@@ -308,9 +308,11 @@ components:
           title: Description
           type: string
         job_id:
-          format: uuid
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
           title: Job Id
-          type: string
         job_name:
           title: Job Name
           type: string
@@ -20477,7 +20479,16 @@ paths:
       - Purchase Orders
   /api/purchasing/purchase-orders/{po_id}/lines/{line_id}/allocations/delete/:
     post:
-      description: Delete a Stock or CostLine allocation and recompute the PO status.
+      description: 'Delete a Stock or CostLine allocation (If-Match required, ADR 0003).
+
+
+        The delete decrements ``received_quantity`` and recomputes the PO status, so
+
+        it carries the same precondition as the PO PATCH and answers with the
+
+        refreshed ETag -- without that header the client''s stored version goes stale
+
+        and its next mutation 412s for no reason.'
       operationId: deleteAllocation
       parameters:
       - in: path

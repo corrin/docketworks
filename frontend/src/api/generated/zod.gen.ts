@@ -124,7 +124,7 @@ export const zAllocationItem = z.object({
     allocation_id: z.uuid().nullable(),
     alloy: z.string().nullable(),
     description: z.string(),
-    job_id: z.uuid(),
+    job_id: z.uuid().nullable(),
     job_name: z.string(),
     metal_type: z.string().nullable(),
     quantity: z.number(),

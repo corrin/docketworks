@@ -3571,7 +3571,12 @@ export const createPurchaseOrderEvent = <ThrowOnError extends boolean = false>(o
 /**
  * Delete one allocation from a purchase order line
  *
- * Delete a Stock or CostLine allocation and recompute the PO status.
+ * Delete a Stock or CostLine allocation (If-Match required, ADR 0003).
+ *
+ * The delete decrements ``received_quantity`` and recomputes the PO status, so
+ * it carries the same precondition as the PO PATCH and answers with the
+ * refreshed ETag -- without that header the client's stored version goes stale
+ * and its next mutation 412s for no reason.
  */
 export const deleteAllocation = <ThrowOnError extends boolean = false>(options: Options<DeleteAllocationData, ThrowOnError>): RequestResult<DeleteAllocationResponses, unknown, ThrowOnError> => (options.client ?? client).post<DeleteAllocationResponses, unknown, ThrowOnError>({
     responseType: 'json',

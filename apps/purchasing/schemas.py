@@ -345,7 +345,11 @@ class AllocationItem(ResponseSchema):
     """Wire contract for AllocationItem."""
 
     type: Literal["stock", "job"]
-    job_id: UUID
+    # Opus: nullable because Stock.job is on_delete=SET_NULL (models.py:350), so a
+    # stock allocation outlives the job it was received against and
+    # list_allocations emits None for it. Declaring UUID here made the endpoint
+    # fail its own response validation on such a row rather than serve it.
+    job_id: UUID | None
     job_name: str
     quantity: float
     retail_rate: float = 0

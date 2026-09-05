@@ -88,6 +88,13 @@ const JOB_MUTATION_PATTERNS = [
 const PO_MUTATION_PATTERNS = [
   /\/api\/purchasing\/purchase-orders\/[^/]+\/?$/, // PATCH on PO detail
   /\/api\/purchasing\/delivery-receipts\/?$/, // POST delivery receipts
+  // POST allocation delete. It decrements received_quantity and recomputes the
+  // PO status, so it is a PO mutation and carries the precondition. The first
+  // pattern cannot reach it: [^/] stops at the slash before /lines/.
+  // Opus: /events/ and /email/ are deliberately absent — neither touches
+  // PurchaseOrder.updated_at, so a precondition there would 412 a comment
+  // whenever anyone else edited the PO.
+  /\/api\/purchasing\/purchase-orders\/[^/]+\/lines\/[^/]+\/allocations\/delete\/?$/,
 ]
 
 function poIdForMutation(url: string, body: unknown): string | null {
@@ -202,7 +209,9 @@ export function attachIfMatch<T extends ConcurrencyRequest>(config: T): T {
 
 export interface ConcurrencyResponse {
   headers: Record<string, unknown>
-  config: { url?: string }
+  // `data` is the REQUEST body axios echoes back on the response config; it is
+  // how a body-addressed mutation's resource id is recovered (see below).
+  config: { url?: string; data?: unknown }
 }
 
 /** Response interceptor: capture strong resource versions from Job/PO endpoints. */
@@ -213,8 +222,17 @@ export function captureResourceVersion<T extends ConcurrencyResponse>(response: 
     return response
   }
   for (const rule of RULES) {
-    if (!rule.isVersionedEndpoint(url)) continue
-    const id = rule.idFromUrl(url)
+    // Opus: a mutation endpoint counts as versioned here even when the read
+    // rule does not match it. Gating on isVersionedEndpoint alone dropped the
+    // fresh ETag that POST /api/purchasing/delivery-receipts/ returns, because
+    // its URL carries no /purchase-orders/<uuid>/ segment — so every receipt
+    // left a stale version in the store and 412'd the next PO mutation until a
+    // refetch landed.
+    if (!rule.isVersionedEndpoint(url) && !rule.isMutationEndpoint(url)) continue
+    // The URL is tried first and the body only as a fallback: a URL-addressed
+    // response is unambiguous, while the body form exists solely for endpoints
+    // that carry the id there.
+    const id = rule.idFromUrl(url) ?? rule.idForMutation(url, response.config.data)
     if (id) {
       setEtag(etagKey(rule.kind, id), version)
     }

@@ -30,6 +30,7 @@ from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, CostSet
+from apps.purchasing.etag import require_current_etag
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.tasks import queue_metadata_parse_if_eligible
 
@@ -257,7 +258,15 @@ def _consuming_cost_lines(stock_id: UUID) -> QuerySet[CostLine]:
 
 
 def _get_po_or_error(po_id: UUID) -> PurchaseOrder:
-    po = PurchaseOrder.objects.filter(id=po_id).first()
+    """Lock and return the PO; the caller owns the transaction.
+
+    Opus: the row is locked here rather than read plainly because the caller
+    checks the ETag against it and then writes. An unlocked read reproduces the
+    check-then-write race purchase_order_service.update_purchase_order
+    documents as forbidden -- two deletes could both pass the precondition and
+    both decrement received_quantity.
+    """
+    po = PurchaseOrder.objects.select_for_update(of=("self",)).filter(id=po_id).first()
     if po is None:
         raise AllocationDeletionError(f"Purchase Order {po_id} not found")
     return po
@@ -379,12 +388,20 @@ def delete_allocation(
     po_id: UUID,
     allocation_type: AllocationType,
     allocation_id: UUID,
-) -> DeletionResult:
+    if_match: str,
+) -> tuple[PurchaseOrder, DeletionResult]:
     """Delete one Stock or CostLine allocation and recompute the PO status.
 
     ``line_id`` remains part of the public URL but is not trusted to resolve the
     allocation. The allocation row carries its own PO-line back-reference;
     trusting the URL could decrement the wrong line.
+
+    Requires ``If-Match`` (ADR 0003): this decrements ``received_quantity`` and
+    recomputes the PO status, so it is a PO mutation like any other. Without the
+    precondition two operators deleting from stale lists both succeed -- and
+    ``_decrement_received`` clamps at zero, so the second decrement is absorbed
+    silently rather than erroring. Returns the PO so the caller can emit the
+    refreshed ETag.
     """
     logger.info(
         "Starting allocation deletion - PO: %s, Type: %s, ID: %s",
@@ -395,6 +412,7 @@ def delete_allocation(
     try:
         with transaction.atomic():
             po = _get_po_or_error(po_id)
+            require_current_etag(po, if_match)
 
             if allocation_type == STOCK_ALLOCATION:
                 stock = _get_stock_or_error(po, allocation_id)
@@ -419,7 +437,7 @@ def delete_allocation(
                 result = _delete_job_allocation(po_line, locked_line)
 
             recompute_purchase_order_status(po)
-            return result
+            return po, result
     except AllocationDeletionError:
         raise
     except Exception as exc:
