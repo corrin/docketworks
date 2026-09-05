@@ -1,4 +1,5 @@
 import { QueryState } from '@/features/shared/QueryState'
+import { PoDocumentActions } from './PoDocumentActions'
 import { PoLinesTable } from './PoLinesTable'
 import { PoSummaryCard } from './PoSummaryCard'
 import { usePoLines } from './usePoLines'
@@ -8,7 +9,7 @@ interface PoDetailPageProps {
 }
 
 export function PoDetailPage({ poId }: PoDetailPageProps) {
-  const { poQuery, patchHeader, patchLine, createLine } = usePoLines(poId)
+  const { poQuery, patchHeader, patchLine, createLine, deleteLine } = usePoLines(poId)
   const po = poQuery.data
 
   return (
@@ -24,11 +25,19 @@ export function PoDetailPage({ poId }: PoDetailPageProps) {
       >
         {po && (
           <div className="space-y-6">
-            <h1 className="text-xl font-bold text-gray-900">Purchase Order {po.po_number}</h1>
+            <div className="flex items-center justify-between">
+              <h1 className="text-xl font-bold text-gray-900">Purchase Order {po.po_number}</h1>
+              <PoDocumentActions po={po} />
+            </div>
             <PoSummaryCard mode="detail" po={po} patchHeader={patchHeader} />
             <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
               <h2 className="mb-3 text-sm font-semibold text-gray-700">Line Items</h2>
-              <PoLinesTable lines={po.lines} patchLine={patchLine} createLine={createLine} />
+              <PoLinesTable
+                lines={po.lines}
+                patchLine={patchLine}
+                deleteLine={deleteLine}
+                createLine={createLine}
+              />
             </div>
           </div>
         )}

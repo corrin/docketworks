@@ -31,15 +31,16 @@ from django.db.models import F
 from apps.accounts.models import Staff
 from apps.core.errors import AppErrorContext, InvalidInputError, persist_app_error
 from apps.job.models import Job
+from apps.purchasing.etag import require_current_etag
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.services.allocation_service import (
     AllocationMetadata,
+    consuming_cost_lines,
     create_costline_from_allocation,
     create_stock_from_allocation,
     default_retail_rate_pct,
     recompute_purchase_order_status,
 )
-from apps.purchasing.services.purchase_order_service import require_current_etag
 
 logger = logging.getLogger(__name__)
 
@@ -164,11 +165,52 @@ def _validate_and_prepare_allocations(
             f"Allocation mismatch for line '{line.description}' (id {line.id}). "
             f"Total Received={line_request.total_received}, Sum of Allocations={allocated}."
         )
+    # Opus: a line receiving nothing is refused rather than ignored. It passes
+    # the reconciliation check above (0 == 0) and then reaches
+    # _delete_previous_stock_for_line, which clears the line's existing stock and
+    # re-materialises nothing -- so submitting every line of a PO, touched or
+    # not, destroys the stock of the ones already received while their
+    # received_quantity stays put. A caller with nothing to record for a line
+    # omits the line.
+    if not prepared and line_request.total_received == 0:
+        raise DeliveryReceiptValidationError(
+            f"Line '{line.description}' (id {line.id}) has nothing to receive; "
+            f"omit it from the receipt instead of sending a zero quantity."
+        )
     return line_request.total_received, prepared
 
 
 def _delete_previous_stock_for_line(line: PurchaseOrderLine, *, run_id: str) -> None:
-    existing = Stock.objects.filter(source="purchase_order", source_purchase_order_line=line)
+    """Clear the line's prior purchase-order stock before re-materialising it.
+
+    Opus: refuses when a cost line has already consumed one of those rows. The
+    allocation-delete path has always refused that case
+    (``allocation_service._delete_stock_allocation``); this path did not, so a
+    second receipt silently deleted stock that jobs were costed against and left
+    their ``ext_refs.stock_id`` pointing at nothing -- an unindexed JSON string
+    with no foreign key, so the database could not object either.
+
+    Deleting at all is the wrong primitive: stock should move, never vanish. It
+    survives here only because ``unique_active_stock_per_po_line``
+    (``models.py``) permits one live row per PO line, leaving re-receipting no
+    other option. The movement ledger removes both.
+    """
+    # Locked, not merely read: the guard below checks each row for consumption
+    # and then deletes it, and stock_service.consume_stock takes this same lock
+    # before writing a cost line that references the row. Without holding it,
+    # a consumption committing between the check and the delete leaves exactly
+    # the orphaned ext_refs.stock_id this function exists to prevent -- and the
+    # consumed quantity goes with the deleted row.
+    existing = Stock.objects.select_for_update().filter(
+        source="purchase_order", source_purchase_order_line=line
+    )
+    for stock_item in existing:
+        consumed_count = consuming_cost_lines(stock_item.id).count()
+        if consumed_count:
+            raise DeliveryReceiptValidationError(
+                f"Line '{line.description}' ({line.id}) has stock consumed by "
+                f"{consumed_count} job(s); delete that allocation before receiving again."
+            )
     pre_count = existing.count()
     if pre_count:
         logger.warning(

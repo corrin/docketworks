@@ -286,18 +286,22 @@
     field. Phase 3c-2.
 
 - operation: createPurchaseOrder / purchasing_purchase_orders_partial_update
-  change: "A blank reference is stored as NULL (v1 wrote '' and 500ed on its own constraint)"
+  change: "A blank reference is a 422; null clears it (v1 wrote '' and 500ed on its own constraint)"
   reason: >
     v1's create passed data.get("reference", "") straight to the model, and
     the reference_not_blank check constraint rejected it, so creating a PO
-    with no reference was a 500. v2 treats blank as unset (NULL), matching how
-    every other nullable text field on the model behaves.
+    with no reference was a 500. v2 declares reference as NullableText, so ""
+    and "   " are a 422 naming the field and null is how a client clears it —
+    the same contract already carried by every nullable PO-line, stock and
+    mapping text field (ADR 0040, KAN-330). The service coerced blank to None
+    until then, which is the pattern that ADR forbids: the rule belongs at the
+    boundary, where the OpenAPI schema and the generated client inherit it.
     DO NOT RE-FLAG: that constraint is invisible in v1's models.py — it was
     added by a raw-SQL migration and exists only in v1's live schema (the same
     pattern Phase 2's constraint sweep found). Confirmed against v1 production:
     the constraint is present on purchasing_purchaseorder and the data agrees
     (0 blank, 167 NULL of 913 rows). Phase 3c-2; re-confirmed adversarial
-    review 2026-08-03.
+    review 2026-08-03; boundary contract 2026-09-05.
 
 - operation: purchasing_purchase_orders_partial_update
   change: "A pickup address must belong to the PO's supplier, and changing the supplier drops it (v1 accepted any active address and kept it across a supplier change)"
@@ -328,12 +332,16 @@
     request. Phase 3c-2.
 
 - operation: purchasing_purchase_orders_partial_update
-  change: "An unknown PO status is rejected with 400 (v1 wrote any string to the column)"
+  change: "An unknown PO status is rejected with 422 (v1 wrote any string to the column)"
   reason: >
     status choices are not DB-enforced, so v1's CharField serializer let a
-    client typo through into the column. v2 validates against the model's own
-    choice set, the same posture taken for job_status in Phase 3b-1.
-    Phase 3c-2.
+    client typo through into the column. v2 declares the five states as a
+    union on the request schema, so a sixth is a 422 naming the field and the
+    generated client carries the union too — a client typed `str` cannot map
+    the value exhaustively, which is what kept a fallback branch on the list
+    screen for a status that cannot exist. The service's runtime re-check was
+    removed with it: once the contract carries the union, the check could not
+    fire (ADR 0028). Phase 3c-2; boundary contract 2026-09-05.
 
 - operation: deleteAllocation
   change: "Deleting an allocation always bumps the PO's updated_at (and therefore its ETag)"

@@ -1,3 +1,4 @@
+import { Trash2 } from 'lucide-react'
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -44,6 +45,7 @@ interface PoLinesTableProps {
   lines: readonly PurchaseOrderLineOut[]
   readOnly?: boolean
   patchLine: (lineId: string, body: PoLinePatch, display?: Partial<PurchaseOrderLineOut>) => void
+  deleteLine: (lineId: string) => void
   createLine: (draft: PoLineDraft, callbacks: CreateLineCallbacks) => void
 }
 
@@ -53,6 +55,7 @@ interface GridCellContext {
   jobByNumber: ReadonlyMap<number, JobForPurchasing>
   jobsLoading: boolean
   patchLine: PoLinesTableProps['patchLine']
+  deleteLine: PoLinesTableProps['deleteLine']
   updateDraft: (localId: string, patch: Partial<PoLineDraft>) => void
   isPhantom: (localId: string) => boolean
   isPersisting: (localId: string) => boolean
@@ -79,14 +82,15 @@ declare module '@tanstack/react-table' {
  * empty phantom row and no add-line button (the wire contract asserts the
  * button's absence). Typed drafts persist on row EXIT only — in this grid
  * that includes the spec's Tab out of unit-cost, because unit-cost is the
- * row's last focusable cell (line delete is deferred scope, so no trailing
- * action button swallows the Tab).
+ * row's last focusable cell on a DRAFT row: ActionsCell renders nothing
+ * except on server rows, so there is no trailing control to swallow the Tab.
  */
 export function PoLinesTable({
   lines,
   readOnly = false,
   patchLine,
   createLine,
+  deleteLine,
 }: PoLinesTableProps) {
   const jobsQuery = useQuery(purchasingAllJobsRetrieveOptions())
   // Eligibility is settled once here, not per row: every cell offers the same
@@ -125,6 +129,7 @@ export function PoLinesTable({
     jobByNumber,
     jobsLoading: jobsQuery.isPending,
     patchLine,
+    deleteLine,
     updateDraft: draftRows.updateDraft,
     isPhantom: draftRows.isPhantom,
     isPersisting: draftRows.isPersisting,
@@ -149,7 +154,7 @@ export function PoLinesTable({
   )
 }
 
-const EDITABLE_COLUMNS = new Set(['description', 'job', 'quantity', 'unit_cost'])
+const EDITABLE_COLUMNS = new Set(['description', 'job', 'quantity', 'price_tbc', 'unit_cost'])
 
 type CellProps = CellContext<typeof editableGridFeatures, GridRow>
 
@@ -298,6 +303,10 @@ function NumberCell({
   const gridRow = row.original
   const raw = gridRow.type === 'server' ? gridRow.line[fieldName] : gridRow.draft[fieldName]
   const serverValue = raw === null ? '' : trimDecimal(raw)
+  // A line whose price is still to be confirmed has no cost to type: the
+  // service refuses one for it, so the input is closed rather than accepting
+  // a value that would be dropped.
+  const priceTbc = gridRow.type === 'server' ? gridRow.line.price_tbc : gridRow.draft.price_tbc
 
   const field = useAutosaveField(
     serverValue,
@@ -318,7 +327,7 @@ function NumberCell({
       inputMode="decimal"
       step={fieldName === 'quantity' ? 1 : 0.01}
       value={field.value}
-      disabled={rowLocked(context, gridRow)}
+      disabled={rowLocked(context, gridRow) || (fieldName === 'unit_cost' && priceTbc)}
       data-automation-id={`PoLinesTable-${automation}-${rowIndex}`}
       aria-label={`${automation} row ${rowIndex}`}
       className="w-24 rounded border border-slate-200 px-2 py-1 text-right tabular-nums disabled:bg-slate-50 disabled:text-slate-500"
@@ -326,6 +335,63 @@ function NumberCell({
       onFocus={field.onFocus}
       onBlur={field.onBlur}
     />
+  )
+}
+
+function PriceTbcCell({ row, table }: CellProps) {
+  const rowIndex = row.index
+  const context = cellMeta(table)
+  const gridRow = row.original
+  const checked = gridRow.type === 'server' ? gridRow.line.price_tbc : gridRow.draft.price_tbc
+
+  return (
+    <input
+      type="checkbox"
+      checked={checked}
+      disabled={rowLocked(context, gridRow)}
+      data-automation-id={`PoLinesTable-price-tbc-${rowIndex}`}
+      aria-label={`price to be confirmed row ${rowIndex}`}
+      className="h-4 w-4 accent-blue-600 disabled:opacity-50"
+      onChange={(event) => {
+        const next = event.target.checked
+        if (gridRow.type === 'server') {
+          context.patchLine(gridRow.line.id, { price_tbc: next }, { price_tbc: next })
+        } else {
+          context.updateDraft(gridRow.localId, { price_tbc: next })
+        }
+      }}
+    />
+  )
+}
+
+function ActionsCell({ row, table }: CellProps) {
+  const rowIndex = row.index
+  const context = cellMeta(table)
+  const gridRow = row.original
+  // The phantom row has nothing to delete, and a draft is removed by clearing
+  // it rather than by asking the server.
+  if (gridRow.type !== 'server') return null
+
+  return (
+    <button
+      type="button"
+      // Reachable by keyboard. It carried tabIndex={-1} to keep unit-cost the
+      // row's last focusable cell so Tab out of it commits a draft — but the
+      // early return above means a draft row renders no button at all, so the
+      // attribute protected nothing and left the only way to delete a line
+      // mouse-only. (CostLineGrid does render actions on draft rows, which is
+      // where that reasoning belongs.)
+      disabled={context.readOnly}
+      data-automation-id={`PoLinesTable-delete-${rowIndex}`}
+      aria-label={`delete line ${rowIndex}`}
+      className="text-slate-400 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+      onClick={() => {
+        if (!window.confirm('Delete this purchase order line?')) return
+        context.deleteLine(gridRow.line.id)
+      }}
+    >
+      <Trash2 className="h-4 w-4" />
+    </button>
   )
 }
 
@@ -346,8 +412,11 @@ function TotalCell({ row }: CellProps) {
 const columnHelper = createColumnHelper<typeof editableGridFeatures, GridRow>()
 
 // Column order is load-bearing: unit_cost must be the LAST focusable cell in
-// a row so the wire contract's Tab out of it exits the row and fires the
-// draft commit (total renders no input; there is no actions column).
+// a DRAFT row so the wire contract's Tab out of it exits the row and fires the
+// draft commit. Total renders no input and actions renders nothing on a draft
+// row, so neither takes focus there. Price TBC sits BEFORE unit cost for the
+// same reason — it is a checkbox, it DOES render on drafts, and after unit
+// cost it would swallow that Tab.
 const COLUMNS = [
   columnHelper.display({ id: 'item', header: 'Item', cell: ItemCell }),
   columnHelper.display({ id: 'description', header: 'Description', cell: DescriptionCell }),
@@ -357,10 +426,12 @@ const COLUMNS = [
     header: 'Quantity',
     cell: (props: CellProps) => <NumberCell {...props} field="quantity" automation="quantity" />,
   }),
+  columnHelper.display({ id: 'price_tbc', header: 'Price TBC', cell: PriceTbcCell }),
   columnHelper.display({
     id: 'unit_cost',
     header: 'Unit Cost',
     cell: (props: CellProps) => <NumberCell {...props} field="unit_cost" automation="unit-cost" />,
   }),
   columnHelper.display({ id: 'total', header: 'Total', cell: TotalCell }),
+  columnHelper.display({ id: 'actions', header: '', cell: ActionsCell }),
 ]

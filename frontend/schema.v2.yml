@@ -10144,7 +10144,8 @@ components:
           title: Pickup Address Id
         reference:
           anyOf:
-          - type: string
+          - minLength: 1
+            type: string
           - type: 'null'
           title: Reference
         supplier_id:
@@ -10225,11 +10226,20 @@ components:
           - type: 'null'
           title: Reference
         status:
+          enum:
+          - draft
+          - submitted
+          - partially_received
+          - fully_received
+          - deleted
           title: Status
           type: string
         supplier:
           title: Supplier
           type: string
+        supplier_has_email:
+          title: Supplier Has Email
+          type: boolean
         supplier_has_xero_id:
           title: Supplier Has Xero Id
           type: boolean
@@ -10259,6 +10269,7 @@ components:
       - supplier
       - supplier_id
       - supplier_has_xero_id
+      - supplier_has_email
       - lines
       - pickup_address
       - created_by_name
@@ -10282,40 +10293,32 @@ components:
     PurchaseOrderEmailResponse:
       description: Wire contract for PurchaseOrderEmailResponse.
       properties:
+        draft_id:
+          title: Draft Id
+          type: string
+        draft_url:
+          title: Draft Url
+          type: string
         email_body:
-          anyOf:
-          - type: string
-          - type: 'null'
           title: Email Body
+          type: string
         email_subject:
-          anyOf:
-          - type: string
-          - type: 'null'
           title: Email Subject
-        mailto_url:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Mailto Url
+          type: string
         message:
           anyOf:
           - type: string
           - type: 'null'
           title: Message
-        pdf_url:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Pdf Url
         success:
           title: Success
           type: boolean
       required:
+      - draft_id
+      - draft_url
       - email_body
       - email_subject
-      - mailto_url
       - message
-      - pdf_url
       - success
       title: PurchaseOrderEmailResponse
       type: object
@@ -10688,6 +10691,12 @@ components:
           title: Po Number
           type: string
         status:
+          enum:
+          - draft
+          - submitted
+          - partially_received
+          - fully_received
+          - deleted
           title: Status
           type: string
         supplier:
@@ -10712,8 +10721,20 @@ components:
       title: PurchaseOrderList
       type: object
     PurchaseOrderListQuery:
-      description: Query parameters for purchase-order listing, including CSV statuses.
+      description: 'Query params for purchase-order listing: CSV statuses, search, paging.'
       properties:
+        page:
+          default: 1
+          title: Page
+          type: integer
+        page_size:
+          default: 50
+          title: Page Size
+          type: integer
+        q:
+          default: ''
+          title: Q
+          type: string
         status:
           anyOf:
           - type: string
@@ -10721,14 +10742,44 @@ components:
           title: Status
       title: PurchaseOrderListQuery
       type: object
+    PurchaseOrderListResponse:
+      description: One page of purchase orders in the shared pagination envelope.
+      properties:
+        count:
+          title: Count
+          type: integer
+        page:
+          title: Page
+          type: integer
+        page_size:
+          title: Page Size
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/PurchaseOrderList'
+          title: Results
+          type: array
+        total_pages:
+          title: Total Pages
+          type: integer
+      required:
+      - results
+      - count
+      - page
+      - page_size
+      - total_pages
+      title: PurchaseOrderListResponse
+      type: object
     PurchaseOrderUpdateRequest:
       description: "Partial purchase-order update in which field presence is significant.\n\n``supplier_id``,\
         \ ``pickup_address_id``, ``reference`` and\n``expected_delivery`` are nullable because each can\
         \ be CLEARED \u2014 the\ncolumns are nullable and NULL is what unset means there. ``status`` cannot:\n\
-        the column is NOT NULL, so a null is a 422 rather than something the\nhandler silently drops.\n\
-        \nThe two list fields are presence-only. A null list means nothing an empty\nlist does not, and\
-        \ reading them from ``model_fields_set`` rather than a\nnull check is what lets a caller send\
-        \ ``lines: []``."
+        the column is NOT NULL, so a null is a 422 rather than something the\nhandler silently drops.\
+        \ Its sentinel is ``\"draft\"`` (the model default)\nrather than ``\"\"`` because the annotation\
+        \ is the five-value union and the\nplaceholder must not contradict it; the handler reads presence\
+        \ from\n``model_fields_set`` and never the value.\n\nThe two list fields are presence-only. A\
+        \ null list means nothing an empty\nlist does not, and reading them from ``model_fields_set``\
+        \ rather than a\nnull check is what lets a caller send ``lines: []``."
       properties:
         expected_delivery:
           anyOf:
@@ -10755,10 +10806,17 @@ components:
           title: Pickup Address Id
         reference:
           anyOf:
-          - type: string
+          - minLength: 1
+            type: string
           - type: 'null'
           title: Reference
         status:
+          enum:
+          - draft
+          - submitted
+          - partially_received
+          - fully_received
+          - deleted
           title: Status
           type: string
         supplier_id:
@@ -20211,7 +20269,7 @@ paths:
       - Product Mapping
   /api/purchasing/purchase-orders/:
     get:
-      description: List POs, optionally filtered to a comma-separated set of statuses.
+      description: One page of POs, filtered by a comma-separated status set and ``q``.
       operationId: listPurchaseOrders
       parameters:
       - in: query
@@ -20222,15 +20280,33 @@ paths:
           - type: string
           - type: 'null'
           title: Status
+      - in: query
+        name: q
+        required: false
+        schema:
+          default: ''
+          title: Q
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
+        required: false
+        schema:
+          default: 50
+          title: Page Size
+          type: integer
       responses:
         '200':
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/PurchaseOrderList'
-                title: Response
-                type: array
+                $ref: '#/components/schemas/PurchaseOrderListResponse'
           description: OK
       security:
       - CookieJWTAuth: []
@@ -20394,7 +20470,10 @@ paths:
       - purchasing
   /api/purchasing/purchase-orders/{po_id}/email/:
     post:
-      description: Build the mailto payload, applying any recipient/message overrides.
+      description: "Draft the supplier email, with the order PDF attached, for this operator.\n\nThe draft\
+        \ lands in the mailbox of whoever pressed the button \u2014 they signed\nin with that Workspace\
+        \ address, so it is a mailbox they have \u2014 and nothing\nis sent until they read it and send\
+        \ it."
       operationId: getPurchaseOrderEmail
       parameters:
       - in: path
@@ -20477,7 +20556,16 @@ paths:
       - Purchase Orders
   /api/purchasing/purchase-orders/{po_id}/lines/{line_id}/allocations/delete/:
     post:
-      description: Delete a Stock or CostLine allocation and recompute the PO status.
+      description: 'Delete a Stock or CostLine allocation (If-Match required, ADR 0003).
+
+
+        The delete decrements ``received_quantity`` and recomputes the PO status, so
+
+        it carries the same precondition as the PO PATCH and answers with the
+
+        refreshed ETag -- without that header the client''s stored version goes stale
+
+        and its next mutation 412s for no reason.'
       operationId: deleteAllocation
       parameters:
       - in: path

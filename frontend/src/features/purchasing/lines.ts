@@ -1,4 +1,4 @@
-import type { JobForPurchasing, PurchaseOrderLineUpdateRequest } from '@/api'
+import type { JobForPurchasing, PurchaseOrderLineOut, PurchaseOrderLineUpdateRequest } from '@/api'
 
 // A PO line never books against a closed job (v1 rule).
 const EXCLUDED_STATUSES = new Set(['rejected', 'archived', 'completed'])
@@ -26,6 +26,7 @@ export interface PoLineDraft {
   description: string
   quantity: string
   unit_cost: string | null
+  price_tbc: boolean
   item_code: string | null
   metal_type: string | null
   alloy: string | null
@@ -41,6 +42,7 @@ export function emptyPoLineDraft(): PoLineDraft {
     description: '',
     quantity: '1',
     unit_cost: null,
+    price_tbc: false,
     item_code: null,
     metal_type: null,
     alloy: null,
@@ -90,6 +92,9 @@ export function draftCreateBody(draft: PoLineDraft): PurchaseOrderLineUpdateRequ
     quantity: draft.quantity,
   }
   if (draft.unit_cost !== null) body.unit_cost = draft.unit_cost
+  // Sent only when set, so an untouched draft does not assert "priced" against
+  // a service whose default is already false.
+  if (draft.price_tbc) body.price_tbc = true
   if (draft.item_code !== null) body.item_code = draft.item_code
   if (draft.metal_type !== null) body.metal_type = draft.metal_type
   if (draft.alloy !== null) body.alloy = draft.alloy
@@ -97,4 +102,57 @@ export function draftCreateBody(draft: PoLineDraft): PurchaseOrderLineUpdateRequ
   if (draft.location !== null) body.location = draft.location
   if (draft.job_id !== null) body.job_id = draft.job_id
   return body
+}
+
+/**
+ * The Jobs cell on the PO list: one number, two joined, or the first plus a
+ * count.
+ *
+ * Opus: a PO covering many jobs is normal, so the cell states how many rather
+ * than growing with them — the full set is on the row's title attribute and
+ * the detail page. An em dash means the order is not booked to a job at all,
+ * which is different from having none listed.
+ */
+export function poListJobsLabel(jobs: readonly { job_number: string }[]): string {
+  if (jobs.length === 0) return '—'
+  if (jobs.length === 1) return jobs[0]!.job_number
+  if (jobs.length === 2) return `${jobs[0]!.job_number}, ${jobs[1]!.job_number}`
+  return `${jobs[0]!.job_number} +${jobs.length - 1} others`
+}
+
+/** What a purchase order is worth so far, and how much of it is still unknown. */
+export interface PoOrderValue {
+  knownSubtotal: number
+  unresolvedCount: number
+}
+
+/**
+ * The order's value, computed from the lines the detail page already holds.
+ *
+ * Opus: KAN-137 rules out an API field for this, and the reason is worth
+ * keeping — a total that reached the wire would have to be recomputed on every
+ * line edit, while the lines are already here and change under the user's
+ * hands. It reports the unresolved count separately rather than treating an
+ * unknown price as zero, so a partial figure can never be read as a complete
+ * one. Blank lines count for nothing: the grid always carries a phantom row.
+ */
+export function poOrderValue(
+  lines: readonly Pick<
+    PurchaseOrderLineOut,
+    'description' | 'quantity' | 'unit_cost' | 'price_tbc'
+  >[],
+): PoOrderValue {
+  let knownSubtotal = 0
+  let unresolvedCount = 0
+  for (const line of lines) {
+    if (line.description.trim() === '') continue
+    const cost = line.price_tbc || line.unit_cost === null ? null : Number(line.unit_cost)
+    const amount = cost === null ? null : cost * Number(line.quantity)
+    if (amount === null || !Number.isFinite(amount)) {
+      unresolvedCount += 1
+      continue
+    }
+    knownSubtotal += amount
+  }
+  return { knownSubtotal, unresolvedCount }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { JobForPurchasing } from '@/api'
+import type { JobForPurchasing, PurchaseOrderLineOut } from '@/api'
 import {
   draftCreateBody,
   emptyPoLineDraft,
@@ -9,6 +9,8 @@ import {
   poLineDraftIsReady,
   poLineItemLabel,
   poLineJobLabel,
+  poListJobsLabel,
+  poOrderValue,
 } from './lines'
 
 describe('PO line drafts', () => {
@@ -43,6 +45,13 @@ describe('PO line drafts', () => {
     expect('unit_cost' in body).toBe(false)
     expect('item_code' in body).toBe(false)
     expect('job_id' in body).toBe(false)
+    expect('price_tbc' in body).toBe(false)
+  })
+
+  it('the create body carries price_tbc only when the box is ticked', () => {
+    const draft = { ...emptyPoLineDraft(), description: 'Bar', price_tbc: true }
+
+    expect(draftCreateBody(draft).price_tbc).toBe(true)
   })
 
   it('the create body carries every set field and no id', () => {
@@ -50,6 +59,7 @@ describe('PO line drafts', () => {
       description: 'Bar',
       quantity: '5',
       unit_cost: '12.50',
+      price_tbc: false,
       item_code: 'RB5',
       metal_type: 'steel',
       alloy: '304',
@@ -138,5 +148,66 @@ describe('jobsBookableOnPoLine', () => {
 
   it('matches status case-insensitively', () => {
     expect(jobsBookableOnPoLine([job({ id: 'f', status: 'ARCHIVED' })])).toEqual([])
+  })
+})
+
+describe('poListJobsLabel', () => {
+  it('is an em dash when the order is booked to no job', () => {
+    expect(poListJobsLabel([])).toBe('—')
+  })
+
+  it('is the number alone for one job', () => {
+    expect(poListJobsLabel([{ job_number: '97391' }])).toBe('97391')
+  })
+
+  it('joins two', () => {
+    expect(poListJobsLabel([{ job_number: '97391' }, { job_number: '97392' }])).toBe('97391, 97392')
+  })
+
+  it('counts the rest past two, so the cell does not grow with the order', () => {
+    expect(
+      poListJobsLabel([{ job_number: '97391' }, { job_number: '97392' }, { job_number: '97393' }]),
+    ).toBe('97391 +2 others')
+  })
+})
+
+type ValuedLine = Pick<PurchaseOrderLineOut, 'description' | 'quantity' | 'unit_cost' | 'price_tbc'>
+
+/** Only the four fields poOrderValue reads, so no fixture needs inventing. */
+function valuedLine(over: Partial<ValuedLine> = {}): ValuedLine {
+  return { description: 'Bar', quantity: '2', unit_cost: '10.00', price_tbc: false, ...over }
+}
+
+describe('poOrderValue', () => {
+  it('totals a fully priced order with nothing unresolved', () => {
+    expect(poOrderValue([valuedLine(), valuedLine({ quantity: '3', unit_cost: '5.00' })])).toEqual({
+      knownSubtotal: 35,
+      unresolvedCount: 0,
+    })
+  })
+
+  it('counts a price-TBC line as unresolved and leaves it out of the subtotal', () => {
+    expect(
+      poOrderValue([valuedLine(), valuedLine({ price_tbc: true, unit_cost: '99.00' })]),
+    ).toEqual({
+      knownSubtotal: 20,
+      unresolvedCount: 1,
+    })
+  })
+
+  it('counts a line with no cost as unresolved rather than as zero', () => {
+    expect(poOrderValue([valuedLine(), valuedLine({ unit_cost: null })])).toEqual({
+      knownSubtotal: 20,
+      unresolvedCount: 1,
+    })
+  })
+
+  it('ignores a blank line, so the grid phantom row changes nothing', () => {
+    expect(
+      poOrderValue([valuedLine(), valuedLine({ description: '   ', unit_cost: null })]),
+    ).toEqual({
+      knownSubtotal: 20,
+      unresolvedCount: 0,
+    })
   })
 })

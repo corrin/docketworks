@@ -51,10 +51,19 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
         return None
 
     def state_valid_for_xero(self) -> bool:
-        """Require draft for initial creation; allow updates in any status."""
+        """Refuse to create a cancelled order in Xero; allow anything else.
+
+        Opus: v1 required ``draft`` for first creation, which is the wrong
+        moment. Xero needs the order so it can reconcile the supplier's bill
+        against it, and the bill arrives after the order has gone to the
+        supplier — by which point the status is ``submitted``. Requiring draft
+        meant the copy could only be made before it was needed and never after.
+        ``deleted`` stays refused: creating an order in Xero that Docketworks
+        has already cancelled would invent a payable nobody ordered.
+        """
         if self.get_xero_id():
             return True
-        return self.purchase_order.status == "draft"
+        return self.purchase_order.status != "deleted"
 
     def can_sync_to_xero(self) -> bool:
         """Report whether the PO carries everything a Xero PO requires."""
@@ -141,8 +150,8 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
     def _save_po_with_xero_data(self, xero_id: str | None, online_url: str | None) -> None:
         """Store the push outcome on the local row."""
         self.purchase_order.online_url = online_url
-        self.purchase_order.xero_last_synced = timezone.now()
-        update_fields = ["online_url", "xero_last_synced"]
+        self.purchase_order.xero_agreed_at = timezone.now()
+        update_fields = ["online_url", "xero_agreed_at"]
         # The zero-UUID check holds the module invariant: storing the sentinel
         # would make the next push read as an update against a document Xero
         # never acknowledged (and collide on the unique column).
@@ -257,10 +266,10 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
             # Cleared with the id, for the same reason it is written with it:
             # a tenant claim on a row that links to nothing is a lie.
             self.purchase_order.xero_tenant_id = None
-            self.purchase_order.xero_last_synced = timezone.now()
+            self.purchase_order.xero_agreed_at = timezone.now()
             self.purchase_order.status = "deleted"
             self.purchase_order.save(
-                update_fields=["xero_id", "xero_tenant_id", "xero_last_synced", "status"]
+                update_fields=["xero_id", "xero_tenant_id", "xero_agreed_at", "status"]
             )
 
             return {  # noqa: TRY300 -- returns a value built across the try body

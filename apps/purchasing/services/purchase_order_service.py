@@ -18,7 +18,7 @@ from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Count, IntegerField
+from django.db.models import Count, IntegerField, Q
 from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Cast, Substr
 from django.http import Http404
@@ -27,59 +27,28 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company, Supplier, SupplierPickupAddress
 from apps.company.services.company_rest_service import pickup_address_data
-from apps.core.etag import (
-    PreconditionFailedError,
-    generate_updated_at_etag,
-    if_match_satisfied,
-)
 from apps.core.models import CompanyDefaults
+from apps.core.pagination import paginate
 from apps.core.patching import apply_patch_fields
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
+from apps.purchasing.etag import require_current_etag
 from apps.purchasing.models import (
     PurchaseOrder,
     PurchaseOrderEvent,
     PurchaseOrderLine,
     Stock,
 )
+from apps.purchasing.schemas import PurchaseOrderStatus
 from apps.purchasing.services.allocation_service import (
     AllocationMetadata,
     create_costline_from_allocation,
     create_stock_from_allocation,
     default_retail_rate_pct,
 )
+from apps.purchasing.tasks import queue_purchase_order_push
 
 logger = logging.getLogger(__name__)
-
-# Validate status against model choices because they are not DB-enforced; a
-# client typo must be a visible 400 (ADR 0015).
-PURCHASE_ORDER_STATUSES: frozenset[str] = frozenset(
-    value for value, _label in PurchaseOrder._meta.get_field("status").choices or []
-)
-
-
-# ── ETag (ADR 0003) ──────────────────────────────────────────────────────
-
-
-def purchase_order_etag(po: PurchaseOrder) -> str:
-    """Return the strong ETag for a purchase order (resource label ``po``)."""
-    return generate_updated_at_etag("po", po.id, po.updated_at)
-
-
-def current_purchase_order_etag(po_id: UUID) -> str | None:
-    """Return the current ETag for ``po_id``, or None when it does not exist."""
-    po = PurchaseOrder.objects.only("id", "updated_at").filter(id=po_id).first()
-    return purchase_order_etag(po) if po else None
-
-
-def require_current_etag(po: PurchaseOrder, if_match: str) -> None:
-    """Raise ``PreconditionFailedError`` unless ``if_match`` names this version."""
-    current = purchase_order_etag(po)
-    if not if_match_satisfied(if_match, current):
-        logger.warning(
-            "ETag mismatch on PO %s: client sent %r, current %r", po.id, if_match, current
-        )
-        raise PreconditionFailedError("Purchase order modified since it was fetched.")
 
 
 # ── Read shapes ──────────────────────────────────────────────────────────
@@ -107,6 +76,16 @@ class PurchaseOrderListData(TypedDict):
     jobs: list[PurchaseOrderJobData]
 
 
+class PurchaseOrderListPage(TypedDict):
+    """One page of PO list rows in the shared envelope (apps/core/pagination)."""
+
+    results: list[PurchaseOrderListData]
+    count: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class PurchaseOrderLineData(TypedDict):
     """Data contract for PurchaseOrderLineData."""
 
@@ -130,21 +109,49 @@ class PurchaseOrderLineData(TypedDict):
     times_used: int
 
 
-def list_purchase_orders(status_filter: str | None = None) -> list[PurchaseOrderListData]:
-    """List every purchase order with its distinct jobs.
+def _purchase_order_search_filter(query: str) -> Q:
+    """Match ``query`` against the three things an operator searches a PO by.
 
-    ``status_filter`` is the comma-separated ``?status=`` query value.
+    Opus: job number is matched only when the query is all digits. Casting the
+    integer column to text to allow icontains would forfeit its index on every
+    search, and no operator searches a job by a fragment of its number.
     """
-    allowed = {value.strip() for value in status_filter.split(",")} if status_filter else None
-    rows: list[PurchaseOrderListData] = []
+    matches = Q(po_number__icontains=query) | Q(supplier__name__icontains=query)
+    if query.isdigit():
+        matches |= Q(po_lines__job__job_number=int(query))
+    return matches
+
+
+def list_purchase_orders(
+    *, status_filter: str | None, query: str, page: int, page_size: int
+) -> PurchaseOrderListPage:
+    """One page of purchase orders with their distinct jobs.
+
+    ``status_filter`` is the comma-separated ``?status=`` query value. Both the
+    filter and the search run in the database: production holds 990 orders over
+    2,315 lines, so returning them all — which is what reading every row and
+    filtering in Python amounted to — is not a page any client can use (ADR
+    0054).
+    """
     purchase_orders = (
         PurchaseOrder.objects.select_related("supplier", "created_by")
         .prefetch_related("po_lines__job__company")
         .order_by("-created_at")
     )
-    for po in purchase_orders:
-        if allowed is not None and po.status not in allowed:
-            continue
+    if status_filter:
+        purchase_orders = purchase_orders.filter(
+            status__in={value.strip() for value in status_filter.split(",")}
+        )
+    trimmed = query.strip()
+    if trimmed:
+        # distinct() because the job-number branch joins po_lines, which
+        # multiplies a PO by its matching lines.
+        purchase_orders = purchase_orders.filter(_purchase_order_search_filter(trimmed)).distinct()
+
+    page_data = paginate(purchase_orders, page=page, page_size=page_size)
+
+    rows: list[PurchaseOrderListData] = []
+    for po in page_data.rows:
         seen_jobs: dict[UUID, PurchaseOrderJobData] = {}
         for line in po.po_lines.all():
             if line.job and line.job.id not in seen_jobs:
@@ -166,7 +173,13 @@ def list_purchase_orders(status_filter: str | None = None) -> list[PurchaseOrder
                 "jobs": sorted(seen_jobs.values(), key=lambda job: job["job_number"]),
             }
         )
-    return rows
+    return {
+        "results": rows,
+        "count": page_data.count,
+        "page": page_data.page,
+        "page_size": page_data.page_size,
+        "total_pages": page_data.total_pages,
+    }
 
 
 def _material_usage_counts(item_codes: list[str]) -> dict[str, int]:
@@ -227,6 +240,9 @@ def purchase_order_detail_data(po: PurchaseOrder) -> dict[str, object]:
         "supplier": supplier.name if supplier else "",
         "supplier_id": po.supplier_id,
         "supplier_has_xero_id": bool(supplier and supplier.xero_contact_id is not None),
+        # The email composer refuses a supplier with no address, so the screen
+        # needs to know before offering the button rather than surfacing a 400.
+        "supplier_has_email": bool(supplier and supplier.email),
         "lines": [purchase_order_line_data(line, usage_counts) for line in lines],
         "pickup_address": (pickup_address_data(po.pickup_address) if po.pickup_address else None),
         "created_by_name": po.created_by_name or "",
@@ -285,7 +301,7 @@ class PurchaseOrderUpdateData(TypedDict, total=False):
     pickup_address_id: UUID | None
     reference: str | None
     expected_delivery: date | None
-    status: str
+    status: PurchaseOrderStatus
     lines_to_delete: list[UUID]
     lines: list[PurchaseOrderLineWriteData]
 
@@ -402,9 +418,7 @@ def create_purchase_order(
         po = PurchaseOrder.objects.create(
             supplier=supplier,
             pickup_address=pickup_address,
-            # Blank reference means unset: the reference_not_blank constraint
-            # rejects ""; validate before reaching the database constraint.
-            reference=data.get("reference") or None,
+            reference=data.get("reference"),
             order_date=data.get("order_date") or timezone.localdate(),
             # A missing expected-delivery date defaults to today rather than NULL.
             expected_delivery=data.get("expected_delivery") or timezone.localdate(),
@@ -465,19 +479,13 @@ def _apply_purchase_order_fields(
     po: PurchaseOrder, data: PurchaseOrderUpdateData, staff: Staff
 ) -> None:
     if "reference" in data:
-        # Blank means unset (reference_not_blank), same rule as create.
-        po.reference = data.get("reference") or None
+        po.reference = data["reference"]
     if "expected_delivery" in data:
         po.expected_delivery = data.get("expected_delivery")
     if "status" not in data:
         return
 
     new_status = data["status"]
-    if new_status not in PURCHASE_ORDER_STATUSES:
-        raise DjangoValidationError(
-            f"Invalid status '{new_status}'. Must be one of: "
-            f"{', '.join(sorted(PURCHASE_ORDER_STATUSES))}"
-        )
     logger.info("Updating PO %s status: %s -> %s", po.po_number, po.status, new_status)
     po.status = new_status
     if new_status != "fully_received":
@@ -533,6 +541,10 @@ def update_purchase_order(
 
         po.save()
         po.refresh_from_db()
+        # Xero holds a copy of this order so the supplier's bill has something
+        # to reconcile against; keeping that copy current is the system's job,
+        # not an operator's. Queued after the write, on commit.
+        queue_purchase_order_push(po)
         return po
 
 

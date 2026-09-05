@@ -30,6 +30,7 @@ from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, CostSet
+from apps.purchasing.etag import require_current_etag
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.tasks import queue_metadata_parse_if_eligible
 
@@ -250,13 +251,45 @@ def recompute_purchase_order_status(po: PurchaseOrder) -> None:
 # ── Reads and deletes ────────────────────────────────────────────────────
 
 
-def _consuming_cost_lines(stock_id: UUID) -> QuerySet[CostLine]:
+def consuming_cost_lines(stock_id: UUID) -> QuerySet[CostLine]:
+    """Cost lines that have consumed this stock row.
+
+    Public because the receipt path needs the same question answered before it
+    replaces a line's stock: ``ext_refs.stock_id`` is an unindexed JSON string
+    with no foreign key, so nothing in the database stops a delete from
+    orphaning the cost lines that point at it (ADR 0039 -- one implementation of
+    "is this stock spoken for").
+    """
     return CostLine.objects.annotate(
         consumed_stock_id=KeyTextTransform("stock_id", "ext_refs"),
     ).filter(consumed_stock_id=str(stock_id))
 
 
 def _get_po_or_error(po_id: UUID) -> PurchaseOrder:
+    """Lock and return the PO; the caller owns the transaction.
+
+    Opus: the row is locked here rather than read plainly because the caller
+    checks the ETag against it and then writes. An unlocked read reproduces the
+    check-then-write race purchase_order_service.update_purchase_order
+    documents as forbidden -- two deletes could both pass the precondition and
+    both decrement received_quantity.
+
+    Only a caller inside ``transaction.atomic()`` may use this: Django refuses
+    ``select_for_update`` in autocommit, and this project sets no
+    ``ATOMIC_REQUESTS``, so a read path calling it raises
+    ``TransactionManagementError`` in production. Tests do not see that —
+    pytest wraps each one in a transaction — so a read must take
+    ``_read_po_or_error`` instead, and the two are kept apart for that reason
+    rather than as a performance nicety.
+    """
+    po = PurchaseOrder.objects.select_for_update(of=("self",)).filter(id=po_id).first()
+    if po is None:
+        raise AllocationDeletionError(f"Purchase Order {po_id} not found")
+    return po
+
+
+def _read_po_or_error(po_id: UUID) -> PurchaseOrder:
+    """Return the PO without locking it, for callers that only read."""
     po = PurchaseOrder.objects.filter(id=po_id).first()
     if po is None:
         raise AllocationDeletionError(f"Purchase Order {po_id} not found")
@@ -322,7 +355,7 @@ def _decrement_received(po_line: PurchaseOrderLine, quantity: Decimal) -> None:
 
 
 def _delete_stock_allocation(po_line: PurchaseOrderLine, stock_item: Stock) -> DeletionResult:
-    consumed_count = _consuming_cost_lines(stock_item.id).count()
+    consumed_count = consuming_cost_lines(stock_item.id).count()
     if consumed_count:
         raise AllocationDeletionError(
             f"Cannot delete stock allocation - stock has been consumed by {consumed_count} job(s)"
@@ -379,12 +412,20 @@ def delete_allocation(
     po_id: UUID,
     allocation_type: AllocationType,
     allocation_id: UUID,
-) -> DeletionResult:
+    if_match: str,
+) -> tuple[PurchaseOrder, DeletionResult]:
     """Delete one Stock or CostLine allocation and recompute the PO status.
 
     ``line_id`` remains part of the public URL but is not trusted to resolve the
     allocation. The allocation row carries its own PO-line back-reference;
     trusting the URL could decrement the wrong line.
+
+    Requires ``If-Match`` (ADR 0003): this decrements ``received_quantity`` and
+    recomputes the PO status, so it is a PO mutation like any other. Without the
+    precondition two operators deleting from stale lists both succeed -- and
+    ``_decrement_received`` clamps at zero, so the second decrement is absorbed
+    silently rather than erroring. Returns the PO so the caller can emit the
+    refreshed ETag.
     """
     logger.info(
         "Starting allocation deletion - PO: %s, Type: %s, ID: %s",
@@ -395,6 +436,7 @@ def delete_allocation(
     try:
         with transaction.atomic():
             po = _get_po_or_error(po_id)
+            require_current_etag(po, if_match)
 
             if allocation_type == STOCK_ALLOCATION:
                 stock = _get_stock_or_error(po, allocation_id)
@@ -419,7 +461,7 @@ def delete_allocation(
                 result = _delete_job_allocation(po_line, locked_line)
 
             recompute_purchase_order_status(po)
-            return result
+            return po, result
     except AllocationDeletionError:
         raise
     except Exception as exc:
@@ -443,11 +485,11 @@ def get_allocation_details(
     allocation_id: UUID,
 ) -> dict[str, object]:
     """Describe one allocation (used by the delete-confirmation dialog)."""
-    po = _get_po_or_error(po_id)
+    po = _read_po_or_error(po_id)
 
     if allocation_type == STOCK_ALLOCATION:
         stock_item = _get_stock_or_error(po, allocation_id)
-        consuming = _consuming_cost_lines(stock_item.id)
+        consuming = consuming_cost_lines(stock_item.id)
         consumed_count = consuming.count()
         return {
             "type": "stock",
@@ -517,16 +559,25 @@ def list_allocations(po: PurchaseOrder) -> dict[str, list[dict[str, object]]]:
     for stock_item in stock_items:
         line_id = str(stock_item.source_purchase_order_line_id)
         job = stock_item.job
+        if job is None:
+            # Opus: not tolerated on read. Receipt stock is only ever created on
+            # the stock-holding job -- _materialise routes any other job to a
+            # cost line instead -- so a purchase-order stock row without a job is
+            # malformed data, not a shape callers should handle. Serving None
+            # would encode it as valid (ADR 0015, ADR 0028). The nullable column
+            # exists for the Xero item catalogue, which shares this table and
+            # holds no job at all; separating the two is what makes it non-null.
+            raise ValueError(
+                f"Stock {stock_item.id} was received against a purchase order but holds no job"
+            )
         # An unpriced row has no markup to report; do not call retail_rate when
         # unit_cost is zero or unset.
         priced = bool(stock_item.unit_revenue) and stock_item.unit_cost > 0
         allocations.setdefault(line_id, []).append(
             {
                 "type": "stock",
-                "job_id": str(job.id) if job else None,
-                "job_name": "Stock"
-                if job and job.name == stock_holding_name
-                else (job.name if job else ""),
+                "job_id": str(job.id),
+                "job_name": "Stock" if job.name == stock_holding_name else job.name,
                 "quantity": float(stock_item.quantity),
                 "retail_rate": float(stock_item.retail_rate * 100) if priced else 0,
                 "allocation_date": stock_item.date,

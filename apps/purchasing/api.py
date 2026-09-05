@@ -39,8 +39,10 @@ from ninja.responses import Status
 from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth
 from apps.core.etag import if_none_match_satisfied
+from apps.core.gmail import Attachment, create_draft
 from apps.job.models import Job
 from apps.job.services import job_search, job_service
+from apps.purchasing.etag import purchase_order_etag
 from apps.purchasing.models import PurchaseOrder, Stock
 from apps.purchasing.schemas import (
     AllJobsResponse,
@@ -65,8 +67,8 @@ from apps.purchasing.schemas import (
     PurchaseOrderLastNumberResponse,
     PurchaseOrderLineCreateRequest,
     PurchaseOrderLineUpdateRequest,
-    PurchaseOrderList,
     PurchaseOrderListQuery,
+    PurchaseOrderListResponse,
     PurchaseOrderUpdateRequest,
     PurchaseOrderUpdateResponse,
     PurchasingJob,
@@ -232,15 +234,20 @@ def purchasing_jobs_retrieve(request: HttpRequest) -> list[dict[str, object]]:
     "/purchasing/purchase-orders/",
     auth=auth,
     operation_id="listPurchaseOrders",
-    response=list[PurchaseOrderList],
+    response=PurchaseOrderListResponse,
     summary="List purchase orders",
     tags=["purchasing"],
 )
 def list_purchase_orders(
     request: HttpRequest, params: Query[PurchaseOrderListQuery]
-) -> list[purchase_order_service.PurchaseOrderListData]:
-    """List POs, optionally filtered to a comma-separated set of statuses."""
-    return purchase_order_service.list_purchase_orders(params.status)
+) -> purchase_order_service.PurchaseOrderListPage:
+    """One page of POs, filtered by a comma-separated status set and ``q``."""
+    return purchase_order_service.list_purchase_orders(
+        status_filter=params.status,
+        query=params.q,
+        page=params.page,
+        page_size=params.page_size,
+    )
 
 
 @router.post(
@@ -270,7 +277,7 @@ def create_purchase_order(
         po = purchase_order_service.create_purchase_order(data, created_by=_staff(request))
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
-    response.headers["ETag"] = purchase_order_service.purchase_order_etag(po)
+    response.headers["ETag"] = purchase_order_etag(po)
     return Status(201, {"id": po.id, "po_number": po.po_number})
 
 
@@ -300,7 +307,7 @@ def retrieve_purchase_order(
 ) -> Status[None] | dict[str, object]:
     """Fetch PO details (conditional GET via If-None-Match, ADR 0003)."""
     po = _get_po_or_404(po_id)
-    etag = purchase_order_service.purchase_order_etag(po)
+    etag = purchase_order_etag(po)
     response.headers["ETag"] = etag
     if_none_match = request.headers.get("If-None-Match")
     if if_none_match and if_none_match_satisfied(if_none_match, etag):
@@ -389,7 +396,7 @@ def purchasing_purchase_orders_partial_update(
         # refuses a line whose price is still TBC. That is a bad request, not
         # a crash. Stock and job allocations use the same 400 contract.
         raise HttpError(400, str(exc)) from exc
-    response.headers["ETag"] = purchase_order_service.purchase_order_etag(po)
+    response.headers["ETag"] = purchase_order_etag(po)
     return {"id": po.id, "status": po.status}
 
 
@@ -422,20 +429,43 @@ def get_purchase_order_pdf(request: HttpRequest, po_id: UUID) -> FileResponse:
 def get_purchase_order_email(
     request: HttpRequest, po_id: UUID, payload: PurchaseOrderEmailRequest
 ) -> dict[str, object]:
-    """Build the mailto payload, applying any recipient/message overrides."""
+    """Draft the supplier email, with the order PDF attached, for this operator.
+
+    The draft lands in the mailbox of whoever pressed the button — they signed
+    in with that Workspace address, so it is a mailbox they have — and nothing
+    is sent until they read it and send it.
+    """
     po = _get_po_or_404(po_id)
+    staff = _staff(request)
+    if not staff.office_email:
+        raise HttpError(400, "Your account has no office email to draft from.")
     try:
         email = create_purchase_order_email(
             po, recipient_email=payload.recipient_email, message=payload.message
         )
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
+
+    draft = create_draft(
+        as_user=staff.office_email,
+        to=email.email,
+        subject=email.subject,
+        body=email.body,
+        attachments=[
+            Attachment(
+                filename=f"Purchase_Order_{po.po_number}.pdf",
+                content=create_purchase_order_pdf(po).getvalue(),
+                mime_type="application/pdf",
+            )
+        ],
+    )
     return {
         "success": True,
         "email_subject": email.subject,
         "email_body": email.body,
-        "mailto_url": email.mailto_url,
-        "message": "Email data generated successfully",
+        "draft_id": draft.draft_id,
+        "draft_url": draft.web_url,
+        "message": f"Draft created in {staff.office_email}",
     }
 
 
@@ -529,17 +559,30 @@ def get_allocation_details(
     tags=["purchasing"],
 )
 def delete_allocation(
-    request: HttpRequest, po_id: UUID, line_id: UUID, payload: AllocationDeleteRequest
+    request: HttpRequest,
+    po_id: UUID,
+    line_id: UUID,
+    payload: AllocationDeleteRequest,
+    response: HttpResponse,
 ) -> dict[str, object]:
-    """Delete a Stock or CostLine allocation and recompute the PO status."""
+    """Delete a Stock or CostLine allocation (If-Match required, ADR 0003).
+
+    The delete decrements ``received_quantity`` and recomputes the PO status, so
+    it carries the same precondition as the PO PATCH and answers with the
+    refreshed ETag -- without that header the client's stored version goes stale
+    and its next mutation 412s for no reason.
+    """
+    if_match = _require_if_match(request)
     try:
-        result = allocation_service.delete_allocation(
+        po, result = allocation_service.delete_allocation(
             po_id=po_id,
             allocation_type=payload.allocation_type,
             allocation_id=payload.allocation_id,
+            if_match=if_match,
         )
     except allocation_service.AllocationDeletionError as exc:
         raise HttpError(400, str(exc)) from exc
+    response.headers["ETag"] = purchase_order_etag(po)
     return {
         "success": result.success,
         "message": result.message,
@@ -593,7 +636,7 @@ def purchasing_delivery_receipts_create(
         )
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
-    response.headers["ETag"] = purchase_order_service.purchase_order_etag(po)
+    response.headers["ETag"] = purchase_order_etag(po)
     return {"success": True}
 
 

@@ -7,6 +7,7 @@ mismatching line-item ids so receipts later reconcile against the wrong line.
 """
 
 import uuid
+from datetime import date
 from decimal import Decimal
 from typing import Any
 from unittest.mock import Mock, patch
@@ -18,6 +19,8 @@ from django.utils import timezone
 from apps.accounting.types import DocumentResult
 from apps.accounts.models import Staff
 from apps.company.models import Company
+from apps.company.tests.job_fixtures import make_job
+from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 from apps.xero.constants import ZERO_UUID
 from apps.xero.documents.po import XeroPurchaseOrderManager
@@ -44,6 +47,12 @@ def po(supplier: Company) -> PurchaseOrder:
         unit_cost=Decimal("50.00"),
     )
     return order
+
+
+@pytest.fixture
+def job(supplier: Company) -> Job:
+    """A job to bind a PO line to, so the Xero description carries its number."""
+    return make_job(supplier, Staff.get_automation_user(), name="Tank repair")
 
 
 def _manager(po: PurchaseOrder, provider: Mock) -> XeroPurchaseOrderManager:
@@ -250,3 +259,122 @@ class TestEndpoint:
         with patch("apps.xero.api.get_valid_token", return_value={"access_token": "t"}):
             response = api.post(f"/api/xero/create_purchase_order/{uuid.uuid4()}")
         assert response.status_code == 404
+
+
+class TestPayload:
+    """What we actually send Xero.
+
+    The integration suite proved this payload is one Xero accepts
+    (apps/xero/tests/test_purchase_order_integration.py). These pin the parts
+    that could drift back without any fake noticing — the payroll failure ADR
+    0050 cites was exactly a payload-shape bug that passed a full fake suite.
+    """
+
+    def test_the_payload_carries_what_xero_accepted(self, po: PurchaseOrder) -> None:
+        po.reference = "Job 1234 steel"
+        po.expected_delivery = date(2026, 12, 24)
+        po.save(update_fields=["reference", "expected_delivery"])
+        provider = _provider()
+
+        payload = _manager(po, provider).build_payload()
+
+        assert payload.supplier_external_id == "00000000-0000-0000-0000-000000000001"
+        assert payload.po_number == "PO-TEST-0001"
+        assert payload.reference == "Job 1234 steel"
+        assert payload.delivery_date == date(2026, 12, 24)
+        assert payload.status == "DRAFT"
+        assert payload.external_id is None, "a first push must not claim an existing document"
+        line = payload.line_items[0]
+        assert line.description == "Steel plate"
+        assert line.quantity == Decimal("2")
+        assert line.unit_amount == Decimal("50.00")
+        assert line.item_code is None, "an unset item code reaches Xero as null, not ''"
+
+    def test_lines_are_costed_to_the_purchases_account(self, po: PurchaseOrder) -> None:
+        """The account name is asked for by name, and it is not Sales.
+
+        A drift to the sales account would book every purchase as revenue and
+        say nothing: the push still succeeds, because Xero accepts any code we
+        send it.
+        """
+        provider = _provider()
+
+        payload = _manager(po, provider).build_payload()
+
+        provider.get_account_code.assert_called_once_with("Purchases")
+        assert payload.line_items[0].account_code == "300"
+
+    def test_an_unpriced_line_costs_zero_rather_than_null(self, supplier: Company) -> None:
+        """Xero requires a number; None would be rejected for the whole order."""
+        order = PurchaseOrder.objects.create(supplier=supplier, po_number="PO-TEST-0002")
+        PurchaseOrderLine.objects.create(
+            purchase_order=order, description="TBC", quantity=Decimal("1"), unit_cost=None
+        )
+
+        payload = _manager(order, _provider()).build_payload()
+
+        assert payload.line_items[0].unit_amount == Decimal("0")
+
+    def test_a_job_line_tells_the_supplier_which_job_it_is_for(
+        self, po: PurchaseOrder, job: Job
+    ) -> None:
+        """The job number is what the supplier reads on the delivery."""
+        line = po.po_lines.get()
+        line.job = job
+        line.save(update_fields=["job"])
+
+        payload = _manager(po, _provider()).build_payload()
+
+        assert payload.line_items[0].description == f"{job.job_number} - Steel plate"
+
+    @pytest.mark.parametrize(
+        ("local_status", "xero_status"),
+        [
+            ("draft", "DRAFT"),
+            ("submitted", "SUBMITTED"),
+            ("partially_received", "AUTHORISED"),
+            ("fully_received", "AUTHORISED"),
+        ],
+    )
+    def test_receiving_states_both_map_to_authorised(
+        self, po: PurchaseOrder, local_status: str, xero_status: str
+    ) -> None:
+        """Xero has no notion of partial receipt, so both of ours collapse."""
+        po.status = local_status
+        po.save(update_fields=["status"])
+
+        assert _manager(po, _provider()).build_payload().status == xero_status
+
+
+class TestStateGate:
+    """Which orders may be pushed at all."""
+
+    def test_a_draft_may_be_created_in_xero(self, po: PurchaseOrder) -> None:
+        assert _manager(po, _provider()).state_valid_for_xero() is True
+
+    def test_a_submitted_order_may_be_created_in_xero(self, po: PurchaseOrder) -> None:
+        """Submitted is precisely when Xero needs it.
+
+        The bill it reconciles against arrives after the order goes to the
+        supplier, so requiring draft — as v1 did — meant the copy could only be
+        made before it was needed.
+        """
+        po.status = "submitted"
+        po.save(update_fields=["status"])
+
+        assert _manager(po, _provider()).state_valid_for_xero() is True
+
+    def test_a_cancelled_order_is_not_created_in_xero(self, po: PurchaseOrder) -> None:
+        """It would invent a payable for something nobody is going to buy."""
+        po.status = "deleted"
+        po.save(update_fields=["status"])
+
+        assert _manager(po, _provider()).state_valid_for_xero() is False
+
+    def test_an_already_synced_order_may_be_updated_at_any_status(self, po: PurchaseOrder) -> None:
+        """Receiving changes an order after submission; those changes must still push."""
+        po.status = "fully_received"
+        po.xero_id = uuid.uuid4()
+        po.save(update_fields=["status", "xero_id"])
+
+        assert _manager(po, _provider()).state_valid_for_xero() is True

@@ -93,6 +93,31 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
     updated_at = models.DateTimeField(auto_now=True)
     xero_last_modified = models.DateTimeField(null=True, blank=True)
     xero_last_synced = models.DateTimeField(null=True, blank=True, default=timezone.now)
+    xero_agreed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "When our copy of this order and Xero's were last known to match — "
+            "either because we sent ours or because we took theirs. Distinct "
+            "from xero_last_synced, which records when we last LOOKED at Xero "
+            "and is written on every inbound sync, so it hides an outstanding "
+            "send behind the next pull. It is also why updated_at cannot answer "
+            "this: updated_at is the row's ETag and must advance whenever the "
+            "row changes, including when the change came FROM Xero."
+        ),
+    )
+    xero_status = models.CharField(  # noqa: DJ001 -- NULL means Xero has never reported one
+        max_length=20,
+        null=True,
+        blank=True,
+        help_text=(
+            "Xero's own word for this order (DRAFT, SUBMITTED, AUTHORISED, BILLED, VOIDED). "
+            "Separate from `status` because that one answers a different question: whether the "
+            "goods arrived and were costed to a job, which only Docketworks knows. Xero saying "
+            "BILLED used to set status=fully_received, marking material received that nobody "
+            "had receipted."
+        ),
+    )
     online_url = models.URLField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=500, null=True, blank=True
     )
@@ -112,6 +137,10 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
             models.CheckConstraint(
                 condition=~models.Q(xero_tenant_id=""),
                 name="purchasing_purchaseorder_xero_tenant_id_not_blank",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(xero_status=""),
+                name="purchasing_purchaseorder_xero_status_not_blank",
             ),
         ]
 

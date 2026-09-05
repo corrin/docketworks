@@ -21,15 +21,15 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 697 |
-| noqa: DJ001 | 165 |
+| TOTAL suppressions | 701 |
+| noqa: DJ001 | 166 |
 | noqa: PLC0415 | 130 |
 | noqa: E402 | 105 |
 | noqa: PLR0913 | 46 |
 | noqa: ARG002 | 37 |
 | noqa: BLE001 | 34 |
-| noqa: C901 | 20 |
-| noqa: ARG001 | 18 |
+| noqa: ARG001 | 21 |
+| noqa: C901 | 19 |
 | noqa: S603 | 14 |
 | noqa: TRY300 | 9 |
 | noqa: TRY004 | 8 |
@@ -46,6 +46,7 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: PLW0603 | 3 |
 | noqa: RUF012 | 3 |
 | noqa: F401 | 2 |
+| noqa: N803 | 2 |
 | noqa: S108 | 2 |
 | noqa: ARG004 | 1 |
 | noqa: B009 | 1 |
@@ -56,7 +57,6 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: DTZ001 | 1 |
 | noqa: DTZ007 | 1 |
 | noqa: F821 | 1 |
-| noqa: N803 | 1 |
 | noqa: PIE804 | 1 |
 | noqa: PLR0915 | 1 |
 | noqa: S107 | 1 |
@@ -70,8 +70,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 251 |
-| in docstrings | 423 |
+| in comments | 249 |
+| in docstrings | 425 |
 
 ## Exception handling
 
@@ -103,8 +103,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 213 |
-| non-test functions | 2588 |
+| functions returning `X \| None` | 212 |
+| non-test functions | 2597 |
 
 ## Wire contract (response side)
 
@@ -112,7 +112,7 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 298 |
-| response properties | 1921 |
+| response schemas | 299 |
+| response properties | 1927 |
 | optional (pinned at zero) | 0 |
-| nullable | 425 |
+| nullable | 421 |

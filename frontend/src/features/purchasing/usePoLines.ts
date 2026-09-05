@@ -145,7 +145,32 @@ export function usePoLines(poId: string) {
     )
   }
 
-  return { poQuery, patchHeader, patchLine, createLine }
+  const deleteLine = (lineId: string) => {
+    cancelInFlight()
+    const snapshot = queryClient.getQueryData<PurchaseOrderDetail>(queryKey)
+    if (snapshot) {
+      queryClient.setQueryData<PurchaseOrderDetail>(
+        queryKey,
+        withLines(snapshot, (lines) => lines.filter((line) => line.id !== lineId)),
+      )
+    }
+    patchMutation.mutate(
+      { path, body: { lines_to_delete: [lineId] } },
+      {
+        onError: (error) => {
+          // The row is put back whole rather than field-by-field: a delete
+          // removed it entirely, so there is no interleaved edit to preserve.
+          if (snapshot) queryClient.setQueryData<PurchaseOrderDetail>(queryKey, snapshot)
+          if (!isConcurrencyError(error)) {
+            toast.error(apiErrorMessage(error, 'Failed to delete the purchase order line.'))
+          }
+        },
+        onSettled: () => void invalidate(),
+      },
+    )
+  }
+
+  return { poQuery, patchHeader, patchLine, createLine, deleteLine }
 }
 
 function withLines(

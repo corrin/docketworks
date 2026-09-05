@@ -436,6 +436,90 @@ class TestDeliveryReceiptValidation:
         line.refresh_from_db()
         assert line.received_quantity == Decimal("0.00")
 
+    def test_a_line_receiving_nothing_is_refused_and_keeps_its_stock(
+        self, client: Client, stock_holding_job: Job
+    ) -> None:
+        """A zero line reconciles (0 == 0) but would clear the line's stock.
+
+        This is the shape a whole-PO receipt screen produces if it submits every
+        rendered line rather than only the ones the operator touched.
+        """
+        po = make_purchase_order(status="submitted")
+        line = make_po_line(po, quantity="10.00", unit_cost="5.00")
+        _post_receipt(
+            client,
+            po,
+            {
+                str(line.id): {
+                    "total_received": "4",
+                    "allocations": [{"job_id": str(stock_holding_job.id), "quantity": "4"}],
+                }
+            },
+            if_match=_po_etag(client, po),
+        )
+        stock_before = Stock.objects.get(source="purchase_order")
+
+        response = _post_receipt(
+            client,
+            po,
+            {str(line.id): {"total_received": "0", "allocations": []}},
+            if_match=_po_etag(client, po),
+        )
+
+        assert response.status_code == 400
+        assert "nothing to receive" in response.json()["detail"]
+        assert Stock.objects.filter(id=stock_before.id).exists()
+        line.refresh_from_db()
+        assert line.received_quantity == Decimal("4.00")
+
+    def test_receiving_again_is_refused_while_a_job_has_consumed_the_stock(
+        self, client: Client, stock_holding_job: Job, job: Job
+    ) -> None:
+        """Re-receipting replaces the line's stock, so consumed stock blocks it.
+
+        The allocation-delete path has always refused this; the receipt path
+        would have deleted the row and left the consuming cost line's
+        ``ext_refs.stock_id`` dangling.
+        """
+        po = make_purchase_order(status="submitted")
+        line = make_po_line(po, quantity="10.00", unit_cost="5.00")
+        _post_receipt(
+            client,
+            po,
+            {
+                str(line.id): {
+                    "total_received": "4",
+                    "allocations": [{"job_id": str(stock_holding_job.id), "quantity": "4"}],
+                }
+            },
+            if_match=_po_etag(client, po),
+        )
+        stock = Stock.objects.get(source="purchase_order")
+        consume = client.post(
+            f"/api/purchasing/stock/{stock.id}/consume/",
+            data={"job_id": str(job.id), "quantity": "1"},
+            content_type="application/json",
+        )
+        assert consume.status_code == 200
+
+        response = _post_receipt(
+            client,
+            po,
+            {
+                str(line.id): {
+                    "total_received": "3",
+                    "allocations": [{"job_id": str(stock_holding_job.id), "quantity": "3"}],
+                }
+            },
+            if_match=_po_etag(client, po),
+        )
+
+        assert response.status_code == 400
+        assert "consumed by" in response.json()["detail"]
+        assert Stock.objects.filter(id=stock.id).exists()
+        line.refresh_from_db()
+        assert line.received_quantity == Decimal("4.00")
+
     def test_a_price_tbc_line_cannot_be_received(
         self, client: Client, stock_holding_job: Job
     ) -> None:

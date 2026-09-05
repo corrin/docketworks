@@ -4001,11 +4001,11 @@ export const zPurchaseOrderEmailRequest = z.object({
  * Wire contract for PurchaseOrderEmailResponse.
  */
 export const zPurchaseOrderEmailResponse = z.object({
-    email_body: z.string().nullable(),
-    email_subject: z.string().nullable(),
-    mailto_url: z.string().nullable(),
+    draft_id: z.string(),
+    draft_url: z.string(),
+    email_body: z.string(),
+    email_subject: z.string(),
     message: z.string().nullable(),
-    pdf_url: z.string().nullable(),
     success: z.boolean()
 });
 
@@ -4104,7 +4104,7 @@ export const zPurchaseOrderCreateRequest = z.object({
     lines: z.array(zPurchaseOrderLineCreateRequest).optional().default([]),
     order_date: z.iso.date().nullish(),
     pickup_address_id: z.uuid().nullish(),
-    reference: z.string().nullish(),
+    reference: z.string().min(1).nullish(),
     supplier_id: z.uuid().nullish()
 });
 
@@ -4172,7 +4172,13 @@ export const zPurchaseOrderList = z.object({
     jobs: z.array(zPurchaseOrderJob),
     order_date: z.iso.date(),
     po_number: z.string(),
-    status: z.string(),
+    status: z.enum([
+        'draft',
+        'submitted',
+        'partially_received',
+        'fully_received',
+        'deleted'
+    ]),
     supplier: z.string(),
     supplier_id: z.uuid().nullable()
 });
@@ -4180,10 +4186,26 @@ export const zPurchaseOrderList = z.object({
 /**
  * PurchaseOrderListQuery
  *
- * Query parameters for purchase-order listing, including CSV statuses.
+ * Query params for purchase-order listing: CSV statuses, search, paging.
  */
 export const zPurchaseOrderListQuery = z.object({
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50),
+    q: z.string().optional().default(''),
     status: z.string().nullish()
+});
+
+/**
+ * PurchaseOrderListResponse
+ *
+ * One page of purchase orders in the shared pagination envelope.
+ */
+export const zPurchaseOrderListResponse = z.object({
+    count: z.int(),
+    page: z.int(),
+    page_size: z.int(),
+    results: z.array(zPurchaseOrderList),
+    total_pages: z.int()
 });
 
 /**
@@ -4195,7 +4217,10 @@ export const zPurchaseOrderListQuery = z.object({
  * ``expected_delivery`` are nullable because each can be CLEARED — the
  * columns are nullable and NULL is what unset means there. ``status`` cannot:
  * the column is NOT NULL, so a null is a 422 rather than something the
- * handler silently drops.
+ * handler silently drops. Its sentinel is ``"draft"`` (the model default)
+ * rather than ``""`` because the annotation is the five-value union and the
+ * placeholder must not contradict it; the handler reads presence from
+ * ``model_fields_set`` and never the value.
  *
  * The two list fields are presence-only. A null list means nothing an empty
  * list does not, and reading them from ``model_fields_set`` rather than a
@@ -4206,8 +4231,14 @@ export const zPurchaseOrderUpdateRequest = z.object({
     lines: z.array(zPurchaseOrderLineUpdateRequest).optional(),
     lines_to_delete: z.array(z.uuid()).optional(),
     pickup_address_id: z.uuid().nullish(),
-    reference: z.string().nullish(),
-    status: z.string().optional(),
+    reference: z.string().min(1).nullish(),
+    status: z.enum([
+        'draft',
+        'submitted',
+        'partially_received',
+        'fully_received',
+        'deleted'
+    ]).optional(),
     supplier_id: z.uuid().nullish()
 });
 
@@ -5138,8 +5169,15 @@ export const zPurchaseOrderDetail = z.object({
     pickup_address_id: z.uuid().nullable(),
     po_number: z.string(),
     reference: z.string().nullable(),
-    status: z.string(),
+    status: z.enum([
+        'draft',
+        'submitted',
+        'partially_received',
+        'fully_received',
+        'deleted'
+    ]),
     supplier: z.string(),
+    supplier_has_email: z.boolean(),
     supplier_has_xero_id: z.boolean(),
     supplier_id: z.uuid().nullable(),
     xero_id: z.uuid().nullable()
@@ -7817,15 +7855,16 @@ export const zValidateProductMappingPath = z.object({
 export const zValidateProductMappingResponse = zProductMappingValidateResponse;
 
 export const zListPurchaseOrdersQuery = z.object({
-    status: z.string().nullish()
+    status: z.string().nullish(),
+    q: z.string().optional().default(''),
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50)
 });
 
 /**
- * Response
- *
  * OK
  */
-export const zListPurchaseOrdersResponse = z.array(zPurchaseOrderList);
+export const zListPurchaseOrdersResponse = zPurchaseOrderListResponse;
 
 export const zCreatePurchaseOrderBody = zPurchaseOrderCreateRequest;
 

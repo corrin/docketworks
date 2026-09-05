@@ -3997,7 +3997,7 @@ export const listPurchaseOrdersQueryKey = (options?: Options<ListPurchaseOrdersD
 /**
  * List purchase orders
  *
- * List POs, optionally filtered to a comma-separated set of statuses.
+ * One page of POs, filtered by a comma-separated status set and ``q``.
  */
 export const listPurchaseOrdersOptions = (options?: Options<ListPurchaseOrdersData>) => queryOptions<ListPurchaseOrdersResponse, AxiosError<DefaultError>, ListPurchaseOrdersResponse, ReturnType<typeof listPurchaseOrdersQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -4011,6 +4011,38 @@ export const listPurchaseOrdersOptions = (options?: Options<ListPurchaseOrdersDa
     },
     queryKey: listPurchaseOrdersQueryKey(options)
 });
+
+export const listPurchaseOrdersInfiniteQueryKey = (options?: Options<ListPurchaseOrdersData>): QueryKey<Options<ListPurchaseOrdersData>> => createQueryKey('listPurchaseOrders', options, true);
+
+/**
+ * List purchase orders
+ *
+ * One page of POs, filtered by a comma-separated status set and ``q``.
+ */
+export const listPurchaseOrdersInfiniteOptions = (options?: Options<ListPurchaseOrdersData>) => {
+    const opts = infiniteQueryOptions<ListPurchaseOrdersResponse, AxiosError<DefaultError>, InfiniteData<ListPurchaseOrdersResponse>, QueryKey<Options<ListPurchaseOrdersData>>, number | Pick<QueryKey<Options<ListPurchaseOrdersData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListPurchaseOrdersData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    page: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listPurchaseOrders({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listPurchaseOrdersInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 /**
  * Create a purchase order
@@ -4133,7 +4165,11 @@ export const getAllocationDetailsOptions = (options: Options<GetAllocationDetail
 /**
  * Compose the supplier email for a purchase order
  *
- * Build the mailto payload, applying any recipient/message overrides.
+ * Draft the supplier email, with the order PDF attached, for this operator.
+ *
+ * The draft lands in the mailbox of whoever pressed the button — they signed
+ * in with that Workspace address, so it is a mailbox they have — and nothing
+ * is sent until they read it and send it.
  */
 export const getPurchaseOrderEmailMutation = (options?: Partial<Options<GetPurchaseOrderEmailData>>): UseMutationOptions<GetPurchaseOrderEmailResponse, AxiosError<DefaultError>, Options<GetPurchaseOrderEmailData>> => {
     const mutationOptions: UseMutationOptions<GetPurchaseOrderEmailResponse, AxiosError<DefaultError>, Options<GetPurchaseOrderEmailData>> = {
@@ -4191,7 +4227,12 @@ export const createPurchaseOrderEventMutation = (options?: Partial<Options<Creat
 /**
  * Delete one allocation from a purchase order line
  *
- * Delete a Stock or CostLine allocation and recompute the PO status.
+ * Delete a Stock or CostLine allocation (If-Match required, ADR 0003).
+ *
+ * The delete decrements ``received_quantity`` and recomputes the PO status, so
+ * it carries the same precondition as the PO PATCH and answers with the
+ * refreshed ETag -- without that header the client's stored version goes stale
+ * and its next mutation 412s for no reason.
  */
 export const deleteAllocationMutation = (options?: Partial<Options<DeleteAllocationData>>): UseMutationOptions<DeleteAllocationResponse, AxiosError<DefaultError>, Options<DeleteAllocationData>> => {
     const mutationOptions: UseMutationOptions<DeleteAllocationResponse, AxiosError<DefaultError>, Options<DeleteAllocationData>> = {

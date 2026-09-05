@@ -5,7 +5,9 @@ from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import pytest
+from django.db import connection
 from django.test import Client
+from django.test.utils import CaptureQueriesContext
 
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
@@ -71,6 +73,34 @@ class TestAllocationListing:
     def test_a_purchase_order_without_allocations_reports_none(self, client: Client) -> None:
         po = make_purchase_order()
         assert client.get(f"{PO_URL}{po.id}/allocations/").json()["allocations"] == {}
+
+
+@pytest.mark.usefixtures("company_defaults")
+class TestTheDetailsReadTakesNoLock:
+    """A GET must not take a row lock, and the SQL is the only honest witness.
+
+    ``select_for_update`` is legal inside a transaction and raises
+    ``TransactionManagementError`` in autocommit. There is no
+    ``ATOMIC_REQUESTS`` in ``config/``, so locking here is a 500 in production —
+    yet every test in this file passes, because pytest wraps each one in a
+    transaction. The usual escape, ``django_db(transaction=True)``, is closed
+    on purpose: this project refuses Django's ``flush`` (ADR 0048), which that
+    mode needs for teardown. So the request is made normally and the emitted
+    SQL is inspected instead, which pins the property rather than the symptom.
+    """
+
+    def test_no_statement_locks_a_row(self, client: Client, stock_holding_job: Job) -> None:
+        po = make_purchase_order(status="submitted")
+        line = make_po_line(po, quantity="5.00", description="Bar", location="Rack 2")
+        _receipt(client, po, str(line.id), str(stock_holding_job.id), "5")
+        stock = Stock.objects.get(source="purchase_order")
+
+        with CaptureQueriesContext(connection) as queries:
+            response = client.get(f"{PO_URL}{po.id}/allocations/stock/{stock.id}/details/")
+
+        assert response.status_code == 200
+        locking = [q["sql"] for q in queries.captured_queries if "FOR UPDATE" in q["sql"].upper()]
+        assert locking == [], "a read path took a row lock; in production this is a 500"
 
 
 @pytest.mark.usefixtures("company_defaults")
@@ -151,11 +181,61 @@ class TestAllocationDeletion:
     def _delete(
         self, client: Client, po: PurchaseOrder, line_id: str, alloc_type: str, alloc_id: str
     ) -> "_MonkeyPatchedWSGIResponse":
+        """Delete one allocation under the PO's current ETag.
+
+        The precondition is fetched here rather than passed by every caller
+        because these tests assert deletion behaviour; the two that own the
+        precondition itself post directly, so the header they send is visible
+        in the test.
+        """
         return client.post(
             f"{PO_URL}{po.id}/lines/{line_id}/allocations/delete/",
             data={"allocation_type": alloc_type, "allocation_id": alloc_id},
             content_type="application/json",
+            headers={"If-Match": client.get(f"{PO_URL}{po.id}/").headers["ETag"]},
         )
+
+    def test_deleting_without_if_match_is_428_and_writes_nothing(
+        self, client: Client, stock_holding_job: Job
+    ) -> None:
+        po = make_purchase_order(status="submitted")
+        line = make_po_line(po, quantity="5.00", description="Bar")
+        _receipt(client, po, str(line.id), str(stock_holding_job.id), "5")
+        stock = Stock.objects.get(source="purchase_order")
+
+        response = client.post(
+            f"{PO_URL}{po.id}/lines/{line.id}/allocations/delete/",
+            data={"allocation_type": "stock", "allocation_id": str(stock.id)},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 428
+        assert Stock.objects.filter(id=stock.id).exists()
+        line.refresh_from_db()
+        assert line.received_quantity == Decimal("5.00")
+
+    def test_deleting_with_a_stale_if_match_is_412_and_writes_nothing(
+        self, client: Client, stock_holding_job: Job
+    ) -> None:
+        po = make_purchase_order(status="submitted")
+        line = make_po_line(po, quantity="5.00", description="Bar")
+        stale = client.get(f"{PO_URL}{po.id}/").headers["ETag"]
+        # The receipt bumps the PO's updated_at, so the pre-receipt ETag is now
+        # stale -- the state a second operator's open allocations list holds.
+        _receipt(client, po, str(line.id), str(stock_holding_job.id), "5")
+        stock = Stock.objects.get(source="purchase_order")
+
+        response = client.post(
+            f"{PO_URL}{po.id}/lines/{line.id}/allocations/delete/",
+            data={"allocation_type": "stock", "allocation_id": str(stock.id)},
+            content_type="application/json",
+            headers={"If-Match": stale},
+        )
+
+        assert response.status_code == 412
+        assert Stock.objects.filter(id=stock.id).exists()
+        line.refresh_from_db()
+        assert line.received_quantity == Decimal("5.00")
 
     def test_deleting_a_stock_allocation_returns_the_quantity_to_the_line(
         self, client: Client, stock_holding_job: Job

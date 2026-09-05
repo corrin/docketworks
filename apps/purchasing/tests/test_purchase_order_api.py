@@ -7,6 +7,7 @@ stream.
 """
 
 from decimal import Decimal
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -16,11 +17,16 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company, SupplierPickupAddress
 from apps.company.tests.conftest import make_company
+from apps.core.gmail import GmailDraft
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 from apps.purchasing.tests.conftest import make_po_line, make_purchase_order
+
+#: The one seam to Gmail; the real API is exercised by the integration suite.
+DRAFT = "apps.purchasing.api.create_draft"
+STAFF_EMAIL = "purchasing-office@example.com"
 
 pytestmark = [
     pytest.mark.django_db,
@@ -81,7 +87,8 @@ class TestPurchaseOrderList:
         make_po_line(po, job=job, description="First")
         make_po_line(po, job=job, description="Second")
 
-        rows = client.get(PO_LIST_URL).json()
+        body = client.get(PO_LIST_URL).json()
+        rows = body["results"]
 
         assert len(rows) == 1
         assert rows[0]["po_number"] == po.po_number
@@ -98,9 +105,76 @@ class TestPurchaseOrderList:
         submitted = make_purchase_order(status="submitted")
         make_purchase_order(status="deleted")
 
-        rows = client.get(f"{PO_LIST_URL}?status=draft,submitted").json()
+        body = client.get(f"{PO_LIST_URL}?status=draft,submitted").json()
 
-        assert {row["po_number"] for row in rows} == {draft.po_number, submitted.po_number}
+        assert {row["po_number"] for row in body["results"]} == {
+            draft.po_number,
+            submitted.po_number,
+        }
+        # The count names the filtered total, not the table's.
+        assert body["count"] == 2
+
+    def test_a_page_carries_the_servers_total_not_the_rows_returned(self, client: Client) -> None:
+        """The mechanism, not the symptom: production holds 990 orders."""
+        for _ in range(5):
+            make_purchase_order()
+
+        body = client.get(f"{PO_LIST_URL}?page_size=2").json()
+
+        assert len(body["results"]) == 2
+        assert body["count"] == 5
+        assert body["page"] == 1
+        assert body["page_size"] == 2
+        assert body["total_pages"] == 3
+
+    def test_paging_walks_every_order_exactly_once(self, client: Client) -> None:
+        made = {make_purchase_order().po_number for _ in range(5)}
+
+        seen: set[str] = set()
+        for page in (1, 2, 3):
+            body = client.get(f"{PO_LIST_URL}?page_size=2&page={page}").json()
+            seen.update(row["po_number"] for row in body["results"])
+
+        assert seen == made
+
+    def test_search_matches_the_po_number(self, client: Client) -> None:
+        wanted = make_purchase_order()
+        make_purchase_order()
+
+        body = client.get(f"{PO_LIST_URL}?q={wanted.po_number}").json()
+
+        assert [row["po_number"] for row in body["results"]] == [wanted.po_number]
+        assert body["count"] == 1
+
+    def test_search_matches_the_supplier_name(self, client: Client, supplier: Company) -> None:
+        wanted = make_purchase_order(supplier=supplier)
+        make_purchase_order()
+
+        body = client.get(f"{PO_LIST_URL}?q={supplier.name[:6]}").json()
+
+        assert [row["po_number"] for row in body["results"]] == [wanted.po_number]
+
+    def test_search_matches_a_line_job_number_without_duplicating_the_order(
+        self, client: Client, job: Job
+    ) -> None:
+        """Two matching lines must not return the order twice."""
+        wanted = make_purchase_order()
+        make_po_line(wanted, job=job, description="First")
+        make_po_line(wanted, job=job, description="Second")
+        make_purchase_order()
+
+        body = client.get(f"{PO_LIST_URL}?q={job.job_number}").json()
+
+        assert [row["po_number"] for row in body["results"]] == [wanted.po_number]
+        assert body["count"] == 1
+
+    def test_a_search_matching_nothing_is_an_empty_page(self, client: Client) -> None:
+        make_purchase_order()
+
+        body = client.get(f"{PO_LIST_URL}?q=no-such-order").json()
+
+        assert body["results"] == []
+        assert body["count"] == 0
 
     def test_unauthenticated_requests_are_rejected(self) -> None:
         assert Client().get(PO_LIST_URL).status_code == 401
@@ -189,16 +263,39 @@ class TestPurchaseOrderCreate:
         # The create response carries the ETag the client needs to mutate.
         assert response.headers["ETag"].startswith('"po:')
 
-    def test_blank_reference_is_stored_as_unset(self, client: Client) -> None:
-        # v1 wrote "" here and tripped its own reference_not_blank constraint.
-        # That constraint is NOT visible in v1's models.py — it was added by a
-        # raw-SQL migration and lives only in the live schema (verified against
-        # v1 production: 0 blank, 167 NULL of 913 purchase orders). Do not
-        # "correct" this test by reading v1's model file.
+    def test_a_blank_reference_is_a_validation_error(self, client: Client) -> None:
+        # The reference_not_blank constraint is NOT visible in v1's models.py --
+        # it was added by a raw-SQL migration and lives only in the live schema
+        # (verified against v1 production: 0 blank, 167 NULL of 913 purchase
+        # orders). So "" can never be stored, and NullableText refuses it at the
+        # boundary with a 422 naming the field rather than letting it reach the
+        # constraint (ADR 0040). Do not "correct" this by reading v1's models.
         response = client.post(PO_LIST_URL, data={"reference": ""}, content_type="application/json")
+
+        assert response.status_code == 422
+        assert not PurchaseOrder.objects.exists()
+
+    def test_an_omitted_reference_is_stored_as_unset(self, client: Client) -> None:
+        response = client.post(PO_LIST_URL, data={}, content_type="application/json")
 
         assert response.status_code == 201
         assert PurchaseOrder.objects.get(id=response.json()["id"]).reference is None
+
+    def test_an_explicit_null_reference_is_stored_as_unset(self, client: Client) -> None:
+        response = client.post(
+            PO_LIST_URL, data={"reference": None}, content_type="application/json"
+        )
+
+        assert response.status_code == 201
+        assert PurchaseOrder.objects.get(id=response.json()["id"]).reference is None
+
+    def test_surrounding_whitespace_is_trimmed_from_a_reference(self, client: Client) -> None:
+        response = client.post(
+            PO_LIST_URL, data={"reference": "  PO-42  "}, content_type="application/json"
+        )
+
+        assert response.status_code == 201
+        assert PurchaseOrder.objects.get(id=response.json()["id"]).reference == "PO-42"
 
     def test_price_tbc_clears_the_unit_cost(self, client: Client) -> None:
         response = client.post(
@@ -674,7 +771,10 @@ class TestPurchaseOrderUpdate:
         assert "not found on PO" in response.json()["detail"]
 
     def test_an_unknown_status_is_rejected(self, client: Client) -> None:
-        # v1 wrote any string into the column; choices are not DB-enforced.
+        # v1 wrote any string into the column; choices are not DB-enforced, so
+        # the five live in the request schema as a union and a sixth is a 422
+        # naming the field. The service used to re-check them at runtime; with
+        # the contract carrying the union that check could not fire.
         po = make_purchase_order()
         etag = _current_etag(client, po)
 
@@ -685,8 +785,7 @@ class TestPurchaseOrderUpdate:
             headers={"If-Match": etag},
         )
 
-        assert response.status_code == 400
-        assert "Invalid status" in response.json()["detail"]
+        assert response.status_code == 422
         po.refresh_from_db()
         assert po.status == "draft"
 
@@ -817,35 +916,68 @@ class TestPurchaseOrderEvents:
 
 
 class TestPurchaseOrderEmail:
-    def test_composes_a_mailto_url_for_the_supplier(
+    """Drafting the supplier email, with Gmail stubbed at the one seam.
+
+    The draft itself is proven against the real API in
+    apps/core/tests/test_gmail_integration.py; what these cover is what we ask
+    Gmail for — the right mailbox, the right recipient, and the order PDF
+    actually attached, which is the whole reason this is a draft and not a
+    mailto link.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _logo(self, company_defaults: CompanyDefaults) -> None:
+        """Every draft renders the order PDF, which refuses without a logo."""
+        company_defaults.logo_wide = "app_images/docketworks_logo_wide.png"
+        company_defaults.save()
+
+    def test_drafts_to_the_supplier_in_the_operators_own_mailbox(
         self, client: Client, supplier: Company, company_defaults: CompanyDefaults
     ) -> None:
         po = make_purchase_order(supplier=supplier)
 
-        body = client.post(
-            f"{_detail_url(po)}email/", data={}, content_type="application/json"
-        ).json()
+        with patch(DRAFT) as draft:
+            draft.return_value = GmailDraft(draft_id="d1", web_url="https://mail.example/d1")
+            body = client.post(
+                f"{_detail_url(po)}email/", data={}, content_type="application/json"
+            ).json()
 
         assert body["success"] is True
         assert body["email_subject"] == f"Purchase Order {po.po_number}"
-        assert body["mailto_url"].startswith(f"mailto:{supplier.email}?subject=")
+        assert body["draft_url"] == "https://mail.example/d1"
         assert company_defaults.company_name in body["email_body"]
+        call = draft.call_args.kwargs
+        assert call["to"] == supplier.email
+        assert call["as_user"] == STAFF_EMAIL, "drafted somewhere the operator cannot see"
 
-    @pytest.mark.usefixtures("company_defaults")
+    def test_the_order_pdf_rides_along(self, client: Client, supplier: Company) -> None:
+        """The reason this is a draft: mailto could not carry the order."""
+        po = make_purchase_order(supplier=supplier)
+
+        with patch(DRAFT) as draft:
+            draft.return_value = GmailDraft(draft_id="d1", web_url="https://mail.example/d1")
+            client.post(f"{_detail_url(po)}email/", data={}, content_type="application/json")
+
+        attachment = draft.call_args.kwargs["attachments"][0]
+        assert attachment.filename == f"Purchase_Order_{po.po_number}.pdf"
+        assert attachment.mime_type == "application/pdf"
+        assert attachment.content.startswith(b"%PDF"), "not a PDF"
+
     def test_a_custom_message_is_prepended_to_the_body(
         self, client: Client, supplier: Company
     ) -> None:
         po = make_purchase_order(supplier=supplier)
 
-        body = client.post(
-            f"{_detail_url(po)}email/",
-            data={"message": "Urgent please"},
-            content_type="application/json",
-        ).json()
+        with patch(DRAFT) as draft:
+            draft.return_value = GmailDraft(draft_id="d1", web_url="https://mail.example/d1")
+            body = client.post(
+                f"{_detail_url(po)}email/",
+                data={"message": "Urgent please"},
+                content_type="application/json",
+            ).json()
 
         assert body["email_body"].startswith("Urgent please\n\n")
 
-    @pytest.mark.usefixtures("company_defaults")
     def test_a_po_without_a_supplier_is_400(self, client: Client) -> None:
         po = make_purchase_order()
 
@@ -854,8 +986,6 @@ class TestPurchaseOrderEmail:
         assert response.status_code == 400
         assert "must have a supplier" in response.json()["detail"]
 
-    @pytest.mark.usefixtures("company_defaults")
-    @pytest.mark.usefixtures("company_defaults")
     def test_an_invalid_recipient_email_is_rejected(
         self, client: Client, supplier: Company
     ) -> None:
@@ -871,19 +1001,20 @@ class TestPurchaseOrderEmail:
 
         assert response.status_code == 422
 
-    @pytest.mark.usefixtures("company_defaults")
     def test_a_valid_recipient_email_overrides_the_supplier_address(
         self, client: Client, supplier: Company
     ) -> None:
         po = make_purchase_order(supplier=supplier)
 
-        body = client.post(
-            f"{_detail_url(po)}email/",
-            data={"recipient_email": "yard@example.test"},
-            content_type="application/json",
-        ).json()
+        with patch(DRAFT) as draft:
+            draft.return_value = GmailDraft(draft_id="d1", web_url="https://mail.example/d1")
+            client.post(
+                f"{_detail_url(po)}email/",
+                data={"recipient_email": "yard@example.test"},
+                content_type="application/json",
+            )
 
-        assert body["mailto_url"].startswith("mailto:yard@example.test?subject=")
+        assert draft.call_args.kwargs["to"] == "yard@example.test"
 
     def test_a_supplier_without_an_email_is_400(self, client: Client) -> None:
         silent = Company.objects.create(name="No Email Ltd", xero_last_modified=timezone.now())

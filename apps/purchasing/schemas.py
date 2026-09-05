@@ -24,9 +24,12 @@ from apps.job.schemas import CostLineOut
 
 
 class PurchaseOrderListQuery(Schema):
-    """Query parameters for purchase-order listing, including CSV statuses."""
+    """Query params for purchase-order listing: CSV statuses, search, paging."""
 
     status: str | None = None
+    q: str = ""
+    page: int = 1
+    page_size: int = 50
 
 
 class StockSearchQuery(Schema):
@@ -99,6 +102,16 @@ class PurchasingJob(Schema):
 # ── Purchase orders ──────────────────────────────────────────────────────
 
 
+#: The five states a purchase order can be in, mirroring PurchaseOrder.status's
+#: choices. Declared as a Literal rather than ``str`` so the generated client
+#: gets the union too: a client typed ``str`` cannot exhaustively map the value,
+#: which is what forced the list screen to keep a fallback branch for a sixth
+#: status that cannot exist (ADR 0028).
+PurchaseOrderStatus = Literal[
+    "draft", "submitted", "partially_received", "fully_received", "deleted"
+]
+
+
 class PurchaseOrderJob(Schema):
     """Wire contract for PurchaseOrderJob."""
 
@@ -112,13 +125,23 @@ class PurchaseOrderList(Schema):
 
     id: UUID
     po_number: str
-    status: str
+    status: PurchaseOrderStatus
     order_date: date
     supplier: str
     supplier_id: UUID | None
     created_by_id: UUID | None
     created_by_name: str
     jobs: list[PurchaseOrderJob]
+
+
+class PurchaseOrderListResponse(Schema):
+    """One page of purchase orders in the shared pagination envelope."""
+
+    results: list[PurchaseOrderList]
+    count: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class PurchaseOrderLineOut(Schema):
@@ -150,7 +173,7 @@ class PurchaseOrderDetail(Schema):
     id: UUID
     po_number: str
     reference: str | None
-    status: str
+    status: PurchaseOrderStatus
     order_date: date
     expected_delivery: date | None
     online_url: str | None
@@ -160,6 +183,7 @@ class PurchaseOrderDetail(Schema):
     supplier: str
     supplier_id: UUID | None
     supplier_has_xero_id: bool
+    supplier_has_email: bool
     lines: list[PurchaseOrderLineOut]
     pickup_address: SupplierPickupAddressOut | None
     created_by_name: str
@@ -192,7 +216,7 @@ class PurchaseOrderCreateRequest(Schema):
 
     supplier_id: UUID | None = None
     pickup_address_id: UUID | None = None
-    reference: str | None = None
+    reference: NullableText = None
     order_date: date | None = None
     expected_delivery: date | None = None
     lines: list[PurchaseOrderLineCreateRequest] = []  # noqa: RUF012 -- pydantic copies defaults
@@ -212,7 +236,10 @@ class PurchaseOrderUpdateRequest(Schema):
     ``expected_delivery`` are nullable because each can be CLEARED — the
     columns are nullable and NULL is what unset means there. ``status`` cannot:
     the column is NOT NULL, so a null is a 422 rather than something the
-    handler silently drops.
+    handler silently drops. Its sentinel is ``"draft"`` (the model default)
+    rather than ``""`` because the annotation is the five-value union and the
+    placeholder must not contradict it; the handler reads presence from
+    ``model_fields_set`` and never the value.
 
     The two list fields are presence-only. A null list means nothing an empty
     list does not, and reading them from ``model_fields_set`` rather than a
@@ -221,9 +248,9 @@ class PurchaseOrderUpdateRequest(Schema):
 
     supplier_id: UUID | None = None
     pickup_address_id: UUID | None = None
-    reference: str | None = None
+    reference: NullableText = None
     expected_delivery: date | None = None
-    status: str = omittable("")
+    status: PurchaseOrderStatus = omittable("draft")
     lines_to_delete: list[UUID] = omittable([])
     lines: list[PurchaseOrderLineUpdateRequest] = omittable([])
 
@@ -293,10 +320,14 @@ class PurchaseOrderEmailResponse(ResponseSchema):
     """Wire contract for PurchaseOrderEmailResponse."""
 
     success: bool
-    email_subject: str | None = None
-    email_body: str | None = None
-    mailto_url: str | None = None
-    pdf_url: str | None = None
+    # Present whenever the endpoint answers 200: the composer raises rather than
+    # returning a message it could not address, and the handler builds all three
+    # from that result. Declaring them nullable told every caller to handle a
+    # success with no email in it, which the code cannot produce.
+    email_subject: str
+    email_body: str
+    draft_id: str
+    draft_url: str
     message: str | None = None
 
 

@@ -43,6 +43,31 @@ hours on specs for unbuilt screens.
 
 ## Rulings that closed a question
 
+**Purchase-order sync is bidirectional, and Xero's `BILLED` is not a receipt
+(2026-09-05).** Docketworks manages jobs; Xero manages the accounts — DW needs to
+know whether a job made money, Xero needs to know it is only paying bills that
+match a valid order. Neither side owns a purchase order, so an edit made in
+either flows to the other. The only exception is a genuine collision — we hold an
+edit Xero has not seen — and it is resolved by publishing ours, never by dropping
+either side. An earlier design here gave the order one owner and made it
+Docketworks (commits `4bf940f`, `0bce840`); it was wrong and was corrected in
+place (`f522bf8`) rather than rewritten out of history, because a sync that
+handles one direction and silently discards the other is not a sync. Separately:
+Xero's `BILLED` says a bill arrived, not that goods did, so mapping it to
+`fully_received` marked stock received that nobody had touched. Receiving stays a
+Docketworks fact.
+
+**`xero_last_synced` could not answer "has our edit reached Xero" (2026-09-05).**
+It had two writers — every inbound pull stamped it — so the reconcile sweep that
+used it to find unsent work found nothing. Split into `xero_agreed_at` — the
+moment the two copies were last known to match — alongside `xero_last_synced`
+("we looked"). The first attempt called it `xero_last_pushed`, which only the
+push could honestly write; absorbing an inbound edit then looked exactly like
+making a local one, and the sweep pushed the order straight back at Xero on
+every pull. `updated_at` cannot answer it either, being the row's ETag: it has
+to advance when the change came FROM Xero. One column, one meaning — and the
+meaning has to cover both ways of reaching agreement.
+
 **Password tokens are fingerprint-bound with no grandfathering; the deploy
 carrying it logs every session out once (2026-08-31).** Every JWT now carries
 a fingerprint of the password hash (`apps/core/auth.py`), so a change or
@@ -161,6 +186,16 @@ change. Unifying any of them is a user decision that has not been asked for.
   `raw_json` and hardcodes its window.
 
 ## Measurements
+
+**32 of 444 received purchase orders carry no cost anywhere, 2026-09-05.**
+Measured on restored production data: those orders are marked received but have
+neither a stock row nor a job cost line, so the money left the business and
+landed on no job. It is the same shape as
+[KAN-144](https://docketworks.atlassian.net/browse/KAN-144)'s ~$78k. The cause is
+recorded in the ruling above — Xero's `BILLED` was mapped to `fully_received`, so
+an order could become "received" through the sync without anyone allocating it.
+That mapping is fixed, which stops new ones; reconciling the existing 32 is
+KAN-144's work and needs this evidence on the ticket.
 
 **Google returns no NZ region from Address Validation, 2026-09-02.** Measured
 against six real addresses across four regions: `v1:validateAddress` returns no
