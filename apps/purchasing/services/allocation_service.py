@@ -251,7 +251,15 @@ def recompute_purchase_order_status(po: PurchaseOrder) -> None:
 # ── Reads and deletes ────────────────────────────────────────────────────
 
 
-def _consuming_cost_lines(stock_id: UUID) -> QuerySet[CostLine]:
+def consuming_cost_lines(stock_id: UUID) -> QuerySet[CostLine]:
+    """Cost lines that have consumed this stock row.
+
+    Public because the receipt path needs the same question answered before it
+    replaces a line's stock: ``ext_refs.stock_id`` is an unindexed JSON string
+    with no foreign key, so nothing in the database stops a delete from
+    orphaning the cost lines that point at it (ADR 0039 -- one implementation of
+    "is this stock spoken for").
+    """
     return CostLine.objects.annotate(
         consumed_stock_id=KeyTextTransform("stock_id", "ext_refs"),
     ).filter(consumed_stock_id=str(stock_id))
@@ -331,7 +339,7 @@ def _decrement_received(po_line: PurchaseOrderLine, quantity: Decimal) -> None:
 
 
 def _delete_stock_allocation(po_line: PurchaseOrderLine, stock_item: Stock) -> DeletionResult:
-    consumed_count = _consuming_cost_lines(stock_item.id).count()
+    consumed_count = consuming_cost_lines(stock_item.id).count()
     if consumed_count:
         raise AllocationDeletionError(
             f"Cannot delete stock allocation - stock has been consumed by {consumed_count} job(s)"
@@ -465,7 +473,7 @@ def get_allocation_details(
 
     if allocation_type == STOCK_ALLOCATION:
         stock_item = _get_stock_or_error(po, allocation_id)
-        consuming = _consuming_cost_lines(stock_item.id)
+        consuming = consuming_cost_lines(stock_item.id)
         consumed_count = consuming.count()
         return {
             "type": "stock",
