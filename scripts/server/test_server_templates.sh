@@ -179,7 +179,7 @@ while read -r token; do
     grep -qF "s|$token|" "$SCRIPT_DIR/instance.sh" \
         || fail "env template: $token is never substituted by instance.sh"
 done < <(grep -o '__[A-Z0-9_]*__' "$TEMPLATE_DIR/env-instance.template" | sort -u)
-# The service-account key the app reads (apps/core/gauth.py) must point at the
+# The service-account key the app reads (apps/platform/integrations/google/credentials.py) must point at the
 # instance's own copy — the path instance.sh chmod-600s beside the .env, not
 # the operator's download path, and never blank.
 grep -q '^GCP_CREDENTIALS=/opt/docketworks/instances/test-uat/gcp-credentials.json$' <<<"$ENV_RENDERED" \

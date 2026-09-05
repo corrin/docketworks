@@ -18,6 +18,19 @@ restating it. Nothing here is a task.
 
 ## Cutover
 
+**2026-09-06 — KAN-357 first ownership slice.** ADR 0055 establishes the target
+without making the epic a single PR. Platform integrations takes IntegrationSettings,
+its admin API/loader and the Google adapters. Google callers now supply business
+configuration explicitly; the credential builder requires a mailbox. The table and
+constraint names, API schema and Celery task names remain unchanged. ContentType
+ownership transfers without replacing permission IDs. GCP file/environment storage
+is intentionally unchanged, not an exception for new credentials (ADR 0053).
+
+The import and ORM gates cover the migrated boundary, not a claimed-clean legacy
+monolith. Tests inject forbidden imports, import cycles and string ORM references to
+prove the gates refuse them; migration tests exercise adoption, identity preservation,
+ambiguous ContentType refusal and the restore rewind/reapply path.
+
 **2026-08-14: the 15 August window was declined and cutover moved one week to
 22–23 August.** At decision time MUST-tier specs were still red — among them
 `/timesheets/weekly` (declared MUST that same day, unstarted),
@@ -601,4 +614,3 @@ assumes is the cost is 5% of it. The E2E's own short recording measured
 that used to fail the guard. Falsifying the deferral assertion (ADR 0052) by
 restoring the fetch-on-select showed the eager page fetching the same replay
 THREE times for one row click, not once.
-

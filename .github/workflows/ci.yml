@@ -37,6 +37,8 @@ jobs:
         run: uv run mypy
       - name: import-linter (layer contract)
         run: uv run lint-imports
+      - name: ORM context boundaries (ADR 0055)
+        run: uv run python -m scripts.checks.context_dependencies
       - name: deptry (dependency hygiene)
         run: uv run deptry .
       - name: find-duplicates (one concept, one implementation)

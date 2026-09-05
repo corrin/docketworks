@@ -10,7 +10,8 @@ Usage:
 
 from google.auth.transport.requests import Request
 
-from scripts.gdocs.gauth import DRIVE_SCOPE, SHEETS_SCOPE, service_account_credentials
+from apps.platform.integrations.google.credentials import service_account_credentials
+from scripts.gdocs.gauth import DRIVE_SCOPE, SHEETS_SCOPE
 
 
 def main() -> None:

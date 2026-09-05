@@ -49,7 +49,7 @@ dependencies = [
     # `uv sync --frozen --no-dev` venv. Was only transitive before, which
     # deptry rightly refuses (DEP003).
     "cryptography>=46.0",
-    # Main, not dev: apps/core/gmail.py (the password-reset sender, imported
+    # Main, not dev: platform.integrations.google.gmail (password-reset sender, imported
     # by apps/accounts/tasks.py at Celery worker boot) and the per-client
     # H&S onboarding command import_dropbox_hs_documents both run in the
     # production `uv sync --frozen --no-dev` venv. Dev-only was the
@@ -188,7 +188,7 @@ DEP002 = [
 # reading the total out of the .coverage file CI already wrote) and
 # httplib2 (the Response type a Drive HttpError is built from, in the link
 # probe's tests) stay in the dev group. The Google API client itself is a
-# MAIN dependency (apps/core/gmail.py, import_dropbox_hs_documents) and is
+# MAIN dependency (platform.integrations.google.gmail, import_dropbox_hs_documents) and is
 # deliberately absent from this list so deptry gates it again — a stale
 # entry here is what let it ship dev-only while apps/ imported it
 # (2026-08-31 production finding).
@@ -301,7 +301,7 @@ layers = [
     "apps.diagnostics",
     "(apps.xero) | (apps.search)",
     "(apps.job) : (apps.accounts) : (apps.company) : (apps.crm) : (apps.purchasing) : (apps.quoting) : (apps.accounting) : (apps.timesheet) : (apps.operations) : (apps.process)",
-    "(apps.core) : (apps.ai)",
+    "(apps.core) : (apps.ai) : (apps.platform)",
 ]
 exhaustive = false
 exclude_type_checking_imports = true
@@ -311,3 +311,18 @@ ignore_imports = [
     # do not add further entries here.
     "apps.job.models.job -> apps.xero.models",
 ]
+
+[[tool.importlinter.contracts]]
+name = "Platform does not consume legacy business models (ADR 0055)"
+type = "forbidden"
+source_modules = ["apps.platform"]
+forbidden_modules = ["apps.core.models", "apps.accounts", "apps.company", "apps.crm", "apps.job", "apps.timesheet", "apps.purchasing", "apps.quoting", "apps.accounting", "apps.operations", "apps.process", "apps.xero", "apps.search", "apps.diagnostics", "apps.ai"]
+# GPT: core.auth still owns the web authentication primitives and imports
+# ServiceAPIKey. ADR 0055 permits that existing web dependency, not direct
+# access to its business models. Platform.web's slice removes this placement.
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Platform packages have no cycles (ADR 0055)"
+type = "acyclic_siblings"
+ancestors = ["apps.platform"]

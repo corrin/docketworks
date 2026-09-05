@@ -2,7 +2,7 @@
 
 The one loader for the row (ADR 0053): `scripts/server/instance.sh` renders
 the root-owned credentials file into a fixture and calls this; a developer
-calls it with `apps/core/fixtures/integration_settings.json`. It is not
+calls it with `apps/platform/integrations/fixtures/integration_settings.json`. It is not
 `loaddata` because `loaddata` writes the whole row, and the row holds several
 integrations whose configured state is independent: a restored instance that
 already carries the phone provider's login must still receive the Maps key
@@ -20,9 +20,9 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import transaction
 
-from apps.core.models import IntegrationSettings
+from apps.platform.integrations.models import IntegrationSettings
 
-FIXTURE_MODEL = "core.integrationsettings"
+FIXTURE_MODEL = "integrations.integrationsettings"
 
 #: Fable: each integration's columns, grouped so a group is applied or skipped
 #: whole: half a phone login is a configuration nobody chose (ADR 0015).
@@ -76,7 +76,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser: CommandParser) -> None:
         """Declare the fixture path."""
-        parser.add_argument("fixture", type=Path, help="A core.integrationsettings fixture")
+        parser.add_argument("fixture", type=Path, help="A integrations.integrationsettings fixture")
 
     def handle(self, *_args: object, **options: object) -> None:
         """Create the row if the table is empty, then apply each unset integration."""

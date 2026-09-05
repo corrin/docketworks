@@ -16,7 +16,7 @@ from pytest_django.fixtures import SettingsWrapper
 
 from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
-from apps.core.models import AppError, IntegrationSettings
+from apps.core.models import AppError
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
 from apps.crm.tests.helpers import (
     PASSWORD,
@@ -28,6 +28,7 @@ from apps.crm.tests.helpers import (
     make_recording,
 )
 from apps.job.models import Job
+from apps.platform.integrations.models import IntegrationSettings
 
 pytestmark = [
     pytest.mark.django_db,

@@ -1,6 +1,6 @@
 [
   {
-    "model": "core.integrationsettings",
+    "model": "integrations.integrationsettings",
     "pk": 1,
     "fields": {
       "google_maps_api_key": __GOOGLE_MAPS_API_KEY_JSON__,

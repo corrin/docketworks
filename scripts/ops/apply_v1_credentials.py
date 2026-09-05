@@ -63,7 +63,7 @@ def main() -> None:
     django.setup()
     from django.db import transaction
 
-    from apps.core.models import IntegrationSettings
+    from apps.platform.integrations.models import IntegrationSettings
     from apps.quoting.models import SupplierCredential
 
     phone = payload.get("phone")

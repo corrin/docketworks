@@ -34,6 +34,12 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      - id: context-dependencies
+        name: ORM context boundaries (ADR 0055)
+        entry: uv run python -m scripts.checks.context_dependencies
+        language: system
+        types: [python]
+        pass_filenames: false
       # --- expensive tier: every hook below boots Django (~6s each) ---
       - id: migrations-check
         name: makemigrations --check

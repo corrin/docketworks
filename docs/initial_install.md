@@ -88,15 +88,15 @@ gitignored because they hold live keys.
    uv run python manage.py loaddata apps/xero/fixtures/xero_apps.json
    ```
 
-3. **`apps/core/fixtures/integration_settings.json`** — the install-level credentials
+3. **`apps/platform/integrations/fixtures/integration_settings.json`** — the install-level credentials
    (ADR 0053): the Google Maps key and, if you need it, the phone provider's login. They are
    columns on the `IntegrationSettings` row that `migrate` creates; nothing reads them from
    `.env`. Leave the phone provider unset on a dev machine so dev Celery cannot reach the
    production phone system. The E2E preflight refuses to run without the Maps key.
    ```bash
-   cp apps/core/fixtures/integration_settings.json.example apps/core/fixtures/integration_settings.json
+   cp apps/platform/integrations/fixtures/integration_settings.json.example apps/platform/integrations/fixtures/integration_settings.json
    # edit in the shared Maps key, then:
-   uv run python manage.py load_integration_settings apps/core/fixtures/integration_settings.json
+   uv run python manage.py load_integration_settings apps/platform/integrations/fixtures/integration_settings.json
    ```
    The command applies each integration only while its columns are unset, so re-running it
    never overwrites what a superuser has since entered on **Admin > Integrations**.

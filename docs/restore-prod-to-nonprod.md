@@ -215,7 +215,7 @@ system. On a local dev restore, assert that rather than assuming it:
 
 ```bash
 uv run python manage.py shell -c "
-from apps.core.models import IntegrationSettings
+from apps.platform.integrations.models import IntegrationSettings
 s = IntegrationSettings.get_solo()
 assert not (s.phone_provider_base_url or s.phone_provider_username or s.phone_provider_password), 'phone provider must be unconfigured on local dev'
 "

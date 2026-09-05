@@ -39,9 +39,9 @@ from ninja.responses import Status
 from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth
 from apps.core.etag import if_none_match_satisfied
-from apps.core.gmail import Attachment, create_draft
 from apps.job.models import Job
 from apps.job.services import job_search, job_service
+from apps.platform.integrations.google.gmail import Attachment, create_draft
 from apps.purchasing.etag import purchase_order_etag
 from apps.purchasing.models import PurchaseOrder, Stock
 from apps.purchasing.schemas import (

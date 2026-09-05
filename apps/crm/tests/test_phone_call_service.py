@@ -14,7 +14,7 @@ from django.utils import timezone
 from pytest_django.fixtures import SettingsWrapper
 
 from apps.company.models import ContactMethod
-from apps.core.models import AppError, IntegrationSettings
+from apps.core.models import AppError
 from apps.core.test_data import silent_wav
 from apps.crm.migrations import _0003_helpers as backfill
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
@@ -41,6 +41,7 @@ from apps.crm.tests.helpers import (
     make_office_staff,
     make_recording,
 )
+from apps.platform.integrations.models import IntegrationSettings
 
 
 class TestPhoneProviderPortalClient:

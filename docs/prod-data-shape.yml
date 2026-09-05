@@ -29,7 +29,7 @@ counts:
   company.SupplierSearchAlias: 0
   core.AppError: 28766
   core.CompanyDefaults: 1
-  core.IntegrationSettings: 1
+  integrations.IntegrationSettings: 1
   core.ServiceAPIKey: 0
   crm.PhoneCallRecord: 46058
   crm.PhoneCallRecording: 1234

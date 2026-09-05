@@ -8,7 +8,7 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.test import Client
 
-from apps.core.models import IntegrationSettings
+from apps.platform.integrations.models import IntegrationSettings
 
 pytestmark = pytest.mark.django_db
 
