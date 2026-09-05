@@ -89,7 +89,9 @@ def test_refuses_a_fixture_for_another_model(tmp_path: Path, model: str) -> None
     path = tmp_path / "wrong.json"
     path.write_text(json.dumps([{"model": model, "pk": 1, "fields": {}}]))
 
-    with pytest.raises(CommandError):
+    with pytest.raises(
+        CommandError, match=r"must hold exactly one integrations\.integrationsettings object"
+    ):
         _run(path)
     assert IntegrationSettings.get_solo().google_maps_api_key is None
 
