@@ -352,9 +352,21 @@ class TestStateGate:
     def test_a_draft_may_be_created_in_xero(self, po: PurchaseOrder) -> None:
         assert _manager(po, _provider()).state_valid_for_xero() is True
 
-    def test_a_submitted_order_cannot_be_created_in_xero(self, po: PurchaseOrder) -> None:
-        """Creating from a non-draft would push an order the supplier already has."""
+    def test_a_submitted_order_may_be_created_in_xero(self, po: PurchaseOrder) -> None:
+        """Submitted is precisely when Xero needs it.
+
+        The bill it reconciles against arrives after the order goes to the
+        supplier, so requiring draft — as v1 did — meant the copy could only be
+        made before it was needed.
+        """
         po.status = "submitted"
+        po.save(update_fields=["status"])
+
+        assert _manager(po, _provider()).state_valid_for_xero() is True
+
+    def test_a_cancelled_order_is_not_created_in_xero(self, po: PurchaseOrder) -> None:
+        """It would invent a payable for something nobody is going to buy."""
+        po.status = "deleted"
         po.save(update_fields=["status"])
 
         assert _manager(po, _provider()).state_valid_for_xero() is False

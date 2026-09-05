@@ -46,6 +46,7 @@ from apps.purchasing.services.allocation_service import (
     create_stock_from_allocation,
     default_retail_rate_pct,
 )
+from apps.purchasing.tasks import queue_purchase_order_push
 
 logger = logging.getLogger(__name__)
 
@@ -537,6 +538,10 @@ def update_purchase_order(
 
         po.save()
         po.refresh_from_db()
+        # Xero holds a copy of this order so the supplier's bill has something
+        # to reconcile against; keeping that copy current is the system's job,
+        # not an operator's. Queued after the write, on commit.
+        queue_purchase_order_push(po)
         return po
 
 

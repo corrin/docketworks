@@ -96,6 +96,16 @@ app.conf.beat_schedule = _with_periodic_task_headers(
             "task": "apps.xero.tasks.xero_regular_sync_task",
             "schedule": crontab(minute="15"),
         },
+        # Outbound counterpart to the inbound sync above: purchase orders
+        # Docketworks raised, whose Xero copy is missing or behind. It runs more
+        # often than the hourly pull because the cost of being late is a bill
+        # arriving with no order to reconcile against, and each run is one
+        # indexed query that usually matches nothing. Minute 45 keeps it clear
+        # of the pull at minute 15.
+        "reconcile_purchase_orders_to_xero": {
+            "task": "apps.xero.tasks.reconcile_purchase_orders_to_xero",
+            "schedule": crontab(minute="45"),
+        },
         "xero_30_day_sync_task": {
             "task": "apps.xero.tasks.xero_30_day_sync_task",
             "schedule": crontab(minute="0", hour="2", day_of_week="6"),

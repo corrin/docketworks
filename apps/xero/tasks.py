@@ -9,11 +9,14 @@ from typing import Any
 
 from celery import shared_task
 from django.db import close_old_connections
+from django.db.models import F, Q
 
 from apps.accounting.registry import get_provider, is_accounting_enabled
 from apps.core.errors import persist_app_error
 from apps.core.models import CompanyDefaults
+from apps.purchasing.models import PurchaseOrder
 from apps.xero.client import quota_floor_breached
+from apps.xero.documents.po import XeroPurchaseOrderManager
 from apps.xero.single_sync import sync_single_contact, sync_single_invoice
 from apps.xero.sync_service import XeroSyncService
 
@@ -23,6 +26,10 @@ from apps.xero.sync_service import XeroSyncService
 from apps.xero.sync_worker import xero_sync_task  # noqa: F401
 
 logger = logging.getLogger(__name__)
+
+
+class XeroPurchaseOrderPushError(RuntimeError):
+    """Xero refused a purchase order push."""
 
 
 @shared_task(name="apps.xero.tasks.process_xero_webhook_event")
@@ -158,3 +165,82 @@ def xero_30_day_sync_task() -> None:
         logger.exception("Error during Xero 30-day Sync task")
         persist_app_error(exc)
         raise
+
+
+@shared_task(name="apps.xero.tasks.push_purchase_order_to_xero")
+def push_purchase_order_to_xero(purchase_order_id: str) -> None:
+    """Send a Docketworks-raised purchase order to Xero, creating or updating.
+
+    Xero holds a copy of the order so the supplier's bill has something to
+    reconcile against, which only works if the copy is there before the bill
+    arrives and stays current afterwards. That is why this is a task and not a
+    button: leaving it to an operator makes staying in step someone's job to
+    remember, and forgetting it is invisible until the accounts do not match.
+
+    Idempotent (ADR 0024): the manager creates or updates on the order's stored
+    ``xero_id``, so a redelivered task converges rather than raising a second
+    purchase order at the supplier.
+    """
+    po = (
+        PurchaseOrder.objects.select_related("supplier", "created_by")
+        .filter(id=purchase_order_id)
+        .first()
+    )
+    if po is None:
+        logger.warning("Purchase order %s vanished before its Xero push", purchase_order_id)
+        return
+    if po.created_by is None:
+        raise ValueError(f"Purchase order {po.po_number} is not Docketworks-owned; refusing push")
+
+    manager = XeroPurchaseOrderManager(purchase_order=po, staff=po.created_by)
+    result = manager.sync_to_xero()
+    if not result["success"]:
+        # Persisted, not swallowed: an order the accounts team cannot see is
+        # exactly the failure this push exists to prevent, so it has to surface
+        # rather than leave the row quietly out of step (ADR 0019).
+        raise XeroPurchaseOrderPushError(
+            f"Xero refused purchase order {po.po_number}: {result.get('error')}"
+        )
+    logger.info("Pushed purchase order %s to Xero (%s)", po.po_number, result.get("xero_id"))
+
+
+RECONCILE_LIMIT = 50
+
+
+@shared_task(name="apps.xero.tasks.reconcile_purchase_orders_to_xero")
+def reconcile_purchase_orders_to_xero(limit: int = RECONCILE_LIMIT) -> None:
+    """Push every Docketworks-raised order whose Xero copy is missing or behind.
+
+    The immediate push queued on write is an optimisation; this is the
+    guarantee. Xero refuses work for reasons that have nothing to do with our
+    data and everything to do with the moment — the day quota under
+    ``xero_automated_day_floor``, a lapsed connection, an outage, a worker that
+    died holding the message. Every one of those resolves on its own, and a
+    sweep is what turns "resolves on its own" into "the order is in Xero"
+    without an operator noticing anything happened.
+
+    That is also why there are no task retries: a retry storms a refusal a later
+    sweep handles calmly, and the failure that is NOT transient — an order
+    voided in Xero — is prevented instead, because the inbound sync marks it
+    deleted and a deleted order is never swept.
+
+    ``xero_last_synced < updated_at`` is the whole staleness test, from columns
+    the push already maintains: ``sync_to_xero`` stamps the former and Django
+    stamps the latter, so an edit that has not reached Xero is exactly a row
+    where the edit is newer than the send.
+    """
+    if quota_floor_breached(CompanyDefaults.get_solo().xero_automated_day_floor):
+        # Not an error: the floor exists so automated work yields to
+        # interactive use. The next sweep finds the same orders.
+        logger.info("Purchase-order reconcile skipped: Xero day quota at floor")
+        return
+
+    behind = (
+        PurchaseOrder.objects.filter(created_by__isnull=False)
+        .exclude(status__in=["draft", "deleted"])
+        .filter(Q(xero_id__isnull=True) | Q(xero_last_synced__lt=F("updated_at")))
+        .order_by("created_at")
+        .values_list("id", flat=True)[:limit]
+    )
+    for po_id in list(behind):
+        push_purchase_order_to_xero.delay(str(po_id))

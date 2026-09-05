@@ -51,10 +51,19 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
         return None
 
     def state_valid_for_xero(self) -> bool:
-        """Require draft for initial creation; allow updates in any status."""
+        """Refuse to create a cancelled order in Xero; allow anything else.
+
+        Opus: v1 required ``draft`` for first creation, which is the wrong
+        moment. Xero needs the order so it can reconcile the supplier's bill
+        against it, and the bill arrives after the order has gone to the
+        supplier — by which point the status is ``submitted``. Requiring draft
+        meant the copy could only be made before it was needed and never after.
+        ``deleted`` stays refused: creating an order in Xero that Docketworks
+        has already cancelled would invent a payable nobody ordered.
+        """
         if self.get_xero_id():
             return True
-        return self.purchase_order.status == "draft"
+        return self.purchase_order.status != "deleted"
 
     def can_sync_to_xero(self) -> bool:
         """Report whether the PO carries everything a Xero PO requires."""

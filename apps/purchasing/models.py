@@ -93,6 +93,18 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
     updated_at = models.DateTimeField(auto_now=True)
     xero_last_modified = models.DateTimeField(null=True, blank=True)
     xero_last_synced = models.DateTimeField(null=True, blank=True, default=timezone.now)
+    xero_status = models.CharField(  # noqa: DJ001 -- NULL means Xero has never reported one
+        max_length=20,
+        null=True,
+        blank=True,
+        help_text=(
+            "Xero's own word for this order (DRAFT, SUBMITTED, AUTHORISED, BILLED, VOIDED). "
+            "Separate from `status` because that one answers a different question: whether the "
+            "goods arrived and were costed to a job, which only Docketworks knows. Xero saying "
+            "BILLED used to set status=fully_received, marking material received that nobody "
+            "had receipted."
+        ),
+    )
     online_url = models.URLField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=500, null=True, blank=True
     )
