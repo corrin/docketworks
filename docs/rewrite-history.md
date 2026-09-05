@@ -31,6 +31,20 @@ monolith. Tests inject forbidden imports, import cycles and string ORM reference
 prove the gates refuse them; migration tests exercise adoption, identity preservation,
 ambiguous ContentType refusal and the restore rewind/reapply path.
 
+Verification: the full backend run passed 2,951 tests; the final targeted run
+passed 110, including the additional old-fixture-label refusal. All 631 frontend
+tests passed with two workers (the default parallel run hit initial-render
+timeouts). All-files pre-push hooks passed, including migration drift and schema
+generation. Removing the ContentType transfer made its migration test fail;
+restoring it returned the migration suite to green.
+
+The seven moved Google integration tests passed. The full integration gate did
+not: phone credentials were absent and Xero's quota floor stopped payroll/PO
+tests. The unsandboxed E2E run passed 110 tests before supplier creation received
+Xero's daily-limit 429; 46 tests did not run. Its database restore and managed
+service shutdown completed. These are verification results, not a green merge
+gate or a reason to broaden this PR into phone provisioning or Xero changes.
+
 **2026-08-14: the 15 August window was declined and cutover moved one week to
 22–23 August.** At decision time MUST-tier specs were still red — among them
 `/timesheets/weekly` (declared MUST that same day, unstarted),
