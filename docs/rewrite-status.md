@@ -280,6 +280,14 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   thumbnail-and-view UI and extend `job-attachments.spec.ts` to assert a thumbnail renders
   and opens. [KAN-334](https://docketworks.atlassian.net/browse/KAN-334) wants the same
   surface to preview more formats — do them together.
+- **Editing a purchase order's supplier after creation.** v1 allowed it while the order
+  was `draft`; v2's detail card shows the supplier read-only. `CompanyLookup`
+  (`frontend/src/features/shared/company/`) is controlled by a whole
+  `CompanySearchResult` because it renders the supplier's email and Xero badge, and
+  `PurchaseOrderDetail` carries only the name, id and `supplier_has_xero_id` — so the card
+  would have to fetch the company, or the lookup would have to accept less. Decide which
+  before building it; the service already clears the pickup address on a supplier change,
+  so the spec asserts that too.
 - **Process documents** — procedures and JSA. The forms half shipped; JSA and SWP are
   `document_type` variants of `Procedure`, not a third model.
 - **The admin tail** — labour rates, archive jobs, the month-end UI (backend done) and

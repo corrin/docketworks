@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { JobForPurchasing } from '@/api'
+import type { JobForPurchasing, PurchaseOrderLineOut } from '@/api'
 import {
   draftCreateBody,
   emptyPoLineDraft,
@@ -10,6 +10,7 @@ import {
   poLineItemLabel,
   poLineJobLabel,
   poListJobsLabel,
+  poOrderValue,
 } from './lines'
 
 describe('PO line drafts', () => {
@@ -167,5 +168,46 @@ describe('poListJobsLabel', () => {
     expect(
       poListJobsLabel([{ job_number: '97391' }, { job_number: '97392' }, { job_number: '97393' }]),
     ).toBe('97391 +2 others')
+  })
+})
+
+type ValuedLine = Pick<PurchaseOrderLineOut, 'description' | 'quantity' | 'unit_cost' | 'price_tbc'>
+
+/** Only the four fields poOrderValue reads, so no fixture needs inventing. */
+function valuedLine(over: Partial<ValuedLine> = {}): ValuedLine {
+  return { description: 'Bar', quantity: '2', unit_cost: '10.00', price_tbc: false, ...over }
+}
+
+describe('poOrderValue', () => {
+  it('totals a fully priced order with nothing unresolved', () => {
+    expect(poOrderValue([valuedLine(), valuedLine({ quantity: '3', unit_cost: '5.00' })])).toEqual({
+      knownSubtotal: 35,
+      unresolvedCount: 0,
+    })
+  })
+
+  it('counts a price-TBC line as unresolved and leaves it out of the subtotal', () => {
+    expect(
+      poOrderValue([valuedLine(), valuedLine({ price_tbc: true, unit_cost: '99.00' })]),
+    ).toEqual({
+      knownSubtotal: 20,
+      unresolvedCount: 1,
+    })
+  })
+
+  it('counts a line with no cost as unresolved rather than as zero', () => {
+    expect(poOrderValue([valuedLine(), valuedLine({ unit_cost: null })])).toEqual({
+      knownSubtotal: 20,
+      unresolvedCount: 1,
+    })
+  })
+
+  it('ignores a blank line, so the grid phantom row changes nothing', () => {
+    expect(
+      poOrderValue([valuedLine(), valuedLine({ description: '   ', unit_cost: null })]),
+    ).toEqual({
+      knownSubtotal: 20,
+      unresolvedCount: 0,
+    })
   })
 })

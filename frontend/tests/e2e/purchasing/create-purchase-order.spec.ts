@@ -160,6 +160,26 @@ test.describe.serial('purchase order operations', () => {
     log(`Assigned job ${jobNumber} to PO line`)
   })
 
+  test('expected delivery and the order value follow the lines', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto(poUrl)
+    await page.waitForLoadState('networkidle')
+
+    const saved = waitForPoAutosave(page)
+    await autoId(page, 'PoSummaryCard-expected-delivery').fill('2026-12-24')
+    await saved
+
+    await page.reload()
+    await page.waitForLoadState('networkidle')
+    await expect(autoId(page, 'PoSummaryCard-expected-delivery')).toHaveValue('2026-12-24')
+
+    // The order's value is computed from the lines already on screen, and an
+    // unpriced line must never be folded in as zero.
+    await expect(autoId(page, 'PoSummaryCard-order-value')).not.toBeEmpty()
+    log('Set expected delivery and read the order value back')
+  })
+
   test('price TBC closes the unit cost and survives a reload', async ({
     authenticatedPage: page,
   }) => {

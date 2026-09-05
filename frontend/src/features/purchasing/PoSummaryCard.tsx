@@ -10,7 +10,8 @@ import { CompanyLookup } from '@/features/shared/company'
 import { orNull } from '@/features/shared/nullableText'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { INPUT_CLASS } from '@/components/ui/field'
-import { formatDate } from '@/lib/format'
+import { formatCurrency, formatDate } from '@/lib/format'
+import { poOrderValue } from './lines'
 import { PickupAddressSelector } from './PickupAddressSelector'
 import { PO_STATUS_OPTIONS, toPoStatus } from './status'
 import type { PoHeaderPatch } from './usePoLines'
@@ -112,6 +113,7 @@ function DetailFields({ po, patchHeader }: PoSummaryCardDetailProps) {
   const referenceField = useAutosaveField(po.reference ?? '', (value) =>
     patchHeader({ reference: orNull(value) }),
   )
+  const orderValue = poOrderValue(po.lines)
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -120,12 +122,55 @@ function DetailFields({ po, patchHeader }: PoSummaryCardDetailProps) {
         <p className="px-1 py-2 text-sm font-semibold text-gray-900">{po.po_number}</p>
       </div>
       <div>
+        {/* Read-only even while draft, unlike v1. CompanyLookup is controlled by
+            a whole CompanySearchResult — it renders the supplier's email and
+            Xero badge — and the PO detail carries only the name, id and
+            supplier_has_xero_id. Seeding it means fetching the company, which
+            is a change to make deliberately rather than as a side effect of
+            this card. Tracked in docs/rewrite-status.md. */}
         <span className="mb-1 block text-sm font-medium text-gray-700">Supplier</span>
         <p className="px-1 py-2 text-sm text-gray-900">{po.supplier || '—'}</p>
       </div>
       <div>
         <span className="mb-1 block text-sm font-medium text-gray-700">Order Date</span>
         <p className="px-1 py-2 text-sm text-gray-900">{formatDate(po.order_date)}</p>
+      </div>
+      <div>
+        <label
+          htmlFor="po-expected-delivery"
+          className="mb-1 block text-sm font-medium text-gray-700"
+        >
+          Expected Delivery
+        </label>
+        <input
+          id="po-expected-delivery"
+          type="date"
+          value={po.expected_delivery ?? ''}
+          data-automation-id="PoSummaryCard-expected-delivery"
+          className={INPUT_CLASS}
+          onChange={(event) =>
+            patchHeader({
+              expected_delivery: event.target.value === '' ? null : event.target.value,
+            })
+          }
+        />
+      </div>
+      <div>
+        <span className="mb-1 block text-sm font-medium text-gray-700">
+          {orderValue.unresolvedCount === 0 ? 'Total' : 'Known subtotal'}
+        </span>
+        <p
+          className="px-1 py-2 text-sm font-semibold text-gray-900"
+          data-automation-id="PoSummaryCard-order-value"
+        >
+          {formatCurrency(orderValue.knownSubtotal)}
+          {orderValue.unresolvedCount > 0 && (
+            <span className="ml-2 text-xs font-normal text-amber-700">
+              {orderValue.unresolvedCount} line
+              {orderValue.unresolvedCount === 1 ? '' : 's'} unpriced
+            </span>
+          )}
+        </p>
       </div>
       <div>
         {/* An input, not a span: the E2E contract reads this via inputValue(). */}

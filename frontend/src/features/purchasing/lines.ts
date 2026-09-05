@@ -1,4 +1,4 @@
-import type { JobForPurchasing, PurchaseOrderLineUpdateRequest } from '@/api'
+import type { JobForPurchasing, PurchaseOrderLineOut, PurchaseOrderLineUpdateRequest } from '@/api'
 
 // A PO line never books against a closed job (v1 rule).
 const EXCLUDED_STATUSES = new Set(['rejected', 'archived', 'completed'])
@@ -118,4 +118,41 @@ export function poListJobsLabel(jobs: readonly { job_number: string }[]): string
   if (jobs.length === 1) return jobs[0]!.job_number
   if (jobs.length === 2) return `${jobs[0]!.job_number}, ${jobs[1]!.job_number}`
   return `${jobs[0]!.job_number} +${jobs.length - 1} others`
+}
+
+/** What a purchase order is worth so far, and how much of it is still unknown. */
+export interface PoOrderValue {
+  knownSubtotal: number
+  unresolvedCount: number
+}
+
+/**
+ * The order's value, computed from the lines the detail page already holds.
+ *
+ * Opus: KAN-137 rules out an API field for this, and the reason is worth
+ * keeping — a total that reached the wire would have to be recomputed on every
+ * line edit, while the lines are already here and change under the user's
+ * hands. It reports the unresolved count separately rather than treating an
+ * unknown price as zero, so a partial figure can never be read as a complete
+ * one. Blank lines count for nothing: the grid always carries a phantom row.
+ */
+export function poOrderValue(
+  lines: readonly Pick<
+    PurchaseOrderLineOut,
+    'description' | 'quantity' | 'unit_cost' | 'price_tbc'
+  >[],
+): PoOrderValue {
+  let knownSubtotal = 0
+  let unresolvedCount = 0
+  for (const line of lines) {
+    if (line.description.trim() === '') continue
+    const cost = line.price_tbc || line.unit_cost === null ? null : Number(line.unit_cost)
+    const amount = cost === null ? null : cost * Number(line.quantity)
+    if (amount === null || !Number.isFinite(amount)) {
+      unresolvedCount += 1
+      continue
+    }
+    knownSubtotal += amount
+  }
+  return { knownSubtotal, unresolvedCount }
 }
