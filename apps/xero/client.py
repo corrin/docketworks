@@ -10,11 +10,10 @@ Subclasses the SDK's RESTClientObject to add:
 import logging
 import threading
 import time
-import uuid
+from datetime import timedelta
 from typing import Any
 
 import urllib3.util
-from django.utils import timezone as dj_timezone
 from urllib3 import HTTPResponse
 from xero_python.api_client.configuration import Configuration
 from xero_python.exceptions import ApiException
@@ -83,52 +82,45 @@ class XeroSyncLockLost(Exception):  # noqa: N818 -- state signal, not a defect; 
 
 
 def quota_floor_breached(floor: int) -> bool:
-    """Report whether the active app's fresh quota snapshot is at or below ``floor``.
+    """Report whether Xero's freshest day-quota reading is at or below ``floor``.
 
-    Reads ``day_remaining`` / ``snapshot_at`` from the row marked
-    ``is_active=True``. Returns False on:
-      - no active row (can't gate without a target);
-      - missing snapshot (no API call has happened in this process yet);
-      - stale snapshot (>= ``QUOTA_STALE_AFTER_SECONDS`` old — the rolling
-        24h window has freed quota since then);
-      - day_remaining is None (Xero sometimes omits the header).
+    Reads the newest recorded Xero call inside ``QUOTA_STALE_AFTER_SECONDS``.
+    Returns False when there is no such reading — no call yet, or responses
+    that carried no quota header — so an unknown quota never gates.
+
+    The reading is not scoped to the active ``XeroApp``, and a credential swap
+    therefore leaves at most one aged reading from the previous app in view.
+    An app foreign key on the log was rejected: ADR 0055 forbids a business
+    key from platform to an integration adapter model. The exposure is bounded
+    instead — the newest row wins, so the first call under new credentials
+    supersedes it, and the staleness window clears it regardless.
     """
     # Local import: client.py is imported at app boot, models may not be ready.
-    from apps.xero.models import XeroApp  # noqa: PLC0415
+    from apps.platform.observability.models import VendorCall  # noqa: PLC0415
+    from apps.platform.observability.queries import latest_day_remaining  # noqa: PLC0415
 
-    try:
-        active = XeroApp.objects.only("day_remaining", "snapshot_at").get(is_active=True)
-    # deliberate-swallow: no active row means there is nothing to gate against; the floor
-    # check answers False and the caller proceeds to a real API probe
-    except XeroApp.DoesNotExist:
+    remaining = latest_day_remaining(
+        vendor=VendorCall.Vendor.XERO,
+        not_older_than=timedelta(seconds=QUOTA_STALE_AFTER_SECONDS),
+    )
+    if remaining is None:
         return False
-
-    if active.snapshot_at is None or active.day_remaining is None:
-        return False
-    age_seconds = (dj_timezone.now() - active.snapshot_at).total_seconds()
-    if age_seconds > QUOTA_STALE_AFTER_SECONDS:
-        return False
-    return active.day_remaining <= floor
+    return remaining <= floor
 
 
 class RateLimitedRESTClient(RESTClientObject):
     """RESTClientObject with pacing, quota tracking and 429 handling (see module docstring)."""
 
-    def __init__(  # noqa: D107 -- adds app_id to the SDK constructor; class docstring covers it
+    def __init__(  # noqa: D107 -- narrows the SDK constructor; class docstring covers it
         self,
         configuration: Configuration,
         pools_size: int = 4,
         maxsize: int | None = None,
-        app_id: uuid.UUID | None = None,
     ) -> None:
         super().__init__(configuration, pools_size=pools_size, maxsize=maxsize)
         self.pool_manager.connection_pool_kw["retries"] = urllib3.util.Retry(
             0, respect_retry_after_header=False
         )
-        # The id of the XeroApp row whose credentials this client uses.
-        # Quota writes target this row, NOT "the currently active row" —
-        # so a swap racing an in-flight call writes to the right place.
-        self.app_id = app_id
         # One in-flight Xero call per client: the 1s minimum interval is a
         # per-app limit, and unsynchronised threads could all pass the elapsed
         # check together.
@@ -182,6 +174,7 @@ class RateLimitedRESTClient(RESTClientObject):
         if elapsed < MINIMUM_SLEEP:
             time.sleep(MINIMUM_SLEEP - elapsed)
 
+        started = time.perf_counter()
         try:
             r = super().request(
                 method,
@@ -200,10 +193,16 @@ class RateLimitedRESTClient(RESTClientObject):
         # the rate-limit contract
         except ApiException as exc:
             self._last_call_time = time.time()
+            # Recorded before the branch: a refused call has already spent its
+            # share of the quota, and its response carries the headers saying
+            # how much is left. Recording only successes would blind the log
+            # at exactly the moment the budget runs out.
+            self._record_call(method, url, started, exc.status, exc.headers or {})
             if exc.status != 429:
                 raise
             self._handle_rate_limit(exc)
             # Retry once after sleeping (only for minute limits — day limits raise above)
+            started = time.perf_counter()
             retried = super().request(
                 method,
                 url,
@@ -218,21 +217,60 @@ class RateLimitedRESTClient(RESTClientObject):
             # exactly the calls made under rate pressure, when the snapshot
             # matters most.
             self._last_call_time = time.time()
+            self._record_call(method, url, started, retried.status, self._headers_of(retried))
             self._log_quota(retried)
             return retried
         else:
+            self._record_call(method, url, started, r.status, self._headers_of(r))
             self._log_quota(r)
             return r
 
-    def _log_quota(self, response: RESTResponse | HTTPResponse) -> None:
-        """Log quota state without spamming the hot path."""
+    @staticmethod
+    def _headers_of(response: RESTResponse | HTTPResponse) -> dict[str, str]:
+        """Read response headers from either shape the SDK hands back."""
         # _preload_content=False (token refresh) hands back the raw urllib3
         # response; the SDK wrapper carries the same headers via getheaders().
         if isinstance(response, RESTResponse):
-            resp_headers: dict[str, str] = response.getheaders()
-        else:
-            resp_headers = dict(response.headers)
+            return response.getheaders()
+        return dict(response.headers)
 
+    def _record_call(
+        self,
+        method: str,
+        url: str,
+        started: float,
+        status: int | None,
+        resp_headers: dict[str, str],
+    ) -> None:
+        """Write the observability row for one Xero request.
+
+        ``status`` is optional because the SDK's ``ApiException.status`` is:
+        it derives from the response object, which a transport-level failure
+        may not have. An unknown status is worth a row without one — the call
+        still spent quota — rather than no row at all.
+        """
+        # Local import: client.py is imported at app boot, models may not be ready.
+        from apps.platform.observability.models import VendorCall  # noqa: PLC0415
+        from apps.platform.observability.recording import (  # noqa: PLC0415
+            VendorCallRecord,
+            record_vendor_call,
+        )
+
+        record_vendor_call(
+            VendorCallRecord(
+                vendor=VendorCall.Vendor.XERO,
+                method=method,
+                url=url,
+                duration_ms=int((time.perf_counter() - started) * 1000),
+                status_code=status,
+                day_remaining=self._parse_int(resp_headers.get("X-DayLimit-Remaining")),
+                minute_remaining=self._parse_int(resp_headers.get("X-MinLimit-Remaining")),
+            )
+        )
+
+    def _log_quota(self, response: RESTResponse | HTTPResponse) -> None:
+        """Log quota state without spamming the hot path."""
+        resp_headers = self._headers_of(response)
         if not resp_headers:
             return
 
@@ -263,16 +301,6 @@ class RateLimitedRESTClient(RESTClientObject):
             min_remaining,
         )
 
-        # 429 responses carry the same quota headers as 2xx responses — write
-        # them to the snapshot so quota_floor_breached() can short-circuit
-        # subsequent automated calls. Without this, the snapshot only updates
-        # on success and the gate stays unarmed precisely when it's needed.
-        self._store_quota_snapshot(self._parse_int(day_remaining), self._parse_int(min_remaining))
-        if self.app_id is not None:
-            from apps.xero.models import XeroApp  # noqa: PLC0415
-
-            XeroApp.objects.filter(id=self.app_id).update(last_429_at=dj_timezone.now())
-
         if limit_type == "day":
             persist_app_error(exc)
             raise exc
@@ -284,7 +312,6 @@ class RateLimitedRESTClient(RESTClientObject):
         self._request_count += 1
         day_value = self._parse_int(day_remaining)
         minute_value = self._parse_int(min_remaining)
-        self._store_quota_snapshot(day_value, minute_value)
 
         if day_value is not None:
             if self._low_water_day_remaining is None or day_value < self._low_water_day_remaining:
@@ -356,30 +383,3 @@ class RateLimitedRESTClient(RESTClientObject):
         # "no new reading" and the stored snapshot is left alone
         except ValueError:
             return None
-
-    def _store_quota_snapshot(
-        self, day_remaining: int | None, minute_remaining: int | None
-    ) -> None:
-        # No app_id means a misconfigured client (constructed without going
-        # through auth._build()). Refuse silently — the snapshot just won't
-        # be persisted.
-        if self.app_id is None:
-            return
-
-        # Not every Xero response carries the quota headers — token refreshes
-        # hit identity.xero.com (no rate-limit headers) and minute-limit 429s
-        # omit X-DayLimit-Remaining. A missing header means "no new reading",
-        # not "zero left", so leave the stored value alone rather than
-        # clobbering a known-good count with None.
-        fields: dict[str, Any] = {}
-        if day_remaining is not None:
-            fields["day_remaining"] = day_remaining
-        if minute_remaining is not None:
-            fields["minute_remaining"] = minute_remaining
-        if not fields:
-            return
-
-        from apps.xero.models import XeroApp  # noqa: PLC0415
-
-        fields["snapshot_at"] = dj_timezone.now()
-        XeroApp.objects.filter(id=self.app_id).update(**fields)

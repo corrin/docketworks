@@ -14393,11 +14393,6 @@ components:
           format: date-time
           title: Created At
           type: string
-        day_remaining:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Day Remaining
         has_tokens:
           title: Has Tokens
           type: boolean
@@ -14411,32 +14406,15 @@ components:
         label:
           title: Label
           type: string
-        last_429_at:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Last 429 At
         message:
           title: Message
           type: string
-        minute_remaining:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Minute Remaining
         redirect_uri:
           title: Redirect Uri
           type: string
         restart_initiated:
           title: Restart Initiated
           type: boolean
-        snapshot_at:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Snapshot At
         updated_at:
           format: date-time
           title: Updated At
@@ -14444,17 +14422,13 @@ components:
       required:
       - client_id
       - created_at
-      - day_remaining
       - has_tokens
       - id
       - is_active
       - label
-      - last_429_at
       - message
-      - minute_remaining
       - redirect_uri
       - restart_initiated
-      - snapshot_at
       - updated_at
       title: XeroAppActivateOut
       type: object
@@ -14531,11 +14505,6 @@ components:
           format: date-time
           title: Created At
           type: string
-        day_remaining:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Day Remaining
         has_tokens:
           title: Has Tokens
           type: boolean
@@ -14549,26 +14518,9 @@ components:
         label:
           title: Label
           type: string
-        last_429_at:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Last 429 At
-        minute_remaining:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Minute Remaining
         redirect_uri:
           title: Redirect Uri
           type: string
-        snapshot_at:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Snapshot At
         updated_at:
           format: date-time
           title: Updated At
@@ -14576,15 +14528,11 @@ components:
       required:
       - client_id
       - created_at
-      - day_remaining
       - has_tokens
       - id
       - is_active
       - label
-      - last_429_at
-      - minute_remaining
       - redirect_uri
-      - snapshot_at
       - updated_at
       title: XeroAppOut
       type: object

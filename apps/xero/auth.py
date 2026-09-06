@@ -88,7 +88,7 @@ def _build() -> ApiClient:
             ),
         ),
     )
-    client.rest_client = RateLimitedRESTClient(client.configuration, app_id=app.id)
+    client.rest_client = RateLimitedRESTClient(client.configuration)
     bind_token_callbacks(client, app.id)
     return client
 

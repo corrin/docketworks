@@ -12784,10 +12784,6 @@ export type XeroAppActivateOut = {
      */
     created_at: string;
     /**
-     * Day Remaining
-     */
-    day_remaining: number | null;
-    /**
      * Has Tokens
      */
     has_tokens: boolean;
@@ -12804,17 +12800,9 @@ export type XeroAppActivateOut = {
      */
     label: string;
     /**
-     * Last 429 At
-     */
-    last_429_at: string | null;
-    /**
      * Message
      */
     message: string;
-    /**
-     * Minute Remaining
-     */
-    minute_remaining: number | null;
     /**
      * Redirect Uri
      */
@@ -12823,10 +12811,6 @@ export type XeroAppActivateOut = {
      * Restart Initiated
      */
     restart_initiated: boolean;
-    /**
-     * Snapshot At
-     */
-    snapshot_at: string | null;
     /**
      * Updated At
      */
@@ -12914,10 +12898,6 @@ export type XeroAppOut = {
      */
     created_at: string;
     /**
-     * Day Remaining
-     */
-    day_remaining: number | null;
-    /**
      * Has Tokens
      */
     has_tokens: boolean;
@@ -12934,21 +12914,9 @@ export type XeroAppOut = {
      */
     label: string;
     /**
-     * Last 429 At
-     */
-    last_429_at: string | null;
-    /**
-     * Minute Remaining
-     */
-    minute_remaining: number | null;
-    /**
      * Redirect Uri
      */
     redirect_uri: string;
-    /**
-     * Snapshot At
-     */
-    snapshot_at: string | null;
     /**
      * Updated At
      */

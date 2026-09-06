@@ -40,7 +40,7 @@ from apps.accounting.types import (
 )
 from apps.core.errors import persist_app_error
 from apps.xero import payroll_employees, payroll_push, payroll_sync
-from apps.xero.active_app import NoActiveXeroAppError, get_active_app, wipe_tokens_and_quota
+from apps.xero.active_app import NoActiveXeroAppError, get_active_app, wipe_tokens
 from apps.xero.auth import TokenPayload, get_api_client, get_tenant_id, get_valid_token
 from apps.xero.constants import ZERO_UUID
 from apps.xero.contacts import create_company_contact_in_xero, sync_company_to_xero
@@ -99,7 +99,7 @@ class XeroAccountingProvider:
         # tokens"; an install with no active app already satisfies it
         except NoActiveXeroAppError:
             return
-        wipe_tokens_and_quota(active)
+        wipe_tokens(active)
 
     # --- Contacts ---
 

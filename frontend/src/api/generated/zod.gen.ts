@@ -5819,17 +5819,13 @@ export const zWorkshopTimesheetListResponse = z.object({
 export const zXeroAppActivateOut = z.object({
     client_id: z.string(),
     created_at: z.iso.datetime(),
-    day_remaining: z.int().nullable(),
     has_tokens: z.boolean(),
     id: z.uuid(),
     is_active: z.boolean(),
     label: z.string(),
-    last_429_at: z.iso.datetime().nullable(),
     message: z.string(),
-    minute_remaining: z.int().nullable(),
     redirect_uri: z.string(),
     restart_initiated: z.boolean(),
-    snapshot_at: z.iso.datetime().nullable(),
     updated_at: z.iso.datetime()
 });
 
@@ -5886,15 +5882,11 @@ export const zXeroAppErrorOut = z.object({
 export const zXeroAppOut = z.object({
     client_id: z.string(),
     created_at: z.iso.datetime(),
-    day_remaining: z.int().nullable(),
     has_tokens: z.boolean(),
     id: z.uuid(),
     is_active: z.boolean(),
     label: z.string(),
-    last_429_at: z.iso.datetime().nullable(),
-    minute_remaining: z.int().nullable(),
     redirect_uri: z.string(),
-    snapshot_at: z.iso.datetime().nullable(),
     updated_at: z.iso.datetime()
 });
 
