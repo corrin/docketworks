@@ -21,12 +21,13 @@ from ninja.errors import AuthenticationError, AuthorizationError
 
 from apps.core.auth import CookieJWTAuth, PasswordChangeRequiredError
 from apps.core.envelope import password_change_required_body
+from apps.core.schemas import auth_error
 
 
-def authed_event_stream(
-    request: HttpRequest, auth: CookieJWTAuth, channel: str
-) -> HttpResponseBase:
-    """Authenticate with ``auth`` and open an eventstream on ``channel``."""
+def authenticate_stream_request(
+    request: HttpRequest, auth: CookieJWTAuth
+) -> HttpResponseBase | None:
+    """Apply the existing cookie, role and password gates to SDK streaming views."""
     try:
         user = auth.authenticate(request, request.COOKIES.get(auth.param_name))
     # deliberate-swallow: Fable: the auth classes' two typed refusals (bad or
@@ -45,7 +46,7 @@ def authed_event_stream(
     except PasswordChangeRequiredError:
         return JsonResponse(password_change_required_body(), status=403)
     if user is None:
-        return JsonResponse({"detail": "Authentication credentials were not provided."}, status=401)
+        return JsonResponse(auth_error("authentication_required").model_dump(), status=401)
     if not isinstance(user, get_user_model()):
         raise TypeError(f"Cookie JWT resolved a non-Staff principal: {type(user)!r}")
 
@@ -55,6 +56,16 @@ def authed_event_stream(
     # Django session, not the JWT cookie this contract authenticates with.
     request.user = user
 
+    return None
+
+
+def authed_event_stream(
+    request: HttpRequest, auth: CookieJWTAuth, channel: str
+) -> HttpResponseBase:
+    """Authenticate with ``auth`` and open an eventstream on ``channel``."""
+    refusal = authenticate_stream_request(request, auth)
+    if refusal is not None:
+        return refusal
     response = eventstream_views.events(request, channels=[channel])
     # Fable: GZipMiddleware compresses streaming responses, batching events
     # into compression blocks; it skips any response already declaring an

@@ -687,3 +687,30 @@ and the tenant-scoped delete lives in `sync_pay_runs` off the pay-RUN fetch, whi
 change did not touch. So the pagination defect recorded against `get_pay_runs_for_sync`
 (KAN-354) does not interact with fetching fewer slips.
 
+## 2026-09-07 — embedded quoting chat
+
+GPT: The job's Quoting Chat tab uses ChatKit with the existing LiteLLM gateway
+and the Agents SDK. Django persists SDK threads/items against the job; the old
+transcript migrates with IDs, timestamps and metadata intact. Read-only MCP tools
+supply job context and stored supplier prices. No LangChain, separate gateway
+service, uploads or estimate mutations were added. Configuration and operational
+limits are in [quoting-chat.md](quoting-chat.md).
+
+The live Gemini tests exercised streaming, real tool calls, a persisted follow-up
+and per-call usage. They exposed two SDK interoperability defects now covered by
+the multi-turn test: unsupported replay of assistant output content, and repeated
+placeholder IDs overwriting previous replies. The production domain key and an
+OpenAI provider are still operator configuration; OpenAI was not available in the
+local provider table for a live test.
+
+The actual ChatKit Playwright spec passed streaming, history after reload and
+1920/1366/1024/390px layouts. It caught the Vite proxy's changed Host failing CSRF,
+and the existing job header overflowing at phone width. The proxy preserves Host;
+the header wraps and uses shared Buttons, and InlineEditText handles long text at
+its owner. The managed whole-stack runner could not acquire the already-online
+ngrok endpoint; the targeted spec ran against local backend/preview/worker services
+with the normal Playwright setup and database restoration intact.
+
+The full Python run met the coverage floor (89.45%); its five failures exposed the
+v1 restore ordering and typed stream-auth assertions. Those fixes passed all 38
+targeted regression tests, including refusal to rewind populated chat storage.

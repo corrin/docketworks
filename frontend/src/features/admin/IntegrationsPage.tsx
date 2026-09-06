@@ -25,7 +25,7 @@ import { useUnsavedChangesGuard } from '@/features/shared/useUnsavedChangesGuard
 type SecretDraft = string | null | undefined
 
 type SecretKey = 'google_maps_api_key' | 'phone_provider_username' | 'phone_provider_password'
-type PlainKey = 'phone_provider_base_url' | 'phone_provider_account_code'
+type PlainKey = 'phone_provider_base_url' | 'phone_provider_account_code' | 'chatkit_domain_key'
 type FlagKey = 'phone_provider_enabled' | 'phone_provider_recording_deletion_enabled'
 
 const SECRET_KEYS: readonly SecretKey[] = [
@@ -33,7 +33,11 @@ const SECRET_KEYS: readonly SecretKey[] = [
   'phone_provider_username',
   'phone_provider_password',
 ]
-const PLAIN_KEYS: readonly PlainKey[] = ['phone_provider_base_url', 'phone_provider_account_code']
+const PLAIN_KEYS: readonly PlainKey[] = [
+  'phone_provider_base_url',
+  'phone_provider_account_code',
+  'chatkit_domain_key',
+]
 const FLAG_KEYS: readonly FlagKey[] = [
   'phone_provider_enabled',
   'phone_provider_recording_deletion_enabled',
@@ -43,6 +47,7 @@ type Drafts = Record<SecretKey, SecretDraft> & Record<PlainKey, string> & Record
 
 function snapshot(settings: IntegrationSettingsOut): Drafts {
   return {
+    chatkit_domain_key: settings.chatkit_domain_key ?? '',
     google_maps_api_key: undefined,
     phone_provider_username: undefined,
     phone_provider_password: undefined,
@@ -147,6 +152,20 @@ function SettingsForm({ settings }: { settings: IntegrationSettingsOut }) {
 
   return (
     <div className="flex flex-col gap-6">
+      <Section
+        sectionKey="chatkit"
+        title="Quoting chat"
+        description="Register this site in OpenAI ChatKit and enter its public domain key. Model credentials remain in AI providers."
+      >
+        <TextField
+          section="chatkit"
+          fieldKey="chatkit_domain_key"
+          label="ChatKit domain key"
+          type="text"
+          value={drafts.chatkit_domain_key}
+          onChange={(value) => setDraft('chatkit_domain_key', value)}
+        />
+      </Section>
       <Section
         sectionKey="google"
         title="Google"

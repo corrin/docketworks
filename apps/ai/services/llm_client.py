@@ -1,8 +1,7 @@
 """The single LLM call boundary for the application.
 
-The currently required operation is a plain-text completion. Vision helpers,
-tool-calling probes, and parallel convenience clients are deliberately absent
-until a real caller needs them (ADR 0017).
+Plain-text consumers and the Agents runtime share provider resolution and
+vendor accounting here (ADR 0041).
 
 Layer contract: ``apps.ai`` sits in the bottom (infrastructure) layer beside
 ``apps.core``, so every domain app imports this gateway directly. A registry
@@ -16,8 +15,14 @@ calls arrives here.
 import logging
 import time
 from dataclasses import dataclass
+from typing import TypeVar
 
 import litellm
+from agents import Agent, ModelSettings, RunContextWrapper, RunHooks
+from agents.extensions.models.litellm_model import LitellmModel
+from agents.items import ModelResponse as AgentModelResponse
+from agents.items import TResponseInputItem
+from asgiref.sync import sync_to_async
 from litellm import ModelResponse
 
 from apps.ai.enums import AIProviderTypes
@@ -26,6 +31,7 @@ from apps.platform.observability.models import VendorCall
 from apps.platform.observability.recording import VendorCallRecord, record_vendor_call
 
 logger = logging.getLogger(__name__)
+TContext = TypeVar("TContext")
 
 # Provider prefixes are keyed by AIProviderTypes so a new provider is a
 # type-checked addition rather than a loose string. Claude carries no prefix
@@ -178,3 +184,55 @@ def _record_completion(target: LLMTarget, response: ModelResponse, started: floa
             model_name=target.model,
         )
     )
+
+
+def agent_model(target: LLMTarget) -> LitellmModel:
+    """Use the SDK's LiteLLM adapter with the same database-owned credentials."""
+    return LitellmModel(model=target.model, api_key=target.api_key)
+
+
+def agent_model_settings() -> ModelSettings:
+    """Bound a model turn and request the vendor's streaming usage report."""
+    return ModelSettings(
+        include_usage=True,
+        max_tokens=4096,
+        extra_args={"timeout": COMPLETION_TIMEOUT_SECONDS, "num_retries": 0},
+    )
+
+
+class AgentCallRecording(RunHooks[TContext]):
+    """Record each model round trip, including rounds that request tools."""
+
+    def __init__(self, target: LLMTarget) -> None:
+        """Bind one run to its configured provider."""
+        self.target = target
+        self.started = 0.0
+
+    async def on_llm_start(
+        self,
+        _context: RunContextWrapper[TContext],
+        _agent: Agent[TContext],
+        _system_prompt: str | None,
+        _input_items: list[TResponseInputItem],
+    ) -> None:
+        """Start timing immediately before the SDK sends the request."""
+        self.started = time.perf_counter()
+
+    async def on_llm_end(
+        self,
+        _context: RunContextWrapper[TContext],
+        _agent: Agent[TContext],
+        response: AgentModelResponse,
+    ) -> None:
+        """Persist usage supplied by the vendor, never estimated token counts."""
+        await sync_to_async(record_vendor_call)(
+            VendorCallRecord(
+                vendor=VendorCall.Vendor.LLM,
+                method="POST",
+                url=f"/completion/{self.target.model}",
+                duration_ms=int((time.perf_counter() - self.started) * 1000),
+                tokens_in=response.usage.input_tokens,
+                tokens_out=response.usage.output_tokens,
+                model_name=self.target.model,
+            )
+        )

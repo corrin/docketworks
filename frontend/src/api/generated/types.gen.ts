@@ -3607,6 +3607,10 @@ export type GroupedJobDeltaRejectionResolveResponse = {
  */
 export type IntegrationSettingsOut = {
     /**
+     * Chatkit Domain Key
+     */
+    chatkit_domain_key: string | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -3654,6 +3658,10 @@ export type IntegrationSettingsOut = {
  * Partial update: omitted fields keep their stored value, ``null`` clears.
  */
 export type IntegrationSettingsPatchIn = {
+    /**
+     * Chatkit Domain Key
+     */
+    chatkit_domain_key?: string | null;
     /**
      * Google Maps Api Key
      */
@@ -9890,6 +9898,22 @@ export type QuoteSpreadsheetOut = {
      * Tab
      */
     tab: string | null;
+};
+
+/**
+ * QuotingChatConfigOut
+ *
+ * Public embed configuration and Django's masked CSRF token.
+ */
+export type QuotingChatConfigOut = {
+    /**
+     * Csrf Token
+     */
+    csrf_token: string;
+    /**
+     * Domain Key
+     */
+    domain_key: string | null;
 };
 
 /**
@@ -16272,6 +16296,27 @@ export type JobJobsLabourRatesPartialUpdateResponses = {
 };
 
 export type JobJobsLabourRatesPartialUpdateResponse = JobJobsLabourRatesPartialUpdateResponses[keyof JobJobsLabourRatesPartialUpdateResponses];
+
+export type JobQuoteChatConfigRetrieveData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/job/jobs/{job_id}/quote-chat/config/';
+};
+
+export type JobQuoteChatConfigRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: QuotingChatConfigOut;
+};
+
+export type JobQuoteChatConfigRetrieveResponse = JobQuoteChatConfigRetrieveResponses[keyof JobQuoteChatConfigRetrieveResponses];
 
 export type JobJobsQuoteRetrieveData = {
     body?: never;

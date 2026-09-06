@@ -63,7 +63,7 @@ export function InlineEditText({
   }
 
   return (
-    <div className="inline-edit-text group">
+    <div className="inline-edit-text group min-w-0 max-w-full">
       {!isEditing ? (
         <div
           role="button"
@@ -77,7 +77,7 @@ export function InlineEditText({
             }
           }}
         >
-          <span>{value || placeholder}</span>
+          <span className="min-w-0 break-words">{value || placeholder}</span>
           <Pencil className="ml-1 h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
         </div>
       ) : (
@@ -86,7 +86,7 @@ export function InlineEditText({
             ref={inputRef}
             value={editValue}
             placeholder={placeholder}
-            className="rounded border border-gray-300 px-2 py-1 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+            className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1 focus:border-transparent focus:ring-2 focus:ring-blue-500"
             onChange={(event) => setEditValue(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') confirm()

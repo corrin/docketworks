@@ -16,6 +16,7 @@ const SETTINGS = '*/api/integration-settings/'
 function settings(overrides: Partial<IntegrationSettingsOut> = {}): IntegrationSettingsOut {
   return {
     id: 1,
+    chatkit_domain_key: null,
     has_google_maps_api_key: true,
     has_phone_provider_username: false,
     has_phone_provider_password: false,

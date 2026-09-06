@@ -4100,6 +4100,11 @@ components:
     IntegrationSettingsOut:
       description: Every non-secret column, plus presence flags for the secrets.
       properties:
+        chatkit_domain_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Chatkit Domain Key
         created_at:
           format: date-time
           title: Created At
@@ -4138,6 +4143,7 @@ components:
           type: string
       required:
       - id
+      - chatkit_domain_key
       - has_google_maps_api_key
       - phone_provider_enabled
       - phone_provider_recording_deletion_enabled
@@ -4152,6 +4158,12 @@ components:
     IntegrationSettingsPatchIn:
       description: 'Partial update: omitted fields keep their stored value, ``null`` clears.'
       properties:
+        chatkit_domain_key:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Chatkit Domain Key
         google_maps_api_key:
           anyOf:
           - minLength: 1
@@ -11135,6 +11147,22 @@ components:
       - job_number
       - job_name
       title: QuoteSpreadsheetOut
+      type: object
+    QuotingChatConfigOut:
+      description: Public embed configuration and Django's masked CSRF token.
+      properties:
+        csrf_token:
+          title: Csrf Token
+          type: string
+        domain_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Domain Key
+      required:
+      - domain_key
+      - csrf_token
+      title: QuotingChatConfigOut
       type: object
     RDTICategorySummaryOut:
       description: 'RDTI category summary contract.
@@ -18801,6 +18829,30 @@ paths:
       summary: Update a job's labour rates
       tags:
       - job
+  /api/job/jobs/{job_id}/quote-chat/config/:
+    get:
+      description: Read configuration; the domain key is public, vendor API keys stay server-side.
+      operationId: job_quote_chat_config_retrieve
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          format: uuid
+          title: Job Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotingChatConfigOut'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Quote Chat Config
+      tags:
+      - Jobs
   /api/job/jobs/{job_id}/quote/:
     get:
       description: 'Return the job''s Xero quote header; ``quote`` is null when none exists.

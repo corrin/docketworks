@@ -12,4 +12,11 @@ Every LLM call goes through the LiteLLM-backed gateway in `apps/ai`; no feature 
 ## Do not
 
 - **Importing `genai`, `mistralai`, `anthropic`, or any vendor SDK from a feature** — v1 adopted LiteLLM and still grew four divergent AI clients this way (~4,800 lines with no single boundary to change models, add retries, or cap spend).
-- **Adding a vendor SDK to `pyproject`** — LiteLLM is the only LLM client dependency; an installed SDK is an invitation to import it.
+- **Adding an independent vendor client** — the Agents and ChatKit SDKs are permitted
+  runtimes for the quoting embed, with the native Agents LiteLLM adapter constructed
+  by this gateway. They do not authorize a feature to construct a vendor model client.
+
+GPT: Streaming agent runs resolve `AIProvider` through the same gateway, use its
+model settings and per-call usage hooks, and disable external Agents tracing.
+Job prompts, ChatKit persistence and read-only MCP tools remain job/quoting-owned;
+no business model moves into the gateway.

@@ -57,6 +57,10 @@ dependencies = [
     # without them.
     "google-api-python-client>=2.198.0",
     "google-auth>=2.56.3",
+    "openai-chatkit>=1.6.5",
+    "openai-agents[litellm]>=0.20.0",
+    "mcp>=2.1.1",
+    "asgiref>=3.12.1",
 ]
 
 [dependency-groups]

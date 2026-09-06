@@ -73,7 +73,8 @@ presentation choices with reasons, not waivers of the shared-implementation rule
   migrated boundary. Legacy apps retain the existing import-linter tiers until moved;
   they are not a template for new contexts. Shared use does not mean shared ownership.
 - Frontend: `frontend/src/routes/` (thin) → `features/<domain>/` → generated API layer + `lib/`.
-  Server state lives in TanStack Query only; no hand-written service layer.
+  Server state lives in TanStack Query; ChatKit owns its conversation protocol/state
+  under ADR 0021’s scoped SDK exception. No hand-written service layer.
 
 ## Gates (all on from day 1 — never weaken, never baseline)
 

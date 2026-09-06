@@ -529,3 +529,6 @@ export {
   sessionReplayRecordingsCreate,
 } from './generated/sdk.gen'
 export type { RecordingEventsOut, RecordingOut } from './generated/types.gen'
+
+export { jobQuoteChatConfigRetrieveOptions } from './generated/@tanstack/react-query.gen'
+export { quotingChatFetch, quotingChatUrl } from './chatkit'

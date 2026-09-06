@@ -1473,6 +1473,7 @@ export const zGroupedJobDeltaRejectionResolveResponse = z.object({
  * Every non-secret column, plus presence flags for the secrets.
  */
 export const zIntegrationSettingsOut = z.object({
+    chatkit_domain_key: z.string().nullable(),
     created_at: z.iso.datetime(),
     has_google_maps_api_key: z.boolean(),
     has_phone_provider_password: z.boolean(),
@@ -1491,6 +1492,7 @@ export const zIntegrationSettingsOut = z.object({
  * Partial update: omitted fields keep their stored value, ``null`` clears.
  */
 export const zIntegrationSettingsPatchIn = z.object({
+    chatkit_domain_key: z.string().min(1).nullish(),
     google_maps_api_key: z.string().min(1).nullish(),
     phone_provider_account_code: z.string().min(1).nullish(),
     phone_provider_base_url: z.string().min(1).nullish(),
@@ -4392,6 +4394,16 @@ export const zQuoteSpreadsheetOut = z.object({
     sheet_id: z.string().nullable(),
     sheet_url: z.string().nullable(),
     tab: z.string().nullable()
+});
+
+/**
+ * QuotingChatConfigOut
+ *
+ * Public embed configuration and Django's masked CSRF token.
+ */
+export const zQuotingChatConfigOut = z.object({
+    csrf_token: z.string(),
+    domain_key: z.string().nullable()
 });
 
 /**
@@ -7361,6 +7373,15 @@ export const zJobJobsLabourRatesPartialUpdatePath = z.object({
  * OK
  */
 export const zJobJobsLabourRatesPartialUpdateResponse = z.array(zJobLabourRateOut);
+
+export const zJobQuoteChatConfigRetrievePath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zJobQuoteChatConfigRetrieveResponse = zQuotingChatConfigOut;
 
 export const zJobJobsQuoteRetrievePath = z.object({
     job_id: z.uuid()

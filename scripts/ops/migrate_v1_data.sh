@@ -50,6 +50,8 @@ echo "==> Clearing migration-seeded rows (v1's dump supplies them)"
 # migration rename and backfill those restored rows. This deliberately avoids
 # maintaining a second translation implementation in this script (ADR 0039).
 DB_NAME="$V2_DB" uv run python manage.py migrate accounts 0004 --no-input
+# GPT: restore names the legacy chat columns; rewind only while the target is empty.
+DB_NAME="$V2_DB" uv run python manage.py migrate job 0004 --no-input
 # Fable: same for crm_phoneprovidersettings: core/0002 renamed its columns and added
 # one, and pg_dump --data-only names every column in its COPY — even for an
 # empty table — so the restore must see v1's names. crm/0002 is state-only,
@@ -104,6 +106,8 @@ echo "==> Re-running the data-normalising migrations now the data exists"
 # saw the exact v1 Staff columns. Reapply it now to rename `email`, copy
 # `date_joined` into `employment_start_date`, and add the payroll identity.
 DB_NAME="$V2_DB" uv run python manage.py migrate accounts 0005 --no-input
+# GPT: convert restored transcripts before the final migration removes legacy columns.
+DB_NAME="$V2_DB" uv run python manage.py migrate job 0006 --no-input
 # quoting/0002 decodes v1's double-encoded ProductParsingMapping.input_data.
 # It already ran during `migrate` — against an EMPTY database, where it had
 # nothing to do — and v1's rows arrived afterwards, in the restore above. The

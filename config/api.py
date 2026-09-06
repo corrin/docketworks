@@ -16,6 +16,7 @@ from apps.core.envelope import register_exception_handlers
 from apps.crm.api import router as crm_router
 from apps.diagnostics.api import router as session_replay_router
 from apps.job.api import router as job_router
+from apps.job.chat.api import router as job_chat_router
 from apps.operations.api import router as operations_router
 from apps.platform.integrations.api import router as integrations_router
 from apps.process.api import router as process_router
@@ -45,6 +46,7 @@ api.add_router("/session-replays/", session_replay_router)
 # /job/... and data-quality paths), so they mount at the root.
 api.add_router("/", company_router)
 api.add_router("/", job_router)
+api.add_router("/job/jobs", job_chat_router)
 # Timesheet paths carry their own prefixes (/timesheets/... and the contracted
 # /job/workshop/timesheets/), so this mounts at the root too.
 api.add_router("/", timesheet_router)

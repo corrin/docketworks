@@ -1314,3 +1314,14 @@
     could fork from the one the month counters use. monthly_totals also
     gains labour_profit, so no consumer subtracts time_revenue - staff_cost
     for itself, and net_profit's divisor moved to elapsed WEEKDAYS.
+
+- operation: job_quote_chat_config_retrieve
+  change: "ChatKit's job-scoped conversation protocol replaces the v1 chat CRUD/mode API"
+  reason: >
+    GPT: The approved library-led quoting assistant uses the ChatKit composer,
+    streaming and thread history. Office authentication, CSRF and job isolation
+    remain application-owned. Existing messages migrate into a previous-conversation
+    thread. New conversations preserve earlier history; deletion is per thread,
+    with no all-job transcript wipe. Tools read job context and supplier catalogue
+    prices but do not write estimates. Attachments and v1's CALC/PRICE/TABLE mode
+    selector are not exposed in this slice.

@@ -19,6 +19,7 @@ class IntegrationSettingsOut(Schema):
     """Every non-secret column, plus presence flags for the secrets."""
 
     id: int
+    chatkit_domain_key: str | None
     has_google_maps_api_key: bool
     phone_provider_enabled: bool
     phone_provider_recording_deletion_enabled: bool
@@ -48,6 +49,7 @@ class IntegrationSettingsOut(Schema):
 class IntegrationSettingsPatchIn(Schema):
     """Partial update: omitted fields keep their stored value, ``null`` clears."""
 
+    chatkit_domain_key: NullableText = omittable(None)
     google_maps_api_key: NullableText = omittable(None)
     phone_provider_enabled: bool = omittable(False)
     phone_provider_recording_deletion_enabled: bool = omittable(False)

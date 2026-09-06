@@ -398,14 +398,16 @@ render_integration_settings_fixture() {
 
     log "Generating integration settings fixture..."
     mkdir -p "$fixture_dir"
-    local GOOGLE_MAPS_API_KEY_JSON PHONE_PROVIDER_BASE_URL_JSON PHONE_PROVIDER_USERNAME_JSON
+    local CHATKIT_DOMAIN_KEY_JSON GOOGLE_MAPS_API_KEY_JSON PHONE_PROVIDER_BASE_URL_JSON PHONE_PROVIDER_USERNAME_JSON
     local PHONE_PROVIDER_PASSWORD_JSON PHONE_PROVIDER_ACCOUNT_CODE_JSON
+    CHATKIT_DOMAIN_KEY_JSON="$(sed_escape "$(json_string_or_null "${CHATKIT_DOMAIN_KEY:-}")")"
     GOOGLE_MAPS_API_KEY_JSON="$(sed_escape "$(json_string_or_null "${GOOGLE_MAPS_API_KEY:-}")")"
     PHONE_PROVIDER_BASE_URL_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_BASE_URL:-}")")"
     PHONE_PROVIDER_USERNAME_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_USERNAME:-}")")"
     PHONE_PROVIDER_PASSWORD_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_PASSWORD:-}")")"
     PHONE_PROVIDER_ACCOUNT_CODE_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_ACCOUNT_CODE:-}")")"
     sed \
+        -e "s|__CHATKIT_DOMAIN_KEY_JSON__|$CHATKIT_DOMAIN_KEY_JSON|g" \
         -e "s|__GOOGLE_MAPS_API_KEY_JSON__|$GOOGLE_MAPS_API_KEY_JSON|g" \
         -e "s|__PHONE_PROVIDER_ENABLED__|${PHONE_PROVIDER_ENABLED:-false}|g" \
         -e "s|__PHONE_PROVIDER_RECORDING_DELETION_ENABLED__|${PHONE_PROVIDER_RECORDING_DELETION_ENABLED:-false}|g" \
