@@ -12,6 +12,7 @@ from django.utils import timezone as dj_timezone
 
 from apps.accounts.models import Staff
 from apps.core.auth import issue_refresh_token, jwt_cookie_config
+from apps.platform.observability.models import VendorCall
 from apps.xero.models import XeroApp
 
 TEST_TENANT_ID = "test-tenant-id"
@@ -57,10 +58,6 @@ class XeroAppOverrides(TypedDict, total=False):
     token_type: str | None
     expires_at: object
     scope: str | None
-    day_remaining: int | None
-    minute_remaining: int | None
-    snapshot_at: object
-    last_429_at: object
 
 
 def make_xero_app(**overrides: Unpack[XeroAppOverrides]) -> XeroApp:
@@ -76,24 +73,20 @@ def make_xero_app(**overrides: Unpack[XeroAppOverrides]) -> XeroApp:
     return XeroApp.objects.create(**defaults)
 
 
-def set_active_quota(
-    day_remaining: int, minute_remaining: int = 60, snapshot_age_seconds: int = 0
+def record_xero_quota(
+    day_remaining: int | None, minute_remaining: int = 60, age_seconds: int = 0
 ) -> None:
-    """Set the active XeroApp's quota snapshot, creating an active row if needed."""
-    snapshot_at = dj_timezone.now() - timedelta(seconds=snapshot_age_seconds)
-    if XeroApp.objects.filter(is_active=True).exists():
-        XeroApp.objects.filter(is_active=True).update(
-            day_remaining=day_remaining,
-            minute_remaining=minute_remaining,
-            snapshot_at=snapshot_at,
-        )
-    else:
-        make_xero_app(
-            is_active=True,
-            day_remaining=day_remaining,
-            minute_remaining=minute_remaining,
-            snapshot_at=snapshot_at,
-        )
+    """Make the vendor-call log say Xero last reported this much quota left."""
+    VendorCall.objects.create(
+        vendor=VendorCall.Vendor.XERO,
+        method="GET",
+        endpoint="/api.xro/2.0/Invoices",
+        occurred_at=dj_timezone.now() - timedelta(seconds=age_seconds),
+        duration_ms=1,
+        status_code=200,
+        day_remaining=day_remaining,
+        minute_remaining=minute_remaining,
+    )
 
 
 @pytest.fixture

@@ -41,11 +41,11 @@ does not have.
 | E2E specs ported | **53 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **53** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 247 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2973 (all passing) |
+| Unit tests | 2981 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 125 recorded deviations |
-| ADRs | 42 (v1's 26 carried forward + 0038–0041, 0043, 0045–0055 written here) |
+| ADRs | 43 (v1's 26 carried forward + 0038–0041, 0043, 0045–0056 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints
 written measures typing, not delivery. Every slice below authors its own E2E spec and
@@ -169,16 +169,10 @@ Not a tier — just the five things a session should have a reason not to pick u
   minute-limit 429s, so the manual payroll pacing layer may be a second implementation
   of handled behaviour. Deleting it changes live pacing and needs one clean fresh-quota
   integration run to settle.
-- **Scope the hourly pay-slip sync** to Draft and not-yet-mirrored runs. It is N+1 by
-  its own docstring and runs hourly over all entities: 21 Xero calls per sync becomes 2,
-  and it grows 24/day for every new weekly pay run. Xero has no all-slips endpoint, so
-  scoping is the fix, not batching — a Posted run's slips are final (ADR 0007). Drop the
-  duplicate `get_pay_runs` inside `get_all_pay_slips_for_sync` with it, and assert the
-  call count (ADR 0052).
-- **Per-(endpoint, day) Xero telemetry** at `RateLimitedRESTClient.request`, the one seam
-  every call crosses. It already has `method` and `url` but keeps only a snapshot
-  overwritten per call and warnings at 10 remaining — too late to act on. A daily
-  per-endpoint counter makes "where did the quota go" a query.
+- **Check whether `get_pay_runs` already returns pay slips inline.** The SDK's `PayRun`
+  carries a `pay_slips` attribute, and if the list endpoint populates it the hourly
+  slip fetch needs no per-run call at all — one Xero call instead of two. Unchecked:
+  it needs one live call to settle, and the scoping fix landed without depending on it.
 - **Reconcile payroll without waiting for a sync.** The report compares against
   `XeroPaySlip`, which exists only once a run is Posted and mirrored, so it cannot answer
   when the mistake is still cheap to fix. Generalise the weekly panel's live read

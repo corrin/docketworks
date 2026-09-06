@@ -6,12 +6,17 @@ one recorded example of what this API actually returns rather than two hopeful
 ones.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from django.test import Client
 
 from apps.platform.integrations.models import IntegrationSettings
+from apps.platform.integrations.tests.places_fakes import (
+    POST_TARGET,
+    places_ok,
+    places_reply,
+)
 from apps.platform.integrations.tests.test_place_lookup import PLACES_RESPONSE
 
 pytestmark = [
@@ -20,14 +25,6 @@ pytestmark = [
 ]
 
 PATH = "/api/companies/addresses/validate/"
-POST_TARGET = "apps.platform.integrations.google.places.requests.post"
-
-
-def _google_ok(payload: object) -> MagicMock:
-    response = MagicMock()
-    response.status_code = 200
-    response.json.return_value = payload
-    return response
 
 
 @pytest.fixture
@@ -43,7 +40,7 @@ def no_api_key() -> None:
 @pytest.mark.usefixtures("api_key")
 class TestEndpoint:
     def test_a_match_returns_a_candidate_carrying_its_region(self, client: Client) -> None:
-        with patch(POST_TARGET, return_value=_google_ok(PLACES_RESPONSE)) as post:
+        with patch(POST_TARGET, return_value=places_ok(PLACES_RESPONSE)) as post:
             response = client.post(
                 PATH, {"address": "151 captain springs rd"}, content_type="application/json"
             )
@@ -71,7 +68,7 @@ class TestEndpoint:
 
     def test_the_key_is_a_header_and_never_the_url(self, client: Client) -> None:
         """A URL carrying the key is copied into every RequestException, and so into AppError."""
-        with patch(POST_TARGET, return_value=_google_ok(PLACES_RESPONSE)) as post:
+        with patch(POST_TARGET, return_value=places_ok(PLACES_RESPONSE)) as post:
             client.post(
                 PATH, {"address": "151 captain springs rd"}, content_type="application/json"
             )
@@ -82,7 +79,7 @@ class TestEndpoint:
 
     def test_the_whole_google_reply_does_not_reach_the_browser(self, client: Client) -> None:
         """It belongs in the database, not on a keystroke-rate response."""
-        with patch(POST_TARGET, return_value=_google_ok(PLACES_RESPONSE)):
+        with patch(POST_TARGET, return_value=places_ok(PLACES_RESPONSE)):
             response = client.post(
                 PATH, {"address": "151 captain springs rd"}, content_type="application/json"
             )
@@ -93,7 +90,7 @@ class TestEndpoint:
         assert "postalAddress" not in candidate
 
     def test_no_match_returns_empty_candidates(self, client: Client) -> None:
-        with patch(POST_TARGET, return_value=_google_ok({"places": []})):
+        with patch(POST_TARGET, return_value=places_ok({"places": []})):
             response = client.post(
                 PATH, {"address": "nowhere at all"}, content_type="application/json"
             )
@@ -107,9 +104,7 @@ class TestEndpoint:
         assert response.json()["detail"] == "Address is required"
 
     def test_google_error_is_503(self, client: Client) -> None:
-        error_response = MagicMock()
-        error_response.status_code = 403
-        error_response.text = "quota exceeded"
+        error_response = places_reply(403, text="quota exceeded")
         with patch(POST_TARGET, return_value=error_response):
             response = client.post(
                 PATH, {"address": "151 Captain Springs Road"}, content_type="application/json"

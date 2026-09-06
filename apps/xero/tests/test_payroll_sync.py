@@ -11,6 +11,7 @@ from collections.abc import Iterator
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
+from uuid import uuid4
 
 import pytest
 
@@ -92,9 +93,19 @@ class TestGetPayRunsForSync:
         payroll_api.get_pay_runs.assert_called_once_with(xero_tenant_id="tenant-other")
 
 
+# Real UUIDs, not "run-1": Xero's pay_run_id is a UUID and XeroPayRun.xero_id
+# is a UUIDField, so a fake using a slug asserts a shape the vendor never sends.
+@pytest.mark.django_db  # the fetcher asks the mirror which runs it already holds
 class TestGetAllPaySlipsForSync:
-    def test_gathers_slips_across_every_pay_run(self, payroll_api: Mock) -> None:
-        runs = [SimpleNamespace(pay_run_id="run-1"), SimpleNamespace(pay_run_id="run-2")]
+    def test_gathers_slips_across_the_runs_it_reads(self, payroll_api: Mock) -> None:
+        # Nothing is mirrored here, so every run is still worth a call; which
+        # runs get read is test_payroll_slip_scope's subject, and this is the
+        # gathering.
+        run_1, run_2 = str(uuid4()), str(uuid4())
+        runs = [
+            SimpleNamespace(pay_run_id=run_1, pay_run_status="Posted"),
+            SimpleNamespace(pay_run_id=run_2, pay_run_status="Posted"),
+        ]
         slip_a = SimpleNamespace(pay_slip_id="slip-a")
         slip_b = SimpleNamespace(pay_slip_id="slip-b")
         slip_c = SimpleNamespace(pay_slip_id="slip-c")
@@ -108,11 +119,14 @@ class TestGetAllPaySlipsForSync:
 
         assert result.pay_slips == [slip_a, slip_b, slip_c]
         assert payroll_api.get_pay_slips.call_count == 2
-        payroll_api.get_pay_slips.assert_any_call(xero_tenant_id="tenant-x", pay_run_id="run-1")
-        payroll_api.get_pay_slips.assert_any_call(xero_tenant_id="tenant-x", pay_run_id="run-2")
+        payroll_api.get_pay_slips.assert_any_call(xero_tenant_id="tenant-x", pay_run_id=run_1)
+        payroll_api.get_pay_slips.assert_any_call(xero_tenant_id="tenant-x", pay_run_id=run_2)
 
     def test_run_with_no_slips_contributes_nothing(self, payroll_api: Mock) -> None:
-        runs = [SimpleNamespace(pay_run_id="run-1"), SimpleNamespace(pay_run_id="run-2")]
+        runs = [
+            SimpleNamespace(pay_run_id=str(uuid4()), pay_run_status="Posted"),
+            SimpleNamespace(pay_run_id=str(uuid4()), pay_run_status="Posted"),
+        ]
         slip = SimpleNamespace(pay_slip_id="slip-a")
         payroll_api.get_pay_runs.return_value = SimpleNamespace(pay_runs=runs)
         payroll_api.get_pay_slips.side_effect = [

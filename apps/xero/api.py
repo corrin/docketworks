@@ -46,7 +46,7 @@ from apps.xero.active_app import (
     _restart_sibling_workers,
     get_active_app,
     swap_active,
-    wipe_tokens_and_quota,
+    wipe_tokens,
 )
 from apps.xero.auth import get_valid_token
 from apps.xero.constants import TENANT_ID_CACHE_KEY, tenant_cache
@@ -210,7 +210,7 @@ def xero_disconnect_create(request: HttpRequest) -> XeroPingOut:
     except NoActiveXeroAppError:
         logger.info("xero_disconnect: no active XeroApp; nothing to do")
         return _xero_ping_payload(connected=False)
-    wipe_tokens_and_quota(active)
+    wipe_tokens(active)
     logger.info("Disconnected XeroApp %s (%s)", active.id, active.label)
     return _xero_ping_payload(connected=False)
 
@@ -892,10 +892,6 @@ class XeroAppOut(ResponseSchema):
     redirect_uri: str
     is_active: bool
     has_tokens: bool
-    day_remaining: int | None
-    minute_remaining: int | None
-    snapshot_at: datetime | None
-    last_429_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
@@ -908,10 +904,6 @@ def _app_out(app: XeroApp) -> XeroAppOut:
         redirect_uri=app.redirect_uri,
         is_active=app.is_active,
         has_tokens=bool(app.access_token and app.refresh_token),
-        day_remaining=app.day_remaining,
-        minute_remaining=app.minute_remaining,
-        snapshot_at=app.snapshot_at,
-        last_429_at=app.last_429_at,
         created_at=app.created_at,
         updated_at=app.updated_at,
     )
@@ -1060,7 +1052,7 @@ def xero_apps_partial_update(
         app.client_id != before_client_id or app.client_secret != before_client_secret
     )
     if credentials_changed:
-        wipe_tokens_and_quota(app)
+        wipe_tokens(app)
         if app.is_active:
             # The process-level ApiClient singleton was built from the old
             # credentials; without this reset its next call would use stale

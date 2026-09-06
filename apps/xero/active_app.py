@@ -5,7 +5,7 @@ Public surface:
 - ``swap_active(app_id)`` — atomically flip the active row, invalidate the
   in-process ApiClient singleton, and restart sibling worker units so their
   fresh processes rebuild against the new row.
-- ``wipe_tokens_and_quota(app)`` — null all token/quota fields on a row.
+- ``wipe_tokens(app)`` — null every token field on a row.
 
 The ApiClient itself lives in ``apps.xero.auth`` as a lazy process singleton
 (``auth.api_client``). Swap propagation across worker processes happens via
@@ -108,11 +108,14 @@ def _restart_sibling_workers() -> None:
         raise
 
 
-def wipe_tokens_and_quota(app: XeroApp) -> None:
-    """Null all token + quota fields on the row.
+def wipe_tokens(app: XeroApp) -> None:
+    """Null every token field on the row.
 
     Used when credentials change (a new client_id is a different Xero app
-    from Xero's perspective; old tokens and quota state are invalid).
+    from Xero's perspective, so old tokens are invalid). Quota readings are
+    not wiped with them: they live in the vendor-call log, which is a record
+    of what was spent rather than state about this row, and
+    ``quota_floor_breached`` bounds how long a superseded reading can matter.
     """
     XeroApp.objects.filter(id=app.id).update(
         token_type=None,
@@ -120,10 +123,6 @@ def wipe_tokens_and_quota(app: XeroApp) -> None:
         refresh_token=None,
         expires_at=None,
         scope=None,
-        day_remaining=None,
-        minute_remaining=None,
-        snapshot_at=None,
-        last_429_at=None,
     )
     # If this row is currently active, the cached tenant id was derived
     # from the now-wiped credentials and is no longer authoritative. Clear

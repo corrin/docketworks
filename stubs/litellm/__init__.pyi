@@ -20,8 +20,14 @@ class Message:
 class Choice:
     message: Message
 
+class Usage:
+    prompt_tokens: int
+    completion_tokens: int
+
 class ModelResponse:
     choices: Sequence[Choice]
+    model: str
+    usage: Usage
 
 def completion(
     *,

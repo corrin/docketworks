@@ -14,12 +14,16 @@ calls arrives here.
 """
 
 import logging
+import time
 from dataclasses import dataclass
 
 import litellm
+from litellm import ModelResponse
 
 from apps.ai.enums import AIProviderTypes
 from apps.ai.models import AIProvider
+from apps.platform.observability.models import VendorCall
+from apps.platform.observability.recording import VendorCallRecord, record_vendor_call
 
 logger = logging.getLogger(__name__)
 
@@ -137,13 +141,40 @@ def chat_completion(prompt: str, *, provider_type: str | None = None) -> str:
 
     litellm.suppress_debug_info = True
     logger.debug("LLM completion request to %s", target.model)
+    started = time.perf_counter()
     response = litellm.completion(
         model=target.model,
         messages=[{"role": "user", "content": prompt}],
         api_key=target.api_key,
         timeout=COMPLETION_TIMEOUT_SECONDS,
     )
+    _record_completion(target, response, started)
     content = response.choices[0].message.content
     if content is None:
         raise LLMEmptyResponseError(f"{target.model} returned a completion with no content")
     return content
+
+
+def _record_completion(target: LLMTarget, response: ModelResponse, started: float) -> None:
+    """Record what one completion consumed.
+
+    ADR 0041 puts token accounting at this boundary, so the counts are read
+    from the vendor's own response rather than estimated from the prompt: an
+    estimate is our belief about their tokeniser, which is the thing worth
+    checking rather than recording.
+
+    Dollars are deliberately absent. litellm can compute a cost, but it does
+    so from a local price table — that is a rollup over the meter, not the
+    meter, and it belongs to analysis over these rows rather than to the row.
+    """
+    record_vendor_call(
+        VendorCallRecord(
+            vendor=VendorCall.Vendor.LLM,
+            method="POST",
+            url=f"/completion/{target.model}",
+            duration_ms=int((time.perf_counter() - started) * 1000),
+            tokens_in=response.usage.prompt_tokens,
+            tokens_out=response.usage.completion_tokens,
+            model_name=target.model,
+        )
+    )
