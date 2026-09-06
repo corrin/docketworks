@@ -32,6 +32,7 @@ stable ID order. Missing matches fail with a configuration error.
 `Admin → Integrations` owns provider/model/key editing and the single application
 default. The database enforces at most one default; legacy ambiguous flags are
 cleared without touching credentials. Deleting the default leaves the choice unset.
-Quoting chat requests OpenAI; catalogue parsing requests Gemini. Neither changes
-the default to satisfy its own requirements. Explicit provider tests use the same
+Quoting chat uses ChatKit’s model picker over all configured providers, initially
+selecting the application default. Catalogue parsing requests Gemini. A chat selection
+does not change the application default. Explicit provider tests use the same
 metered gateway and saved credentials; reading configuration never calls a vendor.

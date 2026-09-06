@@ -28,3 +28,4 @@ def test_admin_probe_verifies_saved_openai_credentials(superuser_api: Client) ->
     call = VendorCall.objects.filter(vendor=VendorCall.Vendor.LLM).latest("occurred_at")
     assert call.model_name == response.json()["model"]
     assert call.tokens_in is not None and call.tokens_in > 0
+    assert call.estimated_cost_usd is not None and call.estimated_cost_usd > 0

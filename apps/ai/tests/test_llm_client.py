@@ -10,9 +10,9 @@ unknown provider type to fail at configuration, before LiteLLM receives an
 ambiguous unprefixed model name.
 """
 
-from dataclasses import dataclass
 from unittest.mock import patch
 
+import litellm
 import pytest
 from django.db import IntegrityError, transaction
 
@@ -33,38 +33,12 @@ pytestmark = [pytest.mark.django_db]
 LITELLM_COMPLETION = "litellm.completion"
 
 
-@dataclass(frozen=True)
-class FakeMessage:
-    content: str | None
-
-
-@dataclass(frozen=True)
-class FakeChoice:
-    message: FakeMessage
-
-
-@dataclass(frozen=True)
-class FakeUsage:
-    prompt_tokens: int
-    completion_tokens: int
-
-
-@dataclass(frozen=True)
-class FakeResponse:
-    choices: list[FakeChoice]
-    usage: FakeUsage
-
-
-def reply(content: str | None) -> FakeResponse:
-    """A litellm completion response carrying this content.
-
-    The usage block is not optional garnish: the gateway records what every
-    completion consumed (ADR 0041), so a response without it is a shape
-    litellm does not return.
-    """
-    return FakeResponse(
-        choices=[FakeChoice(message=FakeMessage(content=content))],
-        usage=FakeUsage(prompt_tokens=11, completion_tokens=7),
+def reply(content: str | None) -> litellm.ModelResponse:
+    """Use the SDK response contract so usage reaches its native cost calculator."""
+    return litellm.ModelResponse(
+        model="gemini/gemini-flash-latest",
+        choices=[{"message": {"role": "assistant", "content": content}}],
+        usage=litellm.Usage(prompt_tokens=11, completion_tokens=7, total_tokens=18),
     )
 
 

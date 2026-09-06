@@ -10016,6 +10016,34 @@ export type QuotingChatConfigOut = {
      * Model
      */
     model: string | null;
+    /**
+     * Models
+     */
+    models: Array<QuotingChatModelOut>;
+};
+
+/**
+ * QuotingChatModelOut
+ *
+ * Public model-picker metadata; credentials remain in the gateway.
+ */
+export type QuotingChatModelOut = {
+    /**
+     * Default
+     */
+    default: boolean;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Label
+     */
+    label: string;
 };
 
 /**

@@ -25,7 +25,7 @@ def test_missing_job_is_refused() -> None:
 def test_configuration_failure_preserves_the_user_message_for_retry(job: Job) -> None:
     """An unavailable provider must not discard the operator's submitted message."""
     AIProvider.objects.all().delete()
-    with pytest.raises(RuntimeError, match="No AI provider of type OpenAI"):
+    with pytest.raises(RuntimeError, match="No AI provider configured"):
         call_command("ai_chat_harness", str(job.id), "Quote a bench", stdout=StringIO())
     assert JobQuoteChat.objects.filter(thread__job=job, payload__type="user_message").count() == 1
     assert AppError.objects.count() == 0

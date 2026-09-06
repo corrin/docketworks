@@ -747,3 +747,23 @@ Validation: full Python suite passed with 89.47% coverage; all 649 frontend unit
 passed; required repository checks passed. Real OpenAI probing,
 MCP/history integration and the new admin/browser specs remain acceptance tasks in
 rewrite-status until run against the operator's normally launched, configured app.
+
+## 2026-09-07 — Chat model selection and monetary call accounting (PR #144)
+
+Owner-approved: ChatKit lists every configured provider/model and initially selects
+the application default. The Integrations list uses a Default radio control.
+The gateway sends `max_completion_tokens`, including through the Agents adapter;
+real OpenAI provider testing and streaming tool calls pass with `chat-latest`.
+
+LLM VendorCall rows now save `estimated_cost_usd` alongside reported token counts
+and per-call wall time. LiteLLM owns pricing and cache discounts; estimates are saved
+at call time, not recomputed using future prices. Migration observability/0002 leaves
+old rows unpriced and is applied by the normal migration path. No new service,
+credential or instance setting is required. ADR 0056 reflects the owner's cost requirement.
+
+Validation: 24 focused gateway/observability tests passed; the additional five-test
+cost run passed, including real OpenAI admin probing and streamed tool round trips,
+plus OpenAI cache-read and Claude cache-write pricing checks. Claude pricing was
+checked locally, not by calling a configured Claude account. Browser acceptance
+remains in rewrite-status until the operator restarts the application normally.
+Plain Playwright now targets APP_DOMAIN over HTTPS and never starts services.

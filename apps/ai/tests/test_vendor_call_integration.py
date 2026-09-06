@@ -31,3 +31,4 @@ def test_a_real_completion_records_the_tokens_the_vendor_counted() -> None:
     assert row.tokens_out is not None and row.tokens_out > 0
     assert row.model_name
     assert row.duration_ms >= 0
+    assert row.estimated_cost_usd is not None and row.estimated_cost_usd > 0

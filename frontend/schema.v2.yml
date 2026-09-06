@@ -11278,13 +11278,41 @@ components:
           - type: string
           - type: 'null'
           title: Model
+        models:
+          items:
+            $ref: '#/components/schemas/QuotingChatModelOut'
+          title: Models
+          type: array
       required:
       - domain_key
       - csrf_token
       - configuration_error
       - model
+      - models
       - can_configure
       title: QuotingChatConfigOut
+      type: object
+    QuotingChatModelOut:
+      description: Public model-picker metadata; credentials remain in the gateway.
+      properties:
+        default:
+          title: Default
+          type: boolean
+        description:
+          title: Description
+          type: string
+        id:
+          title: Id
+          type: string
+        label:
+          title: Label
+          type: string
+      required:
+      - id
+      - label
+      - description
+      - default
+      title: QuotingChatModelOut
       type: object
     RDTICategorySummaryOut:
       description: 'RDTI category summary contract.

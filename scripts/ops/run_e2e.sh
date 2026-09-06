@@ -103,8 +103,5 @@ wait_for 'Celery worker' grep -q 'ready\.' "$LOG_DIR/worker.log"
 wait_for 'Celery Beat' grep -q 'beat: Starting\.\.\.' "$LOG_DIR/beat.log"
 wait_for ngrok curl -fsS http://127.0.0.1:4040/api/tunnels
 
-# localhost, not 127.0.0.1: plain `npm run test:e2e` uses localhost:4173, and
-# the suite must never see two origins for the same server. Extra arguments
-# pass through to Playwright (e.g. a spec path while iterating on one file);
-# no argument runs the whole suite, which is what gates.
-E2E_MANAGED_BASE_URL=http://localhost:4173 npm --prefix "$FRONTEND" run test:e2e -- "$@"
+# Use the same configured public origin as an ordinary Playwright run.
+npm --prefix "$FRONTEND" run test:e2e -- "$@"

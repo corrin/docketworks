@@ -59,7 +59,7 @@ test('provider setup keeps keys write-only and edits usable across screen sizes'
     await dialog.getByRole('button', { name: 'Save provider' }).click()
     await expect(row).toContainText('Not configured')
     await expect(row.getByRole('button', { name: 'Test provider' })).toBeDisabled()
-    await expect(row.getByRole('button', { name: 'Set default' })).toBeDisabled()
+    await expect(row.getByRole('radio')).toBeDisabled()
     await page.reload()
     await expect(row).toContainText('Not configured')
     for (const width of [1920, 1366, 1024, 390]) {

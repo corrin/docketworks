@@ -18,14 +18,16 @@ not the full ChatGPT product.
    to your account and your API key, then save. **Test provider** sends a small billable
    request using that saved entry. Keys are never returned to the browser: editing
    metadata keeps the key, entering a replacement rotates it, and Clear removes it.
-2. Use **Set default** to choose the application default. Code with no preference uses
-   this entry. Quoting chat explicitly selects OpenAI and catalogue parsing selects
-   Gemini, independently of that default. Among configured models of a requested vendor,
+2. Select the radio button in **Default** to choose the application default. Code with no preference uses
+   this entry. Quoting chat initially selects it and lets users choose any configured
+   provider in ChatKit's model picker, including during a conversation. Catalogue parsing
+   continues to request Gemini. Among configured models of a requested vendor,
    the application default wins if it matches; otherwise the oldest configured entry wins.
    A caller can select an exact provider row when it needs a specific model.
-3. Register the deployed domain in the OpenAI account's ChatKit domain allowlist.
+3. Register the browser hostname (including the development ngrok hostname) in
+   [OpenAI’s domain allowlist](https://platform.openai.com/settings/organization/security/domain-allowlist).
    Enter its public domain key in **Admin → Integrations → Quoting chat** and save.
-   Localhost development can use `local-dev`; deployed sites need their registered key.
+   Ngrok and deployed sites both need their registered key.
    This public embed setting is separate from the secret model API key.
 4. Open a job's **Quoting Chat** tab. Missing configuration shows an actionable setup
    message, including an Integrations link for superusers. Test a supplier lookup and
@@ -45,7 +47,13 @@ multiple defaults it clears those flags, retaining every model and key, so an ad
 can make the choice. A missing default is reported rather than guessed. The v1 restore
 script removes the constraint before import and reapplies the migration afterwards.
 
-Completed model calls record their reported token usage through the existing gateway.
+Completed model calls record their reported token usage, wall time in milliseconds and
+`estimated_cost_usd` through the existing gateway, one row per model round trip (including
+tool requests). LiteLLM calculates the USD estimate from its model prices and reported
+usage, including cache reads/writes. This is not a provider invoice or an NZD conversion.
+Migration `observability/0002` adds the nullable cost column through normal provisioning
+and deployment migrations. Historical rows retain unknown cost; they are not backfilled.
+Pricing failures surface as errors rather than recording a misleading zero cost.
 Agent calls have the gateway's 120-second request timeout, a 4096-token output limit
 and at most eight model turns per submitted message. These limits are not an account
 spending budget. Conversations supply the latest 100 stored items as model context;

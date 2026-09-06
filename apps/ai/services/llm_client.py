@@ -15,6 +15,7 @@ calls arrives here.
 import logging
 import time
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import TypeVar
 
 import litellm
@@ -165,7 +166,7 @@ def chat_completion(
         messages=[{"role": "user", "content": prompt}],
         api_key=target.api_key,
         timeout=COMPLETION_TIMEOUT_SECONDS,
-        max_tokens=max_tokens,
+        max_completion_tokens=max_tokens,
     )
     _record_completion(target, response, started)
     content = response.choices[0].message.content
@@ -175,17 +176,7 @@ def chat_completion(
 
 
 def _record_completion(target: LLMTarget, response: ModelResponse, started: float) -> None:
-    """Record what one completion consumed.
-
-    ADR 0041 puts token accounting at this boundary, so the counts are read
-    from the vendor's own response rather than estimated from the prompt: an
-    estimate is our belief about their tokeniser, which is the thing worth
-    checking rather than recording.
-
-    Dollars are deliberately absent. litellm can compute a cost, but it does
-    so from a local price table — that is a rollup over the meter, not the
-    meter, and it belongs to analysis over these rows rather than to the row.
-    """
+    """Save vendor usage and the USD estimate at the time of the request."""
     record_vendor_call(
         VendorCallRecord(
             vendor=VendorCall.Vendor.LLM,
@@ -195,8 +186,20 @@ def _record_completion(target: LLMTarget, response: ModelResponse, started: floa
             tokens_in=response.usage.prompt_tokens,
             tokens_out=response.usage.completion_tokens,
             model_name=target.model,
+            estimated_cost_usd=estimated_cost_usd(target.model, response.usage),
         )
     )
+
+
+def estimated_cost_usd(model: str, usage: litellm.Usage) -> Decimal:
+    """Use LiteLLM's vendor pricing, including the reported cache breakdown."""
+    input_cost, output_cost = litellm.cost_per_token(
+        model=model,
+        prompt_tokens=usage.prompt_tokens,
+        completion_tokens=usage.completion_tokens,
+        usage_object=usage,
+    )
+    return Decimal(str(input_cost)) + Decimal(str(output_cost))
 
 
 def agent_model(target: LLMTarget) -> LitellmModel:
@@ -208,8 +211,11 @@ def agent_model_settings() -> ModelSettings:
     """Bound a model turn and request the vendor's streaming usage report."""
     return ModelSettings(
         include_usage=True,
-        max_tokens=4096,
-        extra_args={"timeout": COMPLETION_TIMEOUT_SECONDS, "num_retries": 0},
+        extra_args={
+            "max_completion_tokens": 4096,
+            "timeout": COMPLETION_TIMEOUT_SECONDS,
+            "num_retries": 0,
+        },
     )
 
 
@@ -238,6 +244,16 @@ class AgentCallRecording(RunHooks[TContext]):
         response: AgentModelResponse,
     ) -> None:
         """Persist usage supplied by the vendor, never estimated token counts."""
+        usage = litellm.Usage(
+            prompt_tokens=response.usage.input_tokens,
+            completion_tokens=response.usage.output_tokens,
+            total_tokens=response.usage.total_tokens,
+            prompt_tokens_details={
+                "cached_tokens": response.usage.input_tokens_details.cached_tokens,
+                "cache_creation_tokens": response.usage.input_tokens_details.cache_write_tokens,
+            },
+            reasoning_tokens=response.usage.output_tokens_details.reasoning_tokens,
+        )
         await sync_to_async(record_vendor_call)(
             VendorCallRecord(
                 vendor=VendorCall.Vendor.LLM,
@@ -247,5 +263,6 @@ class AgentCallRecording(RunHooks[TContext]):
                 tokens_in=response.usage.input_tokens,
                 tokens_out=response.usage.output_tokens,
                 model_name=self.target.model,
+                estimated_cost_usd=estimated_cost_usd(self.target.model, usage),
             )
         )

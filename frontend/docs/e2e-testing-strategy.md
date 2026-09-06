@@ -62,14 +62,12 @@ refuses to start if ports 4173/8000/4040 are in use, resets recognised E2E data,
 then owns the full five-service stack — vite production preview (:4173), Django
 under uvicorn (:8000), celery worker, celery beat, and ngrok — and stops only
 the processes it started. Use bare `npm run test:e2e` only when intentionally
-targeting an environment that is already running.
+targeting an environment that is already running. Plain `npm run test:e2e` never
+starts the frontend or backend; start them through the normal launch task first.
 
-The Playwright `baseURL` defaults to the local preview (`http://localhost:4173`)
-and is overridden by `E2E_BASE_URL` in `frontend/.env` / `.env.test`, so the
-same suite runs against any host by swapping that variable.
-`E2E_MANAGED_BASE_URL` (set only by the managed runner) wins over a developer's
-`E2E_BASE_URL` so the one-shot local-stack run can never start local services
-while testing another host. Credentials come from `E2E_TEST_USERNAME` /
+The Playwright `baseURL` defaults to `https://APP_DOMAIN` from the backend `.env`,
+so the browser uses the same ngrok/public origin as integrations. `E2E_BASE_URL` is
+an explicit override. Credentials come from `E2E_TEST_USERNAME` /
 `E2E_TEST_PASSWORD` in `.env.test`.
 
 Tests run sequentially (`fullyParallel: false` — they share one database), stop

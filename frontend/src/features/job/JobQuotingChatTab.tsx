@@ -9,6 +9,7 @@ import {
   jobQuoteChatConfigRetrieveOptions,
   quotingChatFetch,
   quotingChatUrl,
+  type QuotingChatModelOut,
 } from '@/api'
 import { QueryState } from '@/features/shared/QueryState'
 
@@ -41,6 +42,7 @@ export function JobQuotingChatTab({ jobId }: { jobId: string }) {
               jobId={jobId}
               domainKey={config.data.domain_key}
               csrfToken={config.data.csrf_token}
+              models={config.data.models}
             />
           ) : null)}
       </QueryState>
@@ -52,10 +54,12 @@ function QuotingChat({
   jobId,
   domainKey,
   csrfToken,
+  models,
 }: {
   jobId: string
   domainKey: string
   csrfToken: string
+  models: QuotingChatModelOut[]
 }) {
   const fetch = useMemo(() => quotingChatFetch(jobId, csrfToken), [jobId, csrfToken])
   const { control } = useChatKit({
@@ -63,7 +67,7 @@ function QuotingChat({
     frameTitle: 'Quoting assistant',
     theme: { colorScheme: 'light', typography: { fontFamily: 'Inter, sans-serif', baseSize: 14 } },
     header: { title: { text: 'Quoting assistant' } },
-    composer: { placeholder: 'Ask about materials, supplier prices or this job…' },
+    composer: { placeholder: 'Ask about materials, supplier prices or this job…', models },
     startScreen: { greeting: 'What would you like to quote for this job?' },
     threadItemActions: { feedback: false },
     disclaimer: {

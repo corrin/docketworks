@@ -79,9 +79,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 415 |
-| except handlers | 451 |
-| re-raises or converts | 292 |
+| try statements | 417 |
+| except handlers | 453 |
+| re-raises or converts | 294 |
 | returns instead | 93 |
 | falls through | 52 |
 | continue/break in a loop | 13 |
@@ -104,7 +104,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 216 |
-| non-test functions | 2663 |
+| non-test functions | 2665 |
 
 ## Wire contract (response side)
 
@@ -112,7 +112,7 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 303 |
-| response properties | 1933 |
+| response schemas | 304 |
+| response properties | 1938 |
 | optional (pinned at zero) | 0 |
 | nullable | 418 |

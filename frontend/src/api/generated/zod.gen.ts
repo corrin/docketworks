@@ -4456,6 +4456,18 @@ export const zQuoteSpreadsheetOut = z.object({
 });
 
 /**
+ * QuotingChatModelOut
+ *
+ * Public model-picker metadata; credentials remain in the gateway.
+ */
+export const zQuotingChatModelOut = z.object({
+    default: z.boolean(),
+    description: z.string(),
+    id: z.string(),
+    label: z.string()
+});
+
+/**
  * QuotingChatConfigOut
  *
  * Public embed configuration and Django's masked CSRF token.
@@ -4465,7 +4477,8 @@ export const zQuotingChatConfigOut = z.object({
     configuration_error: z.string().nullable(),
     csrf_token: z.string(),
     domain_key: z.string().nullable(),
-    model: z.string().nullable()
+    model: z.string().nullable(),
+    models: z.array(zQuotingChatModelOut)
 });
 
 /**

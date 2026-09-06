@@ -71,8 +71,8 @@ export function AIProvidersSection() {
         <div>
           <h2 className="text-lg font-semibold">AI providers</h2>
           <p className="text-sm text-slate-500">
-            Configure model credentials here. Quoting chat uses OpenAI; catalogue parsing uses
-            Gemini. Other callers can use the application default.
+            Configure available models and the application default. Chat users can switch between
+            configured providers.
           </p>
           {providers.data && (
             <p className="text-sm text-slate-500">
@@ -116,7 +116,16 @@ export function AIProvidersSection() {
             <td className="p-2">{provider.provider_type}</td>
             <td className="p-2">{provider.model_name ?? 'Not configured'}</td>
             <td className="p-2">{provider.has_api_key ? 'Configured' : 'Not configured'}</td>
-            <td className="p-2">{provider.default ? 'Application default' : '—'}</td>
+            <td className="p-2">
+              <input
+                type="radio"
+                name="application-ai-default"
+                aria-label={`Use ${provider.name} as application default`}
+                checked={provider.default}
+                disabled={pending || !provider.has_api_key || provider.model_name === null}
+                onChange={() => void act(provider, 'default')}
+              />
+            </td>
             <td className="p-2">
               <div className="flex gap-2">
                 <Button
@@ -134,19 +143,6 @@ export function AIProvidersSection() {
                   onClick={() => void act(provider, 'test')}
                 >
                   Test provider
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={
-                    pending ||
-                    provider.default ||
-                    !provider.has_api_key ||
-                    provider.model_name === null
-                  }
-                  onClick={() => void act(provider, 'default')}
-                >
-                  Set default
                 </Button>
                 <Button
                   size="sm"

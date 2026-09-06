@@ -549,3 +549,5 @@ export type {
   AiProviderTypes,
 } from './generated/types.gen'
 export { zAiProviderTypes } from './generated/zod.gen'
+
+export type { QuotingChatModelOut } from './generated/types.gen'

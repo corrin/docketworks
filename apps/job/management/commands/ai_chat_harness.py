@@ -23,7 +23,6 @@ class Command(BaseCommand):
         parser.add_argument("--thread-id")
         parser.add_argument(
             "--provider-type",
-            default=AIProviderTypes.OPENAI,
             choices=[choice.value for choice in AIProviderTypes],
         )
 
@@ -37,7 +36,7 @@ class Command(BaseCommand):
             raise TypeError("The job id must be a UUID and the message must be text")
         if thread_id is not None and not isinstance(thread_id, str):
             raise TypeError("The thread id must be text")
-        if not isinstance(provider_type, str):
+        if provider_type is not None and not isinstance(provider_type, str):
             raise TypeError("The provider type must be text")
         if not Job.objects.filter(id=job_id).exists():
             raise CommandError(f'Job with ID "{job_id}" does not exist.')

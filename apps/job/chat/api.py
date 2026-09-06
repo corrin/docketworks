@@ -13,7 +13,7 @@ from django.views.decorators.http import require_POST
 from ninja import Router, Schema
 from pydantic import ValidationError
 
-from apps.ai.enums import AIProviderTypes
+from apps.ai.models import AIProvider
 from apps.ai.services.llm_client import LLMConfigurationError, resolve_target
 from apps.core.auth import OfficeStaffCookieJWTAuth, StaffPermissions
 from apps.core.errors import AppErrorContext, persist_app_error
@@ -26,6 +26,15 @@ from apps.platform.integrations.models import IntegrationSettings
 router = Router(tags=["Jobs"])
 
 
+class QuotingChatModelOut(Schema):
+    """Public model-picker metadata; credentials remain in the gateway."""
+
+    id: str
+    label: str
+    description: str
+    default: bool
+
+
 class QuotingChatConfigOut(Schema):
     """Public embed configuration and Django's masked CSRF token."""
 
@@ -33,6 +42,7 @@ class QuotingChatConfigOut(Schema):
     csrf_token: str
     configuration_error: str | None
     model: str | None
+    models: list[QuotingChatModelOut]
     can_configure: bool
 
 
@@ -49,7 +59,7 @@ def quote_chat_config(request: HttpRequest, job_id: UUID) -> QuotingChatConfigOu
     issue = None
     model = None
     try:
-        model = resolve_target(AIProviderTypes.OPENAI).model
+        model = resolve_target().model
     # deliberate-swallow: display missing configuration before starting a conversation.
     except LLMConfigurationError as exc:
         issue = str(exc)
@@ -57,6 +67,17 @@ def quote_chat_config(request: HttpRequest, job_id: UUID) -> QuotingChatConfigOu
         issue = "Configure the ChatKit domain key in Integrations to enable quoting chat."
     return QuotingChatConfigOut(
         domain_key=domain_key,
+        models=[
+            QuotingChatModelOut(
+                id=str(provider.pk),
+                label=provider.name,
+                description=f"{provider.provider_type} · {provider.model_name}",
+                default=provider.default,
+            )
+            for provider in AIProvider.objects.filter(
+                api_key__isnull=False, model_name__isnull=False
+            ).order_by("name", "pk")
+        ],
         configuration_error=issue,
         model=model,
         can_configure=isinstance(request.user, StaffPermissions) and request.user.is_superuser,

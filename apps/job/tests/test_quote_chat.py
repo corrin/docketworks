@@ -13,9 +13,12 @@ from django.test import Client
 from django.utils import timezone
 
 from apps.accounts.models import Staff
+from apps.ai.models import AIProvider
+from apps.ai.services.llm_client import LLMConfigurationError
 from apps.company.tests.conftest import authenticate
 from apps.company.tests.job_fixtures import make_job
 from apps.core.models import AppError
+from apps.job.chat.server import selected_target
 from apps.job.chat.store import ChatContext, JobChatStore
 from apps.job.models import Job, JobQuoteChat
 
@@ -147,3 +150,50 @@ def test_missing_job_remains_a_normal_refusal(office_staff: Staff) -> None:
     )
     assert response.status_code == 404
     assert not AppError.objects.exists()
+
+
+def test_model_picker_lists_configured_providers_and_uses_application_default(
+    superuser_api: Client,
+    job: Job,
+) -> None:
+    """Selection exposes names, never credentials, and accepts a different vendor per turn."""
+
+    instant = AIProvider.objects.create(
+        name="Instant",
+        provider_type="OpenAI",
+        model_name="chat-latest",
+        api_key="private-openai",
+    )
+    thinking = AIProvider.objects.create(
+        name="Thinking",
+        provider_type="Claude",
+        model_name="claude-model",
+        api_key="private-claude",
+        default=True,
+    )
+    AIProvider.objects.create(name="Unset", provider_type="Gemini", model_name="model")
+    response = superuser_api.get(f"/api/job/jobs/{job.id}/quote-chat/config/")
+    assert response.status_code == 200
+    assert response.json()["models"] == [
+        {
+            "id": str(instant.pk),
+            "label": "Instant",
+            "description": "OpenAI · chat-latest",
+            "default": False,
+        },
+        {
+            "id": str(thinking.pk),
+            "label": "Thinking",
+            "description": "Claude · claude-model",
+            "default": True,
+        },
+    ]
+    assert "private-" not in response.content.decode()
+    context = ChatContext(job_id=job.id)
+    assert selected_target(None, context).provider_name == "Thinking"
+    assert selected_target(str(instant.pk), context).provider_name == "Instant"
+    assert selected_target(str(thinking.pk), context).provider_name == "Thinking"
+    removed_id = str(thinking.pk)
+    thinking.delete()
+    with pytest.raises(LLMConfigurationError, match="removed"):
+        selected_target(removed_id, context)

@@ -29,7 +29,7 @@ def test_real_chat_reads_tools_and_continues_stored_history(job: Job) -> None:
         price_unit="per sheet",
         url="https://example.com/catalogue/DW-CHAT-PRICE",
     )
-    context = ChatContext(job_id=job.id)
+    context = ChatContext(job_id=job.id, provider_type="OpenAI")
     reply = async_to_sync(send_message)(
         context,
         "Read this job's details with job_context and look up DW-CHAT-PRICE with supplier_prices. "

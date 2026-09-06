@@ -6,6 +6,7 @@ field instead of another positional argument at five call sites.
 """
 
 from dataclasses import dataclass
+from decimal import Decimal
 from urllib.parse import urlsplit
 
 import requests
@@ -21,6 +22,7 @@ class VendorCallRecord:
     returns remaining-quota headers and no token count, the LLM gateway the
     reverse. ``None`` here means "this vendor does not report this meter",
     which is a real value with a real reader, not a widened annotation.
+    The separate USD estimate is supplied only by the LLM gateway.
     """
 
     vendor: VendorCall.Vendor
@@ -33,6 +35,7 @@ class VendorCallRecord:
     tokens_in: int | None = None
     tokens_out: int | None = None
     model_name: str | None = None
+    estimated_cost_usd: Decimal | None = None
 
 
 def endpoint_of(url: str) -> str:
@@ -60,6 +63,7 @@ def record_vendor_call(record: VendorCallRecord) -> None:
         tokens_in=record.tokens_in,
         tokens_out=record.tokens_out,
         model_name=record.model_name,
+        estimated_cost_usd=record.estimated_cost_usd,
     )
 
 

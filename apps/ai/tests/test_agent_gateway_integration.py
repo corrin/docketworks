@@ -54,3 +54,4 @@ def test_streaming_tools_record_each_vendor_round_trip() -> None:
     assert all(row.tokens_in is not None and row.tokens_in > 0 for row in rows)
     assert all(row.tokens_out is not None and row.tokens_out > 0 for row in rows)
     assert all(row.model_name == target.model for row in rows)
+    assert all(row.estimated_cost_usd is not None and row.estimated_cost_usd > 0 for row in rows)
