@@ -20,7 +20,7 @@ These scripts provision and manage multiple isolated DocketWorks instances on a 
 | What                         | Where to get it                                                                                          | Used for                        |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------- |
 | Xero app credentials         | developer.xero.com → New App (client ID/secret, webhook key)                                             | Xero integration (database rows) |
-| AI provider API keys         | Anthropic / Google / Mistral consoles                                                                    | The LLM gateway (database rows) |
+| AI provider API keys         | OpenAI / Anthropic / Google / Mistral consoles                                                                    | The LLM gateway (database rows) |
 | GCP service account JSON key | Create service account, download JSON key, copy to server                                                | Backup uploads to Google Drive  |
 | Google Drive backup folder   | Share a Shared Drive with the service account; optional Shared Drive/folder IDs go in `BACKUP_GDRIVE_TEAM_DRIVE_ID` / `BACKUP_GDRIVE_ROOT_FOLDER_ID` | Nightly DB and file backups     |
 
@@ -88,7 +88,10 @@ XERO_CLIENT_ID=            → XeroApp row
 XERO_CLIENT_SECRET=
 XERO_WEBHOOK_KEY=
 XERO_REDIRECT_URI=
-ANTHROPIC_API_KEY=         → AIProvider rows
+OPENAI_API_KEY=            → AIProvider rows (optional vendors)
+OPENAI_MODEL_NAME=
+AI_DEFAULT_PROVIDER=      → initial application default, e.g. OpenAI
+ANTHROPIC_API_KEY=
 GEMINI_API_KEY=
 MISTRAL_API_KEY=
 GCP_CREDENTIALS=           → <instance>/gcp-credentials.json, and .env points at it
@@ -96,19 +99,25 @@ BACKUP_GDRIVE_ROOT_FOLDER_ID=
 BACKUP_GDRIVE_TEAM_DRIVE_ID=
 GOOGLE_MAPS_API_KEY=       → IntegrationSettings row (ADR 0053)
 PHONE_PROVIDER_*=          → IntegrationSettings row
+CHATKIT_DOMAIN_KEY=        → IntegrationSettings public embed setting
 ```
 
-`instance.sh create` renders each group into a fixture and loads it only when
-the database does not already hold that configuration (no XeroApp row, no
-AIProvider row, no credential on the IntegrationSettings row), so a restored
-instance keeps what its admin entered on Admin > Integrations.
+`instance.sh create` and reconfiguration render database fixtures. Xero loads only
+when absent; singleton integrations load only while their fields are unset. AI uses
+`load_ai_providers`: missing vendors are added independently and existing configured
+vendors/defaults are preserved. An exact empty seed is refilled; ambiguous incomplete
+entries require attention in Admin → Integrations. API keys are optional per vendor;
+an OpenAI key requires `OPENAI_MODEL_NAME`. `AI_DEFAULT_PROVIDER` optionally selects
+the initial default and never replaces an existing administrator choice. OpenAI-only
+setup works; parsing features that request Gemini require that vendor separately.
+See [quoting chat setup](../../docs/quoting-chat.md) for the normal admin workflow.
 
 How to get them:
 
 1. **Create a Xero app** at https://developer.xero.com/app/manage
 2. **Set redirect URI** to `https://<instance>.docketworks.site/api/xero/oauth/callback/`
 3. **Copy Client ID, Client Secret, and webhook signing key** into the instance credentials file.
-4. **ANTHROPIC_API_KEY / GEMINI_API_KEY / MISTRAL_API_KEY:** loaded as `ai.AIProvider` rows for the LLM gateway.
+4. **OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY / MISTRAL_API_KEY:** loaded as `ai.AIProvider` rows for the LLM gateway.
 5. **GCP_CREDENTIALS:** Path to a GCP service account JSON key file. Used by rclone to upload backups, and by the app itself (`apps/platform/integrations/google/credentials.py`) for the Gmail password-reset email and the health-and-safety Drive import. Each instance gets its own service account; the key file is copied into the instance directory during creation and the rendered `.env` points at that copy, so the original download can be deleted.
 6. **BACKUP_GDRIVE_TEAM_DRIVE_ID / BACKUP_GDRIVE_ROOT_FOLDER_ID:** Optional Shared Drive ID and parent folder ID for backup storage. Service-account backups should target a Shared Drive the service account can write to. Backups upload under `dw_backups/` from the configured root.
 

@@ -73,7 +73,8 @@ presentation choices with reasons, not waivers of the shared-implementation rule
   migrated boundary. Legacy apps retain the existing import-linter tiers until moved;
   they are not a template for new contexts. Shared use does not mean shared ownership.
 - Frontend: `frontend/src/routes/` (thin) → `features/<domain>/` → generated API layer + `lib/`.
-  Server state lives in TanStack Query only; no hand-written service layer.
+  Server state lives in TanStack Query; ChatKit owns its conversation protocol/state
+  under ADR 0021’s scoped SDK exception. No hand-written service layer.
 
 ## Gates (all on from day 1 — never weaken, never baseline)
 
@@ -230,6 +231,16 @@ produced that ADR shipped on a database already holding hundreds of the rows.
   originates starts with its short model family (`GPT:`, `Opus:`, `Gemini:`)
   until explicit owner ratification replaces it with a durable authority
   citation (ADR 0051); attribution is provenance, never a waiver.
+
+## Integration completeness
+
+An integration slice includes its supported admin setup, typed database credential
+owner, consumer selection rules, new-instance seed, restore/scrub behaviour and live
+verification. Use the existing configuration service for both UI and provisioning.
+Keys stay write-only; a settings GET never probes an external service. Document the
+normal setup path and test it through the UI, including failed saves and key rotation.
+A terminal or database workaround does not establish that setup is complete. Record
+any unverified acceptance step explicitly in the PR and rewrite task list.
 
 ## Porting rules
 

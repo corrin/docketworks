@@ -10,10 +10,11 @@ unknown provider type to fail at configuration, before LiteLLM receives an
 ambiguous unprefixed model name.
 """
 
-from dataclasses import dataclass
 from unittest.mock import patch
 
+import litellm
 import pytest
+from django.db import IntegrityError, transaction
 
 from apps.ai.enums import AIProviderTypes
 from apps.ai.models import AIProvider
@@ -32,38 +33,12 @@ pytestmark = [pytest.mark.django_db]
 LITELLM_COMPLETION = "litellm.completion"
 
 
-@dataclass(frozen=True)
-class FakeMessage:
-    content: str | None
-
-
-@dataclass(frozen=True)
-class FakeChoice:
-    message: FakeMessage
-
-
-@dataclass(frozen=True)
-class FakeUsage:
-    prompt_tokens: int
-    completion_tokens: int
-
-
-@dataclass(frozen=True)
-class FakeResponse:
-    choices: list[FakeChoice]
-    usage: FakeUsage
-
-
-def reply(content: str | None) -> FakeResponse:
-    """A litellm completion response carrying this content.
-
-    The usage block is not optional garnish: the gateway records what every
-    completion consumed (ADR 0041), so a response without it is a shape
-    litellm does not return.
-    """
-    return FakeResponse(
-        choices=[FakeChoice(message=FakeMessage(content=content))],
-        usage=FakeUsage(prompt_tokens=11, completion_tokens=7),
+def reply(content: str | None) -> litellm.ModelResponse:
+    """Use the SDK response contract so usage reaches its native cost calculator."""
+    return litellm.ModelResponse(
+        model="gemini/gemini-flash-latest",
+        choices=[{"message": {"role": "assistant", "content": content}}],
+        usage=litellm.Usage(prompt_tokens=11, completion_tokens=7, total_tokens=18),
     )
 
 
@@ -101,21 +76,11 @@ class TestResolveTarget:
 
         assert resolve_target().provider_name == "Gemini Flash"
 
-    def test_two_default_rows_are_a_configuration_fault_not_a_coin_toss(self) -> None:
-        """Two default=True rows and .first() picks by table order — the same
-        silent arbitrariness as the no-default fallback, one door over. No DB
-        constraint enforces the invariant (v2.0 migrates by pg_dump/restore,
-        so the schema cannot grow one), so the gateway checks it."""
+    def test_two_default_rows_are_rejected_by_the_database(self) -> None:
+        """Concurrent writers cannot leave the application with an ambiguous default."""
         make_provider(name="Gemini Flash", default=True)
-        make_provider(
-            name="Mistral",
-            provider_type=AIProviderTypes.MISTRAL,
-            model_name="large",
-            default=True,
-        )
-
-        with pytest.raises(LLMConfigurationError, match="exactly one"):
-            resolve_target()
+        with transaction.atomic(), pytest.raises(IntegrityError):
+            make_provider(name="Mistral", provider_type=AIProviderTypes.MISTRAL, default=True)
 
     def test_with_no_default_configured_the_config_is_the_fault(self) -> None:
         """ADR 0015: silently picking an ARBITRARY provider — vendor, model and
@@ -160,16 +125,16 @@ class TestResolveTarget:
             resolve_target(AIProviderTypes.GOOGLE)
 
     def test_a_provider_with_no_api_key_names_the_provider(self) -> None:
-        make_provider(api_key=None)
+        provider = make_provider(api_key=None)
 
         with pytest.raises(LLMConfigurationError, match="Gemini Flash AI provider is missing an"):
-            resolve_target(AIProviderTypes.GOOGLE)
+            resolve_target(provider=provider)
 
     def test_a_provider_with_no_model_name_names_the_provider(self) -> None:
-        make_provider(model_name=None)
+        provider = make_provider(model_name=None)
 
         with pytest.raises(LLMConfigurationError, match="missing a model name"):
-            resolve_target(AIProviderTypes.GOOGLE)
+            resolve_target(provider=provider)
 
     def test_a_provider_type_litellm_has_no_prefix_for_lists_the_known_ones(self) -> None:
         """Provider-prefixed model names make configuration failures legible."""

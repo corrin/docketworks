@@ -23,10 +23,8 @@ function mintRunId(): string {
 }
 
 /**
- * The backend's own address, not the vite preview: Playwright runs
- * globalSetup BEFORE it launches the webServer, so localhost:4173 is not up
- * yet in a bare `npm run test:e2e`. run_e2e.sh health-checks this same URL
- * before handing over.
+ * Preflight checks address the backend directly. Both ordinary Playwright runs
+ * and the explicit stack runner require it to be running before tests begin.
  */
 const BACKEND_URL = 'http://127.0.0.1:8000'
 

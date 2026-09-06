@@ -37,7 +37,7 @@ function requestWasAborted(config: AuthRetryConfig): boolean {
 export function installAuthRecovery(
   instance: AxiosInstance,
   refreshAccessToken: () => Promise<void>,
-): void {
+): () => Promise<void> {
   let refreshInFlight: Promise<void> | null = null
 
   async function refreshOnce(): Promise<void> {
@@ -85,4 +85,5 @@ export function installAuthRecovery(
     // navigation or query read as an authentication failure.
     return instance.request(config)
   })
+  return refreshOnce
 }

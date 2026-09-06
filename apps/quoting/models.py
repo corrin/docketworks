@@ -214,13 +214,8 @@ class SupplierProduct(models.Model):
         max_length=1000, help_text="Direct URL to this product on supplier's website"
     )
 
-    # WRITE-ONLY TODAY. The scraper's sitemap diff sets and clears this flag
-    # (BaseScraper.reconcile_catalogue), but nothing reads it: a discontinued
-    # product is still re-scraped on a --refresh-old run, still returned by
-    # supplier-product lookups, and still priceable. The help_text below claims
-    # "skip future scrapes", which no code does; it is left as-is only because
-    # editing help_text is a migration, and v2.0 migrates data by pg_dump. Make
-    # the flag mean something, or drop it, before that claim is believed.
+    # GPT: Quoting-chat search excludes withdrawn products. The scraper's
+    # --refresh-old path still ignores this flag; its help text overstates that behaviour.
     is_discontinued = models.BooleanField(
         default=False,
         help_text="Product URL no longer in supplier sitemap; skip future scrapes",

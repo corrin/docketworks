@@ -12,4 +12,27 @@ Every LLM call goes through the LiteLLM-backed gateway in `apps/ai`; no feature 
 ## Do not
 
 - **Importing `genai`, `mistralai`, `anthropic`, or any vendor SDK from a feature** — v1 adopted LiteLLM and still grew four divergent AI clients this way (~4,800 lines with no single boundary to change models, add retries, or cap spend).
-- **Adding a vendor SDK to `pyproject`** — LiteLLM is the only LLM client dependency; an installed SDK is an invitation to import it.
+- **Adding an independent vendor client** — the Agents and ChatKit SDKs are permitted
+  runtimes for the quoting embed, with the native Agents LiteLLM adapter constructed
+  by this gateway. They do not authorize a feature to construct a vendor model client.
+
+GPT: Streaming agent runs resolve `AIProvider` through the same gateway, use its
+model settings and per-call usage hooks, and disable external Agents tracing.
+Job prompts, ChatKit persistence and read-only MCP tools remain job/quoting-owned;
+no business model moves into the gateway.
+
+## Provider selection and administration
+
+Owner-approved: callers may filter the configured catalogue or supply an exact
+`AIProvider` row. A caller with no preference receives the application default.
+There is no separate workload-routing table. Vendor filtering excludes entries
+without a key or model, prefers the application default when it matches, then uses
+stable ID order. Missing matches fail with a configuration error.
+
+`Admin → Integrations` owns provider/model/key editing and the single application
+default. The database enforces at most one default; legacy ambiguous flags are
+cleared without touching credentials. Deleting the default leaves the choice unset.
+Quoting chat uses ChatKit’s model picker over all configured providers, initially
+selecting the application default. Catalogue parsing requests Gemini. A chat selection
+does not change the application default. Explicit provider tests use the same
+metered gateway and saved credentials; reading configuration never calls a vendor.

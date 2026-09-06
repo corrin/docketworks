@@ -10,6 +10,15 @@ All frontend HTTP goes through `/src/api/generated/api.ts`; types come from the 
 - Generated files are never hand-edited.
 - A missing endpoint is a backend request, never a frontend workaround.
 
+## Library-owned streaming protocol
+
+GPT: The quoting-chat embed uses ChatKit's typed SDK for its own conversation
+protocol and transient thread state. Its transport lives in `frontend/src/api/chatkit.ts`
+and shares application session recovery; its configuration remains generated API +
+TanStack Query. Do not duplicate ChatKit's thread cache, message components or SSE
+protocol in application code. Django enforces office access, job scope and CSRF at
+the SDK endpoint. This exception covers ChatKit traffic only.
+
 ## Do not
 
 - **Raw `fetch`/`axios` or hand-written response types** — hand-maintained types are wrong from the first schema change, and nothing tells you. Reviewers enforce this; the type system cannot see it.

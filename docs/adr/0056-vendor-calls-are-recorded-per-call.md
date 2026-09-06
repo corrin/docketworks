@@ -11,10 +11,11 @@ seam each vendor is reached through, at the grain of a single call.
   be known before the data is collected. A daily per-endpoint counter was the alternative and
   it aggregates into a calendar day, while Xero's limit is a rolling 24 hours — the counter
   cannot answer the operational question.
-- **A row carries what the vendor reported, never what we computed from it.** Xero's
-  remaining-quota headers and litellm's token counts belong in the table; a dollar figure
-  derived from a local price table does not. A derived number is a rollup over the meter, and
-  rollups are analysis over these rows.
+- **Keep reported meters and calculated cost distinct.** Owner-approved: LLM calls also
+  save `estimated_cost_usd`, calculated by LiteLLM from reported usage and its current
+  model pricing, including cache discounts. Save the estimate when the call completes;
+  later price changes must not rewrite historical spend. This is an estimate in USD,
+  not a provider billing receipt. Historical and non-LLM rows have no cost estimate.
 - **Recorded at the one seam each vendor crosses, never per call site** (ADR 0039), and never
   in middleware — scheduler jobs and management commands never pass through it (ADR 0001).
   The seams are the ones `conftest.py` already enumerates as the outbound call each vendor is

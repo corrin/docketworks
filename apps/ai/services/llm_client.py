@@ -1,8 +1,7 @@
 """The single LLM call boundary for the application.
 
-The currently required operation is a plain-text completion. Vision helpers,
-tool-calling probes, and parallel convenience clients are deliberately absent
-until a real caller needs them (ADR 0017).
+Plain-text consumers and the Agents runtime share provider resolution and
+vendor accounting here (ADR 0041).
 
 Layer contract: ``apps.ai`` sits in the bottom (infrastructure) layer beside
 ``apps.core``, so every domain app imports this gateway directly. A registry
@@ -15,9 +14,16 @@ calls arrives here.
 
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from decimal import Decimal
+from typing import TypeVar
 
 import litellm
+from agents import Agent, ModelSettings, RunContextWrapper, RunHooks
+from agents.extensions.models.litellm_model import LitellmModel
+from agents.items import ModelResponse as AgentModelResponse
+from agents.items import TResponseInputItem
+from asgiref.sync import sync_to_async
 from litellm import ModelResponse
 
 from apps.ai.enums import AIProviderTypes
@@ -26,6 +32,7 @@ from apps.platform.observability.models import VendorCall
 from apps.platform.observability.recording import VendorCallRecord, record_vendor_call
 
 logger = logging.getLogger(__name__)
+TContext = TypeVar("TContext")
 
 # Provider prefixes are keyed by AIProviderTypes so a new provider is a
 # type-checked addition rather than a loose string. Claude carries no prefix
@@ -75,44 +82,50 @@ class LLMTarget:
     """A resolved, fully validated completion target."""
 
     model: str
-    api_key: str
+    api_key: str = field(repr=False)
     provider_name: str
 
 
-def resolve_target(provider_type: str | None = None) -> LLMTarget:
-    """Resolve the provider to call, or raise naming exactly what is missing.
-
-    A specific ``provider_type`` selects that provider; otherwise the default
-    one is selected. If rows exist but none is marked default, this raises rather than
-    with rows configured but none marked default, this raises rather than
-    letting table order pick the vendor (ADR 0015).
-    """
+def _select_provider(provider_type: str | None) -> AIProvider:
+    """Apply an explicit vendor filter, otherwise require the unique application default."""
     catalogue = AIProvider.objects
-    if provider_type:
-        provider = catalogue.filter(provider_type=provider_type).first()
+    if provider_type is not None:
+        provider = (
+            catalogue.filter(
+                provider_type=provider_type, api_key__isnull=False, model_name__isnull=False
+            )
+            .order_by("-default", "pk")
+            .first()
+        )
         if provider is None:
             raise LLMConfigurationError(
                 f"No AI provider of type {provider_type} is configured in the database"
             )
-    else:
-        # No arbitrary choice in either direction (ADR 0015): zero defaults or
-        # several, table order would silently pick the vendor, model and API
-        # key. Checked here rather than by a DB constraint because deployment migrates by
-        # pg_dump/restore, so the schema cannot grow one.
-        default_rows = list(catalogue.filter(default=True)[:2])
-        if len(default_rows) > 1:
-            raise LLMConfigurationError(
-                "More than one AI provider is marked default; "
-                "set default=True on exactly one AIProvider row"
-            )
-        provider = default_rows[0] if default_rows else None
-        if provider is None:
-            if not catalogue.exists():
-                raise LLMConfigurationError("No AI provider configured in the database")
-            raise LLMConfigurationError(
-                "AI providers are configured but none is marked default; "
-                "set default=True on exactly one AIProvider row"
-            )
+        return provider
+    provider = catalogue.filter(default=True).first()
+    if provider is not None:
+        return provider
+    if not catalogue.exists():
+        raise LLMConfigurationError("No AI provider configured in the database")
+    raise LLMConfigurationError(
+        "AI providers are configured but none is marked default; "
+        "select the application default in Admin > Integrations"
+    )
+
+
+def resolve_target(
+    provider_type: str | None = None, *, provider: AIProvider | None = None
+) -> LLMTarget:
+    """Resolve the provider to call, or raise naming exactly what is missing.
+
+    A specific ``provider_type`` selects that provider; otherwise the default
+    one is selected. If rows exist but none is marked default, this raises rather than
+    letting table order pick the vendor (ADR 0015).
+    """
+    if provider is not None and provider_type is not None:
+        raise ValueError("Select a provider row or a vendor filter, not both")
+    if provider is None:
+        provider = _select_provider(provider_type)
 
     api_key = provider.api_key
     if not api_key:
@@ -130,14 +143,20 @@ def resolve_target(provider_type: str | None = None) -> LLMTarget:
     return LLMTarget(model=f"{prefix}{model_name}", api_key=api_key, provider_name=provider.name)
 
 
-def chat_completion(prompt: str, *, provider_type: str | None = None) -> str:
+def chat_completion(
+    prompt: str,
+    *,
+    provider_type: str | None = None,
+    provider: AIProvider | None = None,
+    max_tokens: int | None = None,
+) -> str:
     """Send one user-role prompt to the configured LLM and return its text.
 
     THE LLM BOUNDARY. Tests mock this function and nothing below it, so
     everything above it — prompting, JSON extraction, mapping persistence and
     back-flow — runs for real.
     """
-    target = resolve_target(provider_type)
+    target = resolve_target(provider_type, provider=provider)
 
     litellm.suppress_debug_info = True
     logger.debug("LLM completion request to %s", target.model)
@@ -147,6 +166,7 @@ def chat_completion(prompt: str, *, provider_type: str | None = None) -> str:
         messages=[{"role": "user", "content": prompt}],
         api_key=target.api_key,
         timeout=COMPLETION_TIMEOUT_SECONDS,
+        max_completion_tokens=max_tokens,
     )
     _record_completion(target, response, started)
     content = response.choices[0].message.content
@@ -156,17 +176,7 @@ def chat_completion(prompt: str, *, provider_type: str | None = None) -> str:
 
 
 def _record_completion(target: LLMTarget, response: ModelResponse, started: float) -> None:
-    """Record what one completion consumed.
-
-    ADR 0041 puts token accounting at this boundary, so the counts are read
-    from the vendor's own response rather than estimated from the prompt: an
-    estimate is our belief about their tokeniser, which is the thing worth
-    checking rather than recording.
-
-    Dollars are deliberately absent. litellm can compute a cost, but it does
-    so from a local price table — that is a rollup over the meter, not the
-    meter, and it belongs to analysis over these rows rather than to the row.
-    """
+    """Save vendor usage and the USD estimate at the time of the request."""
     record_vendor_call(
         VendorCallRecord(
             vendor=VendorCall.Vendor.LLM,
@@ -176,5 +186,83 @@ def _record_completion(target: LLMTarget, response: ModelResponse, started: floa
             tokens_in=response.usage.prompt_tokens,
             tokens_out=response.usage.completion_tokens,
             model_name=target.model,
+            estimated_cost_usd=estimated_cost_usd(target.model, response.usage),
         )
     )
+
+
+def estimated_cost_usd(model: str, usage: litellm.Usage) -> Decimal:
+    """Use LiteLLM's vendor pricing, including the reported cache breakdown."""
+    input_cost, output_cost = litellm.cost_per_token(
+        model=model,
+        prompt_tokens=usage.prompt_tokens,
+        completion_tokens=usage.completion_tokens,
+        usage_object=usage,
+    )
+    return Decimal(str(input_cost)) + Decimal(str(output_cost))
+
+
+def agent_model(target: LLMTarget) -> LitellmModel:
+    """Use the SDK's LiteLLM adapter with the same database-owned credentials."""
+    return LitellmModel(model=target.model, api_key=target.api_key)
+
+
+def agent_model_settings() -> ModelSettings:
+    """Bound a model turn and request the vendor's streaming usage report."""
+    return ModelSettings(
+        include_usage=True,
+        extra_args={
+            "max_completion_tokens": 4096,
+            "timeout": COMPLETION_TIMEOUT_SECONDS,
+            "num_retries": 0,
+        },
+    )
+
+
+class AgentCallRecording(RunHooks[TContext]):
+    """Record each model round trip, including rounds that request tools."""
+
+    def __init__(self, target: LLMTarget) -> None:
+        """Bind one run to its configured provider."""
+        self.target = target
+        self.started = 0.0
+
+    async def on_llm_start(
+        self,
+        _context: RunContextWrapper[TContext],
+        _agent: Agent[TContext],
+        _system_prompt: str | None,
+        _input_items: list[TResponseInputItem],
+    ) -> None:
+        """Start timing immediately before the SDK sends the request."""
+        self.started = time.perf_counter()
+
+    async def on_llm_end(
+        self,
+        _context: RunContextWrapper[TContext],
+        _agent: Agent[TContext],
+        response: AgentModelResponse,
+    ) -> None:
+        """Persist usage supplied by the vendor, never estimated token counts."""
+        usage = litellm.Usage(
+            prompt_tokens=response.usage.input_tokens,
+            completion_tokens=response.usage.output_tokens,
+            total_tokens=response.usage.total_tokens,
+            prompt_tokens_details={
+                "cached_tokens": response.usage.input_tokens_details.cached_tokens,
+                "cache_creation_tokens": response.usage.input_tokens_details.cache_write_tokens,
+            },
+            reasoning_tokens=response.usage.output_tokens_details.reasoning_tokens,
+        )
+        await sync_to_async(record_vendor_call)(
+            VendorCallRecord(
+                vendor=VendorCall.Vendor.LLM,
+                method="POST",
+                url=f"/completion/{self.target.model}",
+                duration_ms=int((time.perf_counter() - self.started) * 1000),
+                tokens_in=response.usage.input_tokens,
+                tokens_out=response.usage.output_tokens,
+                model_name=self.target.model,
+                estimated_cost_usd=estimated_cost_usd(self.target.model, usage),
+            )
+        )

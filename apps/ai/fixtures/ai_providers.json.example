@@ -1,13 +1,23 @@
 [
   {
     "model": "ai.aiprovider",
+    "fields": {
+      "name": "OpenAI",
+      "provider_type": "OpenAI",
+      "api_key": null,
+      "model_name": null,
+      "default": false
+    }
+  },
+  {
+    "model": "ai.aiprovider",
     "pk": 1,
     "fields": {
       "name": "Claude",
       "provider_type": "Claude",
-      "api_key": "sk-ant-YOUR_ANTHROPIC_KEY_HERE",
+      "api_key": null,
       "model_name": "claude-sonnet-5",
-      "default": true
+      "default": false
     }
   },
   {
@@ -16,7 +26,7 @@
     "fields": {
       "name": "Gemini",
       "provider_type": "Gemini",
-      "api_key": "YOUR_GEMINI_KEY_HERE",
+      "api_key": null,
       "model_name": "gemini-flash-latest",
       "default": false
     }
@@ -27,7 +37,7 @@
     "fields": {
       "name": "Mistral",
       "provider_type": "Mistral",
-      "api_key": "YOUR_MISTRAL_KEY_HERE",
+      "api_key": null,
       "model_name": "mistral-ocr-latest",
       "default": false
     }

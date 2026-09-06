@@ -687,3 +687,92 @@ and the tenant-scoped delete lives in `sync_pay_runs` off the pay-RUN fetch, whi
 change did not touch. So the pagination defect recorded against `get_pay_runs_for_sync`
 (KAN-354) does not interact with fetching fewer slips.
 
+## 2026-09-07 — embedded quoting chat
+
+GPT: The job's Quoting Chat tab uses ChatKit with the existing LiteLLM gateway
+and the Agents SDK. Django persists SDK threads/items against the job; the old
+transcript migrates with IDs, timestamps and metadata intact. Read-only MCP tools
+supply job context and stored supplier prices. No LangChain, separate gateway
+service, uploads or estimate mutations were added. Configuration and operational
+limits are in [quoting-chat.md](quoting-chat.md).
+
+The live Gemini tests exercised streaming, real tool calls, a persisted follow-up
+and per-call usage. They exposed two SDK interoperability defects now covered by
+the multi-turn test: unsupported replay of assistant output content, and repeated
+placeholder IDs overwriting previous replies. The production domain key and an
+OpenAI provider are still operator configuration; OpenAI was not available in the
+local provider table for a live test.
+
+The actual ChatKit Playwright spec passed streaming, history after reload and
+1920/1366/1024/390px layouts. It caught the Vite proxy's changed Host failing CSRF,
+and the existing job header overflowing at phone width. The proxy preserves Host;
+the header wraps and uses shared Buttons, and InlineEditText handles long text at
+its owner. The managed whole-stack runner could not acquire the already-online
+ngrok endpoint; the targeted spec ran against local backend/preview/worker services
+with the normal Playwright setup and database restoration intact.
+
+The full Python run met the coverage floor (89.45%); its five failures exposed the
+v1 restore ordering and typed stream-auth assertions. Those fixes passed all 38
+targeted regression tests, including refusal to rewind populated chat storage.
+
+
+PR #144's full backend CI run subsequently passed, including pytest with the
+coverage gate, on commit `237829b` ([run 34052550512](https://github.com/corrin/docketworks/actions/runs/34052550512)).
+This closes the post-fix full-suite verification gap recorded above. Review also
+extended the chat error boundary to authentication and job lookup, with regression
+coverage for persisted failures and the normal missing-job refusal. The parity
+ledger now distinguishes embed configuration from the replaced conversation API.
+
+GPT: The generated unit-test measure now says "collected": collection alone
+cannot establish pass status. Test-run evidence remains in CI and this history.
+
+
+## 2026-09-07 — AI provider integration implementation (PR #144)
+
+Admin → Integrations now owns provider/model/key editing, one application default
+and explicit live verification through the existing gateway. Callers can select a
+configured provider or use the default; quoting chat requests OpenAI and parsing
+retains Gemini. Shared configuration validation also drives per-vendor bootstrap,
+including OpenAI-only setup, preservation of admin changes and scrubbed reseeding.
+The default migration preserves credentials and clears ambiguous legacy flags;
+the v1 restore script reapplies it after import.
+
+The UI uses ListTable, shared Dialog/Button/field controls and one extracted secret
+field implementation. The collection uses the page width; short settings forms
+retain their field-width bound. Provider setup, selection, provisioning and recovery
+are documented in the operator guide and ADRs; CLAUDE and the PR template now require
+integration lifecycle evidence.
+
+Validation: full Python suite passed with 89.47% coverage; all 649 frontend unit tests
+passed; required repository checks passed. Real OpenAI probing,
+MCP/history integration and the new admin/browser specs remain acceptance tasks in
+rewrite-status until run against the operator's normally launched, configured app.
+
+## 2026-09-07 — Chat model selection and monetary call accounting (PR #144)
+
+Owner-approved: ChatKit lists every configured provider/model and initially selects
+the application default. The Integrations list uses a Default radio control.
+The gateway sends `max_completion_tokens`, including through the Agents adapter;
+real OpenAI provider testing and streaming tool calls pass with `chat-latest`.
+
+LLM VendorCall rows now save `estimated_cost_usd` alongside reported token counts
+and per-call wall time. LiteLLM owns pricing and cache discounts; estimates are saved
+at call time, not recomputed using future prices. Migration observability/0002 leaves
+old rows unpriced and is applied by the normal migration path. No new service,
+credential or instance setting is required. ADR 0056 reflects the owner's cost requirement.
+
+Validation: 24 focused gateway/observability tests passed; the additional five-test
+cost run passed, including real OpenAI admin probing and streamed tool round trips,
+plus OpenAI cache-read and Claude cache-write pricing checks. Claude pricing was
+checked locally, not by calling a configured Claude account. Browser acceptance
+remains in rewrite-status until the operator restarts the application normally.
+Plain Playwright now targets APP_DOMAIN over HTTPS and never starts services.
+
+## 2026-09-07 — Restore browser application identity
+
+The rewrite's HTML entry still named the app `frontend` and linked Vite's starter
+favicon. Restored v1's `DocketWorks` title, original favicon, Apple touch icon and
+manifest links, description and theme colour. The manifest names the actual icon
+sizes rather than v1's incorrect square dimensions for the existing company logo.
+Verified all linked assets exist and the favicon is byte-identical to v1. Browser
+verification awaits the operator's normal frontend rebuild; no service was restarted.

@@ -1,5 +1,14 @@
 components:
   schemas:
+    AIProviderTypes:
+      description: Supported AI provider types.
+      enum:
+      - Claude
+      - Gemini
+      - Mistral
+      - OpenAI
+      title: AIProviderTypes
+      type: string
     AcknowledgeIn:
       additionalProperties: false
       description: "POST body for acknowledging a form: empty by design.\n\n``staff`` is always ``request.user``\
@@ -4100,6 +4109,11 @@ components:
     IntegrationSettingsOut:
       description: Every non-secret column, plus presence flags for the secrets.
       properties:
+        chatkit_domain_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Chatkit Domain Key
         created_at:
           format: date-time
           title: Created At
@@ -4138,6 +4152,7 @@ components:
           type: string
       required:
       - id
+      - chatkit_domain_key
       - has_google_maps_api_key
       - phone_provider_enabled
       - phone_provider_recording_deletion_enabled
@@ -4152,6 +4167,12 @@ components:
     IntegrationSettingsPatchIn:
       description: 'Partial update: omitted fields keep their stored value, ``null`` clears.'
       properties:
+        chatkit_domain_key:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Chatkit Domain Key
         google_maps_api_key:
           anyOf:
           - minLength: 1
@@ -10096,6 +10117,103 @@ components:
       - updated_products_count
       title: ProductMappingValidateResponse
       type: object
+    ProviderCreate:
+      additionalProperties: false
+      description: Require a usable new entry; unset values belong to explicit edits.
+      properties:
+        api_key:
+          maxLength: 255
+          minLength: 1
+          title: Api Key
+          type: string
+        model_name:
+          maxLength: 100
+          minLength: 1
+          title: Model Name
+          type: string
+        name:
+          maxLength: 100
+          minLength: 1
+          title: Name
+          type: string
+        provider_type:
+          $ref: '#/components/schemas/AIProviderTypes'
+      required:
+      - name
+      - provider_type
+      - model_name
+      - api_key
+      title: ProviderCreate
+      type: object
+    ProviderOut:
+      description: Safe catalogue metadata; a stored secret is represented by presence only.
+      properties:
+        default:
+          title: Default
+          type: boolean
+        has_api_key:
+          title: Has Api Key
+          type: boolean
+        id:
+          title: Id
+          type: integer
+        model_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Model Name
+        name:
+          title: Name
+          type: string
+        provider_type:
+          $ref: '#/components/schemas/AIProviderTypes'
+      required:
+      - id
+      - name
+      - provider_type
+      - model_name
+      - default
+      - has_api_key
+      title: ProviderOut
+      type: object
+    ProviderPatch:
+      additionalProperties: false
+      description: Omitted fields retain their value; null clears model or credentials.
+      properties:
+        api_key:
+          anyOf:
+          - maxLength: 255
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Api Key
+        model_name:
+          anyOf:
+          - maxLength: 100
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Model Name
+        name:
+          maxLength: 100
+          minLength: 1
+          title: Name
+          type: string
+        provider_type:
+          allOf:
+          - $ref: '#/components/schemas/AIProviderTypes'
+      title: ProviderPatch
+      type: object
+    ProviderTestOut:
+      description: A successful live test names the actual gateway model.
+      properties:
+        model:
+          title: Model
+          type: string
+      required:
+      - model
+      title: ProviderTestOut
+      type: object
     PurchaseOrderAllocationsResponse:
       description: Wire contract for PurchaseOrderAllocationsResponse.
       properties:
@@ -11135,6 +11253,66 @@ components:
       - job_number
       - job_name
       title: QuoteSpreadsheetOut
+      type: object
+    QuotingChatConfigOut:
+      description: Public embed configuration and Django's masked CSRF token.
+      properties:
+        can_configure:
+          title: Can Configure
+          type: boolean
+        configuration_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Configuration Error
+        csrf_token:
+          title: Csrf Token
+          type: string
+        domain_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Domain Key
+        model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Model
+        models:
+          items:
+            $ref: '#/components/schemas/QuotingChatModelOut'
+          title: Models
+          type: array
+      required:
+      - domain_key
+      - csrf_token
+      - configuration_error
+      - model
+      - models
+      - can_configure
+      title: QuotingChatConfigOut
+      type: object
+    QuotingChatModelOut:
+      description: Public model-picker metadata; credentials remain in the gateway.
+      properties:
+        default:
+          title: Default
+          type: boolean
+        description:
+          title: Description
+          type: string
+        id:
+          title: Id
+          type: string
+        label:
+          title: Label
+          type: string
+      required:
+      - id
+      - label
+      - description
+      - default
+      title: QuotingChatModelOut
       type: object
     RDTICategorySummaryOut:
       description: 'RDTI category summary contract.
@@ -15838,6 +16016,141 @@ paths:
       summary: Training-menu links visible to the current staff member
       tags:
       - ai
+  /api/ai/providers/:
+    get:
+      description: Show every configured or incomplete row without creating defaults.
+      operationId: ai_providers_list
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ProviderOut'
+                title: Response
+                type: array
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: List Providers
+      tags:
+      - ai-providers
+    post:
+      description: Create through the shared admin/bootstrap validation service.
+      operationId: ai_providers_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderOut'
+          description: Created
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Add Provider
+      tags:
+      - ai-providers
+  /api/ai/providers/{provider_id}/:
+    delete:
+      description: Delete the chosen row without guessing a replacement default.
+      operationId: ai_providers_destroy
+      parameters:
+      - in: path
+        name: provider_id
+        required: true
+        schema:
+          title: Provider Id
+          type: integer
+      responses:
+        '204':
+          description: No Content
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Delete Provider
+      tags:
+      - ai-providers
+    patch:
+      description: Apply only the administrator's edited fields.
+      operationId: ai_providers_partial_update
+      parameters:
+      - in: path
+        name: provider_id
+        required: true
+        schema:
+          title: Provider Id
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderPatch'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Edit Provider
+      tags:
+      - ai-providers
+  /api/ai/providers/{provider_id}/set-default/:
+    post:
+      description: Select the fallback used by callers that do not supply a provider.
+      operationId: ai_providers_set_default
+      parameters:
+      - in: path
+        name: provider_id
+        required: true
+        schema:
+          title: Provider Id
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Choose Default
+      tags:
+      - ai-providers
+  /api/ai/providers/{provider_id}/test/:
+    post:
+      description: Perform a small billable request only when explicitly requested.
+      operationId: ai_providers_test
+      parameters:
+      - in: path
+        name: provider_id
+        required: true
+        schema:
+          title: Provider Id
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderTestOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Test Provider
+      tags:
+      - ai-providers
   /api/build-id/:
     get:
       description: Return the git SHA of the running backend process.
@@ -18801,6 +19114,30 @@ paths:
       summary: Update a job's labour rates
       tags:
       - job
+  /api/job/jobs/{job_id}/quote-chat/config/:
+    get:
+      description: Read configuration; the domain key is public, vendor API keys stay server-side.
+      operationId: job_quote_chat_config_retrieve
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          format: uuid
+          title: Job Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotingChatConfigOut'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Quote Chat Config
+      tags:
+      - Jobs
   /api/job/jobs/{job_id}/quote/:
     get:
       description: 'Return the job''s Xero quote header; ``quote`` is null when none exists.

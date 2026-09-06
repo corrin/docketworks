@@ -27,6 +27,7 @@ FIXTURE_MODEL = "integrations.integrationsettings"
 #: Fable: each integration's columns, grouped so a group is applied or skipped
 #: whole: half a phone login is a configuration nobody chose (ADR 0015).
 INTEGRATION_GROUPS: dict[str, tuple[str, ...]] = {
+    "ChatKit": ("chatkit_domain_key",),
     "Google Maps": ("google_maps_api_key",),
     "phone provider": (
         "phone_provider_enabled",

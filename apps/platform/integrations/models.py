@@ -24,6 +24,10 @@ class IntegrationSettings(models.Model):
 
     id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
 
+    chatkit_domain_key = models.CharField(  # noqa: DJ001 -- unset is NULL (ADR 0040)
+        max_length=255, null=True, blank=True
+    )
+
     # Google Places (New), read by apps/platform/integrations/google/places.
     google_maps_api_key = models.CharField(  # noqa: DJ001 -- unset is NULL (ADR 0040); a CHECK rejects ""
         max_length=255, null=True, blank=True
@@ -59,6 +63,10 @@ class IntegrationSettings(models.Model):
         verbose_name = "Integration Settings"
         verbose_name_plural = "Integration Settings"
         constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.CheckConstraint(
+                condition=~models.Q(chatkit_domain_key=""),
+                name="integrations_chatkit_domain_key_not_blank",
+            ),
             models.CheckConstraint(
                 condition=models.Q(id=1),
                 name="core_integrationsettings_singleton",

@@ -1314,3 +1314,33 @@
     could fork from the one the month counters use. monthly_totals also
     gains labour_profit, so no consumer subtracts time_revenue - staff_cost
     for itself, and net_profit's divisor moved to elapsed WEEKDAYS.
+
+- operation: job_quote_chat_config_retrieve
+  change: "Office-only embed configuration supplies the public domain key and CSRF token"
+  reason: >
+    GPT: The generated configuration endpoint returns the configured ChatKit domain
+    key (null when unset) and Django's masked CSRF token. It requires office access
+    and an existing job; vendor credentials remain server-side.
+
+- operation: (job quoting chat)
+  change: "ChatKit's job-scoped conversation protocol replaces the v1 chat CRUD/mode API"
+  reason: >
+    GPT: The approved library-led quoting assistant uses the ChatKit composer,
+    streaming and thread history. Office authentication, CSRF and job isolation
+    remain application-owned. Existing messages migrate into a previous-conversation
+    thread. New conversations preserve earlier history; deletion is per thread,
+    with no all-job transcript wipe. Tools read job context and supplier catalogue
+    prices but do not write estimates. Attachments and v1's CALC/PRICE/TABLE mode
+    selector are not exposed in this slice.
+    Replaces job_jobs_quote_chat_create, job_jobs_quote_chat_interaction_create,
+    job_jobs_quote_chat_partial_update, job_jobs_quote_chat_retrieve,
+    quote_chat_delete_one and quote_chat_delete_all.
+
+- operation: ai_providers_set_default
+  change: "One application default across all vendors; keys are write-only"
+  reason: >
+    Owner-approved selection: callers filter configured providers or choose a row;
+    callers without a preference use the application default. v1 cleared defaults
+    only within one vendor, leaving unfiltered selection ambiguous. The migration
+    clears ambiguous flags and preserves credentials. The admin API reports key
+    presence, never the stored key. Deleting the default does not choose a replacement.

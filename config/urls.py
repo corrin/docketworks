@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import path
 
+from apps.job.chat.api import quote_chat
 from apps.operations.events import data_versions_stream
 from apps.timesheet.events import payroll_runs_stream
 from apps.xero.events import xero_sync_stream
@@ -37,6 +38,7 @@ urlpatterns = [
     # Beside its polling sibling /api/xero/sync-info/ for the same
     # findability reason as data-versions.
     path("api/xero/sync/stream/", xero_sync_stream, name="xero_sync_stream"),
+    path("api/job/jobs/<uuid:job_id>/quote-chat/", quote_chat, name="job_quote_chat"),
     path("api/", api.urls),
 ]
 

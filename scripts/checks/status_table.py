@@ -77,7 +77,7 @@ def _measure_tests() -> str:
     match = re.search(r"(\d+) tests? collected", result.stdout)
     if match is None:
         raise RuntimeError(f"no collection count in pytest output:\n{result.stdout}")
-    return f"{match.group(1)} (all passing)"
+    return f"{match.group(1)} collected"
 
 
 def _measure_ledger() -> str:

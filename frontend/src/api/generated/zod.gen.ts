@@ -3,6 +3,18 @@
 import * as z from 'zod';
 
 /**
+ * AIProviderTypes
+ *
+ * Supported AI provider types.
+ */
+export const zAiProviderTypes = z.enum([
+    'Claude',
+    'Gemini',
+    'Mistral',
+    'OpenAI'
+]);
+
+/**
  * AcknowledgeIn
  *
  * POST body for acknowledging a form: empty by design.
@@ -1473,6 +1485,7 @@ export const zGroupedJobDeltaRejectionResolveResponse = z.object({
  * Every non-secret column, plus presence flags for the secrets.
  */
 export const zIntegrationSettingsOut = z.object({
+    chatkit_domain_key: z.string().nullable(),
     created_at: z.iso.datetime(),
     has_google_maps_api_key: z.boolean(),
     has_phone_provider_password: z.boolean(),
@@ -1491,6 +1504,7 @@ export const zIntegrationSettingsOut = z.object({
  * Partial update: omitted fields keep their stored value, ``null`` clears.
  */
 export const zIntegrationSettingsPatchIn = z.object({
+    chatkit_domain_key: z.string().min(1).nullish(),
     google_maps_api_key: z.string().min(1).nullish(),
     phone_provider_account_code: z.string().min(1).nullish(),
     phone_provider_base_url: z.string().min(1).nullish(),
@@ -3966,6 +3980,53 @@ export const zProductMappingValidateResponse = z.object({
 });
 
 /**
+ * ProviderCreate
+ *
+ * Require a usable new entry; unset values belong to explicit edits.
+ */
+export const zProviderCreate = z.object({
+    api_key: z.string().min(1).max(255),
+    model_name: z.string().min(1).max(100),
+    name: z.string().min(1).max(100),
+    provider_type: zAiProviderTypes
+});
+
+/**
+ * ProviderOut
+ *
+ * Safe catalogue metadata; a stored secret is represented by presence only.
+ */
+export const zProviderOut = z.object({
+    default: z.boolean(),
+    has_api_key: z.boolean(),
+    id: z.int(),
+    model_name: z.string().nullable(),
+    name: z.string(),
+    provider_type: zAiProviderTypes
+});
+
+/**
+ * ProviderPatch
+ *
+ * Omitted fields retain their value; null clears model or credentials.
+ */
+export const zProviderPatch = z.object({
+    api_key: z.string().min(1).max(255).nullish(),
+    model_name: z.string().min(1).max(100).nullish(),
+    name: z.string().min(1).max(100).optional(),
+    provider_type: zAiProviderTypes.optional()
+});
+
+/**
+ * ProviderTestOut
+ *
+ * A successful live test names the actual gateway model.
+ */
+export const zProviderTestOut = z.object({
+    model: z.string()
+});
+
+/**
  * PurchaseOrderAllocationsResponse
  *
  * Wire contract for PurchaseOrderAllocationsResponse.
@@ -4392,6 +4453,32 @@ export const zQuoteSpreadsheetOut = z.object({
     sheet_id: z.string().nullable(),
     sheet_url: z.string().nullable(),
     tab: z.string().nullable()
+});
+
+/**
+ * QuotingChatModelOut
+ *
+ * Public model-picker metadata; credentials remain in the gateway.
+ */
+export const zQuotingChatModelOut = z.object({
+    default: z.boolean(),
+    description: z.string(),
+    id: z.string(),
+    label: z.string()
+});
+
+/**
+ * QuotingChatConfigOut
+ *
+ * Public embed configuration and Django's masked CSRF token.
+ */
+export const zQuotingChatConfigOut = z.object({
+    can_configure: z.boolean(),
+    configuration_error: z.string().nullable(),
+    csrf_token: z.string(),
+    domain_key: z.string().nullable(),
+    model: z.string().nullable(),
+    models: z.array(zQuotingChatModelOut)
 });
 
 /**
@@ -6402,6 +6489,58 @@ export const zAccountsTokenRefreshCreateResponse = zTokenRefreshResponse;
 export const zNotebookLmLinksMenuListResponse = z.array(zNotebookLmLinkOut);
 
 /**
+ * Response
+ *
+ * OK
+ */
+export const zAiProvidersListResponse = z.array(zProviderOut);
+
+export const zAiProvidersCreateBody = zProviderCreate;
+
+/**
+ * Created
+ */
+export const zAiProvidersCreateResponse = zProviderOut;
+
+export const zAiProvidersDestroyPath = z.object({
+    provider_id: z.int()
+});
+
+/**
+ * No Content
+ */
+export const zAiProvidersDestroyResponse = z.void();
+
+export const zAiProvidersPartialUpdateBody = zProviderPatch;
+
+export const zAiProvidersPartialUpdatePath = z.object({
+    provider_id: z.int()
+});
+
+/**
+ * OK
+ */
+export const zAiProvidersPartialUpdateResponse = zProviderOut;
+
+export const zAiProvidersSetDefaultPath = z.object({
+    provider_id: z.int()
+});
+
+/**
+ * OK
+ */
+export const zAiProvidersSetDefaultResponse = zProviderOut;
+
+export const zAiProvidersTestPath = z.object({
+    provider_id: z.int()
+});
+
+/**
+ * OK
+ */
+export const zAiProvidersTestResponse = zProviderTestOut;
+
+/**
  * OK
  */
 export const zBuildIdRetrieveResponse = zBuildId;
@@ -7361,6 +7500,15 @@ export const zJobJobsLabourRatesPartialUpdatePath = z.object({
  * OK
  */
 export const zJobJobsLabourRatesPartialUpdateResponse = z.array(zJobLabourRateOut);
+
+export const zJobQuoteChatConfigRetrievePath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zJobQuoteChatConfigRetrieveResponse = zQuotingChatConfigOut;
 
 export const zJobJobsQuoteRetrievePath = z.object({
     job_id: z.uuid()

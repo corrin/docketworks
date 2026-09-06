@@ -9,6 +9,7 @@ from ninja import NinjaAPI
 
 from apps.accounting.api import router as accounting_router
 from apps.accounts.api import router as accounts_router
+from apps.ai.api import provider_router as ai_provider_router
 from apps.ai.api import router as ai_router
 from apps.company.api import router as company_router
 from apps.core.api import router as core_router
@@ -16,6 +17,7 @@ from apps.core.envelope import register_exception_handlers
 from apps.crm.api import router as crm_router
 from apps.diagnostics.api import router as session_replay_router
 from apps.job.api import router as job_router
+from apps.job.chat.api import router as job_chat_router
 from apps.operations.api import router as operations_router
 from apps.platform.integrations.api import router as integrations_router
 from apps.process.api import router as process_router
@@ -37,6 +39,7 @@ api.add_router("/", integrations_router)
 api.add_router("/", operations_router)
 api.add_router("/", xero_router)
 api.add_router("/", ai_router)
+api.add_router("/ai/providers", ai_provider_router)
 api.add_router("/accounting/", accounting_router)
 api.add_router("/accounts/", accounts_router)
 api.add_router("/crm/", crm_router)
@@ -45,6 +48,7 @@ api.add_router("/session-replays/", session_replay_router)
 # /job/... and data-quality paths), so they mount at the root.
 api.add_router("/", company_router)
 api.add_router("/", job_router)
+api.add_router("/job/jobs", job_chat_router)
 # Timesheet paths carry their own prefixes (/timesheets/... and the contracted
 # /job/workshop/timesheets/), so this mounts at the root too.
 api.add_router("/", timesheet_router)

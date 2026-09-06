@@ -18,7 +18,7 @@ from scripts.bootstrap import setup_django
 
 setup_django()
 
-from apps.job.models import Job  # noqa: E402 -- Django must be configured first
+from apps.job.models import Job, JobQuoteChat  # noqa: E402 -- Django must be configured first
 from scripts.ops.quote_chat_harness import (  # noqa: E402
     clear_chat,
     send_message,
@@ -112,7 +112,8 @@ def main() -> int:
     print_separator("*")
     print("CONVERSATION SUMMARY")
     print_separator("*")
-    print(f"\nTotal messages: {job.quote_chat_messages.count()}")
+    message_count = JobQuoteChat.objects.filter(thread__job=job).count()
+    print(f"\nTotal messages: {message_count}")
 
     print("\n")
     print_separator("*")
