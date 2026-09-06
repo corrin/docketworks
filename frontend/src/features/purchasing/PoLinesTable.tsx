@@ -12,7 +12,7 @@ import {
 
 import { purchasingAllJobsRetrieveOptions } from '@/api'
 import type { PurchaseOrderLineOut, JobForPurchasing, StockItem } from '@/api'
-import { DataTable } from '@/features/shared/DataTable'
+import { DataTable, type DataTableColumnLayout } from '@/features/shared/DataTable'
 import { editableGridFeatures } from '@/features/shared/editableGridTable'
 import { parseDecimalInput, trimDecimal } from '@/features/shared/decimal'
 import { ItemSelect } from '@/features/shared/ItemSelect'
@@ -150,11 +150,24 @@ export function PoLinesTable({
       editableColumns={EDITABLE_COLUMNS}
       draftLocalId={(row) => (row.type === 'draft' ? row.localId : null)}
       rowExitHandlers={draftRows.rowExitHandlers}
+      tableClassName="w-full min-w-[1190px] table-fixed"
+      columnLayout={COLUMN_LAYOUT}
     />
   )
 }
 
 const EDITABLE_COLUMNS = new Set(['description', 'job', 'quantity', 'price_tbc', 'unit_cost'])
+
+const COLUMN_LAYOUT: Readonly<Record<string, DataTableColumnLayout>> = {
+  item: { widthClassName: 'w-[155px] min-[1600px]:w-[180px]' },
+  description: {},
+  job: { widthClassName: 'w-[250px] min-[1600px]:w-[330px]' },
+  quantity: { widthClassName: 'w-[90px]', headerClassName: 'text-right' },
+  price_tbc: { widthClassName: 'w-[74px]', headerClassName: 'text-center' },
+  unit_cost: { widthClassName: 'w-[106px]', headerClassName: 'text-right' },
+  total: { widthClassName: 'w-[106px]', headerClassName: 'text-right' },
+  actions: { widthClassName: 'w-[38px]' },
+}
 
 type CellProps = CellContext<typeof editableGridFeatures, GridRow>
 
@@ -191,6 +204,7 @@ function ItemCell({ row, table }: CellProps) {
       label={poLineItemLabel(itemCode, description)}
       disabled={rowLocked(context, gridRow)}
       allowLabour={false}
+      triggerClassName="w-full max-w-full"
       onPickStock={(stock) => {
         if (gridRow.type === 'server') {
           const fields = stockPickFields(stock)
@@ -225,14 +239,14 @@ function DescriptionCell({ row, table }: CellProps) {
   )
 
   return (
-    <span className="inline-flex items-center gap-1">
+    <span className="inline-flex w-full items-center gap-1">
       <input
         type="text"
         value={field.value}
         disabled={rowLocked(context, gridRow)}
         data-automation-id={`PoLinesTable-description-${rowIndex}`}
         aria-label={`Description row ${rowIndex}`}
-        className="w-56 rounded border border-slate-200 px-2 py-1"
+        className="min-w-0 flex-1 rounded border border-slate-200 px-2 py-1"
         onChange={(event) => field.onChange(event.target.value)}
         onFocus={field.onFocus}
         onBlur={field.onBlur}
@@ -330,7 +344,7 @@ function NumberCell({
       disabled={rowLocked(context, gridRow) || (fieldName === 'unit_cost' && priceTbc)}
       data-automation-id={`PoLinesTable-${automation}-${rowIndex}`}
       aria-label={`${automation} row ${rowIndex}`}
-      className="w-24 rounded border border-slate-200 px-2 py-1 text-right tabular-nums disabled:bg-slate-50 disabled:text-slate-500"
+      className="w-full rounded border border-slate-200 px-2 py-1 text-right tabular-nums disabled:bg-slate-50 disabled:text-slate-500"
       onChange={(event) => field.onChange(event.target.value)}
       onFocus={field.onFocus}
       onBlur={field.onBlur}
@@ -351,7 +365,7 @@ function PriceTbcCell({ row, table }: CellProps) {
       disabled={rowLocked(context, gridRow)}
       data-automation-id={`PoLinesTable-price-tbc-${rowIndex}`}
       aria-label={`price to be confirmed row ${rowIndex}`}
-      className="h-4 w-4 accent-blue-600 disabled:opacity-50"
+      className="mx-auto mt-1 block h-4 w-4 accent-blue-600 disabled:opacity-50"
       onChange={(event) => {
         const next = event.target.checked
         if (gridRow.type === 'server') {
@@ -406,7 +420,7 @@ function TotalCell({ row }: CellProps) {
   if (!Number.isFinite(total)) {
     return <span className="text-slate-400">—</span>
   }
-  return <span className="tabular-nums">{formatCurrency(total)}</span>
+  return <span className="block text-right tabular-nums">{formatCurrency(total)}</span>
 }
 
 const columnHelper = createColumnHelper<typeof editableGridFeatures, GridRow>()

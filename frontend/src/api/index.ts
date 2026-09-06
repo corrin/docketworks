@@ -268,6 +268,9 @@ export type {
 // Purchasing (PO list/create/detail with line upserts; stock page)
 export {
   createPurchaseOrderMutation,
+  createPurchaseOrderEventMutation,
+  listPurchaseOrderEventsOptions,
+  listPurchaseOrderEventsQueryKey,
   getPurchaseOrderEmailMutation,
   listPurchaseOrdersInfiniteOptions,
   listPurchaseOrdersOptions,

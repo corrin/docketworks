@@ -237,6 +237,10 @@ same class: the post duplicates what Xero already holds, and then self-reports s
 
 ## Screens
 
+- **Design consistency.** Resolve the [known design-language breaches](design-language.md#known-breaches):
+  consolidate page/header and summary owners, align job tabs and comparable collections,
+  and replace local button/field implementations with shared calls and explicit overrides.
+  Verify affected workflows responsively and remove each resolved breach from the document.
 - **Schedule.** Port v1's scheduler — `apps/operations/services/scheduler_service.py`
   and `frontend/src/pages/schedule.vue` in the archived v1 repository — plus a page and
   a fresh spec. v2 holds only the schema shell: `apps/operations/models/job_projection.py`
@@ -291,9 +295,6 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   - **The Xero sync has one clean integration pass, not two.** ADR 0050 wants the repeat;
     the second attempt was refused by the day-quota floor, which is the guard working.
     `./scripts/ops/run_integration_tests.sh` once quota resets.
-  - **The PO comments card.** Backend done and codegen'd (`listPurchaseOrderEvents`,
-    `createPurchaseOrderEvent`); nothing in `frontend/src/` calls either. Present it the
-    way `JobHistoryTab.tsx` presents job events.
   - **No back-link from a job cost line to the PO that created it.** `CostLineGrid` has no
     Source column, though the cost line already carries `meta.po_number` and
     `ext_refs.purchase_order_id` — so this is a column, not a contract change.

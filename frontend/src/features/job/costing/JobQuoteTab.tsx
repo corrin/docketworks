@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { formatCurrency } from '@/lib/format'
+import { EntryGridSection } from '@/features/shared/EntryGridSection'
 import { invalidateJobViews } from '../invalidateJobViews'
 import { CostLineGrid } from './CostLineGrid'
 import { CostSetSummaryPanel } from './CostSetSummaryPanel'
@@ -107,17 +108,19 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
 
   return (
     <div className="space-y-4 p-6">
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1fr_320px]">
-        <section className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <EntryGridSection
+          title={
+            <>
               Quote Details
               {costSetQuery.data && (
                 <span className="ml-2 text-sm font-normal text-slate-400">
                   Revision {costSetQuery.data.rev}
                 </span>
               )}
-            </h2>
+            </>
+          }
+          actions={
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -139,16 +142,15 @@ export function JobQuoteTab({ jobId, job }: JobQuoteTabProps) {
                 {copyFromEstimate.isPending ? 'Copying…' : 'Copy from Estimate'}
               </Button>
             </div>
-          </div>
-          <div className="mt-3">
-            <CostLineGrid
-              jobId={jobId}
-              kind="quote"
-              materialsMarkup={String(companyDefaults.materials_markup)}
-              wageRate={String(companyDefaults.wage_rate)}
-            />
-          </div>
-        </section>
+          }
+        >
+          <CostLineGrid
+            jobId={jobId}
+            kind="quote"
+            materialsMarkup={String(companyDefaults.materials_markup)}
+            wageRate={String(companyDefaults.wage_rate)}
+          />
+        </EntryGridSection>
 
         <div className="space-y-4 lg:sticky lg:top-4">
           <CostSetSummaryPanel

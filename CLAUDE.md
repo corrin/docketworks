@@ -59,6 +59,14 @@ user-visible).
 
 ## Layout (one obvious home per concept)
 
+Frontend changes follow the [design language](docs/design-language.md): page composition,
+visual hierarchy, controls, editing, feedback and responsive behaviour. Read it before
+designing or changing a screen. Use the shared component/template and pass necessary
+overrides to that owner; never copy its implementation or wrap it to defeat its contract.
+UI PRs name the pattern used, explain overrides, provide the relevant visual/interaction
+evidence, and update affected known breaches. Tolerated exceptions are narrowly scoped
+presentation choices with reasons, not waivers of the shared-implementation rule.
+
 - Backend target: `config/` is the sole composition root; `apps/kernel`, `apps/platform`
   and explicitly owned business contexts follow ADR 0055's dependency directions.
   Migrate one deployable ownership slice at a time, with import and ORM checks on each
