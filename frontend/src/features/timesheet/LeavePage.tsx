@@ -106,6 +106,7 @@ export function LeavePage() {
             activeKey={scope}
             onChange={setScope}
             idPrefix="LeavePage-tab"
+            panelId="LeavePage-panel"
           />
           <SearchInput
             value={search}
@@ -116,21 +117,23 @@ export function LeavePage() {
           />
         </div>
 
-        {actionError && <p className="m-3 text-sm text-red-700">{actionError}</p>}
-        <QueryState
-          isPending={listQuery.isPending}
-          isError={listQuery.isError}
-          loadingNode={<p className="p-6 text-sm text-slate-500">Loading leave…</p>}
-          errorNode={<p className="p-6 text-sm text-red-700">Could not load leave.</p>}
-        >
-          {listQuery.data && (
-            <LeaveTable
-              rows={listQuery.data.requests}
-              onEdit={setEditing}
-              onCancel={(row) => void cancelRequest(row)}
-            />
-          )}
-        </QueryState>
+        <div id="LeavePage-panel" role="tabpanel" aria-labelledby={`LeavePage-tab-${scope}`}>
+          {actionError && <p className="m-3 text-sm text-red-700">{actionError}</p>}
+          <QueryState
+            isPending={listQuery.isPending}
+            isError={listQuery.isError}
+            loadingNode={<p className="p-6 text-sm text-slate-500">Loading leave…</p>}
+            errorNode={<p className="p-6 text-sm text-red-700">Could not load leave.</p>}
+          >
+            {listQuery.data && (
+              <LeaveTable
+                rows={listQuery.data.requests}
+                onEdit={setEditing}
+                onCancel={(row) => void cancelRequest(row)}
+              />
+            )}
+          </QueryState>
+        </div>
       </section>
 
       <LeaveRequestDialog

@@ -116,7 +116,9 @@ describe('StaffAdminPage', () => {
 
     it('distinguishes a pending leaving date from a past one in the Status cell', async () => {
       await renderPage()
-      expect(autoId(`StaffAdminPage-row-${LEAVING}`)).toHaveTextContent('Leaving')
+      // The date, not just the word: rendering a bare "Leaving" would tell an
+      // office manager someone is going without saying when.
+      expect(autoId(`StaffAdminPage-row-${LEAVING}`)).toHaveTextContent('Leaving 31 Jan 2099')
     })
 
     it('narrows the visible rows to those matching the quick filter', async () => {

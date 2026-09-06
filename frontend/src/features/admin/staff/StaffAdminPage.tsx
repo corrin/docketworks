@@ -37,6 +37,11 @@ function staffStatusLabel(row: StaffListItemOut): string {
     so a generic helper would share only `.includes`. */
 function matchesSearch(row: StaffListItemOut, needle: string): boolean {
   return [
+    // The Name cell renders `first_name last_name` and the avatar's tooltip
+    // renders display_name, so both are searchable: matching only the parts
+    // means typing the name you can see finds nothing.
+    `${row.first_name} ${row.last_name}`,
+    row.display_name,
     row.first_name,
     row.last_name,
     row.preferred_name,
@@ -101,8 +106,14 @@ export function StaffAdminPage() {
           New staff
         </Button>
       </div>
-      <TabBar tabs={STAFF_TABS} activeKey={tab} onChange={setTab} idPrefix="StaffAdminPage-tab" />
-      <div>
+      <TabBar
+        tabs={STAFF_TABS}
+        activeKey={tab}
+        onChange={setTab}
+        idPrefix="StaffAdminPage-tab"
+        panelId="StaffAdminPage-panel"
+      />
+      <div id="StaffAdminPage-panel" role="tabpanel" aria-labelledby={`StaffAdminPage-tab-${tab}`}>
         <SearchInput
           value={search}
           onChange={setSearch}
@@ -110,59 +121,59 @@ export function StaffAdminPage() {
           automationId="StaffAdminPage-search"
           label="Search staff"
         />
+        <ListTable
+          isPending={staffQuery.isPending}
+          isError={staffQuery.isError}
+          onRetry={() => void staffQuery.refetch()}
+          loadingLabel="staff"
+          errorLabel="staff"
+          rows={rows}
+          emptyLabel={
+            search.trim() === '' ? `No ${tab} staff.` : `No ${tab} staff match "${search.trim()}".`
+          }
+          automationId="StaffAdminPage-table"
+          head={
+            <tr>
+              <th className={HEADER_CELL}>Name</th>
+              <th className={HEADER_CELL}>Office email</th>
+              <th className={HEADER_CELL}>Started</th>
+              <th className={HEADER_CELL}>Costing rate</th>
+              <th className={HEADER_CELL}>Status</th>
+              <th className={HEADER_CELL}>
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          }
+          renderRow={(row) => (
+            <tr key={row.id} data-automation-id={`StaffAdminPage-row-${row.id}`}>
+              <td className={CELL}>
+                <div className="flex items-center gap-2">
+                  <StaffAvatar
+                    person={{ id: row.id, display_name: row.display_name, icon_url: row.icon_url }}
+                  />
+                  <span>
+                    {row.first_name} {row.last_name}
+                  </span>
+                </div>
+              </td>
+              <td className={CELL}>{row.office_email ?? row.payroll_email}</td>
+              <td className={CELL}>{formatDate(row.employment_start_date)}</td>
+              <td className={CELL}>{formatCurrency(row.wage_rate)}</td>
+              <td className={CELL}>{staffStatusLabel(row)}</td>
+              <td className={CELL}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openEdit(row)}
+                  data-automation-id={`StaffAdminPage-edit-staff-${row.id}`}
+                >
+                  Edit
+                </Button>
+              </td>
+            </tr>
+          )}
+        />
       </div>
-      <ListTable
-        isPending={staffQuery.isPending}
-        isError={staffQuery.isError}
-        onRetry={() => void staffQuery.refetch()}
-        loadingLabel="staff"
-        errorLabel="staff"
-        rows={rows}
-        emptyLabel={
-          search.trim() === '' ? `No ${tab} staff.` : `No ${tab} staff match "${search.trim()}".`
-        }
-        automationId="StaffAdminPage-table"
-        head={
-          <tr>
-            <th className={HEADER_CELL}>Name</th>
-            <th className={HEADER_CELL}>Office email</th>
-            <th className={HEADER_CELL}>Started</th>
-            <th className={HEADER_CELL}>Costing rate</th>
-            <th className={HEADER_CELL}>Status</th>
-            <th className={HEADER_CELL}>
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        }
-        renderRow={(row) => (
-          <tr key={row.id} data-automation-id={`StaffAdminPage-row-${row.id}`}>
-            <td className={CELL}>
-              <div className="flex items-center gap-2">
-                <StaffAvatar
-                  person={{ id: row.id, display_name: row.display_name, icon_url: row.icon_url }}
-                />
-                <span>
-                  {row.first_name} {row.last_name}
-                </span>
-              </div>
-            </td>
-            <td className={CELL}>{row.office_email ?? row.payroll_email}</td>
-            <td className={CELL}>{formatDate(row.employment_start_date)}</td>
-            <td className={CELL}>{formatCurrency(row.wage_rate)}</td>
-            <td className={CELL}>{staffStatusLabel(row)}</td>
-            <td className={CELL}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => openEdit(row)}
-                data-automation-id={`StaffAdminPage-edit-staff-${row.id}`}
-              >
-                Edit
-              </Button>
-            </td>
-          </tr>
-        )}
-      />
       <StaffFormDialog open={dialogOpen} onOpenChange={setDialogOpen} staff={editing} />
     </div>
   )

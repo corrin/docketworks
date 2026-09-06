@@ -29,6 +29,7 @@ export function JobViewTabs({ activeTab, pricingMethodology, onChangeTab }: JobV
       activeKey={activeTab}
       onChange={onChangeTab}
       idPrefix="JobViewTabs"
+      panelId="JobViewTabs-panel"
       className="overflow-x-auto px-4"
     />
   )

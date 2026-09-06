@@ -14,7 +14,13 @@ const TABS = [
 describe('TabBar', () => {
   it('marks exactly the active tab as selected', async () => {
     renderWithProviders(
-      <TabBar tabs={TABS} activeKey="current" onChange={vi.fn()} idPrefix="Demo-tab" />,
+      <TabBar
+        tabs={TABS}
+        activeKey="current"
+        onChange={vi.fn()}
+        idPrefix="Demo-tab"
+        panelId="Demo-panel"
+      />,
     )
     await screen.findByText('Current')
 
@@ -29,7 +35,13 @@ describe('TabBar', () => {
   it('reports the clicked tab key rather than its label or index', async () => {
     const onChange = vi.fn()
     const { user } = renderWithProviders(
-      <TabBar tabs={TABS} activeKey="current" onChange={onChange} idPrefix="Demo-tab" />,
+      <TabBar
+        tabs={TABS}
+        activeKey="current"
+        onChange={onChange}
+        idPrefix="Demo-tab"
+        panelId="Demo-panel"
+      />,
     )
     await screen.findByText('Past')
 
@@ -43,8 +55,58 @@ describe('TabBar', () => {
     // its queue heading. A hidden duplicate or a title= echo added here would
     // make that 3 and break a caller that never changed.
     renderWithProviders(
-      <TabBar tabs={TABS} activeKey="current" onChange={vi.fn()} idPrefix="Demo-tab" />,
+      <TabBar
+        tabs={TABS}
+        activeKey="current"
+        onChange={vi.fn()}
+        idPrefix="Demo-tab"
+        panelId="Demo-panel"
+      />,
     )
     expect(await screen.findAllByText('Current')).toHaveLength(1)
+  })
+  it('keeps one tab stop and moves the selection with the arrow keys', async () => {
+    // Declaring role="tablist" promises the W3C APG contract: assistive tech
+    // tells the user to arrow through the strip. A refactor dropping the key
+    // handler, or giving every tab tabIndex 0, leaves that promise unkept —
+    // the widget still LOOKS right, which is why this is asserted and not
+    // left to review.
+    const onChange = vi.fn()
+    const { user } = renderWithProviders(
+      <TabBar
+        tabs={TABS}
+        activeKey="current"
+        onChange={onChange}
+        idPrefix="Demo-tab"
+        panelId="Demo-panel"
+      />,
+    )
+    await screen.findByText('Current')
+
+    expect(autoId('Demo-tab-current')).toHaveAttribute('tabindex', '0')
+    expect(autoId('Demo-tab-past')).toHaveAttribute('tabindex', '-1')
+
+    autoId('Demo-tab-current').focus()
+    await user.keyboard('{ArrowRight}')
+    expect(onChange).toHaveBeenLastCalledWith('past')
+
+    await user.keyboard('{Home}')
+    expect(onChange).toHaveBeenLastCalledWith('current')
+  })
+
+  it('points every tab at the panel it switches', async () => {
+    renderWithProviders(
+      <TabBar
+        tabs={TABS}
+        activeKey="current"
+        onChange={vi.fn()}
+        idPrefix="Demo-tab"
+        panelId="Demo-panel"
+      />,
+    )
+    await screen.findByText('Current')
+    // Without aria-controls a screen reader cannot reach the content the tab
+    // switches, which is the whole purpose of the role.
+    expect(autoId('Demo-tab-past')).toHaveAttribute('aria-controls', 'Demo-panel')
   })
 })
