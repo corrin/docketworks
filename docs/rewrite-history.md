@@ -767,3 +767,12 @@ plus OpenAI cache-read and Claude cache-write pricing checks. Claude pricing was
 checked locally, not by calling a configured Claude account. Browser acceptance
 remains in rewrite-status until the operator restarts the application normally.
 Plain Playwright now targets APP_DOMAIN over HTTPS and never starts services.
+
+## 2026-09-07 — Restore browser application identity
+
+The rewrite's HTML entry still named the app `frontend` and linked Vite's starter
+favicon. Restored v1's `DocketWorks` title, original favicon, Apple touch icon and
+manifest links, description and theme colour. The manifest names the actual icon
+sizes rather than v1's incorrect square dimensions for the existing company logo.
+Verified all linked assets exist and the favicon is byte-identical to v1. Browser
+verification awaits the operator's normal frontend rebuild; no service was restarted.
