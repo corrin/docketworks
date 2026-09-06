@@ -237,6 +237,10 @@ same class: the post duplicates what Xero already holds, and then self-reports s
 
 ## Screens
 
+- **Design consistency.** Resolve the [known design-language breaches](design-language.md#known-breaches):
+  consolidate page/header and summary owners, align job tabs and comparable collections,
+  and replace local button/field implementations with shared calls and explicit overrides.
+  Verify affected workflows responsively and remove each resolved breach from the document.
 - **Schedule.** Port v1's scheduler — `apps/operations/services/scheduler_service.py`
   and `frontend/src/pages/schedule.vue` in the archived v1 repository — plus a page and
   a fresh spec. v2 holds only the schema shell: `apps/operations/models/job_projection.py`
