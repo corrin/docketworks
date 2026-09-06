@@ -725,3 +725,25 @@ ledger now distinguishes embed configuration from the replaced conversation API.
 
 GPT: The generated unit-test measure now says "collected": collection alone
 cannot establish pass status. Test-run evidence remains in CI and this history.
+
+
+## 2026-09-07 — AI provider integration implementation (PR #144)
+
+Admin → Integrations now owns provider/model/key editing, one application default
+and explicit live verification through the existing gateway. Callers can select a
+configured provider or use the default; quoting chat requests OpenAI and parsing
+retains Gemini. Shared configuration validation also drives per-vendor bootstrap,
+including OpenAI-only setup, preservation of admin changes and scrubbed reseeding.
+The default migration preserves credentials and clears ambiguous legacy flags;
+the v1 restore script reapplies it after import.
+
+The UI uses ListTable, shared Dialog/Button/field controls and one extracted secret
+field implementation. The collection uses the page width; short settings forms
+retain their field-width bound. Provider setup, selection, provisioning and recovery
+are documented in the operator guide and ADRs; CLAUDE and the PR template now require
+integration lifecycle evidence.
+
+Validation: full Python suite passed with 89.47% coverage; all 649 frontend unit tests
+passed; required repository checks passed. Real OpenAI probing,
+MCP/history integration and the new admin/browser specs remain acceptance tasks in
+rewrite-status until run against the operator's normally launched, configured app.

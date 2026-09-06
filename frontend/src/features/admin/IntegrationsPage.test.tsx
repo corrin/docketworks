@@ -67,6 +67,7 @@ const accountCode = () => autoId('IntegrationsPage-phone-field-phone_provider_ac
 describe('IntegrationsPage', () => {
   beforeEach(() => {
     mockLoad()
+    server.use(http.get('*/api/ai/providers/', () => HttpResponse.json([])))
   })
 
   it('reports a stored secret without showing it, and disables Save until something changes', async () => {

@@ -10,6 +10,7 @@ from django.db.models import Q
 from django.utils import timezone
 from pydantic import TypeAdapter
 
+from apps.ai.enums import AIProviderTypes
 from apps.job.models import JobQuoteChat, JobQuoteChatThread
 
 ITEM_ADAPTER: TypeAdapter[ThreadItem] = TypeAdapter(ThreadItem)
@@ -20,7 +21,7 @@ class ChatContext:
     """Trusted request scope, constructed only after staff authentication."""
 
     job_id: UUID
-    provider_type: str | None = None
+    provider_type: str = AIProviderTypes.OPENAI
 
 
 class JobChatStore(Store[ChatContext]):

@@ -29,7 +29,7 @@ set -euo pipefail
 #   OS user:       dw_<client>_<env>  (e.g., dw_msm_uat)  — same string as the DB role
 #   URL:           <client>-<env>.docketworks.site
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
@@ -193,9 +193,6 @@ require_instance_credentials() {
     local MISSING=()
     [[ -z "${GCP_CREDENTIALS:-}" ]] && MISSING+=("GCP_CREDENTIALS")
     [[ -z "${BACKUP_GDRIVE_TEAM_DRIVE_ID:-}" ]] && MISSING+=("BACKUP_GDRIVE_TEAM_DRIVE_ID")
-    [[ -z "${ANTHROPIC_API_KEY:-}" ]] && MISSING+=("ANTHROPIC_API_KEY")
-    [[ -z "${GEMINI_API_KEY:-}" ]] && MISSING+=("GEMINI_API_KEY")
-    [[ -z "${MISTRAL_API_KEY:-}" ]] && MISSING+=("MISTRAL_API_KEY")
     [[ -z "${XERO_CLIENT_ID:-}" ]] && MISSING+=("XERO_CLIENT_ID")
     [[ -z "${XERO_CLIENT_SECRET:-}" ]] && MISSING+=("XERO_CLIENT_SECRET")
     [[ -z "${XERO_WEBHOOK_KEY:-}" ]] && MISSING+=("XERO_WEBHOOK_KEY")
@@ -351,14 +348,31 @@ render_ai_providers_fixture() {
 
     log "Generating AI providers fixture..."
     mkdir -p "$fixture_dir"
-    local ESC_ANTHROPIC_API_KEY ESC_GEMINI_API_KEY ESC_MISTRAL_API_KEY
-    ESC_ANTHROPIC_API_KEY="$(sed_escape "$ANTHROPIC_API_KEY")"
-    ESC_GEMINI_API_KEY="$(sed_escape "$GEMINI_API_KEY")"
-    ESC_MISTRAL_API_KEY="$(sed_escape "$MISTRAL_API_KEY")"
+    local OPENAI_API_KEY_JSON OPENAI_MODEL_NAME_JSON ANTHROPIC_API_KEY_JSON GEMINI_API_KEY_JSON MISTRAL_API_KEY_JSON
+    OPENAI_API_KEY_JSON="$(sed_escape "$(json_string_or_null "${OPENAI_API_KEY:-}")")"
+    OPENAI_MODEL_NAME_JSON="$(sed_escape "$(json_string_or_null "${OPENAI_MODEL_NAME:-}")")"
+    ANTHROPIC_API_KEY_JSON="$(sed_escape "$(json_string_or_null "${ANTHROPIC_API_KEY:-}")")"
+    GEMINI_API_KEY_JSON="$(sed_escape "$(json_string_or_null "${GEMINI_API_KEY:-}")")"
+    MISTRAL_API_KEY_JSON="$(sed_escape "$(json_string_or_null "${MISTRAL_API_KEY:-}")")"
+    local OPENAI_DEFAULT_ENABLED=false CLAUDE_DEFAULT_ENABLED=false GEMINI_DEFAULT_ENABLED=false MISTRAL_DEFAULT_ENABLED=false
+    case "${AI_DEFAULT_PROVIDER:-}" in
+        OpenAI) OPENAI_DEFAULT_ENABLED=true ;;
+        Claude) CLAUDE_DEFAULT_ENABLED=true ;;
+        Gemini) GEMINI_DEFAULT_ENABLED=true ;;
+        Mistral) MISTRAL_DEFAULT_ENABLED=true ;;
+        "") ;;
+        *) echo "ERROR: Unknown AI_DEFAULT_PROVIDER"; return 1 ;;
+    esac
     sed \
-        -e "s|__ANTHROPIC_API_KEY__|$ESC_ANTHROPIC_API_KEY|g" \
-        -e "s|__GEMINI_API_KEY__|$ESC_GEMINI_API_KEY|g" \
-        -e "s|__MISTRAL_API_KEY__|$ESC_MISTRAL_API_KEY|g" \
+        -e "s|__OPENAI_API_KEY_JSON__|$OPENAI_API_KEY_JSON|g" \
+        -e "s|__OPENAI_MODEL_NAME_JSON__|$OPENAI_MODEL_NAME_JSON|g" \
+        -e "s|__ANTHROPIC_API_KEY_JSON__|$ANTHROPIC_API_KEY_JSON|g" \
+        -e "s|__GEMINI_API_KEY_JSON__|$GEMINI_API_KEY_JSON|g" \
+        -e "s|__MISTRAL_API_KEY_JSON__|$MISTRAL_API_KEY_JSON|g" \
+        -e "s|__OPENAI_DEFAULT_ENABLED__|$OPENAI_DEFAULT_ENABLED|g" \
+        -e "s|__CLAUDE_DEFAULT_ENABLED__|$CLAUDE_DEFAULT_ENABLED|g" \
+        -e "s|__GEMINI_DEFAULT_ENABLED__|$GEMINI_DEFAULT_ENABLED|g" \
+        -e "s|__MISTRAL_DEFAULT_ENABLED__|$MISTRAL_DEFAULT_ENABLED|g" \
         "$TEMPLATE_DIR/ai-providers.json.template" \
         > "$fixture_dir/ai_providers.json"
     chown -R "$instance_user:$instance_user" "$fixture_dir"
@@ -438,8 +452,10 @@ load_db_fixtures() {
     render_ai_providers_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
     log "Loading AI providers..."
     local AI_PROVIDERS_FIXTURE="$INSTANCE_DIR/.fixtures/ai_providers.json"
-    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
-        "from django.core.management import call_command; from apps.ai.models import AIProvider; print('AIProvider already configured; skipping ai_providers.json load') if AIProvider.objects.exists() else call_command('loaddata', '$AI_PROVIDERS_FIXTURE')"
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py load_ai_providers "$AI_PROVIDERS_FIXTURE" || {
+        rm -f "$AI_PROVIDERS_FIXTURE"
+        return 1
+    }
     rm -f "$AI_PROVIDERS_FIXTURE"
 
     render_xero_apps_fixture "$INSTANCE_DIR" "$INSTANCE_USER"

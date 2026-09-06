@@ -24,13 +24,13 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | TOTAL suppressions | 707 |
 | noqa: DJ001 | 168 |
 | noqa: PLC0415 | 132 |
-| noqa: E402 | 105 |
+| noqa: E402 | 104 |
 | noqa: PLR0913 | 46 |
 | noqa: ARG002 | 38 |
 | noqa: BLE001 | 34 |
 | noqa: ARG001 | 21 |
 | noqa: C901 | 19 |
-| noqa: S603 | 15 |
+| noqa: S603 | 16 |
 | noqa: TRY300 | 9 |
 | noqa: TRY004 | 8 |
 | noqa: DJ008 | 7 |
@@ -71,7 +71,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 | metric | count |
 |---|---:|
 | in comments | 248 |
-| in docstrings | 422 |
+| in docstrings | 418 |
 
 ## Exception handling
 
@@ -79,11 +79,11 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 410 |
-| except handlers | 443 |
-| re-raises or converts | 284 |
-| returns instead | 94 |
-| falls through | 51 |
+| try statements | 415 |
+| except handlers | 451 |
+| re-raises or converts | 292 |
+| returns instead | 93 |
+| falls through | 52 |
 | continue/break in a loop | 13 |
 | pass (silent) | 1 |
 
@@ -103,8 +103,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 215 |
-| non-test functions | 2647 |
+| functions returning `X \| None` | 216 |
+| non-test functions | 2663 |
 
 ## Wire contract (response side)
 
@@ -112,7 +112,7 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 300 |
-| response properties | 1923 |
+| response schemas | 303 |
+| response properties | 1933 |
 | optional (pinned at zero) | 0 |
-| nullable | 415 |
+| nullable | 418 |

@@ -20,3 +20,18 @@ GPT: Streaming agent runs resolve `AIProvider` through the same gateway, use its
 model settings and per-call usage hooks, and disable external Agents tracing.
 Job prompts, ChatKit persistence and read-only MCP tools remain job/quoting-owned;
 no business model moves into the gateway.
+
+## Provider selection and administration
+
+Owner-approved: callers may filter the configured catalogue or supply an exact
+`AIProvider` row. A caller with no preference receives the application default.
+There is no separate workload-routing table. Vendor filtering excludes entries
+without a key or model, prefers the application default when it matches, then uses
+stable ID order. Missing matches fail with a configuration error.
+
+`Admin → Integrations` owns provider/model/key editing and the single application
+default. The database enforces at most one default; legacy ambiguous flags are
+cleared without touching credentials. Deleting the default leaves the choice unset.
+Quoting chat requests OpenAI; catalogue parsing requests Gemini. Neither changes
+the default to satisfy its own requirements. Explicit provider tests use the same
+metered gateway and saved credentials; reading configuration never calls a vendor.

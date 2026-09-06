@@ -569,6 +569,11 @@ called:
 - xero_sync_create
 - xero_sync_info_retrieve
 renamed:
+  workflow_ai_providers_create: ai_providers_create
+  workflow_ai_providers_destroy: ai_providers_destroy
+  workflow_ai_providers_list: ai_providers_list
+  workflow_ai_providers_partial_update: ai_providers_partial_update
+  workflow_ai_providers_set_default_create: ai_providers_set_default
   workflow_notebook_lm_links_menu_list: notebook_lm_links_menu_list
   xero_create_invoice_create: xero_create_invoice
   xero_create_quote_create: xero_create_quote
@@ -599,6 +604,7 @@ renamed:
   process_forms_update: process_forms_partial_update
   process_forms_entries_update: process_entries_partial_update
 introduced:
+- ai_providers_test
 # GPT: Public ChatKit domain configuration and CSRF token for the job-scoped SDK embed.
 - job_quote_chat_config_retrieve
 # Specified by ADR 0007 and the payroll UI contract but never built in v1:
@@ -661,6 +667,10 @@ introduced:
 # quote as a revision first (KAN-346).
 - job_jobs_cost_sets_quote_copy_from_estimate_create
 dropped:
+  workflow_ai_providers_retrieve: >-
+    GPT: the small admin catalogue returns safe row metadata in its list; editing needs no second GET.
+  workflow_ai_providers_update: >-
+    GPT: provider edits use partial updates with explicit keep/replace/clear secret semantics.
   job_jobs_quote_chat_create: >-
     GPT: ChatKit persists user messages through its job-scoped conversation protocol;
     the frontend no longer creates independent message rows.

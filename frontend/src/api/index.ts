@@ -532,3 +532,20 @@ export type { RecordingEventsOut, RecordingOut } from './generated/types.gen'
 
 export { jobQuoteChatConfigRetrieveOptions } from './generated/@tanstack/react-query.gen'
 export { quotingChatFetch, quotingChatUrl } from './chatkit'
+
+export {
+  aiProvidersListOptions,
+  aiProvidersListQueryKey,
+  aiProvidersCreateMutation,
+  aiProvidersPartialUpdateMutation,
+  aiProvidersDestroyMutation,
+  aiProvidersSetDefaultMutation,
+  aiProvidersTestMutation,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  ProviderOut,
+  ProviderCreate,
+  ProviderPatch,
+  AiProviderTypes,
+} from './generated/types.gen'
+export { zAiProviderTypes } from './generated/zod.gen'

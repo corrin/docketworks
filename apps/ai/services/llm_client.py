@@ -14,7 +14,7 @@ calls arrives here.
 
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TypeVar
 
 import litellm
@@ -81,44 +81,50 @@ class LLMTarget:
     """A resolved, fully validated completion target."""
 
     model: str
-    api_key: str
+    api_key: str = field(repr=False)
     provider_name: str
 
 
-def resolve_target(provider_type: str | None = None) -> LLMTarget:
-    """Resolve the provider to call, or raise naming exactly what is missing.
-
-    A specific ``provider_type`` selects that provider; otherwise the default
-    one is selected. If rows exist but none is marked default, this raises rather than
-    with rows configured but none marked default, this raises rather than
-    letting table order pick the vendor (ADR 0015).
-    """
+def _select_provider(provider_type: str | None) -> AIProvider:
+    """Apply an explicit vendor filter, otherwise require the unique application default."""
     catalogue = AIProvider.objects
-    if provider_type:
-        provider = catalogue.filter(provider_type=provider_type).first()
+    if provider_type is not None:
+        provider = (
+            catalogue.filter(
+                provider_type=provider_type, api_key__isnull=False, model_name__isnull=False
+            )
+            .order_by("-default", "pk")
+            .first()
+        )
         if provider is None:
             raise LLMConfigurationError(
                 f"No AI provider of type {provider_type} is configured in the database"
             )
-    else:
-        # No arbitrary choice in either direction (ADR 0015): zero defaults or
-        # several, table order would silently pick the vendor, model and API
-        # key. Checked here rather than by a DB constraint because deployment migrates by
-        # pg_dump/restore, so the schema cannot grow one.
-        default_rows = list(catalogue.filter(default=True)[:2])
-        if len(default_rows) > 1:
-            raise LLMConfigurationError(
-                "More than one AI provider is marked default; "
-                "set default=True on exactly one AIProvider row"
-            )
-        provider = default_rows[0] if default_rows else None
-        if provider is None:
-            if not catalogue.exists():
-                raise LLMConfigurationError("No AI provider configured in the database")
-            raise LLMConfigurationError(
-                "AI providers are configured but none is marked default; "
-                "set default=True on exactly one AIProvider row"
-            )
+        return provider
+    provider = catalogue.filter(default=True).first()
+    if provider is not None:
+        return provider
+    if not catalogue.exists():
+        raise LLMConfigurationError("No AI provider configured in the database")
+    raise LLMConfigurationError(
+        "AI providers are configured but none is marked default; "
+        "select the application default in Admin > Integrations"
+    )
+
+
+def resolve_target(
+    provider_type: str | None = None, *, provider: AIProvider | None = None
+) -> LLMTarget:
+    """Resolve the provider to call, or raise naming exactly what is missing.
+
+    A specific ``provider_type`` selects that provider; otherwise the default
+    one is selected. If rows exist but none is marked default, this raises rather than
+    letting table order pick the vendor (ADR 0015).
+    """
+    if provider is not None and provider_type is not None:
+        raise ValueError("Select a provider row or a vendor filter, not both")
+    if provider is None:
+        provider = _select_provider(provider_type)
 
     api_key = provider.api_key
     if not api_key:
@@ -136,14 +142,20 @@ def resolve_target(provider_type: str | None = None) -> LLMTarget:
     return LLMTarget(model=f"{prefix}{model_name}", api_key=api_key, provider_name=provider.name)
 
 
-def chat_completion(prompt: str, *, provider_type: str | None = None) -> str:
+def chat_completion(
+    prompt: str,
+    *,
+    provider_type: str | None = None,
+    provider: AIProvider | None = None,
+    max_tokens: int | None = None,
+) -> str:
     """Send one user-role prompt to the configured LLM and return its text.
 
     THE LLM BOUNDARY. Tests mock this function and nothing below it, so
     everything above it — prompting, JSON extraction, mapping persistence and
     back-flow — runs for real.
     """
-    target = resolve_target(provider_type)
+    target = resolve_target(provider_type, provider=provider)
 
     litellm.suppress_debug_info = True
     logger.debug("LLM completion request to %s", target.model)
@@ -153,6 +165,7 @@ def chat_completion(prompt: str, *, provider_type: str | None = None) -> str:
         messages=[{"role": "user", "content": prompt}],
         api_key=target.api_key,
         timeout=COMPLETION_TIMEOUT_SECONDS,
+        max_tokens=max_tokens,
     )
     _record_completion(target, response, started)
     content = response.choices[0].message.content

@@ -1,6 +1,7 @@
 import { ChatKit, useChatKit } from '@openai/chatkit-react'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
+import { Link } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
 import {
@@ -23,18 +24,25 @@ export function JobQuotingChatTab({ jobId }: { jobId: string }) {
         onRetry={() => void config.refetch()}
       >
         {config.data &&
-          (config.data.domain_key === null ? (
+          (config.data.configuration_error !== null ? (
             <p className="text-sm text-gray-600">
-              Set the ChatKit domain key in Integrations settings to enable quoting chat.
+              {config.data.configuration_error}{' '}
+              {config.data.can_configure ? (
+                <Link className="underline" to="/admin/integrations">
+                  Configure integrations
+                </Link>
+              ) : (
+                'Ask an administrator to configure the integration.'
+              )}
             </p>
-          ) : (
+          ) : config.data.domain_key !== null ? (
             <QuotingChat
               key={jobId}
               jobId={jobId}
               domainKey={config.data.domain_key}
               csrfToken={config.data.csrf_token}
             />
-          ))}
+          ) : null)}
       </QueryState>
     </div>
   )

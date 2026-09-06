@@ -13,17 +13,37 @@ not the full ChatGPT product.
 
 ## Configuration
 
-1. Register the deployed domain in the OpenAI account's ChatKit domain allowlist.
-   Enter the public domain key in **Admin → Integrations → Quoting chat**.
+1. Open **Admin → Integrations → AI providers → Add provider** as a superuser.
+   Choose OpenAI, give the entry a descriptive name, enter a model identifier available
+   to your account and your API key, then save. **Test provider** sends a small billable
+   request using that saved entry. Keys are never returned to the browser: editing
+   metadata keeps the key, entering a replacement rotates it, and Clear removes it.
+2. Use **Set default** to choose the application default. Code with no preference uses
+   this entry. Quoting chat explicitly selects OpenAI and catalogue parsing selects
+   Gemini, independently of that default. Among configured models of a requested vendor,
+   the application default wins if it matches; otherwise the oldest configured entry wins.
+   A caller can select an exact provider row when it needs a specific model.
+3. Register the deployed domain in the OpenAI account's ChatKit domain allowlist.
+   Enter its public domain key in **Admin → Integrations → Quoting chat** and save.
    Localhost development can use `local-dev`; deployed sites need their registered key.
-2. Configure the desired model and API credentials in the existing `AIProvider`
-   table, with exactly one provider marked default. Quoting chat uses that default;
-   supplier parsing continues to use its existing configured parsing provider.
-   An OpenAI model requires an OpenAI provider row and the owner's API key.
-   Credentials stay in the database and never enter the embed.
-3. Server provisioning can load `chatkit_domain_key` through the existing integration
-   settings fixture. The corresponding root-owned provisioning value is
-   `CHATKIT_DOMAIN_KEY`; it is not a new application environment credential.
+   This public embed setting is separate from the secret model API key.
+4. Open a job's **Quoting Chat** tab. Missing configuration shows an actionable setup
+   message, including an Integrations link for superusers. Test a supplier lookup and
+   reopen the conversation from history to check the complete path.
+
+For new instances, the root-owned provisioning credentials support `OPENAI_API_KEY`,
+`OPENAI_MODEL_NAME`, optional other vendor keys, `AI_DEFAULT_PROVIDER` and
+`CHATKIT_DOMAIN_KEY`. These seed database configuration; application code never reads
+model credentials from environment variables. `load_ai_providers` adds missing vendors
+independently, preserves existing configured entries and defaults, and refills only an
+unambiguous exact empty seed. Incomplete or ambiguous entries require an administrator
+choice. OpenAI-only provisioning is supported; Gemini-dependent parsing still requires
+Gemini. Reconfiguration does not overwrite keys rotated through the UI.
+
+Migration `ai/0002` enforces at most one application default. Where legacy rows have
+multiple defaults it clears those flags, retaining every model and key, so an administrator
+can make the choice. A missing default is reported rather than guessed. The v1 restore
+script removes the constraint before import and reapplies the migration afterwards.
 
 Completed model calls record their reported token usage through the existing gateway.
 Agent calls have the gateway's 120-second request timeout, a 4096-token output limit

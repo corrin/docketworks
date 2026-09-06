@@ -13,7 +13,9 @@ from django.views.decorators.http import require_POST
 from ninja import Router, Schema
 from pydantic import ValidationError
 
-from apps.core.auth import OfficeStaffCookieJWTAuth
+from apps.ai.enums import AIProviderTypes
+from apps.ai.services.llm_client import LLMConfigurationError, resolve_target
+from apps.core.auth import OfficeStaffCookieJWTAuth, StaffPermissions
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.events import authenticate_stream_request
 from apps.job.chat.server import chat_server
@@ -29,6 +31,9 @@ class QuotingChatConfigOut(Schema):
 
     domain_key: str | None
     csrf_token: str
+    configuration_error: str | None
+    model: str | None
+    can_configure: bool
 
 
 @router.get(
@@ -40,8 +45,21 @@ class QuotingChatConfigOut(Schema):
 def quote_chat_config(request: HttpRequest, job_id: UUID) -> QuotingChatConfigOut:
     """Read configuration; the domain key is public, vendor API keys stay server-side."""
     get_object_or_404(Job, id=job_id)
+    domain_key = IntegrationSettings.get_solo().chatkit_domain_key
+    issue = None
+    model = None
+    try:
+        model = resolve_target(AIProviderTypes.OPENAI).model
+    # deliberate-swallow: display missing configuration before starting a conversation.
+    except LLMConfigurationError as exc:
+        issue = str(exc)
+    if domain_key is None:
+        issue = "Configure the ChatKit domain key in Integrations to enable quoting chat."
     return QuotingChatConfigOut(
-        domain_key=IntegrationSettings.get_solo().chatkit_domain_key,
+        domain_key=domain_key,
+        configuration_error=issue,
+        model=model,
+        can_configure=isinstance(request.user, StaffPermissions) and request.user.is_superuser,
         csrf_token=get_token(request),
     )
 

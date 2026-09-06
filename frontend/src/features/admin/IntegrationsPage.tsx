@@ -22,7 +22,8 @@ import { useUnsavedChangesGuard } from '@/features/shared/useUnsavedChangesGuard
  * is a pending instruction rather than an edit of a loaded value: `undefined`
  * leaves it alone, a string replaces it, `null` clears it.
  */
-type SecretDraft = string | null | undefined
+import { SecretField, fieldId, type SecretDraft } from './IntegrationSecretField'
+import { AIProvidersSection } from './AIProvidersSection'
 
 type SecretKey = 'google_maps_api_key' | 'phone_provider_username' | 'phone_provider_password'
 type PlainKey = 'phone_provider_base_url' | 'phone_provider_account_code' | 'chatkit_domain_key'
@@ -83,17 +84,13 @@ function buildPatch(drafts: Drafts, server: Drafts): IntegrationSettingsPatchIn 
   return patch
 }
 
-const fieldId = (section: string, key: string): string => `IntegrationsPage-${section}-field-${key}`
-
 export function IntegrationsPage() {
   const settingsQuery = useQuery(integrationSettingsRetrieveOptions())
 
   return (
-    <div
-      className="mx-auto flex max-w-3xl flex-col gap-6 p-6"
-      data-automation-id="IntegrationsPage-root"
-    >
+    <div className="flex min-w-0 flex-col gap-6 p-6" data-automation-id="IntegrationsPage-root">
       <h1 className="text-2xl font-semibold">Integrations</h1>
+      <AIProvidersSection />
       <p className="text-sm text-slate-600">
         How this installation reaches external services. Stored values are never shown again; enter
         a new one to replace it, or clear it.
@@ -151,11 +148,11 @@ function SettingsForm({ settings }: { settings: IntegrationSettingsOut }) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex max-w-3xl flex-col gap-6">
       <Section
         sectionKey="chatkit"
         title="Quoting chat"
-        description="Register this site in OpenAI ChatKit and enter its public domain key. Model credentials remain in AI providers."
+        description="Register this site in OpenAI ChatKit and enter its public domain key. Configure model credentials in the AI providers section above."
       >
         <TextField
           section="chatkit"
@@ -337,78 +334,5 @@ function FlagField({
       />
       <span className="text-slate-700">{label}</span>
     </label>
-  )
-}
-
-function secretStatus(configured: boolean, draft: SecretDraft): string {
-  if (draft === null) return 'Will be cleared on save'
-  if (draft !== undefined) return configured ? 'Will be replaced on save' : 'Will be set on save'
-  return configured ? 'Configured' : 'Not configured'
-}
-
-function SecretField({
-  section,
-  fieldKey,
-  label,
-  inputType = 'password',
-  configured,
-  draft,
-  onChange,
-}: {
-  section: string
-  fieldKey: SecretKey
-  label: string
-  inputType?: 'password' | 'text'
-  configured: boolean
-  draft: SecretDraft
-  onChange: (value: SecretDraft) => void
-}) {
-  const clearing = draft === null
-  return (
-    <div className="flex flex-col gap-1 text-sm font-medium">
-      <label className="flex flex-col gap-1">
-        <span className="text-slate-700">{label}</span>
-        <input
-          type={inputType}
-          // Browsers ignore "off" on a password box and offer to save the
-          // Maps key as a login; "new-password" is the value they honour.
-          autoComplete="new-password"
-          className={INPUT_CLASS}
-          value={draft ?? ''}
-          disabled={clearing}
-          placeholder={configured ? 'Enter a new value to replace the stored one' : 'Not set'}
-          // An emptied box is "leave it alone", never "store blank" (ADR 0040).
-          onChange={(event) => onChange(event.target.value === '' ? undefined : event.target.value)}
-          data-automation-id={fieldId(section, fieldKey)}
-        />
-      </label>
-      <div className="flex items-center justify-between gap-2 text-xs font-normal text-slate-500">
-        <span data-automation-id={`IntegrationsPage-${section}-status-${fieldKey}`}>
-          {secretStatus(configured, draft)}
-        </span>
-        {configured && !clearing && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={() => onChange(null)}
-            data-automation-id={`IntegrationsPage-${section}-clear-${fieldKey}`}
-          >
-            Clear
-          </Button>
-        )}
-        {clearing && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={() => onChange(undefined)}
-            data-automation-id={`IntegrationsPage-${section}-keep-${fieldKey}`}
-          >
-            Keep it
-          </Button>
-        )}
-      </div>
-    </div>
   )
 }

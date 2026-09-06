@@ -5,6 +5,13 @@ export type ClientOptions = {
 };
 
 /**
+ * AIProviderTypes
+ *
+ * Supported AI provider types.
+ */
+export type AiProviderTypes = 'Claude' | 'Gemini' | 'Mistral' | 'OpenAI';
+
+/**
  * AcknowledgeIn
  *
  * POST body for acknowledging a form: empty by design.
@@ -8989,6 +8996,89 @@ export type ProductMappingValidateResponse = {
 };
 
 /**
+ * ProviderCreate
+ *
+ * Require a usable new entry; unset values belong to explicit edits.
+ */
+export type ProviderCreate = {
+    /**
+     * Api Key
+     */
+    api_key: string;
+    /**
+     * Model Name
+     */
+    model_name: string;
+    /**
+     * Name
+     */
+    name: string;
+    provider_type: AiProviderTypes;
+};
+
+/**
+ * ProviderOut
+ *
+ * Safe catalogue metadata; a stored secret is represented by presence only.
+ */
+export type ProviderOut = {
+    /**
+     * Default
+     */
+    default: boolean;
+    /**
+     * Has Api Key
+     */
+    has_api_key: boolean;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Model Name
+     */
+    model_name: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    provider_type: AiProviderTypes;
+};
+
+/**
+ * ProviderPatch
+ *
+ * Omitted fields retain their value; null clears model or credentials.
+ */
+export type ProviderPatch = {
+    /**
+     * Api Key
+     */
+    api_key?: string | null;
+    /**
+     * Model Name
+     */
+    model_name?: string | null;
+    /**
+     * Name
+     */
+    name?: string;
+    provider_type?: AiProviderTypes;
+};
+
+/**
+ * ProviderTestOut
+ *
+ * A successful live test names the actual gateway model.
+ */
+export type ProviderTestOut = {
+    /**
+     * Model
+     */
+    model: string;
+};
+
+/**
  * PurchaseOrderAllocationsResponse
  *
  * Wire contract for PurchaseOrderAllocationsResponse.
@@ -9907,6 +9997,14 @@ export type QuoteSpreadsheetOut = {
  */
 export type QuotingChatConfigOut = {
     /**
+     * Can Configure
+     */
+    can_configure: boolean;
+    /**
+     * Configuration Error
+     */
+    configuration_error: string | null;
+    /**
      * Csrf Token
      */
     csrf_token: string;
@@ -9914,6 +10012,10 @@ export type QuotingChatConfigOut = {
      * Domain Key
      */
     domain_key: string | null;
+    /**
+     * Model
+     */
+    model: string | null;
 };
 
 /**
@@ -13971,6 +14073,124 @@ export type NotebookLmLinksMenuListResponses = {
 };
 
 export type NotebookLmLinksMenuListResponse = NotebookLmLinksMenuListResponses[keyof NotebookLmLinksMenuListResponses];
+
+export type AiProvidersListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/ai/providers/';
+};
+
+export type AiProvidersListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<ProviderOut>;
+};
+
+export type AiProvidersListResponse = AiProvidersListResponses[keyof AiProvidersListResponses];
+
+export type AiProvidersCreateData = {
+    body: ProviderCreate;
+    path?: never;
+    query?: never;
+    url: '/api/ai/providers/';
+};
+
+export type AiProvidersCreateResponses = {
+    /**
+     * Created
+     */
+    201: ProviderOut;
+};
+
+export type AiProvidersCreateResponse = AiProvidersCreateResponses[keyof AiProvidersCreateResponses];
+
+export type AiProvidersDestroyData = {
+    body?: never;
+    path: {
+        /**
+         * Provider Id
+         */
+        provider_id: number;
+    };
+    query?: never;
+    url: '/api/ai/providers/{provider_id}/';
+};
+
+export type AiProvidersDestroyResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type AiProvidersDestroyResponse = AiProvidersDestroyResponses[keyof AiProvidersDestroyResponses];
+
+export type AiProvidersPartialUpdateData = {
+    body: ProviderPatch;
+    path: {
+        /**
+         * Provider Id
+         */
+        provider_id: number;
+    };
+    query?: never;
+    url: '/api/ai/providers/{provider_id}/';
+};
+
+export type AiProvidersPartialUpdateResponses = {
+    /**
+     * OK
+     */
+    200: ProviderOut;
+};
+
+export type AiProvidersPartialUpdateResponse = AiProvidersPartialUpdateResponses[keyof AiProvidersPartialUpdateResponses];
+
+export type AiProvidersSetDefaultData = {
+    body?: never;
+    path: {
+        /**
+         * Provider Id
+         */
+        provider_id: number;
+    };
+    query?: never;
+    url: '/api/ai/providers/{provider_id}/set-default/';
+};
+
+export type AiProvidersSetDefaultResponses = {
+    /**
+     * OK
+     */
+    200: ProviderOut;
+};
+
+export type AiProvidersSetDefaultResponse = AiProvidersSetDefaultResponses[keyof AiProvidersSetDefaultResponses];
+
+export type AiProvidersTestData = {
+    body?: never;
+    path: {
+        /**
+         * Provider Id
+         */
+        provider_id: number;
+    };
+    query?: never;
+    url: '/api/ai/providers/{provider_id}/test/';
+};
+
+export type AiProvidersTestResponses = {
+    /**
+     * OK
+     */
+    200: ProviderTestOut;
+};
+
+export type AiProvidersTestResponse = AiProvidersTestResponses[keyof AiProvidersTestResponses];
 
 export type BuildIdRetrieveData = {
     body?: never;

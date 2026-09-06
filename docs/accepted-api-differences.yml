@@ -1335,3 +1335,12 @@
     Replaces job_jobs_quote_chat_create, job_jobs_quote_chat_interaction_create,
     job_jobs_quote_chat_partial_update, job_jobs_quote_chat_retrieve,
     quote_chat_delete_one and quote_chat_delete_all.
+
+- operation: ai_providers_set_default
+  change: "One application default across all vendors; keys are write-only"
+  reason: >
+    Owner-approved selection: callers filter configured providers or choose a row;
+    callers without a preference use the application default. v1 cleared defaults
+    only within one vendor, leaving unfiltered selection ambiguous. The migration
+    clears ambiguous flags and preserves credentials. The admin API reports key
+    presence, never the stored key. Deleting the default does not choose a replacement.

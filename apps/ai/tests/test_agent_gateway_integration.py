@@ -18,7 +18,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 @pytest.mark.usefixtures("integration_credentials")
 def test_streaming_tools_record_each_vendor_round_trip() -> None:
     """A real tool invocation survives both adapters and is separately metered."""
-    target = resolve_target("Gemini")
+    target = resolve_target("OpenAI")
     calls: list[str] = []
 
     @function_tool

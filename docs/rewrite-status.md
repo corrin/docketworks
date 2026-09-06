@@ -38,13 +38,13 @@ does not have.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **54 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
-| Backend operations still to port | **48** (see below; 31 more exist but nothing calls them) |
-| API operations v2 exposes | 248 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2993 collected |
+| E2E specs ported | **55 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
+| Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
+| API operations v2 exposes | 254 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 3011 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
-| Behaviour ledger | 127 recorded deviations |
+| Behaviour ledger | 128 recorded deviations |
 | ADRs | 43 (v1's 26 carried forward + 0038–0041, 0043, 0045–0056 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints
@@ -323,8 +323,11 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   rather than sends, as the signed-in operator rather than as the company.
   [KAN-345](https://docketworks.atlassian.net/browse/KAN-345) wants the password-reset
   loop proven end to end with a real delegated send.
-- **AI product work** — safety AI, quote-to-PO, AI-provider administration and
-  NotebookLM CRUD are deferred, not retired. Provider credential loading and the shared
+- **AI integration acceptance (PR #144):** verify the OpenAI provider test, supplier
+  tools and persisted chat history with the operator's real key entered through Admin
+  → Integrations; run the admin/chat Playwright specs against the normally launched
+  instance after rebuild. Do not treat Gemini test results as OpenAI acceptance.
+- **AI product work** — safety AI, quote-to-PO and NotebookLM CRUD are deferred, not retired. Provider credential loading and the shared
   gateway already exist because every slice routes through `apps/ai` (ADR 0041); the local
   Gemini key lives in an `AIProvider` row, not env. Each user-facing slice authors its own
   spec.

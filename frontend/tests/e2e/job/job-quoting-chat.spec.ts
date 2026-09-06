@@ -1,35 +1,5 @@
 import { test, expect } from '../fixtures/auth'
 import { autoId, createTestJob } from '../helpers'
-import { getDbConfig, runPsql } from '../../scripts/db-backup-utils'
-
-let restoreConfiguration = ''
-
-test.beforeAll(() => {
-  const db = getDbConfig()
-  // GPT: Restore these settings here as well as in global teardown so later specs stay independent.
-  restoreConfiguration = runPsql(
-    db,
-    `
-    SELECT string_agg(format('UPDATE workflow_aiprovider SET "default"=%L WHERE id=%s;', "default", id), '') FROM workflow_aiprovider;
-    SELECT format('UPDATE crm_phoneprovidersettings SET chatkit_domain_key=%L WHERE id=1;', chatkit_domain_key) FROM crm_phoneprovidersettings WHERE id=1;
-  `,
-  )
-  const providerId = runPsql(
-    db,
-    `SELECT id FROM workflow_aiprovider WHERE provider_type='Gemini' AND api_key IS NOT NULL ORDER BY id LIMIT 1`,
-  )
-  if (!/^\d+$/.test(providerId))
-    throw new Error('The live quoting-chat E2E requires a configured Gemini provider')
-  runPsql(
-    db,
-    `UPDATE workflow_aiprovider SET "default"=(id=${providerId}); UPDATE crm_phoneprovidersettings SET chatkit_domain_key='local-dev' WHERE id=1;`,
-  )
-})
-
-test.afterAll(() => {
-  if (restoreConfiguration !== '') runPsql(getDbConfig(), restoreConfiguration)
-})
-
 test('embedded quoting chat streams, retains history and resizes with the job tab', async ({
   authenticatedPage: page,
 }, testInfo) => {

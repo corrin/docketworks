@@ -51,6 +51,7 @@ SEEDING_MIGRATIONS = {
 # double-encoded rows landed, 500ing the product-mappings listing. The script
 # must re-apply each one after the restore.
 DATA_MIGRATIONS_RERUN_AFTER_RESTORE = {
+    ("ai", "0002_one_application_default"),
     ("job", "0006_migrate_quote_chat"),
     # The v1 dump has the old Staff columns (`email` and `date_joined`). The
     # cutover script rolls this migration back before pg_restore and reapplies
@@ -94,6 +95,7 @@ METADATA_MIGRATIONS = {("integrations", "0002_transfer_content_type")}
 # applied is rejected because pg_dump --data-only names every column in its
 # COPY, so a renamed column aborts the single-transaction load.
 UNAPPLIED_BEFORE_RESTORE = {
+    ("ai", "0001"),
     ("job", "0004"),
     ("accounts", "0004"),
     # Fable: core/0002 renamed the phone-provider columns; crm/0002 is state-only, so
