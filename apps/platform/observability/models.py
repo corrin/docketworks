@@ -50,7 +50,6 @@ class VendorCall(models.Model):
     minute_remaining = models.IntegerField(null=True, blank=True)
     tokens_in = models.PositiveIntegerField(null=True, blank=True)
     tokens_out = models.PositiveIntegerField(null=True, blank=True)
-    cost_usd = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
     model_name = models.CharField(  # noqa: DJ001 -- NULL means "not an LLM call" (ADR 0040)
         max_length=100, null=True, blank=True
     )

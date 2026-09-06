@@ -9,13 +9,17 @@ Mocks at the HTTP boundary — Google is never hit here.
 """
 
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from django.test import Client
 
 from apps.core.models import CompanyDefaults
 from apps.platform.integrations.models import IntegrationSettings
+from apps.platform.integrations.tests.places_fakes import (
+    places_ok,
+    places_reply,
+)
 from apps.platform.integrations.tests.test_place_lookup import PLACES_RESPONSE
 
 pytestmark = pytest.mark.django_db
@@ -31,15 +35,8 @@ def api_key() -> None:
     IntegrationSettings.objects.filter(pk=1).update(google_maps_api_key="test-key")
 
 
-def _google_ok(payload: object) -> MagicMock:
-    response = MagicMock()
-    response.status_code = 200
-    response.json.return_value = payload
-    return response
-
-
 def test_picking_a_place_fills_the_geocode_columns(superuser_api: Client) -> None:
-    with patch(GET_TARGET, return_value=_google_ok(PLACE)):
+    with patch(GET_TARGET, return_value=places_ok(PLACE)):
         response = superuser_api.patch(
             URL,
             {"google_place_id": PLACE_ID, "city": "Auckland"},
@@ -62,7 +59,7 @@ def test_coordinates_posted_by_a_client_are_overwritten_by_the_lookup(
     superuser_api: Client,
 ) -> None:
     """The id is the only part of the pick that is trusted."""
-    with patch(GET_TARGET, return_value=_google_ok(PLACE)):
+    with patch(GET_TARGET, return_value=places_ok(PLACE)):
         superuser_api.patch(
             URL,
             {"google_place_id": PLACE_ID, "latitude": "-41.0", "longitude": "174.0"},
@@ -76,7 +73,7 @@ def test_coordinates_posted_by_a_client_are_overwritten_by_the_lookup(
 
 def test_clearing_the_place_clears_what_was_derived_from_it(superuser_api: Client) -> None:
     """Otherwise the coordinates outlive the address they described."""
-    with patch(GET_TARGET, return_value=_google_ok(PLACE)):
+    with patch(GET_TARGET, return_value=places_ok(PLACE)):
         superuser_api.patch(URL, {"google_place_id": PLACE_ID}, content_type="application/json")
 
     with patch(GET_TARGET) as google:
@@ -96,7 +93,7 @@ def test_clearing_the_place_clears_what_was_derived_from_it(superuser_api: Clien
 
 def test_a_place_google_no_longer_knows_is_a_400(superuser_api: Client) -> None:
     """Refused rather than stored: an address and its geocode are one fact."""
-    with patch(GET_TARGET, return_value=_google_ok({})):
+    with patch(GET_TARGET, return_value=places_ok({})):
         response = superuser_api.patch(
             URL, {"google_place_id": "gone-123"}, content_type="application/json"
         )
@@ -106,9 +103,7 @@ def test_a_place_google_no_longer_knows_is_a_400(superuser_api: Client) -> None:
 
 
 def test_a_google_outage_is_a_503(superuser_api: Client) -> None:
-    refused = MagicMock()
-    refused.status_code = 503
-    refused.text = "backend error"
+    refused = places_reply(503, text="backend error")
     with patch(GET_TARGET, return_value=refused):
         response = superuser_api.patch(
             URL, {"google_place_id": PLACE_ID}, content_type="application/json"

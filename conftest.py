@@ -66,8 +66,10 @@ PASSWORD = "s3cret-Pass!"
 #: identity.xero.com in `auth.py` bypasses the SDK entirely and needs its own
 #: entry.
 #:
-#: The other two are attribute lookups on a module (`litellm.completion`,
-#: `geocoding_service.requests`), which a patch does replace.
+#: The other three are attribute lookups on a module (`litellm.completion`, and
+#: `requests` inside the Places and phone clients), which a patch does replace.
+#: The phone client reaches it as `requests.Session`, the others as
+#: `requests.post` — the stand-in refuses attribute access, so both land.
 _VENDOR_ENTRY_POINTS: dict[str, str] = {
     "xero_python.rest.RESTClientObject.request": "Xero",
     "apps.xero.auth.requests": "Xero's token endpoint",

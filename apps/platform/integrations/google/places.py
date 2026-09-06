@@ -29,6 +29,8 @@ import requests
 from holidays.countries.new_zealand import NewZealand
 
 from apps.platform.integrations.models import IntegrationSettings
+from apps.platform.observability.models import VendorCall
+from apps.platform.observability.recording import record_response
 
 logger = logging.getLogger(__name__)
 
@@ -201,6 +203,11 @@ def _places_call(send: Callable[[], requests.Response]) -> dict[str, object]:
         response = send()
     except requests.RequestException as exc:
         raise GeocodingError(f"Network error: {exc}") from exc
+
+    # Every Places request passes through here, so this is the one place the
+    # spend is recorded — a transport failure above reached nobody and spent
+    # nothing, which is why it is recorded after the try rather than inside it.
+    record_response(response, vendor=VendorCall.Vendor.MAPS)
 
     if response.status_code != 200:
         logger.error("Google Places API error: %s - %s", response.status_code, response.text)

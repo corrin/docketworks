@@ -43,13 +43,28 @@ class FakeChoice:
 
 
 @dataclass(frozen=True)
+class FakeUsage:
+    prompt_tokens: int
+    completion_tokens: int
+
+
+@dataclass(frozen=True)
 class FakeResponse:
     choices: list[FakeChoice]
+    usage: FakeUsage
 
 
 def reply(content: str | None) -> FakeResponse:
-    """A litellm completion response carrying this content."""
-    return FakeResponse(choices=[FakeChoice(message=FakeMessage(content=content))])
+    """A litellm completion response carrying this content.
+
+    The usage block is not optional garnish: the gateway records what every
+    completion consumed (ADR 0041), so a response without it is a shape
+    litellm does not return.
+    """
+    return FakeResponse(
+        choices=[FakeChoice(message=FakeMessage(content=content))],
+        usage=FakeUsage(prompt_tokens=11, completion_tokens=7),
+    )
 
 
 def make_provider(

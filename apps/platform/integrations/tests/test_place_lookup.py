@@ -11,7 +11,7 @@ Mocks at the HTTP boundary (``requests.post``) — Google is never hit here. The
 live call has its own test, marked ``integration`` (ADR 0050).
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -20,8 +20,7 @@ from apps.platform.integrations.google.places import (
     nz_subdivision_for_region,
     search_places,
 )
-
-POST_TARGET = "apps.platform.integrations.google.places.requests.post"
+from apps.platform.integrations.tests.places_fakes import POST_TARGET, places_ok, places_reply
 
 PLACES_RESPONSE = {
     "places": [
@@ -92,16 +91,12 @@ PLACES_RESPONSE = {
 }
 
 
-def _ok(payload: object) -> MagicMock:
-    response = MagicMock()
-    response.status_code = 200
-    response.json.return_value = payload
-    return response
+pytestmark = pytest.mark.django_db
 
 
 def test_a_lookup_reads_the_region_and_maps_it_to_a_holiday_subdivision() -> None:
     """The region is the whole reason this product is called instead of the other one."""
-    with patch(POST_TARGET, return_value=_ok(PLACES_RESPONSE)):
+    with patch(POST_TARGET, return_value=places_ok(PLACES_RESPONSE)):
         found = search_places("151 Captain Springs Road, Onehunga, Auckland", api_key="k")
         place = found[0] if found else None
 
@@ -116,7 +111,7 @@ def test_a_lookup_reads_the_region_and_maps_it_to_a_holiday_subdivision() -> Non
 
 def test_the_whole_reply_is_kept_not_only_the_fields_read_today() -> None:
     """Re-fetching a field we already paid for is the failure this guards."""
-    with patch(POST_TARGET, return_value=_ok(PLACES_RESPONSE)):
+    with patch(POST_TARGET, return_value=places_ok(PLACES_RESPONSE)):
         place = search_places("151 Captain Springs Road", api_key="k")[0]
 
     assert place is not None
@@ -131,7 +126,7 @@ def test_the_whole_reply_is_kept_not_only_the_fields_read_today() -> None:
 
 def test_the_key_travels_in_a_header_never_the_query_string() -> None:
     """A key in a URL reaches the AppError table on the first network blip."""
-    with patch(POST_TARGET, return_value=_ok(PLACES_RESPONSE)) as post:
+    with patch(POST_TARGET, return_value=places_ok(PLACES_RESPONSE)) as post:
         search_places("151 Captain Springs Road", api_key="secret-key")
 
     args, kwargs = post.call_args
@@ -143,23 +138,20 @@ def test_the_key_travels_in_a_header_never_the_query_string() -> None:
 
 def test_no_match_is_an_answer_not_an_error() -> None:
     """A typo returns nothing; that is a real outcome, not a failure."""
-    with patch(POST_TARGET, return_value=_ok({"places": []})):
+    with patch(POST_TARGET, return_value=places_ok({"places": []})):
         assert search_places("qqqzzz not an address", api_key="k") == []
 
 
 def test_a_refused_call_raises_rather_than_reporting_no_match() -> None:
     """A 403 must not look like 'Google knows of no such place'."""
-    refused = MagicMock()
-    refused.status_code = 403
-    refused.text = "IP address restriction"
+    refused = places_reply(403, text="IP address restriction")
     with patch(POST_TARGET, return_value=refused), pytest.raises(GeocodingError, match="403"):
         search_places("151 Captain Springs Road", api_key="k")
 
 
 def test_a_body_that_is_not_json_is_a_geocoding_error() -> None:
     """A 200 carrying HTML — a proxy error page — must not escape as a decode error."""
-    malformed = MagicMock()
-    malformed.status_code = 200
+    malformed = places_reply(200)
     malformed.json.side_effect = ValueError("Expecting value: line 1 column 1 (char 0)")
     with (
         patch(POST_TARGET, return_value=malformed),
@@ -175,7 +167,7 @@ def test_a_top_level_array_is_a_geocoding_error() -> None:
     ``.get`` several frames from the thing that actually went wrong.
     """
     with (
-        patch(POST_TARGET, return_value=_ok([])),
+        patch(POST_TARGET, return_value=places_ok([])),
         pytest.raises(GeocodingError, match="not a JSON object"),
     ):
         search_places("151 Captain Springs Road", api_key="k")
