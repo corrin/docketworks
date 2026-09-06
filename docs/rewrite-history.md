@@ -714,3 +714,14 @@ with the normal Playwright setup and database restoration intact.
 The full Python run met the coverage floor (89.45%); its five failures exposed the
 v1 restore ordering and typed stream-auth assertions. Those fixes passed all 38
 targeted regression tests, including refusal to rewind populated chat storage.
+
+
+PR #144's full backend CI run subsequently passed, including pytest with the
+coverage gate, on commit `237829b` ([run 34052550512](https://github.com/corrin/docketworks/actions/runs/34052550512)).
+This closes the post-fix full-suite verification gap recorded above. Review also
+extended the chat error boundary to authentication and job lookup, with regression
+coverage for persisted failures and the normal missing-job refusal. The parity
+ledger now distinguishes embed configuration from the replaced conversation API.
+
+GPT: The generated unit-test measure now says "collected": collection alone
+cannot establish pass status. Test-run evidence remains in CI and this history.

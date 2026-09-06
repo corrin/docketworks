@@ -49,12 +49,14 @@ def quote_chat_config(request: HttpRequest, job_id: UUID) -> QuotingChatConfigOu
 @require_POST
 async def quote_chat(request: HttpRequest, job_id: UUID) -> HttpResponseBase:
     """Authenticate and pass the SDK's request/response through without reimplementing it."""
-    refusal = await sync_to_async(authenticate_stream_request)(request, OfficeStaffCookieJWTAuth())
-    if refusal is not None:
-        return refusal
-    if not await Job.objects.filter(id=job_id).aexists():
-        return JsonResponse({"detail": "Job not found"}, status=404)
     try:
+        refusal = await sync_to_async(authenticate_stream_request)(
+            request, OfficeStaffCookieJWTAuth()
+        )
+        if refusal is not None:
+            return refusal
+        if not await Job.objects.filter(id=job_id).aexists():
+            return JsonResponse({"detail": "Job not found"}, status=404)
         result = await chat_server.process(request.body, ChatContext(job_id=job_id))
     # deliberate-swallow: a missing or differently scoped SDK resource is a normal 404.
     except NotFoundError as exc:

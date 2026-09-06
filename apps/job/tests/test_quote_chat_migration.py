@@ -61,6 +61,7 @@ def test_legacy_messages_keep_ids_text_timestamps_and_metadata(job: Job) -> None
 
 
 def test_rollback_only_allows_an_empty_chat_store(job: Job) -> None:
+    """Permit empty restore preparation while protecting populated SDK conversations."""
     loader = MigrationLoader(connection)
     migration = loader.disk_migrations[("job", "0006_migrate_quote_chat")]
     state = loader.project_state([("job", "0005_chatkit_conversations")])

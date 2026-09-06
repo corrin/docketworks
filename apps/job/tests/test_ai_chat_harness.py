@@ -15,6 +15,7 @@ pytestmark = pytest.mark.django_db
 
 
 def test_missing_job_is_refused() -> None:
+    """Reject invalid job scope before invoking the conversation pipeline."""
     missing_id = str(uuid4())
     with pytest.raises(CommandError, match="does not exist"):
         call_command("ai_chat_harness", missing_id, "hello", stdout=StringIO())
@@ -22,6 +23,7 @@ def test_missing_job_is_refused() -> None:
 
 
 def test_configuration_failure_preserves_the_user_message_for_retry(job: Job) -> None:
+    """An unavailable provider must not discard the operator's submitted message."""
     AIProvider.objects.all().delete()
     with pytest.raises(RuntimeError, match="No AI provider configured"):
         call_command("ai_chat_harness", str(job.id), "Quote a bench", stdout=StringIO())
@@ -30,6 +32,7 @@ def test_configuration_failure_preserves_the_user_message_for_retry(job: Job) ->
 
 
 def test_invalid_provider_argument_does_not_create_a_conversation(job: Job) -> None:
+    """Validate CLI provider selection before any conversation writes."""
     with pytest.raises(CommandError, match="invalid choice"):
         call_command("ai_chat_harness", str(job.id), "hello", "--provider-type", "banana")
     assert JobQuoteChat.objects.count() == 0

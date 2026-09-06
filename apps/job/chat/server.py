@@ -74,6 +74,7 @@ class QuotingChatServer(ChatKitServer[ChatContext]):
     async def _run(
         self, thread: ThreadMetadata, context: ChatContext
     ) -> AsyncIterator[ThreadStreamEvent]:
+        """Stream bounded tool-assisted inference using the latest persisted conversation items."""
         target = await sync_to_async(resolve_target)(context.provider_type)
         page = await self.store.load_thread_items(thread.id, None, 100, "desc", context)
         agent_context = AgentContext(thread=thread, store=self.store, request_context=context)

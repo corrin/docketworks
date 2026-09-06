@@ -12,6 +12,7 @@ pytestmark = pytest.mark.django_db
 
 
 def test_search_keeps_unknown_prices_and_excludes_discontinued_products(supplier: Company) -> None:
+    """Keep unknown pricing distinct from free products and omit withdrawn catalogue entries."""
     price_list = make_price_list(supplier)
     known = make_supplier_product(
         supplier, price_list, variant_price=Decimal("73.29"), price_unit="per metre"
@@ -30,6 +31,7 @@ def test_search_keeps_unknown_prices_and_excludes_discontinued_products(supplier
 
 
 def test_catalogue_results_are_bounded_and_page_without_losing_matches(supplier: Company) -> None:
+    """Preserve every matching product across bounded, stable catalogue pages."""
     price_list = make_price_list(supplier)
     for index in range(PAGE_SIZE + 3):
         make_supplier_product(supplier, price_list, variant_id=str(index))
@@ -42,5 +44,6 @@ def test_catalogue_results_are_bounded_and_page_without_losing_matches(supplier:
 
 @pytest.mark.parametrize(("query", "offset"), [("", 0), ("SHS", -1), ("SHS", 1001)])
 def test_invalid_searches_are_refused(query: str, offset: int) -> None:
+    """Reject empty or out-of-range searches before querying the supplier catalogue."""
     with pytest.raises(ValueError):
         search_products(query, offset)

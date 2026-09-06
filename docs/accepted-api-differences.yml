@@ -1316,6 +1316,13 @@
     for itself, and net_profit's divisor moved to elapsed WEEKDAYS.
 
 - operation: job_quote_chat_config_retrieve
+  change: "Office-only embed configuration supplies the public domain key and CSRF token"
+  reason: >
+    GPT: The generated configuration endpoint returns the configured ChatKit domain
+    key (null when unset) and Django's masked CSRF token. It requires office access
+    and an existing job; vendor credentials remain server-side.
+
+- operation: (job quoting chat)
   change: "ChatKit's job-scoped conversation protocol replaces the v1 chat CRUD/mode API"
   reason: >
     GPT: The approved library-led quoting assistant uses the ChatKit composer,
@@ -1325,3 +1332,6 @@
     with no all-job transcript wipe. Tools read job context and supplier catalogue
     prices but do not write estimates. Attachments and v1's CALC/PRICE/TABLE mode
     selector are not exposed in this slice.
+    Replaces job_jobs_quote_chat_create, job_jobs_quote_chat_interaction_create,
+    job_jobs_quote_chat_partial_update, job_jobs_quote_chat_retrieve,
+    quote_chat_delete_one and quote_chat_delete_all.
