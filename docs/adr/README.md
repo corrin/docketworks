@@ -63,3 +63,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0053](0053-integration-credentials-are-typed-columns-on-one-singleton.md) | Integration credentials are typed columns on one database singleton; N-of integrations keep typed tables; never `.env`, never `CompanyDefaults` |
 | [0054](0054-screens-are-tested-at-production-volume.md) | A screen is tested at the volume production gives it |
 | [0055](0055-modular-monolith-context-ownership.md) | Context ownership and directional dependencies |
+| [0056](0056-vendor-calls-are-recorded-per-call.md) | Every external vendor call is recorded, one row per call |

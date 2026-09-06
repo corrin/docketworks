@@ -657,3 +657,33 @@ assumes is the cost is 5% of it. The E2E's own short recording measured
 that used to fail the guard. Falsifying the deferral assertion (ADR 0052) by
 restoring the fetch-on-select showed the eager page fetching the same replay
 THREE times for one row click, not once.
+
+**Vendor spend became a table, and the pay-slip N+1 was scoped, 2026-09-06.** Two
+recorded facts drove it. `9c4eddb` measured the hourly pay-slip sync at 21 Xero calls
+per sync — 504 a day against 20 pay runs, growing 24/day per new weekly run — and
+prescribed scoping to the runs that can still change; `frontend/docs/e2e-testing-strategy.md`
+measured the E2E spend at 45 calls for every non-payroll spec combined and 862 for the
+single payroll posting test. So the measurement was already done, and building a second
+instrument before acting on the first would have repeated the archaeology it complained
+about. Both shipped together: `VendorCall` (ADR 0056) and the scoping fix.
+
+The grain overrides `9c4eddb`'s own "per-call rows are not needed and would be a
+retention question", which was AI-authored and so unratified (ADR 0051). The forcing
+fact against the daily counter it proposed: that counter aggregates into a calendar day
+while Xero's limit is a rolling 24 hours, so it cannot answer "what have I spent since
+this time yesterday". The retention question it raised is answered by the vendor rather
+than by a task — Xero cannot emit more rows than the quota being measured.
+
+**A recorder is only as good as its seam, and two seams moved.** `apps/xero/auth.py`
+reaches identity.xero.com with a raw `requests.post` that bypasses the SDK entirely, so
+it was invisible to the rate-limited client and is now recorded on its own — it remains
+**unpaced**, which the pacing layer should eventually cover. And three test files had
+each built their own fake Google Places response; adding the two fields the recorder
+reads broke all three at once, which is the ADR 0039 pathology in the test tree.
+
+**The pay-slip scoping cannot delete a mirrored slip, checked rather than assumed.**
+`sync_entities` (`apps/xero/transforms.py:229`) is deliberately incapable of deleting,
+and the tenant-scoped delete lives in `sync_pay_runs` off the pay-RUN fetch, which this
+change did not touch. So the pagination defect recorded against `get_pay_runs_for_sync`
+(KAN-354) does not interact with fetching fewer slips.
+
