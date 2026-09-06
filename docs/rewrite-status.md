@@ -489,6 +489,8 @@ never a second stream.
 
 ## Engineering backlog
 
+- **[KAN-359](https://docketworks.atlassian.net/browse/KAN-359): keep new-instance provisioning current as features change.**
+  Require setup-impact review per feature, repair existing drift, and verify fresh production/demo setup.
 - **[KAN-357](https://docketworks.atlassian.net/browse/KAN-357): rebuild v2 as a clean
   modular monolith (ADR 0055).** Move the remaining `apps.core` owners — `AppError`,
   `CompanyDefaults` and `ServiceAPIKey` — and the remaining legacy contexts, replacing
