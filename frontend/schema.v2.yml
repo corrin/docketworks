@@ -11992,6 +11992,9 @@ components:
           format: uuid
           title: Id
           type: string
+        is_currently_active:
+          title: Is Currently Active
+          type: boolean
         is_office_staff:
           title: Is Office Staff
           type: boolean
@@ -12051,6 +12054,7 @@ components:
       - wage_rate
       - base_wage_rate
       - date_left
+      - is_currently_active
       - xero_user_id
       - is_office_staff
       - is_workshop_staff

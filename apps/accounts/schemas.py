@@ -174,6 +174,13 @@ class StaffListItemOut(Schema):
     wage_rate: Quantity
     base_wage_rate: Quantity
     date_left: date | None
+    # Opus: The server owns "is this person employed now" — Staff.is_currently_active,
+    # the property the login gate (api.py:105), apps/core/auth.py:174 and the Xero
+    # payroll push all read (checked: grep is_currently_active across apps/). Carried
+    # on the wire rather than re-derived from date_left by the admin screen, which
+    # would fork the rule at a navigation boundary: someone serving out notice has a
+    # future date_left and is still employed.
+    is_currently_active: bool
     xero_user_id: str | None
     is_office_staff: bool
     is_workshop_staff: bool

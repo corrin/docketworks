@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, History, Plus, Search } from 'lucide-react'
+import { CalendarDays, Plus } from 'lucide-react'
 
 import {
   apiErrorMessage,
@@ -19,8 +19,18 @@ import { formatDate, localIsoDate } from '@/lib/format'
 import { LeaveRequestDialog } from './LeaveRequestDialog'
 import { OfficeClosureDialog } from './OfficeClosureDialog'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
+import { SearchInput } from '@/features/shared/SearchInput'
+import { TabBar, type TabBarItem } from '@/features/shared/TabBar'
 
 export type LeaveScope = 'current' | 'history'
+
+// Opus: Explicit labels rather than the CSS `capitalize` the pill tabs used —
+// the shared bar renders a label string, and every other tab bar in the app
+// already names its tabs rather than styling its keys into titles.
+const LEAVE_TABS: readonly TabBarItem<LeaveScope>[] = [
+  { key: 'current', label: 'Current' },
+  { key: 'history', label: 'History' },
+]
 
 export function LeavePage() {
   const [scope, setScope] = useState<LeaveScope>('current')
@@ -91,48 +101,39 @@ export function LeavePage() {
 
       <section className="rounded-lg border border-slate-200 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-3">
-          <div className="flex gap-1 rounded-md bg-slate-100 p-1">
-            {(['current', 'history'] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                className={`rounded px-3 py-1.5 text-sm capitalize ${
-                  scope === tab ? 'bg-white font-medium shadow-sm' : 'text-slate-600'
-                }`}
-                onClick={() => setScope(tab)}
-              >
-                {tab === 'history' && <History className="mr-1 inline h-3.5 w-3.5" />}
-                {tab}
-              </button>
-            ))}
-          </div>
-          <label className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-1.5">
-            <Search className="h-4 w-4 text-slate-400" />
-            <span className="sr-only">Search leave</span>
-            <input
-              value={search}
-              placeholder="Search employee or leave type"
-              className="w-64 border-0 bg-transparent text-sm outline-none"
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </label>
+          <TabBar
+            tabs={LEAVE_TABS}
+            activeKey={scope}
+            onChange={setScope}
+            idPrefix="LeavePage-tab"
+            panelId="LeavePage-panel"
+          />
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Search employee or leave type"
+            automationId="LeavePage-search"
+            label="Search leave"
+          />
         </div>
 
-        {actionError && <p className="m-3 text-sm text-red-700">{actionError}</p>}
-        <QueryState
-          isPending={listQuery.isPending}
-          isError={listQuery.isError}
-          loadingNode={<p className="p-6 text-sm text-slate-500">Loading leave…</p>}
-          errorNode={<p className="p-6 text-sm text-red-700">Could not load leave.</p>}
-        >
-          {listQuery.data && (
-            <LeaveTable
-              rows={listQuery.data.requests}
-              onEdit={setEditing}
-              onCancel={(row) => void cancelRequest(row)}
-            />
-          )}
-        </QueryState>
+        <div id="LeavePage-panel" role="tabpanel" aria-labelledby={`LeavePage-tab-${scope}`}>
+          {actionError && <p className="m-3 text-sm text-red-700">{actionError}</p>}
+          <QueryState
+            isPending={listQuery.isPending}
+            isError={listQuery.isError}
+            loadingNode={<p className="p-6 text-sm text-slate-500">Loading leave…</p>}
+            errorNode={<p className="p-6 text-sm text-red-700">Could not load leave.</p>}
+          >
+            {listQuery.data && (
+              <LeaveTable
+                rows={listQuery.data.requests}
+                onEdit={setEditing}
+                onCancel={(row) => void cancelRequest(row)}
+              />
+            )}
+          </QueryState>
+        </div>
       </section>
 
       <LeaveRequestDialog

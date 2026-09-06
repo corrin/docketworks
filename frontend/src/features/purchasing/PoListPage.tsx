@@ -11,6 +11,7 @@ import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebo
 import { formatDate } from '@/lib/format'
 import { PO_STATUS_DISPLAY } from './status'
 import { poListJobsLabel } from './lines'
+import { SearchInput } from '@/features/shared/SearchInput'
 
 /**
  * Purchase orders, searched and paged by the server.
@@ -52,14 +53,12 @@ export function PoListPage() {
       </div>
 
       <div className="mt-4">
-        <input
-          type="text"
-          data-automation-id="PurchaseOrderView-search"
-          placeholder="Search by PO number, supplier, or job number..."
+        <SearchInput
           value={searchInput}
-          autoComplete="off"
-          className="w-full max-w-md rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
-          onChange={(event) => setSearchInput(event.target.value)}
+          onChange={setSearchInput}
+          placeholder="Search by PO number, supplier, or job number..."
+          automationId="PurchaseOrderView-search"
+          label="Search purchase orders"
         />
       </div>
 

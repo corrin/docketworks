@@ -23,6 +23,7 @@ import { formatDate } from '@/lib/format'
 import { EntryForm, type EntryFormSubmitBody } from './EntryForm'
 import { FormDialog, requireCategory } from './FormDialog'
 import { extractFields } from './formSchema'
+import { SearchInput } from '@/features/shared/SearchInput'
 
 const HEADER_CELL = 'border-b border-slate-200 px-3 py-2 text-left font-semibold text-slate-700'
 const CELL = 'border-b border-slate-100 px-3 py-2'
@@ -123,14 +124,12 @@ export function ProcessFormsPage({ category }: { category: string }) {
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-4">
-        <input
-          type="text"
-          placeholder="Search forms..."
+        <SearchInput
           value={searchInput}
-          autoComplete="off"
-          data-automation-id="ProcessFormsPage-search"
-          className="w-full max-w-md rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
-          onChange={(event) => setSearchInput(event.target.value)}
+          onChange={setSearchInput}
+          placeholder="Search forms..."
+          automationId="ProcessFormsPage-search"
+          label="Search forms"
         />
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input

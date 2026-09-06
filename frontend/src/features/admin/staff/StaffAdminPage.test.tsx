@@ -8,7 +8,7 @@ import { renderWithProviders } from '@/test/render'
 import { StaffAdminPage } from './StaffAdminPage'
 
 import type { StaffListItemOut } from '@/api'
-import { autoId } from '@/test/auto-id'
+import { autoId, queryAutoId } from '@/test/auto-id'
 
 const LIST = '*/api/accounts/staff/'
 const DETAIL = '*/api/accounts/staff/:staffId/'
@@ -27,6 +27,7 @@ function staffRow(overrides: Partial<StaffListItemOut> = {}): StaffListItemOut {
     wage_rate: 34.56,
     base_wage_rate: 32,
     date_left: null,
+    is_currently_active: true,
     xero_user_id: null,
     is_office_staff: false,
     is_workshop_staff: true,
@@ -62,6 +63,72 @@ describe('StaffAdminPage', () => {
     expect(row).toHaveTextContent('Tara Person')
     expect(row).toHaveTextContent('$34.56')
     expect(row).toHaveTextContent('Active')
+  })
+
+  describe('the Current/Past split', () => {
+    const DEPARTED = '33333333-3333-3333-3333-333333333333'
+    const LEAVING = '44444444-4444-4444-4444-444444444444'
+
+    beforeEach(() => {
+      server.use(
+        http.get(LIST, () =>
+          HttpResponse.json([
+            staffRow(),
+            staffRow({
+              id: DEPARTED,
+              first_name: 'Gone',
+              office_email: 'gone@example.com',
+              date_left: '2025-12-31',
+              is_currently_active: false,
+            }),
+            staffRow({
+              id: LEAVING,
+              first_name: 'Notice',
+              office_email: 'notice@example.com',
+              date_left: '2099-01-31',
+              is_currently_active: true,
+            }),
+          ]),
+        ),
+      )
+    })
+
+    it('shows only currently-employed staff until the Past tab is chosen', async () => {
+      // A refactor filtering on `date_left === null` — the rule this screen used
+      // before is_currently_active existed — would agree on Tara and Gone and
+      // only diverge on Notice, who has a leaving date and is still employed.
+      // Losing them from Current is the regression: they still come to work.
+      await renderPage()
+
+      expect(queryAutoId(`StaffAdminPage-row-${DEPARTED}`)).toBeNull()
+      expect(autoId(`StaffAdminPage-row-${LEAVING}`)).toBeVisible()
+    })
+
+    it('moves departed staff to the Past tab and leaves current staff behind', async () => {
+      const { user } = await renderPage()
+
+      await user.click(autoId('StaffAdminPage-tab-past'))
+
+      expect(autoId(`StaffAdminPage-row-${DEPARTED}`)).toBeVisible()
+      expect(queryAutoId(`StaffAdminPage-row-${LEAVING}`)).toBeNull()
+      expect(queryAutoId('StaffAdminPage-row-11111111-1111-1111-1111-111111111111')).toBeNull()
+    })
+
+    it('distinguishes a pending leaving date from a past one in the Status cell', async () => {
+      await renderPage()
+      // The date, not just the word: rendering a bare "Leaving" would tell an
+      // office manager someone is going without saying when.
+      expect(autoId(`StaffAdminPage-row-${LEAVING}`)).toHaveTextContent('Leaving 31 Jan 2099')
+    })
+
+    it('narrows the visible rows to those matching the quick filter', async () => {
+      const { user } = await renderPage()
+
+      await user.type(autoId('StaffAdminPage-search'), 'notice')
+
+      expect(autoId(`StaffAdminPage-row-${LEAVING}`)).toBeVisible()
+      expect(queryAutoId('StaffAdminPage-row-11111111-1111-1111-1111-111111111111')).toBeNull()
+    })
   })
 
   it('creates a staff member and the new row appears without a refetch', async () => {

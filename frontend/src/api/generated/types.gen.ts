@@ -10665,6 +10665,10 @@ export type StaffListItemOut = {
      */
     id: string;
     /**
+     * Is Currently Active
+     */
+    is_currently_active: boolean;
+    /**
      * Is Office Staff
      */
     is_office_staff: boolean;

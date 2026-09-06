@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/auth'
+import { autoId } from '../helpers'
 
 /**
  * Stock search E2E (Trello #150).
@@ -43,7 +44,7 @@ test.describe('Stock search', () => {
       { timeout: 10000 },
     )
 
-    const input = page.locator('input[placeholder="Search stock items..."]')
+    const input = autoId(page, 'StockView-search')
     await input.fill('5mm')
 
     const searchResponse = await searchResponsePromise
@@ -102,7 +103,7 @@ test.describe('Stock search', () => {
       { timeout: 15000 },
     )
 
-    const input = page.locator('input[placeholder="Search stock items..."]')
+    const input = autoId(page, 'StockView-search')
 
     // Run a search
     const searchPromise = page.waitForResponse(

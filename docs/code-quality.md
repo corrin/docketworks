@@ -113,6 +113,6 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 | metric | count |
 |---|---:|
 | response schemas | 299 |
-| response properties | 1927 |
+| response properties | 1928 |
 | optional (pinned at zero) | 0 |
 | nullable | 421 |

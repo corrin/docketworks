@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { INPUT_CLASS } from '@/components/ui/field'
 import { LoadMoreSentinel } from '@/features/shared/LoadMoreSentinel'
 import { nextPageParam } from '@/features/shared/nextPageParam'
+import { SearchInput } from '@/features/shared/SearchInput'
+import { TabBar } from '@/features/shared/TabBar'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
 
 import { AssignCallNumberPanel } from './AssignCallNumberPanel'
@@ -79,125 +81,118 @@ export function PhoneCallsPage() {
         </Button>
       </div>
 
-      <nav className="mt-4 flex space-x-1 overflow-x-auto border-b border-gray-200">
-        {CALLS_TABS.map((candidate) => (
-          <button
-            key={candidate}
-            type="button"
-            data-automation-id={`${ID}-tab-${candidate}`}
-            className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-              tab === candidate
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-            onClick={() => setTab(candidate)}
-          >
-            {QUEUE_META[candidate].tab}
-          </button>
-        ))}
-      </nav>
+      <TabBar
+        tabs={CALLS_TABS.map((candidate) => ({
+          key: candidate,
+          label: QUEUE_META[candidate].tab,
+        }))}
+        activeKey={tab}
+        onChange={setTab}
+        idPrefix={`${ID}-tab`}
+        panelId={`${ID}-panel`}
+        className="mt-4 overflow-x-auto"
+      />
 
-      {/* Above the filters and the rows, where the people directory puts its
+      <div id={`${ID}-panel`} role="tabpanel" aria-labelledby={`${ID}-tab-${tab}`}>
+        {/* Above the filters and the rows, where the people directory puts its
           create panel — below LoadMoreSentinel it would open off-screen on a
           fifty-row page. Keyed on the call so opening it on a second row
           starts empty: React would otherwise keep the company, person, label
           and primary flag chosen for the first, and one click would write the
           second number to the first company. */}
-      {assignTarget !== null && (
-        <AssignCallNumberPanel
-          key={assignTarget.id}
-          call={assignTarget}
-          onClose={() => setAssignTarget(null)}
-        />
-      )}
-
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <input
-          type="text"
-          data-automation-id={`${ID}-search`}
-          placeholder="Search number, company, person, job, or description"
-          value={searchInput}
-          autoComplete="off"
-          aria-label="Search calls"
-          className="w-full max-w-md rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
-          onChange={(event) => setSearchInput(event.target.value)}
-        />
-        <select
-          data-automation-id={`${ID}-direction`}
-          aria-label="Direction"
-          value={direction}
-          className={`${INPUT_CLASS} w-auto`}
-          onChange={(event) => {
-            const chosen = DIRECTION_FILTERS.find((option) => option === event.target.value)
-            if (chosen === undefined) {
-              throw new Error(`Unknown call direction filter: ${event.target.value}`)
-            }
-            setDirection(chosen)
-          }}
-        >
-          {DIRECTION_FILTERS.map((option) => (
-            <option key={option} value={option}>
-              {DIRECTION_LABELS[option]}
-            </option>
-          ))}
-        </select>
-        <label className="flex items-center gap-2 text-sm text-gray-700">
-          <input
-            type="checkbox"
-            data-automation-id={`${ID}-with-recording`}
-            checked={recordingsOnly}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            onChange={(event) => setRecordingsOnly(event.target.checked)}
+        {assignTarget !== null && (
+          <AssignCallNumberPanel
+            key={assignTarget.id}
+            call={assignTarget}
+            onClose={() => setAssignTarget(null)}
           />
-          With recording
-        </label>
-      </div>
+        )}
 
-      <div className="mt-6">
-        <h2 className="text-base font-semibold text-gray-900">{queue.title}</h2>
-        <p className="text-sm text-gray-500">{queue.description}</p>
-      </div>
-
-      {calls.isRefetchError && (
-        <div className="mt-4 flex items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          {/* A failed next page is LoadMoreSentinel's to report; this banner is
-              only for a background refetch of the rows already on screen. */}
-          <span>Refresh failed — showing the last loaded rows.</span>
-          <button
-            type="button"
-            data-automation-id={`${ID}-refresh-retry`}
-            className="font-medium underline"
-            onClick={() => void calls.refetch()}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <SearchInput
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder="Search number, company, person, job, or description"
+            automationId={`${ID}-search`}
+            label="Search calls"
+          />
+          <select
+            data-automation-id={`${ID}-direction`}
+            aria-label="Direction"
+            value={direction}
+            className={`${INPUT_CLASS} w-auto`}
+            onChange={(event) => {
+              const chosen = DIRECTION_FILTERS.find((option) => option === event.target.value)
+              if (chosen === undefined) {
+                throw new Error(`Unknown call direction filter: ${event.target.value}`)
+              }
+              setDirection(chosen)
+            }}
           >
-            Retry
-          </button>
+            {DIRECTION_FILTERS.map((option) => (
+              <option key={option} value={option}>
+                {DIRECTION_LABELS[option]}
+              </option>
+            ))}
+          </select>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              data-automation-id={`${ID}-with-recording`}
+              checked={recordingsOnly}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              onChange={(event) => setRecordingsOnly(event.target.checked)}
+            />
+            With recording
+          </label>
         </div>
-      )}
 
-      <PhoneCallTable
-        isPending={calls.isPending}
-        // A failed FIRST load is the error state; an errored background refetch
-        // keeps the keepPreviousData table on screen, with the banner above
-        // owning visibility.
-        isError={calls.isError && calls.data === undefined}
-        onRetry={() => void calls.refetch()}
-        rows={rows}
-        emptyLabel="No calls found"
-        onAssignNumber={setAssignTarget}
-      />
+        <div className="mt-6">
+          <h2 className="text-base font-semibold text-gray-900">{queue.title}</h2>
+          <p className="text-sm text-gray-500">{queue.description}</p>
+        </div>
 
-      {rows !== undefined && lastPage !== undefined && (
-        <LoadMoreSentinel
-          automationId={`${ID}-load-more`}
-          noun="calls"
-          shown={rows.length}
-          total={lastPage.count}
-          hasNextPage={calls.hasNextPage}
-          isFetchingNextPage={calls.isFetchingNextPage}
-          isFetchNextPageError={calls.isFetchNextPageError}
-          onLoadMore={() => void calls.fetchNextPage()}
+        {calls.isRefetchError && (
+          <div className="mt-4 flex items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            {/* A failed next page is LoadMoreSentinel's to report; this banner is
+              only for a background refetch of the rows already on screen. */}
+            <span>Refresh failed — showing the last loaded rows.</span>
+            <button
+              type="button"
+              data-automation-id={`${ID}-refresh-retry`}
+              className="font-medium underline"
+              onClick={() => void calls.refetch()}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        <PhoneCallTable
+          isPending={calls.isPending}
+          // A failed FIRST load is the error state; an errored background refetch
+          // keeps the keepPreviousData table on screen, with the banner above
+          // owning visibility.
+          isError={calls.isError && calls.data === undefined}
+          onRetry={() => void calls.refetch()}
+          rows={rows}
+          emptyLabel="No calls found"
+          onAssignNumber={setAssignTarget}
         />
-      )}
+
+        {rows !== undefined && lastPage !== undefined && (
+          <LoadMoreSentinel
+            automationId={`${ID}-load-more`}
+            noun="calls"
+            shown={rows.length}
+            total={lastPage.count}
+            hasNextPage={calls.hasNextPage}
+            isFetchingNextPage={calls.isFetchingNextPage}
+            isFetchNextPageError={calls.isFetchNextPageError}
+            onLoadMore={() => void calls.fetchNextPage()}
+          />
+        )}
+      </div>
     </div>
   )
 }
