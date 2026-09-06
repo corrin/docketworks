@@ -149,6 +149,23 @@ class TestPacedRequestRecording:
         assert row.day_remaining == 0
         assert quota_floor_breached(100)
 
+    def test_a_retry_that_is_also_refused_is_recorded(self) -> None:
+        # Both attempts spent quota. The retry's failure path is the one that
+        # lost its recording while the two attempts were written out twice.
+        refusal = self._refusal(
+            429,
+            {"Retry-After": "1", "X-Rate-Limit-Problem": "minute", "X-MinLimit-Remaining": "0"},
+        )
+        second = self._refusal(500, self._headers("3998", "58"))
+        with (
+            patch("apps.xero.client.RESTClientObject.request", side_effect=[refusal, second]),
+            patch("apps.xero.client.time.sleep"),
+            pytest.raises(ApiException),
+        ):
+            self._client()._paced_request("GET", "https://api.xero.com/api.xro/2.0/Invoices")
+
+        assert [row.status_code for row in VendorCall.objects.order_by("occurred_at")] == [429, 500]
+
     def test_minute_limit_429_records_both_the_refusal_and_the_retry(self) -> None:
         # The retry is a second real call against the quota. Counting it as
         # one would under-report every minute-limited sync.

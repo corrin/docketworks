@@ -174,54 +174,59 @@ class RateLimitedRESTClient(RESTClientObject):
         if elapsed < MINIMUM_SLEEP:
             time.sleep(MINIMUM_SLEEP - elapsed)
 
-        started = time.perf_counter()
-        try:
-            r = super().request(
-                method,
-                url,
-                query_params=query_params,
-                headers=headers,
-                body=body,
-                post_params=post_params,
-                _preload_content=_preload_content,
-                _request_timeout=_request_timeout,
-            )
+        def attempt() -> RESTResponse | HTTPResponse:
+            """One request to Xero, timed and recorded whatever the outcome.
+
+            The two attempts share this rather than repeating the SDK call:
+            when they were written out twice, the retry's failure path was the
+            copy that lost its recording, which is the drift one implementation
+            prevents (ADR 0039). ``RESTClientObject.request(self, ...)`` and not
+            ``super()`` — zero-argument ``super()`` reads the first argument of
+            the frame it runs in, and a nested function does not have one.
+            """
+            started = time.perf_counter()
+            try:
+                response = RESTClientObject.request(
+                    self,
+                    method,
+                    url,
+                    query_params=query_params,
+                    headers=headers,
+                    body=body,
+                    post_params=post_params,
+                    _preload_content=_preload_content,
+                    _request_timeout=_request_timeout,
+                )
+            # A refused call has already spent its share of the quota, and its
+            # response carries the headers saying how much is left. Recorded
+            # here, then re-raised untouched: recording only successes would
+            # blind the log at exactly the moment the budget runs out.
+            except ApiException as exc:
+                self._last_call_time = time.time()
+                self._record_call(method, url, started, exc.status, exc.headers or {})
+                raise
             self._last_call_time = time.time()
+            self._record_call(method, url, started, response.status, self._headers_of(response))
+            return response
+
+        try:
+            r = attempt()
         # deliberate-swallow: non-429 re-raises immediately; a day-limit 429
         # re-raises inside _handle_rate_limit; only the minute-limit 429 is
         # absorbed, by sleeping Retry-After and retrying once — the absorb IS
         # the rate-limit contract
         except ApiException as exc:
-            self._last_call_time = time.time()
-            # Recorded before the branch: a refused call has already spent its
-            # share of the quota, and its response carries the headers saying
-            # how much is left. Recording only successes would blind the log
-            # at exactly the moment the budget runs out.
-            self._record_call(method, url, started, exc.status, exc.headers or {})
             if exc.status != 429:
                 raise
             self._handle_rate_limit(exc)
-            # Retry once after sleeping (only for minute limits — day limits raise above)
-            started = time.perf_counter()
-            retried = super().request(
-                method,
-                url,
-                query_params=query_params,
-                headers=headers,
-                body=body,
-                post_params=post_params,
-                _preload_content=_preload_content,
-                _request_timeout=_request_timeout,
-            )
-            # v1 skipped pacing/quota bookkeeping on the retried response —
-            # exactly the calls made under rate pressure, when the snapshot
-            # matters most.
-            self._last_call_time = time.time()
-            self._record_call(method, url, started, retried.status, self._headers_of(retried))
+            # Retry once after sleeping (only for minute limits — day limits
+            # raise above). v1 skipped pacing and quota bookkeeping on the
+            # retried response — exactly the calls made under rate pressure,
+            # when the record matters most.
+            retried = attempt()
             self._log_quota(retried)
             return retried
         else:
-            self._record_call(method, url, started, r.status, self._headers_of(r))
             self._log_quota(r)
             return r
 

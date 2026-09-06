@@ -94,9 +94,15 @@ def _runs_that_can_still_change(pay_runs: list[PayRun]) -> list[PayRun]:
     # Local import: this module is imported at app boot, models may not be ready.
     from apps.xero.models import XeroPaySlip  # noqa: PLC0415
 
+    # Scoped to this batch rather than asking for every mirrored run: the
+    # answer is only ever consulted for these ids, and the unscoped form both
+    # grows with payroll history forever and reaches across tenants.
+    run_ids = {str(pay_run.pay_run_id) for pay_run in pay_runs}
     mirrored = {
         str(xero_id)
-        for xero_id in XeroPaySlip.objects.values_list("pay_run__xero_id", flat=True).distinct()
+        for xero_id in XeroPaySlip.objects.filter(pay_run__xero_id__in=run_ids)
+        .values_list("pay_run__xero_id", flat=True)
+        .distinct()
     }
     return [
         pay_run
