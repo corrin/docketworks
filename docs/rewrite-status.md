@@ -60,9 +60,18 @@ shape v2 must serve.
 
 ## Start here
 
-Not a tier — just the five things a session should have a reason not to pick up.
+Not a tier — just the things a session should have a reason not to pick up.
 
-1. **[KAN-356](https://docketworks.atlassian.net/browse/KAN-356): payroll posting
+1. **[KAN-358](https://docketworks.atlassian.net/browse/KAN-358): a received purchase
+   order reverts to Submitted one Xero cycle later.** Holds the main→production
+   promotion (PR #142). The receipt derives status locally, the sweep pushes it to
+   Xero as AUTHORISED, and the next inbound pull maps AUTHORISED back to submitted
+   (`apps/xero/transforms.py:729-740`) while the received quantities and cost lines
+   stay — the same fault KAN-144 fixed for BILLED, arriving by the other direction.
+   An order with receipts must take no status from Xero; `xero_status` already
+   records Xero's word. Same ticket carries the agreement stamp that acknowledges
+   an edit it did not send (`apps/xero/documents/po.py:151-165`).
+2. **[KAN-356](https://docketworks.atlassian.net/browse/KAN-356): payroll posting
    double-books leave, and reports `ok` while doing it.** Live in production, and money
    is already out the door — $1,442 gross overpaid and 40h double-debited for one
    employee, on each of two consecutive weeks; the second was caught only by a
@@ -72,23 +81,23 @@ Not a tier — just the five things a session should have a reason not to pick u
    invisible and `_create_leave` writes a second one on top. `posted_leave_hours`
    (`:293`) applies the same containment rule, which is why `posting_status_for_week`
    reports a match on the doubled week. Detect overlap, refuse, and name the Xero leave.
-2. **Eight production `Procedure` rows link dead Google Docs — one is on a clock.**
+3. **Eight production `Procedure` rows link dead Google Docs — one is on a clock.**
    Doc.363 Milling Machine SOP is in Drive trash and its 30-day purge window opened
    2026-08-26. Untrash it before that expires. The other seven are invisible even to
    the Workspace owner; the owner arbitrates restore-from-backup vs archive per doc,
    then the surviving rows are relinked or archived on the production instance — a data
    fix, never a read-side fallback (ADR 0015). The row list is in `rewrite-history.md`.
    Re-verify with `outbound_links_probe --kind google_file --google-as delegated`.
-3. **Port the workshop schedule.** No route, no `AppNavbar` entry and no algorithm, so
+4. **Port the workshop schedule.** No route, no `AppNavbar` entry and no algorithm, so
    the shop plans without it. See Screens for the port target and the two defects not to
    reproduce.
-4. **[KAN-335](https://docketworks.atlassian.net/browse/KAN-335)** was written "blocked
+5. **[KAN-335](https://docketworks.atlassian.net/browse/KAN-335)** was written "blocked
    until production cutover is complete" and is now unblocked. It restores the
    `format: uuid` contract the port dropped on 424 properties, extends
    `schema_parity_diff.py` to see property types at all, and gives `CostLine.meta` one
    definition instead of three. Its step 1 generates the work list for its step 2, so
    nothing here is hand-listed.
-5. **`/purchasing/mappings`** has been labelled "this slice lands first" since before
+6. **`/purchasing/mappings`** has been labelled "this slice lands first" since before
    the flip and is still unbuilt three releases later. Either it lands or it stops
    claiming to be first.
 
