@@ -18,6 +18,35 @@ restating it. Nothing here is a task.
 
 ## Cutover
 
+**2026-09-06 — PO entry layout and notes/history.** The owner approved one
+continuous page: compact order details above a full-width line grid, with
+notes/history below. The PO page's 1,024px width cap is removed. PO entry and
+the Estimate, Quote and Actual job tabs now share `EntryGridSection`; their
+grids continue to use `DataTable`, which accepts optional column sizing. PO
+description space expands while numeric columns stay compact. The existing
+PO event APIs now serve the notes section, including author, timestamp and
+an add-note form that retains text after a failed save.
+
+Playwright exercised the real application at 1920, 1366, 1280, 1024, 768 and
+390px, then returned to desktop without losing the focused draft. All eight
+columns fit at desktop widths; narrower screens scroll the grid internally,
+including reaching its last column. The first run exposed the shared
+navbar overflowing to 1,079px at a 1,024px viewport; wrapping its existing
+controls fixed that without hiding navigation. The 30-line case reaches
+history and verifies a saved note after reload.
+
+Verification: 15 scoped Playwright cases passed across PO, job-cost and
+timesheet entry; 215 targeted frontend unit tests passed. The managed full
+runner was blocked before tests by Xero's exhausted daily quota during
+cleanup. The scoped run used the running local application with the normal
+Playwright preflight, backup and restore, without disabling those safeguards.
+
+The long-description stress test also exposed a pre-existing validation gap:
+`PurchaseOrderLine.description` is limited to 200 characters, but its create
+schema does not declare that bound, so an overlength write returns a database
+500. This slice leaves that contract unchanged and tests layout with a valid
+200-character description.
+
 **2026-09-06 — KAN-357 first ownership slice.** ADR 0055 establishes the target
 without making the epic a single PR. Platform integrations takes IntegrationSettings,
 its admin API/loader and the Google adapters. Google callers now supply business

@@ -1,4 +1,5 @@
 import debug from 'debug'
+import type { Page } from '@playwright/test'
 import { test, expect } from '../fixtures/auth'
 import {
   autoId,
@@ -9,6 +10,179 @@ import {
 } from '../helpers'
 
 const log = debug('e2e:purchasing')
+
+async function createWorkspaceOrder(page: Page, lineCount: number): Promise<string> {
+  const orders = await page.request.get('/api/purchasing/purchase-orders/?page_size=50')
+  expect(orders.ok()).toBe(true)
+  const existing = (await orders.json()).results.find(
+    (order: { supplier_id: string | null }) => order.supplier_id !== null,
+  )
+  expect(existing).toBeDefined()
+  const created = await page.request.post('/api/purchasing/purchase-orders/', {
+    data: {
+      supplier_id: existing.supplier_id,
+      reference: `[TEST] PO workspace ${Date.now()}`,
+      lines: Array.from({ length: lineCount }, (_, index) => ({
+        description: `Stainless steel sheet 304, 1.2 mm, 2400 × 1200 — line ${index + 1}`,
+        quantity: index + 1,
+        unit_cost: '18.50',
+        item_code: `SS-304-${index + 1}`,
+      })),
+    },
+  })
+  expect(created.status()).toBe(201)
+  return `/purchasing/po/${(await created.json()).id}`
+}
+
+test.describe('PO workspace', () => {
+  test('enters an empty order and edits its item, job, price and quantity', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.setViewportSize({ width: 1366, height: 900 })
+    await page.goto(await createWorkspaceOrder(page, 0))
+    await expect(page.getByRole('row')).toHaveCount(2)
+    const description = 'Stainless sheet for the kitchen canopy — '.padEnd(200, 'x')
+    await autoId(page, 'PoLinesTable-description-0').fill(description)
+    await autoId(page, 'PoLinesTable-quantity-0').fill('3')
+    await autoId(page, 'PoLinesTable-unit-cost-0').fill('25.50')
+    const created = waitForPoAutosave(page)
+    await page.keyboard.press('Tab')
+    await created
+    await page.reload()
+    await expect(autoId(page, 'PoLinesTable-description-0')).toHaveValue(description)
+    await expect(autoId(page, 'PoSummaryCard-order-value')).toHaveText('$76.50')
+
+    await autoId(page, 'PoLinesTable-item-0').getByRole('button').click()
+    const searchResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url())
+      return (
+        url.pathname === '/api/purchasing/stock/search/' &&
+        url.searchParams.get('q') === '5mm Round Bar' &&
+        response.ok()
+      )
+    })
+    await page
+      .getByPlaceholder('Search items by description, code, or type...')
+      .fill('5mm Round Bar')
+    const stock = (await (await searchResponse).json()).results[0]
+    expect(stock).toBeDefined()
+    const itemSaved = waitForPoAutosave(page)
+    await page.locator('[data-automation-id^="ItemSelect-option-"]').first().click()
+    await itemSaved
+    await expect(autoId(page, 'PoLinesTable-description-0')).toHaveValue(stock.description)
+
+    await autoId(page, 'DataTable-row-0').getByRole('button', { name: 'Job for line 1' }).click()
+    const job = page.locator('[data-automation-id^="JobSelect-option-"]').first()
+    const jobText = await job.innerText()
+    const jobSaved = waitForPoAutosave(page)
+    await job.click()
+    await jobSaved
+    const boundJob = await autoId(page, 'DataTable-row-0')
+      .getByRole('button', { name: 'Job for line 1' })
+      .innerText()
+    expect(jobText).toContain(boundJob.split(' - ')[0])
+
+    const priceSaved = waitForPoAutosave(page)
+    await autoId(page, 'PoLinesTable-price-tbc-0').click()
+    await priceSaved
+    await expect(autoId(page, 'PoLinesTable-unit-cost-0')).toBeDisabled()
+    await page.reload()
+    await expect(autoId(page, 'PoLinesTable-price-tbc-0')).toBeChecked()
+    await expect(
+      autoId(page, 'DataTable-row-0').getByRole('button', { name: 'Job for line 1' }),
+    ).toHaveText(boundJob)
+
+    page.once('dialog', (dialog) => void dialog.accept())
+    const deleted = waitForPoAutosave(page)
+    await autoId(page, 'PoLinesTable-delete-0').click()
+    await deleted
+    await expect(autoId(page, 'PoLinesTable-description-0')).toHaveValue('')
+    await expect(page.getByRole('row')).toHaveCount(2)
+  })
+
+  test('keeps all columns usable and preserves a draft while the screen is resized', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto(await createWorkspaceOrder(page, 10))
+    const draft = autoId(page, 'PoLinesTable-description-10')
+    await draft.fill('Unfinished order line')
+    const table = page.getByRole('table')
+    for (const width of [1920, 1366, 1280, 1024, 768, 390, 1366]) {
+      await page.setViewportSize({ width, height: 900 })
+      await expect(draft).toBeFocused()
+      await expect(draft).toHaveValue('Unfinished order line')
+      const geometry = await table.evaluate((element) => {
+        const rect = element.getBoundingClientRect()
+        const pane = element.parentElement
+        if (!pane) throw new Error('The entry grid has no scroll pane')
+        return {
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          paneWidth: pane.clientWidth,
+          scrollWidth: pane.scrollWidth,
+          viewport: window.innerWidth,
+          pageWidth: document.documentElement.scrollWidth,
+        }
+      })
+      expect(geometry.pageWidth).toBeLessThanOrEqual(width)
+      if (width >= 1280) {
+        expect(geometry.width).toBeGreaterThan(width * 0.94)
+        expect(geometry.left).toBeGreaterThanOrEqual(0)
+        expect(geometry.right).toBeLessThanOrEqual(width)
+        expect(geometry.scrollWidth).toBe(geometry.paneWidth)
+      } else {
+        expect(geometry.scrollWidth).toBeGreaterThan(geometry.paneWidth)
+      }
+      await page.screenshot({
+        path: test.info().outputPath(`po-workspace-${width}.png`),
+        fullPage: true,
+      })
+      if (width < 1280) {
+        const lastColumn = autoId(page, 'PoLinesTable-delete-0')
+        await lastColumn.scrollIntoViewIfNeeded()
+        await expect(lastColumn).toBeInViewport()
+        await expect(autoId(page, 'PoLinesTable-unit-cost-0')).toBeInViewport()
+        await expect(draft).toBeFocused()
+        await page.screenshot({ path: test.info().outputPath(`po-workspace-${width}-right.png`) })
+      }
+    }
+    const saved = waitForPoAutosave(page)
+    await autoId(page, 'PoLinesTable-unit-cost-10').click()
+    await page.keyboard.press('Tab')
+    await saved
+    await page.reload()
+    await expect(autoId(page, 'PoLinesTable-description-10')).toHaveValue('Unfinished order line')
+    await expect(autoId(page, 'PoLinesTable-description-11')).toHaveValue('')
+  })
+
+  test('reaches history after a long order and persists a note', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto(await createWorkspaceOrder(page, 30))
+    await expect(autoId(page, 'PoLinesTable-description-30')).toBeVisible()
+    const history = page.getByRole('heading', { name: 'Notes & History' })
+    await history.scrollIntoViewIfNeeded()
+    await expect(history).toBeInViewport()
+    await page.getByRole('button', { name: 'Add note', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Save note' })).toBeDisabled()
+    const note = `Collection confirmed for Thursday ${Date.now()}`
+    await page.getByLabel('Note', { exact: true }).fill(note)
+    const created = page.waitForResponse(
+      (response) => response.url().endsWith('/events/') && response.request().method() === 'POST',
+    )
+    await page.getByRole('button', { name: 'Save note' }).click()
+    const response = await created
+    expect(response.status()).toBe(201)
+    const event = (await response.json()).event
+    await page.reload()
+    const entry = page.getByRole('listitem').filter({ hasText: note })
+    await expect(entry).toContainText(event.staff)
+    await expect(entry.locator('time')).toHaveAttribute('datetime', event.timestamp)
+    await entry.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: test.info().outputPath('po-notes-history.png') })
+  })
+})
 
 /**
  * Tests for purchase order operations.

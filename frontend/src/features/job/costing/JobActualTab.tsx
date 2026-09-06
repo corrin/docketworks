@@ -2,6 +2,7 @@ import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 
 import { getFullJobOptions, jobJobsCostSetsRetrieveOptions } from '@/api'
 import { formatCurrency } from '@/lib/format'
+import { EntryGridSection } from '@/features/shared/EntryGridSection'
 import { CostLineGrid } from './CostLineGrid'
 import { CostSetSummaryPanel } from './CostSetSummaryPanel'
 
@@ -31,10 +32,10 @@ export function JobActualTab({ jobId }: JobActualTabProps) {
 
   return (
     <div className="space-y-4 p-6">
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1fr_320px]">
-        <section className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <h2 className="text-lg font-semibold text-gray-900">Actual Costs</h2>
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <EntryGridSection
+          title="Actual Costs"
+          actions={
             <div
               data-automation-id="JobActualTab-time-expenses"
               className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-right"
@@ -44,16 +45,15 @@ export function JobActualTab({ jobId }: JobActualTabProps) {
                 {summary ? formatCurrency(summary.rev) : '—'}
               </div>
             </div>
-          </div>
-          <div className="mt-3">
-            <CostLineGrid
-              jobId={jobId}
-              kind="actual"
-              materialsMarkup={String(companyDefaults.materials_markup)}
-              wageRate={String(companyDefaults.wage_rate)}
-            />
-          </div>
-        </section>
+          }
+        >
+          <CostLineGrid
+            jobId={jobId}
+            kind="actual"
+            materialsMarkup={String(companyDefaults.materials_markup)}
+            wageRate={String(companyDefaults.wage_rate)}
+          />
+        </EntryGridSection>
 
         <div className="space-y-4 lg:sticky lg:top-4">
           <CostSetSummaryPanel

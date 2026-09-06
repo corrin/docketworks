@@ -291,9 +291,6 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   - **The Xero sync has one clean integration pass, not two.** ADR 0050 wants the repeat;
     the second attempt was refused by the day-quota floor, which is the guard working.
     `./scripts/ops/run_integration_tests.sh` once quota resets.
-  - **The PO comments card.** Backend done and codegen'd (`listPurchaseOrderEvents`,
-    `createPurchaseOrderEvent`); nothing in `frontend/src/` calls either. Present it the
-    way `JobHistoryTab.tsx` presents job events.
   - **No back-link from a job cost line to the PO that created it.** `CostLineGrid` has no
     Source column, though the cost line already carries `meta.po_number` and
     `ext_refs.purchase_order_id` — so this is a column, not a contract change.
