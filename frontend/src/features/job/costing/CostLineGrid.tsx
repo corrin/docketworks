@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Link } from '@tanstack/react-router'
 import {
   createColumnHelper,
   useTable,
@@ -79,6 +80,7 @@ interface GridCellContext {
 
 function rowLocked(context: GridCellContext, gridRow: GridRow): boolean {
   if (context.readOnly) return true
+  if (gridRow.type === 'server' && gridRow.line.managed_by !== null) return true
   return gridRow.type === 'draft' && context.isPersisting(gridRow.localId)
 }
 
@@ -430,7 +432,9 @@ function ItemCell({ row, table }: CellProps) {
       // through a plain PATCH and desync the stock ledger (the drawn-down
       // item keeps its shortfall; the new one gets returns it never lost).
       // Delivery-receipt allocations are never re-bound anywhere (v1 rule).
-      disabled={context.readOnly || context.kind === 'actual' || isDeliveryReceiptLine(line)}
+      disabled={
+        rowLocked(context, gridRow) || context.kind === 'actual' || isDeliveryReceiptLine(line)
+      }
       allowLabour={context.kind !== 'actual'}
       // A timesheet line's subtype is edited in the timesheet UI only.
       textOnly={context.kind === 'actual' && line.kind === 'time'}
@@ -470,6 +474,21 @@ function ActionsCell({ row, table }: CellProps) {
   const context = cellMeta(table)
   const gridRow = row.original
   const isEmptyPhantom = gridRow.type === 'draft' && context.isPhantom(gridRow.localId)
+
+  if (gridRow.type === 'server' && gridRow.line.managed_by === 'stocktake') {
+    return (
+      <Link className="text-blue-700 underline" to="/purchasing/stocktakes">
+        Stocktake history
+      </Link>
+    )
+  }
+  if (gridRow.type === 'server' && gridRow.line.managed_by === 'stock') {
+    return (
+      <Link className="text-blue-700 underline" to="/purchasing/stock">
+        Stock history
+      </Link>
+    )
+  }
 
   return (
     <Button
@@ -546,6 +565,7 @@ const COLUMNS = [
 const EMPTY_SERVER_SHAPE: CostLineOut = {
   accounting_date: '',
   approved: false,
+  managed_by: null,
   created_at: '',
   desc: null,
   entry_seq: null,

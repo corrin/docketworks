@@ -380,18 +380,10 @@ class TestDeliveryReceiptEffects:
         po.refresh_from_db()
         assert po.status == "fully_received"
 
-    def test_re_receipting_a_line_replaces_stock_but_accumulates_received(
+    def test_each_delivery_preserves_prior_stock_and_accumulates_received(
         self, client: Client, stock_holding_job: Job
     ) -> None:
-        """PORTED v1 DEBT, not intended design — see the parity ledger.
-
-        Re-receipting deletes the line's prior stock rows but ADDS to
-        received_quantity, so a line received twice can read fully_received
-        while only the last receipt's stock exists. Stock and books disagree.
-        Recorded rather than fixed because changing it would silently alter
-        received totals on migrated data; the fix belongs with a deliberate
-        stock-reconciliation decision.
-        """
+        """Both deliveries remain available and traceable independently."""
         po = make_purchase_order(status="submitted")
         line = make_po_line(po, quantity="10.00")
         allocation: Mapping[str, Mapping[str, object]] = {
@@ -404,9 +396,8 @@ class TestDeliveryReceiptEffects:
         _post_receipt(client, po, allocation, if_match=_po_etag(client, po))
         _post_receipt(client, po, allocation, if_match=_po_etag(client, po))
 
-        # One stock row survives (the prior one was deleted) but the received
-        # total counted both receipts — that is the divergence being recorded.
-        assert Stock.objects.filter(source="purchase_order").count() == 1
+        assert Stock.objects.filter(source="purchase_order").count() == 2
+        assert sum(row.quantity for row in Stock.objects.filter(source="purchase_order")) == 6
         line.refresh_from_db()
         assert line.received_quantity == Decimal("6.00")
 
@@ -472,15 +463,10 @@ class TestDeliveryReceiptValidation:
         line.refresh_from_db()
         assert line.received_quantity == Decimal("4.00")
 
-    def test_receiving_again_is_refused_while_a_job_has_consumed_the_stock(
+    def test_receiving_again_preserves_consumed_stock_and_adds_a_new_lot(
         self, client: Client, stock_holding_job: Job, job: Job
     ) -> None:
-        """Re-receipting replaces the line's stock, so consumed stock blocks it.
-
-        The allocation-delete path has always refused this; the receipt path
-        would have deleted the row and left the consuming cost line's
-        ``ext_refs.stock_id`` dangling.
-        """
+        """An onward issue never prevents recording another real delivery."""
         po = make_purchase_order(status="submitted")
         line = make_po_line(po, quantity="10.00", unit_cost="5.00")
         _post_receipt(
@@ -514,11 +500,12 @@ class TestDeliveryReceiptValidation:
             if_match=_po_etag(client, po),
         )
 
-        assert response.status_code == 400
-        assert "consumed by" in response.json()["detail"]
-        assert Stock.objects.filter(id=stock.id).exists()
+        assert response.status_code == 200
+        stock.refresh_from_db()
+        assert stock.quantity == 3
+        assert Stock.objects.filter(source_purchase_order_line=line).count() == 2
         line.refresh_from_db()
-        assert line.received_quantity == Decimal("4.00")
+        assert line.received_quantity == Decimal("7.00")
 
     def test_a_price_tbc_line_cannot_be_received(
         self, client: Client, stock_holding_job: Job

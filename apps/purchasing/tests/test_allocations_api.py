@@ -121,7 +121,7 @@ class TestAllocationDetails:
         assert body["consumed_by_jobs"] == 0
         assert body["location"] == "Rack 2"
 
-    def test_consumed_stock_reports_that_it_cannot_be_deleted(
+    def test_consumed_stock_can_be_corrected_without_erasing_job_history(
         self, client: Client, stock_holding_job: Job, job: Job
     ) -> None:
         po = make_purchase_order(status="submitted")
@@ -136,7 +136,7 @@ class TestAllocationDetails:
 
         body = client.get(f"{PO_URL}{po.id}/allocations/stock/{stock.id}/details/").json()
 
-        assert body["can_delete"] is False
+        assert body["can_delete"] is True
         assert body["consumed_by_jobs"] == 1
 
     def test_job_allocation_details_report_the_rates(
@@ -250,13 +250,14 @@ class TestAllocationDeletion:
         assert body["success"] is True
         assert body["deleted_quantity"] == 5.0
         assert body["updated_received_quantity"] == 0.0
-        assert not Stock.objects.filter(id=stock.id).exists()
+        stock.refresh_from_db()
+        assert stock.quantity == 0
         line.refresh_from_db()
         assert line.received_quantity == Decimal("0.00")
         po.refresh_from_db()
         assert po.status == "submitted"
 
-    def test_deleting_a_job_allocation_removes_the_cost_line(
+    def test_reversing_a_job_allocation_preserves_and_credits_the_cost_line(
         self,
         client: Client,
         stock_holding_job: Job,  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
@@ -271,11 +272,14 @@ class TestAllocationDeletion:
 
         assert body["success"] is True
         assert body["job_name"] == job.name
-        assert not CostLine.objects.filter(id=cost_line.id).exists()
+        assert CostLine.objects.filter(id=cost_line.id).exists()
+        assert (
+            sum(row.quantity for row in CostLine.objects.filter(cost_set=cost_line.cost_set)) == 0
+        )
         line.refresh_from_db()
         assert line.received_quantity == Decimal("0.00")
 
-    def test_consumed_stock_cannot_be_deleted(
+    def test_receipt_reversal_preserves_onward_issues_and_negative_stock(
         self, client: Client, stock_holding_job: Job, job: Job
     ) -> None:
         po = make_purchase_order(status="submitted")
@@ -290,8 +294,10 @@ class TestAllocationDeletion:
 
         response = self._delete(client, po, str(line.id), "stock", str(stock.id))
 
-        assert response.status_code == 400
-        assert "consumed by 1 job(s)" in response.json()["detail"]
+        assert response.status_code == 200
+        stock.refresh_from_db()
+        assert stock.quantity == -1
+        assert CostLine.objects.filter(cost_set__job=job, quantity=1).exists()
         assert Stock.objects.filter(id=stock.id).exists()
 
     def test_deleting_bumps_the_po_etag_even_when_the_status_is_unchanged(

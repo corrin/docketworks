@@ -32,6 +32,7 @@ from apps.purchasing.models import Stock
 from apps.purchasing.services import stock_service
 from apps.purchasing.services.allocation_service import (
     AllocationMetadata,
+    MaterialAllocation,
     create_stock_from_allocation,
 )
 from apps.purchasing.tasks import (
@@ -397,7 +398,7 @@ class TestStockWriteSitesQueueTheParser:
                 STOCK_URL,
                 data={
                     "description": ALUMINIUM_SHEET,
-                    "quantity": "1",
+                    "quantity": "0",
                     "unit_cost": "10.00",
                     "source": "manual",
                 },
@@ -422,7 +423,7 @@ class TestStockWriteSitesQueueTheParser:
                 STOCK_URL,
                 data={
                     "description": ALUMINIUM_SHEET,
-                    "quantity": "1",
+                    "quantity": "0",
                     "unit_cost": "10.00",
                     "source": "manual",
                     "metal_type": "aluminium",
@@ -472,10 +473,13 @@ class TestStockWriteSitesQueueTheParser:
         ):
             stock = create_stock_from_allocation(
                 line=line,
-                job=stock_holding_job,
-                qty=Decimal("1.00"),
-                metadata=AllocationMetadata.from_line(line),
-                retail_rate_pct=Decimal("20.00"),
+                allocation=MaterialAllocation(
+                    stock_holding_job,
+                    Decimal("1.00"),
+                    AllocationMetadata.from_line(line),
+                    Decimal("20.00"),
+                ),
+                staff=office_staff,
             )
 
         delay.assert_called_once_with(str(stock.id), force=False)
@@ -497,7 +501,7 @@ class TestStockWriteSitesQueueTheParser:
                 stock_service.create_stock(
                     {
                         "description": ALUMINIUM_SHEET,
-                        "quantity": Decimal("1"),
+                        "quantity": Decimal("0"),
                         "unit_cost": Decimal("10.00"),
                     }
                 )

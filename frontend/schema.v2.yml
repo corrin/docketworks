@@ -2438,6 +2438,11 @@ components:
             type: string
           - type: 'null'
           title: Labour Subtype
+        managed_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Managed By
         meta:
           additionalProperties: true
           title: Meta
@@ -2515,6 +2520,7 @@ components:
       - xero_last_modified
       - xero_last_synced
       - approved
+      - managed_by
       - xero_pay_item
       - staff
       - entry_seq
@@ -12814,6 +12820,76 @@ components:
       - source
       title: StockItemRequest
       type: object
+    StockMovementOut:
+      description: A movement and its human-readable counterpart.
+      properties:
+        actor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Actor
+        can_return:
+          title: Can Return
+          type: boolean
+        counterpart_job_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Counterpart Job Id
+        counterpart_name:
+          title: Counterpart Name
+          type: string
+        description:
+          title: Description
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        kind:
+          title: Kind
+          type: string
+        quantity_after:
+          title: Quantity After
+          type: number
+        quantity_before:
+          title: Quantity Before
+          type: number
+        quantity_change:
+          title: Quantity Change
+          type: number
+        reason:
+          title: Reason
+          type: string
+        recorded_at:
+          format: date-time
+          title: Recorded At
+          type: string
+        stock_id:
+          format: uuid
+          title: Stock Id
+          type: string
+        unit_cost:
+          title: Unit Cost
+          type: number
+      required:
+      - actor
+      - can_return
+      - counterpart_job_id
+      - counterpart_name
+      - description
+      - id
+      - kind
+      - quantity_after
+      - quantity_before
+      - quantity_change
+      - reason
+      - recorded_at
+      - stock_id
+      - unit_cost
+      title: StockMovementOut
+      type: object
     StockSearchQuery:
       description: Query params for purchasing_stock_search_retrieve.
       properties:
@@ -12866,6 +12942,384 @@ components:
       - page_size
       - total_pages
       title: StockSearchResponse
+      type: object
+    StocktakeCreate:
+      description: StocktakeCreate wire contract.
+      properties:
+        stock_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Stock Id
+      title: StocktakeCreate
+      type: object
+    StocktakeDetail:
+      description: StocktakeDetail wire contract.
+      properties:
+        adjustment_job_id:
+          format: uuid
+          title: Adjustment Job Id
+          type: string
+        author:
+          title: Author
+          type: string
+        corrects_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Corrects Id
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        discrepancy_value:
+          title: Discrepancy Value
+          type: number
+        id:
+          format: uuid
+          title: Id
+          type: string
+        lines:
+          items:
+            $ref: '#/components/schemas/StocktakeLineOut'
+          title: Lines
+          type: array
+        posted_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Posted At
+        version:
+          title: Version
+          type: integer
+      required:
+      - adjustment_job_id
+      - author
+      - corrects_id
+      - created_at
+      - discrepancy_value
+      - id
+      - lines
+      - posted_at
+      - version
+      title: StocktakeDetail
+      type: object
+    StocktakeLineOut:
+      description: StocktakeLineOut wire contract.
+      properties:
+        counted_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Counted At
+        counted_quantity:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Counted Quantity
+        current_quantity:
+          title: Current Quantity
+          type: number
+        current_version:
+          title: Current Version
+          type: integer
+        description:
+          title: Description
+          type: string
+        difference:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Difference
+        expected_quantity:
+          title: Expected Quantity
+          type: number
+        expected_version:
+          title: Expected Version
+          type: integer
+        id:
+          format: uuid
+          title: Id
+          type: string
+        location:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Location
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        stale:
+          title: Stale
+          type: boolean
+        stock_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Stock Id
+        unit_cost:
+          title: Unit Cost
+          type: number
+        value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Value
+      required:
+      - counted_at
+      - counted_quantity
+      - current_quantity
+      - current_version
+      - description
+      - difference
+      - expected_quantity
+      - expected_version
+      - id
+      - location
+      - reason
+      - stale
+      - stock_id
+      - unit_cost
+      - value
+      title: StocktakeLineOut
+      type: object
+    StocktakeLineWrite:
+      description: StocktakeLineWrite wire contract.
+      properties:
+        counted_quantity:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Counted Quantity
+        description:
+          maxLength: 255
+          minLength: 1
+          title: Description
+          type: string
+        expected_quantity:
+          title: Expected Quantity
+          type: number
+        expected_version:
+          title: Expected Version
+          type: integer
+        id:
+          format: uuid
+          title: Id
+          type: string
+        location:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Location
+        reason:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Reason
+        stock_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Stock Id
+        unit_cost:
+          title: Unit Cost
+          type: number
+      required:
+      - id
+      - stock_id
+      - description
+      - location
+      - expected_version
+      - expected_quantity
+      - counted_quantity
+      - unit_cost
+      - reason
+      title: StocktakeLineWrite
+      type: object
+    StocktakeList:
+      description: StocktakeList wire contract.
+      properties:
+        count:
+          title: Count
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/StocktakeSummary'
+          title: Results
+          type: array
+      required:
+      - count
+      - results
+      title: StocktakeList
+      type: object
+    StocktakeSave:
+      description: StocktakeSave wire contract.
+      properties:
+        lines:
+          items:
+            $ref: '#/components/schemas/StocktakeLineWrite'
+          title: Lines
+          type: array
+        version:
+          title: Version
+          type: integer
+      required:
+      - version
+      - lines
+      title: StocktakeSave
+      type: object
+    StocktakeSearch:
+      description: StocktakeSearch wire contract.
+      properties:
+        location:
+          default: ''
+          title: Location
+          type: string
+        page:
+          default: 1
+          minimum: 1
+          title: Page
+          type: integer
+        page_size:
+          default: 50
+          maximum: 100
+          minimum: 1
+          title: Page Size
+          type: integer
+        q:
+          default: ''
+          title: Q
+          type: string
+      title: StocktakeSearch
+      type: object
+    StocktakeSetup:
+      description: StocktakeSetup wire contract.
+      properties:
+        adjustment_job_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Adjustment Job Id
+      required:
+      - adjustment_job_id
+      title: StocktakeSetup
+      type: object
+    StocktakeStockList:
+      description: StocktakeStockList wire contract.
+      properties:
+        count:
+          title: Count
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/StocktakeStockOut'
+          title: Results
+          type: array
+      required:
+      - count
+      - results
+      title: StocktakeStockList
+      type: object
+    StocktakeStockOut:
+      description: StocktakeStockOut wire contract.
+      properties:
+        description:
+          title: Description
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        inventory_version:
+          title: Inventory Version
+          type: integer
+        location:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Location
+        quantity:
+          title: Quantity
+          type: number
+        unit_cost:
+          title: Unit Cost
+          type: number
+      required:
+      - description
+      - id
+      - inventory_version
+      - location
+      - quantity
+      - unit_cost
+      title: StocktakeStockOut
+      type: object
+    StocktakeSummary:
+      description: StocktakeSummary wire contract.
+      properties:
+        adjustment_job_id:
+          format: uuid
+          title: Adjustment Job Id
+          type: string
+        author:
+          title: Author
+          type: string
+        corrects_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Corrects Id
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        discrepancy_value:
+          title: Discrepancy Value
+          type: number
+        id:
+          format: uuid
+          title: Id
+          type: string
+        posted_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Posted At
+        version:
+          title: Version
+          type: integer
+      required:
+      - adjustment_job_id
+      - author
+      - corrects_id
+      - created_at
+      - discrepancy_value
+      - id
+      - posted_at
+      - version
+      title: StocktakeSummary
+      type: object
+    StocktakeVersion:
+      description: StocktakeVersion wire contract.
+      properties:
+        version:
+          title: Version
+          type: integer
+      required:
+      - version
+      title: StocktakeVersion
       type: object
     SummaryStatsOut:
       description: Wire contract for SummaryStatsOut.
@@ -13517,6 +13971,11 @@ components:
             type: string
           - type: 'null'
           title: Labour Subtype
+        managed_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Managed By
         meta:
           additionalProperties: true
           title: Meta
@@ -13594,6 +14053,7 @@ components:
       - xero_last_modified
       - xero_last_synced
       - approved
+      - managed_by
       - xero_pay_item
       - staff
       - entry_seq
@@ -20909,6 +21369,30 @@ paths:
       summary: Download the purchase order PDF
       tags:
       - purchasing
+  /api/purchasing/stock-movements/{id}/return/:
+    post:
+      description: Return an issue and credit its original job once.
+      operationId: stock_movement_return
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovementOut'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Return Material
+      tags:
+      - purchasing
   /api/purchasing/stock/:
     get:
       description: List every active stock item, newest first.
@@ -21132,6 +21616,318 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Consume stock for a job
+      tags:
+      - purchasing
+  /api/purchasing/stock/{id}/movements/:
+    get:
+      description: Read a stock identity's complete movement history.
+      operationId: stock_movements_list
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/StockMovementOut'
+                title: Response
+                type: array
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Stock History
+      tags:
+      - purchasing
+  /api/purchasing/stocktakes/:
+    get:
+      description: List counts with bounded paging and their net inventory value differences.
+      operationId: stocktake_list
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          default: ''
+          title: Q
+          type: string
+      - in: query
+        name: location
+        required: false
+        schema:
+          default: ''
+          title: Location
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          minimum: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
+        required: false
+        schema:
+          default: 50
+          maximum: 100
+          minimum: 1
+          title: Page Size
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeList'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Count List
+      tags:
+      - purchasing
+    post:
+      description: Start a count, optionally preselecting a stock row for a spot correction.
+      operationId: stocktake_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StocktakeCreate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeDetail'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Count Create
+      tags:
+      - purchasing
+  /api/purchasing/stocktakes/setup/:
+    get:
+      description: Read setup without creating a job or configuration row.
+      operationId: stocktake_setup_retrieve
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeSetup'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Setup Retrieve
+      tags:
+      - purchasing
+    post:
+      description: Create the non-billable counterpart once through the supported workflow.
+      operationId: stocktake_setup_create
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeSetup'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Setup Create
+      tags:
+      - purchasing
+  /api/purchasing/stocktakes/stock/:
+    get:
+      description: Search physical workshop stock, including zero and retired balances.
+      operationId: stocktake_stock_list
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          default: ''
+          title: Q
+          type: string
+      - in: query
+        name: location
+        required: false
+        schema:
+          default: ''
+          title: Location
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          minimum: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
+        required: false
+        schema:
+          default: 50
+          maximum: 100
+          minimum: 1
+          title: Page Size
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeStockList'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Stock List
+      tags:
+      - purchasing
+  /api/purchasing/stocktakes/{id}/:
+    get:
+      description: Read a draft or immutable posted count and its current stock versions.
+      operationId: stocktake_retrieve
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeDetail'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Count Retrieve
+      tags:
+      - purchasing
+    put:
+      description: Save all draft observations atomically with a draft version precondition.
+      operationId: stocktake_update
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StocktakeSave'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeDetail'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Count Update
+      tags:
+      - purchasing
+  /api/purchasing/stocktakes/{id}/correct/:
+    post:
+      description: Start a linked recount without erasing the original observation.
+      operationId: stocktake_correct
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeDetail'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Count Correct
+      tags:
+      - purchasing
+  /api/purchasing/stocktakes/{id}/movements/:
+    get:
+      description: Read every posted difference on a stocktake.
+      operationId: stocktake_movements_list
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/StockMovementOut'
+                title: Response
+                type: array
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Count History
+      tags:
+      - purchasing
+  /api/purchasing/stocktakes/{id}/post/:
+    post:
+      description: Post the reviewed count exactly once.
+      operationId: stocktake_post
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StocktakeVersion'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeDetail'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Count Post
       tags:
       - purchasing
   /api/purchasing/supplier-price-status/:

@@ -551,3 +551,28 @@ export type {
 export { zAiProviderTypes } from './generated/zod.gen'
 
 export type { QuotingChatModelOut } from './generated/types.gen'
+
+export {
+  stocktakeCreateMutation,
+  stocktakeListOptions,
+  stocktakeSetupCreateMutation,
+  stocktakeSetupRetrieveOptions,
+  stocktakeRetrieveOptions,
+  stocktakeUpdateMutation,
+  stocktakePostMutation,
+  stocktakeCorrectMutation,
+  stocktakeStockListOptions,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  StocktakeDetail,
+  StocktakeLineOut,
+  StocktakeLineWrite,
+  StocktakeStockOut,
+} from './generated/types.gen'
+
+export {
+  stockMovementsListOptions,
+  stocktakeMovementsListOptions,
+  stockMovementReturnMutation,
+} from './generated/@tanstack/react-query.gen'
+export type { StockMovementOut } from './generated/types.gen'

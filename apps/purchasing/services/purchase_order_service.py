@@ -42,6 +42,7 @@ from apps.purchasing.models import (
 from apps.purchasing.schemas import PurchaseOrderStatus
 from apps.purchasing.services.allocation_service import (
     AllocationMetadata,
+    MaterialAllocation,
     create_costline_from_allocation,
     create_stock_from_allocation,
     default_retail_rate_pct,
@@ -441,10 +442,10 @@ def _auto_allocate_line(line: PurchaseOrderLine, po: PurchaseOrder, staff: Staff
             return
         create_stock_from_allocation(
             line=line,
-            job=stock_job,
-            qty=line.quantity,
-            metadata=AllocationMetadata.from_line(line),
-            retail_rate_pct=retail_rate_pct,
+            allocation=MaterialAllocation(
+                stock_job, line.quantity, AllocationMetadata.from_line(line), retail_rate_pct
+            ),
+            staff=staff,
         )
         line.received_quantity = line.quantity
         line.save()

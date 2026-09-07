@@ -47,6 +47,7 @@ class CostLineOut(Schema):
     xero_last_modified: datetime | None
     xero_last_synced: datetime | None
     approved: bool
+    managed_by: str | None
     xero_pay_item: UUID | None
     staff: UUID | None
     entry_seq: int | None

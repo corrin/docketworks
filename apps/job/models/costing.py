@@ -261,7 +261,7 @@ class CostLine(models.Model):
 
     managed_by = models.CharField(  # noqa: DJ001 -- NULL means no owning workflow
         max_length=20,
-        choices=[("leave", "Leave")],
+        choices=[("leave", "Leave"), ("stocktake", "Stocktake"), ("stock", "Stock movement")],
         null=True,
         blank=True,
         help_text="Workflow that owns this line; owned lines are changed through that workflow.",

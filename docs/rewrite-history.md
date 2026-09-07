@@ -18,6 +18,33 @@ restating it. Nothing here is a task.
 
 ## Cutover
 
+**2026-09-07 — Stocktake implementation.** The owner selected one ongoing
+non-billable Stocktake Adjustments job with separate dated counts, and explicit
+unit cost for newly found stock. Purchases now exposes Stocktake beside Use Stock.
+Drafts distinguish blank from zero and post only counted differences, with an
+opposite signed material cost on the adjustment job. Posted counts, movements and
+movement-owned costs are immutable; corrections create linked recounts. Stock
+history exposes original issues and linked returns. Generic stock quantity edits
+and nonempty retirement are refused. Receipts, issues, returns and counts share
+the movement writer; existing balances receive opening entries, repeated receipts
+retain earlier lots, and Xero catalogue import no longer overwrites local SOH.
+The cost grid displays movement-owned lines read-only with stock history links.
+
+Validation: the full Python suite passed 3,016 tests; scoped purchasing/job
+regressions passed 292 tests. Frontend
+costing/timesheet tests passed 141 tests. Stocktake and stock-search E2E passed all
+four tests, including concurrent posting requests, found/missing material,
+correction history, blank counts and pagination beyond 50 counts. Screenshots at
+1366/1024/390 widths were captured through the real browser workflow. Standard
+Playwright setup and database backup/restore succeeded. The managed E2E harness
+was refused during Xero cleanup with zero daily calls remaining; full E2E and
+live Xero verification remain release gates, not waived checks. The explicit PO
+integration attempt reported one pass and five setup errors from Xero HTTP 429,
+with X-DayLimit-Remaining 0. All 719 development stock rows reconciled exactly
+to the movement ledger after migration and E2E restoration. Two additional SDK
+item-import regression tests passed, including a receipt interleaved between
+catalogue read and save; the import writes only changed catalogue fields.
+
 **2026-09-07 — Owner ruling: stock moves; it is never deleted.** Receipt,
 issue, return and correction workflows must preserve stock history through
 movements. The owner proposed a stocktake job as the counterpart for extra stock

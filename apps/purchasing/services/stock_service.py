@@ -29,11 +29,13 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.models import Staff
+from apps.core.errors import InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import Stock
 from apps.purchasing.services.allocation_service import ensure_actual_cost_set
+from apps.purchasing.services.stock_movement_service import MovementContext, move_stock
 from apps.purchasing.tasks import queue_metadata_parse_if_eligible
 
 logger = logging.getLogger(__name__)
@@ -112,24 +114,41 @@ def _apply_stock_fields(stock: Stock, data: StockWriteData) -> None:
 
 def create_stock(data: StockWriteData) -> Stock:
     """Create a stock row on the stock-holding job."""
-    stock = Stock(job=Stock.get_stock_holding_job(), date=timezone.now())
+    if "quantity" in data and data["quantity"] != 0:
+        raise InvalidInputError("Record found material through Stocktake.")
+    stock = Stock(job=Stock.get_stock_holding_job(), date=timezone.now(), quantity=0)
     _apply_stock_fields(stock, data)
     stock.save()
     queue_metadata_parse_if_eligible(stock)
     return stock
 
 
+@transaction.atomic
 def update_stock(stock: Stock, data: StockWriteData) -> Stock:
     """Apply a create/update payload to an existing stock row."""
+    stock = Stock.objects.select_for_update().get(pk=stock.pk)
+    if "source" in data and data["source"] != stock.source:
+        raise InvalidInputError("Stock provenance cannot be overwritten.")
+    if "quantity" in data and data["quantity"] != stock.quantity:
+        raise InvalidInputError("Record quantity corrections through Stocktake.")
+    if "unit_cost" in data and data["unit_cost"] != stock.unit_cost:
+        raise InvalidInputError("Historical stock costs cannot be overwritten.")
+    if "is_active" in data and not data["is_active"] and stock.quantity != 0:
+        raise InvalidInputError("Count this stock before retiring its identity.")
     _apply_stock_fields(stock, data)
     stock.save()
     queue_metadata_parse_if_eligible(stock)
     return stock
 
 
+@transaction.atomic
 def deactivate_stock(stock: Stock) -> None:
-    """Soft-delete a stock row."""
-    Stock.objects.filter(id=stock.id).update(is_active=False)
+    """Retire an empty stock identity while preserving its history."""
+    stock = Stock.objects.select_for_update().get(pk=stock.pk)
+    if stock.quantity != 0:
+        raise InvalidInputError("Count this stock before retiring its identity.")
+    stock.is_active = False
+    stock.save(update_fields=["is_active"])
 
 
 def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explicit and keyword-only.
@@ -155,29 +174,13 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
     with transaction.atomic():
         # Re-read under a row lock so concurrent consumption cannot double-spend.
         locked = Stock.objects.select_for_update().get(id=item.id)
-        original_quantity = locked.quantity
-        locked.quantity -= qty
-
-        if locked.quantity < 0:
-            logger.warning(
-                "Stock item %s (%s) went negative: %s -> %s (consumed %s)",
-                locked.id,
-                locked.description,
-                original_quantity,
-                locked.quantity,
-                qty,
-            )
-        elif locked.quantity == 0:
-            logger.info(
-                "Stock item %s (%s) fully consumed: %s -> 0 (consumed %s)",
-                locked.id,
-                locked.description,
-                original_quantity,
-                qty,
-            )
-        locked.save(update_fields=["quantity"])
-        item.quantity = locked.quantity
-
+        if line is not None:
+            line = CostLine.objects.select_for_update().get(pk=line.pk)
+            if line.managed_by == "stock":
+                if line.quantity != qty or line.cost_set.job_id != job.id:
+                    raise ValueError("This issue is already posted; return it before changing it.")
+                item.quantity = locked.quantity
+                return line
         resolved_cost = locked.unit_cost if unit_cost is None else unit_cost
         if job.shop_job:
             # Shop jobs don't bill customers, so revenue must be zero.
@@ -198,6 +201,7 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
             cost_line = CostLine(
                 cost_set=cost_set,
                 kind="material",
+                managed_by="stock",
                 desc=locked.description,
                 quantity=qty,
                 unit_cost=resolved_cost,
@@ -214,8 +218,21 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
                 job.id,
                 cost_line.id,
             )
+            move_stock(
+                locked,
+                -qty,
+                MovementContext(
+                    kind="issue",
+                    reason="Material issued to job",
+                    actor=user,
+                    counterpart_job=job,
+                    cost_line=cost_line,
+                ),
+            )
+            item.quantity = locked.quantity
             return cost_line
 
+        line.managed_by = "stock"
         line.approved = True
         line.quantity = qty
         line.desc = locked.description
@@ -229,6 +246,7 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
         line.save(
             update_fields=[
                 "approved",
+                "managed_by",
                 "quantity",
                 "desc",
                 "unit_cost",
@@ -246,4 +264,16 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
             job.id,
             qty,
         )
+        move_stock(
+            locked,
+            -qty,
+            MovementContext(
+                kind="issue",
+                reason="Workshop material approved",
+                actor=user,
+                counterpart_job=job,
+                cost_line=line,
+            ),
+        )
+        item.quantity = locked.quantity
         return line

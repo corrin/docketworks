@@ -604,6 +604,18 @@ renamed:
   process_forms_update: process_forms_partial_update
   process_forms_entries_update: process_entries_partial_update
 introduced:
+- stock_movement_return
+- stock_movements_list
+- stocktake_correct
+- stocktake_create
+- stocktake_list
+- stocktake_movements_list
+- stocktake_post
+- stocktake_retrieve
+- stocktake_setup_create
+- stocktake_setup_retrieve
+- stocktake_stock_list
+- stocktake_update
 - ai_providers_test
 # GPT: Public ChatKit domain configuration and CSRF token for the job-scoped SDK embed.
 - job_quote_chat_config_retrieve

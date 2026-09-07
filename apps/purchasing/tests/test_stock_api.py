@@ -39,7 +39,7 @@ class TestStockCrud:
             STOCK_URL,
             data={
                 "description": "6mm plate",
-                "quantity": "3",
+                "quantity": "0",
                 "unit_cost": "80.00",
                 "source": "manual",
                 "location": "Rack 1",
@@ -121,10 +121,12 @@ class TestStockCrud:
         assert body["job_id"] == str(stock_holding_job.id)
         assert body["times_used"] == 0
 
-    def test_put_replaces_the_row(self, client: Client, stock_holding_job: Job) -> None:
+    def test_put_cannot_overwrite_a_stock_balance(
+        self, client: Client, stock_holding_job: Job
+    ) -> None:
         stock = make_stock(stock_holding_job, description="Old", quantity="1.00")
 
-        client.put(
+        response = client.put(
             f"{STOCK_URL}{stock.id}/",
             data={
                 "description": "New",
@@ -136,8 +138,9 @@ class TestStockCrud:
         )
 
         stock.refresh_from_db()
-        assert stock.description == "New"
-        assert stock.quantity == Decimal("9.00")
+        assert response.status_code == 400
+        assert stock.description == "Old"
+        assert stock.quantity == Decimal("1.00")
 
     def test_patch_leaves_unsent_fields_alone(self, client: Client, stock_holding_job: Job) -> None:
         stock = make_stock(stock_holding_job, description="Keep", quantity="7.00")
@@ -152,8 +155,8 @@ class TestStockCrud:
         assert stock.description == "Renamed"
         assert stock.quantity == Decimal("7.00")
 
-    def test_delete_is_a_soft_delete(self, client: Client, stock_holding_job: Job) -> None:
-        stock = make_stock(stock_holding_job)
+    def test_only_empty_stock_can_be_retired(self, client: Client, stock_holding_job: Job) -> None:
+        stock = make_stock(stock_holding_job, quantity="0")
 
         response = client.delete(f"{STOCK_URL}{stock.id}/")
 
@@ -174,7 +177,7 @@ class TestStockCrud:
             STOCK_URL,
             data={
                 "description": "Broken",
-                "quantity": "1",
+                "quantity": "0",
                 "unit_cost": "-1.00",
                 "source": "manual",
             },
@@ -370,10 +373,6 @@ class TestStockWriteFields:
         response = client.patch(
             f"{STOCK_URL}{stock.id}/",
             data={
-                "quantity": "12.50",
-                "unit_cost": "31.00",
-                "source": "split_from_stock",
-                "is_active": False,
                 "unit_revenue": "44.00",
                 "date": "2026-03-04",
                 "item_code": "RB12",
@@ -387,10 +386,10 @@ class TestStockWriteFields:
 
         assert response.status_code == 200
         stock.refresh_from_db()
-        assert stock.quantity == Decimal("12.50")
-        assert stock.unit_cost == Decimal("31.00")
-        assert stock.source == "split_from_stock"
-        assert stock.is_active is False
+        assert stock.quantity == Decimal("1.00")
+        assert stock.unit_cost == Decimal("25.00")
+        assert stock.source == "manual"
+        assert stock.is_active is True
         assert stock.unit_revenue == Decimal("44.00")
         assert response.json()["date"].startswith("2026-03-0")
         assert stock.item_code == "RB12"
@@ -411,7 +410,7 @@ class TestStockWriteFields:
             STOCK_URL,
             data={
                 "description": "Backdated bar",
-                "quantity": "3",
+                "quantity": "0",
                 "unit_cost": "10.00",
                 "source": "manual",
                 "date": "2026-02-01",

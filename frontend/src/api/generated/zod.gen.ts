@@ -798,6 +798,7 @@ export const zCostLineOut = z.object({
     id: z.uuid(),
     kind: z.string(),
     labour_subtype: z.uuid().nullable(),
+    managed_by: z.string().nullable(),
     meta: z.record(z.string(), z.unknown()),
     quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     staff: z.uuid().nullable(),
@@ -5159,6 +5160,28 @@ export const zStockItemRequest = z.object({
 });
 
 /**
+ * StockMovementOut
+ *
+ * A movement and its human-readable counterpart.
+ */
+export const zStockMovementOut = z.object({
+    actor: z.string().nullable(),
+    can_return: z.boolean(),
+    counterpart_job_id: z.uuid().nullable(),
+    counterpart_name: z.string(),
+    description: z.string(),
+    id: z.uuid(),
+    kind: z.string(),
+    quantity_after: z.number(),
+    quantity_before: z.number(),
+    quantity_change: z.number(),
+    reason: z.string(),
+    recorded_at: z.iso.datetime(),
+    stock_id: z.uuid(),
+    unit_cost: z.number()
+});
+
+/**
  * StockSearchQuery
  *
  * Query params for purchasing_stock_search_retrieve.
@@ -5182,6 +5205,162 @@ export const zStockSearchResponse = z.object({
     page_size: z.int(),
     results: z.array(zStockItem),
     total_pages: z.int()
+});
+
+/**
+ * StocktakeCreate
+ *
+ * StocktakeCreate wire contract.
+ */
+export const zStocktakeCreate = z.object({
+    stock_id: z.uuid().nullish()
+});
+
+/**
+ * StocktakeLineOut
+ *
+ * StocktakeLineOut wire contract.
+ */
+export const zStocktakeLineOut = z.object({
+    counted_at: z.iso.datetime().nullable(),
+    counted_quantity: z.number().nullable(),
+    current_quantity: z.number(),
+    current_version: z.int(),
+    description: z.string(),
+    difference: z.number().nullable(),
+    expected_quantity: z.number(),
+    expected_version: z.int(),
+    id: z.uuid(),
+    location: z.string().nullable(),
+    reason: z.string().nullable(),
+    stale: z.boolean(),
+    stock_id: z.uuid().nullable(),
+    unit_cost: z.number(),
+    value: z.number().nullable()
+});
+
+/**
+ * StocktakeDetail
+ *
+ * StocktakeDetail wire contract.
+ */
+export const zStocktakeDetail = z.object({
+    adjustment_job_id: z.uuid(),
+    author: z.string(),
+    corrects_id: z.uuid().nullable(),
+    created_at: z.iso.datetime(),
+    discrepancy_value: z.number(),
+    id: z.uuid(),
+    lines: z.array(zStocktakeLineOut),
+    posted_at: z.iso.datetime().nullable(),
+    version: z.int()
+});
+
+/**
+ * StocktakeLineWrite
+ *
+ * StocktakeLineWrite wire contract.
+ */
+export const zStocktakeLineWrite = z.object({
+    counted_quantity: z.number().nullable(),
+    description: z.string().min(1).max(255),
+    expected_quantity: z.number(),
+    expected_version: z.int(),
+    id: z.uuid(),
+    location: z.string().min(1).nullable(),
+    reason: z.string().min(1).nullable(),
+    stock_id: z.uuid().nullable(),
+    unit_cost: z.number()
+});
+
+/**
+ * StocktakeSave
+ *
+ * StocktakeSave wire contract.
+ */
+export const zStocktakeSave = z.object({
+    lines: z.array(zStocktakeLineWrite),
+    version: z.int()
+});
+
+/**
+ * StocktakeSearch
+ *
+ * StocktakeSearch wire contract.
+ */
+export const zStocktakeSearch = z.object({
+    location: z.string().optional().default(''),
+    page: z.int().gte(1).optional().default(1),
+    page_size: z.int().gte(1).lte(100).optional().default(50),
+    q: z.string().optional().default('')
+});
+
+/**
+ * StocktakeSetup
+ *
+ * StocktakeSetup wire contract.
+ */
+export const zStocktakeSetup = z.object({
+    adjustment_job_id: z.uuid().nullable()
+});
+
+/**
+ * StocktakeStockOut
+ *
+ * StocktakeStockOut wire contract.
+ */
+export const zStocktakeStockOut = z.object({
+    description: z.string(),
+    id: z.uuid(),
+    inventory_version: z.int(),
+    location: z.string().nullable(),
+    quantity: z.number(),
+    unit_cost: z.number()
+});
+
+/**
+ * StocktakeStockList
+ *
+ * StocktakeStockList wire contract.
+ */
+export const zStocktakeStockList = z.object({
+    count: z.int(),
+    results: z.array(zStocktakeStockOut)
+});
+
+/**
+ * StocktakeSummary
+ *
+ * StocktakeSummary wire contract.
+ */
+export const zStocktakeSummary = z.object({
+    adjustment_job_id: z.uuid(),
+    author: z.string(),
+    corrects_id: z.uuid().nullable(),
+    created_at: z.iso.datetime(),
+    discrepancy_value: z.number(),
+    id: z.uuid(),
+    posted_at: z.iso.datetime().nullable(),
+    version: z.int()
+});
+
+/**
+ * StocktakeList
+ *
+ * StocktakeList wire contract.
+ */
+export const zStocktakeList = z.object({
+    count: z.int(),
+    results: z.array(zStocktakeSummary)
+});
+
+/**
+ * StocktakeVersion
+ *
+ * StocktakeVersion wire contract.
+ */
+export const zStocktakeVersion = z.object({
+    version: z.int()
 });
 
 /**
@@ -5476,6 +5655,7 @@ export const zTimesheetCostLineOut = z.object({
     job_number: z.int(),
     kind: z.string(),
     labour_subtype: z.uuid().nullable(),
+    managed_by: z.string().nullable(),
     meta: z.record(z.string(), z.unknown()),
     quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     staff: z.uuid().nullable(),
@@ -8106,6 +8286,15 @@ export const zGetPurchaseOrderPdfPath = z.object({
     po_id: z.uuid()
 });
 
+export const zStockMovementReturnPath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zStockMovementReturnResponse = zStockMovementOut;
+
 /**
  * Response
  *
@@ -8183,6 +8372,109 @@ export const zConsumeStockPath = z.object({
  * OK
  */
 export const zConsumeStockResponse = zStockConsumeResponse;
+
+export const zStockMovementsListPath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zStockMovementsListResponse = z.array(zStockMovementOut);
+
+export const zStocktakeListQuery = z.object({
+    q: z.string().optional().default(''),
+    location: z.string().optional().default(''),
+    page: z.int().gte(1).optional().default(1),
+    page_size: z.int().gte(1).lte(100).optional().default(50)
+});
+
+/**
+ * OK
+ */
+export const zStocktakeListResponse = zStocktakeList;
+
+export const zStocktakeCreateBody = zStocktakeCreate;
+
+/**
+ * OK
+ */
+export const zStocktakeCreateResponse = zStocktakeDetail;
+
+/**
+ * OK
+ */
+export const zStocktakeSetupRetrieveResponse = zStocktakeSetup;
+
+/**
+ * OK
+ */
+export const zStocktakeSetupCreateResponse = zStocktakeSetup;
+
+export const zStocktakeStockListQuery = z.object({
+    q: z.string().optional().default(''),
+    location: z.string().optional().default(''),
+    page: z.int().gte(1).optional().default(1),
+    page_size: z.int().gte(1).lte(100).optional().default(50)
+});
+
+/**
+ * OK
+ */
+export const zStocktakeStockListResponse = zStocktakeStockList;
+
+export const zStocktakeRetrievePath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zStocktakeRetrieveResponse = zStocktakeDetail;
+
+export const zStocktakeUpdateBody = zStocktakeSave;
+
+export const zStocktakeUpdatePath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zStocktakeUpdateResponse = zStocktakeDetail;
+
+export const zStocktakeCorrectPath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zStocktakeCorrectResponse = zStocktakeDetail;
+
+export const zStocktakeMovementsListPath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zStocktakeMovementsListResponse = z.array(zStockMovementOut);
+
+export const zStocktakePostBody = zStocktakeVersion;
+
+export const zStocktakePostPath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zStocktakePostResponse = zStocktakeDetail;
 
 /**
  * OK

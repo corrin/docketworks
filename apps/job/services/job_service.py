@@ -24,7 +24,6 @@ from django.db import IntegrityError, connection, transaction
 from django.db.models import (
     Case,
     Count,
-    F,
     IntegerField,
     Max,
     Min,
@@ -61,6 +60,7 @@ from apps.job.models.costing import CostLine, CostSet
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
 from apps.job.services.time_entry_rates import pay_item_by_id, price_time_entry
 from apps.purchasing.models import Stock
+from apps.purchasing.services.stock_movement_service import MovementContext, move_stock
 
 logger = logging.getLogger(__name__)
 
@@ -253,6 +253,7 @@ class CostLineData(TypedDict):
     xero_last_modified: datetime | None
     xero_last_synced: datetime | None
     approved: bool
+    managed_by: str | None
     xero_pay_item: UUID | None
     staff: UUID | None
     entry_seq: int | None
@@ -582,6 +583,7 @@ def cost_line_data(line: CostLine) -> CostLineData:
         "xero_last_modified": line.xero_last_modified,
         "xero_last_synced": line.xero_last_synced,
         "approved": line.approved,
+        "managed_by": line.managed_by,
         "xero_pay_item": line.xero_pay_item_id,
         "staff": line.staff_id,
         "entry_seq": line.entry_seq,
@@ -2281,6 +2283,8 @@ def refuse_leave_managed(line: CostLine, remedy: str) -> None:
     edit desync ``CostLine.quantity`` from ``LeaveDay.hours``, and a delete
     trips LeaveDay's PROTECT into a 500.
     """
+    if line.managed_by in ("stocktake", "stock"):
+        raise ValueError("This line belongs to a stock movement; correct it through purchasing.")
     if line.managed_by == "leave":
         raise ValueError(
             f"This line belongs to a leave request; {remedy} it from Timesheets → Leave."
@@ -2320,7 +2324,15 @@ def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
         # a stock item hypothetically, so a quantity edit there moves nothing.
         if stock_id and diff and line.cost_set.kind == "actual":
             # Use an F expression so concurrent stock adjustments cannot lose updates.
-            Stock.objects.filter(pk=stock_id).update(quantity=F("quantity") - diff)
+            move_stock(
+                Stock.objects.get(pk=stock_id),
+                -diff,
+                MovementContext(
+                    kind="issue" if diff > 0 else "return",
+                    reason="Legacy job quantity correction",
+                    counterpart_job=line.cost_set.job,
+                ),
+            )
     return line
 
 
@@ -2332,7 +2344,15 @@ def delete_cost_line(line: CostLine) -> None:
         # Only ACTUAL lines consumed anything; deleting an estimate or quote
         # line must not conjure stock that was never drawn.
         if stock_id and line.quantity and line.cost_set.kind == "actual":
-            Stock.objects.filter(pk=stock_id).update(quantity=F("quantity") + line.quantity)
+            move_stock(
+                Stock.objects.get(pk=stock_id),
+                line.quantity,
+                MovementContext(
+                    kind="return",
+                    reason="Legacy job material returned",
+                    counterpart_job=line.cost_set.job,
+                ),
+            )
         # CostLine.delete() refreshes the CostSet summary (model machinery).
         line.delete()
     logger.info("Deleted cost line %s", line.id)

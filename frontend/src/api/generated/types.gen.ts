@@ -2142,6 +2142,10 @@ export type CostLineOut = {
      */
     labour_subtype: string | null;
     /**
+     * Managed By
+     */
+    managed_by: string | null;
+    /**
      * Meta
      */
     meta: {
@@ -11366,6 +11370,70 @@ export type StockItemRequest = {
 };
 
 /**
+ * StockMovementOut
+ *
+ * A movement and its human-readable counterpart.
+ */
+export type StockMovementOut = {
+    /**
+     * Actor
+     */
+    actor: string | null;
+    /**
+     * Can Return
+     */
+    can_return: boolean;
+    /**
+     * Counterpart Job Id
+     */
+    counterpart_job_id: string | null;
+    /**
+     * Counterpart Name
+     */
+    counterpart_name: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Quantity After
+     */
+    quantity_after: number;
+    /**
+     * Quantity Before
+     */
+    quantity_before: number;
+    /**
+     * Quantity Change
+     */
+    quantity_change: number;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Recorded At
+     */
+    recorded_at: string;
+    /**
+     * Stock Id
+     */
+    stock_id: string;
+    /**
+     * Unit Cost
+     */
+    unit_cost: number;
+};
+
+/**
  * StockSearchQuery
  *
  * Query params for purchasing_stock_search_retrieve.
@@ -11419,6 +11487,342 @@ export type StockSearchResponse = {
      * Total Pages
      */
     total_pages: number;
+};
+
+/**
+ * StocktakeCreate
+ *
+ * StocktakeCreate wire contract.
+ */
+export type StocktakeCreate = {
+    /**
+     * Stock Id
+     */
+    stock_id?: string | null;
+};
+
+/**
+ * StocktakeDetail
+ *
+ * StocktakeDetail wire contract.
+ */
+export type StocktakeDetail = {
+    /**
+     * Adjustment Job Id
+     */
+    adjustment_job_id: string;
+    /**
+     * Author
+     */
+    author: string;
+    /**
+     * Corrects Id
+     */
+    corrects_id: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Discrepancy Value
+     */
+    discrepancy_value: number;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Lines
+     */
+    lines: Array<StocktakeLineOut>;
+    /**
+     * Posted At
+     */
+    posted_at: string | null;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * StocktakeLineOut
+ *
+ * StocktakeLineOut wire contract.
+ */
+export type StocktakeLineOut = {
+    /**
+     * Counted At
+     */
+    counted_at: string | null;
+    /**
+     * Counted Quantity
+     */
+    counted_quantity: number | null;
+    /**
+     * Current Quantity
+     */
+    current_quantity: number;
+    /**
+     * Current Version
+     */
+    current_version: number;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Difference
+     */
+    difference: number | null;
+    /**
+     * Expected Quantity
+     */
+    expected_quantity: number;
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Location
+     */
+    location: string | null;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * Stale
+     */
+    stale: boolean;
+    /**
+     * Stock Id
+     */
+    stock_id: string | null;
+    /**
+     * Unit Cost
+     */
+    unit_cost: number;
+    /**
+     * Value
+     */
+    value: number | null;
+};
+
+/**
+ * StocktakeLineWrite
+ *
+ * StocktakeLineWrite wire contract.
+ */
+export type StocktakeLineWrite = {
+    /**
+     * Counted Quantity
+     */
+    counted_quantity: number | null;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Expected Quantity
+     */
+    expected_quantity: number;
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Location
+     */
+    location: string | null;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * Stock Id
+     */
+    stock_id: string | null;
+    /**
+     * Unit Cost
+     */
+    unit_cost: number;
+};
+
+/**
+ * StocktakeList
+ *
+ * StocktakeList wire contract.
+ */
+export type StocktakeList = {
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Results
+     */
+    results: Array<StocktakeSummary>;
+};
+
+/**
+ * StocktakeSave
+ *
+ * StocktakeSave wire contract.
+ */
+export type StocktakeSave = {
+    /**
+     * Lines
+     */
+    lines: Array<StocktakeLineWrite>;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * StocktakeSearch
+ *
+ * StocktakeSearch wire contract.
+ */
+export type StocktakeSearch = {
+    /**
+     * Location
+     */
+    location?: string;
+    /**
+     * Page
+     */
+    page?: number;
+    /**
+     * Page Size
+     */
+    page_size?: number;
+    /**
+     * Q
+     */
+    q?: string;
+};
+
+/**
+ * StocktakeSetup
+ *
+ * StocktakeSetup wire contract.
+ */
+export type StocktakeSetup = {
+    /**
+     * Adjustment Job Id
+     */
+    adjustment_job_id: string | null;
+};
+
+/**
+ * StocktakeStockList
+ *
+ * StocktakeStockList wire contract.
+ */
+export type StocktakeStockList = {
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Results
+     */
+    results: Array<StocktakeStockOut>;
+};
+
+/**
+ * StocktakeStockOut
+ *
+ * StocktakeStockOut wire contract.
+ */
+export type StocktakeStockOut = {
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Inventory Version
+     */
+    inventory_version: number;
+    /**
+     * Location
+     */
+    location: string | null;
+    /**
+     * Quantity
+     */
+    quantity: number;
+    /**
+     * Unit Cost
+     */
+    unit_cost: number;
+};
+
+/**
+ * StocktakeSummary
+ *
+ * StocktakeSummary wire contract.
+ */
+export type StocktakeSummary = {
+    /**
+     * Adjustment Job Id
+     */
+    adjustment_job_id: string;
+    /**
+     * Author
+     */
+    author: string;
+    /**
+     * Corrects Id
+     */
+    corrects_id: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Discrepancy Value
+     */
+    discrepancy_value: number;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Posted At
+     */
+    posted_at: string | null;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * StocktakeVersion
+ *
+ * StocktakeVersion wire contract.
+ */
+export type StocktakeVersion = {
+    /**
+     * Version
+     */
+    version: number;
 };
 
 /**
@@ -11998,6 +12402,10 @@ export type TimesheetCostLineOut = {
      * Labour Subtype
      */
     labour_subtype: string | null;
+    /**
+     * Managed By
+     */
+    managed_by: string | null;
     /**
      * Meta
      */
@@ -17917,6 +18325,27 @@ export type GetPurchaseOrderPdfResponses = {
     200: unknown;
 };
 
+export type StockMovementReturnData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/purchasing/stock-movements/{id}/return/';
+};
+
+export type StockMovementReturnResponses = {
+    /**
+     * OK
+     */
+    200: StockMovementOut;
+};
+
+export type StockMovementReturnResponse = StockMovementReturnResponses[keyof StockMovementReturnResponses];
+
 export type PurchasingStockListData = {
     body?: never;
     path?: never;
@@ -18092,6 +18521,250 @@ export type ConsumeStockResponses = {
 };
 
 export type ConsumeStockResponse = ConsumeStockResponses[keyof ConsumeStockResponses];
+
+export type StockMovementsListData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/purchasing/stock/{id}/movements/';
+};
+
+export type StockMovementsListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<StockMovementOut>;
+};
+
+export type StockMovementsListResponse = StockMovementsListResponses[keyof StockMovementsListResponses];
+
+export type StocktakeListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string;
+        /**
+         * Location
+         */
+        location?: string;
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
+    };
+    url: '/api/purchasing/stocktakes/';
+};
+
+export type StocktakeListResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeList;
+};
+
+export type StocktakeListResponse = StocktakeListResponses[keyof StocktakeListResponses];
+
+export type StocktakeCreateData = {
+    body: StocktakeCreate;
+    path?: never;
+    query?: never;
+    url: '/api/purchasing/stocktakes/';
+};
+
+export type StocktakeCreateResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeDetail;
+};
+
+export type StocktakeCreateResponse = StocktakeCreateResponses[keyof StocktakeCreateResponses];
+
+export type StocktakeSetupRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/purchasing/stocktakes/setup/';
+};
+
+export type StocktakeSetupRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeSetup;
+};
+
+export type StocktakeSetupRetrieveResponse = StocktakeSetupRetrieveResponses[keyof StocktakeSetupRetrieveResponses];
+
+export type StocktakeSetupCreateData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/purchasing/stocktakes/setup/';
+};
+
+export type StocktakeSetupCreateResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeSetup;
+};
+
+export type StocktakeSetupCreateResponse = StocktakeSetupCreateResponses[keyof StocktakeSetupCreateResponses];
+
+export type StocktakeStockListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string;
+        /**
+         * Location
+         */
+        location?: string;
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
+    };
+    url: '/api/purchasing/stocktakes/stock/';
+};
+
+export type StocktakeStockListResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeStockList;
+};
+
+export type StocktakeStockListResponse = StocktakeStockListResponses[keyof StocktakeStockListResponses];
+
+export type StocktakeRetrieveData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/purchasing/stocktakes/{id}/';
+};
+
+export type StocktakeRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeDetail;
+};
+
+export type StocktakeRetrieveResponse = StocktakeRetrieveResponses[keyof StocktakeRetrieveResponses];
+
+export type StocktakeUpdateData = {
+    body: StocktakeSave;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/purchasing/stocktakes/{id}/';
+};
+
+export type StocktakeUpdateResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeDetail;
+};
+
+export type StocktakeUpdateResponse = StocktakeUpdateResponses[keyof StocktakeUpdateResponses];
+
+export type StocktakeCorrectData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/purchasing/stocktakes/{id}/correct/';
+};
+
+export type StocktakeCorrectResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeDetail;
+};
+
+export type StocktakeCorrectResponse = StocktakeCorrectResponses[keyof StocktakeCorrectResponses];
+
+export type StocktakeMovementsListData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/purchasing/stocktakes/{id}/movements/';
+};
+
+export type StocktakeMovementsListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<StockMovementOut>;
+};
+
+export type StocktakeMovementsListResponse = StocktakeMovementsListResponses[keyof StocktakeMovementsListResponses];
+
+export type StocktakePostData = {
+    body: StocktakeVersion;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/purchasing/stocktakes/{id}/post/';
+};
+
+export type StocktakePostResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeDetail;
+};
+
+export type StocktakePostResponse = StocktakePostResponses[keyof StocktakePostResponses];
 
 export type GetSupplierPriceStatusData = {
     body?: never;

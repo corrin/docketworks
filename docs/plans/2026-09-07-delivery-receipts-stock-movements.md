@@ -2,9 +2,23 @@
 
 WRITTEN BY AI — implementation proposals require review.
 
-Status: planning only. No receipt UI, movement ledger or stocktake implementation
-is included in KAN-358. That ticket's two Xero safeguards remain independently
-necessary; PR #142 stays on hold until its required verification passes.
+Status: stocktake and the shared movement writer implemented on
+`feat/stocktake-movements`. The broader receipt UI, planned job demand,
+catalogue/lot separation and dimensional offcut work below remain proposals.
+KAN-358's two Xero safeguards remain independently necessary; PR #142 stays on
+hold until its required verification passes.
+
+Delivered stocktake scope: Purchases → Stocktake, explicit first-use setup,
+one ongoing non-billable Stocktake Adjustments job, dated draft/posted counts,
+explicit new-material cost, signed counterpart costs, linked corrections,
+stale-count rejection, idempotent posting and movement history. Receipts,
+issues, returns and stocktake now share the balance writer; a migration records
+existing balances as opening evidence. Posted evidence is database-protected.
+The shared EntryGridSection/DataTable/ListTable patterns provide bounded grids
+and paginated count/search lists. Stocktake grid column widths reserve room for
+material descriptions while retaining internal horizontal scrolling on phones.
+Validation results and remaining external gates are in rewrite-history.md and
+rewrite-status.md respectively.
 
 ## 1. Owner requirements
 
@@ -24,10 +38,11 @@ Confirmed in the 2026-09-07 implementation discussion:
    when recorded availability is insufficient; stocktake can reconcile later.
 8. Plan these requirements fully before implementing the expanded workflow.
 
-Questions sent to the owner, still awaiting answers when this draft was written:
+Subsequent owner decisions: use one ongoing adjustment job and separate dated
+counts; require an explicit unit cost for newly found material and retain the
+recorded unit cost for existing stock.
 
-- One stocktake job per count, or one ongoing adjustment job? GPT proposal:
-  one per count, so its differences can be reviewed and closed together.
+Remaining design question for the broader split workflow:
 - Is a remaining half sheet a distinct offcut with dimensions, or 0.5 of the
   original item? GPT proposal: preserve distinct physical offcuts and their
   dimensions, while retaining a common quantity unit for conservation.
@@ -57,7 +72,7 @@ PO receipts, cost-line writes, Xero transforms, item pickers and stock screens.
 | `ItemSelect` | Same stock result shape serves purchasing, estimates and actual job costing | Reuse one picker with explicit catalogue/available-stock modes; actual issues choose physical lots |
 | `Stock.source_parent_stock` | A parent pointer exists, but no implemented split workflow was found | Extend this identity concept for offcut lineage, supported by actual split movements |
 
-No stock-movement or stocktake model/service was found. Stock's current balance
+At the original inspection, no stock-movement or stocktake model/service existed. Its balance
 cannot supply missing historical movements. Production-shape reference:
 `docs/prod-data-shape.yml` records 706 Stock rows, 990 POs and 2,315 PO lines.
 

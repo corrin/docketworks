@@ -11,6 +11,7 @@ import { CostLineGrid } from './CostLineGrid'
 const materialLine: CostLineOut = {
   accounting_date: '2026-08-09',
   approved: false,
+  managed_by: null,
   created_at: '2026-08-09T00:00:00Z',
   desc: 'Estimated materials',
   entry_seq: null,
@@ -141,6 +142,19 @@ afterEach(() => {
 })
 
 describe('CostLineGrid contract', () => {
+  it('protects stocktake costs and directs corrections to their history', async () => {
+    stubGridData([{ ...materialLine, managed_by: 'stocktake' }])
+    renderGrid()
+    const rows = await findRows()
+    const row = rows[0]!
+    expect(within(row).getByRole('link', { name: 'Stocktake history' })).toHaveAttribute(
+      'href',
+      '/purchasing/stocktakes',
+    )
+    expect(within(row).queryByRole('button', { name: 'Delete line' })).not.toBeInTheDocument()
+    for (const input of row.querySelectorAll('input')) expect(input).toBeDisabled()
+  })
+
   it('renders server lines plus exactly one trailing phantom row', async () => {
     stubGridData([materialLine, timeLine, officeLine])
     renderGrid()
@@ -828,6 +842,7 @@ describe('CostLineGrid actual config', () => {
       desc: 'Steel plate 3mm',
       ext_refs: { stock_id: 'stock-1' },
       approved: true,
+      managed_by: null,
     }
     server.use(
       http.get('*/api/job/jobs/*/cost_sets/actual/', () =>
@@ -883,6 +898,7 @@ describe('CostLineGrid actual config', () => {
       desc: 'Steel plate 3mm',
       ext_refs: { stock_id: 'stock-1' },
       approved: true,
+      managed_by: null,
     }
     server.use(
       http.get('*/api/job/jobs/*/cost_sets/actual/', () =>

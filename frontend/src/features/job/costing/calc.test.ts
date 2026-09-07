@@ -13,6 +13,7 @@ import { emptyDraft } from './types'
 const line = (overrides: Partial<CostLineOut> = {}): CostLineOut => ({
   accounting_date: '2026-08-09',
   approved: false,
+  managed_by: null,
   created_at: '2026-08-09T00:00:00Z',
   desc: 'Existing line',
   entry_seq: null,

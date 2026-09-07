@@ -36,7 +36,7 @@ from ninja import Query, Router
 from ninja.errors import HttpError
 from ninja.responses import Status
 
-from apps.accounts.models import Staff
+from apps.accounts.auth import authenticated_staff
 from apps.core.auth import CookieJWTAuth
 from apps.core.etag import if_none_match_satisfied
 from apps.job.models import Job
@@ -121,15 +121,6 @@ PURCHASING_JOB_STATUSES = (
 
 
 # ── Shared helpers ───────────────────────────────────────────────────────
-
-
-def _staff(request: HttpRequest) -> Staff:
-    """Narrow the authenticated user to a real Staff row (ADR 0028)."""
-    auth_user: object = getattr(request, "auth", None)
-    user = auth_user if isinstance(auth_user, Staff) else request.user
-    if not isinstance(user, Staff):
-        raise HttpError(401, "Authentication credentials were not provided.")
-    return user
 
 
 def _require_if_match(request: HttpRequest) -> str:
@@ -274,7 +265,9 @@ def create_purchase_order(
     if "pickup_address_id" in payload.model_fields_set:
         data["pickup_address_id"] = payload.pickup_address_id
     try:
-        po = purchase_order_service.create_purchase_order(data, created_by=_staff(request))
+        po = purchase_order_service.create_purchase_order(
+            data, created_by=authenticated_staff(request)
+        )
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
     response.headers["ETag"] = purchase_order_etag(po)
@@ -387,7 +380,7 @@ def purchasing_purchase_orders_partial_update(
 
     try:
         po = purchase_order_service.update_purchase_order(
-            po_id, data, staff=_staff(request), if_match=if_match
+            po_id, data, staff=authenticated_staff(request), if_match=if_match
         )
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
@@ -436,7 +429,7 @@ def get_purchase_order_email(
     is sent until they read it and send it.
     """
     po = _get_po_or_404(po_id)
-    staff = _staff(request)
+    staff = authenticated_staff(request)
     if not staff.office_email:
         raise HttpError(400, "Your account has no office email to draft from.")
     try:
@@ -497,7 +490,7 @@ def create_purchase_order_event(
     """Record a manual note/comment on the PO."""
     po = _get_po_or_404(po_id)
     event = purchase_order_service.create_purchase_order_event(
-        po, payload.description, _staff(request)
+        po, payload.description, authenticated_staff(request)
     )
     return Status(
         201,
@@ -579,6 +572,7 @@ def delete_allocation(
             allocation_type=payload.allocation_type,
             allocation_id=payload.allocation_id,
             if_match=if_match,
+            staff=authenticated_staff(request),
         )
     except allocation_service.AllocationDeletionError as exc:
         raise HttpError(400, str(exc)) from exc
@@ -631,7 +625,7 @@ def purchasing_delivery_receipts_create(
         po = delivery_receipt_service.process_delivery_receipt(
             payload.purchase_order_id,
             line_allocations,
-            _staff(request),
+            authenticated_staff(request),
             if_match=if_match,
         )
     except ValueError as exc:
@@ -778,7 +772,7 @@ def consume_stock(
             item=stock,
             job=job,
             qty=payload.quantity,
-            user=_staff(request),
+            user=authenticated_staff(request),
             unit_cost=payload.unit_cost,
             unit_rev=payload.unit_rev,
         )
@@ -943,7 +937,9 @@ def validate_product_mapping(
         data["mapped_price_unit"] = payload.mapped_price_unit
     if "validation_notes" in provided:
         data["validation_notes"] = payload.validation_notes
-    updated = supplier_pricing_service.validate_product_mapping(mapping, data, _staff(request))
+    updated = supplier_pricing_service.validate_product_mapping(
+        mapping, data, authenticated_staff(request)
+    )
     return {
         "success": True,
         "message": f"Mapping validated successfully. Updated {updated} related products.",

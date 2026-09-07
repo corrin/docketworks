@@ -1,4 +1,4 @@
-"""The allocation concept: materialise, inspect and delete PO-line allocations.
+"""The allocation concept: materialise, inspect and reverse PO-line allocations.
 
 A purchase-order line's received quantity is allocated either to *stock* (a
 ``Stock`` row on the stock-holding job) or to a *job* (a material ``CostLine``
@@ -31,7 +31,12 @@ from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, CostSet
 from apps.purchasing.etag import require_current_etag
-from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
+from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock, StockMovement
+from apps.purchasing.services.stock_movement_service import (
+    MovementContext,
+    move_stock,
+    reverse_issue,
+)
 from apps.purchasing.tasks import queue_metadata_parse_if_eligible
 
 logger = logging.getLogger(__name__)
@@ -89,6 +94,16 @@ class AllocationMetadata:
 
 
 @dataclass(frozen=True, slots=True)
+class MaterialAllocation:
+    """The validated destination, quantity and material details of a receipt."""
+
+    job: Job
+    quantity: Decimal
+    metadata: AllocationMetadata
+    retail_rate_pct: Decimal
+
+
+@dataclass(frozen=True, slots=True)
 class DeletionResult:
     """Data contract for DeletionResult."""
 
@@ -126,15 +141,16 @@ def ensure_actual_cost_set(job: Job, staff: Staff) -> CostSet:
     return cost_set
 
 
+@transaction.atomic
 def create_stock_from_allocation(
     *,
     line: PurchaseOrderLine,
-    job: Job,
-    qty: Decimal,
-    metadata: AllocationMetadata,
-    retail_rate_pct: Decimal,
+    allocation: MaterialAllocation,
+    staff: Staff,
 ) -> Stock:
-    """Materialise a received quantity as a Stock row on the stock-holding job."""
+    """Materialise a received quantity as a stock identity and receipt movement."""
+    job, qty = allocation.job, allocation.quantity
+    metadata, retail_rate_pct = allocation.metadata, allocation.retail_rate_pct
     if line.unit_cost is None:
         raise ValueError(
             f"Price not confirmed for line {line.id} ({line.description}); "
@@ -143,7 +159,7 @@ def create_stock_from_allocation(
     stock = Stock(
         job=job,
         description=line.description,
-        quantity=qty,
+        quantity=Decimal("0"),
         unit_cost=line.unit_cost,
         metal_type=metadata.metal_type,
         alloy=metadata.alloy,
@@ -155,6 +171,15 @@ def create_stock_from_allocation(
     )
     stock.retail_rate = retail_pct_to_rate(retail_rate_pct)
     stock.save()
+    move_stock(
+        stock,
+        qty,
+        MovementContext(
+            kind="receipt",
+            reason=f"Receipt against PO line {line.id}",
+            actor=staff,
+        ),
+    )
     # A receipt line often
     # carries only a description, so the row gets the same one-shot LLM
     # enrichment as a hand-entered one. No-op when the metadata came through.
@@ -163,6 +188,7 @@ def create_stock_from_allocation(
     return stock
 
 
+@transaction.atomic
 def create_costline_from_allocation(  # noqa: PLR0913 -- Allocation inputs stay explicit and keyword-only.
     *,
     purchase_order: PurchaseOrder,
@@ -205,7 +231,26 @@ def create_costline_from_allocation(  # noqa: PLR0913 -- Allocation inputs stay 
             "po_number": purchase_order.po_number,
         },
     )
+    cost_line.managed_by = "stock"
     cost_line.save()
+    stock = create_stock_from_allocation(
+        line=line,
+        allocation=MaterialAllocation(
+            Stock.get_stock_holding_job(), qty, AllocationMetadata.from_line(line), retail_rate_pct
+        ),
+        staff=staff,
+    )
+    move_stock(
+        stock,
+        -qty,
+        MovementContext(
+            kind="issue",
+            reason=f"Receipt allocated to job from PO {purchase_order.po_number}",
+            actor=staff,
+            counterpart_job=job,
+            cost_line=cost_line,
+        ),
+    )
     logger.info(
         "Created CostLine %s for line %s, job %s, qty %s, retail rate %s%%.",
         cost_line.id,
@@ -252,14 +297,7 @@ def recompute_purchase_order_status(po: PurchaseOrder) -> None:
 
 
 def consuming_cost_lines(stock_id: UUID) -> QuerySet[CostLine]:
-    """Cost lines that have consumed this stock row.
-
-    Public because the receipt path needs the same question answered before it
-    replaces a line's stock: ``ext_refs.stock_id`` is an unindexed JSON string
-    with no foreign key, so nothing in the database stops a delete from
-    orphaning the cost lines that point at it (ADR 0039 -- one implementation of
-    "is this stock spoken for").
-    """
+    """Find job charges carrying the legacy stock back-reference."""
     return CostLine.objects.annotate(
         consumed_stock_id=KeyTextTransform("stock_id", "ext_refs"),
     ).filter(consumed_stock_id=str(stock_id))
@@ -354,17 +392,27 @@ def _decrement_received(po_line: PurchaseOrderLine, quantity: Decimal) -> None:
     po_line.refresh_from_db(fields=["received_quantity"])
 
 
-def _delete_stock_allocation(po_line: PurchaseOrderLine, stock_item: Stock) -> DeletionResult:
-    consumed_count = consuming_cost_lines(stock_item.id).count()
-    if consumed_count:
-        raise AllocationDeletionError(
-            f"Cannot delete stock allocation - stock has been consumed by {consumed_count} job(s)"
-        )
-
-    deleted_qty = stock_item.quantity
+def _delete_stock_allocation(
+    po_line: PurchaseOrderLine, stock_item: Stock, staff: Staff
+) -> DeletionResult:
+    receipt = stock_item.movements.filter(kind__in=["receipt", "opening"]).first()
+    if receipt is None:
+        raise AllocationDeletionError("This allocation has no opening or receipt evidence.")
+    already_reversed = StockMovement.objects.filter(reverses=receipt).exists()
+    deleted_qty = Decimal("0") if already_reversed else receipt.quantity_change
     desc = stock_item.description
-    _decrement_received(po_line, deleted_qty)
-    stock_item.delete()
+    if not already_reversed:
+        _decrement_received(po_line, deleted_qty)
+        move_stock(
+            stock_item,
+            -deleted_qty,
+            MovementContext(
+                kind="receipt_reversal",
+                reason=f"Reverse allocation from PO line {po_line.id}",
+                actor=staff,
+                reverses=receipt,
+            ),
+        )
 
     logger.info(
         "Deleted stock allocation: %s, qty=%s, PO line received now=%s",
@@ -382,13 +430,50 @@ def _delete_stock_allocation(po_line: PurchaseOrderLine, stock_item: Stock) -> D
     )
 
 
-def _delete_job_allocation(po_line: PurchaseOrderLine, cost_line: CostLine) -> DeletionResult:
+def _delete_job_allocation(
+    po_line: PurchaseOrderLine, cost_line: CostLine, staff: Staff
+) -> DeletionResult:
     deleted_qty = cost_line.quantity
     desc = cost_line.desc
     job_name = cost_line.cost_set.job.name
 
-    _decrement_received(po_line, deleted_qty)
-    cost_line.delete()
+    movement = StockMovement.objects.filter(cost_line=cost_line, kind="issue").first()
+    if movement is None:
+        if cost_line.managed_by == "stock":
+            deleted_qty = Decimal("0")
+        else:
+            CostLine.objects.create(
+                cost_set=cost_line.cost_set,
+                kind="material",
+                desc=cost_line.desc,
+                quantity=-deleted_qty,
+                unit_cost=cost_line.unit_cost,
+                unit_rev=cost_line.unit_rev,
+                accounting_date=timezone.localdate(),
+                managed_by="stock",
+            )
+            cost_line.managed_by = "stock"
+            cost_line.save(update_fields=["managed_by"])
+            _decrement_received(po_line, deleted_qty)
+    else:
+        receipt = movement.stock.movements.get(kind="receipt")
+        if StockMovement.objects.filter(reverses=receipt).exists():
+            deleted_qty = Decimal("0")
+        else:
+            reverse_issue(
+                movement, po_line.purchase_order.created_by, "Reverse job receipt allocation"
+            )
+            _decrement_received(po_line, deleted_qty)
+            move_stock(
+                movement.stock,
+                -deleted_qty,
+                MovementContext(
+                    kind="receipt_reversal",
+                    reason="Reverse job receipt allocation",
+                    actor=staff,
+                    reverses=receipt,
+                ),
+            )
 
     logger.info(
         "Deleted job allocation: %s, qty=%s, job=%s, PO line received now=%s",
@@ -413,6 +498,7 @@ def delete_allocation(
     allocation_type: AllocationType,
     allocation_id: UUID,
     if_match: str,
+    staff: Staff,
 ) -> tuple[PurchaseOrder, DeletionResult]:
     """Delete one Stock or CostLine allocation and recompute the PO status.
 
@@ -447,7 +533,7 @@ def delete_allocation(
                     )
                 po_line = PurchaseOrderLine.objects.select_for_update().get(id=source_line_id)
                 locked_stock = Stock.objects.select_for_update().get(id=stock.id)
-                result = _delete_stock_allocation(po_line, locked_stock)
+                result = _delete_stock_allocation(po_line, locked_stock, staff)
             else:
                 cost_line = _get_costline_or_error(po, allocation_id)
                 po_line = PurchaseOrderLine.objects.select_for_update().get(
@@ -458,7 +544,7 @@ def delete_allocation(
                     .select_for_update()
                     .get(id=cost_line.id)
                 )
-                result = _delete_job_allocation(po_line, locked_line)
+                result = _delete_job_allocation(po_line, locked_line, staff)
 
             recompute_purchase_order_status(po)
             return po, result
@@ -497,7 +583,7 @@ def get_allocation_details(
             "description": stock_item.description,
             "quantity": float(stock_item.quantity),
             "job_name": stock_item.job.name if stock_item.job else "",
-            "can_delete": consumed_count == 0,
+            "can_delete": True,
             "consumed_by_jobs": consumed_count,
             # Location is optional on Stock, hence the display fallback.
             "location": stock_item.location or "Not specified",

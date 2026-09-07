@@ -38,13 +38,13 @@ does not have.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **56 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
+| E2E specs ported | **57 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
-| API operations v2 exposes | 254 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3028 collected |
+| API operations v2 exposes | 266 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 3045 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
-| Behaviour ledger | 128 recorded deviations |
+| Behaviour ledger | 130 recorded deviations |
 | ADRs | 43 (v1's 26 carried forward + 0038–0041, 0043, 0045–0056 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints
@@ -300,9 +300,9 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   - **No back-link from a job cost line to the PO that created it.** `CostLineGrid` has no
     Source column, though the cost line already carries `meta.po_number` and
     `ext_refs.purchase_order_id` — so this is a column, not a contract change.
-  - **Add and Deactivate on the stock page.** v1 had both, and the periodic stocktake is
-    how the owner actually corrects stock; without them a wrong quantity has no UI that
-    fixes it.
+  - **Stocktake release verification:** run the full E2E suite and live Xero stock/PO
+    integration once the tenant day quota resets. The stocktake/search specs pass;
+    the standard managed E2E harness currently stops during Xero cleanup at quota 0.
   - **`docs/accepted-api-differences.yml` never recorded this branch's five behaviour
     changes:** the list pagination envelope, `If-Match` on allocation delete, Xero's
     `BILLED` no longer meaning goods received, `xero_agreed_at` splitting from

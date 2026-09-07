@@ -1,5 +1,11 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
+import { toast } from 'sonner'
+import { stocktakeCreateMutation, apiErrorMessage } from '@/api'
+import { Button } from '@/components/ui/button'
+import { StockMovementHistory } from './StockMovementHistory'
+import { EntryGridSection } from '@/features/shared/EntryGridSection'
 
 import { purchasingStockListOptions, purchasingStockSearchRetrieveOptions } from '@/api'
 import type { StockItem } from '@/api'
@@ -21,6 +27,24 @@ import { SearchInput } from '@/features/shared/SearchInput'
  * query never unmounts, so neither refetches on clear.
  */
 export function StockPage() {
+  const [historyId, setHistoryId] = useState<string | null>(null)
+  const navigate = useNavigate()
+  const createCount = useMutation(stocktakeCreateMutation())
+  const recordCount = (stockId: string) =>
+    createCount.mutate(
+      { body: { stock_id: stockId } },
+      {
+        onSuccess: (count) =>
+          void navigate({
+            to: '/purchasing/stocktakes/$stocktakeId',
+            params: { stocktakeId: count.id },
+          }),
+        onError: (error) =>
+          toast.error(
+            apiErrorMessage(error, 'Open Purchases → Stocktake to complete setup first.'),
+          ),
+      },
+    )
   const [searchInput, setSearchInput] = useState('')
   const query = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS)
 
@@ -84,6 +108,7 @@ export function StockPage() {
             <th scope="col" className="px-3 py-2 text-right">
               Unit Cost
             </th>
+            <th className="px-3 py-2">Count</th>
           </tr>
         }
         renderRow={(item) => (
@@ -98,9 +123,36 @@ export function StockPage() {
             <td className="px-3 py-2 text-right tabular-nums">
               {formatCurrency(Number(item.unit_cost))}
             </td>
+            <td className="px-3 py-2">
+              {item.job_id !== null && item.source !== 'product_catalog' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={createCount.isPending}
+                  onClick={() => recordCount(item.id)}
+                >
+                  Record count
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" onClick={() => setHistoryId(item.id)}>
+                History
+              </Button>
+            </td>
           </tr>
         )}
       />
+      {historyId !== null && (
+        <EntryGridSection
+          title="Stock movements"
+          actions={
+            <Button variant="ghost" onClick={() => setHistoryId(null)}>
+              Close history
+            </Button>
+          }
+        >
+          <StockMovementHistory stockId={historyId} />
+        </EntryGridSection>
+      )}
     </div>
   )
 }

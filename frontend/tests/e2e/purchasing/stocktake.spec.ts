@@ -1,0 +1,135 @@
+import { test, expect } from '../fixtures/auth'
+import type { Page } from '@playwright/test'
+
+async function setupStocktake(page: Page) {
+  await expect(page.getByText('Loading stocktake setup…')).toHaveCount(0)
+  const setup = page.getByRole('button', { name: 'Set up stocktake', exact: true })
+  if (await setup.isVisible()) await setup.click()
+  await expect(page.getByRole('button', { name: 'New stocktake', exact: true })).toBeEnabled()
+}
+
+// Physical corrections must be reachable from navigation and survive the complete UI/API round trip.
+test('find a sheet, post once, and correct the count without losing history', async ({
+  authenticatedPage: page,
+}, testInfo) => {
+  await page.goto('/purchasing/stock')
+  await page.getByRole('button', { name: 'Purchases', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Stocktake', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Stocktake', exact: true })).toBeVisible()
+  await setupStocktake(page)
+  await page.getByRole('button', { name: 'New stocktake', exact: true }).click()
+  await page.getByRole('button', { name: 'Add found item', exact: true }).click()
+  const item = `E2E stocktake 0.6mm sheet ${Date.now()}`
+  await page.getByLabel('Item description', { exact: true }).fill(item)
+  await page.getByLabel('Count location', { exact: true }).fill('E2E Rack 3')
+  await expect(page.getByLabel('Counted quantity', { exact: true })).toHaveValue('')
+  await page.getByLabel('Counted quantity', { exact: true }).fill('1')
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  await expect(page.getByText('Enter a unit cost for every found item.')).toBeVisible()
+  await page.getByLabel('Unit cost', { exact: true }).fill('80')
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Post stocktake', exact: true })).toBeEnabled()
+  await page.reload()
+  await expect(page.getByLabel('Counted quantity', { exact: true })).toHaveValue('1')
+  for (const width of [1366, 1024, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect(page.getByRole('button', { name: 'Post stocktake', exact: true })).toBeVisible()
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true)
+    await page.screenshot({ path: testInfo.outputPath(`stocktake-${width}.png`), fullPage: true })
+  }
+  await page.setViewportSize({ width: 1366, height: 900 })
+  await page.getByRole('button', { name: 'Post stocktake', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Posted movements', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '0 → 1', exact: true })).toBeVisible()
+  await expect(page.getByLabel('Counted quantity', { exact: true })).toHaveAttribute('readonly')
+  const originalUrl = page.url()
+  await page.reload()
+  await expect(page.getByRole('cell', { name: '0 → 1', exact: true })).toHaveCount(1)
+  await page.getByRole('button', { name: 'Create correction', exact: true }).click()
+  await expect(page.getByRole('link', { name: 'Original stocktake', exact: true })).toHaveAttribute(
+    'href',
+    new URL(originalUrl).pathname,
+  )
+  await expect(page.getByLabel('Counted quantity', { exact: true })).toHaveValue('')
+  await page.getByLabel('Counted quantity', { exact: true }).fill('0')
+  await page.getByLabel('Difference reason', { exact: true }).fill('Unexplained shortage')
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Post stocktake', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: 'Post stocktake', exact: true }).click()
+  await expect(page.getByRole('cell', { name: '1 → 0', exact: true })).toBeVisible()
+  await page.goto('/purchasing/stock')
+  await page.getByRole('textbox', { name: 'Search stock items', exact: true }).fill(item)
+  const stockRow = page.getByRole('row').filter({ hasText: item })
+  await expect(stockRow).toHaveCount(1)
+  await expect(stockRow.locator('td').nth(6)).toHaveText('0')
+  await stockRow.getByRole('button', { name: 'Record count', exact: true }).click()
+  await expect(page.getByLabel('Item description', { exact: true })).toHaveValue(item)
+  await expect(page.getByLabel('Counted quantity', { exact: true })).toHaveValue('')
+  await expect(page.getByRole('button', { name: 'Post stocktake', exact: true })).toBeDisabled()
+})
+
+test('a multi-item count preserves blank entries and the count list stays paged', async ({
+  authenticatedPage: page,
+}) => {
+  await page.goto('/purchasing/stocktakes')
+  await setupStocktake(page)
+  await page.getByRole('button', { name: 'New stocktake', exact: true }).click()
+  const prefix = `[TEST] Stocktake batch ${Date.now()}`
+  for (let index = 0; index < 2; index++) {
+    await page.getByRole('button', { name: 'Add found item', exact: true }).click()
+    await page.getByLabel('Item description', { exact: true }).nth(index).fill(`${prefix} ${index}`)
+    await page.getByLabel('Counted quantity', { exact: true }).nth(index).fill('1')
+    await page.getByLabel('Unit cost', { exact: true }).nth(index).fill('80')
+  }
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Post stocktake', exact: true })).toBeEnabled()
+  const countId = new URL(page.url()).pathname.split('/').pop()
+  const countResponse = await page.request.get(`/api/purchasing/stocktakes/${countId}/`)
+  const countVersion = (await countResponse.json()).version
+  const postings = await Promise.all(
+    [0, 1].map(() =>
+      page.request.post(`/api/purchasing/stocktakes/${countId}/post/`, {
+        data: { version: countVersion },
+      }),
+    ),
+  )
+  for (const posting of postings) {
+    expect(posting.status()).toBe(200)
+    expect((await posting.json()).id).toBe(countId)
+  }
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Posted movements', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '0 → 1', exact: true })).toHaveCount(2)
+  await page.getByRole('link', { name: 'Stocktakes', exact: true }).click()
+  await page.getByRole('button', { name: 'New stocktake', exact: true }).click()
+  await page.getByRole('button', { name: 'Add stock to count', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Search stock', exact: true }).fill(prefix)
+  await expect(page.getByRole('button', { name: 'Add to count', exact: true })).toHaveCount(2)
+  await page.getByRole('button', { name: 'Add to count', exact: true }).first().click()
+  await page.getByRole('button', { name: 'Add to count', exact: true }).click()
+  await page.getByRole('button', { name: 'Hide stock search', exact: true }).click()
+  await page.getByLabel('Counted quantity', { exact: true }).first().fill('0')
+  await page.getByLabel('Difference reason', { exact: true }).first().fill('Unexplained shortage')
+  await expect(page.getByLabel('Counted quantity', { exact: true }).nth(1)).toHaveValue('')
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Post stocktake', exact: true })).toBeEnabled()
+  await page.reload()
+  await page.getByRole('button', { name: 'Post stocktake', exact: true }).click()
+  await expect(page.getByRole('cell', { name: '1 → 0', exact: true })).toHaveCount(1)
+
+  // Seed past one page through the same draft-creation API used by the UI.
+  for (let index = 0; index < 51; index++) {
+    const created = await page.request.post('/api/purchasing/stocktakes/', { data: {} })
+    expect(created.status()).toBe(200)
+  }
+  await page.getByRole('link', { name: 'Stocktakes', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeEnabled()
+  await expect(page.locator('tbody tr')).toHaveCount(50)
+  const scroll = page.locator('table').locator('..')
+  expect(await scroll.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
+  await page.getByRole('button', { name: 'Next', exact: true }).click()
+  await expect(page.getByText('Page 2', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Previous', exact: true })).toBeEnabled()
+})

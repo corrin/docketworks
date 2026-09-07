@@ -454,6 +454,13 @@ def transform_credit_note(xero_note: Any, xero_id: UUID | str) -> tuple[CreditNo
     return note, _build_sync_status(created, changed_fields)
 
 
+def _preserve_stock_inventory(stock: Stock, defaults: dict[str, object]) -> None:
+    defaults["quantity"] = stock.quantity
+    if stock.job_id is not None:
+        for field in ("unit_cost", "source"):
+            del defaults[field]
+
+
 def transform_stock(  # noqa: C901, PLR0912 -- ported v1 shape; each branch is one Xero item-payload quirk
     xero_item: Any, xero_id: UUID | str
 ) -> tuple[Stock, str]:
@@ -525,14 +532,16 @@ def transform_stock(  # noqa: C901, PLR0912 -- ported v1 shape; each branch is o
             stock.xero_id = str(xero_id)
             xero_id_updated = True
     else:
+        defaults["quantity"] = Decimal("0")
         stock = Stock.objects.create(xero_id=str(xero_id), **defaults)
         created = True
 
+    _preserve_stock_inventory(stock, defaults)
     changed_fields = _track_and_apply_changes(stock, defaults)
     if xero_id_updated:
         changed_fields.append("xero_id")
     if changed_fields:
-        stock.save()
+        stock.save(update_fields=changed_fields)
     relevant_parse_fields = {"description", "item_code", "specifics"}
     if created or relevant_parse_fields.intersection(changed_fields):
         if stock_metadata_parse_eligible(stock):

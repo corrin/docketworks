@@ -1344,3 +1344,18 @@
     only within one vendor, leaving unfiltered selection ambiguous. The migration
     clears ambiguous flags and preserves credentials. The admin API reports key
     presence, never the stored key. Deleting the default does not choose a replacement.
+
+- operation: purchasing_stock_and_stocktake
+  change: "Quantity corrections use posted stocktakes; generic quantity writes and nonempty retirement are refused"
+  reason: >
+    Owner ruling 2026-09-07: stock moves and its history is retained. Counts use
+    one configured non-billable adjustment job, explicit new-item cost, stale
+    balance/version checks and linked corrections. Opening entries preserve
+    existing balances without inventing past job costs.
+
+- operation: purchasing_receipts_and_allocations
+  change: "Repeated receipts append stock identities; allocation correction records reversing movements"
+  reason: >
+    Earlier stock and job costs survive correction. Movement-owned cost lines
+    cannot be edited or deleted through generic costing commands; issue returns
+    create linked opposite costs. Catalogue imports preserve local stock balances.
