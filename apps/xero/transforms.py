@@ -732,12 +732,18 @@ def _purchase_order_sync_values(
     }
     if _has_unsent_change(po):
         return values
-    return values | {
-        "po_number": header["po_number"],
-        "order_date": header["order_date"],
-        "expected_delivery": header["delivery_date"],
-        "status": _map_po_status(status),
-    }
+    mapped_status = _map_po_status(status)
+    values.update(
+        po_number=header["po_number"],
+        order_date=header["order_date"],
+        expected_delivery=header["delivery_date"],
+    )
+    # GPT: KAN-358 showed that a successful push makes Xero's AUTHORISED
+    # overwrite receipt status. Quantities retain receipt evidence even when
+    # that label is already corrupt; purchasing owns its calculation/repair.
+    if po.po_lines.filter(received_quantity__gt=0).exists():
+        return values
+    return values | {"status": mapped_status}
 
 
 def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[PurchaseOrder, str]:

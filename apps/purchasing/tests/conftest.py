@@ -11,7 +11,13 @@ from apps.company.tests.conftest import authenticate, make_company
 from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
+from apps.purchasing.etag import purchase_order_etag
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
+from apps.purchasing.services.delivery_receipt_service import (
+    ReceiptAllocationRequest,
+    ReceiptLineRequest,
+    process_delivery_receipt,
+)
 
 PASSWORD = "s3cret-Pass!"
 
@@ -142,4 +148,27 @@ def make_stock(
         unit_cost=Decimal(unit_cost),
         source=source,
         **extra,
+    )
+
+
+def receive_po_line(
+    line: PurchaseOrderLine, quantity: Decimal, job: Job, stock_holding_job: Job, staff: Staff
+) -> PurchaseOrder:
+    """Receipt a line equally into stock and a job through the ETag-checked service."""
+    po = PurchaseOrder.objects.get(pk=line.purchase_order_id)
+    return process_delivery_receipt(
+        po.id,
+        {
+            str(line.id): ReceiptLineRequest(
+                total_received=quantity,
+                allocations=[
+                    ReceiptAllocationRequest(
+                        job_id=target.id, quantity=quantity / 2, retail_rate=None, metadata={}
+                    )
+                    for target in (job, stock_holding_job)
+                ],
+            )
+        },
+        staff,
+        if_match=purchase_order_etag(po),
     )

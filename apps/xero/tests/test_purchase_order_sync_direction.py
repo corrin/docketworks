@@ -24,9 +24,14 @@ from uuid import UUID, uuid4
 import pytest
 from django.utils import timezone
 
+from apps.accounting.types import DocumentResult
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
+from apps.job.models import Job
+from apps.job.models.costing import CostLine
+from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
+from apps.purchasing.tests.conftest import receive_po_line
+from apps.xero.tests.conftest import make_po_manager, make_po_provider
 from apps.xero.transforms import transform_purchase_order
 
 pytestmark = pytest.mark.django_db
@@ -81,6 +86,7 @@ def _sent_order(
     )
     PurchaseOrderLine.objects.create(
         purchase_order=po,
+        xero_line_item_id=uuid4(),
         description="What we ordered",
         quantity=Decimal("4.00"),
         unit_cost=Decimal("12.50"),
@@ -236,3 +242,50 @@ class TestAbsorbingXerosEditIsNotALocalOne:
             transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
 
         assert push.call_count == 1, "our own edit never reached Xero"
+
+
+class TestReceiptSurvivesXero:
+    """GPT: accounting status must not reopen material already received and costed."""
+
+    @pytest.mark.parametrize(
+        "receipt", [(Decimal("2"), "partially_received"), (Decimal("4"), "fully_received")]
+    )
+    @pytest.mark.parametrize("xero_status", ["AUTHORISED", "BILLED", "VOIDED"])
+    def test_receipt_survives_a_successful_push_then_pull(
+        self,
+        supplier: Company,
+        job: Job,
+        stock_holding_job: Job,
+        receipt: tuple[Decimal, str],
+        xero_status: str,
+    ) -> None:
+        quantity, expected_status = receipt
+        po = _sent_order(supplier, xero_id=uuid4())
+        line = po.po_lines.get()
+        po = receive_po_line(line, quantity, job, stock_holding_job, Staff.get_automation_user())
+        assert po.status == expected_status
+        stocks = Stock.objects.filter(source_purchase_order_line=line)
+        costs = CostLine.objects.filter(ext_refs__purchase_order_line_id=str(line.id))
+        stock_before = list(stocks.values())
+        cost_before = list(costs.values())
+        assert stock_before and cost_before
+        provider = make_po_provider(DocumentResult(success=True, external_id=str(po.xero_id)))
+        assert make_po_manager(po, provider).sync_to_xero()["success"]
+        assert provider.update_purchase_order.call_args.args[0].status == "AUTHORISED"
+        po.refresh_from_db()
+        assert po.xero_agreed_at is not None and po.xero_agreed_at >= po.updated_at
+        incoming = _incoming(supplier, po.po_number, xero_status)
+        incoming.line_items[0].line_item_id = str(line.xero_line_item_id)
+        incoming.line_items[0].quantity = line.quantity
+        incoming.line_items[0].description = line.xero_description
+        incoming.line_items[0].unit_amount = line.unit_cost
+
+        transform_purchase_order(incoming, str(po.xero_id))
+
+        po.refresh_from_db()
+        line.refresh_from_db()
+        assert po.status == expected_status
+        assert po.xero_status == xero_status
+        assert line.received_quantity == Decimal(quantity)
+        assert list(stocks.values()) == stock_before
+        assert list(costs.values()) == cost_before

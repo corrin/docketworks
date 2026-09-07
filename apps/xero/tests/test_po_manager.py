@@ -10,7 +10,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 from django.test import Client
@@ -24,6 +24,7 @@ from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 from apps.xero.constants import ZERO_UUID
 from apps.xero.documents.po import XeroPurchaseOrderManager
+from apps.xero.tests.conftest import make_po_manager, make_po_provider
 
 pytestmark = pytest.mark.django_db
 
@@ -55,24 +56,10 @@ def job(supplier: Company) -> Job:
     return make_job(supplier, Staff.get_automation_user(), name="Tank repair")
 
 
-def _manager(po: PurchaseOrder, provider: Mock) -> XeroPurchaseOrderManager:
-    with patch("apps.xero.documents.base.get_provider", return_value=provider):
-        return XeroPurchaseOrderManager(purchase_order=po, staff=Staff.get_automation_user())
-
-
-def _provider(result: DocumentResult | None = None) -> Mock:
-    provider = Mock()
-    provider.get_account_code.return_value = "300"
-    if result is not None:
-        provider.create_purchase_order.return_value = result
-        provider.update_purchase_order.return_value = result
-    return provider
-
-
 class TestSyncRouting:
     def test_create_path_stores_xero_data(self, po: PurchaseOrder, xero_tenant_id: str) -> None:
         external_id = str(uuid.uuid4())
-        provider = _provider(
+        provider = make_po_provider(
             DocumentResult(
                 success=True,
                 external_id=external_id,
@@ -82,7 +69,7 @@ class TestSyncRouting:
             )
         )
 
-        result = _manager(po, provider).sync_to_xero()
+        result = make_po_manager(po, provider).sync_to_xero()
 
         assert result["success"]
         provider.create_purchase_order.assert_called_once()
@@ -98,9 +85,11 @@ class TestSyncRouting:
         existing_id = str(uuid.uuid4())
         po.xero_id = existing_id
         po.save(update_fields=["xero_id"])
-        provider = _provider(DocumentResult(success=True, external_id=existing_id, raw_response={}))
+        provider = make_po_provider(
+            DocumentResult(success=True, external_id=existing_id, raw_response={})
+        )
 
-        result = _manager(po, provider).sync_to_xero()
+        result = make_po_manager(po, provider).sync_to_xero()
 
         assert result["success"]
         provider.update_purchase_order.assert_called_once()
@@ -112,21 +101,21 @@ class TestSyncRouting:
         """The zero-UUID sentinel must route to create, never update."""
         po.xero_id = ZERO_UUID
         po.save(update_fields=["xero_id"])
-        provider = _provider(
+        provider = make_po_provider(
             DocumentResult(success=True, external_id=str(uuid.uuid4()), raw_response={})
         )
 
-        manager = _manager(po, provider)
+        manager = make_po_manager(po, provider)
         assert manager.get_xero_id() is None
         manager.sync_to_xero()
         provider.create_purchase_order.assert_called_once()
 
     def test_provider_failure_becomes_api_error(self, po: PurchaseOrder) -> None:
-        provider = _provider(
+        provider = make_po_provider(
             DocumentResult(success=False, error="Rate limit exceeded", status_code=429)
         )
 
-        result = _manager(po, provider).sync_to_xero()
+        result = make_po_manager(po, provider).sync_to_xero()
 
         assert not result["success"]
         assert result["error_type"] == "api_error"
@@ -138,9 +127,9 @@ class TestSyncRouting:
 class TestValidation:
     def test_po_without_lines_refuses_sync(self, supplier: Company) -> None:
         empty_po = PurchaseOrder.objects.create(supplier=supplier, po_number="PO-TEST-0002")
-        provider = _provider()
+        provider = make_po_provider()
 
-        result = _manager(empty_po, provider).sync_to_xero()
+        result = make_po_manager(empty_po, provider).sync_to_xero()
 
         assert not result["success"]
         assert result["error_type"] == "validation_error"
@@ -151,9 +140,9 @@ class TestValidation:
         supplier.xero_contact_id = None
         supplier.save(update_fields=["xero_contact_id"])
         po.refresh_from_db()
-        provider = _provider()
+        provider = make_po_provider()
 
-        result = _manager(po, provider).sync_to_xero()
+        result = make_po_manager(po, provider).sync_to_xero()
 
         assert not result["success"]
         assert result["error_type"] == "validation_error"
@@ -163,7 +152,7 @@ class TestValidation:
     def test_missing_supplier_fails_construction(self) -> None:
         orphan = PurchaseOrder.objects.create(po_number="PO-TEST-0003")
         with pytest.raises(ValueError, match="supplier"):
-            _manager(orphan, _provider())
+            make_po_manager(orphan, make_po_provider())
 
 
 class TestLineItemBackfill:
@@ -189,11 +178,11 @@ class TestLineItemBackfill:
                 {"line_item_id": id_two, "description": "Widget"},
             ]
         }
-        provider = _provider(
+        provider = make_po_provider(
             DocumentResult(success=True, external_id=str(uuid.uuid4()), raw_response=raw)
         )
 
-        _manager(order, provider).sync_to_xero()
+        make_po_manager(order, provider).sync_to_xero()
 
         line_a.refresh_from_db()
         line_b.refresh_from_db()
@@ -206,12 +195,12 @@ class TestDelete:
         po.xero_id = external_id
         po.xero_tenant_id = "some-tenant"
         po.save(update_fields=["xero_id", "xero_tenant_id"])
-        provider = _provider()
+        provider = make_po_provider()
         provider.delete_purchase_order.return_value = DocumentResult(
             success=True, external_id=external_id
         )
 
-        result = _manager(po, provider).delete_document()
+        result = make_po_manager(po, provider).delete_document()
 
         assert result["success"]
         po.refresh_from_db()
@@ -222,9 +211,9 @@ class TestDelete:
         assert po.status == "deleted"
 
     def test_delete_without_xero_id_is_404(self, po: PurchaseOrder) -> None:
-        provider = _provider()
+        provider = make_po_provider()
 
-        result = _manager(po, provider).delete_document()
+        result = make_po_manager(po, provider).delete_document()
 
         assert not result["success"]
         assert result["status"] == 404
@@ -248,7 +237,7 @@ class TestEndpoint:
                     "online_url": "https://go.xero.com/example",
                 },
             ) as mock_sync,
-            patch("apps.xero.documents.base.get_provider", return_value=_provider()),
+            patch("apps.xero.documents.base.get_provider", return_value=make_po_provider()),
         ):
             response = api.post(f"/api/xero/create_purchase_order/{po.id}")
 
@@ -274,9 +263,9 @@ class TestPayload:
         po.reference = "Job 1234 steel"
         po.expected_delivery = date(2026, 12, 24)
         po.save(update_fields=["reference", "expected_delivery"])
-        provider = _provider()
+        provider = make_po_provider()
 
-        payload = _manager(po, provider).build_payload()
+        payload = make_po_manager(po, provider).build_payload()
 
         assert payload.supplier_external_id == "00000000-0000-0000-0000-000000000001"
         assert payload.po_number == "PO-TEST-0001"
@@ -297,9 +286,9 @@ class TestPayload:
         say nothing: the push still succeeds, because Xero accepts any code we
         send it.
         """
-        provider = _provider()
+        provider = make_po_provider()
 
-        payload = _manager(po, provider).build_payload()
+        payload = make_po_manager(po, provider).build_payload()
 
         provider.get_account_code.assert_called_once_with("Purchases")
         assert payload.line_items[0].account_code == "300"
@@ -311,7 +300,7 @@ class TestPayload:
             purchase_order=order, description="TBC", quantity=Decimal("1"), unit_cost=None
         )
 
-        payload = _manager(order, _provider()).build_payload()
+        payload = make_po_manager(order, make_po_provider()).build_payload()
 
         assert payload.line_items[0].unit_amount == Decimal("0")
 
@@ -323,7 +312,7 @@ class TestPayload:
         line.job = job
         line.save(update_fields=["job"])
 
-        payload = _manager(po, _provider()).build_payload()
+        payload = make_po_manager(po, make_po_provider()).build_payload()
 
         assert payload.line_items[0].description == f"{job.job_number} - Steel plate"
 
@@ -343,14 +332,14 @@ class TestPayload:
         po.status = local_status
         po.save(update_fields=["status"])
 
-        assert _manager(po, _provider()).build_payload().status == xero_status
+        assert make_po_manager(po, make_po_provider()).build_payload().status == xero_status
 
 
 class TestStateGate:
     """Which orders may be pushed at all."""
 
     def test_a_draft_may_be_created_in_xero(self, po: PurchaseOrder) -> None:
-        assert _manager(po, _provider()).state_valid_for_xero() is True
+        assert make_po_manager(po, make_po_provider()).state_valid_for_xero() is True
 
     def test_a_submitted_order_may_be_created_in_xero(self, po: PurchaseOrder) -> None:
         """Submitted is precisely when Xero needs it.
@@ -362,14 +351,14 @@ class TestStateGate:
         po.status = "submitted"
         po.save(update_fields=["status"])
 
-        assert _manager(po, _provider()).state_valid_for_xero() is True
+        assert make_po_manager(po, make_po_provider()).state_valid_for_xero() is True
 
     def test_a_cancelled_order_is_not_created_in_xero(self, po: PurchaseOrder) -> None:
         """It would invent a payable for something nobody is going to buy."""
         po.status = "deleted"
         po.save(update_fields=["status"])
 
-        assert _manager(po, _provider()).state_valid_for_xero() is False
+        assert make_po_manager(po, make_po_provider()).state_valid_for_xero() is False
 
     def test_an_already_synced_order_may_be_updated_at_any_status(self, po: PurchaseOrder) -> None:
         """Receiving changes an order after submission; those changes must still push."""
@@ -377,4 +366,4 @@ class TestStateGate:
         po.xero_id = uuid.uuid4()
         po.save(update_fields=["status", "xero_id"])
 
-        assert _manager(po, _provider()).state_valid_for_xero() is True
+        assert make_po_manager(po, make_po_provider()).state_valid_for_xero() is True

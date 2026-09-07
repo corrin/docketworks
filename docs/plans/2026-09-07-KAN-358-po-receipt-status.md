@@ -103,3 +103,24 @@ Applicable authorities read: ADRs 0003, 0012, 0015, 0017, 0019, 0024–0026,
 0028, 0039, 0043, 0050–0053, 0055 and 0056, plus CLAUDE.md and the ADR index.
 Keep this fix in the current ownership slice under ADR 0055; no new provider
 abstraction, credential source, retry system or schema column is planned.
+
+
+## Implementation inspection updates (2026-09-07)
+
+- The existing Fully Received dropdown in `PoSummaryCard` calls
+  `update_purchase_order` and automatically allocates lines to jobs or stock.
+  `XeroPage` has an admin-wide inbound sync control. No frontend feature or route
+  calls the quantity-based delivery-receipt endpoint. Browser coverage can drive
+  the full-receipt shortcut; the proposed partial-receipt browser case is blocked
+  by a missing workflow, not by a missing test selector.
+- The owner explicitly ruled that stock is never deleted, only moved, and
+  proposed a stocktake job for found/missing stock. Existing repeat-receipt and
+  allocation-deletion paths physically delete stock. Receipt/stocktake workflow
+  design must address those paths; do not drive repeat receipts over existing
+  stock as part of this fix's live verification. Partial and full sandbox cases
+  should use fresh orders, with one receipt each.
+- Development data inspection found 293 positive-receipt orders with non-receipt
+  labels: 217 submitted and 76 draft. Sixteen submitted orders are linked to Xero
+  with AUTHORISED; the other 277 have no recorded Xero status. Repair is necessary;
+  this evidence neither attributes every mismatch to KAN-358 nor audits production.
+  Keep data review/application and release verification open until performed.

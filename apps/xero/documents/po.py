@@ -6,7 +6,7 @@ xero_line_item_id backfill) instead of creating a mirror row.
 """
 
 import logging
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -147,11 +147,12 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
             external_id=self.get_xero_id(),
         )
 
-    def _save_po_with_xero_data(self, xero_id: str | None, online_url: str | None) -> None:
+    def _save_po_with_xero_data(
+        self, xero_id: str | None, online_url: str | None, *, sent_version: datetime
+    ) -> None:
         """Store the push outcome on the local row."""
         self.purchase_order.online_url = online_url
-        self.purchase_order.xero_agreed_at = timezone.now()
-        update_fields = ["online_url", "xero_agreed_at"]
+        update_fields = ["online_url"]
         # The zero-UUID check holds the module invariant: storing the sentinel
         # would make the next push read as an update against a document Xero
         # never acknowledged (and collide on the unique column).
@@ -163,6 +164,21 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
             self.purchase_order.xero_tenant_id = get_tenant_id()
             update_fields.extend(["xero_id", "xero_tenant_id"])
         self.purchase_order.save(update_fields=update_fields)
+
+        # GPT: an edit can commit while Xero handles the request. Only the
+        # version in that request is acknowledged, so the sweep still finds
+        # an edit whose own queued push failed (KAN-358).
+        stamp = timezone.now()
+        acknowledged = PurchaseOrder.objects.filter(
+            pk=self.purchase_order.pk, updated_at=sent_version
+        ).update(xero_agreed_at=stamp)
+        if not acknowledged:
+            logger.info(
+                "PO %s changed during push; acknowledgement deferred to reconciliation",
+                self.purchase_order.id,
+            )
+            return
+        self.purchase_order.xero_agreed_at = stamp
 
     def _update_line_item_ids_from_response(
         self, response_line_items: list[dict[str, Any]]
@@ -214,6 +230,7 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
             }
 
         try:
+            sent_version = self.purchase_order.updated_at
             payload = self.build_payload()
             if self.get_xero_id():
                 result = self.provider.update_purchase_order(payload)
@@ -228,7 +245,9 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
                     "status": result.status_code or 500,
                 }
 
-            self._save_po_with_xero_data(result.external_id, result.online_url)
+            self._save_po_with_xero_data(
+                result.external_id, result.online_url, sent_version=sent_version
+            )
             raw = result.raw_response or {}
             if "line_items" in raw:
                 self._update_line_item_ids_from_response(raw["line_items"])

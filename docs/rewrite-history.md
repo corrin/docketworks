@@ -18,6 +18,51 @@ restating it. Nothing here is a task.
 
 ## Cutover
 
+**2026-09-07 — Owner ruling: stock moves; it is never deleted.** Receipt,
+issue, return and correction workflows must preserve stock history through
+movements. The owner proposed a stocktake job as the counterpart for extra stock
+found or missing stock; its detailed workflow remains to be planned. Current
+stock uses mutable `Stock.quantity` balances, general stock resolves to the
+hard-coded Worker Admin job, and consumption books a linked job cost line.
+Inspection found physical deletion in repeat receipts and allocation deletion;
+those existing paths violate the owner's rule. KAN-358 changes neither path.
+The owner also specified the fast path: whole-order receipt is the normal case,
+TBC prices must be quick to confirm before material reaches a job, and an order
+for one sheet needed half by a job allocates half to that job and half to stock on
+hand. Receipt planning must retain purchased quantity separately from job demand.
+
+**2026-09-07 — KAN-358 receipt status and push acknowledgement.** The branch
+started clean at planning commit `6cd99cd`, based on fetched `origin/main`
+`e6db50f`. Six receipt round-trip regressions failed with submitted/deleted
+instead of the receipt-derived status; concurrent create/update and out-of-order
+response cases also failed by acknowledging unsent edits. With both safeguards,
+all 52 focused tests passed. Removing the receipt guard reproduced six
+failures; removing the version predicate reproduced three failures while the
+three unaffected acknowledgement cases passed. Both safeguards were restored. The required Xero/purchasing run passed
+801 tests (62 existing warnings). Receipt tests drive the ETag-checked receipt service
+and compare the receipt's stock and job-cost rows before and after synchronization.
+Push tests save real concurrent edits, suppress their queue boundary, and prove
+reconciliation sends the missing reference on retry without moving the ETag.
+
+Inspection of the development database found 293 orders with positive received
+quantities and a non-receipt status: 217 submitted and 76 draft. Sixteen submitted
+orders carry linked Xero identities and `xero_status=AUTHORISED`; the remaining
+277 have no Xero accounting status. These are development data findings, not
+proof that all mismatches came from KAN-358 or a production data audit.
+
+GPT: preserving workflow status cannot repair those existing labels. Repair must
+use `recompute_purchase_order_status`, after reviewing a dry-run, without changing
+quantities or allocations. A read-time inference would conceal the corrupt field.
+
+Browser inspection found the Fully Received dropdown shortcut in `PoSummaryCard`
+calling `update_purchase_order`, which automatically allocates lines to their job
+or stock. There is no UI caller for the delivery-receipt endpoint and therefore
+no quantity-based partial receipt flow. The admin Xero page provides inbound sync;
+PO pushes are queued by writes and reconciliation. GPT: a new receipt screen is a
+separate workflow design, not required scope for these two safeguards. Browser
+coverage must use the existing full-receipt path and explicitly record the partial
+receipt gap. No promotion hold has been removed.
+
 **2026-09-06 — PO entry layout and notes/history.** The owner approved one
 continuous page: compact order details above a full-width line grid, with
 notes/history below. The PO page's 1,024px width cap is removed. PO entry and

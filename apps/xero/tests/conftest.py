@@ -4,16 +4,22 @@ from collections.abc import Iterator
 from contextlib import ExitStack
 from datetime import timedelta
 from typing import TypedDict, Unpack
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from django.test import Client
 from django.utils import timezone as dj_timezone
 
+from apps.accounting.types import DocumentResult
 from apps.accounts.models import Staff
 from apps.core.auth import issue_refresh_token, jwt_cookie_config
 from apps.platform.observability.models import VendorCall
+from apps.purchasing.models import PurchaseOrder
+from apps.purchasing.tests.conftest import company, job, stock_holding_job
+from apps.xero.documents.po import XeroPurchaseOrderManager
 from apps.xero.models import XeroApp
+
+__all__ = ["company", "job", "stock_holding_job"]
 
 TEST_TENANT_ID = "test-tenant-id"
 
@@ -103,3 +109,19 @@ def non_office_api() -> Client:
     refresh = issue_refresh_token(staff)
     client.cookies[jwt_cookie_config().access_name] = str(refresh.access_token)
     return client
+
+
+def make_po_manager(po: PurchaseOrder, provider: Mock) -> XeroPurchaseOrderManager:
+    """Bind a PO to the fake provider boundary."""
+    with patch("apps.xero.documents.base.get_provider", return_value=provider):
+        return XeroPurchaseOrderManager(purchase_order=po, staff=Staff.get_automation_user())
+
+
+def make_po_provider(result: DocumentResult | None = None) -> Mock:
+    """A provider accepting purchase orders without contacting Xero."""
+    provider = Mock()
+    provider.get_account_code.return_value = "300"
+    if result is not None:
+        provider.create_purchase_order.return_value = result
+        provider.update_purchase_order.return_value = result
+    return provider
