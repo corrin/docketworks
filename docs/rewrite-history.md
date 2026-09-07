@@ -39,7 +39,8 @@ response cases also failed by acknowledging unsent edits. With both safeguards,
 all 52 focused tests passed. Removing the receipt guard reproduced six
 failures; removing the version predicate reproduced three failures while the
 three unaffected acknowledgement cases passed. Both safeguards were restored. The required Xero/purchasing run passed
-801 tests (62 existing warnings). Receipt tests drive the ETag-checked receipt service
+801 tests (62 existing warnings). Commit `100fbfc` passed its hooks;
+the subsequent full Python suite passed 3,001 tests with 103 warnings. Receipt tests drive the ETag-checked receipt service
 and compare the receipt's stock and job-cost rows before and after synchronization.
 Push tests save real concurrent edits, suppress their queue boundary, and prove
 reconciliation sends the missing reference on retry without moving the ETag.
