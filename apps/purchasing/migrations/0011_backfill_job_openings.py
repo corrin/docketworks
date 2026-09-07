@@ -64,10 +64,13 @@ BEGIN
     FROM job_costline c JOIN job_costset cs ON cs.id = c.cost_set_id
     LEFT JOIN purchasing_purchaseorderline pl ON pl.id::text = c.ext_refs->>'purchase_order_line_id'
     WHERE cs.kind = 'actual' AND c.kind = 'material' AND c.ext_refs ? 'purchase_order_id'
+      AND NOT EXISTS (SELECT 1 FROM purchasing_stockmovement m WHERE m.cost_line_id = c.id)
       AND (pl.id IS NULL OR pl.purchase_order_id::text <> c.ext_refs->>'purchase_order_id'
            OR c.quantity <= 0 OR NOT c.approved
-           OR (c.managed_by IS NOT NULL AND NOT EXISTS (
-               SELECT 1 FROM purchasing_stockmovement m WHERE m.cost_line_id = c.id)));
+           OR c.managed_by IS NOT NULL
+           OR c."desc" IS NULL OR btrim(c."desc") = '' OR length(c."desc") > 255
+           OR c.unit_cost IS NULL OR abs(c.unit_cost) >= 100000000
+           OR abs(c.unit_rev) >= 100000000);
     IF invalid_ids IS NOT NULL THEN
         RAISE EXCEPTION 'Receipt opening preflight failed: invalid PO provenance or job position on costs %', invalid_ids;
     END IF;
@@ -104,7 +107,7 @@ INSERT INTO purchasing_stock
      location, is_active, xero_inventory_tracked, updated_at)
 SELECT stock_id, (SELECT id FROM job_job WHERE name = 'Worker Admin'),
        "desc", 0, 0, unit_cost, unit_rev, CURRENT_TIMESTAMP, 'purchase_order', po_line_id,
-       metal_type, alloy, specifics, location, TRUE, FALSE, CURRENT_TIMESTAMP
+       metal_type, alloy, specifics, location, FALSE, FALSE, CURRENT_TIMESTAMP
 FROM receipt_job_positions;
 
 UPDATE job_costline c SET managed_by = 'stock'

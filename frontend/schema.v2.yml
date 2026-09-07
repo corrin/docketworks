@@ -21780,7 +21780,7 @@ paths:
       - purchasing
   /api/purchasing/stocktakes/stock/:
     get:
-      description: Search physical workshop stock, including zero and retired balances.
+      description: Search active physical workshop stock, including zero balances.
       operationId: stocktake_stock_list
       parameters:
       - in: query

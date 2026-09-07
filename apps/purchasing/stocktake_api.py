@@ -105,7 +105,9 @@ def _detail(count_id: UUID, response: HttpResponse) -> StocktakeDetail:
 def setup_retrieve(request: HttpRequest) -> StocktakeSetup:
     """Read setup without creating a job or configuration row."""
     authenticated_staff(request)
-    configuration = StocktakeConfiguration.objects.first()
+    configuration = StocktakeConfiguration.objects.filter(
+        pk=StocktakeConfiguration.singleton_instance_id
+    ).first()
     return StocktakeSetup(
         adjustment_job_id=configuration.adjustment_job_id if configuration is not None else None,
     )
@@ -120,9 +122,11 @@ def setup_create(request: HttpRequest) -> StocktakeSetup:
 
 @router.get("/stock/", response=StocktakeStockList, operation_id="stocktake_stock_list")
 def stock_list(request: HttpRequest, params: Query[StocktakeStockSearch]) -> StocktakeStockList:
-    """Search physical workshop stock, including zero and retired balances."""
+    """Search active physical workshop stock, including zero balances."""
     authenticated_staff(request)
-    rows = Stock.objects.filter(job=Stock.get_stock_holding_job()).exclude(source="product_catalog")
+    rows = Stock.objects.filter(job=Stock.get_stock_holding_job(), is_active=True).exclude(
+        source="product_catalog"
+    )
     if params.stock_ids:
         rows = rows.filter(id__in=params.stock_ids)
     if params.q:

@@ -23,7 +23,9 @@ from apps.purchasing.stocktake_schemas import StocktakeLineWrite, StocktakeSave
 def configure_stocktake(staff: Staff) -> StocktakeConfiguration:
     """Idempotent UI/provisioning setup, serialized on the existing settings row."""
     defaults = CompanyDefaults.objects.select_for_update().get(pk=CompanyDefaults.get_solo().pk)
-    existing = StocktakeConfiguration.objects.first()
+    existing = StocktakeConfiguration.objects.filter(
+        pk=StocktakeConfiguration.singleton_instance_id
+    ).first()
     if existing is not None:
         return existing
     job = create_job(
@@ -40,14 +42,20 @@ def configure_stocktake(staff: Staff) -> StocktakeConfiguration:
 
 def require_workshop_stock(stock: Stock) -> None:
     """Require unassigned physical workshop stock."""
-    if stock.job_id != Stock.get_stock_holding_job().id or stock.source == "product_catalog":
+    if (
+        not stock.is_active
+        or stock.job_id != Stock.get_stock_holding_job().id
+        or stock.source == "product_catalog"
+    ):
         raise InvalidInputError("Count only unassigned workshop stock.")
 
 
 @transaction.atomic
 def create_stocktake(staff: Staff, stock_id: UUID | None) -> Stocktake:
     """Start a dated observation without moving material."""
-    configuration = StocktakeConfiguration.objects.first()
+    configuration = StocktakeConfiguration.objects.filter(
+        pk=StocktakeConfiguration.singleton_instance_id
+    ).first()
     if configuration is None:
         raise InvalidInputError("Set up the stocktake adjustment job before starting a count.")
     count = Stocktake.objects.create(adjustment_job=configuration.adjustment_job, created_by=staff)

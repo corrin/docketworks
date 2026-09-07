@@ -66,11 +66,12 @@ def move_stock(stock: Stock, change: Decimal, context: MovementContext) -> Stock
     )
     locked.quantity = movement.quantity_after
     locked.inventory_version += 1
-    if context.kind == "stocktake" and locked.quantity > 0:
+    if locked.quantity != 0:
         locked.is_active = True
     locked.save(update_fields=["quantity", "inventory_version", "is_active"])
     stock.quantity = locked.quantity
     stock.inventory_version = locked.inventory_version
+    stock.is_active = locked.is_active
     return movement
 
 

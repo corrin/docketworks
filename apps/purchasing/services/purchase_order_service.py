@@ -521,6 +521,14 @@ def update_purchase_order(
 
         lines_to_delete = data.get("lines_to_delete")
         if lines_to_delete:
+            if Stock.objects.filter(
+                source_purchase_order_line__purchase_order=po,
+                source_purchase_order_line_id__in=lines_to_delete,
+            ).exists():
+                raise DjangoValidationError(
+                    "A received line preserves inventory provenance and cannot be deleted. "
+                    "Reverse its allocations to correct the receipt."
+                )
             PurchaseOrderLine.objects.filter(id__in=lines_to_delete, purchase_order=po).delete()
 
         supplier_id = data.get("supplier_id")

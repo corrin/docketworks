@@ -4017,7 +4017,7 @@ export const stocktakeSetupCreate = <ThrowOnError extends boolean = false>(optio
 /**
  * Stock List
  *
- * Search physical workshop stock, including zero and retired balances.
+ * Search active physical workshop stock, including zero balances.
  */
 export const stocktakeStockList = <ThrowOnError extends boolean = false>(options?: Options<StocktakeStockListData, ThrowOnError>): RequestResult<StocktakeStockListResponses, unknown, ThrowOnError> => (options?.client ?? client).get<StocktakeStockListResponses, unknown, ThrowOnError>({
     responseType: 'json',

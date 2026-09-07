@@ -924,3 +924,24 @@ Stocktake joins the middleware's gzip-safe strong-token contract. JWT's actual
 request.user assignment permits one staff resolver without request.auth fallback.
 The configured mypy already followed the repair module through imports; adhoc is
 now an explicit target as well.
+
+Inventory cutover checks now distinguish pending receipt positions from posted
+movement evidence and refuse missing synthetic-stock descriptions before any
+backfill. Historical zero receipt positions start inactive; nonzero movement
+balances reactivate their stock identity. Received PO lines retain a protected
+source link and the PO editor explains why they cannot be deleted. Count setup
+uses django-solo's fixed key plus a database check; count-line uniqueness is
+transaction-deferred to permit stock swaps and row replacement, while nullable
+location/reason values reject empty strings at the database.
+
+The SQL restore guard now checks both rewind and replay through the migration
+graph, including aliased UPDATE statements. MigrationExecutor coverage proves
+whole-cutover refusal and repeat application without duplicate postings. No
+working or production database repair was applied; the manifest/rehearsal gate
+remains outstanding.
+
+Validation: 32 stocktake/cutover tests, eight restore-script tests, and four
+focused database-constraint/reactivation regressions passed. The PO API suite, including the
+new provenance refusal, passed in the initial broader run. Focused strict mypy passed and
+`makemigrations --check --dry-run` found no drift. Browser and live integration
+verification remains a release gate.

@@ -277,14 +277,13 @@ def test_return_issue_credits_job_without_erasing_original(
     assert credit.unit_cost == line.unit_cost
 
 
-def test_count_picker_includes_zero_and_retired_workshop_material_only(
+def test_count_picker_includes_active_zero_workshop_material_only(
     client: Client,
     stock_holding_job: Job,
     job: Job,
 ) -> None:
-    zero = make_stock(
-        stock_holding_job, description="Countable sheet", quantity="0", is_active=False
-    )
+    zero = make_stock(stock_holding_job, description="Countable sheet", quantity="0")
+    make_stock(stock_holding_job, description="Retired sheet", quantity="0", is_active=False)
     make_stock(job, description="Assigned sheet")
     make_stock(stock_holding_job, description="Catalogue sheet", source="product_catalog")
     response = client.get(f"{URL}stock/", {"q": "sheet"})
@@ -353,3 +352,68 @@ def test_stock_observation_refresh_includes_unsaved_selected_items(
     assert row["id"] == str(selected.id)
     assert row["quantity"] == 8
     assert row["inventory_version"] == 1
+
+
+@pytest.mark.parametrize("replace_id", [False, True])
+def test_count_can_swap_stock_or_replace_a_row_in_one_save(
+    api: Client, stock_holding_job: Job, replace_id: bool
+) -> None:
+    first = make_stock(stock_holding_job, quantity="2")
+    second = make_stock(stock_holding_job, quantity="2")
+    count_id = start_count(api, first)
+    detail = api.get(f"{URL}{count_id}/")
+    first_id, second_id = detail.json()["lines"][0]["id"], str(uuid4())
+    rows = [
+        {
+            "id": row_id,
+            "stock_id": str(stock.id),
+            "description": stock.description,
+            "location": None,
+            "expected_quantity": "2",
+            "expected_version": 0,
+            "unit_cost": str(stock.unit_cost),
+            "counted_quantity": "2",
+            "reason": None,
+        }
+        for row_id, stock in [(first_id, first), (second_id, second)]
+    ]
+    saved = api.put(
+        f"{URL}{count_id}/",
+        {"lines": rows},
+        content_type="application/json",
+        headers={"If-Match": detail.headers["ETag"]},
+    )
+    assert saved.status_code == 200, saved.content
+    if replace_id:
+        rows[0]["id"] = str(uuid4())
+    else:
+        rows[0]["stock_id"], rows[1]["stock_id"] = rows[1]["stock_id"], rows[0]["stock_id"]
+    saved = api.put(
+        f"{URL}{count_id}/",
+        {"lines": rows},
+        content_type="application/json",
+        headers={"If-Match": saved.headers["ETag"]},
+    )
+    assert saved.status_code == 200, saved.content
+    assert {line["id"]: line["stock_id"] for line in saved.json()["lines"]} == {
+        row["id"]: row["stock_id"] for row in rows
+    }
+
+
+@pytest.mark.parametrize("field", ["location", "reason"])
+def test_count_rejects_blank_nullable_text_at_the_database(
+    api: Client, stock_holding_job: Job, field: str
+) -> None:
+    count_id = start_count(api, make_stock(stock_holding_job))
+    count = Stocktake.objects.get(pk=count_id)
+    with pytest.raises(DatabaseError), transaction.atomic():
+        count.lines.update(**{field: ""})
+
+
+def test_setup_configuration_cannot_create_a_second_key(api: Client, job: Job) -> None:
+    assert api.post(f"{URL}setup/").status_code == 200
+    with pytest.raises(DatabaseError), transaction.atomic():
+        StocktakeConfiguration.objects.bulk_create(
+            [StocktakeConfiguration(id=2, adjustment_job=job)]
+        )
+    assert list(StocktakeConfiguration.objects.values_list("id", flat=True)) == [1]

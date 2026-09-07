@@ -24,6 +24,7 @@ from pathlib import Path
 import pytest
 from django.apps import apps
 from django.db import IntegrityError, connection, transaction
+from django.db.migrations.loader import MigrationLoader
 
 from apps.accounts.models import Staff
 
@@ -94,6 +95,7 @@ METADATA_MIGRATIONS = {("integrations", "0002_transfer_content_type")}
 SQL_DATA_MIGRATIONS = {
     ("purchasing", "0007_inventory_openings"),
     ("purchasing", "0011_backfill_job_openings"),
+    ("purchasing", "0012_protect_inventory_provenance"),
 }
 
 
@@ -187,7 +189,11 @@ def test_no_unaccounted_data_writing_migrations() -> None:
             source = path.read_text()
             if "RunPython" in source or (
                 "RunSQL" in source
-                and re.search(r"\b(?:INSERT INTO|UPDATE\s+\w+\s+SET|DELETE FROM)\b", source, re.I)
+                and re.search(
+                    r"\b(?:INSERT INTO|UPDATE\s+\w+(?:\s+(?:AS\s+)?\w+)?\s+SET|DELETE FROM)\b",
+                    source,
+                    re.I,
+                )
             ):
                 found.add((app.label, path.stem))
 
@@ -222,6 +228,26 @@ def test_script_reapplies_data_migrations_after_the_restore() -> None:
             f"{app_label}/{migration} is re-applied BEFORE the restore, which "
             f"is the same as not re-applying it — the rows are not there yet"
         )
+
+
+def test_sql_backfills_are_rewound_and_replayed_after_restore() -> None:
+    script = MIGRATE_SCRIPT.read_text()
+    before, after = script.split("pg_restore --data-only", 1)
+    loader = MigrationLoader(None)
+    rewound: set[tuple[str, str]] = set()
+    replayed: set[tuple[str, str]] = set()
+    for app, number in re.findall(r"manage.py migrate (\w+) (\d+)", before):
+        target = loader.get_migration_by_prefix(app, number)
+        ancestors = set(loader.graph.forwards_plan((app, target.name)))
+        rewound.update(key for key in loader.graph.nodes if key[0] == app and key not in ancestors)
+    for app, number in re.findall(r"manage.py migrate (\w+) (\d+)", after):
+        target = loader.get_migration_by_prefix(app, number)
+        replayed.update(loader.graph.forwards_plan((app, target.name)))
+    if "manage.py migrate --no-input" in after:
+        for target_key in loader.graph.leaf_nodes():
+            replayed.update(loader.graph.forwards_plan(target_key))
+    assert rewound >= SQL_DATA_MIGRATIONS
+    assert replayed >= SQL_DATA_MIGRATIONS
 
 
 def test_script_clears_v1_ciphertext_after_phone_columns_are_renamed() -> None:

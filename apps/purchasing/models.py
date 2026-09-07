@@ -17,6 +17,7 @@ from django.db import models
 from django.db.models import IntegerField, Max
 from django.db.models.functions import Cast, Substr
 from django.utils import timezone
+from solo.models import SingletonModel
 
 from apps.core.models import CompanyDefaults
 from apps.job.enums import MetalType
@@ -427,7 +428,7 @@ class Stock(models.Model):
 
     source_purchase_order_line = models.ForeignKey(
         "purchasing.PurchaseOrderLine",
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name="stock_generated",
@@ -680,11 +681,18 @@ class PurchaseOrderEvent(models.Model):
         return f"{self.timestamp}: Event for PO {self.purchase_order.po_number}"
 
 
-class StocktakeConfiguration(models.Model):
+class StocktakeConfiguration(SingletonModel):
     """The ongoing variance job, provisioned through the stocktake setup command."""
 
     id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
     adjustment_job = models.OneToOneField("job.Job", on_delete=models.PROTECT)
+
+    class Meta:
+        constraints: ClassVar = [
+            models.CheckConstraint(
+                condition=models.Q(pk=1), name="stocktake_configuration_singleton"
+            ),
+        ]
 
     def __str__(self) -> str:
         return "Stocktake configuration"
@@ -736,7 +744,17 @@ class StocktakeLine(models.Model):
 
     class Meta:
         constraints: ClassVar = [
-            models.UniqueConstraint(fields=["stocktake", "stock"], name="stocktake_unique_stock"),
+            models.UniqueConstraint(
+                fields=["stocktake", "stock"],
+                name="stocktake_unique_stock",
+                deferrable=models.Deferrable.DEFERRED,
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(location=""), name="stocktake_line_location_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(reason=""), name="stocktake_line_reason_not_blank"
+            ),
             models.CheckConstraint(
                 condition=models.Q(counted_quantity__gte=0), name="count_nonnegative"
             ),

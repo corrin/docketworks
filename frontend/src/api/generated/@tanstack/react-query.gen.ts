@@ -4764,7 +4764,7 @@ export const stocktakeStockListQueryKey = (options?: Options<StocktakeStockListD
 /**
  * Stock List
  *
- * Search physical workshop stock, including zero and retired balances.
+ * Search active physical workshop stock, including zero balances.
  */
 export const stocktakeStockListOptions = (options?: Options<StocktakeStockListData>) => queryOptions<StocktakeStockListResponse, AxiosError<DefaultError>, StocktakeStockListResponse, ReturnType<typeof stocktakeStockListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -4784,7 +4784,7 @@ export const stocktakeStockListInfiniteQueryKey = (options?: Options<StocktakeSt
 /**
  * Stock List
  *
- * Search physical workshop stock, including zero and retired balances.
+ * Search active physical workshop stock, including zero balances.
  */
 export const stocktakeStockListInfiniteOptions = (options?: Options<StocktakeStockListData>) => {
     const opts = infiniteQueryOptions<StocktakeStockListResponse, AxiosError<DefaultError>, InfiniteData<StocktakeStockListResponse>, QueryKey<Options<StocktakeStockListData>>, number | Pick<QueryKey<Options<StocktakeStockListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(

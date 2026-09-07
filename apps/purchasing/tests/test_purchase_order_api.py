@@ -11,6 +11,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+from django.db.models.deletion import ProtectedError
 from django.test import Client
 from django.utils import timezone
 
@@ -21,7 +22,7 @@ from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.platform.integrations.google.gmail import GmailDraft
-from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
+from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.tests.conftest import make_po_line, make_purchase_order
 
 #: The one seam to Gmail; the real API is exercised by the integration suite.
@@ -1024,3 +1025,30 @@ class TestPurchaseOrderEmail:
 
         assert response.status_code == 400
         assert "no email address" in response.json()["detail"]
+
+
+def test_received_line_cannot_lose_inventory_provenance(
+    api: Client, stock_holding_job: Job
+) -> None:
+    po = make_purchase_order()
+    line = make_po_line(po)
+    stock = Stock.objects.create(
+        job=stock_holding_job,
+        description="Receipt identity",
+        quantity=0,
+        unit_cost=5,
+        source="purchase_order",
+        source_purchase_order_line=line,
+    )
+    response = api.patch(
+        _detail_url(po),
+        {"lines_to_delete": [str(line.id)]},
+        content_type="application/json",
+        headers={"If-Match": _current_etag(api, po)},
+    )
+    assert response.status_code == 400, response.content
+    assert b"provenance" in response.content
+    with pytest.raises(ProtectedError):
+        line.delete()
+    stock.refresh_from_db()
+    assert stock.source_purchase_order_line_id == line.id
