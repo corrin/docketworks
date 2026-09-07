@@ -6,6 +6,7 @@ from typing import Literal
 
 from django.db import transaction
 from django.db.models import Sum
+from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.core.errors import InvalidInputError
@@ -39,12 +40,22 @@ def move_stock(stock: Stock, change: Decimal, context: MovementContext) -> Stock
         raise InvalidInputError("A stock movement requires a reason.")
     if context.kind in ("issue", "return", "stocktake") and context.counterpart_job is None:
         raise InvalidInputError("This stock movement requires a counterpart job.")
+    if context.kind in ("issue", "return", "stocktake"):
+        cost = context.cost_line
+        if cost is None or cost.quantity != -change:
+            raise InvalidInputError("The movement requires its matching job cost quantity.")
+        if cost.cost_set.job != context.counterpart_job or cost.cost_set.kind != "actual":
+            raise InvalidInputError(
+                "The movement cost must belong to its counterpart job's actuals."
+            )
     movement = StockMovement.objects.create(
         stock=locked,
         quantity_change=change,
         quantity_before=locked.quantity,
         quantity_after=locked.quantity + change,
-        unit_cost=locked.unit_cost,
+        unit_cost=context.cost_line.unit_cost
+        if context.cost_line is not None
+        else locked.unit_cost,
         kind=context.kind,
         reason=context.reason,
         actor=context.actor,
@@ -69,16 +80,41 @@ def inventory_difference(stock: Stock) -> Decimal:
     return stock.quantity - Decimal(total)
 
 
+def receipt_quantity(movement: StockMovement) -> Decimal:
+    """Read the supplied quantity from either a posting or an explicit cutover observation."""
+    if movement.kind == "receipt":
+        return movement.quantity_change
+    if movement.kind != "receipt_opening" or movement.opening_quantity is None:
+        raise InvalidInputError("This movement is not receipt evidence.")
+    return movement.opening_quantity
+
+
+def returnable_issue_cost(movement: StockMovement) -> CostLine | None:
+    """Resolve a complete job position; other movement kinds cannot be returned."""
+    if movement.kind not in ("issue", "job_opening"):
+        return None
+    if movement.cost_line is None or movement.counterpart_job is None:
+        raise InvalidInputError("The issued material has incomplete movement evidence.")
+    cost = movement.cost_line
+    if cost.quantity <= 0:
+        raise InvalidInputError("A return requires a positive movement job quantity.")
+    if movement.kind == "issue" and movement.quantity_change != -cost.quantity:
+        raise InvalidInputError("The issue quantity does not match its movement job cost.")
+    if movement.kind == "job_opening" and movement.quantity_change != 0:
+        raise InvalidInputError("A job opening must not change the workshop balance.")
+    return cost
+
+
 @transaction.atomic
-def reverse_issue(movement: StockMovement, staff: Staff | None, reason: str) -> StockMovement:
+def reverse_issue(movement: StockMovement, staff: Staff, reason: str) -> StockMovement:
     """Return a complete issue with a linked opposite cost; retries return the first reversal."""
     original = StockMovement.objects.select_for_update().get(pk=movement.pk)
     existing = StockMovement.objects.filter(reverses=original).first()
     if existing is not None:
         return existing
-    if original.kind != "issue" or original.cost_line is None or original.counterpart_job is None:
+    cost = returnable_issue_cost(original)
+    if cost is None:
         raise InvalidInputError("Only a job issue can be returned through this action.")
-    cost = original.cost_line
     credit = CostLine.objects.create(
         cost_set=cost.cost_set,
         kind="material",
@@ -86,12 +122,12 @@ def reverse_issue(movement: StockMovement, staff: Staff | None, reason: str) -> 
         quantity=-cost.quantity,
         unit_cost=cost.unit_cost,
         unit_rev=cost.unit_rev,
-        accounting_date=cost.accounting_date,
+        accounting_date=timezone.localdate(),
         managed_by="stock",
     )
     return move_stock(
         original.stock,
-        -original.quantity_change,
+        cost.quantity,
         MovementContext(
             kind="return",
             reason=reason,

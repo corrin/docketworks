@@ -59,8 +59,6 @@ from apps.job.models import (
 from apps.job.models.costing import CostLine, CostSet
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
 from apps.job.services.time_entry_rates import pay_item_by_id, price_time_entry
-from apps.purchasing.models import Stock
-from apps.purchasing.services.stock_movement_service import MovementContext, move_stock
 
 logger = logging.getLogger(__name__)
 
@@ -2254,6 +2252,8 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
     if kind not in COST_SET_KINDS:
         raise ValueError(f"Invalid kind. Must be one of: {', '.join(COST_SET_KINDS)}")
     _validate_costline_write(data)
+    if kind == "actual" and staff.is_office_staff and "stock_id" in (data.get("ext_refs") or {}):
+        raise ValueError("Issue material through purchasing so its stock movement is recorded.")
 
     meta = data.get("meta") or {}
     # Timesheet lines may omit labour_subtype; the rate pipeline then uses the
@@ -2291,12 +2291,10 @@ def refuse_leave_managed(line: CostLine, remedy: str) -> None:
         )
 
 
+@transaction.atomic
 def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
-    """Update a cost line from a partial payload.
-
-    A quantity change on a line with ``ext_refs.stock_id`` adjusts the
-    Stock row by the difference.
-    """
+    """Edit unowned costs; issuing material belongs to purchasing."""
+    line = CostLine.objects.select_for_update().get(pk=line.pk)
     refuse_leave_managed(line, "edit")
     _validate_costline_write(data)
 
@@ -2313,47 +2311,20 @@ def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
         _reprice_timesheet_line(line, data, patch_meta)
 
     with transaction.atomic():
-        old_quantity = line.quantity or Decimal("0")
         _apply_costline_fields(line, data)
+        if line.cost_set.kind == "actual" and line.approved and "stock_id" in line.ext_refs:
+            raise ValueError("Issue material through purchasing so its stock movement is recorded.")
         line.save()
 
-        stock_id = (line.ext_refs or {}).get("stock_id")
-        new_quantity = line.quantity or Decimal("0")
-        diff = new_quantity - old_quantity
-        # Only ACTUAL lines consume inventory; an estimate or quote references
-        # a stock item hypothetically, so a quantity edit there moves nothing.
-        if stock_id and diff and line.cost_set.kind == "actual":
-            # Use an F expression so concurrent stock adjustments cannot lose updates.
-            move_stock(
-                Stock.objects.get(pk=stock_id),
-                -diff,
-                MovementContext(
-                    kind="issue" if diff > 0 else "return",
-                    reason="Legacy job quantity correction",
-                    counterpart_job=line.cost_set.job,
-                ),
-            )
     return line
 
 
+@transaction.atomic
 def delete_cost_line(line: CostLine) -> None:
-    """Delete a cost line, returning any consumed stock."""
+    """Delete an unowned cost; unissued drafts have no inventory effect."""
+    line = CostLine.objects.select_for_update().get(pk=line.pk)
     refuse_leave_managed(line, "cancel")
     with transaction.atomic():
-        stock_id = (line.ext_refs or {}).get("stock_id")
-        # Only ACTUAL lines consumed anything; deleting an estimate or quote
-        # line must not conjure stock that was never drawn.
-        if stock_id and line.quantity and line.cost_set.kind == "actual":
-            move_stock(
-                Stock.objects.get(pk=stock_id),
-                line.quantity,
-                MovementContext(
-                    kind="return",
-                    reason="Legacy job material returned",
-                    counterpart_job=line.cost_set.job,
-                ),
-            )
-        # CostLine.delete() refreshes the CostSet summary (model machinery).
         line.delete()
     logger.info("Deleted cost line %s", line.id)
 

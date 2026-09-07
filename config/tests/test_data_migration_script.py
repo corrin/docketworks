@@ -90,11 +90,18 @@ DATA_MIGRATIONS_RERUN_AFTER_RESTORE = {
 # transfer with core; it is not a seed or a repair of restored business rows.
 METADATA_MIGRATIONS = {("integrations", "0002_transfer_content_type")}
 
+# GPT: raw SQL writes positions too; the RunPython-only discovery missed them.
+SQL_DATA_MIGRATIONS = {
+    ("purchasing", "0007_inventory_openings"),
+    ("purchasing", "0011_backfill_job_openings"),
+}
+
 
 # Migrations the script unapplies BEFORE the restore. Restoring with them
 # applied is rejected because pg_dump --data-only names every column in its
 # COPY, so a renamed column aborts the single-transaction load.
 UNAPPLIED_BEFORE_RESTORE = {
+    ("purchasing", "0005"),
     ("ai", "0001"),
     ("job", "0004"),
     ("accounts", "0004"),
@@ -177,10 +184,19 @@ def test_no_unaccounted_data_writing_migrations() -> None:
         if not app.name.startswith("apps."):
             continue
         for path in sorted((Path(app.path) / "migrations").glob("[0-9]*.py")):
-            if "RunPython" in path.read_text():
+            source = path.read_text()
+            if "RunPython" in source or (
+                "RunSQL" in source
+                and re.search(r"\b(?:INSERT INTO|UPDATE\s+\w+\s+SET|DELETE FROM)\b", source, re.I)
+            ):
                 found.add((app.label, path.stem))
 
-    assert found == SEEDING_MIGRATIONS | DATA_MIGRATIONS_RERUN_AFTER_RESTORE | METADATA_MIGRATIONS
+    assert found == (
+        SEEDING_MIGRATIONS
+        | DATA_MIGRATIONS_RERUN_AFTER_RESTORE
+        | METADATA_MIGRATIONS
+        | SQL_DATA_MIGRATIONS
+    )
 
 
 def test_script_reapplies_data_migrations_after_the_restore() -> None:

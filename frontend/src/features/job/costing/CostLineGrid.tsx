@@ -484,7 +484,11 @@ function ActionsCell({ row, table }: CellProps) {
   }
   if (gridRow.type === 'server' && gridRow.line.managed_by === 'stock') {
     return (
-      <Link className="text-blue-700 underline" to="/purchasing/stock">
+      <Link
+        className="text-blue-700 underline"
+        to="/purchasing/stock"
+        search={{ costLineId: gridRow.line.id }}
+      >
         Stock history
       </Link>
     )

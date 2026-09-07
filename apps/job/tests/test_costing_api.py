@@ -334,7 +334,7 @@ class TestCostLineUpdate:
         assert estimate.summary["cost"] == 300.0
         assert estimate.summary["rev"] == 450.0
 
-    def test_patch_adjusts_linked_stock_by_quantity_diff(self, client: Client, job: Job) -> None:
+    def test_unissued_material_edits_do_not_consume_stock(self, client: Client, job: Job) -> None:
         stock = Stock.objects.create(
             description="Steel offcut",
             quantity=Decimal("10.00"),
@@ -342,7 +342,9 @@ class TestCostLineUpdate:
             source="manual",
         )
         actual = job.cost_sets.get(kind="actual")
-        line = _make_line(actual, quantity="1.000", ext_refs={"stock_id": str(stock.id)})
+        line = _make_line(
+            actual, quantity="1.000", approved=False, ext_refs={"stock_id": str(stock.id)}
+        )
 
         response = client.patch(
             f"/api/job/cost_lines/{line.id}/",
@@ -352,7 +354,7 @@ class TestCostLineUpdate:
 
         assert response.status_code == 200
         stock.refresh_from_db()
-        assert stock.quantity == Decimal("7.00")  # 10 - (4 - 1)
+        assert stock.quantity == Decimal("10.00")
 
     def test_patch_on_estimate_line_never_moves_stock(self, client: Client, job: Job) -> None:
         # Only actual lines consume inventory: an estimate references a stock
@@ -508,7 +510,9 @@ class TestCostLineUpdate:
 
 
 class TestCostLineDelete:
-    def test_delete_returns_stock_and_recalculates_summary(self, client: Client, job: Job) -> None:
+    def test_deleting_unissued_material_does_not_conjure_stock(
+        self, client: Client, job: Job
+    ) -> None:
         stock = Stock.objects.create(
             description="Steel offcut",
             quantity=Decimal("10.00"),
@@ -516,7 +520,9 @@ class TestCostLineDelete:
             source="manual",
         )
         actual = job.cost_sets.get(kind="actual")
-        line = _make_line(actual, quantity="2.000", ext_refs={"stock_id": str(stock.id)})
+        line = _make_line(
+            actual, quantity="2.000", approved=False, ext_refs={"stock_id": str(stock.id)}
+        )
         actual.refresh_from_db()
         assert actual.summary["cost"] == 200.0
 
@@ -525,7 +531,7 @@ class TestCostLineDelete:
         assert response.status_code == 204
         assert not CostLine.objects.filter(id=line.id).exists()
         stock.refresh_from_db()
-        assert stock.quantity == Decimal("12.00")  # 10 + 2 returned
+        assert stock.quantity == Decimal("10.00")
         actual.refresh_from_db()
         assert actual.summary["cost"] == 0.0
 

@@ -4,7 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { stocktakeCreateMutation, apiErrorMessage } from '@/api'
 import { Button } from '@/components/ui/button'
-import { StockMovementHistory } from './StockMovementHistory'
+import { StockMovementHistory, CostLineMovementHistory } from './StockMovementHistory'
 import { EntryGridSection } from '@/features/shared/EntryGridSection'
 
 import { purchasingStockListOptions, purchasingStockSearchRetrieveOptions } from '@/api'
@@ -26,7 +26,7 @@ import { SearchInput } from '@/features/shared/SearchInput'
  * request to /search/ — the search query is enabled-gated, and the list
  * query never unmounts, so neither refetches on clear.
  */
-export function StockPage() {
+export function StockPage({ costLineId }: { costLineId?: string }) {
   const [historyId, setHistoryId] = useState<string | null>(null)
   const navigate = useNavigate()
   const createCount = useMutation(stocktakeCreateMutation())
@@ -141,6 +141,11 @@ export function StockPage() {
           </tr>
         )}
       />
+      {costLineId !== undefined && (
+        <EntryGridSection title="Job material history">
+          <CostLineMovementHistory costLineId={costLineId} />
+        </EntryGridSection>
+      )}
       {historyId !== null && (
         <EntryGridSection
           title="Stock movements"

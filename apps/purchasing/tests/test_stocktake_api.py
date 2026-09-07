@@ -31,13 +31,13 @@ def start_count(client: Client, stock: Stock) -> str:
     return str(response.json()["id"])
 
 
-def save_count(client: Client, count_id: str, stock: Stock, counted: str | None) -> int:
-    body = client.get(f"{URL}{count_id}/").json()
+def save_count(client: Client, count_id: str, stock: Stock, counted: str | None) -> str:
+    detail = client.get(f"{URL}{count_id}/")
+    body = detail.json()
     line = body["lines"][0]
     response = client.put(
         f"{URL}{count_id}/",
         {
-            "version": body["version"],
             "lines": [
                 {
                     "id": line["id"],
@@ -53,9 +53,10 @@ def save_count(client: Client, count_id: str, stock: Stock, counted: str | None)
             ],
         },
         content_type="application/json",
+        headers={"If-Match": detail.headers["ETag"]},
     )
     assert response.status_code == 200, response.content
-    return int(response.json()["version"])
+    return response.headers["ETag"]
 
 
 @pytest.mark.parametrize(
@@ -71,9 +72,7 @@ def test_count_balances_workshop_and_adjustment_job(
     move_stock(stock, Decimal(recorded), MovementContext(kind="opening", reason="Test opening"))
     count_id = start_count(client, stock)
     version = save_count(client, count_id, stock, counted)
-    response = client.post(
-        f"{URL}{count_id}/post/", {"version": version}, content_type="application/json"
-    )
+    response = client.post(f"{URL}{count_id}/post/", headers={"If-Match": version})
     assert response.status_code == 200, response.content
     stock.refresh_from_db()
     assert stock.quantity == Decimal(counted)
@@ -89,9 +88,7 @@ def test_count_balances_workshop_and_adjustment_job(
         assert movement.cost_line.quantity == -difference
         assert movement.cost_line.total_cost == -difference * 80
         assert movement.cost_line.unit_rev == 0
-    retry = client.post(
-        f"{URL}{count_id}/post/", {"version": version}, content_type="application/json"
-    )
+    retry = client.post(f"{URL}{count_id}/post/", headers={"If-Match": version})
     assert retry.status_code == 200, retry.content
     stock.refresh_from_db()
     assert stock.quantity == Decimal(counted)
@@ -101,9 +98,7 @@ def test_blank_count_does_not_write_stock(client: Client, stock_holding_job: Job
     stock = make_stock(stock_holding_job)
     count_id = start_count(client, stock)
     version = save_count(client, count_id, stock, None)
-    response = client.post(
-        f"{URL}{count_id}/post/", {"version": version}, content_type="application/json"
-    )
+    response = client.post(f"{URL}{count_id}/post/", headers={"If-Match": version})
     assert response.status_code == 400
     stock.refresh_from_db()
     assert stock.quantity == 10
@@ -120,10 +115,8 @@ def test_intervening_issue_requires_recount(
     count_id = start_count(client, stock)
     version = save_count(client, count_id, stock, "8")
     consume_stock(item=stock, job=job, qty=Decimal("2"), user=office_staff)
-    response = client.post(
-        f"{URL}{count_id}/post/", {"version": version}, content_type="application/json"
-    )
-    assert response.status_code == 400
+    response = client.post(f"{URL}{count_id}/post/", headers={"If-Match": version})
+    assert response.status_code == 409
     assert "recount" in response.json()["detail"]
     assert Stocktake.objects.get(pk=count_id).posted_at is None
     assert not StockMovement.objects.filter(kind="stocktake").exists()
@@ -146,17 +139,24 @@ def test_new_material_requires_cost_and_is_created_only_on_post(
         "reason": "Unexplained surplus",
     }
     response = client.put(
-        f"{URL}{count_id}/", {"version": 0, "lines": [line]}, content_type="application/json"
+        f"{URL}{count_id}/",
+        {"lines": [line]},
+        content_type="application/json",
+        headers={"If-Match": client.get(f"{URL}{count_id}/").headers["ETag"]},
     )
     assert response.status_code == 422
     line["unit_cost"] = 80
     response = client.put(
-        f"{URL}{count_id}/", {"version": 0, "lines": [line]}, content_type="application/json"
+        f"{URL}{count_id}/",
+        {"lines": [line]},
+        content_type="application/json",
+        headers={"If-Match": client.get(f"{URL}{count_id}/").headers["ETag"]},
     )
     assert response.status_code == 200, response.content
     assert not Stock.objects.filter(description=line["description"]).exists()
     response = client.post(
-        f"{URL}{count_id}/post/", {"version": 1}, content_type="application/json"
+        f"{URL}{count_id}/post/",
+        headers={"If-Match": client.get(f"{URL}{count_id}/").headers["ETag"]},
     )
     assert response.status_code == 200, response.content
     found = Stock.objects.get(description=line["description"])
@@ -179,22 +179,18 @@ def test_correction_retains_original_posting(client: Client, stock_holding_job: 
     stock = make_stock(stock_holding_job, quantity="0")
     original = start_count(client, stock)
     version = save_count(client, original, stock, "1")
-    assert (
-        client.post(
-            f"{URL}{original}/post/", {"version": version}, content_type="application/json"
-        ).status_code
-        == 200
+    assert client.post(f"{URL}{original}/post/", headers={"If-Match": version}).status_code == 200
+    response = client.post(
+        f"{URL}{original}/correct/",
+        headers={"If-Match": client.get(f"{URL}{original}/").headers["ETag"]},
     )
-    response = client.post(f"{URL}{original}/correct/")
     assert response.status_code == 200, response.content
     correction = response.json()
     assert correction["corrects_id"] == original
     stock.refresh_from_db()
     version = save_count(client, correction["id"], stock, "0")
     assert (
-        client.post(
-            f"{URL}{correction['id']}/post/", {"version": version}, content_type="application/json"
-        ).status_code
+        client.post(f"{URL}{correction['id']}/post/", headers={"If-Match": version}).status_code
         == 200
     )
     stock.refresh_from_db()
@@ -202,7 +198,10 @@ def test_correction_retains_original_posting(client: Client, stock_holding_job: 
     assert StockMovement.objects.filter(stock=stock, kind="stocktake").count() == 2
     assert (
         client.put(
-            f"{URL}{original}/", {"version": 2, "lines": []}, content_type="application/json"
+            f"{URL}{original}/",
+            {"lines": []},
+            content_type="application/json",
+            headers={"If-Match": client.get(f"{URL}{original}/").headers["ETag"]},
         ).status_code
         == 400
     )
@@ -227,11 +226,15 @@ def test_failed_post_rolls_back_every_line(client: Client, stock_holding_job: Jo
     second = dict(first, id=str(uuid4()), stock_id=None, description="Missing reason", reason=None)
     saved = client.put(
         f"{URL}{count_id}/",
-        {"version": 0, "lines": [first, second]},
+        {"lines": [first, second]},
+        headers={"If-Match": client.get(f"{URL}{count_id}/").headers["ETag"]},
         content_type="application/json",
     )
     assert saved.status_code == 200, saved.content
-    result = client.post(f"{URL}{count_id}/post/", {"version": 1}, content_type="application/json")
+    result = client.post(
+        f"{URL}{count_id}/post/",
+        headers={"If-Match": client.get(f"{URL}{count_id}/").headers["ETag"]},
+    )
     assert result.status_code == 400
     stock.refresh_from_db()
     assert stock.quantity == 0
@@ -294,9 +297,7 @@ def test_posted_evidence_refuses_bulk_updates(client: Client, stock_holding_job:
     stock = make_stock(stock_holding_job, quantity="0")
     count_id = start_count(client, stock)
     version = save_count(client, count_id, stock, "1")
-    response = client.post(
-        f"{URL}{count_id}/post/", {"version": version}, content_type="application/json"
-    )
+    response = client.post(f"{URL}{count_id}/post/", headers={"If-Match": version})
     assert response.status_code == 200, response.content
     movement = StockMovement.objects.get(stock=stock, kind="stocktake")
     with pytest.raises(DatabaseError), transaction.atomic():
@@ -308,3 +309,47 @@ def test_posted_evidence_refuses_bulk_updates(client: Client, stock_holding_job:
     assert movement.cost_line_id is not None
     with pytest.raises(DatabaseError), transaction.atomic():
         CostLine.objects.filter(pk=movement.cost_line_id).update(quantity=-2)
+
+
+@pytest.mark.parametrize("action", ["save", "post", "correct"])
+def test_stocktake_mutations_require_the_observed_etag(
+    client: Client, stock_holding_job: Job, action: str
+) -> None:
+    """An absent or obsolete draft precondition cannot overwrite or post another user's count."""
+    stock = make_stock(stock_holding_job)
+    count_id = start_count(client, stock)
+    stale = client.get(f"{URL}{count_id}/").headers["ETag"]
+    current = save_count(client, count_id, stock, "8")
+    assert current != stale
+    if action == "correct":
+        assert (
+            client.post(f"{URL}{count_id}/post/", headers={"If-Match": current}).status_code == 200
+        )
+    for headers, expected in [({}, 428), ({"If-Match": stale}, 412)]:
+        if action == "save":
+            response = client.put(
+                f"{URL}{count_id}/", {"lines": []}, content_type="application/json", headers=headers
+            )
+        else:
+            response = client.post(f"{URL}{count_id}/{action}/", headers=headers)
+        assert response.status_code == expected, response.content
+    count = Stocktake.objects.get(pk=count_id)
+    assert count.lines.count() == 1
+    assert count.lines.get().counted_quantity == Decimal("8")
+    assert Stocktake.objects.count() == 1
+
+
+def test_stock_observation_refresh_includes_unsaved_selected_items(
+    client: Client, stock_holding_job: Job, job: Job, office_staff: Staff
+) -> None:
+    """A stock change must be visible even before a selected row has been saved to a draft."""
+    selected = make_stock(stock_holding_job, quantity="10")
+    make_stock(stock_holding_job, quantity="99")
+    consume_stock(item=selected, job=job, qty=Decimal("2"), user=office_staff)
+    response = client.get(f"{URL}stock/", {"stock_ids": [str(selected.id)]})
+    assert response.status_code == 200, response.content
+    assert response.json()["count"] == 1
+    row = response.json()["results"][0]
+    assert row["id"] == str(selected.id)
+    assert row["quantity"] == 8
+    assert row["inventory_version"] == 1

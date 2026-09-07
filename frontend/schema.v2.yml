@@ -10664,13 +10664,11 @@ components:
           title: Price Tbc
           type: boolean
         quantity:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Quantity
-          type: string
+          type: number
         received_quantity:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Received Quantity
-          type: string
+          type: number
         specifics:
           anyOf:
           - type: string
@@ -10686,8 +10684,7 @@ components:
           type: integer
         unit_cost:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: number
           - type: 'null'
           title: Unit Cost
       required:
@@ -12992,9 +12989,6 @@ components:
             type: string
           - type: 'null'
           title: Posted At
-        version:
-          title: Version
-          type: integer
       required:
       - adjustment_job_id
       - author
@@ -13004,7 +12998,6 @@ components:
       - id
       - lines
       - posted_at
-      - version
       title: StocktakeDetail
       type: object
     StocktakeLineOut:
@@ -13170,11 +13163,7 @@ components:
             $ref: '#/components/schemas/StocktakeLineWrite'
           title: Lines
           type: array
-        version:
-          title: Version
-          type: integer
       required:
-      - version
       - lines
       title: StocktakeSave
       type: object
@@ -13264,6 +13253,37 @@ components:
       - unit_cost
       title: StocktakeStockOut
       type: object
+    StocktakeStockSearch:
+      description: Bounded identity filtering also refreshes unsaved stock observations.
+      properties:
+        location:
+          default: ''
+          title: Location
+          type: string
+        page:
+          default: 1
+          minimum: 1
+          title: Page
+          type: integer
+        page_size:
+          default: 50
+          maximum: 100
+          minimum: 1
+          title: Page Size
+          type: integer
+        q:
+          default: ''
+          title: Q
+          type: string
+        stock_ids:
+          items:
+            format: uuid
+            type: string
+          maxItems: 100
+          title: Stock Ids
+          type: array
+      title: StocktakeStockSearch
+      type: object
     StocktakeSummary:
       description: StocktakeSummary wire contract.
       properties:
@@ -13297,9 +13317,6 @@ components:
             type: string
           - type: 'null'
           title: Posted At
-        version:
-          title: Version
-          type: integer
       required:
       - adjustment_job_id
       - author
@@ -13308,18 +13325,7 @@ components:
       - discrepancy_value
       - id
       - posted_at
-      - version
       title: StocktakeSummary
-      type: object
-    StocktakeVersion:
-      description: StocktakeVersion wire contract.
-      properties:
-        version:
-          title: Version
-          type: integer
-      required:
-      - version
-      title: StocktakeVersion
       type: object
     SummaryStatsOut:
       description: Wire contract for SummaryStatsOut.
@@ -18113,7 +18119,7 @@ paths:
       - integration-settings
   /api/job/cost_lines/{cost_line_id}/:
     patch:
-      description: Update a cost line from a partial payload, adjusting linked stock on quantity change.
+      description: Edit unowned costs; posted material is corrected through purchasing.
       operationId: job_cost_lines_partial_update
       parameters:
       - in: path
@@ -20925,6 +20931,30 @@ paths:
       summary: List all jobs with the stock-holding flag
       tags:
       - purchasing
+  /api/purchasing/cost-lines/{id}/movement/:
+    get:
+      description: Locate the owning movement without decoding costing's historical JSON references.
+      operationId: cost_line_stock_movement_retrieve
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovementOut'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Cost Movement
+      tags:
+      - purchasing
   /api/purchasing/delivery-receipts/:
     post:
       description: "Post received quantities against a PO (If-Match required, ADR 0003).\n\nThe PO id\
@@ -21784,6 +21814,16 @@ paths:
           minimum: 1
           title: Page Size
           type: integer
+      - in: query
+        name: stock_ids
+        required: false
+        schema:
+          items:
+            format: uuid
+            type: string
+          maxItems: 100
+          title: Stock Ids
+          type: array
       responses:
         '200':
           content:
@@ -21912,12 +21952,6 @@ paths:
           format: uuid
           title: Id
           type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/StocktakeVersion'
-        required: true
       responses:
         '200':
           content:

@@ -175,21 +175,19 @@ type ValuedLine = Pick<PurchaseOrderLineOut, 'description' | 'quantity' | 'unit_
 
 /** Only the four fields poOrderValue reads, so no fixture needs inventing. */
 function valuedLine(over: Partial<ValuedLine> = {}): ValuedLine {
-  return { description: 'Bar', quantity: '2', unit_cost: '10.00', price_tbc: false, ...over }
+  return { description: 'Bar', quantity: 2, unit_cost: 10, price_tbc: false, ...over }
 }
 
 describe('poOrderValue', () => {
   it('totals a fully priced order with nothing unresolved', () => {
-    expect(poOrderValue([valuedLine(), valuedLine({ quantity: '3', unit_cost: '5.00' })])).toEqual({
+    expect(poOrderValue([valuedLine(), valuedLine({ quantity: 3, unit_cost: 5 })])).toEqual({
       knownSubtotal: 35,
       unresolvedCount: 0,
     })
   })
 
   it('counts a price-TBC line as unresolved and leaves it out of the subtotal', () => {
-    expect(
-      poOrderValue([valuedLine(), valuedLine({ price_tbc: true, unit_cost: '99.00' })]),
-    ).toEqual({
+    expect(poOrderValue([valuedLine(), valuedLine({ price_tbc: true, unit_cost: 99 })])).toEqual({
       knownSubtotal: 20,
       unresolvedCount: 1,
     })

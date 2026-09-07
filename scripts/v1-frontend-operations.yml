@@ -604,6 +604,7 @@ renamed:
   process_forms_update: process_forms_partial_update
   process_forms_entries_update: process_entries_partial_update
 introduced:
+- cost_line_stock_movement_retrieve
 - stock_movement_return
 - stock_movements_list
 - stocktake_correct

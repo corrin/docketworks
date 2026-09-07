@@ -20,9 +20,8 @@ from typing import Literal
 from uuid import UUID
 
 from django.db import transaction
-from django.db.models import F, QuerySet, Sum, Value
-from django.db.models.fields.json import KeyTextTransform
-from django.db.models.functions import Coalesce, Greatest
+from django.db.models import Exists, F, OuterRef, QuerySet, Sum, Value
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.accounts.models import Staff
@@ -35,6 +34,7 @@ from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock, Stoc
 from apps.purchasing.services.stock_movement_service import (
     MovementContext,
     move_stock,
+    receipt_quantity,
     reverse_issue,
 )
 from apps.purchasing.tasks import queue_metadata_parse_if_eligible
@@ -297,10 +297,10 @@ def recompute_purchase_order_status(po: PurchaseOrder) -> None:
 
 
 def consuming_cost_lines(stock_id: UUID) -> QuerySet[CostLine]:
-    """Find job charges carrying the legacy stock back-reference."""
-    return CostLine.objects.annotate(
-        consumed_stock_id=KeyTextTransform("stock_id", "ext_refs"),
-    ).filter(consumed_stock_id=str(stock_id))
+    """Find issued job charges through their protected movement links."""
+    return CostLine.objects.filter(
+        stockmovement__stock_id=stock_id, stockmovement__kind__in=["issue", "job_opening"]
+    )
 
 
 def _get_po_or_error(po_id: UUID) -> PurchaseOrder:
@@ -352,54 +352,47 @@ def _get_stock_or_error(po: PurchaseOrder, stock_id: UUID) -> Stock:
 
 
 def _get_costline_or_error(po: PurchaseOrder, cost_line_id: UUID) -> CostLine:
-    """Fetch a PO-sourced CostLine, verifying both ext_refs back-references."""
+    """Resolve a received job position through its canonical typed provenance."""
     cost_line = (
-        CostLine.objects.select_related("cost_set__job")
-        .annotate(
-            source_po_id=KeyTextTransform("purchase_order_id", "ext_refs"),
-            source_po_line_id=KeyTextTransform("purchase_order_line_id", "ext_refs"),
+        CostLine.objects.select_related(
+            "cost_set__job", "stockmovement__stock__source_purchase_order_line"
         )
-        .filter(id=cost_line_id, source_po_id=str(po.id))
+        .filter(
+            id=cost_line_id,
+            stockmovement__kind__in=["issue", "job_opening"],
+            stockmovement__stock__source_purchase_order_line__purchase_order=po,
+            ext_refs__purchase_order_id=str(po.id),
+        )
         .first()
     )
     if cost_line is None:
-        raise AllocationDeletionError(
-            f"Job allocation {cost_line_id} not found or not from PO {po.id}"
-        )
-    if not cost_line.ext_refs.get("purchase_order_line_id"):
-        raise AllocationDeletionError(
-            f"Cost line {cost_line_id} missing purchase_order_line_id in ext_refs"
-        )
+        raise AllocationDeletionError(f"Job allocation {cost_line_id} not found on PO {po.id}")
     return cost_line
 
 
 def _resolve_po_line(po: PurchaseOrder, cost_line: CostLine) -> PurchaseOrderLine:
-    po_line = PurchaseOrderLine.objects.filter(
-        id=cost_line.ext_refs["purchase_order_line_id"], purchase_order=po
-    ).first()
-    if po_line is None:
-        raise AllocationDeletionError(
-            f"Purchase Order Line referenced by allocation {cost_line.id} not found"
-        )
-    return po_line
+    line = cost_line.stockmovement.stock.source_purchase_order_line
+    if line is None or line.purchase_order_id != po.id:
+        raise AllocationDeletionError("The allocation does not belong to this purchase order.")
+    return line
 
 
 def _decrement_received(po_line: PurchaseOrderLine, quantity: Decimal) -> None:
-    """Take ``quantity`` back off the line's received total, clamped at zero."""
-    PurchaseOrderLine.objects.filter(id=po_line.id).update(
-        received_quantity=Greatest(Value(Decimal("0")), F("received_quantity") - Value(quantity))
-    )
+    """Reverse a recorded allocation without hiding inconsistent receipt totals."""
+    changed = PurchaseOrderLine.objects.filter(
+        id=po_line.id, received_quantity__gte=quantity
+    ).update(received_quantity=F("received_quantity") - quantity)
+    if not changed:
+        raise AllocationDeletionError("The allocation exceeds the recorded received quantity.")
     po_line.refresh_from_db(fields=["received_quantity"])
 
 
 def _delete_stock_allocation(
     po_line: PurchaseOrderLine, stock_item: Stock, staff: Staff
 ) -> DeletionResult:
-    receipt = stock_item.movements.filter(kind__in=["receipt", "opening"]).first()
-    if receipt is None:
-        raise AllocationDeletionError("This allocation has no opening or receipt evidence.")
+    receipt = stock_item.movements.get(kind__in=["receipt", "receipt_opening"])
     already_reversed = StockMovement.objects.filter(reverses=receipt).exists()
-    deleted_qty = Decimal("0") if already_reversed else receipt.quantity_change
+    deleted_qty = Decimal("0") if already_reversed else receipt_quantity(receipt)
     desc = stock_item.description
     if not already_reversed:
         _decrement_received(po_line, deleted_qty)
@@ -437,43 +430,23 @@ def _delete_job_allocation(
     desc = cost_line.desc
     job_name = cost_line.cost_set.job.name
 
-    movement = StockMovement.objects.filter(cost_line=cost_line, kind="issue").first()
-    if movement is None:
-        if cost_line.managed_by == "stock":
-            deleted_qty = Decimal("0")
-        else:
-            CostLine.objects.create(
-                cost_set=cost_line.cost_set,
-                kind="material",
-                desc=cost_line.desc,
-                quantity=-deleted_qty,
-                unit_cost=cost_line.unit_cost,
-                unit_rev=cost_line.unit_rev,
-                accounting_date=timezone.localdate(),
-                managed_by="stock",
-            )
-            cost_line.managed_by = "stock"
-            cost_line.save(update_fields=["managed_by"])
-            _decrement_received(po_line, deleted_qty)
+    movement = StockMovement.objects.get(cost_line=cost_line, kind__in=["issue", "job_opening"])
+    receipt = movement.stock.movements.get(kind__in=["receipt", "receipt_opening"])
+    if StockMovement.objects.filter(reverses=receipt).exists():
+        deleted_qty = Decimal("0")
     else:
-        receipt = movement.stock.movements.get(kind="receipt")
-        if StockMovement.objects.filter(reverses=receipt).exists():
-            deleted_qty = Decimal("0")
-        else:
-            reverse_issue(
-                movement, po_line.purchase_order.created_by, "Reverse job receipt allocation"
-            )
-            _decrement_received(po_line, deleted_qty)
-            move_stock(
-                movement.stock,
-                -deleted_qty,
-                MovementContext(
-                    kind="receipt_reversal",
-                    reason="Reverse job receipt allocation",
-                    actor=staff,
-                    reverses=receipt,
-                ),
-            )
+        reverse_issue(movement, staff, "Reverse job receipt allocation")
+        _decrement_received(po_line, deleted_qty)
+        move_stock(
+            movement.stock,
+            -deleted_qty,
+            MovementContext(
+                kind="receipt_reversal",
+                reason="Reverse job receipt allocation",
+                actor=staff,
+                reverses=receipt,
+            ),
+        )
 
     logger.info(
         "Deleted job allocation: %s, qty=%s, job=%s, PO line received now=%s",
@@ -508,9 +481,8 @@ def delete_allocation(
 
     Requires ``If-Match`` (ADR 0003): this decrements ``received_quantity`` and
     recomputes the PO status, so it is a PO mutation like any other. Without the
-    precondition two operators deleting from stale lists both succeed -- and
-    ``_decrement_received`` clamps at zero, so the second decrement is absorbed
-    silently rather than erroring. Returns the PO so the caller can emit the
+    precondition two operators deleting from stale lists could both succeed.
+    Returns the PO so the caller can emit the
     refreshed ETag.
     """
     logger.info(
@@ -604,31 +576,26 @@ def get_allocation_details(
 
 def list_allocations(po: PurchaseOrder) -> dict[str, list[dict[str, object]]]:
     """Group every existing allocation for ``po`` by PO-line id."""
-    cost_lines = (
-        CostLine.objects.annotate(
-            source_po_id=KeyTextTransform("purchase_order_id", "ext_refs"),
+    cost_lines = CostLine.objects.filter(
+        stockmovement__kind__in=["issue", "job_opening"],
+        stockmovement__stock__source_purchase_order_line__purchase_order=po,
+        ext_refs__purchase_order_id=str(po.id),
+    ).select_related("cost_set__job", "stockmovement__stock")
+    stock_items = (
+        Stock.objects.filter(
+            source="purchase_order",
+            source_purchase_order_line__purchase_order_id=po.id,
         )
-        .filter(source_po_id=str(po.id))
-        .select_related("cost_set__job")
+        .exclude(Exists(cost_lines.filter(stockmovement__stock_id=OuterRef("pk"))))
+        .select_related("job", "source_purchase_order_line")
     )
-    stock_items = Stock.objects.filter(
-        source="purchase_order",
-        source_purchase_order_line__purchase_order_id=po.id,
-    ).select_related("job", "source_purchase_order_line")
 
     allocations: dict[str, list[dict[str, object]]] = {}
 
     for cost_line in cost_lines:
-        line_id = cost_line.ext_refs.get("purchase_order_line_id")
-        if not line_id:
-            logger.warning(
-                "CostLine %s has no purchase_order_line_id in ext_refs: %s",
-                cost_line.id,
-                cost_line.ext_refs,
-            )
-            continue
+        line_id = str(cost_line.stockmovement.stock.source_purchase_order_line_id)
         retail_rate = cost_line.meta.get("retail_rate")
-        allocations.setdefault(str(line_id), []).append(
+        allocations.setdefault(line_id, []).append(
             {
                 "type": "job",
                 "job_id": str(cost_line.cost_set.job.id),

@@ -4,12 +4,14 @@ from decimal import Decimal
 from uuid import UUID
 
 from django.db.models import Prefetch, Q
-from django.http import HttpRequest
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 from ninja import Query, Router
 
 from apps.accounts.auth import authenticated_staff
 from apps.core.auth import CookieJWTAuth
+from apps.core.envelope import require_if_match
+from apps.core.etag import generate_revision_etag
 from apps.purchasing.models import Stock, Stocktake, StocktakeConfiguration, StocktakeLine
 from apps.purchasing.services import stocktake_service
 from apps.purchasing.stocktake_schemas import (
@@ -22,8 +24,8 @@ from apps.purchasing.stocktake_schemas import (
     StocktakeSetup,
     StocktakeStockList,
     StocktakeStockOut,
+    StocktakeStockSearch,
     StocktakeSummary,
-    StocktakeVersion,
 )
 
 router = Router(auth=CookieJWTAuth(), tags=["purchasing"])
@@ -73,7 +75,6 @@ def _summary(count: Stocktake) -> StocktakeSummary:
     )
     return StocktakeSummary(
         id=count.id,
-        version=count.version,
         created_at=count.created_at,
         posted_at=count.posted_at,
         author=count.created_by.get_display_full_name(),
@@ -83,7 +84,7 @@ def _summary(count: Stocktake) -> StocktakeSummary:
     )
 
 
-def _detail(count_id: UUID) -> StocktakeDetail:
+def _detail(count_id: UUID, response: HttpResponse) -> StocktakeDetail:
     count = get_object_or_404(
         Stocktake.objects.select_related("created_by").prefetch_related(
             Prefetch(
@@ -92,6 +93,8 @@ def _detail(count_id: UUID) -> StocktakeDetail:
         ),
         pk=count_id,
     )
+    response["ETag"] = generate_revision_etag("stocktake", count.id, count.version)
+    response["Cache-Control"] = "no-store"
     return StocktakeDetail(
         **_summary(count).model_dump(),
         lines=[_line_data(line, posted=count.posted_at is not None) for line in count.lines.all()],
@@ -116,10 +119,12 @@ def setup_create(request: HttpRequest) -> StocktakeSetup:
 
 
 @router.get("/stock/", response=StocktakeStockList, operation_id="stocktake_stock_list")
-def stock_list(request: HttpRequest, params: Query[StocktakeSearch]) -> StocktakeStockList:
+def stock_list(request: HttpRequest, params: Query[StocktakeStockSearch]) -> StocktakeStockList:
     """Search physical workshop stock, including zero and retired balances."""
     authenticated_staff(request)
     rows = Stock.objects.filter(job=Stock.get_stock_holding_job()).exclude(source="product_catalog")
+    if params.stock_ids:
+        rows = rows.filter(id__in=params.stock_ids)
     if params.q:
         rows = rows.filter(Q(description__icontains=params.q) | Q(item_code__icontains=params.q))
     if params.location:
@@ -151,40 +156,52 @@ def count_list(request: HttpRequest, params: Query[StocktakeSearch]) -> Stocktak
 
 
 @router.post("/", response=StocktakeDetail, operation_id="stocktake_create")
-def count_create(request: HttpRequest, payload: StocktakeCreate) -> StocktakeDetail:
+def count_create(
+    request: HttpRequest, response: HttpResponse, payload: StocktakeCreate
+) -> StocktakeDetail:
     """Start a count, optionally preselecting a stock row for a spot correction."""
     if payload.stock_id is not None:
         get_object_or_404(Stock, pk=payload.stock_id)
     count = stocktake_service.create_stocktake(authenticated_staff(request), payload.stock_id)
-    return _detail(count.id)
+    return _detail(count.id, response)
 
 
 @router.get("/{uuid:id}/", response=StocktakeDetail, operation_id="stocktake_retrieve")
-def count_retrieve(request: HttpRequest, id: UUID) -> StocktakeDetail:
+def count_retrieve(request: HttpRequest, response: HttpResponse, id: UUID) -> StocktakeDetail:
     """Read a draft or immutable posted count and its current stock versions."""
     authenticated_staff(request)
-    return _detail(id)
+    return _detail(id, response)
 
 
 @router.put("/{uuid:id}/", response=StocktakeDetail, operation_id="stocktake_update")
-def count_update(request: HttpRequest, id: UUID, payload: StocktakeSave) -> StocktakeDetail:
+def count_update(
+    request: HttpRequest, response: HttpResponse, id: UUID, payload: StocktakeSave
+) -> StocktakeDetail:
     """Save all draft observations atomically with a draft version precondition."""
     authenticated_staff(request)
     get_object_or_404(Stocktake, pk=id)
-    stocktake_service.save_stocktake(id, payload)
-    return _detail(id)
+    stocktake_service.save_stocktake(id, payload, if_match=require_if_match(request))
+    return _detail(id, response)
 
 
 @router.post("/{uuid:id}/post/", response=StocktakeDetail, operation_id="stocktake_post")
-def count_post(request: HttpRequest, id: UUID, payload: StocktakeVersion) -> StocktakeDetail:
+def count_post(request: HttpRequest, response: HttpResponse, id: UUID) -> StocktakeDetail:
     """Post the reviewed count exactly once."""
     get_object_or_404(Stocktake, pk=id)
-    stocktake_service.post_stocktake(id, payload.version, authenticated_staff(request))
-    return _detail(id)
+    stocktake_service.post_stocktake(id, require_if_match(request), authenticated_staff(request))
+    return _detail(id, response)
 
 
 @router.post("/{uuid:id}/correct/", response=StocktakeDetail, operation_id="stocktake_correct")
-def count_correct(request: HttpRequest, id: UUID) -> StocktakeDetail:
+def count_correct(request: HttpRequest, response: HttpResponse, id: UUID) -> StocktakeDetail:
     """Start a linked recount without erasing the original observation."""
-    get_object_or_404(Stocktake, pk=id)
-    return _detail(stocktake_service.correct_stocktake(id, authenticated_staff(request)).id)
+    original = get_object_or_404(Stocktake, pk=id)
+    response["X-Resource-Version"] = generate_revision_etag(
+        "stocktake", original.id, original.version
+    )
+    return _detail(
+        stocktake_service.correct_stocktake(
+            id, authenticated_staff(request), if_match=require_if_match(request)
+        ).id,
+        response,
+    )

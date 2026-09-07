@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueries, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
 import {
   apiErrorMessage,
   stocktakeRetrieveOptions,
+  stocktakeStockListOptions,
   stocktakeUpdateMutation,
   stocktakePostMutation,
   stocktakeCorrectMutation,
@@ -13,6 +14,8 @@ import {
   type StocktakeLineWrite,
   type StocktakeStockOut,
 } from '@/api'
+import { getEtag, etagKey } from '@/lib/concurrency/etag-store'
+import { isConcurrencyError } from '@/lib/concurrency/interceptors'
 import { Button } from '@/components/ui/button'
 import { EntryGridSection } from '@/features/shared/EntryGridSection'
 import { QueryState } from '@/features/shared/QueryState'
@@ -33,7 +36,7 @@ export function StocktakeDetailPage({ stocktakeId }: { stocktakeId: string }) {
   return (
     <QueryState
       isPending={count.isPending}
-      isError={count.isError}
+      isError={count.isError && count.data === undefined}
       onRetry={() => void count.refetch()}
       loadingLabel="Loading count…"
       errorLabel="Unable to load count."
@@ -42,31 +45,86 @@ export function StocktakeDetailPage({ stocktakeId }: { stocktakeId: string }) {
         <StocktakeEditor
           key={stocktakeId}
           count={count.data}
-          refresh={() => void count.refetch()}
+          refresh={async () => {
+            const fresh = await count.refetch({ throwOnError: true })
+            if (fresh.data === undefined) throw new Error('Stocktake reload returned no data')
+            return fresh.data
+          }}
         />
       )}
     </QueryState>
   )
 }
-function StocktakeEditor({ count, refresh }: { count: StocktakeDetail; refresh: () => void }) {
+function snapshotEtag(id: string): string {
+  const etag = getEtag(etagKey('stocktake', id))
+  if (etag === null) throw new Error('Stocktake response is missing its ETag')
+  return etag
+}
+function StocktakeEditor({
+  count,
+  refresh,
+}: {
+  count: StocktakeDetail
+  refresh: () => Promise<StocktakeDetail>
+}) {
   const navigate = useNavigate()
   const cache = useQueryClient()
   const [rows, setRows] = useState(() => draftRows(count))
-  const [version, setVersion] = useState(count.version)
+  const [version, setVersion] = useState(() => snapshotEtag(count.id))
+  const [reloading, setReloading] = useState(false)
+  const [conflicted, setConflicted] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [showPicker, setShowPicker] = useState(false)
   const update = useMutation(stocktakeUpdateMutation())
   const post = useMutation(stocktakePostMutation())
   const correct = useMutation(stocktakeCorrectMutation())
   const readOnly = count.posted_at !== null
-  const busy = update.isPending || post.isPending || correct.isPending
-  const current = new Map(count.lines.map((line) => [line.id, line]))
+  const busy = reloading || conflicted || update.isPending || post.isPending || correct.isPending
+  const stockIds = rows.flatMap((row) => (row.stock_id === null ? [] : [row.stock_id]))
+  const batches: string[][] = []
+  for (let offset = 0; offset < stockIds.length; offset += 100)
+    batches.push(stockIds.slice(offset, offset + 100))
+  const observations = useQueries({
+    queries: batches.map((stock_ids) =>
+      stocktakeStockListOptions({ query: { stock_ids, page_size: 100 } }),
+    ),
+  })
+  const current = new Map(
+    observations.flatMap((query) =>
+      query.data === undefined ? [] : query.data.results.map((stock) => [stock.id, stock] as const),
+    ),
+  )
+  const refreshStock = async () => {
+    await Promise.all(observations.map((query) => query.refetch({ throwOnError: true })))
+  }
+  const failed = async (error: unknown) => {
+    if (isConcurrencyError(error)) setConflicted(true)
+    try {
+      await Promise.all([refresh(), refreshStock()])
+    } catch {
+      toast.error('Unable to refresh. Your entries have been retained.')
+    }
+  }
+  const reloadSaved = async () => {
+    setReloading(true)
+    try {
+      const saved = await refresh()
+      accepted(saved)
+      setConflicted(false)
+      update.reset()
+      post.reset()
+    } catch {
+      toast.error('Unable to reload. Your entries have been retained.')
+    } finally {
+      setReloading(false)
+    }
+  }
   const changed = (next: CountRow[]) => {
     setRows(next)
     setDirty(true)
   }
   const accepted = (saved: StocktakeDetail) => {
-    setVersion(saved.version)
+    setVersion(snapshotEtag(saved.id))
     setRows(draftRows(saved))
     setDirty(false)
     cache.setQueryData(stocktakeRetrieveOptions({ path: { id: saved.id } }).queryKey, saved)
@@ -89,13 +147,13 @@ function StocktakeEditor({ count, refresh }: { count: StocktakeDetail; refresh: 
       reason: row.reason,
     }))
     update.mutate(
-      { path: { id: count.id }, body: { version, lines } },
+      { path: { id: count.id }, body: { lines }, headers: { 'If-Match': version } },
       {
         onSuccess: (saved) => {
           accepted(saved)
           toast.success('Draft saved')
         },
-        onError: () => refresh(),
+        onError: failed,
       },
     )
   }
@@ -197,15 +255,19 @@ function StocktakeEditor({ count, refresh }: { count: StocktakeDetail; refresh: 
           }
           remove={(id) => changed(rows.filter((row) => row.id !== id))}
           recount={(id) => {
-            const latest = current.get(id)
+            const selectedRow = rows.find((item) => item.id === id)
+            if (selectedRow === undefined || selectedRow.stock_id === null) return
+            const latest = current.get(selectedRow.stock_id)
             if (!latest) return
             changed(
               rows.map((row) =>
                 row.id === id
                   ? {
                       ...row,
-                      expected_quantity: latest.current_quantity,
-                      expected_version: latest.current_version,
+                      expected_quantity: latest.quantity,
+                      expected_version: latest.inventory_version,
+                      unit_cost: latest.unit_cost,
+                      unitCostInput: String(latest.unit_cost),
                       counted_quantity: null,
                       countInput: '',
                     }
@@ -218,6 +280,17 @@ function StocktakeEditor({ count, refresh }: { count: StocktakeDetail; refresh: 
           {rows.length} items · {rows.filter((row) => row.counted_quantity !== null).length} counted
         </p>
       </EntryGridSection>
+      {conflicted && (
+        <div role="alert">
+          <p>
+            This draft was saved elsewhere. Reloading will replace your retained entries with the
+            saved draft.
+          </p>
+          <Button variant="outline" disabled={reloading} onClick={() => void reloadSaved()}>
+            Reload saved draft
+          </Button>
+        </div>
+      )}
       {error && (
         <p role="alert" className="text-red-700">
           {apiErrorMessage(error, 'Unable to save stocktake. Your entries have been retained.')}
@@ -233,20 +306,26 @@ function StocktakeEditor({ count, refresh }: { count: StocktakeDetail; refresh: 
               disabled={busy || dirty || !rows.some((row) => row.counted_quantity !== null)}
               onClick={() =>
                 post.mutate(
-                  { path: { id: count.id }, body: { version } },
+                  { path: { id: count.id }, headers: { 'If-Match': version } },
                   {
                     onSuccess: (saved) => {
                       accepted(saved)
                       toast.success('Stocktake posted')
                     },
-                    onError: () => refresh(),
+                    onError: failed,
                   },
                 )
               }
             >
               Post stocktake
             </Button>
-            <Button variant="ghost" disabled={busy} onClick={refresh}>
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() =>
+                void refreshStock().catch(() => toast.error('Unable to refresh current stock.'))
+              }
+            >
               Check current stock
             </Button>
           </>
@@ -256,7 +335,7 @@ function StocktakeEditor({ count, refresh }: { count: StocktakeDetail; refresh: 
             disabled={busy}
             onClick={() =>
               correct.mutate(
-                { path: { id: count.id } },
+                { path: { id: count.id }, headers: { 'If-Match': version } },
                 {
                   onSuccess: (draft) =>
                     void navigate({

@@ -872,3 +872,41 @@ manifest links, description and theme colour. The manifest names the actual icon
 sizes rather than v1's incorrect square dimensions for the existing company logo.
 Verified all linked assets exist and the favicon is byte-identical to v1. Browser
 verification awaits the operator's normal frontend rebuild; no service was restarted.
+
+## 2026-09-07 — Stock movement review fixes (PR #151)
+
+Owner-approved: migrate historical job allocations and purchase receipts into
+explicit opening movements before enabling the canonical runtime path. Managed
+costs retain their original records; returns create credits with the original
+quantity and price. The authenticated operator owns the reversal. Purchase-order
+imports lock the same rows as receipt updates so a concurrent import cannot
+overwrite the locally computed receipt status.
+
+The generic, preview-first inventory repair command accepts a private reviewed
+manifest. One verified orphan can be re-linked; four become ordinary adjustments,
+including the zero-value duplicate. No private identifiers or manifest are
+committed (ADR 0049). Repairs preserve cost IDs, jobs, quantities, prices and
+accounting dates; changing the category does not change total cost or margin.
+Migration preflight rejects unresolved references instead of guessing (KAN-144,
+ADR 0015). Restore runs the same repair, audit and migration sequence.
+
+Stocktakes use shared If-Match handling. A stale save retains local edits until
+the operator explicitly reloads the saved draft. Stock observations refresh for
+unsaved rows as well as saved lines. Purchase quantities use the numeric API
+contract from ADR 0046, and job costs link to their movement history.
+
+Validation: the complete normal Python suite passed, as did 318 focused purchasing,
+costing and Xero tests, 12 repair/restore/concurrency tests, targeted frontend unit
+tests and type checking. Both Xero concurrency tests failed when the import locks
+were temporarily removed and passed with the locks restored (ADR 0052). All six
+live purchase-order integration tests passed with Xero writes enabled.
+
+Actual migration SQL was executed on an isolated clone inside a rolled-back
+transaction. The five reviewed dispositions were validated and repeat application
+was a no-op. Preflight correctly refused three extra obsolete local orphan costs;
+test-only preparation of those records and an obsolete stock row allowed the full
+cutover to run. Original cost fields, stock quantities and PO received quantities
+were unchanged; movement sums reconciled to stock and repeated SQL added no rows.
+This exercises the SQL but does not replace a current production-data rehearsal.
+The working database and production were not repaired or migrated. Browser and
+remaining release acceptance tasks remain in rewrite-status.

@@ -757,12 +757,15 @@ class StockMovement(models.Model):
     quantity_change = models.DecimalField(max_digits=11, decimal_places=3)
     quantity_before = models.DecimalField(max_digits=11, decimal_places=3)
     quantity_after = models.DecimalField(max_digits=11, decimal_places=3)
+    opening_quantity = models.DecimalField(max_digits=11, decimal_places=3, null=True, blank=True)
     unit_cost = models.DecimalField(max_digits=10, decimal_places=2)
     kind = models.CharField(
         max_length=25,
         choices=[
             ("opening", "Opening balance"),
+            ("job_opening", "Job position at cutover"),
             ("receipt", "Receipt"),
+            ("receipt_opening", "Received allocation at cutover"),
             ("receipt_reversal", "Receipt reversal"),
             ("issue", "Job issue"),
             ("return", "Job return"),
@@ -790,7 +793,9 @@ class StockMovement(models.Model):
                 name="movement_balance_equation",
             ),
             models.CheckConstraint(
-                condition=models.Q(kind__in=["opening", "receipt", "receipt_reversal"])
+                condition=models.Q(
+                    kind__in=["opening", "receipt", "receipt_opening", "receipt_reversal"]
+                )
                 | models.Q(counterpart_job__isnull=False),
                 name="movement_job_counterpart",
             ),

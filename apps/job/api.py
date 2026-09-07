@@ -48,6 +48,7 @@ from ninja.responses import Status
 
 from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
+from apps.core.envelope import require_if_match
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.etag import generate_updated_at_etag, if_none_match_satisfied
 from apps.job.models import Job, JobFile, LabourSubtype
@@ -149,14 +150,6 @@ def _job_etag(job: Job) -> str:
 def _current_job_etag(job_id: UUID) -> str | None:
     job = Job.objects.only("id", "updated_at").filter(id=job_id).first()
     return _job_etag(job) if job else None
-
-
-def _require_if_match(request: HttpRequest) -> str:
-    """Return the If-Match header or answer 428 Precondition Required."""
-    if_match = request.headers.get("If-Match")
-    if not if_match:
-        raise HttpError(428, "Missing If-Match header (precondition required)")
-    return if_match
 
 
 def _set_job_etag(response: HttpResponse, job_id: UUID) -> None:
@@ -285,7 +278,7 @@ def get_full_job(
 def _update_job(
     request: HttpRequest, job_id: UUID, payload: JobDeltaEnvelope, response: HttpResponse
 ) -> dict[str, object]:
-    if_match = _require_if_match(request)
+    if_match = require_if_match(request)
     envelope = payload.model_dump()
     try:
         updated_job = job_service.update_job(
@@ -343,7 +336,7 @@ def job_jobs_partial_update(
 )
 def job_jobs_destroy(request: HttpRequest, job_id: UUID) -> dict[str, object]:
     """Delete a Job if business rules allow (If-Match required)."""
-    if_match = _require_if_match(request)
+    if_match = require_if_match(request)
     try:
         result = job_service.delete_job(job_id, _staff(request), if_match=if_match)
     except ValueError as exc:
@@ -490,7 +483,7 @@ def job_rest_jobs_events_create(
     request: HttpRequest, job_id: UUID, payload: JobEventCreateRequest, response: HttpResponse
 ) -> Status[dict[str, object]]:
     """Add a manual event with duplicate prevention (If-Match required)."""
-    if_match = _require_if_match(request)
+    if_match = require_if_match(request)
     user = _staff(request)
 
     # Debounce check - prevent rapid requests
@@ -553,7 +546,7 @@ def job_jobs_undo_change_create(
     request: HttpRequest, job_id: UUID, payload: JobUndoRequest, response: HttpResponse
 ) -> dict[str, object]:
     """Undo a recorded delta by applying its reverse envelope (If-Match required)."""
-    if_match = _require_if_match(request)
+    if_match = require_if_match(request)
     try:
         updated_job = job_service.undo_job_change(
             job_id,
@@ -585,7 +578,7 @@ def job_jobs_quote_accept_create(
     request: HttpRequest, job_id: UUID, response: HttpResponse
 ) -> dict[str, object]:
     """Accept the job's quote: set acceptance date, move to approved (If-Match)."""
-    if_match = _require_if_match(request)
+    if_match = require_if_match(request)
     try:
         result = job_service.accept_quote(job_id, _staff(request), if_match=if_match)
     except ValueError as exc:
@@ -928,7 +921,7 @@ def _costline_patch_data(payload: CostLineUpdateRequest) -> CostLineWriteData:
 def job_cost_lines_partial_update(
     request: HttpRequest, cost_line_id: UUID, payload: CostLineUpdateRequest
 ) -> job_service.CostLineData:
-    """Update a cost line from a partial payload, adjusting linked stock on quantity change."""
+    """Edit unowned costs; posted material is corrected through purchasing."""
     line = get_object_or_404(CostLine, id=cost_line_id)
     if line.cost_set.kind != "actual" and not _staff(request).is_office_staff:
         raise HttpError(403, "Only office staff can modify non-actual cost lines")

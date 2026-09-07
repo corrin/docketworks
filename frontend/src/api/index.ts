@@ -576,3 +576,5 @@ export {
   stockMovementReturnMutation,
 } from './generated/@tanstack/react-query.gen'
 export type { StockMovementOut } from './generated/types.gen'
+
+export { costLineStockMovementRetrieveOptions } from './generated/@tanstack/react-query.gen'

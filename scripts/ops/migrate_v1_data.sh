@@ -45,6 +45,9 @@ pg_dump -Fc --data-only "$@" "$V1_DB" \
   --file="$DUMP"
 
 echo "==> Clearing migration-seeded rows (v1's dump supplies them)"
+# GPT: inventory snapshots must run after the restored rows exist. The new
+# cutover reverse refuses booked positions and permits this empty-target rewind.
+DB_NAME="$V2_DB" uv run python manage.py migrate purchasing 0005 --no-input
 # v1's accounts_staff rows use the pre-0005 columns (`email` and
 # `date_joined`). Restore into that historical schema, then let the real
 # migration rename and backfill those restored rows. This deliberately avoids
@@ -280,6 +283,12 @@ echo "==> VACUUM ANALYZE"
 psql "$@" -d "$V2_DB" -qc "VACUUM ANALYZE"
 
 echo "==> Reapplying every app to head"
+DB_NAME="$V2_DB" uv run python manage.py migrate purchasing 0009 --no-input
+if [[ -n "${INVENTORY_REPAIR_MANIFEST:-}" ]]; then
+  DB_NAME="$V2_DB" uv run python -m adhoc.inventory_cost_repair "$INVENTORY_REPAIR_MANIFEST" --database "$V2_DB" --apply
+fi
+DB_NAME="$V2_DB" uv run python manage.py audit_inventory_openings
+DB_NAME="$V2_DB" uv run python manage.py migrate purchasing 0011 --no-input
 # Each block above unapplies one app to the pre-rename schema and reapplies
 # only as far as the migration the restore needed re-run — accounts stops at
 # 0005 and process stops at 0003 — because that is the exact migration whose

@@ -3,14 +3,31 @@ import { Link } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import {
   apiErrorMessage,
+  costLineStockMovementRetrieveOptions,
   stockMovementsListOptions,
   stocktakeMovementsListOptions,
   stockMovementReturnMutation,
   type StockMovementOut,
 } from '@/api'
 import { Button } from '@/components/ui/button'
+import { QueryState } from '@/features/shared/QueryState'
 import { ListTable } from '@/features/shared/ListTable'
 import { formatDateTime } from '@/lib/format'
+
+export function CostLineMovementHistory({ costLineId }: { costLineId: string }) {
+  const movement = useQuery(costLineStockMovementRetrieveOptions({ path: { id: costLineId } }))
+  return (
+    <QueryState
+      isPending={movement.isPending}
+      isError={movement.isError}
+      onRetry={() => void movement.refetch()}
+      loadingLabel="Loading job material…"
+      errorLabel="Unable to load job material history."
+    >
+      {movement.data && <StockMovementHistory stockId={movement.data.stock_id} />}
+    </QueryState>
+  )
+}
 
 export function StockMovementHistory({ stockId }: { stockId: string }) {
   const history = useQuery(stockMovementsListOptions({ path: { id: stockId } }))

@@ -19,12 +19,6 @@ class StocktakeCreate(Schema):
     stock_id: UUID | None = None
 
 
-class StocktakeVersion(Schema):
-    """StocktakeVersion wire contract."""
-
-    version: int
-
-
 class StocktakeLineWrite(Schema):
     """StocktakeLineWrite wire contract."""
 
@@ -39,7 +33,7 @@ class StocktakeLineWrite(Schema):
     reason: NullableText
 
 
-class StocktakeSave(StocktakeVersion):
+class StocktakeSave(Schema):
     """StocktakeSave wire contract."""
 
     lines: list[StocktakeLineWrite]
@@ -69,7 +63,6 @@ class StocktakeSummary(ResponseSchema):
     """StocktakeSummary wire contract."""
 
     id: UUID
-    version: int
     created_at: datetime
     posted_at: datetime | None
     author: str
@@ -122,3 +115,9 @@ class StocktakeSearch(Schema):
     location: str = ""
     page: Annotated[int, Field(ge=1)] = 1
     page_size: Annotated[int, Field(ge=1, le=100)] = 50
+
+
+class StocktakeStockSearch(StocktakeSearch):
+    """Bounded identity filtering also refreshes unsaved stock observations."""
+
+    stock_ids: Annotated[list[UUID], Field(max_length=100)] = Field(default_factory=list)

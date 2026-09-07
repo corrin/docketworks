@@ -11,7 +11,7 @@ from apps.accounts.auth import authenticated_staff
 from apps.core.auth import CookieJWTAuth
 from apps.core.schemas import Quantity, ResponseSchema
 from apps.purchasing.models import StockMovement
-from apps.purchasing.services.stock_movement_service import reverse_issue
+from apps.purchasing.services.stock_movement_service import returnable_issue_cost, reverse_issue
 
 router = Router(auth=CookieJWTAuth(), tags=["purchasing"])
 
@@ -54,7 +54,7 @@ def movement_data(movement: StockMovement, reversed_ids: set[UUID]) -> StockMove
         actor=movement.actor.get_display_full_name() if movement.actor is not None else None,
         counterpart_job_id=movement.counterpart_job_id,
         counterpart_name=counterpart,
-        can_return=movement.kind == "issue" and movement.id not in reversed_ids,
+        can_return=returnable_issue_cost(movement) is not None and movement.id not in reversed_ids,
     )
 
 
@@ -68,7 +68,7 @@ def stock_history(request: HttpRequest, id: UUID) -> list[StockMovementOut]:
     authenticated_staff(request)
     movements = list(
         StockMovement.objects.filter(stock_id=id)
-        .select_related("stock", "actor", "counterpart_job")
+        .select_related("stock", "actor", "counterpart_job", "cost_line")
         .order_by("recorded_at", "id")
     )
     reversed_ids = set(
@@ -90,7 +90,7 @@ def count_history(request: HttpRequest, id: UUID) -> list[StockMovementOut]:
     authenticated_staff(request)
     movements = (
         StockMovement.objects.filter(stocktake_line__stocktake_id=id)
-        .select_related("stock", "actor", "counterpart_job")
+        .select_related("stock", "actor", "counterpart_job", "cost_line")
         .order_by("recorded_at", "id")
     )
     return [movement_data(movement, set()) for movement in movements]
@@ -108,3 +108,21 @@ def return_material(request: HttpRequest, id: UUID) -> StockMovementOut:
         movement, authenticated_staff(request), "Unused material returned to workshop"
     )
     return movement_data(returned, set())
+
+
+@router.get(
+    "/cost-lines/{uuid:id}/movement/",
+    response=StockMovementOut,
+    operation_id="cost_line_stock_movement_retrieve",
+)
+def cost_movement(request: HttpRequest, id: UUID) -> StockMovementOut:
+    """Locate the owning movement without decoding costing's historical JSON references."""
+    authenticated_staff(request)
+    movement = get_object_or_404(
+        StockMovement.objects.select_related("stock", "actor", "counterpart_job", "cost_line"),
+        cost_line_id=id,
+    )
+    reversed_ids = set(
+        StockMovement.objects.filter(reverses=movement).values_list("reverses_id", flat=True)
+    )
+    return movement_data(movement, {pk for pk in reversed_ids if pk is not None})

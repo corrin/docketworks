@@ -87,11 +87,11 @@ test('a multi-item count preserves blank entries and the count list stays paged'
   await expect(page.getByRole('button', { name: 'Post stocktake', exact: true })).toBeEnabled()
   const countId = new URL(page.url()).pathname.split('/').pop()
   const countResponse = await page.request.get(`/api/purchasing/stocktakes/${countId}/`)
-  const countVersion = (await countResponse.json()).version
+  const countVersion = countResponse.headers()['etag']!
   const postings = await Promise.all(
     [0, 1].map(() =>
       page.request.post(`/api/purchasing/stocktakes/${countId}/post/`, {
-        data: { version: countVersion },
+        headers: { 'If-Match': countVersion },
       }),
     ),
   )
@@ -132,4 +132,49 @@ test('a multi-item count preserves blank entries and the count list stays paged'
   await page.getByRole('button', { name: 'Next', exact: true }).click()
   await expect(page.getByText('Page 2', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Previous', exact: true })).toBeEnabled()
+})
+
+test.describe('stocktake conflict recovery', () => {
+  test.use({ expectedConsoleErrors: [/Failed to load resource.*status of 412/] })
+
+  test('a stale draft retains edits until the operator reloads the saved draft', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/purchasing/stocktakes')
+    await setupStocktake(page)
+    await page.getByRole('button', { name: 'New stocktake', exact: true }).click()
+    await page.getByRole('button', { name: 'Add found item', exact: true }).click()
+    const description = page.getByLabel('Item description', { exact: true })
+    await description.fill(`[TEST] Conflict ${Date.now()}`)
+    await page.getByLabel('Counted quantity', { exact: true }).fill('1')
+    await page.getByLabel('Unit cost', { exact: true }).fill('80')
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Post stocktake', exact: true })).toBeEnabled()
+    const id = new URL(page.url()).pathname.split('/').pop()
+    const url = `/api/purchasing/stocktakes/${id}/`
+    const detail = await page.request.get(url)
+    const body = await detail.json()
+    body.lines[0].description = '[TEST] Saved by another operator'
+    const otherSave = await page.request.put(url, {
+      headers: { 'If-Match': detail.headers()['etag']! },
+      data: { lines: body.lines },
+    })
+    expect(otherSave.status()).toBe(200)
+    await description.fill('[TEST] Retained local edits')
+    const refused = page.waitForResponse(
+      (response) => response.url().endsWith(url) && response.request().method() === 'PUT',
+    )
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    expect((await refused).status()).toBe(412)
+    await expect(description).toHaveValue('[TEST] Retained local edits')
+    await expect(page.getByRole('button', { name: 'Save draft', exact: true })).toBeDisabled()
+    await page.getByRole('button', { name: 'Reload saved draft', exact: true }).click()
+    await expect(description).toHaveValue('[TEST] Saved by another operator')
+    await description.fill('[TEST] Reviewed final version')
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Save draft', exact: true })).toBeDisabled()
+    expect((await (await page.request.get(url)).json()).lines[0].description).toBe(
+      '[TEST] Reviewed final version',
+    )
+  })
 })

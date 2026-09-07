@@ -7,7 +7,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.core.errors import InvalidInputError
+from apps.core.errors import ConflictError, InvalidInputError
+from apps.core.etag import PreconditionFailedError, generate_revision_etag, if_match_satisfied
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
@@ -65,12 +66,16 @@ def create_stocktake(staff: Staff, stock_id: UUID | None) -> Stocktake:
     return count
 
 
-def require_draft(count: Stocktake, version: int) -> None:
+def require_draft(count: Stocktake, if_match: str) -> None:
     """Require an unchanged, unposted draft."""
+    if not if_match_satisfied(
+        if_match, generate_revision_etag("stocktake", count.id, count.version)
+    ):
+        raise PreconditionFailedError(
+            "This draft changed in another session. Reload before saving."
+        )
     if count.posted_at is not None:
         raise InvalidInputError("Posted counts are read-only. Create a linked correction.")
-    if count.version != version:
-        raise InvalidInputError("This draft changed in another session. Reload before saving.")
 
 
 def _save_line(count: Stocktake, data: StocktakeLineWrite) -> None:
@@ -82,7 +87,7 @@ def _save_line(count: Stocktake, data: StocktakeLineWrite) -> None:
             stock.inventory_version != data.expected_version
             or stock.quantity != data.expected_quantity
         ):
-            raise InvalidInputError(
+            raise ConflictError(
                 f"{stock.description}: stock changed. Review and recount this line."
             )
         if stock.unit_cost != data.unit_cost:
@@ -109,10 +114,10 @@ def _save_line(count: Stocktake, data: StocktakeLineWrite) -> None:
 
 
 @transaction.atomic
-def save_stocktake(count_id: UUID, data: StocktakeSave) -> Stocktake:
+def save_stocktake(count_id: UUID, data: StocktakeSave, *, if_match: str) -> Stocktake:
     """Save a complete draft while rejecting stale observations."""
     count = Stocktake.objects.select_for_update().get(pk=count_id)
-    require_draft(count, data.version)
+    require_draft(count, if_match)
     ids = [line.id for line in data.lines]
     stock_ids = [line.stock_id for line in data.lines if line.stock_id is not None]
     if len(set(ids)) != len(ids) or len(set(stock_ids)) != len(stock_ids):
@@ -169,14 +174,15 @@ def _post_line(line: StocktakeLine, staff: Staff, job: Job) -> None:
 
 
 @transaction.atomic
-def post_stocktake(count_id: UUID, version: int, staff: Staff) -> Stocktake:
+def post_stocktake(count_id: UUID, if_match: str, staff: Staff) -> Stocktake:
     """Post all counted differences atomically and exactly once."""
     count = Stocktake.objects.select_for_update().get(pk=count_id)
     if count.posted_at is not None:
-        if count.version != version + 1:
-            raise InvalidInputError("This posting request does not match the posted count version.")
+        original = generate_revision_etag("stocktake", count.id, count.version - 1)
+        if not if_match_satisfied(if_match, original):
+            raise PreconditionFailedError("This posting request does not match the posted draft.")
         return count
-    require_draft(count, version)
+    require_draft(count, if_match)
     lines = list(count.lines.select_related("stock").order_by("stock_id", "id"))
     counted = [line for line in lines if line.counted_quantity is not None]
     if not counted:
@@ -193,7 +199,7 @@ def post_stocktake(count_id: UUID, version: int, staff: Staff) -> Stocktake:
                 or stock.quantity != line.expected_quantity
                 or stock.unit_cost != line.unit_cost
             ):
-                raise InvalidInputError(
+                raise ConflictError(
                     f"{line.description}: stock changed. Review and recount this line."
                 )
             line.stock = stock
@@ -207,9 +213,13 @@ def post_stocktake(count_id: UUID, version: int, staff: Staff) -> Stocktake:
 
 
 @transaction.atomic
-def correct_stocktake(count_id: UUID, staff: Staff) -> Stocktake:
+def correct_stocktake(count_id: UUID, staff: Staff, *, if_match: str) -> Stocktake:
     """Create a linked recount preserving the earlier posting."""
     original = Stocktake.objects.select_for_update().get(pk=count_id)
+    if not if_match_satisfied(
+        if_match, generate_revision_etag("stocktake", original.id, original.version)
+    ):
+        raise PreconditionFailedError("Reload the posted count before creating its correction.")
     if original.posted_at is None:
         raise InvalidInputError("Edit this draft directly; it has not been posted.")
     existing = Stocktake.objects.filter(corrects=original).first()

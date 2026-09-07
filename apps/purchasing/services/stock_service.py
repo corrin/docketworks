@@ -172,15 +172,22 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
         raise ValueError("Quantity must be positive")
 
     with transaction.atomic():
-        # Re-read under a row lock so concurrent consumption cannot double-spend.
-        locked = Stock.objects.select_for_update().get(id=item.id)
         if line is not None:
             line = CostLine.objects.select_for_update().get(pk=line.pk)
+            if (
+                line.kind != "material"
+                or line.cost_set.kind != "actual"
+                or line.quantity != qty
+                or line.cost_set.job_id != job.id
+                or line.ext_refs.get("stock_id") != str(item.id)
+            ):
+                raise ValueError("This material selection changed. Reload before approving it.")
             if line.managed_by == "stock":
-                if line.quantity != qty or line.cost_set.job_id != job.id:
-                    raise ValueError("This issue is already posted; return it before changing it.")
-                item.quantity = locked.quantity
+                item.refresh_from_db(fields=["quantity"])
                 return line
+            if line.approved or line.managed_by is not None:
+                raise ValueError("Only unissued material drafts can be approved.")
+        locked = Stock.objects.select_for_update().get(id=item.id)
         resolved_cost = locked.unit_cost if unit_cost is None else unit_cost
         if job.shop_job:
             # Shop jobs don't bill customers, so revenue must be zero.

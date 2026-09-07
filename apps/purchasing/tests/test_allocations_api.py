@@ -459,3 +459,36 @@ class TestAutomaticAllocationOnFullyReceived:
         )
 
         assert Stock.objects.filter(source="purchase_order").count() == 1
+
+
+@pytest.mark.usefixtures("company_defaults")
+def test_onward_issue_is_not_a_second_receipt_allocation(
+    client: Client, stock_holding_job: Job, job: Job
+) -> None:
+    """Onward issues must neither hide their stock lot nor appear as additional PO receipts."""
+    po = make_purchase_order(status="submitted")
+    line = make_po_line(po, quantity="5")
+    _receipt(client, po, str(line.id), str(stock_holding_job.id), "5")
+    stock = Stock.objects.get(source_purchase_order_line=line)
+    issued = client.post(
+        f"/api/purchasing/stock/{stock.id}/consume/",
+        {"job_id": str(job.id), "quantity": "2"},
+        content_type="application/json",
+    )
+    assert issued.status_code == 200, issued.content
+    allocations = client.get(f"{PO_URL}{po.id}/allocations/").json()["allocations"][str(line.id)]
+    assert len(allocations) == 1
+    assert allocations[0]["type"] == "stock"
+    assert allocations[0]["allocation_id"] == str(stock.id)
+    assert allocations[0]["quantity"] == 3
+    cost = CostLine.objects.get(cost_set__job=job, kind="material")
+    response = client.get(f"{PO_URL}{po.id}/allocations/job/{cost.id}/details/")
+    assert response.status_code == 404
+
+
+def test_purchase_order_quantities_and_prices_are_json_numbers(client: Client) -> None:
+    """A browser must not receive decimal strings for quantities or confirmed prices (ADR 0046)."""
+    po = make_purchase_order()
+    make_po_line(po, quantity="2.25", received_quantity="1.25", unit_cost="12.34")
+    line = client.get(f"{PO_URL}{po.id}/").json()["lines"][0]
+    assert (line["quantity"], line["received_quantity"], line["unit_cost"]) == (2.25, 1.25, 12.34)

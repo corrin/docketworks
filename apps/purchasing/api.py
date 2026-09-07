@@ -38,6 +38,7 @@ from ninja.responses import Status
 
 from apps.accounts.auth import authenticated_staff
 from apps.core.auth import CookieJWTAuth
+from apps.core.envelope import require_if_match
 from apps.core.etag import if_none_match_satisfied
 from apps.job.models import Job
 from apps.job.services import job_search, job_service
@@ -121,14 +122,6 @@ PURCHASING_JOB_STATUSES = (
 
 
 # ── Shared helpers ───────────────────────────────────────────────────────
-
-
-def _require_if_match(request: HttpRequest) -> str:
-    """Return the If-Match header or answer 428 Precondition Required."""
-    if_match = request.headers.get("If-Match")
-    if not if_match:
-        raise HttpError(428, "Missing If-Match header (precondition required)")
-    return if_match
 
 
 def _get_po_or_404(po_id: UUID) -> PurchaseOrder:
@@ -360,7 +353,7 @@ def purchasing_purchase_orders_partial_update(
     response: HttpResponse,
 ) -> dict[str, object]:
     """Update a PO under optimistic concurrency (If-Match required, ADR 0003)."""
-    if_match = _require_if_match(request)
+    if_match = require_if_match(request)
     provided = payload.model_fields_set
     data: PurchaseOrderUpdateData = {}
     if "supplier_id" in provided:
@@ -565,7 +558,7 @@ def delete_allocation(
     refreshed ETag -- without that header the client's stored version goes stale
     and its next mutation 412s for no reason.
     """
-    if_match = _require_if_match(request)
+    if_match = require_if_match(request)
     try:
         po, result = allocation_service.delete_allocation(
             po_id=po_id,
@@ -605,7 +598,7 @@ def purchasing_delivery_receipts_create(
 
     The PO id is in the body, not the URL — see the module docstring.
     """
-    if_match = _require_if_match(request)
+    if_match = require_if_match(request)
     line_allocations = {
         line_id: delivery_receipt_service.ReceiptLineRequest(
             total_received=line.total_received,

@@ -19,7 +19,7 @@ from decimal import Decimal
 from typing import Any, Protocol
 from uuid import UUID
 
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 from xero_python.accounting import Account, AccountingApi
 
@@ -780,60 +780,65 @@ def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[Purchas
     po_number = required(po_number, "purchase_order_number", "purchase_order", str(xero_id))
     order_date = required(order_date, "date", "purchase_order", str(xero_id))
     status = required(status, "status", "purchase_order", str(xero_id))
-    # Check for existing PO by xero_id first, then by po_number
-    # (po_number has unique constraint but xero_id is the canonical link)
-    created = False
-    linked = False
-    po = PurchaseOrder.objects.filter(xero_id=xero_id).first()
-    if not po:
-        po = PurchaseOrder.objects.filter(po_number=po_number).first()
-        if po:
-            po.xero_id = xero_id
-            linked = True
-            logger.info("Linked existing PO %s to Xero ID %s", po_number, xero_id)
-    if not po:
-        po = PurchaseOrder.objects.create(
-            xero_id=xero_id,
-            supplier=supplier,
-            po_number=po_number,
-            order_date=order_date,
-            status=map_status(status),
-            xero_last_modified=xero_last_modified,
-            raw_json=raw_json,
+    with transaction.atomic():
+        # Check for existing PO by xero_id first, then by po_number
+        # (po_number has unique constraint but xero_id is the canonical link)
+        created = False
+        linked = False
+        po = PurchaseOrder.objects.select_for_update(of=("self",)).filter(xero_id=xero_id).first()
+        if not po:
+            po = (
+                PurchaseOrder.objects.select_for_update(of=("self",))
+                .filter(po_number=po_number)
+                .first()
+            )
+            if po:
+                po.xero_id = xero_id
+                linked = True
+                logger.info("Linked existing PO %s to Xero ID %s", po_number, xero_id)
+        if not po:
+            po = PurchaseOrder.objects.create(
+                xero_id=xero_id,
+                supplier=supplier,
+                po_number=po_number,
+                order_date=order_date,
+                status=map_status(status),
+                xero_last_modified=xero_last_modified,
+                raw_json=raw_json,
+            )
+            created = True
+
+        unsent = _has_unsent_change(po)
+        new_values = _purchase_order_sync_values(
+            po,
+            {
+                "po_number": po_number,
+                "order_date": order_date,
+                "delivery_date": getattr(xero_po, "delivery_date", None),
+                "xero_last_modified": xero_last_modified,
+                "raw_json": raw_json,
+            },
+            status,
         )
-        created = True
+        changed_fields = _track_and_apply_changes(po, new_values)
+        if changed_fields or created or linked:
+            po.save()
 
-    unsent = _has_unsent_change(po)
-    new_values = _purchase_order_sync_values(
-        po,
-        {
-            "po_number": po_number,
-            "order_date": order_date,
-            "delivery_date": getattr(xero_po, "delivery_date", None),
-            "xero_last_modified": xero_last_modified,
-            "raw_json": raw_json,
-        },
-        status,
-    )
-    changed_fields = _track_and_apply_changes(po, new_values)
-    if changed_fields or created or linked:
-        po.save()
+        if unsent:
+            # Our edit is newer than anything Xero holds, so taking Xero's lines
+            # would revert it. Publish ours instead: both directions are handled,
+            # and the next sync finds the two agreeing. No agreement is stamped —
+            # the push stamps it once Xero has actually accepted ours.
+            queue_purchase_order_push(po)
+            return po, _build_sync_status(created, changed_fields)
 
-    if unsent:
-        # Our edit is newer than anything Xero holds, so taking Xero's lines
-        # would revert it. Publish ours instead: both directions are handled,
-        # and the next sync finds the two agreeing. No agreement is stamped —
-        # the push stamps it once Xero has actually accepted ours.
-        queue_purchase_order_push(po)
+        _stamp_agreement(po)
+        _sync_purchase_order_lines(po, xero_po, po_number, xero_id)
+
+        # "linked" is special case for POs - existing PO matched by po_number
+        if linked:
+            return po, "linked"
         return po, _build_sync_status(created, changed_fields)
-
-    _stamp_agreement(po)
-    _sync_purchase_order_lines(po, xero_po, po_number, xero_id)
-
-    # "linked" is special case for POs - existing PO matched by po_number
-    if linked:
-        return po, "linked"
-    return po, _build_sync_status(created, changed_fields)
 
 
 def transform_pay_run(

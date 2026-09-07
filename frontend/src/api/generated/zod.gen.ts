@@ -4188,12 +4188,12 @@ export const zPurchaseOrderLineOut = z.object({
     location: z.string().nullable(),
     metal_type: z.string().nullable(),
     price_tbc: z.boolean(),
-    quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
-    received_quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    quantity: z.number(),
+    received_quantity: z.number(),
     specifics: z.string().nullable(),
     supplier_item_code: z.string().nullable(),
     times_used: z.int(),
-    unit_cost: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable()
+    unit_cost: z.number().nullable()
 });
 
 /**
@@ -5252,8 +5252,7 @@ export const zStocktakeDetail = z.object({
     discrepancy_value: z.number(),
     id: z.uuid(),
     lines: z.array(zStocktakeLineOut),
-    posted_at: z.iso.datetime().nullable(),
-    version: z.int()
+    posted_at: z.iso.datetime().nullable()
 });
 
 /**
@@ -5279,8 +5278,7 @@ export const zStocktakeLineWrite = z.object({
  * StocktakeSave wire contract.
  */
 export const zStocktakeSave = z.object({
-    lines: z.array(zStocktakeLineWrite),
-    version: z.int()
+    lines: z.array(zStocktakeLineWrite)
 });
 
 /**
@@ -5329,6 +5327,19 @@ export const zStocktakeStockList = z.object({
 });
 
 /**
+ * StocktakeStockSearch
+ *
+ * Bounded identity filtering also refreshes unsaved stock observations.
+ */
+export const zStocktakeStockSearch = z.object({
+    location: z.string().optional().default(''),
+    page: z.int().gte(1).optional().default(1),
+    page_size: z.int().gte(1).lte(100).optional().default(50),
+    q: z.string().optional().default(''),
+    stock_ids: z.array(z.uuid()).max(100).optional()
+});
+
+/**
  * StocktakeSummary
  *
  * StocktakeSummary wire contract.
@@ -5340,8 +5351,7 @@ export const zStocktakeSummary = z.object({
     created_at: z.iso.datetime(),
     discrepancy_value: z.number(),
     id: z.uuid(),
-    posted_at: z.iso.datetime().nullable(),
-    version: z.int()
+    posted_at: z.iso.datetime().nullable()
 });
 
 /**
@@ -5352,15 +5362,6 @@ export const zStocktakeSummary = z.object({
 export const zStocktakeList = z.object({
     count: z.int(),
     results: z.array(zStocktakeSummary)
-});
-
-/**
- * StocktakeVersion
- *
- * StocktakeVersion wire contract.
- */
-export const zStocktakeVersion = z.object({
-    version: z.int()
 });
 
 /**
@@ -8145,6 +8146,15 @@ export const zPurchasingAllJobsRetrieveQuery = z.object({
  */
 export const zPurchasingAllJobsRetrieveResponse = zAllJobsResponse;
 
+export const zCostLineStockMovementRetrievePath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zCostLineStockMovementRetrieveResponse = zStockMovementOut;
+
 export const zPurchasingDeliveryReceiptsCreateBody = zDeliveryReceiptRequest;
 
 /**
@@ -8417,7 +8427,8 @@ export const zStocktakeStockListQuery = z.object({
     q: z.string().optional().default(''),
     location: z.string().optional().default(''),
     page: z.int().gte(1).optional().default(1),
-    page_size: z.int().gte(1).lte(100).optional().default(50)
+    page_size: z.int().gte(1).lte(100).optional().default(50),
+    stock_ids: z.array(z.uuid()).max(100).optional()
 });
 
 /**
@@ -8464,8 +8475,6 @@ export const zStocktakeMovementsListPath = z.object({
  * OK
  */
 export const zStocktakeMovementsListResponse = z.array(zStockMovementOut);
-
-export const zStocktakePostBody = zStocktakeVersion;
 
 export const zStocktakePostPath = z.object({
     id: z.uuid()

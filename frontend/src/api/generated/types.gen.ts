@@ -9471,11 +9471,11 @@ export type PurchaseOrderLineOut = {
     /**
      * Quantity
      */
-    quantity: string;
+    quantity: number;
     /**
      * Received Quantity
      */
-    received_quantity: string;
+    received_quantity: number;
     /**
      * Specifics
      */
@@ -9491,7 +9491,7 @@ export type PurchaseOrderLineOut = {
     /**
      * Unit Cost
      */
-    unit_cost: string | null;
+    unit_cost: number | null;
 };
 
 /**
@@ -11539,10 +11539,6 @@ export type StocktakeDetail = {
      * Posted At
      */
     posted_at: string | null;
-    /**
-     * Version
-     */
-    version: number;
 };
 
 /**
@@ -11683,10 +11679,6 @@ export type StocktakeSave = {
      * Lines
      */
     lines: Array<StocktakeLineWrite>;
-    /**
-     * Version
-     */
-    version: number;
 };
 
 /**
@@ -11774,6 +11766,34 @@ export type StocktakeStockOut = {
 };
 
 /**
+ * StocktakeStockSearch
+ *
+ * Bounded identity filtering also refreshes unsaved stock observations.
+ */
+export type StocktakeStockSearch = {
+    /**
+     * Location
+     */
+    location?: string;
+    /**
+     * Page
+     */
+    page?: number;
+    /**
+     * Page Size
+     */
+    page_size?: number;
+    /**
+     * Q
+     */
+    q?: string;
+    /**
+     * Stock Ids
+     */
+    stock_ids?: Array<string>;
+};
+
+/**
  * StocktakeSummary
  *
  * StocktakeSummary wire contract.
@@ -11807,22 +11827,6 @@ export type StocktakeSummary = {
      * Posted At
      */
     posted_at: string | null;
-    /**
-     * Version
-     */
-    version: number;
-};
-
-/**
- * StocktakeVersion
- *
- * StocktakeVersion wire contract.
- */
-export type StocktakeVersion = {
-    /**
-     * Version
-     */
-    version: number;
 };
 
 /**
@@ -17990,6 +17994,27 @@ export type PurchasingAllJobsRetrieveResponses = {
 
 export type PurchasingAllJobsRetrieveResponse = PurchasingAllJobsRetrieveResponses[keyof PurchasingAllJobsRetrieveResponses];
 
+export type CostLineStockMovementRetrieveData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/purchasing/cost-lines/{id}/movement/';
+};
+
+export type CostLineStockMovementRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: StockMovementOut;
+};
+
+export type CostLineStockMovementRetrieveResponse = CostLineStockMovementRetrieveResponses[keyof CostLineStockMovementRetrieveResponses];
+
 export type PurchasingDeliveryReceiptsCreateData = {
     body: DeliveryReceiptRequest;
     path?: never;
@@ -18646,6 +18671,10 @@ export type StocktakeStockListData = {
          * Page Size
          */
         page_size?: number;
+        /**
+         * Stock Ids
+         */
+        stock_ids?: Array<string>;
     };
     url: '/api/purchasing/stocktakes/stock/';
 };
@@ -18746,7 +18775,7 @@ export type StocktakeMovementsListResponses = {
 export type StocktakeMovementsListResponse = StocktakeMovementsListResponses[keyof StocktakeMovementsListResponses];
 
 export type StocktakePostData = {
-    body: StocktakeVersion;
+    body?: never;
     path: {
         /**
          * Id

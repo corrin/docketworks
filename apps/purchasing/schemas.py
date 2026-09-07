@@ -14,7 +14,7 @@ from ninja import Schema
 from pydantic import field_validator
 
 from apps.company.schemas import SupplierPickupAddressOut, clean_optional_email
-from apps.core.schemas import NullableText, ResponseSchema, omittable
+from apps.core.schemas import NullableText, Quantity, ResponseSchema, omittable
 from apps.job.schemas import CostLineOut
 
 # The one NullableText (ADR 0039/0040) lives in apps/core/schemas — company's
@@ -149,13 +149,13 @@ class PurchaseOrderLineOut(Schema):
 
     id: UUID
     description: str
-    quantity: Decimal
+    quantity: Quantity
     dimensions: str | None
-    unit_cost: Decimal | None
+    unit_cost: Quantity | None
     price_tbc: bool
     supplier_item_code: str | None
     item_code: str | None
-    received_quantity: Decimal
+    received_quantity: Quantity
     metal_type: str | None
     alloy: str | None
     specifics: str | None
