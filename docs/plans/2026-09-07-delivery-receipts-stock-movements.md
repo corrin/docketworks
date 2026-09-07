@@ -20,7 +20,9 @@ Confirmed in the 2026-09-07 implementation discussion:
    be quick; an unpriced item cannot be posted to a job.
 6. Purchased quantity and job requirement differ: purchase one sheet, allocate
    0.5 to the job and 0.5 to SOH. Do not cost the whole sheet to the job.
-7. Plan these requirements fully before implementing the expanded workflow.
+7. Negative SOH is commonplace and acceptable. Stock issues must remain possible
+   when recorded availability is insufficient; stocktake can reconcile later.
+8. Plan these requirements fully before implementing the expanded workflow.
 
 Questions sent to the owner, still awaiting answers when this draft was written:
 
@@ -29,10 +31,6 @@ Questions sent to the owner, still awaiting answers when this draft was written:
 - Is a remaining half sheet a distinct offcut with dimensions, or 0.5 of the
   original item? GPT proposal: preserve distinct physical offcuts and their
   dimensions, while retaining a common quantity unit for conservation.
-
-- Should an issue exceeding SOH require a stocktake adjustment first, or may SOH
-  become negative with a visible discrepancy? The current code allows negative
-  balances. The question has been sent to the owner; do not silently change it.
 
 Other decisions have explicit proposed defaults below. They are not owner rulings.
 
@@ -141,9 +139,10 @@ movement to the responsible job/scrap destination, not a deleted remainder.
   the supplier delivery or reopen the PO.
 - Reallocate material between jobs by reversing the original job charge and posting
   the destination charge in one transaction. No extra supplier receipt is created.
-- Correct an erroneously recorded receipt by an explicit linked reversal. Reverse
-  only quantities still traceable at the relevant destination. If stock has moved
-  onward, require its return/reallocation first and name the blocking movement.
+- Correct an erroneously recorded receipt by an explicit linked reversal, bounded
+  by the original receipt's unreversed quantity. Preserve onward job issues and
+  their cost effects; the correction may leave negative SOH for later reconciliation.
+  Never erase onward movements to make a correction balance.
 - Record a real return to the supplier separately from correcting a mistaken entry.
   GPT proposal: keep the original delivery history and record the return; the
   operator explicitly states whether a replacement is due. Do not infer supplier
@@ -153,10 +152,18 @@ movement to the responsible job/scrap destination, not a deleted remainder.
   destination or price through a linked reversal/replacement or value adjustment.
   A description/location edit cannot change quantity, value or provenance.
 
-GPT proposed negative-stock policy: no new issue beyond available SOH. An actual
-physical excess is recorded through stocktake first. Current code permits negative
-stock, so this is an explicit behaviour change requiring owner approval; until
-that decision is settled, the issue/correction slice is not ready to implement.
+Owner ruling: allow issues exceeding recorded SOH. Record the full issue and its
+job cost, retain the resulting negative balance and show it clearly in SOH/history.
+No blocking warning, extra confirmation or compulsory stocktake interrupts the
+normal issue. Concurrency protection prevents lost or duplicate postings, not
+negative inventory. A later receipt or stocktake resolves the discrepancy.
+
+The owner also allowed considering automatic creation through the stocktake job
+whenever an issue would go negative. GPT proposal: omit that optional automation
+from this implementation; tolerate the negative instead. An invented balancing
+movement would conceal the discrepancy without an observed count. If requested
+later, its provenance must explicitly say system-generated adjustment, never
+physical stocktake, and must preserve the original issue and audit trail.
 
 ### Stocktake
 
@@ -242,7 +249,7 @@ admin and ordinary APIs as well as service callers; UI disabling alone is insuff
 ## 5. Posting, concurrency, permissions and Xero
 
 One canonical posting operation validates the complete request, locks the PO and
-affected lots in a stable order, verifies ETags and available quantities, writes
+affected lots in a stable order, verifies ETags and source/reversal identities, writes
 receipt/movements/cost effects/projections, recomputes PO status and commits.
 Never lock across a vendor request. A reused posting ID returns the original result
 only for the same payload; a different payload with that ID is refused. A stale
@@ -294,7 +301,7 @@ operation owners; regenerate OpenAPI and every frontend caller together (ADR 001
 | `stock-movements/` plus detail/reversal | Typed return, reallocation, physical split and correction requests with required relevant source links and versions; do not expose an arbitrary unvalidated delta endpoint |
 | `stocktakes/`, detail and `/{id}/post/` | Create/update draft count with ETag; read review differences from server; post once with lot/count versions and adjustment-job identity; posted counts read-only |
 | Existing allocation DELETE and stock DELETE | Remove destructive contracts and rewrite every caller to the appropriate explicit reversal/adjustment action; ordinary requests cannot erase stock/history |
-| Job cost-line PATCH/DELETE/approve | Movement-owned lines refuse generic edits; approval uses the canonical issue owner; correction actions reach the public movement contract |
+| Job cost-line PATCH/DELETE/approve | Movement-owned lines refuse generic edits; approval uses the canonical issue owner even with insufficient SOH; correction actions reach the public movement contract |
 
 Use one receipt preparation function for read-only preview and final validation;
 do not implement the calculations in React. Preview is debounced/batched, does not
@@ -370,7 +377,8 @@ Migration sequence:
    claim to reconstruct historical receipts.
 4. Leave unreconstructable provenance visibly reported and block affected posting
    until resolved; do not fabricate past receipt dates, actors, units or movements.
-   Negative holdings require a reviewed disposition, not clamping or omission.
+   Negative holdings are valid opening balances and remain negative; never clamp,
+   omit or automatically balance them. Review missing units/provenance separately.
 5. Remove the single-active-stock-per-PO-line constraint and obsolete direct-write
    fields only with the replacement readers/writers ready. Preserve model/table
    identities required by repository migration rules; update restore/scrub fixtures,
@@ -403,7 +411,7 @@ half a stock-writing transition into production.
 
 | Slice | Scope and dependencies | Completion evidence |
 | --- | --- | --- |
-| A — reviewed design and audit | Resolve owner questions, over-delivery/negative-stock/return policies; audit target data and catalogue/lot split | Approved contracts and reviewed migration manifest; no stock mutation |
+| A — reviewed design and audit | Resolve owner questions, over-delivery/return policies; audit target data and catalogue/lot split | Approved contracts and reviewed migration manifest; no stock mutation |
 | B — ledger foundation and openings | New records/constraints, canonical posting and projections, catalogue separation, opening migration, reconciliation read; depends on A | Migration rehearsal preserves IDs/balances/costs; conservation, rollback, protected-history and retry tests |
 | C — route every existing stock writer | Consumption and approval, job edits/deletes, allocation reversal, manual adjustment, Xero item transform and all stock readers; depends on B | No direct balance writers remain; job issue/return/correction E2E and real Xero catalogue-sync protection pass |
 | D — fast delivery receipt | Planned job demand, one-request TBC pricing/receipt, repeated deliveries, canonical full-receipt shortcut, shared receipt entry UI; depends on C | Whole-order fast path, partial/repeat and half-sheet allocation specs; live receipt→push→pull cases |
@@ -428,17 +436,17 @@ fail (ADRs 0025/0052). Use the existing shared factories and actors.
 | Service + API / PO allocation tests | Planned demand alone changes no SOH/actual cost; partial receipt consumes only its allocation, later receipt uses the remaining demand |
 | Service / new movement tests | Issue, return, job reallocation and reversal preserve quantity/value and lineage; job returns do not alter supplier received totals; partial reversal cannot exceed the unreversed original |
 | API / purchasing and job suites | Generic PATCH/DELETE, queryset deletion and PO/job cascades cannot bypass posted movement ownership; approval retry issues stock once; estimate/quote edits move nothing |
-| Concurrency / movement and receipt tests | Two competing issues/receipts and stale stocktake postings cannot double-spend or double-receipt; locks/ETags are real; lost-response retries return the same receipt; conflicting payload reuse refuses |
+| Concurrency / movement and receipt tests | Two concurrent issues both appear exactly once, including a negative resulting SOH; stale stocktake postings refuse; receipts cannot double-post; locks/ETags are real; lost-response retries return the same receipt; conflicting payload reuse refuses |
 | Service / split tests | Parent and every child remain traceable; residual SOH is the correct fraction/shape; split plus explicit waste conserves input quantity/value; a returned offcut retains its historical cost |
 | Service + API / stocktake tests | Blank is uncounted, zero is a counted shortage; extra moves from adjustment job into SOH and missing moves out; unchanged counts emit nothing; posting twice makes no extra movement |
 | Service + API / valuation tests | Catalogue price edits cannot reprice old lots or job issues; corrections have linked value evidence; opening balances add no new job cost |
-| Migration / purchasing tests | Legacy Stock IDs and all existing costs survive; multiple receipts per PO line become possible; catalogue-only rows do not become physical stock; ambiguous/dangling/negative input refuses or appears in the reviewed exception report |
-| Read/query / stock search tests | SOH excludes catalogue-only and job-held quantities, retains zero/history access, reports accurate paginated counts and exposes reconciliation mismatches without writing on GET |
+| Migration / purchasing tests | Legacy Stock IDs and all existing costs survive; multiple receipts per PO line become possible; catalogue-only rows do not become physical stock; ambiguous/dangling input refuses or appears in the reviewed exception report |
+| Read/query / stock search tests | SOH excludes catalogue-only and job-held quantities, retains negative balances and zero/history access, reports accurate paginated counts and exposes reconciliation mismatches without writing on GET |
 | Browser / purchasing/po-receipt.spec.ts | Priced whole delivery needs one confirmation after opening, with no per-line interaction; several TBC prices entered consecutively by keyboard; one posting request; all rows/costs survive reload |
 | Browser / same spec | A partial delivery followed by another works; a stale ETag preserves the draft; half-sheet job/SOH split and its cost display persist; failed posting remains editable |
 | Browser / purchasing/stock-movements.spec.ts | Issue, unused return, correction and split through real UI/API; original and reversing history is visible; resulting SOH and job costs agree |
 | Browser / purchasing/stocktake.spec.ts | Search/count/review/post on real SOH, found/missing/zero/un-counted cases, counterpart job link, stale-count review and no duplicate posting |
-| Browser / shared item picker specs | Ordering/estimating can select catalogue items with zero SOH; actual job posting selects real holdings and obeys the approved insufficient-stock policy |
+| Browser / shared item picker specs | Ordering/estimating can select catalogue items with zero SOH; actual job posting selects real holdings, permits issues beyond their recorded balance, and visibly records negative SOH |
 | Live / xero purchase-order and stock integration | Real partial/full receipts and confirmed TBC price reach Xero and pull back without changing local receipts/movements/costs; Xero item import changes catalogue facts without rewriting SOH |
 | Provisioning/restore + browser admin | Fresh and restored instances can operate receipts/stocktake through supported setup; no hidden shell-created job/configuration prerequisite |
 

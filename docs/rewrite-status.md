@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **55 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 254 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3026 collected |
+| Unit tests | 3028 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 128 recorded deviations |
@@ -62,12 +62,11 @@ shape v2 must serve.
 
 Not a tier — just the things a session should have a reason not to pick up.
 
-1. **[KAN-358](https://docketworks.atlassian.net/browse/KAN-358): finish verification
-   and receipt-status data repair before releasing the Xero safeguards.** Keep
-   PR #142's main→production promotion hold. Complete real sandbox round trips,
-   integration and E2E gates; review and repair existing receipt/status mismatches
-   through purchasing's canonical status owner. Resolve browser coverage against
-   the existing Fully Received shortcut; partial delivery has no receipt UI.
+1. **[KAN-358](https://docketworks.atlassian.net/browse/KAN-358): finish release
+   verification for the Xero safeguards.** Keep PR #142's main→production hold.
+   Complete the full integration and E2E gates; audit target-instance receipt/status
+   mismatches before promotion. Resolve browser coverage against the existing
+   Fully Received shortcut; partial delivery has no receipt UI.
    See [the plan](plans/2026-09-07-KAN-358-po-receipt-status.md).
 2. **[KAN-356](https://docketworks.atlassian.net/browse/KAN-356): payroll posting
    double-books leave, and reports `ok` while doing it.** Live in production, and money

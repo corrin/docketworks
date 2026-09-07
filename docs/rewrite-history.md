@@ -29,7 +29,12 @@ those existing paths violate the owner's rule. KAN-358 changes neither path.
 The owner also specified the fast path: whole-order receipt is the normal case,
 TBC prices must be quick to confirm before material reaches a job, and an order
 for one sheet needed half by a job allocates half to that job and half to stock on
-hand. Receipt planning must retain purchased quantity separately from job demand.
+hand. Receipt planning must retain purchased quantity separately from job demand. The
+owner subsequently confirmed that negative SOH is commonplace and acceptable;
+issues must proceed and retain visible negative balances. Stocktake may reconcile
+them later. GPT: use that permitted policy rather than automatically inventing
+stock to hide each deficit; automated stocktake-job balancing was suggested as an
+optional feature, not required scope.
 
 **2026-09-07 — KAN-358 receipt status and push acknowledgement.** The branch
 started clean at planning commit `6cd99cd`, based on fetched `origin/main`
@@ -38,9 +43,15 @@ instead of the receipt-derived status; concurrent create/update and out-of-order
 response cases also failed by acknowledging unsent edits. With both safeguards,
 all 52 focused tests passed. Removing the receipt guard reproduced six
 failures; removing the version predicate reproduced three failures while the
-three unaffected acknowledgement cases passed. Both safeguards were restored. The required Xero/purchasing run passed
+three unaffected acknowledgement cases passed. Both safeguards were restored.
+The required Xero/purchasing run passed
 801 tests (62 existing warnings). Commit `100fbfc` passed its hooks;
-the subsequent full Python suite passed 3,001 tests with 103 warnings. Receipt tests drive the ETag-checked receipt service
+the subsequent full Python suite passed 3,001 tests with 103 warnings.
+The real Xero PO integration suite passed all six tests, including fresh partial
+and full receipts pushed and pulled back as AUTHORISED with unchanged receipt
+quantities, stock and job-cost rows. The harness's separate Docker/ufw check could
+not run on this host because Docker was unavailable.
+Receipt tests drive the ETag-checked receipt service
 and compare the receipt's stock and job-cost rows before and after synchronization.
 Push tests save real concurrent edits, suppress their queue boundary, and prove
 reconciliation sends the missing reference on retry without moving the ETag.
@@ -51,9 +62,13 @@ orders carry linked Xero identities and `xero_status=AUTHORISED`; the remaining
 277 have no Xero accounting status. These are development data findings, not
 proof that all mismatches came from KAN-358 or a production data audit.
 
-GPT: preserving workflow status cannot repair those existing labels. Repair must
-use `recompute_purchase_order_status`, after reviewing a dry-run, without changing
-quantities or allocations. A read-time inference would conceal the corrupt field.
+The 16 linked AUTHORISED/submitted development orders were dry-run through
+`recompute_purchase_order_status`; every result was fully_received. After reviewing
+the preview, that status-only repair was applied. All 23 PO lines and 24 linked
+cost rows compared identical before/after; this set had no linked stock rows. A
+second dry-run found zero remaining candidates. No production database was changed.
+The other 277 mismatches have no recorded Xero status and remain an audit concern
+for the receipt/movement plan, without attributing their origin to KAN-358.
 
 Browser inspection found the Fully Received dropdown shortcut in `PoSummaryCard`
 calling `update_purchase_order`, which automatically allocates lines to their job

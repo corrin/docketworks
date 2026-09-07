@@ -124,3 +124,28 @@ abstraction, credential source, retry system or schema column is planned.
   with AUTHORISED; the other 277 have no recorded Xero status. Repair is necessary;
   this evidence neither attributes every mismatch to KAN-358 nor audits production.
   Keep data review/application and release verification open until performed.
+
+
+## Verification recorded during implementation
+
+The safeguards and failing-then-passing hermetic regressions are committed in
+`100fbfc`. Focused: 52 passed. Removing each safeguard reproduced its failures
+(receipt: six; acknowledgement: three). Xero/purchasing: 801 passed. Full Python:
+3,001 passed. Commit hooks passed, including the regenerated test count.
+
+The real Xero PO suite subsequently passed six tests, including fresh partial and
+full receipts, application push and application pull. Xero returned AUTHORISED;
+local status, received quantities, stock and job costs remained intact. No repeat
+receipt deleted pre-existing stock. The harness reported Docker unavailable for
+its separate ufw integration check; this is still required on a capable host.
+
+After a reviewed rollback-only preview, purchasing's canonical status calculation
+repaired the 16 linked AUTHORISED/submitted development orders to fully_received.
+All 23 PO lines and 24 linked cost rows were unchanged (no linked stock rows in
+this set). A repeated preview found no candidates. The other 277 mismatches were
+not attributed to this defect or silently repaired. Production was not changed.
+Full integration/E2E release verification and the promotion hold remain open.
+
+The expanded receipt, SOH and stocktake requirements have a separate
+[implementation plan](2026-09-07-delivery-receipts-stock-movements.md); its new
+business workflows are not implemented by KAN-358.
