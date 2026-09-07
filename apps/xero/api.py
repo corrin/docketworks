@@ -23,7 +23,6 @@ from django.db.models import Model
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
-from ninja.errors import HttpError
 from ninja.responses import Status
 
 from apps.accounting.models import Invoice, Quote
@@ -33,6 +32,7 @@ from apps.accounting.services.invoice_calculation import (
     calculate_invoice_amount,
     get_job_for_invoice_calculation,
 )
+from apps.accounts.auth import authenticated_staff
 from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
 from apps.core.errors import persist_app_error
@@ -62,15 +62,6 @@ logger = logging.getLogger(__name__)
 router = Router(tags=["xero"])
 auth = CookieJWTAuth()
 office_auth = OfficeStaffCookieJWTAuth()
-
-
-def _staff(request: HttpRequest) -> Staff:
-    """Narrow the authenticated user to a real Staff row (ADR 0028)."""
-    auth_user: object = getattr(request, "auth", None)
-    user = auth_user if isinstance(auth_user, Staff) else request.user
-    if not isinstance(user, Staff):
-        raise HttpError(401, "Authentication credentials were not provided.")
-    return user
 
 
 class XeroPayItemOut(Schema):
@@ -466,7 +457,7 @@ def xero_create_invoice(
                 success=False, error="Job has no client company; set one before invoicing."
             ),
         )
-    manager = XeroInvoiceManager(company=job.company, job=job, staff=_staff(request))
+    manager = XeroInvoiceManager(company=job.company, job=job, staff=authenticated_staff(request))
     result = manager.create_document(
         total_amount=calc_result.calculated_amount, billing_metadata=billing_metadata
     )
@@ -524,7 +515,7 @@ def xero_create_quote(
                 success=False, error="Job has no client company; set one before quoting."
             ),
         )
-    manager = XeroQuoteManager(company=job.company, job=job, staff=_staff(request))
+    manager = XeroQuoteManager(company=job.company, job=job, staff=authenticated_staff(request))
     result = manager.create_document(breakdown=payload.breakdown)
 
     if not result["success"]:
@@ -580,7 +571,7 @@ def xero_delete_quote(
                 success=False, error="Job has no client company and no Xero quote."
             ),
         )
-    manager = XeroQuoteManager(company=company, job=job, staff=_staff(request))
+    manager = XeroQuoteManager(company=company, job=job, staff=authenticated_staff(request))
     result = manager.delete_document()
 
     if not result["success"]:
@@ -646,7 +637,10 @@ def xero_delete_invoice(
             ),
         )
     manager = XeroInvoiceManager(
-        company=job.company, job=job, staff=_staff(request), xero_invoice_id=str(invoice.xero_id)
+        company=job.company,
+        job=job,
+        staff=authenticated_staff(request),
+        xero_invoice_id=str(invoice.xero_id),
     )
     result = manager.delete_document()
 
@@ -705,7 +699,9 @@ def xero_create_purchase_order(
             ),
         )
 
-    manager = XeroPurchaseOrderManager(purchase_order=purchase_order, staff=_staff(request))
+    manager = XeroPurchaseOrderManager(
+        purchase_order=purchase_order, staff=authenticated_staff(request)
+    )
     result = manager.sync_to_xero()
 
     if not result["success"]:
@@ -755,7 +751,9 @@ def xero_delete_purchase_order(
             ),
         )
 
-    manager = XeroPurchaseOrderManager(purchase_order=purchase_order, staff=_staff(request))
+    manager = XeroPurchaseOrderManager(
+        purchase_order=purchase_order, staff=authenticated_staff(request)
+    )
     result = manager.delete_document()
 
     if not result["success"]:

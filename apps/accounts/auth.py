@@ -8,8 +8,9 @@ from apps.accounts.models import Staff
 
 def authenticated_staff(request: HttpRequest) -> Staff:
     """Require the authenticated principal to be a staff member."""
-    auth_user: object = getattr(request, "auth", None)
-    user = auth_user if isinstance(auth_user, Staff) else request.user
+    # GPT: JWT authentication assigns request.user before the router runs;
+    # probing request.auth duplicated the same principal with a fallback.
+    user = request.user
     if not isinstance(user, Staff):
         raise HttpError(401, "Authentication credentials were not provided.")
     return user

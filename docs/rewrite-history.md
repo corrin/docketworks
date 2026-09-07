@@ -910,3 +910,17 @@ were unchanged; movement sums reconciled to stock and repeated SQL added no rows
 This exercises the SQL but does not replace a current production-data rehearsal.
 The working database and production were not repaired or migrated. Browser and
 remaining release acceptance tasks remain in rewrite-status.
+
+## 2026-09-08 — PR #151 review implementation
+
+Owner approved the review-resolution plan: accept valid Xero PO amendments while
+preserving posted receipts, and reject ordered quantities below net receipts.
+Shared staff access, explicit zero costs and negative SOH remain intentional.
+Expanded partial-receipt entry, planned demand and dimensional splits remain separate.
+
+GPT: response version capture now keys by the server token's resource identity,
+because a correction response describes a different stocktake from its request URL.
+Stocktake joins the middleware's gzip-safe strong-token contract. JWT's actual
+request.user assignment permits one staff resolver without request.auth fallback.
+The configured mypy already followed the repair module through imports; adhoc is
+now an explicit target as well.

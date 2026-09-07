@@ -213,7 +213,7 @@ mypy_path = "stubs"
 # probe found a real defect in one: a tuple-keyed dict tested against a set of
 # strings, always false, silently ignoring the parity ledger. Code that decides
 # whether other code may merge should be checked at least as hard as the rest.
-files = ["config", "apps", "manage.py", "scripts"]
+files = ["config", "apps", "manage.py", "scripts", "adhoc"]
 
 # xero-python ships no py.typed. The modules we subclass or call directly have
 # hand-written stubs in stubs/xero_python/ (signature drift is caught by the

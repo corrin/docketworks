@@ -232,28 +232,13 @@ export interface ConcurrencyResponse {
 
 /** Response interceptor: capture strong resource versions from Job/PO endpoints. */
 export function captureResourceVersion<T extends ConcurrencyResponse>(response: T): T {
-  const url = response.config.url ?? ''
   const version = strongResourceVersion(response.headers)
-  if (!version) {
-    return response
-  }
-  for (const rule of RULES) {
-    // Opus: a mutation endpoint counts as versioned here even when the read
-    // rule does not match it. Gating on isVersionedEndpoint alone dropped the
-    // fresh ETag that POST /api/purchasing/delivery-receipts/ returns, because
-    // its URL carries no /purchase-orders/<uuid>/ segment — so every receipt
-    // left a stale version in the store and 412'd the next PO mutation until a
-    // refetch landed.
-    if (!rule.isVersionedEndpoint(url) && !rule.isMutationEndpoint(url)) continue
-    // idForMutation is the one resolver that knows where each endpoint keeps
-    // its id: it reads the body for delivery receipts and falls back to the URL
-    // for everything else. A second URL-only resolver alongside it was one
-    // answer too many, and it was the one that dropped the receipt's ETag.
-    const id = rule.idForMutation(url, response.config.data)
-    if (id) {
-      setEtag(etagKey(rule.kind, id), version)
-    }
-  }
+  if (version === null) return response
+  // GPT: corrections return a different resource from the request URL. The
+  // server's resource token identifies the only cache entry it can update.
+  const key = version.match(/^"((?:job|po|stocktake):[0-9a-f-]{36}):[^"\s]+"$/i)?.[1]
+  if (key === undefined) return response
+  setEtag(key, version)
   return response
 }
 

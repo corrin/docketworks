@@ -195,10 +195,7 @@ def count_post(request: HttpRequest, response: HttpResponse, id: UUID) -> Stockt
 @router.post("/{uuid:id}/correct/", response=StocktakeDetail, operation_id="stocktake_correct")
 def count_correct(request: HttpRequest, response: HttpResponse, id: UUID) -> StocktakeDetail:
     """Start a linked recount without erasing the original observation."""
-    original = get_object_or_404(Stocktake, pk=id)
-    response["X-Resource-Version"] = generate_revision_etag(
-        "stocktake", original.id, original.version
-    )
+    get_object_or_404(Stocktake, pk=id)
     return _detail(
         stocktake_service.correct_stocktake(
             id, authenticated_staff(request), if_match=require_if_match(request)
