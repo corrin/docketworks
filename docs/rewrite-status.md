@@ -38,7 +38,7 @@ does not have.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **55 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
+| E2E specs ported | **56 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 254 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 3028 collected |
@@ -64,9 +64,11 @@ Not a tier — just the things a session should have a reason not to pick up.
 
 1. **[KAN-358](https://docketworks.atlassian.net/browse/KAN-358): finish release
    verification for the Xero safeguards.** Keep PR #142's main→production hold.
-   Complete the full integration and E2E gates; audit target-instance receipt/status
-   mismatches before promotion. Resolve browser coverage against the existing
-   Fully Received shortcut; partial delivery has no receipt UI.
+   Complete the full integration gate after restoring phone-provider configuration
+   and Xero daily quota. Run `purchasing/po-receipt-sync.spec.ts` and the full managed
+   E2E gate on fresh quota; the new spec is not yet browser-verified. Run the ufw
+   integration check on a Docker-capable host. Audit target-instance receipt/status
+   mismatches before promotion; partial delivery has no receipt UI.
    See [the plan](plans/2026-09-07-KAN-358-po-receipt-status.md).
 2. **[KAN-356](https://docketworks.atlassian.net/browse/KAN-356): payroll posting
    double-books leave, and reports `ok` while doing it.** Live in production, and money

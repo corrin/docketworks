@@ -21,7 +21,9 @@ restating it. Nothing here is a task.
 **2026-09-07 — Owner ruling: stock moves; it is never deleted.** Receipt,
 issue, return and correction workflows must preserve stock history through
 movements. The owner proposed a stocktake job as the counterpart for extra stock
-found or missing stock; its detailed workflow remains to be planned. Current
+found or missing stock; the detailed proposals are recorded in
+[the receipt/stock movement plan](plans/2026-09-07-delivery-receipts-stock-movements.md).
+Current
 stock uses mutable `Stock.quantity` balances, general stock resolves to the
 hard-coded Worker Admin job, and consumption books a linked job cost line.
 Inspection found physical deletion in repeat receipts and allocation deletion;
@@ -51,6 +53,12 @@ The real Xero PO integration suite passed all six tests, including fresh partial
 and full receipts pushed and pulled back as AUTHORISED with unchanged receipt
 quantities, stock and job-cost rows. The harness's separate Docker/ufw check could
 not run on this host because Docker was unavailable.
+The subsequent full integration run finished with 18 passed, four failed and five
+setup errors: missing phone-provider base URL/username/password and Xero daily-quota
+exhaustion in payroll, quota telemetry, outbound links and PO setup. Xero reported
+HTTP 429 and day remaining zero at 00:42 UTC on 2026-09-07. The migration check passed.
+The new whole-receipt browser spec is authored but unrun; its real Xero dependency
+is exhausted. The full integration and browser gates remain blockers, not waivers.
 Receipt tests drive the ETag-checked receipt service
 and compare the receipt's stock and job-cost rows before and after synchronization.
 Push tests save real concurrent edits, suppress their queue boundary, and prove

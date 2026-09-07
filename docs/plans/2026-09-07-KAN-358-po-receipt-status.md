@@ -146,6 +146,16 @@ this set). A repeated preview found no candidates. The other 277 mismatches were
 not attributed to this defect or silently repaired. Production was not changed.
 Full integration/E2E release verification and the promotion hold remain open.
 
+The subsequent full integration run finished with 18 passed, four failed and five
+setup errors. The phone test lacks the configured base URL, username and password.
+Payroll, quota telemetry, outbound Xero links and PO setup encountered the actual
+Xero daily limit (HTTP 429, day remaining zero; 2026-09-07 00:42 UTC). The six-test
+focused live pass above preceded this exhaustion; it does not waive the full gate.
+The migration check passed. Browser coverage is authored in
+`frontend/tests/e2e/purchasing/po-receipt-sync.spec.ts` using the existing Fully
+Received shortcut and real admin sync, but has not run: the required real Xero
+tenant has no quota. Run the focused spec and full managed E2E after quota resets.
+
 The expanded receipt, SOH and stocktake requirements have a separate
 [implementation plan](2026-09-07-delivery-receipts-stock-movements.md); its new
 business workflows are not implemented by KAN-358.

@@ -501,13 +501,13 @@ export async function createTestPurchaseOrder(page: Page): Promise<string> {
   const savePromise = page.waitForResponse(
     (response) =>
       response.url().includes('/api/purchasing/purchase-orders') &&
-      response.request().method() === 'POST' &&
-      response.status() === 201,
+      response.request().method() === 'POST',
     { timeout: 30000 },
   )
 
   await autoId(page, 'PoCreateView-save').click()
-  await savePromise
+  const saved = await savePromise
+  expect(saved.status(), await saved.text()).toBe(201)
 
   // Wait for redirect to PO form
   await page.waitForURL(/\/purchasing\/po\/[a-f0-9-]+$/, { timeout: 15000 })
@@ -520,13 +520,13 @@ export async function createTestPurchaseOrder(page: Page): Promise<string> {
  * upserts alike) to complete successfully.
  */
 export async function waitForPoAutosave(page: Page): Promise<void> {
-  await page.waitForResponse(
+  const saved = await page.waitForResponse(
     (response) =>
       response.url().includes('/api/purchasing/purchase-orders/') &&
-      response.request().method() === 'PATCH' &&
-      response.status() === 200,
+      response.request().method() === 'PATCH',
     { timeout: 10000 },
   )
+  expect(saved.status(), await saved.text()).toBe(200)
 }
 
 /**
