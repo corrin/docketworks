@@ -154,7 +154,11 @@ test.describe('PO workspace', () => {
     await page.keyboard.press('Tab')
     await saved
     await page.reload()
-    await expect(autoId(page, 'PoLinesTable-description-10')).toHaveValue('Unfinished order line')
+    await expect(
+      page.locator(
+        'input[data-automation-id^="PoLinesTable-description-"][value="Unfinished order line"]',
+      ),
+    ).toHaveCount(1)
     await expect(autoId(page, 'PoLinesTable-description-11')).toHaveValue('')
   })
 

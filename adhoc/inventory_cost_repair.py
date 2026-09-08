@@ -20,8 +20,15 @@ setup_django()
 
 from django.db import connection, transaction  # noqa: E402 -- configure Django before model imports
 
+from apps.accounts.models import Staff  # noqa: E402
 from apps.job.models.costing import CostLine  # noqa: E402 -- Django setup precedes models
-from apps.purchasing.models import PurchaseOrderLine, StockMovement  # noqa: E402
+from apps.purchasing.models import (  # noqa: E402
+    LegacyReceiptAdjustment,
+    PurchaseOrderEvent,
+    PurchaseOrderLine,
+    Stock,
+    StockMovement,
+)
 
 
 class Disposition(BaseModel):
@@ -30,7 +37,7 @@ class Disposition(BaseModel):
     model_config = ConfigDict(extra="forbid")
     cost_id: UUID
     purchase_order_id: UUID
-    dead_line_id: UUID
+    dead_line_id: UUID | None
     job_number: int
     quantity: Decimal
     unit_cost: Decimal
@@ -38,34 +45,63 @@ class Disposition(BaseModel):
     reason: str = Field(min_length=1)
 
 
+class StockDisposition(BaseModel):
+    """An exact stock identity whose receipt source has been lost."""
+
+    model_config = ConfigDict(extra="forbid")
+    stock_id: UUID
+    description: str
+    quantity: Decimal
+    unit_cost: Decimal
+    opening_id: UUID
+    reason: str = Field(min_length=1)
+
+
+class ReceiptDisposition(BaseModel):
+    """The recorded receipt total and the independently measured evidence gap."""
+
+    model_config = ConfigDict(extra="forbid")
+    line_id: UUID
+    received_quantity: Decimal
+    quantity: Decimal = Field(gt=0)
+    reason: str = Field(min_length=1)
+
+
 class RepairManifest(BaseModel):
     """A private, reviewed list of exact repairs."""
 
     model_config = ConfigDict(extra="forbid")
-    rows: list[Disposition] = Field(min_length=1)
+    rows: list[Disposition] = Field(default_factory=list)
+    stock_rows: list[StockDisposition] = Field(default_factory=list)
+    receipt_rows: list[ReceiptDisposition] = Field(default_factory=list)
 
 
 def evidence(disposition: Disposition, line: CostLine) -> str:
     """Preserve the former classification and references in the existing comments field."""
-    return json.dumps(
-        {
-            "inventory_cutover_disposition": disposition.model_dump(mode="json"),
-            "original_kind": line.kind,
-            "original_ext_refs": line.ext_refs,
-            "original_meta": line.meta,
-        },
-        sort_keys=True,
+    return (
+        disposition.reason
+        + "\n\nInventory repair evidence: "
+        + json.dumps(
+            {
+                "inventory_cutover_disposition": disposition.model_dump(mode="json"),
+                "original_kind": line.kind,
+                "original_ext_refs": line.ext_refs,
+                "original_meta": line.meta,
+            },
+            sort_keys=True,
+        )
     )
 
 
 def already_applied(disposition: Disposition, line: CostLine) -> bool:
     """Recognise only the exact reviewed disposition recorded by this repair."""
     comments = line.meta.get("comments")
-    if not isinstance(comments, str) or not comments.startswith(
-        '{"inventory_cutover_disposition":'
-    ):
+    if not isinstance(comments, str):
         return False
-    recorded = json.loads(comments)
+    _, marker, payload = comments.partition("\n\nInventory repair evidence: ")
+    if not marker:
+        return False
+    recorded = json.loads(payload)
     return bool(recorded["inventory_cutover_disposition"] == disposition.model_dump(mode="json"))
 
 
@@ -84,11 +120,16 @@ def validate_disposition(disposition: Disposition, line: CostLine) -> bool:
         raise ValueError(f"Cost {line.id} is not an unowned historical material charge.")
     if StockMovement.objects.filter(cost_line=line).exists():
         raise ValueError(f"Cost {line.id} already has protected inventory evidence.")
-    if (
-        line.ext_refs.get("purchase_order_id") != str(disposition.purchase_order_id)
-        or line.ext_refs.get("purchase_order_line_id") != str(disposition.dead_line_id)
-        or PurchaseOrderLine.objects.filter(pk=disposition.dead_line_id).exists()
-    ):
+    if line.ext_refs.get("purchase_order_id") != str(disposition.purchase_order_id):
+        raise ValueError(f"Cost {line.id} no longer has the reviewed purchase order.")
+    if disposition.dead_line_id is None:
+        reference_matches = "purchase_order_line_id" not in line.ext_refs
+    else:
+        reference_matches = (
+            line.ext_refs.get("purchase_order_line_id") == str(disposition.dead_line_id)
+            and not PurchaseOrderLine.objects.filter(pk=disposition.dead_line_id).exists()
+        )
+    if not reference_matches:
         raise ValueError(f"Cost {line.id} no longer has the reviewed dangling reference.")
     if disposition.replacement_line_id is None:
         return True
@@ -127,8 +168,9 @@ def repair(manifest: RepairManifest, *, apply: bool) -> int:
     if set(by_id) != set(ids):
         raise ValueError("The manifest names costs absent from this database.")
     pending = [row for row in manifest.rows if validate_disposition(row, by_id[row.cost_id])]
+    stock_pending = validate_stock_dispositions(manifest.stock_rows, apply=apply)
     if not apply:
-        return len(pending)
+        return len(pending) + len(stock_pending)
     for row in pending:
         line = by_id[row.cost_id]
         comments = evidence(row, line)
@@ -140,6 +182,109 @@ def repair(manifest: RepairManifest, *, apply: bool) -> int:
             line.ext_refs["purchase_order_line_id"] = str(row.replacement_line_id)
             line.meta = line.meta | {"comments": comments}
         line.save(update_fields=["kind", "ext_refs", "meta", "updated_at"])
+    for disposition, stock in stock_pending:
+        stock.source = "manual"
+        stock.description = stock_description(disposition)
+        stock.save(update_fields=["source", "description", "updated_at"])
+    return len(pending) + len(stock_pending)
+
+
+def stock_description(disposition: StockDisposition) -> str:
+    """Keep the original description and explain the missing source to operators."""
+    description = f"{disposition.description} — {disposition.reason}"
+    if len(description) > 255:
+        raise ValueError("Stock repair description exceeds 255 characters.")
+    return description
+
+
+def validate_stock_dispositions(
+    rows: list[StockDisposition], *, apply: bool
+) -> list[tuple[StockDisposition, Stock]]:
+    """Validate existing opening evidence without changing it or inventing a receipt."""
+    if len({row.stock_id for row in rows}) != len(rows):
+        raise ValueError("A stock identity may have only one disposition.")
+    pending = []
+    for row in rows:
+        stocks = Stock.objects.filter(pk=row.stock_id)
+        if apply:
+            stocks = stocks.select_for_update()
+        stock = stocks.get()
+        opening = stock.movements.get(pk=row.opening_id, kind="opening")
+        if (
+            stock.quantity != row.quantity
+            or stock.unit_cost != row.unit_cost
+            or opening.quantity_after != row.quantity
+            or stock.source_purchase_order_line_id is not None
+            or stock.movements.exclude(pk=opening.id).exists()
+        ):
+            raise ValueError(f"Stock {stock.id} no longer matches the reviewed evidence.")
+        if stock.source == "manual" and stock.description == stock_description(row):
+            continue
+        if stock.source != "purchase_order" or stock.description != row.description:
+            raise ValueError(f"Stock {stock.id} no longer has the reviewed source.")
+        stock_description(row)
+        pending.append((row, stock))
+    return pending
+
+
+def receipt_evidence_quantity(line: PurchaseOrderLine) -> Decimal:
+    """Read actual receipt evidence, excluding acknowledgements of missing history."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT coalesce(sum(CASE WHEN m.kind = 'receipt_opening' "
+            "THEN m.opening_quantity ELSE m.quantity_change END), 0) "
+            "FROM purchasing_stockmovement m JOIN purchasing_stock s ON s.id = m.stock_id "
+            "WHERE s.source_purchase_order_line_id = %s "
+            "AND m.kind IN ('receipt', 'receipt_opening', 'receipt_reversal')",
+            [line.id],
+        )
+        return Decimal(cursor.fetchone()[0])
+
+
+@transaction.atomic
+def repair_receipt_gaps(manifest: RepairManifest, staff: Staff, *, apply: bool) -> int:
+    """Acknowledge exact legacy gaps without fabricating receipts or changing balances."""
+    if len({row.line_id for row in manifest.receipt_rows}) != len(manifest.receipt_rows):
+        raise ValueError("A PO line may have only one receipt-gap disposition.")
+    pending = []
+    for row in manifest.receipt_rows:
+        lines = PurchaseOrderLine.objects.select_related("purchase_order").filter(pk=row.line_id)
+        if apply:
+            lines = lines.select_for_update(of=("self", "purchase_order"))
+        line = lines.get()
+        existing = LegacyReceiptAdjustment.objects.filter(purchase_order_line=line).first()
+        if existing is not None:
+            if (
+                existing.quantity != row.quantity
+                or existing.recorded_received_quantity != row.received_quantity
+            ):
+                raise ValueError(f"Line {line.id} has a different recorded legacy adjustment.")
+            continue
+        if (
+            line.received_quantity != row.received_quantity
+            or line.received_quantity - receipt_evidence_quantity(line) != row.quantity
+        ):
+            raise ValueError(f"Receipt evidence changed for {line.id}; review the manifest again.")
+        pending.append((row, line))
+    if not apply:
+        return len(pending)
+    for row, line in pending:
+        note = PurchaseOrderEvent.objects.create(
+            purchase_order=line.purchase_order,
+            staff=staff,
+            description=(
+                f"Legacy receipt reconciliation: {line.description} (line {line.id}). "
+                f"Recorded received quantity: {row.received_quantity}; "
+                f"quantity without surviving receipt/allocation evidence: {row.quantity}. "
+                f"{row.reason} No receipt, stock movement or job charge was reconstructed."
+            ),
+        )
+        LegacyReceiptAdjustment.objects.create(
+            purchase_order_line=line,
+            recorded_received_quantity=row.received_quantity,
+            quantity=row.quantity,
+            note=note,
+        )
     return len(pending)
 
 
@@ -149,11 +294,18 @@ def main() -> None:
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--database", required=True)
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--phase", choices=["references", "receipt-gaps"], default="references")
+    parser.add_argument("--staff", type=UUID)
     args = parser.parse_args()
     if connection.settings_dict["NAME"] != args.database:
         raise ValueError("Configured database does not match --database.")
     manifest = RepairManifest.model_validate_json(args.manifest.read_text())
-    count = repair(manifest, apply=args.apply)
+    if args.phase == "references":
+        count = repair(manifest, apply=args.apply)
+    else:
+        if args.staff is None:
+            raise ValueError("Receipt-gap notes require --staff naming the repair operator.")
+        count = repair_receipt_gaps(manifest, Staff.objects.get(pk=args.staff), apply=args.apply)
     sys.stdout.write(f"{'Applied' if args.apply else 'Validated'} {count} reviewed dispositions.\n")
 
 

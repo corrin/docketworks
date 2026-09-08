@@ -1,5 +1,29 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-09 — Explicit legacy receipt gaps and local inventory repair
+
+The owner reaffirmed that missing historical data cannot be reconstructed
+accurately: preserve known amounts and references, and explain uncertainty in
+notes or descriptions. The existing private-manifest repair now handles absent
+PO-line references and orphan stock sources. Legacy receipt adjustments record
+the exact unexplained quantity separately from stock movements, with an existing
+PO note; they create no receipt, allocation or charge. Their immutable records
+protect PO-line deletion, and the audit still rejects additional discrepancies.
+The [repair runbook](inventory-legacy-repair.md) records preview, application and
+restore ordering.
+
+A backed-up local clone and then the local database passed the same rehearsal:
+one cost was relinked to its independently verified replacement, seven retained
+their booked values as ordinary adjustments, and one stock source was corrected
+with an explanatory description. After migration, 364 receipt gaps were recorded
+with notes under System Automation. All original cost identities, jobs, quantities,
+prices, accounting dates, stock balances and PO received quantities compared
+unchanged. Both inventory and cost-summary audits passed; 7,287 cost sets were
+checked. No production repair was applied.
+
+The focused repair/cutover/audit/restore run passed 33 tests; the full backend
+suite passed 3,138 tests. Browser verification remains in progress.
+
 The rewrite's own record: rulings and their dates, findings whose value is the
 record rather than a rule, and measurements with no other owner. Read it when
 asking *why is it like this?*

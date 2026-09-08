@@ -681,6 +681,30 @@ class PurchaseOrderEvent(models.Model):
         return f"{self.timestamp}: Event for PO {self.purchase_order.po_number}"
 
 
+class LegacyReceiptAdjustment(models.Model):
+    """An acknowledged gap in legacy receipt evidence, never a physical receipt.
+
+    These relate to an old app bug from approximately 2025 where the app duplicated POs.
+    This model can be deleted once the last legacy receipt adjustment has been reconciled.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    purchase_order_line = models.OneToOneField(PurchaseOrderLine, on_delete=models.PROTECT)
+    recorded_received_quantity = models.DecimalField(max_digits=11, decimal_places=3)
+    quantity = models.DecimalField(max_digits=11, decimal_places=3)
+    note = models.OneToOneField(PurchaseOrderEvent, on_delete=models.PROTECT)
+
+    class Meta:
+        constraints: ClassVar = [
+            models.CheckConstraint(
+                condition=models.Q(quantity__gt=0), name="legacy_receipt_gap_positive"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"Legacy receipt evidence gap: {self.quantity} on {self.purchase_order_line_id}"
+
+
 class StocktakeConfiguration(SingletonModel):
     """The ongoing variance job, provisioned through the stocktake setup command."""
 

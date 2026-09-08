@@ -36,7 +36,6 @@ from apps.purchasing.models import (
     PurchaseOrder,
     PurchaseOrderEvent,
     PurchaseOrderLine,
-    Stock,
 )
 from apps.purchasing.schemas import PurchaseOrderStatus
 from apps.purchasing.services.allocation_service import recompute_purchase_order_status
@@ -476,13 +475,14 @@ def update_purchase_order(
 
         lines_to_delete = data.get("lines_to_delete")
         if lines_to_delete:
-            if Stock.objects.filter(
-                source_purchase_order_line__purchase_order=po,
-                source_purchase_order_line_id__in=lines_to_delete,
-            ).exists():
+            if (
+                PurchaseOrderLine.objects.filter(purchase_order=po, id__in=lines_to_delete)
+                .filter(Q(stock_generated__isnull=False) | Q(legacyreceiptadjustment__isnull=False))
+                .exists()
+            ):
                 raise DjangoValidationError(
-                    "A received line preserves inventory provenance and cannot be deleted. "
-                    "Reverse its allocations to correct the receipt."
+                    "This line preserves inventory provenance or a documented gap in legacy "
+                    "receipt history and cannot be deleted. See its allocations and PO notes."
                 )
             PurchaseOrderLine.objects.filter(id__in=lines_to_delete, purchase_order=po).delete()
 
