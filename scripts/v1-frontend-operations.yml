@@ -569,6 +569,7 @@ called:
 - xero_sync_create
 - xero_sync_info_retrieve
 renamed:
+  deleteAllocation: reverseAllocation
   workflow_ai_providers_create: ai_providers_create
   workflow_ai_providers_destroy: ai_providers_destroy
   workflow_ai_providers_list: ai_providers_list

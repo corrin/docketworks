@@ -47,9 +47,9 @@ from apps.purchasing.etag import purchase_order_etag
 from apps.purchasing.models import PurchaseOrder, Stock
 from apps.purchasing.schemas import (
     AllJobsResponse,
-    AllocationDeleteRequest,
-    AllocationDeleteResponse,
     AllocationDetailsResponse,
+    AllocationReversalRequest,
+    AllocationReversalResponse,
     DeliveryReceiptRequest,
     DeliveryReceiptResponse,
     PatchedStockItemRequest,
@@ -516,13 +516,13 @@ def purchasing_purchase_orders_allocations_retrieve(
     auth=auth,
     operation_id="getAllocationDetails",
     response=AllocationDetailsResponse,
-    summary="Describe one allocation before deleting it",
+    summary="Describe one allocation before reversing it",
     tags=["purchasing"],
 )
 def get_allocation_details(
     request: HttpRequest, po_id: UUID, allocation_type: str, allocation_id: UUID
 ) -> dict[str, object]:
-    """Return the allocation's quantity, job and whether it can still be deleted."""
+    """Return the allocation's quantity, job and whether it can still be reversed."""
     valid_types = (allocation_service.STOCK_ALLOCATION, allocation_service.JOB_ALLOCATION)
     if allocation_type not in valid_types:
         raise HttpError(400, f"Invalid allocation type: {allocation_type}")
@@ -532,48 +532,47 @@ def get_allocation_details(
             allocation_type=allocation_type,
             allocation_id=allocation_id,
         )
-    except allocation_service.AllocationDeletionError as exc:
+    except allocation_service.AllocationReversalError as exc:
         raise HttpError(404, str(exc)) from exc
 
 
 @router.post(
-    "/purchasing/purchase-orders/{uuid:po_id}/lines/{uuid:line_id}/allocations/delete/",
+    "/purchasing/purchase-orders/{uuid:po_id}/lines/{uuid:line_id}/allocations/reverse/",
     auth=auth,
-    operation_id="deleteAllocation",
-    response=AllocationDeleteResponse,
-    summary="Delete one allocation from a purchase order line",
+    operation_id="reverseAllocation",
+    response=AllocationReversalResponse,
+    summary="Reverse one receipt allocation from a purchase order line",
     tags=["purchasing"],
 )
-def delete_allocation(
+def reverse_allocation(
     request: HttpRequest,
     po_id: UUID,
     line_id: UUID,
-    payload: AllocationDeleteRequest,
+    payload: AllocationReversalRequest,
     response: HttpResponse,
 ) -> dict[str, object]:
-    """Delete a Stock or CostLine allocation (If-Match required, ADR 0003).
+    """Reverse a Stock or CostLine receipt allocation (If-Match required, ADR 0003).
 
-    The delete decrements ``received_quantity`` and recomputes the PO status, so
+    The reversal decrements ``received_quantity`` and recomputes the PO status, so
     it carries the same precondition as the PO PATCH and answers with the
     refreshed ETag -- without that header the client's stored version goes stale
     and its next mutation 412s for no reason.
     """
     if_match = require_if_match(request)
     try:
-        po, result = allocation_service.delete_allocation(
+        po, result = allocation_service.reverse_allocation(
             po_id=po_id,
-            allocation_type=payload.allocation_type,
-            allocation_id=payload.allocation_id,
+            line_id=line_id,
+            allocation=payload,
             if_match=if_match,
             staff=authenticated_staff(request),
         )
-    except allocation_service.AllocationDeletionError as exc:
+    except allocation_service.AllocationReversalError as exc:
         raise HttpError(400, str(exc)) from exc
     response.headers["ETag"] = purchase_order_etag(po)
     return {
-        "success": result.success,
-        "message": result.message,
-        "deleted_quantity": result.deleted_quantity,
+        "status": result.status,
+        "reversed_quantity": result.reversed_quantity,
         "description": result.description,
         "job_name": result.job_name,
         "updated_received_quantity": result.updated_received_quantity,

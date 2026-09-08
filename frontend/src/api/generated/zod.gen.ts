@@ -85,36 +85,12 @@ export const zAddressValidateResponse = z.object({
 });
 
 /**
- * AllocationDeleteRequest
- *
- * Wire contract for AllocationDeleteRequest.
- */
-export const zAllocationDeleteRequest = z.object({
-    allocation_id: z.uuid(),
-    allocation_type: z.enum(['job', 'stock'])
-});
-
-/**
- * AllocationDeleteResponse
- *
- * Wire contract for AllocationDeleteResponse.
- */
-export const zAllocationDeleteResponse = z.object({
-    deleted_quantity: z.number().nullable(),
-    description: z.string().nullable(),
-    job_name: z.string().nullable(),
-    message: z.string(),
-    success: z.boolean(),
-    updated_received_quantity: z.number().nullable()
-});
-
-/**
  * AllocationDetailsResponse
  *
  * Wire contract for AllocationDetailsResponse.
  */
 export const zAllocationDetailsResponse = z.object({
-    can_delete: z.boolean(),
+    can_reverse: z.boolean(),
     consumed_by_jobs: z.int().nullable(),
     description: z.string(),
     id: z.uuid(),
@@ -141,9 +117,33 @@ export const zAllocationItem = z.object({
     metal_type: z.string().nullable(),
     quantity: z.number(),
     retail_rate: z.number().default(0),
+    reversed: z.boolean(),
     specifics: z.string().nullable(),
     stock_location: z.string().nullable(),
     type: z.enum(['stock', 'job'])
+});
+
+/**
+ * AllocationReversalRequest
+ *
+ * Wire contract for AllocationReversalRequest.
+ */
+export const zAllocationReversalRequest = z.object({
+    allocation_id: z.uuid(),
+    allocation_type: z.enum(['job', 'stock'])
+});
+
+/**
+ * AllocationReversalResponse
+ *
+ * Wire contract for AllocationReversalResponse.
+ */
+export const zAllocationReversalResponse = z.object({
+    description: z.string(),
+    job_name: z.string(),
+    reversed_quantity: z.number(),
+    status: z.enum(['reversed', 'already_reversed']),
+    updated_received_quantity: z.number()
 });
 
 /**
@@ -8309,9 +8309,9 @@ export const zCreatePurchaseOrderEventPath = z.object({
  */
 export const zCreatePurchaseOrderEventResponse = zPurchaseOrderEventCreateResponse;
 
-export const zDeleteAllocationBody = zAllocationDeleteRequest;
+export const zReverseAllocationBody = zAllocationReversalRequest;
 
-export const zDeleteAllocationPath = z.object({
+export const zReverseAllocationPath = z.object({
     po_id: z.uuid(),
     line_id: z.uuid()
 });
@@ -8319,7 +8319,7 @@ export const zDeleteAllocationPath = z.object({
 /**
  * OK
  */
-export const zDeleteAllocationResponse = zAllocationDeleteResponse;
+export const zReverseAllocationResponse = zAllocationReversalResponse;
 
 export const zGetPurchaseOrderPdfPath = z.object({
     po_id: z.uuid()

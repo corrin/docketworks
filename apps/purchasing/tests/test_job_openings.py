@@ -174,7 +174,7 @@ def test_receipt_opening_preserves_totals_and_uses_the_same_reversal(
     assert receipt.opening_quantity == Decimal("2")
     assert not client.get("/api/purchasing/stocktakes/stock/").json()["results"]
     detail = client.get(f"/api/purchasing/purchase-orders/{po.id}/")
-    path = f"/api/purchasing/purchase-orders/{po.id}/lines/{po_line.id}/allocations/delete/"
+    path = f"/api/purchasing/purchase-orders/{po.id}/lines/{po_line.id}/allocations/reverse/"
     response = client.post(
         path,
         {"allocation_type": "job", "allocation_id": str(original.id)},

@@ -178,63 +178,15 @@ export type AllJobsResponse = {
 };
 
 /**
- * AllocationDeleteRequest
- *
- * Wire contract for AllocationDeleteRequest.
- */
-export type AllocationDeleteRequest = {
-    /**
-     * Allocation Id
-     */
-    allocation_id: string;
-    /**
-     * Allocation Type
-     */
-    allocation_type: 'job' | 'stock';
-};
-
-/**
- * AllocationDeleteResponse
- *
- * Wire contract for AllocationDeleteResponse.
- */
-export type AllocationDeleteResponse = {
-    /**
-     * Deleted Quantity
-     */
-    deleted_quantity: number | null;
-    /**
-     * Description
-     */
-    description: string | null;
-    /**
-     * Job Name
-     */
-    job_name: string | null;
-    /**
-     * Message
-     */
-    message: string;
-    /**
-     * Success
-     */
-    success: boolean;
-    /**
-     * Updated Received Quantity
-     */
-    updated_received_quantity: number | null;
-};
-
-/**
  * AllocationDetailsResponse
  *
  * Wire contract for AllocationDetailsResponse.
  */
 export type AllocationDetailsResponse = {
     /**
-     * Can Delete
+     * Can Reverse
      */
-    can_delete: boolean;
+    can_reverse: boolean;
     /**
      * Consumed By Jobs
      */
@@ -316,6 +268,10 @@ export type AllocationItem = {
      */
     retail_rate: number;
     /**
+     * Reversed
+     */
+    reversed: boolean;
+    /**
      * Specifics
      */
     specifics: string | null;
@@ -327,6 +283,50 @@ export type AllocationItem = {
      * Type
      */
     type: 'stock' | 'job';
+};
+
+/**
+ * AllocationReversalRequest
+ *
+ * Wire contract for AllocationReversalRequest.
+ */
+export type AllocationReversalRequest = {
+    /**
+     * Allocation Id
+     */
+    allocation_id: string;
+    /**
+     * Allocation Type
+     */
+    allocation_type: 'job' | 'stock';
+};
+
+/**
+ * AllocationReversalResponse
+ *
+ * Wire contract for AllocationReversalResponse.
+ */
+export type AllocationReversalResponse = {
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Job Name
+     */
+    job_name: string;
+    /**
+     * Reversed Quantity
+     */
+    reversed_quantity: number;
+    /**
+     * Status
+     */
+    status: 'reversed' | 'already_reversed';
+    /**
+     * Updated Received Quantity
+     */
+    updated_received_quantity: number;
 };
 
 /**
@@ -18319,8 +18319,8 @@ export type CreatePurchaseOrderEventResponses = {
 
 export type CreatePurchaseOrderEventResponse = CreatePurchaseOrderEventResponses[keyof CreatePurchaseOrderEventResponses];
 
-export type DeleteAllocationData = {
-    body: AllocationDeleteRequest;
+export type ReverseAllocationData = {
+    body: AllocationReversalRequest;
     path: {
         /**
          * Po Id
@@ -18332,17 +18332,17 @@ export type DeleteAllocationData = {
         line_id: string;
     };
     query?: never;
-    url: '/api/purchasing/purchase-orders/{po_id}/lines/{line_id}/allocations/delete/';
+    url: '/api/purchasing/purchase-orders/{po_id}/lines/{line_id}/allocations/reverse/';
 };
 
-export type DeleteAllocationResponses = {
+export type ReverseAllocationResponses = {
     /**
      * OK
      */
-    200: AllocationDeleteResponse;
+    200: AllocationReversalResponse;
 };
 
-export type DeleteAllocationResponse = DeleteAllocationResponses[keyof DeleteAllocationResponses];
+export type ReverseAllocationResponse = ReverseAllocationResponses[keyof ReverseAllocationResponses];
 
 export type GetPurchaseOrderPdfData = {
     body?: never;

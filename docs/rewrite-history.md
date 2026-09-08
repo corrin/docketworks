@@ -999,3 +999,14 @@ lists use the same shared paginator, including empty and out-of-range pages.
 Validation: 31 numeric/count/item-import tests and 40 stock API tests passed,
 as did strict mypy and frontend type checking. Removing published numeric bounds
 made the new contract regression fail. Editor and release gates remain outstanding.
+All 242 process and diagnostics tests subsequently passed with the shared staff resolver.
+
+Receipt allocation correction is now explicitly reverseAllocation on the reverse
+route. One transaction handles stock and job receipts, checks the allocation's
+PO line, retains original evidence, and reports reversed/already_reversed with
+Decimal quantities. A repeat accepts the lost-response request without changing
+the PO version, stock, costs or movements. New reversals still require the current
+PO version. Allocation reads identify reversed evidence and report can_reverse.
+Validation: 40 allocation/cutover tests, strict mypy and frontend type checking
+passed. Reintroducing the repeated PO write made both stock/job retry regressions
+fail. Live and browser gates remain outstanding.

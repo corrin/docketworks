@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **57 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 267 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3096 collected |
+| Unit tests | 3099 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 130 recorded deviations |
@@ -301,7 +301,7 @@ same class: the post duplicates what Xero already holds, and then self-reports s
     Source column, though the cost line already carries `meta.po_number` and
     `ext_refs.purchase_order_id` — so this is a column, not a contract change.
   - **Stocktake review resolution (PR #151):** finish recurring audit coverage, real concurrent lock-order
-    regressions and typed reversal outcomes; unify
+    regressions; unify
     stock eligibility/search and collection pagination, split stock write contracts,
     and add stocktake previews/conflict reconciliation,
     history/retirement controls, and complete the approved regression coverage.
@@ -310,8 +310,8 @@ same class: the post duplicates what Xero already holds, and then self-reports s
     snapshot; do not infer dispositions for additional obsolete local records.
     Keep the merge/promotion hold until required verification passes.
 
-  - **`docs/accepted-api-differences.yml` never recorded this branch's five behaviour
-    changes:** the list pagination envelope, `If-Match` on allocation delete, Xero's
+  - **`docs/accepted-api-differences.yml` never recorded this branch's four behaviour
+    changes:** the list pagination envelope, Xero's
     `BILLED` no longer meaning goods received, `xero_agreed_at` splitting from
     `xero_last_synced`, and the relaxed creation gate.
 - **Editing a purchase order's supplier after creation.** v1 allowed it while the order

@@ -179,67 +179,11 @@ components:
       - stock_holding_job_id
       title: AllJobsResponse
       type: object
-    AllocationDeleteRequest:
-      description: Wire contract for AllocationDeleteRequest.
-      properties:
-        allocation_id:
-          format: uuid
-          title: Allocation Id
-          type: string
-        allocation_type:
-          enum:
-          - job
-          - stock
-          title: Allocation Type
-          type: string
-      required:
-      - allocation_type
-      - allocation_id
-      title: AllocationDeleteRequest
-      type: object
-    AllocationDeleteResponse:
-      description: Wire contract for AllocationDeleteResponse.
-      properties:
-        deleted_quantity:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Deleted Quantity
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Description
-        job_name:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Job Name
-        message:
-          title: Message
-          type: string
-        success:
-          title: Success
-          type: boolean
-        updated_received_quantity:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Updated Received Quantity
-      required:
-      - deleted_quantity
-      - description
-      - job_name
-      - message
-      - success
-      - updated_received_quantity
-      title: AllocationDeleteResponse
-      type: object
     AllocationDetailsResponse:
       description: Wire contract for AllocationDetailsResponse.
       properties:
-        can_delete:
-          title: Can Delete
+        can_reverse:
+          title: Can Reverse
           type: boolean
         consumed_by_jobs:
           anyOf:
@@ -281,7 +225,7 @@ components:
           - type: 'null'
           title: Unit Revenue
       required:
-      - can_delete
+      - can_reverse
       - consumed_by_jobs
       - description
       - id
@@ -335,6 +279,9 @@ components:
           default: 0
           title: Retail Rate
           type: number
+        reversed:
+          title: Reversed
+          type: boolean
         specifics:
           anyOf:
           - type: string
@@ -361,10 +308,58 @@ components:
       - metal_type
       - quantity
       - retail_rate
+      - reversed
       - specifics
       - stock_location
       - type
       title: AllocationItem
+      type: object
+    AllocationReversalRequest:
+      description: Wire contract for AllocationReversalRequest.
+      properties:
+        allocation_id:
+          format: uuid
+          title: Allocation Id
+          type: string
+        allocation_type:
+          enum:
+          - job
+          - stock
+          title: Allocation Type
+          type: string
+      required:
+      - allocation_type
+      - allocation_id
+      title: AllocationReversalRequest
+      type: object
+    AllocationReversalResponse:
+      description: Wire contract for AllocationReversalResponse.
+      properties:
+        description:
+          title: Description
+          type: string
+        job_name:
+          title: Job Name
+          type: string
+        reversed_quantity:
+          title: Reversed Quantity
+          type: number
+        status:
+          enum:
+          - reversed
+          - already_reversed
+          title: Status
+          type: string
+        updated_received_quantity:
+          title: Updated Received Quantity
+          type: number
+      required:
+      - description
+      - job_name
+      - reversed_quantity
+      - status
+      - updated_received_quantity
+      title: AllocationReversalResponse
       type: object
     AssignJobRequest:
       description: Wire contract for AssignJobRequest.
@@ -21254,7 +21249,7 @@ paths:
       - purchasing
   /api/purchasing/purchase-orders/{po_id}/allocations/{allocation_type}/{allocation_id}/details/:
     get:
-      description: Return the allocation's quantity, job and whether it can still be deleted.
+      description: Return the allocation's quantity, job and whether it can still be reversed.
       operationId: getAllocationDetails
       parameters:
       - in: path
@@ -21286,7 +21281,7 @@ paths:
           description: OK
       security:
       - CookieJWTAuth: []
-      summary: Describe one allocation before deleting it
+      summary: Describe one allocation before reversing it
       tags:
       - purchasing
   /api/purchasing/purchase-orders/{po_id}/email/:
@@ -21375,19 +21370,19 @@ paths:
       summary: Add a note to a purchase order
       tags:
       - Purchase Orders
-  /api/purchasing/purchase-orders/{po_id}/lines/{line_id}/allocations/delete/:
+  /api/purchasing/purchase-orders/{po_id}/lines/{line_id}/allocations/reverse/:
     post:
-      description: 'Delete a Stock or CostLine allocation (If-Match required, ADR 0003).
+      description: 'Reverse a Stock or CostLine receipt allocation (If-Match required, ADR 0003).
 
 
-        The delete decrements ``received_quantity`` and recomputes the PO status, so
+        The reversal decrements ``received_quantity`` and recomputes the PO status, so
 
         it carries the same precondition as the PO PATCH and answers with the
 
         refreshed ETag -- without that header the client''s stored version goes stale
 
         and its next mutation 412s for no reason.'
-      operationId: deleteAllocation
+      operationId: reverseAllocation
       parameters:
       - in: path
         name: po_id
@@ -21407,18 +21402,18 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AllocationDeleteRequest'
+              $ref: '#/components/schemas/AllocationReversalRequest'
         required: true
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AllocationDeleteResponse'
+                $ref: '#/components/schemas/AllocationReversalResponse'
           description: OK
       security:
       - CookieJWTAuth: []
-      summary: Delete one allocation from a purchase order line
+      summary: Reverse one receipt allocation from a purchase order line
       tags:
       - purchasing
   /api/purchasing/purchase-orders/{po_id}/pdf/:

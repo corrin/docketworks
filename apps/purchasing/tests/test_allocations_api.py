@@ -1,4 +1,4 @@
-"""API tests for PO allocations: listing, details, deletion, auto-allocation."""
+"""API tests for PO allocations: listing, details, reversal, auto-allocation."""
 
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -11,7 +11,7 @@ from django.test.utils import CaptureQueriesContext
 
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.purchasing.models import PurchaseOrder, Stock
+from apps.purchasing.models import PurchaseOrder, Stock, StockMovement
 from apps.purchasing.tests.conftest import make_po_line, make_purchase_order
 
 if TYPE_CHECKING:
@@ -105,7 +105,7 @@ class TestTheDetailsReadTakesNoLock:
 
 @pytest.mark.usefixtures("company_defaults")
 class TestAllocationDetails:
-    def test_stock_allocation_details_report_deletability(
+    def test_stock_allocation_details_report_reversal_eligibility(
         self, client: Client, stock_holding_job: Job
     ) -> None:
         po = make_purchase_order(status="submitted")
@@ -117,7 +117,7 @@ class TestAllocationDetails:
 
         assert body["type"] == "stock"
         assert body["quantity"] == 5.0
-        assert body["can_delete"] is True
+        assert body["can_reverse"] is True
         assert body["consumed_by_jobs"] == 0
         assert body["location"] == "Rack 2"
 
@@ -136,7 +136,7 @@ class TestAllocationDetails:
 
         body = client.get(f"{PO_URL}{po.id}/allocations/stock/{stock.id}/details/").json()
 
-        assert body["can_delete"] is True
+        assert body["can_reverse"] is True
         assert body["consumed_by_jobs"] == 1
 
     def test_job_allocation_details_report_the_rates(
@@ -155,7 +155,7 @@ class TestAllocationDetails:
         assert body["type"] == "job"
         assert body["unit_cost"] == 50.0
         assert body["unit_revenue"] == 60.0
-        assert body["can_delete"] is True
+        assert body["can_reverse"] is True
 
     def test_an_unknown_allocation_type_is_400(self, client: Client) -> None:
         po = make_purchase_order()
@@ -177,25 +177,87 @@ class TestAllocationDetails:
 
 
 @pytest.mark.usefixtures("company_defaults")
-class TestAllocationDeletion:
-    def _delete(
+class TestAllocationReversal:
+    @pytest.mark.parametrize("allocation_type", ["stock", "job"])
+    def test_lost_response_retry_reports_already_reversed_without_writes(
+        self, client: Client, stock_holding_job: Job, job: Job, allocation_type: str
+    ) -> None:
+        po = make_purchase_order(status="submitted")
+        line = make_po_line(po, quantity="2.00")
+        destination = stock_holding_job if allocation_type == "stock" else job
+        _receipt(client, po, str(line.id), str(destination.id), "2")
+        stock = Stock.objects.get(source_purchase_order_line=line)
+        allocation_id = (
+            stock.id if allocation_type == "stock" else CostLine.objects.get(cost_set__job=job).id
+        )
+        path = f"{PO_URL}{po.id}/lines/{line.id}/allocations/reverse/"
+        payload = {"allocation_type": allocation_type, "allocation_id": str(allocation_id)}
+        version = client.get(f"{PO_URL}{po.id}/").headers["ETag"]
+        first = client.post(
+            path, payload, content_type="application/json", headers={"If-Match": version}
+        )
+        assert first.status_code == 200, first.content
+        assert first.json()["status"] == "reversed"
+        stock.refresh_from_db()
+        state = (StockMovement.objects.count(), CostLine.objects.count(), stock.inventory_version)
+
+        second = client.post(
+            path, payload, content_type="application/json", headers={"If-Match": version}
+        )
+
+        assert second.status_code == 200, second.content
+        assert second.json()["status"] == "already_reversed"
+        assert second.json()["reversed_quantity"] == 0
+        assert second.headers["ETag"] == first.headers["ETag"]
+        stock.refresh_from_db()
+        line.refresh_from_db()
+        assert (
+            StockMovement.objects.count(),
+            CostLine.objects.count(),
+            stock.inventory_version,
+        ) == state
+        assert stock.quantity == 0
+        assert line.received_quantity == 0
+        details = client.get(
+            f"{PO_URL}{po.id}/allocations/{allocation_type}/{allocation_id}/details/"
+        ).json()
+        assert details["can_reverse"] is False
+        listed = client.get(f"{PO_URL}{po.id}/allocations/").json()["allocations"][str(line.id)]
+        assert listed[0]["reversed"] is True
+
+    def test_reversal_refuses_another_line_without_changing_the_receipt(
+        self, client: Client, stock_holding_job: Job
+    ) -> None:
+        po = make_purchase_order(status="submitted")
+        source = make_po_line(po, quantity="2")
+        other = make_po_line(po, quantity="2")
+        _receipt(client, po, str(source.id), str(stock_holding_job.id), "2")
+        stock = Stock.objects.get(source_purchase_order_line=source)
+        response = self._reverse(client, po, str(other.id), "stock", str(stock.id))
+        assert response.status_code == 400
+        stock.refresh_from_db()
+        source.refresh_from_db()
+        assert stock.quantity == source.received_quantity == 2
+        assert not StockMovement.objects.filter(kind="receipt_reversal").exists()
+
+    def _reverse(
         self, client: Client, po: PurchaseOrder, line_id: str, alloc_type: str, alloc_id: str
     ) -> "_MonkeyPatchedWSGIResponse":
-        """Delete one allocation under the PO's current ETag.
+        """Reverse one allocation under the PO's current ETag.
 
         The precondition is fetched here rather than passed by every caller
-        because these tests assert deletion behaviour; the two that own the
+        because these tests assert reversal behaviour; the two that own the
         precondition itself post directly, so the header they send is visible
         in the test.
         """
         return client.post(
-            f"{PO_URL}{po.id}/lines/{line_id}/allocations/delete/",
+            f"{PO_URL}{po.id}/lines/{line_id}/allocations/reverse/",
             data={"allocation_type": alloc_type, "allocation_id": alloc_id},
             content_type="application/json",
             headers={"If-Match": client.get(f"{PO_URL}{po.id}/").headers["ETag"]},
         )
 
-    def test_deleting_without_if_match_is_428_and_writes_nothing(
+    def test_reversing_without_if_match_is_428_and_writes_nothing(
         self, client: Client, stock_holding_job: Job
     ) -> None:
         po = make_purchase_order(status="submitted")
@@ -204,7 +266,7 @@ class TestAllocationDeletion:
         stock = Stock.objects.get(source="purchase_order")
 
         response = client.post(
-            f"{PO_URL}{po.id}/lines/{line.id}/allocations/delete/",
+            f"{PO_URL}{po.id}/lines/{line.id}/allocations/reverse/",
             data={"allocation_type": "stock", "allocation_id": str(stock.id)},
             content_type="application/json",
         )
@@ -214,7 +276,7 @@ class TestAllocationDeletion:
         line.refresh_from_db()
         assert line.received_quantity == Decimal("5.00")
 
-    def test_deleting_with_a_stale_if_match_is_412_and_writes_nothing(
+    def test_reversing_with_a_stale_if_match_is_412_and_writes_nothing(
         self, client: Client, stock_holding_job: Job
     ) -> None:
         po = make_purchase_order(status="submitted")
@@ -226,7 +288,7 @@ class TestAllocationDeletion:
         stock = Stock.objects.get(source="purchase_order")
 
         response = client.post(
-            f"{PO_URL}{po.id}/lines/{line.id}/allocations/delete/",
+            f"{PO_URL}{po.id}/lines/{line.id}/allocations/reverse/",
             data={"allocation_type": "stock", "allocation_id": str(stock.id)},
             content_type="application/json",
             headers={"If-Match": stale},
@@ -237,7 +299,7 @@ class TestAllocationDeletion:
         line.refresh_from_db()
         assert line.received_quantity == Decimal("5.00")
 
-    def test_deleting_a_stock_allocation_returns_the_quantity_to_the_line(
+    def test_reversing_a_stock_allocation_returns_the_quantity_to_the_line(
         self, client: Client, stock_holding_job: Job
     ) -> None:
         po = make_purchase_order(status="submitted")
@@ -245,10 +307,10 @@ class TestAllocationDeletion:
         _receipt(client, po, str(line.id), str(stock_holding_job.id), "5")
         stock = Stock.objects.get(source="purchase_order")
 
-        body = self._delete(client, po, str(line.id), "stock", str(stock.id)).json()
+        body = self._reverse(client, po, str(line.id), "stock", str(stock.id)).json()
 
-        assert body["success"] is True
-        assert body["deleted_quantity"] == 5.0
+        assert body["status"] == "reversed"
+        assert body["reversed_quantity"] == 5.0
         assert body["updated_received_quantity"] == 0.0
         stock.refresh_from_db()
         assert stock.quantity == 0
@@ -268,9 +330,9 @@ class TestAllocationDeletion:
         _receipt(client, po, str(line.id), str(job.id), "2")
         cost_line = CostLine.objects.get(kind="material", cost_set__job=job)
 
-        body = self._delete(client, po, str(line.id), "job", str(cost_line.id)).json()
+        body = self._reverse(client, po, str(line.id), "job", str(cost_line.id)).json()
 
-        assert body["success"] is True
+        assert body["status"] == "reversed"
         assert body["job_name"] == job.name
         assert CostLine.objects.filter(id=cost_line.id).exists()
         assert (
@@ -292,7 +354,7 @@ class TestAllocationDeletion:
             content_type="application/json",
         )
 
-        response = self._delete(client, po, str(line.id), "stock", str(stock.id))
+        response = self._reverse(client, po, str(line.id), "stock", str(stock.id))
 
         assert response.status_code == 200
         stock.refresh_from_db()
@@ -300,11 +362,11 @@ class TestAllocationDeletion:
         assert CostLine.objects.filter(cost_set__job=job, quantity=1).exists()
         assert Stock.objects.filter(id=stock.id).exists()
 
-    def test_deleting_bumps_the_po_etag_even_when_the_status_is_unchanged(
+    def test_reversing_bumps_the_po_etag_even_when_the_status_is_unchanged(
         self, client: Client, stock_holding_job: Job
     ) -> None:
         # v1's allocation path skipped the write when the status label matched,
-        # leaving PO ETags stale after a delete (the receipt path always bumped).
+        # leaving PO ETags stale after a reversal (the receipt path always bumped).
         po = make_purchase_order(status="submitted")
         first = make_po_line(po, quantity="5.00")
         second = make_po_line(po, quantity="5.00")
@@ -313,7 +375,7 @@ class TestAllocationDeletion:
         before = client.get(f"{PO_URL}{po.id}/").headers["ETag"]
         stock = Stock.objects.filter(source_purchase_order_line=first).get()
 
-        self._delete(client, po, str(first.id), "stock", str(stock.id))
+        self._reverse(client, po, str(first.id), "stock", str(stock.id))
 
         po.refresh_from_db()
         assert po.status == "partially_received"
@@ -323,7 +385,7 @@ class TestAllocationDeletion:
         po = make_purchase_order()
         line = make_po_line(po)
 
-        response = self._delete(client, po, str(line.id), "stock", str(uuid4()))
+        response = self._reverse(client, po, str(line.id), "stock", str(uuid4()))
 
         assert response.status_code == 400
         assert "not found" in response.json()["detail"]

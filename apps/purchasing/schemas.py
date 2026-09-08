@@ -378,6 +378,7 @@ class AllocationItem(ResponseSchema):
     """Wire contract for AllocationItem."""
 
     type: Literal["stock", "job"]
+    reversed: bool
     job_id: UUID
     job_name: str
     quantity: float
@@ -398,22 +399,21 @@ class PurchaseOrderAllocationsResponse(Schema):
     allocations: dict[str, list[AllocationItem]]
 
 
-class AllocationDeleteRequest(Schema):
-    """Wire contract for AllocationDeleteRequest."""
+class AllocationReversalRequest(Schema):
+    """Wire contract for AllocationReversalRequest."""
 
     allocation_type: Literal["job", "stock"]
     allocation_id: UUID
 
 
-class AllocationDeleteResponse(ResponseSchema):
-    """Wire contract for AllocationDeleteResponse."""
+class AllocationReversalResponse(ResponseSchema):
+    """Wire contract for AllocationReversalResponse."""
 
-    success: bool
-    message: str
-    deleted_quantity: float | None = None
-    description: str | None = None
-    job_name: str | None = None
-    updated_received_quantity: float | None = None
+    status: Literal["reversed", "already_reversed"]
+    reversed_quantity: Quantity
+    description: str
+    job_name: str
+    updated_received_quantity: Quantity
 
 
 class AllocationDetailsResponse(ResponseSchema):
@@ -424,7 +424,7 @@ class AllocationDetailsResponse(ResponseSchema):
     description: str
     quantity: float
     job_name: str
-    can_delete: bool
+    can_reverse: bool
     consumed_by_jobs: int | None = None
     location: str | None = None
     unit_cost: float | None = None

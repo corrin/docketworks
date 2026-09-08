@@ -3,9 +3,9 @@
 A purchase-order line's received quantity is allocated either to *stock* (a
 ``Stock`` row on the stock-holding job) or to a *job* (a material ``CostLine``
 on that job's actual cost set). This module owns every side of that concept —
-creation, read-back, deletion, and the PO status/ETag recompute that follows —
+creation, read-back, reversal, and the PO status/ETag recompute that follows —
 so the receipt flow, the automatic allocation on "fully received", and the
-allocation-delete endpoint cannot drift apart (ADR 0039).
+allocation-reversal endpoint cannot drift apart (ADR 0039).
 
 Status recomputation always bumps ``updated_at`` even when the status label is
 unchanged: received quantities changed, so ADR 0003 clients must see a new
@@ -24,7 +24,6 @@ from django.db.models import Exists, F, OuterRef, QuerySet
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, CostSet, lock_costing_jobs
@@ -36,6 +35,7 @@ from apps.purchasing.models import (
     StockMovement,
     StockMovementKind,
 )
+from apps.purchasing.schemas import AllocationReversalRequest
 from apps.purchasing.services.stock_movement_service import (
     MovementContext,
     move_stock,
@@ -52,8 +52,8 @@ STOCK_ALLOCATION: AllocationType = "stock"
 JOB_ALLOCATION: AllocationType = "job"
 
 
-class AllocationDeletionError(ValueError):
-    """Raised when an allocation cannot be deleted (validation, not a crash)."""
+class AllocationReversalError(ValueError):
+    """Raised when an allocation cannot be reversed (validation, not a crash)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,15 +109,14 @@ class MaterialAllocation:
 
 
 @dataclass(frozen=True, slots=True)
-class DeletionResult:
-    """Data contract for DeletionResult."""
+class ReversalResult:
+    """A recorded reversal or a repeat that made no changes."""
 
-    success: bool
-    message: str
-    deleted_quantity: float
-    description: str | None
-    updated_received_quantity: float
-    job_name: str | None = None
+    status: Literal["reversed", "already_reversed"]
+    reversed_quantity: Decimal
+    description: str
+    updated_received_quantity: Decimal
+    job_name: str
 
 
 def retail_pct_to_rate(pct: Decimal) -> Decimal:
@@ -293,7 +292,7 @@ def recompute_purchase_order_status(po: PurchaseOrder) -> None:
     po.save(update_fields=updated_fields)
 
 
-# ── Reads and deletes ────────────────────────────────────────────────────
+# ── Reads and reversals ────────────────────────────────────────────────────
 
 
 def consuming_cost_lines(stock_id: UUID) -> QuerySet[CostLine]:
@@ -309,7 +308,7 @@ def _get_po_or_error(po_id: UUID) -> PurchaseOrder:
     Opus: the row is locked here rather than read plainly because the caller
     checks the ETag against it and then writes. An unlocked read reproduces the
     check-then-write race purchase_order_service.update_purchase_order
-    documents as forbidden -- two deletes could both pass the precondition and
+    documents as forbidden -- two reversals could both pass the precondition and
     both decrement received_quantity.
 
     Only a caller inside ``transaction.atomic()`` may use this: Django refuses
@@ -322,7 +321,7 @@ def _get_po_or_error(po_id: UUID) -> PurchaseOrder:
     """
     po = PurchaseOrder.objects.select_for_update(of=("self",)).filter(id=po_id).first()
     if po is None:
-        raise AllocationDeletionError(f"Purchase Order {po_id} not found")
+        raise AllocationReversalError(f"Purchase Order {po_id} not found")
     return po
 
 
@@ -330,7 +329,7 @@ def _read_po_or_error(po_id: UUID) -> PurchaseOrder:
     """Return the PO without locking it, for callers that only read."""
     po = PurchaseOrder.objects.filter(id=po_id).first()
     if po is None:
-        raise AllocationDeletionError(f"Purchase Order {po_id} not found")
+        raise AllocationReversalError(f"Purchase Order {po_id} not found")
     return po
 
 
@@ -345,7 +344,7 @@ def _get_stock_or_error(po: PurchaseOrder, stock_id: UUID) -> Stock:
         .first()
     )
     if stock is None:
-        raise AllocationDeletionError(
+        raise AllocationReversalError(
             f"Stock allocation {stock_id} not found or not from PO {po.id}"
         )
     return stock
@@ -366,15 +365,8 @@ def _get_costline_or_error(po: PurchaseOrder, cost_line_id: UUID) -> CostLine:
         .first()
     )
     if cost_line is None:
-        raise AllocationDeletionError(f"Job allocation {cost_line_id} not found on PO {po.id}")
+        raise AllocationReversalError(f"Job allocation {cost_line_id} not found on PO {po.id}")
     return cost_line
-
-
-def _resolve_po_line(po: PurchaseOrder, cost_line: CostLine) -> PurchaseOrderLine:
-    line = cost_line.stockmovement.stock.source_purchase_order_line
-    if line is None or line.purchase_order_id != po.id:
-        raise AllocationDeletionError("The allocation does not belong to this purchase order.")
-    return line
 
 
 def _decrement_received(po_line: PurchaseOrderLine, quantity: Decimal) -> None:
@@ -383,158 +375,77 @@ def _decrement_received(po_line: PurchaseOrderLine, quantity: Decimal) -> None:
         id=po_line.id, received_quantity__gte=quantity
     ).update(received_quantity=F("received_quantity") - quantity)
     if not changed:
-        raise AllocationDeletionError("The allocation exceeds the recorded received quantity.")
+        raise AllocationReversalError("The allocation exceeds the recorded received quantity.")
     po_line.refresh_from_db(fields=["received_quantity"])
 
 
-def _delete_stock_allocation(
-    po_line: PurchaseOrderLine, stock_item: Stock, staff: Staff
-) -> DeletionResult:
-    receipt = stock_item.movements.get(kind__in=["receipt", "receipt_opening"])
-    already_reversed = StockMovement.objects.filter(reverses=receipt).exists()
-    deleted_qty = Decimal("0") if already_reversed else receipt_quantity(receipt)
-    desc = stock_item.description
-    if not already_reversed:
-        _decrement_received(po_line, deleted_qty)
-        move_stock(
-            stock_item,
-            -deleted_qty,
-            MovementContext(
-                kind=StockMovementKind.RECEIPT_REVERSAL,
-                reason=f"Reverse allocation from PO line {po_line.id}",
-                actor=staff,
-                reverses=receipt,
-            ),
-        )
+@transaction.atomic
+def reverse_allocation(
+    *,
+    po_id: UUID,
+    line_id: UUID,
+    allocation: AllocationReversalRequest,
+    if_match: str,
+    staff: Staff,
+) -> tuple[PurchaseOrder, ReversalResult]:
+    """Reverse a receipt once, retaining its stock and any original job charge.
 
-    logger.info(
-        "Deleted stock allocation: %s, qty=%s, PO line received now=%s",
-        desc,
-        deleted_qty,
-        po_line.received_quantity,
-    )
-    return DeletionResult(
-        success=True,
-        message="Stock allocation deleted successfully",
-        deleted_quantity=float(deleted_qty),
-        description=desc,
-        updated_received_quantity=float(po_line.received_quantity),
-        job_name=Stock.get_stock_holding_job().name,
-    )
-
-
-def _delete_job_allocation(
-    po_line: PurchaseOrderLine, cost_line: CostLine, staff: Staff
-) -> DeletionResult:
-    deleted_qty = cost_line.quantity
-    desc = cost_line.desc
-    job_name = cost_line.cost_set.job.name
-
-    movement = StockMovement.objects.get(cost_line=cost_line, kind__in=["issue", "job_opening"])
-    receipt = movement.stock.movements.get(kind__in=["receipt", "receipt_opening"])
-    if StockMovement.objects.filter(reverses=receipt).exists():
-        deleted_qty = Decimal("0")
+    The locked PO serializes receipt corrections. An already recorded reversal
+    can acknowledge a lost-response retry; a new reversal requires the current
+    PO version before any quantity or cost changes.
+    """
+    po = _get_po_or_error(po_id)
+    cost_line = None
+    if allocation.allocation_type == STOCK_ALLOCATION:
+        stock = _get_stock_or_error(po, allocation.allocation_id)
     else:
-        reverse_issue(movement, staff, "Reverse job receipt allocation")
-        _decrement_received(po_line, deleted_qty)
+        cost_line = _get_costline_or_error(po, allocation.allocation_id)
+        stock = cost_line.stockmovement.stock
+    if stock.source_purchase_order_line_id != line_id:
+        raise AllocationReversalError("The allocation does not belong to this purchase order line.")
+    po_line = PurchaseOrderLine.objects.select_for_update().get(id=line_id, purchase_order=po)
+    receipt = stock.movements.get(kind__in=["receipt", "receipt_opening"])
+    already_reversed = StockMovement.objects.filter(reverses=receipt).exists()
+    quantity = Decimal("0") if already_reversed else receipt_quantity(receipt)
+    job_name = (
+        cost_line.cost_set.job.name if cost_line is not None else Stock.STOCK_HOLDING_JOB_NAME
+    )
+
+    if not already_reversed:
+        require_current_etag(po, if_match)
+        if cost_line is not None:
+            lock_costing_jobs([cost_line.cost_set.job_id])
+            locked_line = CostLine.objects.select_for_update().get(id=cost_line.id)
+            reverse_issue(locked_line.stockmovement, staff, "Reverse job receipt allocation")
+        _decrement_received(po_line, quantity)
         move_stock(
-            movement.stock,
-            -deleted_qty,
+            stock,
+            -quantity,
             MovementContext(
                 kind=StockMovementKind.RECEIPT_REVERSAL,
-                reason="Reverse job receipt allocation",
+                reason=f"Reverse receipt allocation from PO line {po_line.id}",
                 actor=staff,
                 reverses=receipt,
             ),
         )
-
-    logger.info(
-        "Deleted job allocation: %s, qty=%s, job=%s, PO line received now=%s",
-        desc,
-        deleted_qty,
-        job_name,
-        po_line.received_quantity,
-    )
-    return DeletionResult(
-        success=True,
-        message="Job allocation deleted successfully",
-        deleted_quantity=float(deleted_qty),
-        description=desc,
-        updated_received_quantity=float(po_line.received_quantity),
+        recompute_purchase_order_status(po)
+    return po, ReversalResult(
+        status="already_reversed" if already_reversed else "reversed",
+        reversed_quantity=quantity,
+        description=stock.description,
+        updated_received_quantity=po_line.received_quantity,
         job_name=job_name,
     )
 
 
-def delete_allocation(
-    *,
-    po_id: UUID,
-    allocation_type: AllocationType,
-    allocation_id: UUID,
-    if_match: str,
-    staff: Staff,
-) -> tuple[PurchaseOrder, DeletionResult]:
-    """Delete one Stock or CostLine allocation and recompute the PO status.
-
-    ``line_id`` remains part of the public URL but is not trusted to resolve the
-    allocation. The allocation row carries its own PO-line back-reference;
-    trusting the URL could decrement the wrong line.
-
-    Requires ``If-Match`` (ADR 0003): this decrements ``received_quantity`` and
-    recomputes the PO status, so it is a PO mutation like any other. Without the
-    precondition two operators deleting from stale lists could both succeed.
-    Returns the PO so the caller can emit the
-    refreshed ETag.
-    """
-    logger.info(
-        "Starting allocation deletion - PO: %s, Type: %s, ID: %s",
-        po_id,
-        allocation_type,
-        allocation_id,
+def _reversed_stock_ids(po: PurchaseOrder) -> set[UUID]:
+    """Read receipt corrections once for an allocation response."""
+    return set(
+        StockMovement.objects.filter(
+            kind=StockMovementKind.RECEIPT_REVERSAL,
+            stock__source_purchase_order_line__purchase_order=po,
+        ).values_list("stock_id", flat=True)
     )
-    try:
-        with transaction.atomic():
-            po = _get_po_or_error(po_id)
-            require_current_etag(po, if_match)
-
-            if allocation_type == STOCK_ALLOCATION:
-                stock = _get_stock_or_error(po, allocation_id)
-                source_line_id = stock.source_purchase_order_line_id
-                if source_line_id is None:
-                    raise AllocationDeletionError(
-                        f"Stock allocation {allocation_id} has no source purchase order line"
-                    )
-                po_line = PurchaseOrderLine.objects.select_for_update().get(id=source_line_id)
-                locked_stock = Stock.objects.select_for_update().get(id=stock.id)
-                result = _delete_stock_allocation(po_line, locked_stock, staff)
-            else:
-                cost_line = _get_costline_or_error(po, allocation_id)
-                po_line = PurchaseOrderLine.objects.select_for_update().get(
-                    id=_resolve_po_line(po, cost_line).id
-                )
-                lock_costing_jobs([cost_line.cost_set.job_id])
-                locked_line = (
-                    CostLine.objects.select_related("cost_set__job")
-                    .select_for_update(of=("self",))
-                    .get(id=cost_line.id)
-                )
-                result = _delete_job_allocation(po_line, locked_line, staff)
-
-            recompute_purchase_order_status(po)
-            return po, result
-    except AllocationDeletionError:
-        raise
-    except Exception as exc:
-        persist_app_error(
-            exc,
-            AppErrorContext(
-                additional_context={
-                    "po_id": str(po_id),
-                    "allocation_type": allocation_type,
-                    "allocation_id": str(allocation_id),
-                }
-            ),
-        )
-        raise
 
 
 def get_allocation_details(
@@ -543,8 +454,9 @@ def get_allocation_details(
     allocation_type: AllocationType,
     allocation_id: UUID,
 ) -> dict[str, object]:
-    """Describe one allocation (used by the delete-confirmation dialog)."""
+    """Describe one allocation (used by the reversal-confirmation dialog)."""
     po = _read_po_or_error(po_id)
+    reversed_ids = _reversed_stock_ids(po)
 
     if allocation_type == STOCK_ALLOCATION:
         stock_item = _get_stock_or_error(po, allocation_id)
@@ -556,7 +468,7 @@ def get_allocation_details(
             "description": stock_item.description,
             "quantity": float(stock_item.quantity),
             "job_name": stock_item.job.name if stock_item.job else "",
-            "can_delete": True,
+            "can_reverse": stock_item.id not in reversed_ids,
             "consumed_by_jobs": consumed_count,
             # Location is optional on Stock, hence the display fallback.
             "location": stock_item.location or "Not specified",
@@ -569,7 +481,7 @@ def get_allocation_details(
         "description": cost_line.desc,
         "quantity": float(cost_line.quantity),
         "job_name": cost_line.cost_set.job.name,
-        "can_delete": True,
+        "can_reverse": cost_line.stockmovement.stock_id not in reversed_ids,
         "unit_cost": float(cost_line.unit_cost),
         "unit_revenue": float(cost_line.unit_rev),
     }
@@ -577,6 +489,7 @@ def get_allocation_details(
 
 def list_allocations(po: PurchaseOrder) -> dict[str, list[dict[str, object]]]:
     """Group every existing allocation for ``po`` by PO-line id."""
+    reversed_ids = _reversed_stock_ids(po)
     cost_lines = CostLine.objects.filter(
         stockmovement__kind__in=["issue", "job_opening"],
         stockmovement__stock__source_purchase_order_line__purchase_order=po,
@@ -606,6 +519,7 @@ def list_allocations(po: PurchaseOrder) -> dict[str, list[dict[str, object]]]:
                 "allocation_date": cost_line.created_at,
                 "description": cost_line.desc,
                 "allocation_id": str(cost_line.id),
+                "reversed": cost_line.stockmovement.stock_id in reversed_ids,
             }
         )
 
@@ -641,6 +555,7 @@ def list_allocations(po: PurchaseOrder) -> dict[str, list[dict[str, object]]]:
                 "alloy": stock_item.alloy or "",
                 "specifics": stock_item.specifics or "",
                 "allocation_id": str(stock_item.id),
+                "reversed": stock_item.id in reversed_ids,
             }
         )
 
