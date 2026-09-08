@@ -545,15 +545,9 @@ def _summary_with_margin(cost_set: CostSet) -> CostSetSummaryData:
     ``revisions`` never leak.
     """
     summary_raw = cost_set.summary
-    if not summary_raw:
-        logger.error("CostSet %s missing required summary data", cost_set.id)
-        return {"cost": 0.0, "rev": 0.0, "hours": 0.0, "profitMargin": 0.0}
-    rev_raw = summary_raw.get("rev", 0)
-    cost_raw = summary_raw.get("cost", 0)
-    hours_raw = summary_raw.get("hours", 0)
-    rev = float(rev_raw) if isinstance(rev_raw, (int, float)) else 0.0
-    cost = float(cost_raw) if isinstance(cost_raw, (int, float)) else 0.0
-    hours = float(hours_raw) if isinstance(hours_raw, (int, float)) else 0.0
+    rev = float(summary_raw["rev"])
+    cost = float(summary_raw["cost"])
+    hours = float(summary_raw["hours"])
     return {
         "cost": cost,
         "rev": rev,
@@ -973,9 +967,8 @@ def _copied_line_values(line: CostLine) -> dict[str, object]:
 def _copy_cost_lines(source: CostSet, dest: CostSet) -> int:
     """Copy every cost line of ``source`` onto ``dest``; returns the count copied.
 
-    Fable: bulk_create plus ONE recompute — per-line ``objects.create`` was
-    reviewed away as O(n^2): every save re-reads the cost set, rewrites the
-    summary JSON and touches the job, and only the final state matters.
+    GPT: bulk_create plus one rebuild avoids updating the same cached totals
+    and job freshness for every copied line; only the final state matters.
     Skipping CostLine.save() costs nothing here: entry_seq is assigned only
     on actual-kind sets (refused below), full_clean still runs per line, and
     the shop-job no-revenue rule holds transitively — the source lines were
@@ -992,7 +985,7 @@ def _copy_cost_lines(source: CostSet, dest: CostSet) -> int:
     for line in lines:
         line.full_clean()
     CostLine.objects.bulk_create(lines)
-    lines[-1].update_cost_set_summary()
+    dest.recalculate_summary()
     return len(lines)
 
 
@@ -2430,17 +2423,18 @@ def create_quote_revision(job: Job, reason: str | None, user: Staff) -> QuoteRev
     if current_quote is None:
         raise ValueError("No quote found for this job. Cannot create revision.")
 
-    cost_lines = list(current_quote.cost_lines.all())
-    if not cost_lines:
-        raise ValueError("No cost lines found in current quote. Nothing to revise.")
-
     with transaction.atomic():
         lock_costing_jobs([job.id])
+        current_quote = CostSet.objects.get(pk=current_quote.id)
+        cost_lines = list(current_quote.cost_lines.all())
+        if not cost_lines:
+            raise ValueError("No cost lines found in current quote. Nothing to revise.")
         quote_revision = _archive_quote_revision(current_quote, cost_lines, reason)
 
         # Bulk delete intentionally skips CostLine.delete()'s summary refresh:
         # the archive above just zeroed the live totals.
         current_quote.cost_lines.all().delete()
+        current_quote.recalculate_summary()
 
         # Reset acceptance so the new revision can be accepted.
         job.quote_acceptance_date = None
@@ -2533,12 +2527,12 @@ def copy_estimate_to_quote(
     quote = job.get_latest("quote")
     if estimate is None or quote is None:
         raise ValueError("Job is missing its estimate or quote cost set.")
-    if not estimate.cost_lines.exists():
-        raise ValueError("The estimate has no cost lines to copy.")
-
     archived_quote_revision: int | None = None
     with transaction.atomic():
         lock_costing_jobs([job.id])
+        estimate = CostSet.objects.get(pk=estimate.pk)
+        if not estimate.cost_lines.exists():
+            raise ValueError("The estimate has no cost lines to copy.")
         # Deciding outside the transaction was the reviewed-away shape: a line
         # created between the blank/equality reads and the replace would be
         # bulk-deleted without ever reaching the archive. The CostSet row lock

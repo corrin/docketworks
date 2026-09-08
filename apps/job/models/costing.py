@@ -10,8 +10,11 @@ from uuid import UUID
 from django.core.exceptions import ValidationError
 from django.db import connection, models, transaction
 from django.db.models import Q
+from django.db.models.lookups import Exact
 from django.utils import timezone
+from psycopg import sql
 
+from apps.core.errors import ConflictError
 from apps.job.enums import CostLineOwner
 
 from .costline_validators import (
@@ -20,6 +23,36 @@ from .costline_validators import (
 )
 
 logger = logging.getLogger(__name__)
+
+_TOTALS_SQL = """
+    SELECT COALESCE(SUM(quantity * unit_cost), 0) AS cost,
+           COALESCE(SUM(quantity * unit_rev), 0) AS rev,
+           COALESCE(SUM(quantity) FILTER (WHERE kind = 'time'), 0) AS hours
+    FROM job_costline WHERE cost_set_id = %s
+"""
+_TOTALS_JSON_SQL = (
+    "jsonb_build_object('cost', totals.cost, 'rev', totals.rev, 'hours', totals.hours)"
+)
+
+
+def valid_cost_summary() -> Q:
+    """Require an object with all three numeric totals, including for empty sets."""
+    condition = Q(summary__has_keys=["cost", "rev", "hours"])
+    for field, expected in (
+        ("summary", "object"),
+        ("summary__cost", "number"),
+        ("summary__rev", "number"),
+        ("summary__hours", "number"),
+    ):
+        condition &= Q(
+            Exact(
+                models.Func(
+                    models.F(field), function="jsonb_typeof", output_field=models.CharField()
+                ),
+                models.Value(expected),
+            )
+        )
+    return condition
 
 
 def get_default_cost_set_summary() -> dict[str, float]:
@@ -70,7 +103,8 @@ class CostSet(models.Model):
 
     class Meta:
         constraints: ClassVar[list[models.BaseConstraint]] = [
-            models.UniqueConstraint(fields=["job", "kind", "rev"], name="unique_job_kind_rev")
+            models.UniqueConstraint(fields=["job", "kind", "rev"], name="unique_job_kind_rev"),
+            models.CheckConstraint(condition=valid_cost_summary(), name="costset_numeric_summary"),
         ]
         ordering: ClassVar[list[str]] = ["-created"]
 
@@ -91,6 +125,71 @@ class CostSet(models.Model):
     def total_revenue(self) -> Decimal | int:
         """Total revenue (charge amount) for all cost lines in this set (int 0 when empty)."""
         return sum(cost_line.total_rev for cost_line in self.cost_lines.all())
+
+    def summary_is_current(self) -> bool:
+        """Compare cache and ledger in one database snapshot without writing."""
+        with connection.cursor() as cursor:
+            cursor.execute(
+                sql.SQL(
+                    "WITH totals AS ({totals}) SELECT summary @> {values} "
+                    "FROM job_costset CROSS JOIN totals WHERE id = %s"
+                )
+                .format(totals=sql.SQL(_TOTALS_SQL), values=sql.SQL(_TOTALS_JSON_SQL))
+                .as_string(),
+                [self.id, self.id],
+            )
+            row = cursor.fetchone()
+        if row is None:
+            raise CostSet.DoesNotExist(f"Cost set {self.id} no longer exists")
+        return bool(row[0])
+
+    @transaction.atomic
+    def recalculate_summary(self) -> bool:
+        """Rebuild derived totals under the writers' locks; return whether they changed."""
+        lock_costing_jobs([self.job_id])
+        with connection.cursor() as cursor:
+            cursor.execute(
+                sql.SQL(
+                    "WITH totals AS ({totals}) UPDATE job_costset "
+                    "SET summary = summary || {values} FROM totals "
+                    "WHERE id = %s AND NOT (summary @> {values})"
+                )
+                .format(totals=sql.SQL(_TOTALS_SQL), values=sql.SQL(_TOTALS_JSON_SQL))
+                .as_string(),
+                [self.id, self.id],
+            )
+            changed = bool(cursor.rowcount)
+        if changed:
+            _touch_costing_jobs([self.job_id])
+        self.refresh_from_db(fields=["summary"])
+        return changed
+
+    @staticmethod
+    def _record_line_change(before: "CostLine | None", after: "CostLine | None") -> None:
+        """Maintain both owners from persisted contributions inside the line transaction."""
+        owners = {line.cost_set_id: line.cost_set for line in (before, after) if line is not None}
+        for owner_id, owner in owners.items():
+            cost = revenue = hours = Decimal("0")
+            for line, sign in ((before, -1), (after, 1)):
+                if line is not None and line.cost_set_id == owner_id:
+                    cost += sign * line.total_cost
+                    revenue += sign * line.total_rev
+                    if line.kind == "time":
+                        hours += sign * line.quantity
+            if cost == revenue == hours == 0:
+                continue
+            # GPT: PostgreSQL numeric arithmetic avoids a float round trip and
+            # preserves archived revisions without loading them into Python.
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE job_costset SET summary = summary || jsonb_build_object("
+                    "'cost', (summary->>'cost')::numeric + %s, "
+                    "'rev', (summary->>'rev')::numeric + %s, "
+                    "'hours', (summary->>'hours')::numeric + %s) WHERE id = %s",
+                    [cost, revenue, hours, owner.id],
+                )
+        if owners:
+            _touch_costing_jobs({owner.job_id for owner in owners.values()})
 
 
 class CostLine(models.Model):
@@ -317,7 +416,7 @@ class CostLine(models.Model):
         staff_was_already_set = self.staff_id is not None
         requires_sequence = self._actual_time_entry_requires_sequence()
         with transaction.atomic():
-            lock_costing_jobs([self.cost_set.job_id])
+            before = self._lock_summary_owners()
             self._assign_entry_seq()
             staff_newly_set_from_legacy_meta = (
                 self.staff_id is not None and not staff_was_already_set
@@ -328,7 +427,30 @@ class CostLine(models.Model):
                 staff_newly_set=staff_newly_set_from_legacy_meta,
             )
 
-            self._save_with_summary_update(*args, **kwargs)
+            self._save_validated(*args, **kwargs)
+            after = self._stored_contribution()
+            if after is None:
+                raise CostLine.DoesNotExist("The saved cost line no longer exists")
+            CostSet._record_line_change(before, after)
+
+    def _stored_contribution(self) -> "CostLine | None":
+        return (
+            CostLine.objects.select_related("cost_set")
+            .only("cost_set__job_id", "kind", "quantity", "unit_cost", "unit_rev")
+            .filter(pk=self.pk)
+            .first()
+        )
+
+    def _lock_summary_owners(self) -> "CostLine | None":
+        observed = self._stored_contribution()
+        job_ids = {self.cost_set.job_id}
+        if observed is not None:
+            job_ids.add(observed.cost_set.job_id)
+        lock_costing_jobs(job_ids)
+        current = self._stored_contribution()
+        if current is not None and current.cost_set.job_id not in job_ids:
+            raise ConflictError("This cost line moved to another job. Reload before editing it.")
+        return current
 
     @property
     def total_cost(self) -> Decimal:
@@ -460,44 +582,7 @@ class CostLine(models.Model):
             fields.add("staff")
         return fields
 
-    def update_cost_set_summary(self) -> None:
-        """Update cost set summary with aggregated data - PRESERVE existing data."""
-        cost_set_id = self.cost_set_id
-        cost_set = CostSet.objects.only("id", "job_id", "summary").get(id=cost_set_id)
-        cost_lines = CostLine.objects.filter(cost_set_id=cost_set_id)
-
-        total_cost = sum(line.total_cost for line in cost_lines)
-        total_rev = sum(line.total_rev for line in cost_lines)
-        total_hours = sum(float(line.quantity) for line in cost_lines if line.kind == "time")
-
-        # Preserve existing summary data (especially revisions)
-        current_summary = cost_set.summary or {}
-        current_summary.update(
-            {
-                "cost": float(total_cost),
-                "rev": float(total_rev),
-                "hours": total_hours,
-            }
-        )
-
-        CostSet.objects.filter(id=cost_set_id).update(summary=current_summary)
-
-        # Bump job.updated_at without routing through Job.save() — this is a
-        # cascade side-effect of a CostLine write, not an attributable action.
-        # Through touch_updated_at() rather than a bare .update(updated_at=):
-        # that method is the single freshness-bump implementation and is what
-        # announces the bump to the data-version publisher, which no
-        # post_save can see (ADR 0039).
-        from .job import Job  # noqa: PLC0415 -- Job ↔ costing circular at module load
-
-        Job.objects.filter(pk=cost_set.job_id).touch_updated_at(at=timezone.now())
-
-        # v1 parity: imported at call time to avoid a tasks<->models cycle.
-        from apps.job.tasks import request_job_summary_pdf_refresh  # noqa: PLC0415
-
-        request_job_summary_pdf_refresh()
-
-    def _save_with_summary_update(self, *args: Any, **kwargs: Any) -> None:
+    def _save_validated(self, *args: Any, **kwargs: Any) -> None:
         # Fail fast if trying to set revenue on shop jobs
         job = self.cost_set.job
         if job.shop_job:
@@ -516,15 +601,23 @@ class CostLine(models.Model):
 
         self.full_clean()
         super().save(*args, **kwargs)
-        self.update_cost_set_summary()
 
     @transaction.atomic
     def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
         """Delete the line and refresh the CostSet summary."""
-        lock_costing_jobs([self.cost_set.job_id])
+        before = self._lock_summary_owners()
         result = super().delete(*args, **kwargs)
-        self.update_cost_set_summary()
+        CostSet._record_line_change(before, None)
         return result
+
+
+def _touch_costing_jobs(job_ids: Iterable[UUID]) -> None:
+    from apps.job.tasks import request_job_summary_pdf_refresh  # noqa: PLC0415
+
+    from .job import Job  # noqa: PLC0415 -- Job and costing reference each other.
+
+    Job.objects.filter(pk__in=job_ids).touch_updated_at(at=timezone.now())
+    request_job_summary_pdf_refresh()
 
 
 def lock_costing_jobs(job_ids: Iterable[UUID]) -> None:

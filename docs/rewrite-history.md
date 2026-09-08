@@ -18,6 +18,39 @@ restating it. Nothing here is a task.
 
 ## Cutover
 
+**2026-09-08 — Incremental cost summaries and explicit recovery.**
+Cost-line saves/deletes now apply exact persisted contributions to the existing
+summary cache, including partial saves, stale instances and both sides of a
+transfer. Ordered job locks serialize incremental writes and explicit rebuilds.
+Quote copies, revision clearing and operator time transfers rebuild within their
+bulk transaction. Recovery checks are read-only by default; explicit repair
+preserves ledger rows and archived revisions, advances changed jobs' freshness,
+and requests the existing PDF reconciler after commit. Deployment and direct-SQL
+maintenance procedures are in [the operator runbook](cost-summary-maintenance.md).
+
+Six local instrumented posting cases used 700 physical items, 0/20/70 differences,
+and 0/1,000 historical adjustments. At 20 differences, posting took 1.86/1.93s
+with 1,444 queries and 0.031/0.032s in summary maintenance. At 70 differences it
+took 4.37/4.01s with 3,244 queries and 0.106/0.096s in summary maintenance. At zero
+differences it took 0.78/1.15s with 710 queries. Each pair is empty/existing history;
+these are individual cProfile/CaptureQueries measurements, not a production
+capacity guarantee. All postings and retries preserved the expected quantities,
+movements and totals. Background dispatch was stubbed in the committed-database
+fixture, so these timings exclude actual PDF/LLM execution and broker latency.
+
+Deliberately restoring a history aggregate caused all three 0/1,000/5,000-history
+regressions to fail. Removing the rebuild lock caused the committed-write race
+regression to fail with stale totals. Both mutations were restored before the
+final verification run. No production data or inventory repair dispositions were
+changed.
+
+Validation: the final full Python suite passed all 3,111 selected tests. Strict
+typing, lint, dependency boundaries, generated schema/client and frontend checks
+passed; migration drift is clean. The restore classification includes the new SQL
+backfill, and the migration regression preserves archived evidence while fixing
+invalid and empty summaries. Browser and production-snapshot rollout verification
+remain subject to the existing inventory migration hold.
+
 **2026-09-08 — Inventory transaction regressions and shared test setup.**
 Committed-data tests now use disposable migrated databases, preserving immutable
 inventory evidence instead of flushing it. PostgreSQL blocking-PID observations

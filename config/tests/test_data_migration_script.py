@@ -93,6 +93,7 @@ METADATA_MIGRATIONS = {("integrations", "0002_transfer_content_type")}
 
 # GPT: raw SQL writes positions too; the RunPython-only discovery missed them.
 SQL_DATA_MIGRATIONS = {
+    ("job", "0011_incremental_cost_summary"),
     ("purchasing", "0007_inventory_openings"),
     ("purchasing", "0011_backfill_job_openings"),
     ("purchasing", "0012_protect_inventory_provenance"),

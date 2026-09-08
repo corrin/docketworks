@@ -263,7 +263,7 @@ class TestMonthEndDateBoundaries:
         continue from Max(rev) (CodeRabbit, PR #22)."""
         special = _special_job(company, office_staff, "Gap job")
         # Manufacture a gap: revs 1 (seeded) and 5.
-        CostSet.objects.create(job=special, kind="actual", rev=5, summary={})
+        CostSet.objects.create(job=special, kind="actual", rev=5)
 
         response = client.post(
             "/api/job/month-end/",
