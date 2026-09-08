@@ -172,7 +172,7 @@ def test_receipt_opening_preserves_totals_and_uses_the_same_reversal(
     assert po_line.received_quantity == Decimal("2")
     receipt = stock.movements.get(kind="receipt_opening")
     assert receipt.opening_quantity == Decimal("2")
-    assert not api.get("/api/purchasing/stocktakes/stock/").json()["results"]
+    assert not api.get("/api/purchasing/stock/search/?countable=true").json()["results"]
     detail = api.get(f"/api/purchasing/purchase-orders/{po.id}/")
     path = f"/api/purchasing/purchase-orders/{po.id}/lines/{po_line.id}/allocations/reverse/"
     response = api.post(

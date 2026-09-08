@@ -63,7 +63,7 @@ test('find a sheet, post once, and correct the count without losing history', as
   await page.getByRole('textbox', { name: 'Search stock items', exact: true }).fill(item)
   const stockRow = page.getByRole('row').filter({ hasText: item })
   await expect(stockRow).toHaveCount(1)
-  await expect(stockRow.locator('td').nth(6)).toHaveText('0')
+  await expect(stockRow.locator('[data-automation-id="StockView-quantity"]')).toHaveText('0')
   await stockRow.getByRole('button', { name: 'Record count', exact: true }).click()
   await expect(page.getByLabel('Item description', { exact: true })).toHaveValue(item)
   await expect(page.getByLabel('Counted quantity', { exact: true })).toHaveValue('')
@@ -125,13 +125,22 @@ test('a multi-item count preserves blank entries and the count list stays paged'
     expect(created.status()).toBe(200)
   }
   await page.getByRole('link', { name: 'Stocktakes', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeEnabled()
   await expect(page.locator('tbody tr')).toHaveCount(50)
   const scroll = page.locator('table').locator('..')
   expect(await scroll.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
-  await page.getByRole('button', { name: 'Next', exact: true }).click()
-  await expect(page.getByText('Page 2', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Previous', exact: true })).toBeEnabled()
+  const nextPage = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+    return url.pathname === '/api/purchasing/stocktakes/' && url.searchParams.get('page') === '2'
+  })
+  await scroll.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+  const response = await nextPage
+  expect(response.status()).toBe(200)
+  await expect(page.locator('tbody tr')).not.toHaveCount(50)
+  await expect(page.locator('[data-automation-id="StocktakeList-load-more-count"]')).toContainText(
+    'stocktakes',
+  )
 })
 
 test.describe('stocktake conflict recovery', () => {

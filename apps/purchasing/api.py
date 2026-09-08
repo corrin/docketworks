@@ -629,22 +629,6 @@ def purchasing_delivery_receipts_create(
 # ── Stock ────────────────────────────────────────────────────────────────
 
 
-@router.get(
-    "/purchasing/stock/",
-    auth=auth,
-    operation_id="purchasing_stock_list",
-    response=list[StockItem],
-    summary="List active stock",
-    tags=["purchasing"],
-)
-def purchasing_stock_list(request: HttpRequest) -> list[stock_service.StockItemData]:
-    """List every active stock item, newest first."""
-    return [
-        stock_service.stock_item_data(stock)
-        for stock in Stock.objects.filter(is_active=True).order_by("-date")
-    ]
-
-
 @router.post(
     "/purchasing/stock/",
     auth=auth,
@@ -662,6 +646,14 @@ def purchasing_stock_create(
 
 
 @router.get(
+    "/purchasing/stock/",
+    auth=auth,
+    operation_id="purchasing_stock_list",
+    response=StockSearchResponse,
+    summary="List stock",
+    tags=["purchasing"],
+)
+@router.get(
     "/purchasing/stock/search/",
     auth=auth,
     operation_id="purchasing_stock_search_retrieve",
@@ -676,11 +668,18 @@ def purchasing_stock_search_retrieve(
     query = params.q.strip()
     try:
         return stock_search_service.list_stock(
-            query=query if len(query) >= 3 else None,
-            page=max(1, params.page),
-            page_size=params.page_size,
-            sort_by=params.sort_by,
-            sort_dir=params.sort_dir,
+            stock_search_service.StockSearchOptions(
+                query=query if len(query) >= 3 else None,
+                page=params.page,
+                page_size=params.page_size,
+                sort_by=params.sort_by,
+                sort_dir=params.sort_dir,
+                stock_ids=tuple(params.stock_ids),
+                job_id=params.job_id,
+                location=params.location,
+                countable=params.countable,
+                include_inactive=params.include_inactive,
+            )
         )
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc

@@ -5121,9 +5121,12 @@ export const zStockConsumeResponse = z.object({
  */
 export const zStockItem = z.object({
     alloy: z.string().nullable(),
+    can_count: z.boolean(),
+    can_retire: z.boolean(),
     date: z.iso.datetime(),
     description: z.string(),
     id: z.uuid(),
+    inventory_version: z.int(),
     is_active: z.boolean(),
     item_code: z.string().nullable(),
     job_id: z.uuid().nullable(),
@@ -5209,16 +5212,34 @@ export const zStockMovementOut = z.object({
 });
 
 /**
+ * StockMovementPage
+ *
+ * Bound movement responses using the shared pagination envelope.
+ */
+export const zStockMovementPage = z.object({
+    count: z.int(),
+    page: z.int(),
+    page_size: z.int(),
+    results: z.array(zStockMovementOut),
+    total_pages: z.int()
+});
+
+/**
  * StockSearchQuery
  *
  * Query params for purchasing_stock_search_retrieve.
  */
 export const zStockSearchQuery = z.object({
+    countable: z.boolean().optional().default(false),
+    include_inactive: z.boolean().optional().default(false),
+    job_id: z.uuid().nullish(),
+    location: z.string().optional().default(''),
     page: z.int().optional().default(1),
     page_size: z.int().optional().default(50),
     q: z.string().optional().default(''),
     sort_by: z.string().optional().default('description'),
-    sort_dir: z.string().optional().default('asc')
+    sort_dir: z.string().optional().default('asc'),
+    stock_ids: z.array(z.uuid()).max(100).optional()
 });
 
 /**
@@ -5314,10 +5335,8 @@ export const zStocktakeSave = z.object({
  * StocktakeSearch wire contract.
  */
 export const zStocktakeSearch = z.object({
-    location: z.string().optional().default(''),
     page: z.int().gte(1).optional().default(1),
-    page_size: z.int().gte(1).lte(100).optional().default(50),
-    q: z.string().optional().default('')
+    page_size: z.int().gte(1).lte(100).optional().default(50)
 });
 
 /**
@@ -5327,43 +5346,6 @@ export const zStocktakeSearch = z.object({
  */
 export const zStocktakeSetup = z.object({
     adjustment_job_id: z.uuid().nullable()
-});
-
-/**
- * StocktakeStockOut
- *
- * StocktakeStockOut wire contract.
- */
-export const zStocktakeStockOut = z.object({
-    description: z.string(),
-    id: z.uuid(),
-    inventory_version: z.int(),
-    location: z.string().nullable(),
-    quantity: z.number(),
-    unit_cost: z.number()
-});
-
-/**
- * StocktakeStockList
- *
- * StocktakeStockList wire contract.
- */
-export const zStocktakeStockList = z.object({
-    count: z.int(),
-    results: z.array(zStocktakeStockOut)
-});
-
-/**
- * StocktakeStockSearch
- *
- * Bounded identity filtering also refreshes unsaved stock observations.
- */
-export const zStocktakeStockSearch = z.object({
-    location: z.string().optional().default(''),
-    page: z.int().gte(1).optional().default(1),
-    page_size: z.int().gte(1).lte(100).optional().default(50),
-    q: z.string().optional().default(''),
-    stock_ids: z.array(z.uuid()).max(100).optional()
 });
 
 /**
@@ -5388,7 +5370,10 @@ export const zStocktakeSummary = z.object({
  */
 export const zStocktakeList = z.object({
     count: z.int(),
-    results: z.array(zStocktakeSummary)
+    page: z.int(),
+    page_size: z.int(),
+    results: z.array(zStocktakeSummary),
+    total_pages: z.int()
 });
 
 /**
@@ -8334,12 +8319,23 @@ export const zStockMovementReturnPath = z.object({
  */
 export const zStockMovementReturnResponse = zStockMovementOut;
 
+export const zPurchasingStockListQuery = z.object({
+    q: z.string().optional().default(''),
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50),
+    sort_by: z.string().optional().default('description'),
+    sort_dir: z.string().optional().default('asc'),
+    stock_ids: z.array(z.uuid()).max(100).optional(),
+    job_id: z.uuid().nullish(),
+    location: z.string().optional().default(''),
+    countable: z.boolean().optional().default(false),
+    include_inactive: z.boolean().optional().default(false)
+});
+
 /**
- * Response
- *
  * OK
  */
-export const zPurchasingStockListResponse = z.array(zStockItem);
+export const zPurchasingStockListResponse = zStockSearchResponse;
 
 export const zPurchasingStockCreateBody = zStockItemRequest;
 
@@ -8353,7 +8349,12 @@ export const zPurchasingStockSearchRetrieveQuery = z.object({
     page: z.int().optional().default(1),
     page_size: z.int().optional().default(50),
     sort_by: z.string().optional().default('description'),
-    sort_dir: z.string().optional().default('asc')
+    sort_dir: z.string().optional().default('asc'),
+    stock_ids: z.array(z.uuid()).max(100).optional(),
+    job_id: z.uuid().nullish(),
+    location: z.string().optional().default(''),
+    countable: z.boolean().optional().default(false),
+    include_inactive: z.boolean().optional().default(false)
 });
 
 /**
@@ -8416,16 +8417,17 @@ export const zStockMovementsListPath = z.object({
     id: z.uuid()
 });
 
+export const zStockMovementsListQuery = z.object({
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50)
+});
+
 /**
- * Response
- *
  * OK
  */
-export const zStockMovementsListResponse = z.array(zStockMovementOut);
+export const zStockMovementsListResponse = zStockMovementPage;
 
 export const zStocktakeListQuery = z.object({
-    q: z.string().optional().default(''),
-    location: z.string().optional().default(''),
     page: z.int().gte(1).optional().default(1),
     page_size: z.int().gte(1).lte(100).optional().default(50)
 });
@@ -8451,19 +8453,6 @@ export const zStocktakeSetupRetrieveResponse = zStocktakeSetup;
  * OK
  */
 export const zStocktakeSetupCreateResponse = zStocktakeSetup;
-
-export const zStocktakeStockListQuery = z.object({
-    q: z.string().optional().default(''),
-    location: z.string().optional().default(''),
-    page: z.int().gte(1).optional().default(1),
-    page_size: z.int().gte(1).lte(100).optional().default(50),
-    stock_ids: z.array(z.uuid()).max(100).optional()
-});
-
-/**
- * OK
- */
-export const zStocktakeStockListResponse = zStocktakeStockList;
 
 export const zStocktakeRetrievePath = z.object({
     id: z.uuid()
@@ -8498,12 +8487,15 @@ export const zStocktakeMovementsListPath = z.object({
     id: z.uuid()
 });
 
+export const zStocktakeMovementsListQuery = z.object({
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50)
+});
+
 /**
- * Response
- *
  * OK
  */
-export const zStocktakeMovementsListResponse = z.array(zStockMovementOut);
+export const zStocktakeMovementsListResponse = zStockMovementPage;
 
 export const zStocktakePostPath = z.object({
     id: z.uuid()

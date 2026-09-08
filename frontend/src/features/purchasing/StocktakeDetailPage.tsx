@@ -6,13 +6,13 @@ import { toast } from 'sonner'
 import {
   apiErrorMessage,
   stocktakeRetrieveOptions,
-  stocktakeStockListOptions,
+  purchasingStockSearchRetrieveOptions,
   stocktakeUpdateMutation,
   stocktakePostMutation,
   stocktakeCorrectMutation,
   type StocktakeDetail,
   type StocktakeLineWrite,
-  type StocktakeStockOut,
+  type StockItem,
 } from '@/api'
 import { getEtag, etagKey } from '@/lib/concurrency/etag-store'
 import { isConcurrencyError } from '@/lib/concurrency/interceptors'
@@ -86,7 +86,9 @@ function StocktakeEditor({
     batches.push(stockIds.slice(offset, offset + 100))
   const observations = useQueries({
     queries: batches.map((stock_ids) =>
-      stocktakeStockListOptions({ query: { stock_ids, page_size: 100 } }),
+      purchasingStockSearchRetrieveOptions({
+        query: { stock_ids, page_size: 100, include_inactive: true },
+      }),
     ),
   })
   const current = new Map(
@@ -157,7 +159,7 @@ function StocktakeEditor({
       },
     )
   }
-  const addStock = (stock: StocktakeStockOut) =>
+  const addStock = (stock: StockItem) =>
     changed([
       ...rows,
       {
@@ -165,12 +167,12 @@ function StocktakeEditor({
         stock_id: stock.id,
         description: stock.description,
         location: stock.location,
-        expected_quantity: stock.quantity,
+        expected_quantity: Number(stock.quantity),
         expected_version: stock.inventory_version,
         counted_quantity: null,
-        unit_cost: stock.unit_cost,
+        unit_cost: Number(stock.unit_cost),
         reason: null,
-        unitCostInput: String(stock.unit_cost),
+        unitCostInput: stock.unit_cost,
         countInput: '',
       },
     ])
@@ -264,10 +266,10 @@ function StocktakeEditor({
                 row.id === id
                   ? {
                       ...row,
-                      expected_quantity: latest.quantity,
+                      expected_quantity: Number(latest.quantity),
                       expected_version: latest.inventory_version,
-                      unit_cost: latest.unit_cost,
-                      unitCostInput: String(latest.unit_cost),
+                      unit_cost: Number(latest.unit_cost),
+                      unitCostInput: latest.unit_cost,
                       counted_quantity: null,
                       countInput: '',
                     }

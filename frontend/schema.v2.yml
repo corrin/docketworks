@@ -12673,6 +12673,12 @@ components:
           - type: string
           - type: 'null'
           title: Alloy
+        can_count:
+          title: Can Count
+          type: boolean
+        can_retire:
+          title: Can Retire
+          type: boolean
         date:
           format: date-time
           title: Date
@@ -12684,6 +12690,9 @@ components:
           format: uuid
           title: Id
           type: string
+        inventory_version:
+          title: Inventory Version
+          type: integer
         is_active:
           title: Is Active
           type: boolean
@@ -12749,6 +12758,9 @@ components:
       - is_active
       - job_id
       - times_used
+      - inventory_version
+      - can_count
+      - can_retire
       title: StockItem
       type: object
     StockItemRequest:
@@ -12915,9 +12927,55 @@ components:
       - unit_cost
       title: StockMovementOut
       type: object
+    StockMovementPage:
+      description: Bound movement responses using the shared pagination envelope.
+      properties:
+        count:
+          title: Count
+          type: integer
+        page:
+          title: Page
+          type: integer
+        page_size:
+          title: Page Size
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/StockMovementOut'
+          title: Results
+          type: array
+        total_pages:
+          title: Total Pages
+          type: integer
+      required:
+      - count
+      - page
+      - page_size
+      - results
+      - total_pages
+      title: StockMovementPage
+      type: object
     StockSearchQuery:
       description: Query params for purchasing_stock_search_retrieve.
       properties:
+        countable:
+          default: false
+          title: Countable
+          type: boolean
+        include_inactive:
+          default: false
+          title: Include Inactive
+          type: boolean
+        job_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job Id
+        location:
+          default: ''
+          title: Location
+          type: string
         page:
           default: 1
           title: Page
@@ -12938,6 +12996,13 @@ components:
           default: asc
           title: Sort Dir
           type: string
+        stock_ids:
+          items:
+            format: uuid
+            type: string
+          maxItems: 100
+          title: Stock Ids
+          type: array
       title: StockSearchQuery
       type: object
     StockSearchResponse:
@@ -13183,14 +13248,26 @@ components:
         count:
           title: Count
           type: integer
+        page:
+          title: Page
+          type: integer
+        page_size:
+          title: Page Size
+          type: integer
         results:
           items:
             $ref: '#/components/schemas/StocktakeSummary'
           title: Results
           type: array
+        total_pages:
+          title: Total Pages
+          type: integer
       required:
       - count
+      - page
+      - page_size
       - results
+      - total_pages
       title: StocktakeList
       type: object
     StocktakeSave:
@@ -13208,10 +13285,6 @@ components:
     StocktakeSearch:
       description: StocktakeSearch wire contract.
       properties:
-        location:
-          default: ''
-          title: Location
-          type: string
         page:
           default: 1
           minimum: 1
@@ -13223,10 +13296,6 @@ components:
           minimum: 1
           title: Page Size
           type: integer
-        q:
-          default: ''
-          title: Q
-          type: string
       title: StocktakeSearch
       type: object
     StocktakeSetup:
@@ -13241,86 +13310,6 @@ components:
       required:
       - adjustment_job_id
       title: StocktakeSetup
-      type: object
-    StocktakeStockList:
-      description: StocktakeStockList wire contract.
-      properties:
-        count:
-          title: Count
-          type: integer
-        results:
-          items:
-            $ref: '#/components/schemas/StocktakeStockOut'
-          title: Results
-          type: array
-      required:
-      - count
-      - results
-      title: StocktakeStockList
-      type: object
-    StocktakeStockOut:
-      description: StocktakeStockOut wire contract.
-      properties:
-        description:
-          title: Description
-          type: string
-        id:
-          format: uuid
-          title: Id
-          type: string
-        inventory_version:
-          title: Inventory Version
-          type: integer
-        location:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Location
-        quantity:
-          title: Quantity
-          type: number
-        unit_cost:
-          title: Unit Cost
-          type: number
-      required:
-      - description
-      - id
-      - inventory_version
-      - location
-      - quantity
-      - unit_cost
-      title: StocktakeStockOut
-      type: object
-    StocktakeStockSearch:
-      description: Bounded identity filtering also refreshes unsaved stock observations.
-      properties:
-        location:
-          default: ''
-          title: Location
-          type: string
-        page:
-          default: 1
-          minimum: 1
-          title: Page
-          type: integer
-        page_size:
-          default: 50
-          maximum: 100
-          minimum: 1
-          title: Page Size
-          type: integer
-        q:
-          default: ''
-          title: Q
-          type: string
-        stock_ids:
-          items:
-            format: uuid
-            type: string
-          maxItems: 100
-          title: Stock Ids
-          type: array
-      title: StocktakeStockSearch
       type: object
     StocktakeSummary:
       description: StocktakeSummary wire contract.
@@ -21462,22 +21451,94 @@ paths:
       - purchasing
   /api/purchasing/stock/:
     get:
-      description: List every active stock item, newest first.
+      description: Paginated stock listing; queries under 3 characters list everything.
       operationId: purchasing_stock_list
-      parameters: []
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          default: ''
+          title: Q
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
+        required: false
+        schema:
+          default: 50
+          title: Page Size
+          type: integer
+      - in: query
+        name: sort_by
+        required: false
+        schema:
+          default: description
+          title: Sort By
+          type: string
+      - in: query
+        name: sort_dir
+        required: false
+        schema:
+          default: asc
+          title: Sort Dir
+          type: string
+      - in: query
+        name: stock_ids
+        required: false
+        schema:
+          items:
+            format: uuid
+            type: string
+          maxItems: 100
+          title: Stock Ids
+          type: array
+      - in: query
+        name: job_id
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job Id
+      - in: query
+        name: location
+        required: false
+        schema:
+          default: ''
+          title: Location
+          type: string
+      - in: query
+        name: countable
+        required: false
+        schema:
+          default: false
+          title: Countable
+          type: boolean
+      - in: query
+        name: include_inactive
+        required: false
+        schema:
+          default: false
+          title: Include Inactive
+          type: boolean
       responses:
         '200':
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/StockItem'
-                title: Response
-                type: array
+                $ref: '#/components/schemas/StockSearchResponse'
           description: OK
       security:
       - CookieJWTAuth: []
-      summary: List active stock
+      summary: List stock
       tags:
       - purchasing
     post:
@@ -21542,6 +21603,46 @@ paths:
           default: asc
           title: Sort Dir
           type: string
+      - in: query
+        name: stock_ids
+        required: false
+        schema:
+          items:
+            format: uuid
+            type: string
+          maxItems: 100
+          title: Stock Ids
+          type: array
+      - in: query
+        name: job_id
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job Id
+      - in: query
+        name: location
+        required: false
+        schema:
+          default: ''
+          title: Location
+          type: string
+      - in: query
+        name: countable
+        required: false
+        schema:
+          default: false
+          title: Countable
+          type: boolean
+      - in: query
+        name: include_inactive
+        required: false
+        schema:
+          default: false
+          title: Include Inactive
+          type: boolean
       responses:
         '200':
           content:
@@ -21687,7 +21788,7 @@ paths:
       - purchasing
   /api/purchasing/stock/{id}/movements/:
     get:
-      description: Read a stock identity's complete movement history.
+      description: Read a bounded page of a stock identity's movement history.
       operationId: stock_movements_list
       parameters:
       - in: path
@@ -21697,15 +21798,26 @@ paths:
           format: uuid
           title: Id
           type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
+        required: false
+        schema:
+          default: 50
+          title: Page Size
+          type: integer
       responses:
         '200':
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/StockMovementOut'
-                title: Response
-                type: array
+                $ref: '#/components/schemas/StockMovementPage'
           description: OK
       security:
       - CookieJWTAuth: []
@@ -21717,20 +21829,6 @@ paths:
       description: List counts with bounded paging and their net inventory value differences.
       operationId: stocktake_list
       parameters:
-      - in: query
-        name: q
-        required: false
-        schema:
-          default: ''
-          title: Q
-          type: string
-      - in: query
-        name: location
-        required: false
-        schema:
-          default: ''
-          title: Location
-          type: string
       - in: query
         name: page
         required: false
@@ -21815,64 +21913,6 @@ paths:
       summary: Setup Create
       tags:
       - purchasing
-  /api/purchasing/stocktakes/stock/:
-    get:
-      description: Search active physical workshop stock, including zero balances.
-      operationId: stocktake_stock_list
-      parameters:
-      - in: query
-        name: q
-        required: false
-        schema:
-          default: ''
-          title: Q
-          type: string
-      - in: query
-        name: location
-        required: false
-        schema:
-          default: ''
-          title: Location
-          type: string
-      - in: query
-        name: page
-        required: false
-        schema:
-          default: 1
-          minimum: 1
-          title: Page
-          type: integer
-      - in: query
-        name: page_size
-        required: false
-        schema:
-          default: 50
-          maximum: 100
-          minimum: 1
-          title: Page Size
-          type: integer
-      - in: query
-        name: stock_ids
-        required: false
-        schema:
-          items:
-            format: uuid
-            type: string
-          maxItems: 100
-          title: Stock Ids
-          type: array
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StocktakeStockList'
-          description: OK
-      security:
-      - CookieJWTAuth: []
-      summary: Stock List
-      tags:
-      - purchasing
   /api/purchasing/stocktakes/{id}/:
     get:
       description: Read a draft or immutable posted count and its current stock versions.
@@ -21952,7 +21992,7 @@ paths:
       - purchasing
   /api/purchasing/stocktakes/{id}/movements/:
     get:
-      description: Read every posted difference on a stocktake.
+      description: Read a bounded page of a count's posted differences.
       operationId: stocktake_movements_list
       parameters:
       - in: path
@@ -21962,15 +22002,26 @@ paths:
           format: uuid
           title: Id
           type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
+        required: false
+        schema:
+          default: 50
+          title: Page Size
+          type: integer
       responses:
         '200':
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/StockMovementOut'
-                title: Response
-                type: array
+                $ref: '#/components/schemas/StockMovementPage'
           description: OK
       security:
       - CookieJWTAuth: []

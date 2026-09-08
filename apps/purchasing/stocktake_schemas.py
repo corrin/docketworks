@@ -87,24 +87,9 @@ class StocktakeList(ResponseSchema):
 
     results: list[StocktakeSummary]
     count: int
-
-
-class StocktakeStockOut(ResponseSchema):
-    """StocktakeStockOut wire contract."""
-
-    id: UUID
-    description: str
-    location: str | None
-    quantity: Quantity
-    unit_cost: Quantity
-    inventory_version: int
-
-
-class StocktakeStockList(ResponseSchema):
-    """StocktakeStockList wire contract."""
-
-    results: list[StocktakeStockOut]
-    count: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class StocktakeSetup(ResponseSchema):
@@ -116,13 +101,5 @@ class StocktakeSetup(ResponseSchema):
 class StocktakeSearch(Schema):
     """StocktakeSearch wire contract."""
 
-    q: str = ""
-    location: str = ""
     page: Annotated[int, Field(ge=1)] = 1
     page_size: Annotated[int, Field(ge=1, le=100)] = 50
-
-
-class StocktakeStockSearch(StocktakeSearch):
-    """Bounded identity filtering also refreshes unsaved stock observations."""
-
-    stock_ids: Annotated[list[UUID], Field(max_length=100)] = Field(default_factory=list)

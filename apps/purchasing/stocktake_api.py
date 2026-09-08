@@ -3,7 +3,7 @@
 from decimal import Decimal
 from uuid import UUID
 
-from django.db.models import Prefetch, Q
+from django.db.models import Prefetch
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 from ninja import Query, Router
@@ -12,6 +12,7 @@ from apps.accounts.auth import authenticated_staff
 from apps.core.auth import CookieJWTAuth
 from apps.core.envelope import require_if_match
 from apps.core.etag import generate_revision_etag
+from apps.core.pagination import paginate
 from apps.purchasing.models import Stock, Stocktake, StocktakeConfiguration, StocktakeLine
 from apps.purchasing.services import stocktake_service
 from apps.purchasing.stocktake_schemas import (
@@ -22,9 +23,6 @@ from apps.purchasing.stocktake_schemas import (
     StocktakeSave,
     StocktakeSearch,
     StocktakeSetup,
-    StocktakeStockList,
-    StocktakeStockOut,
-    StocktakeStockSearch,
     StocktakeSummary,
 )
 
@@ -120,29 +118,6 @@ def setup_create(request: HttpRequest) -> StocktakeSetup:
     return StocktakeSetup(adjustment_job_id=configuration.adjustment_job_id)
 
 
-@router.get("/stock/", response=StocktakeStockList, operation_id="stocktake_stock_list")
-def stock_list(request: HttpRequest, params: Query[StocktakeStockSearch]) -> StocktakeStockList:
-    """Search active physical workshop stock, including zero balances."""
-    authenticated_staff(request)
-    rows = Stock.objects.filter(job=Stock.get_stock_holding_job(), is_active=True).exclude(
-        source="product_catalog"
-    )
-    if params.stock_ids:
-        rows = rows.filter(id__in=params.stock_ids)
-    if params.q:
-        rows = rows.filter(Q(description__icontains=params.q) | Q(item_code__icontains=params.q))
-    if params.location:
-        rows = rows.filter(location__icontains=params.location)
-    offset = (params.page - 1) * params.page_size
-    return StocktakeStockList(
-        count=rows.count(),
-        results=[
-            StocktakeStockOut.model_validate(stock)
-            for stock in rows.order_by("description", "id")[offset : offset + params.page_size]
-        ],
-    )
-
-
 @router.get("/", response=StocktakeList, operation_id="stocktake_list")
 def count_list(request: HttpRequest, params: Query[StocktakeSearch]) -> StocktakeList:
     """List counts with bounded paging and their net inventory value differences."""
@@ -152,10 +127,13 @@ def count_list(request: HttpRequest, params: Query[StocktakeSearch]) -> Stocktak
         .prefetch_related("lines")
         .order_by("-created_at", "id")
     )
-    offset = (params.page - 1) * params.page_size
+    page = paginate(rows, page=params.page, page_size=params.page_size)
     return StocktakeList(
-        count=rows.count(),
-        results=[_summary(count) for count in rows[offset : offset + params.page_size]],
+        count=page.count,
+        page=page.page,
+        page_size=page.page_size,
+        total_pages=page.total_pages,
+        results=[_summary(count) for count in page.rows],
     )
 
 

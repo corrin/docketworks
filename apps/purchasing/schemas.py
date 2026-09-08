@@ -7,11 +7,11 @@ only here so model and response declarations cannot drift (ADR 0039).
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from ninja import Schema
-from pydantic import field_validator
+from pydantic import Field, field_validator
 
 from apps.company.schemas import SupplierPickupAddressOut, clean_optional_email
 from apps.core.schemas import NullableText, Quantity, ResponseSchema, omittable
@@ -40,6 +40,11 @@ class StockSearchQuery(Schema):
     page_size: int = 50
     sort_by: str = "description"
     sort_dir: str = "asc"
+    stock_ids: Annotated[list[UUID], Field(max_length=100)] = Field(default_factory=list)
+    job_id: UUID | None = None
+    location: str = ""
+    countable: bool = False
+    include_inactive: bool = False
 
 
 class SupplierSearchQuery(Schema):
@@ -452,6 +457,9 @@ class StockItem(Schema):
     is_active: bool
     job_id: UUID | None
     times_used: int
+    inventory_version: int
+    can_count: bool
+    can_retire: bool
 
 
 class StockItemRequest(Schema):

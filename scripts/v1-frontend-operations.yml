@@ -616,7 +616,6 @@ introduced:
 - stocktake_retrieve
 - stocktake_setup_create
 - stocktake_setup_retrieve
-- stocktake_stock_list
 - stocktake_update
 - ai_providers_test
 # GPT: Public ChatKit domain configuration and CSRF token for the job-scoped SDK embed.

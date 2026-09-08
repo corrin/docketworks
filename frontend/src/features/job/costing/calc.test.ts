@@ -38,6 +38,9 @@ const line = (overrides: Partial<CostLineOut> = {}): CostLineOut => ({
 })
 
 const stock = (overrides: Partial<StockItem> = {}): StockItem => ({
+  can_count: false,
+  can_retire: false,
+  inventory_version: 0,
   alloy: null,
   date: '2026-08-01',
   description: 'Steel plate 3mm',

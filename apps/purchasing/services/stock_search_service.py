@@ -14,6 +14,7 @@ import math
 import re
 from dataclasses import dataclass
 from typing import Final, TypedDict
+from uuid import UUID
 
 from django.contrib.postgres.search import SearchQuery, SearchRank, SearchVector
 from django.db.models import Count, Q, QuerySet
@@ -22,7 +23,7 @@ from django.db.models.expressions import CombinedExpression
 from apps.core.pagination import paginate
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import Stock
-from apps.purchasing.services.stock_service import StockItemData, stock_item_data
+from apps.purchasing.services.stock_service import StockItemData, countable_stock, stock_item_data
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +113,37 @@ class StockSearchPage(TypedDict):
     page: int
     page_size: int
     total_pages: int
+
+
+@dataclass(frozen=True, slots=True)
+class StockSearchOptions:
+    """Stock scope applied before candidate retrieval, ranking and pagination."""
+
+    query: str | None = None
+    page: int = 1
+    page_size: int = 50
+    sort_by: str = "description"
+    sort_dir: str = "asc"
+    stock_ids: tuple[UUID, ...] = ()
+    job_id: UUID | None = None
+    location: str = ""
+    countable: bool = False
+    include_inactive: bool = False
+
+    def queryset(self) -> QuerySet[Stock]:
+        """Select the requested identities before ranking or paging."""
+        rows = Stock.objects.all()
+        if not self.include_inactive:
+            rows = rows.filter(is_active=True)
+        if self.countable:
+            rows = rows.filter(pk__in=countable_stock().values("pk"))
+        if self.stock_ids:
+            rows = rows.filter(pk__in=self.stock_ids)
+        if self.job_id is not None:
+            rows = rows.filter(job_id=self.job_id)
+        if self.location:
+            rows = rows.filter(location__icontains=self.location)
+        return rows
 
 
 def apply_text_search(
@@ -357,11 +389,9 @@ def _candidate_numeric_terms(text: str) -> set[str]:
     }
 
 
-def _candidate_queryset(query: str) -> QuerySet[Stock]:
+def _candidate_queryset(query: str, queryset: QuerySet[Stock]) -> QuerySet[Stock]:
     normalized_query = _normalize_search_query(query)
     expanded_query = _expand_aliases(normalized_query)
-    queryset = Stock.objects.filter(is_active=True)
-
     candidate_ids = set(
         apply_text_search(queryset, normalized_query, STOCK_SEARCH_VECTOR).values_list(
             "id", flat=True
@@ -388,12 +418,14 @@ def _candidate_queryset(query: str) -> QuerySet[Stock]:
     return queryset
 
 
-def _sorted_stock_matches(query: str) -> tuple[list[Stock], dict[str, int]]:
+def _sorted_stock_matches(
+    query: str, queryset: QuerySet[Stock]
+) -> tuple[list[Stock], dict[str, int]]:
     normalized = _normalize_search_query(query)
     usage_counts = _usage_counts_by_item_code()
     query_features = _build_features(normalized)
     scored: list[tuple[float, Stock]] = []
-    for stock in _candidate_queryset(normalized):
+    for stock in _candidate_queryset(normalized, queryset):
         score = _score_stock(stock, query_features, usage_counts)
         if score > 0:
             scored.append((score, stock))
@@ -402,23 +434,27 @@ def _sorted_stock_matches(query: str) -> tuple[list[Stock], dict[str, int]]:
 
 
 def _serialize(items: list[Stock], usage_counts: dict[str, int]) -> list[StockItemData]:
+    if not items:
+        return []
+    eligible_ids = set(
+        countable_stock().filter(pk__in=[item.pk for item in items]).values_list("pk", flat=True)
+    )
     return [
-        stock_item_data(stock, times_used=usage_counts.get(stock.item_code or "", 0))
+        stock_item_data(
+            stock,
+            times_used=usage_counts.get(stock.item_code or "", 0),
+            countable=stock.pk in eligible_ids,
+        )
         for stock in items
     ]
 
 
-def list_stock(
-    *,
-    query: str | None = None,
-    page: int = 1,
-    page_size: int = 50,
-    sort_by: str = "description",
-    sort_dir: str = "asc",
-) -> StockSearchPage:
-    """Paginated stock listing, optionally filtered and ranked by ``query``."""
-    sort_field = ALLOWED_SORT_FIELDS.get(sort_by, "description")
-    if sort_dir.lower() == "desc":
+def list_stock(options: StockSearchOptions) -> StockSearchPage:
+    """Return one page from the shared stock search and eligibility rules."""
+    query, page, page_size = options.query, options.page, options.page_size
+    queryset = options.queryset()
+    sort_field = ALLOWED_SORT_FIELDS.get(options.sort_by, "description")
+    if options.sort_dir.lower() == "desc":
         sort_field = f"-{sort_field}"
 
     if query:
@@ -427,13 +463,13 @@ def list_stock(
             query,
             page,
             page_size,
-            sort_by,
-            sort_dir,
+            options.sort_by,
+            options.sort_dir,
         )
-        ranked, usage_counts = _sorted_stock_matches(query)
+        ranked, usage_counts = _sorted_stock_matches(query, queryset)
         result = paginate(ranked, page=page, page_size=page_size)
     else:
-        queryset = Stock.objects.filter(is_active=True).order_by(sort_field, "id")
+        queryset = queryset.order_by(sort_field, "id")
         result = paginate(queryset, page=page, page_size=page_size)
         usage_counts = _usage_counts_by_item_code()
 

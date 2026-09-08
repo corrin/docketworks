@@ -26,6 +26,7 @@ from typing import TypedDict
 from uuid import UUID
 
 from django.db import transaction
+from django.db.models import QuerySet
 from django.utils import timezone
 
 from apps.accounts.models import Staff
@@ -59,6 +60,9 @@ class StockItemData(TypedDict):
     is_active: bool
     job_id: UUID | None
     times_used: int
+    inventory_version: int
+    can_count: bool
+    can_retire: bool
 
 
 class StockWriteData(TypedDict, total=False):
@@ -78,8 +82,19 @@ class StockWriteData(TypedDict, total=False):
     is_active: bool
 
 
-def stock_item_data(stock: Stock, *, times_used: int = 0) -> StockItemData:
-    """Serialise one Stock row."""
+def countable_stock() -> QuerySet[Stock]:
+    """Select eligible physical stock for both the picker and count writes."""
+    return Stock.objects.filter(is_active=True, job=Stock.get_stock_holding_job()).exclude(
+        source="product_catalog"
+    )
+
+
+def stock_item_data(
+    stock: Stock, *, times_used: int = 0, countable: bool | None = None
+) -> StockItemData:
+    """Serialize stock; list callers supply eligibility from one page-wide lookup."""
+    if countable is None:
+        countable = countable_stock().filter(pk=stock.pk).exists()
     return {
         "id": stock.id,
         "item_code": stock.item_code,
@@ -96,6 +111,9 @@ def stock_item_data(stock: Stock, *, times_used: int = 0) -> StockItemData:
         "is_active": stock.is_active,
         "job_id": stock.job_id,
         "times_used": times_used,
+        "inventory_version": stock.inventory_version,
+        "can_count": countable,
+        "can_retire": stock.is_active and stock.quantity == 0,
     }
 
 

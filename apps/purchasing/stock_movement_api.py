@@ -3,12 +3,14 @@
 from datetime import datetime
 from uuid import UUID
 
+from django.db.models import QuerySet
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router
 
 from apps.accounts.auth import authenticated_staff
 from apps.core.auth import CookieJWTAuth
+from apps.core.pagination import paginate
 from apps.core.schemas import Quantity, ResponseSchema
 from apps.purchasing.models import StockMovement, StockMovementKind
 from apps.purchasing.services.stock_movement_service import is_returnable_issue, reverse_issue
@@ -33,6 +35,16 @@ class StockMovementOut(ResponseSchema):
     counterpart_job_id: UUID | None
     counterpart_name: str
     can_return: bool
+
+
+class StockMovementPage(ResponseSchema):
+    """Bound movement responses using the shared pagination envelope."""
+
+    results: list[StockMovementOut]
+    count: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 def movement_data(movement: StockMovement, reversed_ids: set[UUID]) -> StockMovementOut:
@@ -60,40 +72,52 @@ def movement_data(movement: StockMovement, reversed_ids: set[UUID]) -> StockMove
 
 @router.get(
     "/stock/{uuid:id}/movements/",
-    response=list[StockMovementOut],
+    response=StockMovementPage,
     operation_id="stock_movements_list",
 )
-def stock_history(request: HttpRequest, id: UUID) -> list[StockMovementOut]:
-    """Read a stock identity's complete movement history."""
+def stock_history(
+    request: HttpRequest, id: UUID, page: int = 1, page_size: int = 50
+) -> StockMovementPage:
+    """Read a bounded page of a stock identity's movement history."""
     authenticated_staff(request)
-    movements = list(
-        StockMovement.objects.filter(stock_id=id)
-        .select_related("stock", "actor", "counterpart_job", "cost_line")
-        .order_by("recorded_at", "id")
-    )
-    reversed_ids = set(
-        StockMovement.objects.filter(reverses__in=movements).values_list("reverses_id", flat=True)
-    )
-    return [
-        movement_data(movement, {pk for pk in reversed_ids if pk is not None})
-        for movement in movements
-    ]
+    return _movement_page(StockMovement.objects.filter(stock_id=id), page, page_size)
 
 
 @router.get(
     "/stocktakes/{uuid:id}/movements/",
-    response=list[StockMovementOut],
+    response=StockMovementPage,
     operation_id="stocktake_movements_list",
 )
-def count_history(request: HttpRequest, id: UUID) -> list[StockMovementOut]:
-    """Read every posted difference on a stocktake."""
+def count_history(
+    request: HttpRequest, id: UUID, page: int = 1, page_size: int = 50
+) -> StockMovementPage:
+    """Read a bounded page of a count's posted differences."""
     authenticated_staff(request)
-    movements = (
-        StockMovement.objects.filter(stocktake_line__stocktake_id=id)
-        .select_related("stock", "actor", "counterpart_job", "cost_line")
-        .order_by("recorded_at", "id")
+    return _movement_page(
+        StockMovement.objects.filter(stocktake_line__stocktake_id=id), page, page_size
     )
-    return [movement_data(movement, set()) for movement in movements]
+
+
+def _movement_page(
+    movements: QuerySet[StockMovement], page: int, page_size: int
+) -> StockMovementPage:
+    result = paginate(
+        movements.select_related("stock", "actor", "counterpart_job", "cost_line").order_by(
+            "recorded_at", "id"
+        ),
+        page=page,
+        page_size=page_size,
+    )
+    reversed_ids = set(
+        StockMovement.objects.filter(reverses__in=result.rows).values_list("reverses_id", flat=True)
+    )
+    return StockMovementPage(
+        count=result.count,
+        page=result.page,
+        page_size=result.page_size,
+        total_pages=result.total_pages,
+        results=[movement_data(movement, reversed_ids) for movement in result.rows],
+    )
 
 
 @router.post(

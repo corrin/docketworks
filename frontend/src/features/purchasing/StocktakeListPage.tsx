@@ -1,17 +1,18 @@
-import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useInfiniteQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
 import {
   apiErrorMessage,
   stocktakeCreateMutation,
-  stocktakeListOptions,
+  stocktakeListInfiniteOptions,
   stocktakeSetupCreateMutation,
   stocktakeSetupRetrieveOptions,
 } from '@/api'
 import { Button } from '@/components/ui/button'
 import { ListTable } from '@/features/shared/ListTable'
+import { LoadMoreSentinel } from '@/features/shared/LoadMoreSentinel'
+import { nextPageParam } from '@/features/shared/nextPageParam'
 import { QueryState } from '@/features/shared/QueryState'
 import { formatCurrency, formatDateTime } from '@/lib/format'
 
@@ -19,8 +20,14 @@ const failure = (error: unknown) => toast.error(apiErrorMessage(error, 'Unable t
 
 export function StocktakeListPage() {
   const navigate = useNavigate()
-  const [page, setPage] = useState(1)
-  const list = useQuery(stocktakeListOptions({ query: { page } }))
+  const list = useInfiniteQuery({
+    ...stocktakeListInfiniteOptions(),
+    initialPageParam: 1,
+    getNextPageParam: nextPageParam,
+    refetchOnWindowFocus: false,
+  })
+  const rows = list.data?.pages.flatMap((page) => page.results)
+  const lastPage = list.data?.pages.at(-1)
   const setup = useQuery(stocktakeSetupRetrieveOptions())
   const configure = useMutation(stocktakeSetupCreateMutation())
   const create = useMutation(stocktakeCreateMutation())
@@ -85,15 +92,38 @@ export function StocktakeListPage() {
         loadingLabel="Loading counts…"
         errorLabel="Unable to load counts."
         emptyLabel="No stocktakes yet."
-        rows={list.data?.results}
+        rows={rows}
         wrapperClassName="max-h-[65vh]"
         head={
           <tr>
-            <th className="p-3 text-left">Date</th>
-            <th className="p-3 text-left">Counted by</th>
-            <th className="p-3 text-left">Status</th>
-            <th className="p-3 text-right">Stock value difference</th>
+            <th scope="col" className="p-3 text-left">
+              Date
+            </th>
+            <th scope="col" className="p-3 text-left">
+              Counted by
+            </th>
+            <th scope="col" className="p-3 text-left">
+              Status
+            </th>
+            <th scope="col" className="p-3 text-right">
+              Stock value difference
+            </th>
           </tr>
+        }
+        footer={
+          rows !== undefined &&
+          lastPage !== undefined && (
+            <LoadMoreSentinel
+              automationId="StocktakeList-load-more"
+              noun="stocktakes"
+              shown={rows.length}
+              total={lastPage.count}
+              hasNextPage={list.hasNextPage}
+              isFetchingNextPage={list.isFetchingNextPage}
+              isFetchNextPageError={list.isFetchNextPageError}
+              onLoadMore={() => void list.fetchNextPage()}
+            />
+          )
         }
         renderRow={(count) => (
           <tr key={count.id} className="border-b">
@@ -112,22 +142,6 @@ export function StocktakeListPage() {
           </tr>
         )}
       />
-      {list.data && (
-        <div className="flex items-center gap-3">
-          <span>{list.data.count} stocktakes</span>
-          <Button variant="outline" disabled={page === 1} onClick={() => setPage(page - 1)}>
-            Previous
-          </Button>
-          <span>Page {page}</span>
-          <Button
-            variant="outline"
-            disabled={page * 50 >= list.data.count}
-            onClick={() => setPage(page + 1)}
-          >
-            Next
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

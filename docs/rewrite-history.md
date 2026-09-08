@@ -1074,3 +1074,21 @@ fixture lacked its required accounting date and was corrected. All six audit
 cases then passed, as did strict mypy. Omitting the chain audit made its regression
 fail. The local read-only command still refuses the eight known unresolved
 receipt-opening candidates; no dispositions or repairs were applied.
+
+## 2026-09-08 — Shared stock search and bounded history (PR #151)
+
+Stock navigation and the count picker now share ranked search, with eligibility,
+identity, location and job filters applied before ranking and pagination. Responses
+include inventory versions and server-owned count/retirement capabilities. Retired
+identities remain discoverable explicitly; their movement history remains readable.
+The separate stocktake stock-search endpoint was removed and its consumers migrated.
+
+Stock, stocktake and movement collections use the shared pagination envelope and
+frontend LoadMoreSentinel inside bounded ListTable scroll panes. Quantity display
+uses the shared formatter. Browser assertions use named stock fields instead of
+column positions and exercise the new search/count-list contracts.
+
+The targeted backend run passed 85 tests; the eligibility tests were observed
+failing before the implementation. The complete backend run passed 3,115 tests
+and 27 targeted frontend unit tests passed. Browser execution and production-data rehearsal
+remain subject to the inventory repair gate recorded above.

@@ -11,14 +11,14 @@ import { DataTable } from '@/features/shared/DataTable'
 import { editableGridFeatures } from '@/features/shared/editableGridTable'
 import { trimDecimal } from '@/features/shared/decimal'
 import { formatCurrency } from '@/lib/format'
-import type { StocktakeStockOut, StocktakeLineWrite } from '@/api'
+import type { StockItem, StocktakeLineWrite } from '@/api'
 
 export type CountRow = StocktakeLineWrite & { unitCostInput: string; countInput: string }
 interface CountContext {
   readOnly: boolean
   update: (id: string, patch: Partial<CountRow>) => void
   remove: (id: string) => void
-  current: ReadonlyMap<string, StocktakeStockOut>
+  current: ReadonlyMap<string, StockItem>
   recount: (id: string) => void
 }
 declare module '@tanstack/react-table' {
@@ -168,14 +168,14 @@ const columns = [
       const stale =
         current &&
         (current.inventory_version !== row.expected_version ||
-          current.quantity !== row.expected_quantity ||
-          current.unit_cost !== row.unit_cost)
+          Number(current.quantity) !== row.expected_quantity ||
+          Number(current.unit_cost) !== row.unit_cost)
       return (
         <div className="space-y-2">
           {stale && (
             <>
               <p className="text-amber-800">
-                Stock changed: now {trimDecimal(String(current.quantity))}. Recount required.
+                Stock changed: now {trimDecimal(current.quantity)}. Recount required.
               </p>
               <Button size="sm" variant="outline" onClick={() => ctx.recount(row.id)}>
                 Recount

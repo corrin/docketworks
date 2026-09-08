@@ -28,7 +28,7 @@ class TestStockCrud:
         newer = make_stock(stock_holding_job, description="Newer")
         make_stock(stock_holding_job, description="Retired", is_active=False)
 
-        rows = api.get(STOCK_URL).json()
+        rows = api.get(STOCK_URL).json()["results"]
 
         assert [row["description"] for row in rows] == [newer.description, older.description]
 

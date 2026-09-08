@@ -104,7 +104,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 218 |
-| non-test functions | 2710 |
+| non-test functions | 2711 |
 
 ## Wire contract (response side)
 
@@ -112,7 +112,7 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 314 |
-| response properties | 1997 |
+| response schemas | 313 |
+| response properties | 2000 |
 | optional (pinned at zero) | 0 |
-| nullable | 433 |
+| nullable | 432 |

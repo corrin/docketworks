@@ -11264,6 +11264,14 @@ export type StockItem = {
      */
     alloy: string | null;
     /**
+     * Can Count
+     */
+    can_count: boolean;
+    /**
+     * Can Retire
+     */
+    can_retire: boolean;
+    /**
      * Date
      */
     date: string;
@@ -11275,6 +11283,10 @@ export type StockItem = {
      * Id
      */
     id: string;
+    /**
+     * Inventory Version
+     */
+    inventory_version: number;
     /**
      * Is Active
      */
@@ -11450,11 +11462,55 @@ export type StockMovementOut = {
 };
 
 /**
+ * StockMovementPage
+ *
+ * Bound movement responses using the shared pagination envelope.
+ */
+export type StockMovementPage = {
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Page
+     */
+    page: number;
+    /**
+     * Page Size
+     */
+    page_size: number;
+    /**
+     * Results
+     */
+    results: Array<StockMovementOut>;
+    /**
+     * Total Pages
+     */
+    total_pages: number;
+};
+
+/**
  * StockSearchQuery
  *
  * Query params for purchasing_stock_search_retrieve.
  */
 export type StockSearchQuery = {
+    /**
+     * Countable
+     */
+    countable?: boolean;
+    /**
+     * Include Inactive
+     */
+    include_inactive?: boolean;
+    /**
+     * Job Id
+     */
+    job_id?: string | null;
+    /**
+     * Location
+     */
+    location?: string;
     /**
      * Page
      */
@@ -11475,6 +11531,10 @@ export type StockSearchQuery = {
      * Sort Dir
      */
     sort_dir?: string;
+    /**
+     * Stock Ids
+     */
+    stock_ids?: Array<string>;
 };
 
 /**
@@ -11680,9 +11740,21 @@ export type StocktakeList = {
      */
     count: number;
     /**
+     * Page
+     */
+    page: number;
+    /**
+     * Page Size
+     */
+    page_size: number;
+    /**
      * Results
      */
     results: Array<StocktakeSummary>;
+    /**
+     * Total Pages
+     */
+    total_pages: number;
 };
 
 /**
@@ -11704,10 +11776,6 @@ export type StocktakeSave = {
  */
 export type StocktakeSearch = {
     /**
-     * Location
-     */
-    location?: string;
-    /**
      * Page
      */
     page?: number;
@@ -11715,10 +11783,6 @@ export type StocktakeSearch = {
      * Page Size
      */
     page_size?: number;
-    /**
-     * Q
-     */
-    q?: string;
 };
 
 /**
@@ -11731,82 +11795,6 @@ export type StocktakeSetup = {
      * Adjustment Job Id
      */
     adjustment_job_id: string | null;
-};
-
-/**
- * StocktakeStockList
- *
- * StocktakeStockList wire contract.
- */
-export type StocktakeStockList = {
-    /**
-     * Count
-     */
-    count: number;
-    /**
-     * Results
-     */
-    results: Array<StocktakeStockOut>;
-};
-
-/**
- * StocktakeStockOut
- *
- * StocktakeStockOut wire contract.
- */
-export type StocktakeStockOut = {
-    /**
-     * Description
-     */
-    description: string;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Inventory Version
-     */
-    inventory_version: number;
-    /**
-     * Location
-     */
-    location: string | null;
-    /**
-     * Quantity
-     */
-    quantity: number;
-    /**
-     * Unit Cost
-     */
-    unit_cost: number;
-};
-
-/**
- * StocktakeStockSearch
- *
- * Bounded identity filtering also refreshes unsaved stock observations.
- */
-export type StocktakeStockSearch = {
-    /**
-     * Location
-     */
-    location?: string;
-    /**
-     * Page
-     */
-    page?: number;
-    /**
-     * Page Size
-     */
-    page_size?: number;
-    /**
-     * Q
-     */
-    q?: string;
-    /**
-     * Stock Ids
-     */
-    stock_ids?: Array<string>;
 };
 
 /**
@@ -18387,17 +18375,56 @@ export type StockMovementReturnResponse = StockMovementReturnResponses[keyof Sto
 export type PurchasingStockListData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string;
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
+        /**
+         * Sort By
+         */
+        sort_by?: string;
+        /**
+         * Sort Dir
+         */
+        sort_dir?: string;
+        /**
+         * Stock Ids
+         */
+        stock_ids?: Array<string>;
+        /**
+         * Job Id
+         */
+        job_id?: string | null;
+        /**
+         * Location
+         */
+        location?: string;
+        /**
+         * Countable
+         */
+        countable?: boolean;
+        /**
+         * Include Inactive
+         */
+        include_inactive?: boolean;
+    };
     url: '/api/purchasing/stock/';
 };
 
 export type PurchasingStockListResponses = {
     /**
-     * Response
-     *
      * OK
      */
-    200: Array<StockItem>;
+    200: StockSearchResponse;
 };
 
 export type PurchasingStockListResponse = PurchasingStockListResponses[keyof PurchasingStockListResponses];
@@ -18442,6 +18469,26 @@ export type PurchasingStockSearchRetrieveData = {
          * Sort Dir
          */
         sort_dir?: string;
+        /**
+         * Stock Ids
+         */
+        stock_ids?: Array<string>;
+        /**
+         * Job Id
+         */
+        job_id?: string | null;
+        /**
+         * Location
+         */
+        location?: string;
+        /**
+         * Countable
+         */
+        countable?: boolean;
+        /**
+         * Include Inactive
+         */
+        include_inactive?: boolean;
     };
     url: '/api/purchasing/stock/search/';
 };
@@ -18568,17 +18615,24 @@ export type StockMovementsListData = {
          */
         id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
+    };
     url: '/api/purchasing/stock/{id}/movements/';
 };
 
 export type StockMovementsListResponses = {
     /**
-     * Response
-     *
      * OK
      */
-    200: Array<StockMovementOut>;
+    200: StockMovementPage;
 };
 
 export type StockMovementsListResponse = StockMovementsListResponses[keyof StockMovementsListResponses];
@@ -18587,14 +18641,6 @@ export type StocktakeListData = {
     body?: never;
     path?: never;
     query?: {
-        /**
-         * Q
-         */
-        q?: string;
-        /**
-         * Location
-         */
-        location?: string;
         /**
          * Page
          */
@@ -18663,43 +18709,6 @@ export type StocktakeSetupCreateResponses = {
 };
 
 export type StocktakeSetupCreateResponse = StocktakeSetupCreateResponses[keyof StocktakeSetupCreateResponses];
-
-export type StocktakeStockListData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Q
-         */
-        q?: string;
-        /**
-         * Location
-         */
-        location?: string;
-        /**
-         * Page
-         */
-        page?: number;
-        /**
-         * Page Size
-         */
-        page_size?: number;
-        /**
-         * Stock Ids
-         */
-        stock_ids?: Array<string>;
-    };
-    url: '/api/purchasing/stocktakes/stock/';
-};
-
-export type StocktakeStockListResponses = {
-    /**
-     * OK
-     */
-    200: StocktakeStockList;
-};
-
-export type StocktakeStockListResponse = StocktakeStockListResponses[keyof StocktakeStockListResponses];
 
 export type StocktakeRetrieveData = {
     body?: never;
@@ -18772,17 +18781,24 @@ export type StocktakeMovementsListData = {
          */
         id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
+    };
     url: '/api/purchasing/stocktakes/{id}/movements/';
 };
 
 export type StocktakeMovementsListResponses = {
     /**
-     * Response
-     *
      * OK
      */
-    200: Array<StockMovementOut>;
+    200: StockMovementPage;
 };
 
 export type StocktakeMovementsListResponse = StocktakeMovementsListResponses[keyof StocktakeMovementsListResponses];

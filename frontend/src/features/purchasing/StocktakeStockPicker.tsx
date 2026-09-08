@@ -1,51 +1,53 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 
-import { stocktakeStockListOptions, type StocktakeStockOut } from '@/api'
+import { purchasingStockSearchRetrieveInfiniteOptions, type StockItem } from '@/api'
 import { Button } from '@/components/ui/button'
-import { INPUT_CLASS } from '@/components/ui/field'
+import { SearchInput } from '@/features/shared/SearchInput'
+import { LoadMoreSentinel } from '@/features/shared/LoadMoreSentinel'
+import { nextPageParam } from '@/features/shared/nextPageParam'
 import { ListTable } from '@/features/shared/ListTable'
 import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '@/features/shared/useDebouncedValue'
-import { trimDecimal } from '@/features/shared/decimal'
+import { formatQuantity } from '@/lib/format'
 
 export function StocktakeStockPicker({
   onSelect,
   selected,
 }: {
-  onSelect: (stock: StocktakeStockOut) => void
+  onSelect: (stock: StockItem) => void
   selected: ReadonlySet<string>
 }) {
   const [search, setSearch] = useState('')
   const [location, setLocation] = useState('')
-  const [page, setPage] = useState(1)
   const query = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   const place = useDebouncedValue(location, SEARCH_DEBOUNCE_MS)
-  const stock = useQuery(stocktakeStockListOptions({ query: { q: query, location: place, page } }))
+  const stock = useInfiniteQuery({
+    ...purchasingStockSearchRetrieveInfiniteOptions({
+      query: { q: query, location: place, countable: true },
+    }),
+    initialPageParam: 1,
+    getNextPageParam: nextPageParam,
+    refetchOnWindowFocus: false,
+  })
+  const rows = stock.data?.pages.flatMap((page) => page.results)
+  const lastPage = stock.data?.pages.at(-1)
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap gap-3">
-        <label>
-          Search stock
-          <input
-            className={INPUT_CLASS}
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value)
-              setPage(1)
-            }}
-          />
-        </label>
-        <label>
-          Location
-          <input
-            className={INPUT_CLASS}
-            value={location}
-            onChange={(event) => {
-              setLocation(event.target.value)
-              setPage(1)
-            }}
-          />
-        </label>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          label="Search stock"
+          placeholder="Search workshop stock"
+          automationId="StocktakePicker-search"
+        />
+        <SearchInput
+          value={location}
+          onChange={setLocation}
+          label="Location"
+          placeholder="Filter location"
+          automationId="StocktakePicker-location"
+        />
       </div>
       <ListTable
         isPending={stock.isPending}
@@ -54,21 +56,44 @@ export function StocktakeStockPicker({
         loadingLabel="Searching stock…"
         errorLabel="Unable to search stock."
         emptyLabel="No matching workshop stock. Use Add found item for new material."
-        rows={stock.data?.results}
+        rows={rows}
         wrapperClassName="max-h-64"
         head={
           <tr>
-            <th className="p-2 text-left">Item</th>
-            <th className="p-2 text-left">Location</th>
-            <th className="p-2">Recorded</th>
-            <th className="p-2">Count</th>
+            <th scope="col" className="p-2 text-left">
+              Item
+            </th>
+            <th scope="col" className="p-2 text-left">
+              Location
+            </th>
+            <th scope="col" className="p-2">
+              Recorded
+            </th>
+            <th scope="col" className="p-2">
+              Count
+            </th>
           </tr>
+        }
+        footer={
+          rows !== undefined &&
+          lastPage !== undefined && (
+            <LoadMoreSentinel
+              automationId="StocktakePicker-load-more"
+              noun="stock items"
+              shown={rows.length}
+              total={lastPage.count}
+              hasNextPage={stock.hasNextPage}
+              isFetchingNextPage={stock.isFetchingNextPage}
+              isFetchNextPageError={stock.isFetchNextPageError}
+              onLoadMore={() => void stock.fetchNextPage()}
+            />
+          )
         }
         renderRow={(item) => (
           <tr key={item.id}>
             <td className="p-2">{item.description}</td>
             <td className="p-2">{item.location}</td>
-            <td className="p-2">{trimDecimal(String(item.quantity))}</td>
+            <td className="p-2">{formatQuantity(Number(item.quantity))}</td>
             <td className="p-2">
               <Button
                 variant="outline"
@@ -82,21 +107,6 @@ export function StocktakeStockPicker({
           </tr>
         )}
       />
-      {stock.data && (
-        <div className="flex items-center gap-3">
-          <span>{stock.data.count} stock items</span>
-          <Button variant="outline" disabled={page === 1} onClick={() => setPage(page - 1)}>
-            Previous items
-          </Button>
-          <Button
-            variant="outline"
-            disabled={page * 50 >= stock.data.count}
-            onClick={() => setPage(page + 1)}
-          >
-            Next items
-          </Button>
-        </div>
-      )}
     </section>
   )
 }

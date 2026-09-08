@@ -22,6 +22,7 @@ from apps.purchasing.models import (
 )
 from apps.purchasing.services.allocation_service import ensure_actual_cost_set
 from apps.purchasing.services.stock_movement_service import MovementContext, move_stock
+from apps.purchasing.services.stock_service import countable_stock
 from apps.purchasing.stocktake_schemas import StocktakeLineWrite, StocktakeSave
 
 
@@ -48,11 +49,7 @@ def configure_stocktake(staff: Staff) -> StocktakeConfiguration:
 
 def require_workshop_stock(stock: Stock) -> None:
     """Require unassigned physical workshop stock."""
-    if (
-        not stock.is_active
-        or stock.job_id != Stock.get_stock_holding_job().id
-        or stock.source == "product_catalog"
-    ):
+    if not countable_stock().filter(pk=stock.pk).exists():
         raise InvalidInputError("Count only unassigned workshop stock.")
 
 

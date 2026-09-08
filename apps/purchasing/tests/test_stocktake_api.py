@@ -336,7 +336,7 @@ def test_count_picker_includes_active_zero_workshop_material_only(
     make_stock(stock_holding_job, description="Retired sheet", quantity="0", is_active=False)
     make_stock(job, description="Assigned sheet")
     make_stock(stock_holding_job, description="Catalogue sheet", source="product_catalog")
-    response = api.get(f"{URL}stock/", {"q": "sheet"})
+    response = api.get("/api/purchasing/stock/search/", {"q": "sheet", "countable": "true"})
     assert response.status_code == 200, response.content
     assert [row["id"] for row in response.json()["results"]] == [str(zero.id)]
     assert response.json()["count"] == 1
@@ -393,12 +393,14 @@ def test_stock_observation_refresh_includes_unsaved_selected_items(
     selected = make_stock(stock_holding_job, quantity="10")
     make_stock(stock_holding_job, quantity="99")
     consume_stock(item=selected, job=job, qty=Decimal("2"), user=office_staff)
-    response = api.get(f"{URL}stock/", {"stock_ids": [str(selected.id)]})
+    response = api.get(
+        "/api/purchasing/stock/search/?countable=true", {"stock_ids": [str(selected.id)]}
+    )
     assert response.status_code == 200, response.content
     assert response.json()["count"] == 1
     row = response.json()["results"][0]
     assert row["id"] == str(selected.id)
-    assert row["quantity"] == 8
+    assert Decimal(row["quantity"]) == 8
     assert row["inventory_version"] == 1
 
 
