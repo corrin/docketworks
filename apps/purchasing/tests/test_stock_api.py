@@ -284,6 +284,22 @@ class TestConsumeStock:
 
 @pytest.mark.usefixtures("company_defaults")
 class TestStockSearch:
+    @pytest.mark.parametrize("query", ["", "steel"])
+    def test_empty_and_out_of_range_pages_use_the_shared_envelope(
+        self, client: Client, query: str
+    ) -> None:
+        response = client.get(f"{STOCK_URL}search/", {"q": query})
+        assert response.status_code == 200
+        assert response.json() == {
+            "results": [],
+            "count": 0,
+            "page": 1,
+            "page_size": 50,
+            "total_pages": 1,
+        }
+        response = client.get(f"{STOCK_URL}search/", {"q": query, "page": "2"})
+        assert response.status_code == 404
+
     def test_short_queries_list_everything(self, client: Client, stock_holding_job: Job) -> None:
         make_stock(stock_holding_job, description="Alpha")
         make_stock(stock_holding_job, description="Beta")

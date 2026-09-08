@@ -9,7 +9,7 @@ from django.utils import timezone
 from xero_python.accounting import Item, Purchase
 
 from apps.job.models import Job
-from apps.purchasing.models import Stock
+from apps.purchasing.models import Stock, StockMovementKind
 from apps.purchasing.services.stock_movement_service import (
     MovementContext,
     inventory_difference,
@@ -39,14 +39,20 @@ def test_catalogue_refresh_preserves_local_inventory(
         stock = make_stock(stock_holding_job, quantity="0", unit_cost="80")
         stock.xero_id = str(xero_id)
         stock.save(update_fields=["xero_id"])
-        move_stock(stock, Decimal("1"), MovementContext(kind="opening", reason="Opening"))
+        move_stock(
+            stock, Decimal("1"), MovementContext(kind=StockMovementKind.RECEIPT, reason="Receipt")
+        )
     original_apply = transforms._track_and_apply_changes
 
     def apply_with_intervening_receipt(instance: Stock, fields: dict[str, object]) -> list[str]:
         changed = original_apply(instance, fields)
         if existing:
             other = Stock.objects.get(pk=instance.pk)
-            move_stock(other, Decimal("1"), MovementContext(kind="receipt", reason="Delivery"))
+            move_stock(
+                other,
+                Decimal("1"),
+                MovementContext(kind=StockMovementKind.RECEIPT, reason="Delivery"),
+            )
         return changed
 
     with (

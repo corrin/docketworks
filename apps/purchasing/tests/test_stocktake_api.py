@@ -8,9 +8,16 @@ from django.db import DatabaseError, transaction
 from django.test import Client
 
 from apps.accounts.models import Staff
+from apps.core.errors import InvalidInputError
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.purchasing.models import Stock, StockMovement, Stocktake, StocktakeConfiguration
+from apps.purchasing.models import (
+    Stock,
+    StockMovement,
+    StockMovementKind,
+    Stocktake,
+    StocktakeConfiguration,
+)
 from apps.purchasing.services.stock_movement_service import (
     MovementContext,
     inventory_difference,
@@ -21,6 +28,22 @@ from apps.purchasing.tests.conftest import make_stock
 
 pytestmark = pytest.mark.django_db
 URL = "/api/purchasing/stocktakes/"
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [StockMovementKind.OPENING, StockMovementKind.JOB_OPENING, StockMovementKind.RECEIPT_OPENING],
+)
+def test_live_writer_refuses_cutover_observations(
+    stock_holding_job: Job, kind: StockMovementKind
+) -> None:
+    stock = make_stock(stock_holding_job, quantity="0")
+    with pytest.raises(InvalidInputError, match="cutover migration"):
+        move_stock(stock, Decimal("1"), MovementContext(kind=kind, reason="Invalid opening"))
+    stock.refresh_from_db()
+    assert stock.quantity == 0
+    assert stock.inventory_version == 0
+    assert not stock.movements.exists()
 
 
 def start_count(client: Client, stock: Stock) -> str:
@@ -68,8 +91,16 @@ def test_count_balances_workshop_and_adjustment_job(
     recorded: str,
     counted: str,
 ) -> None:
-    stock = make_stock(stock_holding_job, quantity="0", unit_cost="80")
-    move_stock(stock, Decimal(recorded), MovementContext(kind="opening", reason="Test opening"))
+    stock = make_stock(stock_holding_job, quantity=recorded, unit_cost="80")
+    StockMovement.objects.create(
+        stock=stock,
+        kind=StockMovementKind.OPENING,
+        quantity_change=Decimal(recorded),
+        quantity_before=Decimal("0"),
+        quantity_after=Decimal(recorded),
+        unit_cost=Decimal("80"),
+        reason="Cutover opening",
+    )
     count_id = start_count(client, stock)
     version = save_count(client, count_id, stock, counted)
     response = client.post(f"{URL}{count_id}/post/", headers={"If-Match": version})

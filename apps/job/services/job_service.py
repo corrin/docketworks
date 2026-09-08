@@ -46,7 +46,7 @@ from apps.core.etag import (
     updated_at_etag_value,
 )
 from apps.core.models import CompanyDefaults
-from apps.job.enums import RDTIType, SpeedQualityTradeoff
+from apps.job.enums import CostLineOwner, RDTIType, SpeedQualityTradeoff
 from apps.job.models import (
     Job,
     JobDeltaRejection,
@@ -251,7 +251,7 @@ class CostLineData(TypedDict):
     xero_last_modified: datetime | None
     xero_last_synced: datetime | None
     approved: bool
-    managed_by: str | None
+    managed_by: CostLineOwner | None
     xero_pay_item: UUID | None
     staff: UUID | None
     entry_seq: int | None
@@ -581,7 +581,7 @@ def cost_line_data(line: CostLine) -> CostLineData:
         "xero_last_modified": line.xero_last_modified,
         "xero_last_synced": line.xero_last_synced,
         "approved": line.approved,
-        "managed_by": line.managed_by,
+        "managed_by": CostLineOwner(line.managed_by) if line.managed_by is not None else None,
         "xero_pay_item": line.xero_pay_item_id,
         "staff": line.staff_id,
         "entry_seq": line.entry_seq,

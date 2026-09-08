@@ -15,6 +15,7 @@ from ninja import Schema
 from pydantic import ConfigDict, Field, StringConstraints
 
 from apps.core.schemas import NonBlankText, ResponseSchema, omittable
+from apps.job.enums import CostLineOwner
 from apps.job.models import Job, JobDeltaRejection
 
 # ── Shared nested shapes ─────────────────────────────────────────────────
@@ -47,7 +48,7 @@ class CostLineOut(Schema):
     xero_last_modified: datetime | None
     xero_last_synced: datetime | None
     approved: bool
-    managed_by: str | None
+    managed_by: CostLineOwner | None
     xero_pay_item: UUID | None
     staff: UUID | None
     entry_seq: int | None

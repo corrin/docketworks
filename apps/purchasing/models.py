@@ -767,6 +767,19 @@ class StocktakeLine(models.Model):
         return self.description
 
 
+class StockMovementKind(models.TextChoices):
+    """Live postings and the three historical cutover observations."""
+
+    OPENING = "opening", "Opening balance"
+    JOB_OPENING = "job_opening", "Job position at cutover"
+    RECEIPT = "receipt", "Receipt"
+    RECEIPT_OPENING = "receipt_opening", "Received allocation at cutover"
+    RECEIPT_REVERSAL = "receipt_reversal", "Receipt reversal"
+    ISSUE = "issue", "Job issue"
+    RETURN = "return", "Job return"
+    STOCKTAKE = "stocktake", "Stocktake"
+
+
 class StockMovement(models.Model):
     """Signed workshop balance movement; the counterpart receives the opposite quantity."""
 
@@ -777,19 +790,7 @@ class StockMovement(models.Model):
     quantity_after = models.DecimalField(max_digits=11, decimal_places=3)
     opening_quantity = models.DecimalField(max_digits=11, decimal_places=3, null=True, blank=True)
     unit_cost = models.DecimalField(max_digits=10, decimal_places=2)
-    kind = models.CharField(
-        max_length=25,
-        choices=[
-            ("opening", "Opening balance"),
-            ("job_opening", "Job position at cutover"),
-            ("receipt", "Receipt"),
-            ("receipt_opening", "Received allocation at cutover"),
-            ("receipt_reversal", "Receipt reversal"),
-            ("issue", "Job issue"),
-            ("return", "Job return"),
-            ("stocktake", "Stocktake"),
-        ],
-    )
+    kind = models.CharField(max_length=25, choices=StockMovementKind.choices)
     counterpart_job = models.ForeignKey("job.Job", on_delete=models.PROTECT, null=True, blank=True)
     cost_line = models.OneToOneField(
         "job.CostLine", on_delete=models.PROTECT, null=True, blank=True
@@ -804,6 +805,9 @@ class StockMovement(models.Model):
 
     class Meta:
         constraints: ClassVar = [
+            models.CheckConstraint(
+                condition=models.Q(kind__in=StockMovementKind.values), name="movement_known_kind"
+            ),
             models.CheckConstraint(
                 condition=models.Q(
                     quantity_after=models.F("quantity_before") + models.F("quantity_change")

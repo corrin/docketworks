@@ -61,6 +61,7 @@ dependencies = [
     "openai-agents[litellm]>=0.20.0",
     "mcp>=2.1.1",
     "asgiref>=3.12.1",
+    "pydantic-core>=2.46.4",
 ]
 
 [dependency-groups]

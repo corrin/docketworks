@@ -988,3 +988,14 @@ The provider-response identity fields are validated at the integration boundary.
 Validation: 54 reconciliation, sync-direction and document API tests passed,
 including replacement-during-push, stale-manager and duplicate-description
 regressions; strict mypy passed. Live provider verification remains outstanding.
+
+Inventory movement kinds and cost-line workflow owners now share model/wire enums
+and forward database constraints. Ordinary inventory writes refuse all three
+cutover-only kinds. Stocktake inputs reuse bounded Decimal schemas whose numeric
+OpenAPI representation includes capacity, nonnegative bounds and precision;
+explicit zero remains valid. The remaining process and diagnostics staff helpers
+now use the authenticated-staff owner. Ranked stock search and ordinary search
+lists use the same shared paginator, including empty and out-of-range pages.
+Validation: 31 numeric/count/item-import tests and 40 stock API tests passed,
+as did strict mypy and frontend type checking. Removing published numeric bounds
+made the new contract regression fail. Editor and release gates remain outstanding.

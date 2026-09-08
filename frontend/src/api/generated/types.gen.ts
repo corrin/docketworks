@@ -2141,10 +2141,7 @@ export type CostLineOut = {
      * Labour Subtype
      */
     labour_subtype: string | null;
-    /**
-     * Managed By
-     */
-    managed_by: string | null;
+    managed_by: CostLineOwner | null;
     /**
      * Meta
      */
@@ -2200,6 +2197,13 @@ export type CostLineOut = {
      */
     xero_time_id: string | null;
 };
+
+/**
+ * CostLineOwner
+ *
+ * The workflow responsible for a cost line's mutations.
+ */
+export type CostLineOwner = 'leave' | 'stocktake' | 'stock';
 
 /**
  * CostLineUpdateRequest
@@ -11378,6 +11382,13 @@ export type StockItemRequest = {
 };
 
 /**
+ * StockMovementKind
+ *
+ * Live postings and the three historical cutover observations.
+ */
+export type StockMovementKind = 'opening' | 'job_opening' | 'receipt' | 'receipt_opening' | 'receipt_reversal' | 'issue' | 'return' | 'stocktake';
+
+/**
  * StockMovementOut
  *
  * A movement and its human-readable counterpart.
@@ -11407,10 +11418,7 @@ export type StockMovementOut = {
      * Id
      */
     id: string;
-    /**
-     * Kind
-     */
-    kind: string;
+    kind: StockMovementKind;
     /**
      * Quantity After
      */
@@ -12414,10 +12422,7 @@ export type TimesheetCostLineOut = {
      * Labour Subtype
      */
     labour_subtype: string | null;
-    /**
-     * Managed By
-     */
-    managed_by: string | null;
+    managed_by: CostLineOwner | null;
     /**
      * Meta
      */

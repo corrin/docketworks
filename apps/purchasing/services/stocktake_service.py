@@ -13,7 +13,13 @@ from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.job_service import create_job
-from apps.purchasing.models import Stock, Stocktake, StocktakeConfiguration, StocktakeLine
+from apps.purchasing.models import (
+    Stock,
+    StockMovementKind,
+    Stocktake,
+    StocktakeConfiguration,
+    StocktakeLine,
+)
 from apps.purchasing.services.allocation_service import ensure_actual_cost_set
 from apps.purchasing.services.stock_movement_service import MovementContext, move_stock
 from apps.purchasing.stocktake_schemas import StocktakeLineWrite, StocktakeSave
@@ -171,7 +177,7 @@ def _post_line(line: StocktakeLine, staff: Staff, job: Job) -> None:
         line.stock,
         difference,
         MovementContext(
-            kind="stocktake",
+            kind=StockMovementKind.STOCKTAKE,
             reason=line.reason,
             actor=staff,
             counterpart_job=job,

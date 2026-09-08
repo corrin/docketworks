@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Literal
 
 from django.db import transaction
 from django.db.models import Sum
@@ -12,16 +11,14 @@ from apps.accounts.models import Staff
 from apps.core.errors import InvalidInputError
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, lock_costing_jobs
-from apps.purchasing.models import Stock, StockMovement, StocktakeLine
-
-MovementKind = Literal["opening", "receipt", "receipt_reversal", "issue", "return", "stocktake"]
+from apps.purchasing.models import Stock, StockMovement, StockMovementKind, StocktakeLine
 
 
 @dataclass(frozen=True)
 class MovementContext:
     """Provenance supplied by the workflow that owns the movement."""
 
-    kind: MovementKind
+    kind: StockMovementKind
     reason: str
     actor: Staff | None = None
     counterpart_job: Job | None = None
@@ -33,6 +30,12 @@ class MovementContext:
 @transaction.atomic
 def move_stock(stock: Stock, change: Decimal, context: MovementContext) -> StockMovement:
     """Lock, record and project one movement; negative inventory remains permitted."""
+    if context.kind in (
+        StockMovementKind.OPENING,
+        StockMovementKind.JOB_OPENING,
+        StockMovementKind.RECEIPT_OPENING,
+    ):
+        raise InvalidInputError("Opening observations belong to the inventory cutover migration.")
     locked = Stock.objects.select_for_update().get(pk=stock.pk)
     if change != change.quantize(Decimal("0.001")):
         raise InvalidInputError("Stock quantities support at most three decimal places.")
@@ -135,7 +138,7 @@ def reverse_issue(movement: StockMovement, staff: Staff, reason: str) -> StockMo
         original.stock,
         cost.quantity,
         MovementContext(
-            kind="return",
+            kind=StockMovementKind.RETURN,
             reason=reason,
             actor=staff,
             counterpart_job=original.counterpart_job,

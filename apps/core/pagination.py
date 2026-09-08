@@ -1,5 +1,6 @@
 """The one pagination envelope (v1 PageSizePagination wire contract)."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from django.core.paginator import InvalidPage, Paginator
@@ -21,7 +22,9 @@ class PageData[M: Model]:
     total_pages: int
 
 
-def paginate[M: Model](queryset: QuerySet[M], *, page: int, page_size: int | None) -> PageData[M]:
+def paginate[M: Model](
+    queryset: QuerySet[M] | Sequence[M], *, page: int, page_size: int | None
+) -> PageData[M]:
     """Slice ``queryset`` DRF-style; raise Http404 for an out-of-range page.
 
     Envelope: ``{"results", "count", "page", "page_size", "total_pages"}``

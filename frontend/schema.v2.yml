@@ -2440,9 +2440,8 @@ components:
           title: Labour Subtype
         managed_by:
           anyOf:
-          - type: string
+          - $ref: '#/components/schemas/CostLineOwner'
           - type: 'null'
-          title: Managed By
         meta:
           additionalProperties: true
           title: Meta
@@ -2529,6 +2528,14 @@ components:
       - total_rev
       title: CostLineOut
       type: object
+    CostLineOwner:
+      description: The workflow responsible for a cost line's mutations.
+      enum:
+      - leave
+      - stocktake
+      - stock
+      title: CostLineOwner
+      type: string
     CostLineUpdateRequest:
       description: "Wire contract for CostLineUpdateRequest.\n\nEvery default below is a presence marker,\
         \ never a value: the handler reads\n``model_fields_set`` and leaves the stored value alone for\
@@ -6788,6 +6795,7 @@ components:
           title: Date
           type: string
         hours:
+          exclusiveMinimum: 0.0
           title: Hours
           type: number
       required:
@@ -11887,7 +11895,7 @@ components:
         \ an\nexisting session (not just the next login) gets locked to the change\nscreen."
       properties:
         base_wage_rate:
-          minimum: 0
+          minimum: 0.0
           title: Base Wage Rate
           type: number
         date_left:
@@ -11905,31 +11913,31 @@ components:
           title: First Name
           type: string
         hours_fri:
-          minimum: 0
+          minimum: 0.0
           title: Hours Fri
           type: number
         hours_mon:
-          minimum: 0
+          minimum: 0.0
           title: Hours Mon
           type: number
         hours_sat:
-          minimum: 0
+          minimum: 0.0
           title: Hours Sat
           type: number
         hours_sun:
-          minimum: 0
+          minimum: 0.0
           title: Hours Sun
           type: number
         hours_thu:
-          minimum: 0
+          minimum: 0.0
           title: Hours Thu
           type: number
         hours_tue:
-          minimum: 0
+          minimum: 0.0
           title: Hours Tue
           type: number
         hours_wed:
-          minimum: 0
+          minimum: 0.0
           title: Hours Wed
           type: number
         is_office_staff:
@@ -12382,7 +12390,7 @@ components:
         \ explicit flag wins over the\nset-password clear (_set_staff_password runs before _apply_staff_fields)."
       properties:
         base_wage_rate:
-          minimum: 0
+          minimum: 0.0
           title: Base Wage Rate
           type: number
         date_left:
@@ -12400,31 +12408,31 @@ components:
           title: First Name
           type: string
         hours_fri:
-          minimum: 0
+          minimum: 0.0
           title: Hours Fri
           type: number
         hours_mon:
-          minimum: 0
+          minimum: 0.0
           title: Hours Mon
           type: number
         hours_sat:
-          minimum: 0
+          minimum: 0.0
           title: Hours Sat
           type: number
         hours_sun:
-          minimum: 0
+          minimum: 0.0
           title: Hours Sun
           type: number
         hours_thu:
-          minimum: 0
+          minimum: 0.0
           title: Hours Thu
           type: number
         hours_tue:
-          minimum: 0
+          minimum: 0.0
           title: Hours Tue
           type: number
         hours_wed:
-          minimum: 0
+          minimum: 0.0
           title: Hours Wed
           type: number
         is_office_staff:
@@ -12830,6 +12838,19 @@ components:
       - source
       title: StockItemRequest
       type: object
+    StockMovementKind:
+      description: Live postings and the three historical cutover observations.
+      enum:
+      - opening
+      - job_opening
+      - receipt
+      - receipt_opening
+      - receipt_reversal
+      - issue
+      - return
+      - stocktake
+      title: StockMovementKind
+      type: string
     StockMovementOut:
       description: A movement and its human-readable counterpart.
       properties:
@@ -12858,8 +12879,7 @@ components:
           title: Id
           type: string
         kind:
-          title: Kind
-          type: string
+          $ref: '#/components/schemas/StockMovementKind'
         quantity_after:
           title: Quantity After
           type: number
@@ -13101,7 +13121,10 @@ components:
       properties:
         counted_quantity:
           anyOf:
-          - type: number
+          - maximum: 99999999.999
+            minimum: 0.0
+            multipleOf: 0.001
+            type: number
           - type: 'null'
           title: Counted Quantity
         description:
@@ -13110,9 +13133,13 @@ components:
           title: Description
           type: string
         expected_quantity:
+          maximum: 99999999.999
+          minimum: -99999999.999
+          multipleOf: 0.001
           title: Expected Quantity
           type: number
         expected_version:
+          minimum: 0
           title: Expected Version
           type: integer
         id:
@@ -13138,6 +13165,9 @@ components:
           - type: 'null'
           title: Stock Id
         unit_cost:
+          maximum: 99999999.99
+          minimum: 0.0
+          multipleOf: 0.01
           title: Unit Cost
           type: number
       required:
@@ -13992,9 +14022,8 @@ components:
           title: Labour Subtype
         managed_by:
           anyOf:
-          - type: string
+          - $ref: '#/components/schemas/CostLineOwner'
           - type: 'null'
-          title: Managed By
         meta:
           additionalProperties: true
           title: Meta

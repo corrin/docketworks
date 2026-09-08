@@ -7,10 +7,15 @@ from uuid import UUID
 from ninja import Schema
 from pydantic import Field
 
-from apps.core.schemas import NonBlankText, NullableText, Quantity, ResponseSchema
-
-CountQuantity = Annotated[Quantity, Field(ge=0, max_digits=11, decimal_places=3)]
-CountCost = Annotated[Quantity, Field(ge=0, max_digits=10, decimal_places=2)]
+from apps.core.schemas import (
+    CountQuantity,
+    InventoryQuantity,
+    NonBlankText,
+    NullableText,
+    Quantity,
+    ResponseSchema,
+    UnitCost,
+)
 
 
 class StocktakeCreate(Schema):
@@ -26,10 +31,10 @@ class StocktakeLineWrite(Schema):
     stock_id: UUID | None
     description: Annotated[NonBlankText, Field(max_length=255)]
     location: NullableText
-    expected_version: int
-    expected_quantity: Quantity
+    expected_version: Annotated[int, Field(ge=0)]
+    expected_quantity: InventoryQuantity
     counted_quantity: CountQuantity | None
-    unit_cost: CountCost
+    unit_cost: UnitCost
     reason: NullableText
 
 

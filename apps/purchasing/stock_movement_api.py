@@ -10,7 +10,7 @@ from ninja import Router
 from apps.accounts.auth import authenticated_staff
 from apps.core.auth import CookieJWTAuth
 from apps.core.schemas import Quantity, ResponseSchema
-from apps.purchasing.models import StockMovement
+from apps.purchasing.models import StockMovement, StockMovementKind
 from apps.purchasing.services.stock_movement_service import is_returnable_issue, reverse_issue
 
 router = Router(auth=CookieJWTAuth(), tags=["purchasing"])
@@ -26,7 +26,7 @@ class StockMovementOut(ResponseSchema):
     quantity_after: Quantity
     quantity_change: Quantity
     unit_cost: Quantity
-    kind: str
+    kind: StockMovementKind
     reason: str
     recorded_at: datetime
     actor: str | None
@@ -48,7 +48,7 @@ def movement_data(movement: StockMovement, reversed_ids: set[UUID]) -> StockMove
         quantity_after=movement.quantity_after,
         quantity_change=movement.quantity_change,
         unit_cost=movement.unit_cost,
-        kind=movement.kind,
+        kind=StockMovementKind(movement.kind),
         reason=movement.reason,
         recorded_at=movement.recorded_at,
         actor=movement.actor.get_display_full_name() if movement.actor is not None else None,

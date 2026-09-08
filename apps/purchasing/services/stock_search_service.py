@@ -19,6 +19,7 @@ from django.contrib.postgres.search import SearchQuery, SearchRank, SearchVector
 from django.db.models import Count, Q, QuerySet
 from django.db.models.expressions import CombinedExpression
 
+from apps.core.pagination import paginate
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import Stock
 from apps.purchasing.services.stock_service import StockItemData, stock_item_data
@@ -26,7 +27,6 @@ from apps.purchasing.services.stock_service import StockItemData, stock_item_dat
 logger = logging.getLogger(__name__)
 
 MAX_SEARCH_QUERY_LENGTH: Final = 512
-MAX_PAGE_SIZE: Final = 100
 
 ALLOWED_SORT_FIELDS: Final[dict[str, str]] = {
     "description": "description",
@@ -420,8 +420,6 @@ def list_stock(
     sort_field = ALLOWED_SORT_FIELDS.get(sort_by, "description")
     if sort_dir.lower() == "desc":
         sort_field = f"-{sort_field}"
-    page_size = max(1, min(page_size, MAX_PAGE_SIZE))
-    offset = (page - 1) * page_size
 
     if query:
         logger.info(
@@ -433,27 +431,24 @@ def list_stock(
             sort_dir,
         )
         ranked, usage_counts = _sorted_stock_matches(query)
-        total_count = len(ranked)
-        items = ranked[offset : offset + page_size]
+        result = paginate(ranked, page=page, page_size=page_size)
     else:
-        queryset = Stock.objects.filter(is_active=True)
-        total_count = queryset.count()
-        items = list(queryset.order_by(sort_field)[offset : offset + page_size])
+        queryset = Stock.objects.filter(is_active=True).order_by(sort_field, "id")
+        result = paginate(queryset, page=page, page_size=page_size)
         usage_counts = _usage_counts_by_item_code()
 
-    total_pages = (total_count + page_size - 1) // page_size
     if query:
         logger.info(
             "Stock paginated search completed query=%r count=%s page=%s total_pages=%s",
             query,
-            total_count,
+            result.count,
             page,
-            total_pages,
+            result.total_pages,
         )
     return {
-        "results": _serialize(items, usage_counts),
-        "count": total_count,
-        "page": page,
-        "page_size": page_size,
-        "total_pages": total_pages,
+        "results": _serialize(result.rows, usage_counts),
+        "count": result.count,
+        "page": result.page,
+        "page_size": result.page_size,
+        "total_pages": result.total_pages,
     }

@@ -29,7 +29,13 @@ from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, CostSet, lock_costing_jobs
 from apps.purchasing.etag import require_current_etag
-from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock, StockMovement
+from apps.purchasing.models import (
+    PurchaseOrder,
+    PurchaseOrderLine,
+    Stock,
+    StockMovement,
+    StockMovementKind,
+)
 from apps.purchasing.services.stock_movement_service import (
     MovementContext,
     move_stock,
@@ -174,7 +180,7 @@ def create_stock_from_allocation(
         stock,
         qty,
         MovementContext(
-            kind="receipt",
+            kind=StockMovementKind.RECEIPT,
             reason=f"Receipt against PO line {line.id}",
             actor=staff,
         ),
@@ -244,7 +250,7 @@ def create_costline_from_allocation(  # noqa: PLR0913 -- Allocation inputs stay 
         stock,
         -qty,
         MovementContext(
-            kind="issue",
+            kind=StockMovementKind.ISSUE,
             reason=f"Receipt allocated to job from PO {purchase_order.po_number}",
             actor=staff,
             counterpart_job=job,
@@ -394,7 +400,7 @@ def _delete_stock_allocation(
             stock_item,
             -deleted_qty,
             MovementContext(
-                kind="receipt_reversal",
+                kind=StockMovementKind.RECEIPT_REVERSAL,
                 reason=f"Reverse allocation from PO line {po_line.id}",
                 actor=staff,
                 reverses=receipt,
@@ -435,7 +441,7 @@ def _delete_job_allocation(
             movement.stock,
             -deleted_qty,
             MovementContext(
-                kind="receipt_reversal",
+                kind=StockMovementKind.RECEIPT_REVERSAL,
                 reason="Reverse job receipt allocation",
                 actor=staff,
                 reverses=receipt,

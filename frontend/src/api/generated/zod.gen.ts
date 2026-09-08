@@ -784,6 +784,17 @@ export const zCostLineCreateRequest = z.object({
 });
 
 /**
+ * CostLineOwner
+ *
+ * The workflow responsible for a cost line's mutations.
+ */
+export const zCostLineOwner = z.enum([
+    'leave',
+    'stocktake',
+    'stock'
+]);
+
+/**
  * CostLineOut
  *
  * Wire contract for CostLineOut.
@@ -798,7 +809,7 @@ export const zCostLineOut = z.object({
     id: z.uuid(),
     kind: z.string(),
     labour_subtype: z.uuid().nullable(),
-    managed_by: z.string().nullable(),
+    managed_by: zCostLineOwner.nullable(),
     meta: z.record(z.string(), z.unknown()),
     quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     staff: z.uuid().nullable(),
@@ -2540,7 +2551,7 @@ export const zLeaveCodeOut = z.enum([
  */
 export const zLeaveDayInput = z.object({
     date: z.iso.date(),
-    hours: z.number()
+    hours: z.number().gt(0)
 });
 
 /**
@@ -5160,6 +5171,22 @@ export const zStockItemRequest = z.object({
 });
 
 /**
+ * StockMovementKind
+ *
+ * Live postings and the three historical cutover observations.
+ */
+export const zStockMovementKind = z.enum([
+    'opening',
+    'job_opening',
+    'receipt',
+    'receipt_opening',
+    'receipt_reversal',
+    'issue',
+    'return',
+    'stocktake'
+]);
+
+/**
  * StockMovementOut
  *
  * A movement and its human-readable counterpart.
@@ -5171,7 +5198,7 @@ export const zStockMovementOut = z.object({
     counterpart_name: z.string(),
     description: z.string(),
     id: z.uuid(),
-    kind: z.string(),
+    kind: zStockMovementKind,
     quantity_after: z.number(),
     quantity_before: z.number(),
     quantity_change: z.number(),
@@ -5261,15 +5288,15 @@ export const zStocktakeDetail = z.object({
  * StocktakeLineWrite wire contract.
  */
 export const zStocktakeLineWrite = z.object({
-    counted_quantity: z.number().nullable(),
+    counted_quantity: z.number().gte(0).lte(99999999.999).nullable(),
     description: z.string().min(1).max(255),
-    expected_quantity: z.number(),
-    expected_version: z.int(),
+    expected_quantity: z.number().gte(-99999999.999).lte(99999999.999),
+    expected_version: z.int().gte(0),
     id: z.uuid(),
     location: z.string().min(1).nullable(),
     reason: z.string().min(1).nullable(),
     stock_id: z.uuid().nullable(),
-    unit_cost: z.number()
+    unit_cost: z.number().gte(0).lte(99999999.99)
 });
 
 /**
@@ -5658,7 +5685,7 @@ export const zTimesheetCostLineOut = z.object({
     job_number: z.int(),
     kind: z.string(),
     labour_subtype: z.uuid().nullable(),
-    managed_by: z.string().nullable(),
+    managed_by: zCostLineOwner.nullable(),
     meta: z.record(z.string(), z.unknown()),
     quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     staff: z.uuid().nullable(),

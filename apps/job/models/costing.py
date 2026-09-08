@@ -12,6 +12,8 @@ from django.db import connection, models, transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from apps.job.enums import CostLineOwner
+
 from .costline_validators import (
     validate_costline_ext_refs,
     validate_costline_meta,
@@ -262,7 +264,7 @@ class CostLine(models.Model):
 
     managed_by = models.CharField(  # noqa: DJ001 -- NULL means no owning workflow
         max_length=20,
-        choices=[("leave", "Leave"), ("stocktake", "Stocktake"), ("stock", "Stock movement")],
+        choices=CostLineOwner.choices,
         null=True,
         blank=True,
         help_text="Workflow that owns this line; owned lines are changed through that workflow.",
@@ -299,6 +301,10 @@ class CostLine(models.Model):
             models.CheckConstraint(condition=~Q(xero_time_id=""), name="xero_time_id_not_blank"),
             models.CheckConstraint(
                 condition=~Q(managed_by=""), name="costline_managed_by_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=Q(managed_by__isnull=True) | Q(managed_by__in=CostLineOwner.values),
+                name="costline_known_owner",
             ),
         ]
         ordering: ClassVar[list[str]] = ["-created_at", "-id"]

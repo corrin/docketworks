@@ -33,7 +33,7 @@ from apps.core.errors import InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, lock_costing_jobs
-from apps.purchasing.models import Stock
+from apps.purchasing.models import Stock, StockMovementKind
 from apps.purchasing.services.allocation_service import ensure_actual_cost_set
 from apps.purchasing.services.stock_movement_service import MovementContext, move_stock
 from apps.purchasing.tasks import queue_metadata_parse_if_eligible
@@ -231,7 +231,7 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
                 locked,
                 -qty,
                 MovementContext(
-                    kind="issue",
+                    kind=StockMovementKind.ISSUE,
                     reason="Material issued to job",
                     actor=user,
                     counterpart_job=job,
@@ -277,7 +277,7 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
             locked,
             -qty,
             MovementContext(
-                kind="issue",
+                kind=StockMovementKind.ISSUE,
                 reason="Workshop material approved",
                 actor=user,
                 counterpart_job=job,
