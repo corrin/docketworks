@@ -62,7 +62,7 @@ jobs:
 
       - name: Open the PR
         if: steps.changes.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           branch: chore/uv-lock-refresh
           title: 'Weekly uv.lock refresh'
