@@ -1,3 +1,4 @@
+import { deferred } from '@/test/deferred'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
@@ -102,21 +103,6 @@ function changes(overrides: Partial<KanbanChangesResponse> = {}): KanbanChangesR
     removed_job_ids: [],
     full_refresh_required: false,
     ...overrides,
-  }
-}
-
-/** A promise the test releases by hand. Promise.withResolvers is ES2024; the lib here is ES2023. */
-function deferred(): { promise: Promise<void>; resolve: () => void } {
-  let settle: (() => void) | undefined
-  const promise = new Promise<void>((resolve) => {
-    settle = resolve
-  })
-  return {
-    promise,
-    resolve: () => {
-      if (!settle) throw new Error('deferred(): the promise executor did not run')
-      settle()
-    },
   }
 }
 

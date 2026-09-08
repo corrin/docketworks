@@ -341,14 +341,16 @@ def _apply_line_fields(line: PurchaseOrderLine, line_data: PurchaseOrderLineWrit
     ``price_tbc`` and ``unit_cost`` need ordering the generic pass cannot
     express, so they are handled here: the flag lands first, then a supplied
     cost consults the line's effective flag, because ``price_tbc`` means "no
-    unit cost" (the field's own help_text). Each is still written only when its
-    own key is present, so toggling the checkbox never disturbs a stored cost.
+    unit cost" (the field's own help_text). Ticking TBC explicitly discards the
+    price; unticking alone does not invent or restore one.
     """
     apply_patch_fields(line, dict(line_data), fields=_LINE_WRITABLE_FIELDS)
     if "price_tbc" in line_data:
         line.price_tbc = bool(line_data["price_tbc"])
-    if "unit_cost" in line_data:
-        line.unit_cost = None if line.price_tbc else line_data["unit_cost"]
+    if line.price_tbc:
+        line.unit_cost = None
+    elif "unit_cost" in line_data:
+        line.unit_cost = line_data["unit_cost"]
     validate_ordered_quantity(line, line.quantity)
 
 

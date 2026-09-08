@@ -297,7 +297,7 @@ def test_quantity_edits_and_retirement_cannot_hide_stock(
 ) -> None:
     stock = make_stock(stock_holding_job, quantity="2")
     path = f"/api/purchasing/stock/{stock.id}/"
-    assert api.patch(path, {"quantity": 0}, content_type="application/json").status_code == 400
+    assert api.patch(path, {"quantity": 0}, content_type="application/json").status_code == 422
     assert api.delete(path).status_code == 400
     stock.refresh_from_db()
     assert stock.quantity == 2

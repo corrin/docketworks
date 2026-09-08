@@ -1108,3 +1108,33 @@ stocktake flow now covers retirement, retained history and a history-link reload
 The managed browser run applied purchasing.0010 and then stopped at 0011's receipt
 preflight for the same eight unresolved references. No repair was applied and
 Playwright did not start. This remains a verification gate, not browser evidence.
+
+## 2026-09-08 — Price TBC explicitly overrides the catalogue price
+
+Owner-approved behavior: selecting Price TBC clears the unit cost immediately and
+persists NULL, including a flag-only API request. Unticking leaves it blank for a
+new confirmed price. Selecting another product while TBC is active preserves the
+override. v1 disabled TBC for a positive price; this change deliberately supports
+the operator's product-then-TBC workflow. Existing receipt prices are unchanged.
+
+PO writes use TanStack's per-order mutation scope so each request receives the
+preceding response's ETag. The queue reconciles once settled; rejected optimistic
+fields restore only if a later edit has not replaced them. Created drafts remain
+until the final refresh supplies server identities. The existing PO grid and
+shared optimistic helpers own the behavior; no endpoint or schema was added.
+
+The two backend regression cases failed before the change. The focused backend
+run passed 127 tests. Frontend tests demonstrated the old uncleared price and the
+failed-product rollback overwriting a later TBC selection, then passed with the
+fixes. The browser specs now assert blank prices after ticking and reload, and
+explicit price re-entry after unticking. Their execution remains blocked by the
+previously recorded inventory migration preflight.
+
+Final verification: all 659 frontend unit tests passed across 90 files when run
+without a concurrent backend suite. The full backend run passed 3,133 tests and
+found one old assertion expecting 400 instead of the stock metadata schema's new
+422. After correcting that expectation, all 30 stocktake API tests passed.
+The 127 focused PO/receipt tests also passed. Repository checks passed, refreshing
+the generated test-count and code-quality records. A concurrency-refusal regression
+was observed failing before the queue-abort guard: queued edits now stop after a
+412/428 rather than silently adopting a refetched version.

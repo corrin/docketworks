@@ -1,3 +1,4 @@
+import { deferred } from '@/test/deferred'
 import { http, HttpResponse } from 'msw'
 import { screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
@@ -73,15 +74,6 @@ const linkedCompanyPerson: CompanyPerson = {
   person_name: 'Jordan Rivers',
   position: null,
   primary_phone: '021 123 4567',
-}
-
-/** A promise the test resolves by hand, to hold a response open. */
-function deferred(): { promise: Promise<void>; resolve: () => void } {
-  let resolve!: () => void
-  const promise = new Promise<void>((done) => {
-    resolve = done
-  })
-  return { promise, resolve }
 }
 
 function renderCreateModal(onSelectPerson = vi.fn(), onClose = vi.fn()) {

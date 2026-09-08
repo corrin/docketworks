@@ -85,9 +85,11 @@ test.describe('PO workspace', () => {
     const priceSaved = waitForPoAutosave(page)
     await autoId(page, 'PoLinesTable-price-tbc-0').click()
     await priceSaved
+    await expect(autoId(page, 'PoLinesTable-unit-cost-0')).toHaveValue('')
     await expect(autoId(page, 'PoLinesTable-unit-cost-0')).toBeDisabled()
     await page.reload()
     await expect(autoId(page, 'PoLinesTable-price-tbc-0')).toBeChecked()
+    await expect(autoId(page, 'PoLinesTable-unit-cost-0')).toHaveValue('')
     await expect(
       autoId(page, 'DataTable-row-0').getByRole('button', { name: 'Job for line 1' }),
     ).toHaveText(boundJob)
@@ -391,7 +393,7 @@ test.describe.serial('purchase order operations', () => {
     log('Set expected delivery and read the order value back')
   })
 
-  test('price TBC closes the unit cost and survives a reload', async ({
+  test('price TBC clears the unit cost and a confirmed price must be entered again', async ({
     authenticatedPage: page,
   }) => {
     await page.goto(poUrl)
@@ -400,6 +402,10 @@ test.describe.serial('purchase order operations', () => {
     const tbc = autoId(page, 'PoLinesTable-price-tbc-0')
     const costInput = autoId(page, 'PoLinesTable-unit-cost-0')
     await expect(costInput).toBeEnabled()
+    const priced = waitForPoAutosave(page)
+    await costInput.fill('31.50')
+    await costInput.press('Tab')
+    await priced
 
     const autosavePromise = waitForPoAutosave(page)
     // click + expect, not check(): the box is controlled by the optimistic
@@ -407,6 +413,7 @@ test.describe.serial('purchase order operations', () => {
     // verifies too early.
     await tbc.click()
     await expect(tbc).toBeChecked()
+    await expect(costInput).toHaveValue('')
     await autosavePromise
 
     // The service refuses a cost for a TBC line, so the input closes rather
@@ -416,6 +423,7 @@ test.describe.serial('purchase order operations', () => {
     await page.reload()
     await page.waitForLoadState('networkidle')
     await expect(autoId(page, 'PoLinesTable-price-tbc-0')).toBeChecked()
+    await expect(autoId(page, 'PoLinesTable-unit-cost-0')).toHaveValue('')
 
     // Put it back so the later status test is not blocked by an unpriced line.
     const restore = waitForPoAutosave(page)
@@ -423,7 +431,15 @@ test.describe.serial('purchase order operations', () => {
     await reloaded.click()
     await expect(reloaded).not.toBeChecked()
     await restore
-    log('Toggled Price TBC and confirmed the unit cost follows it')
+    await expect(costInput).toHaveValue('')
+    await expect(costInput).toBeEnabled()
+    const confirmed = waitForPoAutosave(page)
+    await costInput.fill('32.75')
+    await costInput.press('Tab')
+    await confirmed
+    await page.reload()
+    await expect(costInput).toHaveValue('32.75')
+    await expect(reloaded).not.toBeChecked()
   })
 
   test('a line can be deleted, and Tab out of unit cost still commits a draft', async ({

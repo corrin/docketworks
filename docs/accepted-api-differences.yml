@@ -433,19 +433,15 @@
     returns the list, which is what the frontend consumed. Phase 3c-2.
 
 - operation: purchasing_purchase_orders_partial_update
-  change: "unit_cost and price_tbc are independent request fields; the TBC invariant reads the line's flag"
+  change: "Selecting Price TBC explicitly clears the PO-line unit cost"
   reason: >
-    Two changes, both from the adversarial review 2026-08-03. (1) Each field is
-    written only when its own key is present, matching v1's per-field
-    FIELD_UPDATERS; an implementation that coupled them nulled unit_cost on a
-    price_tbc-only PATCH (the "price TBC" checkbox), which then hard-failed
-    every receipt and allocation path for that line. (2) When a unit_cost IS
-    supplied, whether it is stored is decided by the line's effective price_tbc
-    flag (after any flag in the same payload), not by the payload alone. v1
-    diverged from itself here: its create path enforced "price_tbc wins" while
-    its update path did not, so a PATCH could store a cost on a line whose own
-    help_text says it has none. v2 keeps the invariant on both paths (ADR 0039,
-    one canonical behaviour).
+    Owner-approved 2026-09-08: an operator may select a catalogue product and
+    then override its price with Price TBC. Ticking the flag clears unit_cost
+    even when the request omits that field; an effective TBC flag also wins
+    over a supplied price. Unticking alone leaves the cost blank for explicit
+    entry. Product reselection preserves the TBC override. v1 instead disabled
+    the checkbox when a positive price was present; its update path changed
+    fields independently. Posted receipt costs remain immutable.
 
 - operation: purchasing_delivery_receipts_create
   change: "A metadata key present but blank clears the field instead of inheriting the PO line's value"

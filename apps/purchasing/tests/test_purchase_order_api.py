@@ -651,14 +651,8 @@ class TestPurchaseOrderUpdate:
         line.refresh_from_db()
         assert getattr(line, field) is None
 
-    def test_price_tbc_only_patch_preserves_the_stored_unit_cost(self, api: Client) -> None:
-        """The "price TBC" checkbox must not wipe the cost beside it.
-
-        v1 drove per-field updaters, each applied only when its own key was
-        present, so toggling the checkbox left unit_cost alone. A coupled
-        implementation nulls the cost and then hard-fails every receipt and
-        allocation path for that line.
-        """
+    def test_unticking_tbc_without_a_price_preserves_an_existing_cost(self, api: Client) -> None:
+        """An explicit false flag alone does not request a price change."""
         po = make_purchase_order()
         line = make_po_line(po, quantity="10.00", unit_cost="25.00")
         etag = _current_etag(api, po)
@@ -674,6 +668,32 @@ class TestPurchaseOrderUpdate:
         line.refresh_from_db()
         assert line.unit_cost == Decimal("25.00")
         assert line.price_tbc is False
+
+    @pytest.mark.parametrize("cost", ["25.00", "0.00"])
+    def test_ticking_tbc_alone_clears_the_stored_price(self, api: Client, cost: str) -> None:
+        """A catalogue price must not survive the operator's explicit TBC override."""
+        po = make_purchase_order()
+        line = make_po_line(po, quantity="10.00", unit_cost=cost)
+        response = api.patch(
+            _detail_url(po),
+            data={"lines": [{"id": str(line.id), "price_tbc": True}]},
+            content_type="application/json",
+            headers={"If-Match": _current_etag(api, po)},
+        )
+        assert response.status_code == 200
+        line.refresh_from_db()
+        assert line.price_tbc is True
+        assert line.unit_cost is None
+        response = api.patch(
+            _detail_url(po),
+            data={"lines": [{"id": str(line.id), "price_tbc": False}]},
+            content_type="application/json",
+            headers={"If-Match": _current_etag(api, po)},
+        )
+        assert response.status_code == 200
+        line.refresh_from_db()
+        assert line.price_tbc is False
+        assert line.unit_cost is None
 
     def test_unit_cost_only_patch_leaves_the_price_tbc_flag_alone(self, api: Client) -> None:
         po = make_purchase_order()

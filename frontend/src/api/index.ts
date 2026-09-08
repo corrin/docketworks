@@ -581,3 +581,5 @@ export {
   stockMovementsListInfiniteOptions,
   stocktakeMovementsListInfiniteOptions,
 } from './generated/@tanstack/react-query.gen'
+
+export { purchasingPurchaseOrdersPartialUpdate } from './generated/sdk.gen'
