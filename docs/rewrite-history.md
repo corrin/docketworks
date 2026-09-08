@@ -962,3 +962,19 @@ Validation: 188 costing, stock, count, cutover, allocation and leave tests passe
 focused strict mypy passed. Real concurrent transaction regressions and the
 remaining end-to-end gates are still outstanding.
 The 42 workshop-timesheet API tests also passed after ordering cross-job edits.
+
+PO quantity/price amendments now preserve posted receipt stocks and job costs.
+The purchasing quantity guard rejects reductions below net receipts for both
+local edits and inbound Xero changes; an invalid inbound amendment rolls the
+whole order back and is persisted through Xero's validation-error path before
+agreement can be stamped. Fulfillment compares each line's received quantity
+with its own order quantity. The full-receipt shortcut submits only outstanding
+quantities through the canonical receipt service.
+
+PO detail now exposes the order's Xero status and inbound-observation timestamp.
+New orders no longer manufacture an inbound timestamp at creation; the forward
+schema change leaves historical recorded timestamps intact. Validation so far:
+114 existing PO/allocation/sync tests and five new amendment/receipt regressions
+passed, as did strict mypy. Live Xero verification remains outstanding.
+The rejection-persistence cases and the new-order/inbound-observation API check
+also passed; the timestamp assertion uses the API's millisecond precision.

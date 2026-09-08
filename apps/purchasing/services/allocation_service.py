@@ -20,8 +20,7 @@ from typing import Literal
 from uuid import UUID
 
 from django.db import transaction
-from django.db.models import Exists, F, OuterRef, QuerySet, Sum, Value
-from django.db.models.functions import Coalesce
+from django.db.models import Exists, F, OuterRef, QuerySet
 from django.utils import timezone
 
 from apps.accounts.models import Staff
@@ -269,15 +268,9 @@ def recompute_purchase_order_status(po: PurchaseOrder) -> None:
     Always writes: the received quantities moved, so the ADR 0003 ETag must
     move with them even when the status label is unchanged.
     """
-    totals = po.po_lines.aggregate(
-        ordered=Coalesce(Sum("quantity"), Value(Decimal("0"))),
-        received=Coalesce(Sum("received_quantity"), Value(Decimal("0"))),
-    )
-    ordered, received = totals["ordered"], totals["received"]
-
-    if received <= 0 and po.status != "deleted":
-        new_status = "submitted"
-    elif received < ordered:
+    if not po.po_lines.filter(received_quantity__gt=0).exists():
+        new_status = "deleted" if po.status == "deleted" else "submitted"
+    elif po.po_lines.filter(received_quantity__lt=F("quantity")).exists():
         new_status = "partially_received"
     else:
         new_status = "fully_received"

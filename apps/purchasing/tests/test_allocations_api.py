@@ -492,3 +492,60 @@ def test_purchase_order_quantities_and_prices_are_json_numbers(client: Client) -
     make_po_line(po, quantity="2.25", received_quantity="1.25", unit_cost="12.34")
     line = client.get(f"{PO_URL}{po.id}/").json()["lines"][0]
     assert (line["quantity"], line["received_quantity"], line["unit_cost"]) == (2.25, 1.25, 12.34)
+
+
+def test_full_receipt_after_a_partial_receipt_books_only_the_remainder(
+    api: Client, stock_holding_job: Job, job: Job
+) -> None:
+    po = make_purchase_order(status="submitted")
+    line = make_po_line(po, quantity="5", job=job)
+    _receipt(api, po, str(line.id), str(stock_holding_job.id), "2")
+    original = Stock.objects.get(source_purchase_order_line=line)
+    response = api.patch(
+        f"{PO_URL}{po.id}/",
+        {"status": "fully_received"},
+        content_type="application/json",
+        headers={"If-Match": api.get(f"{PO_URL}{po.id}/").headers["ETag"]},
+    )
+    assert response.status_code == 200, response.content
+    line.refresh_from_db()
+    original.refresh_from_db()
+    assert line.received_quantity == 5
+    assert original.quantity == 2
+    cost = CostLine.objects.get(stockmovement__stock__source_purchase_order_line=line)
+    assert cost.quantity == 3
+    assert cost.unit_cost == line.unit_cost
+
+
+def test_local_order_amendment_cannot_erase_received_quantity(
+    api: Client, stock_holding_job: Job
+) -> None:
+    po = make_purchase_order(status="submitted")
+    line = make_po_line(po, quantity="5")
+    _receipt(api, po, str(line.id), str(stock_holding_job.id), "2")
+    response = api.patch(
+        f"{PO_URL}{po.id}/",
+        {"lines": [{"id": str(line.id), "quantity": "1", "unit_cost": "90"}]},
+        content_type="application/json",
+        headers={"If-Match": api.get(f"{PO_URL}{po.id}/").headers["ETag"]},
+    )
+    assert response.status_code == 400, response.content
+    line.refresh_from_db()
+    assert (line.quantity, line.unit_cost, line.received_quantity) == (
+        Decimal("5"),
+        Decimal("25"),
+        Decimal("2"),
+    )
+
+
+def test_receipt_status_does_not_offset_one_lines_shortfall_against_another(
+    api: Client, stock_holding_job: Job
+) -> None:
+    po = make_purchase_order(status="submitted")
+    extra = make_po_line(po, quantity="1", description="Individual fitting")
+    missing = make_po_line(po, quantity="100", description="Cable metres")
+    _receipt(api, po, str(extra.id), str(stock_holding_job.id), "101")
+    po.refresh_from_db()
+    missing.refresh_from_db()
+    assert po.status == "partially_received"
+    assert missing.received_quantity == 0

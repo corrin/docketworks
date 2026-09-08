@@ -5448,7 +5448,9 @@ export const zPurchaseOrderDetail = z.object({
     supplier_has_email: z.boolean(),
     supplier_has_xero_id: z.boolean(),
     supplier_id: z.uuid().nullable(),
-    xero_id: z.uuid().nullable()
+    xero_id: z.uuid().nullable(),
+    xero_last_synced: z.iso.datetime().nullable(),
+    xero_status: z.string().nullable()
 });
 
 /**

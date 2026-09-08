@@ -93,7 +93,7 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     xero_last_modified = models.DateTimeField(null=True, blank=True)
-    xero_last_synced = models.DateTimeField(null=True, blank=True, default=timezone.now)
+    xero_last_synced = models.DateTimeField(null=True, blank=True)
     xero_agreed_at = models.DateTimeField(
         null=True,
         blank=True,

@@ -9219,6 +9219,14 @@ export type PurchaseOrderDetail = {
      * Xero Id
      */
     xero_id: string | null;
+    /**
+     * Xero Last Synced
+     */
+    xero_last_synced: string | null;
+    /**
+     * Xero Status
+     */
+    xero_status: string | null;
 };
 
 /**

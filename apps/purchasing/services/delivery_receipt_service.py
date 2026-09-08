@@ -254,3 +254,31 @@ def process_delivery_receipt(
         )
         logger.exception("Error processing delivery receipt for PO %s", purchase_order_id)
         raise
+
+
+@transaction.atomic
+def receive_outstanding_order(
+    purchase_order_id: UUID, staff: Staff, *, if_match: str
+) -> PurchaseOrder:
+    """Submit only outstanding quantities through the canonical receipt command."""
+    po = PurchaseOrder.objects.select_for_update().get(pk=purchase_order_id)
+    require_current_etag(po, if_match)
+    lines = list(po.po_lines.filter(quantity__gt=F("received_quantity")).order_by("id"))
+    if not lines:
+        return po
+    stock_job_id = Stock.get_stock_holding_job().id
+    requests = {
+        str(line.id): ReceiptLineRequest(
+            total_received=line.quantity - line.received_quantity,
+            allocations=[
+                ReceiptAllocationRequest(
+                    job_id=line.job_id if line.job_id is not None else stock_job_id,
+                    quantity=line.quantity - line.received_quantity,
+                    retail_rate=None,
+                    metadata={},
+                ),
+            ],
+        )
+        for line in lines
+    }
+    return process_delivery_receipt(po.id, requests, staff, if_match=if_match)

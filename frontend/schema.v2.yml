@@ -10379,6 +10379,17 @@ components:
             type: string
           - type: 'null'
           title: Xero Id
+        xero_last_synced:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Xero Last Synced
+        xero_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Xero Status
       required:
       - id
       - po_number
@@ -10388,6 +10399,8 @@ components:
       - expected_delivery
       - online_url
       - xero_id
+      - xero_status
+      - xero_last_synced
       - pickup_address_id
       - created_by_id
       - supplier

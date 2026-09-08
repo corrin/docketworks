@@ -178,6 +178,8 @@ class PurchaseOrderDetail(Schema):
     expected_delivery: date | None
     online_url: str | None
     xero_id: UUID | None
+    xero_status: str | None
+    xero_last_synced: datetime | None
     pickup_address_id: UUID | None
     created_by_id: UUID | None
     supplier: str

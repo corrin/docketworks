@@ -25,8 +25,10 @@ from xero_python.accounting import Account, AccountingApi
 
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.company.models import Company
-from apps.core.errors import persist_app_error
+from apps.core.errors import InvalidInputError, persist_app_error
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
+from apps.purchasing.services.allocation_service import recompute_purchase_order_status
+from apps.purchasing.services.purchase_order_service import validate_ordered_quantity
 from apps.purchasing.tasks import (
     enqueue_stock_metadata_parse,
     queue_purchase_order_push,
@@ -594,68 +596,33 @@ def transform_quote(xero_quote: Any, xero_id: UUID | str) -> tuple[Quote, str]:
 def _sync_purchase_order_lines(
     po: PurchaseOrder, xero_po: Any, po_number: str, xero_id: UUID | str
 ) -> None:
-    """Upsert a Xero-owned purchase order's lines from the Xero payload.
-
-    Extracted from ``transform_purchase_order``: that function's own suppression
-    said it was doing "header + per-line handling in one pass", and the
-    ownership split made the seam obvious — a Docketworks-owned order returns
-    before reaching here, so the line loop is now reached on exactly one path.
-    """
-    if xero_po.line_items:
-        for line in xero_po.line_items:
-            description = getattr(line, "description", None)
-            quantity = getattr(line, "quantity", None)
-            if not description or quantity is None:
-                missing = []
-                if not description:
-                    missing.append("description")
-                if quantity is None:
-                    missing.append("quantity")
-                error_msg = f"Skipping PO line in {po_number} - missing {', '.join(missing)}"
-                logger.error(error_msg)
-                XeroError.objects.create(
-                    message=error_msg,
-                    data={"po_number": po_number, "missing_fields": missing},
-                    entity="purchase_order_line",
-                    reference_id=str(xero_id),
-                    kind="missing_field",
-                )
-                continue
-            try:
-                line_item_id = getattr(line, "line_item_id", None)
-                raw_line_data = process_xero_data(line)
-
-                # Match on Xero's unique line item ID
-                logger.info(
-                    "Processing PO line: xero_line_item_id=%s, description='%.50s...'",
-                    line_item_id,
-                    description,
-                )
-                po_line, line_created = PurchaseOrderLine.objects.update_or_create(
-                    purchase_order=po,
-                    xero_line_item_id=line_item_id,
-                    defaults={
-                        "description": description,
-                        "supplier_item_code": line.item_code or None,
-                        "quantity": quantity,
-                        "unit_cost": getattr(line, "unit_amount", None),
-                        "raw_line_data": raw_line_data,
-                    },
-                )
-                logger.info("PO line %s: %s", "created" if line_created else "updated", po_line.id)
-            # deliberate-swallow: duplicated line rows are a known v1 data
-            # wart; skipping the line keeps the rest of the PO syncing while
-            # the log names the conflict for manual repair
-            except PurchaseOrderLine.MultipleObjectsReturned:
-                logger.error(
-                    "Multiple PurchaseOrderLine records found for document '%s' "
-                    "(Xero ID: %s), line item: '%s', supplier_item_code: '%s'",
-                    po_number,
-                    xero_id,
-                    description,
-                    line.item_code or "",
-                )
-                continue
+    """Apply an inbound order amendment atomically, retaining posted receipt costs."""
+    if not xero_po.line_items:
+        return
+    for line in xero_po.line_items:
+        description = required(line.description, "description", "purchase_order_line", str(xero_id))
+        quantity = Decimal(
+            str(required(line.quantity, "quantity", "purchase_order_line", str(xero_id)))
+        )
+        line_id = required(line.line_item_id, "line_item_id", "purchase_order_line", str(xero_id))
+        try:
+            po_line = po.po_lines.get(xero_line_item_id=line_id)
+        except PurchaseOrderLine.DoesNotExist:
+            # GPT: only a new external identity creates a line; duplicate IDs
+            # are ambiguous and must refuse the whole amendment.
+            po_line = PurchaseOrderLine(purchase_order=po, xero_line_item_id=line_id)
+        try:
+            validate_ordered_quantity(po_line, quantity)
+        except InvalidInputError as exc:
+            raise XeroValidationError([], "purchase_order", str(xero_id), message=str(exc)) from exc
+        po_line.description = description
+        po_line.quantity = quantity
+        po_line.unit_cost = line.unit_amount
+        po_line.price_tbc = line.unit_amount is None
+        po_line.supplier_item_code = line.item_code or None
+        po_line.raw_line_data = process_xero_data(line)
+        po_line.save()
+        logger.info("Applied Xero PO line %s on %s", po_line.id, po_number)
 
 
 # Opus: BILLED maps to submitted, NOT fully_received. Being billed is an
@@ -832,8 +799,10 @@ def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[Purchas
             queue_purchase_order_push(po)
             return po, _build_sync_status(created, changed_fields)
 
-        _stamp_agreement(po)
         _sync_purchase_order_lines(po, xero_po, po_number, xero_id)
+        if po.po_lines.filter(received_quantity__gt=0).exists():
+            recompute_purchase_order_status(po)
+        _stamp_agreement(po)
 
         # "linked" is special case for POs - existing PO matched by po_number
         if linked:

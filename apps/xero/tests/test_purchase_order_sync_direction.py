@@ -31,8 +31,10 @@ from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.tests.conftest import receive_po_line
+from apps.xero.models import XeroError
 from apps.xero.tests.conftest import make_po_manager, make_po_provider
-from apps.xero.transforms import transform_purchase_order
+from apps.xero.transforms import sync_entities, transform_purchase_order
+from apps.xero.validation import XeroValidationError
 
 pytestmark = pytest.mark.django_db
 
@@ -289,3 +291,61 @@ class TestReceiptSurvivesXero:
         assert line.received_quantity == Decimal(quantity)
         assert list(stocks.values()) == stock_before
         assert list(costs.values()) == cost_before
+
+
+@pytest.mark.parametrize("ordered", [Decimal("1"), Decimal("6")])
+def test_xero_quantity_amendments_preserve_posted_receipts(
+    supplier: Company, job: Job, stock_holding_job: Job, ordered: Decimal
+) -> None:
+    po = _sent_order(supplier, xero_id=uuid4())
+    line = po.po_lines.get()
+    receive_po_line(line, Decimal("2"), job, stock_holding_job, Staff.get_automation_user())
+    PurchaseOrder.objects.filter(pk=po.pk).update(xero_agreed_at=timezone.now())
+    po.refresh_from_db()
+    before = PurchaseOrder.objects.values().get(pk=po.pk)
+    costs = list(
+        CostLine.objects.filter(stockmovement__stock__source_purchase_order_line=line).values()
+    )
+    stocks = list(Stock.objects.filter(source_purchase_order_line=line).values())
+    incoming = _incoming(supplier, po.po_number, "AUTHORISED")
+    incoming.line_items[0].line_item_id = str(line.xero_line_item_id)
+    incoming.line_items[0].quantity = ordered
+    incoming.line_items[0].unit_amount = Decimal("30")
+    if ordered < 2:
+        with pytest.raises(XeroValidationError, match="net received"):
+            transform_purchase_order(incoming, str(po.xero_id))
+        incoming.purchase_order_id = str(po.xero_id)
+        assert (
+            sync_entities([incoming], PurchaseOrder, "purchase_order_id", transform_purchase_order)
+            == 0
+        )
+        assert "net received" in XeroError.objects.get(reference_id=str(po.xero_id)).message
+        assert PurchaseOrder.objects.values().get(pk=po.pk) == before
+        line.refresh_from_db()
+        assert line.quantity == 4
+        assert line.unit_cost == Decimal("12.50")
+    else:
+        transform_purchase_order(incoming, str(po.xero_id))
+        po.refresh_from_db()
+        line.refresh_from_db()
+        assert (line.quantity, line.unit_cost, line.received_quantity) == (
+            Decimal("6"),
+            Decimal("30"),
+            Decimal("2"),
+        )
+        assert po.status == "partially_received"
+        assert po.xero_agreed_at is not None and po.xero_agreed_at >= po.updated_at
+    assert (
+        list(
+            CostLine.objects.filter(stockmovement__stock__source_purchase_order_line=line).values()
+        )
+        == costs
+    )
+    assert list(Stock.objects.filter(source_purchase_order_line=line).values()) == stocks
+    if ordered >= 2:
+        receive_po_line(line, Decimal("2"), job, stock_holding_job, Staff.get_automation_user())
+        assert set(
+            Stock.objects.filter(source_purchase_order_line=line).values_list(
+                "unit_cost", flat=True
+            )
+        ) == {Decimal("12.50"), Decimal("30")}

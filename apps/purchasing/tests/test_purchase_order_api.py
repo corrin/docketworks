@@ -6,6 +6,7 @@ optimistic-concurrency semantics on the PATCH path (428 missing / 412 stale /
 stream.
 """
 
+from datetime import datetime
 from decimal import Decimal
 from unittest.mock import patch
 from uuid import uuid4
@@ -1052,3 +1053,18 @@ def test_received_line_cannot_lose_inventory_provenance(
         line.delete()
     stock.refresh_from_db()
     assert stock.source_purchase_order_line_id == line.id
+
+
+def test_detail_reports_the_specific_orders_inbound_xero_observation(api: Client) -> None:
+    po = make_purchase_order()
+    initial = api.get(_detail_url(po)).json()
+    assert initial["xero_status"] is None
+    assert initial["xero_last_synced"] is None
+    observed = timezone.now().replace(microsecond=0)
+    PurchaseOrder.objects.filter(pk=po.pk).update(
+        xero_status="AUTHORISED", xero_last_synced=observed
+    )
+    detail = api.get(_detail_url(po))
+    assert detail.status_code == 200, detail.content
+    assert detail.json()["xero_status"] == "AUTHORISED"
+    assert datetime.fromisoformat(detail.json()["xero_last_synced"]) == observed
