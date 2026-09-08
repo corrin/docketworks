@@ -15,7 +15,7 @@ from apps.purchasing.services.stock_movement_service import (
     inventory_difference,
     move_stock,
 )
-from apps.purchasing.tests.conftest import make_stock
+from apps.purchasing.tests.factories import make_stock
 from apps.xero import transforms
 
 pytestmark = pytest.mark.django_db

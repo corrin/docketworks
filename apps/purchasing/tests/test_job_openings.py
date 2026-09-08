@@ -14,7 +14,7 @@ from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import Stock, StockMovement
 from apps.purchasing.services.stock_movement_service import inventory_difference
-from apps.purchasing.tests.conftest import make_po_line, make_purchase_order, make_stock
+from apps.purchasing.tests.factories import make_po_line, make_purchase_order, make_stock
 
 pytestmark = pytest.mark.django_db
 

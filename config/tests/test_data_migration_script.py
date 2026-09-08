@@ -250,6 +250,14 @@ def test_sql_backfills_are_rewound_and_replayed_after_restore() -> None:
     assert replayed >= SQL_DATA_MIGRATIONS
 
 
+def test_inventory_is_audited_before_and_after_openings_are_posted() -> None:
+    script = MIGRATE_SCRIPT.read_text()
+    opening_at = script.index("manage.py migrate purchasing 0011")
+    head_at = script.index("manage.py migrate --no-input", opening_at)
+    assert script.index("manage.py audit_inventory_openings") < opening_at
+    assert script.rindex("manage.py audit_inventory_openings") > head_at
+
+
 def test_script_clears_v1_ciphertext_after_phone_columns_are_renamed() -> None:
     """Encrypted bytes must not survive as apparently valid plaintext credentials."""
     script = MIGRATE_SCRIPT.read_text()

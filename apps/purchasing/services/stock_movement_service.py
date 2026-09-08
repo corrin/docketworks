@@ -2,9 +2,10 @@
 
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import TYPE_CHECKING, TypedDict
 
-from django.db import transaction
-from django.db.models import Sum
+from django.db import connection, transaction
+from django.db.models import F, QuerySet, Sum
 from django.utils import timezone
 
 from apps.accounts.models import Staff
@@ -12,6 +13,22 @@ from apps.core.errors import InvalidInputError
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.purchasing.models import Stock, StockMovement, StockMovementKind, StocktakeLine
+
+if TYPE_CHECKING:
+    from django_stubs_ext import WithAnnotations
+
+
+class InventoryBalance(TypedDict):
+    """The ledger projection alongside a stock row's stored balance."""
+
+    ledger_quantity: Decimal
+
+
+def inventory_balances() -> QuerySet["WithAnnotations[Stock, InventoryBalance]"]:
+    """Project every identity, including empty and retired identities, in one query."""
+    return Stock.objects.annotate(
+        ledger_quantity=Sum("movements__quantity_change", default=Decimal("0"))
+    )
 
 
 @dataclass(frozen=True)
@@ -80,8 +97,128 @@ def move_stock(stock: Stock, change: Decimal, context: MovementContext) -> Stock
 
 def inventory_difference(stock: Stock) -> Decimal:
     """Read-only reconciliation; never repair an unexplained difference."""
-    total = stock.movements.aggregate(total=Sum("quantity_change", default=Decimal("0")))["total"]
-    return stock.quantity - Decimal(total)
+    return stock.quantity - inventory_balances().get(pk=stock.pk).ledger_quantity
+
+
+_LEDGER_AUDITS = {
+    "Movement continuity": """
+        WITH ordered AS (
+            SELECT id, quantity_before,
+                   lag(quantity_after, 1, 0) OVER (
+                       PARTITION BY stock_id ORDER BY recorded_at, id
+                   ) AS preceding_quantity
+            FROM purchasing_stockmovement
+        )
+        SELECT id::text FROM ordered WHERE quantity_before <> preceding_quantity
+    """,
+    "Job cost counterparts": """
+        SELECT m.id::text FROM purchasing_stockmovement m
+        LEFT JOIN job_costline c ON c.id = m.cost_line_id
+        LEFT JOIN job_costset cs ON cs.id = c.cost_set_id
+        WHERE m.kind IN ('issue', 'return', 'job_opening', 'stocktake')
+          AND (c.id IS NULL OR cs.kind <> 'actual' OR c.kind <> 'material'
+               OR NOT c.approved OR cs.job_id IS DISTINCT FROM m.counterpart_job_id
+               OR c.unit_cost IS DISTINCT FROM m.unit_cost
+               OR c.managed_by IS DISTINCT FROM
+                   CASE WHEN m.kind = 'stocktake' THEN 'stocktake' ELSE 'stock' END
+               OR (m.kind <> 'job_opening' AND c.quantity <> -m.quantity_change)
+               OR (m.kind = 'job_opening' AND (c.quantity <= 0 OR m.quantity_change <> 0)))
+    """,
+    "Unlinked inventory costs": """
+        SELECT c.id::text FROM job_costline c
+        WHERE c.managed_by IN ('stock', 'stocktake')
+          AND NOT EXISTS (
+              SELECT 1 FROM purchasing_stockmovement m WHERE m.cost_line_id = c.id
+                AND m.kind IN ('issue', 'return', 'job_opening', 'stocktake')
+          )
+    """,
+    "Reversal evidence": """
+        SELECT m.id::text FROM purchasing_stockmovement m
+        LEFT JOIN purchasing_stockmovement original ON original.id = m.reverses_id
+        LEFT JOIN job_costline charge ON charge.id = original.cost_line_id
+        LEFT JOIN job_costline credit ON credit.id = m.cost_line_id
+        WHERE m.kind IN ('return', 'receipt_reversal')
+          AND (original.id IS NULL OR original.stock_id <> m.stock_id
+               OR m.unit_cost IS DISTINCT FROM original.unit_cost
+               OR (m.kind = 'return' AND (
+                   original.kind NOT IN ('issue', 'job_opening')
+                   OR m.counterpart_job_id IS DISTINCT FROM original.counterpart_job_id
+                   OR charge.id IS NULL OR credit.id IS NULL
+                   OR m.quantity_change <> charge.quantity
+                   OR credit.unit_cost IS DISTINCT FROM charge.unit_cost
+                   OR credit.unit_rev IS DISTINCT FROM charge.unit_rev))
+               OR (m.kind = 'receipt_reversal' AND (
+                   original.kind NOT IN ('receipt', 'receipt_opening')
+                   OR m.quantity_change IS DISTINCT FROM -CASE
+                       WHEN original.kind = 'receipt_opening' THEN original.opening_quantity
+                       ELSE original.quantity_change END)))
+    """,
+    "Stocktake posting evidence": """
+        SELECT m.id::text FROM purchasing_stockmovement m
+        LEFT JOIN purchasing_stocktakeline l ON l.id = m.stocktake_line_id
+        LEFT JOIN purchasing_stocktake t ON t.id = l.stocktake_id
+        WHERE m.kind = 'stocktake'
+          AND (l.id IS NULL OR t.posted_at IS NULL OR l.stock_id IS DISTINCT FROM m.stock_id
+               OR l.counted_quantity IS NULL
+               OR m.quantity_change <> l.counted_quantity - l.expected_quantity
+               OR m.unit_cost <> l.unit_cost)
+        UNION ALL
+        SELECT l.id::text FROM purchasing_stocktakeline l
+        JOIN purchasing_stocktake t ON t.id = l.stocktake_id
+        WHERE t.posted_at IS NOT NULL AND l.counted_quantity <> l.expected_quantity
+          AND NOT EXISTS (
+              SELECT 1 FROM purchasing_stockmovement m WHERE m.stocktake_line_id = l.id
+          )
+    """,
+    "Supplier receipt totals": """
+        WITH pending_lines AS (
+            SELECT s.source_purchase_order_line_id AS id FROM purchasing_stock s
+            WHERE s.source = 'purchase_order' AND NOT EXISTS (
+                SELECT 1 FROM purchasing_stockmovement m WHERE m.stock_id = s.id
+                  AND m.kind IN ('receipt', 'receipt_opening')
+            )
+            UNION
+            SELECT pl.id FROM purchasing_purchaseorderline pl
+            JOIN job_costline c ON c.ext_refs->>'purchase_order_line_id' = pl.id::text
+            JOIN job_costset cs ON cs.id = c.cost_set_id
+            WHERE cs.kind = 'actual' AND c.kind = 'material'
+              AND c.ext_refs ? 'purchase_order_id' AND NOT EXISTS (
+                  SELECT 1 FROM purchasing_stockmovement m WHERE m.cost_line_id = c.id
+              )
+        ), receipts AS (
+            SELECT s.source_purchase_order_line_id AS id,
+                   sum(CASE WHEN m.kind = 'receipt_opening' THEN m.opening_quantity
+                            ELSE m.quantity_change END) AS quantity
+            FROM purchasing_stock s JOIN purchasing_stockmovement m ON m.stock_id = s.id
+            WHERE m.kind IN ('receipt', 'receipt_opening', 'receipt_reversal')
+            GROUP BY s.source_purchase_order_line_id
+        )
+        SELECT pl.id::text FROM purchasing_purchaseorderline pl
+        LEFT JOIN receipts r ON r.id = pl.id
+        WHERE pl.received_quantity <> coalesce(r.quantity, 0)
+          AND NOT EXISTS (SELECT 1 FROM pending_lines p WHERE p.id = pl.id)
+    """,
+}
+
+
+def inventory_audit_findings() -> dict[str, list[str]]:
+    """Read discrepancies across the ledger; never manufacture missing evidence.
+
+    Receipt totals with explicit pending opening candidates become auditable
+    after the cutover. All already-posted movement and cost evidence is checked
+    both before and after it.
+    """
+    findings = {
+        "Stock balances": [
+            f"{stock.id}: recorded={stock.quantity}, ledger={stock.ledger_quantity}"
+            for stock in inventory_balances().exclude(quantity=F("ledger_quantity")).order_by("id")
+        ]
+    }
+    with connection.cursor() as cursor:
+        for label, query in _LEDGER_AUDITS.items():
+            cursor.execute(query)
+            findings[label] = sorted(str(row[0]) for row in cursor.fetchall())
+    return {label: rows for label, rows in findings.items() if rows}
 
 
 def receipt_quantity(movement: StockMovement) -> Decimal:

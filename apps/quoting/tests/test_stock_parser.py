@@ -23,7 +23,7 @@ from apps.company.tests.job_fixtures import make_job
 from apps.core.models import AppError
 from apps.job.models import Job
 from apps.purchasing.models import Stock
-from apps.purchasing.tests.conftest import make_stock
+from apps.purchasing.tests.factories import make_stock
 from apps.quoting.services.stock_parser import (
     MAX_SPECIFICS_LENGTH,
     auto_parse_stock_item,

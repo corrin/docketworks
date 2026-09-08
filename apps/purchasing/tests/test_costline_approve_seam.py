@@ -20,7 +20,7 @@ from apps.company.tests.job_fixtures import make_job, ordinary_time_pay_item
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine
-from apps.purchasing.tests.conftest import make_stock
+from apps.purchasing.tests.factories import make_stock
 
 pytestmark = [
     pytest.mark.django_db,

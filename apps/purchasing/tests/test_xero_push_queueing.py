@@ -23,7 +23,7 @@ from pytest_django.fixtures import DjangoCaptureOnCommitCallbacks
 from apps.accounts.models import Staff
 from apps.purchasing.tasks import PUSH_PURCHASE_ORDER_TASK as PUSH_TASK
 from apps.purchasing.tasks import queue_purchase_order_push
-from apps.purchasing.tests.conftest import make_po_line, make_purchase_order
+from apps.purchasing.tests.factories import make_po_line, make_purchase_order
 
 pytestmark = pytest.mark.django_db
 

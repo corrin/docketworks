@@ -24,7 +24,7 @@ from apps.purchasing.services.stock_movement_service import (
     move_stock,
 )
 from apps.purchasing.services.stock_service import consume_stock
-from apps.purchasing.tests.conftest import make_stock
+from apps.purchasing.tests.factories import make_stock
 
 pytestmark = pytest.mark.django_db
 URL = "/api/purchasing/stocktakes/"

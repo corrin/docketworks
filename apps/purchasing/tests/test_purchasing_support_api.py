@@ -24,7 +24,7 @@ from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder, Stock
-from apps.purchasing.tests.conftest import make_po_line, make_purchase_order, make_stock
+from apps.purchasing.tests.factories import make_po_line, make_purchase_order, make_stock
 from apps.quoting.models import ProductParsingMapping, SupplierPriceList, SupplierProduct
 
 pytestmark = [

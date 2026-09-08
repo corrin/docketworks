@@ -300,5 +300,6 @@ DB_NAME="$V2_DB" uv run python manage.py migrate purchasing 0011 --no-input
 # script written when an app's head was lower can never strand a migration
 # added after it — this line needs no edit when the next migration lands.
 DB_NAME="$V2_DB" uv run python manage.py migrate --no-input
+DB_NAME="$V2_DB" uv run python manage.py audit_inventory_openings
 
 echo "Done. Now run scripts/ops/db_schema_diff.sh, row-count parity, and the test suites."

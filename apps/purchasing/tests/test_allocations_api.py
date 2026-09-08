@@ -12,7 +12,7 @@ from django.test.utils import CaptureQueriesContext
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import PurchaseOrder, Stock, StockMovement
-from apps.purchasing.tests.conftest import make_po_line, make_purchase_order
+from apps.purchasing.tests.factories import make_po_line, make_purchase_order
 
 if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse

@@ -42,7 +42,7 @@ from apps.purchasing.tasks import (
     stock_metadata_incomplete,
     stock_metadata_parse_eligible,
 )
-from apps.purchasing.tests.conftest import make_po_line, make_purchase_order, make_stock
+from apps.purchasing.tests.factories import make_po_line, make_purchase_order, make_stock
 from apps.quoting.models import ProductParsingMapping
 from apps.quoting.services.stock_parser import auto_parse_stock_item
 from apps.quoting.tests.conftest import LLM_BOUNDARY, llm_reply

@@ -30,7 +30,7 @@ from apps.company.models import Company
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
-from apps.purchasing.tests.conftest import receive_po_line
+from apps.purchasing.tests.factories import receive_po_line
 from apps.xero.models import XeroError
 from apps.xero.tests.conftest import make_po_manager, make_po_provider
 from apps.xero.transforms import sync_entities, transform_purchase_order

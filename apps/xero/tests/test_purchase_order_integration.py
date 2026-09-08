@@ -38,7 +38,7 @@ from apps.company.services.company_rest_service import CompanyRestService
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
-from apps.purchasing.tests.conftest import receive_po_line
+from apps.purchasing.tests.factories import receive_po_line
 from apps.xero.auth import get_tenant_id
 from apps.xero.documents.po import XeroPurchaseOrderManager
 from apps.xero.models import XeroAccount

@@ -1010,3 +1010,16 @@ PO version. Allocation reads identify reversed evidence and report can_reverse.
 Validation: 40 allocation/cutover tests, strict mypy and frontend type checking
 passed. Reintroducing the repeated PO write made both stock/job retry regressions
 fail. Live and browser gates remain outstanding.
+
+The recurring inventory audit now reads one repeatable, read-only snapshot and
+checks projected balances, movement continuity, cost counterparts, reversal
+prices/links, posted count evidence and supplier receipt totals. Pending opening
+positions are distinguished from completed receipt evidence; the restore script
+runs the audit again after all migrations. It reports discrepancies without
+repairing them. Purchasing test factories now live outside conftest so callers
+can reuse data setup without importing fixture wiring.
+Validation: the expanded count/cutover/restore run passed 52 cases; one new audit
+fixture lacked its required accounting date and was corrected. All six audit
+cases then passed, as did strict mypy. Omitting the chain audit made its regression
+fail. The local read-only command still refuses the eight known unresolved
+receipt-opening candidates; no dispositions or repairs were applied.

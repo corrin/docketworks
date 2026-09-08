@@ -9,7 +9,7 @@ from django.test import Client
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import Stock
-from apps.purchasing.tests.conftest import make_stock
+from apps.purchasing.tests.factories import make_stock
 
 pytestmark = [
     pytest.mark.django_db,

@@ -1,21 +1,23 @@
-"""Read the exact cutover preflight without creating any opening records."""
+"""Audit cutover candidates and the posted ledger in one read-only snapshot."""
 
 from importlib import import_module
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
+
+from apps.purchasing.services.stock_movement_service import inventory_audit_findings
 
 
 class Command(BaseCommand):
-    """Expose the migration's read-only preflight to deployment operators."""
+    """Expose recurring inventory reconciliation to deployment operators."""
 
-    help = "Validate inventory cutover evidence in a read-only transaction."
+    help = "Audit inventory openings, balances, costs, reversals and net receipts without writes."
 
     def handle(self, *_args: object, **_options: object) -> None:
-        """Validate all candidates before reporting their unchanged booked totals."""
+        """Validate candidates and report ledger discrepancies without repairs."""
         migration = import_module("apps.purchasing.migrations.0011_backfill_job_openings")
         with transaction.atomic(), connection.cursor() as cursor:
-            cursor.execute("SET TRANSACTION READ ONLY")
+            cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
             cursor.execute(migration.PREFLIGHT_SQL)
             cursor.execute("""
                 SELECT count(*), sum(c.quantity * c.unit_cost), sum(c.quantity * c.unit_rev)
@@ -27,4 +29,11 @@ class Command(BaseCommand):
                   )
             """)
             self.stdout.write(f"Pending job openings (count, cost, revenue): {cursor.fetchone()}")
-        self.stdout.write("Inventory opening preflight passed; no data changed.")
+            findings = inventory_audit_findings()
+            for label, rows in findings.items():
+                self.stdout.write(f"{label}: {len(rows)} discrepancies")
+                for row in rows:
+                    self.stdout.write(f"  {row}")
+            if findings:
+                raise CommandError("Inventory audit failed; no data changed.")
+        self.stdout.write("Inventory opening preflight and ledger audit passed; no data changed.")

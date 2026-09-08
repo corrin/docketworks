@@ -24,7 +24,7 @@ from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.platform.integrations.google.gmail import GmailDraft
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
-from apps.purchasing.tests.conftest import make_po_line, make_purchase_order
+from apps.purchasing.tests.factories import make_po_line, make_purchase_order
 
 #: The one seam to Gmail; the real API is exercised by the integration suite.
 DRAFT = "apps.purchasing.api.create_draft"

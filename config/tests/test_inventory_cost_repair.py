@@ -13,7 +13,7 @@ from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import StockMovement
-from apps.purchasing.tests.conftest import make_po_line, make_purchase_order
+from apps.purchasing.tests.factories import make_po_line, make_purchase_order
 
 pytestmark = pytest.mark.django_db
 

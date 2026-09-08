@@ -25,7 +25,7 @@ from apps.company.models import Company
 from apps.purchasing.etag import purchase_order_etag
 from apps.purchasing.models import PurchaseOrder
 from apps.purchasing.services.purchase_order_service import update_purchase_order
-from apps.purchasing.tests.conftest import make_po_line, make_purchase_order
+from apps.purchasing.tests.factories import make_po_line, make_purchase_order
 from apps.xero.tasks import reconcile_purchase_orders_to_xero
 from apps.xero.tests.conftest import make_po_manager, make_po_provider
 
