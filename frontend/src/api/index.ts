@@ -554,6 +554,7 @@ export type { QuotingChatModelOut } from './generated/types.gen'
 
 export {
   stocktakeCreateMutation,
+  purchasingStockDestroyMutation,
   stocktakeListOptions,
   stocktakeSetupCreateMutation,
   stocktakeSetupRetrieveOptions,

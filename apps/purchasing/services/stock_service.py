@@ -66,12 +66,9 @@ class StockItemData(TypedDict):
 
 
 class StockWriteData(TypedDict, total=False):
-    """The Stock fields a create/update payload may carry."""
+    """Editable stock identity metadata."""
 
     description: str
-    quantity: Decimal
-    unit_cost: Decimal
-    source: str
     item_code: str | None
     unit_revenue: Decimal | None
     date: datetime
@@ -79,7 +76,6 @@ class StockWriteData(TypedDict, total=False):
     metal_type: str | None
     alloy: str | None
     specifics: str | None
-    is_active: bool
 
 
 def countable_stock() -> QuerySet[Stock]:
@@ -118,10 +114,10 @@ def stock_item_data(
 
 
 def _apply_stock_fields(stock: Stock, data: StockWriteData) -> None:
-    for field in ("description", "quantity", "unit_cost", "source", "unit_revenue", "is_active"):
+    for field in ("description", "unit_revenue"):
         if field in data:
             setattr(stock, field, data[field])
-    if "date" in data and data["date"] is not None:
+    if "date" in data:
         stock.date = data["date"]
     # No blank-coercion here: these fields are NullableText on the request
     # schema (ADR 0040), so "" was a 422 before this function was reached.
@@ -130,11 +126,15 @@ def _apply_stock_fields(stock: Stock, data: StockWriteData) -> None:
             setattr(stock, text_field, data[text_field])
 
 
-def create_stock(data: StockWriteData) -> Stock:
-    """Create a stock row on the stock-holding job."""
-    if "quantity" in data and data["quantity"] != 0:
-        raise InvalidInputError("Record found material through Stocktake.")
-    stock = Stock(job=Stock.get_stock_holding_job(), date=timezone.now(), quantity=0)
+def create_stock(data: StockWriteData, *, unit_cost: Decimal) -> Stock:
+    """Create an empty manual identity on the stock-holding job."""
+    stock = Stock(
+        job=Stock.get_stock_holding_job(),
+        date=timezone.now(),
+        quantity=0,
+        unit_cost=unit_cost,
+        source="manual",
+    )
     _apply_stock_fields(stock, data)
     stock.save()
     queue_metadata_parse_if_eligible(stock)
@@ -143,16 +143,8 @@ def create_stock(data: StockWriteData) -> Stock:
 
 @transaction.atomic
 def update_stock(stock: Stock, data: StockWriteData) -> Stock:
-    """Apply a create/update payload to an existing stock row."""
+    """Update metadata under the inventory writer's row lock."""
     stock = Stock.objects.select_for_update().get(pk=stock.pk)
-    if "source" in data and data["source"] != stock.source:
-        raise InvalidInputError("Stock provenance cannot be overwritten.")
-    if "quantity" in data and data["quantity"] != stock.quantity:
-        raise InvalidInputError("Record quantity corrections through Stocktake.")
-    if "unit_cost" in data and data["unit_cost"] != stock.unit_cost:
-        raise InvalidInputError("Historical stock costs cannot be overwritten.")
-    if "is_active" in data and not data["is_active"] and stock.quantity != 0:
-        raise InvalidInputError("Count this stock before retiring its identity.")
     _apply_stock_fields(stock, data)
     stock.save()
     queue_metadata_parse_if_eligible(stock)

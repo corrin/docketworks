@@ -77,6 +77,7 @@ from apps.purchasing.schemas import (
     StockConsumeResponse,
     StockItem,
     StockItemRequest,
+    StockMetadataRequest,
     StockSearchQuery,
     StockSearchResponse,
     SupplierPriceStatusResponse,
@@ -641,7 +642,7 @@ def purchasing_stock_create(
     request: HttpRequest, payload: StockItemRequest
 ) -> Status[stock_service.StockItemData]:
     """Create a stock item on the stock-holding job."""
-    stock = stock_service.create_stock(_stock_write_data(payload))
+    stock = stock_service.create_stock(_stock_write_data(payload), unit_cost=payload.unit_cost)
     return Status(201, stock_service.stock_item_data(stock))
 
 
@@ -694,8 +695,8 @@ def purchasing_stock_search_retrieve(
     tags=["purchasing"],
 )
 def purchasing_stock_retrieve(request: HttpRequest, id: UUID) -> stock_service.StockItemData:
-    """Fetch one active stock item."""
-    return stock_service.stock_item_data(_get_stock_or_404(id))
+    """Fetch an identity, including retired stock whose evidence remains accessible."""
+    return stock_service.stock_item_data(get_object_or_404(Stock, pk=id))
 
 
 @router.put(
@@ -707,7 +708,7 @@ def purchasing_stock_retrieve(request: HttpRequest, id: UUID) -> stock_service.S
     tags=["purchasing"],
 )
 def purchasing_stock_update(
-    request: HttpRequest, id: UUID, payload: StockItemRequest
+    request: HttpRequest, id: UUID, payload: StockMetadataRequest
 ) -> stock_service.StockItemData:
     """Full update of a stock item."""
     stock = stock_service.update_stock(_get_stock_or_404(id), _stock_write_data(payload))
@@ -782,27 +783,23 @@ def _get_stock_or_404(stock_id: UUID) -> Stock:
     return get_object_or_404(Stock, id=stock_id, is_active=True)
 
 
-def _stock_write_data(payload: StockItemRequest) -> StockWriteData:
+def _stock_write_data(payload: StockMetadataRequest) -> StockWriteData:
     """Collect the full stock write payload (``date`` defaults on create)."""
     data: StockWriteData = {
         "description": payload.description,
-        "quantity": payload.quantity,
-        "unit_cost": payload.unit_cost,
-        "source": payload.source,
         "item_code": payload.item_code,
         "unit_revenue": payload.unit_revenue,
         "location": payload.location,
         "metal_type": payload.metal_type,
         "alloy": payload.alloy,
         "specifics": payload.specifics,
-        "is_active": payload.is_active,
     }
-    if payload.date is not None:
+    if "date" in payload.model_fields_set:
         data["date"] = payload.date
     return data
 
 
-def _patched_stock_write_data(  # noqa: C901 -- one branch per Stock field; a loop would need dynamic keys
+def _patched_stock_write_data(
     payload: PatchedStockItemRequest,
 ) -> StockWriteData:
     """Collect only the stock fields the caller actually sent."""
@@ -812,15 +809,7 @@ def _patched_stock_write_data(  # noqa: C901 -- one branch per Stock field; a lo
     # only question left here.
     if "description" in provided:
         data["description"] = payload.description
-    if "quantity" in provided:
-        data["quantity"] = payload.quantity
-    if "unit_cost" in provided:
-        data["unit_cost"] = payload.unit_cost
-    if "source" in provided:
-        data["source"] = payload.source
-    if "is_active" in provided:
-        data["is_active"] = payload.is_active
-    # Nullable fields: an explicit null (or blank) clears them.
+    # Nullable fields: an explicit null clears them.
     if "item_code" in provided:
         data["item_code"] = payload.item_code
     if "unit_revenue" in provided:

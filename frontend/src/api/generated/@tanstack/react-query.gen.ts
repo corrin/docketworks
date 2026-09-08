@@ -4589,7 +4589,7 @@ export const purchasingStockRetrieveQueryKey = (options: Options<PurchasingStock
 /**
  * Fetch a stock item
  *
- * Fetch one active stock item.
+ * Fetch an identity, including retired stock whose evidence remains accessible.
  */
 export const purchasingStockRetrieveOptions = (options: Options<PurchasingStockRetrieveData>) => queryOptions<PurchasingStockRetrieveResponse, AxiosError<DefaultError>, PurchasingStockRetrieveResponse, ReturnType<typeof purchasingStockRetrieveQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

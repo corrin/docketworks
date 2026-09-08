@@ -21,7 +21,7 @@ STOCK_URL = "/api/purchasing/stock/"
 
 @pytest.mark.usefixtures("company_defaults")
 class TestStockCrud:
-    def test_list_returns_active_stock_newest_first(
+    def test_list_returns_active_stock_in_description_order(
         self, api: Client, stock_holding_job: Job
     ) -> None:
         older = make_stock(stock_holding_job, description="Older")
@@ -39,7 +39,7 @@ class TestStockCrud:
             STOCK_URL,
             data={
                 "description": "6mm plate",
-                "quantity": "0",
+                "quantity": 0,
                 "unit_cost": "80.00",
                 "source": "manual",
                 "location": "Rack 1",
@@ -138,7 +138,7 @@ class TestStockCrud:
         )
 
         stock.refresh_from_db()
-        assert response.status_code == 400
+        assert response.status_code == 422
         assert stock.description == "Old"
         assert stock.quantity == Decimal("1.00")
 
@@ -164,11 +164,13 @@ class TestStockCrud:
         stock.refresh_from_db()
         assert stock.is_active is False
 
-    def test_an_inactive_row_is_not_reachable(self, api: Client, stock_holding_job: Job) -> None:
+    def test_an_inactive_identity_remains_readable(
+        self, api: Client, stock_holding_job: Job
+    ) -> None:
         stock = make_stock(stock_holding_job, is_active=False)
-        assert api.get(f"{STOCK_URL}{stock.id}/").status_code == 404
+        assert api.get(f"{STOCK_URL}{stock.id}/").status_code == 200
 
-    def test_negative_unit_cost_is_rejected_by_the_model(
+    def test_negative_unit_cost_is_rejected_by_the_schema(
         self,
         api: Client,
         stock_holding_job: Job,  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
@@ -177,15 +179,15 @@ class TestStockCrud:
             STOCK_URL,
             data={
                 "description": "Broken",
-                "quantity": "0",
+                "quantity": 0,
                 "unit_cost": "-1.00",
                 "source": "manual",
             },
             content_type="application/json",
         )
 
-        assert response.status_code == 500
-        assert "Unit cost cannot be negative" in response.json()["detail"]
+        assert response.status_code == 422
+        assert Stock.objects.count() == 0
 
 
 @pytest.mark.usefixtures("company_defaults")
@@ -386,7 +388,7 @@ class TestStockWriteFields:
             f"{STOCK_URL}{stock.id}/",
             data={
                 "unit_revenue": "44.00",
-                "date": "2026-03-04",
+                "date": "2026-03-04T00:00:00+13:00",
                 "item_code": "RB12",
                 "location": "Bay 3",
                 "metal_type": "steel",
@@ -422,10 +424,10 @@ class TestStockWriteFields:
             STOCK_URL,
             data={
                 "description": "Backdated bar",
-                "quantity": "0",
+                "quantity": 0,
                 "unit_cost": "10.00",
                 "source": "manual",
-                "date": "2026-02-01",
+                "date": "2026-02-01T00:00:00+13:00",
             },
             content_type="application/json",
         )

@@ -11,10 +11,17 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from ninja import Schema
-from pydantic import Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from apps.company.schemas import SupplierPickupAddressOut, clean_optional_email
-from apps.core.schemas import NullableText, Quantity, ResponseSchema, omittable
+from apps.core.schemas import (
+    NonBlankText,
+    NullableText,
+    Quantity,
+    ResponseSchema,
+    UnitCost,
+    omittable,
+)
 from apps.job.schemas import CostLineOut
 
 # The one NullableText (ADR 0039/0040) lives in apps/core/schemas — company's
@@ -462,52 +469,33 @@ class StockItem(Schema):
     can_retire: bool
 
 
-class StockItemRequest(Schema):
-    """Stock-item create and full-update payload.
+class StockMetadataRequest(Schema):
+    """Editable identity metadata; inventory changes have separate audited workflows."""
 
-    The nullable text fields are ``NullableText`` (ADR 0040): ``""`` is a
-    validation 422 before the ``*_not_blank`` check constraints ever see it,
-    and ``null`` is how a client leaves one unset.
-    """
+    model_config = ConfigDict(extra="forbid")
 
-    description: str
-    quantity: Decimal
-    unit_cost: Decimal
-    source: str
+    description: Annotated[NonBlankText, Field(max_length=255)]
     item_code: NullableText = None
-    unit_revenue: Decimal | None = None
-    date: datetime | None = None
-    location: NullableText = None
-    metal_type: NullableText = None
-    alloy: NullableText = None
-    specifics: NullableText = None
-    is_active: bool = True
-
-
-class PatchedStockItemRequest(Schema):
-    """Partial stock-item update in which field presence is significant.
-
-    The first block maps to NOT NULL columns, so null is a 422 — the handler
-    used to drop it silently, which reported a refused edit as a success. The
-    ``NullableText`` block is the ADR 0040 set where null is precisely how a
-    caller clears the value, and ``unit_revenue`` is nullable for the same
-    reason.
-    """
-
-    description: str = omittable("")
-    quantity: Decimal = omittable(Decimal("0"))
-    unit_cost: Decimal = omittable(Decimal("0"))
-    source: str = omittable("")
-    # tz-aware even though it is never read: a naive datetime in a field the
-    # rest of the codebase treats as aware is a trap for whoever reads it next.
+    unit_revenue: UnitCost | None = None
     date: datetime = omittable(datetime.min.replace(tzinfo=UTC))
-    is_active: bool = omittable(False)
-    item_code: NullableText = None
-    unit_revenue: Decimal | None = None
     location: NullableText = None
     metal_type: NullableText = None
     alloy: NullableText = None
     specifics: NullableText = None
+
+
+class StockItemRequest(StockMetadataRequest):
+    """Create an empty manual identity at an explicit cost, including a deliberate zero."""
+
+    unit_cost: UnitCost
+    quantity: Literal[0] = 0
+    source: Literal["manual"] = "manual"
+
+
+class PatchedStockItemRequest(StockMetadataRequest):
+    """Change only metadata fields explicitly supplied by the caller."""
+
+    description: Annotated[NonBlankText, Field(max_length=255)] = omittable("")
 
 
 class StockConsumeRequest(Schema):

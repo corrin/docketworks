@@ -10,6 +10,7 @@ import { Link } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import {
   apiErrorMessage,
+  jobJobsCostSetsRetrieveOptions,
   costLineStockMovementRetrieveOptions,
   stockMovementsListOptions,
   stockMovementsListInfiniteOptions,
@@ -19,6 +20,7 @@ import {
   stockMovementReturnMutation,
   type StockMovementPage,
 } from '@/api'
+import { invalidateJobViews } from '@/features/job'
 import { Button } from '@/components/ui/button'
 import { QueryState } from '@/features/shared/QueryState'
 import { ListTable } from '@/features/shared/ListTable'
@@ -153,6 +155,14 @@ function MovementRows({
                       {
                         onSuccess: () => {
                           toast.success('Material returned')
+                          if (movement.counterpart_job_id !== null) {
+                            void invalidateJobViews(cache, movement.counterpart_job_id)
+                            void cache.invalidateQueries({
+                              queryKey: jobJobsCostSetsRetrieveOptions({
+                                path: { job_id: movement.counterpart_job_id, kind: 'actual' },
+                              }).queryKey,
+                            })
+                          }
                           void cache.invalidateQueries({
                             queryKey: stockMovementsListOptions({ path: { id: movement.stock_id } })
                               .queryKey,

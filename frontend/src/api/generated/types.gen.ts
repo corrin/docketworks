@@ -7071,13 +7071,7 @@ export type PatchedPersonContactMethodWriteRequest = {
 /**
  * PatchedStockItemRequest
  *
- * Partial stock-item update in which field presence is significant.
- *
- * The first block maps to NOT NULL columns, so null is a 422 — the handler
- * used to drop it silently, which reported a refused edit as a success. The
- * ``NullableText`` block is the ADR 0040 set where null is precisely how a
- * caller clears the value, and ``unit_revenue`` is nullable for the same
- * reason.
+ * Change only metadata fields explicitly supplied by the caller.
  */
 export type PatchedStockItemRequest = {
     /**
@@ -7093,10 +7087,6 @@ export type PatchedStockItemRequest = {
      */
     description?: string;
     /**
-     * Is Active
-     */
-    is_active?: boolean;
-    /**
      * Item Code
      */
     item_code?: string | null;
@@ -7109,25 +7099,13 @@ export type PatchedStockItemRequest = {
      */
     metal_type?: string | null;
     /**
-     * Quantity
-     */
-    quantity?: number | string;
-    /**
-     * Source
-     */
-    source?: string;
-    /**
      * Specifics
      */
     specifics?: string | null;
     /**
-     * Unit Cost
-     */
-    unit_cost?: number | string;
-    /**
      * Unit Revenue
      */
-    unit_revenue?: number | string | null;
+    unit_revenue?: number | null;
 };
 
 /**
@@ -11336,11 +11314,7 @@ export type StockItem = {
 /**
  * StockItemRequest
  *
- * Stock-item create and full-update payload.
- *
- * The nullable text fields are ``NullableText`` (ADR 0040): ``""`` is a
- * validation 422 before the ``*_not_blank`` check constraints ever see it,
- * and ``null`` is how a client leaves one unset.
+ * Create an empty manual identity at an explicit cost, including a deliberate zero.
  */
 export type StockItemRequest = {
     /**
@@ -11350,15 +11324,11 @@ export type StockItemRequest = {
     /**
      * Date
      */
-    date?: string | null;
+    date?: string;
     /**
      * Description
      */
     description: string;
-    /**
-     * Is Active
-     */
-    is_active?: boolean;
     /**
      * Item Code
      */
@@ -11374,11 +11344,11 @@ export type StockItemRequest = {
     /**
      * Quantity
      */
-    quantity: number | string;
+    quantity?: 0;
     /**
      * Source
      */
-    source: string;
+    source?: 'manual';
     /**
      * Specifics
      */
@@ -11386,11 +11356,51 @@ export type StockItemRequest = {
     /**
      * Unit Cost
      */
-    unit_cost: number | string;
+    unit_cost: number;
     /**
      * Unit Revenue
      */
-    unit_revenue?: number | string | null;
+    unit_revenue?: number | null;
+};
+
+/**
+ * StockMetadataRequest
+ *
+ * Editable identity metadata; inventory changes have separate audited workflows.
+ */
+export type StockMetadataRequest = {
+    /**
+     * Alloy
+     */
+    alloy?: string | null;
+    /**
+     * Date
+     */
+    date?: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Item Code
+     */
+    item_code?: string | null;
+    /**
+     * Location
+     */
+    location?: string | null;
+    /**
+     * Metal Type
+     */
+    metal_type?: string | null;
+    /**
+     * Specifics
+     */
+    specifics?: string | null;
+    /**
+     * Unit Revenue
+     */
+    unit_revenue?: number | null;
 };
 
 /**
@@ -18566,7 +18576,7 @@ export type PurchasingStockPartialUpdateResponses = {
 export type PurchasingStockPartialUpdateResponse = PurchasingStockPartialUpdateResponses[keyof PurchasingStockPartialUpdateResponses];
 
 export type PurchasingStockUpdateData = {
-    body: StockItemRequest;
+    body: StockMetadataRequest;
     path: {
         /**
          * Id

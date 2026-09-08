@@ -3848,7 +3848,7 @@ export const purchasingStockDestroy = <ThrowOnError extends boolean = false>(opt
 /**
  * Fetch a stock item
  *
- * Fetch one active stock item.
+ * Fetch an identity, including retired stock whose evidence remains accessible.
  */
 export const purchasingStockRetrieve = <ThrowOnError extends boolean = false>(options: Options<PurchasingStockRetrieveData, ThrowOnError>): RequestResult<PurchasingStockRetrieveResponses, unknown, ThrowOnError> => (options.client ?? client).get<PurchasingStockRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',

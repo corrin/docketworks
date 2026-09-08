@@ -7892,11 +7892,8 @@ components:
       title: PatchedPersonContactMethodWriteRequest
       type: object
     PatchedStockItemRequest:
-      description: "Partial stock-item update in which field presence is significant.\n\nThe first block\
-        \ maps to NOT NULL columns, so null is a 422 \u2014 the handler\nused to drop it silently, which\
-        \ reported a refused edit as a success. The\n``NullableText`` block is the ADR 0040 set where\
-        \ null is precisely how a\ncaller clears the value, and ``unit_revenue`` is nullable for the same\n\
-        reason."
+      additionalProperties: false
+      description: Change only metadata fields explicitly supplied by the caller.
       properties:
         alloy:
           anyOf:
@@ -7909,11 +7906,10 @@ components:
           title: Date
           type: string
         description:
+          maxLength: 255
+          minLength: 1
           title: Description
           type: string
-        is_active:
-          title: Is Active
-          type: boolean
         item_code:
           anyOf:
           - minLength: 1
@@ -7932,32 +7928,18 @@ components:
             type: string
           - type: 'null'
           title: Metal Type
-        quantity:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
-          title: Quantity
-        source:
-          title: Source
-          type: string
         specifics:
           anyOf:
           - minLength: 1
             type: string
           - type: 'null'
           title: Specifics
-        unit_cost:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
-          title: Unit Cost
         unit_revenue:
           anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - maximum: 99999999.99
+            minimum: 0.0
+            multipleOf: 0.01
+            type: number
           - type: 'null'
           title: Unit Revenue
       title: PatchedStockItemRequest
@@ -12764,14 +12746,8 @@ components:
       title: StockItem
       type: object
     StockItemRequest:
-      description: 'Stock-item create and full-update payload.
-
-
-        The nullable text fields are ``NullableText`` (ADR 0040): ``""`` is a
-
-        validation 422 before the ``*_not_blank`` check constraints ever see it,
-
-        and ``null`` is how a client leaves one unset.'
+      additionalProperties: false
+      description: Create an empty manual identity at an explicit cost, including a deliberate zero.
       properties:
         alloy:
           anyOf:
@@ -12780,18 +12756,14 @@ components:
           - type: 'null'
           title: Alloy
         date:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
+          format: date-time
           title: Date
+          type: string
         description:
+          maxLength: 255
+          minLength: 1
           title: Description
           type: string
-        is_active:
-          default: true
-          title: Is Active
-          type: boolean
         item_code:
           anyOf:
           - minLength: 1
@@ -12811,12 +12783,13 @@ components:
           - type: 'null'
           title: Metal Type
         quantity:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          const: 0
+          default: 0
           title: Quantity
+          type: integer
         source:
+          const: manual
+          default: manual
           title: Source
           type: string
         specifics:
@@ -12826,24 +12799,78 @@ components:
           - type: 'null'
           title: Specifics
         unit_cost:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          maximum: 99999999.99
+          minimum: 0.0
+          multipleOf: 0.01
           title: Unit Cost
+          type: number
         unit_revenue:
           anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - maximum: 99999999.99
+            minimum: 0.0
+            multipleOf: 0.01
+            type: number
           - type: 'null'
           title: Unit Revenue
       required:
       - description
-      - quantity
       - unit_cost
-      - source
       title: StockItemRequest
+      type: object
+    StockMetadataRequest:
+      additionalProperties: false
+      description: Editable identity metadata; inventory changes have separate audited workflows.
+      properties:
+        alloy:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Alloy
+        date:
+          format: date-time
+          title: Date
+          type: string
+        description:
+          maxLength: 255
+          minLength: 1
+          title: Description
+          type: string
+        item_code:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Item Code
+        location:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Location
+        metal_type:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Metal Type
+        specifics:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Specifics
+        unit_revenue:
+          anyOf:
+          - maximum: 99999999.99
+            minimum: 0.0
+            multipleOf: 0.01
+            type: number
+          - type: 'null'
+          title: Unit Revenue
+      required:
+      - description
+      title: StockMetadataRequest
       type: object
     StockMovementKind:
       description: Live postings and the three historical cutover observations.
@@ -21676,7 +21703,7 @@ paths:
       tags:
       - purchasing
     get:
-      description: Fetch one active stock item.
+      description: Fetch an identity, including retired stock whose evidence remains accessible.
       operationId: purchasing_stock_retrieve
       parameters:
       - in: path
@@ -21742,7 +21769,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/StockItemRequest'
+              $ref: '#/components/schemas/StockMetadataRequest'
         required: true
       responses:
         '200':

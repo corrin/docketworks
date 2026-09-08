@@ -398,7 +398,7 @@ class TestStockWriteSitesQueueTheParser:
                 STOCK_URL,
                 data={
                     "description": ALUMINIUM_SHEET,
-                    "quantity": "0",
+                    "quantity": 0,
                     "unit_cost": "10.00",
                     "source": "manual",
                 },
@@ -423,7 +423,7 @@ class TestStockWriteSitesQueueTheParser:
                 STOCK_URL,
                 data={
                     "description": ALUMINIUM_SHEET,
-                    "quantity": "0",
+                    "quantity": 0,
                     "unit_cost": "10.00",
                     "source": "manual",
                     "metal_type": "aluminium",
@@ -501,9 +501,8 @@ class TestStockWriteSitesQueueTheParser:
                 stock_service.create_stock(
                     {
                         "description": ALUMINIUM_SHEET,
-                        "quantity": Decimal("0"),
-                        "unit_cost": Decimal("10.00"),
-                    }
+                    },
+                    unit_cost=Decimal("10.00"),
                 )
 
             delay.assert_not_called()

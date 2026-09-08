@@ -1,11 +1,24 @@
 import { useState } from 'react'
-import { useMutation, useInfiniteQuery } from '@tanstack/react-query'
+import { useMutation, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
-import { stocktakeCreateMutation, apiErrorMessage } from '@/api'
+import {
+  stocktakeCreateMutation,
+  purchasingStockDestroyMutation,
+  purchasingStockListOptions,
+  purchasingStockSearchRetrieveOptions,
+  apiErrorMessage,
+} from '@/api'
 import { Button } from '@/components/ui/button'
 import { StockMovementHistory, CostLineMovementHistory } from './StockMovementHistory'
-import { EntryGridSection } from '@/features/shared/EntryGridSection'
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer'
 
 import { purchasingStockListInfiniteOptions } from '@/api'
 import { LoadMoreSentinel } from '@/features/shared/LoadMoreSentinel'
@@ -19,13 +32,15 @@ import {
 import { formatCurrency, formatQuantity } from '@/lib/format'
 import { SearchInput } from '@/features/shared/SearchInput'
 
-export function StockPage({ costLineId }: { costLineId?: string }) {
-  const [historyId, setHistoryId] = useState<string | null>(null)
+export function StockPage({ costLineId, stockId }: { costLineId?: string; stockId?: string }) {
+  const cache = useQueryClient()
+  const retire = useMutation(purchasingStockDestroyMutation())
+  const [includeInactive, setIncludeInactive] = useState(false)
   const navigate = useNavigate()
   const createCount = useMutation(stocktakeCreateMutation())
-  const recordCount = (stockId: string) =>
+  const recordCount = (countStockId?: string) =>
     createCount.mutate(
-      { body: { stock_id: stockId } },
+      { body: { stock_id: countStockId ?? null } },
       {
         onSuccess: (count) =>
           void navigate({
@@ -43,7 +58,10 @@ export function StockPage({ costLineId }: { costLineId?: string }) {
 
   const activeQuery = useInfiniteQuery({
     ...purchasingStockListInfiniteOptions({
-      query: { q: query.trim().length >= MIN_SEARCH_TERM_LENGTH ? query : '' },
+      query: {
+        q: query.trim().length >= MIN_SEARCH_TERM_LENGTH ? query : '',
+        include_inactive: includeInactive,
+      },
     }),
     initialPageParam: 1,
     getNextPageParam: nextPageParam,
@@ -53,8 +71,13 @@ export function StockPage({ costLineId }: { costLineId?: string }) {
   const lastPage = activeQuery.data?.pages.at(-1)
 
   return (
-    <div className="min-h-screen p-6">
-      <h1 className="text-xl font-bold text-gray-900">Stock</h1>
+    <div className="min-h-screen p-6 text-sm">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-bold text-gray-900">Stock</h1>
+        <Button disabled={createCount.isPending} onClick={() => recordCount()}>
+          Record found material
+        </Button>
+      </div>
 
       <div className="mt-4">
         <SearchInput
@@ -66,6 +89,14 @@ export function StockPage({ costLineId }: { costLineId?: string }) {
         />
       </div>
 
+      <label className="mt-3 flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={includeInactive}
+          onChange={(event) => setIncludeInactive(event.target.checked)}
+        />
+        Include retired identities
+      </label>
       <ListTable
         isPending={activeQuery.isPending}
         isError={activeQuery.isError}
@@ -155,30 +186,72 @@ export function StockPage({ costLineId }: { costLineId?: string }) {
                   Record count
                 </Button>
               )}
-              <Button variant="ghost" size="sm" onClick={() => setHistoryId(item.id)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  void navigate({ to: '/purchasing/stock', search: { stockId: item.id } })
+                }
+              >
                 History
               </Button>
+              {item.can_retire && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={retire.isPending}
+                  onClick={() =>
+                    retire.mutate(
+                      { path: { id: item.id } },
+                      {
+                        onSuccess: () => {
+                          toast.success('Empty stock identity retired')
+                          void cache.invalidateQueries({
+                            queryKey: purchasingStockListOptions().queryKey,
+                          })
+                          void cache.invalidateQueries({
+                            queryKey: purchasingStockSearchRetrieveOptions().queryKey,
+                          })
+                        },
+                        onError: (error) =>
+                          toast.error(apiErrorMessage(error, 'Unable to retire stock.')),
+                      },
+                    )
+                  }
+                >
+                  Retire empty identity
+                </Button>
+              )}
+              {!item.is_active && <span className="text-gray-500">Retired</span>}
             </td>
           </tr>
         )}
       />
-      {costLineId !== undefined && (
-        <EntryGridSection title="Job material history">
-          <CostLineMovementHistory costLineId={costLineId} />
-        </EntryGridSection>
-      )}
-      {historyId !== null && (
-        <EntryGridSection
-          title="Stock movements"
-          actions={
-            <Button variant="ghost" onClick={() => setHistoryId(null)}>
-              Close history
-            </Button>
-          }
-        >
-          <StockMovementHistory stockId={historyId} />
-        </EntryGridSection>
-      )}
+      <Drawer
+        open={stockId !== undefined || costLineId !== undefined}
+        onOpenChange={(open) => {
+          if (!open) void navigate({ to: '/purchasing/stock', search: {} })
+        }}
+      >
+        <DrawerContent>
+          <div className="mx-auto w-full max-w-6xl p-4">
+            <DrawerHeader>
+              <DrawerTitle>Stock movements</DrawerTitle>
+              <DrawerDescription>
+                Recorded receipts, issues, returns and stocktake corrections.
+              </DrawerDescription>
+            </DrawerHeader>
+            {stockId !== undefined ? (
+              <StockMovementHistory stockId={stockId} />
+            ) : (
+              costLineId !== undefined && <CostLineMovementHistory costLineId={costLineId} />
+            )}
+            <DrawerClose asChild>
+              <Button variant="outline">Close history</Button>
+            </DrawerClose>
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   )
 }

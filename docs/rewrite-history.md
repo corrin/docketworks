@@ -1092,3 +1092,19 @@ The targeted backend run passed 85 tests; the eligibility tests were observed
 failing before the implementation. The complete backend run passed 3,115 tests
 and 27 targeted frontend unit tests passed. Browser execution and production-data rehearsal
 remain subject to the inventory repair gate recorded above.
+
+## 2026-09-08 — Stock write contracts and history controls (PR #151)
+
+Creation now requires an explicit non-negative unit cost and creates only an empty
+manual stock identity. PUT/PATCH accept metadata only and reject inventory fields
+and unknown keys, including unchanged values. Retired identities remain readable.
+The stock page uses the shared Drawer for movement history, including stock and
+job-cost deep links, with empty-identity retirement and an explicit retired filter.
+Returning an issue refreshes its affected job's actual costs, detail and timeline.
+
+Six new regression cases failed against the old write contracts. After the changes,
+85 focused tests passed; frontend typing and lint passed. The existing browser
+stocktake flow now covers retirement, retained history and a history-link reload.
+The managed browser run applied purchasing.0010 and then stopped at 0011's receipt
+preflight for the same eight unresolved references. No repair was applied and
+Playwright did not start. This remains a verification gate, not browser evidence.

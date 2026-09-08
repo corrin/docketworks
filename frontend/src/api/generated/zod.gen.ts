@@ -3031,36 +3031,17 @@ export const zPatchedPersonContactMethodWriteRequest = z.object({
 /**
  * PatchedStockItemRequest
  *
- * Partial stock-item update in which field presence is significant.
- *
- * The first block maps to NOT NULL columns, so null is a 422 — the handler
- * used to drop it silently, which reported a refused edit as a success. The
- * ``NullableText`` block is the ADR 0040 set where null is precisely how a
- * caller clears the value, and ``unit_revenue`` is nullable for the same
- * reason.
+ * Change only metadata fields explicitly supplied by the caller.
  */
 export const zPatchedStockItemRequest = z.object({
     alloy: z.string().min(1).nullish(),
     date: z.iso.datetime().optional(),
-    description: z.string().optional(),
-    is_active: z.boolean().optional(),
+    description: z.string().min(1).max(255).optional(),
     item_code: z.string().min(1).nullish(),
     location: z.string().min(1).nullish(),
     metal_type: z.string().min(1).nullish(),
-    quantity: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    source: z.string().optional(),
     specifics: z.string().min(1).nullish(),
-    unit_cost: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    unit_revenue: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish()
+    unit_revenue: z.number().gte(0).lte(99999999.99).nullish()
 });
 
 /**
@@ -5143,34 +5124,36 @@ export const zStockItem = z.object({
 /**
  * StockItemRequest
  *
- * Stock-item create and full-update payload.
- *
- * The nullable text fields are ``NullableText`` (ADR 0040): ``""`` is a
- * validation 422 before the ``*_not_blank`` check constraints ever see it,
- * and ``null`` is how a client leaves one unset.
+ * Create an empty manual identity at an explicit cost, including a deliberate zero.
  */
 export const zStockItemRequest = z.object({
     alloy: z.string().min(1).nullish(),
-    date: z.iso.datetime().nullish(),
-    description: z.string(),
-    is_active: z.boolean().optional().default(true),
+    date: z.iso.datetime().optional(),
+    description: z.string().min(1).max(255),
     item_code: z.string().min(1).nullish(),
     location: z.string().min(1).nullish(),
     metal_type: z.string().min(1).nullish(),
-    quantity: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]),
-    source: z.string(),
+    quantity: z.literal(0).optional().default(0),
+    source: z.literal('manual').optional().default('manual'),
     specifics: z.string().min(1).nullish(),
-    unit_cost: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]),
-    unit_revenue: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish()
+    unit_cost: z.number().gte(0).lte(99999999.99),
+    unit_revenue: z.number().gte(0).lte(99999999.99).nullish()
+});
+
+/**
+ * StockMetadataRequest
+ *
+ * Editable identity metadata; inventory changes have separate audited workflows.
+ */
+export const zStockMetadataRequest = z.object({
+    alloy: z.string().min(1).nullish(),
+    date: z.iso.datetime().optional(),
+    description: z.string().min(1).max(255),
+    item_code: z.string().min(1).nullish(),
+    location: z.string().min(1).nullish(),
+    metal_type: z.string().min(1).nullish(),
+    specifics: z.string().min(1).nullish(),
+    unit_revenue: z.number().gte(0).lte(99999999.99).nullish()
 });
 
 /**
@@ -8391,7 +8374,7 @@ export const zPurchasingStockPartialUpdatePath = z.object({
  */
 export const zPurchasingStockPartialUpdateResponse = zStockItem;
 
-export const zPurchasingStockUpdateBody = zStockItemRequest;
+export const zPurchasingStockUpdateBody = zStockMetadataRequest;
 
 export const zPurchasingStockUpdatePath = z.object({
     id: z.uuid()
