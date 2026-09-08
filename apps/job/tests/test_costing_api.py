@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse
 
 import pytest
+from django.db import DatabaseError, transaction
 from django.test import Client
 from django.utils import timezone
 
@@ -938,3 +939,37 @@ class TestCostsSummary:
 
     def test_unknown_job_is_404(self, client: Client) -> None:
         assert client.get(f"/api/job/jobs/{uuid4()}/costs/summary/").status_code == 404
+
+
+@pytest.mark.parametrize("owner", ["stock", "stocktake"])
+def test_inventory_ownership_protects_costs_before_a_movement_link_exists(
+    api: Client, job: Job, owner: str
+) -> None:
+    line = _make_line(job.cost_sets.get(kind="actual"), managed_by=owner)
+    response = api.patch(
+        f"/api/job/cost_lines/{line.id}/",
+        {"managed_by": None, "ext_refs": {}, "quantity": "9"},
+        content_type="application/json",
+    )
+    assert response.status_code == 400, response.content
+    assert api.delete(f"/api/job/cost_lines/{line.id}/delete/").status_code == 400
+    with pytest.raises(DatabaseError), transaction.atomic():
+        CostLine.objects.filter(pk=line.pk).update(managed_by=None)
+    with pytest.raises(DatabaseError), transaction.atomic():
+        CostLine.objects.filter(pk=line.pk).delete()
+    line.refresh_from_db()
+    assert (line.managed_by, line.quantity) == (owner, Decimal("1"))
+
+
+def test_approved_cost_cannot_acquire_stock_binding_through_generic_patch(
+    api: Client, job: Job
+) -> None:
+    line = _make_line(job.cost_sets.get(kind="actual"))
+    response = api.patch(
+        f"/api/job/cost_lines/{line.id}/",
+        {"ext_refs": {"stock_id": str(uuid4())}},
+        content_type="application/json",
+    )
+    assert response.status_code == 400, response.content
+    line.refresh_from_db()
+    assert line.ext_refs == {}

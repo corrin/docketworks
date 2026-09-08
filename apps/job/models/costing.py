@@ -5,6 +5,7 @@ import uuid
 from collections.abc import Iterable
 from decimal import Decimal
 from typing import Any, ClassVar
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.db import connection, models, transaction
@@ -310,6 +311,7 @@ class CostLine(models.Model):
         staff_was_already_set = self.staff_id is not None
         requires_sequence = self._actual_time_entry_requires_sequence()
         with transaction.atomic():
+            lock_costing_jobs([self.cost_set.job_id])
             self._assign_entry_seq()
             staff_newly_set_from_legacy_meta = (
                 self.staff_id is not None and not staff_was_already_set
@@ -510,8 +512,21 @@ class CostLine(models.Model):
         super().save(*args, **kwargs)
         self.update_cost_set_summary()
 
+    @transaction.atomic
     def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
         """Delete the line and refresh the CostSet summary."""
+        lock_costing_jobs([self.cost_set.job_id])
         result = super().delete(*args, **kwargs)
         self.update_cost_set_summary()
         return result
+
+
+def lock_costing_jobs(job_ids: Iterable[UUID]) -> None:
+    """Lock every affected job and cost set before costs or inventory identities."""
+    from .job import Job  # noqa: PLC0415 -- Job and CostSet refer to each other.
+
+    # GPT: CostLine saves update both the CostSet summary and Job timestamp.
+    # Locking a stock/cost row first inverts count posting's job-first order.
+    ids = set(job_ids)
+    list(Job.objects.select_for_update().filter(pk__in=ids).order_by("id"))
+    list(CostSet.objects.select_for_update().filter(job_id__in=ids).order_by("id"))

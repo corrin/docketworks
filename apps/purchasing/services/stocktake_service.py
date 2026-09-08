@@ -11,7 +11,7 @@ from apps.core.errors import ConflictError, InvalidInputError
 from apps.core.etag import PreconditionFailedError, generate_revision_etag, if_match_satisfied
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
-from apps.job.models.costing import CostLine
+from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.job_service import create_job
 from apps.purchasing.models import Stock, Stocktake, StocktakeConfiguration, StocktakeLine
 from apps.purchasing.services.allocation_service import ensure_actual_cost_set
@@ -195,7 +195,8 @@ def post_stocktake(count_id: UUID, if_match: str, staff: Staff) -> Stocktake:
     counted = [line for line in lines if line.counted_quantity is not None]
     if not counted:
         raise InvalidInputError("Enter at least one physical count before posting.")
-    job = Job.objects.select_for_update().get(pk=count.adjustment_job_id)
+    lock_costing_jobs([count.adjustment_job_id])
+    job = Job.objects.get(pk=count.adjustment_job_id)
     if not job.shop_job:
         raise InvalidInputError("The stocktake adjustment job must remain non-billable.")
     for line in counted:

@@ -31,6 +31,7 @@ from django.db.models import F
 from apps.accounts.models import Staff
 from apps.core.errors import AppErrorContext, InvalidInputError, persist_app_error
 from apps.job.models import Job
+from apps.job.models.costing import lock_costing_jobs
 from apps.purchasing.etag import require_current_etag
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.services.allocation_service import (
@@ -102,13 +103,14 @@ def _load_po_and_lines(
 
 def _load_jobs(line_allocations: dict[str, ReceiptLineRequest]) -> dict[str, Job]:
     job_ids = {
-        str(alloc.job_id)
+        alloc.job_id
         for line_request in line_allocations.values()
         for alloc in line_request.allocations
     }
+    lock_costing_jobs(job_ids)
     jobs = {str(job.id): job for job in Job.objects.filter(id__in=job_ids)}
     if len(jobs) != len(job_ids):
-        missing = job_ids - set(jobs)
+        missing = {str(job_id) for job_id in job_ids} - set(jobs)
         raise DeliveryReceiptValidationError(f"Invalid Job IDs provided in allocations: {missing}")
     return jobs
 

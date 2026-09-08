@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **57 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 267 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3077 collected |
+| Unit tests | 3080 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 130 recorded deviations |
@@ -300,8 +300,8 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   - **No back-link from a job cost line to the PO that created it.** `CostLineGrid` has no
     Source column, though the cost line already carries `meta.po_number` and
     `ext_refs.purchase_order_id` — so this is a column, not a contract change.
-  - **Stocktake review resolution (PR #151):** finish job-owned cost protections, recurring audit coverage,
-    lock ordering and typed reversal outcomes; unify
+  - **Stocktake review resolution (PR #151):** finish recurring audit coverage, real concurrent lock-order
+    regressions and typed reversal outcomes; unify
     search/pagination/contracts and add stocktake previews/conflict reconciliation,
     history/retirement controls; guard Xero amendments and response line IDs, route
     full receipt through its service, and complete the approved regression coverage.

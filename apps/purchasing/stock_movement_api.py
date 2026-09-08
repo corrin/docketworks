@@ -11,7 +11,7 @@ from apps.accounts.auth import authenticated_staff
 from apps.core.auth import CookieJWTAuth
 from apps.core.schemas import Quantity, ResponseSchema
 from apps.purchasing.models import StockMovement
-from apps.purchasing.services.stock_movement_service import returnable_issue_cost, reverse_issue
+from apps.purchasing.services.stock_movement_service import is_returnable_issue, reverse_issue
 
 router = Router(auth=CookieJWTAuth(), tags=["purchasing"])
 
@@ -54,7 +54,7 @@ def movement_data(movement: StockMovement, reversed_ids: set[UUID]) -> StockMove
         actor=movement.actor.get_display_full_name() if movement.actor is not None else None,
         counterpart_job_id=movement.counterpart_job_id,
         counterpart_name=counterpart,
-        can_return=returnable_issue_cost(movement) is not None and movement.id not in reversed_ids,
+        can_return=is_returnable_issue(movement) and movement.id not in reversed_ids,
     )
 
 

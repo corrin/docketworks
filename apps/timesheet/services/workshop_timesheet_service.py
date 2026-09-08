@@ -20,14 +20,14 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from apps.accounts.models import Staff
-from apps.core.errors import AccessDeniedError
+from apps.core.errors import AccessDeniedError, ConflictError
 from apps.job.models import Job
-from apps.job.models.costing import CostLine
+from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.job_service import (
     CostLineData,
     cost_line_data,
     get_or_create_cost_set,
-    refuse_leave_managed,
+    refuse_workflow_managed,
 )
 from apps.job.services.time_entry_rates import (
     ZERO_MULTIPLIER,
@@ -362,6 +362,7 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
     _validate_time_consistency(data.get("start_time"), data.get("end_time"), data["hours"])
 
     with transaction.atomic():
+        lock_costing_jobs([job.id])
         cost_set = get_or_create_cost_set(job, "actual")
         meta = pricing_meta(
             staff=staff,
@@ -409,7 +410,7 @@ def _owned_line(staff: Staff, entry_id: UUID) -> CostLine:
     ).get(id=entry_id, kind="time")
     if line.meta.get("staff_id") != str(staff.id):
         raise EntryOwnershipError("You can only update your own timesheet entries.")
-    refuse_leave_managed(line, "edit")
+    refuse_workflow_managed(line, "edit")
     return line
 
 
@@ -470,6 +471,13 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
     line = _owned_line(staff, data["entry_id"])
 
     with transaction.atomic():
+        job_ids = {line.cost_set.job_id}
+        if "job_id" in data:
+            job_ids.add(data["job_id"])
+        lock_costing_jobs(job_ids)
+        line = _owned_line(staff, data["entry_id"])
+        if line.cost_set.job_id not in job_ids:
+            raise ConflictError("This entry moved to another job. Reload before editing it.")
         meta = dict(line.meta)
         changed = _apply_scalar_changes(line, meta, data)
         reprice = _apply_billing_changes(meta, data)
@@ -513,11 +521,17 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
     return entry_data(line)
 
 
+@transaction.atomic
 def delete_entry(staff: Staff, entry_id: UUID) -> None:
     """Delete one of the staff member's own entries."""
     line = CostLine.objects.get(id=entry_id, kind="time")
+    job_id = line.cost_set.job_id
+    lock_costing_jobs([job_id])
+    line = CostLine.objects.select_for_update().get(pk=line.pk)
+    if line.cost_set.job_id != job_id:
+        raise ConflictError("This entry moved to another job. Reload before deleting it.")
     if line.meta.get("staff_id") != str(staff.id):
         raise EntryOwnershipError("You can only delete your own timesheet entries.")
-    refuse_leave_managed(line, "cancel")
+    refuse_workflow_managed(line, "cancel")
     line.delete()
     logger.info("Deleted workshop timesheet entry %s for staff %s", entry_id, staff.id)

@@ -38,7 +38,7 @@ from django.utils import timezone
 
 from apps.accounting.models import Invoice, Quote
 from apps.accounts.models import Staff
-from apps.core.errors import AppErrorContext, ConflictError, persist_app_error
+from apps.core.errors import AppErrorContext, ConflictError, InvalidInputError, persist_app_error
 from apps.core.etag import (
     PreconditionFailedError,
     generate_updated_at_etag,
@@ -56,7 +56,7 @@ from apps.job.models import (
     LabourSubtype,
     QuoteSpreadsheet,
 )
-from apps.job.models.costing import CostLine, CostSet
+from apps.job.models.costing import CostLine, CostSet, lock_costing_jobs
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
 from apps.job.services.time_entry_rates import pay_item_by_id, price_time_entry
 
@@ -2263,6 +2263,7 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
         raise ValueError("labour_subtype is required for time lines.")
 
     with transaction.atomic():
+        lock_costing_jobs([job.id])
         cost_set = get_or_create_cost_set(job, kind)
         # Workshop-created lines await office approval.
         line = CostLine(cost_set=cost_set, approved=staff.is_office_staff)
@@ -2275,18 +2276,14 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
     return line
 
 
-def refuse_leave_managed(line: CostLine, remedy: str) -> None:
-    """Refuse a write to a line the leave workflow owns.
-
-    The one guard for every cost-line write surface — leave lines satisfy the
-    timesheet filters (kind, staff, date), so any path that skips this lets an
-    edit desync ``CostLine.quantity`` from ``LeaveDay.hours``, and a delete
-    trips LeaveDay's PROTECT into a 500.
-    """
+def refuse_workflow_managed(line: CostLine, remedy: str) -> None:
+    """Refuse generic editing of costs owned by an operational workflow."""
     if line.managed_by in ("stocktake", "stock"):
-        raise ValueError("This line belongs to a stock movement; correct it through purchasing.")
+        raise InvalidInputError(
+            "This line belongs to a stock movement; correct it through purchasing."
+        )
     if line.managed_by == "leave":
-        raise ValueError(
+        raise InvalidInputError(
             f"This line belongs to a leave request; {remedy} it from Timesheets → Leave."
         )
 
@@ -2294,8 +2291,9 @@ def refuse_leave_managed(line: CostLine, remedy: str) -> None:
 @transaction.atomic
 def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
     """Edit unowned costs; issuing material belongs to purchasing."""
+    lock_costing_jobs([line.cost_set.job_id])
     line = CostLine.objects.select_for_update().get(pk=line.pk)
-    refuse_leave_managed(line, "edit")
+    refuse_workflow_managed(line, "edit")
     _validate_costline_write(data)
 
     kind = data.get("kind") or line.kind
@@ -2322,8 +2320,9 @@ def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
 @transaction.atomic
 def delete_cost_line(line: CostLine) -> None:
     """Delete an unowned cost; unissued drafts have no inventory effect."""
+    lock_costing_jobs([line.cost_set.job_id])
     line = CostLine.objects.select_for_update().get(pk=line.pk)
-    refuse_leave_managed(line, "cancel")
+    refuse_workflow_managed(line, "cancel")
     with transaction.atomic():
         line.delete()
     logger.info("Deleted cost line %s", line.id)
@@ -2436,6 +2435,7 @@ def create_quote_revision(job: Job, reason: str | None, user: Staff) -> QuoteRev
         raise ValueError("No cost lines found in current quote. Nothing to revise.")
 
     with transaction.atomic():
+        lock_costing_jobs([job.id])
         quote_revision = _archive_quote_revision(current_quote, cost_lines, reason)
 
         # Bulk delete intentionally skips CostLine.delete()'s summary refresh:
@@ -2538,6 +2538,7 @@ def copy_estimate_to_quote(
 
     archived_quote_revision: int | None = None
     with transaction.atomic():
+        lock_costing_jobs([job.id])
         # Deciding outside the transaction was the reviewed-away shape: a line
         # created between the blank/equality reads and the replace would be
         # bulk-deleted without ever reaching the archive. The CostSet row lock

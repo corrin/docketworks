@@ -37,6 +37,7 @@ from uuid import UUID
 
 from django.core.cache import BaseCache, caches
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.http.response import HttpResponseBase
 from django.shortcuts import get_object_or_404
@@ -52,7 +53,7 @@ from apps.core.envelope import require_if_match
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.etag import generate_updated_at_etag, if_none_match_satisfied
 from apps.job.models import Job, JobFile, LabourSubtype
-from apps.job.models.costing import CostLine
+from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.schemas import (
     AdvancedSearchResponse,
     AssignJobRequest,
@@ -955,6 +956,7 @@ def job_cost_lines_delete_destroy(request: HttpRequest, cost_line_id: UUID) -> S
     summary="Approve a cost line",
     tags=["job"],
 )
+@transaction.atomic
 def approve_cost_line(request: HttpRequest, cost_line_id: UUID) -> dict[str, object]:
     """Approve a workshop-entered cost line (office staff only).
 
@@ -964,6 +966,9 @@ def approve_cost_line(request: HttpRequest, cost_line_id: UUID) -> dict[str, obj
     else just flips ``approved``.
     """
     line = get_object_or_404(CostLine.objects.select_related("cost_set__job"), id=cost_line_id)
+    lock_costing_jobs([line.cost_set.job_id])
+    line = CostLine.objects.select_for_update().get(pk=line.pk)
+    job_service.refuse_workflow_managed(line, "approve")
     if line.approved:
         raise HttpError(400, "Line is already approved")
 

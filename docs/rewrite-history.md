@@ -945,3 +945,20 @@ focused database-constraint/reactivation regressions passed. The PO API suite, i
 new provenance refusal, passed in the initial broader run. Focused strict mypy passed and
 `makemigrations --check --dry-run` found no drift. Browser and live integration
 verification remains a release gate.
+
+Inventory costing now locks jobs and their cost sets before existing cost or
+stock rows. CostLine's save/delete path uses that same lock owner, including
+summary and Job timestamp writes; receipts acquire all allocation jobs in UUID
+order. Generic edits, approval, returns, count posting, quote replacement and
+workshop job changes participate in the order. The shared workflow guard now
+names all owners and returns the domain's typed invalid-input refusal.
+
+A job-owned forward migration protects OLD.managed_by stock/stocktake costs
+without querying purchasing movement tables. This also refuses clearing the
+owner before linking a movement. History reads use a boolean return predicate;
+resolving and validating its cost belongs to the return command.
+
+Validation: 188 costing, stock, count, cutover, allocation and leave tests passed;
+focused strict mypy passed. Real concurrent transaction regressions and the
+remaining end-to-end gates are still outstanding.
+The 42 workshop-timesheet API tests also passed after ordering cross-job edits.

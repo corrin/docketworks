@@ -11,7 +11,7 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.core.errors import InvalidInputError
 from apps.job.models import Job
-from apps.job.models.costing import CostLine
+from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.purchasing.models import Stock, StockMovement, StocktakeLine
 
 MovementKind = Literal["opening", "receipt", "receipt_reversal", "issue", "return", "stocktake"]
@@ -90,10 +90,15 @@ def receipt_quantity(movement: StockMovement) -> Decimal:
     return movement.opening_quantity
 
 
-def returnable_issue_cost(movement: StockMovement) -> CostLine | None:
-    """Resolve a complete job position; other movement kinds cannot be returned."""
-    if movement.kind not in ("issue", "job_opening"):
-        return None
+def is_returnable_issue(movement: StockMovement) -> bool:
+    """Identify a job position without resolving mutation prerequisites on a GET."""
+    return movement.kind in ("issue", "job_opening")
+
+
+def returnable_issue_cost(movement: StockMovement) -> CostLine:
+    """Validate the immutable cost evidence at the return command boundary."""
+    if not is_returnable_issue(movement):
+        raise InvalidInputError("Only a job issue can be returned through this action.")
     if movement.cost_line is None or movement.counterpart_job is None:
         raise InvalidInputError("The issued material has incomplete movement evidence.")
     cost = movement.cost_line
@@ -109,13 +114,13 @@ def returnable_issue_cost(movement: StockMovement) -> CostLine | None:
 @transaction.atomic
 def reverse_issue(movement: StockMovement, staff: Staff, reason: str) -> StockMovement:
     """Return a complete issue with a linked opposite cost; retries return the first reversal."""
+    if movement.counterpart_job_id is not None:
+        lock_costing_jobs([movement.counterpart_job_id])
     original = StockMovement.objects.select_for_update().get(pk=movement.pk)
     existing = StockMovement.objects.filter(reverses=original).first()
     if existing is not None:
         return existing
     cost = returnable_issue_cost(original)
-    if cost is None:
-        raise InvalidInputError("Only a job issue can be returned through this action.")
     credit = CostLine.objects.create(
         cost_set=cost.cost_set,
         kind="material",

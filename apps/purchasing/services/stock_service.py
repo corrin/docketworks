@@ -32,7 +32,7 @@ from apps.accounts.models import Staff
 from apps.core.errors import InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
-from apps.job.models.costing import CostLine
+from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.purchasing.models import Stock
 from apps.purchasing.services.allocation_service import ensure_actual_cost_set
 from apps.purchasing.services.stock_movement_service import MovementContext, move_stock
@@ -172,6 +172,8 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
         raise ValueError("Quantity must be positive")
 
     with transaction.atomic():
+        lock_costing_jobs([job.id])
+        job.refresh_from_db()
         if line is not None:
             line = CostLine.objects.select_for_update().get(pk=line.pk)
             if (

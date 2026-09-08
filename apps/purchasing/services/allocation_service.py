@@ -28,7 +28,7 @@ from apps.accounts.models import Staff
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
-from apps.job.models.costing import CostLine, CostSet
+from apps.job.models.costing import CostLine, CostSet, lock_costing_jobs
 from apps.purchasing.etag import require_current_etag
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock, StockMovement
 from apps.purchasing.services.stock_movement_service import (
@@ -204,6 +204,7 @@ def create_costline_from_allocation(  # noqa: PLR0913 -- Allocation inputs stay 
             f"Price not confirmed for line {line.id} ({line.description}); "
             f"cannot create a job allocation."
         )
+    lock_costing_jobs([job.id])
     rate = retail_pct_to_rate(retail_rate_pct)
     unit_revenue = (line.unit_cost * (Decimal("1") + rate)).quantize(Decimal("0.01"))
 
@@ -511,9 +512,10 @@ def delete_allocation(
                 po_line = PurchaseOrderLine.objects.select_for_update().get(
                     id=_resolve_po_line(po, cost_line).id
                 )
+                lock_costing_jobs([cost_line.cost_set.job_id])
                 locked_line = (
                     CostLine.objects.select_related("cost_set__job")
-                    .select_for_update()
+                    .select_for_update(of=("self",))
                     .get(id=cost_line.id)
                 )
                 result = _delete_job_allocation(po_line, locked_line, staff)
