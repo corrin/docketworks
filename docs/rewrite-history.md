@@ -978,3 +978,13 @@ schema change leaves historical recorded timestamps intact. Validation so far:
 passed, as did strict mypy. Live Xero verification remains outstanding.
 The rejection-persistence cases and the new-order/inbound-observation API check
 also passed; the timestamp assertion uses the API's millisecond precision.
+
+Outbound PO pushes capture a locked header/version and prefetched line identities
+before releasing the transaction for the provider call. The response locks and
+rereads the PO, preserves its valid Xero document identity, and writes line IDs
+and agreement only when the sent version is still current. Line matching uses
+the captured local IDs, including distinct occurrences of duplicate descriptions.
+The provider-response identity fields are validated at the integration boundary.
+Validation: 54 reconciliation, sync-direction and document API tests passed,
+including replacement-during-push, stale-manager and duplicate-description
+regressions; strict mypy passed. Live provider verification remains outstanding.

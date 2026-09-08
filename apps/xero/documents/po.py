@@ -6,16 +6,19 @@ xero_line_item_id backfill) instead of creating a mirror row.
 """
 
 import logging
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from uuid import UUID
 
+from django.db import transaction
 from django.utils import timezone
+from pydantic import BaseModel, TypeAdapter
 
 from apps.accounting.types import DocumentLineItem, POPayload
 from apps.accounts.models import Staff
 from apps.core.errors import persist_app_error
-from apps.purchasing.models import PurchaseOrder
+from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 from apps.xero.auth import get_tenant_id
 from apps.xero.constants import ZERO_UUID
 from apps.xero.documents.base import XeroDocumentManager, XeroDocumentResponse
@@ -31,6 +34,30 @@ PO_STATUS_MAP = {
     "fully_received": "AUTHORISED",
     "deleted": "DELETED",
 }
+
+
+@dataclass(frozen=True)
+class SentPOLine:
+    """The local identity and description actually included in the request."""
+
+    id: UUID
+    description: str
+
+
+@dataclass(frozen=True)
+class POPushSnapshot:
+    """One consistent local version, including its exact line identities."""
+
+    version: datetime
+    payload: POPayload
+    lines: tuple[SentPOLine, ...]
+
+
+class POResponseLine(BaseModel):
+    """Identity fields from the provider's successful PO response."""
+
+    line_item_id: UUID
+    description: str
 
 
 class XeroPurchaseOrderManager(XeroDocumentManager):
@@ -147,67 +174,67 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
             external_id=self.get_xero_id(),
         )
 
-    def _save_po_with_xero_data(
-        self, xero_id: str | None, online_url: str | None, *, sent_version: datetime
-    ) -> None:
-        """Store the push outcome on the local row."""
-        self.purchase_order.online_url = online_url
-        update_fields = ["online_url"]
-        # The zero-UUID check holds the module invariant: storing the sentinel
-        # would make the next push read as an update against a document Xero
-        # never acknowledged (and collide on the unique column).
-        if xero_id and xero_id != ZERO_UUID:
-            self.purchase_order.xero_id = xero_id
-            # The tenant is written with the id, never separately: an id with
-            # no tenant cannot be attributed to an org, so "is this link ours?"
-            # stops being answerable from the row.
-            self.purchase_order.xero_tenant_id = get_tenant_id()
-            update_fields.extend(["xero_id", "xero_tenant_id"])
-        self.purchase_order.save(update_fields=update_fields)
+    @transaction.atomic
+    def _snapshot(self) -> POPushSnapshot:
+        po = (
+            PurchaseOrder.objects.select_for_update(of=("self",))
+            .select_related("supplier")
+            .prefetch_related("po_lines")
+            .get(pk=self.purchase_order.pk)
+        )
+        if po.supplier is None:
+            raise ValueError("Purchase order must have a supplier assigned")
+        self.purchase_order = po
+        self.company = po.supplier
+        self.validate_for_xero_sync()
+        return POPushSnapshot(
+            version=po.updated_at,
+            payload=self.build_payload(),
+            lines=tuple(SentPOLine(line.id, line.xero_description) for line in po.po_lines.all()),
+        )
 
-        # GPT: an edit can commit while Xero handles the request. Only the
-        # version in that request is acknowledged, so the sweep still finds
-        # an edit whose own queued push failed (KAN-358).
-        stamp = timezone.now()
-        acknowledged = PurchaseOrder.objects.filter(
-            pk=self.purchase_order.pk, updated_at=sent_version
-        ).update(xero_agreed_at=stamp)
-        if not acknowledged:
-            logger.info(
-                "PO %s changed during push; acknowledgement deferred to reconciliation",
-                self.purchase_order.id,
-            )
+    @transaction.atomic
+    def _save_po_with_xero_data(
+        self,
+        xero_id: str | None,
+        online_url: str | None,
+        *,
+        snapshot: POPushSnapshot,
+        response_lines: object,
+    ) -> None:
+        """Store document identity, acknowledging lines only on the sent version."""
+        po = PurchaseOrder.objects.select_for_update().get(pk=self.purchase_order.pk)
+        po.online_url = online_url
+        fields = ["online_url"]
+        if xero_id and xero_id != ZERO_UUID:
+            po.xero_id = xero_id
+            po.xero_tenant_id = get_tenant_id()
+            fields.extend(["xero_id", "xero_tenant_id"])
+        po.save(update_fields=fields)
+        self.purchase_order = po
+        if po.updated_at != snapshot.version:
+            logger.info("PO %s changed during push; line IDs and agreement deferred", po.id)
             return
-        self.purchase_order.xero_agreed_at = stamp
+        if response_lines is not None:
+            returned = TypeAdapter(list[POResponseLine]).validate_python(response_lines)
+            self._update_line_item_ids_from_response(returned, snapshot.lines)
+        po.xero_agreed_at = timezone.now()
+        po.save(update_fields=["xero_agreed_at"])
 
     def _update_line_item_ids_from_response(
-        self, response_line_items: list[dict[str, Any]]
+        self, response_lines: list[POResponseLine], sent_lines: tuple[SentPOLine, ...]
     ) -> None:
-        """Backfill xero_line_item_id on local lines, matching by description.
-
-        List-based matching, not a dict: duplicate descriptions are legal, and
-        each Xero line must claim a distinct local line exactly once.
-        """
-        if not response_line_items:
-            return
-
-        local_lines = [(line.xero_description, line) for line in self.purchase_order.po_lines.all()]
-        updated_count = 0
-        for xero_line in response_line_items:
-            xero_line_item_id = xero_line.get("line_item_id")
-            xero_description = xero_line.get("description")
-            if not xero_line_item_id or not xero_description:
-                continue
-            for index, (description, local_line) in enumerate(local_lines):
-                if description == xero_description:
-                    if str(local_line.xero_line_item_id) != str(xero_line_item_id):
-                        local_line.xero_line_item_id = xero_line_item_id
-                        local_line.save(update_fields=["xero_line_item_id"])
-                        updated_count += 1
-                    local_lines.pop(index)
-                    break
-
-        logger.info("Updated %d line item IDs for PO %s", updated_count, self.purchase_order.id)
+        """Match duplicate descriptions against distinct captured local identities."""
+        remaining = list(sent_lines)
+        for returned in response_lines:
+            for index, sent in enumerate(remaining):
+                if returned.description != sent.description:
+                    continue
+                PurchaseOrderLine.objects.filter(
+                    pk=sent.id, purchase_order=self.purchase_order
+                ).update(xero_line_item_id=returned.line_item_id)
+                remaining.pop(index)
+                break
 
     def sync_to_xero(self) -> XeroDocumentResponse:
         """Create or update the PO in Xero and store the outcome locally.
@@ -217,7 +244,7 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
         re-raised.
         """
         try:
-            self.validate_for_xero_sync()
+            snapshot = self._snapshot()
         # deliberate-swallow: an unready PO is the caller's state to fix,
         # reshaped to the 400 payload the endpoint promises
         except ValueError as exc:
@@ -230,12 +257,10 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
             }
 
         try:
-            sent_version = self.purchase_order.updated_at
-            payload = self.build_payload()
-            if self.get_xero_id():
-                result = self.provider.update_purchase_order(payload)
+            if snapshot.payload.external_id is not None:
+                result = self.provider.update_purchase_order(snapshot.payload)
             else:
-                result = self.provider.create_purchase_order(payload)
+                result = self.provider.create_purchase_order(snapshot.payload)
 
             if not result.success:
                 return {
@@ -245,12 +270,15 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
                     "status": result.status_code or 500,
                 }
 
+            response_lines = None
+            if result.raw_response is not None and "line_items" in result.raw_response:
+                response_lines = result.raw_response["line_items"]
             self._save_po_with_xero_data(
-                result.external_id, result.online_url, sent_version=sent_version
+                result.external_id,
+                result.online_url,
+                snapshot=snapshot,
+                response_lines=response_lines,
             )
-            raw = result.raw_response or {}
-            if "line_items" in raw:
-                self._update_line_item_ids_from_response(raw["line_items"])
 
             return {  # noqa: TRY300 -- returns a value built across the try body
                 "success": True,
