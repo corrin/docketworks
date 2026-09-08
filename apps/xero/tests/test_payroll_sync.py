@@ -16,7 +16,7 @@ from uuid import uuid4
 import pytest
 
 from apps.accounts.models import Staff
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job
 from apps.xero.models import XeroPayItem

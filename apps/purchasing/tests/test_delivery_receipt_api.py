@@ -34,21 +34,21 @@ pytestmark = [
 RECEIPTS_URL = "/api/purchasing/delivery-receipts/"
 
 
-def _po_etag(client: Client, po: PurchaseOrder) -> str:
-    response = client.get(f"/api/purchasing/purchase-orders/{po.id}/")
+def _po_etag(api: Client, po: PurchaseOrder) -> str:
+    response = api.get(f"/api/purchasing/purchase-orders/{po.id}/")
     assert response.status_code == 200
     return response.headers["ETag"]
 
 
 def _post_receipt(
-    client: Client,
+    api: Client,
     po: PurchaseOrder,
     allocations: Mapping[str, Mapping[str, object]],
     *,
     if_match: str | None,
 ) -> "_MonkeyPatchedWSGIResponse":
     headers = {"If-Match": if_match} if if_match is not None else {}
-    return client.post(
+    return api.post(
         RECEIPTS_URL,
         data={"purchase_order_id": str(po.id), "allocations": allocations},
         content_type="application/json",
@@ -61,13 +61,13 @@ class TestDeliveryReceiptConcurrency:
     """ADR 0003 with the PO id in the body (frontend interceptor special case)."""
 
     def test_missing_if_match_is_428_and_writes_nothing(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         po = make_purchase_order(status="submitted")
         line = make_po_line(po, quantity="4.00")
 
         response = _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -84,17 +84,17 @@ class TestDeliveryReceiptConcurrency:
         assert not Stock.objects.filter(source="purchase_order").exists()
 
     def test_stale_if_match_is_412_and_writes_nothing(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         po = make_purchase_order(status="submitted")
         line = make_po_line(po, quantity="4.00")
-        stale = _po_etag(client, po)
+        stale = _po_etag(api, po)
         PurchaseOrder.objects.filter(pk=po.pk).update(
             reference="Concurrent edit", updated_at=timezone.now()
         )
 
         response = _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -110,10 +110,10 @@ class TestDeliveryReceiptConcurrency:
         assert line.received_quantity == Decimal("0.00")
         assert not Stock.objects.filter(source="purchase_order").exists()
 
-    def test_replaying_a_consumed_etag_is_412(self, client: Client, stock_holding_job: Job) -> None:
+    def test_replaying_a_consumed_etag_is_412(self, api: Client, stock_holding_job: Job) -> None:
         po = make_purchase_order(status="submitted")
         line = make_po_line(po, quantity="4.00")
-        etag = _po_etag(client, po)
+        etag = _po_etag(api, po)
         allocations: Mapping[str, Mapping[str, object]] = {
             str(line.id): {
                 "total_received": "2",
@@ -121,8 +121,8 @@ class TestDeliveryReceiptConcurrency:
             }
         }
 
-        first = _post_receipt(client, po, allocations, if_match=etag)
-        second = _post_receipt(client, po, allocations, if_match=etag)
+        first = _post_receipt(api, po, allocations, if_match=etag)
+        second = _post_receipt(api, po, allocations, if_match=etag)
 
         assert first.status_code == 200
         assert second.status_code == 412
@@ -130,15 +130,13 @@ class TestDeliveryReceiptConcurrency:
         # Exactly one receipt applied — double submission produced no duplicate.
         assert line.received_quantity == Decimal("2.00")
 
-    def test_success_returns_the_refreshed_etag(
-        self, client: Client, stock_holding_job: Job
-    ) -> None:
+    def test_success_returns_the_refreshed_etag(self, api: Client, stock_holding_job: Job) -> None:
         po = make_purchase_order(status="submitted")
         line = make_po_line(po, quantity="4.00")
-        etag = _po_etag(client, po)
+        etag = _po_etag(api, po)
 
         response = _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -157,7 +155,7 @@ class TestDeliveryReceiptConcurrency:
 @pytest.mark.usefixtures("company_defaults")
 class TestDeliveryReceiptEffects:
     def test_stock_allocation_creates_a_stock_row_from_the_line(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         po = make_purchase_order(status="submitted")
         line = make_po_line(
@@ -169,7 +167,7 @@ class TestDeliveryReceiptEffects:
         )
 
         response = _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -183,7 +181,7 @@ class TestDeliveryReceiptEffects:
                     ],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
 
         assert response.status_code == 200
@@ -200,7 +198,7 @@ class TestDeliveryReceiptEffects:
         assert stock.source_purchase_order_line_id == line.id
 
     def test_an_explicitly_blanked_metadata_field_is_cleared(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         """Blank is an instruction, not a gap.
 
@@ -220,7 +218,7 @@ class TestDeliveryReceiptEffects:
         )
 
         _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -239,7 +237,7 @@ class TestDeliveryReceiptEffects:
                     ],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
 
         stock = Stock.objects.get(source="purchase_order")
@@ -249,7 +247,7 @@ class TestDeliveryReceiptEffects:
         assert stock.location is None
 
     def test_metadata_omitted_entirely_inherits_every_line_value(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         po = make_purchase_order(status="submitted")
         line = make_po_line(
@@ -262,7 +260,7 @@ class TestDeliveryReceiptEffects:
         )
 
         _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -270,7 +268,7 @@ class TestDeliveryReceiptEffects:
                     "allocations": [{"job_id": str(stock_holding_job.id), "quantity": "1"}],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
 
         stock = Stock.objects.get(source="purchase_order")
@@ -281,7 +279,7 @@ class TestDeliveryReceiptEffects:
 
     def test_job_allocation_creates_a_material_cost_line(
         self,
-        client: Client,
+        api: Client,
         stock_holding_job: Job,  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
         job: Job,
     ) -> None:
@@ -289,7 +287,7 @@ class TestDeliveryReceiptEffects:
         line = make_po_line(po, quantity="4.00", unit_cost="50.00", description="Plate")
 
         _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -297,7 +295,7 @@ class TestDeliveryReceiptEffects:
                     "allocations": [{"job_id": str(job.id), "quantity": "4"}],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
 
         cost_line = CostLine.objects.get(kind="material", cost_set__job=job)
@@ -310,7 +308,7 @@ class TestDeliveryReceiptEffects:
 
     def test_a_custom_retail_rate_is_honoured(
         self,
-        client: Client,
+        api: Client,
         stock_holding_job: Job,  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
         job: Job,
     ) -> None:
@@ -320,7 +318,7 @@ class TestDeliveryReceiptEffects:
         line = make_po_line(po, quantity="1.00", unit_cost="100.00")
 
         _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -330,20 +328,20 @@ class TestDeliveryReceiptEffects:
                     ],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
 
         cost_line = CostLine.objects.get(kind="material", cost_set__job=job)
         assert cost_line.unit_rev == Decimal("150.00")
 
     def test_partial_receipt_moves_the_po_to_partially_received(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         po = make_purchase_order(status="submitted")
         line = make_po_line(po, quantity="10.00")
 
         _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -351,7 +349,7 @@ class TestDeliveryReceiptEffects:
                     "allocations": [{"job_id": str(stock_holding_job.id), "quantity": "4"}],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
 
         po.refresh_from_db()
@@ -360,13 +358,13 @@ class TestDeliveryReceiptEffects:
         assert line.received_quantity == Decimal("4.00")
 
     def test_full_receipt_moves_the_po_to_fully_received(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         po = make_purchase_order(status="submitted")
         line = make_po_line(po, quantity="10.00")
 
         _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -374,14 +372,14 @@ class TestDeliveryReceiptEffects:
                     "allocations": [{"job_id": str(stock_holding_job.id), "quantity": "10"}],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
 
         po.refresh_from_db()
         assert po.status == "fully_received"
 
     def test_each_delivery_preserves_prior_stock_and_accumulates_received(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         """Both deliveries remain available and traceable independently."""
         po = make_purchase_order(status="submitted")
@@ -393,8 +391,8 @@ class TestDeliveryReceiptEffects:
             }
         }
 
-        _post_receipt(client, po, allocation, if_match=_po_etag(client, po))
-        _post_receipt(client, po, allocation, if_match=_po_etag(client, po))
+        _post_receipt(api, po, allocation, if_match=_po_etag(api, po))
+        _post_receipt(api, po, allocation, if_match=_po_etag(api, po))
 
         assert Stock.objects.filter(source="purchase_order").count() == 2
         assert sum(row.quantity for row in Stock.objects.filter(source="purchase_order")) == 6
@@ -405,13 +403,13 @@ class TestDeliveryReceiptEffects:
 @pytest.mark.usefixtures("company_defaults")
 class TestDeliveryReceiptValidation:
     def test_allocation_total_must_match_the_received_total(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         po = make_purchase_order(status="submitted")
         line = make_po_line(po, quantity="10.00")
 
         response = _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -419,7 +417,7 @@ class TestDeliveryReceiptValidation:
                     "allocations": [{"job_id": str(stock_holding_job.id), "quantity": "4"}],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
 
         assert response.status_code == 400
@@ -428,7 +426,7 @@ class TestDeliveryReceiptValidation:
         assert line.received_quantity == Decimal("0.00")
 
     def test_a_line_receiving_nothing_is_refused_and_keeps_its_stock(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         """A zero line reconciles (0 == 0) but would clear the line's stock.
 
@@ -438,7 +436,7 @@ class TestDeliveryReceiptValidation:
         po = make_purchase_order(status="submitted")
         line = make_po_line(po, quantity="10.00", unit_cost="5.00")
         _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -446,15 +444,15 @@ class TestDeliveryReceiptValidation:
                     "allocations": [{"job_id": str(stock_holding_job.id), "quantity": "4"}],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
         stock_before = Stock.objects.get(source="purchase_order")
 
         response = _post_receipt(
-            client,
+            api,
             po,
             {str(line.id): {"total_received": "0", "allocations": []}},
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
 
         assert response.status_code == 400
@@ -464,13 +462,13 @@ class TestDeliveryReceiptValidation:
         assert line.received_quantity == Decimal("4.00")
 
     def test_receiving_again_preserves_consumed_stock_and_adds_a_new_lot(
-        self, client: Client, stock_holding_job: Job, job: Job
+        self, api: Client, stock_holding_job: Job, job: Job
     ) -> None:
         """An onward issue never prevents recording another real delivery."""
         po = make_purchase_order(status="submitted")
         line = make_po_line(po, quantity="10.00", unit_cost="5.00")
         _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -478,10 +476,10 @@ class TestDeliveryReceiptValidation:
                     "allocations": [{"job_id": str(stock_holding_job.id), "quantity": "4"}],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
         stock = Stock.objects.get(source="purchase_order")
-        consume = client.post(
+        consume = api.post(
             f"/api/purchasing/stock/{stock.id}/consume/",
             data={"job_id": str(job.id), "quantity": "1"},
             content_type="application/json",
@@ -489,7 +487,7 @@ class TestDeliveryReceiptValidation:
         assert consume.status_code == 200
 
         response = _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -497,7 +495,7 @@ class TestDeliveryReceiptValidation:
                     "allocations": [{"job_id": str(stock_holding_job.id), "quantity": "3"}],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
 
         assert response.status_code == 200
@@ -507,14 +505,12 @@ class TestDeliveryReceiptValidation:
         line.refresh_from_db()
         assert line.received_quantity == Decimal("7.00")
 
-    def test_a_price_tbc_line_cannot_be_received(
-        self, client: Client, stock_holding_job: Job
-    ) -> None:
+    def test_a_price_tbc_line_cannot_be_received(self, api: Client, stock_holding_job: Job) -> None:
         po = make_purchase_order(status="submitted")
         line = make_po_line(po, quantity="10.00", unit_cost=None, price_tbc=True)
 
         response = _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -522,20 +518,20 @@ class TestDeliveryReceiptValidation:
                     "allocations": [{"job_id": str(stock_holding_job.id), "quantity": "10"}],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
 
         assert response.status_code == 400
         assert "Price not confirmed" in response.json()["detail"]
 
     def test_a_draft_purchase_order_cannot_be_received(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         po = make_purchase_order(status="draft")
         line = make_po_line(po, quantity="10.00")
 
         response = _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -543,20 +539,18 @@ class TestDeliveryReceiptValidation:
                     "allocations": [{"job_id": str(stock_holding_job.id), "quantity": "10"}],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
 
         assert response.status_code == 400
         assert "with status 'draft'" in response.json()["detail"]
 
-    def test_a_line_from_another_po_is_rejected(
-        self, client: Client, stock_holding_job: Job
-    ) -> None:
+    def test_a_line_from_another_po_is_rejected(self, api: Client, stock_holding_job: Job) -> None:
         po = make_purchase_order(status="submitted")
         other_line = make_po_line(make_purchase_order(status="submitted"))
 
         response = _post_receipt(
-            client,
+            api,
             po,
             {
                 str(other_line.id): {
@@ -564,18 +558,18 @@ class TestDeliveryReceiptValidation:
                     "allocations": [{"job_id": str(stock_holding_job.id), "quantity": "1"}],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
 
         assert response.status_code == 400
         assert "mismatched PurchaseOrderLine IDs" in response.json()["detail"]
 
-    def test_an_unknown_job_is_rejected(self, client: Client, stock_holding_job: Job) -> None:  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
+    def test_an_unknown_job_is_rejected(self, api: Client, stock_holding_job: Job) -> None:  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
         po = make_purchase_order(status="submitted")
         line = make_po_line(po, quantity="1.00")
 
         response = _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -583,7 +577,7 @@ class TestDeliveryReceiptValidation:
                     "allocations": [{"job_id": str(uuid4()), "quantity": "1"}],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
 
         assert response.status_code == 400
@@ -591,7 +585,7 @@ class TestDeliveryReceiptValidation:
 
     def test_shop_jobs_are_never_billed(
         self,
-        client: Client,
+        api: Client,
         stock_holding_job: Job,  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
         company_defaults: CompanyDefaults,
         office_staff: Staff,
@@ -602,7 +596,7 @@ class TestDeliveryReceiptValidation:
         line = make_po_line(po, quantity="1.00", unit_cost="100.00")
 
         _post_receipt(
-            client,
+            api,
             po,
             {
                 str(line.id): {
@@ -610,7 +604,7 @@ class TestDeliveryReceiptValidation:
                     "allocations": [{"job_id": str(shop_job.id), "quantity": "1"}],
                 }
             },
-            if_match=_po_etag(client, po),
+            if_match=_po_etag(api, po),
         )
 
         cost_line = CostLine.objects.get(kind="material", cost_set__job=shop_job)

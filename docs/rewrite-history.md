@@ -18,6 +18,24 @@ restating it. Nothing here is a task.
 
 ## Cutover
 
+**2026-09-08 — Inventory transaction regressions and shared test setup.**
+Committed-data tests now use disposable migrated databases, preserving immutable
+inventory evidence instead of flushing it. PostgreSQL blocking-PID observations
+exercise receipt versus inbound sync, issue/return versus costing, stocktake versus
+issue, and reversed two-job receipt allocation order. The issue lock-order test
+was seen to fail with stock deliberately locked first. Celery dispatch is stubbed
+only for these database tests; this does not establish background-worker capacity.
+Purchasing now uses the shared authenticated client and staff fixtures, and other
+test suites import authentication/company factories from their owning helper
+modules rather than conftest files. The full Python suite passed; targeted strict
+typing passed for the fixture and contention code. The full run also exposed and
+verified fixes for ambiguous inbound PO-line lookup and the approval refusal test.
+
+The cache-maintenance follow-up will keep existing Celery configuration, replace
+per-line full summary rebuilds with exact incremental totals, and provide explicit
+checking/recalculation. A read-only local audit found 124 cached cost-set summaries
+differing from their ledger; no cache or inventory repairs were applied.
+
 **2026-09-07 — Stocktake implementation.** The owner selected one ongoing
 non-billable Stocktake Adjustments job with separate dated counts, and explicit
 unit cost for newly found stock. Purchases now exposes Stocktake beside Use Stock.

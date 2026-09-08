@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 from apps.core.models import CompanyDefaults
 from apps.timesheet.tests.conftest import make_leave_job, make_staff
 from apps.xero import payroll_employees, seeding

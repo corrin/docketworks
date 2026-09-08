@@ -605,12 +605,19 @@ def _sync_purchase_order_lines(
             str(required(line.quantity, "quantity", "purchase_order_line", str(xero_id)))
         )
         line_id = required(line.line_item_id, "line_item_id", "purchase_order_line", str(xero_id))
-        try:
-            po_line = po.po_lines.get(xero_line_item_id=line_id)
-        except PurchaseOrderLine.DoesNotExist:
-            # GPT: only a new external identity creates a line; duplicate IDs
-            # are ambiguous and must refuse the whole amendment.
-            po_line = PurchaseOrderLine(purchase_order=po, xero_line_item_id=line_id)
+        matches = list(po.po_lines.filter(xero_line_item_id=line_id)[:2])
+        if len(matches) > 1:
+            raise XeroValidationError(
+                [],
+                "purchase_order",
+                str(xero_id),
+                message=f"More than one local line has Xero identity {line_id}.",
+            )
+        po_line = (
+            matches[0]
+            if matches
+            else PurchaseOrderLine(purchase_order=po, xero_line_item_id=line_id)
+        )
         try:
             validate_ordered_quantity(po_line, quantity)
         except InvalidInputError as exc:

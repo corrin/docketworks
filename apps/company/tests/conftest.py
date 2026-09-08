@@ -2,30 +2,11 @@
 
 import pytest
 from django.test import Client
-from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.company.models import Company
-from apps.core.auth import issue_refresh_token
+from apps.accounts.tests.helpers import authenticate
 
 PASSWORD = "s3cret-Pass!"
-
-
-def make_company(name: str, **kwargs: object) -> Company:
-    """Create a Company with the only field the model truly requires."""
-    defaults: dict[str, object] = {"xero_last_modified": timezone.now()}
-    defaults.update(kwargs)
-    return Company.objects.create(name=name, **defaults)
-
-
-def authenticate(client: Client, staff: Staff) -> None:
-    """Set the HttpOnly access-token cookie the way a logged-in browser has it.
-
-    Through the one mint, not RefreshToken.for_user — issued tokens carry the
-    password fingerprint, and a bare for_user token is rejected as stale.
-    """
-    refresh = issue_refresh_token(staff)
-    client.cookies["access_token"] = str(refresh.access_token)
 
 
 @pytest.fixture

@@ -15,11 +15,8 @@ from apps.accounts.models import Staff
 from apps.core.auth import issue_refresh_token, jwt_cookie_config
 from apps.platform.observability.models import VendorCall
 from apps.purchasing.models import PurchaseOrder
-from apps.purchasing.tests.conftest import company, job, stock_holding_job
 from apps.xero.documents.po import XeroPurchaseOrderManager
 from apps.xero.models import XeroApp
-
-__all__ = ["company", "job", "stock_holding_job"]
 
 TEST_TENANT_ID = "test-tenant-id"
 

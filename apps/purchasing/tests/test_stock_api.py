@@ -22,20 +22,20 @@ STOCK_URL = "/api/purchasing/stock/"
 @pytest.mark.usefixtures("company_defaults")
 class TestStockCrud:
     def test_list_returns_active_stock_newest_first(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         older = make_stock(stock_holding_job, description="Older")
         newer = make_stock(stock_holding_job, description="Newer")
         make_stock(stock_holding_job, description="Retired", is_active=False)
 
-        rows = client.get(STOCK_URL).json()
+        rows = api.get(STOCK_URL).json()
 
         assert [row["description"] for row in rows] == [newer.description, older.description]
 
     def test_create_puts_the_row_on_the_stock_holding_job(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
-        response = client.post(
+        response = api.post(
             STOCK_URL,
             data={
                 "description": "6mm plate",
@@ -56,12 +56,12 @@ class TestStockCrud:
     @pytest.mark.parametrize("field", ["item_code", "location", "metal_type", "alloy", "specifics"])
     def test_blank_nullable_text_on_create_is_a_validation_error(
         self,
-        client: Client,
+        api: Client,
         stock_holding_job: Job,  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
         field: str,
     ) -> None:
         """Unset is NULL (ADR 0040): "" is refused at the schema, same as PO lines."""
-        response = client.post(
+        response = api.post(
             STOCK_URL,
             data={
                 "description": "Rod",
@@ -78,13 +78,13 @@ class TestStockCrud:
 
     @pytest.mark.parametrize("field", ["item_code", "location", "metal_type", "alloy", "specifics"])
     def test_blank_nullable_text_on_patch_is_a_validation_error(
-        self, client: Client, stock_holding_job: Job, field: str
+        self, api: Client, stock_holding_job: Job, field: str
     ) -> None:
         stock = make_stock(stock_holding_job)
         setattr(stock, field, "keep-me")
         stock.save()
 
-        response = client.patch(
+        response = api.patch(
             f"{STOCK_URL}{stock.id}/",
             data={field: ""},
             content_type="application/json",
@@ -96,13 +96,13 @@ class TestStockCrud:
 
     @pytest.mark.parametrize("field", ["item_code", "location", "metal_type", "alloy", "specifics"])
     def test_explicit_null_clears_a_nullable_text_field(
-        self, client: Client, stock_holding_job: Job, field: str
+        self, api: Client, stock_holding_job: Job, field: str
     ) -> None:
         stock = make_stock(stock_holding_job)
         setattr(stock, field, "something")
         stock.save()
 
-        response = client.patch(
+        response = api.patch(
             f"{STOCK_URL}{stock.id}/",
             data={field: None},
             content_type="application/json",
@@ -112,21 +112,21 @@ class TestStockCrud:
         stock.refresh_from_db()
         assert getattr(stock, field) is None
 
-    def test_retrieve_returns_the_stock_row(self, client: Client, stock_holding_job: Job) -> None:
+    def test_retrieve_returns_the_stock_row(self, api: Client, stock_holding_job: Job) -> None:
         stock = make_stock(stock_holding_job, description="Angle")
 
-        body = client.get(f"{STOCK_URL}{stock.id}/").json()
+        body = api.get(f"{STOCK_URL}{stock.id}/").json()
 
         assert body["description"] == "Angle"
         assert body["job_id"] == str(stock_holding_job.id)
         assert body["times_used"] == 0
 
     def test_put_cannot_overwrite_a_stock_balance(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         stock = make_stock(stock_holding_job, description="Old", quantity="1.00")
 
-        response = client.put(
+        response = api.put(
             f"{STOCK_URL}{stock.id}/",
             data={
                 "description": "New",
@@ -142,10 +142,10 @@ class TestStockCrud:
         assert stock.description == "Old"
         assert stock.quantity == Decimal("1.00")
 
-    def test_patch_leaves_unsent_fields_alone(self, client: Client, stock_holding_job: Job) -> None:
+    def test_patch_leaves_unsent_fields_alone(self, api: Client, stock_holding_job: Job) -> None:
         stock = make_stock(stock_holding_job, description="Keep", quantity="7.00")
 
-        client.patch(
+        api.patch(
             f"{STOCK_URL}{stock.id}/",
             data={"description": "Renamed"},
             content_type="application/json",
@@ -155,25 +155,25 @@ class TestStockCrud:
         assert stock.description == "Renamed"
         assert stock.quantity == Decimal("7.00")
 
-    def test_only_empty_stock_can_be_retired(self, client: Client, stock_holding_job: Job) -> None:
+    def test_only_empty_stock_can_be_retired(self, api: Client, stock_holding_job: Job) -> None:
         stock = make_stock(stock_holding_job, quantity="0")
 
-        response = client.delete(f"{STOCK_URL}{stock.id}/")
+        response = api.delete(f"{STOCK_URL}{stock.id}/")
 
         assert response.status_code == 204
         stock.refresh_from_db()
         assert stock.is_active is False
 
-    def test_an_inactive_row_is_not_reachable(self, client: Client, stock_holding_job: Job) -> None:
+    def test_an_inactive_row_is_not_reachable(self, api: Client, stock_holding_job: Job) -> None:
         stock = make_stock(stock_holding_job, is_active=False)
-        assert client.get(f"{STOCK_URL}{stock.id}/").status_code == 404
+        assert api.get(f"{STOCK_URL}{stock.id}/").status_code == 404
 
     def test_negative_unit_cost_is_rejected_by_the_model(
         self,
-        client: Client,
+        api: Client,
         stock_holding_job: Job,  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
     ) -> None:
-        response = client.post(
+        response = api.post(
             STOCK_URL,
             data={
                 "description": "Broken",
@@ -191,13 +191,13 @@ class TestStockCrud:
 @pytest.mark.usefixtures("company_defaults")
 class TestConsumeStock:
     def test_consuming_draws_the_row_down_and_books_a_material_line(
-        self, client: Client, stock_holding_job: Job, job: Job
+        self, api: Client, stock_holding_job: Job, job: Job
     ) -> None:
         stock = make_stock(
             stock_holding_job, description="Bar", quantity="10.00", unit_cost="20.00"
         )
 
-        response = client.post(
+        response = api.post(
             f"{STOCK_URL}{stock.id}/consume/",
             data={"job_id": str(job.id), "quantity": "4"},
             content_type="application/json",
@@ -221,11 +221,11 @@ class TestConsumeStock:
         assert cost_line.cost_set.job_id == job.id
 
     def test_explicit_rates_override_the_defaults(
-        self, client: Client, stock_holding_job: Job, job: Job
+        self, api: Client, stock_holding_job: Job, job: Job
     ) -> None:
         stock = make_stock(stock_holding_job, quantity="10.00", unit_cost="20.00")
 
-        body = client.post(
+        body = api.post(
             f"{STOCK_URL}{stock.id}/consume/",
             data={
                 "job_id": str(job.id),
@@ -241,12 +241,12 @@ class TestConsumeStock:
         assert cost_line.unit_rev == Decimal("99.00")
 
     def test_consuming_more_than_held_is_allowed_and_goes_negative(
-        self, client: Client, stock_holding_job: Job, job: Job
+        self, api: Client, stock_holding_job: Job, job: Job
     ) -> None:
         # Backorders and emergency usage are real; v1 logged and allowed it.
         stock = make_stock(stock_holding_job, quantity="2.00")
 
-        response = client.post(
+        response = api.post(
             f"{STOCK_URL}{stock.id}/consume/",
             data={"job_id": str(job.id), "quantity": "5"},
             content_type="application/json",
@@ -256,12 +256,10 @@ class TestConsumeStock:
         stock.refresh_from_db()
         assert stock.quantity == Decimal("-3.00")
 
-    def test_zero_quantity_is_rejected(
-        self, client: Client, stock_holding_job: Job, job: Job
-    ) -> None:
+    def test_zero_quantity_is_rejected(self, api: Client, stock_holding_job: Job, job: Job) -> None:
         stock = make_stock(stock_holding_job)
 
-        response = client.post(
+        response = api.post(
             f"{STOCK_URL}{stock.id}/consume/",
             data={"job_id": str(job.id), "quantity": "0"},
             content_type="application/json",
@@ -270,10 +268,10 @@ class TestConsumeStock:
         assert response.status_code == 400
         assert "must be positive" in response.json()["detail"]
 
-    def test_an_unknown_job_is_404(self, client: Client, stock_holding_job: Job) -> None:
+    def test_an_unknown_job_is_404(self, api: Client, stock_holding_job: Job) -> None:
         stock = make_stock(stock_holding_job)
 
-        response = client.post(
+        response = api.post(
             f"{STOCK_URL}{stock.id}/consume/",
             data={"job_id": str(uuid4()), "quantity": "1"},
             content_type="application/json",
@@ -286,9 +284,9 @@ class TestConsumeStock:
 class TestStockSearch:
     @pytest.mark.parametrize("query", ["", "steel"])
     def test_empty_and_out_of_range_pages_use_the_shared_envelope(
-        self, client: Client, query: str
+        self, api: Client, query: str
     ) -> None:
-        response = client.get(f"{STOCK_URL}search/", {"q": query})
+        response = api.get(f"{STOCK_URL}search/", {"q": query})
         assert response.status_code == 200
         assert response.json() == {
             "results": [],
@@ -297,32 +295,32 @@ class TestStockSearch:
             "page_size": 50,
             "total_pages": 1,
         }
-        response = client.get(f"{STOCK_URL}search/", {"q": query, "page": "2"})
+        response = api.get(f"{STOCK_URL}search/", {"q": query, "page": "2"})
         assert response.status_code == 404
 
-    def test_short_queries_list_everything(self, client: Client, stock_holding_job: Job) -> None:
+    def test_short_queries_list_everything(self, api: Client, stock_holding_job: Job) -> None:
         make_stock(stock_holding_job, description="Alpha")
         make_stock(stock_holding_job, description="Beta")
 
-        body = client.get(f"{STOCK_URL}search/?q=ab").json()
+        body = api.get(f"{STOCK_URL}search/?q=ab").json()
 
         assert body["count"] == 2
         assert body["page"] == 1
         assert body["total_pages"] == 1
 
-    def test_inactive_rows_are_excluded(self, client: Client, stock_holding_job: Job) -> None:
+    def test_inactive_rows_are_excluded(self, api: Client, stock_holding_job: Job) -> None:
         make_stock(stock_holding_job, description="Live")
         make_stock(stock_holding_job, description="Retired", is_active=False)
 
-        assert client.get(f"{STOCK_URL}search/").json()["count"] == 1
+        assert api.get(f"{STOCK_URL}search/").json()["count"] == 1
 
     def test_pagination_slices_and_reports_totals(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         for index in range(5):
             make_stock(stock_holding_job, description=f"Item {index}")
 
-        body = client.get(f"{STOCK_URL}search/?page=2&page_size=2").json()
+        body = api.get(f"{STOCK_URL}search/?page=2&page_size=2").json()
 
         assert body["count"] == 5
         assert body["page"] == 2
@@ -330,20 +328,18 @@ class TestStockSearch:
         assert body["total_pages"] == 3
         assert len(body["results"]) == 2
 
-    def test_sorting_honours_the_allowed_fields(
-        self, client: Client, stock_holding_job: Job
-    ) -> None:
+    def test_sorting_honours_the_allowed_fields(self, api: Client, stock_holding_job: Job) -> None:
         make_stock(stock_holding_job, description="B item", quantity="1.00")
         make_stock(stock_holding_job, description="A item", quantity="2.00")
 
-        ascending = client.get(f"{STOCK_URL}search/?sort_by=description&sort_dir=asc").json()
-        descending = client.get(f"{STOCK_URL}search/?sort_by=description&sort_dir=desc").json()
+        ascending = api.get(f"{STOCK_URL}search/?sort_by=description&sort_dir=asc").json()
+        descending = api.get(f"{STOCK_URL}search/?sort_by=description&sort_dir=desc").json()
 
         assert [row["description"] for row in ascending["results"]] == ["A item", "B item"]
         assert [row["description"] for row in descending["results"]] == ["B item", "A item"]
 
     def test_merchant_shorthand_finds_the_matching_row(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         wanted = make_stock(
             stock_holding_job,
@@ -353,12 +349,12 @@ class TestStockSearch:
         )
         make_stock(stock_holding_job, description="6mm stainless sheet", item_code="SS-6")
 
-        body = client.get(f"{STOCK_URL}search/?q=50x50 SHS galv").json()
+        body = api.get(f"{STOCK_URL}search/?q=50x50 SHS galv").json()
 
         assert next(row["id"] for row in body["results"]) == str(wanted.id)
 
     def test_usage_counts_ride_along_with_search_results(
-        self, client: Client, stock_holding_job: Job, job: Job
+        self, api: Client, stock_holding_job: Job, job: Job
     ) -> None:
         make_stock(stock_holding_job, description="Counted", item_code="CNT-1")
         CostLine.objects.create(
@@ -372,7 +368,7 @@ class TestStockSearch:
             meta={"item_code": "CNT-1"},
         )
 
-        body = client.get(f"{STOCK_URL}search/").json()
+        body = api.get(f"{STOCK_URL}search/").json()
 
         assert body["results"][0]["times_used"] == 1
 
@@ -381,12 +377,12 @@ class TestStockWriteFields:
     """Every writable Stock field, because the collectors are one branch per field."""
 
     def test_a_patch_carries_every_field_it_sends(
-        self, client: Client, stock_holding_job: Job
+        self, api: Client, stock_holding_job: Job
     ) -> None:
         """One branch per field: a field left out of the collector fails silently."""
         stock = make_stock(stock_holding_job, description="Before", quantity="1.00")
 
-        response = client.patch(
+        response = api.patch(
             f"{STOCK_URL}{stock.id}/",
             data={
                 "unit_revenue": "44.00",
@@ -418,11 +414,11 @@ class TestStockWriteFields:
 
     def test_a_create_honours_an_explicit_date(
         self,
-        client: Client,
+        api: Client,
         stock_holding_job: Job,  # noqa: ARG002 -- present so the stock job resolves
     ) -> None:
         """Stock received earlier than it was entered keeps the date it arrived."""
-        response = client.post(
+        response = api.post(
             STOCK_URL,
             data={
                 "description": "Backdated bar",
@@ -445,15 +441,15 @@ class TestStockWriteFields:
 
 
 class TestSearchQueryCaps:
-    def test_an_over_long_stock_search_is_refused(self, client: Client) -> None:
+    def test_an_over_long_stock_search_is_refused(self, api: Client) -> None:
         """A cap the database would otherwise wear as a slow scan."""
-        response = client.get(f"{STOCK_URL}search/?q={'x' * 513}")
+        response = api.get(f"{STOCK_URL}search/?q={'x' * 513}")
 
         assert response.status_code == 400
         assert "too long" in response.json()["detail"]
 
-    def test_an_over_long_supplier_search_is_refused(self, client: Client) -> None:
-        response = client.get(f"/api/purchasing/suppliers/search/?q={'x' * 256}")
+    def test_an_over_long_supplier_search_is_refused(self, api: Client) -> None:
+        response = api.get(f"/api/purchasing/suppliers/search/?q={'x' * 256}")
 
         assert response.status_code == 400
         assert "characters or fewer" in response.json()["detail"]

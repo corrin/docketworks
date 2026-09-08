@@ -16,7 +16,7 @@ from django.utils import timezone
 from apps.accounting.services.sales_pipeline_service import SalesPipelineService
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job, JobEvent
 from apps.job.models.costing import CostSet

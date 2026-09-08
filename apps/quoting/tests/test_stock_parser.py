@@ -18,7 +18,7 @@ from unittest.mock import patch
 import pytest
 
 from apps.accounts.models import Staff
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import make_job
 from apps.core.models import AppError
 from apps.job.models import Job

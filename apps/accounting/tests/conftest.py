@@ -4,7 +4,7 @@ import pytest
 from django.test import Client
 
 from apps.accounts.models import Staff
-from apps.company.tests.conftest import authenticate
+from apps.accounts.tests.helpers import authenticate
 from apps.timesheet.tests.conftest import make_staff
 
 

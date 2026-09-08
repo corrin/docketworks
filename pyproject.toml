@@ -254,6 +254,7 @@ addopts = "-q -n auto --dist loadscope -m 'not integration'"
 # a bare_install test that quietly kept its seeded baseline would assert
 # against a world it was meant to exclude.
 markers = [
+    "committed_db: disposable migrated database for real concurrent transactions; no flush",
     "bare_install: start from an empty database (instance provisioning only)",
     "integration: calls a real external system (ADR 0050); never runs in CI",
 ]

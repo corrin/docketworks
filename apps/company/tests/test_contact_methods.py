@@ -12,7 +12,7 @@ from django.test import Client
 from pytest_django.fixtures import DjangoCaptureOnCommitCallbacks
 
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 
 pytestmark = pytest.mark.django_db
 

@@ -386,7 +386,7 @@ class TestStockWriteSitesQueueTheParser:
 
     def test_the_create_endpoint_queues_a_parse(
         self,
-        client: Client,
+        api: Client,
         stock_holding_job: Job,  # noqa: ARG002 -- resolves Stock.get_stock_holding_job()
         django_capture_on_commit_callbacks: DjangoCaptureOnCommitCallbacks,
     ) -> None:
@@ -394,7 +394,7 @@ class TestStockWriteSitesQueueTheParser:
             patch("apps.purchasing.tasks.parse_stock_item_task.delay") as delay,
             django_capture_on_commit_callbacks(execute=True),
         ):
-            response = client.post(
+            response = api.post(
                 STOCK_URL,
                 data={
                     "description": ALUMINIUM_SHEET,
@@ -411,7 +411,7 @@ class TestStockWriteSitesQueueTheParser:
 
     def test_the_create_endpoint_skips_the_parse_when_metadata_is_supplied(
         self,
-        client: Client,
+        api: Client,
         stock_holding_job: Job,  # noqa: ARG002 -- resolves Stock.get_stock_holding_job()
         django_capture_on_commit_callbacks: DjangoCaptureOnCommitCallbacks,
     ) -> None:
@@ -419,7 +419,7 @@ class TestStockWriteSitesQueueTheParser:
             patch("apps.purchasing.tasks.parse_stock_item_task.delay") as delay,
             django_capture_on_commit_callbacks(execute=True),
         ):
-            response = client.post(
+            response = api.post(
                 STOCK_URL,
                 data={
                     "description": ALUMINIUM_SHEET,
@@ -438,7 +438,7 @@ class TestStockWriteSitesQueueTheParser:
 
     def test_the_patch_endpoint_queues_a_parse(
         self,
-        client: Client,
+        api: Client,
         stock_holding_job: Job,
         django_capture_on_commit_callbacks: DjangoCaptureOnCommitCallbacks,
     ) -> None:
@@ -448,7 +448,7 @@ class TestStockWriteSitesQueueTheParser:
             patch("apps.purchasing.tasks.parse_stock_item_task.delay") as delay,
             django_capture_on_commit_callbacks(execute=True),
         ):
-            response = client.patch(
+            response = api.patch(
                 f"{STOCK_URL}{stock.id}/",
                 data={"description": ALUMINIUM_SHEET},
                 content_type="application/json",

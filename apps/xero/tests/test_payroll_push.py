@@ -54,7 +54,7 @@ def payroll_superuser() -> Staff:
 
 @pytest.fixture
 def company() -> Company:
-    from apps.company.tests.conftest import make_company  # noqa: PLC0415
+    from apps.company.tests.factories import make_company  # noqa: PLC0415
 
     return make_company("Payroll Push Test Company")
 

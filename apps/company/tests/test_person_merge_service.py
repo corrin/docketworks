@@ -11,7 +11,7 @@ import pytest
 from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.company.services.person_merge_service import merge_people
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import make_job, make_phone_call
 from apps.core.models import AppError
 

@@ -95,7 +95,7 @@ def payroll_staff(postable_week: date, settings: SettingsWrapper) -> Staff:
 
 @pytest.fixture
 def payroll_lines(payroll_staff: Staff, postable_week: date) -> list[CostLine]:
-    from apps.company.tests.conftest import make_company  # noqa: PLC0415
+    from apps.company.tests.factories import make_company  # noqa: PLC0415
     from apps.company.tests.job_fixtures import make_job  # noqa: PLC0415
     from apps.timesheet.tests.conftest import make_time_line  # noqa: PLC0415
 

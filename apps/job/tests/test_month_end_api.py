@@ -18,8 +18,8 @@ from django.test import Client
 from django.utils import timezone
 
 from apps.accounts.models import Staff
+from apps.accounts.tests.helpers import authenticate
 from apps.company.models import Company
-from apps.company.tests.conftest import authenticate
 from apps.core.models import AppError
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, CostSet

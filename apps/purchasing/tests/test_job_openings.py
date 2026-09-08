@@ -76,7 +76,7 @@ def test_migration_preserves_balances_costs_and_original_identity(
 
 
 def test_migrated_job_position_returns_once_at_original_prices(
-    client: Client, job: Job, stock_holding_job: Job, office_staff: Staff
+    api: Client, job: Job, stock_holding_job: Job, office_staff: Staff
 ) -> None:
     """Returning migrated material preserves its charge and credits its original price once."""
     stock = make_stock(stock_holding_job, quantity="3", unit_cost="80", is_active=False)
@@ -84,9 +84,9 @@ def test_migrated_job_position_returns_once_at_original_prices(
     apply_openings()
     opening = StockMovement.objects.get(cost_line=line)
     endpoint = f"/api/purchasing/stock-movements/{opening.id}/return/"
-    response = client.post(endpoint)
+    response = api.post(endpoint)
     assert response.status_code == 200, response.content
-    assert client.post(endpoint).json()["id"] == response.json()["id"]
+    assert api.post(endpoint).json()["id"] == response.json()["id"]
     returned = StockMovement.objects.get(reverses=opening)
     credit = returned.cost_line
     assert credit is not None
@@ -109,12 +109,12 @@ def test_migrated_job_position_returns_once_at_original_prices(
         Decimal("2"),
     )
     assert (
-        client.patch(
+        api.patch(
             f"/api/job/cost_lines/{line.id}/", {"quantity": 8}, content_type="application/json"
         ).status_code
         == 400
     )
-    assert client.delete(f"/api/job/cost_lines/{line.id}/delete/").status_code == 400
+    assert api.delete(f"/api/job/cost_lines/{line.id}/delete/").status_code == 400
 
 
 def test_unapproved_position_is_not_migrated(job: Job, stock_holding_job: Job) -> None:
@@ -142,7 +142,7 @@ def test_invalid_position_aborts_all_openings(job: Job, stock_holding_job: Job) 
 
 
 def test_receipt_opening_preserves_totals_and_uses_the_same_reversal(
-    client: Client, job: Job, stock_holding_job: Job, office_staff: Staff
+    api: Client, job: Job, stock_holding_job: Job, office_staff: Staff
 ) -> None:
     """A migrated receipt returns through the normal command, preserving its original job charge."""
     po = make_purchase_order(status="fully_received")
@@ -172,10 +172,10 @@ def test_receipt_opening_preserves_totals_and_uses_the_same_reversal(
     assert po_line.received_quantity == Decimal("2")
     receipt = stock.movements.get(kind="receipt_opening")
     assert receipt.opening_quantity == Decimal("2")
-    assert not client.get("/api/purchasing/stocktakes/stock/").json()["results"]
-    detail = client.get(f"/api/purchasing/purchase-orders/{po.id}/")
+    assert not api.get("/api/purchasing/stocktakes/stock/").json()["results"]
+    detail = api.get(f"/api/purchasing/purchase-orders/{po.id}/")
     path = f"/api/purchasing/purchase-orders/{po.id}/lines/{po_line.id}/allocations/reverse/"
-    response = client.post(
+    response = api.post(
         path,
         {"allocation_type": "job", "allocation_id": str(original.id)},
         content_type="application/json",
