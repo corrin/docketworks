@@ -125,9 +125,10 @@ Verified scrubbed backup: /…/restore/scrubbed_dw_msm_prod_<ts>.dump
 >> Removing remote staging file...
 ```
 
-The verifier fails when the archive is unreadable, predates the July 2026
-migration squash, or still contains database-backed external-system credentials.
-A failing archive is not restored — take a fresh one.
+The verifier fails when the archive is unreadable, when its migration ledger is
+not one this codebase can restore, when it still holds real password hashes, or
+when it still contains database-backed external-system credentials. A failing
+archive is not restored — take a fresh one.
 
 ## Preserve the private configuration rows
 
@@ -173,8 +174,9 @@ configuration:
 ```bash
 psql -d "$DB_NAME" -c "\copy workflow_xeroapp FROM 'restore/xeroapp.csv' WITH (FORMAT csv)"
 psql -d "$DB_NAME" -c "\copy workflow_aiprovider FROM 'restore/aiprovider.csv' WITH (FORMAT csv)"
-# The migration script re-applied core/0003 after the load, which created an
-# empty IntegrationSettings row at pk=1; the saved row replaces it.
+# The archive carries core/0003 as already applied, so nothing recreates the
+# singleton and the table restores empty. The delete is what makes this step
+# repeatable: re-running it replaces the row rather than colliding on pk=1.
 psql -d "$DB_NAME" -c "DELETE FROM crm_phoneprovidersettings"
 psql -d "$DB_NAME" -c "\copy crm_phoneprovidersettings FROM 'restore/integrationsettings.csv' WITH (FORMAT csv)"
 ```

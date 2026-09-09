@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **57 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 266 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3204 collected |
+| Unit tests | 3206 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 130 recorded deviations |
@@ -103,10 +103,20 @@ Not a tier — just the things a session should have a reason not to pick up.
 
 ## Operations
 
-- **Decommission the v1 production hosts**, and first its blocker: **rehearse the
-  scrubbed-dump producer live**, which is the last thing still running on them.
-  `scripts/ops/pull_prod_backup.sh:87` still says "v1 hosts stay live until cutover" —
-  fix that comment when the rehearsal lands.
+- **Schedule the Celery result cleanup.** `config/celery.py`'s beat schedule has no
+  `celery.backend_cleanup` entry, so nothing prunes `django_celery_results`. Production
+  accumulated 8,902 rows in the ten days from cutover to 2026-09-09, roughly 890 a day,
+  and the table grows without bound. The predecessor scheduled it through
+  django-celery-beat; the in-code schedule that replaced it carries eleven of that
+  twelve, and this is the one absence nobody chose (`recompute_workshop_schedule` is the
+  other, deliberately, and `config/celery.py:49` says so).
+- **Correct the overstated stainless balance on the job 96081 material.** Stock
+  `12c5c9c0-1775-449c-ae8e-e270b288cdcd` reads 6.29 sheets where 11 received less 6
+  consumed less 3.66 drawn leaves 1.34 — 4.95 sheets, about $1,878, left behind when the
+  `adhoc/96081/` repair created replacement stock. It is not a code fix: the inventory
+  cutover migration's own guard refuses the resulting over-evidence, so the deploy stops
+  until the data is right. Use the repair tool, not a hand-written UPDATE — the ledger's
+  balance constraint refuses a patched movement.
 - **Confirm the sitemap shard count** on the next live Steel & Tube portal run. The
   2026-08-01 measurement found a single shard at 3,677 URLs against a 50,000 limit, and
   `MIN_SITEMAP_COVERAGE` (`apps/quoting/scrapers/base.py:65`) is the defence; nobody has

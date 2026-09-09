@@ -23,6 +23,8 @@ def apply_openings(name: str = "0011_backfill_job_openings") -> None:
     """Execute the forward data migration against historical fixture rows."""
     migration = import_module(f"apps.purchasing.migrations.{name}")
     with transaction.atomic(), connection.cursor() as cursor:
+        if hasattr(migration, "STOCK_PROVENANCE_REPAIR_SQL"):
+            cursor.execute(migration.STOCK_PROVENANCE_REPAIR_SQL)
         cursor.execute(migration.PREFLIGHT_SQL)
         cursor.execute(migration.BACKFILL_SQL)
 
@@ -193,8 +195,9 @@ def test_receipt_opening_preserves_totals_and_uses_the_same_reversal(
     assert CostLine.objects.filter(pk=original.id, quantity=2).exists()
 
 
-def test_missing_receipt_provenance_aborts_without_freezing_costs(job: Job) -> None:
-    """Missing original PO lines cannot be guessed into a new receipt identity."""
+@pytest.mark.usefixtures("stock_holding_job")
+def test_allocation_whose_order_line_is_gone_is_booked_as_manual_provenance(job: Job) -> None:
+    """The receipt happened; only the paperwork is missing, so it books with that recorded."""
     po = make_purchase_order()
     original = CostLine.objects.create(
         cost_set=job.cost_sets.get(kind="actual"),
@@ -207,11 +210,61 @@ def test_missing_receipt_provenance_aborts_without_freezing_costs(job: Job) -> N
         approved=True,
         ext_refs={"purchase_order_id": str(po.id)},
     )
-    with pytest.raises(DatabaseError, match="Receipt opening preflight failed"):
-        apply_openings()
+
+    apply_openings()
+
     original.refresh_from_db()
-    assert original.managed_by is None
-    assert not StockMovement.objects.filter(cost_line=original).exists()
+    assert original.managed_by == "stock"
+    stock = Stock.objects.get(movements__cost_line=original)
+    assert stock.source == "manual"
+    assert stock.source_purchase_order_line is None
+
+    opening = stock.movements.get(kind="job_opening")
+    assert opening.quantity_change == Decimal("0")
+    assert opening.counterpart_job_id == job.id
+    assert "no longer exists" in opening.reason
+
+    receipt = stock.movements.get(kind="receipt_opening")
+    assert receipt.opening_quantity == Decimal("2")
+    assert "Receipt evidence lost" in receipt.reason
+
+
+def test_stock_claiming_a_purchase_order_with_no_line_is_relabelled(
+    stock_holding_job: Job,
+) -> None:
+    """Nothing can say which receipt it came from, so it stops claiming one."""
+    mislabelled = make_stock(stock_holding_job, source="purchase_order")
+    assert mislabelled.source_purchase_order_line is None
+
+    apply_openings()
+
+    mislabelled.refresh_from_db()
+    assert mislabelled.source == "manual"
+
+
+@pytest.mark.usefixtures("stock_holding_job")
+def test_lost_provenance_above_the_ceiling_refuses_rather_than_booking(job: Job) -> None:
+    """A handful of untraceable rows is a repair; a database full of them is a live defect."""
+    migration = import_module("apps.purchasing.migrations.0011_backfill_job_openings")
+    po = make_purchase_order()
+    cost_set = job.cost_sets.get(kind="actual")
+    for index in range(migration.LOST_PROVENANCE_LIMIT + 1):
+        CostLine.objects.create(
+            cost_set=cost_set,
+            kind="material",
+            desc=f"Untraceable {index}",
+            quantity=Decimal("1"),
+            unit_cost=Decimal("5"),
+            unit_rev=Decimal("7"),
+            accounting_date=timezone.localdate(),
+            approved=True,
+            ext_refs={"purchase_order_id": str(po.id)},
+        )
+
+    with pytest.raises(DatabaseError, match="name no surviving order line"):
+        apply_openings()
+
+    assert not StockMovement.objects.filter(cost_line__cost_set=cost_set).exists()
 
 
 def test_receipt_preflight_prevents_partial_stock_job_migration(
@@ -219,9 +272,15 @@ def test_receipt_preflight_prevents_partial_stock_job_migration(
 ) -> None:
     """A bad receipt stops all job openings, including independently valid stock issues."""
     valid = historical_cost(job, make_stock(stock_holding_job))
-    orphan = historical_cost(job, make_stock(stock_holding_job))
-    orphan.ext_refs = {"purchase_order_id": str(make_purchase_order().id)}
-    orphan.save()
+    # The line resolves but belongs to a different order, so its provenance is
+    # contradictory rather than merely absent — that still cannot be booked.
+    ordered = make_purchase_order()
+    mismatched = historical_cost(job, make_stock(stock_holding_job))
+    mismatched.ext_refs = {
+        "purchase_order_id": str(make_purchase_order().id),
+        "purchase_order_line_id": str(make_po_line(ordered).id),
+    }
+    mismatched.save()
     with pytest.raises(DatabaseError, match="Receipt opening preflight failed"):
         apply_openings()
     valid.refresh_from_db()
@@ -291,9 +350,11 @@ def test_receipt_cutover_executor_is_atomic_and_repeatable(
     executor = MigrationExecutor(connection)
     executor.migrate([("purchasing", "0010_job_position_openings")])
     original = historical_cost(job, make_stock(stock_holding_job))
-    orphan = historical_cost(job, make_stock(stock_holding_job))
-    orphan.ext_refs = {"purchase_order_id": str(make_purchase_order().id)}
-    orphan.save()
+    # Unapproved rather than mis-provenanced: the schema is rewound to 0010 here,
+    # where purchasing_purchaseorderline has no created_at for the factory to write.
+    unapproved = historical_cost(job, make_stock(stock_holding_job), approved=False)
+    unapproved.ext_refs = {"purchase_order_id": str(make_purchase_order().id)}
+    unapproved.save()
     with connection.cursor() as cursor:
         cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
     with (
@@ -305,7 +366,7 @@ def test_receipt_cutover_executor_is_atomic_and_repeatable(
     assert original.managed_by is None
     assert not StockMovement.objects.filter(cost_line=original).exists()
     # GPT: the refused row is a test fixture, not a production repair policy.
-    orphan.delete()
+    unapproved.delete()
     with connection.cursor() as cursor:
         cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
     executor = MigrationExecutor(connection)
