@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **57 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 266 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3174 collected |
+| Unit tests | 3202 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 130 recorded deviations |
@@ -143,6 +143,13 @@ Not a tier — just the things a session should have a reason not to pick up.
   history and the config-only fix.
 
 ## Payroll and Xero
+
+- **Xero detail refresh: complete live verification with an approved call budget.**
+  Run the employee integration regression using the vendor-call ledger, then
+  `admin/xero.spec.ts` and applicable timesheet browser checks, including responsive
+  screenshots. Implementation and local checks are recorded in rewrite history;
+  the owner authorised zero live calls for this slice. See
+  [the plan](plans/2026-09-09-xero-detail-refresh.md).
 
 - **The pay-run mirror deletes rows it never fetched, under a docstring promising it
   cannot.** `sync_pay_runs` (`apps/xero/payroll_push.py:759`) runs

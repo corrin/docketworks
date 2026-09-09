@@ -13822,6 +13822,10 @@ export type XeroQuoteOut = {
  */
 export type XeroSyncInfoOut = {
     /**
+     * Last Detail Refresh
+     */
+    last_detail_refresh: string | null;
+    /**
      * Last Syncs
      */
     last_syncs: {
@@ -19963,7 +19967,12 @@ export type XeroSyncInfoRetrieveResponse = XeroSyncInfoRetrieveResponses[keyof X
 export type XeroSyncCreateData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Detail Refresh
+         */
+        detail_refresh?: boolean;
+    };
     url: '/api/xero/sync/';
 };
 
