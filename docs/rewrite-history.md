@@ -1,5 +1,24 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-09 — Provisioning stripped the scanner's path into the sync root
+
+Scanned documents stopped reaching msm-prod because the instance's dropbox directory,
+which is that client's Maestral sync root, had lost group access. The office scanner
+delivers into the tree through its membership of the instance group and could no longer
+traverse the parent, while Maestral, systemd and disk all reported healthy. Provisioning
+forced mode 700 there.
+
+Two findings are worth keeping beyond the fix. `deploy.sh` never invokes `instance.sh`
+and changes no permissions except the app symlink's owner, so the reset comes from a
+`create` or `reconfigure` run and not from a deploy as first diagnosed. GNU chmod
+preserves a directory's setgid bit unless told to clear it, which is why the directory
+read 2700 rather than 0700 and why an earlier hand-applied 2770 left a trace of itself.
+
+The repository named no external writer anywhere, so the scanner's access was manual host
+state that no script recorded and no check asserted. KAN-360 moved the instance directory
+modes into one function, made the sync root 2770 with setgid, and gated the mode in
+`verify-instance.sh` and the CI-run server suite.
+
 ## 2026-09-09 — Shared line identity and creation order
 
 The owner chose consistency across POs, job costs and timesheets: oldest creation
