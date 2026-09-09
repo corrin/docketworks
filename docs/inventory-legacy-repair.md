@@ -36,6 +36,6 @@ belong in this public repository.
 The manifest repair validates before applying and is repeatable. Changed evidence
 requires another review, not a guessed replacement.
 
-The v1 restore script accepts `INVENTORY_REPAIR_MANIFEST` for references. Its final
-full audit remains mandatory. Do not reuse a local manifest against a different
-snapshot without validating every named record.
+The full audit in step 3 remains mandatory however the manifest was applied. Do not
+reuse a local manifest against a different snapshot without validating every named
+record.

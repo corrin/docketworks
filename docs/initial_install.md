@@ -101,8 +101,7 @@ gitignored because they hold live keys.
    The command applies each integration only while its columns are unset, so re-running it
    never overwrites what a superuser has since entered on **Admin > Integrations**.
 
-Production data moves from v1 by `pg_dump`/restore (models keep v1's app labels and table
-names — see [`../CLAUDE.md`](../CLAUDE.md)); refreshing from a production dump is
+Refreshing an installation from a production dump is
 [`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md), which preserves these rows
 across the load.
 
