@@ -1125,22 +1125,15 @@ class TestLineCreationOrder:
         assert after[2]["description"] == "Edited"
         assert api.get(url).json()["lines"] == after
 
-    def test_equal_and_unknown_times_have_a_stable_uuid_order(self, api: Client) -> None:
-        """Timestamp collisions and missing history must still produce a total order."""
+    def test_equal_times_have_a_stable_uuid_order(self, api: Client) -> None:
+        """A batch sharing one timestamp must still produce a total order (ADR 0057)."""
         po = make_purchase_order()
         lines = [make_po_line(po) for _ in range(8)]
         timestamp = timezone.now()
         PurchaseOrderLine.objects.filter(purchase_order=po).update(created_at=timestamp)
-        legacy = lines[:2]
-        PurchaseOrderLine.objects.filter(id__in=[line.id for line in legacy]).update(
-            created_at=None
-        )
-        expected = sorted(legacy, key=lambda line: line.id) + sorted(
-            lines[2:], key=lambda line: line.id
-        )
+        expected = sorted(lines, key=lambda line: line.id)
         result = api.get(_detail_url(po)).json()["lines"]
         assert [line["id"] for line in result] == [str(line.id) for line in expected]
-        assert [line["created_at"] for line in result[:2]] == [None, None]
         victim = expected[3]
         remaining_ids = [str(line.id) for line in expected if line.id != victim.id]
         victim.delete()

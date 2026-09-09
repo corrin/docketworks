@@ -1195,3 +1195,53 @@ The 127 focused PO/receipt tests also passed. Repository checks passed, refreshi
 the generated test-count and code-quality records. A concurrency-refusal regression
 was observed failing before the queue-abort guard: queued edits now stop after a
 412/428 rather than silently adopting a refetched version.
+
+## 2026-09-09 — Rulings on database triggers, legacy shapes and ADR provenance (PR #151)
+
+The owner ruled that database triggers are an antipattern here: they work when they
+work, and they make bulk admin bad, especially with two production servers where every
+manual correction has to be done twice. [ADR 0058](adr/0058-write-refusals-live-in-the-application.md)
+records the rule that follows — a refusal lives in one application function and raises a
+typed error, while the database states facts about a row and never decides. The six
+triggers this branch added were all removed. An audit of every production write path
+found four bulk writes reaching a protected table, two of them on quote cost sets where
+stock ownership never applies, so three of the five rules needed no replacement at all;
+the posted-count and movement rules gained a test that drives every mutating route the
+API offers and reads the evidence back unchanged.
+
+The owner also ruled that the app supports one data model and legacy data is forced to
+comply by a one-off migration, with no permanent model, column or branch that reads the
+old shape, and that a creation timestamp is never nullable.
+[ADR 0059](adr/0059-one-data-model-legacy-data-is-migrated.md) records it, and
+[ADR 0015](adr/0015-fix-data-not-fallback.md) had already forbidden the type-system half
+of it. `LegacyReceiptAdjustment` and its repair phase were deleted; the 364 order lines
+whose receipt evidence a 2025 duplicate-order defect destroyed are now booked as
+`receipt_opening` movements against zero-quantity identities, which is how the ledger
+already records "received historically, no balance remains" and is bit-for-bit the shape
+migration 0011 books for consumed allocations. The purchase order notes explaining each
+gap were kept: they are ordinary history for the office, and nothing reads them as data.
+
+Purchase order line creation times were backfilled from the parent order rather than
+left NULL. Heap order was the tempting source and was measured instead of assumed: on
+the parent table, where a real timestamp exists to check against, heap rank correlates
+with creation order at -0.25 and 1 row of 982 sits at its correct rank, and at least
+1,306 of 2,322 lines were updated in production before the dump. So lines on one order
+share a timestamp and the UUID breaks the tie, matching `CostLine`, which has carried a
+non-null creation time and a single migration stamp on 10,059 rows since the v1 port.
+
+A review of all 44 ADRs found that ADR 0057 was written by an AI session in the same
+commit as the code it authorised, and that the history entry beside it asserted an owner
+ruling that had not been made. The consistency goal it recorded is genuine — purchase
+orders, timesheets and job costs all present lists and should share the same patterns —
+but the nullable-timestamp rule derived from it was not. The three `Owner-approved`
+claims in ADRs 0041, 0053 and 0056 were each confirmed with the owner and are genuine.
+ADR 0051 now requires an AI-drafted ADR to be marked unratified, and the index requires
+an ADR to land in its own commit, because seven of the twelve most recent arrived as
+passengers inside unrelated feature pull requests.
+
+ADR 0055 described thirteen contexts as though they existed; `apps/kernel` has no package
+and `config/architecture.py` records one migrated context of thirteen. The owner ratified
+the modular monolith as a direction the project is heading in and not a description of
+the tree, so the ADR now separates destination from present and `CLAUDE.md` describes the
+import-linter contract that actually gates. ADRs 0012, 0021 and 0033 named a module path,
+a Django setting and a Poetry constraint syntax this repository does not have.

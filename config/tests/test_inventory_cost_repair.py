@@ -4,25 +4,20 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from django.db import DatabaseError, transaction
-from django.test import Client
 from django.utils import timezone
 
 from adhoc.inventory_cost_repair import (
     Disposition,
-    ReceiptDisposition,
     RepairManifest,
     StockDisposition,
     repair,
-    repair_receipt_gaps,
 )
 from apps.accounts.models import Staff
 from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.purchasing.models import LegacyReceiptAdjustment, PurchaseOrderEvent, StockMovement
-from apps.purchasing.services.stock_movement_service import inventory_audit_findings
+from apps.purchasing.models import StockMovement
 from apps.purchasing.tests.factories import make_po_line, make_purchase_order, make_stock
 
 pytestmark = pytest.mark.django_db
@@ -175,72 +170,6 @@ def test_absent_line_reference_can_be_documented_without_inventing_one(job: Job)
     assert cost.meta["comments"].startswith("Legacy source line is missing")
     assert cost.total_cost == 30
     assert not StockMovement.objects.filter(cost_line=cost).exists()
-
-
-def test_legacy_gap_is_a_note_and_adjustment_not_a_receipt(
-    office_staff: Staff, api: Client
-) -> None:
-    """A known historical gap cannot mask new corruption or manufacture stock."""
-    po = make_purchase_order(status="fully_received")
-    line = make_po_line(po, quantity="2", received_quantity="2", unit_cost="12")
-    manifest = RepairManifest(
-        receipt_rows=[
-            ReceiptDisposition(
-                line_id=line.id,
-                received_quantity=Decimal(2),
-                quantity=Decimal(2),
-                reason="Historical allocation evidence was lost; recorded quantity retained.",
-            )
-        ]
-    )
-    before = StockMovement.objects.count()
-    assert repair_receipt_gaps(manifest, office_staff, apply=False) == 1
-    assert not LegacyReceiptAdjustment.objects.exists()
-    assert repair_receipt_gaps(manifest, office_staff, apply=True) == 1
-    assert repair_receipt_gaps(manifest, office_staff, apply=True) == 0
-    assert StockMovement.objects.count() == before
-    assert PurchaseOrderEvent.objects.filter(purchase_order=po).count() == 1
-    assert "Historical allocation evidence was lost" in po.events.get().description
-    assert "Supplier receipt totals" not in inventory_audit_findings()
-    endpoint = f"/api/purchasing/purchase-orders/{po.id}/"
-    detail = api.get(endpoint)
-    response = api.patch(
-        endpoint,
-        {"lines_to_delete": [str(line.id)]},
-        content_type="application/json",
-        headers={"If-Match": detail.headers["ETag"]},
-    )
-    assert response.status_code == 400
-    assert b"documented gap" in response.content
-    adjustment = LegacyReceiptAdjustment.objects.get(purchase_order_line=line)
-    with pytest.raises(DatabaseError, match="immutable"), transaction.atomic():
-        LegacyReceiptAdjustment.objects.filter(pk=adjustment.pk).update(quantity=3)
-    line.received_quantity = 3
-    line.save(update_fields=["received_quantity"])
-    assert str(line.id) in inventory_audit_findings()["Supplier receipt totals"]
-
-
-def test_changed_receipt_gap_aborts_the_entire_manifest(office_staff: Staff) -> None:
-    """A stale reviewed batch must not leave a partially acknowledged history."""
-    po = make_purchase_order()
-    lines = [make_po_line(po, received_quantity="2") for _ in range(2)]
-    manifest = RepairManifest(
-        receipt_rows=[
-            ReceiptDisposition(
-                line_id=line.id,
-                received_quantity=Decimal(2),
-                quantity=Decimal(2),
-                reason="Lost history",
-            )
-            for line in lines
-        ]
-    )
-    lines[1].received_quantity = 1
-    lines[1].save(update_fields=["received_quantity"])
-    with pytest.raises(ValueError, match="Receipt evidence changed"):
-        repair_receipt_gaps(manifest, office_staff, apply=True)
-    assert not LegacyReceiptAdjustment.objects.exists()
-    assert not PurchaseOrderEvent.objects.exists()
 
 
 def test_stock_source_repair_preserves_its_opening(stock_holding_job: Job) -> None:

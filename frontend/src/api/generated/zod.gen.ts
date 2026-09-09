@@ -4170,7 +4170,7 @@ export const zPurchaseOrderCreateRequest = z.object({
 export const zPurchaseOrderLineOut = z.object({
     alloy: z.string().nullable(),
     company_name: z.string().nullable(),
-    created_at: z.iso.datetime().nullable(),
+    created_at: z.iso.datetime(),
     description: z.string(),
     dimensions: z.string().nullable(),
     id: z.uuid(),

@@ -97,6 +97,11 @@ SQL_DATA_MIGRATIONS = {
     ("purchasing", "0007_inventory_openings"),
     ("purchasing", "0011_backfill_job_openings"),
     ("purchasing", "0012_protect_inventory_provenance"),
+    # Books the receipt evidence a 2025 duplicate-order defect destroyed, and gives
+    # every historical PO line its order's creation time. Both fix restored rows, so
+    # both are no-ops against the empty database the first `migrate` sees.
+    ("purchasing", "0015_backfill_legacy_receipt_evidence"),
+    ("purchasing", "0016_alter_purchaseorderline_options_and_more"),
 }
 
 

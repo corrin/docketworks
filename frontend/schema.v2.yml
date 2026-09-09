@@ -10616,11 +10616,9 @@ components:
           - type: 'null'
           title: Company Name
         created_at:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
+          format: date-time
           title: Created At
+          type: string
         description:
           title: Description
           type: string

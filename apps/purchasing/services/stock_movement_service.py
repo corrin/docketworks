@@ -195,9 +195,7 @@ _LEDGER_AUDITS = {
         )
         SELECT pl.id::text FROM purchasing_purchaseorderline pl
         LEFT JOIN receipts r ON r.id = pl.id
-        LEFT JOIN purchasing_legacyreceiptadjustment legacy
-          ON legacy.purchase_order_line_id = pl.id
-        WHERE pl.received_quantity <> coalesce(r.quantity, 0) + coalesce(legacy.quantity, 0)
+        WHERE pl.received_quantity <> coalesce(r.quantity, 0)
           AND NOT EXISTS (SELECT 1 FROM pending_lines p WHERE p.id = pl.id)
     """,
 }

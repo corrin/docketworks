@@ -18,7 +18,7 @@ import { usePoLines } from './usePoLines'
 const PO_ID = '8709dc8c-b160-42a7-9c14-9ad04663a85a'
 const LINE_ID = 'ed6dbf27-5eab-4f44-a986-017362bbac4f'
 const line: PurchaseOrderLineOut = {
-  created_at: null,
+  created_at: '2026-09-01T09:00:00Z',
   id: LINE_ID,
   description: 'Original product',
   quantity: 2,

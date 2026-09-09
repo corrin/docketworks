@@ -20,11 +20,8 @@ setup_django()
 
 from django.db import connection, transaction  # noqa: E402 -- configure Django before model imports
 
-from apps.accounts.models import Staff  # noqa: E402
 from apps.job.models.costing import CostLine  # noqa: E402 -- Django setup precedes models
 from apps.purchasing.models import (  # noqa: E402
-    LegacyReceiptAdjustment,
-    PurchaseOrderEvent,
     PurchaseOrderLine,
     Stock,
     StockMovement,
@@ -57,23 +54,12 @@ class StockDisposition(BaseModel):
     reason: str = Field(min_length=1)
 
 
-class ReceiptDisposition(BaseModel):
-    """The recorded receipt total and the independently measured evidence gap."""
-
-    model_config = ConfigDict(extra="forbid")
-    line_id: UUID
-    received_quantity: Decimal
-    quantity: Decimal = Field(gt=0)
-    reason: str = Field(min_length=1)
-
-
 class RepairManifest(BaseModel):
     """A private, reviewed list of exact repairs."""
 
     model_config = ConfigDict(extra="forbid")
     rows: list[Disposition] = Field(default_factory=list)
     stock_rows: list[StockDisposition] = Field(default_factory=list)
-    receipt_rows: list[ReceiptDisposition] = Field(default_factory=list)
 
 
 def evidence(disposition: Disposition, line: CostLine) -> str:
@@ -227,85 +213,17 @@ def validate_stock_dispositions(
     return pending
 
 
-def receipt_evidence_quantity(line: PurchaseOrderLine) -> Decimal:
-    """Read actual receipt evidence, excluding acknowledgements of missing history."""
-    with connection.cursor() as cursor:
-        cursor.execute(
-            "SELECT coalesce(sum(CASE WHEN m.kind = 'receipt_opening' "
-            "THEN m.opening_quantity ELSE m.quantity_change END), 0) "
-            "FROM purchasing_stockmovement m JOIN purchasing_stock s ON s.id = m.stock_id "
-            "WHERE s.source_purchase_order_line_id = %s "
-            "AND m.kind IN ('receipt', 'receipt_opening', 'receipt_reversal')",
-            [line.id],
-        )
-        return Decimal(cursor.fetchone()[0])
-
-
-@transaction.atomic
-def repair_receipt_gaps(manifest: RepairManifest, staff: Staff, *, apply: bool) -> int:
-    """Acknowledge exact legacy gaps without fabricating receipts or changing balances."""
-    if len({row.line_id for row in manifest.receipt_rows}) != len(manifest.receipt_rows):
-        raise ValueError("A PO line may have only one receipt-gap disposition.")
-    pending = []
-    for row in manifest.receipt_rows:
-        lines = PurchaseOrderLine.objects.select_related("purchase_order").filter(pk=row.line_id)
-        if apply:
-            lines = lines.select_for_update(of=("self", "purchase_order"))
-        line = lines.get()
-        existing = LegacyReceiptAdjustment.objects.filter(purchase_order_line=line).first()
-        if existing is not None:
-            if (
-                existing.quantity != row.quantity
-                or existing.recorded_received_quantity != row.received_quantity
-            ):
-                raise ValueError(f"Line {line.id} has a different recorded legacy adjustment.")
-            continue
-        if (
-            line.received_quantity != row.received_quantity
-            or line.received_quantity - receipt_evidence_quantity(line) != row.quantity
-        ):
-            raise ValueError(f"Receipt evidence changed for {line.id}; review the manifest again.")
-        pending.append((row, line))
-    if not apply:
-        return len(pending)
-    for row, line in pending:
-        note = PurchaseOrderEvent.objects.create(
-            purchase_order=line.purchase_order,
-            staff=staff,
-            description=(
-                f"Legacy receipt reconciliation: {line.description} (line {line.id}). "
-                f"Recorded received quantity: {row.received_quantity}; "
-                f"quantity without surviving receipt/allocation evidence: {row.quantity}. "
-                f"{row.reason} No receipt, stock movement or job charge was reconstructed."
-            ),
-        )
-        LegacyReceiptAdjustment.objects.create(
-            purchase_order_line=line,
-            recorded_received_quantity=row.received_quantity,
-            quantity=row.quantity,
-            note=note,
-        )
-    return len(pending)
-
-
 def main() -> None:
     """Require an explicit database identity even for preview."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--database", required=True)
     parser.add_argument("--apply", action="store_true")
-    parser.add_argument("--phase", choices=["references", "receipt-gaps"], default="references")
-    parser.add_argument("--staff", type=UUID)
     args = parser.parse_args()
     if connection.settings_dict["NAME"] != args.database:
         raise ValueError("Configured database does not match --database.")
     manifest = RepairManifest.model_validate_json(args.manifest.read_text())
-    if args.phase == "references":
-        count = repair(manifest, apply=args.apply)
-    else:
-        if args.staff is None:
-            raise ValueError("Receipt-gap notes require --staff naming the repair operator.")
-        count = repair_receipt_gaps(manifest, Staff.objects.get(pk=args.staff), apply=args.apply)
+    count = repair(manifest, apply=args.apply)
     sys.stdout.write(f"{'Applied' if args.apply else 'Validated'} {count} reviewed dispositions.\n")
 
 

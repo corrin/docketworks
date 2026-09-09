@@ -5,7 +5,6 @@ from importlib import import_module
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import connection, transaction
 
-from apps.purchasing.models import LegacyReceiptAdjustment
 from apps.purchasing.services.stock_movement_service import inventory_audit_findings
 
 
@@ -24,11 +23,9 @@ class Command(BaseCommand):
         with transaction.atomic(), connection.cursor() as cursor:
             cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
             cursor.execute(migration.PREFLIGHT_SQL)
-            if _options["preflight_only"]:
-                self.stdout.write(
-                    "Inventory cutover source preflight passed; full audit still required."
-                )
-                return
+            # The pending-openings figure is what the operator checks the backfill against,
+            # so it is printed before the preflight-only exit: after the backfill runs the
+            # same query necessarily returns zero and the number can no longer be obtained.
             cursor.execute("""
                 SELECT count(*), sum(c.quantity * c.unit_cost), sum(c.quantity * c.unit_rev)
                 FROM job_costline c JOIN job_costset cs ON cs.id = c.cost_set_id
@@ -39,11 +36,12 @@ class Command(BaseCommand):
                   )
             """)
             self.stdout.write(f"Pending job openings (count, cost, revenue): {cursor.fetchone()}")
+            if _options["preflight_only"]:
+                self.stdout.write(
+                    "Inventory cutover source preflight passed; full audit still required."
+                )
+                return
             findings = inventory_audit_findings()
-            self.stdout.write(
-                f"Acknowledged legacy receipt gaps: {LegacyReceiptAdjustment.objects.count()} "
-                "(missing history remains documented; these are not receipt movements)."
-            )
             for label, rows in findings.items():
                 self.stdout.write(f"{label}: {len(rows)} discrepancies")
                 for row in rows:

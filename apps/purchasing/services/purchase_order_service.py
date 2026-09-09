@@ -84,7 +84,7 @@ class PurchaseOrderLineData(TypedDict):
     """Data contract for PurchaseOrderLineData."""
 
     id: UUID
-    created_at: datetime | None
+    created_at: datetime
     description: str
     quantity: Decimal
     dimensions: str | None
@@ -479,12 +479,12 @@ def update_purchase_order(
         if lines_to_delete:
             if (
                 PurchaseOrderLine.objects.filter(purchase_order=po, id__in=lines_to_delete)
-                .filter(Q(stock_generated__isnull=False) | Q(legacyreceiptadjustment__isnull=False))
+                .filter(stock_generated__isnull=False)
                 .exists()
             ):
                 raise DjangoValidationError(
-                    "This line preserves inventory provenance or a documented gap in legacy "
-                    "receipt history and cannot be deleted. See its allocations and PO notes."
+                    "This line preserves inventory provenance and cannot be deleted. "
+                    "See its allocations."
                 )
             PurchaseOrderLine.objects.filter(id__in=lines_to_delete, purchase_order=po).delete()
 
