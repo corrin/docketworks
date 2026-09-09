@@ -39,10 +39,9 @@ import {
  * - Cell lookups use the textarea/automation-id contract; `data-grid-col`
  *   sits on the td (the navigation cell), not on the control, so it cannot
  *   be filled or focus-asserted directly.
- * - Stock movement from quantity edits and deletes is guarded to the ACTUAL
- *   set (ledgered): v1 moved inventory from estimate and quote lines too —
- *   a defect this spec's estimate scenario exposed. Like v1, the spec
- *   asserts the cost set, not stock levels.
+ * - Stock consumption belongs to the ACTUAL set. Its saved cost evidence is
+ *   immutable, so the quantity is entered before consumption. Estimate and
+ *   quote edits never move inventory.
  */
 
 /** The E2E user's wage rate — an environment prerequisite (see the
@@ -192,29 +191,23 @@ async function findRowIndexByDescription(page: Page, description: string): Promi
   return -1
 }
 
-/**
- * Retry the description scan. Every caller asserting a row IS there goes
- * through here: the scan reads rows one at a time while a settled cost-line
- * write is followed by two refetches within about 80ms — the cost set, and
- * the job itself (invalidateJobViews, because a cost-line write moves the
- * job's ETag) — so a single pass can read the table between frames and miss a
- * row that is there. Filtering a locator by its input value is not
- * expressible, so polling the scan is the honest form.
- */
-async function waitForRowIndexByDescription(page: Page, description: string): Promise<number> {
-  let index = -1
+/** GPT: Retain the saved identity when a refetch moves the row after discovery. */
+async function waitForRowByDescription(page: Page, description: string): Promise<Locator> {
+  const result: { rowId: string | null } = { rowId: null }
   await expect(async () => {
-    // The two refetches that follow a write can reorder rows — a
-    // timesheet-sourced labour row sorts above a freshly consumed material —
-    // so an index read inside that window addresses the wrong row by click
-    // time. Returning the index from the first scan that found the row was
-    // tried and clicked the labour row's disabled quantity; reading it from a
-    // quiet network is what navigateToCostTab already relies on.
     await page.waitForLoadState('networkidle')
-    index = await findRowIndexByDescription(page, description)
+    const rows = page.locator('[data-automation-id^="DataTable-row-"]')
+    const index = await findRowIndexByDescription(page, description)
     expect(index).toBeGreaterThanOrEqual(0)
+    const row = rows.nth(index)
+    result.rowId = await row.getAttribute('data-row-id')
+    if (!result.rowId) throw new Error(`Cost row "${description}" has no stable ID`)
+    await expect(page.locator(`[data-row-id="${result.rowId}"] textarea`).first()).toHaveValue(
+      description,
+    )
   }).toPass({ timeout: 10000 })
-  return index
+  if (!result.rowId) throw new Error(`Cost row "${description}" has no stable ID`)
+  return page.locator(`[data-row-id="${result.rowId}"]`)
 }
 
 async function expectRowAbsent(page: Page, description: string): Promise<void> {
@@ -293,8 +286,20 @@ function waitForStockConsume(page: Page): Promise<Response> {
   )
 }
 
-async function selectItemFromNewRow(page: Page, query: string, optionText: string): Promise<void> {
-  await clickAddRow(page)
+async function selectItemFromNewRow(
+  page: Page,
+  query: string,
+  optionText: string,
+  quantity = '1',
+): Promise<void> {
+  const row = page.locator('[data-automation-id^="DataTable-row-"]').last()
+  const rowId = await row.getAttribute('data-row-id')
+  if (!rowId) throw new Error('Trailing cost row has no stable row ID')
+  await rowNumberInput(row, 'quantity').fill(quantity)
+  await page
+    .locator(`[data-row-id="${rowId}"]`)
+    .getByRole('button', { name: 'Select Item' })
+    .click()
   const search = page.getByPlaceholder('Search items by description, code, or type...')
   await search.waitFor({ timeout: 10000 })
   await search.fill(query)
@@ -307,11 +312,11 @@ async function selectItemFromNewRow(page: Page, query: string, optionText: strin
 
 async function editNumberCell(
   page: Page,
-  rowIndex: number,
+  row: Locator,
   field: 'quantity' | 'unit-cost' | 'unit-rev',
   value: string,
 ): Promise<void> {
-  const input = autoId(page, `SmartCostLinesTable-${field}-${rowIndex}`)
+  const input = rowNumberInput(row, field)
   await input.click()
   await input.fill(value)
   const patch = waitForCostLinePatch(page)
@@ -372,10 +377,10 @@ async function createAdjustmentFromNewRow(
   return draftRowId
 }
 
-async function deleteRow(page: Page, rowIndex: number): Promise<void> {
+async function deleteRow(page: Page, row: Locator): Promise<void> {
   page.once('dialog', (dialog) => void dialog.accept())
   const deleteResponse = waitForCostLineDelete(page)
-  await autoId(page, `SmartCostLinesTable-delete-${rowIndex}`).click()
+  await row.getByRole('button', { name: 'Delete line' }).click()
   await deleteResponse
 }
 
@@ -522,17 +527,17 @@ test.describe('job cost entry data-first scenarios', () => {
       .click()
     await labourCreate
 
-    const labourIndex = await waitForRowIndexByDescription(page, 'Workshop')
-    await editNumberCell(page, labourIndex, 'quantity', labourQuantity)
+    const labourRow = await waitForRowByDescription(page, 'Workshop')
+    await editNumberCell(page, labourRow, 'quantity', labourQuantity)
 
     const materialCreate = waitForCostLineCreate(page)
     await selectItemFromNewRow(page, 'M8 ZINC', 'M8 ZINC WING NUT')
     await materialCreate
 
-    let materialIndex = await waitForRowIndexByDescription(page, stockA.description)
-    await editNumberCell(page, materialIndex, 'quantity', '10')
+    let materialRow = await waitForRowByDescription(page, stockA.description)
+    await editNumberCell(page, materialRow, 'quantity', '10')
 
-    await autoId(page, `SmartCostLinesTable-item-${materialIndex}`).locator('button').click()
+    await materialRow.locator('[data-automation-id^="SmartCostLinesTable-item-"] button').click()
     const replaceSearch = page.getByPlaceholder('Search items by description, code, or type...')
     await replaceSearch.waitFor({ timeout: 10000 })
     await replaceSearch.fill('M10 X 25 BLACK')
@@ -557,10 +562,10 @@ test.describe('job cost entry data-first scenarios', () => {
     })
 
     await navigateToCostTab(page, jobUrl, 'estimate')
-    let adjustmentIndex = await waitForRowIndexByDescription(page, adjustmentDesc)
+    let adjustmentRow = await waitForRowByDescription(page, adjustmentDesc)
 
-    const deletedIndex = await waitForRowIndexByDescription(page, deletedDesc)
-    await deleteRow(page, deletedIndex)
+    const deletedRow = await waitForRowByDescription(page, deletedDesc)
+    await deleteRow(page, deletedRow)
 
     await navigateToCostTab(page, jobUrl, 'estimate')
     await expectRowAbsent(page, deletedDesc)
@@ -586,14 +591,12 @@ test.describe('job cost entry data-first scenarios', () => {
     expect(sumCost(lines)).toBeCloseTo(expectedEstimateCost, 2)
     expect(sumRevenue(lines)).toBeCloseTo(expectedEstimateRevenue, 2)
 
-    const labourIndexAfter = await waitForRowIndexByDescription(page, 'Workshop')
-    materialIndex = await waitForRowIndexByDescription(page, stockB.description)
-    adjustmentIndex = await waitForRowIndexByDescription(page, adjustmentDesc)
-    await expect(autoId(page, `SmartCostLinesTable-quantity-${labourIndexAfter}`)).toHaveValue(
-      labourQuantity,
-    )
-    await expect(autoId(page, `SmartCostLinesTable-quantity-${materialIndex}`)).toHaveValue('10')
-    await expect(autoId(page, `SmartCostLinesTable-unit-rev-${adjustmentIndex}`)).toHaveValue('-25')
+    const labourRowAfter = await waitForRowByDescription(page, 'Workshop')
+    materialRow = await waitForRowByDescription(page, stockB.description)
+    adjustmentRow = await waitForRowByDescription(page, adjustmentDesc)
+    await expect(rowNumberInput(labourRowAfter, 'quantity')).toHaveValue(labourQuantity)
+    await expect(rowNumberInput(materialRow, 'quantity')).toHaveValue('10')
+    await expect(rowNumberInput(adjustmentRow, 'unit-rev')).toHaveValue('-25')
   })
 
   test('actual labour material adjustment and delete reconcile persisted costs', async ({
@@ -625,11 +628,12 @@ test.describe('job cost entry data-first scenarios', () => {
     await navigateToCostTab(page, jobUrl, 'actual')
 
     const consumeResponse = waitForStockConsume(page)
-    await selectItemFromNewRow(page, 'M8 ZINC', 'M8 ZINC WING NUT')
+    await selectItemFromNewRow(page, 'M8 ZINC', 'M8 ZINC WING NUT', '2')
     await consumeResponse
 
-    let materialIndex = await waitForRowIndexByDescription(page, stock.description)
-    await editNumberCell(page, materialIndex, 'quantity', '2')
+    let materialRow = await waitForRowByDescription(page, stock.description)
+    await expect(rowNumberInput(materialRow, 'quantity')).toHaveValue('2')
+    await expect(rowNumberInput(materialRow, 'quantity')).toBeDisabled()
 
     await createAdjustmentFromNewRow(page, 'actual', adjustmentDesc, '3', '-12', '-18')
     await createCostLineByApi(page, jobId, 'actual', {
@@ -644,10 +648,10 @@ test.describe('job cost entry data-first scenarios', () => {
     })
 
     await navigateToCostTab(page, jobUrl, 'actual')
-    let adjustmentIndex = await waitForRowIndexByDescription(page, adjustmentDesc)
+    let adjustmentRow = await waitForRowByDescription(page, adjustmentDesc)
 
-    const deletedIndex = await waitForRowIndexByDescription(page, deletedDesc)
-    await deleteRow(page, deletedIndex)
+    const deletedRow = await waitForRowByDescription(page, deletedDesc)
+    await deleteRow(page, deletedRow)
 
     await navigateToCostTab(page, jobUrl, 'actual')
     await expectRowAbsent(page, deletedDesc)
@@ -696,10 +700,10 @@ test.describe('job cost entry data-first scenarios', () => {
     const timeExpensesValue = money(timeExpensesDigits.replace(/,/g, ''), 'Time & Expenses')
     expect(timeExpensesValue).toBeCloseTo(actualRevenue, 2)
 
-    materialIndex = await waitForRowIndexByDescription(page, stock.description)
-    adjustmentIndex = await waitForRowIndexByDescription(page, adjustmentDesc)
-    await expect(autoId(page, `SmartCostLinesTable-quantity-${materialIndex}`)).toHaveValue('2')
-    await expect(autoId(page, `SmartCostLinesTable-unit-rev-${adjustmentIndex}`)).toHaveValue('-18')
+    materialRow = await waitForRowByDescription(page, stock.description)
+    adjustmentRow = await waitForRowByDescription(page, adjustmentDesc)
+    await expect(rowNumberInput(materialRow, 'quantity')).toHaveValue('2')
+    await expect(rowNumberInput(adjustmentRow, 'unit-rev')).toHaveValue('-18')
   })
 
   test('actual description-first stock selection consumes once and strands no row', async ({

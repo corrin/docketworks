@@ -15,12 +15,16 @@ Migration coverage verifies that existing PO line values and IDs survive, unknow
 dates remain unset, and new lines receive timestamps. The updated PDF golden
 and migration checks passed a further 104 focused backend tests.
 
-The new PO and cost-line ordering regressions and legacy-receipt browser spec
-passed. All 15 stock-search, stocktake, timesheet-entry and keyboard-flow tests
+All 18 PO-operation, job-cost-entry and legacy-receipt browser tests passed,
+including the new PO and cost-line ordering regressions. All 15 stock-search,
+stocktake, timesheet-entry and keyboard-flow tests
 passed, including the new timesheet ordering regression. Raw stocktake test
 requests now use the application's strong resource-version parser; a compressed
 response's weak ETag is not a valid If-Match token. The shared timesheet helper
 uses the automatically opened next-row picker instead of toggling it closed.
+Cost-entry tests retain row IDs through refetches instead of acting on stale
+positions. Stock quantity is entered before consumption, and the resulting
+immutable cost evidence is asserted locked while its totals still reconcile.
 
 Live PO integration verification reached the configured 100-call Xero reserve:
 one test passed and six stopped with XeroQuotaFloorReached. The live line-order
