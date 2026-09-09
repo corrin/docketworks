@@ -48,6 +48,8 @@ export function LeavePage() {
   )
   const settingsQuery = useQuery(timesheetsLeaveSettingsRetrieveOptions())
   const staffQuery = useQuery(timesheetsStaffRetrieveOptions({ query: { date: localIsoDate() } }))
+  const settingsError = settingsQuery.isError
+  const staffError = staffQuery.isError
   const deleteMutation = useMutation(timesheetsLeaveRequestsDeleteMutation())
 
   const refresh = async () => {
@@ -77,13 +79,31 @@ export function LeavePage() {
           <h1 className="text-xl font-semibold text-slate-900">Leave</h1>
           <p className="text-sm text-slate-500">Upcoming and historical staff leave.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setClosureOpen(true)}>
-            <CalendarDays className="h-4 w-4" /> Office closed
-          </Button>
-          <Button data-automation-id="LeavePage-new" onClick={() => setNewOpen(true)}>
-            <Plus className="h-4 w-4" /> New leave
-          </Button>
+        <div className="flex flex-col gap-2">
+          {(staffError || settingsError) && (
+            <p className="text-xs text-red-700">
+              {staffError && 'Could not load staff. '}
+              {settingsError && 'Could not load leave settings. '}
+              <button
+                type="button"
+                className="underline"
+                onClick={() => {
+                  if (staffError) void staffQuery.refetch()
+                  if (settingsError) void settingsQuery.refetch()
+                }}
+              >
+                Retry
+              </button>
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setClosureOpen(true)}>
+              <CalendarDays className="h-4 w-4" /> Office closed
+            </Button>
+            <Button data-automation-id="LeavePage-new" onClick={() => setNewOpen(true)}>
+              <Plus className="h-4 w-4" /> New leave
+            </Button>
+          </div>
         </div>
       </header>
 

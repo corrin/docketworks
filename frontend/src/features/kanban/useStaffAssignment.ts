@@ -29,6 +29,7 @@ export function kanbanStaffQueryOptions() {
 export interface StaffAssignment {
   staff: KanbanStaffOut[]
   isStaffLoading: boolean
+  isStaffError: boolean
   /**
    * Resolves true once the assignment lands (or the job already had that
    * staff member — a no-op success), false on a failed POST. The desktop
@@ -112,6 +113,7 @@ export function useStaffAssignment(searchTerm: string): StaffAssignment {
   return {
     staff: staffQuery.data ?? [],
     isStaffLoading: staffQuery.isPending,
+    isStaffError: staffQuery.isError,
     assignStaff,
   }
 }

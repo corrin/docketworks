@@ -29,6 +29,7 @@ describe('PersonSelectionModal', () => {
         companyName="Alpha Engineering"
         people={[person]}
         isLoadingPeople={false}
+        isErrorPeople={false}
         selectedPersonId={null}
         onClose={vi.fn()}
         onSelectPerson={vi.fn()}
@@ -84,6 +85,7 @@ function renderCreateModal(onSelectPerson = vi.fn(), onClose = vi.fn()) {
       companyName="Alpha Engineering"
       people={[]}
       isLoadingPeople={false}
+      isErrorPeople={false}
       selectedPersonId={null}
       onClose={onClose}
       onSelectPerson={onSelectPerson}

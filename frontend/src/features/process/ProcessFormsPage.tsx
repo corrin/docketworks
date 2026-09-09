@@ -244,6 +244,8 @@ export function ProcessFormsPage({ category }: { category: string }) {
                 schema={extractFields(filling.form_schema)}
                 initial={{ staff: user.id }}
                 staffOptions={staffOptionsQuery.data ?? []}
+                staffLoading={staffOptionsQuery.isPending}
+                staffError={staffOptionsQuery.isError}
                 submitting={createEntryMutation.isPending}
                 automationIdPrefix="EntryForm"
                 onSubmit={(body) => submitFillEntry(filling, body)}

@@ -55,6 +55,7 @@ interface PersonSelectionModalProps {
   companyName: string
   people: CompanyPerson[]
   isLoadingPeople: boolean
+  isErrorPeople: boolean
   selectedPersonId: string | null
   onClose: () => void
   onSelectPerson: (person: CompanyPerson) => void
@@ -83,6 +84,7 @@ export function PersonSelectionModal({
   companyName,
   people,
   isLoadingPeople,
+  isErrorPeople,
   selectedPersonId,
   onClose,
   onSelectPerson,
@@ -480,6 +482,25 @@ export function PersonSelectionModal({
               {isLoadingPeople ? (
                 <div className="flex flex-1 items-center justify-center">
                   <p className="text-sm text-gray-500">Loading people...</p>
+                </div>
+              ) : isErrorPeople ? (
+                <div className="flex flex-1 items-center justify-center">
+                  <p className="text-sm text-red-700">
+                    Could not load people.{' '}
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => {
+                        void queryClient.invalidateQueries({
+                          queryKey: companiesPeopleListQueryKey({
+                            path: { company_id: companyId },
+                          }),
+                        })
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </p>
                 </div>
               ) : people.length > 0 ? (
                 <div className="flex min-h-0 flex-1 flex-col">
