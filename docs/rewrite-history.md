@@ -47,7 +47,12 @@ The preflight could not run at the one moment it exists for. Its cutover checks 
 production they failed on a relation that does not exist — found by rehearsing the runbook
 against a real restore. The projection reads only pre-cutover tables, so it now runs first
 and the command reports, from the migration record rather than by probing for a table, that
-the movement checks belong to `migrate`.
+the movement checks belong to `migrate`. Verified against the real absence: a production
+archive restored into a scratch database sits at `0001_initial` with no movement table, and
+the command there names the surplus — 11.00 received, 15.950 projected, 4.950 over — and
+then states the ledger tables are absent, rather than raising. The whole chain 0002 through
+0016 then applied to that production data with the balance landing on 1.340, reached by
+derivation and matching the figure worked out by hand from the repair's arithmetic.
 
 Production's purchasing app is still at `0001_initial`, not at 0005 as an earlier note in
 this branch said: 0002 through 0005 reached `main` after the 2026-09-05 promotion and are
