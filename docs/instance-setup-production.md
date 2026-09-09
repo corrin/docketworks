@@ -68,6 +68,25 @@ new job folders at the Dropbox top level while every daemon reports healthy
 (`render_instance_env` reads it back), and `verify-instance.sh` gates on
 every `JobFile` row resolving to a file under the configured root.
 
+### Grant an external writer access to the synced folder
+
+Where a device delivers files straight into the synced tree — the office scanner
+on msm-prod writes into the job folders — the account it writes as needs two
+group memberships, and neither is optional:
+
+```bash
+sudo usermod -aG www-data <writer-account>          # traverse the instance directory, mode 750
+sudo usermod -aG <instance-user> <writer-account>   # enter dropbox, mode 2770 with setgid
+```
+
+The instance user's own group carries the second grant, so an instance with no
+external writer has a single member and 2770 reaches no further than 700 would.
+Never grant this with a hand-applied `chmod`: `instance.sh` owns that directory's
+mode and reapplies it on every `create` and `reconfigure`. A hand-applied mode was
+reset that way and scanner delivery stopped silently while Maestral, systemd
+and disk all reported healthy (KAN-360). `verify-instance.sh` fails the instance
+if the mode is not 2770.
+
 ## 3. Start services and authorise Xero
 
 Sign in with the admin login, open Admin > Xero, and complete the OAuth flow.

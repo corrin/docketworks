@@ -520,6 +520,31 @@ if defaults.get("enable_xero_sync") is not False:
 ' "$config_file"
 }
 
+ensure_instance_directories() {
+    local instance_dir="$1"
+    local instance_user="$2"
+
+    mkdir -p "$instance_dir"/{logs,mediafiles,dropbox,phone-recordings,session-replays}
+    chown "$instance_user:www-data" "$instance_dir"
+    chmod 750 "$instance_dir"
+    chown "$instance_user:$instance_user" "$instance_dir/logs" "$instance_dir/dropbox"
+    chmod 700 "$instance_dir/logs"
+    # Opus: dropbox is the client's Maestral sync root, and an external writer
+    # (the office scanner) delivers into it, so it cannot be 700 like the
+    # other instance-private directories. 700 was what shipped, and it cut
+    # scanner delivery on msm-prod every time this ran while Maestral, systemd
+    # and disk all reported healthy (KAN-360). The group is the instance's own,
+    # so this widens nothing until an account is deliberately added to it;
+    # setgid keeps the writer's files group-owned and readable by the app.
+    chmod 2770 "$instance_dir/dropbox"
+    chown "$instance_user:www-data" "$instance_dir/mediafiles"
+    chmod 750 "$instance_dir/mediafiles"
+    chown "$instance_user:$instance_user" \
+        "$instance_dir/phone-recordings" \
+        "$instance_dir/session-replays"
+    chmod 700 "$instance_dir/phone-recordings" "$instance_dir/session-replays"
+}
+
 do_configure() {
     local command_name="$1"
     shift
@@ -665,19 +690,8 @@ do_configure() {
     fi
 
     log "Ensuring instance directory structure..."
-    mkdir -p "$INSTANCE_DIR"/{logs,mediafiles,dropbox,phone-recordings,session-replays}
+    ensure_instance_directories "$INSTANCE_DIR" "$INSTANCE_USER"
     ensure_instance_backup_dir "$INSTANCE" "$INSTANCE_USER"
-    chown "$INSTANCE_USER:www-data" "$INSTANCE_DIR"
-    chmod 750 "$INSTANCE_DIR"
-    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/logs" "$INSTANCE_DIR/dropbox"
-    chmod 700 "$INSTANCE_DIR/logs"
-    chmod 700 "$INSTANCE_DIR/dropbox"
-    chown "$INSTANCE_USER:www-data" "$INSTANCE_DIR/mediafiles"
-    chmod 750 "$INSTANCE_DIR/mediafiles"
-    chown "$INSTANCE_USER:$INSTANCE_USER" \
-        "$INSTANCE_DIR/phone-recordings" \
-        "$INSTANCE_DIR/session-replays"
-    chmod 700 "$INSTANCE_DIR/phone-recordings" "$INSTANCE_DIR/session-replays"
     require_root_owned_credentials_file "$CREDS_FILE"
     # GCP_CREDENTIALS may legitimately point at the instance's own copy
     # (the documented fix when the original download path is gone) — cp
