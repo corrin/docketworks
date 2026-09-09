@@ -55,7 +55,7 @@ from apps.xero.constants import TENANT_ID_CACHE_KEY, tenant_cache
 # manager modules whose imports stay call-time.
 from apps.xero.documents.base import XeroDocumentResponse
 from apps.xero.models import XeroApp, XeroPayItem
-from apps.xero.sync_service import XeroSyncService
+from apps.xero.sync_service import XeroSyncService, last_detail_refresh
 
 logger = logging.getLogger(__name__)
 
@@ -778,6 +778,7 @@ class XeroSyncInfoOut(ResponseSchema):
     last_syncs: dict[str, datetime | None]
     sync_range: str
     sync_in_progress: bool
+    last_detail_refresh: datetime | None
 
 
 @router.post(
@@ -788,14 +789,16 @@ class XeroSyncInfoOut(ResponseSchema):
     summary="Start a Xero sync",
     tags=["xero"],
 )
-def xero_sync_create(request: HttpRequest) -> Status[XeroSyncStartOut | XeroAuthRequiredOut]:
+def xero_sync_create(
+    request: HttpRequest, detail_refresh: bool = False
+) -> Status[XeroSyncStartOut | XeroAuthRequiredOut]:
     """Dispatch a background sync run.
 
     409 when a run already holds the lock (v1 said 200 "already running";
     the explicit status lets a client distinguish without parsing prose —
     the body still carries the active task id either way).
     """
-    result = XeroSyncService.start_sync()
+    result = XeroSyncService.start_sync(detail_refresh=detail_refresh)
     if result.reason == "no_valid_token":
         return Status(
             401,
@@ -868,6 +871,7 @@ def xero_sync_info_retrieve(request: HttpRequest) -> XeroSyncInfoOut:
         last_syncs=last_syncs,
         sync_range="Syncing data since last successful sync",
         sync_in_progress=sync_in_progress,
+        last_detail_refresh=last_detail_refresh(CompanyDefaults.get_solo().xero_tenant_id),
     )
 
 

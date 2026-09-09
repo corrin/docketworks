@@ -1,7 +1,9 @@
 # Xero detail refresh: implementation spec
 
 Owner-agreed behaviour, recorded by GPT on 2026-09-09. This is a handoff for
-implementation; the sync fix has not been implemented or verified.
+implementation. The change is implemented; local verification is recorded in
+`docs/rewrite-history.md`. Live Xero and browser verification remain unrun: the
+owner authorised zero further live calls during implementation.
 
 ## Goal
 
@@ -111,5 +113,5 @@ Working-pattern timestamp propagation was not separately proven.
 
 Read `CLAUDE.md` and current repository state before implementing. Preserve
 unrelated workspace changes, record completed findings in rewrite history, and
-commit verified slices with explicit paths. The present task only saves this
-specification; it does not authorise executing the sync or changing Xero data.
+commit verified slices with explicit paths. This specification does not authorise live verification or changing Xero data;
+the implementation session explicitly retained a zero-call budget.

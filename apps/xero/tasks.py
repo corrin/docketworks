@@ -106,7 +106,7 @@ def xero_heartbeat_task() -> None:
 
 
 @shared_task(name="apps.xero.tasks.xero_regular_sync_task")
-def xero_regular_sync_task() -> None:
+def xero_regular_sync_task(*, detail_refresh: bool = False) -> None:
     """Dispatch the hourly sync run.
 
     A SUCCESS TaskResult here means "the dispatch decision succeeded" —
@@ -125,7 +125,9 @@ def xero_regular_sync_task() -> None:
         if not is_accounting_enabled():
             logger.info("Xero regular sync skipped: enable_xero_sync is False")
             return
-        result = XeroSyncService.start_sync()
+        result = XeroSyncService.start_sync(
+            detail_refresh=detail_refresh, only_if_due=detail_refresh
+        )
         if result.reason == "already_running":
             logger.info(
                 "Xero regular sync skipped — sync already in progress (task_id=%s)",

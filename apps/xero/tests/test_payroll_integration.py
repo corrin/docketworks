@@ -18,6 +18,7 @@ from decimal import Decimal
 
 import pytest
 from django.core.management import call_command
+from django.utils import timezone
 from pytest_django.fixtures import SettingsWrapper
 
 from apps.accounting.services import payroll_reconciliation_service
@@ -25,6 +26,7 @@ from apps.accounting.types import StaffWeekPosting, StaffWeekPostResult
 from apps.accounts.models import Staff, StaffPayrollTerm
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
+from apps.platform.observability.models import VendorCall
 from apps.timesheet.services.leave_settings import employee_leave_mappings
 from apps.xero import payroll_push
 from apps.xero.auth import get_tenant_id
@@ -33,7 +35,7 @@ from apps.xero.models import XeroPayItem, XeroPaySlip
 from apps.xero.operator_guards import assert_not_production_target, assert_xero_writes_enabled
 from apps.xero.payroll_employees import employee_leave_type_ids, get_employee_leave_balances
 from apps.xero.payroll_sync import get_pay_slips_for_run
-from apps.xero.sync import one_way_sync_all_xero_data
+from apps.xero.sync import one_way_sync_all_xero_data, synchronise_xero_data
 from apps.xero.transforms import transform_pay_slip
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
@@ -65,7 +67,7 @@ def postable_week() -> date:
 def payroll_staff(postable_week: date, settings: SettingsWrapper) -> Staff:
     # Fable: Converge employees INBOUND before choosing one. The test database
     # is cloned from the dev database, whose base_wage_rate can lag the rate
-    # Xero currently pays — the hourly employee sync is what heals that in
+    # Xero currently pays — the employee detail refresh is what heals that in
     # production, and the money reconciliation below asserts dollars, so a
     # stale local rate fails the test with a "mismatch" the product would
     # have already repaired. First seen live 2026-08-21: a cloned 40.00/h
@@ -75,7 +77,7 @@ def payroll_staff(postable_week: date, settings: SettingsWrapper) -> Staff:
     settings.DEBUG = True
     errors = [
         event["message"]
-        for event in one_way_sync_all_xero_data(entities=["employees"], force=True)
+        for event in synchronise_xero_data(detail_refresh=True)
         if event["severity"] == "error"
     ]
     if errors:
@@ -170,6 +172,7 @@ def test_live_unchanged_employee_resync_is_a_local_noop(payroll_staff: Staff) ->
         StaffPayrollTerm.objects.filter(staff=payroll_staff).values_list("id", "updated_at")
     )
 
+    started_at = timezone.now()
     errors = [
         event["message"]
         for event in one_way_sync_all_xero_data(entities=["employees"], force=True)
@@ -183,6 +186,14 @@ def test_live_unchanged_employee_resync_is_a_local_noop(payroll_staff: Staff) ->
     assert (
         list(StaffPayrollTerm.objects.filter(staff=payroll_staff).values_list("id", "updated_at"))
         == original_terms
+    )
+
+    calls = VendorCall.objects.filter(vendor=VendorCall.Vendor.XERO, occurred_at__gte=started_at)
+    payroll_calls = [row.endpoint for row in calls if "/payroll.xro/" in row.endpoint]
+    assert payroll_calls
+    assert not any(
+        "/SalaryAndWages" in endpoint or "/WorkingPatterns" in endpoint
+        for endpoint in payroll_calls
     )
 
 

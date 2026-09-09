@@ -6402,6 +6402,7 @@ export const zJobDetailResponse = z.object({
  * Last-sync times per entity plus whether a run is in flight.
  */
 export const zXeroSyncInfoOut = z.object({
+    last_detail_refresh: z.iso.datetime().nullable(),
     last_syncs: z.record(z.string(), z.iso.datetime().nullable()),
     sync_in_progress: z.boolean(),
     sync_range: z.string()
@@ -8892,6 +8893,10 @@ export const zXeroPingRetrieveResponse = zXeroPingOut;
  * OK
  */
 export const zXeroSyncInfoRetrieveResponse = zXeroSyncInfoOut;
+
+export const zXeroSyncCreateQuery = z.object({
+    detail_refresh: z.boolean().optional().default(false)
+});
 
 /**
  * Accepted

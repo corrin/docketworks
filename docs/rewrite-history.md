@@ -1,5 +1,37 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-09 — Employee details refresh without hourly payroll fan-out
+
+GPT: hourly employee imports now validate and reuse the canonical local term history,
+while the 15:50 schedule and Admin → Xero's **Refresh Xero details** action run the
+same employee-only refresh through the existing dispatcher, lock, worker and stream.
+A tenant-scoped successful-batch timestamp satisfies the latest configured-local-time
+boundary; hourly imports catch up a missed or failed refresh. The timestamp commits
+with the employee batch, including an unchanged or empty batch. Sync-info remains a
+local read.
+
+A source-history digest is separate from the complete employee checksum, so changing
+loading or activating a previously imported future term recalculates wages without
+refetching details. Existing term identities survive metadata and derived-wage changes,
+and terms are updated by effective date rather than deleted and recreated. New time
+uses refreshed rates; existing cost lines keep their recorded prices.
+
+The mocked 18-employee batch made 55 SDK requests for its initial import and one for
+its unchanged follow-up. Focused employee/dispatch regressions passed 61 tests,
+including DST boundaries, catch-up, atomic rollback, history retention, salary hours
+and actual timesheet entry pricing. The broader regression run passed 650 tests with
+one timestamp-precision assertion failure; the corrected assertion passed in that
+focused run. These measurements are local tests, not new vendor evidence.
+
+The generated API client and admin browser spec include the action and last-success
+field. The page uses the shared Button, QueryState and date-time formatter with its
+existing progress/error display. Live integration, browser execution and responsive
+screenshots remain unrun: the owner authorised zero Xero calls during this slice.
+The abandoned temporary employee probe was removed. Migration generation used an
+isolated schema connection because the dev database already had purchasing.0016
+applied without its purchasing.0015 dependency; no development data was repaired.
+
+
 ## 2026-09-09 — Provisioning stripped the scanner's path into the sync root
 
 Scanned documents stopped reaching msm-prod because the instance's dropbox directory,

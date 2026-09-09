@@ -154,6 +154,13 @@ class TestXeroBeatEntries:
         assert entry["task"] == "apps.xero.tasks.xero_regular_sync_task"
         assert entry["schedule"] == crontab(minute="15")
 
+    def test_employee_details_daily_at_local_1550(self) -> None:
+        entry = app.conf.beat_schedule["xero_detail_refresh"]
+        assert entry["task"] == "apps.xero.tasks.xero_regular_sync_task"
+        assert entry["schedule"] == crontab(minute="50", hour="15")
+        assert entry["kwargs"] == {"detail_refresh": True}
+        assert str(entry["schedule"].tz) == "Pacific/Auckland"
+
     def test_deep_sync_window_saturday_2am(self) -> None:
         entry = app.conf.beat_schedule["xero_30_day_sync_task"]
         assert entry["task"] == "apps.xero.tasks.xero_30_day_sync_task"
