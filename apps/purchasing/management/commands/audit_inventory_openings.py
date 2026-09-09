@@ -4,8 +4,18 @@ from importlib import import_module
 
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import connection, transaction
+from django.db.migrations.recorder import MigrationRecorder
 
 from apps.purchasing.services.stock_movement_service import inventory_audit_findings
+
+#: The movement tables arrive with this migration, and a database restored from production
+#: predates it — which is precisely when an operator runs the preflight, before an
+#: unattended migrate. So the checks that read movements cannot be asked there at all, and
+#: naming the migration says so from the record rather than by probing for a table.
+LEDGER_SCHEMA_MIGRATION = (
+    "purchasing",
+    "0006_stockmovement_stocktake_stocktakeconfiguration_and_more",
+)
 
 
 class Command(BaseCommand):
@@ -23,13 +33,17 @@ class Command(BaseCommand):
         reconciliation = import_module(
             "apps.purchasing.migrations.0007_reconcile_duplicated_receipt_balances"
         )
+        app, name = LEDGER_SCHEMA_MIGRATION
+        ledger_installed = (
+            MigrationRecorder(connection).migration_qs.filter(app=app, name=name).exists()
+        )
         with transaction.atomic(), connection.cursor() as cursor:
             cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
-            cursor.execute(openings.PREFLIGHT_SQL)
-            # 0015 refuses an order line holding more evidence than it received, and
-            # 0007 empties the duplicated balance behind it. Both run inside migrate,
-            # where a refusal costs a half-migrated instance, so the operator sees the
-            # same projection here first.
+            # 0015 refuses an order line holding more evidence than it received, and 0007
+            # empties the duplicated balance behind it. Both run inside migrate, where a
+            # refusal costs a half-migrated instance, so this projection comes first: it
+            # reads only the pre-cutover tables and is therefore the one check available
+            # at the moment the answer is worth having.
             cursor.execute(reconciliation.OVER_EVIDENCED_SQL)
             duplicated = cursor.fetchall()
             for row in duplicated:
@@ -43,6 +57,13 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"Duplicated receipt balances the cutover will empty: {len(duplicated)}"
             )
+            if not ledger_installed:
+                self.stdout.write(
+                    "Ledger tables are not installed yet, so movement evidence cannot be "
+                    "read here; migrate installs them and runs those checks itself."
+                )
+                return
+            cursor.execute(openings.PREFLIGHT_SQL)
             # The pending-openings figure is what the operator checks the backfill against,
             # so it is printed before the preflight-only exit: after the backfill runs the
             # same query necessarily returns zero and the number can no longer be obtained.

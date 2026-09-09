@@ -30,11 +30,14 @@ belong in this public repository.
    `stock_rows` names exact orphan identities and their existing opening
    movements; only their source and explanatory description change.
 2. Run `manage.py audit_inventory_openings --preflight-only`, then `manage.py
-   migrate`. The preflight checks cutover sources, names every duplicated balance the
-   cutover will empty, and prints the pending-openings figure to check the backfill
-   against; it is not the full ledger gate. Read the duplicated balances before
-   migrating: `migrate` runs with the services stopped, so a refusal there leaves the
-   instance down on a half-migrated database.
+   migrate`. Read what it reports before migrating: `migrate` runs with the services
+   stopped, so a refusal there leaves the instance down on a half-migrated database.
+   A database restored from production has no ledger tables yet — they arrive with
+   `purchasing/0006` — so on a restore the preflight names every duplicated balance the
+   cutover will empty and says plainly that the movement checks belong to `migrate`.
+   On an instance already past `0006` it also checks cutover sources and prints the
+   pending-openings figure to check the backfill against. It is not the full ledger gate
+   in either state.
 3. Run `manage.py audit_inventory_openings` and `manage.py
    reconcile_cost_summaries --all`. Compare existing costs and accounting dates,
    original stock balances and PO received quantities against the backup. New

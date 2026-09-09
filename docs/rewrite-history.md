@@ -42,6 +42,13 @@ and 2,319, so the one balance is all that separates the two. 0015's `over_eviden
 had no test at all; it now has one, and the same fixture migrates clean once the
 reconciliation precedes it.
 
+The preflight could not run at the one moment it exists for. Its cutover checks read
+`purchasing_stockmovement`, which `purchasing/0006` creates, so on a database restored from
+production they failed on a relation that does not exist — found by rehearsing the runbook
+against a real restore. The projection reads only pre-cutover tables, so it now runs first
+and the command reports, from the migration record rather than by probing for a table, that
+the movement checks belong to `migrate`.
+
 Production's purchasing app is still at `0001_initial`, not at 0005 as an earlier note in
 this branch said: 0002 through 0005 reached `main` after the 2026-09-05 promotion and are
 `PurchaseOrder.xero_status` changes alone, so this release applies 0002 through 0016 in one
