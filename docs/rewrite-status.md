@@ -38,14 +38,14 @@ does not have.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **58 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
+| E2E specs ported | **57 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 266 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3174 collected |
+| Unit tests | 3177 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 130 recorded deviations |
-| ADRs | 44 (v1's 26 carried forward + 0038–0041, 0043, 0045–0057 written here) |
+| ADRs | 46 (v1's 26 carried forward + 0038–0041, 0043, 0045–0059 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints
 written measures typing, not delivery. Every slice below authors its own E2E spec and
@@ -484,6 +484,26 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   at least states a claim that can be tested; most sit inside those three and clear with the
   rulings, leaving chiefly BLE001 and C901 to read one at a time. S603, the
   security-sensitive rule, has zero unreasoned sites.
+- **Audit the ADR corpus for rules the tree does not support.** A skim of all 46 found five
+  classes, none of which is work for the change that raised them. ADR 0005's Gemini emit-tool
+  pattern has zero code presence and is contradicted by ADR 0041 — retire it or mark it
+  superseded. ADR 0031 mandates namespaced `debug` logging across the frontend and not one
+  file under `frontend/src` imports it; decide whether that is a plan or a fiction. ADRs 0024
+  and 0012 contradict each other on tenancy: 0024 forbids resolving a tenant from a singleton
+  while 0012 states the product is single-tenant and `apps/xero/sync_worker.py` does exactly
+  what 0024 forbids, with a comment saying so — and ADR 0056 already cites 0024 as authority.
+  ADRs 0007, 0048, 0049 and 0050 carry the narrative sections the index conventions forbid,
+  including 0007's self-declared "KNOWN GAP" that belongs in this file. And every ADR needs
+  the `Unratified:` marker of ADR 0051 or an owner ruling; seven of the twelve most recent
+  arrived inside unrelated feature PRs, which the index conventions now forbid.
+- **Finish or reopen the modular monolith slices (KAN-357).** The epic is marked Done while
+  `config/architecture.py` records one migrated context of thirteen. ADR 0055 and CLAUDE.md
+  now say so plainly, but the ticket still claims otherwise, and the epic's own gate — an
+  owner-ratified ADR before any slice starts — was satisfied by an ADR the owner had not read.
+- **Rule on ADR 0055 superseding ADR 0039's shared-home rule.** The session that wrote 0055
+  also rewrote 0039 to defer to it, in the same commit. The owner has ratified the
+  modular-monolith direction; that is not the same as ratifying the supersession of the prime
+  rule. Confirm it, or restore 0039's original shared-homes wording and drop the claim.
 - **Purge "v1" and "v2" from comments, docstrings, docs, ADRs and filenames.** We document
   state, not change: "v1 silently substituted the company default; v2 raises" becomes "a
   staff member without a wage rate cannot be costed". Delete first, reword only what states

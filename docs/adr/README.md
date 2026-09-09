@@ -10,6 +10,8 @@ Decisions that shape this codebase, written for the reader about to do work here
 - **Every sentence is load-bearing:** a rule, or the forcing fact that makes a rule stick. No narrative problem statements, no essays defending alternatives, no consequences sections restating the decision — deliberation history lives in git. Rationale is a clause attached to its rule.
 - **Clear prose, not fragments.** Brevity comes from cutting sentences that don't change behaviour, never from telegraphic writing — compressed fragments are harder to follow than plain sentences.
 - **Tempting wrong turns** go under `## Do not` as a prohibition plus a one-line reality, only when the temptation is real.
+- **An ADR lands in its own commit.** An ADR written in the same commit as the code it authorises has not been decided, only justified, and the code was never weighed against a rule that existed before it.
+- **An ADR an AI drafted is unratified until the owner says otherwise** (ADR 0051), and an unratified ADR is not authority for changing behaviour. Mark it, then ask.
 
 ## Template
 
@@ -65,3 +67,5 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0055](0055-modular-monolith-context-ownership.md) | Context ownership and directional dependencies |
 | [0056](0056-vendor-calls-are-recorded-per-call.md) | Every external vendor call is recorded, one row per call |
 | [0057](0057-line-identity-and-creation-order.md) | Line identity and creation order |
+| [0058](0058-write-refusals-live-in-the-application.md) | A rule that refuses a write lives in the application |
+| [0059](0059-one-data-model-legacy-data-is-migrated.md) | The app supports one data model; legacy data is migrated to comply |

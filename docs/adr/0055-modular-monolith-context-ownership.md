@@ -1,11 +1,16 @@
 # 0055 — Context ownership and directional dependencies
 
-Organise the modular monolith by exclusive ownership, with `config` as its sole composition root.
+The target shape is a modular monolith organised by exclusive ownership, with `config` as its sole composition root; the tree is part-way there and `config/architecture.py` records how far.
 
 ## Rules
 
-- `apps.kernel` holds pure values, errors and events. `apps.platform` holds web,
-  observability, realtime and integrations (Google, AI, Xero and phone). Neither owns
+- **Read the taxonomy below as the destination, not the tree.** `MIGRATED_CONTEXTS` in
+  `config/architecture.py` names every package that has actually moved, and its import and
+  ORM checks bind only those. Legacy apps keep their existing import-linter tier until their
+  ownership slice moves them; that tier is not a template for a new context, and retaining
+  it does not ratify the dependencies inside it.
+- The destination: `apps.kernel` holds pure values, errors and events. `apps.platform` holds
+  web, observability, realtime and integrations (Google, AI, Xero and phone). Neither owns
   business policy. Business contexts are identity, CRM, configuration, work, workforce,
   procurement, finance, planning, knowledge, reporting, search and workflows.
 - Identity depends only on kernel/platform; CRM on identity; configuration on CRM;
@@ -30,19 +35,11 @@ Organise the modular monolith by exclusive ownership, with `config` as its sole 
   domain layer or introduce repositories without a demonstrated need.
 - Events express genuine asynchronous or post-commit reactions, never disguised
   synchronous dependencies. Named workflows own cross-context transactional operations.
-- Apply these rules one deployable ownership slice at a time. The first migrated package
-  is `apps.platform.integrations` (Django label `integrations`), owning IntegrationSettings
-  and Google adapters. Remaining legacy apps retain their existing layer contract until
-  their ownership slice; this does not ratify their current dependencies. Every migrated
-  boundary has executable import and ORM checks, with no violation baseline or new ignore.
-- During this first slice, the integrations API may use existing `core.auth` and
-  `core.schemas` web primitives. Its implementation must not import `core.models` or a
-  business app: callers supply business configuration explicitly. Remove this temporary
-  placement when platform.web takes ownership; do not duplicate or re-export the helpers.
-- Preserve existing physical table/constraint names and GCP file/environment credential
-  storage in this slice. Canonical database naming and moving Google service-account
-  secrets into IntegrationSettings are separate changes; no new environment credentials
-  are permitted (ADR 0053).
+- Move one deployable ownership slice at a time. Every migrated boundary gets executable
+  import and ORM checks and is added to `MIGRATED_CONTEXTS`, with no violation baseline and
+  no new ignore. A slice preserves physical table and constraint names and preserves
+  business behaviour and data; canonical renaming and any contract change are separate,
+  separately reviewed work. No slice introduces an environment-stored credential (ADR 0053).
 
 ## Do not
 
@@ -50,5 +47,6 @@ Organise the modular monolith by exclusive ownership, with `config` as its sole 
   consumes it. Consumption does not transfer ownership (supersedes ADR 0039's shared-home rule).
 - Do not add import aliases, registries to bypass dependencies, duplicate implementations,
   or permanent transition scaffolding. Historical migration states are not runtime aliases.
-- Do not treat this target as one PR or a binding wave schedule. Each slice must preserve
-  business behaviour and data unless a contract change is separately reviewed.
+- **Do not cite an unmigrated context as though it existed.** Naming `apps.work` or
+  `apps.kernel` in a plan, a comment or a layout description, while `MIGRATED_CONTEXTS` does
+  not contain it, sends the next session looking for code that is not there.
