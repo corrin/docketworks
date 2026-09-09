@@ -6,10 +6,6 @@ behind the data. Django's ``sqlsequencereset`` is used rather than raw
 ``setval`` SQL because it already handles both serial and identity columns
 across every installed app.
 
-``scripts/ops/migrate_v1_data.sh`` carries its own raw-SQL version of this
-concept and deliberately keeps it: that script is the rehearsed cutover path
-and must keep working without a Django environment, so it is frozen until
-after cutover rather than rewired through this command days before the date.
 """
 
 from io import StringIO

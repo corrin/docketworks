@@ -21,7 +21,7 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 709 |
+| TOTAL suppressions | 707 |
 | noqa: DJ001 | 171 |
 | noqa: PLC0415 | 134 |
 | noqa: E402 | 105 |
@@ -38,13 +38,13 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: PLR0911 | 6 |
 | noqa: RUF001 | 6 |
 | noqa: S105 | 5 |
-| noqa: S608 | 5 |
 | noqa: N815 | 4 |
 | noqa: S311 | 4 |
 | noqa: ARG005 | 3 |
 | noqa: N818 | 3 |
 | noqa: PLW0603 | 3 |
 | noqa: RUF012 | 3 |
+| noqa: S608 | 3 |
 | noqa: F401 | 2 |
 | noqa: N803 | 2 |
 | noqa: S108 | 2 |
@@ -70,8 +70,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 238 |
-| in docstrings | 385 |
+| in comments | 228 |
+| in docstrings | 377 |
 
 ## Exception handling
 
