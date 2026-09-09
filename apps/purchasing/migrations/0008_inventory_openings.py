@@ -4,7 +4,7 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-    dependencies = [("purchasing", "0006_stockmovement_stocktake_stocktakeconfiguration_and_more")]
+    dependencies = [("purchasing", "0007_reconcile_duplicated_receipt_balances")]
     operations = [
         migrations.RunSQL(
             """

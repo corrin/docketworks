@@ -1,5 +1,50 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-10 — The cutover empties a duplicated balance instead of refusing it
+
+Opus: production held one purchase order line whose stock identity still carried
+material a historical repair had already moved to a replacement identity. Eleven sheets
+were received, six were charged to job 96081 and 3.66 are drawn as booked positions, so
+1.34 remain — the identity read 6.29, a surplus of 4.95 sheets at $379.50, about $1,878.
+The cutover chain turns that into a refusal: openings mint a movement from the recorded
+balance, 0011 books a `receipt_opening` of balance plus drawn, and 0015 raises because the
+line then holds more evidence than it received. `deploy.sh` runs `migrate` with the
+services already stopped, so the refusal costs a half-migrated instance.
+
+The owner ruled that the deployment must correct it rather than stop on it, and that the
+surplus is a double count rather than lost material — nothing physically went missing, so
+the correction touches inventory only and books no cost anywhere. Migration
+`purchasing/0007_reconcile_duplicated_receipt_balances` now empties the duplicated balance
+before the openings are minted, so the ledger simply opens at the true quantity.
+Correcting afterwards was rejected: only a `stocktake` movement may move a balance, and
+the posting audit requires it to carry a stocktake line and an adjustment job this
+correction cannot honestly supply. An operator command before the deploy was rejected
+because the deploy runs unattended.
+
+The surplus is derived from the order line's received quantity against the evidence the
+cutover is about to book, never from a named identity (ADR 0049), and the derivation is
+the arithmetic 0015 refuses on, so the two cannot drift. `DUPLICATED_BALANCE_LIMIT = 5`
+refuses a systemic duplication, as do a surplus carried by other than exactly one identity
+and a surplus larger than the balance held. `audit_inventory_openings --preflight-only`
+runs the same projection read-only: it previously ran 0011's preflight alone, which passes
+while 0015 still refuses.
+
+Measured read-only against the live production database on 2026-09-10: one over-evidenced
+order line, a surplus of 4.950 sheets worth $1,878.525, carried by one identity and no
+other; 364 gapped lines, 0 unpriced gapped, 2,319 lines in total. Five allocations name no
+surviving order line and one stock identity is mislabelled, both far under 0011's ceiling
+of twenty — 0011's comment claimed production held eight allocations, which the live
+measurement corrects. The same projection on the local database, whose copy of that
+identity already read the corrected 1.34, reports 0 over-evidenced with the identical 364
+and 2,319, so the one balance is all that separates the two. 0015's `over_evidenced` guard
+had no test at all; it now has one, and the same fixture migrates clean once the
+reconciliation precedes it.
+
+Production's purchasing app is still at `0001_initial`, not at 0005 as an earlier note in
+this branch said: 0002 through 0005 reached `main` after the 2026-09-05 promotion and are
+`PurchaseOrder.xero_status` changes alone, so this release applies 0002 through 0016 in one
+run and the ledger work sits on top of them unaffected.
+
 ## 2026-09-09 — Employee details refresh without hourly payroll fan-out
 
 GPT: hourly employee imports now validate and reuse the canonical local term history,

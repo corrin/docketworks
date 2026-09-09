@@ -19,10 +19,30 @@ class Command(BaseCommand):
 
     def handle(self, *_args: object, **_options: object) -> None:
         """Validate candidates and report ledger discrepancies without repairs."""
-        migration = import_module("apps.purchasing.migrations.0011_backfill_job_openings")
+        openings = import_module("apps.purchasing.migrations.0011_backfill_job_openings")
+        reconciliation = import_module(
+            "apps.purchasing.migrations.0007_reconcile_duplicated_receipt_balances"
+        )
         with transaction.atomic(), connection.cursor() as cursor:
             cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
-            cursor.execute(migration.PREFLIGHT_SQL)
+            cursor.execute(openings.PREFLIGHT_SQL)
+            # 0015 refuses an order line holding more evidence than it received, and
+            # 0007 empties the duplicated balance behind it. Both run inside migrate,
+            # where a refusal costs a half-migrated instance, so the operator sees the
+            # same projection here first.
+            cursor.execute(reconciliation.OVER_EVIDENCED_SQL)
+            duplicated = cursor.fetchall()
+            for row in duplicated:
+                self.stdout.write(f"  Duplicated receipt balance: {row}")
+            if len(duplicated) > reconciliation.DUPLICATED_BALANCE_LIMIT:
+                raise CommandError(
+                    f"{len(duplicated)} order lines hold more evidence than they received, "
+                    f"above the ceiling of {reconciliation.DUPLICATED_BALANCE_LIMIT}; "
+                    "the cutover will refuse them."
+                )
+            self.stdout.write(
+                f"Duplicated receipt balances the cutover will empty: {len(duplicated)}"
+            )
             # The pending-openings figure is what the operator checks the backfill against,
             # so it is printed before the preflight-only exit: after the backfill runs the
             # same query necessarily returns zero and the number can no longer be obtained.

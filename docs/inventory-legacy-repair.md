@@ -1,10 +1,16 @@
 # Legacy inventory repair
 
-Two things run against a restored snapshot before the ledger is trusted: a reviewed
-manifest that repairs orphan cost references and stock sources, and a migration that
-books the receipt evidence a 2025 duplicate-purchase-order defect destroyed.
+Three things run against a restored snapshot before the ledger is trusted: a reviewed
+manifest that repairs orphan cost references and stock sources, a migration that empties
+a balance a historical repair recorded against two identities, and a migration that books
+the receipt evidence a 2025 duplicate-purchase-order defect destroyed.
 
-The second needs no operator input. Migration
+The last two need no operator input. Migration
+`purchasing/0007_reconcile_duplicated_receipt_balances` runs before the cutover mints
+opening balances, so a duplicated balance is emptied while the ledger can still simply
+open at the true quantity. It derives the surplus from the order line's received quantity
+against the evidence the cutover is about to book, empties no more than a handful of
+identities, and refuses a surplus that is not carried by exactly one identity. Migration
 `purchasing/0015_backfill_legacy_receipt_evidence` measures each order line's gap with
 the audit's own arithmetic and books one `receipt_opening` against a zero-quantity stock
 identity, which is how the ledger already records "received historically, no balance
@@ -24,8 +30,11 @@ belong in this public repository.
    `stock_rows` names exact orphan identities and their existing opening
    movements; only their source and explanatory description change.
 2. Run `manage.py audit_inventory_openings --preflight-only`, then `manage.py
-   migrate`. The preflight checks cutover sources and prints the pending-openings
-   figure to check the backfill against; it is not the full ledger gate.
+   migrate`. The preflight checks cutover sources, names every duplicated balance the
+   cutover will empty, and prints the pending-openings figure to check the backfill
+   against; it is not the full ledger gate. Read the duplicated balances before
+   migrating: `migrate` runs with the services stopped, so a refusal there leaves the
+   instance down on a half-migrated database.
 3. Run `manage.py audit_inventory_openings` and `manage.py
    reconcile_cost_summaries --all`. Compare existing costs and accounting dates,
    original stock balances and PO received quantities against the backup. New

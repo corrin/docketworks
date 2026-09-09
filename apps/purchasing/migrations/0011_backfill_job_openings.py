@@ -76,8 +76,8 @@ WHERE cs.kind = 'actual' AND c.kind = 'material' AND c.approved
 
 
 #: Allocations whose order line no longer exists are booked with their provenance
-#: recorded as lost. Production held eight of them when this was measured on
-#: 2026-09-09. Above this ceiling the absence is systemic rather than historical, and
+#: recorded as lost. Production held five of them when this was measured against the live
+#: database on 2026-09-10. Above this ceiling the absence is systemic rather than historical, and
 #: booking that many identities nobody can trace would corrupt the ledger far more
 #: expensively than a refused migration costs: a migration that stops is a morning's
 #: work, a ledger of untraceable stock is permanent. The number is a judgement about
