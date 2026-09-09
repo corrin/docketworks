@@ -31,10 +31,12 @@ while 0015 still refuses.
 
 Measured read-only against the live production database on 2026-09-10: one over-evidenced
 order line, a surplus of 4.950 sheets worth $1,878.525, carried by one identity and no
-other; 364 gapped lines, 0 unpriced gapped, 2,319 lines in total. Five allocations name no
+other; 364 gapped lines, 0 unpriced gapped, 2,319 lines in total. Eight allocations name no
 surviving order line and one stock identity is mislabelled, both far under 0011's ceiling
-of twenty — 0011's comment claimed production held eight allocations, which the live
-measurement corrects. The same projection on the local database, whose copy of that
+of twenty. Five of those eight name a line that has since been deleted and three carry no
+line reference at all; the preflight's left join leaves `pl.id` null for either shape, so
+both count against the ceiling, and a first measurement that filtered on the key being
+present reported five and understated it. The same projection on the local database, whose copy of that
 identity already read the corrected 1.34, reports 0 over-evidenced with the identical 364
 and 2,319, so the one balance is all that separates the two. 0015's `over_evidenced` guard
 had no test at all; it now has one, and the same fixture migrates clean once the
