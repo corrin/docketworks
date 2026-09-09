@@ -492,32 +492,7 @@ validate_company_defaults_config() {
         exit 1
     fi
     require_root_owned_credentials_file "$config_file"
-    python3 -c '
-import json
-import pathlib
-import sys
-from uuid import UUID
-
-path = pathlib.Path(sys.argv[1])
-text = path.read_text()
-records = json.loads(text)
-models = [record.get("model") for record in records]
-required = {"company.company", "core.companydefaults"}
-if set(models) != required or len(records) != 2:
-    raise SystemExit(f"ERROR: {path} must contain exactly one Company and one CompanyDefaults record")
-if "__" in text:
-    raise SystemExit(f"ERROR: {path} still contains unresolved __PLACEHOLDER__ values")
-defaults = next(record["fields"] for record in records if record["model"] == "core.companydefaults")
-tenant_id = defaults.get("xero_tenant_id")
-if not isinstance(tenant_id, str) or not tenant_id:
-    raise SystemExit(f"ERROR: {path} must set core.companydefaults.xero_tenant_id")
-try:
-    UUID(tenant_id)
-except ValueError as exc:
-    raise SystemExit(f"ERROR: {path} has an invalid core.companydefaults.xero_tenant_id") from exc
-if defaults.get("enable_xero_sync") is not False:
-    raise SystemExit(f"ERROR: {path} must keep enable_xero_sync false until onboarding is finalized")
-' "$config_file"
+    python3 "$SCRIPT_DIR/validate_company_defaults.py" "$config_file"
 }
 
 ensure_instance_directories() {
@@ -805,8 +780,9 @@ EOSQL
     fi
 
     if [[ "$SKIP_DB_FIXTURES" == "true" ]]; then
-        # The caller loads them itself once the schema is v2 — see the
-        # cutover script's post-swap `instance.sh load-db-fixtures`.
+        # For a caller that reconfigures against a database the current
+        # schema has not reached yet, and loads them itself afterwards with
+        # `instance.sh load-db-fixtures`.
         log "Skipping credential-derived DB fixtures (--skip-db-fixtures)."
     else
         load_db_fixtures

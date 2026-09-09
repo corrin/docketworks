@@ -300,6 +300,12 @@ the fixture evolves. The fixture also sets
 `test_company_name="ABC Carpet Cleaning TEST IGNORE"` — the values
 `xero --setup` and `fix_test_company.py` later match on.
 
+The fixture leaves `xero_tenant_id` null, so this database now names no
+organisation at all rather than production's. Any Xero call before the
+reconnect section below raises the configuration error `get_tenant_id()` is
+written to raise, which is what that section already assumes; `xero --setup`
+binds the demo organisation there.
+
 This step is for dev and demo restores only. The durable source for a
 tenant-specific server rebuild remains the root-owned
 `/opt/docketworks/config/<name>.company-defaults.json`; do not maintain a

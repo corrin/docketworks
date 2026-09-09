@@ -17,12 +17,13 @@ sudoedit /opt/docketworks/config/<client>-uat.company-defaults.json
 Seeding is decided here: `--seed` selects the seeded company-defaults template,
 and `create` below takes no `--seed` of its own. Complete the credentials and
 keep `enable_xero_sync` false — `instance.sh` refuses a company-defaults file
-with it true. Leave the seeded template's placeholder `xero_tenant_id` (the
-zero UUID) alone: validation requires only a well-formed UUID, and the
-`xero --setup` step below rebinds it to the connected organisation (see
+with it true. Leave the seeded template's `xero_tenant_id` null: the
+`xero --setup` step below reads the connected Demo Company's id and stores it
+(see
 [README](../scripts/server/README.md#xero_tenant_id-in-the-company-defaults-json)).
-This is offline configuration; no DocketWorks services or OAuth flow are
-involved.
+An older config file still carrying the all-zero placeholder must be changed to
+null before its next `reconfigure`, which now refuses it. This is offline
+configuration; no DocketWorks services or OAuth flow are involved.
 
 ## 2. Create the instance
 

@@ -21,9 +21,9 @@ sudoedit /opt/docketworks/config/<client>-prod.company-defaults.json
 
 Complete every required secret and replace every placeholder in the
 company-defaults file, including the exact name of the existing Xero payroll
-calendar. Set `xero_tenant_id` to any well-formed UUID — validation refuses a
-missing or malformed value, and onboarding rebinds it to the connected tenant
-(see
+calendar. Leave `xero_tenant_id` null unless the client's organisation id is
+already known — step 4's finalisation reads it from the Xero connection and
+stores it, and validation refuses a fabricated value (see
 [README](../scripts/server/README.md#xero_tenant_id-in-the-company-defaults-json)).
 Keep `enable_xero_sync` false; `instance.sh` refuses the file otherwise.
 
