@@ -44,11 +44,6 @@ dependencies = [
     # rejects the result at employee-creation time.
     "python-stdnum>=2.1",
     "tinytag>=2.3.0",
-    # Main, not dev: scripts/ops/extract_v1_credentials.py decrypts v1's
-    # Fernet columns on the production host during cutover phase 0, in the
-    # `uv sync --frozen --no-dev` venv. Was only transitive before, which
-    # deptry rightly refuses (DEP003).
-    "cryptography>=46.0",
     # Main, not dev: platform.integrations.google.gmail (password-reset sender, imported
     # by apps/accounts/tasks.py at Celery worker boot) and the per-client
     # H&S onboarding command import_dropbox_hs_documents both run in the
