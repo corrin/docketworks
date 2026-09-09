@@ -375,15 +375,15 @@ env = dict(
     if '=' in line and not line.lstrip().startswith('#')
 )
 email = env['E2E_TEST_USERNAME']
-user = Staff.objects.filter(email=email).first()
+user = Staff.objects.filter(office_email=email).first()
 if user is None:
     user = Staff.objects.create_user(
-        email=email, password=env['E2E_TEST_PASSWORD'], first_name='E2E', last_name='Test'
+        office_email=email, password=env['E2E_TEST_PASSWORD'], first_name='E2E', last_name='Test'
     )
 else:
     user.set_password(env['E2E_TEST_PASSWORD'])
     user.save()
-print(user.email, 'password matches .env.test:', user.check_password(env['E2E_TEST_PASSWORD']))
+print(user.office_email, 'password matches .env.test:', user.check_password(env['E2E_TEST_PASSWORD']))
 "
 ```
 
@@ -404,12 +404,12 @@ address:
 uv run python manage.py shell -c "
 from decimal import Decimal
 from apps.accounts.models import Staff
-user = Staff.objects.get(email='<E2E_TEST_USERNAME>')
+user = Staff.objects.get(office_email='<E2E_TEST_USERNAME>')
 user.is_office_staff = True
 user.is_superuser = True
 user.base_wage_rate = Decimal('37.50')
 user.save()
-print(user.email, user.is_office_staff, user.is_superuser, user.wage_rate)
+print(user.office_email, user.is_office_staff, user.is_superuser, user.wage_rate)
 "
 ```
 
