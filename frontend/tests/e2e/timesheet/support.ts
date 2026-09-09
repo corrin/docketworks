@@ -48,8 +48,10 @@ export async function selectJobByNumber(
   rowIndex: number,
   jobNumber: number | string,
 ): Promise<void> {
-  await autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-trigger`).click()
   const search = autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-search`)
+  if (!(await search.isVisible())) {
+    await autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-trigger`).click()
+  }
   await expect(search).toBeFocused()
   await search.fill(String(jobNumber))
   const option = autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-option-${jobNumber}`)

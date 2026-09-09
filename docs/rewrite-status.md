@@ -65,8 +65,9 @@ Not a tier — just the things a session should have a reason not to pick up.
 1. **[KAN-358](https://docketworks.atlassian.net/browse/KAN-358): finish release
    verification for the Xero safeguards.** Keep PR #142's main→production hold.
    Complete the full integration gate after restoring phone-provider configuration
-   and Xero daily quota. Run `purchasing/po-receipt-sync.spec.ts` and the full managed
-   E2E gate on fresh quota; the new spec is not yet browser-verified. Run the ufw
+   and Xero daily quota. Rerun the live PO integration suite, including its line-order
+   round trip, then `purchasing/po-receipt-sync.spec.ts` and the full managed E2E gate
+   on fresh quota; the receipt-sync spec is not yet browser-verified. Run the ufw
    integration check on a Docker-capable host. Audit target-instance receipt/status
    mismatches before promotion; partial delivery has no receipt UI.
    See [the plan](plans/2026-09-07-KAN-358-po-receipt-status.md).

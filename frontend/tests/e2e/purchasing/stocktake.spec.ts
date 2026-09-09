@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/auth'
 import type { Page } from '@playwright/test'
+import { strongResourceVersion } from '../../../src/lib/concurrency/interceptors'
 
 async function setupStocktake(page: Page) {
   await expect(page.getByText('Loading stocktake setup…')).toHaveCount(0)
@@ -103,7 +104,8 @@ test('a multi-item count preserves blank entries and the count list stays paged'
   await expect(page.getByRole('button', { name: 'Post stocktake', exact: true })).toBeEnabled()
   const countId = new URL(page.url()).pathname.split('/').pop()
   const countResponse = await page.request.get(`/api/purchasing/stocktakes/${countId}/`)
-  const countVersion = countResponse.headers()['etag']!
+  const countVersion = strongResourceVersion(countResponse.headers())
+  if (countVersion === null) throw new Error('Stocktake response has no strong resource version')
   const postings = await Promise.all(
     [0, 1].map(() =>
       page.request.post(`/api/purchasing/stocktakes/${countId}/post/`, {
@@ -178,10 +180,12 @@ test.describe('stocktake conflict recovery', () => {
     const id = new URL(page.url()).pathname.split('/').pop()
     const url = `/api/purchasing/stocktakes/${id}/`
     const detail = await page.request.get(url)
+    const version = strongResourceVersion(detail.headers())
+    if (version === null) throw new Error('Stocktake response has no strong resource version')
     const body = await detail.json()
     body.lines[0].description = '[TEST] Saved by another operator'
     const otherSave = await page.request.put(url, {
-      headers: { 'If-Match': detail.headers()['etag']! },
+      headers: { 'If-Match': version },
       data: { lines: body.lines },
     })
     expect(otherSave.status()).toBe(200)

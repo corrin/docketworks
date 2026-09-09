@@ -12,8 +12,21 @@ Timesheet sequence metadata remains stored but does not determine display order.
 
 The full backend suite passed 3,146 tests and the frontend suite passed all 659.
 Migration coverage verifies that existing PO line values and IDs survive, unknown
-dates remain unset, and new lines receive timestamps. Browser and live Xero
-verification remain in progress.
+dates remain unset, and new lines receive timestamps. The updated PDF golden
+and migration checks passed a further 104 focused backend tests.
+
+The new PO and cost-line ordering regressions and legacy-receipt browser spec
+passed. All 15 stock-search, stocktake, timesheet-entry and keyboard-flow tests
+passed, including the new timesheet ordering regression. Raw stocktake test
+requests now use the application's strong resource-version parser; a compressed
+response's weak ETag is not a valid If-Match token. The shared timesheet helper
+uses the automatically opened next-row picker instead of toggling it closed.
+
+Live PO integration verification reached the configured 100-call Xero reserve:
+one test passed and six stopped with XeroQuotaFloorReached. The live line-order
+round trip, receipt-sync browser spec and full managed E2E gate still require
+fresh quota. The local inventory audit passed with 364 documented legacy gaps,
+and all 7,287 cost summaries matched their lines.
 
 ## 2026-09-09 — Explicit legacy receipt gaps and local inventory repair
 
@@ -37,7 +50,8 @@ unchanged. Both inventory and cost-summary audits passed; 7,287 cost sets were
 checked. No production repair was applied.
 
 The focused repair/cutover/audit/restore run passed 33 tests; the full backend
-suite passed 3,138 tests. Browser verification remains in progress.
+suite passed 3,138 tests. The legacy-receipt browser spec now passes, including
+its readable note, unchanged recorded quantity and absence of invented allocations.
 
 The rewrite's own record: rulings and their dates, findings whose value is the
 record rather than a rule, and measurements with no other owner. Read it when
