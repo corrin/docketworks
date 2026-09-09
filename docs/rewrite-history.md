@@ -1,5 +1,34 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-10 — A coalesced empty list answered for three different states
+
+Opus: `JobPicker` read its status vocabulary as `query.data?.statuses ?? {}`. That one
+`??` answered for a request in flight, a request that failed, and a deployment with no
+statuses alike, and each answered "this job has no status". CLAUDE.md already names
+`?? fallback` as a claim that the model permits the bad case; this is the clearest live
+example the port has produced.
+
+Found by the full E2E suite, which had never run on this branch: the leave-settings job
+picker asserts every option carries a status, and the failure artefact settles the
+mechanism rather than suggesting it — Playwright's snapshot, captured after the assertion
+threw, shows the same option carrying the word the assertion had just failed to find.
+
+Machine load is not the cause, only the reason it was seen. The same fallback was hiding a
+harder failure in the unit suite, which runs with `onUnhandledRequest: 'error'`: three test
+files never served that endpoint, so the request failed in every one of them, the
+coalescing turned the failure into an empty map, and twelve tests passed against a request
+that never succeeded. Removing the coalescing failed all twelve at once. The spec had gone
+green nine times before.
+
+The same shape was found across kanban staff, process entry forms, person selection and
+leave, where an empty array stood in for a list that had not arrived. Two remedies were
+weighed. Where a component owns its query it reports its own pending and error states.
+Where a caller owns it, the caller resolves them before rendering, the way
+`FormEntriesPage` already did with guard clauses — so `EntryForm` takes a staff list it can
+trust rather than three parallel props that can disagree. Optional `staffLoading` and
+`staffError` props defaulting to false were written first and rejected: a caller that
+forgets them gets "nothing is wrong", which is the original defect moved one level up.
+
 ## 2026-09-10 — The cutover empties a duplicated balance instead of refusing it
 
 Opus: production held one purchase order line whose stock identity still carried

@@ -43,11 +43,10 @@ export interface EntryFormSubmitBody {
 interface Props {
   schema: FormFieldSchema[]
   initial?: EntryFormInitial | null
+  /** Always the answered list. A caller still loading, or whose load failed,
+      renders that state itself rather than passing an empty list that would
+      claim the shop has no staff. */
   staffOptions: StaffOption[]
-  /** True while the caller's staff query is still loading. */
-  staffLoading?: boolean
-  /** True when the caller's staff query errored. */
-  staffError?: boolean
   onSubmit: (body: EntryFormSubmitBody) => void | Promise<void>
   submitting: boolean
   /** Every id EntryForm renders is `${automationIdPrefix}-...`. Callers that
@@ -261,8 +260,6 @@ export function EntryForm({
   schema,
   initial,
   staffOptions,
-  staffLoading = false,
-  staffError = false,
   onSubmit,
   submitting,
   automationIdPrefix,
@@ -350,18 +347,14 @@ export function EntryForm({
         </label>
         <label className="flex flex-col gap-1 text-sm font-medium">
           <span className="text-slate-700">Signed by</span>
-          {/* No retry affordance: the caller owns the staff query, and a button
-              whose handler cannot reach it offers a recovery that never happens.
-              The jobs message below does own its query, so it does retry. */}
-          {staffError && <p className="text-xs text-red-700">Could not load staff members.</p>}
           <select
             className={INPUT_CLASS}
             value={staffId ?? ''}
-            disabled={disabled || staffLoading}
+            disabled={disabled}
             onChange={(event) => setStaffId(event.target.value)}
             data-automation-id={`${automationIdPrefix}-staff`}
           >
-            <option value="">{staffLoading ? 'Loading…' : 'Select staff…'}</option>
+            <option value="">Select staff…</option>
             {staffOptions.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.name}

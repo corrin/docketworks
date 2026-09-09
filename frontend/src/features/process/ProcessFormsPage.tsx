@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
@@ -112,6 +112,44 @@ export function ProcessFormsPage({ category }: { category: string }) {
   const openEdit = (form: FormOut): void => {
     setEditing(form)
     setDialogOpen(true)
+  }
+
+  /**
+   * The dialog's unhappy paths, in the order that makes the form impossible:
+   * no schema to render, a staff list that failed, a staff list still coming.
+   * Handled by the page that owns the query, the way FormEntriesPage already
+   * does, so EntryForm receives a staff list it can trust rather than an empty
+   * array standing in for three different answers.
+   */
+  function fillDialogBody(form: FormOut): ReactNode {
+    const fields = extractFields(form.form_schema)
+    if (fields.length === 0) {
+      return (
+        <p className="text-sm text-slate-600">
+          This document has no form schema defined. Entries cannot be added.
+        </p>
+      )
+    }
+    if (staffOptionsQuery.isError) {
+      return (
+        <p className="text-sm font-medium text-red-700">
+          Could not load the staff list. Reload the page.
+        </p>
+      )
+    }
+    if (staffOptionsQuery.data === undefined) {
+      return <p className="text-sm text-slate-500">Loading the staff list…</p>
+    }
+    return (
+      <EntryForm
+        schema={fields}
+        initial={{ staff: user.id }}
+        staffOptions={staffOptionsQuery.data}
+        submitting={createEntryMutation.isPending}
+        automationIdPrefix="EntryForm"
+        onSubmit={(body) => submitFillEntry(form, body)}
+      />
+    )
   }
 
   return (
@@ -235,22 +273,7 @@ export function ProcessFormsPage({ category }: { category: string }) {
             <DialogHeader>
               <DialogTitle>Fill {filling.title}</DialogTitle>
             </DialogHeader>
-            {extractFields(filling.form_schema).length === 0 ? (
-              <p className="text-sm text-slate-600">
-                This document has no form schema defined. Entries cannot be added.
-              </p>
-            ) : (
-              <EntryForm
-                schema={extractFields(filling.form_schema)}
-                initial={{ staff: user.id }}
-                staffOptions={staffOptionsQuery.data ?? []}
-                staffLoading={staffOptionsQuery.isPending}
-                staffError={staffOptionsQuery.isError}
-                submitting={createEntryMutation.isPending}
-                automationIdPrefix="EntryForm"
-                onSubmit={(body) => submitFillEntry(filling, body)}
-              />
-            )}
+            {fillDialogBody(filling)}
           </DialogContent>
         </Dialog>
       )}
