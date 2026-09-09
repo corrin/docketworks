@@ -6,7 +6,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("job", "0009_protect_inventory_owned_costs"),
+        ("job", "0008_alter_costline_managed_by"),
         ("xero", "0002_remove_xeroapp_day_remaining_and_more"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]

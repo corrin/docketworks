@@ -17,7 +17,6 @@ if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse
 
 import pytest
-from django.db import DatabaseError, transaction
 from django.test import Client
 from django.utils import timezone
 
@@ -953,10 +952,6 @@ def test_inventory_ownership_protects_costs_before_a_movement_link_exists(
     )
     assert response.status_code == 400, response.content
     assert api.delete(f"/api/job/cost_lines/{line.id}/delete/").status_code == 400
-    with pytest.raises(DatabaseError), transaction.atomic():
-        CostLine.objects.filter(pk=line.pk).update(managed_by=None)
-    with pytest.raises(DatabaseError), transaction.atomic():
-        CostLine.objects.filter(pk=line.pk).delete()
     line.refresh_from_db()
     assert (line.managed_by, line.quantity) == (owner, Decimal("1"))
 

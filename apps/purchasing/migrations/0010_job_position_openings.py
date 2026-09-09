@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         ("job", "0008_alter_costline_managed_by"),
-        ("purchasing", "0009_protect_posted_stocktake"),
+        ("purchasing", "0008_remove_stock_active_source_purchase_order_line_id"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

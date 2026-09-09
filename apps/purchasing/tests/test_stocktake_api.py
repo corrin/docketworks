@@ -11,7 +11,6 @@ from apps.accounts.models import Staff
 from apps.accounts.tests.helpers import authenticate
 from apps.core.errors import InvalidInputError
 from apps.job.models import Job
-from apps.job.models.costing import CostLine
 from apps.purchasing.models import (
     Stock,
     StockMovement,
@@ -342,22 +341,50 @@ def test_count_picker_includes_active_zero_workshop_material_only(
     assert response.json()["count"] == 1
 
 
-def test_posted_evidence_refuses_bulk_updates(api: Client, stock_holding_job: Job) -> None:
+def test_posted_evidence_survives_every_write_the_api_offers(
+    api: Client, stock_holding_job: Job
+) -> None:
+    """Posted evidence is immutable because no writer changes it, not because a trigger blocks one.
+
+    ADR 0058: the property is proved by driving every mutating route the posted count, its
+    lines and its cost line expose, then reading the evidence back unchanged.
+    """
     stock = make_stock(stock_holding_job, quantity="0")
     count_id = start_count(api, stock)
     version = save_count(api, count_id, stock, "1")
-    response = api.post(f"{URL}{count_id}/post/", headers={"If-Match": version})
-    assert response.status_code == 200, response.content
+    assert api.post(f"{URL}{count_id}/post/", headers={"If-Match": version}).status_code == 200
     movement = StockMovement.objects.get(stock=stock, kind="stocktake")
-    with pytest.raises(DatabaseError), transaction.atomic():
-        StockMovement.objects.filter(pk=movement.id).update(quantity_change=2)
-    with pytest.raises(DatabaseError), transaction.atomic():
-        Stocktake.objects.filter(pk=count_id).update(version=99)
-    with pytest.raises(DatabaseError), transaction.atomic():
-        Stocktake.objects.get(pk=count_id).lines.update(counted_quantity=2)
-    assert movement.cost_line_id is not None
-    with pytest.raises(DatabaseError), transaction.atomic():
-        CostLine.objects.filter(pk=movement.cost_line_id).update(quantity=-2)
+    line = Stocktake.objects.get(pk=count_id).lines.get()
+    before = (movement.quantity_change, movement.unit_cost, line.counted_quantity)
+    cost_line = movement.cost_line
+    assert cost_line is not None, "posting a count books a cost line against the movement"
+    etag = api.get(f"{URL}{count_id}/").headers["ETag"]
+
+    assert (
+        api.put(
+            f"{URL}{count_id}/",
+            {"lines": []},
+            content_type="application/json",
+            headers={"If-Match": etag},
+        ).status_code
+        == 400
+    )
+    assert (
+        api.patch(
+            f"/api/job/cost_lines/{cost_line.id}/",
+            {"quantity": "-2", "managed_by": None},
+            content_type="application/json",
+        ).status_code
+        == 400
+    )
+    assert api.delete(f"/api/job/cost_lines/{cost_line.id}/delete/").status_code == 400
+
+    movement.refresh_from_db()
+    line.refresh_from_db()
+    cost_line.refresh_from_db()
+    assert (movement.quantity_change, movement.unit_cost, line.counted_quantity) == before
+    assert cost_line.managed_by == "stocktake"
+    assert StockMovement.objects.filter(stock=stock, kind="stocktake").count() == 1
 
 
 @pytest.mark.parametrize("action", ["save", "post", "correct"])

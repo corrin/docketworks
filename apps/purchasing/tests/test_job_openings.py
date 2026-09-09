@@ -71,8 +71,6 @@ def test_migration_preserves_balances_costs_and_original_identity(
         Decimal("15"),
     )
     assert opening.actor_id is None
-    with pytest.raises(DatabaseError), transaction.atomic():
-        CostLine.objects.filter(pk=line.pk).update(quantity=5)
 
 
 def test_migrated_job_position_returns_once_at_original_prices(

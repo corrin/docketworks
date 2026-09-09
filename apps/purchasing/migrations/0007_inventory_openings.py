@@ -17,16 +17,4 @@ class Migration(migrations.Migration):
             """,
             reverse_sql="DELETE FROM purchasing_stockmovement WHERE kind = 'opening' AND reason = 'Inventory movement cutover';",
         ),
-        migrations.RunSQL(
-            """
-            CREATE FUNCTION protect_inventory_movement() RETURNS trigger AS $$
-            BEGIN
-                RAISE EXCEPTION 'Posted stock movements are immutable; record a correction';
-            END;
-            $$ LANGUAGE plpgsql;
-            CREATE TRIGGER immutable_inventory_movement BEFORE UPDATE OR DELETE
-            ON purchasing_stockmovement FOR EACH ROW EXECUTE FUNCTION protect_inventory_movement();
-            """,
-            reverse_sql="DROP TRIGGER immutable_inventory_movement ON purchasing_stockmovement; DROP FUNCTION protect_inventory_movement();",
-        ),
     ]
