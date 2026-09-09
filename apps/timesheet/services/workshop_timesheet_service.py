@@ -237,9 +237,7 @@ def day_time_lines(staff: Staff, entry_date: date) -> list[CostLine]:
             kind="time",
             staff=staff,
             accounting_date=entry_date,
-        )
-        .select_related("cost_set__job__company")
-        .order_by("entry_seq")
+        ).select_related("cost_set__job__company")
     )
 
 

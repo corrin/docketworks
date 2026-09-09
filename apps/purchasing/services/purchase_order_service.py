@@ -11,7 +11,7 @@ caller's ``If-Match`` does not name the current version. The API layer answers
 """
 
 import logging
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import TypedDict
 from uuid import UUID
@@ -84,6 +84,7 @@ class PurchaseOrderLineData(TypedDict):
     """Data contract for PurchaseOrderLineData."""
 
     id: UUID
+    created_at: datetime | None
     description: str
     quantity: Decimal
     dimensions: str | None
@@ -195,6 +196,7 @@ def purchase_order_line_data(
     job = line.job
     return {
         "id": line.id,
+        "created_at": line.created_at,
         "description": line.description,
         "quantity": line.quantity,
         "dimensions": line.dimensions,

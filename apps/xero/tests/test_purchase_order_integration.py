@@ -387,3 +387,37 @@ def test_recorded_receipt_survives_a_real_xero_round_trip(
     assert line.received_quantity == quantity
     assert list(stocks.values()) == stock_before
     assert list(costs.values()) == cost_before
+
+
+@pytest.mark.usefixtures("synced_accounts")
+def test_line_order_and_identity_survive_a_real_xero_round_trip(
+    xero_supplier: Company, pushing_staff: Staff
+) -> None:
+    """The supplier must receive the same ordered lines the office sees."""
+    po = PurchaseOrder.objects.create(
+        supplier=xero_supplier,
+        created_by=pushing_staff,
+        status="draft",
+        po_number=f"TEST-{uuid.uuid4().hex[:10]}",
+        reference="[TEST] line order",
+    )
+    for index in range(8):
+        PurchaseOrderLine.objects.create(
+            purchase_order=po,
+            description=f"[TEST] ordered line {index + 1}",
+            quantity=1,
+            unit_cost=2,
+        )
+    before = list(po.po_lines.values_list("id", "created_at"))
+    descriptions = list(po.po_lines.values_list("description", flat=True))
+    result = XeroPurchaseOrderManager(purchase_order=po, staff=pushing_staff).sync_to_xero()
+    assert result["success"], result
+    po.refresh_from_db()
+    try:
+        _pull_back(po)
+        assert po.raw_json is not None
+        assert [line["_description"] for line in po.raw_json["_line_items"]] == descriptions
+        assert list(po.po_lines.values_list("id", "created_at")) == before
+    finally:
+        result = XeroPurchaseOrderManager(purchase_order=po, staff=pushing_staff).delete_document()
+        assert result["success"], result

@@ -8,6 +8,7 @@ stream.
 
 from datetime import datetime
 from decimal import Decimal
+from io import BytesIO
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -15,8 +16,10 @@ import pytest
 from django.db.models.deletion import ProtectedError
 from django.test import Client
 from django.utils import timezone
+from pypdf import PdfReader
 
 from apps.accounts.models import Staff
+from apps.accounts.tests.helpers import authenticate
 from apps.company.models import Company, SupplierPickupAddress
 from apps.company.tests.factories import make_company
 from apps.core.models import CompanyDefaults
@@ -968,6 +971,9 @@ class TestPurchaseOrderEmail:
     def test_the_order_pdf_rides_along(self, api: Client, supplier: Company) -> None:
         """The reason this is a draft: mailto could not carry the order."""
         po = make_purchase_order(supplier=supplier)
+        descriptions = [f"Ordered PDF line {index}" for index in range(8)]
+        for description in descriptions:
+            make_po_line(po, description=description)
 
         with patch(DRAFT) as draft:
             draft.return_value = GmailDraft(draft_id="d1", web_url="https://mail.example/d1")
@@ -976,7 +982,9 @@ class TestPurchaseOrderEmail:
         attachment = draft.call_args.kwargs["attachments"][0]
         assert attachment.filename == f"Purchase_Order_{po.po_number}.pdf"
         assert attachment.mime_type == "application/pdf"
-        assert attachment.content.startswith(b"%PDF"), "not a PDF"
+        text = "".join(page.extract_text() for page in PdfReader(BytesIO(attachment.content)).pages)
+        positions = [text.index(description) for description in descriptions]
+        assert positions == sorted(positions)
 
     def test_a_custom_message_is_prepended_to_the_body(
         self, api: Client, supplier: Company
@@ -1079,3 +1087,61 @@ def test_detail_reports_the_specific_orders_inbound_xero_observation(api: Client
     assert detail.status_code == 200, detail.content
     assert detail.json()["xero_status"] == "AUTHORISED"
     assert datetime.fromisoformat(detail.json()["xero_last_synced"]) == observed
+
+
+class TestLineCreationOrder:
+    def test_batch_order_survives_edits_and_is_shared_by_users(
+        self, api: Client, workshop_staff: Staff
+    ) -> None:
+        """A saved edit must not move a row or change another user's view of the PO."""
+        response = api.post(
+            PO_LIST_URL,
+            data={
+                "lines": [
+                    {"description": f"Line {index}", "quantity": "1", "unit_cost": "2"}
+                    for index in range(8)
+                ]
+            },
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+        url = f"{PO_LIST_URL}{response.json()['id']}/"
+        before = api.get(url).json()["lines"]
+        assert [line["description"] for line in before] == [f"Line {index}" for index in range(8)]
+        assert all(line["created_at"] is not None for line in before)
+        edited = api.patch(
+            url,
+            data={"lines": [{"id": before[2]["id"], "description": "Edited", "quantity": "3"}]},
+            content_type="application/json",
+            HTTP_IF_MATCH=api.get(url).headers["ETag"],
+        )
+        assert edited.status_code == 200
+        other = Client()
+        authenticate(other, workshop_staff)
+        after = other.get(url).json()["lines"]
+        assert [(line["id"], line["created_at"]) for line in after] == [
+            (line["id"], line["created_at"]) for line in before
+        ]
+        assert after[2]["description"] == "Edited"
+        assert api.get(url).json()["lines"] == after
+
+    def test_equal_and_unknown_times_have_a_stable_uuid_order(self, api: Client) -> None:
+        """Timestamp collisions and missing history must still produce a total order."""
+        po = make_purchase_order()
+        lines = [make_po_line(po) for _ in range(8)]
+        timestamp = timezone.now()
+        PurchaseOrderLine.objects.filter(purchase_order=po).update(created_at=timestamp)
+        legacy = lines[:2]
+        PurchaseOrderLine.objects.filter(id__in=[line.id for line in legacy]).update(
+            created_at=None
+        )
+        expected = sorted(legacy, key=lambda line: line.id) + sorted(
+            lines[2:], key=lambda line: line.id
+        )
+        result = api.get(_detail_url(po)).json()["lines"]
+        assert [line["id"] for line in result] == [str(line.id) for line in expected]
+        assert [line["created_at"] for line in result[:2]] == [None, None]
+        victim = expected[3]
+        remaining_ids = [str(line.id) for line in expected if line.id != victim.id]
+        victim.delete()
+        assert [line["id"] for line in api.get(_detail_url(po)).json()["lines"]] == remaining_ids

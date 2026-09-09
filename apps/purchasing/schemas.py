@@ -160,6 +160,7 @@ class PurchaseOrderLineOut(Schema):
     """Wire contract for PurchaseOrderLineOut."""
 
     id: UUID
+    created_at: datetime | None
     description: str
     quantity: Quantity
     dimensions: str | None

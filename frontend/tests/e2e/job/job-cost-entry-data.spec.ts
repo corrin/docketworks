@@ -3,7 +3,13 @@ import { z } from 'zod'
 
 import { test, expect } from '../fixtures/auth'
 import { getCompanyDefaults, getJobLabourRates, getMe, seedTimesheetLabour } from '../fixtures/api'
-import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
+import {
+  autoId,
+  createTestJob,
+  expectSavedRowOrder,
+  expectSavedRowOrderInNewSession,
+  getJobIdFromUrl,
+} from '../helpers'
 
 /**
  * Cost entry data-first scenarios: the quote draft lifecycle under failure,
@@ -759,4 +765,30 @@ test.describe('job cost entry data-first scenarios', () => {
     // consumed line — the consume swallows the pending row-exit commit.
     expect(lines.some((line) => line.desc === descFirstText)).toBe(false)
   })
+})
+
+test('cost lines stay oldest first after an edit and reload', async ({
+  authenticatedPage: page,
+  browser,
+}) => {
+  const jobUrl = await createTestJob(page, 'Cost line ordering')
+  const jobId = getJobIdFromUrl(jobUrl)
+  await navigateToCostTab(page, jobUrl, 'estimate')
+  const ids: string[] = []
+  for (let index = 0; index < 3; index++) {
+    const description = `Ordered adjustment ${index + 1}`
+    await createAdjustmentFromNewRow(page, 'estimate', description, '1', '2', '3')
+    const costSet = await fetchCostSet(page, jobId, 'estimate')
+    ids.push(findLine(costSet.cost_lines, description, 'adjust').id)
+    await expectSavedRowOrder(page, ids)
+  }
+  await page.reload()
+  await expectSavedRowOrder(page, ids)
+  const patched = waitForCostLinePatch(page)
+  await page.locator(`[data-row-id="${ids[0]}"] textarea`).fill('Edited first adjustment')
+  await exitRow(page, 'estimate')
+  await patched
+  await page.reload()
+  await expectSavedRowOrder(page, ids)
+  await expectSavedRowOrderInNewSession(page, browser, ids)
 })

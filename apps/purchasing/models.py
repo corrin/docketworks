@@ -195,6 +195,7 @@ class PurchaseOrderLine(models.Model):  # noqa: DJ008 -- Lines have no useful sh
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
     purchase_order = models.ForeignKey(
         "purchasing.PurchaseOrder", on_delete=models.CASCADE, related_name="po_lines"
     )
@@ -271,6 +272,7 @@ class PurchaseOrderLine(models.Model):  # noqa: DJ008 -- Lines have no useful sh
     )
 
     class Meta:
+        ordering: ClassVar = [models.F("created_at").asc(nulls_first=True), "id"]
         constraints: ClassVar = [
             models.CheckConstraint(
                 condition=~models.Q(alloy=""),

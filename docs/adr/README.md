@@ -64,3 +64,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0054](0054-screens-are-tested-at-production-volume.md) | A screen is tested at the volume production gives it |
 | [0055](0055-modular-monolith-context-ownership.md) | Context ownership and directional dependencies |
 | [0056](0056-vendor-calls-are-recorded-per-call.md) | Every external vendor call is recorded, one row per call |
+| [0057](0057-line-identity-and-creation-order.md) | Line identity and creation order |

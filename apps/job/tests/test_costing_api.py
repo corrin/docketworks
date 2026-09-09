@@ -973,3 +973,29 @@ def test_approved_cost_cannot_acquire_stock_binding_through_generic_patch(
     assert response.status_code == 400, response.content
     line.refresh_from_db()
     assert line.ext_refs == {}
+
+
+@pytest.mark.parametrize("kind", ["estimate", "quote", "actual"])
+def test_cost_lines_use_creation_order_with_uuid_ties(client: Client, job: Job, kind: str) -> None:
+    """Cost grids share a stable oldest-first order, including equal-time batch rows."""
+    cost_set = job.cost_sets.get(kind=kind)
+    lines = [_make_line(cost_set, kind="adjust") for _ in range(8)]
+    url = f"/api/job/jobs/{job.id}/cost_sets/{kind}/"
+    assert [line["id"] for line in client.get(url).json()["cost_lines"]] == [
+        str(line.id) for line in lines
+    ]
+    CostLine.objects.filter(id__in=[line.id for line in lines]).update(created_at=timezone.now())
+    expected = sorted(lines, key=lambda line: line.id)
+    assert [line["id"] for line in client.get(url).json()["cost_lines"]] == [
+        str(line.id) for line in expected
+    ]
+    edited = expected[2]
+    created_at = CostLine.objects.get(id=edited.id).created_at
+    edited.refresh_from_db()
+    edited.desc = "Edited without moving"
+    edited.save()
+    edited.refresh_from_db()
+    assert edited.created_at == created_at
+    assert [line["id"] for line in client.get(url).json()["cost_lines"]] == [
+        str(line.id) for line in expected
+    ]

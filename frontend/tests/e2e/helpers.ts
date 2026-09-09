@@ -1,4 +1,4 @@
-import type { Locator, Page, Response } from '@playwright/test'
+import type { Browser, Locator, Page, Response } from '@playwright/test'
 import { expect, test } from '@playwright/test'
 import { appendFileSync, existsSync, mkdirSync } from 'fs'
 import path from 'path'
@@ -710,4 +710,38 @@ export async function addAdjustmentCostLine(
   const savePromise = waitForAutosave(page)
   await page.getByRole('heading', { name: sectionHeading }).click()
   await savePromise
+}
+
+/** Saved rows keep the same relative order across writes and independent page loads. */
+export async function expectSavedRowOrder(page: Page, ids: readonly string[]): Promise<void> {
+  const selector = ids.map((id) => `[data-row-id="${id}"]`).join(',')
+  await expect
+    .poll(() =>
+      page
+        .locator(selector)
+        .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-row-id'))),
+    )
+    .toEqual(ids)
+}
+
+/** A fresh authenticated context must receive the same saved order from the server. */
+export async function expectSavedRowOrderInNewSession(
+  page: Page,
+  browser: Browser,
+  ids: readonly string[],
+): Promise<void> {
+  const context = await browser.newContext({ storageState: await page.context().storageState() })
+  try {
+    const other = await context.newPage()
+    const errors: string[] = []
+    other.on('pageerror', (error) => errors.push(error.message))
+    other.on('console', (message) => {
+      if (message.type() === 'error') errors.push(message.text())
+    })
+    await other.goto(page.url())
+    await expectSavedRowOrder(other, ids)
+    expect(errors).toEqual([])
+  } finally {
+    await context.close()
+  }
 }

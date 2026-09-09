@@ -79,7 +79,7 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 418 |
+| try statements | 419 |
 | except handlers | 450 |
 | re-raises or converts | 292 |
 | returns instead | 93 |
@@ -113,6 +113,6 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 | metric | count |
 |---|---:|
 | response schemas | 313 |
-| response properties | 2000 |
+| response properties | 2001 |
 | optional (pinned at zero) | 0 |
-| nullable | 432 |
+| nullable | 433 |

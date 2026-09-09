@@ -406,7 +406,16 @@ class CostLine(models.Model):
                 name="costline_known_owner",
             ),
         ]
-        ordering: ClassVar[list[str]] = ["-created_at", "-id"]
+        ordering: ClassVar = [
+            models.Case(
+                models.When(kind="material", then=models.Value(1)),
+                models.When(kind="adjust", then=models.Value(2)),
+                models.When(kind="time", then=models.Value(3)),
+                output_field=models.IntegerField(),
+            ),
+            "created_at",
+            "id",
+        ]
 
     def __str__(self) -> str:
         return f"{self.cost_set} - {self.get_kind_display()}: {self.desc}"

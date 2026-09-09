@@ -6,18 +6,22 @@ quote fallback, hour formatting, and the Quill-HTML conversion contract.
 """
 
 from decimal import Decimal
+from io import BytesIO
 from typing import Any
 
 import pytest
 from django.apps import apps as django_apps
 from django.utils import timezone
+from pypdf import PdfReader
+from reportlab.pdfgen.canvas import Canvas
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
-from apps.job.models import CostLine, LabourSubtype
+from apps.job.models import CostLine, Job, LabourSubtype
 from apps.job.models.costing import CostSet
 from apps.job.services.workshop_pdf_service import (
+    add_materials_used_table,
     convert_html_to_reportlab,
     format_hours_display,
     get_time_breakdown,
@@ -180,3 +184,25 @@ class TestConvertHtmlToReportlab:
     def test_quill_ui_spans_removed(self) -> None:
         result = convert_html_to_reportlab('<p><span class="ql-ui">x</span>Content</p>')
         assert result == "Content"
+
+
+def test_materials_pdf_preserves_creation_order_instead_of_ranking_quantity(job: Job) -> None:
+    """Printed line order must match the office grid even when quantities differ."""
+    actual = job.cost_sets.get(kind="actual")
+    for description, quantity in [("First material", "1"), ("Second material", "9")]:
+        CostLine.objects.create(
+            cost_set=actual,
+            kind="material",
+            desc=description,
+            quantity=Decimal(quantity),
+            unit_cost=Decimal("2"),
+            unit_rev=Decimal("3"),
+            accounting_date=timezone.localdate(),
+        )
+    buffer = BytesIO()
+    pdf = Canvas(buffer)
+    add_materials_used_table(pdf, 700, job)
+    pdf.save()
+    buffer.seek(0)
+    text = "".join(page.extract_text() for page in PdfReader(buffer).pages)
+    assert text.index("First material") < text.index("Second material")

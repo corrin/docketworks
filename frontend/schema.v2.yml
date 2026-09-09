@@ -10615,6 +10615,12 @@ components:
           - type: string
           - type: 'null'
           title: Company Name
+        created_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Created At
         description:
           title: Description
           type: string
@@ -10687,6 +10693,7 @@ components:
           title: Unit Cost
       required:
       - id
+      - created_at
       - description
       - quantity
       - dimensions

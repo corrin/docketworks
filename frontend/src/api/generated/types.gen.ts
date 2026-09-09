@@ -9419,6 +9419,10 @@ export type PurchaseOrderLineOut = {
      */
     company_name: string | null;
     /**
+     * Created At
+     */
+    created_at: string | null;
+    /**
      * Description
      */
     description: string;

@@ -144,9 +144,7 @@ def get_job_for_delivery_docket_pdf(job_id: UUID) -> Job:
 
 def get_job_for_workshop_pdf(job_id: UUID) -> Job:
     """Load a job with the relations required to render a workshop PDF."""
-    cost_lines = CostLine.objects.select_related("staff", "labour_subtype").order_by(
-        "kind", "-quantity", "-created_at", "-id"
-    )
+    cost_lines = CostLine.objects.select_related("staff", "labour_subtype")
     files_to_print = (
         JobFile.objects.filter(print_on_jobsheet=True)
         .exclude(filename=JOB_SUMMARY_PDF_FILENAME)
@@ -215,9 +213,7 @@ def _cost_lines_for_pdf(cost_set: CostSet) -> list[CostLine]:
     if prefetched is not None:
         return list(prefetched)
     return list(
-        CostLine.objects.filter(cost_set_id=cost_set.id)
-        .select_related("staff", "labour_subtype")
-        .order_by("kind", "-quantity", "-created_at", "-id")
+        CostLine.objects.filter(cost_set_id=cost_set.id).select_related("staff", "labour_subtype")
     )
 
 
@@ -1429,7 +1425,6 @@ def add_materials_used_table(pdf: canvas.Canvas, y_position: float, job: Job) ->
         material_lines = [
             line for line in _cost_lines_for_pdf(job.latest_actual) if line.kind == "material"
         ]
-        material_lines.sort(key=lambda line: line.quantity, reverse=True)
 
         materials_data.extend(
             [

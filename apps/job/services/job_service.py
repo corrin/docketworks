@@ -22,16 +22,11 @@ from uuid import UUID, uuid4
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, connection, transaction
 from django.db.models import (
-    Case,
     Count,
-    IntegerField,
     Max,
     Min,
     OuterRef,
-    Prefetch,
     Subquery,
-    Value,
-    When,
 )
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -2086,31 +2081,12 @@ def get_job_timeline(job_id: UUID) -> list[TimelineEntryData]:  # noqa: C901 -- 
 
 COST_SET_KINDS: tuple[str, ...] = ("estimate", "quote", "actual")
 
-# The costing grid groups lines material → adjust → time, newest first within
-# each group; keep this ordering centralized.
-_COSTLINE_GRID_ORDER = Case(
-    When(kind="material", then=Value(1)),
-    When(kind="adjust", then=Value(2)),
-    When(kind="time", then=Value(3)),
-    default=Value(999),
-    output_field=IntegerField(),
-)
-
 
 def get_latest_cost_set(job: Job, kind: str) -> CostSet | None:
     """Return the newest CostSet of ``kind`` with grid-ordered lines."""
     if kind not in COST_SET_KINDS:
         raise ValueError(f"Invalid kind. Must be one of: {', '.join(COST_SET_KINDS)}")
-    return (
-        CostSet.objects.filter(job=job, kind=kind)
-        .prefetch_related(
-            Prefetch(
-                "cost_lines",
-                queryset=CostLine.objects.order_by(_COSTLINE_GRID_ORDER, "-created_at", "-id"),
-            )
-        )
-        .first()
-    )
+    return CostSet.objects.filter(job=job, kind=kind).prefetch_related("cost_lines").first()
 
 
 class CostLineWriteData(TypedDict, total=False):

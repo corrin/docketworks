@@ -6,6 +6,8 @@ import {
   createTestJob,
   createTestPurchaseOrder,
   getPhantomRowIndex,
+  expectSavedRowOrder,
+  expectSavedRowOrderInNewSession,
   waitForPoAutosave,
 } from '../helpers'
 
@@ -154,11 +156,7 @@ test.describe('PO workspace', () => {
     await page.keyboard.press('Tab')
     await saved
     await page.reload()
-    await expect(
-      page.locator(
-        'input[data-automation-id^="PoLinesTable-description-"][value="Unfinished order line"]',
-      ),
-    ).toHaveCount(1)
+    await expect(autoId(page, 'PoLinesTable-description-10')).toHaveValue('Unfinished order line')
     await expect(autoId(page, 'PoLinesTable-description-11')).toHaveValue('')
   })
 
@@ -467,10 +465,15 @@ test.describe.serial('purchase order operations', () => {
 
     page.once('dialog', (dialog) => void dialog.accept())
     const deleted = waitForPoAutosave(page)
-    await autoId(page, `PoLinesTable-delete-${rowsBefore}`).click()
+    const savedRow = page.locator('[data-row-id]').filter({
+      has: page.locator(
+        'input[data-automation-id^="PoLinesTable-description-"][value="[TEST] Delete me"]',
+      ),
+    })
+    await savedRow.getByRole('button', { name: /delete line/ }).click()
     await deleted
 
-    await expect(page.getByText('[TEST] Delete me')).toHaveCount(0)
+    await expect(savedRow).toHaveCount(0)
     expect(await getPhantomRowIndex(page)).toBe(rowsBefore)
     log('Committed a draft by Tab and deleted the line')
   })
@@ -499,4 +502,51 @@ test.describe.serial('purchase order operations', () => {
 
     log('Changed PO status to Submitted')
   })
+})
+
+test('PO line creation order survives edits and a second browser session', async ({
+  authenticatedPage: page,
+  browser,
+}) => {
+  await page.goto(await createWorkspaceOrder(page, 0))
+  for (let index = 0; index < 8; index++) {
+    await autoId(page, `PoLinesTable-description-${index}`).fill(`Ordered line ${index + 1}`)
+    await autoId(page, `PoLinesTable-quantity-${index}`).fill('1')
+    await autoId(page, `PoLinesTable-unit-cost-${index}`).fill('2')
+    const saved = waitForPoAutosave(page)
+    await page.keyboard.press('Tab')
+    await saved
+    await expect(autoId(page, `PoLinesTable-unit-cost-${index}`)).toBeEnabled()
+    await expect(autoId(page, `PoLinesTable-description-${index + 1}`)).toHaveValue('')
+  }
+  const rows = page.locator('[data-row-id]')
+  const ids = await rows.evaluateAll((elements) =>
+    elements.slice(0, 8).map((element) => {
+      const id = element.getAttribute('data-row-id')
+      if (id === null) throw new Error('Saved row has no ID')
+      return id
+    }),
+  )
+  await expectSavedRowOrder(page, ids)
+  const saved = waitForPoAutosave(page)
+  await page
+    .locator(`[data-row-id="${ids[2]}"] input[data-automation-id^="PoLinesTable-description-"]`)
+    .fill('Edited third line')
+  await page.getByRole('heading').first().click()
+  await saved
+  await page.reload()
+  await expectSavedRowOrder(page, ids)
+  await expectSavedRowOrderInNewSession(page, browser, ids)
+  page.once('dialog', (dialog) => void dialog.accept())
+  const deleted = waitForPoAutosave(page)
+  await page
+    .locator(`[data-row-id="${ids[2]}"]`)
+    .getByRole('button', { name: /delete/i })
+    .click()
+  await deleted
+  await page.reload()
+  await expectSavedRowOrder(
+    page,
+    ids.filter((id) => id !== ids[2]),
+  )
 })

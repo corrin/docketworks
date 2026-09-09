@@ -1,5 +1,20 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-09 — Shared line identity and creation order
+
+The owner chose consistency across POs, job costs and timesheets: oldest creation
+time first, with UUID as the tie-breaker inside the existing business groups.
+[ADR 0057](adr/0057-line-identity-and-creation-order.md) records the shared contract.
+PO lines retain their UUIDs and gain read-only creation timestamps; historical
+timestamps remain NULL rather than being reconstructed. Model ordering now serves
+the APIs, cost grids, timesheet day projections, PDF line lists and Xero payloads.
+Timesheet sequence metadata remains stored but does not determine display order.
+
+The full backend suite passed 3,146 tests and the frontend suite passed all 659.
+Migration coverage verifies that existing PO line values and IDs survive, unknown
+dates remain unset, and new lines receive timestamps. Browser and live Xero
+verification remain in progress.
+
 ## 2026-09-09 — Explicit legacy receipt gaps and local inventory repair
 
 The owner reaffirmed that missing historical data cannot be reconstructed
