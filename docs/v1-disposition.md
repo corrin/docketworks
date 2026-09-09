@@ -141,8 +141,8 @@ The server provisioning suite ported wholesale into `scripts/server/`:
 `dw-run.sh`, `release-utils.sh` and the `certbot-dreamhost-auth.sh` /
 `certbot-dreamhost-cleanup.sh` DNS-01 hooks, each under the same name. v2 adds
 `test_server_templates.sh` (which shellchecks the suite and renders every
-template, and has no v1 counterpart), `verify-instance.sh`, the `cutover/`
-scripts, the fail2ban filters and jail, and the nginx rate-limit configuration.
+template, and has no v1 counterpart), `verify-instance.sh`, the fail2ban filters
+and jail, and the nginx rate-limit configuration.
 
 | v1 asset | disposition | note |
 |---|---|---|

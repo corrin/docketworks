@@ -282,7 +282,6 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `templates/fail2ban-filter-docketworks-auth-refresh.conf` | 401-only filter for POST /api/accounts/token/refresh/                                          |
 | `verify-instance.sh`                                | Full serving-path verification (units, build-id, auth gate, media, UFW, jails)                       |
 | `test_server_templates.sh`                          | The cheap-tier gate: shellcheck, rendered-template contracts, filter fixtures                        |
-| `cutover/`                                          | TEMPORARY v1-to-v2 migration helpers — delete after both hosts run v2                                |
 | `templates/gunicorn-instance.service.template`      | Systemd unit template (web)                                                                          |
 | `templates/celery-worker-instance.service.template` | Systemd unit template (Celery worker)                                                                |
 | `templates/celery-beat-instance.service.template`   | Systemd unit template (Celery Beat — periodic task dispatcher)                                       |
