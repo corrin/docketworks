@@ -541,36 +541,6 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   the `db_table = "workflow_*"` overrides, `scripts/v1-frontend-operations.yml`,
   `export_openapi.py`'s `DISSOLVED_V1_APPS` and `status_table.py`'s port rows. The
   port-progress machinery cannot go until the operations it counts are ported or dropped.
-- **Close the code that still reads the superseded data shape (ADR 0059).** Each line below
-  is one commit: the migration that rewrites the rows, then the branch and the nullability,
-  together — a half-done item is worse than an untouched one, because the migration is meant
-  to be the only place that knows the old shape. Delete a line when its item closes. Where a
-  model and a comment disagree about nullability the contract is right and the branch is the
-  suspect (ADR 0015), so never widen one to fit code you found.
-  - No test changes needed, so cheapest to take: `job/models/costing.py`'s
-    `_set_staff_from_legacy_meta`, its caller, the `save()` half that adds the field to
-    `update_fields`, and the `meta` docstring naming the superseded keys;
-    `job/models/job_event.py`'s `legacy_description` arm and its float-comparison priority
-    arm; `job/services/kanban_categorization_service.py`'s dead status strings and its
-    `.get(status, "draft")` default; `job/models/spreadsheet.py`'s AttributeError raised to
-    mirror the old behaviour; `job/models/job.py`'s nullable `company`.
-  - The largest class, and the one ADR 0059 rules on directly: columns declared nullable
-    because restored rows had no value, each carrying `# noqa: DJ001 -- restored column`.
-    Backfill and make `NOT NULL`, or do not have the column. Bulk is `quoting/models.py`;
-    the rest are spread across the job, accounts, operations, process and purchasing models.
-  - Phone grandfathering, which spans `company/models.py`'s `check_phone_assignment`,
-    `company/services/person_merge_service.py`'s deliberate bypass of it,
-    `xero/raw_fields.py` depending on it, and the symmetric pair in `crm/models.py` and
-    `crm/api.py`. Four tests assert the grandfathering and must assert the rule instead.
-    **Blocked on the owner:** production holds cross-company numbers, and per the duplicate
-    process some are staff internal lines to delete rather than reassign.
-  - The rest, each with tests that change alongside: `diagnostics/services/db_scrubber.py`'s
-    per-value conformance gate; the event-absence fallbacks in `accounting/services/`
-    `job_aging_service.py` and `sales_pipeline_service.py`;
-    `timesheet/services/hour_categories.py`'s public-holiday precedence branch;
-    `quoting/services/product_parser.py`'s work-list selector; and the scattered remainder
-    including `job/services/month_end_service.py` and `core/uploads.py`.
-
 ## Seams left inside completed slices
 
 Each has a loud marker in code — `grep -rn "Phase 4\|Phase 5\|SEAM" apps/` — listed so
