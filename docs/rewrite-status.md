@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **57 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 266 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3219 collected |
+| Unit tests | 3227 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 130 recorded deviations |
@@ -349,6 +349,12 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   so the spec asserts that too.
 - **Process documents** — procedures and JSA. The forms half shipped; JSA and SWP are
   `document_type` variants of `Procedure`, not a third model.
+- **CRM history and notes** — [KAN-362](https://docketworks.atlassian.net/browse/KAN-362)
+  holds the design and its reasoning.
+- **Fold `PurchaseOrderEvent` and `JobEvent` onto the `apps/core` event base**, once
+  KAN-362 creates it. No ticket: cross-cutting rewrite debt. Neither is free — the first
+  stores `description` where the base computes it, the second carries the undo envelope and
+  the `delta_checksum` that must stay bit-identical to its TypeScript counterpart.
 - **The admin tail** — labour rates, archive jobs, the month-end UI (backend done) and
   the AppError viewer (write path done everywhere; the read/grouping API and page are
   unbuilt, and [KAN-192](https://docketworks.atlassian.net/browse/KAN-192) wants row
