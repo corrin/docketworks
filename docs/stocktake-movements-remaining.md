@@ -100,6 +100,17 @@ Delete this file when the branch merges and nothing is left in it.
   different treatment — one is misconfiguration, the other is a fact about today — so a
   blanket catch is the wrong shape.
 
+## Owed after promotion, not before merge
+
+These cannot close until the branch is in production, so they outlive the merge. **They move
+back to [`rewrite-status.md`](rewrite-status.md) when the branch merges — they are not
+deleted with this file**, which is the one exception to the shrinking rule above.
+
+- **KAN-360: prove the dropbox sync root mode on the host.** The fix landed on this branch in
+  `3fea474` and is gated, but only a live `instance.sh reconfigure` against msm-prod shows
+  that a provisioning run now leaves scanner delivery working. Run `verify-instance.sh msm
+  prod` after it and confirm the sync-root check passes.
+
 ## Watch on the next full gate run
 
 - **The item picker failure does not reproduce alone.** `job/job-cost-entry-data.spec.ts`

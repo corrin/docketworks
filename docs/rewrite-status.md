@@ -133,10 +133,6 @@ Not a tier — just the things a session should have a reason not to pick up.
   `maestral status` for paused and sync-error states, not process liveness.
   `verify-instance.sh` gates JobFile bytes on disk, which catches a long outage's
   *effect* at verify time only — the periodic host-side check is unbuilt.
-- **KAN-360: prove the dropbox sync root mode on the host.** The fix is written and gated,
-  but only a live `instance.sh reconfigure` against msm-prod shows that a provisioning run
-  now leaves scanner delivery working. Run `verify-instance.sh msm prod` after it and confirm
-  the sync-root check passes.
 - **MariaDB archaeology on the prod host**: localhost-only MariaDB holds `jobs_manager`
   (the pre-DocketWorks ancestor) and a legacy mysql-era `dw_msm_prod`. Identify any
   consumer, archive, remove the service.
