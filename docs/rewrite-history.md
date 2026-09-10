@@ -1,5 +1,39 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-10 — A disabled control is not a completed action
+
+Opus: the stocktake conflict-recovery spec was read, twice, as an operator silently losing
+work. It is not. The backend save is a full replace under `select_for_update` behind an
+`If-Match` precondition, so its only outcomes are 412 with nothing written or 200 with
+everything written; the screen has no server-to-draft effect to overwrite an edit, and every
+edit sets the dirty flag through one function. The spec read the row back too early.
+
+`Save draft` is disabled while `update.isPending`, so its disabled state doubles as its
+in-flight state and an assertion on it passes the instant the click leaves. The read that
+followed used a second connection and reached the database while the write's transaction was
+still open. The spec already had the right signal and used it four times elsewhere: `Post
+stocktake` becomes enabled only once the request finished and the form went clean, which
+cannot happen before the save was accepted. **A control whose disabled state is also its
+in-flight state can be asserted, but never awaited.**
+
+Found while tracing it, and real on its own: the acceptance path read the resource version
+out of the shared last-writer-wins ETag store and then fired an unfiltered, un-awaited
+`invalidateQueries()`. A refetch of the stocktake issued before a later write can land after
+it and restore the older revision, after which the next save fails a precondition nobody
+violated — a spurious conflict inside conflict recovery. The write now seeds the cache with
+the response it was handed rather than asking for it again, and posting refreshes stock
+through `refreshStock`, which already owns that data.
+
+Three mechanisms proposed for the cost-entry failure were all disproved, two from the trace
+and one from throwaway component tests: the create fired 2.1 seconds before the click, the
+trigger was focused and therefore not disabled, and `useDraftRows` already defers its commit
+precisely because a portalled popover is a DOM child of `body`. A harness mirroring the E2E
+helper — capturing the trailing row id, filling through a re-resolving locator, clicking the
+captured id, across two rows, with a create still in flight — opens the picker every time in
+both grids. The draft-to-server key swap is real and the team's own spec comment describes
+its consequences, but it is not what fails that spec, and it will not be treated as the cause
+without a browser reproduction.
+
 ## 2026-09-10 — A coalesced empty list answered for three different states
 
 Opus: `JobPicker` read its status vocabulary as `query.data?.statuses ?? {}`. That one

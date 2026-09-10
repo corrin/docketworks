@@ -126,11 +126,16 @@ function StocktakeEditor({
     setDirty(true)
   }
   const accepted = (saved: StocktakeDetail) => {
+    // The response we were handed is authoritative, and the version comes from
+    // the shared ETag store, so nothing may refetch this stocktake behind us: a
+    // GET issued before this write and landing after it puts the older revision
+    // back, and the next save then fails a precondition nobody violated. That is
+    // why the write seeds the cache instead of invalidating it. Stock balances
+    // move only when a count is posted, and refreshStock owns that.
+    cache.setQueryData(stocktakeRetrieveOptions({ path: { id: saved.id } }).queryKey, saved)
     setVersion(snapshotEtag(saved.id))
     setRows(draftRows(saved))
     setDirty(false)
-    cache.setQueryData(stocktakeRetrieveOptions({ path: { id: saved.id } }).queryKey, saved)
-    void cache.invalidateQueries()
   }
   const save = () => {
     if (rows.some((row) => row.unitCostInput === '')) {
@@ -312,6 +317,9 @@ function StocktakeEditor({
                   {
                     onSuccess: (saved) => {
                       accepted(saved)
+                      void refreshStock().catch(() =>
+                        toast.error('Posted, but current stock could not be refreshed.'),
+                      )
                       toast.success('Stocktake posted')
                     },
                     onError: failed,

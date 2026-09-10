@@ -201,7 +201,12 @@ test.describe('stocktake conflict recovery', () => {
     await expect(description).toHaveValue('[TEST] Saved by another operator')
     await description.fill('[TEST] Reviewed final version')
     await page.getByRole('button', { name: 'Save draft', exact: true }).click()
-    await expect(page.getByRole('button', { name: 'Save draft', exact: true })).toBeDisabled()
+    // Save draft goes disabled the instant the PUT leaves, because its disabled
+    // state doubles as its in-flight state, so waiting on it would pass while the
+    // write is still open and the read below would race the transaction. Post
+    // stocktake needs the request finished AND the form clean, so it can only be
+    // enabled once the save was accepted.
+    await expect(page.getByRole('button', { name: 'Post stocktake', exact: true })).toBeEnabled()
     expect((await (await page.request.get(url)).json()).lines[0].description).toBe(
       '[TEST] Reviewed final version',
     )
