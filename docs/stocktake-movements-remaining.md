@@ -19,6 +19,27 @@ Delete this file when the branch merges and nothing is left in it.
   defect. The allowance was spent by a production restore plus a full suite in one day.
 - **The restore runbook's acceptance test is unrecorded** and stays so until a full suite is
   green from the first spec.
+- **The Xero cleanup integration test has never executed.**
+  `apps/diagnostics/tests/test_e2e_cleanup_integration.py` is written and has never run; the
+  tenant's 1000-call day was spent by two sweep passes. ADR 0050 makes it the merge gate, so
+  the PR is not mergeable until `./scripts/ops/run_integration_tests.sh` passes it. Needs
+  `XERO_READONLY=false` and no `$TMPDIR/playwright-e2e.lock`.
+- **The sweep has never removed anything.** `e2e_xero_sweep` ran twice and both times stopped
+  during discovery on `RateLimitException`. Its discovery is proven against the real
+  organisation; its removal path is not. Prove it with
+  `uv run python manage.py e2e_xero_sweep --confirm`, which also clears the residue the one
+  successful dry run found: 24 invoices, 24 quotes, 27 purchase orders, and no contacts
+  because those were already archived. Then run the full gate once and check the
+  organisation looks the same afterwards as before — this change has no spec of its own, and
+  that comparison is the whole evidence.
+- **Decide how wide the fixture company's blast radius should be, before the sweep runs for
+  real.** `e2e_cleanup` matches every job on `ABC Carpet Cleaning TEST IGNORE` by company
+  rather than by name, and now deletes those jobs' invoices and quotes in Xero. Locally that
+  was already the behaviour; reaching Xero is new, and a Xero deletion is not something the
+  database restore can undo. The preflight only refuses to start on `[TEST]`-named rows, so a
+  hand-made job on the fixture company would be swept. Narrowing the match to `[TEST]`-named
+  jobs loses nothing the suite creates, which makes it the safe default whatever else is
+  decided.
 
 ## Not blocking, but this branch's to close
 
