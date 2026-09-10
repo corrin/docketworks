@@ -116,10 +116,13 @@ def remove_residue_from_xero(residue: XeroResidue, operation: str) -> RemovalOut
     raises, from the routines below.
 
     Nothing to remove means nothing sent, checked BEFORE the guards rather
-    than after. The guards resolve the tenant, which reads the stored token
-    and rotates it against Xero's identity endpoint if it is near expiry. That
-    spends no API quota, but it is still traffic and still a rotation, and a
-    run whose database says it created nothing owes neither.
+    than after. The guards resolve the tenant, which reads the stored token and
+    rotates it against Xero's identity endpoint if it is near expiry. A
+    rotation costs no API quota; what it costs is the refresh token, which Xero
+    issues single-use, so the copy any other holder has just died. The E2E
+    teardown goes to some length to keep exactly that from happening
+    (frontend/tests/scripts/global-teardown.ts), and a run whose database names
+    no Xero object should not be spending one.
     """
     if residue.is_empty():
         return RemovalOutcome()
