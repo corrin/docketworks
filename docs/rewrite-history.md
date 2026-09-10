@@ -1,5 +1,32 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-10 — Xero now owns the E2E user's pay rate
+
+Opus: `job-cost-entry-data.spec.ts` pins the E2E user's charged wage at 45 and asserts the
+labour line against that constant rather than against the response's own meta, deliberately,
+so a regression to a fallback wage source fails there instead of reconciling. It failed at
+45.01.
+
+The environment held a base wage of 37.51 against a 20% labour cost loading, which loads to
+45.01; the pinned 45 needs a base of 37.50, which is what
+`apps/accounts/fixtures/initial_data.json` sets. The environment stopped honouring that
+fixture because this branch's employee detail refresh writes `base_wage_rate` from the Xero
+payroll rate, so the demo organisation's 37.51 overwrote it during the day's seed and sync.
+
+That is the feature working. The consequence is that the prerequisite changed owners: the
+E2E user's pay rate now comes from Xero and the fixture is only its starting value. The
+owner corrected the demo organisation to 37.50 rather than moving the pin, keeping the
+source of truth where the app now says it lives, and the local row was set to match by hand
+because the day's Xero quota was nearly spent.
+
+Worth knowing next time: a drift in the demo organisation's payroll rate surfaces as a cost
+assertion failure in a spec that looks like it is about cost lines, and a restore from a
+snapshot taken before the correction brings the old rate back with it.
+
+The same spec's earlier failure — the item picker never opening — does not reproduce when
+the spec runs alone. It is load or accumulation dependent, and it is a different problem
+from this one.
+
 ## 2026-09-10 — A disabled control is not a completed action
 
 Opus: the stocktake conflict-recovery spec was read, twice, as an operator silently losing
