@@ -114,12 +114,21 @@ def remove_residue_from_xero(residue: XeroResidue, operation: str) -> RemovalOut
     order, an ACCEPTED quote), which no cleanup can undo, and raising would
     strand every later run on one spec's leftover. A malformed response still
     raises, from the routines below.
+
+    Nothing to remove means nothing sent, checked BEFORE the guards rather
+    than after. The guards resolve the tenant, which reads the stored token
+    and rotates it against Xero's identity endpoint if it is near expiry. That
+    spends no API quota, but it is still traffic and still a rotation, and a
+    run whose database says it created nothing owes neither.
     """
+    if residue.is_empty():
+        return RemovalOutcome()
+
     assert_not_production_target()
     assert_xero_writes_enabled(operation)
 
     provider = get_provider()
-    removed: dict[ResidueKind, int] = {}
+    removed: dict[ResidueKind, int] = dict.fromkeys(ResidueKind, 0)
     refused: list[Refusal] = []
 
     documents: tuple[
@@ -133,7 +142,7 @@ def remove_residue_from_xero(residue: XeroResidue, operation: str) -> RemovalOut
         for xero_id, label in entries.items():
             result = delete(xero_id)
             if result.success:
-                removed[kind] = removed.get(kind, 0) + 1
+                removed[kind] += 1
             else:
                 refused.append(
                     Refusal(kind=kind, xero_id=xero_id, label=label, reason=_refusal_reason(result))
@@ -142,8 +151,7 @@ def remove_residue_from_xero(residue: XeroResidue, operation: str) -> RemovalOut
     # Only now, with the transactions gone, will Xero accept the archive.
     if residue.contacts:
         outcome = archive_contacts_in_xero(tuple(residue.contacts))
-        if outcome.archived:
-            removed[ResidueKind.CONTACT] = len(outcome.archived)
+        removed[ResidueKind.CONTACT] = len(outcome.archived)
         refused.extend(
             Refusal(
                 kind=ResidueKind.CONTACT,

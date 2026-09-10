@@ -357,6 +357,31 @@ def test_a_clean_database_removes_nothing_from_xero(xero: RecordingOrganisation)
     assert xero.timeline == []
 
 
+def test_local_rows_naming_no_xero_object_reach_xero_not_at_all(
+    office_staff: Staff, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Residue with nothing pushed must not even resolve the tenant.
+
+    There IS local test data here, so the cleanup runs its deletes — but no row
+    names a Xero object, and the guards resolve the tenant through
+    ``get_valid_token``, which rotates a token near expiry. Making the guards
+    raise is how the test proves nothing reached that far.
+    """
+
+    def refuse() -> None:
+        raise AssertionError("the tenant was resolved with nothing to remove")
+
+    monkeypatch.setattr(f"{RESIDUE}.assert_not_production_target", refuse)
+
+    company = Company.objects.create(name="[TEST] Company", xero_last_modified="2026-08-08T00:00Z")
+    job = make_job(company, office_staff, name="[TEST] Job")
+
+    output = _run_cleanup("--confirm")
+
+    assert "Done." in output
+    assert not Job.objects.filter(pk=job.pk).exists()
+
+
 def test_dry_run_does_not_touch_xero(office_staff: Staff, xero: RecordingOrganisation) -> None:
     """An inspection must never write to the organisation."""
     company = Company.objects.create(
@@ -375,7 +400,14 @@ def test_the_xero_guard_trips_before_any_local_row_is_deleted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A refused target (production, read-only) must not have already lost its local rows."""
-    company = Company.objects.create(name="[TEST] Company", xero_last_modified="2026-08-08T00:00Z")
+    # Carries a contact id, so there is something to remove in Xero and the
+    # guards are actually reached. Without one the cleanup returns before them,
+    # which is its own guarantee and its own test above.
+    company = Company.objects.create(
+        name="[TEST] Company",
+        xero_contact_id="contact-1",
+        xero_last_modified="2026-08-08T00:00Z",
+    )
 
     def refuse() -> None:
         raise ValueError("production tenant")
