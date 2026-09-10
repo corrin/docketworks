@@ -1,5 +1,39 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-10 — A hundred contacts stood in for two thousand seven hundred
+
+Opus: `get_all_xero_contacts` made one `get_contacts` call and read the response. Xero
+answers that with a single page of 100. The demo organisation, restored from production,
+holds 2776 contacts across 28 pages, so every contact past the first hundred was invisible
+to both of its callers: the seed's by-name linker, which would then create a duplicate
+alongside a contact Xero already had, and the E2E archiver, which could only ever see a
+hundredth of the residue it exists to clear.
+
+The sync engine had the paging right all along — `ENTITY_CONFIGS` marks contacts `"page"`
+and the loop passes `page` and `page_size` — and the seed's own existence lookup had a
+second copy of that loop. So this was one concept with two implementations and one
+omission, which is the shape ADR 0039 names. `iter_xero_entities` is now the single paged
+read and all three callers go through it.
+
+Worth knowing next time: an unpaged Xero read does not fail, it under-reports, and a demo
+organisation small enough to fit in one page hides it completely. The symptom that finally
+showed it was a sweep reporting far less residue than the organisation obviously held.
+
+## 2026-09-10 — What one pass over the organisation costs
+
+Opus: `e2e_xero_sweep` reads every invoice, quote, purchase order and contact before it can
+say what is residue, so a dry run costs the same reads as a confirmed one. Two passes over
+the demo organisation took the development tenant's 1000-call day to zero, and the second
+stopped on `RateLimitException` during discovery. It had removed nothing, because discovery
+completes before removal starts — which is the property that makes the command safe to
+retry rather than something to be recovered from.
+
+The teardown path is not affected: it reads no Xero at all, driving from the local rows,
+and spends roughly two calls per document the run created.
+
+Worth knowing next time: on a day the E2E suite also has to run, go straight to
+`--confirm`. The dry run is for a fresh quota.
+
 ## 2026-09-10 — Xero now owns the E2E user's pay rate
 
 Opus: `job-cost-entry-data.spec.ts` pins the E2E user's charged wage at 45 and asserts the
