@@ -262,6 +262,12 @@ any unverified acceptance step explicitly in the PR and rewrite task list.
 
 ## Porting rules
 
+- **Every v1 feature exists in v2.** The freedom below is over *shape* — the URL, the
+  payload, the component — never over what the business can do. Dropping a capability is
+  the owner's decision and `docs/accepted-api-differences.yml` records it; silence is not
+  a drop, it is a defect. So port a screen against the v1 component read in full, never
+  against the endpoints it called: v2 serves `getJobFileThumbnail` and no frontend code
+  calls it, which every operation-level count reads as done.
 - Models keep v1 app labels and class names; models moved out of v1's `workflow` app pin
   `Meta.db_table = "workflow_<modelname>"`. No renames in v2.0 — data migrates by pg_dump/restore.
 - `delta_checksum` canonicalisation is bit-identical between Python and TypeScript (golden vectors).
