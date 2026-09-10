@@ -294,13 +294,15 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   flags, and rebuilds `/purchasing/pricing` with a working upload. Its spec owns the
   cross-screen flow; the mappings spec asserts nothing about uploads.
   [KAN-176](https://docketworks.atlassian.net/browse/KAN-176) carries the business ask.
-- **Attachment thumbnails and click-to-view** (prod bug report 2026-08-31). v1's
-  attachments tab rendered a thumbnail per file and clicking it viewed the image; v2's
-  `JobAttachmentsTab.tsx` renders only download/delete icons and nothing in
-  `frontend/src/` calls the ported `getJobFileThumbnail` endpoint. Port the
-  thumbnail-and-view UI and extend `job-attachments.spec.ts` to assert a thumbnail renders
-  and opens. [KAN-334](https://docketworks.atlassian.net/browse/KAN-334) wants the same
-  surface to preview more formats — do them together.
+- **Attachment drag-and-drop, thumbnails and click-to-view** (prod bug reports 2026-08-31
+  and 2026-09-10). v1's attachments tab had a drop zone and rendered a thumbnail per file
+  that opened on click; v2's `JobAttachmentsTab.tsx` has no drag handlers at all, renders
+  only download/delete icons, and nothing outside `frontend/src/api/` calls the ported
+  `getJobFileThumbnail` endpoint. Restore the drop zone and the thumbnail-and-view UI, and
+  extend `job-attachments.spec.ts` to assert a dropped file uploads and a thumbnail
+  renders and opens. [KAN-361](https://docketworks.atlassian.net/browse/KAN-361) carries
+  it; [KAN-334](https://docketworks.atlassian.net/browse/KAN-334) wants the same surface to
+  preview more formats — do them together.
 - **Purchase orders — the tail of `feat/po-screens`** (16 commits, unmerged at 2026-09-05).
   The branch restored the list, the grid, print, the supplier email and two-way Xero sync;
   what it did not reach is below, and the first two items gate the merge.
