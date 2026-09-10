@@ -254,9 +254,11 @@ function restoreDatabase(lockContents: string): void {
   // names the sweep, which finds the same objects by reading the organisation.
   removeThisRunsXeroObjects()
 
-  // Save AFTER the settle (v1 saved before it): a refresh completing during
-  // the wait rotates the refresh token, and reinjecting the pre-settle copy
-  // would strand the next run on a consumed token.
+  // Save AFTER the settle and after the Xero cleanup (v1 saved before the
+  // settle): both can trigger a refresh, and Xero's refresh token is
+  // single-use, so reinjecting a copy taken earlier would strand the next run
+  // on a consumed token. The cleanup is the likelier of the two — it makes a
+  // real Xero call per document.
   const xeroTokenFile = `${backupFile}.xero-app-token.json`
   const xeroAppTokenRow = saveActiveXeroToken(dbConfig, xeroTokenFile)
 
