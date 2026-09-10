@@ -114,6 +114,19 @@ def _default_descriptor(field_name: str, old: object, new: object) -> str:
 
 def _render_change(change: dict[str, Any]) -> str:
     field = change.get("field_name", "")
+    # Fallback for events written before 2026-04-22, the last date a job event
+    # was recorded without structured values. Those rows name the field that
+    # moved but not what it moved between, because the writer of the day stored
+    # only a rendered sentence. The values cannot be recovered — nothing else
+    # holds a job's notes or description as they were at that moment — so this
+    # says what is known. Rendering "changed from '' to ''" was rejected: it
+    # asserts a change to empty, which is a different and false fact. Every
+    # writer since records both values, so no new row reaches this branch.
+    # The text says so outright. "Notes updated" reads like an ordinary entry
+    # and hides that the before and after are gone; someone auditing the job
+    # would take it at face value and stop looking.
+    if "old_value" not in change and "new_value" not in change:
+        return f"{field} changed (details lost)" if field else "Changed (details lost)"
     old = change.get("old_value", "")
     new = change.get("new_value", "")
     descriptor = _FIELD_DESCRIPTORS.get(field)
@@ -367,17 +380,36 @@ class JobEvent(models.Model):
 
     @staticmethod
     def _build_job_created_description(detail: dict[str, Any]) -> str:
-        job_name = detail.get("job_name", "Unknown")
-        company_name = detail.get("company_name", "Unknown")
+        # Fallback for creations written before 2026-04-22, the last date a job
+        # event was recorded without these fields; every creation since carries
+        # all five. A job's initial status and pricing methodology cannot be
+        # recovered — the job now holds whatever it was last changed to, not
+        # what it started as — so the sentence names what is missing instead of
+        # quietly dropping it. Printing "Unknown" was the previous behaviour and
+        # is rejected: it asserts the absence as a value, so the line reads as a
+        # job genuinely created for a company called Unknown.
+        job_name = detail.get("job_name")
+        company_name = detail.get("company_name")
         person_name = detail.get("person_name")
-        initial_status = detail.get("initial_status", "Unknown")
-        pricing = detail.get("pricing_methodology", "Unknown")
-        person_info = f" (Person: {person_name})" if person_name else ""
-        return (
-            f"New job '{job_name}' created for company {company_name}{person_info}. "
-            f"Initial status: {initial_status}. "
-            f"Pricing methodology: {pricing}."
-        )
+        initial_status = detail.get("initial_status")
+        pricing = detail.get("pricing_methodology")
+
+        subject = f"New job '{job_name}'" if job_name else "New job"
+        if company_name:
+            subject += f" created for company {company_name}"
+        else:
+            subject += " created"
+        if person_name:
+            subject += f" (Person: {person_name})"
+
+        sentences = [subject]
+        if initial_status:
+            sentences.append(f"Initial status: {initial_status}")
+        if pricing:
+            sentences.append(f"Pricing methodology: {pricing}")
+        if not (initial_status and pricing):
+            sentences.append("Some creation details lost")
+        return ". ".join(sentences) + "."
 
     @staticmethod
     def _build_manual_note_description(detail: dict[str, Any]) -> str:
@@ -397,6 +429,19 @@ class JobEvent(models.Model):
         if number:
             return f"Invoice {number} deleted from Xero"
         return "Invoice deleted from Xero"
+
+    @staticmethod
+    def _build_invoice_amount_changed_description(detail: dict[str, Any]) -> str:
+        number = detail.get("xero_invoice_number")
+        old_total = detail.get("old_total_excl_tax")
+        new_total = detail.get("new_total_excl_tax")
+        subject = f"Invoice {number}" if number else "Invoice"
+        return f"{subject} changed from ${old_total} to ${new_total} excluding tax"
+
+    @staticmethod
+    def _build_invoice_voided_description(detail: dict[str, Any]) -> str:
+        number = detail.get("xero_invoice_number")
+        return f"Invoice {number} voided in Xero" if number else "Invoice voided in Xero"
 
     @staticmethod
     def _build_quote_created_description(detail: dict[str, Any]) -> str:
@@ -442,6 +487,10 @@ class JobEvent(models.Model):
         "manual_note": _build_manual_note_description,
         "invoice_created": _build_invoice_created_description,
         "invoice_deleted": _build_invoice_deleted_description,
+        "invoice_amount_changed": _build_invoice_amount_changed_description,
+        "invoice_voided": _build_invoice_voided_description,
+        "urgent_flagged": _build_changes_description,
+        "urgent_cleared": _build_changes_description,
         "quote_created": _build_quote_created_description,
         "quote_deleted": _build_quote_deleted_description,
         "delivery_docket_generated": _build_delivery_docket_description,
