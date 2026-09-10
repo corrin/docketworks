@@ -294,15 +294,23 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   flags, and rebuilds `/purchasing/pricing` with a working upload. Its spec owns the
   cross-screen flow; the mappings spec asserts nothing about uploads.
   [KAN-176](https://docketworks.atlassian.net/browse/KAN-176) carries the business ask.
-- **Attachment drag-and-drop, thumbnails and click-to-view** (prod bug reports 2026-08-31
-  and 2026-09-10). v1's attachments tab had a drop zone and rendered a thumbnail per file
-  that opened on click; v2's `JobAttachmentsTab.tsx` has no drag handlers at all, renders
-  only download/delete icons, and nothing outside `frontend/src/api/` calls the ported
-  `getJobFileThumbnail` endpoint. Restore the drop zone and the thumbnail-and-view UI, and
-  extend `job-attachments.spec.ts` to assert a dropped file uploads and a thumbnail
-  renders and opens. [KAN-361](https://docketworks.atlassian.net/browse/KAN-361) carries
-  it; [KAN-334](https://docketworks.atlassian.net/browse/KAN-334) wants the same surface to
+- **The job attachments tab is missing four v1 features** (prod bug reports 2026-08-31 and
+  2026-09-10). v1 had a drop zone, a thumbnail per file that opened on click, a "Capture
+  Photo" button over `CameraModal.vue`, and a stated size limit. v2's
+  `JobAttachmentsTab.tsx` has no drag handlers, no `getUserMedia` call anywhere in
+  `frontend/src`, renders only download/delete icons, and nothing outside
+  `frontend/src/api/` calls the ported `getJobFileThumbnail` endpoint. Restore all four and
+  extend `job-attachments.spec.ts` to cover them.
+  [KAN-361](https://docketworks.atlassian.net/browse/KAN-361) carries it;
+  [KAN-334](https://docketworks.atlassian.net/browse/KAN-334) wants the same surface to
   preview more formats — do them together.
+- **Decide how "every v1 feature exists in v2" gets enforced.** The rule is now in
+  CLAUDE.md's porting rules; nothing checks it. `docs/v1-disposition.md` rules on every v1
+  doc and script and its hook proves each ported path exists, and
+  `scripts/v1-frontend-operations.yml` counts operations, but neither sees a feature that
+  needs no new operation — four losses on one tab surfaced only as user reports. Extend the
+  disposition ledger to v1's components, or audit v1 screen by screen, before the tail of
+  the port closes. Owner decision.
 - **Purchase orders — the tail of `feat/po-screens`** (16 commits, unmerged at 2026-09-05).
   The branch restored the list, the grid, print, the supplier email and two-way Xero sync;
   what it did not reach is below, and the first two items gate the merge.
