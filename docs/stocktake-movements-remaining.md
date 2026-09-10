@@ -66,8 +66,8 @@ Delete this file when the branch merges and nothing is left in it.
   nullability the contract is right and the branch is the suspect (ADR 0015), so never widen
   one to fit code you found.
   - No test changes needed, so cheapest to take: `job/models/job_event.py`'s
-    `legacy_description` arm and its float-comparison priority
-    arm; `job/services/kanban_categorization_service.py`'s dead status strings and its
+    float-comparison priority arm;
+    `job/services/kanban_categorization_service.py`'s dead status strings and its
     `.get(status, "draft")` default; `job/models/spreadsheet.py`'s AttributeError raised to
     mirror the old behaviour; `job/models/job.py`'s nullable `company`.
   - The largest class, and the one ADR 0059 rules on directly: columns declared nullable

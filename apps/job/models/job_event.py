@@ -269,18 +269,11 @@ class JobEvent(models.Model):
     def build_description(self) -> str:
         """Generate human-readable description from event_type + detail.
 
-        Fallback chain:
-          1. detail.legacy_description (preserved by migration 0077 for events that
-             couldn't be parsed into structured data);
-          2. dispatch to _DESCRIPTION_BUILDERS[event_type] if registered and the
-             builder produces non-empty output;
-          3. f"({event_type})" sentinel — should not fire post-migration.
+        Every event describes itself from its own detail: dispatch to
+        _DESCRIPTION_BUILDERS[event_type], falling through to a
+        f"({event_type})" sentinel that a registered builder makes unreachable.
         """
         detail = self.detail or {}
-        legacy = detail.get("legacy_description")
-        if isinstance(legacy, str) and legacy:
-            return legacy
-
         builder = self._DESCRIPTION_BUILDERS.get(self.event_type)
         if builder:
             built = builder(detail)
