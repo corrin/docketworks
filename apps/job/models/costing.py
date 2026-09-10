@@ -200,8 +200,9 @@ class CostLine(models.Model):
     Meta Field Structure by Kind:
 
     TIME (kind='time'):
-        - staff_id (str, UUID): Legacy Staff reference; use staff FK instead
-        - date (str, ISO date): Date the work was performed (legacy, use accounting_date field)
+        - staff_id (str, UUID): the staff member, mirroring the staff FK; written by
+          ``pricing_meta`` and read back when reconciling a workshop line to its owner
+        - date (str, ISO date): the date worked, mirroring the accounting_date field
         - is_billable (bool): Whether this time is billable to the company
         - start_time (str, ISO time): Start time of the timesheet entry
         - end_time (str, ISO time): End time of the timesheet entry
@@ -422,18 +423,12 @@ class CostLine(models.Model):
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """Save the line, assigning entry_seq and refreshing the CostSet summary."""
-        staff_was_already_set = self.staff_id is not None
         requires_sequence = self._actual_time_entry_requires_sequence()
         with transaction.atomic():
             before = self._lock_summary_owners()
             self._assign_entry_seq()
-            staff_newly_set_from_legacy_meta = (
-                self.staff_id is not None and not staff_was_already_set
-            )
             kwargs["update_fields"] = self._with_sequence_update_fields(
-                kwargs.get("update_fields"),
-                requires_sequence=requires_sequence,
-                staff_newly_set=staff_newly_set_from_legacy_meta,
+                kwargs.get("update_fields"), requires_sequence=requires_sequence
             )
 
             self._save_validated(*args, **kwargs)
@@ -529,15 +524,6 @@ class CostLine(models.Model):
             return False
         return self.cost_set.kind == "actual"
 
-    def _set_staff_from_legacy_meta(self) -> None:
-        if self.staff_id is not None:
-            return
-        if not isinstance(self.meta, dict):
-            return
-        legacy_staff_id = self.meta.get("staff_id")
-        if legacy_staff_id:
-            self.staff_id = legacy_staff_id
-
     def _sequence_group_changed(self) -> bool:
         if self._state.adding or self.pk is None:
             return True
@@ -557,7 +543,6 @@ class CostLine(models.Model):
         if not self._actual_time_entry_requires_sequence():
             return
 
-        self._set_staff_from_legacy_meta()
         if self.staff_id is None:
             return
 
@@ -580,15 +565,13 @@ class CostLine(models.Model):
 
     @staticmethod
     def _with_sequence_update_fields(
-        update_fields: Iterable[str] | None, *, requires_sequence: bool, staff_newly_set: bool
+        update_fields: Iterable[str] | None, *, requires_sequence: bool
     ) -> set[str] | None:
         if update_fields is None:
             return None
         fields = set(update_fields)
         if requires_sequence:
             fields.add("entry_seq")
-        if staff_newly_set:
-            fields.add("staff")
         return fields
 
     def _save_validated(self, *args: Any, **kwargs: Any) -> None:

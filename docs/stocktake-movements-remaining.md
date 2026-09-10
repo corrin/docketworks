@@ -28,10 +28,8 @@ Delete this file when the branch merges and nothing is left in it.
   to be the only place that knows the old shape. Where a model and a comment disagree about
   nullability the contract is right and the branch is the suspect (ADR 0015), so never widen
   one to fit code you found.
-  - No test changes needed, so cheapest to take: `job/models/costing.py`'s
-    `_set_staff_from_legacy_meta`, its caller, the `save()` half that adds the field to
-    `update_fields`, and the `meta` docstring naming the superseded keys;
-    `job/models/job_event.py`'s `legacy_description` arm and its float-comparison priority
+  - No test changes needed, so cheapest to take: `job/models/job_event.py`'s
+    `legacy_description` arm and its float-comparison priority
     arm; `job/services/kanban_categorization_service.py`'s dead status strings and its
     `.get(status, "draft")` default; `job/models/spreadsheet.py`'s AttributeError raised to
     mirror the old behaviour; `job/models/job.py`'s nullable `company`.
