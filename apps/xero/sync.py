@@ -497,6 +497,61 @@ def _resolve_api_method(api_method: str) -> Callable[..., Any]:
     return method
 
 
+#: Xero's page size for the paged reads below; a shorter page means the last one.
+XERO_PAGE_SIZE = 100
+
+
+def iter_xero_entities(entity_name: str) -> Iterator[Any]:
+    """Yield every entity of an ENTITY_CONFIGS type from Xero, page by page.
+
+    The one implementation of "read a whole entity type out of Xero", shared
+    by the seed's existence lookup and the E2E residue sweep. It reuses
+    ENTITY_CONFIGS for API-method resolution, pagination mode and params, so
+    every reader reaches Xero exactly the way the sync engine does; the
+    alternative each caller reached for first was its own `while True` around
+    its own `page` counter, differing on the quirks below.
+
+    Unlike ``sync_xero_data`` this advances no cursor, persists nothing and
+    suppresses no E2E artifact: it answers "what does the organisation hold",
+    which is the question a caller outside the sync loop is asking.
+
+    ``Any`` is the SDK seam: ENTITY_CONFIGS keys a different untyped SDK model
+    per entity, and each caller narrows immediately to the fields it reads.
+    """
+    xero_type, _, _, api_method, _, config_params, pagination_mode = ENTITY_CONFIGS[entity_name]
+    api_func = _resolve_api_method(api_method)
+
+    params: dict[str, Any] = {"xero_tenant_id": get_tenant_id()}
+    # The same param quirk the sync loop applies above: get_quotes and
+    # get_accounts accept `page` but not `page_size`. Their pages are
+    # Xero-fixed at 100, which is XERO_PAGE_SIZE, so the short-page
+    # termination below still holds for them.
+    if pagination_mode == "page" and entity_name not in ["quotes", "accounts"]:
+        params["page_size"] = XERO_PAGE_SIZE
+    if config_params:
+        params.update(config_params)
+
+    page = 1
+    while True:
+        if pagination_mode == "page":
+            params["page"] = page
+
+        entities = api_func(**params)
+        if entities is None:
+            raise ValueError(f"API returned None for {entity_name}")
+
+        items = entities if isinstance(entities, list) else getattr(entities, xero_type)
+        if not items:
+            return
+
+        yield from items
+        logger.info("Fetched %d %s from page %d", len(items), entity_name, page)
+
+        if len(items) < XERO_PAGE_SIZE or pagination_mode != "page":
+            return
+        page += 1
+
+
 def sync_all_xero_data(
     mode: Literal["latest", "deep", "details"] = "latest",
     days_back: int = 30,

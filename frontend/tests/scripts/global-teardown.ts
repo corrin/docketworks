@@ -10,6 +10,7 @@ import {
   syncSequences,
   type DbConfig,
 } from './db-backup-utils'
+import { runE2ECleanup } from './e2e-cleanup'
 import { closeSyncWindow } from './e2e-sync-windows'
 import { assertSpawnSucceeded } from './process-result'
 
@@ -143,6 +144,23 @@ function reinjectXeroToken(dbConfig: DbConfig, xeroAppTokenRow: string): void {
   console.log('[db] Active Xero app token restored.')
 }
 
+function printXeroCleanupFailureBanner(reason: string): void {
+  console.error('')
+  console.error('================================================================')
+  console.error("E2E TEARDOWN COULD NOT REMOVE THIS RUN'S XERO OBJECTS")
+  console.error('================================================================')
+  console.error(reason)
+  console.error('')
+  console.error('The restore below still runs, and it erases the local rows that')
+  console.error("name those objects — so this run's invoices, quotes, purchase")
+  console.error('orders and contacts are now findable only in the organisation.')
+  console.error('')
+  console.error('Clear them with (dry run first):')
+  console.error('  uv run python manage.py e2e_xero_sweep')
+  console.error('  uv run python manage.py e2e_xero_sweep --confirm')
+  console.error('================================================================')
+}
+
 function printRestoreFailureBanner(backupFile: string, dbConfig: DbConfig, reason: string): void {
   const singleTx = '--single-transaction'
   const onErrorStop = '-v ON_ERROR_STOP=1'
@@ -225,6 +243,16 @@ function restoreDatabase(lockContents: string): void {
     `[db] Waiting ${PRE_RESTORE_XERO_SETTLE_MS / 1000}s for in-flight Xero/Celery work before restore...`,
   )
   sleepSync(PRE_RESTORE_XERO_SETTLE_MS)
+
+  // Remove this run's writes from the Xero organisation. After the settle so
+  // in-flight Celery work has finished creating them, and before the restore
+  // because the restore erases the local rows that carry their Xero ids —
+  // this is the last moment anything knows what the run made.
+  //
+  // Reported rather than raised: the restore is the one step whose failure
+  // costs hours, so a Xero refusal must not take it down with it. The banner
+  // names the sweep, which finds the same objects by reading the organisation.
+  removeThisRunsXeroObjects()
 
   // Save AFTER the settle (v1 saved before it): a refresh completing during
   // the wait rotates the refresh token, and reinjecting the pre-settle copy
@@ -314,6 +342,15 @@ function restoreDatabase(lockContents: string): void {
   fs.rmSync(xeroTokenFile, { force: true })
 
   console.log('[db] Database restored successfully.')
+}
+
+function removeThisRunsXeroObjects(): void {
+  console.log("\n[xero] Removing this run's Xero objects...")
+  try {
+    runE2ECleanup(true)
+  } catch (error) {
+    printXeroCleanupFailureBanner(error instanceof Error ? error.message : String(error))
+  }
 }
 
 export default function globalTeardown(): void {
