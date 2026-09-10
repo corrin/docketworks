@@ -21,8 +21,18 @@ purchase orders take no contact filter at all. A demo organisation holds few
 enough documents that paging the lot costs less than establishing that
 contract, and one filter for four entity types is one thing to keep right.
 
-Dry run unless ``--confirm``, like ``e2e_cleanup``. Reading is safe; the
-removal is not, and it is measured in Xero's daily quota.
+Dry run unless ``--confirm``, like ``e2e_cleanup``. **A dry run costs the same
+reads as a confirmed one**, because both have to page the whole organisation
+before they can say what is residue — measured 2026-09-10, one pass over a
+demo org restored from production reads 28 pages of contacts alone. Two passes
+took the development tenant's 1000-call day to zero, and the second stopped on
+``RateLimitException`` during discovery, before it had removed anything. So on
+a day the E2E suite also has to run, go straight to ``--confirm``: the dry run
+is for when the quota is fresh and you want to see the list first.
+
+Discovery finishing before any removal starts is what makes that safe to
+repeat. A pass that dies part-way through reading leaves the organisation
+exactly as it found it.
 """
 
 from django.core.management.base import BaseCommand, CommandParser
