@@ -147,13 +147,6 @@ Not a tier — just the things a session should have a reason not to pick up.
 
 ## Payroll and Xero
 
-- **Xero detail refresh: complete live verification with an approved call budget.**
-  Run the employee integration regression using the vendor-call ledger, then
-  `admin/xero.spec.ts` and applicable timesheet browser checks, including responsive
-  screenshots. Implementation and local checks are recorded in rewrite history;
-  the owner authorised zero live calls for this slice. See
-  [the plan](plans/2026-09-09-xero-detail-refresh.md).
-
 - **The pay-run mirror deletes rows it never fetched, under a docstring promising it
   cannot.** `sync_pay_runs` (`apps/xero/payroll_push.py:759`) runs
   `XeroPayRun.objects.filter(xero_tenant_id=tenant_id).exclude(xero_id__in=live_ids).delete()`
@@ -325,20 +318,6 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   - **No back-link from a job cost line to the PO that created it.** `CostLineGrid` has no
     Source column, though the cost line already carries `meta.po_number` and
     `ext_refs.purchase_order_id` — so this is a column, not a contract change.
-  - **Stocktake review resolution (PR #151):** add stocktake previews/conflict
-    reconciliation and complete the approved regression coverage. Verify stock
-    search/pagination, write contracts and history/retirement controls through
-    the browser.
-    Run updated browser specs, including product-to-TBC price overrides, full
-    managed E2E and live PO/item-import integrations.
-    Rehearse reviewed repair dispositions against a current scrubbed production
-    snapshot; do not infer dispositions for additional obsolete local records.
-    Keep the merge/promotion hold until required verification passes.
-
-  - **`docs/accepted-api-differences.yml` never recorded this branch's four behaviour
-    changes:** the list pagination envelope, Xero's
-    `BILLED` no longer meaning goods received, `xero_agreed_at` splitting from
-    `xero_last_synced`, and the relaxed creation gate.
 - **Editing a purchase order's supplier after creation.** v1 allowed it while the order
   was `draft`; v2's detail card shows the supplier read-only. `CompanyLookup`
   (`frontend/src/features/shared/company/`) is controlled by a whole

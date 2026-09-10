@@ -43,6 +43,22 @@ Delete this file when the branch merges and nothing is left in it.
 
 ## Not blocking, but this branch's to close
 
+- **Stocktake review resolution.** Add stocktake previews and conflict reconciliation, and
+  complete the approved regression coverage. Verify stock search and pagination, the write
+  contracts, and the history and retirement controls through the browser. Run the updated
+  browser specs including product-to-TBC price overrides, the full managed E2E gate, and the
+  live PO and item-import integrations.
+- **Complete the Xero detail refresh's live verification, against an approved call budget.**
+  Run the employee integration regression through the vendor-call ledger, then
+  `admin/xero.spec.ts` and the applicable timesheet browser checks including responsive
+  screenshots. Implementation and local checks are already in
+  [`rewrite-history.md`](rewrite-history.md); the owner authorised zero live calls for the
+  slice itself, so this needs a budget agreed first. Design is in
+  [the plan](plans/2026-09-09-xero-detail-refresh.md).
+- **Record this branch's four behaviour changes in
+  [`accepted-api-differences.yml`](accepted-api-differences.yml):** the list pagination
+  envelope, Xero's `BILLED` no longer meaning goods received, `xero_agreed_at` splitting from
+  `xero_last_synced`, and the relaxed creation gate.
 - **Close the code that still reads the superseded data shape (ADR 0059).** Each line below
   is one commit: the migration that rewrites the rows, then the branch and the nullability,
   together — a half-done item is worse than an untouched one, because the migration is meant
