@@ -3,12 +3,17 @@ import { expect, test } from '../fixtures/auth'
 import { autoId, createTestPurchaseOrder, waitForPoAutosave } from '../helpers'
 
 // GPT: letting Xero AUTHORISED overwrite a receipt would revert both visible
-// labels after this real push/pull, even though the receipt quantity survives.
-test('a fully received order stays received after its real Xero push and pull', async ({
+// labels, even though the receipt quantity survives.
+//
+// Opus: this used to click the admin Start Sync button to get Xero's answer
+// back, which pulled the whole organisation — every contact, invoice and quote
+// — to check one order, waited on a lock any scheduled run holds, and took
+// minutes. Xero answers a write by returning the order it stored, so the push
+// already carries its answer; `xero_status` and `xero_last_synced` below are
+// that answer, recorded by the push itself. Nothing is fetched.
+test('a fully received order keeps its receipt when Xero answers AUTHORISED', async ({
   authenticatedPage: page,
 }) => {
-  // GPT: the existing admin control runs the complete tenant sync, not just this PO.
-  test.setTimeout(600_000)
   const poUrl = await createTestPurchaseOrder(page)
   const poId = new URL(poUrl).pathname.split('/').at(-1)
   const detailPath = `/api/purchasing/purchase-orders/${poId}/`
@@ -23,6 +28,7 @@ test('a fully received order stays received after its real Xero push and pull', 
   expect(draftResponse.ok(), await draftResponse.text()).toBe(true)
   const draft: PurchaseOrderDetail = await draftResponse.json()
   expect(draft.xero_id).toBeNull()
+  expect(draft.xero_status).toBeNull()
 
   await autoId(page, 'PoSummaryCard-status-trigger').click()
   const receiptSaved = waitForPoAutosave(page)
@@ -30,35 +36,29 @@ test('a fully received order stays received after its real Xero push and pull', 
   await receiptSaved
   await expect(autoId(page, 'PoSummaryCard-status-trigger')).toHaveText('Fully Received')
 
-  // GPT: draft edits queue no push. The first identity therefore proves the
-  // received version reached Xero before the inbound sync is requested.
+  // The push is queued on commit, so this polls rather than waits on a
+  // response. Draft edits queue no push at all, so Xero's own status
+  // arriving is proof that the RECEIVED version is the one that reached it.
+  let pushed: PurchaseOrderDetail | null = null
   await expect
     .poll(
       async () => {
         const response = await page.request.get(detailPath)
         expect(response.ok(), await response.text()).toBe(true)
-        const po: PurchaseOrderDetail = await response.json()
-        return po.xero_id !== null
+        pushed = await response.json()
+        return pushed?.xero_status
       },
       { timeout: 90_000, intervals: [1000] },
     )
-    .toBe(true)
+    .toBe('AUTHORISED')
 
-  await page.goto('/admin/xero')
-  await expect(autoId(page, 'XeroPage-last-syncs-row-purchase_orders')).toBeVisible()
-  const syncButton = autoId(page, 'XeroPage-start-sync')
-  await expect(syncButton).toBeEnabled({ timeout: 300_000 })
-  const started = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === '/api/xero/sync/' &&
-      response.request().method() === 'POST',
-  )
-  await syncButton.click()
-  const syncResponse = await started
-  expect(syncResponse.status(), await syncResponse.text()).toBe(202)
-  const outcome = page.getByText(/^Xero sync (complete|aborted|failed)$/)
-  await expect(outcome).toBeVisible({ timeout: 300_000 })
-  await expect(outcome).toHaveText('Xero sync complete')
+  const echoed = pushed as PurchaseOrderDetail | null
+  expect(echoed?.xero_id).not.toBeNull()
+  expect(echoed?.xero_last_synced).not.toBeNull()
+
+  // Xero said AUTHORISED and we recorded it. The receipt is ours to keep:
+  // whether the goods arrived is a fact Xero does not hold (KAN-144).
+  expect(echoed?.status).toBe('fully_received')
 
   await page.goto(poUrl)
   await expect(autoId(page, 'PoSummaryCard-status-trigger')).toHaveText('Fully Received')

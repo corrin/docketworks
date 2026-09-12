@@ -81,6 +81,57 @@ class TestSyncRouting:
         assert po.xero_tenant_id == xero_tenant_id
         assert po.online_url is not None and external_id in po.online_url
 
+    def test_the_push_records_what_xero_answered(self, po: PurchaseOrder) -> None:
+        """Xero echoes the order it stored, so nothing has to fetch it back.
+
+        This is the whole reason the receipt spec no longer runs a tenant-wide
+        sweep: xero_status, raw_json and xero_last_synced are reachable from
+        the push itself.
+        """
+        external_id = str(uuid.uuid4())
+        echo = {"_purchase_order_id": external_id, "_status": "AUTHORISED"}
+        provider = make_po_provider(
+            DocumentResult(
+                success=True,
+                external_id=external_id,
+                number=po.po_number,
+                document_status="AUTHORISED",
+                raw_response={"line_items": [], "echo": echo},
+            )
+        )
+
+        make_po_manager(po, provider).sync_to_xero()
+
+        po.refresh_from_db()
+        assert po.xero_status == "AUTHORISED"
+        assert po.raw_json == echo
+        assert po.xero_last_synced is not None
+
+    def test_the_push_never_overwrites_the_local_receipt_status(self, po: PurchaseOrder) -> None:
+        """Xero calls a received order AUTHORISED; only Docketworks knows goods arrived.
+
+        Writing Xero's word into `status` is the KAN-144 defect: orders read
+        fully_received with no stock row and no cost line. The push records
+        Xero's answer beside ours, never over it.
+        """
+        po.status = "fully_received"
+        po.save(update_fields=["status"])
+        provider = make_po_provider(
+            DocumentResult(
+                success=True,
+                external_id=str(uuid.uuid4()),
+                number=po.po_number,
+                document_status="AUTHORISED",
+                raw_response={"line_items": [], "echo": {}},
+            )
+        )
+
+        make_po_manager(po, provider).sync_to_xero()
+
+        po.refresh_from_db()
+        assert po.status == "fully_received"
+        assert po.xero_status == "AUTHORISED"
+
     def test_existing_xero_id_routes_to_update(self, po: PurchaseOrder) -> None:
         existing_id = str(uuid.uuid4())
         po.xero_id = existing_id

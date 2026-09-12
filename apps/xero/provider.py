@@ -510,9 +510,15 @@ class XeroAccountingProvider:
             external_id=po_id,
             number=payload.po_number,
             online_url=online_url,
+            document_status=result_po.status,
             raw_response={
                 "line_items": result_po.to_dict().get("line_items", []),
-                "full": result_po.to_dict(),
+                # process_xero_data, not to_dict: this is what the manager
+                # stores as raw_json, and the inbound sync stores the same
+                # object through the same function. Two shapes in one column
+                # would mean every reader had to know which writer produced
+                # the row it is holding.
+                "echo": process_xero_data(result_po),
             },
         )
 

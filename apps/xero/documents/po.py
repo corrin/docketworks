@@ -15,7 +15,7 @@ from django.db import transaction
 from django.utils import timezone
 from pydantic import BaseModel, TypeAdapter
 
-from apps.accounting.types import DocumentLineItem, POPayload
+from apps.accounting.types import DocumentLineItem, DocumentResult, POPayload
 from apps.accounts.models import Staff
 from apps.core.errors import persist_app_error
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
@@ -194,20 +194,31 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
         )
 
     @transaction.atomic
-    def _save_po_with_xero_data(
-        self,
-        xero_id: str | None,
-        online_url: str | None,
-        *,
-        snapshot: POPushSnapshot,
-        response_lines: object,
-    ) -> None:
-        """Store document identity, acknowledging lines only on the sent version."""
+    def _save_po_with_xero_data(self, result: DocumentResult, *, snapshot: POPushSnapshot) -> None:
+        """Store what Xero echoed, acknowledging lines only on the sent version.
+
+        Opus: Xero answers a write by returning the order it stored, so the
+        push already holds the authoritative copy and nothing has to go back
+        and ask for it. Keeping only the identity out of that answer was what
+        left `xero_status`, `raw_json` and `xero_last_synced` reachable solely
+        through the whole-organisation sweep — which is why the receipt spec
+        ran one to check a single order.
+
+        `status` is deliberately NOT written here. The local workflow status is
+        what this push just sent, and whether goods arrived is a fact only
+        Docketworks holds; the inbound transform owns the rule that protects it
+        (KAN-144), and a second copy of that rule here would be a second place
+        to get it wrong.
+        """
+        echoed = result.raw_response or {}
         po = PurchaseOrder.objects.select_for_update().get(pk=self.purchase_order.pk)
-        po.online_url = online_url
-        fields = ["online_url"]
-        if xero_id and xero_id != ZERO_UUID:
-            po.xero_id = xero_id
+        po.online_url = result.online_url
+        po.xero_status = result.document_status
+        po.raw_json = echoed.get("echo")
+        po.xero_last_synced = timezone.now()
+        fields = ["online_url", "xero_status", "raw_json", "xero_last_synced"]
+        if result.external_id and result.external_id != ZERO_UUID:
+            po.xero_id = result.external_id
             po.xero_tenant_id = get_tenant_id()
             fields.extend(["xero_id", "xero_tenant_id"])
         po.save(update_fields=fields)
@@ -215,6 +226,7 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
         if po.updated_at != snapshot.version:
             logger.info("PO %s changed during push; line IDs and agreement deferred", po.id)
             return
+        response_lines = echoed.get("line_items")
         if response_lines is not None:
             returned = TypeAdapter(list[POResponseLine]).validate_python(response_lines)
             self._update_line_item_ids_from_response(returned, snapshot.lines)
@@ -270,15 +282,7 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
                     "status": result.status_code or 500,
                 }
 
-            response_lines = None
-            if result.raw_response is not None and "line_items" in result.raw_response:
-                response_lines = result.raw_response["line_items"]
-            self._save_po_with_xero_data(
-                result.external_id,
-                result.online_url,
-                snapshot=snapshot,
-                response_lines=response_lines,
-            )
+            self._save_po_with_xero_data(result, snapshot=snapshot)
 
             return {  # noqa: TRY300 -- returns a value built across the try body
                 "success": True,
