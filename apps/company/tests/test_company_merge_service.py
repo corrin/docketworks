@@ -14,7 +14,7 @@ from apps.company.services.company_merge_service import (
     merge_companies,
     reassign_company_fk_records,
 )
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import (
     make_bill,
     make_credit_note,

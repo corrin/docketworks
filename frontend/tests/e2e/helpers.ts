@@ -1,4 +1,4 @@
-import type { Locator, Page, Response } from '@playwright/test'
+import type { Browser, Locator, Page, Response } from '@playwright/test'
 import { expect, test } from '@playwright/test'
 import { appendFileSync, existsSync, mkdirSync } from 'fs'
 import path from 'path'
@@ -501,16 +501,25 @@ export async function createTestPurchaseOrder(page: Page): Promise<string> {
   const savePromise = page.waitForResponse(
     (response) =>
       response.url().includes('/api/purchasing/purchase-orders') &&
-      response.request().method() === 'POST' &&
-      response.status() === 201,
+      response.request().method() === 'POST',
     { timeout: 30000 },
   )
 
   await autoId(page, 'PoCreateView-save').click()
-  await savePromise
+  const saved = await savePromise
+  expect(saved.status(), await saved.text()).toBe(201)
 
   // Wait for redirect to PO form
   await page.waitForURL(/\/purchasing\/po\/[a-f0-9-]+$/, { timeout: 15000 })
+
+  // Opus: the URL changes before the detail route's lazy chunk has mounted, and
+  // PoSummaryCard renders two separate trees either side of mode === 'detail'.
+  // A caller that acts on the returned URL straight away is therefore acting on
+  // the CREATE tree, which the transition then unmounts underneath it — the
+  // pickup-address modal opened, fired its query, and was torn down mid-flight,
+  // which the trace shows as an aborted request. Print only exists on the
+  // detail view, so waiting for it is waiting for the tree the caller means.
+  await autoId(page, 'PoDetailView-print').waitFor({ timeout: 15000 })
 
   return page.url()
 }
@@ -520,13 +529,13 @@ export async function createTestPurchaseOrder(page: Page): Promise<string> {
  * upserts alike) to complete successfully.
  */
 export async function waitForPoAutosave(page: Page): Promise<void> {
-  await page.waitForResponse(
+  const saved = await page.waitForResponse(
     (response) =>
       response.url().includes('/api/purchasing/purchase-orders/') &&
-      response.request().method() === 'PATCH' &&
-      response.status() === 200,
+      response.request().method() === 'PATCH',
     { timeout: 10000 },
   )
+  expect(saved.status(), await saved.text()).toBe(200)
 }
 
 /**
@@ -710,4 +719,38 @@ export async function addAdjustmentCostLine(
   const savePromise = waitForAutosave(page)
   await page.getByRole('heading', { name: sectionHeading }).click()
   await savePromise
+}
+
+/** Saved rows keep the same relative order across writes and independent page loads. */
+export async function expectSavedRowOrder(page: Page, ids: readonly string[]): Promise<void> {
+  const selector = ids.map((id) => `[data-row-id="${id}"]`).join(',')
+  await expect
+    .poll(() =>
+      page
+        .locator(selector)
+        .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-row-id'))),
+    )
+    .toEqual(ids)
+}
+
+/** A fresh authenticated context must receive the same saved order from the server. */
+export async function expectSavedRowOrderInNewSession(
+  page: Page,
+  browser: Browser,
+  ids: readonly string[],
+): Promise<void> {
+  const context = await browser.newContext({ storageState: await page.context().storageState() })
+  try {
+    const other = await context.newPage()
+    const errors: string[] = []
+    other.on('pageerror', (error) => errors.push(error.message))
+    other.on('console', (message) => {
+      if (message.type() === 'error') errors.push(message.text())
+    })
+    await other.goto(page.url())
+    await expectSavedRowOrder(other, ids)
+    expect(errors).toEqual([])
+  } finally {
+    await context.close()
+  }
 }

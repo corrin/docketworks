@@ -41,6 +41,8 @@ if TYPE_CHECKING:
     from psycopg import Connection
 
     from apps.accounts.models import Staff
+    from apps.company.models import Company
+    from apps.job.models import Job
 
 PASSWORD = "s3cret-Pass!"
 
@@ -384,6 +386,49 @@ def _docketworks_prereqs(request: pytest.FixtureRequest) -> None:
     seed_docketworks_prereqs()
 
 
+@pytest.fixture(autouse=True)
+def _committed_database(request: pytest.FixtureRequest) -> "Iterator[None]":
+    """Give transaction-contention tests their own disposable, migrated database.
+
+    Other connections cannot see rollback fixtures. Committed inventory history
+    cannot be flushed or deleted, so use Django's database creation/destruction
+    lifecycle and restore the worker's usual database afterward.
+    """
+    if request.node.get_closest_marker("committed_db") is None:
+        yield
+        return
+    if request.node.get_closest_marker("django_db") is not None:
+        raise ValueError("Use committed_db without django_db's rollback transaction.")
+
+    from unittest.mock import patch
+    from uuid import uuid4
+
+    from django.db import connection
+    from pytest_django.plugin import DjangoDbBlocker
+
+    from apps.company.tests.job_fixtures import seed_docketworks_prereqs
+
+    request.getfixturevalue("django_db_setup")
+    blocker = request.getfixturevalue("django_db_blocker")
+    if not isinstance(blocker, DjangoDbBlocker):
+        raise TypeError("The committed database requires pytest-django's database blocker.")
+    # Commits enqueue background work in production. Stub that dispatcher so
+    # eager Celery cannot run PDF/LLM jobs inside a transaction-contention test.
+    with blocker.unblock(), patch("celery.app.task.Task.apply_async"):
+        original_name = connection.settings_dict["NAME"]
+        original_test_name = connection.settings_dict["TEST"]["NAME"]
+        test_name = f"test_committed_{uuid4().hex}"
+        connection.settings_dict["TEST"]["NAME"] = test_name
+        try:
+            connection.creation.create_test_db(verbosity=0, autoclobber=True)
+            seed_docketworks_prereqs()
+            yield
+        finally:
+            if connection.settings_dict["NAME"] == test_name:
+                connection.creation.destroy_test_db(old_database_name=original_name, verbosity=0)
+            connection.settings_dict["TEST"]["NAME"] = original_test_name
+
+
 @pytest.fixture
 def office_staff() -> "Staff":
     """A staff member who may act on jobs. The default actor."""
@@ -426,11 +471,10 @@ def _authenticated(staff: "Staff") -> "Client":
     """
     from django.test import Client
 
-    from apps.core.auth import issue_refresh_token, jwt_cookie_config
+    from apps.accounts.tests.helpers import authenticate
 
     client = Client()
-    refresh = issue_refresh_token(staff)
-    client.cookies[jwt_cookie_config().access_name] = str(refresh.access_token)
+    authenticate(client, staff)
     return client
 
 
@@ -450,3 +494,29 @@ def api(office_staff: "Staff") -> "Client":
 def superuser_api(superuser: "Staff") -> "Client":
     """An authenticated superuser client, for the wider-visibility paths."""
     return _authenticated(superuser)
+
+
+@pytest.fixture
+def company() -> "Company":
+    """A company shared by cross-domain workflow tests."""
+    from apps.company.tests.factories import make_company
+
+    return make_company("Purchasing Test Company")
+
+
+@pytest.fixture
+def job(company: "Company", office_staff: "Staff") -> "Job":
+    """A customer job created through the supported model path."""
+    from apps.company.tests.job_fixtures import make_job
+
+    return make_job(company, office_staff, name="Purchasing Fixture Job")
+
+
+@pytest.fixture
+def stock_holding_job(company: "Company", office_staff: "Staff") -> "Job":
+    """The physical stock holding job shared by purchasing and Xero tests."""
+    from apps.company.tests.job_fixtures import make_job
+    from apps.purchasing.models import Stock
+
+    Stock._stock_holding_job = None
+    return make_job(company, office_staff, name=Stock.STOCK_HOLDING_JOB_NAME)

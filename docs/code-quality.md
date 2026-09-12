@@ -15,22 +15,22 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | metric | count |
 |---|---:|
 | type: ignore | 10 |
-| pragma: no cover | 14 |
+| pragma: no cover | 11 |
 | noqa (no rule code) | 0 |
 | @ts-ignore | 0 |
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 707 |
-| noqa: DJ001 | 168 |
-| noqa: PLC0415 | 132 |
-| noqa: E402 | 104 |
+| TOTAL suppressions | 711 |
+| noqa: DJ001 | 171 |
+| noqa: PLC0415 | 135 |
+| noqa: E402 | 106 |
 | noqa: PLR0913 | 46 |
 | noqa: ARG002 | 38 |
 | noqa: BLE001 | 34 |
-| noqa: ARG001 | 21 |
-| noqa: C901 | 19 |
-| noqa: S603 | 16 |
+| noqa: ARG001 | 22 |
+| noqa: C901 | 18 |
+| noqa: S603 | 17 |
 | noqa: TRY300 | 9 |
 | noqa: TRY004 | 8 |
 | noqa: DJ008 | 7 |
@@ -38,13 +38,13 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: PLR0911 | 6 |
 | noqa: RUF001 | 6 |
 | noqa: S105 | 5 |
-| noqa: S608 | 5 |
 | noqa: N815 | 4 |
 | noqa: S311 | 4 |
 | noqa: ARG005 | 3 |
 | noqa: N818 | 3 |
 | noqa: PLW0603 | 3 |
 | noqa: RUF012 | 3 |
+| noqa: S608 | 3 |
 | noqa: F401 | 2 |
 | noqa: N803 | 2 |
 | noqa: S108 | 2 |
@@ -70,8 +70,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 248 |
-| in docstrings | 418 |
+| in comments | 228 |
+| in docstrings | 379 |
 
 ## Exception handling
 
@@ -79,12 +79,12 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 417 |
-| except handlers | 453 |
-| re-raises or converts | 294 |
+| try statements | 419 |
+| except handlers | 451 |
+| re-raises or converts | 293 |
 | returns instead | 93 |
-| falls through | 52 |
-| continue/break in a loop | 13 |
+| falls through | 50 |
+| continue/break in a loop | 14 |
 | pass (silent) | 1 |
 
 ## Shim-shaped functions
@@ -103,8 +103,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 216 |
-| non-test functions | 2665 |
+| functions returning `X \| None` | 218 |
+| non-test functions | 2720 |
 
 ## Wire contract (response side)
 
@@ -112,7 +112,7 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 304 |
-| response properties | 1938 |
+| response schemas | 313 |
+| response properties | 2002 |
 | optional (pinned at zero) | 0 |
-| nullable | 418 |
+| nullable | 433 |

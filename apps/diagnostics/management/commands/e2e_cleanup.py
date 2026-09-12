@@ -4,17 +4,24 @@ The command is a dry run unless ``--confirm`` is supplied. Cross-domain
 cleanup belongs in diagnostics, which sits above the domain-app layer; putting
 it in core would invert the import contract merely for an operator tool.
 
-Fable: companies a spec created through the app exist in the Xero demo
-organisation too, and the incremental contact sync brings a deleted one back
-the next time its contact is touched — Xero contacts cannot be deleted, only
-archived, and the sync-window filter (apps/xero/e2e_artifacts.py) covers only
-objects changed inside a recorded run. So a confirmed run archives those
-contacts first and only then deletes locally: the production and read-only
-guards trip before any local row is gone. A company already archived in Xero is the
-organisation's mirror, not residue, and is left alone here and by the E2E
-preflight. The local step is skipped when nothing matches, never the Xero
-step: the database is clean after every normal run, and the residue that
-matters is in the organisation.
+Everything a spec creates through the app exists in the Xero demo organisation
+too — a contact per company, and the invoices, quotes and purchase orders
+raised against it — and the local rows are the only record of which Xero
+objects those are. So a confirmed run removes them from Xero FIRST and only
+then deletes locally, because the delete erases the ids the removal needs.
+
+Fable: driven from the local rows, never from a query against the
+organisation. The rejected alternative is asking Xero what looks like E2E
+residue, which is ``e2e_xero_sweep``'s job and a different question: this
+command answers "undo what this database's run did", and reading the answer
+off the rows that run wrote means the two can never disagree. It also means a
+hard-killed run is still covered — its dirty database is still sitting there,
+still naming every Xero id it created.
+
+A company already archived in Xero is the organisation's mirror, not residue,
+and is left alone here and by the E2E preflight. With no local rows there is
+nothing to remove in Xero either; reach for ``e2e_xero_sweep`` when the
+organisation holds residue this database has forgotten.
 
 E2E-seeded phone calls are recognised by a ``[TEST]`` description, like every
 other row a run creates. A call has no name to prefix, and its job and company
@@ -35,25 +42,17 @@ from apps.core.test_data import (
     LEGACY_E2E_PREFIXES,
     TEST_COMPANY_NAME,
     TEST_DATA_PREFIX,
-    is_e2e_name,
 )
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.crm.services.phone_call_service import delete_local_recording
+from apps.diagnostics.services.e2e_xero_residue import (
+    RemovalOutcome,
+    XeroResidue,
+    remove_residue_from_xero,
+)
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.process.models import Form, FormEntry, Procedure
-from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
-from apps.xero.contacts import archive_contacts_in_xero
-from apps.xero.operator_guards import assert_not_production_target, assert_xero_writes_enabled
-from apps.xero.seeding import XeroContactRef, get_all_xero_contacts
-
-
-def active_e2e_contacts(contacts: list[XeroContactRef]) -> list[XeroContactRef]:
-    """Return the contacts still to archive: E2E residue that is not yet archived."""
-    return [
-        contact
-        for contact in contacts
-        if contact.contact_status == "ACTIVE" and is_e2e_name(contact.name)
-    ]
+from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock, StockMovement
 
 
 class Command(BaseCommand):
@@ -104,21 +103,28 @@ class Command(BaseCommand):
         legacy_company_people = CompanyPersonLink.objects.filter(company__in=named_legacy_companies)
 
         test_company = Company.objects.filter(name=TEST_COMPANY_NAME)
-        test_company_jobs = Job.objects.filter(company__in=test_company)
-        test_company_people = CompanyPersonLink.objects.filter(company__in=test_company)
 
         # The named test company is seed data, not test residue: specs select
         # it by name and CompanyDefaults.test_company_name documents that it is
         # preserved during backports. Its E2E-created jobs and people are
-        # removed; the company row itself must survive.
+        # removed by the [TEST] name match above; the company row itself must
+        # survive.
+        #
+        # Opus: matching this company's dependants by foreign key instead was
+        # rejected. all_jobs drives the Xero invoice and quote deletions, and a
+        # Xero deletion is not something the database restore undoes, so a
+        # hand-made ordinarily-named job on this company would lose its Xero
+        # documents. The E2E preflight (checkSafeToTest) counts only
+        # [TEST]-named rows and could not have warned about one either. Every
+        # row a spec creates carries the prefix, so the name match loses
+        # nothing and leaves the preflight asking the same question this
+        # command answers.
         deletable_companies = (test_companies | legacy_companies).distinct()
         named_companies = (named_test_companies | named_legacy_companies).distinct()
         all_people_links = (
-            test_people | test_prefix_company_people | legacy_company_people | test_company_people
+            test_people | test_prefix_company_people | legacy_company_people
         ).distinct()
-        all_jobs = (
-            test_jobs | test_prefix_company_jobs | legacy_company_jobs | test_company_jobs
-        ).distinct()
+        all_jobs = (test_jobs | test_prefix_company_jobs | legacy_company_jobs).distinct()
 
         self.stdout.write("\n=== E2E Test Data ===\n")
         self._report_queryset("[TEST]-prefixed jobs", test_jobs, "name")
@@ -135,14 +141,6 @@ class Command(BaseCommand):
         self._report_queryset("Named E2E test company", test_company, "name")
         self._report_queryset("Legacy E2E company jobs", legacy_company_jobs, "name")
         self._report_queryset("Legacy E2E company people", legacy_company_people, "person__name")
-        self._report_queryset(
-            f"Jobs on test company ({TEST_COMPANY_NAME})", test_company_jobs, "name"
-        )
-        self._report_queryset(
-            f"People on test company ({TEST_COMPANY_NAME})",
-            test_company_people,
-            "person__name",
-        )
         self._report_queryset("Jobs on [TEST]-prefixed companies", test_prefix_company_jobs, "name")
         self._report_queryset(
             "People on [TEST]-prefixed companies",
@@ -160,6 +158,21 @@ class Command(BaseCommand):
         linked_po_lines = PurchaseOrderLine.objects.filter(job__in=all_jobs)
         linked_quote_sheets = QuoteSpreadsheet.objects.filter(job__in=all_jobs)
         linked_pos = PurchaseOrder.objects.filter(supplier__in=named_companies)
+
+        # A receipt turns an order line into stock, and the inventory ledger
+        # protects what it records (ADR 0058): the stock row protects its
+        # order line, every movement protects its stock, and a reversal
+        # protects the movement it reverses. So a run that receipted anything
+        # leaves a purchase order nothing can delete, which is what stranded
+        # the teardown after it had already removed the order from Xero.
+        # Scoped by the ORDER as well as the job: stock received to the
+        # workshop rather than to a job has no job to be found through.
+        run_po_lines = PurchaseOrderLine.objects.filter(
+            Q(purchase_order__in=linked_pos) | Q(job__in=all_jobs)
+        )
+        run_stock = Stock.objects.filter(source_purchase_order_line__in=run_po_lines)
+        run_movements = StockMovement.objects.filter(stock__in=run_stock)
+        reversing_movements = run_movements.filter(reverses__isnull=False)
 
         # The description is the whole rule. Matching on the call's job or
         # company instead would miss every call whose job and company have
@@ -203,7 +216,11 @@ class Command(BaseCommand):
             )
         )
 
-        self._archive_e2e_contacts_in_xero(confirm)
+        residue = self._collect_residue(
+            deletable_companies, linked_invoices, linked_quotes, linked_pos
+        )
+        self._report_residue(residue)
+
         if not confirm:
             if total == 0:
                 self.stdout.write("\nNo local test data found.")
@@ -221,7 +238,14 @@ class Command(BaseCommand):
             test_person_records.values_list("id", flat=True)
         )
 
+        # Before the Xero removal, not after: this refusal means the matched
+        # companies look like production data, and removing their documents
+        # from the organisation first would be the destruction it exists to
+        # prevent.
         self._refuse_protected_company_references(deletable_companies)
+
+        # Xero before the local delete, which erases the ids the removal needs.
+        self._report_removal(remove_residue_from_xero(residue, "e2e_cleanup"))
 
         self.stdout.write("\nDeleting...")
 
@@ -236,6 +260,12 @@ class Command(BaseCommand):
             self._delete_queryset("E2E phone calls", e2e_calls)
 
             self._delete_queryset("Invoices", linked_invoices)
+            # Reversals before the movements they reverse, movements before
+            # the stock they record, stock before the order line it came
+            # from: each step frees the next.
+            self._delete_queryset("Reversing stock movements", reversing_movements)
+            self._delete_queryset("Stock movements", run_movements)
+            self._delete_queryset("Receipted stock", run_stock)
             self._delete_queryset("Purchase orders", linked_pos)
             self._delete_queryset("Quotes", linked_quotes)
             self._delete_queryset("PO lines", linked_po_lines)
@@ -261,30 +291,70 @@ class Command(BaseCommand):
         call_command("sync_sequences")
         self.stdout.write("Sequences synced.\n\nDone.")
 
-    def _archive_e2e_contacts_in_xero(self, confirm: bool) -> None:
-        """Report the active E2E contacts in the organisation; archive them when confirmed.
+    def _collect_residue(
+        self,
+        companies: QuerySet[Company],
+        invoices: QuerySet[Invoice],
+        quotes: QuerySet[Quote],
+        purchase_orders: QuerySet[PurchaseOrder],
+    ) -> XeroResidue:
+        """Collect the Xero ids these local rows carry.
 
-        Runs before any local delete so the guards decide first; runs even
-        when the local database is clean, because after a normal run it is.
+        A purchase order or company with no id was never pushed — a draft
+        order, a prospect that has not reached Xero — and the organisation
+        holds nothing to remove for it.
         """
-        assert_not_production_target()
-        assert_xero_writes_enabled("e2e_cleanup")
+        return XeroResidue(
+            # Invoice.xero_id and Quote.xero_id are NOT NULL: a row exists only
+            # because Xero answered a create, so there is no unpushed case to
+            # filter. PurchaseOrder.xero_id and Company.xero_contact_id are
+            # nullable and the filters below are that difference, not guards.
+            invoices={str(invoice.xero_id): invoice.number for invoice in invoices},
+            # Quotes are labelled by their Xero id, not their number: the
+            # number column is nullable, and a label that is sometimes absent
+            # is worse in a refusal line than one that is always the value you
+            # would paste into Xero anyway.
+            quotes={str(quote.xero_id): str(quote.xero_id) for quote in quotes},
+            purchase_orders={
+                str(order.xero_id): order.po_number
+                for order in purchase_orders
+                if order.xero_id is not None
+            },
+            contacts={
+                company.xero_contact_id: company.name
+                for company in companies
+                if company.xero_contact_id
+            },
+        )
 
-        contacts = active_e2e_contacts(get_all_xero_contacts())
-        self.stdout.write(f"\n=== E2E contacts in Xero ===\nActive: {len(contacts)}")
-        for contact in contacts:
-            self.stdout.write(f"  - {contact.name}")
-        if not contacts or not confirm:
+    def _report_residue(self, residue: XeroResidue) -> None:
+        """Print what the run left in the organisation, before touching it."""
+        self.stdout.write("\n=== E2E residue in Xero ===")
+        if residue.is_empty():
+            self.stdout.write("  Nothing: no local row names a Xero object.")
             return
+        for label, entries in (
+            ("Invoices to delete", residue.invoices),
+            ("Quotes to delete", residue.quotes),
+            ("Purchase orders to delete", residue.purchase_orders),
+            ("Contacts to archive", residue.contacts),
+        ):
+            if entries:
+                self.stdout.write(f"  {label}: {len(entries)}")
 
-        outcome = archive_contacts_in_xero([contact.contact_id for contact in contacts])
-        names = {contact.contact_id: contact.name for contact in contacts}
-        for contact_id, reason in outcome.refused.items():
-            # Fable: reported, not raised. Xero refuses to archive a contact with
-            # transactions against it, which no cleanup can change; failing here
-            # would strand every E2E reset on one spec's authorised PO.
-            self.stdout.write(self.style.WARNING(f"Xero refused {names[contact_id]}: {reason}"))
-        self.stdout.write(self.style.SUCCESS(f"Archived {len(outcome.archived)} contacts in Xero."))
+    def _report_removal(self, outcome: RemovalOutcome) -> None:
+        """Print what Xero accepted and what it refused."""
+        for kind, count in outcome.removed.items():
+            self.stdout.write(self.style.SUCCESS(f"  Xero: removed {count} {kind}(s)."))
+        for refusal in outcome.refused:
+            # Reported, not raised. Xero declines to remove a document past the
+            # state it allows removing from, which no cleanup can undo, and
+            # failing here would strand every later run on one spec's leftover.
+            self.stdout.write(
+                self.style.WARNING(
+                    f"  Xero refused {refusal.kind} {refusal.label}: {refusal.reason}"
+                )
+            )
 
     def _refuse_protected_company_references(self, companies: QuerySet[Company]) -> None:
         """Refuse deletion when a company holds PROTECT references not cleaned here.

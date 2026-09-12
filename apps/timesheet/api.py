@@ -36,6 +36,7 @@ from ninja import Router
 from ninja.errors import HttpError
 from ninja.responses import Status
 
+from apps.accounts.auth import authenticated_staff
 from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
 from apps.job.models import Job
@@ -92,19 +93,6 @@ def _parse_date(raw: str) -> date:
 def _validation_message(exc: DjangoValidationError) -> str:
     """Flatten a model/pipeline ValidationError into a single message (house pattern)."""
     return "; ".join(exc.messages)
-
-
-def authenticated_staff(request: HttpRequest) -> Staff:
-    """Return the authenticated staff member (the auth class guarantees one).
-
-    Fable: Public rather than module-private: ``leave_api`` carried a verbatim
-    copy named ``_actor``, and one router's guard drifting from the other's is
-    exactly the sibling-implementation failure ADR 0039 exists to prevent.
-    """
-    user = request.user
-    if not isinstance(user, Staff):  # pragma: no cover - guaranteed by the auth class
-        raise HttpError(401, "Authentication credentials were not provided.")
-    return user
 
 
 # ── Daily ────────────────────────────────────────────────────────────────

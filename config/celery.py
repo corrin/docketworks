@@ -106,6 +106,11 @@ app.conf.beat_schedule = _with_periodic_task_headers(
             "task": "apps.xero.tasks.reconcile_purchase_orders_to_xero",
             "schedule": crontab(minute="45"),
         },
+        "xero_detail_refresh": {
+            "task": "apps.xero.tasks.xero_regular_sync_task",
+            "schedule": crontab(minute="50", hour="15"),
+            "kwargs": {"detail_refresh": True},
+        },
         "xero_30_day_sync_task": {
             "task": "apps.xero.tasks.xero_30_day_sync_task",
             "schedule": crontab(minute="0", hour="2", day_of_week="6"),

@@ -179,7 +179,7 @@ class LoginRequiredMiddleware:
 class ResourceVersionMiddleware:
     """Preserve strong OCC tokens when gzip weakens representation ETags."""
 
-    _RESOURCE_ETAG_PREFIXES: ClassVar[tuple[str, ...]] = ('"job:', '"po:')
+    _RESOURCE_ETAG_PREFIXES: ClassVar[tuple[str, ...]] = ('"job:', '"po:', '"stocktake:')
 
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
         """Store the next callable, per the Django middleware protocol."""

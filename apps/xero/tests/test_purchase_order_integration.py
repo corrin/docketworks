@@ -35,7 +35,10 @@ from apps.accounting.registry import get_provider
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.services.company_rest_service import CompanyRestService
-from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
+from apps.job.models import Job
+from apps.job.models.costing import CostLine
+from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
+from apps.purchasing.tests.factories import receive_po_line
 from apps.xero.auth import get_tenant_id
 from apps.xero.documents.po import XeroPurchaseOrderManager
 from apps.xero.models import XeroAccount
@@ -348,3 +351,73 @@ def test_a_supplier_without_a_xero_contact_is_refused_before_the_call(
     assert manager.can_sync_to_xero() is False
     with pytest.raises(ValueError, match="not linked to Xero"):
         manager.validate_for_xero_sync()
+
+
+@pytest.mark.usefixtures("synced_accounts")
+@pytest.mark.parametrize(
+    "receipt", [(Decimal("1"), "partially_received"), (Decimal("3"), "fully_received")]
+)
+def test_recorded_receipt_survives_a_real_xero_round_trip(
+    xero_supplier: Company,
+    pushing_staff: Staff,
+    job: Job,
+    stock_holding_job: Job,
+    receipt: tuple[Decimal, str],
+) -> None:
+    """GPT: a real AUTHORISED pull must not reopen material already received and costed."""
+    quantity, expected_status = receipt
+    po = _pushed_order(xero_supplier, pushing_staff)
+    line = po.po_lines.get()
+    po = receive_po_line(line, quantity, job, stock_holding_job, pushing_staff)
+    stocks = Stock.objects.filter(source_purchase_order_line=line)
+    costs = CostLine.objects.filter(ext_refs__purchase_order_line_id=str(line.id))
+    stock_before = list(stocks.values())
+    cost_before = list(costs.values())
+    assert stock_before and cost_before
+
+    result = XeroPurchaseOrderManager(purchase_order=po, staff=pushing_staff).sync_to_xero()
+    assert result["success"], result
+    po.refresh_from_db()
+    assert po.xero_agreed_at is not None and po.xero_agreed_at >= po.updated_at
+    _pull_back(po)
+
+    line.refresh_from_db()
+    assert po.xero_status == "AUTHORISED", "the assertion must read the accepted status from Xero"
+    assert po.status == expected_status
+    assert line.received_quantity == quantity
+    assert list(stocks.values()) == stock_before
+    assert list(costs.values()) == cost_before
+
+
+@pytest.mark.usefixtures("synced_accounts")
+def test_line_order_and_identity_survive_a_real_xero_round_trip(
+    xero_supplier: Company, pushing_staff: Staff
+) -> None:
+    """The supplier must receive the same ordered lines the office sees."""
+    po = PurchaseOrder.objects.create(
+        supplier=xero_supplier,
+        created_by=pushing_staff,
+        status="draft",
+        po_number=f"TEST-{uuid.uuid4().hex[:10]}",
+        reference="[TEST] line order",
+    )
+    for index in range(8):
+        PurchaseOrderLine.objects.create(
+            purchase_order=po,
+            description=f"[TEST] ordered line {index + 1}",
+            quantity=1,
+            unit_cost=2,
+        )
+    before = list(po.po_lines.values_list("id", "created_at"))
+    descriptions = list(po.po_lines.values_list("description", flat=True))
+    result = XeroPurchaseOrderManager(purchase_order=po, staff=pushing_staff).sync_to_xero()
+    assert result["success"], result
+    po.refresh_from_db()
+    try:
+        _pull_back(po)
+        assert po.raw_json is not None
+        assert [line["_description"] for line in po.raw_json["_line_items"]] == descriptions
+        assert list(po.po_lines.values_list("id", "created_at")) == before
+    finally:
+        result = XeroPurchaseOrderManager(purchase_order=po, staff=pushing_staff).delete_document()
+        assert result["success"], result

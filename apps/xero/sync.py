@@ -11,7 +11,8 @@ import logging
 import time
 from collections.abc import Callable, Iterator, Sequence
 from datetime import timedelta
-from typing import Any, TypedDict
+from functools import partial
+from typing import Any, Literal, TypedDict
 from uuid import UUID
 
 from django.conf import settings
@@ -49,6 +50,7 @@ from apps.xero.payroll_sync import (
     sync_xero_pay_items,
 )
 from apps.xero.stock_sync import get_xero_items
+from apps.xero.sync_service import detail_refresh_due
 from apps.xero.transforms import (
     sync_accounts,
     sync_companies,
@@ -255,6 +257,8 @@ def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported 
         items = entities if isinstance(entities, list) else getattr(entities, xero_entity_type)
 
         if not items:
+            if xero_entity_type == "employees":
+                sync_function([], xero_tenant_id)
             break
 
         # Drop objects a finished E2E run created in Xero. Filtered here rather
@@ -342,14 +346,16 @@ EntityConfig = tuple[
 ]
 
 
-def _sync_employee_items(items: list[Any], _tenant_id: str) -> None:
+def _sync_employee_items(
+    items: list[Any], _tenant_id: str, *, refresh_details: bool = False
+) -> None:
     """Validate the generic registry boundary, then call the exact employee contract."""
     snapshots: list[PayrollEmployeeSnapshot] = []
     for item in items:
         if not isinstance(item, PayrollEmployeeSnapshot):
             raise TypeError("Employee sync registry returned an unexpected item type")
         snapshots.append(item)
-    sync_employees(snapshots)
+    sync_employees(snapshots, detail_refresh_tenant_id=_tenant_id if refresh_details else None)
 
 
 def _persist_pay_slips(items: list[Any], tenant_id: str) -> int:
@@ -491,8 +497,63 @@ def _resolve_api_method(api_method: str) -> Callable[..., Any]:
     return method
 
 
+#: Xero's page size for the paged reads below; a shorter page means the last one.
+XERO_PAGE_SIZE = 100
+
+
+def iter_xero_entities(entity_name: str) -> Iterator[Any]:
+    """Yield every entity of an ENTITY_CONFIGS type from Xero, page by page.
+
+    The one implementation of "read a whole entity type out of Xero", shared
+    by the seed's existence lookup and the E2E residue sweep. It reuses
+    ENTITY_CONFIGS for API-method resolution, pagination mode and params, so
+    every reader reaches Xero exactly the way the sync engine does; the
+    alternative each caller reached for first was its own `while True` around
+    its own `page` counter, differing on the quirks below.
+
+    Unlike ``sync_xero_data`` this advances no cursor, persists nothing and
+    suppresses no E2E artifact: it answers "what does the organisation hold",
+    which is the question a caller outside the sync loop is asking.
+
+    ``Any`` is the SDK seam: ENTITY_CONFIGS keys a different untyped SDK model
+    per entity, and each caller narrows immediately to the fields it reads.
+    """
+    xero_type, _, _, api_method, _, config_params, pagination_mode = ENTITY_CONFIGS[entity_name]
+    api_func = _resolve_api_method(api_method)
+
+    params: dict[str, Any] = {"xero_tenant_id": get_tenant_id()}
+    # The same param quirk the sync loop applies above: get_quotes and
+    # get_accounts accept `page` but not `page_size`. Their pages are
+    # Xero-fixed at 100, which is XERO_PAGE_SIZE, so the short-page
+    # termination below still holds for them.
+    if pagination_mode == "page" and entity_name not in ["quotes", "accounts"]:
+        params["page_size"] = XERO_PAGE_SIZE
+    if config_params:
+        params.update(config_params)
+
+    page = 1
+    while True:
+        if pagination_mode == "page":
+            params["page"] = page
+
+        entities = api_func(**params)
+        if entities is None:
+            raise ValueError(f"API returned None for {entity_name}")
+
+        items = entities if isinstance(entities, list) else getattr(entities, xero_type)
+        if not items:
+            return
+
+        yield from items
+        logger.info("Fetched %d %s from page %d", len(items), entity_name, page)
+
+        if len(items) < XERO_PAGE_SIZE or pagination_mode != "page":
+            return
+        page += 1
+
+
 def sync_all_xero_data(
-    use_latest_timestamps: bool = True,
+    mode: Literal["latest", "deep", "details"] = "latest",
     days_back: int = 30,
     entities: Sequence[str] | None = None,
     force: bool = False,
@@ -516,8 +577,11 @@ def sync_all_xero_data(
     if entities is None:
         entities = list(ENTITY_CONFIGS.keys())
 
+    if xero_tenant_id is None:
+        xero_tenant_id = get_tenant_id()
+
     # Get timestamps
-    if use_latest_timestamps:
+    if mode == "latest":
         timestamps = {
             entity: get_sync_cursor(entity, ENTITY_CONFIGS[entity][2]) for entity in ENTITY_CONFIGS
         }
@@ -541,6 +605,10 @@ def sync_all_xero_data(
         ) = ENTITY_CONFIGS[entity]
 
         api_func = _resolve_api_method(api_method)
+        if entity == "employees":
+            refresh = mode == "details" or detail_refresh_due(xero_tenant_id)
+            params = {"refresh_details": refresh}
+            sync_func = partial(_sync_employee_items, refresh_details=refresh)
 
         yield from sync_xero_data(
             xero_entity_type=xero_type,
@@ -550,7 +618,7 @@ def sync_all_xero_data(
             last_modified_time=timestamps[entity],
             additional_params=params,
             pagination_mode=pagination,
-            entity_key=entity if use_latest_timestamps else None,
+            entity_key=entity if mode == "latest" else None,
             xero_tenant_id=xero_tenant_id,
         )
 
@@ -631,7 +699,7 @@ def one_way_sync_all_xero_data(
 ) -> Iterator[XeroSyncEvent]:
     """Run a normal sync using the latest cursor timestamps."""
     yield from sync_all_xero_data(
-        use_latest_timestamps=True,
+        mode="latest",
         entities=entities,
         force=force,
         xero_tenant_id=xero_tenant_id,
@@ -642,12 +710,12 @@ def deep_sync_xero_data(
     days_back: int = 30, entities: Sequence[str] | None = None
 ) -> Iterator[XeroSyncEvent]:
     """Perform a deep synchronisation over a time window."""
-    yield from sync_all_xero_data(
-        use_latest_timestamps=False, days_back=days_back, entities=entities
-    )
+    yield from sync_all_xero_data(mode="deep", days_back=days_back, entities=entities)
 
 
-def synchronise_xero_data() -> Iterator[XeroSyncEvent]:
+def synchronise_xero_data(
+    *, detail_refresh: bool = False, only_if_due: bool = False
+) -> Iterator[XeroSyncEvent]:
     """Yield progress events while performing a full Xero synchronisation."""
     # Before `sync_xero_pay_items` below, which is the first thing this
     # orchestrator spends Xero calls on and is not itself gated.
@@ -665,6 +733,15 @@ def synchronise_xero_data() -> Iterator[XeroSyncEvent]:
         # finish normally and emit sync_status:"success", silently hiding the
         # abort. Raising lets its XeroQuotaFloorReached branch emit "aborted".
         raise XeroQuotaFloorReached(f"Skipping sync: Xero day quota at floor ({floor})")
+
+    if detail_refresh:
+        tenant_id = get_tenant_id()
+        if only_if_due and not detail_refresh_due(tenant_id):
+            return
+        yield from sync_all_xero_data(
+            entities=["employees"], xero_tenant_id=tenant_id, mode="details"
+        )
+        return
 
     # v1 held a SECOND lock here ("xero_sync_lock" on the default cache).
     # Deleted: the default cache is per-process LocMem in v2, so it never

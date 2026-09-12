@@ -139,6 +139,9 @@ export function AppNavbar() {
             <NavMenuLink to="/purchasing/stock" automationId="AppNavbar-use-stock">
               Use Stock
             </NavMenuLink>
+            <NavMenuLink to="/purchasing/stocktakes" automationId="AppNavbar-stocktake">
+              Stocktake
+            </NavMenuLink>
           </NavMenu>
         )}
         {/* Office staff only, as in v1: every entry is company-wide revenue

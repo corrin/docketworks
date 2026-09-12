@@ -7,14 +7,21 @@ only here so model and response declarations cannot drift (ADR 0039).
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from ninja import Schema
-from pydantic import field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from apps.company.schemas import SupplierPickupAddressOut, clean_optional_email
-from apps.core.schemas import NullableText, ResponseSchema, omittable
+from apps.core.schemas import (
+    NonBlankText,
+    NullableText,
+    Quantity,
+    ResponseSchema,
+    UnitCost,
+    omittable,
+)
 from apps.job.schemas import CostLineOut
 
 # The one NullableText (ADR 0039/0040) lives in apps/core/schemas — company's
@@ -40,6 +47,11 @@ class StockSearchQuery(Schema):
     page_size: int = 50
     sort_by: str = "description"
     sort_dir: str = "asc"
+    stock_ids: Annotated[list[UUID], Field(max_length=100)] = Field(default_factory=list)
+    job_id: UUID | None = None
+    location: str = ""
+    countable: bool = False
+    include_inactive: bool = False
 
 
 class SupplierSearchQuery(Schema):
@@ -148,14 +160,15 @@ class PurchaseOrderLineOut(Schema):
     """Wire contract for PurchaseOrderLineOut."""
 
     id: UUID
+    created_at: datetime
     description: str
-    quantity: Decimal
+    quantity: Quantity
     dimensions: str | None
-    unit_cost: Decimal | None
+    unit_cost: Quantity | None
     price_tbc: bool
     supplier_item_code: str | None
     item_code: str | None
-    received_quantity: Decimal
+    received_quantity: Quantity
     metal_type: str | None
     alloy: str | None
     specifics: str | None
@@ -178,6 +191,8 @@ class PurchaseOrderDetail(Schema):
     expected_delivery: date | None
     online_url: str | None
     xero_id: UUID | None
+    xero_status: str | None
+    xero_last_synced: datetime | None
     pickup_address_id: UUID | None
     created_by_id: UUID | None
     supplier: str
@@ -376,6 +391,7 @@ class AllocationItem(ResponseSchema):
     """Wire contract for AllocationItem."""
 
     type: Literal["stock", "job"]
+    reversed: bool
     job_id: UUID
     job_name: str
     quantity: float
@@ -396,22 +412,21 @@ class PurchaseOrderAllocationsResponse(Schema):
     allocations: dict[str, list[AllocationItem]]
 
 
-class AllocationDeleteRequest(Schema):
-    """Wire contract for AllocationDeleteRequest."""
+class AllocationReversalRequest(Schema):
+    """Wire contract for AllocationReversalRequest."""
 
     allocation_type: Literal["job", "stock"]
     allocation_id: UUID
 
 
-class AllocationDeleteResponse(ResponseSchema):
-    """Wire contract for AllocationDeleteResponse."""
+class AllocationReversalResponse(ResponseSchema):
+    """Wire contract for AllocationReversalResponse."""
 
-    success: bool
-    message: str
-    deleted_quantity: float | None = None
-    description: str | None = None
-    job_name: str | None = None
-    updated_received_quantity: float | None = None
+    status: Literal["reversed", "already_reversed"]
+    reversed_quantity: Quantity
+    description: str
+    job_name: str
+    updated_received_quantity: Quantity
 
 
 class AllocationDetailsResponse(ResponseSchema):
@@ -422,7 +437,7 @@ class AllocationDetailsResponse(ResponseSchema):
     description: str
     quantity: float
     job_name: str
-    can_delete: bool
+    can_reverse: bool
     consumed_by_jobs: int | None = None
     location: str | None = None
     unit_cost: float | None = None
@@ -450,54 +465,38 @@ class StockItem(Schema):
     is_active: bool
     job_id: UUID | None
     times_used: int
+    inventory_version: int
+    can_count: bool
+    can_retire: bool
 
 
-class StockItemRequest(Schema):
-    """Stock-item create and full-update payload.
+class StockMetadataRequest(Schema):
+    """Editable identity metadata; inventory changes have separate audited workflows."""
 
-    The nullable text fields are ``NullableText`` (ADR 0040): ``""`` is a
-    validation 422 before the ``*_not_blank`` check constraints ever see it,
-    and ``null`` is how a client leaves one unset.
-    """
+    model_config = ConfigDict(extra="forbid")
 
-    description: str
-    quantity: Decimal
-    unit_cost: Decimal
-    source: str
+    description: Annotated[NonBlankText, Field(max_length=255)]
     item_code: NullableText = None
-    unit_revenue: Decimal | None = None
-    date: datetime | None = None
-    location: NullableText = None
-    metal_type: NullableText = None
-    alloy: NullableText = None
-    specifics: NullableText = None
-    is_active: bool = True
-
-
-class PatchedStockItemRequest(Schema):
-    """Partial stock-item update in which field presence is significant.
-
-    The first block maps to NOT NULL columns, so null is a 422 — the handler
-    used to drop it silently, which reported a refused edit as a success. The
-    ``NullableText`` block is the ADR 0040 set where null is precisely how a
-    caller clears the value, and ``unit_revenue`` is nullable for the same
-    reason.
-    """
-
-    description: str = omittable("")
-    quantity: Decimal = omittable(Decimal("0"))
-    unit_cost: Decimal = omittable(Decimal("0"))
-    source: str = omittable("")
-    # tz-aware even though it is never read: a naive datetime in a field the
-    # rest of the codebase treats as aware is a trap for whoever reads it next.
+    unit_revenue: UnitCost | None = None
     date: datetime = omittable(datetime.min.replace(tzinfo=UTC))
-    is_active: bool = omittable(False)
-    item_code: NullableText = None
-    unit_revenue: Decimal | None = None
     location: NullableText = None
     metal_type: NullableText = None
     alloy: NullableText = None
     specifics: NullableText = None
+
+
+class StockItemRequest(StockMetadataRequest):
+    """Create an empty manual identity at an explicit cost, including a deliberate zero."""
+
+    unit_cost: UnitCost
+    quantity: Literal[0] = 0
+    source: Literal["manual"] = "manual"
+
+
+class PatchedStockItemRequest(StockMetadataRequest):
+    """Change only metadata fields explicitly supplied by the caller."""
+
+    description: Annotated[NonBlankText, Field(max_length=255)] = omittable("")
 
 
 class StockConsumeRequest(Schema):

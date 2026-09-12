@@ -15,6 +15,7 @@ from apps.accounting.types import PayrollLeaveBalance
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
+from apps.core.errors import InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
@@ -196,9 +197,9 @@ def test_generic_cost_line_writes_refuse_managed_leave(
     )
     line = CostLine.objects.get(managed_by="leave")
 
-    with pytest.raises(ValueError, match="Timesheets → Leave"):
+    with pytest.raises(InvalidInputError, match="Timesheets → Leave"):
         job_service.update_cost_line(line, {"quantity": Decimal("4")})
-    with pytest.raises(ValueError, match="Timesheets → Leave"):
+    with pytest.raises(InvalidInputError, match="Timesheets → Leave"):
         job_service.delete_cost_line(line)
 
 

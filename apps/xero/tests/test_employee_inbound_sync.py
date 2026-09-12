@@ -1,5 +1,6 @@
 """Inbound payroll employees use the same atomic entity-sync contract."""
 
+import time
 from dataclasses import replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -8,10 +9,18 @@ from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
+from django.conf import settings
+from django.utils import timezone
 from xero_python.payrollnz import Employee, PayrollNzApi
 
 from apps.accounts.models import Staff, StaffPayrollTerm
+from apps.accounts.services.payroll_terms import salary_cost_rate
+from apps.core.models import CompanyDefaults
+from apps.job.models import CostLine, Job
+from apps.timesheet.services.workshop_timesheet_service import WorkshopEntryCreateData, create_entry
 from apps.xero import payroll_employees
+from apps.xero import sync as sync_engine
+from apps.xero.models import XeroDetailRefresh
 from apps.xero.payroll_employees import (
     PayBasis,
     PayrollEmployeeSnapshot,
@@ -393,3 +402,339 @@ def test_invalid_employee_email_aborts_before_the_sync_batch(
         )
 
     assert not Staff.objects.filter(xero_tenant_id="tenant-1").exists()
+
+
+@pytest.fixture
+def employee_api(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """The three payroll detail resources behind one list employee."""
+    api = MagicMock()
+    api.get_employees.return_value = SimpleNamespace(
+        employees=[
+            SimpleNamespace(
+                employee_id="employee-1",
+                first_name="Ana",
+                last_name="Silva",
+                email="ana.payroll@example.com",
+                start_date=date(2024, 2, 5),
+                end_date=None,
+                updated_date_utc=datetime(2026, 8, 18, 1, 2, tzinfo=UTC),
+            )
+        ],
+        pagination=SimpleNamespace(page_count=1),
+    )
+    api.get_employee_salary_and_wages.return_value = SimpleNamespace(
+        salary_and_wages=[
+            SimpleNamespace(
+                effective_from=date(2024, 2, 5),
+                status="ACTIVE",
+                payment_type="Hourly",
+                rate_per_unit=31.25,
+                annual_salary=None,
+                salary_and_wages_id="salary-1",
+            )
+        ],
+        pagination=SimpleNamespace(page_count=1),
+    )
+    api.get_employee_working_patterns.return_value = SimpleNamespace(
+        payee_working_patterns=[SimpleNamespace(payee_working_pattern_id="pattern-1")]
+    )
+    api.get_employee_working_pattern.return_value = SimpleNamespace(
+        payee_working_pattern=SimpleNamespace(
+            effective_from=date(2024, 2, 5),
+            working_weeks=[SimpleNamespace(**payroll_term().working_weeks[0])],
+        )
+    )
+    monkeypatch.setattr(payroll_employees, "PayrollNzApi", lambda _client: api)
+    monkeypatch.setattr(payroll_employees, "get_api_client", lambda: None)
+    return api
+
+
+def test_eighteen_unchanged_employees_need_one_list_call(employee_api: MagicMock) -> None:
+    employee_api.get_employees.return_value.employees = [
+        SimpleNamespace(
+            employee_id=f"employee-{n}",
+            first_name="Ana",
+            last_name=f"Silva{n}",
+            email=f"ana{n}@example.com",
+            start_date=date(2024, 2, 5),
+            end_date=None,
+            updated_date_utc=datetime(2026, 8, 18, 1, 2, tzinfo=UTC),
+        )
+        for n in range(18)
+    ]
+    first = payroll_employees.get_employees_for_sync(
+        xero_tenant_id="tenant-1", if_modified_since=""
+    )
+    assert len(employee_api.mock_calls) == 55
+    sync_employees(first.employees)
+    identities = set(StaffPayrollTerm.objects.values_list("id", flat=True))
+    employee_api.reset_mock()
+
+    second = payroll_employees.get_employees_for_sync(
+        xero_tenant_id="tenant-1", if_modified_since=""
+    )
+    sync_employees(second.employees)
+
+    assert len(employee_api.mock_calls) == 1
+    assert set(StaffPayrollTerm.objects.values_list("id", flat=True)) == identities
+
+
+@pytest.mark.parametrize("damage", ["missing", "rate", "pattern", "derived", "loading", "metadata"])
+def test_only_damaged_source_history_requires_detail_reads(
+    employee_api: MagicMock,
+    damage: str,
+) -> None:
+
+    incoming = replace(
+        snapshot("employee-1", "ana.payroll@example.com"), payroll_terms=(payroll_term(),)
+    )
+    sync_employees([incoming])
+    staff = Staff.objects.get(xero_user_id="employee-1")
+    term_id = staff.payroll_terms.get().id
+    if damage == "missing":
+        staff.payroll_terms.all().delete()
+    elif damage == "rate":
+        staff.payroll_terms.update(hourly_rate=Decimal("1"))
+    elif damage == "pattern":
+        staff.payroll_terms.update(working_weeks=[])
+    elif damage == "derived":
+        Staff.objects.filter(pk=staff.pk).update(base_wage_rate=1, wage_rate=1, pay_basis="salary")
+    elif damage == "loading":
+        defaults = CompanyDefaults.get_solo()
+        defaults.labour_cost_loading = Decimal("75")
+        defaults.save(update_fields=["labour_cost_loading"])
+    else:
+        employee_api.get_employees.return_value.employees[0].first_name = "Anna"
+    fetched = payroll_employees.get_employees_for_sync(
+        xero_tenant_id="tenant-1", if_modified_since=""
+    )
+    sync_employees(fetched.employees)
+    staff.refresh_from_db()
+
+    assert len(employee_api.mock_calls) == (4 if damage in {"missing", "rate", "pattern"} else 1)
+    assert staff.base_wage_rate == Decimal("31.25")
+    if damage in {"derived", "loading", "metadata"}:
+        assert staff.payroll_terms.get().id == term_id
+    if damage == "loading":
+        assert staff.wage_rate == Decimal("54.69")
+    if damage == "metadata":
+        assert staff.first_name == "Anna"
+
+
+def test_explicit_details_import_changed_pay_with_unchanged_employee_timestamp(
+    employee_api: MagicMock,
+) -> None:
+    original = replace(
+        snapshot("employee-1", "ana.payroll@example.com"), payroll_terms=(payroll_term(),)
+    )
+    sync_employees([original])
+    employee_api.get_employee_salary_and_wages.return_value.salary_and_wages[
+        0
+    ].rate_per_unit = 37.51
+
+    fetched = payroll_employees.get_employees_for_sync(
+        xero_tenant_id="tenant-1",
+        if_modified_since="",
+        refresh_details=True,
+    )
+    sync_employees(fetched.employees, detail_refresh_tenant_id="tenant-1")
+
+    staff = Staff.objects.get(xero_user_id="employee-1")
+    assert staff.base_wage_rate == Decimal("37.51")
+    assert staff.xero_last_modified == original.updated_date_utc
+    assert len(employee_api.mock_calls) == 4
+
+
+def test_future_terms_activate_locally_without_replacing_history(
+    employee_api: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    future = replace(payroll_term(hourly_rate=Decimal("42")), effective_from=date(2026, 10, 1))
+    sync_employees(
+        [
+            replace(
+                snapshot("employee-1", "ana.payroll@example.com"),
+                payroll_terms=(payroll_term(), future),
+            )
+        ]
+    )
+    identities = set(StaffPayrollTerm.objects.values_list("id", flat=True))
+    monkeypatch.setattr(timezone, "localdate", lambda: date(2026, 10, 2))
+
+    fetched = payroll_employees.get_employees_for_sync(
+        xero_tenant_id="tenant-1", if_modified_since=""
+    )
+    sync_employees(fetched.employees)
+
+    assert Staff.objects.get(xero_user_id="employee-1").base_wage_rate == Decimal("42")
+    assert len(employee_api.mock_calls) == 1
+    assert set(StaffPayrollTerm.objects.values_list("id", flat=True)) == identities
+
+
+@pytest.mark.parametrize("scheduled", [False, True])
+def test_detail_job_uses_employee_engine_and_commits_success(
+    employee_api: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+    scheduled: bool,
+) -> None:
+
+    monkeypatch.setattr(settings, "DEBUG", True)
+    monkeypatch.setattr(sync_engine, "get_valid_token", lambda: {"access_token": "test"})
+    monkeypatch.setattr(sync_engine, "get_tenant_id", lambda: "tenant-1")
+    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+    before = timezone.now()
+    events = list(sync_engine.synchronise_xero_data(detail_refresh=True, only_if_due=scheduled))
+
+    assert {event["entity"] for event in events} == {"employees"}
+    assert events[-1]["status"] == "Completed"
+    assert XeroDetailRefresh.objects.get(tenant_id="tenant-1").last_success_at >= before
+    assert len(employee_api.mock_calls) == 4
+
+
+def test_detail_success_is_atomic_with_employee_batch(monkeypatch: pytest.MonkeyPatch) -> None:
+
+    prior = timezone.now()
+    XeroDetailRefresh.objects.create(tenant_id="tenant-1", last_success_at=prior)
+    first = replace(
+        snapshot("employee-1", "ana.payroll@example.com"), payroll_terms=(payroll_term(),)
+    )
+    second = replace(first, employee_id="employee-2", email="bea@example.com")
+    apply = payroll_employees._apply_employee_change
+
+    def fail_second(
+        incoming: PayrollEmployeeSnapshot,
+        staff: Staff | None,
+        tenant: str,
+        checksum: str,
+    ) -> Staff:
+        if incoming.employee_id == "employee-2":
+            raise RuntimeError("second employee failed")
+        return apply(incoming, staff, tenant, checksum)
+
+    monkeypatch.setattr(payroll_employees, "_apply_employee_change", fail_second)
+    with pytest.raises(RuntimeError, match="second employee failed"):
+        sync_employees([first, second], detail_refresh_tenant_id="tenant-1")
+
+    assert not Staff.objects.filter(xero_tenant_id="tenant-1").exists()
+    assert XeroDetailRefresh.objects.get(tenant_id="tenant-1").last_success_at == prior
+
+
+def test_unchanged_and_empty_complete_batches_record_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+
+    incoming = replace(
+        snapshot("employee-1", "ana.payroll@example.com"), payroll_terms=(payroll_term(),)
+    )
+    sync_employees([incoming], detail_refresh_tenant_id="tenant-1")
+    old = XeroDetailRefresh.objects.get(tenant_id="tenant-1").last_success_at
+    later = old.replace(year=old.year + 1)
+    monkeypatch.setattr(timezone, "now", lambda: later)
+    term_id = StaffPayrollTerm.objects.get(staff__xero_user_id="employee-1").id
+    sync_employees([incoming], detail_refresh_tenant_id="tenant-1")
+    sync_employees([], detail_refresh_tenant_id="empty-tenant")
+
+    assert XeroDetailRefresh.objects.get(tenant_id="tenant-1").last_success_at == later
+    assert XeroDetailRefresh.objects.get(tenant_id="empty-tenant").last_success_at == later
+    assert StaffPayrollTerm.objects.get(staff__xero_user_id="employee-1").id == term_id
+
+
+def test_paged_pay_history_retains_future_salary_and_uses_working_hours(
+    employee_api: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+
+    CompanyDefaults.objects.update(labour_cost_loading=Decimal("20"))
+    first_page = employee_api.get_employee_salary_and_wages.return_value
+    first_page.pagination.page_count = 2
+    second_page = SimpleNamespace(
+        salary_and_wages=[
+            SimpleNamespace(
+                effective_from=date(2026, 10, 1),
+                status="ACTIVE",
+                payment_type="Salary",
+                rate_per_unit=None,
+                annual_salary=104000,
+                salary_and_wages_id="salary-2",
+            )
+        ],
+        pagination=SimpleNamespace(page_count=2),
+    )
+    employee_api.get_employee_salary_and_wages.side_effect = [first_page, second_page]
+    monkeypatch.setattr(timezone, "localdate", lambda: date(2026, 9, 9))
+    fetched = payroll_employees.get_employees_for_sync(
+        xero_tenant_id="tenant-1", if_modified_since=""
+    )
+    sync_employees(fetched.employees)
+    assert len(fetched.employees[0].payroll_terms) == 2
+    employee_api.reset_mock()
+    monkeypatch.setattr(timezone, "localdate", lambda: date(2026, 10, 2))
+
+    fetched = payroll_employees.get_employees_for_sync(
+        xero_tenant_id="tenant-1", if_modified_since=""
+    )
+    sync_employees(fetched.employees)
+    staff = Staff.objects.get(xero_user_id="employee-1")
+    assert staff.pay_basis == "salary"
+    assert staff.base_wage_rate == 0
+    assert salary_cost_rate(staff.payroll_terms.get(effective_from=date(2026, 10, 1))) == Decimal(
+        "60"
+    )
+    assert len(employee_api.mock_calls) == 1
+
+
+def test_imported_rate_prices_new_time_without_repricing_existing_lines(
+    employee_api: MagicMock,
+    job: "Job",
+) -> None:
+
+    CompanyDefaults.objects.update(labour_cost_loading=Decimal("20"))
+    incoming = replace(
+        snapshot("employee-1", "ana.payroll@example.com"), payroll_terms=(payroll_term(),)
+    )
+    sync_employees([incoming])
+    staff = Staff.objects.get(xero_user_id="employee-1")
+    payload: WorkshopEntryCreateData = {
+        "job_id": job.id,
+        "accounting_date": date(2026, 9, 9),
+        "hours": Decimal("1"),
+    }
+    old = create_entry(staff, payload)
+    assert CostLine.objects.get(pk=old["id"]).unit_cost == Decimal("37.50")
+    pay = employee_api.get_employee_salary_and_wages.return_value.salary_and_wages[0]
+    pay.rate_per_unit = 40
+    fetched = payroll_employees.get_employees_for_sync(
+        xero_tenant_id="tenant-1",
+        if_modified_since="",
+        refresh_details=True,
+    )
+    sync_employees(fetched.employees)
+    staff.refresh_from_db()
+    new = create_entry(staff, payload)
+
+    assert CostLine.objects.get(pk=new["id"]).unit_cost == Decimal("48")
+    assert CostLine.objects.get(pk=old["id"]).unit_cost == Decimal("37.50")
+
+
+def test_hourly_sync_catches_up_after_a_failed_detail_refresh(
+    employee_api: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "DEBUG", True)
+    monkeypatch.setattr(sync_engine, "get_valid_token", lambda: {"access_token": "test"})
+    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+    employee_api.get_employee_working_pattern.side_effect = RuntimeError("Xero unavailable")
+    with pytest.raises(RuntimeError, match="Xero unavailable"):
+        list(sync_engine.sync_all_xero_data(entities=["employees"], xero_tenant_id="tenant-1"))
+    assert not XeroDetailRefresh.objects.filter(tenant_id="tenant-1").exists()
+    assert not Staff.objects.filter(xero_tenant_id="tenant-1").exists()
+
+    employee_api.get_employee_working_pattern.side_effect = None
+    employee_api.reset_mock()
+    list(sync_engine.sync_all_xero_data(entities=["employees"], xero_tenant_id="tenant-1"))
+    success = XeroDetailRefresh.objects.get(tenant_id="tenant-1").last_success_at
+    assert len(employee_api.mock_calls) == 4
+    employee_api.reset_mock()
+    list(sync_engine.sync_all_xero_data(entities=["employees"], xero_tenant_id="tenant-1"))
+    assert len(employee_api.mock_calls) == 1
+    assert XeroDetailRefresh.objects.get(tenant_id="tenant-1").last_success_at == success

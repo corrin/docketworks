@@ -24,7 +24,7 @@ from typing import ClassVar, Literal
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import models
+from django.db import models, transaction
 from django.http import HttpRequest, HttpResponse
 from ninja import File, ModelSchema, Router, Schema
 from ninja.errors import HttpError
@@ -289,6 +289,7 @@ def _coordinate(value: float | None) -> Decimal | None:
     summary="Update some of the company defaults",
     tags=["company-defaults"],
 )
+@transaction.atomic
 def company_defaults_partial_update(
     request: HttpRequest, payload: CompanyDefaultsPatchIn
 ) -> CompanyDefaults:
@@ -318,6 +319,18 @@ def company_defaults_partial_update(
         # An empty PATCH body has nothing to apply; save(update_fields=None)
         # would fall back to a full-row write for zero benefit.
         return instance
+    # Opus: enable_xero_sync leaves the generic loop because it is a gate with a
+    # precondition, not a preference — set_xero_sync_enabled owns the rule that it
+    # cannot open against an unbound tenant, and a second copy of that check here
+    # would be the sibling implementation ADR 0039 forbids. Its InvalidInputError
+    # is mapped to 400 by the envelope. Two writers in one handler is why this is
+    # @transaction.atomic: without it, a body that opened the gate and then failed
+    # validation on another field would leave sync enabled.
+    if "enable_xero_sync" in supplied:
+        CompanyDefaults.set_xero_sync_enabled(enabled=supplied.pop("enable_xero_sync"))
+        instance.refresh_from_db(fields=["enable_xero_sync"])
+        if not supplied:
+            return instance
     for field, value in supplied.items():
         setattr(instance, field, value)
     if "google_place_id" in supplied:

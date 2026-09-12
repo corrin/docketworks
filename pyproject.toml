@@ -44,11 +44,6 @@ dependencies = [
     # rejects the result at employee-creation time.
     "python-stdnum>=2.1",
     "tinytag>=2.3.0",
-    # Main, not dev: scripts/ops/extract_v1_credentials.py decrypts v1's
-    # Fernet columns on the production host during cutover phase 0, in the
-    # `uv sync --frozen --no-dev` venv. Was only transitive before, which
-    # deptry rightly refuses (DEP003).
-    "cryptography>=46.0",
     # Main, not dev: platform.integrations.google.gmail (password-reset sender, imported
     # by apps/accounts/tasks.py at Celery worker boot) and the per-client
     # H&S onboarding command import_dropbox_hs_documents both run in the
@@ -61,6 +56,7 @@ dependencies = [
     "openai-agents[litellm]>=0.20.0",
     "mcp>=2.1.1",
     "asgiref>=3.12.1",
+    "pydantic-core>=2.46.4",
 ]
 
 [dependency-groups]
@@ -213,7 +209,7 @@ mypy_path = "stubs"
 # probe found a real defect in one: a tuple-keyed dict tested against a set of
 # strings, always false, silently ignoring the parity ledger. Code that decides
 # whether other code may merge should be checked at least as hard as the rest.
-files = ["config", "apps", "manage.py", "scripts"]
+files = ["config", "apps", "manage.py", "scripts", "adhoc"]
 
 # xero-python ships no py.typed. The modules we subclass or call directly have
 # hand-written stubs in stubs/xero_python/ (signature drift is caught by the
@@ -253,6 +249,7 @@ addopts = "-q -n auto --dist loadscope -m 'not integration'"
 # a bare_install test that quietly kept its seeded baseline would assert
 # against a world it was meant to exclude.
 markers = [
+    "committed_db: disposable migrated database for real concurrent transactions; no flush",
     "bare_install: start from an empty database (instance provisioning only)",
     "integration: calls a real external system (ADR 0050); never runs in CI",
 ]

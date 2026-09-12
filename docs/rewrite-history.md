@@ -1,5 +1,350 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-12 — One number, one person: the phone rule was wrong, not the data
+
+Owner scan of production. Ten phone numbers are held by more than one company. One is an
+own endpoint mis-filed as a client and gets deleted; three are duplicate contacts and merge
+in Xero; one is unresolved. **Five are not faults.** Each is one person running several
+real accounts off one mobile — Josh Loughnan, Suranga Kariyawasam, Derek Skaife — and
+owner-operators are ordinary here, so more will keep arriving through the Xero sync.
+
+Dave's mobile across Guardsman and Kiwi Alarms is settled as legitimate: two entities, one
+owner, separate profit and loss, and no public record of the common ownership, which is why
+an August pass could not close it.
+
+The consequence for ADR 0059. "One number, one company" is the wrong rule for this customer
+base, and the grandfathering that softens it was chosen on purpose — the earlier decision
+record names Derek and Guardsman. Enforcing the rule as written would make five wrong edits
+before catching one real one. The rule to hold is **one number, one person, who may link to
+several companies**: it makes four of the five legal rather than grandfathered, so the
+exception disappears rather than being preserved, which is what the ADR is for.
+
+## 2026-09-12 — The Xero residue gate ran, and both halves hold
+
+Opus: ADR 0050's merge gate for the E2E cleanup had never executed, and the sweep had
+never removed anything — it died in discovery on a rate limit both times it was tried,
+so its removal path was unproven. `./scripts/ops/run_integration_tests.sh
+apps/diagnostics/tests/test_e2e_cleanup_integration.py` passed both tests in 116 seconds
+for 23 Xero calls.
+
+What that establishes, read back from the organisation rather than from return values:
+a cleanup deletes an invoice and then archives its contact, which Xero permits only in
+that order, and a sweep archives a contact no local row names — the hard-killed-run case
+the sweep exists for. The cost is far below the two 1000-call days earlier attempts spent,
+because the sweep now runs against an organisation the cleanup has just emptied.
+
+## 2026-09-12 — What Xero does with a purchase-order number, measured
+
+Opus: the purchase order is the only document whose number we choose — Xero allocates
+invoice and quote numbers and we mirror them back. Our numbers are `MAX(po_number) + 1`
+over the rows that exist, not a sequence, so a number comes round again whenever a row
+goes away. Nothing recorded what Xero does when it does. Nine calls against the demo
+organisation answered it.
+
+| sent | Xero's answer |
+|---|---|
+| a number a **live** order already holds | updates that order and returns its id, no error |
+| a number a **deleted** order holds | zero UUID, `Deleted PurchaseOrders cannot be updated` |
+| a rename of an already-deleted order | refused, same message |
+| a rename in the same update that sets `DELETED` | accepted, and the number is free again |
+
+Three consequences. The zero UUID is not a Xero quirk, it is that refusal, so recovering
+the id by searching the listing for the number could only ever find the deleted order that
+caused it — the search is gone. A duplicate number against a live order is the dangerous
+one, because it silently edits a different supplier's document and reports success. And a
+voided order must be renamed as it is voided, because afterwards is too late.
+
+## 2026-09-10 — A hundred contacts stood in for two thousand seven hundred
+
+Opus: `get_all_xero_contacts` made one `get_contacts` call and read the response. Xero
+answers that with a single page of 100. The demo organisation, restored from production,
+holds 2776 contacts across 28 pages, so every contact past the first hundred was invisible
+to both of its callers: the seed's by-name linker, which would then create a duplicate
+alongside a contact Xero already had, and the E2E archiver, which could only ever see a
+hundredth of the residue it exists to clear.
+
+The sync engine had the paging right all along — `ENTITY_CONFIGS` marks contacts `"page"`
+and the loop passes `page` and `page_size` — and the seed's own existence lookup had a
+second copy of that loop. So this was one concept with two implementations and one
+omission, which is the shape ADR 0039 names. `iter_xero_entities` is now the single paged
+read and all three callers go through it.
+
+Worth knowing next time: an unpaged Xero read does not fail, it under-reports, and a demo
+organisation small enough to fit in one page hides it completely. The symptom that finally
+showed it was a sweep reporting far less residue than the organisation obviously held.
+
+## 2026-09-10 — What one pass over the organisation costs
+
+Opus: `e2e_xero_sweep` reads every invoice, quote, purchase order and contact before it can
+say what is residue, so a dry run costs the same reads as a confirmed one. Two passes over
+the demo organisation took the development tenant's 1000-call day to zero, and the second
+stopped on `RateLimitException` during discovery. It had removed nothing, because discovery
+completes before removal starts — which is the property that makes the command safe to
+retry rather than something to be recovered from.
+
+The teardown path is not affected: it reads no Xero at all, driving from the local rows,
+and spends roughly two calls per document the run created.
+
+Worth knowing next time: on a day the E2E suite also has to run, go straight to
+`--confirm`. The dry run is for a fresh quota.
+
+## 2026-09-10 — Xero now owns the E2E user's pay rate
+
+Opus: `job-cost-entry-data.spec.ts` pins the E2E user's charged wage at 45 and asserts the
+labour line against that constant rather than against the response's own meta, deliberately,
+so a regression to a fallback wage source fails there instead of reconciling. It failed at
+45.01.
+
+The environment held a base wage of 37.51 against a 20% labour cost loading, which loads to
+45.01; the pinned 45 needs a base of 37.50, which is what
+`apps/accounts/fixtures/initial_data.json` sets. The environment stopped honouring that
+fixture because this branch's employee detail refresh writes `base_wage_rate` from the Xero
+payroll rate, so the demo organisation's 37.51 overwrote it during the day's seed and sync.
+
+That is the feature working. The consequence is that the prerequisite changed owners: the
+E2E user's pay rate now comes from Xero and the fixture is only its starting value. The
+owner corrected the demo organisation to 37.50 rather than moving the pin, keeping the
+source of truth where the app now says it lives, and the local row was set to match by hand
+because the day's Xero quota was nearly spent.
+
+Worth knowing next time: a drift in the demo organisation's payroll rate surfaces as a cost
+assertion failure in a spec that looks like it is about cost lines, and a restore from a
+snapshot taken before the correction brings the old rate back with it.
+
+The same spec's earlier failure — the item picker never opening — does not reproduce when
+the spec runs alone. It is load or accumulation dependent, and it is a different problem
+from this one.
+
+## 2026-09-10 — A disabled control is not a completed action
+
+Opus: the stocktake conflict-recovery spec was read, twice, as an operator silently losing
+work. It is not. The backend save is a full replace under `select_for_update` behind an
+`If-Match` precondition, so its only outcomes are 412 with nothing written or 200 with
+everything written; the screen has no server-to-draft effect to overwrite an edit, and every
+edit sets the dirty flag through one function. The spec read the row back too early.
+
+`Save draft` is disabled while `update.isPending`, so its disabled state doubles as its
+in-flight state and an assertion on it passes the instant the click leaves. The read that
+followed used a second connection and reached the database while the write's transaction was
+still open. The spec already had the right signal and used it four times elsewhere: `Post
+stocktake` becomes enabled only once the request finished and the form went clean, which
+cannot happen before the save was accepted. **A control whose disabled state is also its
+in-flight state can be asserted, but never awaited.**
+
+Found while tracing it, and real on its own: the acceptance path read the resource version
+out of the shared last-writer-wins ETag store and then fired an unfiltered, un-awaited
+`invalidateQueries()`. A refetch of the stocktake issued before a later write can land after
+it and restore the older revision, after which the next save fails a precondition nobody
+violated — a spurious conflict inside conflict recovery. The write now seeds the cache with
+the response it was handed rather than asking for it again, and posting refreshes stock
+through `refreshStock`, which already owns that data.
+
+Three mechanisms proposed for the cost-entry failure were all disproved, two from the trace
+and one from throwaway component tests: the create fired 2.1 seconds before the click, the
+trigger was focused and therefore not disabled, and `useDraftRows` already defers its commit
+precisely because a portalled popover is a DOM child of `body`. A harness mirroring the E2E
+helper — capturing the trailing row id, filling through a re-resolving locator, clicking the
+captured id, across two rows, with a create still in flight — opens the picker every time in
+both grids. The draft-to-server key swap is real and the team's own spec comment describes
+its consequences, but it is not what fails that spec, and it will not be treated as the cause
+without a browser reproduction.
+
+## 2026-09-10 — A coalesced empty list answered for three different states
+
+Opus: `JobPicker` read its status vocabulary as `query.data?.statuses ?? {}`. That one
+`??` answered for a request in flight, a request that failed, and a deployment with no
+statuses alike, and each answered "this job has no status". CLAUDE.md already names
+`?? fallback` as a claim that the model permits the bad case; this is the clearest live
+example the port has produced.
+
+Found by the full E2E suite, which had never run on this branch: the leave-settings job
+picker asserts every option carries a status, and the failure artefact settles the
+mechanism rather than suggesting it — Playwright's snapshot, captured after the assertion
+threw, shows the same option carrying the word the assertion had just failed to find.
+
+Machine load is not the cause, only the reason it was seen. The same fallback was hiding a
+harder failure in the unit suite, which runs with `onUnhandledRequest: 'error'`: three test
+files never served that endpoint, so the request failed in every one of them, the
+coalescing turned the failure into an empty map, and twelve tests passed against a request
+that never succeeded. Removing the coalescing failed all twelve at once. The spec had gone
+green nine times before.
+
+The same shape was found across kanban staff, process entry forms, person selection and
+leave, where an empty array stood in for a list that had not arrived. Two remedies were
+weighed. Where a component owns its query it reports its own pending and error states.
+Where a caller owns it, the caller resolves them before rendering, the way
+`FormEntriesPage` already did with guard clauses — so `EntryForm` takes a staff list it can
+trust rather than three parallel props that can disagree. Optional `staffLoading` and
+`staffError` props defaulting to false were written first and rejected: a caller that
+forgets them gets "nothing is wrong", which is the original defect moved one level up.
+
+## 2026-09-10 — The cutover empties a duplicated balance instead of refusing it
+
+Opus: production held one purchase order line whose stock identity still carried
+material a historical repair had already moved to a replacement identity. Eleven sheets
+were received, six were charged to job 96081 and 3.66 are drawn as booked positions, so
+1.34 remain — the identity read 6.29, a surplus of 4.95 sheets at $379.50, about $1,878.
+The cutover chain turns that into a refusal: openings mint a movement from the recorded
+balance, 0011 books a `receipt_opening` of balance plus drawn, and 0015 raises because the
+line then holds more evidence than it received. `deploy.sh` runs `migrate` with the
+services already stopped, so the refusal costs a half-migrated instance.
+
+The owner ruled that the deployment must correct it rather than stop on it, and that the
+surplus is a double count rather than lost material — nothing physically went missing, so
+the correction touches inventory only and books no cost anywhere. Migration
+`purchasing/0007_reconcile_duplicated_receipt_balances` now empties the duplicated balance
+before the openings are minted, so the ledger simply opens at the true quantity.
+Correcting afterwards was rejected: only a `stocktake` movement may move a balance, and
+the posting audit requires it to carry a stocktake line and an adjustment job this
+correction cannot honestly supply. An operator command before the deploy was rejected
+because the deploy runs unattended.
+
+The surplus is derived from the order line's received quantity against the evidence the
+cutover is about to book, never from a named identity (ADR 0049), and the derivation is
+the arithmetic 0015 refuses on, so the two cannot drift. `DUPLICATED_BALANCE_LIMIT = 5`
+refuses a systemic duplication, as do a surplus carried by other than exactly one identity
+and a surplus larger than the balance held. `audit_inventory_openings --preflight-only`
+runs the same projection read-only: it previously ran 0011's preflight alone, which passes
+while 0015 still refuses.
+
+Measured read-only against the live production database on 2026-09-10: one over-evidenced
+order line, a surplus of 4.950 sheets worth $1,878.525, carried by one identity and no
+other; 364 gapped lines, 0 unpriced gapped, 2,319 lines in total. Eight allocations name no
+surviving order line and one stock identity is mislabelled, both far under 0011's ceiling
+of twenty. Five of those eight name a line that has since been deleted and three carry no
+line reference at all; the preflight's left join leaves `pl.id` null for either shape, so
+both count against the ceiling, and a first measurement that filtered on the key being
+present reported five and understated it. The same projection on the local database, whose copy of that
+identity already read the corrected 1.34, reports 0 over-evidenced with the identical 364
+and 2,319, so the one balance is all that separates the two. 0015's `over_evidenced` guard
+had no test at all; it now has one, and the same fixture migrates clean once the
+reconciliation precedes it.
+
+The preflight could not run at the one moment it exists for. Its cutover checks read
+`purchasing_stockmovement`, which `purchasing/0006` creates, so on a database restored from
+production they failed on a relation that does not exist — found by rehearsing the runbook
+against a real restore. The projection reads only pre-cutover tables, so it now runs first
+and the command reports, from the migration record rather than by probing for a table, that
+the movement checks belong to `migrate`. Verified against the real absence: a production
+archive restored into a scratch database sits at `0001_initial` with no movement table, and
+the command there names the surplus — 11.00 received, 15.950 projected, 4.950 over — and
+then states the ledger tables are absent, rather than raising. The whole chain 0002 through
+0016 then applied to that production data with the balance landing on 1.340, reached by
+derivation and matching the figure worked out by hand from the repair's arithmetic.
+
+Production's purchasing app is still at `0001_initial`, not at 0005 as an earlier note in
+this branch said: 0002 through 0005 reached `main` after the 2026-09-05 promotion and are
+`PurchaseOrder.xero_status` changes alone, so this release applies 0002 through 0016 in one
+run and the ledger work sits on top of them unaffected.
+
+## 2026-09-09 — Employee details refresh without hourly payroll fan-out
+
+GPT: hourly employee imports now validate and reuse the canonical local term history,
+while the 15:50 schedule and Admin → Xero's **Refresh Xero details** action run the
+same employee-only refresh through the existing dispatcher, lock, worker and stream.
+A tenant-scoped successful-batch timestamp satisfies the latest configured-local-time
+boundary; hourly imports catch up a missed or failed refresh. The timestamp commits
+with the employee batch, including an unchanged or empty batch. Sync-info remains a
+local read.
+
+A source-history digest is separate from the complete employee checksum, so changing
+loading or activating a previously imported future term recalculates wages without
+refetching details. Existing term identities survive metadata and derived-wage changes,
+and terms are updated by effective date rather than deleted and recreated. New time
+uses refreshed rates; existing cost lines keep their recorded prices.
+
+The mocked 18-employee batch made 55 SDK requests for its initial import and one for
+its unchanged follow-up. Focused employee/dispatch regressions passed 61 tests,
+including DST boundaries, catch-up, atomic rollback, history retention, salary hours
+and actual timesheet entry pricing. The broader regression run passed 650 tests with
+one timestamp-precision assertion failure; the corrected assertion passed in that
+focused run. These measurements are local tests, not new vendor evidence.
+
+The generated API client and admin browser spec include the action and last-success
+field. The page uses the shared Button, QueryState and date-time formatter with its
+existing progress/error display. Live integration, browser execution and responsive
+screenshots remain unrun: the owner authorised zero Xero calls during this slice.
+The abandoned temporary employee probe was removed. Migration generation used an
+isolated schema connection because the dev database already had purchasing.0016
+applied without its purchasing.0015 dependency; no development data was repaired.
+
+
+## 2026-09-09 — Provisioning stripped the scanner's path into the sync root
+
+Scanned documents stopped reaching msm-prod because the instance's dropbox directory,
+which is that client's Maestral sync root, had lost group access. The office scanner
+delivers into the tree through its membership of the instance group and could no longer
+traverse the parent, while Maestral, systemd and disk all reported healthy. Provisioning
+forced mode 700 there.
+
+Two findings are worth keeping beyond the fix. `deploy.sh` never invokes `instance.sh`
+and changes no permissions except the app symlink's owner, so the reset comes from a
+`create` or `reconfigure` run and not from a deploy as first diagnosed. GNU chmod
+preserves a directory's setgid bit unless told to clear it, which is why the directory
+read 2700 rather than 0700 and why an earlier hand-applied 2770 left a trace of itself.
+
+The repository named no external writer anywhere, so the scanner's access was manual host
+state that no script recorded and no check asserted. KAN-360 moved the instance directory
+modes into one function, made the sync root 2770 with setgid, and gated the mode in
+`verify-instance.sh` and the CI-run server suite.
+
+## 2026-09-09 — Shared line identity and creation order
+
+The owner chose consistency across POs, job costs and timesheets: oldest creation
+time first, with UUID as the tie-breaker inside the existing business groups.
+[ADR 0057](adr/0057-line-identity-and-creation-order.md) records the shared contract.
+PO lines retain their UUIDs and gain read-only creation timestamps; historical
+timestamps remain NULL rather than being reconstructed. Model ordering now serves
+the APIs, cost grids, timesheet day projections, PDF line lists and Xero payloads.
+Timesheet sequence metadata remains stored but does not determine display order.
+
+The full backend suite passed 3,146 tests and the frontend suite passed all 659.
+Migration coverage verifies that existing PO line values and IDs survive, unknown
+dates remain unset, and new lines receive timestamps. The updated PDF golden
+and migration checks passed a further 104 focused backend tests.
+
+All 18 PO-operation, job-cost-entry and legacy-receipt browser tests passed,
+including the new PO and cost-line ordering regressions. All 15 stock-search,
+stocktake, timesheet-entry and keyboard-flow tests
+passed, including the new timesheet ordering regression. Raw stocktake test
+requests now use the application's strong resource-version parser; a compressed
+response's weak ETag is not a valid If-Match token. The shared timesheet helper
+uses the automatically opened next-row picker instead of toggling it closed.
+Cost-entry tests retain row IDs through refetches instead of acting on stale
+positions. Stock quantity is entered before consumption, and the resulting
+immutable cost evidence is asserted locked while its totals still reconcile.
+
+Live PO integration verification reached the configured 100-call Xero reserve:
+one test passed and six stopped with XeroQuotaFloorReached. The live line-order
+round trip, receipt-sync browser spec and full managed E2E gate still require
+fresh quota. The local inventory audit passed with 364 documented legacy gaps,
+and all 7,287 cost summaries matched their lines.
+
+## 2026-09-09 — Explicit legacy receipt gaps and local inventory repair
+
+The owner reaffirmed that missing historical data cannot be reconstructed
+accurately: preserve known amounts and references, and explain uncertainty in
+notes or descriptions. The existing private-manifest repair now handles absent
+PO-line references and orphan stock sources. Legacy receipt adjustments record
+the exact unexplained quantity separately from stock movements, with an existing
+PO note; they create no receipt, allocation or charge. Their immutable records
+protect PO-line deletion, and the audit still rejects additional discrepancies.
+The [repair runbook](inventory-legacy-repair.md) records preview, application and
+restore ordering.
+
+A backed-up local clone and then the local database passed the same rehearsal:
+one cost was relinked to its independently verified replacement, seven retained
+their booked values as ordinary adjustments, and one stock source was corrected
+with an explanatory description. After migration, 364 receipt gaps were recorded
+with notes under System Automation. All original cost identities, jobs, quantities,
+prices, accounting dates, stock balances and PO received quantities compared
+unchanged. Both inventory and cost-summary audits passed; 7,287 cost sets were
+checked. No production repair was applied.
+
+The focused repair/cutover/audit/restore run passed 33 tests; the full backend
+suite passed 3,138 tests. The legacy-receipt browser spec now passes, including
+its readable note, unchanged recorded quantity and absence of invented allocations.
+
 The rewrite's own record: rulings and their dates, findings whose value is the
 record rather than a rule, and measurements with no other owner. Read it when
 asking *why is it like this?*
@@ -17,6 +362,153 @@ seam comment at the code it constrains; this file links there rather than
 restating it. Nothing here is a task.
 
 ## Cutover
+
+**2026-09-08 — Incremental cost summaries and explicit recovery.**
+Cost-line saves/deletes now apply exact persisted contributions to the existing
+summary cache, including partial saves, stale instances and both sides of a
+transfer. Ordered job locks serialize incremental writes and explicit rebuilds.
+Quote copies, revision clearing and operator time transfers rebuild within their
+bulk transaction. Recovery checks are read-only by default; explicit repair
+preserves ledger rows and archived revisions, advances changed jobs' freshness,
+and requests the existing PDF reconciler after commit. Deployment and direct-SQL
+maintenance procedures are in [the operator runbook](cost-summary-maintenance.md).
+
+Six local instrumented posting cases used 700 physical items, 0/20/70 differences,
+and 0/1,000 historical adjustments. At 20 differences, posting took 1.86/1.93s
+with 1,444 queries and 0.031/0.032s in summary maintenance. At 70 differences it
+took 4.37/4.01s with 3,244 queries and 0.106/0.096s in summary maintenance. At zero
+differences it took 0.78/1.15s with 710 queries. Each pair is empty/existing history;
+these are individual cProfile/CaptureQueries measurements, not a production
+capacity guarantee. All postings and retries preserved the expected quantities,
+movements and totals. Background dispatch was stubbed in the committed-database
+fixture, so these timings exclude actual PDF/LLM execution and broker latency.
+
+Deliberately restoring a history aggregate caused all three 0/1,000/5,000-history
+regressions to fail. Removing the rebuild lock caused the committed-write race
+regression to fail with stale totals. Both mutations were restored before the
+final verification run. No production data or inventory repair dispositions were
+changed.
+
+Validation: the final full Python suite passed all 3,111 selected tests. Strict
+typing, lint, dependency boundaries, generated schema/client and frontend checks
+passed; migration drift is clean. The restore classification includes the new SQL
+backfill, and the migration regression preserves archived evidence while fixing
+invalid and empty summaries. Browser and production-snapshot rollout verification
+remain subject to the existing inventory migration hold.
+
+**2026-09-08 — Inventory transaction regressions and shared test setup.**
+Committed-data tests now use disposable migrated databases, preserving immutable
+inventory evidence instead of flushing it. PostgreSQL blocking-PID observations
+exercise receipt versus inbound sync, issue/return versus costing, stocktake versus
+issue, and reversed two-job receipt allocation order. The issue lock-order test
+was seen to fail with stock deliberately locked first. Celery dispatch is stubbed
+only for these database tests; this does not establish background-worker capacity.
+Purchasing now uses the shared authenticated client and staff fixtures, and other
+test suites import authentication/company factories from their owning helper
+modules rather than conftest files. The full Python suite passed; targeted strict
+typing passed for the fixture and contention code. The full run also exposed and
+verified fixes for ambiguous inbound PO-line lookup and the approval refusal test.
+
+The cache-maintenance follow-up will keep existing Celery configuration, replace
+per-line full summary rebuilds with exact incremental totals, and provide explicit
+checking/recalculation. A read-only local audit found 124 cached cost-set summaries
+differing from their ledger; no cache or inventory repairs were applied.
+
+**2026-09-07 — Stocktake implementation.** The owner selected one ongoing
+non-billable Stocktake Adjustments job with separate dated counts, and explicit
+unit cost for newly found stock. Purchases now exposes Stocktake beside Use Stock.
+Drafts distinguish blank from zero and post only counted differences, with an
+opposite signed material cost on the adjustment job. Posted counts, movements and
+movement-owned costs are immutable; corrections create linked recounts. Stock
+history exposes original issues and linked returns. Generic stock quantity edits
+and nonempty retirement are refused. Receipts, issues, returns and counts share
+the movement writer; existing balances receive opening entries, repeated receipts
+retain earlier lots, and Xero catalogue import no longer overwrites local SOH.
+The cost grid displays movement-owned lines read-only with stock history links.
+
+Validation: the full Python suite passed 3,016 tests; scoped purchasing/job
+regressions passed 292 tests. Frontend
+costing/timesheet tests passed 141 tests. Stocktake and stock-search E2E passed all
+four tests, including concurrent posting requests, found/missing material,
+correction history, blank counts and pagination beyond 50 counts. Screenshots at
+1366/1024/390 widths were captured through the real browser workflow. Standard
+Playwright setup and database backup/restore succeeded. The managed E2E harness
+was refused during Xero cleanup with zero daily calls remaining; full E2E and
+live Xero verification remain release gates, not waived checks. The explicit PO
+integration attempt reported one pass and five setup errors from Xero HTTP 429,
+with X-DayLimit-Remaining 0. All 719 development stock rows reconciled exactly
+to the movement ledger after migration and E2E restoration. Two additional SDK
+item-import regression tests passed, including a receipt interleaved between
+catalogue read and save; the import writes only changed catalogue fields.
+
+**2026-09-07 — Owner ruling: stock moves; it is never deleted.** Receipt,
+issue, return and correction workflows must preserve stock history through
+movements. The owner proposed a stocktake job as the counterpart for extra stock
+found or missing stock; the detailed proposals are recorded in
+[the receipt/stock movement plan](plans/2026-09-07-delivery-receipts-stock-movements.md).
+Current
+stock uses mutable `Stock.quantity` balances, general stock resolves to the
+hard-coded Worker Admin job, and consumption books a linked job cost line.
+Inspection found physical deletion in repeat receipts and allocation deletion;
+those existing paths violate the owner's rule. KAN-358 changes neither path.
+The owner also specified the fast path: whole-order receipt is the normal case,
+TBC prices must be quick to confirm before material reaches a job, and an order
+for one sheet needed half by a job allocates half to that job and half to stock on
+hand. Receipt planning must retain purchased quantity separately from job demand. The
+owner subsequently confirmed that negative SOH is commonplace and acceptable;
+issues must proceed and retain visible negative balances. Stocktake may reconcile
+them later. GPT: use that permitted policy rather than automatically inventing
+stock to hide each deficit; automated stocktake-job balancing was suggested as an
+optional feature, not required scope.
+
+**2026-09-07 — KAN-358 receipt status and push acknowledgement.** The branch
+started clean at planning commit `6cd99cd`, based on fetched `origin/main`
+`e6db50f`. Six receipt round-trip regressions failed with submitted/deleted
+instead of the receipt-derived status; concurrent create/update and out-of-order
+response cases also failed by acknowledging unsent edits. With both safeguards,
+all 52 focused tests passed. Removing the receipt guard reproduced six
+failures; removing the version predicate reproduced three failures while the
+three unaffected acknowledgement cases passed. Both safeguards were restored.
+The required Xero/purchasing run passed
+801 tests (62 existing warnings). Commit `100fbfc` passed its hooks;
+the subsequent full Python suite passed 3,001 tests with 103 warnings.
+The real Xero PO integration suite passed all six tests, including fresh partial
+and full receipts pushed and pulled back as AUTHORISED with unchanged receipt
+quantities, stock and job-cost rows. The harness's separate Docker/ufw check could
+not run on this host because Docker was unavailable.
+The subsequent full integration run finished with 18 passed, four failed and five
+setup errors: missing phone-provider base URL/username/password and Xero daily-quota
+exhaustion in payroll, quota telemetry, outbound links and PO setup. Xero reported
+HTTP 429 and day remaining zero at 00:42 UTC on 2026-09-07. The migration check passed.
+The new whole-receipt browser spec is authored but unrun; its real Xero dependency
+is exhausted. The full integration and browser gates remain blockers, not waivers.
+Receipt tests drive the ETag-checked receipt service
+and compare the receipt's stock and job-cost rows before and after synchronization.
+Push tests save real concurrent edits, suppress their queue boundary, and prove
+reconciliation sends the missing reference on retry without moving the ETag.
+
+Inspection of the development database found 293 orders with positive received
+quantities and a non-receipt status: 217 submitted and 76 draft. Sixteen submitted
+orders carry linked Xero identities and `xero_status=AUTHORISED`; the remaining
+277 have no Xero accounting status. These are development data findings, not
+proof that all mismatches came from KAN-358 or a production data audit.
+
+The 16 linked AUTHORISED/submitted development orders were dry-run through
+`recompute_purchase_order_status`; every result was fully_received. After reviewing
+the preview, that status-only repair was applied. All 23 PO lines and 24 linked
+cost rows compared identical before/after; this set had no linked stock rows. A
+second dry-run found zero remaining candidates. No production database was changed.
+The other 277 mismatches have no recorded Xero status and remain an audit concern
+for the receipt/movement plan, without attributing their origin to KAN-358.
+
+Browser inspection found the Fully Received dropdown shortcut in `PoSummaryCard`
+calling `update_purchase_order`, which automatically allocates lines to their job
+or stock. There is no UI caller for the delivery-receipt endpoint and therefore
+no quantity-based partial receipt flow. The admin Xero page provides inbound sync;
+PO pushes are queued by writes and reconciliation. GPT: a new receipt screen is a
+separate workflow design, not required scope for these two safeguards. Browser
+coverage must use the existing full-receipt path and explicitly record the partial
+receipt gap. No promotion hold has been removed.
 
 **2026-09-06 — PO entry layout and notes/history.** The owner approved one
 continuous page: compact order details above a full-width line grid, with
@@ -776,3 +1268,268 @@ manifest links, description and theme colour. The manifest names the actual icon
 sizes rather than v1's incorrect square dimensions for the existing company logo.
 Verified all linked assets exist and the favicon is byte-identical to v1. Browser
 verification awaits the operator's normal frontend rebuild; no service was restarted.
+
+## 2026-09-07 — Stock movement review fixes (PR #151)
+
+Owner-approved: migrate historical job allocations and purchase receipts into
+explicit opening movements before enabling the canonical runtime path. Managed
+costs retain their original records; returns create credits with the original
+quantity and price. The authenticated operator owns the reversal. Purchase-order
+imports lock the same rows as receipt updates so a concurrent import cannot
+overwrite the locally computed receipt status.
+
+The generic, preview-first inventory repair command accepts a private reviewed
+manifest. One verified orphan can be re-linked; four become ordinary adjustments,
+including the zero-value duplicate. No private identifiers or manifest are
+committed (ADR 0049). Repairs preserve cost IDs, jobs, quantities, prices and
+accounting dates; changing the category does not change total cost or margin.
+Migration preflight rejects unresolved references instead of guessing (KAN-144,
+ADR 0015). Restore runs the same repair, audit and migration sequence.
+
+Stocktakes use shared If-Match handling. A stale save retains local edits until
+the operator explicitly reloads the saved draft. Stock observations refresh for
+unsaved rows as well as saved lines. Purchase quantities use the numeric API
+contract from ADR 0046, and job costs link to their movement history.
+
+Validation: the complete normal Python suite passed, as did 318 focused purchasing,
+costing and Xero tests, 12 repair/restore/concurrency tests, targeted frontend unit
+tests and type checking. Both Xero concurrency tests failed when the import locks
+were temporarily removed and passed with the locks restored (ADR 0052). All six
+live purchase-order integration tests passed with Xero writes enabled.
+
+Actual migration SQL was executed on an isolated clone inside a rolled-back
+transaction. The five reviewed dispositions were validated and repeat application
+was a no-op. Preflight correctly refused three extra obsolete local orphan costs;
+test-only preparation of those records and an obsolete stock row allowed the full
+cutover to run. Original cost fields, stock quantities and PO received quantities
+were unchanged; movement sums reconciled to stock and repeated SQL added no rows.
+This exercises the SQL but does not replace a current production-data rehearsal.
+The working database and production were not repaired or migrated. Browser and
+remaining release acceptance tasks remain in rewrite-status.
+
+## 2026-09-08 — PR #151 review implementation
+
+Owner approved the review-resolution plan: accept valid Xero PO amendments while
+preserving posted receipts, and reject ordered quantities below net receipts.
+Shared staff access, explicit zero costs and negative SOH remain intentional.
+Expanded partial-receipt entry, planned demand and dimensional splits remain separate.
+
+GPT: response version capture now keys by the server token's resource identity,
+because a correction response describes a different stocktake from its request URL.
+Stocktake joins the middleware's gzip-safe strong-token contract. JWT's actual
+request.user assignment permits one staff resolver without request.auth fallback.
+The configured mypy already followed the repair module through imports; adhoc is
+now an explicit target as well.
+
+Inventory cutover checks now distinguish pending receipt positions from posted
+movement evidence and refuse missing synthetic-stock descriptions before any
+backfill. Historical zero receipt positions start inactive; nonzero movement
+balances reactivate their stock identity. Received PO lines retain a protected
+source link and the PO editor explains why they cannot be deleted. Count setup
+uses django-solo's fixed key plus a database check; count-line uniqueness is
+transaction-deferred to permit stock swaps and row replacement, while nullable
+location/reason values reject empty strings at the database.
+
+The SQL restore guard now checks both rewind and replay through the migration
+graph, including aliased UPDATE statements. MigrationExecutor coverage proves
+whole-cutover refusal and repeat application without duplicate postings. No
+working or production database repair was applied; the manifest/rehearsal gate
+remains outstanding.
+
+Validation: 32 stocktake/cutover tests, eight restore-script tests, and four
+focused database-constraint/reactivation regressions passed. The PO API suite, including the
+new provenance refusal, passed in the initial broader run. Focused strict mypy passed and
+`makemigrations --check --dry-run` found no drift. Browser and live integration
+verification remains a release gate.
+
+Inventory costing now locks jobs and their cost sets before existing cost or
+stock rows. CostLine's save/delete path uses that same lock owner, including
+summary and Job timestamp writes; receipts acquire all allocation jobs in UUID
+order. Generic edits, approval, returns, count posting, quote replacement and
+workshop job changes participate in the order. The shared workflow guard now
+names all owners and returns the domain's typed invalid-input refusal.
+
+A job-owned forward migration protects OLD.managed_by stock/stocktake costs
+without querying purchasing movement tables. This also refuses clearing the
+owner before linking a movement. History reads use a boolean return predicate;
+resolving and validating its cost belongs to the return command.
+
+Validation: 188 costing, stock, count, cutover, allocation and leave tests passed;
+focused strict mypy passed. Real concurrent transaction regressions and the
+remaining end-to-end gates are still outstanding.
+The 42 workshop-timesheet API tests also passed after ordering cross-job edits.
+
+PO quantity/price amendments now preserve posted receipt stocks and job costs.
+The purchasing quantity guard rejects reductions below net receipts for both
+local edits and inbound Xero changes; an invalid inbound amendment rolls the
+whole order back and is persisted through Xero's validation-error path before
+agreement can be stamped. Fulfillment compares each line's received quantity
+with its own order quantity. The full-receipt shortcut submits only outstanding
+quantities through the canonical receipt service.
+
+PO detail now exposes the order's Xero status and inbound-observation timestamp.
+New orders no longer manufacture an inbound timestamp at creation; the forward
+schema change leaves historical recorded timestamps intact. Validation so far:
+114 existing PO/allocation/sync tests and five new amendment/receipt regressions
+passed, as did strict mypy. Live Xero verification remains outstanding.
+The rejection-persistence cases and the new-order/inbound-observation API check
+also passed; the timestamp assertion uses the API's millisecond precision.
+
+Outbound PO pushes capture a locked header/version and prefetched line identities
+before releasing the transaction for the provider call. The response locks and
+rereads the PO, preserves its valid Xero document identity, and writes line IDs
+and agreement only when the sent version is still current. Line matching uses
+the captured local IDs, including distinct occurrences of duplicate descriptions.
+The provider-response identity fields are validated at the integration boundary.
+Validation: 54 reconciliation, sync-direction and document API tests passed,
+including replacement-during-push, stale-manager and duplicate-description
+regressions; strict mypy passed. Live provider verification remains outstanding.
+
+Inventory movement kinds and cost-line workflow owners now share model/wire enums
+and forward database constraints. Ordinary inventory writes refuse all three
+cutover-only kinds. Stocktake inputs reuse bounded Decimal schemas whose numeric
+OpenAPI representation includes capacity, nonnegative bounds and precision;
+explicit zero remains valid. The remaining process and diagnostics staff helpers
+now use the authenticated-staff owner. Ranked stock search and ordinary search
+lists use the same shared paginator, including empty and out-of-range pages.
+Validation: 31 numeric/count/item-import tests and 40 stock API tests passed,
+as did strict mypy and frontend type checking. Removing published numeric bounds
+made the new contract regression fail. Editor and release gates remain outstanding.
+All 242 process and diagnostics tests subsequently passed with the shared staff resolver.
+
+Receipt allocation correction is now explicitly reverseAllocation on the reverse
+route. One transaction handles stock and job receipts, checks the allocation's
+PO line, retains original evidence, and reports reversed/already_reversed with
+Decimal quantities. A repeat accepts the lost-response request without changing
+the PO version, stock, costs or movements. New reversals still require the current
+PO version. Allocation reads identify reversed evidence and report can_reverse.
+Validation: 40 allocation/cutover tests, strict mypy and frontend type checking
+passed. Reintroducing the repeated PO write made both stock/job retry regressions
+fail. Live and browser gates remain outstanding.
+
+The recurring inventory audit now reads one repeatable, read-only snapshot and
+checks projected balances, movement continuity, cost counterparts, reversal
+prices/links, posted count evidence and supplier receipt totals. Pending opening
+positions are distinguished from completed receipt evidence; the restore script
+runs the audit again after all migrations. It reports discrepancies without
+repairing them. Purchasing test factories now live outside conftest so callers
+can reuse data setup without importing fixture wiring.
+Validation: the expanded count/cutover/restore run passed 52 cases; one new audit
+fixture lacked its required accounting date and was corrected. All six audit
+cases then passed, as did strict mypy. Omitting the chain audit made its regression
+fail. The local read-only command still refuses the eight known unresolved
+receipt-opening candidates; no dispositions or repairs were applied.
+
+## 2026-09-08 — Shared stock search and bounded history (PR #151)
+
+Stock navigation and the count picker now share ranked search, with eligibility,
+identity, location and job filters applied before ranking and pagination. Responses
+include inventory versions and server-owned count/retirement capabilities. Retired
+identities remain discoverable explicitly; their movement history remains readable.
+The separate stocktake stock-search endpoint was removed and its consumers migrated.
+
+Stock, stocktake and movement collections use the shared pagination envelope and
+frontend LoadMoreSentinel inside bounded ListTable scroll panes. Quantity display
+uses the shared formatter. Browser assertions use named stock fields instead of
+column positions and exercise the new search/count-list contracts.
+
+The targeted backend run passed 85 tests; the eligibility tests were observed
+failing before the implementation. The complete backend run passed 3,115 tests
+and 27 targeted frontend unit tests passed. Browser execution and production-data rehearsal
+remain subject to the inventory repair gate recorded above.
+
+## 2026-09-08 — Stock write contracts and history controls (PR #151)
+
+Creation now requires an explicit non-negative unit cost and creates only an empty
+manual stock identity. PUT/PATCH accept metadata only and reject inventory fields
+and unknown keys, including unchanged values. Retired identities remain readable.
+The stock page uses the shared Drawer for movement history, including stock and
+job-cost deep links, with empty-identity retirement and an explicit retired filter.
+Returning an issue refreshes its affected job's actual costs, detail and timeline.
+
+Six new regression cases failed against the old write contracts. After the changes,
+85 focused tests passed; frontend typing and lint passed. The existing browser
+stocktake flow now covers retirement, retained history and a history-link reload.
+The managed browser run applied purchasing.0010 and then stopped at 0011's receipt
+preflight for the same eight unresolved references. No repair was applied and
+Playwright did not start. This remains a verification gate, not browser evidence.
+
+## 2026-09-08 — Price TBC explicitly overrides the catalogue price
+
+Owner-approved behavior: selecting Price TBC clears the unit cost immediately and
+persists NULL, including a flag-only API request. Unticking leaves it blank for a
+new confirmed price. Selecting another product while TBC is active preserves the
+override. v1 disabled TBC for a positive price; this change deliberately supports
+the operator's product-then-TBC workflow. Existing receipt prices are unchanged.
+
+PO writes use TanStack's per-order mutation scope so each request receives the
+preceding response's ETag. The queue reconciles once settled; rejected optimistic
+fields restore only if a later edit has not replaced them. Created drafts remain
+until the final refresh supplies server identities. The existing PO grid and
+shared optimistic helpers own the behavior; no endpoint or schema was added.
+
+The two backend regression cases failed before the change. The focused backend
+run passed 127 tests. Frontend tests demonstrated the old uncleared price and the
+failed-product rollback overwriting a later TBC selection, then passed with the
+fixes. The browser specs now assert blank prices after ticking and reload, and
+explicit price re-entry after unticking. Their execution remains blocked by the
+previously recorded inventory migration preflight.
+
+Final verification: all 659 frontend unit tests passed across 90 files when run
+without a concurrent backend suite. The full backend run passed 3,133 tests and
+found one old assertion expecting 400 instead of the stock metadata schema's new
+422. After correcting that expectation, all 30 stocktake API tests passed.
+The 127 focused PO/receipt tests also passed. Repository checks passed, refreshing
+the generated test-count and code-quality records. A concurrency-refusal regression
+was observed failing before the queue-abort guard: queued edits now stop after a
+412/428 rather than silently adopting a refetched version.
+
+## 2026-09-09 — Rulings on database triggers, legacy shapes and ADR provenance (PR #151)
+
+The owner ruled that database triggers are an antipattern here: they work when they
+work, and they make bulk admin bad, especially with two production servers where every
+manual correction has to be done twice. [ADR 0058](adr/0058-write-refusals-live-in-the-application.md)
+records the rule that follows — a refusal lives in one application function and raises a
+typed error, while the database states facts about a row and never decides. The six
+triggers this branch added were all removed. An audit of every production write path
+found four bulk writes reaching a protected table, two of them on quote cost sets where
+stock ownership never applies, so three of the five rules needed no replacement at all;
+the posted-count and movement rules gained a test that drives every mutating route the
+API offers and reads the evidence back unchanged.
+
+The owner also ruled that the app supports one data model and legacy data is forced to
+comply by a one-off migration, with no permanent model, column or branch that reads the
+old shape, and that a creation timestamp is never nullable.
+[ADR 0059](adr/0059-one-data-model-legacy-data-is-migrated.md) records it, and
+[ADR 0015](adr/0015-fix-data-not-fallback.md) had already forbidden the type-system half
+of it. `LegacyReceiptAdjustment` and its repair phase were deleted; the 364 order lines
+whose receipt evidence a 2025 duplicate-order defect destroyed are now booked as
+`receipt_opening` movements against zero-quantity identities, which is how the ledger
+already records "received historically, no balance remains" and is bit-for-bit the shape
+migration 0011 books for consumed allocations. The purchase order notes explaining each
+gap were kept: they are ordinary history for the office, and nothing reads them as data.
+
+Purchase order line creation times were backfilled from the parent order rather than
+left NULL. Heap order was the tempting source and was measured instead of assumed: on
+the parent table, where a real timestamp exists to check against, heap rank correlates
+with creation order at -0.25 and 1 row of 982 sits at its correct rank, and at least
+1,306 of 2,322 lines were updated in production before the dump. So lines on one order
+share a timestamp and the UUID breaks the tie, matching `CostLine`, which has carried a
+non-null creation time and a single migration stamp on 10,059 rows since the v1 port.
+
+A review of all 44 ADRs found that ADR 0057 was written by an AI session in the same
+commit as the code it authorised, and that the history entry beside it asserted an owner
+ruling that had not been made. The consistency goal it recorded is genuine — purchase
+orders, timesheets and job costs all present lists and should share the same patterns —
+but the nullable-timestamp rule derived from it was not. The three `Owner-approved`
+claims in ADRs 0041, 0053 and 0056 were each confirmed with the owner and are genuine.
+ADR 0051 now requires an AI-drafted ADR to be marked unratified, and the index requires
+an ADR to land in its own commit, because seven of the twelve most recent arrived as
+passengers inside unrelated feature pull requests.
+
+ADR 0055 described thirteen contexts as though they existed; `apps/kernel` has no package
+and `config/architecture.py` records one migrated context of thirteen. The owner ratified
+the modular monolith as a direction the project is heading in and not a description of
+the tree, so the ADR now separates destination from present and `CLAUDE.md` describes the
+import-linter contract that actually gates. ADRs 0012, 0021 and 0033 named a module path,
+a Django setting and a Poetry constraint syntax this repository does not have.

@@ -13,7 +13,7 @@ import pytest
 from apps.accounting.services.finish_job_summary import build_finish_job_summary
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import make_invoice, make_job, make_material_line
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job

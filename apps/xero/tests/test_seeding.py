@@ -20,7 +20,7 @@ from xero_python.accounting import Account, AccountType
 from apps.accounting.models import Invoice, InvoiceLineItem
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import make_invoice, make_job, make_purchase_order, make_quote
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
@@ -66,10 +66,13 @@ def xero_api() -> Iterator[MagicMock]:
         # module's binding; patching it here lets the guard RUN (db-name and
         # tenant checks included) instead of being bypassed per test.
         patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
-        # fetch_xero_entity_lookup resolves its API method through the sync
-        # engine's ENTITY_CONFIGS, which builds its own client.
+        # iter_xero_entities does every paged read — the lookup's and
+        # get_all_xero_contacts' alike — from the sync engine's module, where
+        # it resolves the API method through ENTITY_CONFIGS and builds its own
+        # client and tenant.
         patch("apps.xero.sync.AccountingApi", return_value=api),
         patch("apps.xero.sync.get_api_client", return_value=MagicMock()),
+        patch("apps.xero.sync.get_tenant_id", return_value=TENANT),
     ):
         yield api
 

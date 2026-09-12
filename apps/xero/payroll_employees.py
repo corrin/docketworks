@@ -26,7 +26,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, Literal, TypedDict, cast
+from typing import Any, Literal, TypedDict, TypeGuard, cast
 
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
@@ -57,7 +57,7 @@ from apps.timesheet.services.leave_settings import employee_leave_mappings
 from apps.xero import payroll_sdk  # imported for its side effect too: applies the v1 SDK fixes
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.helpers import as_date
-from apps.xero.models import XeroPayItem
+from apps.xero.models import XeroDetailRefresh, XeroPayItem
 from apps.xero.operator_guards import is_production_tenant
 from apps.xero.payroll_setup import get_payroll_calendars
 from apps.xero.validation import XeroValidationError
@@ -105,6 +105,11 @@ DEMO_EMPLOYEE_NAMES = frozenset(
 
 
 PayBasis = Literal["hourly", "salary"]
+
+
+def _valid_pay_basis(value: str) -> TypeGuard[PayBasis]:
+    """Validate the vendor's pay basis at the import boundary."""
+    return value in {"hourly", "salary"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -347,7 +352,7 @@ def _term_snapshots(
             continue
         pay = max(eligible_pay, key=lambda item: item[1])[0]
         payment_type = str(pay.payment_type or "").lower()
-        if payment_type not in {"hourly", "salary"}:
+        if not _valid_pay_basis(payment_type):
             raise XeroValidationError(["payment_type"], "employee", employee_id)
         pattern = max(eligible_pattern, key=lambda item: item[0]) if eligible_pattern else None
         if payment_type == "salary" and pattern is None:
@@ -359,7 +364,7 @@ def _term_snapshots(
         snapshots.append(
             PayrollTermSnapshot(
                 effective_from=effective,
-                pay_basis=cast("PayBasis", payment_type),
+                pay_basis=payment_type,
                 annual_salary=annual,
                 hourly_rate=hourly,
                 working_weeks=pattern[2] if pattern else [],
@@ -379,7 +384,12 @@ def _demo_stub(employee: Employee, tenant_id: str) -> bool:
 
 
 def _snapshot(
-    payroll_api: PayrollNzApi, tenant_id: str, employee: Employee
+    payroll_api: PayrollNzApi,
+    tenant_id: str,
+    employee: Employee,
+    *,
+    stored: Staff | None = None,
+    refresh_details: bool = False,
 ) -> PayrollEmployeeSnapshot:
     """Enrich one employee with the pay data Docketworks needs."""
     missing = [
@@ -428,14 +438,22 @@ def _snapshot(
     effective_on = (
         min(end_date, timezone.localdate()) if end_date is not None else timezone.localdate()
     )
-    pay_records = _salary_and_wages(payroll_api, tenant_id, employee_id)
-    pay_basis, hourly_rate = _current_pay(
-        pay_records,
-        employee_id=employee_id,
-        effective_on=effective_on,
-        require_active=end_date is None or end_date > timezone.localdate(),
-    )
-    patterns = _working_patterns(payroll_api, tenant_id, employee_id)
+    terms = () if refresh_details or stored is None else _reusable_terms(stored)
+    current_terms = [term for term in terms if term.effective_from <= effective_on]
+    if current_terms:
+        current = max(current_terms, key=lambda term: term.effective_from)
+        pay_basis = current.pay_basis
+        hourly_rate = current.hourly_rate if pay_basis == "hourly" else None
+    else:
+        pay_records = _salary_and_wages(payroll_api, tenant_id, employee_id)
+        pay_basis, hourly_rate = _current_pay(
+            pay_records,
+            employee_id=employee_id,
+            effective_on=effective_on,
+            require_active=end_date is None or end_date > timezone.localdate(),
+        )
+        patterns = _working_patterns(payroll_api, tenant_id, employee_id)
+        terms = _term_snapshots(pay_records, patterns, employee_id)
     return PayrollEmployeeSnapshot(
         tenant_id=tenant_id,
         employee_id=employee_id,
@@ -447,11 +465,13 @@ def _snapshot(
         pay_basis=pay_basis,
         hourly_rate=hourly_rate,
         updated_date_utc=updated_date_utc,
-        payroll_terms=_term_snapshots(pay_records, patterns, employee_id),
+        payroll_terms=terms,
     )
 
 
-def get_employees_for_sync(*, xero_tenant_id: str, if_modified_since: str) -> EmployeesForSync:
+def get_employees_for_sync(
+    *, xero_tenant_id: str, if_modified_since: str, refresh_details: bool = False
+) -> EmployeesForSync:
     """Fetch the complete employee batch for the generic entity sync."""
     del if_modified_since  # Xero Payroll NZ exposes no employee modified-since filter.
     tenant_id = xero_tenant_id
@@ -477,8 +497,23 @@ def get_employees_for_sync(*, xero_tenant_id: str, if_modified_since: str) -> Em
             raise ValueError(f"Xero returned no employee for linked Staff employee id {linked_id}")
         active.append(employee)
 
+    stored = {
+        staff.xero_user_id: staff
+        for staff in Staff.objects.filter(xero_tenant_id=tenant_id).prefetch_related(
+            "payroll_terms"
+        )
+    }
     return EmployeesForSync(
-        employees=[_snapshot(payroll_api, tenant_id, employee) for employee in active]
+        employees=[
+            _snapshot(
+                payroll_api,
+                tenant_id,
+                employee,
+                stored=stored.get(employee.employee_id),
+                refresh_details=refresh_details,
+            )
+            for employee in active
+        ]
     )
 
 
@@ -627,7 +662,9 @@ def _normalise_checksum_value(value: Any) -> Any:
     raise TypeError(f"Unsupported Xero checksum value: {type(value).__name__}")
 
 
-def _xero_fields_checksum(projection: _XeroEmployeeProjection) -> str:
+def _xero_fields_checksum(
+    projection: _XeroEmployeeProjection | list[_XeroTermProjection],
+) -> str:
     """Hash the complete Xero-owned employee projection deterministically."""
     serialised = json.dumps(
         _normalise_checksum_value(projection),
@@ -655,6 +692,36 @@ def _term_projection(term: PayrollTermSnapshot | StaffPayrollTerm) -> _XeroTermP
         "xero_salary_wage_id": salary_wage_id,
         "xero_working_pattern_id": working_pattern_id,
     }
+
+
+def _reusable_terms(staff: Staff) -> tuple[PayrollTermSnapshot, ...]:
+    """GPT: derived wages can drift without damaging the imported source history."""
+    projection = _current_employee_projection(staff)
+    terms = projection["payroll_terms"]
+    if not terms:
+        return ()
+    if staff.xero_payroll_terms_checksum is None:
+        if staff.xero_fields_checksum != _xero_fields_checksum(projection):
+            return ()
+    elif staff.xero_payroll_terms_checksum != _xero_fields_checksum(terms):
+        return ()
+    snapshots: list[PayrollTermSnapshot] = []
+    for term in terms:
+        basis = term["pay_basis"]
+        if not _valid_pay_basis(basis):
+            return ()
+        snapshots.append(
+            PayrollTermSnapshot(
+                effective_from=term["effective_from"],
+                pay_basis=basis,
+                annual_salary=term["annual_salary"],
+                hourly_rate=term["hourly_rate"],
+                working_weeks=term["working_weeks"],
+                salary_wage_id=term["xero_salary_wage_id"],
+                working_pattern_id=term["xero_working_pattern_id"],
+            )
+        )
+    return tuple(snapshots)
 
 
 def _snapshot_base_wage_rate(snapshot: PayrollEmployeeSnapshot) -> Decimal:
@@ -781,32 +848,33 @@ def _apply_employee_change(
 
 
 def _replace_payroll_terms(staff: Staff, snapshot: PayrollEmployeeSnapshot) -> None:
-    """Replace the complete Xero-owned term history for one employee."""
-    staff.payroll_terms.all().delete()
-    StaffPayrollTerm.objects.bulk_create(
-        [
-            StaffPayrollTerm(
-                staff=staff,
-                effective_from=term.effective_from,
-                pay_basis=term.pay_basis,
-                annual_salary=_optional_money(term.annual_salary),
-                hourly_rate=_optional_money(term.hourly_rate),
-                working_weeks=term.working_weeks,
-                xero_salary_wage_id=term.salary_wage_id,
-                xero_working_pattern_id=term.working_pattern_id,
-            )
-            for term in snapshot.payroll_terms
-        ]
-    )
+    """Converge complete history while retaining the identity of existing terms."""
+    stored = {term.effective_from: _term_projection(term) for term in staff.payroll_terms.all()}
+    incoming = [_term_projection(term) for term in snapshot.payroll_terms]
+    staff.payroll_terms.exclude(
+        effective_from__in=[term["effective_from"] for term in incoming]
+    ).delete()
+    for term in incoming:
+        if stored.get(term["effective_from"]) == term:
+            continue
+        StaffPayrollTerm.objects.update_or_create(
+            staff=staff, effective_from=term["effective_from"], defaults=term
+        )
 
 
-def sync_employees(snapshots: list[PayrollEmployeeSnapshot]) -> None:
+def sync_employees(
+    snapshots: list[PayrollEmployeeSnapshot], *, detail_refresh_tenant_id: str | None = None
+) -> None:
     """Atomically create or update Staff from one complete Xero employee batch."""
-    if not snapshots:
+    if not snapshots and detail_refresh_tenant_id is None:
         return
-    tenant_id = snapshots[0].tenant_id
+    tenant_id = snapshots[0].tenant_id if snapshots else detail_refresh_tenant_id
     if any(snapshot.tenant_id != tenant_id for snapshot in snapshots):
         raise ValueError("An employee sync batch cannot contain multiple Xero tenants")
+    if tenant_id is None:
+        raise ValueError("Employee sync requires a tenant")
+    if detail_refresh_tenant_id is not None and detail_refresh_tenant_id != tenant_id:
+        raise ValueError("Detail refresh tenant does not match employee batch")
     with transaction.atomic():
         staff_rows = list(Staff.objects.select_for_update().prefetch_related("payroll_terms"))
         planned = _plan_employee_changes(snapshots, staff_rows)
@@ -822,12 +890,24 @@ def sync_employees(snapshots: list[PayrollEmployeeSnapshot]) -> None:
                     loading=loading,
                 )
             )
+            term_checksum = _xero_fields_checksum(
+                [_term_projection(term) for term in snapshot.payroll_terms]
+            )
             if staff is not None:
                 current_checksum = _xero_fields_checksum(_current_employee_projection(staff))
+                if staff.xero_payroll_terms_checksum != term_checksum:
+                    Staff.objects.filter(pk=staff.pk).update(
+                        xero_payroll_terms_checksum=term_checksum
+                    )
                 if staff.xero_fields_checksum == incoming_checksum == current_checksum:
                     continue
             changed = _apply_employee_change(snapshot, staff, tenant_id, incoming_checksum)
             _replace_payroll_terms(changed, snapshot)
+            Staff.objects.filter(pk=changed.pk).update(xero_payroll_terms_checksum=term_checksum)
+        if detail_refresh_tenant_id is not None:
+            XeroDetailRefresh.objects.update_or_create(
+                tenant_id=detail_refresh_tenant_id, defaults={"last_success_at": timezone.now()}
+            )
 
 
 def get_employee_leave_balances(employee_id: str) -> list[PayrollLeaveBalance]:
@@ -1074,8 +1154,13 @@ def ensure_employee_leave_types(employee_id: str) -> set[str]:
     Xero's standard leave setup owns Annual and Sick accrual rules. Unpaid and
     Bereavement are explicitly assigned with no accrual and zero opening
     balance; inventing accrual rules for either would change payroll policy.
-    The final read-back is the readiness check used by both creation and seed
-    repair.
+
+    Opus: returns the set this call assembled and never re-reads it from Xero.
+    A read-back was the rejected alternative: each create is already checked
+    against the leave type id Xero echoes back and raises when it disagrees, so
+    a second read can only confirm what the first already refused to let past.
+    It is one metered call per employee, and payroll has no batch endpoint, so
+    it is paid 21 times on every demo-organisation reseed.
     """
     tenant_id = str(get_tenant_id())
     required = employee_leave_mappings()
@@ -1114,10 +1199,6 @@ def ensure_employee_leave_types(employee_id: str) -> set[str]:
             )
         assigned.add(mapping.external_id)
 
-    assigned = employee_leave_type_ids(employee_id)
-    missing = [row.display_name for row in required if row.external_id not in assigned]
-    if missing:
-        raise ValueError(f"Xero employee {employee_id} is not eligible for: " + ", ".join(missing))
     return assigned
 
 

@@ -56,7 +56,7 @@ export function KanbanBoard({ searchQuery }: KanbanBoardProps) {
     board.moveJob,
     triggerReconcile,
   )
-  const { staff, isStaffLoading, assignStaff } = useStaffAssignment(board.searchTerm)
+  const { staff, isStaffLoading, isStaffError, assignStaff } = useStaffAssignment(board.searchTerm)
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY)
 
   // Composed here rather than inside useKanbanBoard: the loop pauses on both
@@ -102,6 +102,7 @@ export function KanbanBoard({ searchQuery }: KanbanBoardProps) {
           <StaffPanel
             staff={staff}
             isLoading={isStaffLoading}
+            isError={isStaffError}
             activeStaffIds={board.activeStaffIds}
             onToggleFilter={board.toggleStaffFilter}
             armedStaffId={armedStaffId}

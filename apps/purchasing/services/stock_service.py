@@ -26,14 +26,17 @@ from typing import TypedDict
 from uuid import UUID
 
 from django.db import transaction
+from django.db.models import QuerySet
 from django.utils import timezone
 
 from apps.accounts.models import Staff
+from apps.core.errors import InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
-from apps.job.models.costing import CostLine
-from apps.purchasing.models import Stock
+from apps.job.models.costing import CostLine, lock_costing_jobs
+from apps.purchasing.models import Stock, StockMovementKind
 from apps.purchasing.services.allocation_service import ensure_actual_cost_set
+from apps.purchasing.services.stock_movement_service import MovementContext, move_stock
 from apps.purchasing.tasks import queue_metadata_parse_if_eligible
 
 logger = logging.getLogger(__name__)
@@ -57,15 +60,15 @@ class StockItemData(TypedDict):
     is_active: bool
     job_id: UUID | None
     times_used: int
+    inventory_version: int
+    can_count: bool
+    can_retire: bool
 
 
 class StockWriteData(TypedDict, total=False):
-    """The Stock fields a create/update payload may carry."""
+    """Editable stock identity metadata."""
 
     description: str
-    quantity: Decimal
-    unit_cost: Decimal
-    source: str
     item_code: str | None
     unit_revenue: Decimal | None
     date: datetime
@@ -73,11 +76,21 @@ class StockWriteData(TypedDict, total=False):
     metal_type: str | None
     alloy: str | None
     specifics: str | None
-    is_active: bool
 
 
-def stock_item_data(stock: Stock, *, times_used: int = 0) -> StockItemData:
-    """Serialise one Stock row."""
+def countable_stock() -> QuerySet[Stock]:
+    """Select eligible physical stock for both the picker and count writes."""
+    return Stock.objects.filter(is_active=True, job=Stock.get_stock_holding_job()).exclude(
+        source="product_catalog"
+    )
+
+
+def stock_item_data(
+    stock: Stock, *, times_used: int = 0, countable: bool | None = None
+) -> StockItemData:
+    """Serialize stock; list callers supply eligibility from one page-wide lookup."""
+    if countable is None:
+        countable = countable_stock().filter(pk=stock.pk).exists()
     return {
         "id": stock.id,
         "item_code": stock.item_code,
@@ -94,14 +107,17 @@ def stock_item_data(stock: Stock, *, times_used: int = 0) -> StockItemData:
         "is_active": stock.is_active,
         "job_id": stock.job_id,
         "times_used": times_used,
+        "inventory_version": stock.inventory_version,
+        "can_count": countable,
+        "can_retire": stock.is_active and stock.quantity == 0,
     }
 
 
 def _apply_stock_fields(stock: Stock, data: StockWriteData) -> None:
-    for field in ("description", "quantity", "unit_cost", "source", "unit_revenue", "is_active"):
+    for field in ("description", "unit_revenue"):
         if field in data:
             setattr(stock, field, data[field])
-    if "date" in data and data["date"] is not None:
+    if "date" in data:
         stock.date = data["date"]
     # No blank-coercion here: these fields are NullableText on the request
     # schema (ADR 0040), so "" was a 422 before this function was reached.
@@ -110,26 +126,39 @@ def _apply_stock_fields(stock: Stock, data: StockWriteData) -> None:
             setattr(stock, text_field, data[text_field])
 
 
-def create_stock(data: StockWriteData) -> Stock:
-    """Create a stock row on the stock-holding job."""
-    stock = Stock(job=Stock.get_stock_holding_job(), date=timezone.now())
+def create_stock(data: StockWriteData, *, unit_cost: Decimal) -> Stock:
+    """Create an empty manual identity on the stock-holding job."""
+    stock = Stock(
+        job=Stock.get_stock_holding_job(),
+        date=timezone.now(),
+        quantity=0,
+        unit_cost=unit_cost,
+        source="manual",
+    )
     _apply_stock_fields(stock, data)
     stock.save()
     queue_metadata_parse_if_eligible(stock)
     return stock
 
 
+@transaction.atomic
 def update_stock(stock: Stock, data: StockWriteData) -> Stock:
-    """Apply a create/update payload to an existing stock row."""
+    """Update metadata under the inventory writer's row lock."""
+    stock = Stock.objects.select_for_update().get(pk=stock.pk)
     _apply_stock_fields(stock, data)
     stock.save()
     queue_metadata_parse_if_eligible(stock)
     return stock
 
 
+@transaction.atomic
 def deactivate_stock(stock: Stock) -> None:
-    """Soft-delete a stock row."""
-    Stock.objects.filter(id=stock.id).update(is_active=False)
+    """Retire an empty stock identity while preserving its history."""
+    stock = Stock.objects.select_for_update().get(pk=stock.pk)
+    if stock.quantity != 0:
+        raise InvalidInputError("Count this stock before retiring its identity.")
+    stock.is_active = False
+    stock.save(update_fields=["is_active"])
 
 
 def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explicit and keyword-only.
@@ -153,31 +182,24 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
         raise ValueError("Quantity must be positive")
 
     with transaction.atomic():
-        # Re-read under a row lock so concurrent consumption cannot double-spend.
+        lock_costing_jobs([job.id])
+        job.refresh_from_db()
+        if line is not None:
+            line = CostLine.objects.select_for_update().get(pk=line.pk)
+            if (
+                line.kind != "material"
+                or line.cost_set.kind != "actual"
+                or line.quantity != qty
+                or line.cost_set.job_id != job.id
+                or line.ext_refs.get("stock_id") != str(item.id)
+            ):
+                raise ValueError("This material selection changed. Reload before approving it.")
+            if line.managed_by == "stock":
+                item.refresh_from_db(fields=["quantity"])
+                return line
+            if line.approved or line.managed_by is not None:
+                raise ValueError("Only unissued material drafts can be approved.")
         locked = Stock.objects.select_for_update().get(id=item.id)
-        original_quantity = locked.quantity
-        locked.quantity -= qty
-
-        if locked.quantity < 0:
-            logger.warning(
-                "Stock item %s (%s) went negative: %s -> %s (consumed %s)",
-                locked.id,
-                locked.description,
-                original_quantity,
-                locked.quantity,
-                qty,
-            )
-        elif locked.quantity == 0:
-            logger.info(
-                "Stock item %s (%s) fully consumed: %s -> 0 (consumed %s)",
-                locked.id,
-                locked.description,
-                original_quantity,
-                qty,
-            )
-        locked.save(update_fields=["quantity"])
-        item.quantity = locked.quantity
-
         resolved_cost = locked.unit_cost if unit_cost is None else unit_cost
         if job.shop_job:
             # Shop jobs don't bill customers, so revenue must be zero.
@@ -198,6 +220,7 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
             cost_line = CostLine(
                 cost_set=cost_set,
                 kind="material",
+                managed_by="stock",
                 desc=locked.description,
                 quantity=qty,
                 unit_cost=resolved_cost,
@@ -214,8 +237,21 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
                 job.id,
                 cost_line.id,
             )
+            move_stock(
+                locked,
+                -qty,
+                MovementContext(
+                    kind=StockMovementKind.ISSUE,
+                    reason="Material issued to job",
+                    actor=user,
+                    counterpart_job=job,
+                    cost_line=cost_line,
+                ),
+            )
+            item.quantity = locked.quantity
             return cost_line
 
+        line.managed_by = "stock"
         line.approved = True
         line.quantity = qty
         line.desc = locked.description
@@ -229,6 +265,7 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
         line.save(
             update_fields=[
                 "approved",
+                "managed_by",
                 "quantity",
                 "desc",
                 "unit_cost",
@@ -246,4 +283,16 @@ def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explici
             job.id,
             qty,
         )
+        move_stock(
+            locked,
+            -qty,
+            MovementContext(
+                kind=StockMovementKind.ISSUE,
+                reason="Workshop material approved",
+                actor=user,
+                counterpart_job=job,
+                cost_line=line,
+            ),
+        )
+        item.quantity = locked.quantity
         return line

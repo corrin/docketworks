@@ -43,6 +43,9 @@ export interface EntryFormSubmitBody {
 interface Props {
   schema: FormFieldSchema[]
   initial?: EntryFormInitial | null
+  /** Always the answered list. A caller still loading, or whose load failed,
+      renders that state itself rather than passing an empty list that would
+      claim the shop has no staff. */
   staffOptions: StaffOption[]
   onSubmit: (body: EntryFormSubmitBody) => void | Promise<void>
   submitting: boolean
@@ -282,6 +285,7 @@ export function EntryForm({
   const jobsQuery = useQuery(purchasingAllJobsRetrieveOptions())
   const jobs = jobsQuery.data?.jobs ?? []
   const selectedJob: JobPickerOption | null = jobs.find((job) => job.id === jobId) ?? null
+  const jobsError = jobsQuery.isError
 
   const setDraft = (key: string, draft: Draft): void => {
     setDrafts((previous) => ({ ...previous, [key]: draft }))
@@ -360,6 +364,14 @@ export function EntryForm({
         </label>
         <div className="flex flex-col gap-1 text-sm font-medium md:col-span-2">
           <span className="text-slate-700">Job (optional)</span>
+          {jobsError && (
+            <p className="text-xs text-red-700">
+              Could not load jobs.{' '}
+              <button type="button" className="underline" onClick={() => void jobsQuery.refetch()}>
+                Retry
+              </button>
+            </p>
+          )}
           <div className="flex items-center gap-2">
             <div className="flex-1 rounded-md border border-slate-200">
               <JobPicker

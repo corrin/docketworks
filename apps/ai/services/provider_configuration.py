@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from apps.ai.enums import AIProviderTypes
 from apps.ai.models import AIProvider
 from apps.ai.services.llm_client import LLMConfigurationError, chat_completion, resolve_target
-from apps.core.errors import InvalidInputError
+from apps.core.errors import InvalidInputError, UpstreamRefusedError
 from apps.core.schemas import NonBlankText, NullableText, omittable
 
 ProviderName = Annotated[NonBlankText, Field(max_length=100)]
@@ -102,5 +102,7 @@ def verify_provider(provider: AIProvider) -> str:
             "The provider rejected this model or chat request configuration."
         ) from exc
     except RateLimitError as exc:
-        raise InvalidInputError("The provider's quota or rate limit prevented this test.") from exc
+        raise UpstreamRefusedError(
+            "The provider's quota or rate limit prevented this test."
+        ) from exc
     return resolve_target(provider=provider).model

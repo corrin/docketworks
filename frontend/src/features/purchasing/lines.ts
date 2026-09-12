@@ -18,7 +18,7 @@ export function poLineJobLabel(jobNumber: number | null, jobName: string | null)
 }
 
 /**
- * A not-yet-persisted PO line. Wire decimals stay strings end to end;
+ * A not-yet-persisted PO line. Inputs retain their text while being edited;
  * `job_number`/`job_name` are display-only so the job picker can render a pick
  * before the detail refetch supplies the server's line.
  */
@@ -146,8 +146,8 @@ export function poOrderValue(
   let unresolvedCount = 0
   for (const line of lines) {
     if (line.description.trim() === '') continue
-    const cost = line.price_tbc || line.unit_cost === null ? null : Number(line.unit_cost)
-    const amount = cost === null ? null : cost * Number(line.quantity)
+    const cost = line.price_tbc || line.unit_cost === null ? null : line.unit_cost
+    const amount = cost === null ? null : cost * line.quantity
     if (amount === null || !Number.isFinite(amount)) {
       unresolvedCount += 1
       continue

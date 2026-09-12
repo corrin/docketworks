@@ -190,11 +190,20 @@ class TestDeleteInvoice:
 
 class TestPurchaseOrders:
     def _upsert_response(self, po_id: str, number: str = "PO-PROV-1") -> SimpleNamespace:
-        result_po = Mock()
-        result_po.purchase_order_id = po_id
-        result_po.purchase_order_number = number
-        result_po.validation_errors = None
-        result_po.to_dict.return_value = {"line_items": [{"line_item_id": "li-1"}]}
+        """Stand in for the SDK order Xero echoes, with plain attributes.
+
+        Not a Mock: the provider serialises the echoed order into raw_json the
+        same way the inbound sync does, and a Mock's attributes are Mocks all
+        the way down, so walking one never terminates. A real SDK object holds
+        plain values, and so does this.
+        """
+        result_po = SimpleNamespace(
+            purchase_order_id=po_id,
+            purchase_order_number=number,
+            status="AUTHORISED",
+            validation_errors=None,
+            to_dict=lambda: {"line_items": [{"line_item_id": "li-1"}]},
+        )
         return SimpleNamespace(purchase_orders=[result_po])
 
     def test_create_success(self) -> None:
@@ -209,69 +218,60 @@ class TestPurchaseOrders:
         assert result.number == "PO-PROV-1"
         assert result.raw_response is not None
         assert result.raw_response["line_items"] == [{"line_item_id": "li-1"}]
+        # Xero's own word for the order, and the order it echoed: the two
+        # things the manager stores so nothing has to fetch them back. The
+        # echo's key names come from the SDK object, so this asserts that one
+        # was captured rather than naming keys only this double produces.
+        assert result.document_status == "AUTHORISED"
+        assert result.raw_response["echo"]
 
     def test_update_requires_external_id(self) -> None:
         provider, _api = _provider_with_api()
         with pytest.raises(ValueError, match="external_id"):
             provider.update_purchase_order(_po_payload())
 
-    def test_zero_uuid_recovers_real_id_across_pages(self) -> None:
+    def test_a_zero_uuid_is_reported_as_the_refusal_it_is(self) -> None:
+        """Measured against the demo tenant: a zero UUID means a deleted order owns the number.
+
+        Searching the listing for that number was the rejected alternative. The
+        only order it can find is the deleted one, so recovering would bind a
+        live purchase order to a voided document.
+        """
         provider, api = _provider_with_api()
-        real_id = str(uuid.uuid4())
-        api.update_or_create_purchase_orders.return_value = self._upsert_response(ZERO_UUID)
-        other = Mock()
-        other.purchase_order_number = "PO-OTHER"
-        recovered = Mock()
-        recovered.purchase_order_id = real_id
-        recovered.purchase_order_number = "PO-PROV-1"
-        recovered.validation_errors = None
-        recovered.to_dict.return_value = {"line_items": []}
-        api.get_purchase_orders.side_effect = [
-            SimpleNamespace(purchase_orders=[other]),
-            SimpleNamespace(purchase_orders=[recovered]),
-        ]
-
-        result = provider.create_purchase_order(_po_payload())
-
-        assert result.success
-        assert result.external_id == real_id
-        pages = [call.kwargs["page"] for call in api.get_purchase_orders.call_args_list]
-        assert pages == [1, 2]
-
-    def test_zero_uuid_unrecovered_stays_out_of_external_id_on_validation_error(self) -> None:
-        provider, api = _provider_with_api()
-        result_po = Mock()
-        result_po.purchase_order_id = ZERO_UUID
-        result_po.purchase_order_number = "PO-PROV-1"
-        result_po.validation_errors = [Mock(message="Missing account code")]
+        result_po = SimpleNamespace(
+            purchase_order_id=ZERO_UUID,
+            purchase_order_number="PO-PROV-1",
+            status="DRAFT",
+            validation_errors=[Mock(message="Deleted PurchaseOrders cannot be updated")],
+            to_dict=lambda: {"line_items": []},
+        )
         api.update_or_create_purchase_orders.return_value = SimpleNamespace(
             purchase_orders=[result_po]
         )
-        api.get_purchase_orders.return_value = SimpleNamespace(purchase_orders=[])
 
         result = provider.create_purchase_order(_po_payload())
 
         assert not result.success
         assert result.external_id is None
-        assert result.validation_errors == ["Missing account code"]
+        assert result.error is not None and "still holds that number" in result.error
+        assert result.validation_errors == ["Deleted PurchaseOrders cannot be updated"]
+        api.get_purchase_orders.assert_not_called()
 
-    def test_zero_uuid_unrecovered_is_a_failure_not_a_sentinel_success(self) -> None:
-        provider, api = _provider_with_api()
-        api.update_or_create_purchase_orders.return_value = self._upsert_response(ZERO_UUID)
-        api.get_purchase_orders.return_value = SimpleNamespace(purchase_orders=[])
+    def test_delete_releases_the_number_in_the_same_update(self) -> None:
+        """Xero keeps a voided order forever, and it keeps owning its number.
 
-        result = provider.create_purchase_order(_po_payload())
-
-        assert not result.success
-        assert result.external_id is None
-        assert result.error is not None and "zero UUID" in result.error
-
-    def test_delete_pre_reads_then_upserts_deleted(self) -> None:
+        The rename has to ride on the voiding call: measured 2026-09-12, a
+        separate rename afterwards is refused outright.
+        """
         provider, api = _provider_with_api()
         external_id = str(uuid.uuid4())
         api.get_purchase_order.return_value = SimpleNamespace(
             purchase_orders=[
-                SimpleNamespace(contact=SimpleNamespace(contact_id="c-1"), date="2026-08-01")
+                SimpleNamespace(
+                    contact=SimpleNamespace(contact_id="c-1"),
+                    date="2026-08-01",
+                    purchase_order_number="PO-0123",
+                )
             ]
         )
         api.update_or_create_purchase_orders.return_value = SimpleNamespace(purchase_orders=[])
@@ -283,6 +283,31 @@ class TestPurchaseOrders:
             "PurchaseOrders"
         ][0]
         assert posted["Status"] == "DELETED"
+        assert posted["PurchaseOrderNumber"] != "PO-0123"
+        assert posted["PurchaseOrderNumber"].startswith("PO-0123-VOID-")
+
+    def test_a_refused_delete_does_not_read_as_success(self) -> None:
+        """summarize_errors=False puts the refusal inside the document, not the status."""
+        provider, api = _provider_with_api()
+        api.get_purchase_order.return_value = SimpleNamespace(
+            purchase_orders=[
+                SimpleNamespace(
+                    contact=SimpleNamespace(contact_id="c-1"),
+                    date="2026-08-01",
+                    purchase_order_number="PO-0123",
+                )
+            ]
+        )
+        api.update_or_create_purchase_orders.return_value = SimpleNamespace(
+            purchase_orders=[
+                SimpleNamespace(validation_errors=[Mock(message="PurchaseOrder is BILLED")])
+            ]
+        )
+
+        result = provider.delete_purchase_order(str(uuid.uuid4()))
+
+        assert not result.success
+        assert result.validation_errors == ["PurchaseOrder is BILLED"]
 
 
 class TestAttachmentsAndNotes:
@@ -556,7 +581,9 @@ class TestReadonlyDocumentStubs:
         created = provider.create_purchase_order(_po_payload())
         assert created.success
         assert created.number == "PO-PROV-1"
-        assert created.raw_response == {"line_items": [], "_e2e_stub": True}
+        assert created.raw_response == {"line_items": [], "echo": {"_e2e_stub": True}}
+        # The status a live push would be answered with is the one it sent.
+        assert created.document_status == _po_payload().status
 
         existing = str(uuid.uuid4())
         updated = provider.update_purchase_order(_po_payload(external_id=existing))

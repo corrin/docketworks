@@ -212,9 +212,13 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
             external_id=external_id,
             number=payload.po_number,
             online_url=(f"https://go.xero.com/Accounts/Payable/PurchaseOrders/Edit/{external_id}/"),
+            # The status a live push would have been answered with is the one
+            # it sent: Xero stores what it is given here, and the manager now
+            # records that answer, so the local effects have to match.
+            document_status=payload.status,
             # Empty line_items: no fabricated per-line ids, so the manager's
             # xero_line_item_id backfill is a no-op under readonly.
-            raw_response={"line_items": [], "_e2e_stub": True},
+            raw_response={"line_items": [], "echo": {"_e2e_stub": True}},
         )
 
     def create_purchase_order(self, payload: POPayload) -> DocumentResult:

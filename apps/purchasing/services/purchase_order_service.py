@@ -11,7 +11,7 @@ caller's ``If-Match`` does not name the current version. The API layer answers
 """
 
 import logging
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import TypedDict
 from uuid import UUID
@@ -19,7 +19,6 @@ from uuid import UUID
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Count, IntegerField, Q
-from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Cast, Substr
 from django.http import Http404
 from django.utils import timezone
@@ -27,25 +26,20 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company, Supplier, SupplierPickupAddress
 from apps.company.services.company_rest_service import pickup_address_data
+from apps.core.errors import InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.core.pagination import paginate
 from apps.core.patching import apply_patch_fields
-from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.purchasing.etag import require_current_etag
+from apps.purchasing.etag import purchase_order_etag, require_current_etag
 from apps.purchasing.models import (
     PurchaseOrder,
     PurchaseOrderEvent,
     PurchaseOrderLine,
-    Stock,
 )
 from apps.purchasing.schemas import PurchaseOrderStatus
-from apps.purchasing.services.allocation_service import (
-    AllocationMetadata,
-    create_costline_from_allocation,
-    create_stock_from_allocation,
-    default_retail_rate_pct,
-)
+from apps.purchasing.services.allocation_service import recompute_purchase_order_status
+from apps.purchasing.services.delivery_receipt_service import receive_outstanding_order
 from apps.purchasing.tasks import queue_purchase_order_push
 
 logger = logging.getLogger(__name__)
@@ -90,6 +84,7 @@ class PurchaseOrderLineData(TypedDict):
     """Data contract for PurchaseOrderLineData."""
 
     id: UUID
+    created_at: datetime
     description: str
     quantity: Decimal
     dimensions: str | None
@@ -201,6 +196,7 @@ def purchase_order_line_data(
     job = line.job
     return {
         "id": line.id,
+        "created_at": line.created_at,
         "description": line.description,
         "quantity": line.quantity,
         "dimensions": line.dimensions,
@@ -235,6 +231,8 @@ def purchase_order_detail_data(po: PurchaseOrder) -> dict[str, object]:
         "expected_delivery": po.expected_delivery,
         "online_url": po.online_url,
         "xero_id": po.xero_id,
+        "xero_status": po.xero_status,
+        "xero_last_synced": po.xero_last_synced,
         "pickup_address_id": po.pickup_address_id,
         "created_by_id": po.created_by_id,
         "supplier": supplier.name if supplier else "",
@@ -323,6 +321,15 @@ _LINE_WRITABLE_FIELDS = frozenset(
 )
 
 
+def validate_ordered_quantity(line: PurchaseOrderLine, quantity: Decimal) -> None:
+    """Amend the order without contradicting its net supplier receipts."""
+    if quantity < line.received_quantity:
+        raise InvalidInputError(
+            f"{line.description}: ordered quantity {quantity} cannot be below "
+            f"net received quantity {line.received_quantity}. Reverse the receipt first."
+        )
+
+
 def _apply_line_fields(line: PurchaseOrderLine, line_data: PurchaseOrderLineWriteData) -> None:
     """Write the supplied line fields onto ``line`` per the PATCH contract.
 
@@ -335,14 +342,17 @@ def _apply_line_fields(line: PurchaseOrderLine, line_data: PurchaseOrderLineWrit
     ``price_tbc`` and ``unit_cost`` need ordering the generic pass cannot
     express, so they are handled here: the flag lands first, then a supplied
     cost consults the line's effective flag, because ``price_tbc`` means "no
-    unit cost" (the field's own help_text). Each is still written only when its
-    own key is present, so toggling the checkbox never disturbs a stored cost.
+    unit cost" (the field's own help_text). Ticking TBC explicitly discards the
+    price; unticking alone does not invent or restore one.
     """
     apply_patch_fields(line, dict(line_data), fields=_LINE_WRITABLE_FIELDS)
     if "price_tbc" in line_data:
         line.price_tbc = bool(line_data["price_tbc"])
-    if "unit_cost" in line_data:
-        line.unit_cost = None if line.price_tbc else line_data["unit_cost"]
+    if line.price_tbc:
+        line.unit_cost = None
+    elif "unit_cost" in line_data:
+        line.unit_cost = line_data["unit_cost"]
+    validate_ordered_quantity(line, line.quantity)
 
 
 def _write_lines(po: PurchaseOrder, lines: list[PurchaseOrderLineWriteData]) -> None:
@@ -428,56 +438,7 @@ def create_purchase_order(
     return po
 
 
-def _auto_allocate_line(line: PurchaseOrderLine, po: PurchaseOrder, staff: Staff) -> None:
-    """Allocate a whole line automatically when a PO is marked fully received."""
-    stock_job = Stock.get_stock_holding_job()
-    retail_rate_pct = default_retail_rate_pct()
-
-    if line.job_id is None or line.job_id == stock_job.id:
-        already_stocked = Stock.objects.filter(
-            source="purchase_order", source_purchase_order_line=line
-        ).exists()
-        if already_stocked:
-            return
-        create_stock_from_allocation(
-            line=line,
-            job=stock_job,
-            qty=line.quantity,
-            metadata=AllocationMetadata.from_line(line),
-            retail_rate_pct=retail_rate_pct,
-        )
-        line.received_quantity = line.quantity
-        line.save()
-        return
-
-    job = Job.objects.get(id=line.job_id)
-    already_costed = (
-        CostLine.objects.annotate(
-            source_po_line_id=KeyTextTransform("purchase_order_line_id", "ext_refs"),
-        )
-        .filter(source_po_line_id=str(line.id))
-        .exists()
-    )
-    if already_costed:
-        return
-
-    create_costline_from_allocation(
-        purchase_order=po,
-        line=line,
-        job=job,
-        qty=line.quantity,
-        retail_rate_pct=retail_rate_pct,
-        staff=staff,
-    )
-    line.received_quantity = line.quantity
-    line.save()
-    # Bump the job's updated_at without recording a JobEvent.
-    Job.objects.filter(pk=job.pk).untracked_update(updated_at=timezone.now())
-
-
-def _apply_purchase_order_fields(
-    po: PurchaseOrder, data: PurchaseOrderUpdateData, staff: Staff
-) -> None:
+def _apply_purchase_order_fields(po: PurchaseOrder, data: PurchaseOrderUpdateData) -> None:
     if "reference" in data:
         po.reference = data["reference"]
     if "expected_delivery" in data:
@@ -488,10 +449,6 @@ def _apply_purchase_order_fields(
     new_status = data["status"]
     logger.info("Updating PO %s status: %s -> %s", po.po_number, po.status, new_status)
     po.status = new_status
-    if new_status != "fully_received":
-        return
-    for line in po.po_lines.filter(quantity__gt=0):
-        _auto_allocate_line(line, po, staff)
 
 
 def update_purchase_order(
@@ -520,6 +477,15 @@ def update_purchase_order(
 
         lines_to_delete = data.get("lines_to_delete")
         if lines_to_delete:
+            if (
+                PurchaseOrderLine.objects.filter(purchase_order=po, id__in=lines_to_delete)
+                .filter(stock_generated__isnull=False)
+                .exists()
+            ):
+                raise DjangoValidationError(
+                    "This line preserves inventory provenance and cannot be deleted. "
+                    "See its allocations."
+                )
             PurchaseOrderLine.objects.filter(id__in=lines_to_delete, purchase_order=po).delete()
 
         supplier_id = data.get("supplier_id")
@@ -537,9 +503,13 @@ def update_purchase_order(
                 po.pickup_address = _resolve_pickup_address(pickup_address_id, po.supplier)
 
         _write_lines(po, data.get("lines", []))
-        _apply_purchase_order_fields(po, data, staff)
+        _apply_purchase_order_fields(po, data)
 
         po.save()
+        if data.get("status") == "fully_received":
+            po = receive_outstanding_order(po.id, staff, if_match=purchase_order_etag(po))
+        elif "lines" in data and po.po_lines.filter(received_quantity__gt=0).exists():
+            recompute_purchase_order_status(po)
         po.refresh_from_db()
         # Xero holds a copy of this order so the supplier's bill has something
         # to reconcile against; keeping that copy current is the system's job,

@@ -13,9 +13,9 @@ from django.test import Client
 from django.utils import timezone
 
 from apps.accounts.models import Staff
+from apps.accounts.tests.helpers import authenticate
 from apps.ai.models import AIProvider
 from apps.ai.services.llm_client import LLMConfigurationError
-from apps.company.tests.conftest import authenticate
 from apps.company.tests.job_fixtures import make_job
 from apps.core.models import AppError
 from apps.job.chat.server import selected_target

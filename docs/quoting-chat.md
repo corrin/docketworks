@@ -42,10 +42,9 @@ unambiguous exact empty seed. Incomplete or ambiguous entries require an adminis
 choice. OpenAI-only provisioning is supported; Gemini-dependent parsing still requires
 Gemini. Reconfiguration does not overwrite keys rotated through the UI.
 
-Migration `ai/0002` enforces at most one application default. Where legacy rows have
+Migration `ai/0002` enforces at most one application default. Where a database holds
 multiple defaults it clears those flags, retaining every model and key, so an administrator
-can make the choice. A missing default is reported rather than guessed. The v1 restore
-script removes the constraint before import and reapplies the migration afterwards.
+can make the choice. A missing default is reported rather than guessed.
 
 Completed model calls record their reported token usage, wall time in milliseconds and
 `estimated_cost_usd` through the existing gateway, one row per model round trip (including
@@ -76,11 +75,11 @@ The live multi-turn integration test guards against history rejection and overwr
 ChatKit's process-local timestamps are made timezone-aware for database indexing;
 its own payload keeps the format its workflow-duration code requires.
 
-Migrations 0005–0007 preserve existing message IDs, text, timestamps and legacy
-metadata in a conversation named **Previous quoting conversation**. The data
-migration refuses rollback once conversations exist. Empty targets can rewind for
-v1 imports; populated databases require the release process's pre-migration backup
-to roll back without discarding SDK items into the old text-only schema.
+Migrations 0005–0007 preserve existing message IDs, text, timestamps and metadata
+in a conversation named **Previous quoting conversation**. The data migration
+refuses rollback once conversations exist. An empty target can still rewind;
+a populated database requires the release process's pre-migration backup to roll
+back without discarding SDK items into the old text-only schema.
 
 The CLI exercises the same persisted path:
 

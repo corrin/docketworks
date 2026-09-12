@@ -13,7 +13,7 @@ from django.test import Client
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.company.tests.conftest import authenticate
+from apps.accounts.tests.helpers import authenticate
 
 pytestmark = [
     pytest.mark.django_db,

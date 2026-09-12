@@ -177,11 +177,11 @@ function cellMeta(table: Table<typeof editableGridFeatures, GridRow>): GridCellC
   return meta
 }
 
-/** The line fields an item pick writes (v1 parity: the stock row wins). */
-function stockPickFields(stock: StockItem): PoLinePatch & Partial<PurchaseOrderLineOut> {
+/** A product supplies its catalogue price unless the operator has explicitly marked it TBC. */
+function stockPickFields(stock: StockItem, priceTbc: boolean): Partial<PoLineDraft> {
   return {
     description: stock.description,
-    unit_cost: stock.unit_cost,
+    unit_cost: priceTbc ? null : stock.unit_cost,
     item_code: stock.item_code,
     metal_type: stock.metal_type,
     alloy: stock.alloy,
@@ -207,13 +207,17 @@ function ItemCell({ row, table }: CellProps) {
       triggerClassName="w-full max-w-full"
       onPickStock={(stock) => {
         if (gridRow.type === 'server') {
-          const fields = stockPickFields(stock)
-          context.patchLine(gridRow.line.id, fields, fields)
+          const fields = stockPickFields(stock, gridRow.line.price_tbc)
+          context.patchLine(gridRow.line.id, fields, {
+            ...fields,
+            quantity: gridRow.line.quantity,
+            unit_cost: gridRow.line.price_tbc ? null : Number(stock.unit_cost),
+          })
           return
         }
         // No persist: typed rows POST on row EXIT only, so an early create
         // response can never race the quantity still being typed.
-        context.updateDraft(gridRow.localId, stockPickFields(stock))
+        context.updateDraft(gridRow.localId, stockPickFields(stock, gridRow.draft.price_tbc))
       }}
     />
   )
@@ -316,7 +320,7 @@ function NumberCell({
   const context = cellMeta(table)
   const gridRow = row.original
   const raw = gridRow.type === 'server' ? gridRow.line[fieldName] : gridRow.draft[fieldName]
-  const serverValue = raw === null ? '' : trimDecimal(raw)
+  const serverValue = raw === null ? '' : trimDecimal(String(raw))
   // A line whose price is still to be confirmed has no cost to type: the
   // service refuses one for it, so the input is closed rather than accepting
   // a value that would be dropped.
@@ -326,7 +330,7 @@ function NumberCell({
     serverValue,
     (value) => {
       if (gridRow.type === 'server') {
-        context.patchLine(gridRow.line.id, { [fieldName]: value }, { [fieldName]: value })
+        context.patchLine(gridRow.line.id, { [fieldName]: value }, { [fieldName]: Number(value) })
       } else {
         context.updateDraft(gridRow.localId, { [fieldName]: value })
       }
@@ -368,10 +372,11 @@ function PriceTbcCell({ row, table }: CellProps) {
       className="mx-auto mt-1 block h-4 w-4 accent-blue-600 disabled:opacity-50"
       onChange={(event) => {
         const next = event.target.checked
+        const patch = next ? { price_tbc: true, unit_cost: null } : { price_tbc: false }
         if (gridRow.type === 'server') {
-          context.patchLine(gridRow.line.id, { price_tbc: next }, { price_tbc: next })
+          context.patchLine(gridRow.line.id, patch, patch)
         } else {
-          context.updateDraft(gridRow.localId, { price_tbc: next })
+          context.updateDraft(gridRow.localId, patch)
         }
       }}
     />

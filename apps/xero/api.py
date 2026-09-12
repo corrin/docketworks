@@ -23,7 +23,6 @@ from django.db.models import Model
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
-from ninja.errors import HttpError
 from ninja.responses import Status
 
 from apps.accounting.models import Invoice, Quote
@@ -33,6 +32,7 @@ from apps.accounting.services.invoice_calculation import (
     calculate_invoice_amount,
     get_job_for_invoice_calculation,
 )
+from apps.accounts.auth import authenticated_staff
 from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
 from apps.core.errors import persist_app_error
@@ -55,22 +55,13 @@ from apps.xero.constants import TENANT_ID_CACHE_KEY, tenant_cache
 # manager modules whose imports stay call-time.
 from apps.xero.documents.base import XeroDocumentResponse
 from apps.xero.models import XeroApp, XeroPayItem
-from apps.xero.sync_service import XeroSyncService
+from apps.xero.sync_service import XeroSyncService, last_detail_refresh
 
 logger = logging.getLogger(__name__)
 
 router = Router(tags=["xero"])
 auth = CookieJWTAuth()
 office_auth = OfficeStaffCookieJWTAuth()
-
-
-def _staff(request: HttpRequest) -> Staff:
-    """Narrow the authenticated user to a real Staff row (ADR 0028)."""
-    auth_user: object = getattr(request, "auth", None)
-    user = auth_user if isinstance(auth_user, Staff) else request.user
-    if not isinstance(user, Staff):
-        raise HttpError(401, "Authentication credentials were not provided.")
-    return user
 
 
 class XeroPayItemOut(Schema):
@@ -466,7 +457,7 @@ def xero_create_invoice(
                 success=False, error="Job has no client company; set one before invoicing."
             ),
         )
-    manager = XeroInvoiceManager(company=job.company, job=job, staff=_staff(request))
+    manager = XeroInvoiceManager(company=job.company, job=job, staff=authenticated_staff(request))
     result = manager.create_document(
         total_amount=calc_result.calculated_amount, billing_metadata=billing_metadata
     )
@@ -524,7 +515,7 @@ def xero_create_quote(
                 success=False, error="Job has no client company; set one before quoting."
             ),
         )
-    manager = XeroQuoteManager(company=job.company, job=job, staff=_staff(request))
+    manager = XeroQuoteManager(company=job.company, job=job, staff=authenticated_staff(request))
     result = manager.create_document(breakdown=payload.breakdown)
 
     if not result["success"]:
@@ -580,7 +571,7 @@ def xero_delete_quote(
                 success=False, error="Job has no client company and no Xero quote."
             ),
         )
-    manager = XeroQuoteManager(company=company, job=job, staff=_staff(request))
+    manager = XeroQuoteManager(company=company, job=job, staff=authenticated_staff(request))
     result = manager.delete_document()
 
     if not result["success"]:
@@ -646,7 +637,10 @@ def xero_delete_invoice(
             ),
         )
     manager = XeroInvoiceManager(
-        company=job.company, job=job, staff=_staff(request), xero_invoice_id=str(invoice.xero_id)
+        company=job.company,
+        job=job,
+        staff=authenticated_staff(request),
+        xero_invoice_id=str(invoice.xero_id),
     )
     result = manager.delete_document()
 
@@ -705,7 +699,9 @@ def xero_create_purchase_order(
             ),
         )
 
-    manager = XeroPurchaseOrderManager(purchase_order=purchase_order, staff=_staff(request))
+    manager = XeroPurchaseOrderManager(
+        purchase_order=purchase_order, staff=authenticated_staff(request)
+    )
     result = manager.sync_to_xero()
 
     if not result["success"]:
@@ -755,7 +751,9 @@ def xero_delete_purchase_order(
             ),
         )
 
-    manager = XeroPurchaseOrderManager(purchase_order=purchase_order, staff=_staff(request))
+    manager = XeroPurchaseOrderManager(
+        purchase_order=purchase_order, staff=authenticated_staff(request)
+    )
     result = manager.delete_document()
 
     if not result["success"]:
@@ -780,6 +778,7 @@ class XeroSyncInfoOut(ResponseSchema):
     last_syncs: dict[str, datetime | None]
     sync_range: str
     sync_in_progress: bool
+    last_detail_refresh: datetime | None
 
 
 @router.post(
@@ -790,14 +789,16 @@ class XeroSyncInfoOut(ResponseSchema):
     summary="Start a Xero sync",
     tags=["xero"],
 )
-def xero_sync_create(request: HttpRequest) -> Status[XeroSyncStartOut | XeroAuthRequiredOut]:
+def xero_sync_create(
+    request: HttpRequest, detail_refresh: bool = False
+) -> Status[XeroSyncStartOut | XeroAuthRequiredOut]:
     """Dispatch a background sync run.
 
     409 when a run already holds the lock (v1 said 200 "already running";
     the explicit status lets a client distinguish without parsing prose —
     the body still carries the active task id either way).
     """
-    result = XeroSyncService.start_sync()
+    result = XeroSyncService.start_sync(detail_refresh=detail_refresh)
     if result.reason == "no_valid_token":
         return Status(
             401,
@@ -870,6 +871,7 @@ def xero_sync_info_retrieve(request: HttpRequest) -> XeroSyncInfoOut:
         last_syncs=last_syncs,
         sync_range="Syncing data since last successful sync",
         sync_in_progress=sync_in_progress,
+        last_detail_refresh=last_detail_refresh(CompanyDefaults.get_solo().xero_tenant_id),
     )
 
 

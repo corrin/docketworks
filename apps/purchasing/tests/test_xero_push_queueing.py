@@ -23,7 +23,7 @@ from pytest_django.fixtures import DjangoCaptureOnCommitCallbacks
 from apps.accounts.models import Staff
 from apps.purchasing.tasks import PUSH_PURCHASE_ORDER_TASK as PUSH_TASK
 from apps.purchasing.tasks import queue_purchase_order_push
-from apps.purchasing.tests.conftest import make_po_line, make_purchase_order
+from apps.purchasing.tests.factories import make_po_line, make_purchase_order
 
 pytestmark = pytest.mark.django_db
 
@@ -79,15 +79,15 @@ class TestQueueingOnWrite:
         send.assert_not_called()
 
     def test_the_patch_endpoint_queues_the_push(
-        self, client: Client, django_capture_on_commit_callbacks: DjangoCaptureOnCommitCallbacks
+        self, api: Client, django_capture_on_commit_callbacks: DjangoCaptureOnCommitCallbacks
     ) -> None:
         """Through the real entry point, not the helper."""
         po = make_purchase_order(status="submitted", created_by=Staff.get_automation_user())
         make_po_line(po, quantity="1.00", unit_cost="5.00")
-        etag = client.get(f"/api/purchasing/purchase-orders/{po.id}/").headers["ETag"]
+        etag = api.get(f"/api/purchasing/purchase-orders/{po.id}/").headers["ETag"]
 
         with patch(SEND) as send, django_capture_on_commit_callbacks(execute=True):
-            response = client.patch(
+            response = api.patch(
                 f"/api/purchasing/purchase-orders/{po.id}/",
                 data={"reference": "confirmed"},
                 content_type="application/json",

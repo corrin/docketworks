@@ -5,31 +5,28 @@ Xero mirror at that installation's own demo organisation. Assume the repository
 root as the working directory, `.env` loaded, and `uv` available; every command
 below is written for that.
 
-Two databases take part. The **source** database is v1-shaped: the scrubbed
-production dump restores into it with its own schema, data and migration ledger.
-The **target** database is this installation's own v2 database: it is dropped,
-recreated, migrated, and then loaded from the source by
-`scripts/ops/migrate_v1_data.sh`. Nothing loads a v1 dump directly into a v2
-database — the two schemas differ, and the collision handling and re-normalisation
-that make the load correct live in that script.
+One database takes part. The scrubbed production dump is a complete `pg_dump`
+archive — schema, data and the `django_migrations` ledger — taken from a host
+running this same codebase, so it restores directly into this installation's own
+database. The target is emptied by the sanctioned wipe, restored, and then
+migrated forward to whatever this checkout adds beyond the graph the dump was
+taken at. There is no intermediate database and no translation step.
 
 The dump itself is produced on the production host by `manage.py
 backport_data_backup`, which pipes `pg_dump` into a temporary scrub database,
 scrubs in place, and re-dumps the scrubbed copy. Raw production data never lands
-on disk on either host, and the scrubbed dump carries no external-system
-credentials. The producer needs the instance's `dw_<client>_<env>_scrub`
-database and the `SCRUB_DB_NAME` line in its `.env`, on either codebase: v1
-carries `SCRUB_DB_NAME` in its own `REQUIRED_ENV_VARS`, so a production host
-running v1 could not have started without one. Instances are created with
-both; an older instance gains them with one
+on disk on either host; the scrubbed dump carries no external-system credentials
+and no password hashes, because the scrub replaces every one. The producer needs
+the instance's `dw_<client>_<env>_scrub` database and the `SCRUB_DB_NAME` line in
+its `.env`. Instances are created with both; an older instance gains them with one
 `sudo scripts/server/instance.sh reconfigure <client> <env>` on its host, and
 nothing in this runbook changes the production host's configuration.
 
-**Until cutover the production host runs v1 and therefore v1's copy of the
-command.** The one difference that reaches this runbook: v1 writes no
-`<dump>.migrations.json` migration-ledger sidecar, which
-`pull_prod_backup.sh` and `scripts/ops/migrate_to_snapshot.py` both tolerate.
-The v2 producer writes it beside the archive.
+The producer writes a `<dump>.migrations.json` sidecar beside the archive
+recording the migration state the dump was taken at. This runbook does not need
+it — the archive carries its own ledger — but it lets you read that state without
+restoring, which is how you find the matching checkout when restoring an older
+archive. `scripts/ops/migrate_to_snapshot.py` consumes it for that case.
 
 ## Audit
 
@@ -128,9 +125,10 @@ Verified scrubbed backup: /…/restore/scrubbed_dw_msm_prod_<ts>.dump
 >> Removing remote staging file...
 ```
 
-The verifier fails when the archive is unreadable, predates the July 2026
-migration squash, or still contains database-backed external-system credentials.
-A failing archive is not restored — take a fresh one.
+The verifier fails when the archive is unreadable, when its migration ledger is
+not one this codebase can restore, when it still holds real password hashes, or
+when it still contains database-backed external-system credentials. A failing
+archive is not restored — take a fresh one.
 
 ## Preserve the private configuration rows
 
@@ -176,8 +174,9 @@ configuration:
 ```bash
 psql -d "$DB_NAME" -c "\copy workflow_xeroapp FROM 'restore/xeroapp.csv' WITH (FORMAT csv)"
 psql -d "$DB_NAME" -c "\copy workflow_aiprovider FROM 'restore/aiprovider.csv' WITH (FORMAT csv)"
-# The migration script re-applied core/0003 after the load, which created an
-# empty IntegrationSettings row at pk=1; the saved row replaces it.
+# The archive carries core/0003 as already applied, so nothing recreates the
+# singleton and the table restores empty. The delete is what makes this step
+# repeatable: re-running it replaces the row rather than colliding on pk=1.
 psql -d "$DB_NAME" -c "DELETE FROM crm_phoneprovidersettings"
 psql -d "$DB_NAME" -c "\copy crm_phoneprovidersettings FROM 'restore/integrationsettings.csv' WITH (FORMAT csv)"
 ```
@@ -223,28 +222,30 @@ assert not (s.phone_provider_base_url or s.phone_provider_username or s.phone_pr
 
 ## Load the dump and migrate it into the target database
 
-Restore the dump into a v1-shaped source database. It carries its own schema, so
-this database needs nothing but to exist and be empty:
-
-```bash
-dropdb --if-exists dw_msm_v1
-createdb dw_msm_v1
-pg_restore --no-owner --no-privileges --exit-on-error -d dw_msm_v1 \
-  restore/scrubbed_dw_msm_prod_<ts>.dump
-```
-
-Reset the target database and migrate it, in that order. `migrate` first and load
-second is the rehearsed order: the seeds a fresh install writes (the system
-automation staff row, the labour-subtype catalogue) are rows v1's dump also
-carries, on UNIQUE columns, and the load is a single transaction where one
-collision rolls back everything. `migrate_v1_data.sh` clears those seeds
-immediately before restoring.
+Empty the target, restore the archive into it, then migrate forward:
 
 ```bash
 uv run python manage.py reset_public_schema --database "$DB_NAME"
+pg_restore --no-owner --no-privileges --exit-on-error -d "$DB_NAME" \
+  restore/scrubbed_dw_msm_prod_<ts>.dump
 uv run python manage.py migrate
-scripts/ops/migrate_v1_data.sh dw_msm_v1 "$DB_NAME" -U "$PGUSER" -h "$PGHOST" -p "$PGPORT"
 ```
+
+**Wipe first, restore second, migrate third — and never `migrate` before the
+restore.** The archive brings its own schema and its own `django_migrations`
+rows, so a migrated target would meet every table already existing. The seeds a
+fresh install writes (the system automation staff row, the labour-subtype
+catalogue) are rows the archive also carries on UNIQUE columns, so they would
+collide as well. Restoring into the empty schema sidesteps both: the database
+that comes out is production's, byte for byte, at production's migration state.
+
+`--no-owner --no-privileges` drops the production role out of the restore, so the
+tables end up owned by whichever role `.env` names. `--exit-on-error` is what
+makes a partial restore a failure rather than a database that looks loaded.
+
+The final `migrate` applies only what this checkout has beyond the dump's graph,
+which is nothing when the checkout matches production and a short list when it is
+ahead. It is the step that makes a refresh usable on a feature branch.
 
 `reset_public_schema` is the sanctioned wipe (ADR 0048): `--database` must
 name the configured `DB_NAME` (script-safe as `"$DB_NAME"`), and it takes a
@@ -258,11 +259,9 @@ does not carry: copy-pasting these lines against production fails. A raw
 here: it carries no refusals and no recovery path, and this runbook also
 runs unattended.
 
-Everything after the two database names is passed through to the script's
-`psql`, `pg_dump` and `pg_restore` calls. Naming the connection there rather
-than relying on the exported variables keeps those calls and the script's own
-`manage.py migrate` step — which reads `.env` — pointed at the same server even
-when the script runs from a shell that did not export them.
+`pg_restore` connects through the `PG*` variables exported at the start of the
+session, while `manage.py` reads `.env`. Both must name the same server, which
+the export block above guarantees.
 
 Then re-insert the private configuration rows and force the sync gate off, as
 written in the previous section.
@@ -278,9 +277,7 @@ These two answer "did the load complete", which is a different question from
 "is the data v2-valid" — the ORM answers and the core tables hold plausible
 counts, and `showmigrations` prints nothing when every migration is applied.
 Validation comes after the development logins below, for the reason given
-there. `scripts/ops/db_schema_diff.sh` and row-count parity belong to the
-cutover rehearsal rather than to a refresh; see
-[`cutover-checklist.md`](cutover-checklist.md).
+there.
 
 ## Demo company defaults, on dev and demo restores only
 
@@ -305,6 +302,12 @@ the fixture evolves. The fixture also sets
 `test_company_name="ABC Carpet Cleaning TEST IGNORE"` — the values
 `xero --setup` and `fix_test_company.py` later match on.
 
+The fixture leaves `xero_tenant_id` null, so this database now names no
+organisation at all rather than production's. Any Xero call before the
+reconnect section below raises the configuration error `get_tenant_id()` is
+written to raise, which is what that section already assumes; `xero --setup`
+binds the demo organisation there.
+
 This step is for dev and demo restores only. The durable source for a
 tenant-specific server rebuild remains the root-owned
 `/opt/docketworks/config/<name>.company-defaults.json`; do not maintain a
@@ -322,23 +325,12 @@ default. Afterwards the admin is `defaultadmin@example.com` /
 email and `Default-staff-password`. Pass `--admin-only` to create the admin
 without touching staff passwords.
 
-**An archive produced by the v1 host still carries production password
-hashes** — v1's scrubber left them, and no change on this side reaches that
-code. Delete the dump once the restore is done. v2's scrubber replaces every
-hash at the scrub itself, so this ends when production runs v2; the verifier
-warns when it sees a v1-era archive and refuses a v2-era one that still holds
-them.
-
-**This step runs before validation, not after, because it is part of what makes
-the load valid.** Production legitimately holds staff who have never signed in
-and therefore carry a blank password. v2's `Staff` contract requires a hash, so
-those rows fail `validate_restored_data.py`'s model sweep — a real refusal
-against real data, not a false positive. Resetting every password is what
-makes them valid. Running validation first and documenting the failure as
-expected was rejected: an expected-failure allowance teaches an operator to read
-past red, and ADR 0015 says fix the data rather than tolerate it, which this
-reset does. Once production runs v2 this ordering constraint dissolves, because
-the scrub itself writes a non-blank password into every row.
+No archive reaches this step carrying a production password hash: the scrub
+replaces every one with the public non-production staff password and makes the
+automation row's password unusable, and `verify_scrubbed_backup.py` refuses an
+archive that still holds them. This step then resets those scrubbed passwords to
+the documented dev defaults, which is a convenience rather than a correctness
+requirement.
 
 **Check:** the run prints `Created admin user:` or `Admin user already exists:`,
 then `Reset passwords for <n> staff members.` and the two credential lines. A
@@ -383,15 +375,15 @@ env = dict(
     if '=' in line and not line.lstrip().startswith('#')
 )
 email = env['E2E_TEST_USERNAME']
-user = Staff.objects.filter(email=email).first()
+user = Staff.objects.filter(office_email=email).first()
 if user is None:
     user = Staff.objects.create_user(
-        email=email, password=env['E2E_TEST_PASSWORD'], first_name='E2E', last_name='Test'
+        office_email=email, password=env['E2E_TEST_PASSWORD'], first_name='E2E', last_name='Test'
     )
 else:
     user.set_password(env['E2E_TEST_PASSWORD'])
     user.save()
-print(user.email, 'password matches .env.test:', user.check_password(env['E2E_TEST_PASSWORD']))
+print(user.office_email, 'password matches .env.test:', user.check_password(env['E2E_TEST_PASSWORD']))
 "
 ```
 
@@ -412,12 +404,12 @@ address:
 uv run python manage.py shell -c "
 from decimal import Decimal
 from apps.accounts.models import Staff
-user = Staff.objects.get(email='<E2E_TEST_USERNAME>')
+user = Staff.objects.get(office_email='<E2E_TEST_USERNAME>')
 user.is_office_staff = True
 user.is_superuser = True
 user.base_wage_rate = Decimal('37.50')
 user.save()
-print(user.email, user.is_office_staff, user.is_superuser, user.wage_rate)
+print(user.office_email, user.is_office_staff, user.is_superuser, user.wage_rate)
 "
 ```
 
@@ -568,38 +560,25 @@ Do it in this order, because both halves depend on the ngrok domain:
 
 The flow must both start and finish on that domain: Xero redirects to the
 callback registered for the app, so a consent begun anywhere else cannot
-complete. Manual consent is the current path: the ported Playwright automation
-(`frontend/tests/scripts/xero-login.ts`) drives v1's `/xero` screen, which has
-no v2 counterpart yet, so it cannot complete a consent here.
+complete.
+
+`frontend/tests/scripts/xero-login.ts` automates this same round trip — it signs
+in and drives the same `/api/xero/authenticate/` entry point opened above — and
+the E2E preflight calls it whenever it finds the tenant disconnected. It is not
+unattended: when Xero demands MFA it waits up to 120 seconds for a human to
+approve the push notification. Doing it by hand here is the simpler choice when
+you are already in a browser, not a limitation of the script.
 
 **Check:** the browser lands back on the application, and re-running the
 connections command above now prints the organisation.
 
-## Activate payroll in the Xero organisation
+## If a payroll call answers 403
 
-A recreated demo organisation has the payroll product unprovisioned, and there is
-no API that turns it on. Open Payroll in the Xero web UI for this organisation
-once, as a browser step, and complete whatever activation prompt it shows.
-
-Until that is done every NZ Payroll call — including the ones
-`xero --setup --seed-xero` and `xero --configure-payroll` make below — answers
-**`403 Forbidden` with an empty body**, while everything about the connection
-looks correct: the token is valid, `get_connections` lists the organisation, the
-tenant id in the request headers is the right one, and the stored scope string
-carries every payroll scope.
-
-The two 403s a refresh produces are different failures and the body is what
-tells them apart:
-
-- **Empty body** — payroll is not provisioned for this organisation. Activate it
-  in the browser as above.
-- **Body naming the error**, `{"Title":"Forbidden","Detail":"AuthenticationUnsuccessful"}`
-  — tenant drift: a valid token for an organisation that no longer exists. Re-run
-  `xero --setup`, and see "Demo organisation lifecycle" in
-  [`xero_setup.md`](xero_setup.md#demo-organisation-lifecycle).
-
-**Check:** `uv run python manage.py xero --configure-payroll` in the next section
-reaches Xero instead of answering 403.
+Payroll needs no activation step and no browser visit: `--seed-xero` below
+creates the calendar, leave types and earnings rates through the ordinary API,
+like everything else that syncs. So a 403 there is a connection fault, almost
+always tenant drift — diagnosed and repaired under "Demo organisation lifecycle"
+in [`xero_setup.md`](xero_setup.md#demo-organisation-lifecycle).
 
 ## Configure the Xero connection
 

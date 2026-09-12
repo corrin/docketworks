@@ -730,8 +730,29 @@ class CompanyDefaults(SingletonModel):
 
     @classmethod
     def set_xero_sync_enabled(cls, *, enabled: bool) -> None:
-        """Persist the Xero sync gate and refresh django-solo's shared cache."""
+        """Persist the Xero sync gate and refresh django-solo's shared cache.
+
+        Opus: opening the gate requires a bound organisation. ``xero_tenant_id`` is
+        null until ``manage.py xero --setup`` discovers it from the Xero connection,
+        and every sync path resolves the tenant through ``get_tenant_id()``, so sync
+        enabled against a null tenant is an installation that will fail on its first
+        scheduled task with a configuration error nobody is watching for. The
+        onboarding command already binds before it opens the gate; the settings
+        screen does not, which is the path this closes.
+
+        Rejected alternative: a model ``clean()``. It fires on every ``full_clean()``,
+        including the test baseline's ``CompanyDefaults`` row, which carries a null
+        tenant beside this field's ``True`` default — so the rule would have been
+        enforced by invalidating the baseline rather than by guarding the write.
+        """
+        from apps.core.errors import InvalidInputError  # noqa: PLC0415 -- models <-> errors cycle
+
         company_defaults = cls.objects.get(pk=cls.singleton_instance_id)
+        if enabled and company_defaults.xero_tenant_id is None:
+            raise InvalidInputError(
+                "Connect the Xero organisation before enabling sync: xero_tenant_id "
+                "is unset, and onboarding binds it."
+            )
         company_defaults.enable_xero_sync = enabled
         company_defaults.save(update_fields=["enable_xero_sync"])
 

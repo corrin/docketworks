@@ -59,6 +59,7 @@ interface StatusMessages {
 
 interface ResourceRule {
   kind: ResourceKind
+  retryAction: boolean
   /** Endpoints whose responses carry a capturable resource version. */
   isVersionedEndpoint: (url: string) => boolean
   /** Endpoints whose mutations require If-Match. */
@@ -114,7 +115,24 @@ function poIdForMutation(url: string, body: unknown): string | null {
 
 const RULES: readonly ResourceRule[] = [
   {
+    kind: 'stocktake',
+    retryAction: false,
+    isVersionedEndpoint: (url) => /\/api\/purchasing\/stocktakes\/[0-9a-f-]{36}\//i.test(url),
+    isMutationEndpoint: (url) =>
+      /\/api\/purchasing\/stocktakes\/[0-9a-f-]{36}\/(?:post\/|correct\/)?$/i.test(url),
+    idForMutation: (url) => url.match(/\/stocktakes\/([0-9a-f-]{36})/i)?.[1] ?? null,
+    conflict: {
+      toast: 'This stocktake was saved elsewhere. Reload the saved draft to continue.',
+      error: 'This stocktake was saved elsewhere. Your entries have been retained.',
+    },
+    missing: {
+      toast: 'Reload the stocktake before saving.',
+      error: 'Stocktake version information is missing. Your entries have been retained.',
+    },
+  },
+  {
     kind: 'job',
+    retryAction: true,
     isVersionedEndpoint: (url) =>
       /\/api\/job\/jobs\//.test(url) &&
       !url.includes('/jobs/status-choices') &&
@@ -132,6 +150,7 @@ const RULES: readonly ResourceRule[] = [
   },
   {
     kind: 'po',
+    retryAction: true,
     isVersionedEndpoint: (url) => /\/api\/purchasing\/purchase-orders\//.test(url),
     isMutationEndpoint: (url) => PO_MUTATION_PATTERNS.some((pattern) => pattern.test(url)),
     idForMutation: poIdForMutation,
@@ -213,28 +232,13 @@ export interface ConcurrencyResponse {
 
 /** Response interceptor: capture strong resource versions from Job/PO endpoints. */
 export function captureResourceVersion<T extends ConcurrencyResponse>(response: T): T {
-  const url = response.config.url ?? ''
   const version = strongResourceVersion(response.headers)
-  if (!version) {
-    return response
-  }
-  for (const rule of RULES) {
-    // Opus: a mutation endpoint counts as versioned here even when the read
-    // rule does not match it. Gating on isVersionedEndpoint alone dropped the
-    // fresh ETag that POST /api/purchasing/delivery-receipts/ returns, because
-    // its URL carries no /purchase-orders/<uuid>/ segment — so every receipt
-    // left a stale version in the store and 412'd the next PO mutation until a
-    // refetch landed.
-    if (!rule.isVersionedEndpoint(url) && !rule.isMutationEndpoint(url)) continue
-    // idForMutation is the one resolver that knows where each endpoint keeps
-    // its id: it reads the body for delivery receipts and falls back to the URL
-    // for everything else. A second URL-only resolver alongside it was one
-    // answer too many, and it was the one that dropped the receipt's ETag.
-    const id = rule.idForMutation(url, response.config.data)
-    if (id) {
-      setEtag(etagKey(rule.kind, id), version)
-    }
-  }
+  if (version === null) return response
+  // GPT: corrections return a different resource from the request URL. The
+  // server's resource token identifies the only cache entry it can update.
+  const key = version.match(/^"((?:job|po|stocktake):[0-9a-f-]{36}):[^"\s]+"$/i)?.[1]
+  if (key === undefined) return response
+  setEtag(key, version)
   return response
 }
 
@@ -275,12 +279,14 @@ export async function handleConcurrencyFailure(error: unknown): Promise<never> {
 
   toast.error(messages.toast, {
     duration: Infinity, // Don't auto-dismiss
-    action: {
-      label: 'Retry',
-      onClick: () => {
-        emitConcurrencyRetry({ kind: rule.kind, id })
-      },
-    },
+    action: rule.retryAction
+      ? {
+          label: 'Retry',
+          onClick: () => {
+            emitConcurrencyRetry({ kind: rule.kind, id })
+          },
+        }
+      : undefined,
   })
 
   throw new ConcurrencyError(messages.error, rule.kind, id)

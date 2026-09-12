@@ -1,5 +1,11 @@
 import { test, expect } from '../fixtures/auth'
-import { autoId, createTestJob, getPhantomRowIndex } from '../helpers'
+import {
+  autoId,
+  createTestJob,
+  expectSavedRowOrder,
+  expectSavedRowOrderInNewSession,
+  getPhantomRowIndex,
+} from '../helpers'
 import {
   enterHours,
   getLatestWeekdayDate,
@@ -190,4 +196,42 @@ test.describe.serial('xero pay item validation', () => {
       expect(['Double Time', 'Overtime (2.0)']).toContain(text)
     }).toPass({ timeout: 10000 })
   })
+})
+
+test('timesheet entries keep their creation order after editing and reloading', async ({
+  authenticatedPage: page,
+  browser,
+}) => {
+  await createTestJob(page, 'Timesheet ordering')
+  const jobNumber = await readJobNumber(page)
+  await openEntryViaDaily(page, getLatestWeekdayDate())
+  const ids: string[] = []
+  for (let index = 0; index < 3; index++) {
+    const rowIndex = await getPhantomRowIndex(page)
+    await selectJobByNumber(page, rowIndex, jobNumber)
+    const created = page.waitForResponse(
+      (response) =>
+        response.url().includes('/cost_lines/') && response.request().method() === 'POST',
+    )
+    await enterHours(page, rowIndex, '0.5')
+    const response = await created
+    expect(response.ok()).toBe(true)
+    ids.push((await response.json()).id)
+    await expectSavedRowOrder(page, ids)
+  }
+  await page.reload()
+  await expectSavedRowOrder(page, ids)
+  const row = page.locator(`[data-row-id="${ids[0]}"]`)
+  const patched = page.waitForResponse(
+    (response) =>
+      response.url().includes(`/cost_lines/${ids[0]}/`) && response.request().method() === 'PATCH',
+  )
+  await row
+    .locator('[data-automation-id^="SmartTimesheetTable-description-"]')
+    .fill('Edited first ordered entry')
+  await page.keyboard.press('Enter')
+  expect((await patched).ok()).toBe(true)
+  await page.reload()
+  await expectSavedRowOrder(page, ids)
+  await expectSavedRowOrderInNewSession(page, browser, ids)
 })

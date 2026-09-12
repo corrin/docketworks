@@ -492,32 +492,32 @@ validate_company_defaults_config() {
         exit 1
     fi
     require_root_owned_credentials_file "$config_file"
-    python3 -c '
-import json
-import pathlib
-import sys
-from uuid import UUID
+    python3 "$SCRIPT_DIR/validate_company_defaults.py" "$config_file"
+}
 
-path = pathlib.Path(sys.argv[1])
-text = path.read_text()
-records = json.loads(text)
-models = [record.get("model") for record in records]
-required = {"company.company", "core.companydefaults"}
-if set(models) != required or len(records) != 2:
-    raise SystemExit(f"ERROR: {path} must contain exactly one Company and one CompanyDefaults record")
-if "__" in text:
-    raise SystemExit(f"ERROR: {path} still contains unresolved __PLACEHOLDER__ values")
-defaults = next(record["fields"] for record in records if record["model"] == "core.companydefaults")
-tenant_id = defaults.get("xero_tenant_id")
-if not isinstance(tenant_id, str) or not tenant_id:
-    raise SystemExit(f"ERROR: {path} must set core.companydefaults.xero_tenant_id")
-try:
-    UUID(tenant_id)
-except ValueError as exc:
-    raise SystemExit(f"ERROR: {path} has an invalid core.companydefaults.xero_tenant_id") from exc
-if defaults.get("enable_xero_sync") is not False:
-    raise SystemExit(f"ERROR: {path} must keep enable_xero_sync false until onboarding is finalized")
-' "$config_file"
+ensure_instance_directories() {
+    local instance_dir="$1"
+    local instance_user="$2"
+
+    mkdir -p "$instance_dir"/{logs,mediafiles,dropbox,phone-recordings,session-replays}
+    chown "$instance_user:www-data" "$instance_dir"
+    chmod 750 "$instance_dir"
+    chown "$instance_user:$instance_user" "$instance_dir/logs" "$instance_dir/dropbox"
+    chmod 700 "$instance_dir/logs"
+    # Opus: dropbox is the client's Maestral sync root, and an external writer
+    # (the office scanner) delivers into it, so it cannot be 700 like the
+    # other instance-private directories. 700 was what shipped, and it cut
+    # scanner delivery on msm-prod every time this ran while Maestral, systemd
+    # and disk all reported healthy (KAN-360). The group is the instance's own,
+    # so this widens nothing until an account is deliberately added to it;
+    # setgid keeps the writer's files group-owned and readable by the app.
+    chmod 2770 "$instance_dir/dropbox"
+    chown "$instance_user:www-data" "$instance_dir/mediafiles"
+    chmod 750 "$instance_dir/mediafiles"
+    chown "$instance_user:$instance_user" \
+        "$instance_dir/phone-recordings" \
+        "$instance_dir/session-replays"
+    chmod 700 "$instance_dir/phone-recordings" "$instance_dir/session-replays"
 }
 
 do_configure() {
@@ -665,19 +665,8 @@ do_configure() {
     fi
 
     log "Ensuring instance directory structure..."
-    mkdir -p "$INSTANCE_DIR"/{logs,mediafiles,dropbox,phone-recordings,session-replays}
+    ensure_instance_directories "$INSTANCE_DIR" "$INSTANCE_USER"
     ensure_instance_backup_dir "$INSTANCE" "$INSTANCE_USER"
-    chown "$INSTANCE_USER:www-data" "$INSTANCE_DIR"
-    chmod 750 "$INSTANCE_DIR"
-    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/logs" "$INSTANCE_DIR/dropbox"
-    chmod 700 "$INSTANCE_DIR/logs"
-    chmod 700 "$INSTANCE_DIR/dropbox"
-    chown "$INSTANCE_USER:www-data" "$INSTANCE_DIR/mediafiles"
-    chmod 750 "$INSTANCE_DIR/mediafiles"
-    chown "$INSTANCE_USER:$INSTANCE_USER" \
-        "$INSTANCE_DIR/phone-recordings" \
-        "$INSTANCE_DIR/session-replays"
-    chmod 700 "$INSTANCE_DIR/phone-recordings" "$INSTANCE_DIR/session-replays"
     require_root_owned_credentials_file "$CREDS_FILE"
     # GCP_CREDENTIALS may legitimately point at the instance's own copy
     # (the documented fix when the original download path is gone) — cp
@@ -791,8 +780,9 @@ EOSQL
     fi
 
     if [[ "$SKIP_DB_FIXTURES" == "true" ]]; then
-        # The caller loads them itself once the schema is v2 — see the
-        # cutover script's post-swap `instance.sh load-db-fixtures`.
+        # For a caller that reconfigures against a database the current
+        # schema has not reached yet, and loads them itself afterwards with
+        # `instance.sh load-db-fixtures`.
         log "Skipping credential-derived DB fixtures (--skip-db-fixtures)."
     else
         load_db_fixtures
@@ -943,35 +933,17 @@ do_reconfigure() {
 # validate-config
 # ============================================================
 # The exact config checks create/reconfigure run before touching state,
-# callable on their own. Read-only: exists so a preflight (the cutover
-# script) can prove a later reconfigure will pass while the instance is
-# still up, instead of discovering a missing v2-only credential after
-# services are stopped and the release symlink is flipped.
+# callable on their own. Read-only, so an operator can prove a later
+# reconfigure will pass while the instance is still up, instead of
+# discovering a missing credential after services are stopped and the
+# release symlink is flipped.
 do_validate_config() {
     parse_client_env "$@"
     require_instance_credentials "$CONFIG_DIR/$INSTANCE.credentials.env"
-    # Validate what reconfigure will actually see: the cutover rewrites the
-    # v1 CompanyDefaults model label in place before reconfigure, so this
-    # read-only preflight applies the same rewrite to a temp copy. Without
-    # it a v1-era file fails a check the cutover itself cures — a false
-    # negative on every not-yet-cut-over host.
-    local defaults_file="$CONFIG_DIR/$INSTANCE.company-defaults.json"
-    if [[ ! -f "$defaults_file" ]]; then
-        validate_company_defaults_config "$defaults_file"
-    fi
-    local preview_dir preview
-    preview_dir="$(mktemp -d)"
-    chmod 755 "$preview_dir"
-    preview="$preview_dir/$INSTANCE.company-defaults.json"
-    cp "$defaults_file" "$preview"
-    chown root:root "$preview"
-    chmod 600 "$preview"
-    if rewrite_v1_company_defaults_labels "$preview"; then
-        log "company-defaults carries the v1 model label; the cutover rewrites it — validating the rewritten form"
-    fi
-    validate_company_defaults_config "$preview"
-    rm -rf "$preview_dir"
-    log "Config for $INSTANCE satisfies the v2 contract."
+    # Validated in place: validate_company_defaults_config reports a missing
+    # file itself, so there is nothing for this to check first.
+    validate_company_defaults_config "$CONFIG_DIR/$INSTANCE.company-defaults.json"
+    log "Config for $INSTANCE satisfies the contract."
 }
 
 # ============================================================

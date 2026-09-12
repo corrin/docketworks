@@ -7,7 +7,7 @@ from decimal import Decimal
 from operator import itemgetter
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from xero_python.accounting import (
     AccountingApi,
@@ -468,25 +468,24 @@ class XeroAccountingProvider:
         result_po = response.purchase_orders[0]
         po_id = str(result_po.purchase_order_id)
 
-        # Xero sometimes returns a zero UUID on create; recover the real id by
-        # number rather than storing a useless sentinel.
+        # Opus: a zero UUID means one thing, measured against the demo tenant on
+        # 2026-09-12: a DELETED order already holds this number, and Xero will
+        # not reuse it ("Deleted PurchaseOrders cannot be updated"). It is a
+        # refusal, so it is reported as one. Recovering the id by searching the
+        # listing for the number was the rejected alternative: the only order
+        # that number can find is the deleted one, and adopting it would make a
+        # live purchase order point at a voided document. delete_purchase_order
+        # renames an order as it voids it so this state stops arising at all.
         if po_id == ZERO_UUID:
-            recovered = self._find_po_by_number(api, tenant_id, payload.po_number)
-            if recovered is not None:
-                result_po = recovered
-                po_id = str(recovered.purchase_order_id)
-            elif not result_po.validation_errors:
-                # Unrecovered and no validation errors to report instead: the
-                # PO may exist in Xero, but success with a sentinel id would
-                # be stored locally and route the next push to create a
-                # duplicate.
-                return DocumentResult(
-                    success=False,
-                    error=(
-                        f"Xero returned a zero UUID for PO {payload.po_number} and it "
-                        "could not be found by number; check Xero before retrying."
-                    ),
-                )
+            return DocumentResult(
+                success=False,
+                error=(
+                    f"Xero refused PO {payload.po_number}: a deleted purchase order in the "
+                    "organisation still holds that number. Rename it in Xero, or use a "
+                    "different number."
+                ),
+                validation_errors=[str(ve.message) for ve in (result_po.validation_errors or [])],
+            )
 
         if result_po.validation_errors:
             errors = [str(ve.message) for ve in result_po.validation_errors]
@@ -510,35 +509,23 @@ class XeroAccountingProvider:
             external_id=po_id,
             number=payload.po_number,
             online_url=online_url,
+            document_status=result_po.status,
             raw_response={
                 "line_items": result_po.to_dict().get("line_items", []),
-                "full": result_po.to_dict(),
+                # process_xero_data, not to_dict: this is what the manager
+                # stores as raw_json, and the inbound sync stores the same
+                # object through the same function. Two shapes in one column
+                # would mean every reader had to know which writer produced
+                # the row it is holding.
+                "echo": process_xero_data(result_po),
             },
         )
 
     @staticmethod
-    def _find_po_by_number(
-        api: AccountingApi, tenant_id: str, po_number: str
-    ) -> PurchaseOrder | None:
-        """Find a purchase order by its number, walking the paged listing.
-
-        Paged, not one call: get_purchase_orders returns ~100 rows per page,
-        and a just-created PO can sit past the first page. Bounded so a
-        misbehaving endpoint that keeps returning rows cannot pin the request
-        thread forever; a just-created PO sorts recent, far inside the cap.
-        """
-        max_pages = 50
-        for page in range(1, max_pages + 1):
-            listing: list[PurchaseOrder] = (
-                api.get_purchase_orders(tenant_id, page=page).purchase_orders or []
-            )
-            if not listing:
-                return None
-            for candidate in listing:
-                if candidate.purchase_order_number == po_number:
-                    return candidate
-        logger.warning("PO %s not found within %d pages of the Xero listing", po_number, max_pages)
-        return None
+    def _released_po_number(existing: PurchaseOrder) -> str:
+        """Name a voided order so its number is free without losing what it was."""
+        number = existing.purchase_order_number or "PO"
+        return f"{number}-VOID-{uuid4().hex[:8]}"
 
     def create_purchase_order(self, payload: POPayload) -> DocumentResult:
         """See AccountingProvider.create_purchase_order."""
@@ -574,12 +561,37 @@ class XeroAccountingProvider:
                 status="DELETED",
                 contact=Contact(contact_id=existing.contact.contact_id),
                 date=existing.date,
+                # Opus: released in the SAME update that voids the order, which
+                # is the only moment Xero allows it — measured 2026-09-12, a
+                # separate rename afterwards is refused with "Deleted
+                # PurchaseOrders cannot be updated". Xero keeps a voided order
+                # forever and it goes on owning its number, while our numbers
+                # are MAX(po_number)+1 over the rows that exist, so a deleted
+                # order's number comes round again and the next create is
+                # refused by a document nobody can see. The old number stays as
+                # the prefix: an operator reading the voided order in Xero still
+                # needs to know which order it was.
+                purchase_order_number=self._released_po_number(existing),
             )
-            api.update_or_create_purchase_orders(
+            response = api.update_or_create_purchase_orders(
                 tenant_id,
                 purchase_orders={"PurchaseOrders": [self._to_xero_payload(xero_po)]},
                 summarize_errors=False,
             )
+            # summarize_errors=False makes Xero answer 200 with the refusal
+            # inside the document, so discarding the response reports a delete
+            # that never happened — and a released number that was not.
+            updated_orders = response.purchase_orders or []
+            updated = updated_orders[0] if updated_orders else None
+            if updated is not None and updated.validation_errors:
+                errors = [str(ve.message) for ve in updated.validation_errors]
+                logger.warning("Xero PO %s delete validation errors: %s", external_id, errors)
+                return DocumentResult(
+                    success=False,
+                    external_id=external_id,
+                    error=" | ".join(errors),
+                    validation_errors=errors,
+                )
             logger.info("Deleted Xero PO %s", external_id)
             return DocumentResult(success=True, external_id=external_id)
         except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require

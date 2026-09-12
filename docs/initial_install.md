@@ -82,6 +82,10 @@ gitignored because they hold live keys.
    them. Set `label` to `<your-name> xero` so your row is distinguishable from other devs'.
    The `redirect_uri` is `https://<your-ngrok-domain>/api/xero/oauth/callback/` and must
    match the redirect URI registered for the app in the Xero developer portal exactly.
+   A dev machine is the clearest case for sharing an app through the webhook router
+   (see [xero_setup.md](xero_setup.md#alternative-share-an-app-through-the-webhook-router)):
+   the shared credentials already work this way, and a route on the router keyed to your
+   tenant id delivers webhooks to your ngrok domain without a dev-only app registration.
    ```bash
    cp apps/xero/fixtures/xero_apps.json.example apps/xero/fixtures/xero_apps.json
    # edit in the shared credentials, then:
@@ -101,8 +105,7 @@ gitignored because they hold live keys.
    The command applies each integration only while its columns are unset, so re-running it
    never overwrites what a superuser has since entered on **Admin > Integrations**.
 
-Production data moves from v1 by `pg_dump`/restore (models keep v1's app labels and table
-names — see [`../CLAUDE.md`](../CLAUDE.md)); refreshing from a production dump is
+Refreshing an installation from a production dump is
 [`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md), which preserves these rows
 across the load.
 

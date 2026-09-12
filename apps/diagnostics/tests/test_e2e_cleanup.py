@@ -1,5 +1,8 @@
 """Regression tests for the E2E recovery command."""
 
+import uuid
+from collections.abc import Sequence
+from decimal import Decimal
 from io import StringIO
 from pathlib import Path
 
@@ -9,6 +12,7 @@ from django.db.models import Model, QuerySet
 from pytest_django.fixtures import SettingsWrapper
 
 from apps.accounting.models import Invoice, Quote
+from apps.accounting.types import DocumentResult
 from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, Person
 from apps.company.tests.job_fixtures import make_invoice, make_job, make_purchase_order, make_quote
@@ -16,17 +20,21 @@ from apps.core.test_data import TEST_COMPANY_NAME, TEST_DATA_PREFIX, silent_wav
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.crm.services.phone_call_service import store_recording_bytes
 from apps.crm.tests.helpers import make_call, make_recording
-from apps.diagnostics.management.commands.e2e_cleanup import Command, active_e2e_contacts
+from apps.diagnostics.management.commands.e2e_cleanup import Command
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.process.models import Acknowledgement, Form, FormEntry
-from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
+from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock, StockMovement
+from apps.purchasing.tests.factories import make_po_line, receive_po_line
 from apps.quoting.models import SupplierPriceList
 from apps.xero.contacts import ArchiveOutcome
-from apps.xero.seeding import XeroContactRef
 
 pytestmark = pytest.mark.django_db
 
 CLEANUP = "apps.diagnostics.management.commands.e2e_cleanup"
+#: Both commands remove through this module, so its seams are where a fake
+#: organisation belongs — the guarantee under test is what reaches Xero, not
+#: which command reached it.
+RESIDUE = "apps.diagnostics.services.e2e_xero_residue"
 
 
 @pytest.fixture(autouse=True)
@@ -43,38 +51,53 @@ def _isolate_sequence_sync(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _ref(name: str, status: str = "ACTIVE") -> XeroContactRef:
-    return XeroContactRef(name=name, contact_id=f"id-{name}", contact_status=status)
+class RecordingOrganisation:
+    """A fake demo org that accepts everything and remembers the order it was asked.
 
+    One timeline for documents and contacts together, because the ordering
+    between them is the guarantee: Xero refuses to archive a contact that
+    still has transactions against it, so archiving first silently leaves the
+    residue behind.
+    """
 
-XERO_CONTACTS = [
-    _ref("[TEST] In Xero"),
-    _ref("E2E Test Client 2"),
-    _ref("[TEST] Already Archived", status="ARCHIVED"),
-    _ref(TEST_COMPANY_NAME),
-    _ref("Real Customer Ltd"),
-]
+    def __init__(self) -> None:
+        self.timeline: list[tuple[str, str]] = []
+
+    def _record(self, kind: str, external_id: str) -> DocumentResult:
+        self.timeline.append((kind, external_id))
+        return DocumentResult(success=True, external_id=external_id)
+
+    def delete_invoice(self, external_id: str) -> DocumentResult:
+        return self._record("invoice", external_id)
+
+    def delete_quote(self, external_id: str) -> DocumentResult:
+        return self._record("quote", external_id)
+
+    def delete_purchase_order(self, external_id: str) -> DocumentResult:
+        return self._record("purchase order", external_id)
+
+    def archive(self, contact_ids: Sequence[str]) -> ArchiveOutcome:
+        self.timeline.extend(("contact", contact_id) for contact_id in contact_ids)
+        return ArchiveOutcome(archived=tuple(contact_ids), refused={})
+
+    def kinds(self) -> list[str]:
+        """The kinds touched, in the order Xero saw them."""
+        return [kind for kind, _ in self.timeline]
+
+    def ids_of(self, kind: str) -> set[str]:
+        """The ids of one kind that reached Xero."""
+        return {external_id for touched, external_id in self.timeline if touched == kind}
 
 
 @pytest.fixture(autouse=True)
-def xero_archives(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
-    """A fake demo organisation; guards pass and every archive call is recorded.
-
-    Fable: stubbed at the Xero seams rather than at a command dispatch, so the
-    guarantee under test — a confirmed cleanup archives the residue in Xero —
-    is what the test sees, not how the command reaches it.
-    """
-    archived: list[list[str]] = []
-    monkeypatch.setattr(f"{CLEANUP}.get_all_xero_contacts", lambda: XERO_CONTACTS)
-    monkeypatch.setattr(f"{CLEANUP}.assert_not_production_target", lambda: None)
-    monkeypatch.setattr(f"{CLEANUP}.assert_xero_writes_enabled", lambda _operation: None)
-
-    def record(contact_ids: list[str]) -> ArchiveOutcome:
-        archived.append(list(contact_ids))
-        return ArchiveOutcome(archived=tuple(contact_ids), refused={})
-
-    monkeypatch.setattr(f"{CLEANUP}.archive_contacts_in_xero", record)
-    return archived
+def xero(monkeypatch: pytest.MonkeyPatch) -> RecordingOrganisation:
+    """A fake demo organisation; the guards pass and every removal is recorded."""
+    organisation = RecordingOrganisation()
+    monkeypatch.setattr(f"{RESIDUE}.assert_not_production_target", lambda: None)
+    monkeypatch.setattr(f"{RESIDUE}.assert_xero_writes_enabled", lambda _operation: None)
+    monkeypatch.setattr(f"{RESIDUE}.get_provider", lambda: organisation)
+    monkeypatch.setattr(f"{RESIDUE}.archive_contacts_in_xero", organisation.archive)
+    return organisation
 
 
 def _run_cleanup(*args: str) -> str:
@@ -164,6 +187,33 @@ def test_confirm_deletes_company_scoped_invoice_without_job() -> None:
     assert not Company.objects.filter(pk=test_company.pk).exists()
 
 
+def test_a_receipted_order_is_deletable_with_its_stock_and_movements(
+    office_staff: Staff, job: Job, stock_holding_job: Job
+) -> None:
+    """A receipt protects its order line, which once stranded the whole teardown.
+
+    The teardown removes from Xero before deleting locally, so a purchase order
+    nothing could delete left the organisation and the database disagreeing —
+    and the run had already voided the order in Xero by then.
+    """
+    supplier = Company.objects.create(
+        name="[TEST] Receipt Supplier", xero_last_modified="2026-08-08T00:00Z"
+    )
+    po = make_purchase_order(supplier)
+    po.status = "submitted"
+    po.save(update_fields=["status"])
+    line = make_po_line(po, description="[TEST] steel sheet", quantity="4.00")
+    receive_po_line(line, Decimal("4"), job, stock_holding_job, office_staff)
+    assert Stock.objects.filter(source_purchase_order_line=line).exists()
+    assert StockMovement.objects.filter(stock__source_purchase_order_line=line).exists()
+
+    _run_cleanup("--confirm")
+
+    assert not PurchaseOrder.objects.filter(pk=po.pk).exists()
+    assert not Stock.objects.filter(source_purchase_order_line_id=line.id).exists()
+    assert not StockMovement.objects.filter(stock__source_purchase_order_line_id=line.id).exists()
+
+
 def test_refuses_when_company_carries_quoting_data() -> None:
     """A deletable-looking company with scraper data is production data — refuse loudly."""
     test_company = Company.objects.create(
@@ -251,34 +301,172 @@ def test_a_company_archived_in_xero_is_the_mirror_not_residue() -> None:
     assert Company.objects.filter(pk=archived.pk).exists()
 
 
-def test_confirm_archives_the_residue_in_xero_even_when_the_database_is_clean(
-    xero_archives: list[list[str]],
+def test_confirm_removes_the_run_s_documents_and_contacts_from_xero(
+    office_staff: Staff, xero: RecordingOrganisation
 ) -> None:
-    """The database is clean after every normal run; the residue that matters is in Xero."""
+    """A run's Xero writes must not outlive it — that is the whole point of the teardown."""
+    company = Company.objects.create(
+        name="[TEST] Company",
+        xero_contact_id="contact-1",
+        xero_last_modified="2026-08-08T00:00Z",
+    )
+    job = make_job(company, office_staff, name="[TEST] Job")
+    invoice = make_invoice(company, job=job)
+    quote = make_quote(company, job=job)
+    order = make_purchase_order(company)
+    order.xero_id = uuid.uuid4()
+    order.save(update_fields=["xero_id"])
+
     _run_cleanup("--confirm")
 
-    assert xero_archives == [["id-[TEST] In Xero", "id-E2E Test Client 2"]]
+    assert xero.ids_of("invoice") == {str(invoice.xero_id)}
+    assert xero.ids_of("quote") == {str(quote.xero_id)}
+    assert xero.ids_of("purchase order") == {str(order.xero_id)}
+    assert xero.ids_of("contact") == {"contact-1"}
 
 
-def test_dry_run_does_not_archive_in_xero(xero_archives: list[list[str]]) -> None:
+def test_documents_are_removed_before_their_contact_is_archived(
+    office_staff: Staff, xero: RecordingOrganisation
+) -> None:
+    """Xero refuses to archive a contact with transactions, so the order is the fix."""
+    company = Company.objects.create(
+        name="[TEST] Company",
+        xero_contact_id="contact-1",
+        xero_last_modified="2026-08-08T00:00Z",
+    )
+    job = make_job(company, office_staff, name="[TEST] Job")
+    make_invoice(company, job=job)
+
+    _run_cleanup("--confirm")
+
+    assert xero.kinds() == ["invoice", "contact"]
+
+
+def test_documents_on_the_standing_company_are_removed_but_it_is_not_archived(
+    office_staff: Staff, xero: RecordingOrganisation
+) -> None:
+    """Specs raise their invoices on the fixture company, which every later spec still selects."""
+    standing = Company.objects.create(
+        name=TEST_COMPANY_NAME,
+        xero_contact_id="contact-standing",
+        xero_last_modified="2026-08-08T00:00Z",
+    )
+    job = make_job(standing, office_staff, name="[TEST] Job")
+    invoice = make_invoice(standing, job=job)
+
+    _run_cleanup("--confirm")
+
+    assert xero.ids_of("invoice") == {str(invoice.xero_id)}
+    assert xero.ids_of("contact") == set()
+    assert Company.objects.filter(pk=standing.pk).exists()
+
+
+def test_an_ordinarily_named_job_on_the_standing_company_keeps_its_xero_documents(
+    office_staff: Staff, xero: RecordingOrganisation
+) -> None:
+    """The fixture company is shared with hand-made work, and a Xero deletion is final.
+
+    Every row a spec creates carries the [TEST] prefix, so the prefix is the
+    whole of what cleanup may claim on this company. A job without it belongs
+    to whoever made it — and the E2E preflight, which counts only [TEST]-named
+    rows, would report the database clean while this ran.
+    """
+    standing = Company.objects.create(
+        name=TEST_COMPANY_NAME,
+        xero_contact_id="contact-standing",
+        xero_last_modified="2026-08-08T00:00Z",
+    )
+    mine = make_job(standing, office_staff, name="Quote for the Henderson roof")
+    invoice = make_invoice(standing, job=mine)
+
+    _run_cleanup("--confirm")
+
+    assert Job.objects.filter(pk=mine.pk).exists()
+    assert Invoice.objects.filter(pk=invoice.pk).exists()
+    assert xero.ids_of("invoice") == set()
+
+
+def test_a_purchase_order_never_pushed_to_xero_is_not_deleted_there(
+    xero: RecordingOrganisation,
+) -> None:
+    """A draft order has no Xero id, so the organisation holds nothing to remove for it."""
+    supplier = Company.objects.create(
+        name="[TEST] Supplier", xero_last_modified="2026-08-08T00:00Z"
+    )
+    make_purchase_order(supplier)
+
+    _run_cleanup("--confirm")
+
+    assert xero.ids_of("purchase order") == set()
+
+
+def test_a_clean_database_removes_nothing_from_xero(xero: RecordingOrganisation) -> None:
+    """Local rows are the only record of what a run wrote; without them there is nothing to undo.
+
+    The organisation-wide question — what residue does Xero still hold —
+    belongs to e2e_xero_sweep, which reads Xero rather than the database.
+    """
+    _run_cleanup("--confirm")
+
+    assert xero.timeline == []
+
+
+def test_local_rows_naming_no_xero_object_reach_xero_not_at_all(
+    office_staff: Staff, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Residue with nothing pushed must not even resolve the tenant.
+
+    There IS local test data here, so the cleanup runs its deletes — but no row
+    names a Xero object, and the guards resolve the tenant through
+    ``get_valid_token``, which rotates a token near expiry. Making the guards
+    raise is how the test proves nothing reached that far.
+    """
+
+    def refuse() -> None:
+        raise AssertionError("the tenant was resolved with nothing to remove")
+
+    monkeypatch.setattr(f"{RESIDUE}.assert_not_production_target", refuse)
+
+    company = Company.objects.create(name="[TEST] Company", xero_last_modified="2026-08-08T00:00Z")
+    job = make_job(company, office_staff, name="[TEST] Job")
+
+    output = _run_cleanup("--confirm")
+
+    assert "Done." in output
+    assert not Job.objects.filter(pk=job.pk).exists()
+
+
+def test_dry_run_does_not_touch_xero(office_staff: Staff, xero: RecordingOrganisation) -> None:
     """An inspection must never write to the organisation."""
-    Company.objects.create(name="[TEST] Company", xero_last_modified="2026-08-08T00:00Z")
+    company = Company.objects.create(
+        name="[TEST] Company",
+        xero_contact_id="contact-1",
+        xero_last_modified="2026-08-08T00:00Z",
+    )
+    make_invoice(company, job=make_job(company, office_staff, name="[TEST] Job"))
 
     _run_cleanup()
 
-    assert xero_archives == []
+    assert xero.timeline == []
 
 
 def test_the_xero_guard_trips_before_any_local_row_is_deleted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A refused target (production, read-only) must not have already lost its local rows."""
-    company = Company.objects.create(name="[TEST] Company", xero_last_modified="2026-08-08T00:00Z")
+    # Carries a contact id, so there is something to remove in Xero and the
+    # guards are actually reached. Without one the cleanup returns before them,
+    # which is its own guarantee and its own test above.
+    company = Company.objects.create(
+        name="[TEST] Company",
+        xero_contact_id="contact-1",
+        xero_last_modified="2026-08-08T00:00Z",
+    )
 
     def refuse() -> None:
         raise ValueError("production tenant")
 
-    monkeypatch.setattr(f"{CLEANUP}.assert_not_production_target", refuse)
+    monkeypatch.setattr(f"{RESIDUE}.assert_not_production_target", refuse)
 
     with pytest.raises(ValueError, match="production tenant"):
         _run_cleanup("--confirm")
@@ -298,25 +486,76 @@ def test_dependants_of_an_archived_company_are_still_residue() -> None:
     assert Company.objects.filter(pk=archived.pk).exists()
 
 
-def test_only_active_e2e_residue_is_archived() -> None:
-    """The standing company, real customers and already-archived contacts are never touched."""
-    chosen = {contact.name for contact in active_e2e_contacts(XERO_CONTACTS)}
+def test_a_company_archived_in_xero_is_not_asked_to_archive_again(
+    xero: RecordingOrganisation,
+) -> None:
+    """An archived company is the organisation's mirror, so re-archiving it is noise."""
+    Company.objects.create(
+        name="[TEST] Archived Supplier",
+        xero_contact_id="contact-archived",
+        xero_archived=True,
+        xero_last_modified="2026-08-08T00:00Z",
+    )
+    Company.objects.create(
+        name="[TEST] Active Supplier",
+        xero_contact_id="contact-active",
+        xero_last_modified="2026-08-08T00:00Z",
+    )
 
-    assert chosen == {"[TEST] In Xero", "E2E Test Client 2"}
+    _run_cleanup("--confirm")
+
+    assert xero.ids_of("contact") == {"contact-active"}
 
 
-def test_a_refusal_is_reported_by_name(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_contact_refusal_is_reported_by_name(monkeypatch: pytest.MonkeyPatch) -> None:
     """The operator learns which contact Xero would not archive, and why."""
+    Company.objects.create(
+        name="[TEST] Stubborn Supplier",
+        xero_contact_id="contact-stubborn",
+        xero_last_modified="2026-08-08T00:00Z",
+    )
+
     monkeypatch.setattr(
-        f"{CLEANUP}.archive_contacts_in_xero",
-        lambda ids: ArchiveOutcome(
-            archived=(ids[0],), refused={ids[1]: "Contact has outstanding transactions"}
+        f"{RESIDUE}.archive_contacts_in_xero",
+        lambda _ids: ArchiveOutcome(
+            archived=(), refused={"contact-stubborn": "Contact has outstanding transactions"}
         ),
     )
 
     output = _run_cleanup("--confirm")
 
-    assert "E2E Test Client 2: Contact has outstanding transactions" in output
+    assert "[TEST] Stubborn Supplier: Contact has outstanding transactions" in output
+
+
+def test_a_document_refusal_is_reported_by_number_and_does_not_stop_the_cleanup(
+    monkeypatch: pytest.MonkeyPatch, office_staff: Staff
+) -> None:
+    """An invoice Xero will not delete must name itself and still let the rest finish."""
+    company = Company.objects.create(name="[TEST] Company", xero_last_modified="2026-08-08T00:00Z")
+    job = make_job(company, office_staff, name="[TEST] Job")
+    invoice = make_invoice(company, job=job)
+
+    class RefusingOrganisation(RecordingOrganisation):
+        """Accepts everything except the invoice, which Xero will not reopen."""
+
+        def delete_invoice(self, external_id: str) -> DocumentResult:
+            return DocumentResult(
+                success=False,
+                external_id=external_id,
+                validation_errors=["Invoice not of valid status for modification"],
+            )
+
+    monkeypatch.setattr(f"{RESIDUE}.get_provider", RefusingOrganisation)
+
+    output = _run_cleanup("--confirm")
+
+    assert f"Xero refused invoice {invoice.number}" in output
+    assert "Invoice not of valid status for modification" in output
+    # The local rows still go: the refusal is Xero's permanent answer about
+    # that document, not a reason to leave the database dirty for every run
+    # after this one.
+    assert "Done." in output
+    assert not Job.objects.filter(pk=job.pk).exists()
 
 
 @pytest.fixture

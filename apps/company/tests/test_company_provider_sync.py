@@ -16,7 +16,7 @@ from django.utils import timezone
 from apps.accounting.types import ContactResult
 from apps.company.models import Company, ContactMethod
 from apps.company.services.company_rest_service import CompanyRestService, DuplicateContactError
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 
 pytestmark = [
     pytest.mark.django_db,

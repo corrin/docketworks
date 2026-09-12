@@ -69,15 +69,20 @@ let generation = 0
  */
 function disabledForE2E(): boolean {
   if (!navigator.webdriver) return false
-  if (window.location.hostname.endsWith('.ngrok-free.app')) return true
   try {
-    return window.localStorage.getItem(E2E_DISABLE_KEY) === 'true'
+    // Opus: the explicit setting is read FIRST and wins. The tunnel is a
+    // reason to skip capture by default, not a reason the one spec whose
+    // subject IS capture cannot ask for it. Answering the hostname before
+    // reading the key meant that spec's opt-in was never heard, so no
+    // recording was ever created and it waited two minutes for a request
+    // that could not happen.
+    const explicit = window.localStorage.getItem(E2E_DISABLE_KEY)
+    if (explicit !== null) return explicit === 'true'
   } catch {
     // Opus: a browser configured to block site data throws on localStorage
-    // access. Recording is the safe default; only the explicit opt-out
-    // disables it, and an unreadable store is not one.
-    return false
+    // access. With no setting to read, the default below decides.
   }
+  return window.location.hostname.endsWith('.ngrok-free.app')
 }
 
 /** 401/403/404 mean this recording can never accept another chunk. */

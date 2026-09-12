@@ -36,24 +36,40 @@ real-world breakage.
 - **Recognised-data reset.** Tests that create data prefix names with `[TEST]`
   (jobs, people, companies, suppliers, PO references — see the helpers in
   `tests/e2e/helpers.ts`), and every UI-seeded spec works against the fixed seed
-  company `ABC Carpet Cleaning TEST IGNORE`. `npm run test:e2e:reset -- --confirm`
-  runs `manage.py e2e_cleanup`, which archives the run's contacts in the Xero
-  demo organisation (refused on a production tenant or under `XERO_READONLY`)
-  and then removes exactly that recognised
-  local data if a restore ever failed to fire; without `--confirm` it reports
-  both without mutating. A `[TEST]` company that is archived in Xero is the
+  company `ABC Carpet Cleaning TEST IGNORE`. `manage.py e2e_cleanup` removes
+  exactly that recognised local data, and the Xero objects it names; without
+  `--confirm` it reports both without mutating. It is refused on a production
+  tenant or under `XERO_READONLY`. Two callers run it: teardown (below) and
+  `npm run test:e2e:reset -- --confirm`, which is the pre-run sweep for a
+  restore that never fired. A `[TEST]` company that is archived in Xero is the
   organisation's mirror, not residue: it lives in the dev database permanently
   and neither the cleanup nor the preflight counts it.
-- **Xero writes outlive the database restore.** Objects the run creates in the
-  live demo org cannot be restored away, and the hourly Xero poll would replay
-  them into the clean database. Each run therefore records its wall-clock span
-  in `$TMPDIR/docketworks-e2e-sync-windows.json`
-  (`tests/scripts/e2e-sync-windows.ts`); the backend sync
-  (`apps/xero/e2e_artifacts.py`) reads it and ignores objects created inside a
-  recorded window. It is a temp file, not a table, precisely because the
-  database restore would erase any in-database record of the run. The window
-  covers invoices and quotes, which cannot be archived; contacts touched after
-  the window are what the archive step above exists for.
+- **The run's Xero writes are removed when the run ends.** A run creates a
+  contact per company plus invoices, quotes and purchase orders in the live
+  demo org, and the database restore cannot reach any of them. So teardown runs
+  `e2e_cleanup` after the settle and **before** the restore, which is the last
+  moment anything knows what the run made: the local rows carry the Xero ids,
+  and the restore erases them. Documents are deleted first and contacts
+  archived second, because Xero refuses to archive a contact that still has
+  transactions against it. A failure here is reported, not raised — the restore
+  matters more — and the banner names the sweep below.
+- **`manage.py e2e_xero_sweep` clears what the database has forgotten.** It
+  reads the organisation rather than the database: every `[TEST]`-named contact
+  and every document owned by one (or by the standing seed company) is removed,
+  the seed company's own contact never. Reach for it after a hard-killed run,
+  or when the org has accumulated residue from before teardown removed it. Dry
+  run without `--confirm`. It pages every invoice, quote, purchase order and
+  contact, so it is not a per-run step.
+- **The sync window still covers what removal cannot.** The hourly Xero poll
+  would replay a run's objects into the restored database, so each run records
+  its wall-clock span in `$TMPDIR/docketworks-e2e-sync-windows.json`
+  (`tests/scripts/e2e-sync-windows.ts`) and the backend sync
+  (`apps/xero/e2e_artifacts.py`) ignores objects changed inside a closed
+  window. A temp file, not a table, precisely because the restore would erase
+  any in-database record of the run. It covers the span between a document's
+  creation and teardown removing it, and it covers what Xero offers no way to
+  remove: a `BILLED` purchase order, an `ACCEPTED` quote, and the payroll draft
+  runs of ADR 0007.
 
 ## Serving model
 

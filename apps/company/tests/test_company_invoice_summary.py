@@ -14,7 +14,7 @@ from django.test.utils import CaptureQueriesContext
 
 from apps.company.models import Company, ContactMethod
 from apps.company.services.company_rest_service import CompanyRestService
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import make_invoice
 
 pytestmark = pytest.mark.django_db

@@ -168,3 +168,10 @@ export function formatEventType(snakeCase: string): string {
     .map((word) => (word === '' ? word : word[0]!.toUpperCase() + word.slice(1)))
     .join(' ')
 }
+
+const QUANTITY = new Intl.NumberFormat('en-NZ', { maximumFractionDigits: 3 })
+
+/** Display inventory quantities at their stored three-decimal precision. */
+export function formatQuantity(value: number): string {
+  return QUANTITY.format(value)
+}

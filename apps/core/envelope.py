@@ -36,6 +36,7 @@ from apps.core.errors import (
     ApplicationError,
     ConflictError,
     InvalidInputError,
+    UpstreamRefusedError,
     app_error_for,
     persist_app_error,
 )
@@ -52,6 +53,7 @@ _APPLICATION_ERROR_STATUSES: tuple[tuple[type[ApplicationError], int], ...] = (
     (InvalidInputError, 400),
     (AccessDeniedError, 403),
     (ConflictError, 409),
+    (UpstreamRefusedError, 503),
 )
 
 
@@ -289,3 +291,11 @@ def register_exception_handlers(api: NinjaAPI) -> None:
             {"detail": exc.errors, "error_id": error_id},
             status=422,
         )
+
+
+def require_if_match(request: HttpRequest) -> str:
+    """Require the version header before a resource mutation reaches its service."""
+    value = request.headers.get("If-Match")
+    if not value:
+        raise HttpError(428, "Missing If-Match header (precondition required)")
+    return value

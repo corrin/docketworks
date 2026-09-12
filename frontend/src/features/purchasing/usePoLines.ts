@@ -1,9 +1,11 @@
+import { restoreDeletedRow, restoreRejectedPatch } from '@/features/shared/optimistic'
+import { useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import {
   apiErrorMessage,
-  purchasingPurchaseOrdersPartialUpdateMutation,
+  purchasingPurchaseOrdersPartialUpdate,
   retrievePurchaseOrderOptions,
   retrievePurchaseOrderQueryKey,
 } from '@/api'
@@ -13,7 +15,7 @@ import type {
   PurchaseOrderLineUpdateRequest,
   PurchaseOrderUpdateRequest,
 } from '@/api'
-import { isConcurrencyError } from '@/lib/concurrency/interceptors'
+import { isConcurrencyError, type ConcurrencyError } from '@/lib/concurrency/interceptors'
 import { draftCreateBody, type PoLineDraft } from './lines'
 
 export type PoHeaderPatch = Pick<
@@ -38,21 +40,48 @@ interface CreateLineCallbacks {
  * The PATCH response carries no line echo (only `{id, status}` plus a fresh
  * ETag header), so the invalidate-refetch is what delivers server line ids
  * and canonical decimals — optimistic cache writes are display-only and the
- * refetch heals any rollback drift, which is why line rollbacks restore the
- * whole snapshot line rather than per-field (the per-field machinery in
- * useCostLines exists for interleaved patches that never refetch).
+ * final refetch reconciles the queue. Rollbacks restore only fields still
+ * showing the rejected edit, preserving a later operator change.
  */
 export function usePoLines(poId: string) {
   const queryClient = useQueryClient()
   const path = { po_id: poId }
   const queryKey = retrievePurchaseOrderQueryKey({ path })
   const poQuery = useQuery(retrievePurchaseOrderOptions({ path }))
-  const patchMutation = useMutation(purchasingPurchaseOrdersPartialUpdateMutation())
-
-  const invalidate = () => queryClient.invalidateQueries({ queryKey })
+  const mutationKey = ['purchase-order-write', poId]
+  const blocked = useRef<ConcurrencyError | null>(null)
+  const patchMutation = useMutation({
+    mutationFn: async (options: Parameters<typeof purchasingPurchaseOrdersPartialUpdate>[0]) => {
+      if (blocked.current !== null) throw blocked.current
+      try {
+        const response = await purchasingPurchaseOrdersPartialUpdate({
+          ...options,
+          throwOnError: true,
+        })
+        return response.data
+      } catch (error) {
+        // GPT: A 412 refetch may capture a newer ETag; queued edits must not silently rebase onto it.
+        if (isConcurrencyError(error)) blocked.current = error
+        throw error
+      }
+    },
+    mutationKey,
+    scope: { id: `purchase-order:${poId}` },
+  })
+  const createdCallbacks = useRef<(() => void)[]>([])
+  // GPT: A product response must not refetch over the queued TBC override.
+  // Reconcile after the entire PO queue; retain created drafts until their server IDs arrive.
+  const invalidate = async () => {
+    if (queryClient.isMutating({ mutationKey }) !== 0) return
+    await queryClient.invalidateQueries({ queryKey })
+    for (const callback of createdCallbacks.current.splice(0)) callback()
+  }
   // An in-flight background refetch resolving AFTER an optimistic write
   // would clobber it with pre-write data; cancellation closes that window.
-  const cancelInFlight = () => void queryClient.cancelQueries({ queryKey })
+  const cancelInFlight = () => {
+    if (queryClient.isMutating({ mutationKey }) === 0) blocked.current = null
+    void queryClient.cancelQueries({ queryKey })
+  }
 
   // `display` is what the optimistic cache shows for a field the wire carries
   // by id only — the pickup address is nested on the read side and an id on
@@ -67,24 +96,21 @@ export function usePoLines(poId: string) {
         ...display,
       })
     }
-    patchMutation.mutate(
-      { path, body: fields },
-      {
-        onError: (error) => {
-          const current = queryClient.getQueryData<PurchaseOrderDetail>(queryKey)
-          if (current && snapshot) {
-            queryClient.setQueryData<PurchaseOrderDetail>(queryKey, {
-              ...current,
-              ...headerFieldsFrom(snapshot, fields),
-            })
-          }
-          if (!isConcurrencyError(error)) {
-            toast.error(apiErrorMessage(error, 'Failed to save the purchase order.'))
-          }
-        },
-        onSettled: () => void invalidate(),
-      },
-    )
+    void patchMutation
+      .mutateAsync({ path, body: fields })
+      .then(undefined, (error: unknown) => {
+        const current = queryClient.getQueryData<PurchaseOrderDetail>(queryKey)
+        if (current && snapshot) {
+          queryClient.setQueryData<PurchaseOrderDetail>(
+            queryKey,
+            restoreRejectedPatch(current, snapshot, { ...fields, ...display }),
+          )
+        }
+        if (!isConcurrencyError(error)) {
+          toast.error(apiErrorMessage(error, 'Failed to save the purchase order.'))
+        }
+      })
+      .then(invalidate)
   }
 
   const patchLine = (
@@ -103,46 +129,43 @@ export function usePoLines(poId: string) {
       )
     }
     const snapshotLine = snapshot?.lines.find((line) => line.id === lineId)
-    patchMutation.mutate(
-      { path, body: { lines: [{ id: lineId, ...body }] } },
-      {
-        onError: (error) => {
-          const current = queryClient.getQueryData<PurchaseOrderDetail>(queryKey)
-          if (current && snapshotLine) {
-            queryClient.setQueryData<PurchaseOrderDetail>(
-              queryKey,
-              withLines(current, (lines) =>
-                lines.map((line) => (line.id === lineId ? snapshotLine : line)),
+    void patchMutation
+      .mutateAsync({ path, body: { lines: [{ id: lineId, ...body }] } })
+      .then(undefined, (error: unknown) => {
+        const current = queryClient.getQueryData<PurchaseOrderDetail>(queryKey)
+        if (current && snapshotLine && display !== undefined) {
+          queryClient.setQueryData<PurchaseOrderDetail>(
+            queryKey,
+            withLines(current, (lines) =>
+              lines.map((line) =>
+                line.id === lineId ? restoreRejectedPatch(line, snapshotLine, display) : line,
               ),
-            )
-          }
-          if (!isConcurrencyError(error)) {
-            toast.error(apiErrorMessage(error, 'Failed to save the purchase order line.'))
-          }
-        },
-        onSettled: () => void invalidate(),
-      },
-    )
+            ),
+          )
+        }
+        if (!isConcurrencyError(error)) {
+          toast.error(apiErrorMessage(error, 'Failed to save the purchase order line.'))
+        }
+      })
+      .then(invalidate)
   }
 
   const createLine = (draft: PoLineDraft, { onCreated, onFailed }: CreateLineCallbacks) => {
-    patchMutation.mutate(
-      { path, body: { lines: [draftCreateBody(draft)] } },
-      {
-        onSuccess: () => {
-          // The refetch must land before the draft row is removed: the PATCH
-          // echoes no line, so removing the draft on the 200 alone would blank
-          // the row until the detail query caught up.
-          void invalidate().then(onCreated)
+    cancelInFlight()
+    void patchMutation
+      .mutateAsync({ path, body: { lines: [draftCreateBody(draft)] } })
+      .then(
+        () => {
+          createdCallbacks.current.push(onCreated)
         },
-        onError: (error) => {
+        (error: unknown) => {
           if (!isConcurrencyError(error)) {
             toast.error(apiErrorMessage(error, 'Failed to add the purchase order line.'))
           }
           onFailed()
         },
-      },
-    )
+      )
+      .then(invalidate)
   }
 
   const deleteLine = (lineId: string) => {
@@ -154,20 +177,21 @@ export function usePoLines(poId: string) {
         withLines(snapshot, (lines) => lines.filter((line) => line.id !== lineId)),
       )
     }
-    patchMutation.mutate(
-      { path, body: { lines_to_delete: [lineId] } },
-      {
-        onError: (error) => {
-          // The row is put back whole rather than field-by-field: a delete
-          // removed it entirely, so there is no interleaved edit to preserve.
-          if (snapshot) queryClient.setQueryData<PurchaseOrderDetail>(queryKey, snapshot)
-          if (!isConcurrencyError(error)) {
-            toast.error(apiErrorMessage(error, 'Failed to delete the purchase order line.'))
-          }
-        },
-        onSettled: () => void invalidate(),
-      },
-    )
+    void patchMutation
+      .mutateAsync({ path, body: { lines_to_delete: [lineId] } })
+      .then(undefined, (error: unknown) => {
+        const current = queryClient.getQueryData<PurchaseOrderDetail>(queryKey)
+        if (current && snapshot) {
+          queryClient.setQueryData<PurchaseOrderDetail>(
+            queryKey,
+            withLines(current, (lines) => restoreDeletedRow(lines, snapshot.lines, lineId)),
+          )
+        }
+        if (!isConcurrencyError(error)) {
+          toast.error(apiErrorMessage(error, 'Failed to delete the purchase order line.'))
+        }
+      })
+      .then(invalidate)
   }
 
   return { poQuery, patchHeader, patchLine, createLine, deleteLine }
@@ -178,21 +202,4 @@ function withLines(
   map: (lines: PurchaseOrderLineOut[]) => PurchaseOrderLineOut[],
 ): PurchaseOrderDetail {
   return { ...po, lines: map(po.lines) }
-}
-
-/** The snapshot's values for exactly the header fields a rejected patch sent. */
-function headerFieldsFrom(
-  snapshot: PurchaseOrderDetail,
-  fields: PoHeaderPatch,
-): Partial<PurchaseOrderDetail> {
-  const restored: Partial<PurchaseOrderDetail> = {}
-  if (fields.reference !== undefined) restored.reference = snapshot.reference
-  if (fields.status !== undefined) restored.status = snapshot.status
-  if (fields.expected_delivery !== undefined)
-    restored.expected_delivery = snapshot.expected_delivery
-  if (fields.pickup_address_id !== undefined) {
-    restored.pickup_address_id = snapshot.pickup_address_id
-    restored.pickup_address = snapshot.pickup_address
-  }
-  return restored
 }

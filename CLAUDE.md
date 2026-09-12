@@ -67,11 +67,17 @@ UI PRs name the pattern used, explain overrides, provide the relevant visual/int
 evidence, and update affected known breaches. Tolerated exceptions are narrowly scoped
 presentation choices with reasons, not waivers of the shared-implementation rule.
 
-- Backend target: `config/` is the sole composition root; `apps/kernel`, `apps/platform`
-  and explicitly owned business contexts follow ADR 0055's dependency directions.
-  Migrate one deployable ownership slice at a time, with import and ORM checks on each
-  migrated boundary. Legacy apps retain the existing import-linter tiers until moved;
-  they are not a template for new contexts. Shared use does not mean shared ownership.
+- Backend, as it is today: `config/` is the sole composition root and the top
+  import-linter layer, then `apps/diagnostics`, then the integrations `apps/xero` and
+  `apps/search`, then the domain apps (`job`, `accounts`, `company`, `crm`, `purchasing`,
+  `quoting`, `accounting`, `timesheet`, `operations`, `process`), which may import one
+  another, and at the bottom `apps/core`, `apps/ai` and `apps/platform`. That contract
+  lives in `pyproject.toml` and is what actually gates.
+- Backend, where it is going: ADR 0055's context taxonomy. `apps/platform` is the only
+  slice migrated so far and `config/architecture.py` holds the list — a context absent
+  from it does not exist yet, so never name one in a plan, a comment or a layout
+  description. Legacy apps keep their tier until their slice moves them; that tier is not
+  a template for a new context, and shared use does not mean shared ownership.
 - Frontend: `frontend/src/routes/` (thin) → `features/<domain>/` → generated API layer + `lib/`.
   Server state lives in TanStack Query; ChatKit owns its conversation protocol/state
   under ADR 0021’s scoped SDK exception. No hand-written service layer.
@@ -173,7 +179,7 @@ produced that ADR shipped on a database already holding hundreds of the rows.
   is that a change which moves one shows that movement in its own diff. Only
   `passthrough` (a `try` whose handler just re-raises) is pinned at zero.
 
-## Coding standards (ADRs 0015, 0017, 0028, 0032, 0038, 0039, 0043, 0046 are the authority)
+## Coding standards (ADRs 0015, 0017, 0028, 0032, 0038, 0039, 0043, 0046, 0058, 0059 are the authority)
 
 - **A GET never writes.** Safe methods read; they do not create, update or
   delete — not a row, not a default, not "just" a singleton. This is not about
@@ -212,6 +218,18 @@ produced that ADR shipped on a database already holding hundreds of the rows.
   access directly.
 - **DRY is structural (ADR 0039).** One implementation per concept; search
   before implement; extending a near-match beats writing a sibling.
+- **The application decides, the database stores (ADR 0058).** A rule that
+  refuses a write lives in one service function and raises a typed error. `CHECK`,
+  `UNIQUE`, `NOT NULL` and `on_delete` state facts about a row and belong in the
+  schema; a trigger, rule or stored procedure that raises does not. It fires for the
+  maintainer running a data fix as readily as for the bug, and it must be dropped by
+  hand on every server before any bulk correction. Immutability is proven by a test
+  that no writer mutates the row.
+- **One data model; legacy data is migrated to comply (ADR 0059).** A one-off
+  migration rewrites old rows into the current shape and is the only place that knows
+  the old one. Never a permanent model, column, flag or branch describing data the app
+  no longer produces. A creation timestamp is never nullable: where history did not
+  record one, the migration sets the best value available and the column is `NOT NULL`.
 - **Prefer libraries to DIY (ADR 0032).** Writing your own for something a
   maintained library provides needs an explicit, recorded reason it is not a
   library.
@@ -244,6 +262,12 @@ any unverified acceptance step explicitly in the PR and rewrite task list.
 
 ## Porting rules
 
+- **Every v1 feature exists in v2.** The freedom below is over *shape* — the URL, the
+  payload, the component — never over what the business can do. Dropping a capability is
+  the owner's decision and `docs/accepted-api-differences.yml` records it; silence is not
+  a drop, it is a defect. So port a screen against the v1 component read in full, never
+  against the endpoints it called: v2 serves `getJobFileThumbnail` and no frontend code
+  calls it, which every operation-level count reads as done.
 - Models keep v1 app labels and class names; models moved out of v1's `workflow` app pin
   `Meta.db_table = "workflow_<modelname>"`. No renames in v2.0 — data migrates by pg_dump/restore.
 - `delta_checksum` canonicalisation is bit-identical between Python and TypeScript (golden vectors).

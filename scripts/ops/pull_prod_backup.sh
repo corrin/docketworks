@@ -82,19 +82,12 @@ ssh "$REMOTE_USER@$REMOTE_HOST" \
 
 echo ">> Copying $DUMP_NAME to $LOCAL_DIR/..."
 scp "$REMOTE_USER@$REMOTE_HOST:$TMP_PATH" "$LOCAL_DIR/"
-# The producer writes a <dump>.migrations.json sidecar describing the archive's
-# own migration ledger; scripts/ops/migrate_to_snapshot.py consumes it. A v1-era
-# producer does not write one, so its ABSENCE is tolerated (the v1 hosts still
-# run the scrubbed-dump producer) — but a sidecar that exists and fails to copy
-# must fail the
-# pull: `scp || echo` treated a network/permission error as "no sidecar" and
-# silently restored to the wrong migration graph.
+# The producer writes a <dump>.migrations.json sidecar recording the archive's
+# own migration ledger. Every producer writes one, so a missing sidecar is a
+# failed pull, not a variant: `scp || echo` once treated a network or permission
+# error as "no sidecar" and silently restored to the wrong migration graph.
 # shellcheck disable=SC2029  # values are meant to expand client-side
-if ssh "$REMOTE_USER@$REMOTE_HOST" "sudo -iu $INSTANCE_USER test -f $TMP_PATH.migrations.json"; then
-    scp "$REMOTE_USER@$REMOTE_HOST:$TMP_PATH.migrations.json" "$LOCAL_DIR/"
-else
-    echo ">> No migrations.json sidecar on the remote (v1-era producer) — continuing."
-fi
+scp "$REMOTE_USER@$REMOTE_HOST:$TMP_PATH.migrations.json" "$LOCAL_DIR/"
 
 echo ">> Verifying scrubbed backup..."
 # Module form, run from the repo root: scripts/ import each other, which only

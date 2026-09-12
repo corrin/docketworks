@@ -59,7 +59,8 @@ SLEEP_TIME = 1
 
 #: Xero's documented maximum number of objects in one batch create or update;
 #: every batched write (contact seeding, document seeding, contact archiving)
-#: slices by it.
+#: slices by it. Always the maximum: the day allowance is spent per CALL, not
+#: per object, so a smaller batch multiplies the cost of every write.
 XERO_BATCH_SIZE = 50
 
 #: The two contact statuses Xero documents. GDPRREQUEST also exists and is

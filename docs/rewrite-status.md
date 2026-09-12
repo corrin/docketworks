@@ -38,14 +38,14 @@ does not have.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **55 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
+| E2E specs ported | **57 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
-| API operations v2 exposes | 254 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3014 collected |
+| API operations v2 exposes | 266 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 3240 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
-| Behaviour ledger | 128 recorded deviations |
-| ADRs | 43 (v1's 26 carried forward + 0038–0041, 0043, 0045–0056 written here) |
+| Behaviour ledger | 134 recorded deviations |
+| ADRs | 46 (v1's 26 carried forward + 0038–0041, 0043, 0045–0059 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints
 written measures typing, not delivery. Every slice below authors its own E2E spec and
@@ -60,9 +60,18 @@ shape v2 must serve.
 
 ## Start here
 
-Not a tier — just the five things a session should have a reason not to pick up.
+Not a tier — just the things a session should have a reason not to pick up.
 
-1. **[KAN-356](https://docketworks.atlassian.net/browse/KAN-356): payroll posting
+1. **[KAN-358](https://docketworks.atlassian.net/browse/KAN-358): finish release
+   verification for the Xero safeguards.** Keep PR #142's main→production hold.
+   Complete the full integration gate after restoring phone-provider configuration
+   and Xero daily quota. Rerun the live PO integration suite, including its line-order
+   round trip, then `purchasing/po-receipt-sync.spec.ts` and the full managed E2E gate
+   on fresh quota; the receipt-sync spec is not yet browser-verified. Run the ufw
+   integration check on a Docker-capable host. Audit target-instance receipt/status
+   mismatches before promotion; partial delivery has no receipt UI.
+   See [the plan](plans/2026-09-07-KAN-358-po-receipt-status.md).
+2. **[KAN-356](https://docketworks.atlassian.net/browse/KAN-356): payroll posting
    double-books leave, and reports `ok` while doing it.** Live in production, and money
    is already out the door — $1,442 gross overpaid and 40h double-debited for one
    employee, on each of two consecutive weeks; the second was caught only by a
@@ -72,32 +81,41 @@ Not a tier — just the five things a session should have a reason not to pick u
    invisible and `_create_leave` writes a second one on top. `posted_leave_hours`
    (`:293`) applies the same containment rule, which is why `posting_status_for_week`
    reports a match on the doubled week. Detect overlap, refuse, and name the Xero leave.
-2. **Eight production `Procedure` rows link dead Google Docs — one is on a clock.**
+3. **Eight production `Procedure` rows link dead Google Docs — one is on a clock.**
    Doc.363 Milling Machine SOP is in Drive trash and its 30-day purge window opened
    2026-08-26. Untrash it before that expires. The other seven are invisible even to
    the Workspace owner; the owner arbitrates restore-from-backup vs archive per doc,
    then the surviving rows are relinked or archived on the production instance — a data
    fix, never a read-side fallback (ADR 0015). The row list is in `rewrite-history.md`.
    Re-verify with `outbound_links_probe --kind google_file --google-as delegated`.
-3. **Port the workshop schedule.** No route, no `AppNavbar` entry and no algorithm, so
+4. **Port the workshop schedule.** No route, no `AppNavbar` entry and no algorithm, so
    the shop plans without it. See Screens for the port target and the two defects not to
    reproduce.
-4. **[KAN-335](https://docketworks.atlassian.net/browse/KAN-335)** was written "blocked
+5. **[KAN-335](https://docketworks.atlassian.net/browse/KAN-335)** was written "blocked
    until production cutover is complete" and is now unblocked. It restores the
    `format: uuid` contract the port dropped on 424 properties, extends
    `schema_parity_diff.py` to see property types at all, and gives `CostLine.meta` one
    definition instead of three. Its step 1 generates the work list for its step 2, so
    nothing here is hand-listed.
-5. **`/purchasing/mappings`** has been labelled "this slice lands first" since before
+6. **`/purchasing/mappings`** has been labelled "this slice lands first" since before
    the flip and is still unbuilt three releases later. Either it lands or it stops
    claiming to be first.
 
 ## Operations
 
-- **Decommission the v1 production hosts**, and first its blocker: **rehearse the
-  scrubbed-dump producer live**, which is the last thing still running on them.
-  `scripts/ops/pull_prod_backup.sh:87` still says "v1 hosts stay live until cutover" —
-  fix that comment when the rehearsal lands.
+- **[KAN-360](https://docketworks.atlassian.net/browse/KAN-360): prove the dropbox sync
+  root mode on the host.** The fix shipped with the stocktake-movements merge (`3fea474`)
+  and is gated, but only a live `instance.sh reconfigure` against msm-prod shows that a
+  provisioning run leaves scanner delivery working. Run `verify-instance.sh msm prod`
+  after it and confirm the sync-root check passes.
+
+- **Schedule the Celery result cleanup.** `config/celery.py`'s beat schedule has no
+  `celery.backend_cleanup` entry, so nothing prunes `django_celery_results`. Production
+  accumulated 8,902 rows in the ten days from cutover to 2026-09-09, roughly 890 a day,
+  and the table grows without bound. The predecessor scheduled it through
+  django-celery-beat; the in-code schedule that replaced it carries eleven of that
+  twelve, and this is the one absence nobody chose (`recompute_workshop_schedule` is the
+  other, deliberately, and `config/celery.py:49` says so).
 - **Confirm the sitemap shard count** on the next live Steel & Tube portal run. The
   2026-08-01 measurement found a single shard at 3,677 URLs against a 50,000 limit, and
   `MIN_SITEMAP_COVERAGE` (`apps/quoting/scrapers/base.py:65`) is the defence; nobody has
@@ -130,6 +148,21 @@ Not a tier — just the five things a session should have a reason not to pick u
   history and the config-only fix.
 
 ## Payroll and Xero
+
+- **The Xero detail refresh has never been verified live, and one E2E spec waits on the
+  same budget.** `admin/xero.spec.ts:57` is the only spec the stocktake-movements gate
+  left failing; its 409-retry fix is committed (`07ae5fb`, it asks sync-info rather than
+  watching a polled button) and unproven, because running it spends a complete employee
+  refresh against the live tenant. The owner authorised zero live calls for the slice
+  itself, so the run needs a budget agreed first: the employee integration regression
+  through the vendor-call ledger, then this spec and the applicable timesheet browser
+  checks including responsive screenshots. Design is in
+  [the plan](plans/2026-09-09-xero-detail-refresh.md); implementation and local checks are
+  in [`rewrite-history.md`](rewrite-history.md).
+- **Record the restore runbook's acceptance test** once a full E2E suite passes from the
+  first spec — `docs/restore-prod-to-nonprod.md`'s "the suite and its teardown both pass".
+  The 2026-09-12 gate reached 165 passed, 2 failed, and both failures are now fixed; the
+  spec above is the only one of the two not yet re-run.
 
 - **The pay-run mirror deletes rows it never fetched, under a docstring promising it
   cannot.** `sync_pay_runs` (`apps/xero/payroll_push.py:759`) runs
@@ -231,6 +264,17 @@ same class: the post duplicates what Xero already holds, and then self-reports s
 
 ## Screens
 
+- **The stocktake screen's approved coverage is incomplete.** The plan's browser row asks
+  for search, count, review and post against real SOH, the found, missing, zero and
+  uncounted cases, the counterpart job link, stale-count review and no duplicate posting;
+  `purchasing/stocktake.spec.ts` covers part of it and there is no pre-post preview of the
+  movements and cost lines a count will produce. Stock search and pagination, the write
+  contracts, and the history and retirement controls have not been walked through the
+  browser, and `stock-search.spec.ts` was rewritten after its last focused run.
+  Product-to-TBC price overrides and the live PO and item-import integrations belong to the
+  same sitting. Design is in
+  [the plan](plans/2026-09-07-delivery-receipts-stock-movements.md).
+
 - **Design consistency.** Resolve the [known design-language breaches](design-language.md#known-breaches):
   consolidate page/header and summary owners, align job tabs and comparable collections,
   and replace local button/field implementations with shared calls and explicit overrides.
@@ -271,13 +315,23 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   flags, and rebuilds `/purchasing/pricing` with a working upload. Its spec owns the
   cross-screen flow; the mappings spec asserts nothing about uploads.
   [KAN-176](https://docketworks.atlassian.net/browse/KAN-176) carries the business ask.
-- **Attachment thumbnails and click-to-view** (prod bug report 2026-08-31). v1's
-  attachments tab rendered a thumbnail per file and clicking it viewed the image; v2's
-  `JobAttachmentsTab.tsx` renders only download/delete icons and nothing in
-  `frontend/src/` calls the ported `getJobFileThumbnail` endpoint. Port the
-  thumbnail-and-view UI and extend `job-attachments.spec.ts` to assert a thumbnail renders
-  and opens. [KAN-334](https://docketworks.atlassian.net/browse/KAN-334) wants the same
-  surface to preview more formats — do them together.
+- **The job attachments tab is missing four v1 features** (prod bug reports 2026-08-31 and
+  2026-09-10). v1 had a drop zone, a thumbnail per file that opened on click, a "Capture
+  Photo" button over `CameraModal.vue`, and a stated size limit. v2's
+  `JobAttachmentsTab.tsx` has no drag handlers, no `getUserMedia` call anywhere in
+  `frontend/src`, renders only download/delete icons, and nothing outside
+  `frontend/src/api/` calls the ported `getJobFileThumbnail` endpoint. Restore all four and
+  extend `job-attachments.spec.ts` to cover them.
+  [KAN-361](https://docketworks.atlassian.net/browse/KAN-361) carries it;
+  [KAN-334](https://docketworks.atlassian.net/browse/KAN-334) wants the same surface to
+  preview more formats — do them together.
+- **Decide how "every v1 feature exists in v2" gets enforced.** The rule is now in
+  CLAUDE.md's porting rules; nothing checks it. `docs/v1-disposition.md` rules on every v1
+  doc and script and its hook proves each ported path exists, and
+  `scripts/v1-frontend-operations.yml` counts operations, but neither sees a feature that
+  needs no new operation — four losses on one tab surfaced only as user reports. Extend the
+  disposition ledger to v1's components, or audit v1 screen by screen, before the tail of
+  the port closes. Owner decision.
 - **Purchase orders — the tail of `feat/po-screens`** (16 commits, unmerged at 2026-09-05).
   The branch restored the list, the grid, print, the supplier email and two-way Xero sync;
   what it did not reach is below, and the first two items gate the merge.
@@ -292,13 +346,6 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   - **No back-link from a job cost line to the PO that created it.** `CostLineGrid` has no
     Source column, though the cost line already carries `meta.po_number` and
     `ext_refs.purchase_order_id` — so this is a column, not a contract change.
-  - **Add and Deactivate on the stock page.** v1 had both, and the periodic stocktake is
-    how the owner actually corrects stock; without them a wrong quantity has no UI that
-    fixes it.
-  - **`docs/accepted-api-differences.yml` never recorded this branch's five behaviour
-    changes:** the list pagination envelope, `If-Match` on allocation delete, Xero's
-    `BILLED` no longer meaning goods received, `xero_agreed_at` splitting from
-    `xero_last_synced`, and the relaxed creation gate.
 - **Editing a purchase order's supplier after creation.** v1 allowed it while the order
   was `draft`; v2's detail card shows the supplier read-only. `CompanyLookup`
   (`frontend/src/features/shared/company/`) is controlled by a whole
@@ -309,6 +356,12 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   so the spec asserts that too.
 - **Process documents** — procedures and JSA. The forms half shipped; JSA and SWP are
   `document_type` variants of `Procedure`, not a third model.
+- **CRM history and notes** — [KAN-362](https://docketworks.atlassian.net/browse/KAN-362)
+  holds the design and its reasoning.
+- **Fold `PurchaseOrderEvent` and `JobEvent` onto the `apps/core` event base**, once
+  KAN-362 creates it. No ticket: cross-cutting rewrite debt. Neither is free — the first
+  stores `description` where the base computes it, the second carries the undo envelope and
+  the `delta_checksum` that must stay bit-identical to its TypeScript counterpart.
 - **The admin tail** — labour rates, archive jobs, the month-end UI (backend done) and
   the AppError viewer (write path done everywhere; the read/grouping API and page are
   unbuilt, and [KAN-192](https://docketworks.atlassian.net/browse/KAN-192) wants row
@@ -344,6 +397,43 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   `apps/company/services/company_rest_service.py`.
 
 ## Correctness and hygiene
+
+- **171 nullable-column suppressions still describe the shape a restore left behind
+  (ADR 0059).** 80 give no reason at all, 46 say "restored column is nullable", 22
+  "retains nullable storage"; roughly 13 cite ADR 0040 and are legitimate. Concentrated in
+  `quoting/models.py` (28), `core/models.py` (25), `purchasing/models.py` (19),
+  `crm/models.py` (17), `company/models.py` (14). Two hits are module docstrings stating
+  v1 nullability as a parity requirement, which the ADR bans outright. Each column is a
+  separate judgement — NULL as a real domain value, or a restoration artefact to backfill
+  and make `NOT NULL` — and each of the second kind is a migration. Alongside them sit the
+  readers that exist only because of them: `db_scrubber.py`'s per-value conformance gate,
+  the event-absence fallbacks in `job_aging_service.py` and `sales_pipeline_service.py`,
+  `hour_categories.py`'s public-holiday precedence, `product_parser.py`'s work-list
+  selector, `month_end_service.py`'s `.get(key, 0)` reads and `core/uploads.py`'s two
+  silent returns. Three sizing facts measured 2026-09-12, because the previous list got
+  them wrong: `job.company` is NOT cheap — the shop-job concept is encoded as
+  `company_id is None` (`job.py:682-696`) and four tests build company-less jobs;
+  `job_event.py`'s float arm is NOT cheap — it renders ~38k rows whose rank its own
+  docstring calls unrecoverable, so the deletion needs a migration choosing a canonical
+  value; `product_parser.py` and `ProductParsingMapping.parser_version` are one commit or
+  neither. The genuinely cheap one is `kanban_categorization_service.py`'s seven dead
+  status strings and its `.get(status, "draft")`: **no job holds a legacy status** — all
+  2,470 rows use the declared choices — so that branch is unreachable and needs no
+  migration. The phone strand is separate and is now a rule question, not a data one; see
+  Open decisions.
+- **A draft row loses its component state the instant it persists.** `CostLineGrid.tsx`,
+  `SmartTimesheetTable.tsx` and `PoLinesTable.tsx` each give `getRowId` a ternary on the
+  row's type — local id while a draft, server id once saved — and `DataTable.tsx:101` keys
+  the `<tr>` on it, so the row unmounts and every `useAutosaveField` buffer, dirty flag,
+  focus and open portal in it is discarded. `StocktakeGrid.tsx:199` shows the shape that
+  works: the client mints the permanent id and `stocktake_service.py:110` adopts it with
+  `update_or_create(pk=...)`, so one branch-free `getRowId` holds across the save. Doing
+  the same needs `id` on the three create requests (`StocktakeLineWrite` already carries
+  one; `CostLineCreateRequest` does not) and a client regen, which is why it was kept off
+  the stocktake-movements PR. `SmartTimesheetTable.tsx:748` already carries a
+  focus-restoring workaround for the churn — the symptom, not the fix. Same family as the
+  pickup-address failure fixed in `62578eb`, where local state was lost to a tree replaced
+  underneath it.
 
 - **Thirteen tables cannot exercise what production renders**, so the screens over them have
   unproven volume behaviour — `scripts/checks/data_shape_gap.py` names them and every E2E run
@@ -468,6 +558,26 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   at least states a claim that can be tested; most sit inside those three and clear with the
   rulings, leaving chiefly BLE001 and C901 to read one at a time. S603, the
   security-sensitive rule, has zero unreasoned sites.
+- **Audit the ADR corpus for rules the tree does not support.** A skim of all 46 found five
+  classes, none of which is work for the change that raised them. ADR 0005's Gemini emit-tool
+  pattern has zero code presence and is contradicted by ADR 0041 — retire it or mark it
+  superseded. ADR 0031 mandates namespaced `debug` logging across the frontend and not one
+  file under `frontend/src` imports it; decide whether that is a plan or a fiction. ADRs 0024
+  and 0012 contradict each other on tenancy: 0024 forbids resolving a tenant from a singleton
+  while 0012 states the product is single-tenant and `apps/xero/sync_worker.py` does exactly
+  what 0024 forbids, with a comment saying so — and ADR 0056 already cites 0024 as authority.
+  ADRs 0007, 0048, 0049 and 0050 carry the narrative sections the index conventions forbid,
+  including 0007's self-declared "KNOWN GAP" that belongs in this file. And every ADR needs
+  the `Unratified:` marker of ADR 0051 or an owner ruling; seven of the twelve most recent
+  arrived inside unrelated feature PRs, which the index conventions now forbid.
+- **Finish or reopen the modular monolith slices (KAN-357).** The epic is marked Done while
+  `config/architecture.py` records one migrated context of thirteen. ADR 0055 and CLAUDE.md
+  now say so plainly, but the ticket still claims otherwise, and the epic's own gate — an
+  owner-ratified ADR before any slice starts — was satisfied by an ADR the owner had not read.
+- **Rule on ADR 0055 superseding ADR 0039's shared-home rule.** The session that wrote 0055
+  also rewrote 0039 to defer to it, in the same commit. The owner has ratified the
+  modular-monolith direction; that is not the same as ratifying the supersession of the prime
+  rule. Confirm it, or restore 0039's original shared-homes wording and drop the claim.
 - **Purge "v1" and "v2" from comments, docstrings, docs, ADRs and filenames.** We document
   state, not change: "v1 silently substituted the company default; v2 raises" becomes "a
   staff member without a wage rate cannot be costed". Delete first, reword only what states
@@ -475,7 +585,6 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   the `db_table = "workflow_*"` overrides, `scripts/v1-frontend-operations.yml`,
   `export_openapi.py`'s `DISSOLVED_V1_APPS` and `status_table.py`'s port rows. The
   port-progress machinery cannot go until the operations it counts are ported or dropped.
-
 ## Seams left inside completed slices
 
 Each has a loud marker in code — `grep -rn "Phase 4\|Phase 5\|SEAM" apps/` — listed so

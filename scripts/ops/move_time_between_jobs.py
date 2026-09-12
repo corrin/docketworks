@@ -21,6 +21,7 @@ setup_django()
 from django.db import transaction  # noqa: E402 -- Django must be configured first
 
 from apps.job.models import CostLine, CostSet, Job  # noqa: E402
+from apps.job.models.costing import lock_costing_jobs  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -55,14 +56,13 @@ def main() -> None:
         sys.exit(1)
     logger.info("Target cost set: %s", target_cs.id)
 
-    lines = list(
-        CostLine.objects.filter(
-            cost_set__job=source_job,
-            cost_set__kind="actual",
-            kind="time",
-            meta__created_from_timesheet=True,
-        ).order_by("created_at")
-    )
+    eligible_lines = CostLine.objects.filter(
+        cost_set__job=source_job,
+        cost_set__kind="actual",
+        kind="time",
+        meta__created_from_timesheet=True,
+    ).order_by("created_at")
+    lines = list(eligible_lines)
 
     if not lines:
         logger.info("No actual timesheet time entries found on source job.")
@@ -86,10 +86,15 @@ def main() -> None:
         logger.info("DRY RUN complete. No changes made. Run with --execute to apply.")
         sys.exit(0)
 
-    line_ids = [cl.id for cl in lines]
-
     with transaction.atomic():
+        lock_costing_jobs([source_job.id, target_job.id])
+        target_cs = CostSet.objects.filter(job=target_job, kind="actual").latest("rev")
+        lines = list(eligible_lines.all())
+        line_ids = [line.id for line in lines]
+        affected_sets = {line.cost_set_id for line in lines} | {target_cs.id}
         updated = CostLine.objects.filter(id__in=line_ids).update(cost_set_id=target_cs.id)
+        for cost_set in CostSet.objects.filter(pk__in=affected_sets).order_by("id"):
+            cost_set.recalculate_summary()
         logger.info("Moved %d time entries to Job %s.", updated, args.to_job)
 
     # Verify after commit: read each row back and refuse to report success

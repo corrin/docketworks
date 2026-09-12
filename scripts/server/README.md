@@ -123,9 +123,17 @@ How to get them:
 
 ### `xero_tenant_id` in the company-defaults JSON
 
-`xero_tenant_id` must be the real tenant UUID for the organisation this
-instance connects to — the validation in `instance.sh` refuses placeholders
-left in the file, and `enable_xero_sync` stays false in the config source
+Leave `xero_tenant_id` null. It is the organisation's own id, which nobody
+holds until the organisation is connected: `manage.py xero --setup` reads it
+from the Xero connection and stores it, and `finalize_instance_onboarding`
+runs that immediately after the operator completes OAuth. Supply a value only
+when the real id is already known.
+
+`instance.sh` accepts null or the organisation's real UUID and refuses
+anything that only looks like one — the all-zero placeholder, an empty string,
+a malformed value — because a fabricated id is not caught later: it is sent to
+Xero in the `xero-tenant-id` header instead of raising the configuration error
+an unset value raises. `enable_xero_sync` stays false in the config source
 until onboarding is deliberately completed.
 
 ## Deploying Updates
@@ -282,7 +290,6 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `templates/fail2ban-filter-docketworks-auth-refresh.conf` | 401-only filter for POST /api/accounts/token/refresh/                                          |
 | `verify-instance.sh`                                | Full serving-path verification (units, build-id, auth gate, media, UFW, jails)                       |
 | `test_server_templates.sh`                          | The cheap-tier gate: shellcheck, rendered-template contracts, filter fixtures                        |
-| `cutover/`                                          | TEMPORARY v1-to-v2 migration helpers — delete after both hosts run v2                                |
 | `templates/gunicorn-instance.service.template`      | Systemd unit template (web)                                                                          |
 | `templates/celery-worker-instance.service.template` | Systemd unit template (Celery worker)                                                                |
 | `templates/celery-beat-instance.service.template`   | Systemd unit template (Celery Beat — periodic task dispatcher)                                       |

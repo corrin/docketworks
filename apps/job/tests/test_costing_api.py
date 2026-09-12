@@ -21,8 +21,8 @@ from django.test import Client
 from django.utils import timezone
 
 from apps.accounts.models import Staff
+from apps.accounts.tests.helpers import authenticate
 from apps.company.models import Company
-from apps.company.tests.conftest import authenticate
 from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine, CostSet
@@ -334,7 +334,7 @@ class TestCostLineUpdate:
         assert estimate.summary["cost"] == 300.0
         assert estimate.summary["rev"] == 450.0
 
-    def test_patch_adjusts_linked_stock_by_quantity_diff(self, client: Client, job: Job) -> None:
+    def test_unissued_material_edits_do_not_consume_stock(self, client: Client, job: Job) -> None:
         stock = Stock.objects.create(
             description="Steel offcut",
             quantity=Decimal("10.00"),
@@ -342,7 +342,9 @@ class TestCostLineUpdate:
             source="manual",
         )
         actual = job.cost_sets.get(kind="actual")
-        line = _make_line(actual, quantity="1.000", ext_refs={"stock_id": str(stock.id)})
+        line = _make_line(
+            actual, quantity="1.000", approved=False, ext_refs={"stock_id": str(stock.id)}
+        )
 
         response = client.patch(
             f"/api/job/cost_lines/{line.id}/",
@@ -352,7 +354,7 @@ class TestCostLineUpdate:
 
         assert response.status_code == 200
         stock.refresh_from_db()
-        assert stock.quantity == Decimal("7.00")  # 10 - (4 - 1)
+        assert stock.quantity == Decimal("10.00")
 
     def test_patch_on_estimate_line_never_moves_stock(self, client: Client, job: Job) -> None:
         # Only actual lines consume inventory: an estimate references a stock
@@ -508,7 +510,9 @@ class TestCostLineUpdate:
 
 
 class TestCostLineDelete:
-    def test_delete_returns_stock_and_recalculates_summary(self, client: Client, job: Job) -> None:
+    def test_deleting_unissued_material_does_not_conjure_stock(
+        self, client: Client, job: Job
+    ) -> None:
         stock = Stock.objects.create(
             description="Steel offcut",
             quantity=Decimal("10.00"),
@@ -516,7 +520,9 @@ class TestCostLineDelete:
             source="manual",
         )
         actual = job.cost_sets.get(kind="actual")
-        line = _make_line(actual, quantity="2.000", ext_refs={"stock_id": str(stock.id)})
+        line = _make_line(
+            actual, quantity="2.000", approved=False, ext_refs={"stock_id": str(stock.id)}
+        )
         actual.refresh_from_db()
         assert actual.summary["cost"] == 200.0
 
@@ -525,7 +531,7 @@ class TestCostLineDelete:
         assert response.status_code == 204
         assert not CostLine.objects.filter(id=line.id).exists()
         stock.refresh_from_db()
-        assert stock.quantity == Decimal("12.00")  # 10 + 2 returned
+        assert stock.quantity == Decimal("10.00")
         actual.refresh_from_db()
         assert actual.summary["cost"] == 0.0
 
@@ -932,3 +938,59 @@ class TestCostsSummary:
 
     def test_unknown_job_is_404(self, client: Client) -> None:
         assert client.get(f"/api/job/jobs/{uuid4()}/costs/summary/").status_code == 404
+
+
+@pytest.mark.parametrize("owner", ["stock", "stocktake"])
+def test_inventory_ownership_protects_costs_before_a_movement_link_exists(
+    api: Client, job: Job, owner: str
+) -> None:
+    line = _make_line(job.cost_sets.get(kind="actual"), managed_by=owner)
+    response = api.patch(
+        f"/api/job/cost_lines/{line.id}/",
+        {"managed_by": None, "ext_refs": {}, "quantity": "9"},
+        content_type="application/json",
+    )
+    assert response.status_code == 400, response.content
+    assert api.delete(f"/api/job/cost_lines/{line.id}/delete/").status_code == 400
+    line.refresh_from_db()
+    assert (line.managed_by, line.quantity) == (owner, Decimal("1"))
+
+
+def test_approved_cost_cannot_acquire_stock_binding_through_generic_patch(
+    api: Client, job: Job
+) -> None:
+    line = _make_line(job.cost_sets.get(kind="actual"))
+    response = api.patch(
+        f"/api/job/cost_lines/{line.id}/",
+        {"ext_refs": {"stock_id": str(uuid4())}},
+        content_type="application/json",
+    )
+    assert response.status_code == 400, response.content
+    line.refresh_from_db()
+    assert line.ext_refs == {}
+
+
+@pytest.mark.parametrize("kind", ["estimate", "quote", "actual"])
+def test_cost_lines_use_creation_order_with_uuid_ties(client: Client, job: Job, kind: str) -> None:
+    """Cost grids share a stable oldest-first order, including equal-time batch rows."""
+    cost_set = job.cost_sets.get(kind=kind)
+    lines = [_make_line(cost_set, kind="adjust") for _ in range(8)]
+    url = f"/api/job/jobs/{job.id}/cost_sets/{kind}/"
+    assert [line["id"] for line in client.get(url).json()["cost_lines"]] == [
+        str(line.id) for line in lines
+    ]
+    CostLine.objects.filter(id__in=[line.id for line in lines]).update(created_at=timezone.now())
+    expected = sorted(lines, key=lambda line: line.id)
+    assert [line["id"] for line in client.get(url).json()["cost_lines"]] == [
+        str(line.id) for line in expected
+    ]
+    edited = expected[2]
+    created_at = CostLine.objects.get(id=edited.id).created_at
+    edited.refresh_from_db()
+    edited.desc = "Edited without moving"
+    edited.save()
+    edited.refresh_from_db()
+    assert edited.created_at == created_at
+    assert [line["id"] for line in client.get(url).json()["cost_lines"]] == [
+        str(line.id) for line in expected
+    ]

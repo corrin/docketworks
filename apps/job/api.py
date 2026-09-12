@@ -37,6 +37,7 @@ from uuid import UUID
 
 from django.core.cache import BaseCache, caches
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.http.response import HttpResponseBase
 from django.shortcuts import get_object_or_404
@@ -46,12 +47,13 @@ from ninja import Form, Router, UploadedFile
 from ninja.errors import HttpError
 from ninja.responses import Status
 
-from apps.accounts.models import Staff
+from apps.accounts.auth import authenticated_staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
+from apps.core.envelope import require_if_match
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.etag import generate_updated_at_etag, if_none_match_satisfied
 from apps.job.models import Job, JobFile, LabourSubtype
-from apps.job.models.costing import CostLine
+from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.schemas import (
     AdvancedSearchResponse,
     AssignJobRequest,
@@ -151,14 +153,6 @@ def _current_job_etag(job_id: UUID) -> str | None:
     return _job_etag(job) if job else None
 
 
-def _require_if_match(request: HttpRequest) -> str:
-    """Return the If-Match header or answer 428 Precondition Required."""
-    if_match = request.headers.get("If-Match")
-    if not if_match:
-        raise HttpError(428, "Missing If-Match header (precondition required)")
-    return if_match
-
-
 def _set_job_etag(response: HttpResponse, job_id: UUID) -> None:
     etag = _current_job_etag(job_id)
     if etag:
@@ -171,15 +165,6 @@ def _not_modified(request: HttpRequest, response: HttpResponse, etag: str | None
         response.headers["ETag"] = etag
     if_none_match = request.headers.get("If-None-Match")
     return bool(if_none_match and etag and if_none_match_satisfied(if_none_match, etag))
-
-
-def _staff(request: HttpRequest) -> Staff:
-    """Narrow the authenticated user to a real Staff row (ADR 0028)."""
-    auth_user: object = getattr(request, "auth", None)
-    user = auth_user if isinstance(auth_user, Staff) else request.user
-    if not isinstance(user, Staff):
-        raise HttpError(401, "Authentication credentials were not provided.")
-    return user
 
 
 # ── Job CRUD ─────────────────────────────────────────────────────────────
@@ -216,7 +201,7 @@ def job_jobs_create(
         data["pricing_methodology"] = payload.pricing_methodology
 
     try:
-        job = job_service.create_job(data, _staff(request))
+        job = job_service.create_job(data, authenticated_staff(request))
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
 
@@ -285,13 +270,13 @@ def get_full_job(
 def _update_job(
     request: HttpRequest, job_id: UUID, payload: JobDeltaEnvelope, response: HttpResponse
 ) -> dict[str, object]:
-    if_match = _require_if_match(request)
+    if_match = require_if_match(request)
     envelope = payload.model_dump()
     try:
         updated_job = job_service.update_job(
             job_id,
             envelope,
-            _staff(request),
+            authenticated_staff(request),
             if_match=if_match,
             request_ip=request.META.get("REMOTE_ADDR"),
         )
@@ -343,9 +328,9 @@ def job_jobs_partial_update(
 )
 def job_jobs_destroy(request: HttpRequest, job_id: UUID) -> dict[str, object]:
     """Delete a Job if business rules allow (If-Match required)."""
-    if_match = _require_if_match(request)
+    if_match = require_if_match(request)
     try:
-        result = job_service.delete_job(job_id, _staff(request), if_match=if_match)
+        result = job_service.delete_job(job_id, authenticated_staff(request), if_match=if_match)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
     return dict(result)
@@ -470,7 +455,7 @@ def _check_request_debounce(
     request: HttpRequest, operation_key: str, debounce_seconds: int
 ) -> bool:
     """Return True when the request falls inside the debounce window."""
-    user = _staff(request)
+    user = authenticated_staff(request)
     cache_key = f"debounce:{operation_key}:{user.id}"
     if _dedup_cache().get(cache_key):
         return True
@@ -490,8 +475,8 @@ def job_rest_jobs_events_create(
     request: HttpRequest, job_id: UUID, payload: JobEventCreateRequest, response: HttpResponse
 ) -> Status[dict[str, object]]:
     """Add a manual event with duplicate prevention (If-Match required)."""
-    if_match = _require_if_match(request)
-    user = _staff(request)
+    if_match = require_if_match(request)
+    user = authenticated_staff(request)
 
     # Debounce check - prevent rapid requests
     if _check_request_debounce(request, f"add_event:{job_id}", debounce_seconds=2):
@@ -553,12 +538,12 @@ def job_jobs_undo_change_create(
     request: HttpRequest, job_id: UUID, payload: JobUndoRequest, response: HttpResponse
 ) -> dict[str, object]:
     """Undo a recorded delta by applying its reverse envelope (If-Match required)."""
-    if_match = _require_if_match(request)
+    if_match = require_if_match(request)
     try:
         updated_job = job_service.undo_job_change(
             job_id,
             payload.change_id,
-            _staff(request),
+            authenticated_staff(request),
             if_match=if_match,
             undo_change_id=payload.undo_change_id,
             request_ip=request.META.get("REMOTE_ADDR"),
@@ -585,9 +570,9 @@ def job_jobs_quote_accept_create(
     request: HttpRequest, job_id: UUID, response: HttpResponse
 ) -> dict[str, object]:
     """Accept the job's quote: set acceptance date, move to approved (If-Match)."""
-    if_match = _require_if_match(request)
+    if_match = require_if_match(request)
     try:
-        result = job_service.accept_quote(job_id, _staff(request), if_match=if_match)
+        result = job_service.accept_quote(job_id, authenticated_staff(request), if_match=if_match)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
     _set_job_etag(response, job_id)
@@ -689,7 +674,7 @@ def job_jobs_delta_rejections_grouped_mark_resolved_create(
 ) -> dict[str, int]:
     """Resolve every rejection in the fingerprinted reason group."""
     updated = job_service.mark_job_delta_rejection_group_resolved_by_fingerprint(
-        payload.fingerprint, _staff(request)
+        payload.fingerprint, authenticated_staff(request)
     )
     return {"updated": updated}
 
@@ -707,7 +692,7 @@ def job_jobs_delta_rejections_grouped_mark_unresolved_create(
 ) -> dict[str, int]:
     """Reopen every rejection in the fingerprinted reason group."""
     updated = job_service.mark_job_delta_rejection_group_unresolved_by_fingerprint(
-        payload.fingerprint, _staff(request)
+        payload.fingerprint, authenticated_staff(request)
     )
     return {"updated": updated}
 
@@ -759,7 +744,7 @@ def job_jobs_cost_sets_quote_revise_create(
     if job.get_latest("quote") is None:
         raise HttpError(404, "No quote found for this job. Cannot create revision.")
     try:
-        return job_service.create_quote_revision(job, payload.reason, _staff(request))
+        return job_service.create_quote_revision(job, payload.reason, authenticated_staff(request))
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
 
@@ -782,7 +767,9 @@ def job_jobs_cost_sets_quote_copy_from_estimate_create(
     """
     job = _get_job_or_404(job_id)
     try:
-        return job_service.copy_estimate_to_quote(job, payload.archive_existing, _staff(request))
+        return job_service.copy_estimate_to_quote(
+            job, payload.archive_existing, authenticated_staff(request)
+        )
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
 
@@ -815,7 +802,7 @@ def job_jobs_cost_sets_retrieve(
 def _create_cost_line(
     request: HttpRequest, job_id: UUID, kind: str, payload: CostLineCreateRequest
 ) -> job_service.CostLineData:
-    staff = _staff(request)
+    staff = authenticated_staff(request)
     if kind != "actual" and not staff.is_office_staff:
         raise HttpError(403, "Only office staff can manage non-actual cost sets")
     job = _get_job_or_404(job_id)
@@ -928,9 +915,9 @@ def _costline_patch_data(payload: CostLineUpdateRequest) -> CostLineWriteData:
 def job_cost_lines_partial_update(
     request: HttpRequest, cost_line_id: UUID, payload: CostLineUpdateRequest
 ) -> job_service.CostLineData:
-    """Update a cost line from a partial payload, adjusting linked stock on quantity change."""
+    """Edit unowned costs; posted material is corrected through purchasing."""
     line = get_object_or_404(CostLine, id=cost_line_id)
-    if line.cost_set.kind != "actual" and not _staff(request).is_office_staff:
+    if line.cost_set.kind != "actual" and not authenticated_staff(request).is_office_staff:
         raise HttpError(403, "Only office staff can modify non-actual cost lines")
     try:
         updated = job_service.update_cost_line(line, _costline_patch_data(payload))
@@ -952,7 +939,7 @@ def job_cost_lines_partial_update(
 def job_cost_lines_delete_destroy(request: HttpRequest, cost_line_id: UUID) -> Status[None]:
     """Delete a cost line, returning any consumed stock to inventory."""
     line = get_object_or_404(CostLine, id=cost_line_id)
-    if line.cost_set.kind != "actual" and not _staff(request).is_office_staff:
+    if line.cost_set.kind != "actual" and not authenticated_staff(request).is_office_staff:
         raise HttpError(403, "Only office staff can delete non-actual cost lines")
     try:
         job_service.delete_cost_line(line)
@@ -969,6 +956,7 @@ def job_cost_lines_delete_destroy(request: HttpRequest, cost_line_id: UUID) -> S
     summary="Approve a cost line",
     tags=["job"],
 )
+@transaction.atomic
 def approve_cost_line(request: HttpRequest, cost_line_id: UUID) -> dict[str, object]:
     """Approve a workshop-entered cost line (office staff only).
 
@@ -978,6 +966,9 @@ def approve_cost_line(request: HttpRequest, cost_line_id: UUID) -> dict[str, obj
     else just flips ``approved``.
     """
     line = get_object_or_404(CostLine.objects.select_related("cost_set__job"), id=cost_line_id)
+    lock_costing_jobs([line.cost_set.job_id])
+    line = CostLine.objects.select_for_update().get(pk=line.pk)
+    job_service.refuse_workflow_managed(line, "approve")
     if line.approved:
         raise HttpError(400, "Line is already approved")
 
@@ -999,7 +990,7 @@ def approve_cost_line(request: HttpRequest, cost_line_id: UUID) -> dict[str, obj
             item=stock,
             job=line.cost_set.job,
             qty=line.quantity,
-            user=_staff(request),
+            user=authenticated_staff(request),
             line=line,
         )
     except ValueError as exc:
@@ -1108,7 +1099,7 @@ def job_jobs_finish_partial_update(
     job = _job_for_finish(job_id)
     updates = payload.model_dump(exclude_unset=True)
     if updates:
-        job = job_service.update_completion_checklist(job, updates, _staff(request))
+        job = job_service.update_completion_checklist(job, updates, authenticated_staff(request))
     return _finish_job_payload(job)
 
 
@@ -1300,7 +1291,7 @@ def job_jobs_labour_rates_partial_update(
         for entry in payload.rates
     ]
     try:
-        return job_service.update_job_labour_rates(job, entries, _staff(request))
+        return job_service.update_job_labour_rates(job, entries, authenticated_staff(request))
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
 
@@ -1474,7 +1465,7 @@ def job_jobs_update_status_create(
 ) -> dict[str, object]:
     """Move a job to a new status column."""
     try:
-        KanbanService.update_job_status(job_id, payload.status, staff=_staff(request))
+        KanbanService.update_job_status(job_id, payload.status, staff=authenticated_staff(request))
     except Job.DoesNotExist as exc:
         raise HttpError(404, "Job not found") from exc
     return {"success": True, "message": "Job status updated successfully"}
@@ -1503,7 +1494,7 @@ def job_jobs_reorder_create(
             anchor_job_id=str(payload.anchor_job_id) if payload.anchor_job_id else None,
             placement=payload.placement,
             new_status=payload.status,
-            staff=_staff(request),
+            staff=authenticated_staff(request),
         )
     except Job.DoesNotExist as exc:
         raise HttpError(404, "Job not found") from exc
@@ -1588,7 +1579,7 @@ def _enqueue_thumbnail(job: Job, job_file: JobFile, request: HttpRequest) -> Non
             thumb_exc,
             AppErrorContext(
                 job_id=str(job.id),
-                user_id=str(_staff(request).id),
+                user_id=str(authenticated_staff(request).id),
                 additional_context={"file_id": str(job_file.id)},
             ),
         )
@@ -1626,7 +1617,7 @@ def upload_job_files(
                 exc,
                 AppErrorContext(
                     job_id=str(job.id),
-                    user_id=str(_staff(request).id),
+                    user_id=str(authenticated_staff(request).id),
                     additional_context={"filename": file_obj.name},
                 ),
             )
@@ -1777,7 +1768,7 @@ def job_jobs_workshop_pdf_retrieve(request: HttpRequest, job_id: UUID) -> HttpRe
 def generate_delivery_docket_rest(request: HttpRequest, job_id: UUID) -> HttpResponseBase:
     """Generate, persist, and return a delivery docket PDF (office staff only)."""
     job = _get_job_or_404(job_id)
-    pdf_buffer, job_file = generate_delivery_docket(job, staff=_staff(request))
+    pdf_buffer, job_file = generate_delivery_docket(job, staff=authenticated_staff(request))
     response = FileResponse(
         pdf_buffer,
         as_attachment=False,
@@ -1859,5 +1850,7 @@ def job_month_end_retrieve(request: HttpRequest) -> dict[str, object]:
 )
 def job_month_end_create(request: HttpRequest, payload: MonthEndPostRequest) -> dict[str, object]:
     """Roll a new empty actual cost set for each selected job (office staff only)."""
-    processed, errors = month_end_service.process_jobs(payload.job_ids, _staff(request))
+    processed, errors = month_end_service.process_jobs(
+        payload.job_ids, authenticated_staff(request)
+    )
     return {"processed": [job.id for job in processed], "errors": errors}
