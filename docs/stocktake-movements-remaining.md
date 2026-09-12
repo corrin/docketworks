@@ -10,13 +10,14 @@ Delete this file when the branch merges and nothing is left in it.
 
 ## Blocking the merge
 
-- **The E2E suite is not green from the first spec.** Three drift failures remain
-  unclassified: both session-replay specs, which wait on the internal recording endpoints,
-  and the person-linking one. None touches Xero.
-- **Two failures need the Xero daily allowance to reset.** `purchasing/po-receipt-sync.spec.ts`
-  reached "Xero sync aborted" against an expected "complete", which is the quota floor doing
-  its job, and `admin/xero.spec.ts` employee refresh stalled the same way. Neither is a code
-  defect. The allowance was spent by a production restore plus a full suite in one day.
+- **The E2E suite is not green from the first spec.** Both session-replay specs fail and
+  are still unclassified: the recording is never created, so the POST the spec waits on
+  never happens. Recording is enabled and the database holds recordings. The person-linking
+  failure listed here was Xero, not drift, and is gone.
+- **`admin/xero.spec.ts:45` cannot start a sync while one is running.** It asserts 202 from
+  `POST /api/xero/sync/` and gets 409 `already_running`, because the run holds one global
+  lock for every sync. Previously read as the daily allowance; it is not, and it failed on a
+  full allowance.
 - **The restore runbook's acceptance test is unrecorded** and stays so until a full suite is
   green from the first spec.
 - **The Xero cleanup integration test has never executed.**
@@ -32,14 +33,6 @@ Delete this file when the branch merges and nothing is left in it.
   because those were already archived. Then run the full gate once and check the
   organisation looks the same afterwards as before — this change has no spec of its own, and
   that comparison is the whole evidence.
-- **Decide how wide the fixture company's blast radius should be, before the sweep runs for
-  real.** `e2e_cleanup` matches every job on `ABC Carpet Cleaning TEST IGNORE` by company
-  rather than by name, and now deletes those jobs' invoices and quotes in Xero. Locally that
-  was already the behaviour; reaching Xero is new, and a Xero deletion is not something the
-  database restore can undo. The preflight only refuses to start on `[TEST]`-named rows, so a
-  hand-made job on the fixture company would be swept. Narrowing the match to `[TEST]`-named
-  jobs loses nothing the suite creates, which makes it the safe default whatever else is
-  decided.
 
 ## Not blocking, but this branch's to close
 
@@ -55,10 +48,6 @@ Delete this file when the branch merges and nothing is left in it.
   [`rewrite-history.md`](rewrite-history.md); the owner authorised zero live calls for the
   slice itself, so this needs a budget agreed first. Design is in
   [the plan](plans/2026-09-09-xero-detail-refresh.md).
-- **Record this branch's four behaviour changes in
-  [`accepted-api-differences.yml`](accepted-api-differences.yml):** the list pagination
-  envelope, Xero's `BILLED` no longer meaning goods received, `xero_agreed_at` splitting from
-  `xero_last_synced`, and the relaxed creation gate.
 - **Close the code that still reads the superseded data shape (ADR 0059).** Each line below
   is one commit: the migration that rewrites the rows, then the branch and the nullability,
   together — a half-done item is worse than an untouched one, because the migration is meant
@@ -93,12 +82,6 @@ Delete this file when the branch merges and nothing is left in it.
   a value and clicking a control in the same row loses whatever that control opened. Only the
   cost grid has a spec near it, and that spec fails for an unrelated reason, so nothing is
   watching the other two.
-- **One vendor's rate limit fails the whole restore gate.**
-  `scripts/ops/restore_checks/check_ai_providers.py` calls `verify_provider` in a loop with
-  nothing catching a refusal, so the first vendor that raises aborts the run and the
-  providers behind it are never tested. A rejected credential and a rate limit deserve
-  different treatment — one is misconfiguration, the other is a fact about today — so a
-  blanket catch is the wrong shape.
 
 ## Owed after promotion, not before merge
 
@@ -110,9 +93,3 @@ deleted with this file**, which is the one exception to the shrinking rule above
   `3fea474` and is gated, but only a live `instance.sh reconfigure` against msm-prod shows
   that a provisioning run now leaves scanner delivery working. Run `verify-instance.sh msm
   prod` after it and confirm the sync-root check passes.
-
-## Watch on the next full gate run
-
-- **The item picker failure does not reproduce alone.** `job/job-cost-entry-data.spec.ts`
-  passed twice in isolation after the wage-rate fix. Four mechanisms are disproved, so it is
-  only observable under a full suite. Watch it rather than chasing it on its own.
