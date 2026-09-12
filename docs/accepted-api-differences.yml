@@ -1359,3 +1359,42 @@
     or already_reversed outcome. A lost-response retry preserves the PO version
     and all quantity/cost evidence. Allocation reads retain reversed records and
     report that state explicitly.
+
+- operation: purchasing_stock_list
+  change: "Returns the paginated search envelope (was a bare array)"
+  reason: >
+    The list and the search served the same rows through two shapes, so a screen
+    that grew past one page had to change which one it called. They are now one
+    handler behind one envelope carrying the server's total, which is what a
+    bounded scrolling pane needs to state how many rows it has not fetched
+    (ADR 0054). A query under three characters lists everything, so the bare
+    listing has no caller left.
+
+- operation: (xero purchase-order status)
+  change: "Xero's BILLED maps to submitted, not fully_received"
+  reason: >
+    Being billed is an accounts event. Whether material arrived, and which job it
+    was costed to, is a fact only a delivery receipt establishes here. The old
+    mapping left purchase orders reading fully_received with no stock row and no
+    cost line, so cost never reached a job (KAN-144). Xero's own word is kept
+    verbatim on xero_status, so nothing is lost.
+
+- operation: (xero purchase-order agreement)
+  change: "xero_agreed_at records when the two copies last matched, separately from xero_last_synced"
+  reason: >
+    xero_last_synced is stamped by every inbound sync, so it reported "up to
+    date" the moment we looked and hid an unsent edit behind the next pull.
+    updated_at cannot answer it either: that is the row's ETag and must advance
+    whenever the row changes, including when the change came from Xero. A push
+    stamps agreement only if the row is unchanged when the response lands.
+
+- operation: (instance provisioning)
+  change: "A company-defaults file with a null xero_tenant_id is accepted (was refused)"
+  reason: >
+    The id is the organisation's own and nobody holds it until the organisation
+    is connected, so the rule forced an operator to invent a UUID to create an
+    instance at all. The requirement arrived with the v1-to-v2 cutover helpers,
+    which extracted the id from the running v1 instance; those helpers are gone.
+    The all-zero placeholder is refused by name, because Xero never issues it and
+    it is therefore sent in the header instead of raising the configuration error
+    an unset value raises. Enabling sync still requires a bound organisation.
