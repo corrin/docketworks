@@ -123,15 +123,21 @@ class TestXerosDirection:
         po.refresh_from_db()
         assert po.status == "submitted"
 
-    def test_a_void_in_xero_flows_in(self, supplier: Company) -> None:
+    def test_a_deletion_in_xero_flows_in(self, supplier: Company) -> None:
+        """Asserted against the transform, which sync_entities does not reach.
+
+        A DELETED item is skipped before transform_func runs (transforms.py's
+        sync_entities), so this proves the mapping and not the pull. Marking a
+        locally held order deleted when Xero deletes it is unbuilt.
+        """
         xero_id = uuid4()
         po = _sent_order(supplier, xero_id=xero_id)
 
-        transform_purchase_order(_incoming(supplier, po.po_number, "VOIDED"), xero_id)
+        transform_purchase_order(_incoming(supplier, po.po_number, "DELETED"), xero_id)
 
         po.refresh_from_db()
         assert po.status == "deleted"
-        assert po.xero_status == "VOIDED"
+        assert po.xero_status == "DELETED"
 
 
 class TestAnOrderWeRaised:
@@ -227,7 +233,7 @@ class TestReceiptSurvivesXero:
     @pytest.mark.parametrize(
         "receipt", [(Decimal("2"), "partially_received"), (Decimal("4"), "fully_received")]
     )
-    @pytest.mark.parametrize("xero_status", ["AUTHORISED", "BILLED", "VOIDED"])
+    @pytest.mark.parametrize("xero_status", ["AUTHORISED", "BILLED", "DELETED"])
     def test_receipt_survives_a_successful_push_then_pull(
         self,
         supplier: Company,

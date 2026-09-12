@@ -643,7 +643,12 @@ _PO_STATUS_MAP = {
     "SUBMITTED": "submitted",
     "AUTHORISED": "submitted",
     "BILLED": "submitted",
-    "VOIDED": "deleted",
+    # DELETED, not VOIDED: xero_python's PurchaseOrder enumerates exactly
+    # DRAFT, SUBMITTED, AUTHORISED, BILLED and DELETED, so the VOIDED entry
+    # mapped a value Xero cannot send while the one it does send was absent —
+    # and absent means _map_po_status raises on it. Our own outbound map
+    # already emits DELETED for a locally deleted order (documents/po.py).
+    "DELETED": "deleted",
 }
 
 
