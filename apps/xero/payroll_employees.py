@@ -1154,8 +1154,13 @@ def ensure_employee_leave_types(employee_id: str) -> set[str]:
     Xero's standard leave setup owns Annual and Sick accrual rules. Unpaid and
     Bereavement are explicitly assigned with no accrual and zero opening
     balance; inventing accrual rules for either would change payroll policy.
-    The final read-back is the readiness check used by both creation and seed
-    repair.
+
+    Opus: returns the set this call assembled and never re-reads it from Xero.
+    A read-back was the rejected alternative: each create is already checked
+    against the leave type id Xero echoes back and raises when it disagrees, so
+    a second read can only confirm what the first already refused to let past.
+    It is one metered call per employee, and payroll has no batch endpoint, so
+    it is paid 21 times on every demo-organisation reseed.
     """
     tenant_id = str(get_tenant_id())
     required = employee_leave_mappings()
@@ -1194,10 +1199,6 @@ def ensure_employee_leave_types(employee_id: str) -> set[str]:
             )
         assigned.add(mapping.external_id)
 
-    assigned = employee_leave_type_ids(employee_id)
-    missing = [row.display_name for row in required if row.external_id not in assigned]
-    if missing:
-        raise ValueError(f"Xero employee {employee_id} is not eligible for: " + ", ".join(missing))
     return assigned
 
 

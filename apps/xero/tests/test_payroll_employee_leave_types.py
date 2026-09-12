@@ -44,15 +44,12 @@ def _response(*ids: str) -> SimpleNamespace:
     )
 
 
-def test_assigns_only_missing_non_accruing_types_and_verifies_readback(
+def test_assigns_only_missing_non_accruing_types_and_reads_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ids = _configure_required_types()
     api = MagicMock()
-    api.get_employee_leave_types.side_effect = [
-        _response(ids["Annual Leave"], ids["Sick Leave"]),
-        _response(*ids.values()),
-    ]
+    api.get_employee_leave_types.return_value = _response(ids["Annual Leave"], ids["Sick Leave"])
     api.create_employee_leave_type.side_effect = lambda **kwargs: SimpleNamespace(
         leave_type=SimpleNamespace(leave_type_id=kwargs["employee_leave_type"].leave_type_id)
     )
@@ -72,6 +69,10 @@ def test_assigns_only_missing_non_accruing_types_and_verifies_readback(
     }
     assert all(payload.schedule_of_accrual == "NoAccruals" for payload in payloads)
     assert all(payload.opening_balance == 0.0 for payload in payloads)
+    # Xero is asked what the employee already has, once. Reading the same list
+    # back after writing it is a metered call that can only agree with the
+    # confirmation each create already made.
+    assert api.get_employee_leave_types.call_count == 1
 
 
 def test_missing_standard_leave_is_refused_instead_of_inventing_accruals(
