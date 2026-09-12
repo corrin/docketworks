@@ -512,6 +512,15 @@ export async function createTestPurchaseOrder(page: Page): Promise<string> {
   // Wait for redirect to PO form
   await page.waitForURL(/\/purchasing\/po\/[a-f0-9-]+$/, { timeout: 15000 })
 
+  // Opus: the URL changes before the detail route's lazy chunk has mounted, and
+  // PoSummaryCard renders two separate trees either side of mode === 'detail'.
+  // A caller that acts on the returned URL straight away is therefore acting on
+  // the CREATE tree, which the transition then unmounts underneath it — the
+  // pickup-address modal opened, fired its query, and was torn down mid-flight,
+  // which the trace shows as an aborted request. Print only exists on the
+  // detail view, so waiting for it is waiting for the tree the caller means.
+  await autoId(page, 'PoDetailView-print').waitFor({ timeout: 15000 })
+
   return page.url()
 }
 

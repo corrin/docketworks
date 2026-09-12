@@ -12,18 +12,15 @@ Delete this file when the branch merges and nothing is left in it.
 
 - **The E2E suite is not green from the first spec.** 165 passed and 2 failed on
   2026-09-12, against 20 failures two runs earlier. What is left:
-  - `purchasing/pickup-address.spec.ts:29` — the selection modal never opens. A real
-    failure, not the environment: it failed the previous gate too, when it was wrongly
-    put down to the disconnected Xero tenant. Evidence: the screenshot shows a settled
-    page, no toast over the button, and the display and button assertions before the
-    click both pass. Every other test in that file starts with `page.goto(poUrl)`; this
-    is the only one that clicks straight after `createTestPurchaseOrder`, while the page
-    is still settling from the post-create redirect. `PickupAddressSelector` keeps
-    `open` in local state and `PoSummaryCard` has two separate render paths
-    (`if (props.mode === 'detail') return <DetailFields .../>`), each with its own
-    selector — so crossing that boundary unmounts one and mounts another, and an open
-    modal cannot survive it. Same family as the draft-row item below. Unproven: a
-    reproduction costs a Xero contact push and the allowance was spent.
+  - `purchasing/pickup-address.spec.ts:29` — diagnosed from the trace and fixed in
+    `createTestPurchaseOrder`, not yet re-run. The helper returned as soon as the URL
+    matched, but the URL changes before the detail route's lazy chunk mounts, and
+    `PoSummaryCard` renders two separate trees either side of `mode === 'detail'`, each
+    with its own `PickupAddressSelector` holding `open` locally. The click therefore
+    landed on the create tree: the modal opened, fired its query, and was unmounted by
+    the transition — the trace shows that request aborted, between the detail chunk
+    loading and the detail data arriving. The helper now waits for the detail view.
+    **Still to prove by running it**, which costs a Xero contact push.
   - `admin/xero.spec.ts:57` — the 409 retry waited on the button rather than the server,
     fixed in `07ae5fb` and unproven, because proving it spends a whole employee refresh
     against the call budget this branch already owes a decision on.
@@ -70,13 +67,17 @@ Delete this file when the branch merges and nothing is left in it.
     it caught anything real. The guard was also chosen deliberately for exactly these
     cases; the earlier decision record names Derek and Guardsman as the example.
     So the rule is the suspect, not the guard. Under **one number, one person, who may
-    link to several companies**, four of the five become legal rather than grandfathered
-    and the exception disappears instead of being preserved — which is what ADR 0059
-    actually wants. That is a model change across `company/models.py`'s
-    `check_phone_assignment`, `person_merge_service.py`'s bypass, `xero/raw_fields.py`
-    and the pair in `crm/models.py` and `crm/api.py`, with the four tests asserting the
-    new rule. **Still owed first:** whether Derek is invoiced personally — if not,
-    Derek Skaife folds into Guardsman — and which side of 027 932 2222 is the typo.
+    link to several companies**, the exception disappears instead of being preserved —
+    which is what ADR 0059 actually wants. Production is now the proof rather than the
+    argument: the two duplicate Derek rows were merged 2026-09-12 and he is a single
+    person holding both mobiles across Guardsman and his personal account, which the
+    merge helper absorbed without tripping the one-primary constraint. That is a model
+    change across `company/models.py`'s `check_phone_assignment`,
+    `person_merge_service.py`'s bypass, `xero/raw_fields.py` and the pair in
+    `crm/models.py` and `crm/api.py`, with the four tests asserting the new rule.
+    **Every data fault is now fixed.** Three numbers remain and none is a backlog item:
+    Josh Loughnan's and Suranga Kariyawasam's mobiles wait on this rule decision, and
+    027 932 2222 needs someone to ring it.
   - The rest, each with tests that change alongside: `diagnostics/services/db_scrubber.py`'s
     per-value conformance gate; the event-absence fallbacks in `accounting/services/`
     `job_aging_service.py` and `sales_pipeline_service.py`;
