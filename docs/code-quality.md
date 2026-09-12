@@ -21,10 +21,10 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 710 |
+| TOTAL suppressions | 711 |
 | noqa: DJ001 | 171 |
 | noqa: PLC0415 | 135 |
-| noqa: E402 | 105 |
+| noqa: E402 | 106 |
 | noqa: PLR0913 | 46 |
 | noqa: ARG002 | 38 |
 | noqa: BLE001 | 34 |
@@ -79,12 +79,12 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 418 |
-| except handlers | 449 |
+| try statements | 419 |
+| except handlers | 451 |
 | re-raises or converts | 293 |
 | returns instead | 93 |
 | falls through | 50 |
-| continue/break in a loop | 12 |
+| continue/break in a loop | 14 |
 | pass (silent) | 1 |
 
 ## Shim-shaped functions

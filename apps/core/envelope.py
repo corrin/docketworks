@@ -36,6 +36,7 @@ from apps.core.errors import (
     ApplicationError,
     ConflictError,
     InvalidInputError,
+    UpstreamRefusedError,
     app_error_for,
     persist_app_error,
 )
@@ -52,6 +53,7 @@ _APPLICATION_ERROR_STATUSES: tuple[tuple[type[ApplicationError], int], ...] = (
     (InvalidInputError, 400),
     (AccessDeniedError, 403),
     (ConflictError, 409),
+    (UpstreamRefusedError, 503),
 )
 
 
