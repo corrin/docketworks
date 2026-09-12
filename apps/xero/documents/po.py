@@ -224,14 +224,12 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
         po.save(update_fields=fields)
         self.purchase_order = po
         if po.updated_at != snapshot.version:
-            logger.info("PO %s changed during push; line IDs and agreement deferred", po.id)
+            logger.info("PO %s changed during push; line IDs deferred", po.id)
             return
         response_lines = echoed.get("line_items")
         if response_lines is not None:
             returned = TypeAdapter(list[POResponseLine]).validate_python(response_lines)
             self._update_line_item_ids_from_response(returned, snapshot.lines)
-        po.xero_agreed_at = timezone.now()
-        po.save(update_fields=["xero_agreed_at"])
 
     def _update_line_item_ids_from_response(
         self, response_lines: list[POResponseLine], sent_lines: tuple[SentPOLine, ...]
@@ -317,11 +315,8 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
             # Cleared with the id, for the same reason it is written with it:
             # a tenant claim on a row that links to nothing is a lie.
             self.purchase_order.xero_tenant_id = None
-            self.purchase_order.xero_agreed_at = timezone.now()
             self.purchase_order.status = "deleted"
-            self.purchase_order.save(
-                update_fields=["xero_id", "xero_tenant_id", "xero_agreed_at", "status"]
-            )
+            self.purchase_order.save(update_fields=["xero_id", "xero_tenant_id", "status"])
 
             return {  # noqa: TRY300 -- returns a value built across the try body
                 "success": True,

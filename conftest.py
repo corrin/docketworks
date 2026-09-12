@@ -371,6 +371,34 @@ def _copy_company_defaults(source: "Connection[Any]", model: "type[Model]") -> N
 
 
 @pytest.fixture(autouse=True)
+def _accounting_mirror_accepts(request: pytest.FixtureRequest) -> "Iterator[None]":
+    """Let a purchase-order write reach an accounting system that accepts it.
+
+    Every write mirrors the order to the provider inside its own transaction
+    and a refusal rolls the write back, so without this a test about pagination
+    or ETags would be asserting Xero's behaviour instead of its own.
+
+    Opus: this is not a claim about what Xero does — a fake provider can only
+    confirm what we already assumed, which is why the real thing is a merge
+    gate (ADR 0050). Tests that ARE about the mirror patch the same target
+    themselves and the inner patch wins.
+    """
+    if "django_db" not in request.keywords:
+        yield
+        return
+    # Imported here, not at module scope: collection runs before Django's app
+    # registry is populated.
+    from unittest.mock import patch
+
+    from apps.accounting.types import DocumentResult
+
+    target = "apps.purchasing.services.purchase_order_service.get_provider"
+    with patch(target) as get_provider:
+        get_provider.return_value.push_purchase_order.return_value = DocumentResult(success=True)
+        yield
+
+
+@pytest.fixture(autouse=True)
 def _docketworks_prereqs(request: pytest.FixtureRequest) -> None:
     """Give every database test an installation that could actually boot.
 

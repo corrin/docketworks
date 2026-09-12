@@ -3,7 +3,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from types import SimpleNamespace
-from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -36,7 +35,6 @@ def test_sync_waits_for_receipt_and_preserves_its_committed_status(
         po_number=f"TEST-{uuid4()}",
         xero_id=uuid4(),
         status="submitted",
-        xero_agreed_at=timezone.now(),
     )
     line = PurchaseOrderLine.objects.create(
         purchase_order=po,
@@ -58,10 +56,7 @@ def test_sync_waits_for_receipt_and_preserves_its_committed_status(
         result, _status = transform_purchase_order(incoming, str(po.xero_id))
         return result.status
 
-    with (
-        patch("apps.xero.transforms.queue_purchase_order_push"),
-        ThreadPoolExecutor(max_workers=1) as pool,
-    ):
+    with ThreadPoolExecutor(max_workers=1) as pool:
         with transaction.atomic():
             process_delivery_receipt(
                 po.id,

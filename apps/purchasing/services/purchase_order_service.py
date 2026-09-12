@@ -11,6 +11,7 @@ caller's ``If-Match`` does not name the current version. The API layer answers
 """
 
 import logging
+import re
 from datetime import date, datetime
 from decimal import Decimal
 from typing import TypedDict
@@ -23,10 +24,11 @@ from django.db.models.functions import Cast, Substr
 from django.http import Http404
 from django.utils import timezone
 
+from apps.accounting.registry import get_provider
 from apps.accounts.models import Staff
 from apps.company.models import Company, Supplier, SupplierPickupAddress
 from apps.company.services.company_rest_service import pickup_address_data
-from apps.core.errors import InvalidInputError
+from apps.core.errors import InvalidInputError, UpstreamRefusedError
 from apps.core.models import CompanyDefaults
 from apps.core.pagination import paginate
 from apps.core.patching import apply_patch_fields
@@ -40,7 +42,6 @@ from apps.purchasing.models import (
 from apps.purchasing.schemas import PurchaseOrderStatus
 from apps.purchasing.services.allocation_service import recompute_purchase_order_status
 from apps.purchasing.services.delivery_receipt_service import receive_outstanding_order
-from apps.purchasing.tasks import queue_purchase_order_push
 
 logger = logging.getLogger(__name__)
 
@@ -284,7 +285,7 @@ class PurchaseOrderLineWriteData(TypedDict, total=False):
 class PurchaseOrderCreateData(TypedDict, total=False):
     """The PO fields a create payload may carry."""
 
-    supplier_id: UUID | None
+    supplier_id: UUID
     pickup_address_id: UUID | None
     reference: str | None
     order_date: date | None
@@ -373,6 +374,61 @@ def _write_lines(po: PurchaseOrder, lines: list[PurchaseOrderLineWriteData]) -> 
         line.save()
 
 
+def is_locally_raised(po: PurchaseOrder) -> bool:
+    """Whether Docketworks raised this order, rather than Xero.
+
+    Both systems raise purchase orders and each numbers its own, so the number
+    is what says whose it is: ours match the instance's ``po_prefix``, the same
+    pattern ``get_last_purchase_order_number`` counts under.
+
+    Opus: ``created_by`` asks a question that looks identical and is not. It
+    went unrecorded until 2026-01-09, so 419 of the 825 orders we raised carry
+    none, and reading ownership from it hands Xero the right to overwrite every
+    one of them on the next pull. Measured 2026-09-13 against a production
+    restore; no order outside the prefix has a ``created_by`` at all.
+
+    ``po_prefix`` is therefore not an ordinary setting. Changing it reclassifies
+    every order raised under the old one as Xero's, which is the same defect the
+    paragraph above describes, reached by an admin edit instead of a null column.
+    """
+    prefix = CompanyDefaults.get_solo().po_prefix
+    return re.fullmatch(rf"{re.escape(prefix)}\d+", po.po_number) is not None
+
+
+def _mirror_to_accounting(po: PurchaseOrder, staff: Staff) -> None:
+    """Make the accounting system's copy match ours, or refuse the write.
+
+    Called inside the caller's transaction so a refusal rolls the local change
+    back. Docketworks masters the purchase order and the accounting system
+    mirrors it, and nothing sweeps up a divergence afterwards, so the two move
+    together or neither moves. The alternative — commit locally and queue the
+    push — is what this replaced: it let an order exist here that the
+    supplier's bill had nothing to reconcile against, invisibly.
+
+    The refusal is typed rather than passed through as one status: a rejected
+    order is the operator's to fix, while a quota or an outage says the same
+    write would succeed later, and a caller that cannot tell them apart either
+    retries a fault forever or abandons a write that was only postponed.
+    """
+    if not is_locally_raised(po):
+        # Ownership first: Xero raised this one and masters it, so our copy is
+        # the mirror and has nothing to publish, and its shape is not ours to
+        # refuse. The next pull is what settles it.
+        return
+    if po.supplier is None:
+        # The mirror is a document addressed to a supplier, so there is nothing
+        # to send. Raised here rather than left to the provider, which would
+        # surface a missing supplier as a 500.
+        raise InvalidInputError("A purchase order needs a supplier before it can reach Xero")
+    result = get_provider().push_purchase_order(po, staff)
+    if result.success:
+        return
+    message = result.error or "The accounting system refused this purchase order."
+    if result.status_code == 400:
+        raise InvalidInputError(message)
+    raise UpstreamRefusedError(message)
+
+
 def _resolve_supplier(supplier_id: UUID) -> Company:
     """Resolve the PO's supplier. ``Supplier`` is a proxy of ``Company``."""
     supplier = Supplier.objects.filter(id=supplier_id).first()
@@ -399,30 +455,29 @@ def _resolve_pickup_address(pickup_address_id: UUID, supplier: Company) -> Suppl
     return address
 
 
-def create_purchase_order(
-    data: PurchaseOrderCreateData, *, created_by: Staff | None = None
-) -> PurchaseOrder:
-    """Create a PO (and its lines); the model generates the PO number."""
-    supplier_id = data.get("supplier_id")
-    supplier = _resolve_supplier(supplier_id) if supplier_id else None
+def create_purchase_order(data: PurchaseOrderCreateData, *, created_by: Staff) -> PurchaseOrder:
+    """Create a PO (and its lines) here and in the accounting system.
+
+    ``created_by`` is required because every order this function makes is one
+    Docketworks raised. An order that arrives FROM the accounting system is
+    created by the inbound sync instead, and is never pushed back.
+    """
+    supplier = _resolve_supplier(data["supplier_id"])
 
     pickup_address: SupplierPickupAddress | None
     if "pickup_address_id" in data:
         # Sent, so the client chose: an id, or null for none (ADR 0040).
         pickup_address_id = data["pickup_address_id"]
-        if pickup_address_id is None:
-            pickup_address = None
-        elif supplier is None:
-            raise DjangoValidationError("A pickup address needs a supplier")
-        else:
-            pickup_address = _resolve_pickup_address(pickup_address_id, supplier)
-    elif supplier is not None:
+        pickup_address = (
+            None
+            if pickup_address_id is None
+            else _resolve_pickup_address(pickup_address_id, supplier)
+        )
+    else:
         # Not sent: the supplier's primary address, if it has one.
         pickup_address = SupplierPickupAddress.objects.filter(
             company=supplier, is_primary=True, is_active=True
         ).first()
-    else:
-        pickup_address = None
 
     with transaction.atomic():
         po = PurchaseOrder.objects.create(
@@ -435,6 +490,7 @@ def create_purchase_order(
             created_by=created_by,
         )
         _write_lines(po, data.get("lines", []))
+        _mirror_to_accounting(po, created_by)
     return po
 
 
@@ -511,10 +567,7 @@ def update_purchase_order(
         elif "lines" in data and po.po_lines.filter(received_quantity__gt=0).exists():
             recompute_purchase_order_status(po)
         po.refresh_from_db()
-        # Xero holds a copy of this order so the supplier's bill has something
-        # to reconcile against; keeping that copy current is the system's job,
-        # not an operator's. Queued after the write, on commit.
-        queue_purchase_order_push(po)
+        _mirror_to_accounting(po, staff)
         return po
 
 

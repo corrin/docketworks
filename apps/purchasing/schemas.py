@@ -227,9 +227,18 @@ class PurchaseOrderLineUpdateRequest(PurchaseOrderLineCreateRequest):
 
 
 class PurchaseOrderCreateRequest(Schema):
-    """Wire contract for PurchaseOrderCreateRequest."""
+    """Wire contract for PurchaseOrderCreateRequest.
 
-    supplier_id: UUID | None = None
+    ``supplier_id`` is required: the order is created in Xero as it is created
+    here, Xero will not hold a purchase order without a contact on it, and an
+    order this system holds and Xero does not is a defect rather than a state.
+
+    The column stays nullable so rows that predate the rule keep reading, which
+    is the same split ``Job.company`` makes: nullable on the model, required by
+    ``JobCreateRequest`` and ``create_job``.
+    """
+
+    supplier_id: UUID
     pickup_address_id: UUID | None = None
     reference: NullableText = None
     order_date: date | None = None

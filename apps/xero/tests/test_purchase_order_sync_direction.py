@@ -1,18 +1,16 @@
-"""Purchase-order sync runs both ways, and neither direction is dropped.
+"""Purchase-order sync runs one way, and which way depends on who raised it.
 
-An order edited in Xero flows in, because an edit made there has to land
-somewhere. The one exception is a real collision — we hold a change Xero has
-not seen — and it is resolved rather than ignored: the older copy does not
-overwrite the newer edit, and ours is published instead.
+Docketworks masters an order it raised, so the inbound sync takes nothing back
+for it but the fields Xero itself owns. An order that exists only because Xero
+has it has no other source, so Xero keeps its header and lines current.
 
 Business risk covered. The hourly sync used to upsert PO lines straight from
-Xero with no regard for whether our own edit had been sent, so a price confirmed
-when the bill arrived was reverted at the top of the hour. Separately, Xero's
-BILLED status set `fully_received` locally, marking material as received that
-nobody had receipted — orders with no stock row and no cost line, which is cost
-that never reaches a job (KAN-144). The second is a semantic fault rather than a
-direction one: being invoiced is not a claim that goods arrived, whichever way
-the data flows.
+Xero, so a price confirmed when the bill arrived was reverted at the top of the
+hour. Separately, Xero's BILLED status set `fully_received` locally, marking
+material as received that nobody had receipted — orders with no stock row and
+no cost line, which is cost that never reaches a job (KAN-144). That second one
+is a semantic fault rather than a direction one: being invoiced is not a claim
+that goods arrived, whichever way the data flows.
 """
 
 from datetime import UTC, datetime
@@ -27,6 +25,7 @@ from django.utils import timezone
 from apps.accounting.types import DocumentResult
 from apps.accounts.models import Staff
 from apps.company.models import Company
+from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
@@ -37,8 +36,6 @@ from apps.xero.transforms import sync_entities, transform_purchase_order
 from apps.xero.validation import XeroValidationError
 
 pytestmark = pytest.mark.django_db
-
-PUSH = "apps.xero.transforms.queue_purchase_order_push"
 
 
 @pytest.fixture
@@ -76,14 +73,23 @@ def _sent_order(
     *,
     xero_id: UUID,
     status: str = "submitted",
-    dw_raised: bool = True,
+    dw_raised: bool = False,
 ) -> PurchaseOrder:
-    """An order already published to Xero, with nothing outstanding to send."""
+    """An order Xero holds. By default one Xero raised, so Xero is its source.
+
+    The number is what decides, because both systems raise orders and each
+    numbers its own. ``created_by`` is left unset either way: it went
+    unrecorded for the first eight months, so a fixture that set it would let
+    the ownership rule regress to a column that cannot answer the question.
+    """
+    # "XPO-" stands in for Xero's own numbering: anything outside the
+    # instance's prefix. The default prefix IS "PO-", so a fixture reaching for
+    # the obvious Xero-looking number would have made every order a local one.
+    prefix = CompanyDefaults.get_solo().po_prefix if dw_raised else "XPO-"
     po = PurchaseOrder.objects.create(
         supplier=supplier,
-        created_by=Staff.get_automation_user() if dw_raised else None,
         status=status,
-        po_number=f"PO-SYNC-{uuid4().hex[:6]}",
+        po_number=f"{prefix}{uuid4().int % 90_000 + 10_000}",
         xero_id=xero_id,
     )
     PurchaseOrderLine.objects.create(
@@ -93,9 +99,6 @@ def _sent_order(
         quantity=Decimal("4.00"),
         unit_cost=Decimal("12.50"),
     )
-    # Sent after the last edit: nothing outstanding.
-    PurchaseOrder.objects.filter(id=po.id).update(xero_agreed_at=timezone.now())
-    po.refresh_from_db()
     return po
 
 
@@ -131,47 +134,76 @@ class TestXerosDirection:
         assert po.xero_status == "VOIDED"
 
 
-class TestACollision:
-    """We hold an edit Xero has not seen. Resolved, not ignored."""
+class TestAnOrderWeRaised:
+    """Docketworks masters it, so the sync neither takes nor publishes."""
 
-    def test_xeros_older_copy_does_not_revert_our_unsent_edit(self, supplier: Company) -> None:
+    def test_xero_cannot_revert_our_line(self, supplier: Company) -> None:
         """The confirmed price survives the hour."""
         xero_id = uuid4()
-        po = _sent_order(supplier, xero_id=xero_id)
-        # Edited after the last successful send: our copy is the newer one.
-        PurchaseOrder.objects.filter(id=po.id).update(updated_at=timezone.now())
-
-        with patch(PUSH) as push:
-            transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
-
-        line = po.po_lines.get()
-        assert line.description == "What we ordered"
-        assert line.quantity == Decimal("4.00")
-        assert line.unit_cost == Decimal("12.50")
-        push.assert_called_once()
-
-    def test_the_collision_publishes_ours_rather_than_dropping_either(
-        self, supplier: Company
-    ) -> None:
-        """Both directions handled: theirs is refused, ours is sent."""
-        xero_id = uuid4()
-        po = _sent_order(supplier, xero_id=xero_id)
-        PurchaseOrder.objects.filter(id=po.id).update(updated_at=timezone.now())
-
-        with patch(PUSH) as push:
-            transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
-
-        assert push.call_args.args[0].id == po.id
-
-    def test_an_order_that_arrived_from_xero_never_collides(self, supplier: Company) -> None:
-        """We never hold an unsent edit for one we do not publish."""
-        xero_id = uuid4()
-        po = _sent_order(supplier, xero_id=xero_id, dw_raised=False)
-        PurchaseOrder.objects.filter(id=po.id).update(updated_at=timezone.now())
+        po = _sent_order(supplier, xero_id=xero_id, dw_raised=True)
 
         transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
 
-        assert po.po_lines.get(description="Xero's idea of the line").quantity == Decimal("99")
+        line = po.po_lines.get()
+        assert (line.description, line.quantity) == ("What we ordered", Decimal("4.00"))
+
+    def test_xero_cannot_move_our_status(self, supplier: Company) -> None:
+        xero_id = uuid4()
+        po = _sent_order(supplier, xero_id=xero_id, status="draft", dw_raised=True)
+
+        transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
+
+        po.refresh_from_db()
+        assert po.status == "draft"
+        assert po.xero_status == "SUBMITTED", "Xero's own word is still recorded"
+
+    def test_ownership_is_read_from_the_number_not_from_created_by(self, supplier: Company) -> None:
+        """created_by went unrecorded until 2026-01-09, so it cannot answer this.
+
+        Measured 2026-09-13 against a production restore: 419 of the 825 orders
+        Docketworks raised carry no created_by. Reading ownership from it would
+        hand Xero the right to overwrite every one of them on the next pull.
+        """
+        xero_id = uuid4()
+        po = _sent_order(supplier, xero_id=xero_id, dw_raised=True)
+        assert po.created_by_id is None, "the fixture must not supply the easy answer"
+
+        transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
+
+        assert po.po_lines.get().quantity == Decimal("4.00")
+
+    def test_the_sync_never_writes_back_to_xero(self, supplier: Company) -> None:
+        """The negative twin: a sync that publishes is the ping-pong loop.
+
+        Absorbing an inbound edit used to be indistinguishable from making a
+        local one, so the sync pushed the order back, Xero reported the result
+        as a modification, and the two traded it hourly forever on the call
+        quota. Nothing in this path may reach the provider at all.
+        """
+        xero_id = uuid4()
+        po = _sent_order(supplier, xero_id=xero_id, dw_raised=True)
+        incoming = _incoming(supplier, po.po_number, "SUBMITTED")
+
+        with patch("apps.accounting.registry.get_provider") as provider:
+            transform_purchase_order(incoming, xero_id)
+            transform_purchase_order(incoming, xero_id)
+
+        provider.assert_not_called()
+
+    def test_absorbing_xeros_own_fields_still_advances_the_etag(self, supplier: Company) -> None:
+        """ADR 0003: a row that changed must not keep a client's stale version.
+
+        If an inbound change left ``updated_at`` alone, a client holding the
+        pre-sync version would still match on If-Match and overwrite unnoticed.
+        """
+        xero_id = uuid4()
+        po = _sent_order(supplier, xero_id=xero_id, dw_raised=True)
+        before = po.updated_at
+
+        transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
+
+        po.refresh_from_db()
+        assert po.updated_at > before, "the row changed but its version did not"
 
 
 class TestBilledIsNotReceived:
@@ -187,63 +219,6 @@ class TestBilledIsNotReceived:
         assert po.xero_status == "BILLED"
         assert po.status == "submitted", "Xero marked goods received that nobody receipted"
         assert not po.po_lines.filter(received_quantity__gt=0).exists()
-
-
-class TestAbsorbingXerosEditIsNotALocalOne:
-    """Taking Xero's version must not look like holding an edit for Xero.
-
-    ``updated_at`` is the row's ETag, so it advances whenever the row changes —
-    including when the change arrived FROM Xero. Measuring "we hold something
-    unsent" against it therefore made every inbound edit queue an outbound push,
-    whose write to Xero came back as another modification on the next pull. The
-    two systems would trade the order between them, hourly, forever, spending
-    the Xero call quota to do it — and each of those passes took the collision
-    branch, so the lines were never synced on exactly the orders that changed.
-    """
-
-    def test_a_second_sync_of_an_unchanged_order_pushes_nothing(self, supplier: Company) -> None:
-        xero_id = uuid4()
-        po = _sent_order(supplier, xero_id=xero_id)
-        incoming = _incoming(supplier, po.po_number, "SUBMITTED")
-
-        with patch(PUSH) as push:
-            transform_purchase_order(incoming, xero_id)
-            first_pass = push.call_count
-            transform_purchase_order(incoming, xero_id)
-
-        assert first_pass == 0, "absorbing Xero's edit is not an unsent local edit"
-        assert push.call_count == 0, "the order was pushed back at Xero on the next pull"
-
-    def test_absorbing_an_edit_still_advances_the_etag(self, supplier: Company) -> None:
-        """The fix must not buy the loop back by freezing the row's version.
-
-        ADR 0003 hands clients an ETag derived from ``updated_at``; if an
-        inbound change left it alone, a client holding the pre-sync version
-        would still match on If-Match and overwrite Xero's edit unnoticed.
-        """
-        xero_id = uuid4()
-        po = _sent_order(supplier, xero_id=xero_id)
-        before = po.updated_at
-
-        transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
-
-        po.refresh_from_db()
-        assert po.updated_at > before, "the row changed but its version did not"
-
-    def test_a_local_edit_after_agreement_is_still_published(self, supplier: Company) -> None:
-        """Silencing the loop must not silence a real unsent edit."""
-        xero_id = uuid4()
-        po = _sent_order(supplier, xero_id=xero_id)
-        transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
-
-        po.refresh_from_db()
-        po.reference = "Priced when the bill arrived"
-        po.save()
-
-        with patch(PUSH) as push:
-            transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
-
-        assert push.call_count == 1, "our own edit never reached Xero"
 
 
 class TestReceiptSurvivesXero:
@@ -275,7 +250,6 @@ class TestReceiptSurvivesXero:
         assert make_po_manager(po, provider).sync_to_xero()["success"]
         assert provider.update_purchase_order.call_args.args[0].status == "AUTHORISED"
         po.refresh_from_db()
-        assert po.xero_agreed_at is not None and po.xero_agreed_at >= po.updated_at
         incoming = _incoming(supplier, po.po_number, xero_status)
         incoming.line_items[0].line_item_id = str(line.xero_line_item_id)
         incoming.line_items[0].quantity = line.quantity
@@ -300,7 +274,6 @@ def test_xero_quantity_amendments_preserve_posted_receipts(
     po = _sent_order(supplier, xero_id=uuid4())
     line = po.po_lines.get()
     receive_po_line(line, Decimal("2"), job, stock_holding_job, Staff.get_automation_user())
-    PurchaseOrder.objects.filter(pk=po.pk).update(xero_agreed_at=timezone.now())
     po.refresh_from_db()
     before = PurchaseOrder.objects.values().get(pk=po.pk)
     costs = list(
@@ -334,7 +307,6 @@ def test_xero_quantity_amendments_preserve_posted_receipts(
             Decimal("2"),
         )
         assert po.status == "partially_received"
-        assert po.xero_agreed_at is not None and po.xero_agreed_at >= po.updated_at
     assert (
         list(
             CostLine.objects.filter(stockmovement__stock__source_purchase_order_line=line).values()

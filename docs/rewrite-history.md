@@ -1,5 +1,34 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-12 — The purchase order has one master, and it is Docketworks
+
+Owner ruling. Purchase orders are not normally edited in Xero, and an order that is not in
+Xero is a bug rather than a state. So the order is created in Xero when it is created here
+and updated there when it changes here, on the invoice model: `xero_create_invoice` calls
+the manager synchronously and returns Xero's refusal as a 400, and `Invoice.xero_id` is
+non-null because the local row exists only because Xero made one.
+
+What that deleted. Commit `4bf940f` was titled "Give the purchase order one owner, and make
+it Docketworks" and built the opposite — a bidirectional collision resolver. `xero_agreed_at`,
+`_has_unsent_change`, `_stamp_agreement`, the queued push and an hourly
+`reconcile_purchase_orders_to_xero` beat task all existed to decide which of two masters held
+the newer edit, a question the business never asks. The sweep was also a second scheduled Xero
+driver: the one pre-existing outbound sweep, `sync_local_stock_to_xero`, is a stage inside the
+single sync run, under its lock and quota gate.
+
+Measured before deleting it. The sweep's staleness test was `xero_agreed_at IS NULL OR
+xero_agreed_at < updated_at` on a column with no backfill, so every pre-existing order matched.
+On a local restore of production 308 orders passed its ownership and status gates, nearly all
+`fully_received` from January onward; at 50 an hour it would have rewritten the back catalogue in
+the live organisation over about seven hours. **None of it had shipped** — `origin/production`
+carried neither the beat entry nor the column — so the column was dropped before release rather
+than backfilled, and there is no legacy data to migrate.
+
+The consequence. Nothing retries: a refusal is reported to the operator, not healed quietly.
+The mirror runs inside the write's own transaction so a refusal rolls the local change back,
+which costs a Xero round trip under an open row lock on a workspace that PATCHes per field edit.
+That cost is recorded here because it was accepted deliberately, not overlooked.
+
 ## 2026-09-12 — One number, one person: the phone rule was wrong, not the data
 
 Owner scan of production. Ten phone numbers are held by more than one company. One is an

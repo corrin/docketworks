@@ -51,7 +51,11 @@ from apps.xero.transforms import process_xero_data
 if TYPE_CHECKING:
     from xero_python.payrollnz import EarningsLine, PaySlip
 
+    from apps.accounts.models import Staff
     from apps.company.models import Company
+
+    # Aliased: the module-level ``PurchaseOrder`` is Xero's SDK type.
+    from apps.purchasing.models import PurchaseOrder as PurchaseOrderModel
 
 logger = logging.getLogger(__name__)
 
@@ -597,6 +601,26 @@ class XeroAccountingProvider:
         except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require
             persist_app_error(exc)
             return self._make_error_result(exc)
+
+    def push_purchase_order(
+        self, purchase_order: "PurchaseOrderModel", staff: "Staff"
+    ) -> DocumentResult:
+        """See AccountingProvider.push_purchase_order."""
+        # Call-time import: the manager reaches back to this module through the
+        # registry, so binding it at module scope makes the provider and the
+        # document tree import each other.
+        from apps.xero.documents.po import XeroPurchaseOrderManager  # noqa: PLC0415
+
+        result = XeroPurchaseOrderManager(purchase_order=purchase_order, staff=staff).sync_to_xero()
+        if not result["success"]:
+            return DocumentResult(
+                success=False, error=result.get("error"), status_code=result.get("status")
+            )
+        return DocumentResult(
+            success=True,
+            external_id=result.get("xero_id"),
+            online_url=result.get("online_url"),
+        )
 
     # --- Attachments ---
 

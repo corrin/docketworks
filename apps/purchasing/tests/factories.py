@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
+from apps.company.tests.factories import make_company
 from apps.job.models import Job
 from apps.purchasing.etag import purchase_order_etag
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
@@ -21,10 +22,29 @@ def make_purchase_order(
     status: str = "draft",
     reference: str | None = None,
 ) -> PurchaseOrder:
-    """Create a PO through the real save path (the model numbers it)."""
+    """Create a PO through the real save path (the model numbers it).
+
+    A supplier is made when none is given: the order is mirrored to the
+    accounting system on every write and that mirror is a document addressed to
+    a supplier, so an order without one is data the application refuses. A
+    factory that produced it would only be arranging tests around invalid rows.
+    """
+    if supplier is None:
+        supplier = make_company("Factory supplier", is_supplier=True)
     return PurchaseOrder.objects.create(
         supplier=supplier, created_by=created_by, status=status, reference=reference
     )
+
+
+def make_legacy_supplierless_order() -> PurchaseOrder:
+    """An order with no supplier, which the application can no longer make.
+
+    Rows like this predate the rule and still have to read. Built here rather
+    than through ``make_purchase_order`` so the absent supplier is the stated
+    point of the row and not a default nobody chose: Xero will not hold a
+    purchase order without a contact, so creating one is refused now.
+    """
+    return PurchaseOrder.objects.create(supplier=None, status="draft")
 
 
 def make_po_line(  # noqa: PLR0913 -- a factory: every field is an axis a test varies
