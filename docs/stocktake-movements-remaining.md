@@ -12,18 +12,10 @@ Delete this file when the branch merges and nothing is left in it.
 
 - **The E2E suite is not green from the first spec.** 165 passed and 2 failed on
   2026-09-12, against 20 failures two runs earlier. What is left:
-  - `purchasing/pickup-address.spec.ts:29` — diagnosed from the trace and fixed in
-    `createTestPurchaseOrder`, not yet re-run. The helper returned as soon as the URL
-    matched, but the URL changes before the detail route's lazy chunk mounts, and
-    `PoSummaryCard` renders two separate trees either side of `mode === 'detail'`, each
-    with its own `PickupAddressSelector` holding `open` locally. The click therefore
-    landed on the create tree: the modal opened, fired its query, and was unmounted by
-    the transition — the trace shows that request aborted, between the detail chunk
-    loading and the detail data arriving. The helper now waits for the detail view.
-    **Still to prove by running it**, which costs a Xero contact push.
-  - `admin/xero.spec.ts:57` — the 409 retry waited on the button rather than the server,
-    fixed in `07ae5fb` and unproven, because proving it spends a whole employee refresh
-    against the call budget this branch already owes a decision on.
+  - `admin/xero.spec.ts:57` is the only one left. The 409 retry waited on the button
+    rather than the server; fixed in `07ae5fb` and **unproven**, because proving it
+    spends a whole Xero employee refresh — the live-call budget this branch has owed a
+    decision on throughout. Everything else the gate found is fixed and re-run green.
 - **The restore runbook's acceptance test is unrecorded** and stays so until a full suite is
   green from the first spec.
 
