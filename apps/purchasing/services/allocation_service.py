@@ -283,7 +283,11 @@ def recompute_purchase_order_status(po: PurchaseOrder) -> None:
     updated_fields = ["updated_at"]
     if new_status != po.status:
         po.status = new_status
-        updated_fields.append("status")
+        # The receipt settled the total, which is the second and last thing
+        # Xero needs to hear. Recorded rather than sent from here: this runs
+        # inside the receipt's transaction, and the caller owns the send.
+        po.xero_push_due = True
+        updated_fields.extend(["status", "xero_push_due"])
         logger.debug("Updated PO %s status to %s", po.po_number, po.status)
     else:
         logger.debug("PO %s status unchanged: %s", po.po_number, po.status)

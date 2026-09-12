@@ -27,6 +27,13 @@ logger = logging.getLogger(__name__)
 
 # Local workflow status → the Xero PO status pushed on sync. Both received
 # states map to AUTHORISED: Xero has no notion of partial receipt.
+#
+# SEAM: whether Xero will match a supplier's bill against a DRAFT purchase
+# order is not established anywhere in this repo, and the whole reason Xero
+# holds a copy is that matching. Nothing pushes a draft today — a draft is not
+# in Xero at all — so the "draft" entry is only reached by an order pulled back
+# after it was sent. Worth measuring against the demo tenant before anything
+# relies on it.
 PO_STATUS_MAP = {
     "draft": "DRAFT",
     "submitted": "SUBMITTED",

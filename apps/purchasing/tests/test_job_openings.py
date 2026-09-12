@@ -345,15 +345,17 @@ def test_receipt_without_stock_description_refuses_before_any_backfill(
 def test_receipt_cutover_executor_is_atomic_and_repeatable(
     job: Job, stock_holding_job: Job
 ) -> None:
+    # Raised before the rewind, not after: the factory writes whatever columns
+    # the CURRENT model has, and the schema below is an older one that does not
+    # have them. Every column added since 0010 would otherwise break this test.
+    provenance_po_id = str(make_purchase_order().id)
     with connection.cursor() as cursor:
         cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
     executor = MigrationExecutor(connection)
     executor.migrate([("purchasing", "0010_job_position_openings")])
     original = historical_cost(job, make_stock(stock_holding_job))
-    # Unapproved rather than mis-provenanced: the schema is rewound to 0010 here,
-    # where purchasing_purchaseorderline has no created_at for the factory to write.
     unapproved = historical_cost(job, make_stock(stock_holding_job), approved=False)
-    unapproved.ext_refs = {"purchase_order_id": str(make_purchase_order().id)}
+    unapproved.ext_refs = {"purchase_order_id": provenance_po_id}
     unapproved.save()
     with connection.cursor() as cursor:
         cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")

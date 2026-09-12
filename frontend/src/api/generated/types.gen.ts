@@ -9087,12 +9087,12 @@ export type PurchaseOrderAllocationsResponse = {
  *
  * Wire contract for PurchaseOrderCreateRequest.
  *
- * ``supplier_id`` is required: the order is created in Xero as it is created
- * here, Xero will not hold a purchase order without a contact on it, and an
- * order this system holds and Xero does not is a defect rather than a state.
+ * ``supplier_id`` is required because an order without one is invalid data
+ * rather than a stage of writing one — the owner is correcting the rows that
+ * predate the rule. Not because of Xero: creation no longer touches it.
  *
- * The column stays nullable so rows that predate the rule keep reading, which
- * is the same split ``Job.company`` makes: nullable on the model, required by
+ * The column stays nullable so those rows keep reading, which is the same
+ * split ``Job.company`` makes: nullable on the model, required by
  * ``JobCreateRequest`` and ``create_job``.
  */
 export type PurchaseOrderCreateRequest = {

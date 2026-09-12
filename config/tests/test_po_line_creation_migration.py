@@ -18,12 +18,18 @@ def test_legacy_lines_are_backfilled_and_keep_every_other_value() -> None:
     """
     old = ("purchasing", "0015_backfill_legacy_receipt_evidence")
     new = ("purchasing", "0016_alter_purchaseorderline_options_and_more")
+    # Raised before the rewind: the factory writes whatever columns the CURRENT
+    # model has, and 0015 does not have the ones added since.
+    po = make_purchase_order()
+    # ADR 0048: validate the deferred FKs that row created before transactional
+    # DDL, or the rewind below refuses with "pending trigger events".
+    with connection.cursor() as cursor:
+        cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
     executor = MigrationExecutor(connection)
     executor.migrate([old])
     historical = executor.loader.project_state([old]).apps.get_model(
         "purchasing", "PurchaseOrderLine"
     )
-    po = make_purchase_order()
     line = historical.objects.create(
         purchase_order_id=po.id,
         description="Historical line",
@@ -46,3 +52,8 @@ def test_legacy_lines_are_backfilled_and_keep_every_other_value() -> None:
     )
     assert fresh.created_at > po.created_at
     assert list(po.po_lines.values_list("id", flat=True)) == [line.pk, fresh.pk]
+    # Wound forward again: this worker's database is shared with every test
+    # that follows, and leaving it pinned at 0016 hides every later column
+    # from them. It failed that way the first time a column was added after.
+    restore = MigrationExecutor(connection)
+    restore.migrate(restore.loader.graph.leaf_nodes())

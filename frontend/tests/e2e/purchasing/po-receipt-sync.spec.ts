@@ -36,9 +36,11 @@ test('a fully received order keeps its receipt when Xero answers AUTHORISED', as
   await receiptSaved
   await expect(autoId(page, 'PoSummaryCard-status-trigger')).toHaveText('Fully Received')
 
-  // The push is queued on commit, so this polls rather than waits on a
-  // response. Draft edits queue no push at all, so Xero's own status
-  // arriving is proof that the RECEIVED version is the one that reached it.
+  // A status transition pushes as it happens, and a draft pushes nothing at
+  // all, which is what the two null assertions above prove. So Xero's own
+  // status arriving is proof that the RECEIVED version is the one that reached
+  // it. The poll only absorbs the autosave settling; an outage would leave the
+  // call owed to the hourly sync, and this spec would rightly fail on it.
   let pushed: PurchaseOrderDetail | null = null
   await expect
     .poll(

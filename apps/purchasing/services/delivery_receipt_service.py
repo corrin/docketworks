@@ -34,6 +34,7 @@ from apps.job.models import Job
 from apps.job.models.costing import lock_costing_jobs
 from apps.purchasing.etag import require_current_etag
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
+from apps.purchasing.services.accounting_mirror import send_state_change
 from apps.purchasing.services.allocation_service import (
     AllocationMetadata,
     MaterialAllocation,
@@ -236,6 +237,10 @@ def process_delivery_receipt(
                 )
 
             recompute_purchase_order_status(po)
+            if po.xero_push_due:
+                # The receipt moved the status, so the total is settled and
+                # Xero is owed the second of its two calls.
+                send_state_change(po, staff)
             logger.info(
                 "delivery_receipt run [%s]: processed delivery receipt for PO %s",
                 run_id,

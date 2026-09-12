@@ -27,11 +27,9 @@ from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.company.models import Company
 from apps.core.errors import InvalidInputError, persist_app_error
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
+from apps.purchasing.services.accounting_mirror import is_locally_raised
 from apps.purchasing.services.allocation_service import recompute_purchase_order_status
-from apps.purchasing.services.purchase_order_service import (
-    is_locally_raised,
-    validate_ordered_quantity,
-)
+from apps.purchasing.services.purchase_order_service import validate_ordered_quantity
 from apps.purchasing.tasks import enqueue_stock_metadata_parse, stock_metadata_parse_eligible
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.constants import SLEEP_TIME

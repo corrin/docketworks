@@ -622,9 +622,84 @@ def sync_all_xero_data(
             xero_tenant_id=xero_tenant_id,
         )
 
-    # After syncing from Xero, sync local stock items back to Xero (bidirectional)
+    yield from _sync_local_changes_to_xero(entities)
+
+
+def _sync_local_changes_to_xero(entities: Sequence[str]) -> Iterator[XeroSyncEvent]:
+    """Send the outbound half of the run: what changed here that Xero has not heard.
+
+    Both stages live together because they answer one question and share one
+    rule — this is the only thing in the system that talks to Xero on a timer,
+    and adding a second driver is what ADR 0039 and the deleted purchase-order
+    sweep were both about.
+    """
     if "stock" in entities or entities == list(ENTITY_CONFIGS.keys()):
         yield from sync_local_stock_to_xero()
+
+    if "purchase_orders" in entities or entities == list(ENTITY_CONFIGS.keys()):
+        yield from sync_local_purchase_orders_to_xero()
+
+
+def sync_local_purchase_orders_to_xero() -> Iterator[XeroSyncEvent]:
+    """Send the purchase orders that still owe Xero a call.
+
+    A state change sends its own call as it happens, so this carries only what
+    that attempt could not: Xero having a bad afternoon, a worker dying, an
+    order whose status moved while the day quota was spent. Owing a call is a
+    boolean the transition sets, not a staleness comparison, so this cannot
+    wake up one day and decide the whole back catalogue is behind.
+
+    A stage of the one sync run rather than a schedule of its own, like
+    ``sync_local_stock_to_xero`` above: it inherits the run's lock and quota
+    gate, and there is exactly one thing talking to Xero on a timer.
+
+    SEAM: this sends one call per order. ``update_or_create_purchase_orders``
+    takes a list and ``summarize_errors=False`` already returns a result per
+    document, so an hour's worth could cost one call instead of N. Not done
+    here because matching the response back to orders is the same mistake the
+    line-identity tests exist to catch, and it deserves its own change.
+    """
+    # Call-time import: a domain service, and importing it at module scope
+    # would pull the purchasing service tree into the sync engine.
+    from apps.accounts.models import Staff  # noqa: PLC0415
+    from apps.purchasing.models import PurchaseOrder  # noqa: PLC0415
+    from apps.purchasing.services.accounting_mirror import (  # noqa: PLC0415
+        is_locally_raised,
+        send_state_change,
+    )
+
+    owed = [
+        po
+        for po in PurchaseOrder.objects.select_related("supplier")
+        .filter(xero_push_due=True)
+        .exclude(status="draft")
+        .order_by("updated_at")[:PURCHASE_ORDER_CATCH_UP_LIMIT]
+        if is_locally_raised(po)
+    ]
+    if not owed:
+        return
+    yield {
+        "datetime": timezone.now().isoformat(),
+        "entity": "purchase_orders_local_to_xero",
+        "severity": "info",
+        "message": f"Sending {len(owed)} purchase orders that still owe Xero a call",
+        "progress": None,
+    }
+    automation_user = Staff.get_automation_user()
+    for po in owed:
+        send_state_change(po, po.created_by or automation_user)
+    still_owed = sum(1 for po in owed if po.xero_push_due)
+    yield {
+        "datetime": timezone.now().isoformat(),
+        "entity": "purchase_orders_local_to_xero",
+        "severity": "warning" if still_owed else "info",
+        "message": f"Sent {len(owed) - still_owed} purchase orders; {still_owed} still owed",
+        "progress": None,
+        "recordsUpdated": len(owed) - still_owed,
+    }
+
+
+PURCHASE_ORDER_CATCH_UP_LIMIT = 50
 
 
 def sync_local_stock_to_xero() -> Iterator[XeroSyncEvent]:

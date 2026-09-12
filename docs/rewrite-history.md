@@ -24,10 +24,24 @@ the live organisation over about seven hours. **None of it had shipped** — `or
 carried neither the beat entry nor the column — so the column was dropped before release rather
 than backfilled, and there is no legacy data to migrate.
 
-The consequence. Nothing retries: a refusal is reported to the operator, not healed quietly.
-The mirror runs inside the write's own transaction so a refusal rolls the local change back,
-which costs a Xero round trip under an open row lock on a workspace that PATCHes per field edit.
-That cost is recorded here because it was accepted deliberately, not overlooked.
+The consequence, and it was wrong. The mirror ran on every write, inside the write's own
+transaction, on a workspace that saves each field as its own PATCH. That is 9 Xero calls to build
+an eight-line order and 33 in a normal session, at **a dollar a call**, each one a round trip with
+the operator waiting. It also could not create an order at all: Xero refuses a purchase order with
+no line items and the create page posts a header with no lines, so the push raised and the create
+rolled back. The unit suite stayed green because an autouse fixture stubbed the provider above the
+validation that refused it — the fake-provider failure ADR 0050 exists to name.
+
+The reason given for it was false too. It was justified as following the invoice, and the invoice
+does the opposite: `apps/accounting/provider.py` declares `create_invoice` and `delete_invoice` and
+no update at all, same for quotes. Nothing in this codebase pushes per edit.
+
+Corrected the same day. Xero holds the order so the supplier's bill has something to link against
+and bills arrive overnight, so the schedule follows the purpose: a **status transition** sends one
+call as it happens, in either direction, and nothing else does. A field edit is free. What that
+call could not deliver is left owed on a boolean and picked up by a stage inside the one hourly
+sync, beside `sync_local_stock_to_xero`. Two calls over an order's life rather than thirty-three in
+a sitting.
 
 ## 2026-09-12 — One number, one person: the phone rule was wrong, not the data
 

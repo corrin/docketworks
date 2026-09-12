@@ -1,6 +1,7 @@
 """Purchasing test data and receipt actions; fixture wiring lives in conftest."""
 
 from decimal import Decimal
+from uuid import uuid4
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
@@ -30,7 +31,10 @@ def make_purchase_order(
     factory that produced it would only be arranging tests around invalid rows.
     """
     if supplier is None:
-        supplier = make_company("Factory supplier", is_supplier=True)
+        # Linked to Xero, because a real supplier is: an order cannot leave
+        # draft without it, and a factory that omitted it would arrange every
+        # test around a supplier the business would have had to fix first.
+        supplier = make_company("Factory supplier", is_supplier=True, xero_contact_id=str(uuid4()))
     return PurchaseOrder.objects.create(
         supplier=supplier, created_by=created_by, status=status, reference=reference
     )

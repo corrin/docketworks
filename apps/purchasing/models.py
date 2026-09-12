@@ -106,6 +106,16 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
             "had receipted."
         ),
     )
+    xero_push_due = models.BooleanField(
+        default=False,
+        help_text=(
+            "Xero is owed a call about this order. Set when the status moves, which is the "
+            "only thing Xero needs to hear about: the order leaving draft, and the receipt "
+            "that settles its total. Cleared when the push lands. A field edit never sets it "
+            "— the workspace saves each field as its own PATCH, and Xero holds the order only "
+            "so a bill has something to link against, which no intermediate state affects."
+        ),
+    )
     online_url = models.URLField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=500, null=True, blank=True
     )

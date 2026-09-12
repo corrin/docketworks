@@ -371,29 +371,29 @@ def _copy_company_defaults(source: "Connection[Any]", model: "type[Model]") -> N
 
 
 @pytest.fixture(autouse=True)
-def _accounting_mirror_accepts(request: pytest.FixtureRequest) -> "Iterator[None]":
-    """Let a purchase-order write reach an accounting system that accepts it.
+def _accounting_provider_is_not_reached(request: "pytest.FixtureRequest") -> "Iterator[None]":
+    """Keep a purchase-order state change from reaching a real vendor.
 
-    Every write mirrors the order to the provider inside its own transaction
-    and a refusal rolls the write back, so without this a test about pagination
-    or ETags would be asserting Xero's behaviour instead of its own.
+    Only a status transition sends anything now, so this covers the receipt and
+    allocation suites, which move an order's status as a side effect of what
+    they actually test.
 
-    Opus: this is not a claim about what Xero does — a fake provider can only
-    confirm what we already assumed, which is why the real thing is a merge
-    gate (ADR 0050). Tests that ARE about the mirror patch the same target
-    themselves and the inner patch wins.
+    Opus: it patches ``get_provider`` inside ``accounting_mirror`` and nothing
+    deeper, so everything this module decides — ownership by prefix, the
+    supplier check, the typed split between a refusal and an outage — still
+    runs. The earlier version of this fixture reached past
+    ``XeroPurchaseOrderManager`` as well, which hid a create path that Xero
+    could never have accepted. A fake vendor can only confirm what we already
+    assumed, so the real gate stays the integration tier (ADR 0050).
     """
-    if "django_db" not in request.keywords:
+    if "django_db" not in request.keywords and "committed_db" not in request.keywords:
         yield
         return
-    # Imported here, not at module scope: collection runs before Django's app
-    # registry is populated.
     from unittest.mock import patch
 
     from apps.accounting.types import DocumentResult
 
-    target = "apps.purchasing.services.purchase_order_service.get_provider"
-    with patch(target) as get_provider:
+    with patch("apps.purchasing.services.accounting_mirror.get_provider") as get_provider:
         get_provider.return_value.push_purchase_order.return_value = DocumentResult(success=True)
         yield
 
