@@ -1,5 +1,19 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-12 — The Xero residue gate ran, and both halves hold
+
+Opus: ADR 0050's merge gate for the E2E cleanup had never executed, and the sweep had
+never removed anything — it died in discovery on a rate limit both times it was tried,
+so its removal path was unproven. `./scripts/ops/run_integration_tests.sh
+apps/diagnostics/tests/test_e2e_cleanup_integration.py` passed both tests in 116 seconds
+for 23 Xero calls.
+
+What that establishes, read back from the organisation rather than from return values:
+a cleanup deletes an invoice and then archives its contact, which Xero permits only in
+that order, and a sweep archives a contact no local row names — the hard-killed-run case
+the sweep exists for. The cost is far below the two 1000-call days earlier attempts spent,
+because the sweep now runs against an organisation the cleanup has just emptied.
+
 ## 2026-09-12 — What Xero does with a purchase-order number, measured
 
 Opus: the purchase order is the only document whose number we choose — Xero allocates

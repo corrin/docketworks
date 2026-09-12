@@ -10,29 +10,14 @@ Delete this file when the branch merges and nothing is left in it.
 
 ## Blocking the merge
 
-- **The E2E suite is not green from the first spec.** `admin/session-replay.spec.ts` is
-  excluded from that bar by owner ruling and now sits in
-  [`rewrite-status.md`](rewrite-status.md). Every other failure is either fixed or listed
-  below.
-- **`admin/xero.spec.ts:45` cannot start a sync while one is running.** It asserts 202 from
-  `POST /api/xero/sync/` and gets 409 `already_running`, because the run holds one global
-  lock for every sync. Previously read as the daily allowance; it is not, and it failed on a
-  full allowance.
+- **The E2E suite is not green from the first spec.** Every failure from the last full run
+  is now fixed or excluded, and none has been proven by a full run since.
+  `admin/session-replay.spec.ts` is out of that bar by owner ruling and sits in
+  [`rewrite-status.md`](rewrite-status.md). `admin/xero.spec.ts:45` waits its turn for the
+  sync lock (`7705d1a`) but spends a whole employee refresh, so the run that proves it is
+  the same live-call budget this branch already owes a decision on.
 - **The restore runbook's acceptance test is unrecorded** and stays so until a full suite is
   green from the first spec.
-- **The Xero cleanup integration test has never executed.**
-  `apps/diagnostics/tests/test_e2e_cleanup_integration.py` is written and has never run; the
-  tenant's 1000-call day was spent by two sweep passes. ADR 0050 makes it the merge gate, so
-  the PR is not mergeable until `./scripts/ops/run_integration_tests.sh` passes it. Needs
-  `XERO_READONLY=false` and no `$TMPDIR/playwright-e2e.lock`.
-- **The sweep has never removed anything.** `e2e_xero_sweep` ran twice and both times stopped
-  during discovery on `RateLimitException`. Its discovery is proven against the real
-  organisation; its removal path is not. Prove it with
-  `uv run python manage.py e2e_xero_sweep --confirm`, which also clears the residue the one
-  successful dry run found: 24 invoices, 24 quotes, 27 purchase orders, and no contacts
-  because those were already archived. Then run the full gate once and check the
-  organisation looks the same afterwards as before — this change has no spec of its own, and
-  that comparison is the whole evidence.
 
 ## Not blocking, but this branch's to close
 
