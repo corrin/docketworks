@@ -48,12 +48,24 @@ Delete this file when the branch merges and nothing is left in it.
     because restored rows had no value, each carrying `# noqa: DJ001 -- restored column`.
     Backfill and make `NOT NULL`, or do not have the column. Bulk is `quoting/models.py`;
     the rest are spread across the job, accounts, operations, process and purchasing models.
-  - Phone grandfathering, which spans `company/models.py`'s `check_phone_assignment`,
-    `company/services/person_merge_service.py`'s deliberate bypass of it,
-    `xero/raw_fields.py` depending on it, and the symmetric pair in `crm/models.py` and
-    `crm/api.py`. Four tests assert the grandfathering and must assert the rule instead.
-    **Blocked on the owner:** production holds cross-company numbers, and per the duplicate
-    process some are staff internal lines to delete rather than reassign.
+  - Phone grandfathering — **not as described here until today, and the description was
+    the dangerous part.** Production was scanned 2026-09-12 and holds ten colliding
+    numbers: one own endpoint to delete, three duplicate contacts to merge in Xero, one
+    still unresolved, and **five that are not data faults at all**. Those five are one
+    shape — one person, several real accounts, one mobile — which is ordinary in this
+    customer base and keeps arriving through the Xero sync. Removing the grandfathering
+    under "one number, one company" would force five wrong edits, deleting a real
+    customer's real number or merging businesses that are not the same business, before
+    it caught anything real. The guard was also chosen deliberately for exactly these
+    cases; the earlier decision record names Derek and Guardsman as the example.
+    So the rule is the suspect, not the guard. Under **one number, one person, who may
+    link to several companies**, four of the five become legal rather than grandfathered
+    and the exception disappears instead of being preserved — which is what ADR 0059
+    actually wants. That is a model change across `company/models.py`'s
+    `check_phone_assignment`, `person_merge_service.py`'s bypass, `xero/raw_fields.py`
+    and the pair in `crm/models.py` and `crm/api.py`, with the four tests asserting the
+    new rule. **Still owed first:** whether Derek is invoiced personally — if not,
+    Derek Skaife folds into Guardsman — and which side of 027 932 2222 is the typo.
   - The rest, each with tests that change alongside: `diagnostics/services/db_scrubber.py`'s
     per-value conformance gate; the event-absence fallbacks in `accounting/services/`
     `job_aging_service.py` and `sales_pipeline_service.py`;

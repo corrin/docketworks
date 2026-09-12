@@ -1,5 +1,24 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-12 — One number, one person: the phone rule was wrong, not the data
+
+Owner scan of production. Ten phone numbers are held by more than one company. One is an
+own endpoint mis-filed as a client and gets deleted; three are duplicate contacts and merge
+in Xero; one is unresolved. **Five are not faults.** Each is one person running several
+real accounts off one mobile — Josh Loughnan, Suranga Kariyawasam, Derek Skaife — and
+owner-operators are ordinary here, so more will keep arriving through the Xero sync.
+
+Dave's mobile across Guardsman and Kiwi Alarms is settled as legitimate: two entities, one
+owner, separate profit and loss, and no public record of the common ownership, which is why
+an August pass could not close it.
+
+The consequence for ADR 0059. "One number, one company" is the wrong rule for this customer
+base, and the grandfathering that softens it was chosen on purpose — the earlier decision
+record names Derek and Guardsman. Enforcing the rule as written would make five wrong edits
+before catching one real one. The rule to hold is **one number, one person, who may link to
+several companies**: it makes four of the five legal rather than grandfathered, so the
+exception disappears rather than being preserved, which is what the ADR is for.
+
 ## 2026-09-12 — The Xero residue gate ran, and both halves hold
 
 Opus: ADR 0050's merge gate for the E2E cleanup had never executed, and the sweep had
