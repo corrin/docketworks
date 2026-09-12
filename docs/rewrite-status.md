@@ -103,6 +103,12 @@ Not a tier — just the things a session should have a reason not to pick up.
 
 ## Operations
 
+- **[KAN-360](https://docketworks.atlassian.net/browse/KAN-360): prove the dropbox sync
+  root mode on the host.** The fix shipped with the stocktake-movements merge (`3fea474`)
+  and is gated, but only a live `instance.sh reconfigure` against msm-prod shows that a
+  provisioning run leaves scanner delivery working. Run `verify-instance.sh msm prod`
+  after it and confirm the sync-root check passes.
+
 - **Schedule the Celery result cleanup.** `config/celery.py`'s beat schedule has no
   `celery.backend_cleanup` entry, so nothing prunes `django_celery_results`. Production
   accumulated 8,902 rows in the ten days from cutover to 2026-09-09, roughly 890 a day,
@@ -142,6 +148,21 @@ Not a tier — just the things a session should have a reason not to pick up.
   history and the config-only fix.
 
 ## Payroll and Xero
+
+- **The Xero detail refresh has never been verified live, and one E2E spec waits on the
+  same budget.** `admin/xero.spec.ts:57` is the only spec the stocktake-movements gate
+  left failing; its 409-retry fix is committed (`07ae5fb`, it asks sync-info rather than
+  watching a polled button) and unproven, because running it spends a complete employee
+  refresh against the live tenant. The owner authorised zero live calls for the slice
+  itself, so the run needs a budget agreed first: the employee integration regression
+  through the vendor-call ledger, then this spec and the applicable timesheet browser
+  checks including responsive screenshots. Design is in
+  [the plan](plans/2026-09-09-xero-detail-refresh.md); implementation and local checks are
+  in [`rewrite-history.md`](rewrite-history.md).
+- **Record the restore runbook's acceptance test** once a full E2E suite passes from the
+  first spec — `docs/restore-prod-to-nonprod.md`'s "the suite and its teardown both pass".
+  The 2026-09-12 gate reached 165 passed, 2 failed, and both failures are now fixed; the
+  spec above is the only one of the two not yet re-run.
 
 - **The pay-run mirror deletes rows it never fetched, under a docstring promising it
   cannot.** `sync_pay_runs` (`apps/xero/payroll_push.py:759`) runs
@@ -242,6 +263,17 @@ on top of a holiday line Xero computes itself and offers no API to suppress. Bot
 same class: the post duplicates what Xero already holds, and then self-reports success.
 
 ## Screens
+
+- **The stocktake screen's approved coverage is incomplete.** The plan's browser row asks
+  for search, count, review and post against real SOH, the found, missing, zero and
+  uncounted cases, the counterpart job link, stale-count review and no duplicate posting;
+  `purchasing/stocktake.spec.ts` covers part of it and there is no pre-post preview of the
+  movements and cost lines a count will produce. Stock search and pagination, the write
+  contracts, and the history and retirement controls have not been walked through the
+  browser, and `stock-search.spec.ts` was rewritten after its last focused run.
+  Product-to-TBC price overrides and the live PO and item-import integrations belong to the
+  same sitting. Design is in
+  [the plan](plans/2026-09-07-delivery-receipts-stock-movements.md).
 
 - **Design consistency.** Resolve the [known design-language breaches](design-language.md#known-breaches):
   consolidate page/header and summary owners, align job tabs and comparable collections,
@@ -365,6 +397,43 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   `apps/company/services/company_rest_service.py`.
 
 ## Correctness and hygiene
+
+- **171 nullable-column suppressions still describe the shape a restore left behind
+  (ADR 0059).** 80 give no reason at all, 46 say "restored column is nullable", 22
+  "retains nullable storage"; roughly 13 cite ADR 0040 and are legitimate. Concentrated in
+  `quoting/models.py` (28), `core/models.py` (25), `purchasing/models.py` (19),
+  `crm/models.py` (17), `company/models.py` (14). Two hits are module docstrings stating
+  v1 nullability as a parity requirement, which the ADR bans outright. Each column is a
+  separate judgement — NULL as a real domain value, or a restoration artefact to backfill
+  and make `NOT NULL` — and each of the second kind is a migration. Alongside them sit the
+  readers that exist only because of them: `db_scrubber.py`'s per-value conformance gate,
+  the event-absence fallbacks in `job_aging_service.py` and `sales_pipeline_service.py`,
+  `hour_categories.py`'s public-holiday precedence, `product_parser.py`'s work-list
+  selector, `month_end_service.py`'s `.get(key, 0)` reads and `core/uploads.py`'s two
+  silent returns. Three sizing facts measured 2026-09-12, because the previous list got
+  them wrong: `job.company` is NOT cheap — the shop-job concept is encoded as
+  `company_id is None` (`job.py:682-696`) and four tests build company-less jobs;
+  `job_event.py`'s float arm is NOT cheap — it renders ~38k rows whose rank its own
+  docstring calls unrecoverable, so the deletion needs a migration choosing a canonical
+  value; `product_parser.py` and `ProductParsingMapping.parser_version` are one commit or
+  neither. The genuinely cheap one is `kanban_categorization_service.py`'s seven dead
+  status strings and its `.get(status, "draft")`: **no job holds a legacy status** — all
+  2,470 rows use the declared choices — so that branch is unreachable and needs no
+  migration. The phone strand is separate and is now a rule question, not a data one; see
+  Open decisions.
+- **A draft row loses its component state the instant it persists.** `CostLineGrid.tsx`,
+  `SmartTimesheetTable.tsx` and `PoLinesTable.tsx` each give `getRowId` a ternary on the
+  row's type — local id while a draft, server id once saved — and `DataTable.tsx:101` keys
+  the `<tr>` on it, so the row unmounts and every `useAutosaveField` buffer, dirty flag,
+  focus and open portal in it is discarded. `StocktakeGrid.tsx:199` shows the shape that
+  works: the client mints the permanent id and `stocktake_service.py:110` adopts it with
+  `update_or_create(pk=...)`, so one branch-free `getRowId` holds across the save. Doing
+  the same needs `id` on the three create requests (`StocktakeLineWrite` already carries
+  one; `CostLineCreateRequest` does not) and a client regen, which is why it was kept off
+  the stocktake-movements PR. `SmartTimesheetTable.tsx:748` already carries a
+  focus-restoring workaround for the churn — the symptom, not the fix. Same family as the
+  pickup-address failure fixed in `62578eb`, where local state was lost to a tree replaced
+  underneath it.
 
 - **Thirteen tables cannot exercise what production renders**, so the screens over them have
   unproven volume behaviour — `scripts/checks/data_shape_gap.py` names them and every E2E run
