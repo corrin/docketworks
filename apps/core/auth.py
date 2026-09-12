@@ -3,8 +3,6 @@
 - ``CookieJWTAuth`` validates the JWT access token from the configured HttpOnly
   cookie via django-ninja-jwt. Token classes read ``SIMPLE_JWT`` directly and
   use its configured claims and signing key.
-- ``ServiceAPIKeyAuth`` validates the ``X-API-Key`` header against
-  ``apps.core.models.ServiceAPIKey``.
 
 The cookie read/write helpers live here as the one implementation of the JWT
 cookie contract; the accounts login/refresh/logout endpoints use them so the
@@ -23,12 +21,10 @@ from django.contrib.auth.base_user import AbstractBaseUser
 from django.http import HttpRequest, HttpResponse
 from ninja.errors import AuthenticationError as NinjaAuthenticationError
 from ninja.errors import AuthorizationError as NinjaAuthorizationError
-from ninja.security import APIKeyCookie, APIKeyHeader
+from ninja.security import APIKeyCookie
 from ninja_jwt.authentication import JWTBaseAuthentication
 from ninja_jwt.exceptions import AuthenticationFailed, InvalidToken, TokenError
 from ninja_jwt.tokens import RefreshToken, Token
-
-from apps.core.models import ServiceAPIKey
 
 logger = logging.getLogger(__name__)
 
@@ -313,24 +309,3 @@ class SuperuserCookieJWTAuth(CookieJWTAuth):
                 message="You do not have permission to perform this action."
             )
         return user
-
-
-class ServiceAPIKeyAuth(APIKeyHeader):
-    """Service-to-service auth via the X-API-Key header."""
-
-    param_name = "X-API-Key"
-
-    def authenticate(self, request: HttpRequest, key: str | None) -> ServiceAPIKey | None:
-        """Look up an active ServiceAPIKey for the header value, else None."""
-        if not key:
-            return None
-        try:
-            service_key = ServiceAPIKey.objects.get(key=key, is_active=True)
-        # deliberate-swallow: unknown key is an auth failure: logged, then rejected
-        except ServiceAPIKey.DoesNotExist:
-            logger.warning(
-                "SERVICE API KEY INVALID - method=%s path=%s", request.method, request.path
-            )
-            return None
-        service_key.mark_used()
-        return service_key
