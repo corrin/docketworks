@@ -362,7 +362,7 @@ class DeliveryReceiptAllocationRequest(Schema):
     """Wire contract for DeliveryReceiptAllocationRequest."""
 
     job_id: UUID
-    quantity: Decimal
+    quantity: Annotated[Decimal, Field(ge=0)]
     retail_rate: Decimal | None = None
     metadata: dict[str, str] = {}  # noqa: RUF012 -- pydantic copies defaults
 
@@ -370,7 +370,7 @@ class DeliveryReceiptAllocationRequest(Schema):
 class DeliveryReceiptLineRequest(Schema):
     """Wire contract for DeliveryReceiptLineRequest."""
 
-    total_received: Decimal
+    total_received: Annotated[Decimal, Field(ge=0)]
     allocations: list[DeliveryReceiptAllocationRequest]
 
 

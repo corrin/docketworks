@@ -2783,7 +2783,8 @@ components:
           type: object
         quantity:
           anyOf:
-          - type: number
+          - minimum: 0.0
+            type: number
           - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             type: string
           title: Quantity
@@ -2809,7 +2810,8 @@ components:
           type: array
         total_received:
           anyOf:
-          - type: number
+          - minimum: 0.0
+            type: number
           - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             type: string
           title: Total Received

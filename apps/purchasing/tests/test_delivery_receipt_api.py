@@ -151,6 +151,29 @@ class TestDeliveryReceiptConcurrency:
         assert response.json() == {"success": True, "error": None}
         assert response.headers["ETag"] != etag
 
+    def test_a_negative_quantity_is_422_and_writes_nothing(
+        self, api: Client, stock_holding_job: Job
+    ) -> None:
+        """A receipt only ever adds; taking material back is a return with its own audit."""
+        po = make_purchase_order(status="submitted")
+        line = make_po_line(po, quantity="4.00")
+
+        response = _post_receipt(
+            api,
+            po,
+            {
+                str(line.id): {
+                    "total_received": "-5",
+                    "allocations": [{"job_id": str(stock_holding_job.id), "quantity": "-5"}],
+                }
+            },
+            if_match=_po_etag(api, po),
+        )
+
+        assert response.status_code == 422
+        line.refresh_from_db()
+        assert line.received_quantity == 0
+
 
 @pytest.mark.usefixtures("company_defaults")
 class TestDeliveryReceiptEffects:

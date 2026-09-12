@@ -258,6 +258,16 @@ def test_recording_is_refused_when_the_company_switched_it_off(api: Client) -> N
     assert not SessionReplayRecording.objects.exists()
 
 
+def test_switching_it_off_also_stops_a_recording_already_open(api: Client) -> None:
+    """An open tab keeps flushing; the switch has to reach it, not only new tabs."""
+    recording_id = _open_recording(api)
+    defaults = CompanyDefaults.get_solo()
+    defaults.session_replay_enabled = False
+    defaults.save(update_fields=["session_replay_enabled"])
+
+    assert _upload_chunk(api, recording_id, sequence=0).status_code == 409
+
+
 def test_a_frontend_error_links_to_the_replay_it_happened_in(api: Client) -> None:
     """The link is what makes a browser error reproducible."""
     recording_id = _open_recording(api)

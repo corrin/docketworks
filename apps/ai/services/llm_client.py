@@ -28,6 +28,7 @@ from litellm import ModelResponse
 
 from apps.ai.enums import AIProviderTypes
 from apps.ai.models import AIProvider
+from apps.core.errors import AppErrorContext, persist_app_error
 from apps.platform.observability.models import VendorCall
 from apps.platform.observability.recording import VendorCallRecord, record_vendor_call
 
@@ -176,7 +177,21 @@ def chat_completion(
 
 
 def _record_completion(target: LLMTarget, response: ModelResponse, started: float) -> None:
-    """Save vendor usage and the USD estimate at the time of the request."""
+    """Save vendor usage and the USD estimate at the time of the request.
+
+    The estimate is computed before the record is built, not inside it: the
+    vendor has already answered and billed by now, and LiteLLM raises for any
+    model missing from its price table — a newly released or fine-tuned model
+    is exactly the case metering exists for. Losing the row there would hide
+    the spend where it is least known; the row is written with no estimate and
+    the lookup failure is persisted beside it (ADR 0056: ``None`` is "no
+    estimate", a real value with a real reader).
+    """
+    try:
+        estimate: Decimal | None = estimated_cost_usd(target.model, response.usage)
+    except Exception as exc:  # noqa: BLE001 -- LiteLLM raises bare Exception and ValueError for an unpriced model; persisted, and the call is still recorded
+        persist_app_error(exc, AppErrorContext(additional_context={"model": target.model}))
+        estimate = None
     record_vendor_call(
         VendorCallRecord(
             vendor=VendorCall.Vendor.LLM,
@@ -186,7 +201,7 @@ def _record_completion(target: LLMTarget, response: ModelResponse, started: floa
             tokens_in=response.usage.prompt_tokens,
             tokens_out=response.usage.completion_tokens,
             model_name=target.model,
-            estimated_cost_usd=estimated_cost_usd(target.model, response.usage),
+            estimated_cost_usd=estimate,
         )
     )
 

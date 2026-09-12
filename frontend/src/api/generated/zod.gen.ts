@@ -948,7 +948,7 @@ export const zDeliveryReceiptAllocationRequest = z.object({
     job_id: z.uuid(),
     metadata: z.record(z.string(), z.string()).optional().default({}),
     quantity: z.union([
-        z.number(),
+        z.number().gte(0),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
     ]),
     retail_rate: z.union([
@@ -965,7 +965,7 @@ export const zDeliveryReceiptAllocationRequest = z.object({
 export const zDeliveryReceiptLineRequest = z.object({
     allocations: z.array(zDeliveryReceiptAllocationRequest),
     total_received: z.union([
-        z.number(),
+        z.number().gte(0),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
     ])
 });

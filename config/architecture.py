@@ -7,7 +7,10 @@ from django.db.models import Model
 
 # GPT: this is an ownership manifest, not a list of permitted violations.
 # An ownership slice adds its package here and must pass without exceptions.
-MIGRATED_CONTEXTS = {"apps.platform.integrations": "platform"}
+MIGRATED_CONTEXTS = {
+    "apps.platform.integrations": "platform",
+    "apps.platform.observability": "platform",
+}
 
 CONTEXT_DEPENDENCIES: dict[str, frozenset[str]] = {
     "kernel": frozenset(),
