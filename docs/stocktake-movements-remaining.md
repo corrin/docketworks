@@ -10,12 +10,14 @@ Delete this file when the branch merges and nothing is left in it.
 
 ## Blocking the merge
 
-- **The E2E suite is not green from the first spec.** Every failure from the last full run
-  is now fixed or excluded, and none has been proven by a full run since.
-  `admin/session-replay.spec.ts` is out of that bar by owner ruling and sits in
-  [`rewrite-status.md`](rewrite-status.md). `admin/xero.spec.ts:45` waits its turn for the
-  sync lock (`7705d1a`) but spends a whole employee refresh, so the run that proves it is
-  the same live-call budget this branch already owes a decision on.
+- **The E2E suite is not green from the first spec.** 165 passed and 2 failed on
+  2026-09-12, against 20 failures two runs earlier. What is left:
+  - `purchasing/pickup-address.spec.ts:29` — the selection modal never opens. A real
+    failure, not the environment: it failed the previous gate too, when it was wrongly
+    put down to the disconnected Xero tenant.
+  - `admin/xero.spec.ts:57` — the 409 retry waited on the button rather than the server,
+    fixed in `07ae5fb` and unproven, because proving it spends a whole employee refresh
+    against the call budget this branch already owes a decision on.
 - **The restore runbook's acceptance test is unrecorded** and stays so until a full suite is
   green from the first spec.
 

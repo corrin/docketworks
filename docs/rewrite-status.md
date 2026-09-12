@@ -366,15 +366,6 @@ same class: the post duplicates what Xero already holds, and then self-reports s
 
 ## Correctness and hygiene
 
-- **Session replay never starts under E2E, so `admin/session-replay.spec.ts` cannot pass.**
-  The spec waits for `POST /api/session-replays/recordings/` and times out after two
-  minutes; the recording is never created. Not the company setting — `session_replay_enabled`
-  is true and the database holds recordings — and not the E2E capture gate either, which had
-  its own defect (the tunnel hostname was answered before the opt-out key, fixed in
-  `0152254` with unit coverage). Capture is now explicitly asked for and the create still
-  does not happen, so the remaining cause is upstream of the service. Owner ruled
-  2026-09-12 that this does not block the stocktake-movements merge.
-
 - **Thirteen tables cannot exercise what production renders**, so the screens over them have
   unproven volume behaviour — `scripts/checks/data_shape_gap.py` names them and every E2E run
   prints the list. Worst are `xero.XeroError`, `accounting.Bill*` and `core.AppError`, all short
