@@ -1,5 +1,26 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-12 — What Xero does with a purchase-order number, measured
+
+Opus: the purchase order is the only document whose number we choose — Xero allocates
+invoice and quote numbers and we mirror them back. Our numbers are `MAX(po_number) + 1`
+over the rows that exist, not a sequence, so a number comes round again whenever a row
+goes away. Nothing recorded what Xero does when it does. Nine calls against the demo
+organisation answered it.
+
+| sent | Xero's answer |
+|---|---|
+| a number a **live** order already holds | updates that order and returns its id, no error |
+| a number a **deleted** order holds | zero UUID, `Deleted PurchaseOrders cannot be updated` |
+| a rename of an already-deleted order | refused, same message |
+| a rename in the same update that sets `DELETED` | accepted, and the number is free again |
+
+Three consequences. The zero UUID is not a Xero quirk, it is that refusal, so recovering
+the id by searching the listing for the number could only ever find the deleted order that
+caused it — the search is gone. A duplicate number against a live order is the dangerous
+one, because it silently edits a different supplier's document and reports success. And a
+voided order must be renamed as it is voided, because afterwards is too late.
+
 ## 2026-09-10 — A hundred contacts stood in for two thousand seven hundred
 
 Opus: `get_all_xero_contacts` made one `get_contacts` call and read the response. Xero
