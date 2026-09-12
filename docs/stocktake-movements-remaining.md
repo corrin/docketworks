@@ -14,7 +14,16 @@ Delete this file when the branch merges and nothing is left in it.
   2026-09-12, against 20 failures two runs earlier. What is left:
   - `purchasing/pickup-address.spec.ts:29` — the selection modal never opens. A real
     failure, not the environment: it failed the previous gate too, when it was wrongly
-    put down to the disconnected Xero tenant.
+    put down to the disconnected Xero tenant. Evidence: the screenshot shows a settled
+    page, no toast over the button, and the display and button assertions before the
+    click both pass. Every other test in that file starts with `page.goto(poUrl)`; this
+    is the only one that clicks straight after `createTestPurchaseOrder`, while the page
+    is still settling from the post-create redirect. `PickupAddressSelector` keeps
+    `open` in local state and `PoSummaryCard` has two separate render paths
+    (`if (props.mode === 'detail') return <DetailFields .../>`), each with its own
+    selector — so crossing that boundary unmounts one and mounts another, and an open
+    modal cannot survive it. Same family as the draft-row item below. Unproven: a
+    reproduction costs a Xero contact push and the allowance was spent.
   - `admin/xero.spec.ts:57` — the 409 retry waited on the button rather than the server,
     fixed in `07ae5fb` and unproven, because proving it spends a whole employee refresh
     against the call budget this branch already owes a decision on.
