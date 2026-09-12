@@ -27,6 +27,8 @@ from xero_python.identity import IdentityApi
 
 from apps.core.errors import persist_app_error
 from apps.core.models import CompanyDefaults
+from apps.platform.observability.models import VendorCall
+from apps.platform.observability.recording import record_response
 from apps.xero.client import RateLimitedRESTClient
 from apps.xero.constants import TENANT_ID_CACHE_KEY, XERO_SCOPES, tenant_cache
 from apps.xero.models import XeroApp
@@ -88,7 +90,7 @@ def _build() -> ApiClient:
             ),
         ),
     )
-    client.rest_client = RateLimitedRESTClient(client.configuration, app_id=app.id)
+    client.rest_client = RateLimitedRESTClient(client.configuration)
     bind_token_callbacks(client, app.id)
     return client
 
@@ -431,6 +433,10 @@ def exchange_code_for_token(code: str) -> dict[str, Any]:
 
     try:
         response = requests.post(url, headers=headers, data=data, timeout=30)
+        # identity.xero.com is reached directly rather than through the SDK, so
+        # the rate-limited client's recording does not cover it. Recorded
+        # before raise_for_status: a refused token exchange spent the call too.
+        record_response(response, vendor=VendorCall.Vendor.XERO_TOKEN)
         response.raise_for_status()
         token: dict[str, Any] = response.json()
         if isinstance(token.get("scope"), str):

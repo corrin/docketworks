@@ -6,21 +6,31 @@ optimistic-concurrency semantics on the PATCH path (428 missing / 412 stale /
 stream.
 """
 
+from datetime import datetime
 from decimal import Decimal
+from io import BytesIO
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+from django.db.models.deletion import ProtectedError
 from django.test import Client
 from django.utils import timezone
+from pypdf import PdfReader
 
 from apps.accounts.models import Staff
+from apps.accounts.tests.helpers import authenticate
 from apps.company.models import Company, SupplierPickupAddress
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
-from apps.purchasing.tests.conftest import make_po_line, make_purchase_order
+from apps.platform.integrations.google.gmail import GmailDraft
+from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
+from apps.purchasing.tests.factories import make_po_line, make_purchase_order
+
+#: The one seam to Gmail; the real API is exercised by the integration suite.
+DRAFT = "apps.purchasing.api.create_draft"
 
 pytestmark = [
     pytest.mark.django_db,
@@ -34,8 +44,8 @@ def _detail_url(po: PurchaseOrder) -> str:
     return f"{PO_LIST_URL}{po.id}/"
 
 
-def _current_etag(client: Client, po: PurchaseOrder) -> str:
-    response = client.get(_detail_url(po))
+def _current_etag(api: Client, po: PurchaseOrder) -> str:
+    response = api.get(_detail_url(po))
     assert response.status_code == 200
     return response.headers["ETag"]
 
@@ -55,7 +65,7 @@ class TestPurchaseOrderNumbering:
         assert second.po_number == "PO-0101"
 
     def test_last_number_endpoint_reports_the_highest_issued(
-        self, client: Client, company_defaults: CompanyDefaults
+        self, api: Client, company_defaults: CompanyDefaults
     ) -> None:
         company_defaults.po_prefix = "PO-"
         company_defaults.starting_po_number = 1
@@ -63,25 +73,26 @@ class TestPurchaseOrderNumbering:
         make_purchase_order()
         latest = make_purchase_order()
 
-        response = client.get(f"{PO_LIST_URL}last-number/")
+        response = api.get(f"{PO_LIST_URL}last-number/")
 
         assert response.status_code == 200
         assert response.json()["last_po_number"] == latest.po_number
 
     @pytest.mark.usefixtures("company_defaults")
-    def test_last_number_is_null_when_nothing_is_issued(self, client: Client) -> None:
-        assert client.get(f"{PO_LIST_URL}last-number/").json()["last_po_number"] is None
+    def test_last_number_is_null_when_nothing_is_issued(self, api: Client) -> None:
+        assert api.get(f"{PO_LIST_URL}last-number/").json()["last_po_number"] is None
 
 
 class TestPurchaseOrderList:
     def test_lists_newest_first_with_distinct_jobs(
-        self, client: Client, supplier: Company, job: Job, office_staff: Staff
+        self, api: Client, supplier: Company, job: Job, office_staff: Staff
     ) -> None:
         po = make_purchase_order(supplier=supplier, created_by=office_staff)
         make_po_line(po, job=job, description="First")
         make_po_line(po, job=job, description="Second")
 
-        rows = client.get(PO_LIST_URL).json()
+        body = api.get(PO_LIST_URL).json()
+        rows = body["results"]
 
         assert len(rows) == 1
         assert rows[0]["po_number"] == po.po_number
@@ -93,14 +104,81 @@ class TestPurchaseOrderList:
             {"job_number": str(job.job_number), "name": job.name, "company": job.company.name}
         ]
 
-    def test_status_filter_accepts_a_comma_separated_list(self, client: Client) -> None:
+    def test_status_filter_accepts_a_comma_separated_list(self, api: Client) -> None:
         draft = make_purchase_order(status="draft")
         submitted = make_purchase_order(status="submitted")
         make_purchase_order(status="deleted")
 
-        rows = client.get(f"{PO_LIST_URL}?status=draft,submitted").json()
+        body = api.get(f"{PO_LIST_URL}?status=draft,submitted").json()
 
-        assert {row["po_number"] for row in rows} == {draft.po_number, submitted.po_number}
+        assert {row["po_number"] for row in body["results"]} == {
+            draft.po_number,
+            submitted.po_number,
+        }
+        # The count names the filtered total, not the table's.
+        assert body["count"] == 2
+
+    def test_a_page_carries_the_servers_total_not_the_rows_returned(self, api: Client) -> None:
+        """The mechanism, not the symptom: production holds 990 orders."""
+        for _ in range(5):
+            make_purchase_order()
+
+        body = api.get(f"{PO_LIST_URL}?page_size=2").json()
+
+        assert len(body["results"]) == 2
+        assert body["count"] == 5
+        assert body["page"] == 1
+        assert body["page_size"] == 2
+        assert body["total_pages"] == 3
+
+    def test_paging_walks_every_order_exactly_once(self, api: Client) -> None:
+        made = {make_purchase_order().po_number for _ in range(5)}
+
+        seen: set[str] = set()
+        for page in (1, 2, 3):
+            body = api.get(f"{PO_LIST_URL}?page_size=2&page={page}").json()
+            seen.update(row["po_number"] for row in body["results"])
+
+        assert seen == made
+
+    def test_search_matches_the_po_number(self, api: Client) -> None:
+        wanted = make_purchase_order()
+        make_purchase_order()
+
+        body = api.get(f"{PO_LIST_URL}?q={wanted.po_number}").json()
+
+        assert [row["po_number"] for row in body["results"]] == [wanted.po_number]
+        assert body["count"] == 1
+
+    def test_search_matches_the_supplier_name(self, api: Client, supplier: Company) -> None:
+        wanted = make_purchase_order(supplier=supplier)
+        make_purchase_order()
+
+        body = api.get(f"{PO_LIST_URL}?q={supplier.name[:6]}").json()
+
+        assert [row["po_number"] for row in body["results"]] == [wanted.po_number]
+
+    def test_search_matches_a_line_job_number_without_duplicating_the_order(
+        self, api: Client, job: Job
+    ) -> None:
+        """Two matching lines must not return the order twice."""
+        wanted = make_purchase_order()
+        make_po_line(wanted, job=job, description="First")
+        make_po_line(wanted, job=job, description="Second")
+        make_purchase_order()
+
+        body = api.get(f"{PO_LIST_URL}?q={job.job_number}").json()
+
+        assert [row["po_number"] for row in body["results"]] == [wanted.po_number]
+        assert body["count"] == 1
+
+    def test_a_search_matching_nothing_is_an_empty_page(self, api: Client) -> None:
+        make_purchase_order()
+
+        body = api.get(f"{PO_LIST_URL}?q=no-such-order").json()
+
+        assert body["results"] == []
+        assert body["count"] == 0
 
     def test_unauthenticated_requests_are_rejected(self) -> None:
         assert Client().get(PO_LIST_URL).status_code == 401
@@ -108,7 +186,7 @@ class TestPurchaseOrderList:
 
 class TestPurchaseOrderDetail:
     def test_returns_lines_with_supplier_and_usage_counts(
-        self, client: Client, supplier: Company, job: Job
+        self, api: Client, supplier: Company, job: Job
     ) -> None:
         supplier.xero_contact_id = "11111111-1111-1111-1111-111111111111"
         supplier.save()
@@ -128,7 +206,7 @@ class TestPurchaseOrderDetail:
                 meta={"item_code": "ABC-123"},
             )
 
-        body = client.get(_detail_url(po)).json()
+        body = api.get(_detail_url(po)).json()
 
         assert body["supplier"] == supplier.name
         assert body["supplier_has_xero_id"] is True
@@ -139,30 +217,28 @@ class TestPurchaseOrderDetail:
         assert lines[str(used.id)]["job_id"] == str(job.id)
         assert lines[str(used.id)]["job_number"] == job.job_number
 
-    def test_supplierless_po_keeps_the_v1_defaults(self, client: Client) -> None:
+    def test_supplierless_po_keeps_the_v1_defaults(self, api: Client) -> None:
         po = make_purchase_order()
 
-        body = client.get(_detail_url(po)).json()
+        body = api.get(_detail_url(po)).json()
 
         assert body["supplier"] == ""
         assert body["supplier_id"] is None
         assert body["supplier_has_xero_id"] is False
         assert body["created_by_name"] == ""
 
-    def test_deleted_purchase_orders_stay_viewable(self, client: Client) -> None:
+    def test_deleted_purchase_orders_stay_viewable(self, api: Client) -> None:
         po = make_purchase_order(status="deleted")
-        assert client.get(_detail_url(po)).status_code == 200
+        assert api.get(_detail_url(po)).status_code == 200
 
-    def test_unknown_purchase_order_is_404(self, client: Client) -> None:
-        assert client.get(f"{PO_LIST_URL}{uuid4()}/").status_code == 404
+    def test_unknown_purchase_order_is_404(self, api: Client) -> None:
+        assert api.get(f"{PO_LIST_URL}{uuid4()}/").status_code == 404
 
 
 @pytest.mark.usefixtures("company_defaults")
 class TestPurchaseOrderCreate:
-    def test_creates_the_po_and_its_lines(
-        self, client: Client, supplier: Company, job: Job
-    ) -> None:
-        response = client.post(
+    def test_creates_the_po_and_its_lines(self, api: Client, supplier: Company, job: Job) -> None:
+        response = api.post(
             PO_LIST_URL,
             data={
                 "supplier_id": str(supplier.id),
@@ -189,19 +265,40 @@ class TestPurchaseOrderCreate:
         # The create response carries the ETag the client needs to mutate.
         assert response.headers["ETag"].startswith('"po:')
 
-    def test_blank_reference_is_stored_as_unset(self, client: Client) -> None:
-        # v1 wrote "" here and tripped its own reference_not_blank constraint.
-        # That constraint is NOT visible in v1's models.py — it was added by a
-        # raw-SQL migration and lives only in the live schema (verified against
-        # v1 production: 0 blank, 167 NULL of 913 purchase orders). Do not
-        # "correct" this test by reading v1's model file.
-        response = client.post(PO_LIST_URL, data={"reference": ""}, content_type="application/json")
+    def test_a_blank_reference_is_a_validation_error(self, api: Client) -> None:
+        # The reference_not_blank constraint is NOT visible in v1's models.py --
+        # it was added by a raw-SQL migration and lives only in the live schema
+        # (verified against v1 production: 0 blank, 167 NULL of 913 purchase
+        # orders). So "" can never be stored, and NullableText refuses it at the
+        # boundary with a 422 naming the field rather than letting it reach the
+        # constraint (ADR 0040). Do not "correct" this by reading v1's models.
+        response = api.post(PO_LIST_URL, data={"reference": ""}, content_type="application/json")
+
+        assert response.status_code == 422
+        assert not PurchaseOrder.objects.exists()
+
+    def test_an_omitted_reference_is_stored_as_unset(self, api: Client) -> None:
+        response = api.post(PO_LIST_URL, data={}, content_type="application/json")
 
         assert response.status_code == 201
         assert PurchaseOrder.objects.get(id=response.json()["id"]).reference is None
 
-    def test_price_tbc_clears_the_unit_cost(self, client: Client) -> None:
-        response = client.post(
+    def test_an_explicit_null_reference_is_stored_as_unset(self, api: Client) -> None:
+        response = api.post(PO_LIST_URL, data={"reference": None}, content_type="application/json")
+
+        assert response.status_code == 201
+        assert PurchaseOrder.objects.get(id=response.json()["id"]).reference is None
+
+    def test_surrounding_whitespace_is_trimmed_from_a_reference(self, api: Client) -> None:
+        response = api.post(
+            PO_LIST_URL, data={"reference": "  PO-42  "}, content_type="application/json"
+        )
+
+        assert response.status_code == 201
+        assert PurchaseOrder.objects.get(id=response.json()["id"]).reference == "PO-42"
+
+    def test_price_tbc_clears_the_unit_cost(self, api: Client) -> None:
+        response = api.post(
             PO_LIST_URL,
             data={
                 "lines": [
@@ -219,12 +316,12 @@ class TestPurchaseOrderCreate:
         po = PurchaseOrder.objects.get(id=response.json()["id"])
         assert po.po_lines.get().unit_cost is None
 
-    def test_dimensions_are_written_on_create(self, client: Client) -> None:
+    def test_dimensions_are_written_on_create(self, api: Client) -> None:
         # v1 declared dimensions on the create serializer and wrote it on the
         # update path, but create_purchase_order() omitted the field, so a
         # dimension entered on a brand-new PO was lost until the line was
         # edited. v2 uses one line-write path for both. (Ledgered.)
-        response = client.post(
+        response = api.post(
             PO_LIST_URL,
             data={
                 "lines": [{"description": "Plate", "quantity": "1", "dimensions": "2400x1200x6"}]
@@ -236,14 +333,14 @@ class TestPurchaseOrderCreate:
         assert po.po_lines.get().dimensions == "2400x1200x6"
 
     def test_an_explicit_null_pickup_address_means_none(
-        self, client: Client, supplier: Company
+        self, api: Client, supplier: Company
     ) -> None:
         """Null is a choice (ADR 0040), not an invitation to pick the primary."""
         SupplierPickupAddress.objects.create(
             company=supplier, name="Yard", street="1 Steel Rd", city="Auckland", is_primary=True
         )
 
-        response = client.post(
+        response = api.post(
             "/api/purchasing/purchase-orders/",
             data={"supplier_id": str(supplier.id), "pickup_address_id": None},
             content_type="application/json",
@@ -253,14 +350,14 @@ class TestPurchaseOrderCreate:
         assert PurchaseOrder.objects.get(id=response.json()["id"]).pickup_address_id is None
 
     def test_a_pickup_address_without_a_supplier_is_refused(
-        self, client: Client, supplier: Company
+        self, api: Client, supplier: Company
     ) -> None:
         """An address belongs to a supplier; a PO with none cannot collect from one."""
         own = SupplierPickupAddress.objects.create(
             company=supplier, name="Yard", street="1 Steel Rd", city="Auckland"
         )
 
-        response = client.post(
+        response = api.post(
             "/api/purchasing/purchase-orders/",
             data={"pickup_address_id": str(own.id)},
             content_type="application/json",
@@ -270,20 +367,20 @@ class TestPurchaseOrderCreate:
         assert PurchaseOrder.objects.count() == 0
 
     def test_primary_pickup_address_is_selected_automatically(
-        self, client: Client, supplier: Company
+        self, api: Client, supplier: Company
     ) -> None:
         address = SupplierPickupAddress.objects.create(
             company=supplier, name="Yard", street="1 Steel Rd", city="Auckland", is_primary=True
         )
 
-        response = client.post(
+        response = api.post(
             PO_LIST_URL, data={"supplier_id": str(supplier.id)}, content_type="application/json"
         )
 
         assert PurchaseOrder.objects.get(id=response.json()["id"]).pickup_address_id == address.id
 
-    def test_unknown_supplier_is_400(self, client: Client) -> None:
-        response = client.post(
+    def test_unknown_supplier_is_400(self, api: Client) -> None:
+        response = api.post(
             PO_LIST_URL, data={"supplier_id": str(uuid4())}, content_type="application/json"
         )
         assert response.status_code == 400
@@ -293,39 +390,39 @@ class TestPurchaseOrderCreate:
 class TestPurchaseOrderConcurrency:
     """ADR 0003 on the PO PATCH path."""
 
-    def test_get_returns_a_strong_po_etag(self, client: Client) -> None:
+    def test_get_returns_a_strong_po_etag(self, api: Client) -> None:
         po = make_purchase_order()
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
         assert etag.startswith('"po:')
         assert str(po.id) in etag
 
-    def test_conditional_get_answers_304(self, client: Client) -> None:
+    def test_conditional_get_answers_304(self, api: Client) -> None:
         po = make_purchase_order()
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
 
-        response = client.get(_detail_url(po), headers={"If-None-Match": etag})
+        response = api.get(_detail_url(po), headers={"If-None-Match": etag})
 
         assert response.status_code == 304
 
-    def test_conditional_get_returns_the_body_when_the_etag_moved(self, client: Client) -> None:
+    def test_conditional_get_returns_the_body_when_the_etag_moved(self, api: Client) -> None:
         po = make_purchase_order()
-        stale = _current_etag(client, po)
+        stale = _current_etag(api, po)
         PurchaseOrder.objects.filter(pk=po.pk).update(
             reference="Concurrent edit", updated_at=timezone.now()
         )
 
-        response = client.get(_detail_url(po), headers={"If-None-Match": stale})
+        response = api.get(_detail_url(po), headers={"If-None-Match": stale})
 
         assert response.status_code == 200
         assert response.json()["reference"] == "Concurrent edit"
 
-    def test_patch_can_repoint_the_order_at_another_supplier_and_date(self, client: Client) -> None:
+    def test_patch_can_repoint_the_order_at_another_supplier_and_date(self, api: Client) -> None:
         """Re-pointing the whole order is the heaviest PATCH the screen offers."""
         po = make_purchase_order(reference="Original")
         supplier = Company.objects.create(name="Repointed Steel", xero_last_modified=timezone.now())
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
 
-        response = client.patch(
+        response = api.patch(
             _detail_url(po),
             data={
                 "supplier_id": str(supplier.id),
@@ -341,22 +438,22 @@ class TestPurchaseOrderConcurrency:
         assert po.expected_delivery is not None
         assert po.expected_delivery.isoformat() == "2026-04-09"
 
-    def test_patch_without_if_match_is_428(self, client: Client) -> None:
+    def test_patch_without_if_match_is_428(self, api: Client) -> None:
         po = make_purchase_order()
 
-        response = client.patch(_detail_url(po), data={}, content_type="application/json")
+        response = api.patch(_detail_url(po), data={}, content_type="application/json")
 
         assert response.status_code == 428
         assert "If-Match" in response.json()["detail"]
 
-    def test_patch_with_a_stale_etag_is_412_and_writes_nothing(self, client: Client) -> None:
+    def test_patch_with_a_stale_etag_is_412_and_writes_nothing(self, api: Client) -> None:
         po = make_purchase_order(reference="Original")
-        stale = _current_etag(client, po)
+        stale = _current_etag(api, po)
         PurchaseOrder.objects.filter(pk=po.pk).update(
             reference="Concurrent edit", updated_at=timezone.now()
         )
 
-        response = client.patch(
+        response = api.patch(
             _detail_url(po),
             data={"reference": "My edit"},
             content_type="application/json",
@@ -368,13 +465,11 @@ class TestPurchaseOrderConcurrency:
         po.refresh_from_db()
         assert po.reference == "Concurrent edit"
 
-    def test_patch_with_the_current_etag_succeeds_and_returns_a_new_one(
-        self, client: Client
-    ) -> None:
+    def test_patch_with_the_current_etag_succeeds_and_returns_a_new_one(self, api: Client) -> None:
         po = make_purchase_order(reference="Original")
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
 
-        response = client.patch(
+        response = api.patch(
             _detail_url(po),
             data={"reference": "My edit"},
             content_type="application/json",
@@ -386,39 +481,37 @@ class TestPurchaseOrderConcurrency:
         assert po.reference == "My edit"
         assert response.headers["ETag"] != etag
 
-    def test_replaying_a_consumed_etag_is_412(self, client: Client) -> None:
+    def test_replaying_a_consumed_etag_is_412(self, api: Client) -> None:
         """Double submission cannot apply the same mutation twice (ADR 0003)."""
         po = make_purchase_order(reference="Original")
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
         headers = {"If-Match": etag}
         body = {"reference": "First edit"}
 
-        first = client.patch(
+        first = api.patch(
             _detail_url(po), data=body, content_type="application/json", headers=headers
         )
-        second = client.patch(
+        second = api.patch(
             _detail_url(po), data=body, content_type="application/json", headers=headers
         )
 
         assert first.status_code == 200
         assert second.status_code == 412
 
-    def test_etag_is_mirrored_into_x_resource_version(self, client: Client) -> None:
+    def test_etag_is_mirrored_into_x_resource_version(self, api: Client) -> None:
         po = make_purchase_order()
-        response = client.get(_detail_url(po))
+        response = api.get(_detail_url(po))
         assert response.headers["X-Resource-Version"] == response.headers["ETag"]
 
 
 class TestPurchaseOrderUpdate:
-    def test_updates_lines_creates_new_ones_and_deletes_requested_ones(
-        self, client: Client
-    ) -> None:
+    def test_updates_lines_creates_new_ones_and_deletes_requested_ones(self, api: Client) -> None:
         po = make_purchase_order()
         keep = make_po_line(po, description="Keep", quantity="1.00")
         drop = make_po_line(po, description="Drop", quantity="1.00")
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
 
-        response = client.patch(
+        response = api.patch(
             _detail_url(po),
             data={
                 "lines_to_delete": [str(drop.id)],
@@ -438,7 +531,7 @@ class TestPurchaseOrderUpdate:
         assert not PurchaseOrderLine.objects.filter(id=drop.id).exists()
         assert po.po_lines.filter(description="Brand new").exists()
 
-    def test_confirming_a_tbc_price_on_a_line_without_an_item_code(self, client: Client) -> None:
+    def test_confirming_a_tbc_price_on_a_line_without_an_item_code(self, api: Client) -> None:
         """KAN-329 acceptance: the exact production failure, end to end.
 
         A draft line with item_code NULL is moved from "price TBC" to a
@@ -451,7 +544,7 @@ class TestPurchaseOrderUpdate:
         po = make_purchase_order()
         line = make_po_line(po, quantity="10.00", unit_cost=None, price_tbc=True, item_code=None)
 
-        response = client.patch(
+        response = api.patch(
             _detail_url(po),
             data={
                 "lines": [
@@ -464,7 +557,7 @@ class TestPurchaseOrderUpdate:
                 ]
             },
             content_type="application/json",
-            headers={"If-Match": _current_etag(client, po)},
+            headers={"If-Match": _current_etag(api, po)},
         )
 
         assert response.status_code == 200
@@ -478,7 +571,7 @@ class TestPurchaseOrderUpdate:
         ["item_code", "metal_type", "alloy", "specifics", "location", "dimensions"],
     )
     def test_blank_nullable_text_is_a_validation_error_not_a_409(
-        self, client: Client, field: str
+        self, api: Client, field: str
     ) -> None:
         """KAN-329 acceptance: "" is rejected BEFORE the database, per field.
 
@@ -490,48 +583,48 @@ class TestPurchaseOrderUpdate:
         po = make_purchase_order()
         line = make_po_line(po, quantity="1.00", unit_cost="5.00")
 
-        response = client.patch(
+        response = api.patch(
             _detail_url(po),
             data={"lines": [{"id": str(line.id), field: ""}]},
             content_type="application/json",
-            headers={"If-Match": _current_etag(client, po)},
+            headers={"If-Match": _current_etag(api, po)},
         )
 
         assert response.status_code == 422, f"{field} blank should be a validation error"
         assert PurchaseOrderLine.objects.filter(id=line.id, **{field: ""}).count() == 0
 
-    def test_whitespace_only_text_is_blank_too(self, client: Client) -> None:
+    def test_whitespace_only_text_is_blank_too(self, api: Client) -> None:
         """v1's DRF serializers trimmed whitespace, so "  " and "" are the same non-value."""
         po = make_purchase_order()
         line = make_po_line(po, quantity="1.00", unit_cost="5.00")
 
-        response = client.patch(
+        response = api.patch(
             _detail_url(po),
             data={"lines": [{"id": str(line.id), "specifics": "  \t "}]},
             content_type="application/json",
-            headers={"If-Match": _current_etag(client, po)},
+            headers={"If-Match": _current_etag(api, po)},
         )
 
         assert response.status_code == 422
 
-    def test_surrounding_whitespace_is_trimmed_from_a_real_value(self, client: Client) -> None:
+    def test_surrounding_whitespace_is_trimmed_from_a_real_value(self, api: Client) -> None:
         po = make_purchase_order()
         line = make_po_line(po, quantity="1.00", unit_cost="5.00")
 
-        response = client.patch(
+        response = api.patch(
             _detail_url(po),
             data={"lines": [{"id": str(line.id), "specifics": "  350 grade  "}]},
             content_type="application/json",
-            headers={"If-Match": _current_etag(client, po)},
+            headers={"If-Match": _current_etag(api, po)},
         )
 
         assert response.status_code == 200
         line.refresh_from_db()
         assert line.specifics == "350 grade"
 
-    def test_blank_item_code_on_create_is_also_rejected(self, client: Client) -> None:
+    def test_blank_item_code_on_create_is_also_rejected(self, api: Client) -> None:
         """The contract is identical on create — v1 validated the two differently."""
-        response = client.post(
+        response = api.post(
             PO_LIST_URL,
             data={"lines": [{"description": "SHS", "quantity": "1", "item_code": ""}]},
             content_type="application/json",
@@ -543,37 +636,31 @@ class TestPurchaseOrderUpdate:
         "field",
         ["item_code", "metal_type", "alloy", "specifics", "location", "dimensions"],
     )
-    def test_explicit_null_clears_a_nullable_text_field(self, client: Client, field: str) -> None:
+    def test_explicit_null_clears_a_nullable_text_field(self, api: Client, field: str) -> None:
         """null is how a client clears one of these — the whole set, one rule."""
         po = make_purchase_order()
         line = make_po_line(po, quantity="1.00", unit_cost="5.00")
         setattr(line, field, "something")
         line.save()
 
-        response = client.patch(
+        response = api.patch(
             _detail_url(po),
             data={"lines": [{"id": str(line.id), field: None}]},
             content_type="application/json",
-            headers={"If-Match": _current_etag(client, po)},
+            headers={"If-Match": _current_etag(api, po)},
         )
 
         assert response.status_code == 200
         line.refresh_from_db()
         assert getattr(line, field) is None
 
-    def test_price_tbc_only_patch_preserves_the_stored_unit_cost(self, client: Client) -> None:
-        """The "price TBC" checkbox must not wipe the cost beside it.
-
-        v1 drove per-field updaters, each applied only when its own key was
-        present, so toggling the checkbox left unit_cost alone. A coupled
-        implementation nulls the cost and then hard-fails every receipt and
-        allocation path for that line.
-        """
+    def test_unticking_tbc_without_a_price_preserves_an_existing_cost(self, api: Client) -> None:
+        """An explicit false flag alone does not request a price change."""
         po = make_purchase_order()
         line = make_po_line(po, quantity="10.00", unit_cost="25.00")
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
 
-        response = client.patch(
+        response = api.patch(
             _detail_url(po),
             data={"lines": [{"id": str(line.id), "price_tbc": False}]},
             content_type="application/json",
@@ -585,12 +672,38 @@ class TestPurchaseOrderUpdate:
         assert line.unit_cost == Decimal("25.00")
         assert line.price_tbc is False
 
-    def test_unit_cost_only_patch_leaves_the_price_tbc_flag_alone(self, client: Client) -> None:
+    @pytest.mark.parametrize("cost", ["25.00", "0.00"])
+    def test_ticking_tbc_alone_clears_the_stored_price(self, api: Client, cost: str) -> None:
+        """A catalogue price must not survive the operator's explicit TBC override."""
+        po = make_purchase_order()
+        line = make_po_line(po, quantity="10.00", unit_cost=cost)
+        response = api.patch(
+            _detail_url(po),
+            data={"lines": [{"id": str(line.id), "price_tbc": True}]},
+            content_type="application/json",
+            headers={"If-Match": _current_etag(api, po)},
+        )
+        assert response.status_code == 200
+        line.refresh_from_db()
+        assert line.price_tbc is True
+        assert line.unit_cost is None
+        response = api.patch(
+            _detail_url(po),
+            data={"lines": [{"id": str(line.id), "price_tbc": False}]},
+            content_type="application/json",
+            headers={"If-Match": _current_etag(api, po)},
+        )
+        assert response.status_code == 200
+        line.refresh_from_db()
+        assert line.price_tbc is False
+        assert line.unit_cost is None
+
+    def test_unit_cost_only_patch_leaves_the_price_tbc_flag_alone(self, api: Client) -> None:
         po = make_purchase_order()
         line = make_po_line(po, quantity="10.00", unit_cost="25.00")
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
 
-        client.patch(
+        api.patch(
             _detail_url(po),
             data={"lines": [{"id": str(line.id), "unit_cost": "31.50"}]},
             content_type="application/json",
@@ -601,7 +714,7 @@ class TestPurchaseOrderUpdate:
         assert line.unit_cost == Decimal("31.50")
         assert line.price_tbc is False
 
-    def test_a_cost_sent_for_a_still_tbc_line_is_not_stored(self, client: Client) -> None:
+    def test_a_cost_sent_for_a_still_tbc_line_is_not_stored(self, api: Client) -> None:
         """price_tbc means "no unit cost" (the field's own help_text).
 
         The flag is read from the line's effective value, so a cost arriving
@@ -612,9 +725,9 @@ class TestPurchaseOrderUpdate:
         """
         po = make_purchase_order()
         line = make_po_line(po, quantity="10.00", unit_cost=None, price_tbc=True)
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
 
-        client.patch(
+        api.patch(
             _detail_url(po),
             data={"lines": [{"id": str(line.id), "unit_cost": "31.50"}]},
             content_type="application/json",
@@ -625,12 +738,12 @@ class TestPurchaseOrderUpdate:
         assert line.unit_cost is None
         assert line.price_tbc is True
 
-    def test_clearing_the_flag_and_setting_a_cost_together_works(self, client: Client) -> None:
+    def test_clearing_the_flag_and_setting_a_cost_together_works(self, api: Client) -> None:
         po = make_purchase_order()
         line = make_po_line(po, quantity="10.00", unit_cost=None, price_tbc=True)
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
 
-        client.patch(
+        api.patch(
             _detail_url(po),
             data={"lines": [{"id": str(line.id), "price_tbc": False, "unit_cost": "31.50"}]},
             content_type="application/json",
@@ -641,13 +754,13 @@ class TestPurchaseOrderUpdate:
         assert line.price_tbc is False
         assert line.unit_cost == Decimal("31.50")
 
-    def test_omitted_line_fields_are_left_alone(self, client: Client) -> None:
+    def test_omitted_line_fields_are_left_alone(self, api: Client) -> None:
         # v1's serializer defaults reset quantity to 0 when it was not sent.
         po = make_purchase_order()
         line = make_po_line(po, description="Keep quantity", quantity="7.00")
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
 
-        client.patch(
+        api.patch(
             _detail_url(po),
             data={"lines": [{"id": str(line.id), "description": "Renamed"}]},
             content_type="application/json",
@@ -657,13 +770,13 @@ class TestPurchaseOrderUpdate:
         line.refresh_from_db()
         assert line.quantity == Decimal("7.00")
 
-    def test_a_line_id_from_another_po_is_400(self, client: Client) -> None:
+    def test_a_line_id_from_another_po_is_400(self, api: Client) -> None:
         po = make_purchase_order()
         other = make_purchase_order()
         foreign_line = make_po_line(other)
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
 
-        response = client.patch(
+        response = api.patch(
             _detail_url(po),
             data={"lines": [{"id": str(foreign_line.id), "description": "Hijack"}]},
             content_type="application/json",
@@ -673,34 +786,36 @@ class TestPurchaseOrderUpdate:
         assert response.status_code == 400
         assert "not found on PO" in response.json()["detail"]
 
-    def test_an_unknown_status_is_rejected(self, client: Client) -> None:
-        # v1 wrote any string into the column; choices are not DB-enforced.
+    def test_an_unknown_status_is_rejected(self, api: Client) -> None:
+        # v1 wrote any string into the column; choices are not DB-enforced, so
+        # the five live in the request schema as a union and a sixth is a 422
+        # naming the field. The service used to re-check them at runtime; with
+        # the contract carrying the union that check could not fire.
         po = make_purchase_order()
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
 
-        response = client.patch(
+        response = api.patch(
             _detail_url(po),
             data={"status": "totally_bogus"},
             content_type="application/json",
             headers={"If-Match": etag},
         )
 
-        assert response.status_code == 400
-        assert "Invalid status" in response.json()["detail"]
+        assert response.status_code == 422
         po.refresh_from_db()
         assert po.status == "draft"
 
     def test_the_suppliers_own_pickup_address_is_linked(
-        self, client: Client, supplier: Company
+        self, api: Client, supplier: Company
     ) -> None:
         """The converse of the refusal: the supplier's own yard links."""
         own = SupplierPickupAddress.objects.create(
             company=supplier, name="Yard", street="1 Steel Rd", city="Auckland"
         )
         po = make_purchase_order(supplier=supplier)
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
 
-        response = client.patch(
+        response = api.patch(
             _detail_url(po),
             data={"pickup_address_id": str(own.id)},
             content_type="application/json",
@@ -712,7 +827,7 @@ class TestPurchaseOrderUpdate:
         assert po.pickup_address_id == own.id
 
     def test_another_companys_pickup_address_is_refused(
-        self, client: Client, supplier: Company
+        self, api: Client, supplier: Company
     ) -> None:
         """A PO collects from its own supplier's yard; a stranger's address is a 400, not a link."""
         stranger = make_company("Other Supplier Ltd", is_supplier=True)
@@ -720,9 +835,9 @@ class TestPurchaseOrderUpdate:
             company=stranger, name="Their Yard", street="9 Elsewhere St", city="Hamilton"
         )
         po = make_purchase_order(supplier=supplier)
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
 
-        response = client.patch(
+        response = api.patch(
             _detail_url(po),
             data={"pickup_address_id": str(foreign.id)},
             content_type="application/json",
@@ -734,7 +849,7 @@ class TestPurchaseOrderUpdate:
         assert po.pickup_address_id is None
 
     def test_changing_the_supplier_drops_the_old_suppliers_yard(
-        self, client: Client, supplier: Company
+        self, api: Client, supplier: Company
     ) -> None:
         """A pickup address is the supplier's; it does not follow the PO to another supplier."""
         own = SupplierPickupAddress.objects.create(
@@ -744,9 +859,9 @@ class TestPurchaseOrderUpdate:
         po.pickup_address = own
         po.save()
         other = make_company("Other Supplier Ltd", is_supplier=True)
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
 
-        response = client.patch(
+        response = api.patch(
             _detail_url(po),
             data={"supplier_id": str(other.id)},
             content_type="application/json",
@@ -759,7 +874,7 @@ class TestPurchaseOrderUpdate:
         assert po.pickup_address_id is None
 
     def test_pickup_address_can_be_cleared_with_an_explicit_null(
-        self, client: Client, supplier: Company
+        self, api: Client, supplier: Company
     ) -> None:
         address = SupplierPickupAddress.objects.create(
             company=supplier, name="Yard", street="1 Steel Rd", city="Auckland"
@@ -767,9 +882,9 @@ class TestPurchaseOrderUpdate:
         po = make_purchase_order(supplier=supplier)
         po.pickup_address = address
         po.save()
-        etag = _current_etag(client, po)
+        etag = _current_etag(api, po)
 
-        client.patch(
+        api.patch(
             _detail_url(po),
             data={"pickup_address_id": None},
             content_type="application/json",
@@ -782,16 +897,16 @@ class TestPurchaseOrderUpdate:
 
 class TestPurchaseOrderEvents:
     def test_create_then_list_returns_the_note_with_its_author(
-        self, client: Client, office_staff: Staff
+        self, api: Client, office_staff: Staff
     ) -> None:
         po = make_purchase_order()
 
-        created = client.post(
+        created = api.post(
             f"{_detail_url(po)}events/",
             data={"description": "Chased the supplier"},
             content_type="application/json",
         )
-        listed = client.get(f"{_detail_url(po)}events/")
+        listed = api.get(f"{_detail_url(po)}events/")
 
         assert created.status_code == 201
         assert created.json()["event"]["description"] == "Chased the supplier"
@@ -799,71 +914,107 @@ class TestPurchaseOrderEvents:
         assert len(events) == 1
         assert events[0]["staff"] == office_staff.get_display_full_name()
 
-    def test_events_come_back_newest_first(self, client: Client) -> None:
+    def test_events_come_back_newest_first(self, api: Client) -> None:
         po = make_purchase_order()
         for description in ("First", "Second"):
-            client.post(
+            api.post(
                 f"{_detail_url(po)}events/",
                 data={"description": description},
                 content_type="application/json",
             )
 
-        events = client.get(f"{_detail_url(po)}events/").json()["events"]
+        events = api.get(f"{_detail_url(po)}events/").json()["events"]
 
         assert [event["description"] for event in events] == ["Second", "First"]
 
-    def test_events_for_an_unknown_po_are_404(self, client: Client) -> None:
-        assert client.get(f"{PO_LIST_URL}{uuid4()}/events/").status_code == 404
+    def test_events_for_an_unknown_po_are_404(self, api: Client) -> None:
+        assert api.get(f"{PO_LIST_URL}{uuid4()}/events/").status_code == 404
 
 
 class TestPurchaseOrderEmail:
-    def test_composes_a_mailto_url_for_the_supplier(
-        self, client: Client, supplier: Company, company_defaults: CompanyDefaults
+    """Drafting the supplier email, with Gmail stubbed at the one seam.
+
+    The draft itself is proven against the real API in
+    apps/platform/integrations/tests/test_gmail_integration.py; what these cover is what we ask
+    Gmail for — the right mailbox, the right recipient, and the order PDF
+    actually attached, which is the whole reason this is a draft and not a
+    mailto link.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _logo(self, company_defaults: CompanyDefaults) -> None:
+        """Every draft renders the order PDF, which refuses without a logo."""
+        company_defaults.logo_wide = "app_images/docketworks_logo_wide.png"
+        company_defaults.save()
+
+    def test_drafts_to_the_supplier_in_the_operators_own_mailbox(
+        self, api: Client, supplier: Company, company_defaults: CompanyDefaults, office_staff: Staff
     ) -> None:
         po = make_purchase_order(supplier=supplier)
 
-        body = client.post(
-            f"{_detail_url(po)}email/", data={}, content_type="application/json"
-        ).json()
+        with patch(DRAFT) as draft:
+            draft.return_value = GmailDraft(draft_id="d1", web_url="https://mail.example/d1")
+            body = api.post(
+                f"{_detail_url(po)}email/", data={}, content_type="application/json"
+            ).json()
 
         assert body["success"] is True
         assert body["email_subject"] == f"Purchase Order {po.po_number}"
-        assert body["mailto_url"].startswith(f"mailto:{supplier.email}?subject=")
+        assert body["draft_url"] == "https://mail.example/d1"
         assert company_defaults.company_name in body["email_body"]
+        call = draft.call_args.kwargs
+        assert call["to"] == supplier.email
+        assert call["as_user"] == office_staff.office_email, (
+            "drafted somewhere the operator cannot see"
+        )
 
-    @pytest.mark.usefixtures("company_defaults")
+    def test_the_order_pdf_rides_along(self, api: Client, supplier: Company) -> None:
+        """The reason this is a draft: mailto could not carry the order."""
+        po = make_purchase_order(supplier=supplier)
+        descriptions = [f"Ordered PDF line {index}" for index in range(8)]
+        for description in descriptions:
+            make_po_line(po, description=description)
+
+        with patch(DRAFT) as draft:
+            draft.return_value = GmailDraft(draft_id="d1", web_url="https://mail.example/d1")
+            api.post(f"{_detail_url(po)}email/", data={}, content_type="application/json")
+
+        attachment = draft.call_args.kwargs["attachments"][0]
+        assert attachment.filename == f"Purchase_Order_{po.po_number}.pdf"
+        assert attachment.mime_type == "application/pdf"
+        text = "".join(page.extract_text() for page in PdfReader(BytesIO(attachment.content)).pages)
+        positions = [text.index(description) for description in descriptions]
+        assert positions == sorted(positions)
+
     def test_a_custom_message_is_prepended_to_the_body(
-        self, client: Client, supplier: Company
+        self, api: Client, supplier: Company
     ) -> None:
         po = make_purchase_order(supplier=supplier)
 
-        body = client.post(
-            f"{_detail_url(po)}email/",
-            data={"message": "Urgent please"},
-            content_type="application/json",
-        ).json()
+        with patch(DRAFT) as draft:
+            draft.return_value = GmailDraft(draft_id="d1", web_url="https://mail.example/d1")
+            body = api.post(
+                f"{_detail_url(po)}email/",
+                data={"message": "Urgent please"},
+                content_type="application/json",
+            ).json()
 
         assert body["email_body"].startswith("Urgent please\n\n")
 
-    @pytest.mark.usefixtures("company_defaults")
-    def test_a_po_without_a_supplier_is_400(self, client: Client) -> None:
+    def test_a_po_without_a_supplier_is_400(self, api: Client) -> None:
         po = make_purchase_order()
 
-        response = client.post(f"{_detail_url(po)}email/", data={}, content_type="application/json")
+        response = api.post(f"{_detail_url(po)}email/", data={}, content_type="application/json")
 
         assert response.status_code == 400
         assert "must have a supplier" in response.json()["detail"]
 
-    @pytest.mark.usefixtures("company_defaults")
-    @pytest.mark.usefixtures("company_defaults")
-    def test_an_invalid_recipient_email_is_rejected(
-        self, client: Client, supplier: Company
-    ) -> None:
+    def test_an_invalid_recipient_email_is_rejected(self, api: Client, supplier: Company) -> None:
         # v1 declared recipient_email as a DRF EmailField, so a typo was
         # rejected there even though the view only used it to retarget mailto.
         po = make_purchase_order(supplier=supplier)
 
-        response = client.post(
+        response = api.post(
             f"{_detail_url(po)}email/",
             data={"recipient_email": "not-an-email"},
             content_type="application/json",
@@ -871,25 +1022,119 @@ class TestPurchaseOrderEmail:
 
         assert response.status_code == 422
 
-    @pytest.mark.usefixtures("company_defaults")
     def test_a_valid_recipient_email_overrides_the_supplier_address(
-        self, client: Client, supplier: Company
+        self, api: Client, supplier: Company
     ) -> None:
         po = make_purchase_order(supplier=supplier)
 
-        body = client.post(
-            f"{_detail_url(po)}email/",
-            data={"recipient_email": "yard@example.test"},
-            content_type="application/json",
-        ).json()
+        with patch(DRAFT) as draft:
+            draft.return_value = GmailDraft(draft_id="d1", web_url="https://mail.example/d1")
+            api.post(
+                f"{_detail_url(po)}email/",
+                data={"recipient_email": "yard@example.test"},
+                content_type="application/json",
+            )
 
-        assert body["mailto_url"].startswith("mailto:yard@example.test?subject=")
+        assert draft.call_args.kwargs["to"] == "yard@example.test"
 
-    def test_a_supplier_without_an_email_is_400(self, client: Client) -> None:
+    def test_a_supplier_without_an_email_is_400(self, api: Client) -> None:
         silent = Company.objects.create(name="No Email Ltd", xero_last_modified=timezone.now())
         po = make_purchase_order(supplier=silent)
 
-        response = client.post(f"{_detail_url(po)}email/", data={}, content_type="application/json")
+        response = api.post(f"{_detail_url(po)}email/", data={}, content_type="application/json")
 
         assert response.status_code == 400
         assert "no email address" in response.json()["detail"]
+
+
+def test_received_line_cannot_lose_inventory_provenance(
+    api: Client, stock_holding_job: Job
+) -> None:
+    po = make_purchase_order()
+    line = make_po_line(po)
+    stock = Stock.objects.create(
+        job=stock_holding_job,
+        description="Receipt identity",
+        quantity=0,
+        unit_cost=5,
+        source="purchase_order",
+        source_purchase_order_line=line,
+    )
+    response = api.patch(
+        _detail_url(po),
+        {"lines_to_delete": [str(line.id)]},
+        content_type="application/json",
+        headers={"If-Match": _current_etag(api, po)},
+    )
+    assert response.status_code == 400, response.content
+    assert b"provenance" in response.content
+    with pytest.raises(ProtectedError):
+        line.delete()
+    stock.refresh_from_db()
+    assert stock.source_purchase_order_line_id == line.id
+
+
+def test_detail_reports_the_specific_orders_inbound_xero_observation(api: Client) -> None:
+    po = make_purchase_order()
+    initial = api.get(_detail_url(po)).json()
+    assert initial["xero_status"] is None
+    assert initial["xero_last_synced"] is None
+    observed = timezone.now().replace(microsecond=0)
+    PurchaseOrder.objects.filter(pk=po.pk).update(
+        xero_status="AUTHORISED", xero_last_synced=observed
+    )
+    detail = api.get(_detail_url(po))
+    assert detail.status_code == 200, detail.content
+    assert detail.json()["xero_status"] == "AUTHORISED"
+    assert datetime.fromisoformat(detail.json()["xero_last_synced"]) == observed
+
+
+class TestLineCreationOrder:
+    def test_batch_order_survives_edits_and_is_shared_by_users(
+        self, api: Client, workshop_staff: Staff
+    ) -> None:
+        """A saved edit must not move a row or change another user's view of the PO."""
+        response = api.post(
+            PO_LIST_URL,
+            data={
+                "lines": [
+                    {"description": f"Line {index}", "quantity": "1", "unit_cost": "2"}
+                    for index in range(8)
+                ]
+            },
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+        url = f"{PO_LIST_URL}{response.json()['id']}/"
+        before = api.get(url).json()["lines"]
+        assert [line["description"] for line in before] == [f"Line {index}" for index in range(8)]
+        assert all(line["created_at"] is not None for line in before)
+        edited = api.patch(
+            url,
+            data={"lines": [{"id": before[2]["id"], "description": "Edited", "quantity": "3"}]},
+            content_type="application/json",
+            HTTP_IF_MATCH=api.get(url).headers["ETag"],
+        )
+        assert edited.status_code == 200
+        other = Client()
+        authenticate(other, workshop_staff)
+        after = other.get(url).json()["lines"]
+        assert [(line["id"], line["created_at"]) for line in after] == [
+            (line["id"], line["created_at"]) for line in before
+        ]
+        assert after[2]["description"] == "Edited"
+        assert api.get(url).json()["lines"] == after
+
+    def test_equal_times_have_a_stable_uuid_order(self, api: Client) -> None:
+        """A batch sharing one timestamp must still produce a total order (ADR 0057)."""
+        po = make_purchase_order()
+        lines = [make_po_line(po) for _ in range(8)]
+        timestamp = timezone.now()
+        PurchaseOrderLine.objects.filter(purchase_order=po).update(created_at=timestamp)
+        expected = sorted(lines, key=lambda line: line.id)
+        result = api.get(_detail_url(po)).json()["lines"]
+        assert [line["id"] for line in result] == [str(line.id) for line in expected]
+        victim = expected[3]
+        remaining_ids = [str(line.id) for line in expected if line.id != victim.id]
+        victim.delete()
+        assert [line["id"] for line in api.get(_detail_url(po)).json()["lines"]] == remaining_ids

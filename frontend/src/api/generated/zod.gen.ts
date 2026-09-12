@@ -3,6 +3,18 @@
 import * as z from 'zod';
 
 /**
+ * AIProviderTypes
+ *
+ * Supported AI provider types.
+ */
+export const zAiProviderTypes = z.enum([
+    'Claude',
+    'Gemini',
+    'Mistral',
+    'OpenAI'
+]);
+
+/**
  * AcknowledgeIn
  *
  * POST body for acknowledging a form: empty by design.
@@ -73,36 +85,12 @@ export const zAddressValidateResponse = z.object({
 });
 
 /**
- * AllocationDeleteRequest
- *
- * Wire contract for AllocationDeleteRequest.
- */
-export const zAllocationDeleteRequest = z.object({
-    allocation_id: z.uuid(),
-    allocation_type: z.enum(['job', 'stock'])
-});
-
-/**
- * AllocationDeleteResponse
- *
- * Wire contract for AllocationDeleteResponse.
- */
-export const zAllocationDeleteResponse = z.object({
-    deleted_quantity: z.number().nullable(),
-    description: z.string().nullable(),
-    job_name: z.string().nullable(),
-    message: z.string(),
-    success: z.boolean(),
-    updated_received_quantity: z.number().nullable()
-});
-
-/**
  * AllocationDetailsResponse
  *
  * Wire contract for AllocationDetailsResponse.
  */
 export const zAllocationDetailsResponse = z.object({
-    can_delete: z.boolean(),
+    can_reverse: z.boolean(),
     consumed_by_jobs: z.int().nullable(),
     description: z.string(),
     id: z.uuid(),
@@ -129,9 +117,33 @@ export const zAllocationItem = z.object({
     metal_type: z.string().nullable(),
     quantity: z.number(),
     retail_rate: z.number().default(0),
+    reversed: z.boolean(),
     specifics: z.string().nullable(),
     stock_location: z.string().nullable(),
     type: z.enum(['stock', 'job'])
+});
+
+/**
+ * AllocationReversalRequest
+ *
+ * Wire contract for AllocationReversalRequest.
+ */
+export const zAllocationReversalRequest = z.object({
+    allocation_id: z.uuid(),
+    allocation_type: z.enum(['job', 'stock'])
+});
+
+/**
+ * AllocationReversalResponse
+ *
+ * Wire contract for AllocationReversalResponse.
+ */
+export const zAllocationReversalResponse = z.object({
+    description: z.string(),
+    job_name: z.string(),
+    reversed_quantity: z.number(),
+    status: z.enum(['reversed', 'already_reversed']),
+    updated_received_quantity: z.number()
 });
 
 /**
@@ -772,6 +784,17 @@ export const zCostLineCreateRequest = z.object({
 });
 
 /**
+ * CostLineOwner
+ *
+ * The workflow responsible for a cost line's mutations.
+ */
+export const zCostLineOwner = z.enum([
+    'leave',
+    'stocktake',
+    'stock'
+]);
+
+/**
  * CostLineOut
  *
  * Wire contract for CostLineOut.
@@ -786,6 +809,7 @@ export const zCostLineOut = z.object({
     id: z.uuid(),
     kind: z.string(),
     labour_subtype: z.uuid().nullable(),
+    managed_by: zCostLineOwner.nullable(),
     meta: z.record(z.string(), z.unknown()),
     quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     staff: z.uuid().nullable(),
@@ -1473,6 +1497,7 @@ export const zGroupedJobDeltaRejectionResolveResponse = z.object({
  * Every non-secret column, plus presence flags for the secrets.
  */
 export const zIntegrationSettingsOut = z.object({
+    chatkit_domain_key: z.string().nullable(),
     created_at: z.iso.datetime(),
     has_google_maps_api_key: z.boolean(),
     has_phone_provider_password: z.boolean(),
@@ -1491,6 +1516,7 @@ export const zIntegrationSettingsOut = z.object({
  * Partial update: omitted fields keep their stored value, ``null`` clears.
  */
 export const zIntegrationSettingsPatchIn = z.object({
+    chatkit_domain_key: z.string().min(1).nullish(),
     google_maps_api_key: z.string().min(1).nullish(),
     phone_provider_account_code: z.string().min(1).nullish(),
     phone_provider_base_url: z.string().min(1).nullish(),
@@ -2525,7 +2551,7 @@ export const zLeaveCodeOut = z.enum([
  */
 export const zLeaveDayInput = z.object({
     date: z.iso.date(),
-    hours: z.number()
+    hours: z.number().gt(0)
 });
 
 /**
@@ -3005,36 +3031,17 @@ export const zPatchedPersonContactMethodWriteRequest = z.object({
 /**
  * PatchedStockItemRequest
  *
- * Partial stock-item update in which field presence is significant.
- *
- * The first block maps to NOT NULL columns, so null is a 422 — the handler
- * used to drop it silently, which reported a refused edit as a success. The
- * ``NullableText`` block is the ADR 0040 set where null is precisely how a
- * caller clears the value, and ``unit_revenue`` is nullable for the same
- * reason.
+ * Change only metadata fields explicitly supplied by the caller.
  */
 export const zPatchedStockItemRequest = z.object({
     alloy: z.string().min(1).nullish(),
     date: z.iso.datetime().optional(),
-    description: z.string().optional(),
-    is_active: z.boolean().optional(),
+    description: z.string().min(1).max(255).optional(),
     item_code: z.string().min(1).nullish(),
     location: z.string().min(1).nullish(),
     metal_type: z.string().min(1).nullish(),
-    quantity: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    source: z.string().optional(),
     specifics: z.string().min(1).nullish(),
-    unit_cost: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).optional(),
-    unit_revenue: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish()
+    unit_revenue: z.number().gte(0).lte(99999999.99).nullish()
 });
 
 /**
@@ -3966,6 +3973,53 @@ export const zProductMappingValidateResponse = z.object({
 });
 
 /**
+ * ProviderCreate
+ *
+ * Require a usable new entry; unset values belong to explicit edits.
+ */
+export const zProviderCreate = z.object({
+    api_key: z.string().min(1).max(255),
+    model_name: z.string().min(1).max(100),
+    name: z.string().min(1).max(100),
+    provider_type: zAiProviderTypes
+});
+
+/**
+ * ProviderOut
+ *
+ * Safe catalogue metadata; a stored secret is represented by presence only.
+ */
+export const zProviderOut = z.object({
+    default: z.boolean(),
+    has_api_key: z.boolean(),
+    id: z.int(),
+    model_name: z.string().nullable(),
+    name: z.string(),
+    provider_type: zAiProviderTypes
+});
+
+/**
+ * ProviderPatch
+ *
+ * Omitted fields retain their value; null clears model or credentials.
+ */
+export const zProviderPatch = z.object({
+    api_key: z.string().min(1).max(255).nullish(),
+    model_name: z.string().min(1).max(100).nullish(),
+    name: z.string().min(1).max(100).optional(),
+    provider_type: zAiProviderTypes.optional()
+});
+
+/**
+ * ProviderTestOut
+ *
+ * A successful live test names the actual gateway model.
+ */
+export const zProviderTestOut = z.object({
+    model: z.string()
+});
+
+/**
  * PurchaseOrderAllocationsResponse
  *
  * Wire contract for PurchaseOrderAllocationsResponse.
@@ -4001,11 +4055,11 @@ export const zPurchaseOrderEmailRequest = z.object({
  * Wire contract for PurchaseOrderEmailResponse.
  */
 export const zPurchaseOrderEmailResponse = z.object({
-    email_body: z.string().nullable(),
-    email_subject: z.string().nullable(),
-    mailto_url: z.string().nullable(),
+    draft_id: z.string(),
+    draft_url: z.string(),
+    email_body: z.string(),
+    email_subject: z.string(),
     message: z.string().nullable(),
-    pdf_url: z.string().nullable(),
     success: z.boolean()
 });
 
@@ -4104,7 +4158,7 @@ export const zPurchaseOrderCreateRequest = z.object({
     lines: z.array(zPurchaseOrderLineCreateRequest).optional().default([]),
     order_date: z.iso.date().nullish(),
     pickup_address_id: z.uuid().nullish(),
-    reference: z.string().nullish(),
+    reference: z.string().min(1).nullish(),
     supplier_id: z.uuid().nullish()
 });
 
@@ -4116,6 +4170,7 @@ export const zPurchaseOrderCreateRequest = z.object({
 export const zPurchaseOrderLineOut = z.object({
     alloy: z.string().nullable(),
     company_name: z.string().nullable(),
+    created_at: z.iso.datetime(),
     description: z.string(),
     dimensions: z.string().nullable(),
     id: z.uuid(),
@@ -4126,12 +4181,12 @@ export const zPurchaseOrderLineOut = z.object({
     location: z.string().nullable(),
     metal_type: z.string().nullable(),
     price_tbc: z.boolean(),
-    quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
-    received_quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    quantity: z.number(),
+    received_quantity: z.number(),
     specifics: z.string().nullable(),
     supplier_item_code: z.string().nullable(),
     times_used: z.int(),
-    unit_cost: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable()
+    unit_cost: z.number().nullable()
 });
 
 /**
@@ -4172,7 +4227,13 @@ export const zPurchaseOrderList = z.object({
     jobs: z.array(zPurchaseOrderJob),
     order_date: z.iso.date(),
     po_number: z.string(),
-    status: z.string(),
+    status: z.enum([
+        'draft',
+        'submitted',
+        'partially_received',
+        'fully_received',
+        'deleted'
+    ]),
     supplier: z.string(),
     supplier_id: z.uuid().nullable()
 });
@@ -4180,10 +4241,26 @@ export const zPurchaseOrderList = z.object({
 /**
  * PurchaseOrderListQuery
  *
- * Query parameters for purchase-order listing, including CSV statuses.
+ * Query params for purchase-order listing: CSV statuses, search, paging.
  */
 export const zPurchaseOrderListQuery = z.object({
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50),
+    q: z.string().optional().default(''),
     status: z.string().nullish()
+});
+
+/**
+ * PurchaseOrderListResponse
+ *
+ * One page of purchase orders in the shared pagination envelope.
+ */
+export const zPurchaseOrderListResponse = z.object({
+    count: z.int(),
+    page: z.int(),
+    page_size: z.int(),
+    results: z.array(zPurchaseOrderList),
+    total_pages: z.int()
 });
 
 /**
@@ -4195,7 +4272,10 @@ export const zPurchaseOrderListQuery = z.object({
  * ``expected_delivery`` are nullable because each can be CLEARED — the
  * columns are nullable and NULL is what unset means there. ``status`` cannot:
  * the column is NOT NULL, so a null is a 422 rather than something the
- * handler silently drops.
+ * handler silently drops. Its sentinel is ``"draft"`` (the model default)
+ * rather than ``""`` because the annotation is the five-value union and the
+ * placeholder must not contradict it; the handler reads presence from
+ * ``model_fields_set`` and never the value.
  *
  * The two list fields are presence-only. A null list means nothing an empty
  * list does not, and reading them from ``model_fields_set`` rather than a
@@ -4206,8 +4286,14 @@ export const zPurchaseOrderUpdateRequest = z.object({
     lines: z.array(zPurchaseOrderLineUpdateRequest).optional(),
     lines_to_delete: z.array(z.uuid()).optional(),
     pickup_address_id: z.uuid().nullish(),
-    reference: z.string().nullish(),
-    status: z.string().optional(),
+    reference: z.string().min(1).nullish(),
+    status: z.enum([
+        'draft',
+        'submitted',
+        'partially_received',
+        'fully_received',
+        'deleted'
+    ]).optional(),
     supplier_id: z.uuid().nullish()
 });
 
@@ -4361,6 +4447,32 @@ export const zQuoteSpreadsheetOut = z.object({
     sheet_id: z.string().nullable(),
     sheet_url: z.string().nullable(),
     tab: z.string().nullable()
+});
+
+/**
+ * QuotingChatModelOut
+ *
+ * Public model-picker metadata; credentials remain in the gateway.
+ */
+export const zQuotingChatModelOut = z.object({
+    default: z.boolean(),
+    description: z.string(),
+    id: z.string(),
+    label: z.string()
+});
+
+/**
+ * QuotingChatConfigOut
+ *
+ * Public embed configuration and Django's masked CSRF token.
+ */
+export const zQuotingChatConfigOut = z.object({
+    can_configure: z.boolean(),
+    configuration_error: z.string().nullable(),
+    csrf_token: z.string(),
+    domain_key: z.string().nullable(),
+    model: z.string().nullable(),
+    models: z.array(zQuotingChatModelOut)
 });
 
 /**
@@ -4767,6 +4879,7 @@ export const zStaffListItemOut = z.object({
     hours_wed: z.number(),
     icon_url: z.string().nullable(),
     id: z.uuid(),
+    is_currently_active: z.boolean(),
     is_office_staff: z.boolean(),
     is_staff_manager: z.boolean(),
     is_superuser: z.boolean(),
@@ -4990,9 +5103,12 @@ export const zStockConsumeResponse = z.object({
  */
 export const zStockItem = z.object({
     alloy: z.string().nullable(),
+    can_count: z.boolean(),
+    can_retire: z.boolean(),
     date: z.iso.datetime(),
     description: z.string(),
     id: z.uuid(),
+    inventory_version: z.int(),
     is_active: z.boolean(),
     item_code: z.string().nullable(),
     job_id: z.uuid().nullable(),
@@ -5009,34 +5125,87 @@ export const zStockItem = z.object({
 /**
  * StockItemRequest
  *
- * Stock-item create and full-update payload.
- *
- * The nullable text fields are ``NullableText`` (ADR 0040): ``""`` is a
- * validation 422 before the ``*_not_blank`` check constraints ever see it,
- * and ``null`` is how a client leaves one unset.
+ * Create an empty manual identity at an explicit cost, including a deliberate zero.
  */
 export const zStockItemRequest = z.object({
     alloy: z.string().min(1).nullish(),
-    date: z.iso.datetime().nullish(),
-    description: z.string(),
-    is_active: z.boolean().optional().default(true),
+    date: z.iso.datetime().optional(),
+    description: z.string().min(1).max(255),
     item_code: z.string().min(1).nullish(),
     location: z.string().min(1).nullish(),
     metal_type: z.string().min(1).nullish(),
-    quantity: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]),
-    source: z.string(),
+    quantity: z.literal(0).optional().default(0),
+    source: z.literal('manual').optional().default('manual'),
     specifics: z.string().min(1).nullish(),
-    unit_cost: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]),
-    unit_revenue: z.union([
-        z.number(),
-        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish()
+    unit_cost: z.number().gte(0).lte(99999999.99),
+    unit_revenue: z.number().gte(0).lte(99999999.99).nullish()
+});
+
+/**
+ * StockMetadataRequest
+ *
+ * Editable identity metadata; inventory changes have separate audited workflows.
+ */
+export const zStockMetadataRequest = z.object({
+    alloy: z.string().min(1).nullish(),
+    date: z.iso.datetime().optional(),
+    description: z.string().min(1).max(255),
+    item_code: z.string().min(1).nullish(),
+    location: z.string().min(1).nullish(),
+    metal_type: z.string().min(1).nullish(),
+    specifics: z.string().min(1).nullish(),
+    unit_revenue: z.number().gte(0).lte(99999999.99).nullish()
+});
+
+/**
+ * StockMovementKind
+ *
+ * Live postings and the three historical cutover observations.
+ */
+export const zStockMovementKind = z.enum([
+    'opening',
+    'job_opening',
+    'receipt',
+    'receipt_opening',
+    'receipt_reversal',
+    'issue',
+    'return',
+    'stocktake'
+]);
+
+/**
+ * StockMovementOut
+ *
+ * A movement and its human-readable counterpart.
+ */
+export const zStockMovementOut = z.object({
+    actor: z.string().nullable(),
+    can_return: z.boolean(),
+    counterpart_job_id: z.uuid().nullable(),
+    counterpart_name: z.string(),
+    description: z.string(),
+    id: z.uuid(),
+    kind: zStockMovementKind,
+    quantity_after: z.number(),
+    quantity_before: z.number(),
+    quantity_change: z.number(),
+    reason: z.string(),
+    recorded_at: z.iso.datetime(),
+    stock_id: z.uuid(),
+    unit_cost: z.number()
+});
+
+/**
+ * StockMovementPage
+ *
+ * Bound movement responses using the shared pagination envelope.
+ */
+export const zStockMovementPage = z.object({
+    count: z.int(),
+    page: z.int(),
+    page_size: z.int(),
+    results: z.array(zStockMovementOut),
+    total_pages: z.int()
 });
 
 /**
@@ -5045,11 +5214,16 @@ export const zStockItemRequest = z.object({
  * Query params for purchasing_stock_search_retrieve.
  */
 export const zStockSearchQuery = z.object({
+    countable: z.boolean().optional().default(false),
+    include_inactive: z.boolean().optional().default(false),
+    job_id: z.uuid().nullish(),
+    location: z.string().optional().default(''),
     page: z.int().optional().default(1),
     page_size: z.int().optional().default(50),
     q: z.string().optional().default(''),
     sort_by: z.string().optional().default('description'),
-    sort_dir: z.string().optional().default('asc')
+    sort_dir: z.string().optional().default('asc'),
+    stock_ids: z.array(z.uuid()).max(100).optional()
 });
 
 /**
@@ -5062,6 +5236,127 @@ export const zStockSearchResponse = z.object({
     page: z.int(),
     page_size: z.int(),
     results: z.array(zStockItem),
+    total_pages: z.int()
+});
+
+/**
+ * StocktakeCreate
+ *
+ * StocktakeCreate wire contract.
+ */
+export const zStocktakeCreate = z.object({
+    stock_id: z.uuid().nullish()
+});
+
+/**
+ * StocktakeLineOut
+ *
+ * StocktakeLineOut wire contract.
+ */
+export const zStocktakeLineOut = z.object({
+    counted_at: z.iso.datetime().nullable(),
+    counted_quantity: z.number().nullable(),
+    current_quantity: z.number(),
+    current_version: z.int(),
+    description: z.string(),
+    difference: z.number().nullable(),
+    expected_quantity: z.number(),
+    expected_version: z.int(),
+    id: z.uuid(),
+    location: z.string().nullable(),
+    reason: z.string().nullable(),
+    stale: z.boolean(),
+    stock_id: z.uuid().nullable(),
+    unit_cost: z.number(),
+    value: z.number().nullable()
+});
+
+/**
+ * StocktakeDetail
+ *
+ * StocktakeDetail wire contract.
+ */
+export const zStocktakeDetail = z.object({
+    adjustment_job_id: z.uuid(),
+    author: z.string(),
+    corrects_id: z.uuid().nullable(),
+    created_at: z.iso.datetime(),
+    discrepancy_value: z.number(),
+    id: z.uuid(),
+    lines: z.array(zStocktakeLineOut),
+    posted_at: z.iso.datetime().nullable()
+});
+
+/**
+ * StocktakeLineWrite
+ *
+ * StocktakeLineWrite wire contract.
+ */
+export const zStocktakeLineWrite = z.object({
+    counted_quantity: z.number().gte(0).lte(99999999.999).nullable(),
+    description: z.string().min(1).max(255),
+    expected_quantity: z.number().gte(-99999999.999).lte(99999999.999),
+    expected_version: z.int().gte(0),
+    id: z.uuid(),
+    location: z.string().min(1).nullable(),
+    reason: z.string().min(1).nullable(),
+    stock_id: z.uuid().nullable(),
+    unit_cost: z.number().gte(0).lte(99999999.99)
+});
+
+/**
+ * StocktakeSave
+ *
+ * StocktakeSave wire contract.
+ */
+export const zStocktakeSave = z.object({
+    lines: z.array(zStocktakeLineWrite)
+});
+
+/**
+ * StocktakeSearch
+ *
+ * StocktakeSearch wire contract.
+ */
+export const zStocktakeSearch = z.object({
+    page: z.int().gte(1).optional().default(1),
+    page_size: z.int().gte(1).lte(100).optional().default(50)
+});
+
+/**
+ * StocktakeSetup
+ *
+ * StocktakeSetup wire contract.
+ */
+export const zStocktakeSetup = z.object({
+    adjustment_job_id: z.uuid().nullable()
+});
+
+/**
+ * StocktakeSummary
+ *
+ * StocktakeSummary wire contract.
+ */
+export const zStocktakeSummary = z.object({
+    adjustment_job_id: z.uuid(),
+    author: z.string(),
+    corrects_id: z.uuid().nullable(),
+    created_at: z.iso.datetime(),
+    discrepancy_value: z.number(),
+    id: z.uuid(),
+    posted_at: z.iso.datetime().nullable()
+});
+
+/**
+ * StocktakeList
+ *
+ * StocktakeList wire contract.
+ */
+export const zStocktakeList = z.object({
+    count: z.int(),
+    page: z.int(),
+    page_size: z.int(),
+    results: z.array(zStocktakeSummary),
     total_pages: z.int()
 });
 
@@ -5138,11 +5433,20 @@ export const zPurchaseOrderDetail = z.object({
     pickup_address_id: z.uuid().nullable(),
     po_number: z.string(),
     reference: z.string().nullable(),
-    status: z.string(),
+    status: z.enum([
+        'draft',
+        'submitted',
+        'partially_received',
+        'fully_received',
+        'deleted'
+    ]),
     supplier: z.string(),
+    supplier_has_email: z.boolean(),
     supplier_has_xero_id: z.boolean(),
     supplier_id: z.uuid().nullable(),
-    xero_id: z.uuid().nullable()
+    xero_id: z.uuid().nullable(),
+    xero_last_synced: z.iso.datetime().nullable(),
+    xero_status: z.string().nullable()
 });
 
 /**
@@ -5350,6 +5654,7 @@ export const zTimesheetCostLineOut = z.object({
     job_number: z.int(),
     kind: z.string(),
     labour_subtype: z.uuid().nullable(),
+    managed_by: zCostLineOwner.nullable(),
     meta: z.record(z.string(), z.unknown()),
     quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     staff: z.uuid().nullable(),
@@ -5780,17 +6085,13 @@ export const zWorkshopTimesheetListResponse = z.object({
 export const zXeroAppActivateOut = z.object({
     client_id: z.string(),
     created_at: z.iso.datetime(),
-    day_remaining: z.int().nullable(),
     has_tokens: z.boolean(),
     id: z.uuid(),
     is_active: z.boolean(),
     label: z.string(),
-    last_429_at: z.iso.datetime().nullable(),
     message: z.string(),
-    minute_remaining: z.int().nullable(),
     redirect_uri: z.string(),
     restart_initiated: z.boolean(),
-    snapshot_at: z.iso.datetime().nullable(),
     updated_at: z.iso.datetime()
 });
 
@@ -5847,15 +6148,11 @@ export const zXeroAppErrorOut = z.object({
 export const zXeroAppOut = z.object({
     client_id: z.string(),
     created_at: z.iso.datetime(),
-    day_remaining: z.int().nullable(),
     has_tokens: z.boolean(),
     id: z.uuid(),
     is_active: z.boolean(),
     label: z.string(),
-    last_429_at: z.iso.datetime().nullable(),
-    minute_remaining: z.int().nullable(),
     redirect_uri: z.string(),
-    snapshot_at: z.iso.datetime().nullable(),
     updated_at: z.iso.datetime()
 });
 
@@ -6105,6 +6402,7 @@ export const zJobDetailResponse = z.object({
  * Last-sync times per entity plus whether a run is in flight.
  */
 export const zXeroSyncInfoOut = z.object({
+    last_detail_refresh: z.iso.datetime().nullable(),
     last_syncs: z.record(z.string(), z.iso.datetime().nullable()),
     sync_in_progress: z.boolean(),
     sync_range: z.string()
@@ -6369,6 +6667,58 @@ export const zAccountsTokenRefreshCreateResponse = zTokenRefreshResponse;
  * OK
  */
 export const zNotebookLmLinksMenuListResponse = z.array(zNotebookLmLinkOut);
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zAiProvidersListResponse = z.array(zProviderOut);
+
+export const zAiProvidersCreateBody = zProviderCreate;
+
+/**
+ * Created
+ */
+export const zAiProvidersCreateResponse = zProviderOut;
+
+export const zAiProvidersDestroyPath = z.object({
+    provider_id: z.int()
+});
+
+/**
+ * No Content
+ */
+export const zAiProvidersDestroyResponse = z.void();
+
+export const zAiProvidersPartialUpdateBody = zProviderPatch;
+
+export const zAiProvidersPartialUpdatePath = z.object({
+    provider_id: z.int()
+});
+
+/**
+ * OK
+ */
+export const zAiProvidersPartialUpdateResponse = zProviderOut;
+
+export const zAiProvidersSetDefaultPath = z.object({
+    provider_id: z.int()
+});
+
+/**
+ * OK
+ */
+export const zAiProvidersSetDefaultResponse = zProviderOut;
+
+export const zAiProvidersTestPath = z.object({
+    provider_id: z.int()
+});
+
+/**
+ * OK
+ */
+export const zAiProvidersTestResponse = zProviderTestOut;
 
 /**
  * OK
@@ -7331,6 +7681,15 @@ export const zJobJobsLabourRatesPartialUpdatePath = z.object({
  */
 export const zJobJobsLabourRatesPartialUpdateResponse = z.array(zJobLabourRateOut);
 
+export const zJobQuoteChatConfigRetrievePath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zJobQuoteChatConfigRetrieveResponse = zQuotingChatConfigOut;
+
 export const zJobJobsQuoteRetrievePath = z.object({
     job_id: z.uuid()
 });
@@ -7786,6 +8145,15 @@ export const zPurchasingAllJobsRetrieveQuery = z.object({
  */
 export const zPurchasingAllJobsRetrieveResponse = zAllJobsResponse;
 
+export const zCostLineStockMovementRetrievePath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zCostLineStockMovementRetrieveResponse = zStockMovementOut;
+
 export const zPurchasingDeliveryReceiptsCreateBody = zDeliveryReceiptRequest;
 
 /**
@@ -7817,15 +8185,16 @@ export const zValidateProductMappingPath = z.object({
 export const zValidateProductMappingResponse = zProductMappingValidateResponse;
 
 export const zListPurchaseOrdersQuery = z.object({
-    status: z.string().nullish()
+    status: z.string().nullish(),
+    q: z.string().optional().default(''),
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50)
 });
 
 /**
- * Response
- *
  * OK
  */
-export const zListPurchaseOrdersResponse = z.array(zPurchaseOrderList);
+export const zListPurchaseOrdersResponse = zPurchaseOrderListResponse;
 
 export const zCreatePurchaseOrderBody = zPurchaseOrderCreateRequest;
 
@@ -7910,9 +8279,9 @@ export const zCreatePurchaseOrderEventPath = z.object({
  */
 export const zCreatePurchaseOrderEventResponse = zPurchaseOrderEventCreateResponse;
 
-export const zDeleteAllocationBody = zAllocationDeleteRequest;
+export const zReverseAllocationBody = zAllocationReversalRequest;
 
-export const zDeleteAllocationPath = z.object({
+export const zReverseAllocationPath = z.object({
     po_id: z.uuid(),
     line_id: z.uuid()
 });
@@ -7920,18 +8289,38 @@ export const zDeleteAllocationPath = z.object({
 /**
  * OK
  */
-export const zDeleteAllocationResponse = zAllocationDeleteResponse;
+export const zReverseAllocationResponse = zAllocationReversalResponse;
 
 export const zGetPurchaseOrderPdfPath = z.object({
     po_id: z.uuid()
 });
 
+export const zStockMovementReturnPath = z.object({
+    id: z.uuid()
+});
+
 /**
- * Response
- *
  * OK
  */
-export const zPurchasingStockListResponse = z.array(zStockItem);
+export const zStockMovementReturnResponse = zStockMovementOut;
+
+export const zPurchasingStockListQuery = z.object({
+    q: z.string().optional().default(''),
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50),
+    sort_by: z.string().optional().default('description'),
+    sort_dir: z.string().optional().default('asc'),
+    stock_ids: z.array(z.uuid()).max(100).optional(),
+    job_id: z.uuid().nullish(),
+    location: z.string().optional().default(''),
+    countable: z.boolean().optional().default(false),
+    include_inactive: z.boolean().optional().default(false)
+});
+
+/**
+ * OK
+ */
+export const zPurchasingStockListResponse = zStockSearchResponse;
 
 export const zPurchasingStockCreateBody = zStockItemRequest;
 
@@ -7945,7 +8334,12 @@ export const zPurchasingStockSearchRetrieveQuery = z.object({
     page: z.int().optional().default(1),
     page_size: z.int().optional().default(50),
     sort_by: z.string().optional().default('description'),
-    sort_dir: z.string().optional().default('asc')
+    sort_dir: z.string().optional().default('asc'),
+    stock_ids: z.array(z.uuid()).max(100).optional(),
+    job_id: z.uuid().nullish(),
+    location: z.string().optional().default(''),
+    countable: z.boolean().optional().default(false),
+    include_inactive: z.boolean().optional().default(false)
 });
 
 /**
@@ -7982,7 +8376,7 @@ export const zPurchasingStockPartialUpdatePath = z.object({
  */
 export const zPurchasingStockPartialUpdateResponse = zStockItem;
 
-export const zPurchasingStockUpdateBody = zStockItemRequest;
+export const zPurchasingStockUpdateBody = zStockMetadataRequest;
 
 export const zPurchasingStockUpdatePath = z.object({
     id: z.uuid()
@@ -8003,6 +8397,99 @@ export const zConsumeStockPath = z.object({
  * OK
  */
 export const zConsumeStockResponse = zStockConsumeResponse;
+
+export const zStockMovementsListPath = z.object({
+    id: z.uuid()
+});
+
+export const zStockMovementsListQuery = z.object({
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50)
+});
+
+/**
+ * OK
+ */
+export const zStockMovementsListResponse = zStockMovementPage;
+
+export const zStocktakeListQuery = z.object({
+    page: z.int().gte(1).optional().default(1),
+    page_size: z.int().gte(1).lte(100).optional().default(50)
+});
+
+/**
+ * OK
+ */
+export const zStocktakeListResponse = zStocktakeList;
+
+export const zStocktakeCreateBody = zStocktakeCreate;
+
+/**
+ * OK
+ */
+export const zStocktakeCreateResponse = zStocktakeDetail;
+
+/**
+ * OK
+ */
+export const zStocktakeSetupRetrieveResponse = zStocktakeSetup;
+
+/**
+ * OK
+ */
+export const zStocktakeSetupCreateResponse = zStocktakeSetup;
+
+export const zStocktakeRetrievePath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zStocktakeRetrieveResponse = zStocktakeDetail;
+
+export const zStocktakeUpdateBody = zStocktakeSave;
+
+export const zStocktakeUpdatePath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zStocktakeUpdateResponse = zStocktakeDetail;
+
+export const zStocktakeCorrectPath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zStocktakeCorrectResponse = zStocktakeDetail;
+
+export const zStocktakeMovementsListPath = z.object({
+    id: z.uuid()
+});
+
+export const zStocktakeMovementsListQuery = z.object({
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50)
+});
+
+/**
+ * OK
+ */
+export const zStocktakeMovementsListResponse = zStockMovementPage;
+
+export const zStocktakePostPath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zStocktakePostResponse = zStocktakeDetail;
 
 /**
  * OK
@@ -8406,6 +8893,10 @@ export const zXeroPingRetrieveResponse = zXeroPingOut;
  * OK
  */
 export const zXeroSyncInfoRetrieveResponse = zXeroSyncInfoOut;
+
+export const zXeroSyncCreateQuery = z.object({
+    detail_refresh: z.boolean().optional().default(false)
+});
 
 /**
  * Accepted

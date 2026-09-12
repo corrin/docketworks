@@ -59,11 +59,11 @@ interface StatusMessages {
 
 interface ResourceRule {
   kind: ResourceKind
+  retryAction: boolean
   /** Endpoints whose responses carry a capturable resource version. */
   isVersionedEndpoint: (url: string) => boolean
   /** Endpoints whose mutations require If-Match. */
   isMutationEndpoint: (url: string) => boolean
-  idFromUrl: (url: string) => string | null
   /** Resource id for a mutation — usually from the URL, but delivery receipts carry it in the body. */
   idForMutation: (url: string, body: unknown) => string | null
   conflict: StatusMessages // 412
@@ -88,6 +88,13 @@ const JOB_MUTATION_PATTERNS = [
 const PO_MUTATION_PATTERNS = [
   /\/api\/purchasing\/purchase-orders\/[^/]+\/?$/, // PATCH on PO detail
   /\/api\/purchasing\/delivery-receipts\/?$/, // POST delivery receipts
+  // POST allocation delete. It decrements received_quantity and recomputes the
+  // PO status, so it is a PO mutation and carries the precondition. The first
+  // pattern cannot reach it: [^/] stops at the slash before /lines/.
+  // Opus: /events/ and /email/ are deliberately absent — neither touches
+  // PurchaseOrder.updated_at, so a precondition there would 412 a comment
+  // whenever anyone else edited the PO.
+  /\/api\/purchasing\/purchase-orders\/[^/]+\/lines\/[^/]+\/allocations\/delete\/?$/,
 ]
 
 function poIdForMutation(url: string, body: unknown): string | null {
@@ -108,13 +115,29 @@ function poIdForMutation(url: string, body: unknown): string | null {
 
 const RULES: readonly ResourceRule[] = [
   {
+    kind: 'stocktake',
+    retryAction: false,
+    isVersionedEndpoint: (url) => /\/api\/purchasing\/stocktakes\/[0-9a-f-]{36}\//i.test(url),
+    isMutationEndpoint: (url) =>
+      /\/api\/purchasing\/stocktakes\/[0-9a-f-]{36}\/(?:post\/|correct\/)?$/i.test(url),
+    idForMutation: (url) => url.match(/\/stocktakes\/([0-9a-f-]{36})/i)?.[1] ?? null,
+    conflict: {
+      toast: 'This stocktake was saved elsewhere. Reload the saved draft to continue.',
+      error: 'This stocktake was saved elsewhere. Your entries have been retained.',
+    },
+    missing: {
+      toast: 'Reload the stocktake before saving.',
+      error: 'Stocktake version information is missing. Your entries have been retained.',
+    },
+  },
+  {
     kind: 'job',
+    retryAction: true,
     isVersionedEndpoint: (url) =>
       /\/api\/job\/jobs\//.test(url) &&
       !url.includes('/jobs/status-choices') &&
       !url.includes('/jobs/weekly-metrics'),
     isMutationEndpoint: (url) => JOB_MUTATION_PATTERNS.some((pattern) => pattern.test(url)),
-    idFromUrl: jobIdFromUrl,
     idForMutation: (url) => jobIdFromUrl(url),
     conflict: {
       toast: 'This job was updated by another user. Data reloaded.',
@@ -127,9 +150,9 @@ const RULES: readonly ResourceRule[] = [
   },
   {
     kind: 'po',
+    retryAction: true,
     isVersionedEndpoint: (url) => /\/api\/purchasing\/purchase-orders\//.test(url),
     isMutationEndpoint: (url) => PO_MUTATION_PATTERNS.some((pattern) => pattern.test(url)),
-    idFromUrl: poIdFromUrl,
     idForMutation: poIdForMutation,
     conflict: {
       toast: 'This purchase order was updated elsewhere. Data reloaded.',
@@ -202,23 +225,20 @@ export function attachIfMatch<T extends ConcurrencyRequest>(config: T): T {
 
 export interface ConcurrencyResponse {
   headers: Record<string, unknown>
-  config: { url?: string }
+  // `data` is the REQUEST body axios echoes back on the response config; it is
+  // how a body-addressed mutation's resource id is recovered (see below).
+  config: { url?: string; data?: unknown }
 }
 
 /** Response interceptor: capture strong resource versions from Job/PO endpoints. */
 export function captureResourceVersion<T extends ConcurrencyResponse>(response: T): T {
-  const url = response.config.url ?? ''
   const version = strongResourceVersion(response.headers)
-  if (!version) {
-    return response
-  }
-  for (const rule of RULES) {
-    if (!rule.isVersionedEndpoint(url)) continue
-    const id = rule.idFromUrl(url)
-    if (id) {
-      setEtag(etagKey(rule.kind, id), version)
-    }
-  }
+  if (version === null) return response
+  // GPT: corrections return a different resource from the request URL. The
+  // server's resource token identifies the only cache entry it can update.
+  const key = version.match(/^"((?:job|po|stocktake):[0-9a-f-]{36}):[^"\s]+"$/i)?.[1]
+  if (key === undefined) return response
+  setEtag(key, version)
   return response
 }
 
@@ -259,12 +279,14 @@ export async function handleConcurrencyFailure(error: unknown): Promise<never> {
 
   toast.error(messages.toast, {
     duration: Infinity, // Don't auto-dismiss
-    action: {
-      label: 'Retry',
-      onClick: () => {
-        emitConcurrencyRetry({ kind: rule.kind, id })
-      },
-    },
+    action: rule.retryAction
+      ? {
+          label: 'Retry',
+          onClick: () => {
+            emitConcurrencyRetry({ kind: rule.kind, id })
+          },
+        }
+      : undefined,
   })
 
   throw new ConcurrencyError(messages.error, rule.kind, id)

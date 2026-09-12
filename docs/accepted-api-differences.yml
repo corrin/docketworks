@@ -286,18 +286,22 @@
     field. Phase 3c-2.
 
 - operation: createPurchaseOrder / purchasing_purchase_orders_partial_update
-  change: "A blank reference is stored as NULL (v1 wrote '' and 500ed on its own constraint)"
+  change: "A blank reference is a 422; null clears it (v1 wrote '' and 500ed on its own constraint)"
   reason: >
     v1's create passed data.get("reference", "") straight to the model, and
     the reference_not_blank check constraint rejected it, so creating a PO
-    with no reference was a 500. v2 treats blank as unset (NULL), matching how
-    every other nullable text field on the model behaves.
+    with no reference was a 500. v2 declares reference as NullableText, so ""
+    and "   " are a 422 naming the field and null is how a client clears it —
+    the same contract already carried by every nullable PO-line, stock and
+    mapping text field (ADR 0040, KAN-330). The service coerced blank to None
+    until then, which is the pattern that ADR forbids: the rule belongs at the
+    boundary, where the OpenAPI schema and the generated client inherit it.
     DO NOT RE-FLAG: that constraint is invisible in v1's models.py — it was
     added by a raw-SQL migration and exists only in v1's live schema (the same
     pattern Phase 2's constraint sweep found). Confirmed against v1 production:
     the constraint is present on purchasing_purchaseorder and the data agrees
     (0 blank, 167 NULL of 913 rows). Phase 3c-2; re-confirmed adversarial
-    review 2026-08-03.
+    review 2026-08-03; boundary contract 2026-09-05.
 
 - operation: purchasing_purchase_orders_partial_update
   change: "A pickup address must belong to the PO's supplier, and changing the supplier drops it (v1 accepted any active address and kept it across a supplier change)"
@@ -328,12 +332,16 @@
     request. Phase 3c-2.
 
 - operation: purchasing_purchase_orders_partial_update
-  change: "An unknown PO status is rejected with 400 (v1 wrote any string to the column)"
+  change: "An unknown PO status is rejected with 422 (v1 wrote any string to the column)"
   reason: >
     status choices are not DB-enforced, so v1's CharField serializer let a
-    client typo through into the column. v2 validates against the model's own
-    choice set, the same posture taken for job_status in Phase 3b-1.
-    Phase 3c-2.
+    client typo through into the column. v2 declares the five states as a
+    union on the request schema, so a sixth is a 422 naming the field and the
+    generated client carries the union too — a client typed `str` cannot map
+    the value exhaustively, which is what kept a fallback branch on the list
+    screen for a status that cannot exist. The service's runtime re-check was
+    removed with it: once the contract carries the union, the check could not
+    fire (ADR 0028). Phase 3c-2; boundary contract 2026-09-05.
 
 - operation: deleteAllocation
   change: "Deleting an allocation always bumps the PO's updated_at (and therefore its ETag)"
@@ -425,19 +433,15 @@
     returns the list, which is what the frontend consumed. Phase 3c-2.
 
 - operation: purchasing_purchase_orders_partial_update
-  change: "unit_cost and price_tbc are independent request fields; the TBC invariant reads the line's flag"
+  change: "Selecting Price TBC explicitly clears the PO-line unit cost"
   reason: >
-    Two changes, both from the adversarial review 2026-08-03. (1) Each field is
-    written only when its own key is present, matching v1's per-field
-    FIELD_UPDATERS; an implementation that coupled them nulled unit_cost on a
-    price_tbc-only PATCH (the "price TBC" checkbox), which then hard-failed
-    every receipt and allocation path for that line. (2) When a unit_cost IS
-    supplied, whether it is stored is decided by the line's effective price_tbc
-    flag (after any flag in the same payload), not by the payload alone. v1
-    diverged from itself here: its create path enforced "price_tbc wins" while
-    its update path did not, so a PATCH could store a cost on a line whose own
-    help_text says it has none. v2 keeps the invariant on both paths (ADR 0039,
-    one canonical behaviour).
+    Owner-approved 2026-09-08: an operator may select a catalogue product and
+    then override its price with Price TBC. Ticking the flag clears unit_cost
+    even when the request omits that field; an effective TBC flag also wins
+    over a supplied price. Unticking alone leaves the cost blank for explicit
+    entry. Product reselection preserves the TBC override. v1 instead disabled
+    the checkbox when a positive price was present; its update path changed
+    fields independently. Posted receipt costs remain immutable.
 
 - operation: purchasing_delivery_receipts_create
   change: "A metadata key present but blank clears the field instead of inheriting the PO line's value"
@@ -1306,3 +1310,91 @@
     could fork from the one the month counters use. monthly_totals also
     gains labour_profit, so no consumer subtracts time_revenue - staff_cost
     for itself, and net_profit's divisor moved to elapsed WEEKDAYS.
+
+- operation: job_quote_chat_config_retrieve
+  change: "Office-only embed configuration supplies the public domain key and CSRF token"
+  reason: >
+    GPT: The generated configuration endpoint returns the configured ChatKit domain
+    key (null when unset) and Django's masked CSRF token. It requires office access
+    and an existing job; vendor credentials remain server-side.
+
+- operation: (job quoting chat)
+  change: "ChatKit's job-scoped conversation protocol replaces the v1 chat CRUD/mode API"
+  reason: >
+    GPT: The approved library-led quoting assistant uses the ChatKit composer,
+    streaming and thread history. Office authentication, CSRF and job isolation
+    remain application-owned. Existing messages migrate into a previous-conversation
+    thread. New conversations preserve earlier history; deletion is per thread,
+    with no all-job transcript wipe. Tools read job context and supplier catalogue
+    prices but do not write estimates. Attachments and v1's CALC/PRICE/TABLE mode
+    selector are not exposed in this slice.
+    Replaces job_jobs_quote_chat_create, job_jobs_quote_chat_interaction_create,
+    job_jobs_quote_chat_partial_update, job_jobs_quote_chat_retrieve,
+    quote_chat_delete_one and quote_chat_delete_all.
+
+- operation: ai_providers_set_default
+  change: "One application default across all vendors; keys are write-only"
+  reason: >
+    Owner-approved selection: callers filter configured providers or choose a row;
+    callers without a preference use the application default. v1 cleared defaults
+    only within one vendor, leaving unfiltered selection ambiguous. The migration
+    clears ambiguous flags and preserves credentials. The admin API reports key
+    presence, never the stored key. Deleting the default does not choose a replacement.
+
+- operation: purchasing_stock_and_stocktake
+  change: "Quantity corrections use posted stocktakes; generic quantity writes and nonempty retirement are refused"
+  reason: >
+    Owner ruling 2026-09-07: stock moves and its history is retained. Counts use
+    one configured non-billable adjustment job, explicit new-item cost, stale
+    balance/version checks and linked corrections. Opening entries preserve
+    existing balances without inventing past job costs.
+
+- operation: purchasing_receipts_and_allocations
+  change: "Repeated receipts append stock identities; reverseAllocation records reversing movements"
+  reason: >
+    Earlier stock and job costs survive correction. Movement-owned cost lines
+    cannot be edited or deleted through generic costing commands; issue returns
+    create linked opposite costs. Catalogue imports preserve local stock balances.
+    Receipt reversals require If-Match for a new write and return a typed reversed
+    or already_reversed outcome. A lost-response retry preserves the PO version
+    and all quantity/cost evidence. Allocation reads retain reversed records and
+    report that state explicitly.
+
+- operation: purchasing_stock_list
+  change: "Returns the paginated search envelope (was a bare array)"
+  reason: >
+    The list and the search served the same rows through two shapes, so a screen
+    that grew past one page had to change which one it called. They are now one
+    handler behind one envelope carrying the server's total, which is what a
+    bounded scrolling pane needs to state how many rows it has not fetched
+    (ADR 0054). A query under three characters lists everything, so the bare
+    listing has no caller left.
+
+- operation: (xero purchase-order status)
+  change: "Xero's BILLED maps to submitted, not fully_received"
+  reason: >
+    Being billed is an accounts event. Whether material arrived, and which job it
+    was costed to, is a fact only a delivery receipt establishes here. The old
+    mapping left purchase orders reading fully_received with no stock row and no
+    cost line, so cost never reached a job (KAN-144). Xero's own word is kept
+    verbatim on xero_status, so nothing is lost.
+
+- operation: (xero purchase-order agreement)
+  change: "xero_agreed_at records when the two copies last matched, separately from xero_last_synced"
+  reason: >
+    xero_last_synced is stamped by every inbound sync, so it reported "up to
+    date" the moment we looked and hid an unsent edit behind the next pull.
+    updated_at cannot answer it either: that is the row's ETag and must advance
+    whenever the row changes, including when the change came from Xero. A push
+    stamps agreement only if the row is unchanged when the response lands.
+
+- operation: (instance provisioning)
+  change: "A company-defaults file with a null xero_tenant_id is accepted (was refused)"
+  reason: >
+    The id is the organisation's own and nobody holds it until the organisation
+    is connected, so the rule forced an operator to invent a UUID to create an
+    instance at all. The requirement arrived with the v1-to-v2 cutover helpers,
+    which extracted the id from the running v1 instance; those helpers are gone.
+    The all-zero placeholder is refused by name, because Xero never issues it and
+    it is therefore sent in the header instead of raising the configuration error
+    an unset value raises. Enabling sync still requires a bound organisation.

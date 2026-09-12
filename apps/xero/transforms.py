@@ -19,15 +19,21 @@ from decimal import Decimal
 from typing import Any, Protocol
 from uuid import UUID
 
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 from xero_python.accounting import Account, AccountingApi
 
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.company.models import Company
-from apps.core.errors import persist_app_error
+from apps.core.errors import InvalidInputError, persist_app_error
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
-from apps.purchasing.tasks import enqueue_stock_metadata_parse, stock_metadata_parse_eligible
+from apps.purchasing.services.allocation_service import recompute_purchase_order_status
+from apps.purchasing.services.purchase_order_service import validate_ordered_quantity
+from apps.purchasing.tasks import (
+    enqueue_stock_metadata_parse,
+    queue_purchase_order_push,
+    stock_metadata_parse_eligible,
+)
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.constants import SLEEP_TIME
 from apps.xero.models import XeroAccount, XeroError, XeroPayRun, XeroPaySlip
@@ -450,6 +456,13 @@ def transform_credit_note(xero_note: Any, xero_id: UUID | str) -> tuple[CreditNo
     return note, _build_sync_status(created, changed_fields)
 
 
+def _preserve_stock_inventory(stock: Stock, defaults: dict[str, object]) -> None:
+    defaults["quantity"] = stock.quantity
+    if stock.job_id is not None:
+        for field in ("unit_cost", "source"):
+            del defaults[field]
+
+
 def transform_stock(  # noqa: C901, PLR0912 -- ported v1 shape; each branch is one Xero item-payload quirk
     xero_item: Any, xero_id: UUID | str
 ) -> tuple[Stock, str]:
@@ -521,14 +534,16 @@ def transform_stock(  # noqa: C901, PLR0912 -- ported v1 shape; each branch is o
             stock.xero_id = str(xero_id)
             xero_id_updated = True
     else:
+        defaults["quantity"] = Decimal("0")
         stock = Stock.objects.create(xero_id=str(xero_id), **defaults)
         created = True
 
+    _preserve_stock_inventory(stock, defaults)
     changed_fields = _track_and_apply_changes(stock, defaults)
     if xero_id_updated:
         changed_fields.append("xero_id")
     if changed_fields:
-        stock.save()
+        stock.save(update_fields=changed_fields)
     relevant_parse_fields = {"description", "item_code", "specifics"}
     if created or relevant_parse_fields.intersection(changed_fields):
         if stock_metadata_parse_eligible(stock):
@@ -578,26 +593,145 @@ def transform_quote(xero_quote: Any, xero_id: UUID | str) -> tuple[Quote, str]:
     return quote, _build_sync_status(created, changed_fields)
 
 
-def transform_purchase_order(  # noqa: C901, PLR0915 -- ported v1 shape; header + per-line handling in one pass
-    xero_po: Any, xero_id: UUID | str
-) -> tuple[PurchaseOrder, str]:
-    """Convert a Xero purchase order into a PurchaseOrder instance."""
-    status_map = {
-        "DRAFT": "draft",
-        "SUBMITTED": "submitted",
-        "AUTHORISED": "submitted",
-        "BILLED": "fully_received",
-        "VOIDED": "deleted",
-    }
+def _sync_purchase_order_lines(
+    po: PurchaseOrder, xero_po: Any, po_number: str, xero_id: UUID | str
+) -> None:
+    """Apply an inbound order amendment atomically, retaining posted receipt costs."""
+    if not xero_po.line_items:
+        return
+    for line in xero_po.line_items:
+        description = required(line.description, "description", "purchase_order_line", str(xero_id))
+        quantity = Decimal(
+            str(required(line.quantity, "quantity", "purchase_order_line", str(xero_id)))
+        )
+        line_id = required(line.line_item_id, "line_item_id", "purchase_order_line", str(xero_id))
+        matches = list(po.po_lines.filter(xero_line_item_id=line_id)[:2])
+        if len(matches) > 1:
+            raise XeroValidationError(
+                [],
+                "purchase_order",
+                str(xero_id),
+                message=f"More than one local line has Xero identity {line_id}.",
+            )
+        po_line = (
+            matches[0]
+            if matches
+            else PurchaseOrderLine(purchase_order=po, xero_line_item_id=line_id)
+        )
+        try:
+            validate_ordered_quantity(po_line, quantity)
+        except InvalidInputError as exc:
+            raise XeroValidationError([], "purchase_order", str(xero_id), message=str(exc)) from exc
+        po_line.description = description
+        po_line.quantity = quantity
+        po_line.unit_cost = line.unit_amount
+        po_line.price_tbc = line.unit_amount is None
+        po_line.supplier_item_code = line.item_code or None
+        po_line.raw_line_data = process_xero_data(line)
+        po_line.save()
+        logger.info("Applied Xero PO line %s on %s", po_line.id, po_number)
 
-    def map_status(raw_status: str) -> str:
-        # Unknown statuses fail this PO's sync (XeroError row via the
-        # per-item handler) instead of silently becoming "draft" — a v1
-        # default that could revert a real PO to draft locally.
-        mapped = status_map.get(raw_status)
-        if mapped is None:
-            raise ValueError(f"Unknown Xero purchase order status {raw_status!r}")
-        return mapped
+
+# Opus: BILLED maps to submitted, NOT fully_received. Being billed is an
+# accounts event; whether the material turned up and which job it was costed to
+# is a Docketworks fact that only a delivery receipt establishes. The old
+# mapping let Xero mark goods received that nobody had receipted, leaving
+# purchase orders reading fully_received with no stock row and no cost line —
+# cost that never reached a job (KAN-144). Xero's own word is kept verbatim on
+# `xero_status` instead, so nothing is lost.
+_PO_STATUS_MAP = {
+    "DRAFT": "draft",
+    "SUBMITTED": "submitted",
+    "AUTHORISED": "submitted",
+    "BILLED": "submitted",
+    "VOIDED": "deleted",
+}
+
+
+def _map_po_status(raw_status: str) -> str:
+    """Translate Xero's purchase-order status, refusing one we do not know."""
+    # Unknown statuses fail this PO's sync (XeroError row via the per-item
+    # handler) instead of silently becoming "draft" — a v1 default that could
+    # revert a real PO to draft locally.
+    mapped = _PO_STATUS_MAP.get(raw_status)
+    if mapped is None:
+        raise ValueError(f"Unknown Xero purchase order status {raw_status!r}")
+    return mapped
+
+
+def _has_unsent_change(po: PurchaseOrder) -> bool:
+    """Whether this order holds an edit that has not reached Xero yet.
+
+    Only orders Docketworks sends can hold one: a draft nobody has submitted,
+    or an order that arrived from Xero, is never waiting to be published.
+    ``xero_agreed_at`` answers this and ``xero_last_synced`` cannot — the
+    latter is stamped by every inbound sync, so it reports "up to date" the
+    moment we look, whether or not the edit was ever sent.
+    """
+    if po.created_by_id is None:
+        return False
+    if po.xero_id is None and po.status == "draft":
+        return False
+    return po.xero_agreed_at is None or po.updated_at > po.xero_agreed_at
+
+
+def _stamp_agreement(po: PurchaseOrder) -> None:
+    """Record that our copy and Xero's now hold the same version.
+
+    Written here as well as by the push because agreement is reached either
+    way — we sent ours, or we just took theirs. Without this, absorbing an
+    inbound edit is indistinguishable from making a local one: ``updated_at``
+    is the row's ETag (``apps/purchasing/etag.py``) and so must advance
+    whenever the row changes, including when the change came FROM Xero. The
+    sweep would then push the order straight back, Xero would report the
+    resulting modification on the next pull, and the pair would trade an
+    order back and forth for as long as the sync kept running.
+
+    ``QuerySet.update`` rather than ``save``: this is not a change to the
+    order, and bumping the ETag for it would invalidate every client's copy
+    on a row nobody edited.
+    """
+    stamp = timezone.now()
+    PurchaseOrder.objects.filter(id=po.id).update(xero_agreed_at=stamp)
+    po.xero_agreed_at = stamp
+
+
+def _purchase_order_sync_values(
+    po: PurchaseOrder, header: dict[str, Any], status: str
+) -> dict[str, Any]:
+    """Return the fields this sync writes, deferring to an unsent local edit.
+
+    The sync runs in both directions and neither is dropped. Xero's version is
+    taken, because an order edited there is an edit that has to land somewhere.
+    The exception is a genuine collision — we hold a change Xero has not seen —
+    and it is resolved rather than ignored: the older copy does not overwrite
+    the newer edit, and the caller publishes ours instead.
+    """
+    values: dict[str, Any] = {
+        "xero_last_modified": header["xero_last_modified"],
+        "xero_last_synced": timezone.now(),
+        "xero_status": status,
+        "raw_json": header["raw_json"],
+    }
+    if _has_unsent_change(po):
+        return values
+    mapped_status = _map_po_status(status)
+    values.update(
+        po_number=header["po_number"],
+        order_date=header["order_date"],
+        expected_delivery=header["delivery_date"],
+    )
+    # GPT: KAN-358 showed that a successful push makes Xero's AUTHORISED
+    # overwrite receipt status. Quantities retain receipt evidence even when
+    # that label is already corrupt; purchasing owns its calculation/repair.
+    if po.po_lines.filter(received_quantity__gt=0).exists():
+        return values
+    return values | {"status": mapped_status}
+
+
+def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[PurchaseOrder, str]:
+    """Convert a Xero purchase order into a PurchaseOrder instance."""
+    map_status = _map_po_status
 
     supplier = resolve_company_from_xero_contact(
         getattr(xero_po, "contact", None), xero_po.purchase_order_number
@@ -620,102 +754,67 @@ def transform_purchase_order(  # noqa: C901, PLR0915 -- ported v1 shape; header 
     po_number = required(po_number, "purchase_order_number", "purchase_order", str(xero_id))
     order_date = required(order_date, "date", "purchase_order", str(xero_id))
     status = required(status, "status", "purchase_order", str(xero_id))
-    # Check for existing PO by xero_id first, then by po_number
-    # (po_number has unique constraint but xero_id is the canonical link)
-    created = False
-    linked = False
-    po = PurchaseOrder.objects.filter(xero_id=xero_id).first()
-    if not po:
-        po = PurchaseOrder.objects.filter(po_number=po_number).first()
-        if po:
-            po.xero_id = xero_id
-            linked = True
-            logger.info("Linked existing PO %s to Xero ID %s", po_number, xero_id)
-    if not po:
-        po = PurchaseOrder.objects.create(
-            xero_id=xero_id,
-            supplier=supplier,
-            po_number=po_number,
-            order_date=order_date,
-            status=map_status(status),
-            xero_last_modified=xero_last_modified,
-            raw_json=raw_json,
+    with transaction.atomic():
+        # Check for existing PO by xero_id first, then by po_number
+        # (po_number has unique constraint but xero_id is the canonical link)
+        created = False
+        linked = False
+        po = PurchaseOrder.objects.select_for_update(of=("self",)).filter(xero_id=xero_id).first()
+        if not po:
+            po = (
+                PurchaseOrder.objects.select_for_update(of=("self",))
+                .filter(po_number=po_number)
+                .first()
+            )
+            if po:
+                po.xero_id = xero_id
+                linked = True
+                logger.info("Linked existing PO %s to Xero ID %s", po_number, xero_id)
+        if not po:
+            po = PurchaseOrder.objects.create(
+                xero_id=xero_id,
+                supplier=supplier,
+                po_number=po_number,
+                order_date=order_date,
+                status=map_status(status),
+                xero_last_modified=xero_last_modified,
+                raw_json=raw_json,
+            )
+            created = True
+
+        unsent = _has_unsent_change(po)
+        new_values = _purchase_order_sync_values(
+            po,
+            {
+                "po_number": po_number,
+                "order_date": order_date,
+                "delivery_date": getattr(xero_po, "delivery_date", None),
+                "xero_last_modified": xero_last_modified,
+                "raw_json": raw_json,
+            },
+            status,
         )
-        created = True
+        changed_fields = _track_and_apply_changes(po, new_values)
+        if changed_fields or created or linked:
+            po.save()
 
-    new_values: dict[str, Any] = {
-        "po_number": po_number,
-        "order_date": order_date,
-        "expected_delivery": getattr(xero_po, "delivery_date", None),
-        "xero_last_modified": xero_last_modified,
-        "xero_last_synced": timezone.now(),
-        "status": map_status(status),
-        "raw_json": raw_json,
-    }
-    changed_fields = _track_and_apply_changes(po, new_values)
-    if changed_fields or created or linked:
-        po.save()
+        if unsent:
+            # Our edit is newer than anything Xero holds, so taking Xero's lines
+            # would revert it. Publish ours instead: both directions are handled,
+            # and the next sync finds the two agreeing. No agreement is stamped —
+            # the push stamps it once Xero has actually accepted ours.
+            queue_purchase_order_push(po)
+            return po, _build_sync_status(created, changed_fields)
 
-    if xero_po.line_items:
-        for line in xero_po.line_items:
-            description = getattr(line, "description", None)
-            quantity = getattr(line, "quantity", None)
-            if not description or quantity is None:
-                missing = []
-                if not description:
-                    missing.append("description")
-                if quantity is None:
-                    missing.append("quantity")
-                error_msg = f"Skipping PO line in {po_number} - missing {', '.join(missing)}"
-                logger.error(error_msg)
-                XeroError.objects.create(
-                    message=error_msg,
-                    data={"po_number": po_number, "missing_fields": missing},
-                    entity="purchase_order_line",
-                    reference_id=str(xero_id),
-                    kind="missing_field",
-                )
-                continue
-            try:
-                line_item_id = getattr(line, "line_item_id", None)
-                raw_line_data = process_xero_data(line)
+        _sync_purchase_order_lines(po, xero_po, po_number, xero_id)
+        if po.po_lines.filter(received_quantity__gt=0).exists():
+            recompute_purchase_order_status(po)
+        _stamp_agreement(po)
 
-                # Match on Xero's unique line item ID
-                logger.info(
-                    "Processing PO line: xero_line_item_id=%s, description='%.50s...'",
-                    line_item_id,
-                    description,
-                )
-                po_line, line_created = PurchaseOrderLine.objects.update_or_create(
-                    purchase_order=po,
-                    xero_line_item_id=line_item_id,
-                    defaults={
-                        "description": description,
-                        "supplier_item_code": line.item_code or None,
-                        "quantity": quantity,
-                        "unit_cost": getattr(line, "unit_amount", None),
-                        "raw_line_data": raw_line_data,
-                    },
-                )
-                logger.info("PO line %s: %s", "created" if line_created else "updated", po_line.id)
-            # deliberate-swallow: duplicated line rows are a known v1 data
-            # wart; skipping the line keeps the rest of the PO syncing while
-            # the log names the conflict for manual repair
-            except PurchaseOrderLine.MultipleObjectsReturned:
-                logger.error(
-                    "Multiple PurchaseOrderLine records found for document '%s' "
-                    "(Xero ID: %s), line item: '%s', supplier_item_code: '%s'",
-                    po_number,
-                    xero_id,
-                    description,
-                    line.item_code or "",
-                )
-                continue
-
-    # "linked" is special case for POs - existing PO matched by po_number
-    if linked:
-        return po, "linked"
-    return po, _build_sync_status(created, changed_fields)
+        # "linked" is special case for POs - existing PO matched by po_number
+        if linked:
+            return po, "linked"
+        return po, _build_sync_status(created, changed_fields)
 
 
 def transform_pay_run(

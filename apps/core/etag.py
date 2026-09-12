@@ -55,3 +55,10 @@ def if_none_match_satisfied(header: str, current_etag: str) -> bool:
 
     current_weak_value = current_etag.removeprefix("W/")
     return any(candidate.removeprefix("W/") == current_weak_value for candidate in candidates)
+
+
+def generate_revision_etag(resource: str, resource_id: UUID, revision: int) -> str:
+    """Name a persisted resource revision without exposing a body precondition."""
+    if revision < 0:
+        raise ValueError("A resource revision cannot be negative")
+    return quote_etag(f"{resource}:{resource_id}:{revision}")

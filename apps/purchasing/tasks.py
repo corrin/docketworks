@@ -29,15 +29,19 @@ app currently has no stock transform to attach that integration to.
 import logging
 from uuid import UUID
 
-from celery import shared_task
+from celery import current_app, shared_task
 from django.db import close_old_connections, connection, transaction
 from django.db.models import Q
 
 from apps.core.errors import AppErrorContext, persist_app_error
-from apps.purchasing.models import Stock
+from apps.purchasing.models import PurchaseOrder, Stock
 from apps.quoting.services.stock_parser import auto_parse_stock_item
 
 logger = logging.getLogger("apps.purchasing.tasks")
+
+#: The Xero-side push, addressed by name across the layer boundary.
+PUSH_PURCHASE_ORDER_TASK = "apps.xero.tasks.push_purchase_order_to_xero"
+
 
 MAX_CATCH_UP_BATCH = 500
 
@@ -140,3 +144,27 @@ def parse_unparsed_stock_items_task(limit: int = 50) -> None:
             ),
         )
         raise
+
+
+def queue_purchase_order_push(po: PurchaseOrder) -> None:
+    """Queue the Xero push for ``po`` if Docketworks owns it and Xero needs it.
+
+    Dispatched by NAME rather than by importing the task: the push lives in
+    ``apps.xero`` because it is a Xero concern, and a domain app may not import
+    an integration (import-linter's layer contract). The task name is already
+    an operational contract in this module's own words, so naming it here costs
+    nothing that renaming it would not already cost.
+
+    Queued on ``transaction.on_commit`` so a worker can never read a purchase
+    order the caller's transaction rolls back — the same rule the stock parser
+    above follows.
+
+    Xero needs the order once it has gone to the supplier, and needs it kept
+    current after that. A draft that has never been sent is still ours alone.
+    """
+    if po.created_by_id is None:
+        return
+    if po.xero_id is None and po.status == "draft":
+        return
+    po_id = str(po.id)
+    transaction.on_commit(lambda: current_app.send_task(PUSH_PURCHASE_ORDER_TASK, args=[po_id]))

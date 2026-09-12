@@ -360,7 +360,7 @@ class TestXeroScopes:
 class TestTenantCacheSpansProcesses:
     """The tenant id is invalidated by one process and read by others.
 
-    Opus: `swap_active`, `wipe_tokens_and_quota` and the disconnect endpoint all
+    Opus: `swap_active`, `wipe_tokens` and the disconnect endpoint all
     clear the key from whichever process served them, while a Celery worker
     holds its own copy. On a per-process cache none of those invalidations
     reach the worker, and the entry keeps Django's 300s default — so for up to

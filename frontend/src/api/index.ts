@@ -183,6 +183,7 @@ export {
   deleteJobFile,
   generateDeliveryDocketRest,
   getJobFile,
+  getPurchaseOrderPdf,
   jobJobsWorkshopPdfRetrieve,
   uploadJobFiles,
 } from './generated/sdk.gen'
@@ -267,6 +268,11 @@ export type {
 // Purchasing (PO list/create/detail with line upserts; stock page)
 export {
   createPurchaseOrderMutation,
+  createPurchaseOrderEventMutation,
+  listPurchaseOrderEventsOptions,
+  listPurchaseOrderEventsQueryKey,
+  getPurchaseOrderEmailMutation,
+  listPurchaseOrdersInfiniteOptions,
   listPurchaseOrdersOptions,
   purchasingAllJobsRetrieveOptions,
   purchasingPurchaseOrdersPartialUpdateMutation,
@@ -523,3 +529,57 @@ export {
   sessionReplayRecordingsCreate,
 } from './generated/sdk.gen'
 export type { RecordingEventsOut, RecordingOut } from './generated/types.gen'
+
+export { jobQuoteChatConfigRetrieveOptions } from './generated/@tanstack/react-query.gen'
+export { quotingChatFetch, quotingChatUrl } from './chatkit'
+
+export {
+  aiProvidersListOptions,
+  aiProvidersListQueryKey,
+  aiProvidersCreateMutation,
+  aiProvidersPartialUpdateMutation,
+  aiProvidersDestroyMutation,
+  aiProvidersSetDefaultMutation,
+  aiProvidersTestMutation,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  ProviderOut,
+  ProviderCreate,
+  ProviderPatch,
+  AiProviderTypes,
+} from './generated/types.gen'
+export { zAiProviderTypes } from './generated/zod.gen'
+
+export type { QuotingChatModelOut } from './generated/types.gen'
+
+export {
+  stocktakeCreateMutation,
+  purchasingStockDestroyMutation,
+  stocktakeListOptions,
+  stocktakeSetupCreateMutation,
+  stocktakeSetupRetrieveOptions,
+  stocktakeRetrieveOptions,
+  stocktakeUpdateMutation,
+  stocktakePostMutation,
+  stocktakeCorrectMutation,
+} from './generated/@tanstack/react-query.gen'
+export type { StocktakeDetail, StocktakeLineOut, StocktakeLineWrite } from './generated/types.gen'
+
+export {
+  stockMovementsListOptions,
+  stocktakeMovementsListOptions,
+  stockMovementReturnMutation,
+} from './generated/@tanstack/react-query.gen'
+export type { StockMovementOut, StockMovementPage } from './generated/types.gen'
+
+export { costLineStockMovementRetrieveOptions } from './generated/@tanstack/react-query.gen'
+
+export {
+  purchasingStockListInfiniteOptions,
+  purchasingStockSearchRetrieveInfiniteOptions,
+  stocktakeListInfiniteOptions,
+  stockMovementsListInfiniteOptions,
+  stocktakeMovementsListInfiniteOptions,
+} from './generated/@tanstack/react-query.gen'
+
+export { purchasingPurchaseOrdersPartialUpdate } from './generated/sdk.gen'

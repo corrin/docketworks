@@ -4,6 +4,30 @@ from typing import Any
 
 from xero_python.api_client import ApiClient
 
+class Purchase:
+    unit_price: float | None
+    def __init__(self, unit_price: float | None = None) -> None: ...
+
+class Item:
+    code: str | None
+    name: str | None
+    is_tracked_as_inventory: bool | None
+    quantity_on_hand: float | None
+    updated_date_utc: datetime | None
+    purchase_details: Purchase | None
+    sales_details: Purchase | None
+    def __init__(
+        self,
+        *,
+        code: str | None = None,
+        name: str | None = None,
+        is_tracked_as_inventory: bool | None = None,
+        quantity_on_hand: float | None = None,
+        updated_date_utc: datetime | None = None,
+        purchase_details: Purchase | None = None,
+        sales_details: Purchase | None = None,
+    ) -> None: ...
+
 class AccountType(Enum):
     BANK = "BANK"
     CURRENT = "CURRENT"

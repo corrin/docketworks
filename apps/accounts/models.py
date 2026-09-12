@@ -135,6 +135,9 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         max_length=255, null=True, blank=True
     )
     xero_last_modified = models.DateTimeField(null=True, blank=True)
+    xero_payroll_terms_checksum = models.CharField(  # noqa: DJ001 -- NULL means history integrity is not yet recorded
+        max_length=64, null=True, blank=True
+    )
     xero_fields_checksum = models.CharField(  # noqa: DJ001 -- NULL means never synced
         max_length=64,
         null=True,
@@ -235,6 +238,10 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             ),
             models.CheckConstraint(
                 condition=~models.Q(xero_tenant_id=""), name="staff_xero_tenant_id_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(xero_payroll_terms_checksum=""),
+                name="staff_xero_payroll_terms_checksum_not_blank",
             ),
             models.CheckConstraint(
                 condition=~models.Q(xero_fields_checksum=""),

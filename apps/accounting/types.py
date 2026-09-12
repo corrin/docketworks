@@ -138,6 +138,11 @@ class DocumentResult:
     external_id: str | None = None
     number: str | None = None
     online_url: str | None = None
+    #: The accounting system's own word for the document's state, as echoed
+    #: back on a successful write. Distinct from any local workflow status:
+    #: only the provider knows this one, and reading it from the echo is what
+    #: makes a second call to ask for it unnecessary.
+    document_status: str | None = None
     raw_response: dict[str, Any] | None = None
     error: str | None = None
     status_code: int | None = None

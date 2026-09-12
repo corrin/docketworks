@@ -25,7 +25,6 @@ if ! command -v shellcheck >/dev/null; then
 fi
 SCRIPTS=(
     "$SCRIPT_DIR"/*.sh
-    "$SCRIPT_DIR"/cutover/*.sh
     "$REPO_ROOT"/scripts/backup_db.sh
     "$REPO_ROOT"/scripts/backup_instance_files.sh
     "$REPO_ROOT"/scripts/predeploy_backup.sh
@@ -179,7 +178,7 @@ while read -r token; do
     grep -qF "s|$token|" "$SCRIPT_DIR/instance.sh" \
         || fail "env template: $token is never substituted by instance.sh"
 done < <(grep -o '__[A-Z0-9_]*__' "$TEMPLATE_DIR/env-instance.template" | sort -u)
-# The service-account key the app reads (apps/core/gauth.py) must point at the
+# The service-account key the app reads (apps/platform/integrations/google/credentials.py) must point at the
 # instance's own copy — the path instance.sh chmod-600s beside the .env, not
 # the operator's download path, and never blank.
 grep -q '^GCP_CREDENTIALS=/opt/docketworks/instances/test-uat/gcp-credentials.json$' <<<"$ENV_RENDERED" \
@@ -265,25 +264,6 @@ fi
 JAIL="$TEMPLATE_DIR/fail2ban-jail-docketworks.conf"
 grep -q '^banaction = ufw' "$JAIL" || fail "jail: UFW must be the ban action"
 grep -q 'docketworks_\*_access.log' "$JAIL" || fail "jail: per-instance access-log glob missing"
-
-# --- company-defaults label rewrite: v1 spelling becomes v2's, once ---
-LABEL_TMP="$(mktemp)"
-LABEL_OUT="$(
-    # shellcheck source=common.sh
-    # Sourced scripts reassign SCRIPT_DIR inside this subshell only; the
-    # outer value is untouched by construction.
-    # shellcheck disable=SC2031
-    source "$SCRIPT_DIR/common.sh"
-    printf '[{"model": "workflow.companydefaults"}, {"model": "company.company"}]' > "$LABEL_TMP"
-    rewrite_v1_company_defaults_labels "$LABEL_TMP" && echo "REWROTE"
-    rewrite_v1_company_defaults_labels "$LABEL_TMP" || echo "SECOND_RUN_NOOP"
-    cat "$LABEL_TMP"
-)"
-echo "$LABEL_OUT" | grep -q "REWROTE" || fail "label rewrite: did not report rewriting a v1 file"
-echo "$LABEL_OUT" | grep -q "SECOND_RUN_NOOP" || fail "label rewrite: not idempotent"
-echo "$LABEL_OUT" | grep -q '"core.companydefaults"' || fail "label rewrite: v2 label missing after rewrite"
-echo "$LABEL_OUT" | grep -q '"workflow.companydefaults"' && fail "label rewrite: v1 label survived"
-rm -f "$LABEL_TMP"
 
 # --- instance credentials: Maps is required before any instance mutation ---
 CREDENTIAL_TMP="$(mktemp -d)"
@@ -375,6 +355,47 @@ grep -q '^RestartSec=5$' "$TEMPLATE_DIR/gunicorn-instance.service.template" \
 grep -Pzoq '(?m)^check --verbose "IntegrationSettings live connections" \\\n\s*"\$SCRIPT_DIR/dw-run\.sh" "\$INSTANCE" \\\n\s*python -m scripts\.ops\.restore_checks\.check_integration_settings' \
     "$SCRIPT_DIR/verify-instance.sh" \
     || fail "verify-instance: live IntegrationSettings probe invocation missing or disabled"
+
+# An external writer can only deliver into the dropbox sync root while the
+# mode survives on the host, so the verifier must assert it rather than trust
+# the provisioning script's intent. Pinned on the live invocation.
+# SCRIPT_DIR's subshell reassignments never reach this scope.
+# shellcheck disable=SC2031
+grep -qF 'check --verbose "dropbox sync root is group-accessible" dropbox_root_group_accessible' \
+    "$SCRIPT_DIR/verify-instance.sh" \
+    || fail "verify-instance: dropbox sync root mode check missing or disabled"
+
+# --- instance directory modes: the dropbox root keeps group access ---
+# The instance's dropbox directory is also the Maestral sync root that an
+# external writer (the office scanner) delivers into, so it needs group
+# access; mode 700 there stopped delivery on msm-prod at every reconfigure
+# while every daemon reported healthy (KAN-360). Assert the modes the
+# function actually produces rather than pinning its text, so a rewrite that
+# preserves the behaviour still passes. chown is shadowed so the happy path
+# runs unprivileged.
+DIRS_TMP="$(mktemp -d)"
+(
+    # shellcheck source=instance.sh
+    # Sourced scripts reassign SCRIPT_DIR inside this subshell only; the
+    # outer value is untouched by construction.
+    # shellcheck disable=SC2031
+    source "$SCRIPT_DIR/instance.sh"
+    chown() { :; }
+    ensure_instance_directories "$DIRS_TMP/test-uat" "dw_test_uat"
+) || fail "instance dirs: ensure_instance_directories failed"
+assert_mode() {
+    local path="$1" expected="$2" actual
+    actual="$(stat -c %a "$path")"
+    [[ "$actual" == "$expected" ]] \
+        || fail "instance dirs: $path is mode $actual, expected $expected"
+}
+assert_mode "$DIRS_TMP/test-uat" 750
+assert_mode "$DIRS_TMP/test-uat/logs" 700
+assert_mode "$DIRS_TMP/test-uat/dropbox" 2770
+assert_mode "$DIRS_TMP/test-uat/mediafiles" 750
+assert_mode "$DIRS_TMP/test-uat/phone-recordings" 700
+assert_mode "$DIRS_TMP/test-uat/session-replays" 700
+rm -rf "$DIRS_TMP"
 
 # --- rclone config writer: a bare service account is refused ---
 # A service account without a shared drive has zero quota, so that config

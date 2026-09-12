@@ -9,6 +9,7 @@ import { ListTable } from '@/features/shared/ListTable'
 import { LoadMoreSentinel } from '@/features/shared/LoadMoreSentinel'
 import { nextPageParam } from '@/features/shared/nextPageParam'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
+import { SearchInput } from '@/features/shared/SearchInput'
 
 /**
  * People directory: one identity per person, linked to every company they
@@ -114,14 +115,12 @@ export function PeopleDirectoryPage() {
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <input
-          type="text"
-          data-automation-id="PeopleDirectory-search"
-          placeholder="Search people..."
+        <SearchInput
           value={searchInput}
-          autoComplete="off"
-          className="w-full max-w-md rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
-          onChange={(event) => setSearchInput(event.target.value)}
+          onChange={setSearchInput}
+          placeholder="Search people..."
+          automationId="PeopleDirectory-search"
+          label="Search people"
         />
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input

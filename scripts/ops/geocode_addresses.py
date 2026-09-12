@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Backfill geocoding for SupplierPickupAddress rows missing lat/lng.
 
-Reuses apps/core/geocoding.py — the one Google lookup in the codebase, the
+Reuses apps/platform/integrations/google/places.py — the one Google lookup in the codebase, the
 same one the address picker calls — rather than carrying a second client
 (ADR 0039). Nothing geocodes on write: a row gets coordinates when a person
 picks a candidate in the address modal, and this sweep is for the rows that
@@ -24,7 +24,7 @@ from scripts.bootstrap import setup_django
 setup_django()
 
 from apps.company.models import SupplierPickupAddress  # noqa: E402 -- needs django.setup()
-from apps.core.geocoding import (  # noqa: E402
+from apps.platform.integrations.google.places import (  # noqa: E402
     GeocodingError,
     GeocodingNotConfiguredError,
     get_api_key,

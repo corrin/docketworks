@@ -1,11 +1,22 @@
 import { act, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { http, HttpResponse } from 'msw'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { TimesheetCostLineOut, TimesheetJobOut, XeroPayItemOut } from '@/api'
+import { server } from '@/test/msw'
 import { renderWithProviders } from '@/test/render'
 import { autoId } from '@/test/auto-id'
 import { SmartTimesheetTable, type SmartTimesheetTableProps } from './SmartTimesheetTable'
+
+// The job picker holds its options back until the status vocabulary answers.
+beforeEach(() => {
+  server.use(
+    http.get('*/api/job/jobs/status-choices/', () =>
+      HttpResponse.json({ statuses: { in_progress: 'In Progress' } }),
+    ),
+  )
+})
 
 const STAFF_ID = 'staff-1'
 const DATE = '2026-08-10'
@@ -91,6 +102,7 @@ function makeLine(overrides: Partial<TimesheetCostLineOut> = {}): TimesheetCostL
     xero_last_modified: null,
     xero_last_synced: null,
     approved: true,
+    managed_by: null,
     xero_pay_item: 'pay-ordinary',
     staff: STAFF_ID,
     entry_seq: 1,

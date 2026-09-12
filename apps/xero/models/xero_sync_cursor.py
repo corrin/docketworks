@@ -22,3 +22,13 @@ class XeroSyncCursor(models.Model):
 
     def __str__(self) -> str:
         return f"{self.entity_key}: {self.last_modified.isoformat()}"
+
+
+class XeroDetailRefresh(models.Model):
+    """Successful employee-detail batches, scoped to the connected organisation."""
+
+    tenant_id = models.CharField(max_length=50, primary_key=True)
+    last_success_at = models.DateTimeField()
+
+    def __str__(self) -> str:
+        return f"{self.tenant_id}: {self.last_success_at.isoformat()}"

@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 import dotenv from 'dotenv'
 import fs from 'node:fs'
 import path from 'node:path'
+import { getApplicationUrl } from './tests/scripts/db-backup-utils.js'
 
 // Anchored to this file's own directory, not process.cwd(): npm --prefix and
 // direct `npx playwright test` invocations from the repo root both leave cwd
@@ -19,12 +20,8 @@ if (fs.existsSync(testEnvPath)) {
   dotenv.config({ path: testEnvPath, override: true })
 }
 
-// Env-driven baseURL; defaults to the local production-build preview server
-// (npm run preview:e2e — vite preview proxies /api to the backend on :8000).
-// The one-shot local-stack runner wins over a developer's optional
-// E2E_BASE_URL so it can never start local services and test another host.
-const externalBaseURL = process.env.E2E_MANAGED_BASE_URL ?? process.env.E2E_BASE_URL
-const baseURL = externalBaseURL ?? 'http://localhost:4173'
+// The operator launches the stack; browser tests use its public origin, including ngrok.
+const baseURL = process.env.E2E_BASE_URL ?? getApplicationUrl()
 
 // Tests tagged @xero-payroll-write post a real week to Xero payroll, which
 // creates a draft pay run. Xero Payroll NZ has no API to post one or delete
@@ -81,17 +78,4 @@ export default defineConfig({
   ],
 
   outputDir: path.join(configDir, 'test-results'),
-
-  // E2E always runs against the production build (v1's preview:e2e script).
-  // When E2E_BASE_URL points at an externally managed server, skip the local one.
-  ...(externalBaseURL
-    ? {}
-    : {
-        webServer: {
-          command: 'npm run preview:e2e',
-          url: baseURL,
-          reuseExistingServer: !process.env.CI,
-          timeout: 120000,
-        },
-      }),
 })

@@ -5,7 +5,7 @@
  * The 412/428 interceptor shows a toast with a Retry action; components with a
  * pending save subscribe per resource and flush only when the user approves.
  */
-export type ResourceKind = 'job' | 'po'
+export type ResourceKind = 'job' | 'po' | 'stocktake'
 
 export interface ConcurrencyRetryEvent {
   kind: ResourceKind

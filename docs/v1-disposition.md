@@ -55,7 +55,7 @@ Instances created before the scrub database existed gain it with one
 | `debug_xero_fetch.py` | dropped | Live probe that the rate-limited Xero REST client honours a 429. v2 pins that behaviour in unit tests (`apps/xero/tests/test_sync_quota_gates.py`), which run on every push instead of on an operator's memory. |
 | `detect_fstrings_without_placeholder.py` | ported | Ruff `F541` (the `F` rule set is selected in `pyproject.toml`). |
 | `dump_settings.py` | ported | `scripts/ops/dump_settings.py` — sanitised JSON snapshot of the running configuration for diagnosing an instance whose behaviour does not match its expected settings. |
-| `explore_google_drive.py`, `read_google_doc.py`, `write_google_doc.py`, `set_doc_screenshot.py`, `get_gapi_token.py`, `google_doc_manifest.json`, `create_master_template.py` | ported | The Google Docs/Drive authoring toolchain, ported wholesale into `scripts/gdocs/` under the same names, with the shared delegated-service-account auth factored into `scripts/gdocs/gauth.py` (its credential builders later moved to `apps/core/gauth.py` when application code gained its first Google call). They author the Google-Doc-backed `Procedure` records the process app links to. |
+| `explore_google_drive.py`, `read_google_doc.py`, `write_google_doc.py`, `set_doc_screenshot.py`, `get_gapi_token.py`, `google_doc_manifest.json`, `create_master_template.py` | ported | The Google Docs/Drive authoring toolchain, ported wholesale into `scripts/gdocs/` under the same names, with the shared delegated-service-account auth factored into `scripts/gdocs/gauth.py` (its credential builders later moved to `apps/platform/integrations/google/credentials.py` when application code gained its first Google call). They author the Google-Doc-backed `Procedure` records the process app links to. |
 | `find_duplicates.py` | ported | `scripts/checks/find_duplicates.py`, wired as a pre-commit hook. |
 | `find_late_imports.py` | ported | Ruff `PLC0415` (import outside top level), which v2 suppresses individually where a cycle makes a late import correct. |
 | `find_wrapper_candidates.py` | dropped | Found short functions with few callers to drive a wrapper-deletion campaign against v1's accumulated indirection. v2's standing equivalents are the find-duplicates hook and the generated `docs/code-quality.md` metrics. |
@@ -83,7 +83,7 @@ Instances created before the scrub database existed gain it with one
 | `test_chat_conversation.py`, `test_full_quote_conversation.py` | ported | `scripts/ops/chat_conversation_harness.py`, `scripts/ops/full_quote_conversation_harness.py` (renamed from v1: a `test_*.py` filename is one pytest `testpaths` edit away from being collected, and these run live-LLM calls and delete chat rows — same rationale as `ai_chat_harness.py`), shared plumbing in `scripts/ops/quote_chat_harness.py`. One flag is blocked-by:ai-gateway-attachments — `--with-file` refuses with the reason: the ADR 0041 gateway is text-only, so attaching a file would silently test nothing. |
 | `test_kpi_service.py` | dropped | Command-line harness for the KPI calendar service. v2's `apps/accounting/services/kpi_service.py` has unit tests. |
 | `test_login_logging.py` | dropped | Drove real login attempts with Selenium to prove failures reach `auth.log` with client IPs. v2 has no Selenium dependency, and the log shapes that matter are pinned by the fail2ban filter tests in `scripts/server/test_server_templates.sh`. |
-| `test_quote_import.py` | blocked-by:quote-import | Ported as a refusing harness at `scripts/ops/quote_import_harness.py` (renamed from v1, same collection-hazard rationale as the chat harnesses): the argument surface (`--file`, `--job-id`, `--preview-only`) is kept so the eventual port drops straight in, and it refuses to run until v1's `import_quote_service` has a v2 counterpart. |
+| `test_quote_import.py` | dropped | Command-line harness for the spreadsheet quote import. It was carried across as a harness that refuses to run, holding an argument surface (`--file`, `--job-id`, `--preview-only`) for a port that is not scheduled: nothing in [`rewrite-status.md`](rewrite-status.md) tracks quote import, so the unblocking point never arrives and the file only advertises absent work. An import service, when it is built, defines its own interface; the old one's argument list is not an input to that. |
 | `test_xero_payroll.py` | ported | `scripts/ops/xero_payroll_probe.py` (renamed from v1, same collection-hazard rationale as the chat harnesses) — walks the Xero Payroll NZ endpoints one at a time to show which scope or subscription is missing, rather than leaving one opaque 403. |
 | `test_release_utils.sh` | ported | `scripts/test_release_utils.sh`, wired as a pre-commit hook. |
 | `update_init.py` | dropped | Rewrote package `__init__.py` files with import lists classified by Django-startup safety. v2 keeps explicit module paths under an import-linter contract; generated re-export surfaces are how v1's parallel implementations stayed invisible. |
@@ -141,8 +141,8 @@ The server provisioning suite ported wholesale into `scripts/server/`:
 `dw-run.sh`, `release-utils.sh` and the `certbot-dreamhost-auth.sh` /
 `certbot-dreamhost-cleanup.sh` DNS-01 hooks, each under the same name. v2 adds
 `test_server_templates.sh` (which shellchecks the suite and renders every
-template, and has no v1 counterpart), `verify-instance.sh`, the `cutover/`
-scripts, the fail2ban filters and jail, and the nginx rate-limit configuration.
+template, and has no v1 counterpart), `verify-instance.sh`, the fail2ban filters
+and jail, and the nginx rate-limit configuration.
 
 | v1 asset | disposition | note |
 |---|---|---|

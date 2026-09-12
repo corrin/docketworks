@@ -4,9 +4,10 @@ import pytest
 from django.test import Client
 
 from apps.accounts.models import Staff
+from apps.accounts.tests.helpers import authenticate
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.company.services.duplicate_phone_report import DuplicatePhoneReportService
-from apps.company.tests.conftest import authenticate, make_company
+from apps.company.tests.factories import make_company
 from apps.crm.models import PhoneEndpoint
 
 pytestmark = pytest.mark.django_db

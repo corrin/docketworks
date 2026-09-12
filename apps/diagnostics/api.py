@@ -30,7 +30,7 @@ from ninja import Query, Router
 from ninja.errors import HttpError
 from ninja.responses import Status
 
-from apps.accounts.models import Staff
+from apps.accounts.auth import authenticated_staff
 from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
 from apps.core.errors import AppErrorContext, app_error_for, persist_app_error
 from apps.core.models import CompanyDefaults
@@ -56,14 +56,6 @@ auth = CookieJWTAuth()
 admin_auth = SuperuserCookieJWTAuth()
 
 
-def _staff(request: HttpRequest) -> Staff:
-    """Narrow the authenticated user to a real Staff row (ADR 0028)."""
-    user = request.user
-    if not isinstance(user, Staff):  # pragma: no cover - CookieJWTAuth guarantees Staff
-        raise HttpError(401, "Authentication credentials were not provided.")
-    return user
-
-
 def _own_recording(request: HttpRequest, recording_id: UUID) -> SessionReplayRecording:
     """Return the caller's own recording, or raise a 404.
 
@@ -71,7 +63,9 @@ def _own_recording(request: HttpRequest, recording_id: UUID) -> SessionReplayRec
     the id exists, which is more than a client uploading to its own session
     needs to know.
     """
-    return get_object_or_404(SessionReplayRecording, id=recording_id, user=_staff(request))
+    return get_object_or_404(
+        SessionReplayRecording, id=recording_id, user=authenticated_staff(request)
+    )
 
 
 def _recording_out(recording: SessionReplayRecording) -> dict[str, object]:
@@ -110,7 +104,7 @@ def session_replay_recordings_create(
 
     recording = replays.create_recording(
         replays.NewRecording(
-            user=_staff(request),
+            user=authenticated_staff(request),
             initial_path=payload.initial_path,
             user_agent=request.headers.get("User-Agent") or None,
             viewport=replays.Viewport(width=payload.viewport_width, height=payload.viewport_height),
@@ -266,7 +260,7 @@ def session_replay_frontend_errors_create(
     fail. ``persist_app_error`` validates the replay id and demotes one that
     is not the caller's into the error's data.
     """
-    staff = _staff(request)
+    staff = authenticated_staff(request)
     reported = RuntimeError(payload.message)
     persist_app_error(
         reported,

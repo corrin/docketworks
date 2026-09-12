@@ -163,6 +163,22 @@ check --verbose "JobFile attachments resolve on disk" \
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" \
     python -m scripts.ops.restore_checks.check_jobfiles
 
+# Opus: the instance's dropbox directory is the client's Maestral sync root,
+# and an external writer (the office scanner) delivers into it through its
+# membership of the instance group. A run of instance.sh that reset the mode
+# to 700 cut delivery silently while Maestral, systemd and disk all
+# reported healthy (KAN-360). The check above cannot see it: rows already on
+# disk still resolve while nothing new can arrive.
+dropbox_root_group_accessible() {
+    local mode
+    mode="$(stat -c %a "$INSTANCE_DIR/dropbox")"
+    if [[ "$mode" != "2770" ]]; then
+        echo "  $INSTANCE_DIR/dropbox is mode $mode, expected 2770" >&2
+        return 1
+    fi
+}
+check --verbose "dropbox sync root is group-accessible" dropbox_root_group_accessible
+
 # --- Host security posture ---
 check "UFW active" bash -c "ufw status | grep -q '^Status: active'"
 check "fail2ban jail sshd" fail2ban-client status sshd

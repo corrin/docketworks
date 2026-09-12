@@ -569,6 +569,12 @@ called:
 - xero_sync_create
 - xero_sync_info_retrieve
 renamed:
+  deleteAllocation: reverseAllocation
+  workflow_ai_providers_create: ai_providers_create
+  workflow_ai_providers_destroy: ai_providers_destroy
+  workflow_ai_providers_list: ai_providers_list
+  workflow_ai_providers_partial_update: ai_providers_partial_update
+  workflow_ai_providers_set_default_create: ai_providers_set_default
   workflow_notebook_lm_links_menu_list: notebook_lm_links_menu_list
   xero_create_invoice_create: xero_create_invoice
   xero_create_quote_create: xero_create_quote
@@ -599,6 +605,21 @@ renamed:
   process_forms_update: process_forms_partial_update
   process_forms_entries_update: process_entries_partial_update
 introduced:
+- cost_line_stock_movement_retrieve
+- stock_movement_return
+- stock_movements_list
+- stocktake_correct
+- stocktake_create
+- stocktake_list
+- stocktake_movements_list
+- stocktake_post
+- stocktake_retrieve
+- stocktake_setup_create
+- stocktake_setup_retrieve
+- stocktake_update
+- ai_providers_test
+# GPT: Public ChatKit domain configuration and CSRF token for the job-scoped SDK embed.
+- job_quote_chat_config_retrieve
 # Specified by ADR 0007 and the payroll UI contract but never built in v1:
 # what Xero holds for a week, read live, beside what the timesheet recorded.
 # Its own endpoint so the weekly grid still renders when Xero is unreachable.
@@ -659,6 +680,25 @@ introduced:
 # quote as a revision first (KAN-346).
 - job_jobs_cost_sets_quote_copy_from_estimate_create
 dropped:
+  workflow_ai_providers_retrieve: >-
+    GPT: the small admin catalogue returns safe row metadata in its list; editing needs no second GET.
+  workflow_ai_providers_update: >-
+    GPT: provider edits use partial updates with explicit keep/replace/clear secret semantics.
+  job_jobs_quote_chat_create: >-
+    GPT: ChatKit persists user messages through its job-scoped conversation protocol;
+    the frontend no longer creates independent message rows.
+  job_jobs_quote_chat_interaction_create: >-
+    GPT: ChatKit's streaming turn protocol invokes the Agents/LiteLLM gateway and read-only MCP tools.
+  job_jobs_quote_chat_partial_update: >-
+    GPT: Server-side ChatKit persistence owns completed items and streaming state;
+    the browser no longer patches message records.
+  job_jobs_quote_chat_retrieve: >-
+    GPT: ChatKit's paged thread/item protocol replaces the flattened job transcript read.
+  quote_chat_delete_one: >-
+    GPT: Conversation deletion uses ChatKit's thread operation, scoped to the current job.
+  quote_chat_delete_all: >-
+    GPT: Start a new conversation or delete an individual thread through ChatKit;
+    this slice exposes no all-job transcript wipe.
   timesheets_payroll_pay_runs_create_create: >-
     Creating the Draft pay run is a step of posting, not an operator intent:
     posting reconciles leave BEFORE creating the run because Xero locks leave

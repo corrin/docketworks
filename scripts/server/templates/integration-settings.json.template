@@ -1,8 +1,9 @@
 [
   {
-    "model": "core.integrationsettings",
+    "model": "integrations.integrationsettings",
     "pk": 1,
     "fields": {
+      "chatkit_domain_key": __CHATKIT_DOMAIN_KEY_JSON__,
       "google_maps_api_key": __GOOGLE_MAPS_API_KEY_JSON__,
       "phone_provider_enabled": __PHONE_PROVIDER_ENABLED__,
       "phone_provider_recording_deletion_enabled": __PHONE_PROVIDER_RECORDING_DELETION_ENABLED__,

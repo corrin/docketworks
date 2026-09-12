@@ -421,7 +421,7 @@ EXTERNAL_ID_FIELDS: dict[str, LinkKind] = {
 }
 
 _TENANT_PER_ROW = "Xero tenant per row: the singleton's tenant is checked"
-# Not "no verifier yet": apps.core.geocoding.fetch_place re-reads a place by
+# Not "no verifier yet": apps.platform.integrations.google.places.fetch_place re-reads a place by
 # its id, which IS the check. What is missing is a Places adapter here.
 _PLACE_ID_UNVERIFIED = "Google Places id: fetch_place could verify it; no probe adapter yet"
 
@@ -1057,10 +1057,17 @@ def google_credentials(identity: GoogleIdentity) -> Credentials:
     to the other: a probe that quietly switched identities would report a
     file as missing that the other identity can see.
     """
-    from scripts.gdocs.gauth import DRIVE_SCOPE, delegated_credentials, service_account_credentials
+    from apps.platform.integrations.google.credentials import (
+        delegated_credentials,
+        delegated_subject,
+        service_account_credentials,
+    )
+    from scripts.gdocs.gauth import DRIVE_SCOPE
 
     if identity == "delegated":
-        return delegated_credentials([DRIVE_SCOPE])
+        return delegated_credentials(
+            [DRIVE_SCOPE], delegated_subject(CompanyDefaults.get_solo().company_email)
+        )
     return service_account_credentials([DRIVE_SCOPE])
 
 

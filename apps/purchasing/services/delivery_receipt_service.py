@@ -4,7 +4,7 @@ Flow:
   1. Lock the PO and every referenced line, then check the ADR 0003 precondition.
   2. Validate the per-line allocations (totals must reconcile, jobs must exist,
      the line must have a confirmed price).
-  3. Replace the line's prior stock rows, add to ``received_quantity``, and
+  3. Append receipt movements, add to ``received_quantity``, and
      materialise each allocation via ``allocation_service``.
   4. Recompute the PO status (which also bumps the ETag).
 
@@ -31,15 +31,17 @@ from django.db.models import F
 from apps.accounts.models import Staff
 from apps.core.errors import AppErrorContext, InvalidInputError, persist_app_error
 from apps.job.models import Job
+from apps.job.models.costing import lock_costing_jobs
+from apps.purchasing.etag import require_current_etag
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.services.allocation_service import (
     AllocationMetadata,
+    MaterialAllocation,
     create_costline_from_allocation,
     create_stock_from_allocation,
     default_retail_rate_pct,
     recompute_purchase_order_status,
 )
-from apps.purchasing.services.purchase_order_service import require_current_etag
 
 logger = logging.getLogger(__name__)
 
@@ -49,16 +51,6 @@ ALLOCATION_TOLERANCE = Decimal("0.001")
 
 class DeliveryReceiptValidationError(InvalidInputError):
     """Raised when receipt allocation validation fails."""
-
-
-@dataclass(frozen=True, slots=True)
-class ReceiptAllocation:
-    """One validated allocation ready to be materialised."""
-
-    job: Job
-    quantity: Decimal
-    metadata: AllocationMetadata
-    retail_rate_pct: Decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,13 +103,14 @@ def _load_po_and_lines(
 
 def _load_jobs(line_allocations: dict[str, ReceiptLineRequest]) -> dict[str, Job]:
     job_ids = {
-        str(alloc.job_id)
+        alloc.job_id
         for line_request in line_allocations.values()
         for alloc in line_request.allocations
     }
+    lock_costing_jobs(job_ids)
     jobs = {str(job.id): job for job in Job.objects.filter(id__in=job_ids)}
     if len(jobs) != len(job_ids):
-        missing = job_ids - set(jobs)
+        missing = {str(job_id) for job_id in job_ids} - set(jobs)
         raise DeliveryReceiptValidationError(f"Invalid Job IDs provided in allocations: {missing}")
     return jobs
 
@@ -127,7 +120,7 @@ def _validate_and_prepare_allocations(
     line: PurchaseOrderLine,
     line_request: ReceiptLineRequest,
     jobs_by_id: dict[str, Job],
-) -> tuple[Decimal, list[ReceiptAllocation]]:
+) -> tuple[Decimal, list[MaterialAllocation]]:
     """Return the received total and the allocations to materialise."""
     if line.unit_cost is None:
         raise DeliveryReceiptValidationError(
@@ -136,7 +129,7 @@ def _validate_and_prepare_allocations(
         )
 
     default_pct = default_retail_rate_pct()
-    prepared: list[ReceiptAllocation] = []
+    prepared: list[MaterialAllocation] = []
     allocated = Decimal("0")
 
     for alloc in line_request.allocations:
@@ -148,7 +141,7 @@ def _validate_and_prepare_allocations(
                 f"Invalid or missing job_id for non-zero allocation on line {line.id}."
             )
         prepared.append(
-            ReceiptAllocation(
+            MaterialAllocation(
                 job=job,
                 quantity=alloc.quantity,
                 metadata=AllocationMetadata.resolve(alloc.metadata, line),
@@ -164,34 +157,20 @@ def _validate_and_prepare_allocations(
             f"Allocation mismatch for line '{line.description}' (id {line.id}). "
             f"Total Received={line_request.total_received}, Sum of Allocations={allocated}."
         )
+    # GPT: an omitted line records no delivery; zero is not another receipt.
+    if not prepared and line_request.total_received == 0:
+        raise DeliveryReceiptValidationError(
+            f"Line '{line.description}' (id {line.id}) has nothing to receive; "
+            f"omit it from the receipt instead of sending a zero quantity."
+        )
     return line_request.total_received, prepared
-
-
-def _delete_previous_stock_for_line(line: PurchaseOrderLine, *, run_id: str) -> None:
-    existing = Stock.objects.filter(source="purchase_order", source_purchase_order_line=line)
-    pre_count = existing.count()
-    if pre_count:
-        logger.warning(
-            "delivery_receipt run [%s]: line %s has %s existing stock entries before delete",
-            run_id,
-            line.id,
-            pre_count,
-        )
-    deleted_count, _ = existing.delete()
-    if deleted_count:
-        logger.debug(
-            "delivery_receipt run [%s]: deleted %s existing stock entries for line %s.",
-            run_id,
-            deleted_count,
-            line.id,
-        )
 
 
 def _materialise(
     *,
     po: PurchaseOrder,
     line: PurchaseOrderLine,
-    allocations: list[ReceiptAllocation],
+    allocations: list[MaterialAllocation],
     stock_holding_job_id: UUID,
     staff: Staff,
 ) -> None:
@@ -199,10 +178,8 @@ def _materialise(
         if alloc.job.id == stock_holding_job_id:
             create_stock_from_allocation(
                 line=line,
-                job=alloc.job,
-                qty=alloc.quantity,
-                metadata=alloc.metadata,
-                retail_rate_pct=alloc.retail_rate_pct,
+                allocation=alloc,
+                staff=staff,
             )
         else:
             create_costline_from_allocation(
@@ -245,8 +222,6 @@ def process_delivery_receipt(
                     line=line, line_request=line_request, jobs_by_id=jobs_by_id
                 )
 
-                _delete_previous_stock_for_line(line, run_id=run_id)
-
                 PurchaseOrderLine.objects.filter(id=line.id).update(
                     received_quantity=F("received_quantity") + total_received
                 )
@@ -279,3 +254,31 @@ def process_delivery_receipt(
         )
         logger.exception("Error processing delivery receipt for PO %s", purchase_order_id)
         raise
+
+
+@transaction.atomic
+def receive_outstanding_order(
+    purchase_order_id: UUID, staff: Staff, *, if_match: str
+) -> PurchaseOrder:
+    """Submit only outstanding quantities through the canonical receipt command."""
+    po = PurchaseOrder.objects.select_for_update().get(pk=purchase_order_id)
+    require_current_etag(po, if_match)
+    lines = list(po.po_lines.filter(quantity__gt=F("received_quantity")).order_by("id"))
+    if not lines:
+        return po
+    stock_job_id = Stock.get_stock_holding_job().id
+    requests = {
+        str(line.id): ReceiptLineRequest(
+            total_received=line.quantity - line.received_quantity,
+            allocations=[
+                ReceiptAllocationRequest(
+                    job_id=line.job_id if line.job_id is not None else stock_job_id,
+                    quantity=line.quantity - line.received_quantity,
+                    retail_rate=None,
+                    metadata={},
+                ),
+            ],
+        )
+        for line in lines
+    }
+    return process_delivery_receipt(po.id, requests, staff, if_match=if_match)

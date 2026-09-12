@@ -12,7 +12,8 @@ import pytest
 from django.test import Client
 
 from apps.accounts.models import Staff
-from apps.company.tests.conftest import authenticate, make_company
+from apps.accounts.tests.helpers import authenticate
+from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job, JobLabourRate, LabourSubtype

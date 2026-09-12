@@ -1,7 +1,9 @@
 import { waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { http, HttpResponse } from 'msw'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { server } from '@/test/msw'
 import { renderWithProviders } from '@/test/render'
 import { autoId } from '@/test/auto-id'
 import { JobPicker, type JobPickerOption } from './JobPicker'
@@ -29,6 +31,17 @@ const PREFIX = 'SmartTimesheetTable-jobPicker-0'
 const trigger = () => autoId(`${PREFIX}-trigger`)
 const search = () => autoId(`${PREFIX}-search`)
 const option = (jobNumber: number) => `${PREFIX}-option-${jobNumber}`
+
+// The picker holds its options back until the status vocabulary answers, so
+// every test here needs it answered; without this the assertions would run
+// against a list that is still loading.
+beforeEach(() => {
+  server.use(
+    http.get('*/api/job/jobs/status-choices/', () =>
+      HttpResponse.json({ statuses: { in_progress: 'In Progress' } }),
+    ),
+  )
+})
 
 async function renderPicker(props: Partial<Parameters<typeof JobPicker<TestJob>>[0]> = {}) {
   const onSelect = vi.fn()

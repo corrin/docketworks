@@ -65,6 +65,39 @@ diagnosis and repair sequence is in
 
 The developer app is how Xero knows where to send this installation's data.
 
+### Alternative: share an app through the webhook router
+
+Xero allows **one webhook delivery URL and one signing key per app**, which is why every install
+has needed its own app registration just to receive webhooks. For a low-value install — a trial, a
+demo, or a dev machine — that registration is pure overhead.
+
+[docketworks-webhook](https://github.com/corrin/docketworks-webhook) is a shared router at
+`https://hooks.docketworks.site` that removes it. One Xero app points its single delivery URL at
+the router; the router verifies the delivery, splits the batch by `tenantId`, re-signs each slice
+with the destination install's own key, and forwards it. **Nothing in this repository changes** —
+the install still receives at its own `/api/xero/webhook/` and still verifies the HMAC exactly as
+`apps/xero/webhooks.py` does today.
+
+Use it for trials, demos, dev machines and internal environments. Give a production client its own
+app: an uncertified Xero app is capped on how many organisations may connect to it, so every trial
+sharing the app spends that budget, and one shared registration is a single point of failure for
+everything behind it.
+
+Sharing an app means the install's `XeroApp` row carries the **shared** app's `client_id`,
+`client_secret` and `webhook_key` rather than its own. Two things follow:
+
+- The install's own OAuth callback URL must be added to the shared app's redirect URI list. The
+  redirect URI is per install and exact-parity; only the credentials are shared. OAuth itself does
+  not go through the router, because the callback carries an authorization code and the router is
+  deliberately a lower-privacy service.
+- Someone must add a route on the router keyed by this install's `CompanyDefaults.xero_tenant_id`.
+  Until that route exists the router accepts and drops the events, and the hourly
+  `xero_regular_sync_task` is what closes the gap. A demo organisation gets a new tenant id when it
+  is recreated, so its route needs re-pointing on that cycle.
+
+The router's README covers registering an app and adding a route. The rest of this page assumes a
+dedicated app; where it says to create one, a shared app is the substitute.
+
 1. Go to the [Xero Developer Portal](https://developer.xero.com/app/manage) and log in.
 2. Click "New App".
    - Name: `Docketworks <instance>` (e.g. `Docketworks MSM` for a client instance,
@@ -75,7 +108,9 @@ The developer app is how Xero knows where to send this installation's data.
      exact-parity: Xero holds it, and it must match the `redirect_uri` stored on the `XeroApp`
      row verbatim.
 3. Copy the **Client ID** and **Client Secret**.
-4. Under Webhooks, create a subscription:
+4. Under Webhooks, create a subscription. Skip this step entirely if the install is sharing an
+   app through the webhook router — the shared app already has a delivery URL, and adding a
+   second subscription is not possible.
    - **Webhook Delivery URL:** your domain + `/api/xero/webhook/`
      (e.g. `https://docketworks-dave.ngrok-free.app/api/xero/webhook/`) — also exact-parity,
      mounted in `config/urls.py`.

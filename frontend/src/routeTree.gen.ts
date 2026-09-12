@@ -44,6 +44,8 @@ import { Route as AuthedCrmPeoplePersonIdRouteImport } from './routes/_authed/cr
 import { Route as AuthedPurchasingPoIndexRouteImport } from './routes/_authed/purchasing/po/index'
 import { Route as AuthedPurchasingPoPoIdRouteImport } from './routes/_authed/purchasing/po/$poId'
 import { Route as AuthedPurchasingPoCreateRouteImport } from './routes/_authed/purchasing/po/create'
+import { Route as AuthedPurchasingStocktakesIndexRouteImport } from './routes/_authed/purchasing/stocktakes/index'
+import { Route as AuthedPurchasingStocktakesStocktakeIdRouteImport } from './routes/_authed/purchasing/stocktakes/$stocktakeId'
 import { Route as AuthedProcessDocumentsFormsCategoryIndexRouteImport } from './routes/_authed/process-documents/forms/$category/index'
 import { Route as AuthedProcessDocumentsFormsCategoryFormIdRouteImport } from './routes/_authed/process-documents/forms/$category/$formId'
 
@@ -229,6 +231,18 @@ const AuthedPurchasingPoCreateRoute =
     path: '/purchasing/po/create',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedPurchasingStocktakesIndexRoute =
+  AuthedPurchasingStocktakesIndexRouteImport.update({
+    id: '/purchasing/stocktakes/',
+    path: '/purchasing/stocktakes/',
+    getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedPurchasingStocktakesStocktakeIdRoute =
+  AuthedPurchasingStocktakesStocktakeIdRouteImport.update({
+    id: '/purchasing/stocktakes/$stocktakeId',
+    path: '/purchasing/stocktakes/$stocktakeId',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedProcessDocumentsFormsCategoryIndexRoute =
   AuthedProcessDocumentsFormsCategoryIndexRouteImport.update({
     id: '/process-documents/forms/$category/',
@@ -272,11 +286,13 @@ export interface FileRoutesByFullPath {
   '/crm/people/$personId': typeof AuthedCrmPeoplePersonIdRoute
   '/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
   '/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
+  '/purchasing/stocktakes/$stocktakeId': typeof AuthedPurchasingStocktakesStocktakeIdRoute
   '/admin/company-defaults/': typeof AuthedAdminCompanyDefaultsIndexRoute
   '/crm/calls/': typeof AuthedCrmCallsIndexRoute
   '/crm/companies/': typeof AuthedCrmCompaniesIndexRoute
   '/crm/people/': typeof AuthedCrmPeopleIndexRoute
   '/purchasing/po/': typeof AuthedPurchasingPoIndexRoute
+  '/purchasing/stocktakes/': typeof AuthedPurchasingStocktakesIndexRoute
   '/process-documents/forms/$category/$formId': typeof AuthedProcessDocumentsFormsCategoryFormIdRoute
   '/process-documents/forms/$category/': typeof AuthedProcessDocumentsFormsCategoryIndexRoute
 }
@@ -310,11 +326,13 @@ export interface FileRoutesByTo {
   '/crm/people/$personId': typeof AuthedCrmPeoplePersonIdRoute
   '/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
   '/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
+  '/purchasing/stocktakes/$stocktakeId': typeof AuthedPurchasingStocktakesStocktakeIdRoute
   '/admin/company-defaults': typeof AuthedAdminCompanyDefaultsIndexRoute
   '/crm/calls': typeof AuthedCrmCallsIndexRoute
   '/crm/companies': typeof AuthedCrmCompaniesIndexRoute
   '/crm/people': typeof AuthedCrmPeopleIndexRoute
   '/purchasing/po': typeof AuthedPurchasingPoIndexRoute
+  '/purchasing/stocktakes': typeof AuthedPurchasingStocktakesIndexRoute
   '/process-documents/forms/$category/$formId': typeof AuthedProcessDocumentsFormsCategoryFormIdRoute
   '/process-documents/forms/$category': typeof AuthedProcessDocumentsFormsCategoryIndexRoute
 }
@@ -350,11 +368,13 @@ export interface FileRoutesById {
   '/_authed/crm/people/$personId': typeof AuthedCrmPeoplePersonIdRoute
   '/_authed/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
   '/_authed/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
+  '/_authed/purchasing/stocktakes/$stocktakeId': typeof AuthedPurchasingStocktakesStocktakeIdRoute
   '/_authed/admin/company-defaults/': typeof AuthedAdminCompanyDefaultsIndexRoute
   '/_authed/crm/calls/': typeof AuthedCrmCallsIndexRoute
   '/_authed/crm/companies/': typeof AuthedCrmCompaniesIndexRoute
   '/_authed/crm/people/': typeof AuthedCrmPeopleIndexRoute
   '/_authed/purchasing/po/': typeof AuthedPurchasingPoIndexRoute
+  '/_authed/purchasing/stocktakes/': typeof AuthedPurchasingStocktakesIndexRoute
   '/_authed/process-documents/forms/$category/$formId': typeof AuthedProcessDocumentsFormsCategoryFormIdRoute
   '/_authed/process-documents/forms/$category/': typeof AuthedProcessDocumentsFormsCategoryIndexRoute
 }
@@ -390,11 +410,13 @@ export interface FileRouteTypes {
     | '/crm/people/$personId'
     | '/purchasing/po/$poId'
     | '/purchasing/po/create'
+    | '/purchasing/stocktakes/$stocktakeId'
     | '/admin/company-defaults/'
     | '/crm/calls/'
     | '/crm/companies/'
     | '/crm/people/'
     | '/purchasing/po/'
+    | '/purchasing/stocktakes/'
     | '/process-documents/forms/$category/$formId'
     | '/process-documents/forms/$category/'
   fileRoutesByTo: FileRoutesByTo
@@ -428,11 +450,13 @@ export interface FileRouteTypes {
     | '/crm/people/$personId'
     | '/purchasing/po/$poId'
     | '/purchasing/po/create'
+    | '/purchasing/stocktakes/$stocktakeId'
     | '/admin/company-defaults'
     | '/crm/calls'
     | '/crm/companies'
     | '/crm/people'
     | '/purchasing/po'
+    | '/purchasing/stocktakes'
     | '/process-documents/forms/$category/$formId'
     | '/process-documents/forms/$category'
   id:
@@ -467,11 +491,13 @@ export interface FileRouteTypes {
     | '/_authed/crm/people/$personId'
     | '/_authed/purchasing/po/$poId'
     | '/_authed/purchasing/po/create'
+    | '/_authed/purchasing/stocktakes/$stocktakeId'
     | '/_authed/admin/company-defaults/'
     | '/_authed/crm/calls/'
     | '/_authed/crm/companies/'
     | '/_authed/crm/people/'
     | '/_authed/purchasing/po/'
+    | '/_authed/purchasing/stocktakes/'
     | '/_authed/process-documents/forms/$category/$formId'
     | '/_authed/process-documents/forms/$category/'
   fileRoutesById: FileRoutesById
@@ -733,6 +759,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedPurchasingPoCreateRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/purchasing/stocktakes/': {
+      id: '/_authed/purchasing/stocktakes/'
+      path: '/purchasing/stocktakes'
+      fullPath: '/purchasing/stocktakes/'
+      preLoaderRoute: typeof AuthedPurchasingStocktakesIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/purchasing/stocktakes/$stocktakeId': {
+      id: '/_authed/purchasing/stocktakes/$stocktakeId'
+      path: '/purchasing/stocktakes/$stocktakeId'
+      fullPath: '/purchasing/stocktakes/$stocktakeId'
+      preLoaderRoute: typeof AuthedPurchasingStocktakesStocktakeIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/process-documents/forms/$category/': {
       id: '/_authed/process-documents/forms/$category/'
       path: '/process-documents/forms/$category'
@@ -774,11 +814,13 @@ interface AuthedRouteChildren {
   AuthedCrmPeoplePersonIdRoute: typeof AuthedCrmPeoplePersonIdRoute
   AuthedPurchasingPoPoIdRoute: typeof AuthedPurchasingPoPoIdRoute
   AuthedPurchasingPoCreateRoute: typeof AuthedPurchasingPoCreateRoute
+  AuthedPurchasingStocktakesStocktakeIdRoute: typeof AuthedPurchasingStocktakesStocktakeIdRoute
   AuthedAdminCompanyDefaultsIndexRoute: typeof AuthedAdminCompanyDefaultsIndexRoute
   AuthedCrmCallsIndexRoute: typeof AuthedCrmCallsIndexRoute
   AuthedCrmCompaniesIndexRoute: typeof AuthedCrmCompaniesIndexRoute
   AuthedCrmPeopleIndexRoute: typeof AuthedCrmPeopleIndexRoute
   AuthedPurchasingPoIndexRoute: typeof AuthedPurchasingPoIndexRoute
+  AuthedPurchasingStocktakesIndexRoute: typeof AuthedPurchasingStocktakesIndexRoute
   AuthedProcessDocumentsFormsCategoryFormIdRoute: typeof AuthedProcessDocumentsFormsCategoryFormIdRoute
   AuthedProcessDocumentsFormsCategoryIndexRoute: typeof AuthedProcessDocumentsFormsCategoryIndexRoute
 }
@@ -809,11 +851,14 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedCrmPeoplePersonIdRoute: AuthedCrmPeoplePersonIdRoute,
   AuthedPurchasingPoPoIdRoute: AuthedPurchasingPoPoIdRoute,
   AuthedPurchasingPoCreateRoute: AuthedPurchasingPoCreateRoute,
+  AuthedPurchasingStocktakesStocktakeIdRoute:
+    AuthedPurchasingStocktakesStocktakeIdRoute,
   AuthedAdminCompanyDefaultsIndexRoute: AuthedAdminCompanyDefaultsIndexRoute,
   AuthedCrmCallsIndexRoute: AuthedCrmCallsIndexRoute,
   AuthedCrmCompaniesIndexRoute: AuthedCrmCompaniesIndexRoute,
   AuthedCrmPeopleIndexRoute: AuthedCrmPeopleIndexRoute,
   AuthedPurchasingPoIndexRoute: AuthedPurchasingPoIndexRoute,
+  AuthedPurchasingStocktakesIndexRoute: AuthedPurchasingStocktakesIndexRoute,
   AuthedProcessDocumentsFormsCategoryFormIdRoute:
     AuthedProcessDocumentsFormsCategoryFormIdRoute,
   AuthedProcessDocumentsFormsCategoryIndexRoute:

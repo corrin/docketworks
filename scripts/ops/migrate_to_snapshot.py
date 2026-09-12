@@ -1,9 +1,14 @@
 #!/usr/bin/env python
 """Apply Django migrations up to the state recorded in a migrations.json snapshot.
 
-The snapshot is produced by v1's `manage.py backport_data_backup` (see
-`create_migrations_snapshot`) and ships inside the prod backup zip that
-scripts/ops/pull_prod_backup.sh fetches.
+The snapshot is the `<dump>.migrations.json` sidecar that `manage.py
+backport_data_backup` and the nightly `scripts/backup_db.sh` write beside every
+archive, and that scripts/ops/pull_prod_backup.sh fetches with it.
+
+A refresh from a current archive does not need this: a full pg_dump carries its
+own django_migrations rows, so restoring it lands the ledger too. This is for
+restoring an OLDER archive, where the checkout has moved on and the database has
+to be brought to the graph the archive was taken at rather than to HEAD.
 
 Usage:
     uv run python -m scripts.ops.migrate_to_snapshot <path-to-migrations.json>

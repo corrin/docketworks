@@ -1,6 +1,8 @@
 import { QueryState } from '@/features/shared/QueryState'
+import { EntryGridSection } from '@/features/shared/EntryGridSection'
 import { PoLinesTable } from './PoLinesTable'
-import { PoSummaryCard } from './PoSummaryCard'
+import { PoDetailHeader, PoOrderValue, PoSummaryCard } from './PoSummaryCard'
+import { PoHistorySection } from './PoHistorySection'
 import { usePoLines } from './usePoLines'
 
 interface PoDetailPageProps {
@@ -8,11 +10,11 @@ interface PoDetailPageProps {
 }
 
 export function PoDetailPage({ poId }: PoDetailPageProps) {
-  const { poQuery, patchHeader, patchLine, createLine } = usePoLines(poId)
+  const { poQuery, patchHeader, patchLine, createLine, deleteLine } = usePoLines(poId)
   const po = poQuery.data
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <div className="min-w-0">
       <QueryState
         isPending={poQuery.isPending}
         // No fabricated empty page: a failed FIRST load must not read as a
@@ -23,14 +25,31 @@ export function PoDetailPage({ poId }: PoDetailPageProps) {
         errorLabel="Could not load the purchase order."
       >
         {po && (
-          <div className="space-y-6">
-            <h1 className="text-xl font-bold text-gray-900">Purchase Order {po.po_number}</h1>
-            <PoSummaryCard mode="detail" po={po} patchHeader={patchHeader} />
-            <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-              <h2 className="mb-3 text-sm font-semibold text-gray-700">Line Items</h2>
-              <PoLinesTable lines={po.lines} patchLine={patchLine} createLine={createLine} />
-            </div>
-          </div>
+          <>
+            <PoDetailHeader po={po} patchHeader={patchHeader} />
+            <main className="min-w-0 space-y-4 p-4">
+              <PoSummaryCard mode="detail" po={po} patchHeader={patchHeader} />
+              <EntryGridSection
+                title={
+                  <>
+                    Line Items{' '}
+                    <span className="ml-2 text-xs font-normal text-slate-500">
+                      {po.lines.length} {po.lines.length === 1 ? 'line' : 'lines'}
+                    </span>
+                  </>
+                }
+                actions={<PoOrderValue lines={po.lines} />}
+              >
+                <PoLinesTable
+                  lines={po.lines}
+                  patchLine={patchLine}
+                  deleteLine={deleteLine}
+                  createLine={createLine}
+                />
+              </EntryGridSection>
+              <PoHistorySection key={poId} poId={poId} />
+            </main>
+          </>
         )}
       </QueryState>
     </div>

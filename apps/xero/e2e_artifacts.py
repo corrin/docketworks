@@ -87,13 +87,17 @@ def get_closed_e2e_windows() -> list[tuple[datetime, datetime]]:
     ]
 
 
-def _owning_company_name(item: InboundXeroObject) -> str | None:
-    """Name of the company an inbound Xero object belongs to.
+def owning_company_name(item: InboundXeroObject) -> str | None:
+    """Name of the company a Xero object belongs to.
 
     A contact carries its own name. Documents — invoices, quotes, bills,
     purchase orders, credit notes — carry an embedded contact. Entities with no
     company at all, such as accounts and stock, return None and are never
     skipped.
+
+    Public because the E2E residue sweep asks the same question of the same
+    objects: "whose is this?" has one answer, and a second copy in the sweep
+    would be a second thing to keep true of the SDK's shapes.
     """
     contact: XeroContactLike | None = getattr(item, "contact", None)
     if contact is not None:
@@ -111,7 +115,7 @@ def _is_e2e_artifact(
     if updated_at is None:
         return False
 
-    if not is_test_company_name(_owning_company_name(item)):
+    if not is_test_company_name(owning_company_name(item)):
         return False
 
     return any(start <= updated_at <= end for start, end in closed_windows)

@@ -33,8 +33,8 @@ export function AppNavbar() {
   }
 
   return (
-    <header className="flex items-center justify-between border-b border-border bg-card px-4 py-2">
-      <div className="flex items-center space-x-6">
+    <header className="flex flex-wrap items-center justify-between gap-y-2 border-b border-border bg-card px-4 py-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
         <Link to="/kanban" className="text-sm font-semibold">
           DocketWorks
         </Link>
@@ -139,6 +139,9 @@ export function AppNavbar() {
             <NavMenuLink to="/purchasing/stock" automationId="AppNavbar-use-stock">
               Use Stock
             </NavMenuLink>
+            <NavMenuLink to="/purchasing/stocktakes" automationId="AppNavbar-stocktake">
+              Stocktake
+            </NavMenuLink>
           </NavMenu>
         )}
         {/* Office staff only, as in v1: every entry is company-wide revenue
@@ -207,7 +210,7 @@ export function AppNavbar() {
           </NavMenu>
         )}
       </div>
-      <div className="flex items-center space-x-4">
+      <div className="flex min-w-0 flex-wrap items-center gap-4">
         <KanbanSearchInput />
         <span className="text-sm text-gray-700">Welcome, {user.fullName}!</span>
         <Link

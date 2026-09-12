@@ -1,5 +1,14 @@
 components:
   schemas:
+    AIProviderTypes:
+      description: Supported AI provider types.
+      enum:
+      - Claude
+      - Gemini
+      - Mistral
+      - OpenAI
+      title: AIProviderTypes
+      type: string
     AcknowledgeIn:
       additionalProperties: false
       description: "POST body for acknowledging a form: empty by design.\n\n``staff`` is always ``request.user``\
@@ -170,67 +179,11 @@ components:
       - stock_holding_job_id
       title: AllJobsResponse
       type: object
-    AllocationDeleteRequest:
-      description: Wire contract for AllocationDeleteRequest.
-      properties:
-        allocation_id:
-          format: uuid
-          title: Allocation Id
-          type: string
-        allocation_type:
-          enum:
-          - job
-          - stock
-          title: Allocation Type
-          type: string
-      required:
-      - allocation_type
-      - allocation_id
-      title: AllocationDeleteRequest
-      type: object
-    AllocationDeleteResponse:
-      description: Wire contract for AllocationDeleteResponse.
-      properties:
-        deleted_quantity:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Deleted Quantity
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Description
-        job_name:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Job Name
-        message:
-          title: Message
-          type: string
-        success:
-          title: Success
-          type: boolean
-        updated_received_quantity:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Updated Received Quantity
-      required:
-      - deleted_quantity
-      - description
-      - job_name
-      - message
-      - success
-      - updated_received_quantity
-      title: AllocationDeleteResponse
-      type: object
     AllocationDetailsResponse:
       description: Wire contract for AllocationDetailsResponse.
       properties:
-        can_delete:
-          title: Can Delete
+        can_reverse:
+          title: Can Reverse
           type: boolean
         consumed_by_jobs:
           anyOf:
@@ -272,7 +225,7 @@ components:
           - type: 'null'
           title: Unit Revenue
       required:
-      - can_delete
+      - can_reverse
       - consumed_by_jobs
       - description
       - id
@@ -326,6 +279,9 @@ components:
           default: 0
           title: Retail Rate
           type: number
+        reversed:
+          title: Reversed
+          type: boolean
         specifics:
           anyOf:
           - type: string
@@ -352,10 +308,58 @@ components:
       - metal_type
       - quantity
       - retail_rate
+      - reversed
       - specifics
       - stock_location
       - type
       title: AllocationItem
+      type: object
+    AllocationReversalRequest:
+      description: Wire contract for AllocationReversalRequest.
+      properties:
+        allocation_id:
+          format: uuid
+          title: Allocation Id
+          type: string
+        allocation_type:
+          enum:
+          - job
+          - stock
+          title: Allocation Type
+          type: string
+      required:
+      - allocation_type
+      - allocation_id
+      title: AllocationReversalRequest
+      type: object
+    AllocationReversalResponse:
+      description: Wire contract for AllocationReversalResponse.
+      properties:
+        description:
+          title: Description
+          type: string
+        job_name:
+          title: Job Name
+          type: string
+        reversed_quantity:
+          title: Reversed Quantity
+          type: number
+        status:
+          enum:
+          - reversed
+          - already_reversed
+          title: Status
+          type: string
+        updated_received_quantity:
+          title: Updated Received Quantity
+          type: number
+      required:
+      - description
+      - job_name
+      - reversed_quantity
+      - status
+      - updated_received_quantity
+      title: AllocationReversalResponse
       type: object
     AssignJobRequest:
       description: Wire contract for AssignJobRequest.
@@ -2429,6 +2433,10 @@ components:
             type: string
           - type: 'null'
           title: Labour Subtype
+        managed_by:
+          anyOf:
+          - $ref: '#/components/schemas/CostLineOwner'
+          - type: 'null'
         meta:
           additionalProperties: true
           title: Meta
@@ -2506,6 +2514,7 @@ components:
       - xero_last_modified
       - xero_last_synced
       - approved
+      - managed_by
       - xero_pay_item
       - staff
       - entry_seq
@@ -2514,6 +2523,14 @@ components:
       - total_rev
       title: CostLineOut
       type: object
+    CostLineOwner:
+      description: The workflow responsible for a cost line's mutations.
+      enum:
+      - leave
+      - stocktake
+      - stock
+      title: CostLineOwner
+      type: string
     CostLineUpdateRequest:
       description: "Wire contract for CostLineUpdateRequest.\n\nEvery default below is a presence marker,\
         \ never a value: the handler reads\n``model_fields_set`` and leaves the stored value alone for\
@@ -4100,6 +4117,11 @@ components:
     IntegrationSettingsOut:
       description: Every non-secret column, plus presence flags for the secrets.
       properties:
+        chatkit_domain_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Chatkit Domain Key
         created_at:
           format: date-time
           title: Created At
@@ -4138,6 +4160,7 @@ components:
           type: string
       required:
       - id
+      - chatkit_domain_key
       - has_google_maps_api_key
       - phone_provider_enabled
       - phone_provider_recording_deletion_enabled
@@ -4152,6 +4175,12 @@ components:
     IntegrationSettingsPatchIn:
       description: 'Partial update: omitted fields keep their stored value, ``null`` clears.'
       properties:
+        chatkit_domain_key:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Chatkit Domain Key
         google_maps_api_key:
           anyOf:
           - minLength: 1
@@ -6761,6 +6790,7 @@ components:
           title: Date
           type: string
         hours:
+          exclusiveMinimum: 0.0
           title: Hours
           type: number
       required:
@@ -7862,11 +7892,8 @@ components:
       title: PatchedPersonContactMethodWriteRequest
       type: object
     PatchedStockItemRequest:
-      description: "Partial stock-item update in which field presence is significant.\n\nThe first block\
-        \ maps to NOT NULL columns, so null is a 422 \u2014 the handler\nused to drop it silently, which\
-        \ reported a refused edit as a success. The\n``NullableText`` block is the ADR 0040 set where\
-        \ null is precisely how a\ncaller clears the value, and ``unit_revenue`` is nullable for the same\n\
-        reason."
+      additionalProperties: false
+      description: Change only metadata fields explicitly supplied by the caller.
       properties:
         alloy:
           anyOf:
@@ -7879,11 +7906,10 @@ components:
           title: Date
           type: string
         description:
+          maxLength: 255
+          minLength: 1
           title: Description
           type: string
-        is_active:
-          title: Is Active
-          type: boolean
         item_code:
           anyOf:
           - minLength: 1
@@ -7902,32 +7928,18 @@ components:
             type: string
           - type: 'null'
           title: Metal Type
-        quantity:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
-          title: Quantity
-        source:
-          title: Source
-          type: string
         specifics:
           anyOf:
           - minLength: 1
             type: string
           - type: 'null'
           title: Specifics
-        unit_cost:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
-          title: Unit Cost
         unit_revenue:
           anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - maximum: 99999999.99
+            minimum: 0.0
+            multipleOf: 0.01
+            type: number
           - type: 'null'
           title: Unit Revenue
       title: PatchedStockItemRequest
@@ -10096,6 +10108,103 @@ components:
       - updated_products_count
       title: ProductMappingValidateResponse
       type: object
+    ProviderCreate:
+      additionalProperties: false
+      description: Require a usable new entry; unset values belong to explicit edits.
+      properties:
+        api_key:
+          maxLength: 255
+          minLength: 1
+          title: Api Key
+          type: string
+        model_name:
+          maxLength: 100
+          minLength: 1
+          title: Model Name
+          type: string
+        name:
+          maxLength: 100
+          minLength: 1
+          title: Name
+          type: string
+        provider_type:
+          $ref: '#/components/schemas/AIProviderTypes'
+      required:
+      - name
+      - provider_type
+      - model_name
+      - api_key
+      title: ProviderCreate
+      type: object
+    ProviderOut:
+      description: Safe catalogue metadata; a stored secret is represented by presence only.
+      properties:
+        default:
+          title: Default
+          type: boolean
+        has_api_key:
+          title: Has Api Key
+          type: boolean
+        id:
+          title: Id
+          type: integer
+        model_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Model Name
+        name:
+          title: Name
+          type: string
+        provider_type:
+          $ref: '#/components/schemas/AIProviderTypes'
+      required:
+      - id
+      - name
+      - provider_type
+      - model_name
+      - default
+      - has_api_key
+      title: ProviderOut
+      type: object
+    ProviderPatch:
+      additionalProperties: false
+      description: Omitted fields retain their value; null clears model or credentials.
+      properties:
+        api_key:
+          anyOf:
+          - maxLength: 255
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Api Key
+        model_name:
+          anyOf:
+          - maxLength: 100
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Model Name
+        name:
+          maxLength: 100
+          minLength: 1
+          title: Name
+          type: string
+        provider_type:
+          allOf:
+          - $ref: '#/components/schemas/AIProviderTypes'
+      title: ProviderPatch
+      type: object
+    ProviderTestOut:
+      description: A successful live test names the actual gateway model.
+      properties:
+        model:
+          title: Model
+          type: string
+      required:
+      - model
+      title: ProviderTestOut
+      type: object
     PurchaseOrderAllocationsResponse:
       description: Wire contract for PurchaseOrderAllocationsResponse.
       properties:
@@ -10144,7 +10253,8 @@ components:
           title: Pickup Address Id
         reference:
           anyOf:
-          - type: string
+          - minLength: 1
+            type: string
           - type: 'null'
           title: Reference
         supplier_id:
@@ -10225,11 +10335,20 @@ components:
           - type: 'null'
           title: Reference
         status:
+          enum:
+          - draft
+          - submitted
+          - partially_received
+          - fully_received
+          - deleted
           title: Status
           type: string
         supplier:
           title: Supplier
           type: string
+        supplier_has_email:
+          title: Supplier Has Email
+          type: boolean
         supplier_has_xero_id:
           title: Supplier Has Xero Id
           type: boolean
@@ -10245,6 +10364,17 @@ components:
             type: string
           - type: 'null'
           title: Xero Id
+        xero_last_synced:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Xero Last Synced
+        xero_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Xero Status
       required:
       - id
       - po_number
@@ -10254,11 +10384,14 @@ components:
       - expected_delivery
       - online_url
       - xero_id
+      - xero_status
+      - xero_last_synced
       - pickup_address_id
       - created_by_id
       - supplier
       - supplier_id
       - supplier_has_xero_id
+      - supplier_has_email
       - lines
       - pickup_address
       - created_by_name
@@ -10282,40 +10415,32 @@ components:
     PurchaseOrderEmailResponse:
       description: Wire contract for PurchaseOrderEmailResponse.
       properties:
+        draft_id:
+          title: Draft Id
+          type: string
+        draft_url:
+          title: Draft Url
+          type: string
         email_body:
-          anyOf:
-          - type: string
-          - type: 'null'
           title: Email Body
+          type: string
         email_subject:
-          anyOf:
-          - type: string
-          - type: 'null'
           title: Email Subject
-        mailto_url:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Mailto Url
+          type: string
         message:
           anyOf:
           - type: string
           - type: 'null'
           title: Message
-        pdf_url:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Pdf Url
         success:
           title: Success
           type: boolean
       required:
+      - draft_id
+      - draft_url
       - email_body
       - email_subject
-      - mailto_url
       - message
-      - pdf_url
       - success
       title: PurchaseOrderEmailResponse
       type: object
@@ -10490,6 +10615,10 @@ components:
           - type: string
           - type: 'null'
           title: Company Name
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
         description:
           title: Description
           type: string
@@ -10537,13 +10666,11 @@ components:
           title: Price Tbc
           type: boolean
         quantity:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Quantity
-          type: string
+          type: number
         received_quantity:
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Received Quantity
-          type: string
+          type: number
         specifics:
           anyOf:
           - type: string
@@ -10559,12 +10686,12 @@ components:
           type: integer
         unit_cost:
           anyOf:
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - type: number
           - type: 'null'
           title: Unit Cost
       required:
       - id
+      - created_at
       - description
       - quantity
       - dimensions
@@ -10688,6 +10815,12 @@ components:
           title: Po Number
           type: string
         status:
+          enum:
+          - draft
+          - submitted
+          - partially_received
+          - fully_received
+          - deleted
           title: Status
           type: string
         supplier:
@@ -10712,8 +10845,20 @@ components:
       title: PurchaseOrderList
       type: object
     PurchaseOrderListQuery:
-      description: Query parameters for purchase-order listing, including CSV statuses.
+      description: 'Query params for purchase-order listing: CSV statuses, search, paging.'
       properties:
+        page:
+          default: 1
+          title: Page
+          type: integer
+        page_size:
+          default: 50
+          title: Page Size
+          type: integer
+        q:
+          default: ''
+          title: Q
+          type: string
         status:
           anyOf:
           - type: string
@@ -10721,14 +10866,44 @@ components:
           title: Status
       title: PurchaseOrderListQuery
       type: object
+    PurchaseOrderListResponse:
+      description: One page of purchase orders in the shared pagination envelope.
+      properties:
+        count:
+          title: Count
+          type: integer
+        page:
+          title: Page
+          type: integer
+        page_size:
+          title: Page Size
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/PurchaseOrderList'
+          title: Results
+          type: array
+        total_pages:
+          title: Total Pages
+          type: integer
+      required:
+      - results
+      - count
+      - page
+      - page_size
+      - total_pages
+      title: PurchaseOrderListResponse
+      type: object
     PurchaseOrderUpdateRequest:
       description: "Partial purchase-order update in which field presence is significant.\n\n``supplier_id``,\
         \ ``pickup_address_id``, ``reference`` and\n``expected_delivery`` are nullable because each can\
         \ be CLEARED \u2014 the\ncolumns are nullable and NULL is what unset means there. ``status`` cannot:\n\
-        the column is NOT NULL, so a null is a 422 rather than something the\nhandler silently drops.\n\
-        \nThe two list fields are presence-only. A null list means nothing an empty\nlist does not, and\
-        \ reading them from ``model_fields_set`` rather than a\nnull check is what lets a caller send\
-        \ ``lines: []``."
+        the column is NOT NULL, so a null is a 422 rather than something the\nhandler silently drops.\
+        \ Its sentinel is ``\"draft\"`` (the model default)\nrather than ``\"\"`` because the annotation\
+        \ is the five-value union and the\nplaceholder must not contradict it; the handler reads presence\
+        \ from\n``model_fields_set`` and never the value.\n\nThe two list fields are presence-only. A\
+        \ null list means nothing an empty\nlist does not, and reading them from ``model_fields_set``\
+        \ rather than a\nnull check is what lets a caller send ``lines: []``."
       properties:
         expected_delivery:
           anyOf:
@@ -10755,10 +10930,17 @@ components:
           title: Pickup Address Id
         reference:
           anyOf:
-          - type: string
+          - minLength: 1
+            type: string
           - type: 'null'
           title: Reference
         status:
+          enum:
+          - draft
+          - submitted
+          - partially_received
+          - fully_received
+          - deleted
           title: Status
           type: string
         supplier_id:
@@ -11077,6 +11259,66 @@ components:
       - job_number
       - job_name
       title: QuoteSpreadsheetOut
+      type: object
+    QuotingChatConfigOut:
+      description: Public embed configuration and Django's masked CSRF token.
+      properties:
+        can_configure:
+          title: Can Configure
+          type: boolean
+        configuration_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Configuration Error
+        csrf_token:
+          title: Csrf Token
+          type: string
+        domain_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Domain Key
+        model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Model
+        models:
+          items:
+            $ref: '#/components/schemas/QuotingChatModelOut'
+          title: Models
+          type: array
+      required:
+      - domain_key
+      - csrf_token
+      - configuration_error
+      - model
+      - models
+      - can_configure
+      title: QuotingChatConfigOut
+      type: object
+    QuotingChatModelOut:
+      description: Public model-picker metadata; credentials remain in the gateway.
+      properties:
+        default:
+          title: Default
+          type: boolean
+        description:
+          title: Description
+          type: string
+        id:
+          title: Id
+          type: string
+        label:
+          title: Label
+          type: string
+      required:
+      - id
+      - label
+      - description
+      - default
+      title: QuotingChatModelOut
       type: object
     RDTICategorySummaryOut:
       description: 'RDTI category summary contract.
@@ -11635,7 +11877,7 @@ components:
         \ an\nexisting session (not just the next login) gets locked to the change\nscreen."
       properties:
         base_wage_rate:
-          minimum: 0
+          minimum: 0.0
           title: Base Wage Rate
           type: number
         date_left:
@@ -11653,31 +11895,31 @@ components:
           title: First Name
           type: string
         hours_fri:
-          minimum: 0
+          minimum: 0.0
           title: Hours Fri
           type: number
         hours_mon:
-          minimum: 0
+          minimum: 0.0
           title: Hours Mon
           type: number
         hours_sat:
-          minimum: 0
+          minimum: 0.0
           title: Hours Sat
           type: number
         hours_sun:
-          minimum: 0
+          minimum: 0.0
           title: Hours Sun
           type: number
         hours_thu:
-          minimum: 0
+          minimum: 0.0
           title: Hours Thu
           type: number
         hours_tue:
-          minimum: 0
+          minimum: 0.0
           title: Hours Tue
           type: number
         hours_wed:
-          minimum: 0
+          minimum: 0.0
           title: Hours Wed
           type: number
         is_office_staff:
@@ -11934,6 +12176,9 @@ components:
           format: uuid
           title: Id
           type: string
+        is_currently_active:
+          title: Is Currently Active
+          type: boolean
         is_office_staff:
           title: Is Office Staff
           type: boolean
@@ -11993,6 +12238,7 @@ components:
       - wage_rate
       - base_wage_rate
       - date_left
+      - is_currently_active
       - xero_user_id
       - is_office_staff
       - is_workshop_staff
@@ -12126,7 +12372,7 @@ components:
         \ explicit flag wins over the\nset-password clear (_set_staff_password runs before _apply_staff_fields)."
       properties:
         base_wage_rate:
-          minimum: 0
+          minimum: 0.0
           title: Base Wage Rate
           type: number
         date_left:
@@ -12144,31 +12390,31 @@ components:
           title: First Name
           type: string
         hours_fri:
-          minimum: 0
+          minimum: 0.0
           title: Hours Fri
           type: number
         hours_mon:
-          minimum: 0
+          minimum: 0.0
           title: Hours Mon
           type: number
         hours_sat:
-          minimum: 0
+          minimum: 0.0
           title: Hours Sat
           type: number
         hours_sun:
-          minimum: 0
+          minimum: 0.0
           title: Hours Sun
           type: number
         hours_thu:
-          minimum: 0
+          minimum: 0.0
           title: Hours Thu
           type: number
         hours_tue:
-          minimum: 0
+          minimum: 0.0
           title: Hours Tue
           type: number
         hours_wed:
-          minimum: 0
+          minimum: 0.0
           title: Hours Wed
           type: number
         is_office_staff:
@@ -12414,6 +12660,12 @@ components:
           - type: string
           - type: 'null'
           title: Alloy
+        can_count:
+          title: Can Count
+          type: boolean
+        can_retire:
+          title: Can Retire
+          type: boolean
         date:
           format: date-time
           title: Date
@@ -12425,6 +12677,9 @@ components:
           format: uuid
           title: Id
           type: string
+        inventory_version:
+          title: Inventory Version
+          type: integer
         is_active:
           title: Is Active
           type: boolean
@@ -12490,17 +12745,14 @@ components:
       - is_active
       - job_id
       - times_used
+      - inventory_version
+      - can_count
+      - can_retire
       title: StockItem
       type: object
     StockItemRequest:
-      description: 'Stock-item create and full-update payload.
-
-
-        The nullable text fields are ``NullableText`` (ADR 0040): ``""`` is a
-
-        validation 422 before the ``*_not_blank`` check constraints ever see it,
-
-        and ``null`` is how a client leaves one unset.'
+      additionalProperties: false
+      description: Create an empty manual identity at an explicit cost, including a deliberate zero.
       properties:
         alloy:
           anyOf:
@@ -12509,18 +12761,14 @@ components:
           - type: 'null'
           title: Alloy
         date:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
+          format: date-time
           title: Date
+          type: string
         description:
+          maxLength: 255
+          minLength: 1
           title: Description
           type: string
-        is_active:
-          default: true
-          title: Is Active
-          type: boolean
         item_code:
           anyOf:
           - minLength: 1
@@ -12540,12 +12788,13 @@ components:
           - type: 'null'
           title: Metal Type
         quantity:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          const: 0
+          default: 0
           title: Quantity
+          type: integer
         source:
+          const: manual
+          default: manual
           title: Source
           type: string
         specifics:
@@ -12555,28 +12804,210 @@ components:
           - type: 'null'
           title: Specifics
         unit_cost:
-          anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          maximum: 99999999.99
+          minimum: 0.0
+          multipleOf: 0.01
           title: Unit Cost
+          type: number
         unit_revenue:
           anyOf:
-          - type: number
-          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
-            type: string
+          - maximum: 99999999.99
+            minimum: 0.0
+            multipleOf: 0.01
+            type: number
           - type: 'null'
           title: Unit Revenue
       required:
       - description
-      - quantity
       - unit_cost
-      - source
       title: StockItemRequest
+      type: object
+    StockMetadataRequest:
+      additionalProperties: false
+      description: Editable identity metadata; inventory changes have separate audited workflows.
+      properties:
+        alloy:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Alloy
+        date:
+          format: date-time
+          title: Date
+          type: string
+        description:
+          maxLength: 255
+          minLength: 1
+          title: Description
+          type: string
+        item_code:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Item Code
+        location:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Location
+        metal_type:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Metal Type
+        specifics:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Specifics
+        unit_revenue:
+          anyOf:
+          - maximum: 99999999.99
+            minimum: 0.0
+            multipleOf: 0.01
+            type: number
+          - type: 'null'
+          title: Unit Revenue
+      required:
+      - description
+      title: StockMetadataRequest
+      type: object
+    StockMovementKind:
+      description: Live postings and the three historical cutover observations.
+      enum:
+      - opening
+      - job_opening
+      - receipt
+      - receipt_opening
+      - receipt_reversal
+      - issue
+      - return
+      - stocktake
+      title: StockMovementKind
+      type: string
+    StockMovementOut:
+      description: A movement and its human-readable counterpart.
+      properties:
+        actor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Actor
+        can_return:
+          title: Can Return
+          type: boolean
+        counterpart_job_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Counterpart Job Id
+        counterpart_name:
+          title: Counterpart Name
+          type: string
+        description:
+          title: Description
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        kind:
+          $ref: '#/components/schemas/StockMovementKind'
+        quantity_after:
+          title: Quantity After
+          type: number
+        quantity_before:
+          title: Quantity Before
+          type: number
+        quantity_change:
+          title: Quantity Change
+          type: number
+        reason:
+          title: Reason
+          type: string
+        recorded_at:
+          format: date-time
+          title: Recorded At
+          type: string
+        stock_id:
+          format: uuid
+          title: Stock Id
+          type: string
+        unit_cost:
+          title: Unit Cost
+          type: number
+      required:
+      - actor
+      - can_return
+      - counterpart_job_id
+      - counterpart_name
+      - description
+      - id
+      - kind
+      - quantity_after
+      - quantity_before
+      - quantity_change
+      - reason
+      - recorded_at
+      - stock_id
+      - unit_cost
+      title: StockMovementOut
+      type: object
+    StockMovementPage:
+      description: Bound movement responses using the shared pagination envelope.
+      properties:
+        count:
+          title: Count
+          type: integer
+        page:
+          title: Page
+          type: integer
+        page_size:
+          title: Page Size
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/StockMovementOut'
+          title: Results
+          type: array
+        total_pages:
+          title: Total Pages
+          type: integer
+      required:
+      - count
+      - page
+      - page_size
+      - results
+      - total_pages
+      title: StockMovementPage
       type: object
     StockSearchQuery:
       description: Query params for purchasing_stock_search_retrieve.
       properties:
+        countable:
+          default: false
+          title: Countable
+          type: boolean
+        include_inactive:
+          default: false
+          title: Include Inactive
+          type: boolean
+        job_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job Id
+        location:
+          default: ''
+          title: Location
+          type: string
         page:
           default: 1
           title: Page
@@ -12597,6 +13028,13 @@ components:
           default: asc
           title: Sort Dir
           type: string
+        stock_ids:
+          items:
+            format: uuid
+            type: string
+          maxItems: 100
+          title: Stock Ids
+          type: array
       title: StockSearchQuery
       type: object
     StockSearchResponse:
@@ -12626,6 +13064,327 @@ components:
       - page_size
       - total_pages
       title: StockSearchResponse
+      type: object
+    StocktakeCreate:
+      description: StocktakeCreate wire contract.
+      properties:
+        stock_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Stock Id
+      title: StocktakeCreate
+      type: object
+    StocktakeDetail:
+      description: StocktakeDetail wire contract.
+      properties:
+        adjustment_job_id:
+          format: uuid
+          title: Adjustment Job Id
+          type: string
+        author:
+          title: Author
+          type: string
+        corrects_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Corrects Id
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        discrepancy_value:
+          title: Discrepancy Value
+          type: number
+        id:
+          format: uuid
+          title: Id
+          type: string
+        lines:
+          items:
+            $ref: '#/components/schemas/StocktakeLineOut'
+          title: Lines
+          type: array
+        posted_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Posted At
+      required:
+      - adjustment_job_id
+      - author
+      - corrects_id
+      - created_at
+      - discrepancy_value
+      - id
+      - lines
+      - posted_at
+      title: StocktakeDetail
+      type: object
+    StocktakeLineOut:
+      description: StocktakeLineOut wire contract.
+      properties:
+        counted_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Counted At
+        counted_quantity:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Counted Quantity
+        current_quantity:
+          title: Current Quantity
+          type: number
+        current_version:
+          title: Current Version
+          type: integer
+        description:
+          title: Description
+          type: string
+        difference:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Difference
+        expected_quantity:
+          title: Expected Quantity
+          type: number
+        expected_version:
+          title: Expected Version
+          type: integer
+        id:
+          format: uuid
+          title: Id
+          type: string
+        location:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Location
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        stale:
+          title: Stale
+          type: boolean
+        stock_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Stock Id
+        unit_cost:
+          title: Unit Cost
+          type: number
+        value:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Value
+      required:
+      - counted_at
+      - counted_quantity
+      - current_quantity
+      - current_version
+      - description
+      - difference
+      - expected_quantity
+      - expected_version
+      - id
+      - location
+      - reason
+      - stale
+      - stock_id
+      - unit_cost
+      - value
+      title: StocktakeLineOut
+      type: object
+    StocktakeLineWrite:
+      description: StocktakeLineWrite wire contract.
+      properties:
+        counted_quantity:
+          anyOf:
+          - maximum: 99999999.999
+            minimum: 0.0
+            multipleOf: 0.001
+            type: number
+          - type: 'null'
+          title: Counted Quantity
+        description:
+          maxLength: 255
+          minLength: 1
+          title: Description
+          type: string
+        expected_quantity:
+          maximum: 99999999.999
+          minimum: -99999999.999
+          multipleOf: 0.001
+          title: Expected Quantity
+          type: number
+        expected_version:
+          minimum: 0
+          title: Expected Version
+          type: integer
+        id:
+          format: uuid
+          title: Id
+          type: string
+        location:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Location
+        reason:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Reason
+        stock_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Stock Id
+        unit_cost:
+          maximum: 99999999.99
+          minimum: 0.0
+          multipleOf: 0.01
+          title: Unit Cost
+          type: number
+      required:
+      - id
+      - stock_id
+      - description
+      - location
+      - expected_version
+      - expected_quantity
+      - counted_quantity
+      - unit_cost
+      - reason
+      title: StocktakeLineWrite
+      type: object
+    StocktakeList:
+      description: StocktakeList wire contract.
+      properties:
+        count:
+          title: Count
+          type: integer
+        page:
+          title: Page
+          type: integer
+        page_size:
+          title: Page Size
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/StocktakeSummary'
+          title: Results
+          type: array
+        total_pages:
+          title: Total Pages
+          type: integer
+      required:
+      - count
+      - page
+      - page_size
+      - results
+      - total_pages
+      title: StocktakeList
+      type: object
+    StocktakeSave:
+      description: StocktakeSave wire contract.
+      properties:
+        lines:
+          items:
+            $ref: '#/components/schemas/StocktakeLineWrite'
+          title: Lines
+          type: array
+      required:
+      - lines
+      title: StocktakeSave
+      type: object
+    StocktakeSearch:
+      description: StocktakeSearch wire contract.
+      properties:
+        page:
+          default: 1
+          minimum: 1
+          title: Page
+          type: integer
+        page_size:
+          default: 50
+          maximum: 100
+          minimum: 1
+          title: Page Size
+          type: integer
+      title: StocktakeSearch
+      type: object
+    StocktakeSetup:
+      description: StocktakeSetup wire contract.
+      properties:
+        adjustment_job_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Adjustment Job Id
+      required:
+      - adjustment_job_id
+      title: StocktakeSetup
+      type: object
+    StocktakeSummary:
+      description: StocktakeSummary wire contract.
+      properties:
+        adjustment_job_id:
+          format: uuid
+          title: Adjustment Job Id
+          type: string
+        author:
+          title: Author
+          type: string
+        corrects_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Corrects Id
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        discrepancy_value:
+          title: Discrepancy Value
+          type: number
+        id:
+          format: uuid
+          title: Id
+          type: string
+        posted_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Posted At
+      required:
+      - adjustment_job_id
+      - author
+      - corrects_id
+      - created_at
+      - discrepancy_value
+      - id
+      - posted_at
+      title: StocktakeSummary
       type: object
     SummaryStatsOut:
       description: Wire contract for SummaryStatsOut.
@@ -13277,6 +14036,10 @@ components:
             type: string
           - type: 'null'
           title: Labour Subtype
+        managed_by:
+          anyOf:
+          - $ref: '#/components/schemas/CostLineOwner'
+          - type: 'null'
         meta:
           additionalProperties: true
           title: Meta
@@ -13354,6 +14117,7 @@ components:
       - xero_last_modified
       - xero_last_synced
       - approved
+      - managed_by
       - xero_pay_item
       - staff
       - entry_seq
@@ -14331,11 +15095,6 @@ components:
           format: date-time
           title: Created At
           type: string
-        day_remaining:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Day Remaining
         has_tokens:
           title: Has Tokens
           type: boolean
@@ -14349,32 +15108,15 @@ components:
         label:
           title: Label
           type: string
-        last_429_at:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Last 429 At
         message:
           title: Message
           type: string
-        minute_remaining:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Minute Remaining
         redirect_uri:
           title: Redirect Uri
           type: string
         restart_initiated:
           title: Restart Initiated
           type: boolean
-        snapshot_at:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Snapshot At
         updated_at:
           format: date-time
           title: Updated At
@@ -14382,17 +15124,13 @@ components:
       required:
       - client_id
       - created_at
-      - day_remaining
       - has_tokens
       - id
       - is_active
       - label
-      - last_429_at
       - message
-      - minute_remaining
       - redirect_uri
       - restart_initiated
-      - snapshot_at
       - updated_at
       title: XeroAppActivateOut
       type: object
@@ -14469,11 +15207,6 @@ components:
           format: date-time
           title: Created At
           type: string
-        day_remaining:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Day Remaining
         has_tokens:
           title: Has Tokens
           type: boolean
@@ -14487,26 +15220,9 @@ components:
         label:
           title: Label
           type: string
-        last_429_at:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Last 429 At
-        minute_remaining:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Minute Remaining
         redirect_uri:
           title: Redirect Uri
           type: string
-        snapshot_at:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Snapshot At
         updated_at:
           format: date-time
           title: Updated At
@@ -14514,15 +15230,11 @@ components:
       required:
       - client_id
       - created_at
-      - day_remaining
       - has_tokens
       - id
       - is_active
       - label
-      - last_429_at
-      - minute_remaining
       - redirect_uri
-      - snapshot_at
       - updated_at
       title: XeroAppOut
       type: object
@@ -14878,6 +15590,12 @@ components:
     XeroSyncInfoOut:
       description: Last-sync times per entity plus whether a run is in flight.
       properties:
+        last_detail_refresh:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Last Detail Refresh
         last_syncs:
           additionalProperties:
             anyOf:
@@ -14893,6 +15611,7 @@ components:
           title: Sync Range
           type: string
       required:
+      - last_detail_refresh
       - last_syncs
       - sync_in_progress
       - sync_range
@@ -15828,6 +16547,141 @@ paths:
       summary: Training-menu links visible to the current staff member
       tags:
       - ai
+  /api/ai/providers/:
+    get:
+      description: Show every configured or incomplete row without creating defaults.
+      operationId: ai_providers_list
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ProviderOut'
+                title: Response
+                type: array
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: List Providers
+      tags:
+      - ai-providers
+    post:
+      description: Create through the shared admin/bootstrap validation service.
+      operationId: ai_providers_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderOut'
+          description: Created
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Add Provider
+      tags:
+      - ai-providers
+  /api/ai/providers/{provider_id}/:
+    delete:
+      description: Delete the chosen row without guessing a replacement default.
+      operationId: ai_providers_destroy
+      parameters:
+      - in: path
+        name: provider_id
+        required: true
+        schema:
+          title: Provider Id
+          type: integer
+      responses:
+        '204':
+          description: No Content
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Delete Provider
+      tags:
+      - ai-providers
+    patch:
+      description: Apply only the administrator's edited fields.
+      operationId: ai_providers_partial_update
+      parameters:
+      - in: path
+        name: provider_id
+        required: true
+        schema:
+          title: Provider Id
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderPatch'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Edit Provider
+      tags:
+      - ai-providers
+  /api/ai/providers/{provider_id}/set-default/:
+    post:
+      description: Select the fallback used by callers that do not supply a provider.
+      operationId: ai_providers_set_default
+      parameters:
+      - in: path
+        name: provider_id
+        required: true
+        schema:
+          title: Provider Id
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Choose Default
+      tags:
+      - ai-providers
+  /api/ai/providers/{provider_id}/test/:
+    post:
+      description: Perform a small billable request only when explicitly requested.
+      operationId: ai_providers_test
+      parameters:
+      - in: path
+        name: provider_id
+        required: true
+        schema:
+          title: Provider Id
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderTestOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Test Provider
+      tags:
+      - ai-providers
   /api/build-id/:
     get:
       description: Return the git SHA of the running backend process.
@@ -17330,7 +18184,7 @@ paths:
       - integration-settings
   /api/job/cost_lines/{cost_line_id}/:
     patch:
-      description: Update a cost line from a partial payload, adjusting linked stock on quantity change.
+      description: Edit unowned costs; posted material is corrected through purchasing.
       operationId: job_cost_lines_partial_update
       parameters:
       - in: path
@@ -18791,6 +19645,30 @@ paths:
       summary: Update a job's labour rates
       tags:
       - job
+  /api/job/jobs/{job_id}/quote-chat/config/:
+    get:
+      description: Read configuration; the domain key is public, vendor API keys stay server-side.
+      operationId: job_quote_chat_config_retrieve
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          format: uuid
+          title: Job Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotingChatConfigOut'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Quote Chat Config
+      tags:
+      - Jobs
   /api/job/jobs/{job_id}/quote/:
     get:
       description: 'Return the job''s Xero quote header; ``quote`` is null when none exists.
@@ -20118,6 +20996,30 @@ paths:
       summary: List all jobs with the stock-holding flag
       tags:
       - purchasing
+  /api/purchasing/cost-lines/{id}/movement/:
+    get:
+      description: Locate the owning movement without decoding costing's historical JSON references.
+      operationId: cost_line_stock_movement_retrieve
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovementOut'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Cost Movement
+      tags:
+      - purchasing
   /api/purchasing/delivery-receipts/:
     post:
       description: "Post received quantities against a PO (If-Match required, ADR 0003).\n\nThe PO id\
@@ -20211,7 +21113,7 @@ paths:
       - Product Mapping
   /api/purchasing/purchase-orders/:
     get:
-      description: List POs, optionally filtered to a comma-separated set of statuses.
+      description: One page of POs, filtered by a comma-separated status set and ``q``.
       operationId: listPurchaseOrders
       parameters:
       - in: query
@@ -20222,15 +21124,33 @@ paths:
           - type: string
           - type: 'null'
           title: Status
+      - in: query
+        name: q
+        required: false
+        schema:
+          default: ''
+          title: Q
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
+        required: false
+        schema:
+          default: 50
+          title: Page Size
+          type: integer
       responses:
         '200':
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/PurchaseOrderList'
-                title: Response
-                type: array
+                $ref: '#/components/schemas/PurchaseOrderListResponse'
           description: OK
       security:
       - CookieJWTAuth: []
@@ -20357,7 +21277,7 @@ paths:
       - purchasing
   /api/purchasing/purchase-orders/{po_id}/allocations/{allocation_type}/{allocation_id}/details/:
     get:
-      description: Return the allocation's quantity, job and whether it can still be deleted.
+      description: Return the allocation's quantity, job and whether it can still be reversed.
       operationId: getAllocationDetails
       parameters:
       - in: path
@@ -20389,12 +21309,15 @@ paths:
           description: OK
       security:
       - CookieJWTAuth: []
-      summary: Describe one allocation before deleting it
+      summary: Describe one allocation before reversing it
       tags:
       - purchasing
   /api/purchasing/purchase-orders/{po_id}/email/:
     post:
-      description: Build the mailto payload, applying any recipient/message overrides.
+      description: "Draft the supplier email, with the order PDF attached, for this operator.\n\nThe draft\
+        \ lands in the mailbox of whoever pressed the button \u2014 they signed\nin with that Workspace\
+        \ address, so it is a mailbox they have \u2014 and nothing\nis sent until they read it and send\
+        \ it."
       operationId: getPurchaseOrderEmail
       parameters:
       - in: path
@@ -20475,10 +21398,19 @@ paths:
       summary: Add a note to a purchase order
       tags:
       - Purchase Orders
-  /api/purchasing/purchase-orders/{po_id}/lines/{line_id}/allocations/delete/:
+  /api/purchasing/purchase-orders/{po_id}/lines/{line_id}/allocations/reverse/:
     post:
-      description: Delete a Stock or CostLine allocation and recompute the PO status.
-      operationId: deleteAllocation
+      description: 'Reverse a Stock or CostLine receipt allocation (If-Match required, ADR 0003).
+
+
+        The reversal decrements ``received_quantity`` and recomputes the PO status, so
+
+        it carries the same precondition as the PO PATCH and answers with the
+
+        refreshed ETag -- without that header the client''s stored version goes stale
+
+        and its next mutation 412s for no reason.'
+      operationId: reverseAllocation
       parameters:
       - in: path
         name: po_id
@@ -20498,18 +21430,18 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AllocationDeleteRequest'
+              $ref: '#/components/schemas/AllocationReversalRequest'
         required: true
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AllocationDeleteResponse'
+                $ref: '#/components/schemas/AllocationReversalResponse'
           description: OK
       security:
       - CookieJWTAuth: []
-      summary: Delete one allocation from a purchase order line
+      summary: Reverse one receipt allocation from a purchase order line
       tags:
       - purchasing
   /api/purchasing/purchase-orders/{po_id}/pdf/:
@@ -20532,24 +21464,120 @@ paths:
       summary: Download the purchase order PDF
       tags:
       - purchasing
-  /api/purchasing/stock/:
-    get:
-      description: List every active stock item, newest first.
-      operationId: purchasing_stock_list
-      parameters: []
+  /api/purchasing/stock-movements/{id}/return/:
+    post:
+      description: Return an issue and credit its original job once.
+      operationId: stock_movement_return
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
       responses:
         '200':
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/StockItem'
-                title: Response
-                type: array
+                $ref: '#/components/schemas/StockMovementOut'
           description: OK
       security:
       - CookieJWTAuth: []
-      summary: List active stock
+      summary: Return Material
+      tags:
+      - purchasing
+  /api/purchasing/stock/:
+    get:
+      description: Paginated stock listing; queries under 3 characters list everything.
+      operationId: purchasing_stock_list
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          default: ''
+          title: Q
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
+        required: false
+        schema:
+          default: 50
+          title: Page Size
+          type: integer
+      - in: query
+        name: sort_by
+        required: false
+        schema:
+          default: description
+          title: Sort By
+          type: string
+      - in: query
+        name: sort_dir
+        required: false
+        schema:
+          default: asc
+          title: Sort Dir
+          type: string
+      - in: query
+        name: stock_ids
+        required: false
+        schema:
+          items:
+            format: uuid
+            type: string
+          maxItems: 100
+          title: Stock Ids
+          type: array
+      - in: query
+        name: job_id
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job Id
+      - in: query
+        name: location
+        required: false
+        schema:
+          default: ''
+          title: Location
+          type: string
+      - in: query
+        name: countable
+        required: false
+        schema:
+          default: false
+          title: Countable
+          type: boolean
+      - in: query
+        name: include_inactive
+        required: false
+        schema:
+          default: false
+          title: Include Inactive
+          type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockSearchResponse'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: List stock
       tags:
       - purchasing
     post:
@@ -20614,6 +21642,46 @@ paths:
           default: asc
           title: Sort Dir
           type: string
+      - in: query
+        name: stock_ids
+        required: false
+        schema:
+          items:
+            format: uuid
+            type: string
+          maxItems: 100
+          title: Stock Ids
+          type: array
+      - in: query
+        name: job_id
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Job Id
+      - in: query
+        name: location
+        required: false
+        schema:
+          default: ''
+          title: Location
+          type: string
+      - in: query
+        name: countable
+        required: false
+        schema:
+          default: false
+          title: Countable
+          type: boolean
+      - in: query
+        name: include_inactive
+        required: false
+        schema:
+          default: false
+          title: Include Inactive
+          type: boolean
       responses:
         '200':
           content:
@@ -20647,7 +21715,7 @@ paths:
       tags:
       - purchasing
     get:
-      description: Fetch one active stock item.
+      description: Fetch an identity, including retired stock whose evidence remains accessible.
       operationId: purchasing_stock_retrieve
       parameters:
       - in: path
@@ -20713,7 +21781,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/StockItemRequest'
+              $ref: '#/components/schemas/StockMetadataRequest'
         required: true
       responses:
         '200':
@@ -20755,6 +21823,272 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Consume stock for a job
+      tags:
+      - purchasing
+  /api/purchasing/stock/{id}/movements/:
+    get:
+      description: Read a bounded page of a stock identity's movement history.
+      operationId: stock_movements_list
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
+        required: false
+        schema:
+          default: 50
+          title: Page Size
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovementPage'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Stock History
+      tags:
+      - purchasing
+  /api/purchasing/stocktakes/:
+    get:
+      description: List counts with bounded paging and their net inventory value differences.
+      operationId: stocktake_list
+      parameters:
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          minimum: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
+        required: false
+        schema:
+          default: 50
+          maximum: 100
+          minimum: 1
+          title: Page Size
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeList'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Count List
+      tags:
+      - purchasing
+    post:
+      description: Start a count, optionally preselecting a stock row for a spot correction.
+      operationId: stocktake_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StocktakeCreate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeDetail'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Count Create
+      tags:
+      - purchasing
+  /api/purchasing/stocktakes/setup/:
+    get:
+      description: Read setup without creating a job or configuration row.
+      operationId: stocktake_setup_retrieve
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeSetup'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Setup Retrieve
+      tags:
+      - purchasing
+    post:
+      description: Create the non-billable counterpart once through the supported workflow.
+      operationId: stocktake_setup_create
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeSetup'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Setup Create
+      tags:
+      - purchasing
+  /api/purchasing/stocktakes/{id}/:
+    get:
+      description: Read a draft or immutable posted count and its current stock versions.
+      operationId: stocktake_retrieve
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeDetail'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Count Retrieve
+      tags:
+      - purchasing
+    put:
+      description: Save all draft observations atomically with a draft version precondition.
+      operationId: stocktake_update
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StocktakeSave'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeDetail'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Count Update
+      tags:
+      - purchasing
+  /api/purchasing/stocktakes/{id}/correct/:
+    post:
+      description: Start a linked recount without erasing the original observation.
+      operationId: stocktake_correct
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeDetail'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Count Correct
+      tags:
+      - purchasing
+  /api/purchasing/stocktakes/{id}/movements/:
+    get:
+      description: Read a bounded page of a count's posted differences.
+      operationId: stocktake_movements_list
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          default: 1
+          title: Page
+          type: integer
+      - in: query
+        name: page_size
+        required: false
+        schema:
+          default: 50
+          title: Page Size
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovementPage'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Count History
+      tags:
+      - purchasing
+  /api/purchasing/stocktakes/{id}/post/:
+    post:
+      description: Post the reviewed count exactly once.
+      operationId: stocktake_post
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          title: Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StocktakeDetail'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Count Post
       tags:
       - purchasing
   /api/purchasing/supplier-price-status/:
@@ -22189,7 +23523,14 @@ paths:
         \ 200 \"already running\";\nthe explicit status lets a client distinguish without parsing prose\
         \ \u2014\nthe body still carries the active task id either way)."
       operationId: xero_sync_create
-      parameters: []
+      parameters:
+      - in: query
+        name: detail_refresh
+        required: false
+        schema:
+          default: false
+          title: Detail Refresh
+          type: boolean
       responses:
         '202':
           content:

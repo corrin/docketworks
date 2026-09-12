@@ -1,0 +1,53 @@
+# Legacy inventory repair
+
+Three things run against a restored snapshot before the ledger is trusted: a reviewed
+manifest that repairs orphan cost references and stock sources, a migration that empties
+a balance a historical repair recorded against two identities, and a migration that books
+the receipt evidence a 2025 duplicate-purchase-order defect destroyed.
+
+The last two need no operator input. Migration
+`purchasing/0007_reconcile_duplicated_receipt_balances` runs before the cutover mints
+opening balances, so a duplicated balance is emptied while the ledger can still simply
+open at the true quantity. It derives the surplus from the order line's received quantity
+against the evidence the cutover is about to book, empties no more than a handful of
+identities, and refuses a surplus that is not carried by exactly one identity. Migration
+`purchasing/0015_backfill_legacy_receipt_evidence` measures each order line's gap with
+the audit's own arithmetic and books one `receipt_opening` against a zero-quantity stock
+identity, which is how the ledger already records "received historically, no balance
+remains" (ADR 0059). It moves no balance, creates no charge, and aborts if any line holds
+more evidence than its recorded received quantity.
+
+Use `adhoc.inventory_cost_repair` with private manifests. Stop application and
+worker writers, take a recoverable database backup, and rehearse the complete
+sequence on an isolated clone first. Client identifiers and manifests do not
+belong in this public repository.
+
+1. Preview the reference manifest with `python -m adhoc.inventory_cost_repair
+   references.json --database TARGET`. Add `--apply` only after the preview and
+   rehearsal agree. `rows` names exact historical costs; `dead_line_id: null`
+   means the original reference was absent. A replacement must independently
+   match the booked position. Otherwise retain the charge as an adjustment.
+   `stock_rows` names exact orphan identities and their existing opening
+   movements; only their source and explanatory description change.
+2. Run `manage.py audit_inventory_openings --preflight-only`, then `manage.py
+   migrate`. Read what it reports before migrating: `migrate` runs with the services
+   stopped, so a refusal there leaves the instance down on a half-migrated database.
+   A database restored from production has no ledger tables yet — they arrive with
+   `purchasing/0006` — so on a restore the preflight names every duplicated balance the
+   cutover will empty and says plainly that the movement checks belong to `migrate`.
+   On an instance already past `0006` it also checks cutover sources and prints the
+   pending-openings figure to check the backfill against. It is not the full ledger gate
+   in either state.
+3. Run `manage.py audit_inventory_openings` and `manage.py
+   reconcile_cost_summaries --all`. Compare existing costs and accounting dates,
+   original stock balances and PO received quantities against the backup. New
+   identities from the cutover and backfill migrations must have zero stock on hand.
+4. Run the managed E2E gate and verify that teardown restores the repaired
+   baseline. Keep the pre-repair backup independently of E2E's temporary backups.
+
+The manifest repair validates before applying and is repeatable. Changed evidence
+requires another review, not a guessed replacement.
+
+The full audit in step 3 remains mandatory however the manifest was applied. Do not
+reuse a local manifest against a different snapshot without validating every named
+record.

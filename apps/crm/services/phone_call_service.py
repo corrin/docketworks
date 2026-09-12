@@ -39,8 +39,10 @@ from tinytag import TinyTag, TinyTagException
 from apps.company.models import Company, ContactMethod, Person
 from apps.core.errors import persist_app_error
 from apps.core.file_store import PrivateFileStore
-from apps.core.models import IntegrationSettings
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
+from apps.platform.integrations.models import IntegrationSettings
+from apps.platform.observability.models import VendorCall
+from apps.platform.observability.recording import record_responses
 
 if TYPE_CHECKING:
     from apps.accounts.models import Staff
@@ -377,6 +379,7 @@ class PhoneProviderPortalClient:
         """Bind the provider config and prepare an anonymous portal session."""
         self.config = config
         self.session = requests.Session()
+        record_responses(self.session, vendor=VendorCall.Vendor.PHONE)
         self.session.headers.update(
             {
                 "User-Agent": ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"),

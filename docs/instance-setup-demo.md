@@ -17,12 +17,13 @@ sudoedit /opt/docketworks/config/<client>-uat.company-defaults.json
 Seeding is decided here: `--seed` selects the seeded company-defaults template,
 and `create` below takes no `--seed` of its own. Complete the credentials and
 keep `enable_xero_sync` false — `instance.sh` refuses a company-defaults file
-with it true. Leave the seeded template's placeholder `xero_tenant_id` (the
-zero UUID) alone: validation requires only a well-formed UUID, and the
-`xero --setup` step below rebinds it to the connected organisation (see
+with it true. Leave the seeded template's `xero_tenant_id` null: the
+`xero --setup` step below reads the connected Demo Company's id and stores it
+(see
 [README](../scripts/server/README.md#xero_tenant_id-in-the-company-defaults-json)).
-This is offline configuration; no DocketWorks services or OAuth flow are
-involved.
+An older config file still carrying the all-zero placeholder must be changed to
+null before its next `reconfigure`, which now refuses it. This is offline
+configuration; no DocketWorks services or OAuth flow are involved.
 
 ## 2. Create the instance
 
@@ -87,14 +88,10 @@ the same normal inbound Xero sync as every other instance.
 ## 5. If the demo organisation is reset
 
 Xero recreates the Demo Company roughly monthly, and the replacement carries a
-new tenant id, an unprovisioned payroll product, and blank quote terms. Do not
-add reset-recovery behaviour to the sync. Restore the usual production backup
-into non-production and run the normal restore/seed process —
-[`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md) covers rebinding to
-the replacement tenant and activating payroll (unprovisioned payroll answers
-every NZ Payroll call `403 Forbidden` with an empty body), and the Xero
-**Terms (Quotes)** wording from section 3 must be re-entered in Xero because
-the reset wipes it.
+new tenant id and blank quote terms. Do not add reset-recovery behaviour to the
+sync. Run the normal restore/seed process in
+[`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md), then re-enter the
+Xero **Terms (Quotes)** wording from section 3, which the reset wipes.
 
 ## 6. Verify
 

@@ -75,6 +75,8 @@ INSTALLED_APPS = [
     "simple_history",
     "solo",
     "apps.core",
+    "apps.platform.integrations",
+    "apps.platform.observability",
     "apps.accounts",
     "apps.company",
     "apps.crm",

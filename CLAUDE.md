@@ -1,5 +1,31 @@
 # CLAUDE.md — Docketworks
 
+**Every line here is exhibited.** This codebase is presented publicly as an example of how the
+architecture should be done — read by people judging the work, not only by the next session
+maintaining it. It also replaced a system that already worked, so "working but structurally
+compromised" delivers nothing (ADR 0039). The standard is not "does it pass" but "would you
+show it", and it binds every line of every file: a test fixture, a comment, a migration, a
+throwaway helper. Scope bends; the standard does not. A defect shipped is embarrassing once,
+but a compromise shipped is on display until someone removes it.
+
+**Colliding with a rule means your approach is wrong — not that a rule is in the way.**
+Every ADR, linter, type error and layer contract you hit is evidence about the design you are
+part-way through building, and it arrives before you have paid for the mistake. The compliant
+version has been shorter and clearer every single time: a sentinel that needed a `type: ignore`
+wanted to be a boolean; a guard that would not typecheck was for a case the data never produces;
+a function too complex to pass wanted to be two functions; an import the layer contract refused
+belonged in the other app. So when something blocks you, **reconsider what you are building** —
+never search for the smallest edit that gets past it. A suppression, a cast, a widened
+annotation or a fallback default is the sound of a design being forced through a gap it does not
+fit, and it is always cheaper to stop at that moment than after the slice is written.
+
+**So stop, and think — the next thing you produce is a question, not a diff.** The failure is
+not ignorance of the rule; it is answering the obstacle in seconds with whatever satisfies it.
+Ask what belief the tool just contradicted, then go and check that belief against reality —
+query the data, read the writers, read the ADR in full — before deciding anything. A correction
+that arrives as fast as the mistake was written has not been thought about, and it is usually
+the same mistake wearing a compliant shape.
+
 The full rewrite of `../docketworks_v1` (v1) shipped: production has run this codebase since
 2026-08-29, and [`docs/release-process.md`](docs/release-process.md) is how a change reaches
 it. The approved plan lives at
@@ -33,12 +59,28 @@ user-visible).
 
 ## Layout (one obvious home per concept)
 
-- Backend: `config/` (settings, celery beat-in-code, the single NinjaAPI) and `apps/` —
-  `core` (errors, etag, envelope, auth, middleware) ← domain apps (job, accounts, company, crm,
-  purchasing, quoting, accounting, timesheet, operations, process) ← integrations
-  (xero, ai, search, diagnostics). Enforced by import-linter.
+Frontend changes follow the [design language](docs/design-language.md): page composition,
+visual hierarchy, controls, editing, feedback and responsive behaviour. Read it before
+designing or changing a screen. Use the shared component/template and pass necessary
+overrides to that owner; never copy its implementation or wrap it to defeat its contract.
+UI PRs name the pattern used, explain overrides, provide the relevant visual/interaction
+evidence, and update affected known breaches. Tolerated exceptions are narrowly scoped
+presentation choices with reasons, not waivers of the shared-implementation rule.
+
+- Backend, as it is today: `config/` is the sole composition root and the top
+  import-linter layer, then `apps/diagnostics`, then the integrations `apps/xero` and
+  `apps/search`, then the domain apps (`job`, `accounts`, `company`, `crm`, `purchasing`,
+  `quoting`, `accounting`, `timesheet`, `operations`, `process`), which may import one
+  another, and at the bottom `apps/core`, `apps/ai` and `apps/platform`. That contract
+  lives in `pyproject.toml` and is what actually gates.
+- Backend, where it is going: ADR 0055's context taxonomy. `apps/platform` is the only
+  slice migrated so far and `config/architecture.py` holds the list — a context absent
+  from it does not exist yet, so never name one in a plan, a comment or a layout
+  description. Legacy apps keep their tier until their slice moves them; that tier is not
+  a template for a new context, and shared use does not mean shared ownership.
 - Frontend: `frontend/src/routes/` (thin) → `features/<domain>/` → generated API layer + `lib/`.
-  Server state lives in TanStack Query only; no hand-written service layer.
+  Server state lives in TanStack Query; ChatKit owns its conversation protocol/state
+  under ADR 0021’s scoped SDK exception. No hand-written service layer.
 
 ## Gates (all on from day 1 — never weaken, never baseline)
 
@@ -137,7 +179,7 @@ produced that ADR shipped on a database already holding hundreds of the rows.
   is that a change which moves one shows that movement in its own diff. Only
   `passthrough` (a `try` whose handler just re-raises) is pinned at zero.
 
-## Coding standards (ADRs 0015, 0017, 0028, 0032, 0038, 0039, 0043, 0046 are the authority)
+## Coding standards (ADRs 0015, 0017, 0028, 0032, 0038, 0039, 0043, 0046, 0058, 0059 are the authority)
 
 - **A GET never writes.** Safe methods read; they do not create, update or
   delete — not a row, not a default, not "just" a singleton. This is not about
@@ -150,6 +192,14 @@ produced that ADR shipped on a database already holding hundreds of the rows.
   required inputs upfront and crash if missing; no defaults that mask
   configuration or data problems. When a consumer meets malformed data, fix
   the data (migration) — never add a read-side fallback (ADR 0015).
+  **Recognise a fallback by its syntax**: `x if y else None`, `or None`,
+  `.get(k, default)`, `?? fallback`, `hasattr`. Each one is a claim that the
+  model permits the bad case, so check the claim — query the data and read the
+  writers — and then take one of the two exits: the case cannot occur, so delete
+  the branch; or it can, so raise and tighten whatever let it in. Where code and
+  a contract disagree about nullability or a value set, **the contract is
+  presumed right and the branch is the suspect**; never widen a contract to fit
+  code you found, however long it has been there.
 - **Guard-clause shape.** Unhappy path first, early return/raise. Never wrap
   the happy path in `if` and let the unhappy path fall through silently —
   `if ok: do_thing()` with no else-branch is a bug, not a style choice.
@@ -168,6 +218,18 @@ produced that ADR shipped on a database already holding hundreds of the rows.
   access directly.
 - **DRY is structural (ADR 0039).** One implementation per concept; search
   before implement; extending a near-match beats writing a sibling.
+- **The application decides, the database stores (ADR 0058).** A rule that
+  refuses a write lives in one service function and raises a typed error. `CHECK`,
+  `UNIQUE`, `NOT NULL` and `on_delete` state facts about a row and belong in the
+  schema; a trigger, rule or stored procedure that raises does not. It fires for the
+  maintainer running a data fix as readily as for the bug, and it must be dropped by
+  hand on every server before any bulk correction. Immutability is proven by a test
+  that no writer mutates the row.
+- **One data model; legacy data is migrated to comply (ADR 0059).** A one-off
+  migration rewrites old rows into the current shape and is the only place that knows
+  the old one. Never a permanent model, column, flag or branch describing data the app
+  no longer produces. A creation timestamp is never nullable: where history did not
+  record one, the migration sets the best value available and the column is `NOT NULL`.
 - **Prefer libraries to DIY (ADR 0032).** Writing your own for something a
   maintained library provides needs an explicit, recorded reason it is not a
   library.
@@ -188,8 +250,24 @@ produced that ADR shipped on a database already holding hundreds of the rows.
   until explicit owner ratification replaces it with a durable authority
   citation (ADR 0051); attribution is provenance, never a waiver.
 
+## Integration completeness
+
+An integration slice includes its supported admin setup, typed database credential
+owner, consumer selection rules, new-instance seed, restore/scrub behaviour and live
+verification. Use the existing configuration service for both UI and provisioning.
+Keys stay write-only; a settings GET never probes an external service. Document the
+normal setup path and test it through the UI, including failed saves and key rotation.
+A terminal or database workaround does not establish that setup is complete. Record
+any unverified acceptance step explicitly in the PR and rewrite task list.
+
 ## Porting rules
 
+- **Every v1 feature exists in v2.** The freedom below is over *shape* — the URL, the
+  payload, the component — never over what the business can do. Dropping a capability is
+  the owner's decision and `docs/accepted-api-differences.yml` records it; silence is not
+  a drop, it is a defect. So port a screen against the v1 component read in full, never
+  against the endpoints it called: v2 serves `getJobFileThumbnail` and no frontend code
+  calls it, which every operation-level count reads as done.
 - Models keep v1 app labels and class names; models moved out of v1's `workflow` app pin
   `Meta.db_table = "workflow_<modelname>"`. No renames in v2.0 — data migrates by pg_dump/restore.
 - `delta_checksum` canonicalisation is bit-identical between Python and TypeScript (golden vectors).

@@ -10,10 +10,10 @@ from ninja import Router
 from ninja.errors import HttpError
 from ninja.responses import Status
 
+from apps.accounts.auth import authenticated_staff
 from apps.accounts.models import Staff
 from apps.core.auth import SuperuserCookieJWTAuth
 from apps.job.models import Job
-from apps.timesheet.api import authenticated_staff
 from apps.timesheet.leave_schemas import (
     LeaveBalanceOut,
     LeaveListOut,

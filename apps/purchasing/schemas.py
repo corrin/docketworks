@@ -7,14 +7,21 @@ only here so model and response declarations cannot drift (ADR 0039).
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from ninja import Schema
-from pydantic import field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from apps.company.schemas import SupplierPickupAddressOut, clean_optional_email
-from apps.core.schemas import NullableText, ResponseSchema, omittable
+from apps.core.schemas import (
+    NonBlankText,
+    NullableText,
+    Quantity,
+    ResponseSchema,
+    UnitCost,
+    omittable,
+)
 from apps.job.schemas import CostLineOut
 
 # The one NullableText (ADR 0039/0040) lives in apps/core/schemas — company's
@@ -24,9 +31,12 @@ from apps.job.schemas import CostLineOut
 
 
 class PurchaseOrderListQuery(Schema):
-    """Query parameters for purchase-order listing, including CSV statuses."""
+    """Query params for purchase-order listing: CSV statuses, search, paging."""
 
     status: str | None = None
+    q: str = ""
+    page: int = 1
+    page_size: int = 50
 
 
 class StockSearchQuery(Schema):
@@ -37,6 +47,11 @@ class StockSearchQuery(Schema):
     page_size: int = 50
     sort_by: str = "description"
     sort_dir: str = "asc"
+    stock_ids: Annotated[list[UUID], Field(max_length=100)] = Field(default_factory=list)
+    job_id: UUID | None = None
+    location: str = ""
+    countable: bool = False
+    include_inactive: bool = False
 
 
 class SupplierSearchQuery(Schema):
@@ -99,6 +114,16 @@ class PurchasingJob(Schema):
 # ── Purchase orders ──────────────────────────────────────────────────────
 
 
+#: The five states a purchase order can be in, mirroring PurchaseOrder.status's
+#: choices. Declared as a Literal rather than ``str`` so the generated client
+#: gets the union too: a client typed ``str`` cannot exhaustively map the value,
+#: which is what forced the list screen to keep a fallback branch for a sixth
+#: status that cannot exist (ADR 0028).
+PurchaseOrderStatus = Literal[
+    "draft", "submitted", "partially_received", "fully_received", "deleted"
+]
+
+
 class PurchaseOrderJob(Schema):
     """Wire contract for PurchaseOrderJob."""
 
@@ -112,7 +137,7 @@ class PurchaseOrderList(Schema):
 
     id: UUID
     po_number: str
-    status: str
+    status: PurchaseOrderStatus
     order_date: date
     supplier: str
     supplier_id: UUID | None
@@ -121,18 +146,29 @@ class PurchaseOrderList(Schema):
     jobs: list[PurchaseOrderJob]
 
 
+class PurchaseOrderListResponse(Schema):
+    """One page of purchase orders in the shared pagination envelope."""
+
+    results: list[PurchaseOrderList]
+    count: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class PurchaseOrderLineOut(Schema):
     """Wire contract for PurchaseOrderLineOut."""
 
     id: UUID
+    created_at: datetime
     description: str
-    quantity: Decimal
+    quantity: Quantity
     dimensions: str | None
-    unit_cost: Decimal | None
+    unit_cost: Quantity | None
     price_tbc: bool
     supplier_item_code: str | None
     item_code: str | None
-    received_quantity: Decimal
+    received_quantity: Quantity
     metal_type: str | None
     alloy: str | None
     specifics: str | None
@@ -150,16 +186,19 @@ class PurchaseOrderDetail(Schema):
     id: UUID
     po_number: str
     reference: str | None
-    status: str
+    status: PurchaseOrderStatus
     order_date: date
     expected_delivery: date | None
     online_url: str | None
     xero_id: UUID | None
+    xero_status: str | None
+    xero_last_synced: datetime | None
     pickup_address_id: UUID | None
     created_by_id: UUID | None
     supplier: str
     supplier_id: UUID | None
     supplier_has_xero_id: bool
+    supplier_has_email: bool
     lines: list[PurchaseOrderLineOut]
     pickup_address: SupplierPickupAddressOut | None
     created_by_name: str
@@ -192,7 +231,7 @@ class PurchaseOrderCreateRequest(Schema):
 
     supplier_id: UUID | None = None
     pickup_address_id: UUID | None = None
-    reference: str | None = None
+    reference: NullableText = None
     order_date: date | None = None
     expected_delivery: date | None = None
     lines: list[PurchaseOrderLineCreateRequest] = []  # noqa: RUF012 -- pydantic copies defaults
@@ -212,7 +251,10 @@ class PurchaseOrderUpdateRequest(Schema):
     ``expected_delivery`` are nullable because each can be CLEARED — the
     columns are nullable and NULL is what unset means there. ``status`` cannot:
     the column is NOT NULL, so a null is a 422 rather than something the
-    handler silently drops.
+    handler silently drops. Its sentinel is ``"draft"`` (the model default)
+    rather than ``""`` because the annotation is the five-value union and the
+    placeholder must not contradict it; the handler reads presence from
+    ``model_fields_set`` and never the value.
 
     The two list fields are presence-only. A null list means nothing an empty
     list does not, and reading them from ``model_fields_set`` rather than a
@@ -221,9 +263,9 @@ class PurchaseOrderUpdateRequest(Schema):
 
     supplier_id: UUID | None = None
     pickup_address_id: UUID | None = None
-    reference: str | None = None
+    reference: NullableText = None
     expected_delivery: date | None = None
-    status: str = omittable("")
+    status: PurchaseOrderStatus = omittable("draft")
     lines_to_delete: list[UUID] = omittable([])
     lines: list[PurchaseOrderLineUpdateRequest] = omittable([])
 
@@ -293,10 +335,14 @@ class PurchaseOrderEmailResponse(ResponseSchema):
     """Wire contract for PurchaseOrderEmailResponse."""
 
     success: bool
-    email_subject: str | None = None
-    email_body: str | None = None
-    mailto_url: str | None = None
-    pdf_url: str | None = None
+    # Present whenever the endpoint answers 200: the composer raises rather than
+    # returning a message it could not address, and the handler builds all three
+    # from that result. Declaring them nullable told every caller to handle a
+    # success with no email in it, which the code cannot produce.
+    email_subject: str
+    email_body: str
+    draft_id: str
+    draft_url: str
     message: str | None = None
 
 
@@ -345,6 +391,7 @@ class AllocationItem(ResponseSchema):
     """Wire contract for AllocationItem."""
 
     type: Literal["stock", "job"]
+    reversed: bool
     job_id: UUID
     job_name: str
     quantity: float
@@ -365,22 +412,21 @@ class PurchaseOrderAllocationsResponse(Schema):
     allocations: dict[str, list[AllocationItem]]
 
 
-class AllocationDeleteRequest(Schema):
-    """Wire contract for AllocationDeleteRequest."""
+class AllocationReversalRequest(Schema):
+    """Wire contract for AllocationReversalRequest."""
 
     allocation_type: Literal["job", "stock"]
     allocation_id: UUID
 
 
-class AllocationDeleteResponse(ResponseSchema):
-    """Wire contract for AllocationDeleteResponse."""
+class AllocationReversalResponse(ResponseSchema):
+    """Wire contract for AllocationReversalResponse."""
 
-    success: bool
-    message: str
-    deleted_quantity: float | None = None
-    description: str | None = None
-    job_name: str | None = None
-    updated_received_quantity: float | None = None
+    status: Literal["reversed", "already_reversed"]
+    reversed_quantity: Quantity
+    description: str
+    job_name: str
+    updated_received_quantity: Quantity
 
 
 class AllocationDetailsResponse(ResponseSchema):
@@ -391,7 +437,7 @@ class AllocationDetailsResponse(ResponseSchema):
     description: str
     quantity: float
     job_name: str
-    can_delete: bool
+    can_reverse: bool
     consumed_by_jobs: int | None = None
     location: str | None = None
     unit_cost: float | None = None
@@ -419,54 +465,38 @@ class StockItem(Schema):
     is_active: bool
     job_id: UUID | None
     times_used: int
+    inventory_version: int
+    can_count: bool
+    can_retire: bool
 
 
-class StockItemRequest(Schema):
-    """Stock-item create and full-update payload.
+class StockMetadataRequest(Schema):
+    """Editable identity metadata; inventory changes have separate audited workflows."""
 
-    The nullable text fields are ``NullableText`` (ADR 0040): ``""`` is a
-    validation 422 before the ``*_not_blank`` check constraints ever see it,
-    and ``null`` is how a client leaves one unset.
-    """
+    model_config = ConfigDict(extra="forbid")
 
-    description: str
-    quantity: Decimal
-    unit_cost: Decimal
-    source: str
+    description: Annotated[NonBlankText, Field(max_length=255)]
     item_code: NullableText = None
-    unit_revenue: Decimal | None = None
-    date: datetime | None = None
-    location: NullableText = None
-    metal_type: NullableText = None
-    alloy: NullableText = None
-    specifics: NullableText = None
-    is_active: bool = True
-
-
-class PatchedStockItemRequest(Schema):
-    """Partial stock-item update in which field presence is significant.
-
-    The first block maps to NOT NULL columns, so null is a 422 — the handler
-    used to drop it silently, which reported a refused edit as a success. The
-    ``NullableText`` block is the ADR 0040 set where null is precisely how a
-    caller clears the value, and ``unit_revenue`` is nullable for the same
-    reason.
-    """
-
-    description: str = omittable("")
-    quantity: Decimal = omittable(Decimal("0"))
-    unit_cost: Decimal = omittable(Decimal("0"))
-    source: str = omittable("")
-    # tz-aware even though it is never read: a naive datetime in a field the
-    # rest of the codebase treats as aware is a trap for whoever reads it next.
+    unit_revenue: UnitCost | None = None
     date: datetime = omittable(datetime.min.replace(tzinfo=UTC))
-    is_active: bool = omittable(False)
-    item_code: NullableText = None
-    unit_revenue: Decimal | None = None
     location: NullableText = None
     metal_type: NullableText = None
     alloy: NullableText = None
     specifics: NullableText = None
+
+
+class StockItemRequest(StockMetadataRequest):
+    """Create an empty manual identity at an explicit cost, including a deliberate zero."""
+
+    unit_cost: UnitCost
+    quantity: Literal[0] = 0
+    source: Literal["manual"] = "manual"
+
+
+class PatchedStockItemRequest(StockMetadataRequest):
+    """Change only metadata fields explicitly supplied by the caller."""
+
+    description: Annotated[NonBlankText, Field(max_length=255)] = omittable("")
 
 
 class StockConsumeRequest(Schema):

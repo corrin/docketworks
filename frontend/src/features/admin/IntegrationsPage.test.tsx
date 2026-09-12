@@ -16,6 +16,7 @@ const SETTINGS = '*/api/integration-settings/'
 function settings(overrides: Partial<IntegrationSettingsOut> = {}): IntegrationSettingsOut {
   return {
     id: 1,
+    chatkit_domain_key: null,
     has_google_maps_api_key: true,
     has_phone_provider_username: false,
     has_phone_provider_password: false,
@@ -66,6 +67,7 @@ const accountCode = () => autoId('IntegrationsPage-phone-field-phone_provider_ac
 describe('IntegrationsPage', () => {
   beforeEach(() => {
     mockLoad()
+    server.use(http.get('*/api/ai/providers/', () => HttpResponse.json([])))
   })
 
   it('reports a stored secret without showing it, and disables Save until something changes', async () => {

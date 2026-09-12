@@ -5,6 +5,13 @@ export type ClientOptions = {
 };
 
 /**
+ * AIProviderTypes
+ *
+ * Supported AI provider types.
+ */
+export type AiProviderTypes = 'Claude' | 'Gemini' | 'Mistral' | 'OpenAI';
+
+/**
  * AcknowledgeIn
  *
  * POST body for acknowledging a form: empty by design.
@@ -171,63 +178,15 @@ export type AllJobsResponse = {
 };
 
 /**
- * AllocationDeleteRequest
- *
- * Wire contract for AllocationDeleteRequest.
- */
-export type AllocationDeleteRequest = {
-    /**
-     * Allocation Id
-     */
-    allocation_id: string;
-    /**
-     * Allocation Type
-     */
-    allocation_type: 'job' | 'stock';
-};
-
-/**
- * AllocationDeleteResponse
- *
- * Wire contract for AllocationDeleteResponse.
- */
-export type AllocationDeleteResponse = {
-    /**
-     * Deleted Quantity
-     */
-    deleted_quantity: number | null;
-    /**
-     * Description
-     */
-    description: string | null;
-    /**
-     * Job Name
-     */
-    job_name: string | null;
-    /**
-     * Message
-     */
-    message: string;
-    /**
-     * Success
-     */
-    success: boolean;
-    /**
-     * Updated Received Quantity
-     */
-    updated_received_quantity: number | null;
-};
-
-/**
  * AllocationDetailsResponse
  *
  * Wire contract for AllocationDetailsResponse.
  */
 export type AllocationDetailsResponse = {
     /**
-     * Can Delete
+     * Can Reverse
      */
-    can_delete: boolean;
+    can_reverse: boolean;
     /**
      * Consumed By Jobs
      */
@@ -309,6 +268,10 @@ export type AllocationItem = {
      */
     retail_rate: number;
     /**
+     * Reversed
+     */
+    reversed: boolean;
+    /**
      * Specifics
      */
     specifics: string | null;
@@ -320,6 +283,50 @@ export type AllocationItem = {
      * Type
      */
     type: 'stock' | 'job';
+};
+
+/**
+ * AllocationReversalRequest
+ *
+ * Wire contract for AllocationReversalRequest.
+ */
+export type AllocationReversalRequest = {
+    /**
+     * Allocation Id
+     */
+    allocation_id: string;
+    /**
+     * Allocation Type
+     */
+    allocation_type: 'job' | 'stock';
+};
+
+/**
+ * AllocationReversalResponse
+ *
+ * Wire contract for AllocationReversalResponse.
+ */
+export type AllocationReversalResponse = {
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Job Name
+     */
+    job_name: string;
+    /**
+     * Reversed Quantity
+     */
+    reversed_quantity: number;
+    /**
+     * Status
+     */
+    status: 'reversed' | 'already_reversed';
+    /**
+     * Updated Received Quantity
+     */
+    updated_received_quantity: number;
 };
 
 /**
@@ -2134,6 +2141,7 @@ export type CostLineOut = {
      * Labour Subtype
      */
     labour_subtype: string | null;
+    managed_by: CostLineOwner | null;
     /**
      * Meta
      */
@@ -2189,6 +2197,13 @@ export type CostLineOut = {
      */
     xero_time_id: string | null;
 };
+
+/**
+ * CostLineOwner
+ *
+ * The workflow responsible for a cost line's mutations.
+ */
+export type CostLineOwner = 'leave' | 'stocktake' | 'stock';
 
 /**
  * CostLineUpdateRequest
@@ -3607,6 +3622,10 @@ export type GroupedJobDeltaRejectionResolveResponse = {
  */
 export type IntegrationSettingsOut = {
     /**
+     * Chatkit Domain Key
+     */
+    chatkit_domain_key: string | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -3654,6 +3673,10 @@ export type IntegrationSettingsOut = {
  * Partial update: omitted fields keep their stored value, ``null`` clears.
  */
 export type IntegrationSettingsPatchIn = {
+    /**
+     * Chatkit Domain Key
+     */
+    chatkit_domain_key?: string | null;
     /**
      * Google Maps Api Key
      */
@@ -7048,13 +7071,7 @@ export type PatchedPersonContactMethodWriteRequest = {
 /**
  * PatchedStockItemRequest
  *
- * Partial stock-item update in which field presence is significant.
- *
- * The first block maps to NOT NULL columns, so null is a 422 — the handler
- * used to drop it silently, which reported a refused edit as a success. The
- * ``NullableText`` block is the ADR 0040 set where null is precisely how a
- * caller clears the value, and ``unit_revenue`` is nullable for the same
- * reason.
+ * Change only metadata fields explicitly supplied by the caller.
  */
 export type PatchedStockItemRequest = {
     /**
@@ -7070,10 +7087,6 @@ export type PatchedStockItemRequest = {
      */
     description?: string;
     /**
-     * Is Active
-     */
-    is_active?: boolean;
-    /**
      * Item Code
      */
     item_code?: string | null;
@@ -7086,25 +7099,13 @@ export type PatchedStockItemRequest = {
      */
     metal_type?: string | null;
     /**
-     * Quantity
-     */
-    quantity?: number | string;
-    /**
-     * Source
-     */
-    source?: string;
-    /**
      * Specifics
      */
     specifics?: string | null;
     /**
-     * Unit Cost
-     */
-    unit_cost?: number | string;
-    /**
      * Unit Revenue
      */
-    unit_revenue?: number | string | null;
+    unit_revenue?: number | null;
 };
 
 /**
@@ -8981,6 +8982,89 @@ export type ProductMappingValidateResponse = {
 };
 
 /**
+ * ProviderCreate
+ *
+ * Require a usable new entry; unset values belong to explicit edits.
+ */
+export type ProviderCreate = {
+    /**
+     * Api Key
+     */
+    api_key: string;
+    /**
+     * Model Name
+     */
+    model_name: string;
+    /**
+     * Name
+     */
+    name: string;
+    provider_type: AiProviderTypes;
+};
+
+/**
+ * ProviderOut
+ *
+ * Safe catalogue metadata; a stored secret is represented by presence only.
+ */
+export type ProviderOut = {
+    /**
+     * Default
+     */
+    default: boolean;
+    /**
+     * Has Api Key
+     */
+    has_api_key: boolean;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Model Name
+     */
+    model_name: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    provider_type: AiProviderTypes;
+};
+
+/**
+ * ProviderPatch
+ *
+ * Omitted fields retain their value; null clears model or credentials.
+ */
+export type ProviderPatch = {
+    /**
+     * Api Key
+     */
+    api_key?: string | null;
+    /**
+     * Model Name
+     */
+    model_name?: string | null;
+    /**
+     * Name
+     */
+    name?: string;
+    provider_type?: AiProviderTypes;
+};
+
+/**
+ * ProviderTestOut
+ *
+ * A successful live test names the actual gateway model.
+ */
+export type ProviderTestOut = {
+    /**
+     * Model
+     */
+    model: string;
+};
+
+/**
  * PurchaseOrderAllocationsResponse
  *
  * Wire contract for PurchaseOrderAllocationsResponse.
@@ -9096,11 +9180,15 @@ export type PurchaseOrderDetail = {
     /**
      * Status
      */
-    status: string;
+    status: 'draft' | 'submitted' | 'partially_received' | 'fully_received' | 'deleted';
     /**
      * Supplier
      */
     supplier: string;
+    /**
+     * Supplier Has Email
+     */
+    supplier_has_email: boolean;
     /**
      * Supplier Has Xero Id
      */
@@ -9113,6 +9201,14 @@ export type PurchaseOrderDetail = {
      * Xero Id
      */
     xero_id: string | null;
+    /**
+     * Xero Last Synced
+     */
+    xero_last_synced: string | null;
+    /**
+     * Xero Status
+     */
+    xero_status: string | null;
 };
 
 /**
@@ -9138,25 +9234,25 @@ export type PurchaseOrderEmailRequest = {
  */
 export type PurchaseOrderEmailResponse = {
     /**
+     * Draft Id
+     */
+    draft_id: string;
+    /**
+     * Draft Url
+     */
+    draft_url: string;
+    /**
      * Email Body
      */
-    email_body: string | null;
+    email_body: string;
     /**
      * Email Subject
      */
-    email_subject: string | null;
-    /**
-     * Mailto Url
-     */
-    mailto_url: string | null;
+    email_subject: string;
     /**
      * Message
      */
     message: string | null;
-    /**
-     * Pdf Url
-     */
-    pdf_url: string | null;
     /**
      * Success
      */
@@ -9323,6 +9419,10 @@ export type PurchaseOrderLineOut = {
      */
     company_name: string | null;
     /**
+     * Created At
+     */
+    created_at: string;
+    /**
      * Description
      */
     description: string;
@@ -9365,11 +9465,11 @@ export type PurchaseOrderLineOut = {
     /**
      * Quantity
      */
-    quantity: string;
+    quantity: number;
     /**
      * Received Quantity
      */
-    received_quantity: string;
+    received_quantity: number;
     /**
      * Specifics
      */
@@ -9385,7 +9485,7 @@ export type PurchaseOrderLineOut = {
     /**
      * Unit Cost
      */
-    unit_cost: string | null;
+    unit_cost: number | null;
 };
 
 /**
@@ -9477,7 +9577,7 @@ export type PurchaseOrderList = {
     /**
      * Status
      */
-    status: string;
+    status: 'draft' | 'submitted' | 'partially_received' | 'fully_received' | 'deleted';
     /**
      * Supplier
      */
@@ -9491,13 +9591,53 @@ export type PurchaseOrderList = {
 /**
  * PurchaseOrderListQuery
  *
- * Query parameters for purchase-order listing, including CSV statuses.
+ * Query params for purchase-order listing: CSV statuses, search, paging.
  */
 export type PurchaseOrderListQuery = {
+    /**
+     * Page
+     */
+    page?: number;
+    /**
+     * Page Size
+     */
+    page_size?: number;
+    /**
+     * Q
+     */
+    q?: string;
     /**
      * Status
      */
     status?: string | null;
+};
+
+/**
+ * PurchaseOrderListResponse
+ *
+ * One page of purchase orders in the shared pagination envelope.
+ */
+export type PurchaseOrderListResponse = {
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Page
+     */
+    page: number;
+    /**
+     * Page Size
+     */
+    page_size: number;
+    /**
+     * Results
+     */
+    results: Array<PurchaseOrderList>;
+    /**
+     * Total Pages
+     */
+    total_pages: number;
 };
 
 /**
@@ -9509,7 +9649,10 @@ export type PurchaseOrderListQuery = {
  * ``expected_delivery`` are nullable because each can be CLEARED — the
  * columns are nullable and NULL is what unset means there. ``status`` cannot:
  * the column is NOT NULL, so a null is a 422 rather than something the
- * handler silently drops.
+ * handler silently drops. Its sentinel is ``"draft"`` (the model default)
+ * rather than ``""`` because the annotation is the five-value union and the
+ * placeholder must not contradict it; the handler reads presence from
+ * ``model_fields_set`` and never the value.
  *
  * The two list fields are presence-only. A null list means nothing an empty
  * list does not, and reading them from ``model_fields_set`` rather than a
@@ -9539,7 +9682,7 @@ export type PurchaseOrderUpdateRequest = {
     /**
      * Status
      */
-    status?: string;
+    status?: 'draft' | 'submitted' | 'partially_received' | 'fully_received' | 'deleted';
     /**
      * Supplier Id
      */
@@ -9843,6 +9986,62 @@ export type QuoteSpreadsheetOut = {
      * Tab
      */
     tab: string | null;
+};
+
+/**
+ * QuotingChatConfigOut
+ *
+ * Public embed configuration and Django's masked CSRF token.
+ */
+export type QuotingChatConfigOut = {
+    /**
+     * Can Configure
+     */
+    can_configure: boolean;
+    /**
+     * Configuration Error
+     */
+    configuration_error: string | null;
+    /**
+     * Csrf Token
+     */
+    csrf_token: string;
+    /**
+     * Domain Key
+     */
+    domain_key: string | null;
+    /**
+     * Model
+     */
+    model: string | null;
+    /**
+     * Models
+     */
+    models: Array<QuotingChatModelOut>;
+};
+
+/**
+ * QuotingChatModelOut
+ *
+ * Public model-picker metadata; credentials remain in the gateway.
+ */
+export type QuotingChatModelOut = {
+    /**
+     * Default
+     */
+    default: boolean;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Label
+     */
+    label: string;
 };
 
 /**
@@ -10618,6 +10817,10 @@ export type StaffListItemOut = {
      */
     id: string;
     /**
+     * Is Currently Active
+     */
+    is_currently_active: boolean;
+    /**
      * Is Office Staff
      */
     is_office_staff: boolean;
@@ -11043,6 +11246,14 @@ export type StockItem = {
      */
     alloy: string | null;
     /**
+     * Can Count
+     */
+    can_count: boolean;
+    /**
+     * Can Retire
+     */
+    can_retire: boolean;
+    /**
      * Date
      */
     date: string;
@@ -11054,6 +11265,10 @@ export type StockItem = {
      * Id
      */
     id: string;
+    /**
+     * Inventory Version
+     */
+    inventory_version: number;
     /**
      * Is Active
      */
@@ -11103,11 +11318,7 @@ export type StockItem = {
 /**
  * StockItemRequest
  *
- * Stock-item create and full-update payload.
- *
- * The nullable text fields are ``NullableText`` (ADR 0040): ``""`` is a
- * validation 422 before the ``*_not_blank`` check constraints ever see it,
- * and ``null`` is how a client leaves one unset.
+ * Create an empty manual identity at an explicit cost, including a deliberate zero.
  */
 export type StockItemRequest = {
     /**
@@ -11117,15 +11328,11 @@ export type StockItemRequest = {
     /**
      * Date
      */
-    date?: string | null;
+    date?: string;
     /**
      * Description
      */
     description: string;
-    /**
-     * Is Active
-     */
-    is_active?: boolean;
     /**
      * Item Code
      */
@@ -11141,11 +11348,11 @@ export type StockItemRequest = {
     /**
      * Quantity
      */
-    quantity: number | string;
+    quantity?: 0;
     /**
      * Source
      */
-    source: string;
+    source?: 'manual';
     /**
      * Specifics
      */
@@ -11153,11 +11360,147 @@ export type StockItemRequest = {
     /**
      * Unit Cost
      */
-    unit_cost: number | string;
+    unit_cost: number;
     /**
      * Unit Revenue
      */
-    unit_revenue?: number | string | null;
+    unit_revenue?: number | null;
+};
+
+/**
+ * StockMetadataRequest
+ *
+ * Editable identity metadata; inventory changes have separate audited workflows.
+ */
+export type StockMetadataRequest = {
+    /**
+     * Alloy
+     */
+    alloy?: string | null;
+    /**
+     * Date
+     */
+    date?: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Item Code
+     */
+    item_code?: string | null;
+    /**
+     * Location
+     */
+    location?: string | null;
+    /**
+     * Metal Type
+     */
+    metal_type?: string | null;
+    /**
+     * Specifics
+     */
+    specifics?: string | null;
+    /**
+     * Unit Revenue
+     */
+    unit_revenue?: number | null;
+};
+
+/**
+ * StockMovementKind
+ *
+ * Live postings and the three historical cutover observations.
+ */
+export type StockMovementKind = 'opening' | 'job_opening' | 'receipt' | 'receipt_opening' | 'receipt_reversal' | 'issue' | 'return' | 'stocktake';
+
+/**
+ * StockMovementOut
+ *
+ * A movement and its human-readable counterpart.
+ */
+export type StockMovementOut = {
+    /**
+     * Actor
+     */
+    actor: string | null;
+    /**
+     * Can Return
+     */
+    can_return: boolean;
+    /**
+     * Counterpart Job Id
+     */
+    counterpart_job_id: string | null;
+    /**
+     * Counterpart Name
+     */
+    counterpart_name: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Id
+     */
+    id: string;
+    kind: StockMovementKind;
+    /**
+     * Quantity After
+     */
+    quantity_after: number;
+    /**
+     * Quantity Before
+     */
+    quantity_before: number;
+    /**
+     * Quantity Change
+     */
+    quantity_change: number;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Recorded At
+     */
+    recorded_at: string;
+    /**
+     * Stock Id
+     */
+    stock_id: string;
+    /**
+     * Unit Cost
+     */
+    unit_cost: number;
+};
+
+/**
+ * StockMovementPage
+ *
+ * Bound movement responses using the shared pagination envelope.
+ */
+export type StockMovementPage = {
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Page
+     */
+    page: number;
+    /**
+     * Page Size
+     */
+    page_size: number;
+    /**
+     * Results
+     */
+    results: Array<StockMovementOut>;
+    /**
+     * Total Pages
+     */
+    total_pages: number;
 };
 
 /**
@@ -11166,6 +11509,22 @@ export type StockItemRequest = {
  * Query params for purchasing_stock_search_retrieve.
  */
 export type StockSearchQuery = {
+    /**
+     * Countable
+     */
+    countable?: boolean;
+    /**
+     * Include Inactive
+     */
+    include_inactive?: boolean;
+    /**
+     * Job Id
+     */
+    job_id?: string | null;
+    /**
+     * Location
+     */
+    location?: string;
     /**
      * Page
      */
@@ -11186,6 +11545,10 @@ export type StockSearchQuery = {
      * Sort Dir
      */
     sort_dir?: string;
+    /**
+     * Stock Ids
+     */
+    stock_ids?: Array<string>;
 };
 
 /**
@@ -11214,6 +11577,274 @@ export type StockSearchResponse = {
      * Total Pages
      */
     total_pages: number;
+};
+
+/**
+ * StocktakeCreate
+ *
+ * StocktakeCreate wire contract.
+ */
+export type StocktakeCreate = {
+    /**
+     * Stock Id
+     */
+    stock_id?: string | null;
+};
+
+/**
+ * StocktakeDetail
+ *
+ * StocktakeDetail wire contract.
+ */
+export type StocktakeDetail = {
+    /**
+     * Adjustment Job Id
+     */
+    adjustment_job_id: string;
+    /**
+     * Author
+     */
+    author: string;
+    /**
+     * Corrects Id
+     */
+    corrects_id: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Discrepancy Value
+     */
+    discrepancy_value: number;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Lines
+     */
+    lines: Array<StocktakeLineOut>;
+    /**
+     * Posted At
+     */
+    posted_at: string | null;
+};
+
+/**
+ * StocktakeLineOut
+ *
+ * StocktakeLineOut wire contract.
+ */
+export type StocktakeLineOut = {
+    /**
+     * Counted At
+     */
+    counted_at: string | null;
+    /**
+     * Counted Quantity
+     */
+    counted_quantity: number | null;
+    /**
+     * Current Quantity
+     */
+    current_quantity: number;
+    /**
+     * Current Version
+     */
+    current_version: number;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Difference
+     */
+    difference: number | null;
+    /**
+     * Expected Quantity
+     */
+    expected_quantity: number;
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Location
+     */
+    location: string | null;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * Stale
+     */
+    stale: boolean;
+    /**
+     * Stock Id
+     */
+    stock_id: string | null;
+    /**
+     * Unit Cost
+     */
+    unit_cost: number;
+    /**
+     * Value
+     */
+    value: number | null;
+};
+
+/**
+ * StocktakeLineWrite
+ *
+ * StocktakeLineWrite wire contract.
+ */
+export type StocktakeLineWrite = {
+    /**
+     * Counted Quantity
+     */
+    counted_quantity: number | null;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Expected Quantity
+     */
+    expected_quantity: number;
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Location
+     */
+    location: string | null;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * Stock Id
+     */
+    stock_id: string | null;
+    /**
+     * Unit Cost
+     */
+    unit_cost: number;
+};
+
+/**
+ * StocktakeList
+ *
+ * StocktakeList wire contract.
+ */
+export type StocktakeList = {
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Page
+     */
+    page: number;
+    /**
+     * Page Size
+     */
+    page_size: number;
+    /**
+     * Results
+     */
+    results: Array<StocktakeSummary>;
+    /**
+     * Total Pages
+     */
+    total_pages: number;
+};
+
+/**
+ * StocktakeSave
+ *
+ * StocktakeSave wire contract.
+ */
+export type StocktakeSave = {
+    /**
+     * Lines
+     */
+    lines: Array<StocktakeLineWrite>;
+};
+
+/**
+ * StocktakeSearch
+ *
+ * StocktakeSearch wire contract.
+ */
+export type StocktakeSearch = {
+    /**
+     * Page
+     */
+    page?: number;
+    /**
+     * Page Size
+     */
+    page_size?: number;
+};
+
+/**
+ * StocktakeSetup
+ *
+ * StocktakeSetup wire contract.
+ */
+export type StocktakeSetup = {
+    /**
+     * Adjustment Job Id
+     */
+    adjustment_job_id: string | null;
+};
+
+/**
+ * StocktakeSummary
+ *
+ * StocktakeSummary wire contract.
+ */
+export type StocktakeSummary = {
+    /**
+     * Adjustment Job Id
+     */
+    adjustment_job_id: string;
+    /**
+     * Author
+     */
+    author: string;
+    /**
+     * Corrects Id
+     */
+    corrects_id: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Discrepancy Value
+     */
+    discrepancy_value: number;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Posted At
+     */
+    posted_at: string | null;
 };
 
 /**
@@ -11793,6 +12424,7 @@ export type TimesheetCostLineOut = {
      * Labour Subtype
      */
     labour_subtype: string | null;
+    managed_by: CostLineOwner | null;
     /**
      * Meta
      */
@@ -12733,10 +13365,6 @@ export type XeroAppActivateOut = {
      */
     created_at: string;
     /**
-     * Day Remaining
-     */
-    day_remaining: number | null;
-    /**
      * Has Tokens
      */
     has_tokens: boolean;
@@ -12753,17 +13381,9 @@ export type XeroAppActivateOut = {
      */
     label: string;
     /**
-     * Last 429 At
-     */
-    last_429_at: string | null;
-    /**
      * Message
      */
     message: string;
-    /**
-     * Minute Remaining
-     */
-    minute_remaining: number | null;
     /**
      * Redirect Uri
      */
@@ -12772,10 +13392,6 @@ export type XeroAppActivateOut = {
      * Restart Initiated
      */
     restart_initiated: boolean;
-    /**
-     * Snapshot At
-     */
-    snapshot_at: string | null;
     /**
      * Updated At
      */
@@ -12863,10 +13479,6 @@ export type XeroAppOut = {
      */
     created_at: string;
     /**
-     * Day Remaining
-     */
-    day_remaining: number | null;
-    /**
      * Has Tokens
      */
     has_tokens: boolean;
@@ -12883,21 +13495,9 @@ export type XeroAppOut = {
      */
     label: string;
     /**
-     * Last 429 At
-     */
-    last_429_at: string | null;
-    /**
-     * Minute Remaining
-     */
-    minute_remaining: number | null;
-    /**
      * Redirect Uri
      */
     redirect_uri: string;
-    /**
-     * Snapshot At
-     */
-    snapshot_at: string | null;
     /**
      * Updated At
      */
@@ -13221,6 +13821,10 @@ export type XeroQuoteOut = {
  * Last-sync times per entity plus whether a run is in flight.
  */
 export type XeroSyncInfoOut = {
+    /**
+     * Last Detail Refresh
+     */
+    last_detail_refresh: string | null;
     /**
      * Last Syncs
      */
@@ -13928,6 +14532,124 @@ export type NotebookLmLinksMenuListResponses = {
 };
 
 export type NotebookLmLinksMenuListResponse = NotebookLmLinksMenuListResponses[keyof NotebookLmLinksMenuListResponses];
+
+export type AiProvidersListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/ai/providers/';
+};
+
+export type AiProvidersListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<ProviderOut>;
+};
+
+export type AiProvidersListResponse = AiProvidersListResponses[keyof AiProvidersListResponses];
+
+export type AiProvidersCreateData = {
+    body: ProviderCreate;
+    path?: never;
+    query?: never;
+    url: '/api/ai/providers/';
+};
+
+export type AiProvidersCreateResponses = {
+    /**
+     * Created
+     */
+    201: ProviderOut;
+};
+
+export type AiProvidersCreateResponse = AiProvidersCreateResponses[keyof AiProvidersCreateResponses];
+
+export type AiProvidersDestroyData = {
+    body?: never;
+    path: {
+        /**
+         * Provider Id
+         */
+        provider_id: number;
+    };
+    query?: never;
+    url: '/api/ai/providers/{provider_id}/';
+};
+
+export type AiProvidersDestroyResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type AiProvidersDestroyResponse = AiProvidersDestroyResponses[keyof AiProvidersDestroyResponses];
+
+export type AiProvidersPartialUpdateData = {
+    body: ProviderPatch;
+    path: {
+        /**
+         * Provider Id
+         */
+        provider_id: number;
+    };
+    query?: never;
+    url: '/api/ai/providers/{provider_id}/';
+};
+
+export type AiProvidersPartialUpdateResponses = {
+    /**
+     * OK
+     */
+    200: ProviderOut;
+};
+
+export type AiProvidersPartialUpdateResponse = AiProvidersPartialUpdateResponses[keyof AiProvidersPartialUpdateResponses];
+
+export type AiProvidersSetDefaultData = {
+    body?: never;
+    path: {
+        /**
+         * Provider Id
+         */
+        provider_id: number;
+    };
+    query?: never;
+    url: '/api/ai/providers/{provider_id}/set-default/';
+};
+
+export type AiProvidersSetDefaultResponses = {
+    /**
+     * OK
+     */
+    200: ProviderOut;
+};
+
+export type AiProvidersSetDefaultResponse = AiProvidersSetDefaultResponses[keyof AiProvidersSetDefaultResponses];
+
+export type AiProvidersTestData = {
+    body?: never;
+    path: {
+        /**
+         * Provider Id
+         */
+        provider_id: number;
+    };
+    query?: never;
+    url: '/api/ai/providers/{provider_id}/test/';
+};
+
+export type AiProvidersTestResponses = {
+    /**
+     * OK
+     */
+    200: ProviderTestOut;
+};
+
+export type AiProvidersTestResponse = AiProvidersTestResponses[keyof AiProvidersTestResponses];
 
 export type BuildIdRetrieveData = {
     body?: never;
@@ -16254,6 +16976,27 @@ export type JobJobsLabourRatesPartialUpdateResponses = {
 
 export type JobJobsLabourRatesPartialUpdateResponse = JobJobsLabourRatesPartialUpdateResponses[keyof JobJobsLabourRatesPartialUpdateResponses];
 
+export type JobQuoteChatConfigRetrieveData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/job/jobs/{job_id}/quote-chat/config/';
+};
+
+export type JobQuoteChatConfigRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: QuotingChatConfigOut;
+};
+
+export type JobQuoteChatConfigRetrieveResponse = JobQuoteChatConfigRetrieveResponses[keyof JobQuoteChatConfigRetrieveResponses];
+
 export type JobJobsQuoteRetrieveData = {
     body?: never;
     path: {
@@ -17270,6 +18013,27 @@ export type PurchasingAllJobsRetrieveResponses = {
 
 export type PurchasingAllJobsRetrieveResponse = PurchasingAllJobsRetrieveResponses[keyof PurchasingAllJobsRetrieveResponses];
 
+export type CostLineStockMovementRetrieveData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/purchasing/cost-lines/{id}/movement/';
+};
+
+export type CostLineStockMovementRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: StockMovementOut;
+};
+
+export type CostLineStockMovementRetrieveResponse = CostLineStockMovementRetrieveResponses[keyof CostLineStockMovementRetrieveResponses];
+
 export type PurchasingDeliveryReceiptsCreateData = {
     body: DeliveryReceiptRequest;
     path?: never;
@@ -17349,17 +18113,27 @@ export type ListPurchaseOrdersData = {
          * Status
          */
         status?: string | null;
+        /**
+         * Q
+         */
+        q?: string;
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
     };
     url: '/api/purchasing/purchase-orders/';
 };
 
 export type ListPurchaseOrdersResponses = {
     /**
-     * Response
-     *
      * OK
      */
-    200: Array<PurchaseOrderList>;
+    200: PurchaseOrderListResponse;
 };
 
 export type ListPurchaseOrdersResponse = ListPurchaseOrdersResponses[keyof ListPurchaseOrdersResponses];
@@ -17551,8 +18325,8 @@ export type CreatePurchaseOrderEventResponses = {
 
 export type CreatePurchaseOrderEventResponse = CreatePurchaseOrderEventResponses[keyof CreatePurchaseOrderEventResponses];
 
-export type DeleteAllocationData = {
-    body: AllocationDeleteRequest;
+export type ReverseAllocationData = {
+    body: AllocationReversalRequest;
     path: {
         /**
          * Po Id
@@ -17564,17 +18338,17 @@ export type DeleteAllocationData = {
         line_id: string;
     };
     query?: never;
-    url: '/api/purchasing/purchase-orders/{po_id}/lines/{line_id}/allocations/delete/';
+    url: '/api/purchasing/purchase-orders/{po_id}/lines/{line_id}/allocations/reverse/';
 };
 
-export type DeleteAllocationResponses = {
+export type ReverseAllocationResponses = {
     /**
      * OK
      */
-    200: AllocationDeleteResponse;
+    200: AllocationReversalResponse;
 };
 
-export type DeleteAllocationResponse = DeleteAllocationResponses[keyof DeleteAllocationResponses];
+export type ReverseAllocationResponse = ReverseAllocationResponses[keyof ReverseAllocationResponses];
 
 export type GetPurchaseOrderPdfData = {
     body?: never;
@@ -17595,20 +18369,80 @@ export type GetPurchaseOrderPdfResponses = {
     200: unknown;
 };
 
+export type StockMovementReturnData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/purchasing/stock-movements/{id}/return/';
+};
+
+export type StockMovementReturnResponses = {
+    /**
+     * OK
+     */
+    200: StockMovementOut;
+};
+
+export type StockMovementReturnResponse = StockMovementReturnResponses[keyof StockMovementReturnResponses];
+
 export type PurchasingStockListData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string;
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
+        /**
+         * Sort By
+         */
+        sort_by?: string;
+        /**
+         * Sort Dir
+         */
+        sort_dir?: string;
+        /**
+         * Stock Ids
+         */
+        stock_ids?: Array<string>;
+        /**
+         * Job Id
+         */
+        job_id?: string | null;
+        /**
+         * Location
+         */
+        location?: string;
+        /**
+         * Countable
+         */
+        countable?: boolean;
+        /**
+         * Include Inactive
+         */
+        include_inactive?: boolean;
+    };
     url: '/api/purchasing/stock/';
 };
 
 export type PurchasingStockListResponses = {
     /**
-     * Response
-     *
      * OK
      */
-    200: Array<StockItem>;
+    200: StockSearchResponse;
 };
 
 export type PurchasingStockListResponse = PurchasingStockListResponses[keyof PurchasingStockListResponses];
@@ -17653,6 +18487,26 @@ export type PurchasingStockSearchRetrieveData = {
          * Sort Dir
          */
         sort_dir?: string;
+        /**
+         * Stock Ids
+         */
+        stock_ids?: Array<string>;
+        /**
+         * Job Id
+         */
+        job_id?: string | null;
+        /**
+         * Location
+         */
+        location?: string;
+        /**
+         * Countable
+         */
+        countable?: boolean;
+        /**
+         * Include Inactive
+         */
+        include_inactive?: boolean;
     };
     url: '/api/purchasing/stock/search/';
 };
@@ -17730,7 +18584,7 @@ export type PurchasingStockPartialUpdateResponses = {
 export type PurchasingStockPartialUpdateResponse = PurchasingStockPartialUpdateResponses[keyof PurchasingStockPartialUpdateResponses];
 
 export type PurchasingStockUpdateData = {
-    body: StockItemRequest;
+    body: StockMetadataRequest;
     path: {
         /**
          * Id
@@ -17770,6 +18624,223 @@ export type ConsumeStockResponses = {
 };
 
 export type ConsumeStockResponse = ConsumeStockResponses[keyof ConsumeStockResponses];
+
+export type StockMovementsListData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: {
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
+    };
+    url: '/api/purchasing/stock/{id}/movements/';
+};
+
+export type StockMovementsListResponses = {
+    /**
+     * OK
+     */
+    200: StockMovementPage;
+};
+
+export type StockMovementsListResponse = StockMovementsListResponses[keyof StockMovementsListResponses];
+
+export type StocktakeListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
+    };
+    url: '/api/purchasing/stocktakes/';
+};
+
+export type StocktakeListResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeList;
+};
+
+export type StocktakeListResponse = StocktakeListResponses[keyof StocktakeListResponses];
+
+export type StocktakeCreateData = {
+    body: StocktakeCreate;
+    path?: never;
+    query?: never;
+    url: '/api/purchasing/stocktakes/';
+};
+
+export type StocktakeCreateResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeDetail;
+};
+
+export type StocktakeCreateResponse = StocktakeCreateResponses[keyof StocktakeCreateResponses];
+
+export type StocktakeSetupRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/purchasing/stocktakes/setup/';
+};
+
+export type StocktakeSetupRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeSetup;
+};
+
+export type StocktakeSetupRetrieveResponse = StocktakeSetupRetrieveResponses[keyof StocktakeSetupRetrieveResponses];
+
+export type StocktakeSetupCreateData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/purchasing/stocktakes/setup/';
+};
+
+export type StocktakeSetupCreateResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeSetup;
+};
+
+export type StocktakeSetupCreateResponse = StocktakeSetupCreateResponses[keyof StocktakeSetupCreateResponses];
+
+export type StocktakeRetrieveData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/purchasing/stocktakes/{id}/';
+};
+
+export type StocktakeRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeDetail;
+};
+
+export type StocktakeRetrieveResponse = StocktakeRetrieveResponses[keyof StocktakeRetrieveResponses];
+
+export type StocktakeUpdateData = {
+    body: StocktakeSave;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/purchasing/stocktakes/{id}/';
+};
+
+export type StocktakeUpdateResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeDetail;
+};
+
+export type StocktakeUpdateResponse = StocktakeUpdateResponses[keyof StocktakeUpdateResponses];
+
+export type StocktakeCorrectData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/purchasing/stocktakes/{id}/correct/';
+};
+
+export type StocktakeCorrectResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeDetail;
+};
+
+export type StocktakeCorrectResponse = StocktakeCorrectResponses[keyof StocktakeCorrectResponses];
+
+export type StocktakeMovementsListData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: {
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Page Size
+         */
+        page_size?: number;
+    };
+    url: '/api/purchasing/stocktakes/{id}/movements/';
+};
+
+export type StocktakeMovementsListResponses = {
+    /**
+     * OK
+     */
+    200: StockMovementPage;
+};
+
+export type StocktakeMovementsListResponse = StocktakeMovementsListResponses[keyof StocktakeMovementsListResponses];
+
+export type StocktakePostData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/purchasing/stocktakes/{id}/post/';
+};
+
+export type StocktakePostResponses = {
+    /**
+     * OK
+     */
+    200: StocktakeDetail;
+};
+
+export type StocktakePostResponse = StocktakePostResponses[keyof StocktakePostResponses];
 
 export type GetSupplierPriceStatusData = {
     body?: never;
@@ -18896,7 +19967,12 @@ export type XeroSyncInfoRetrieveResponse = XeroSyncInfoRetrieveResponses[keyof X
 export type XeroSyncCreateData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Detail Refresh
+         */
+        detail_refresh?: boolean;
+    };
     url: '/api/xero/sync/';
 };
 

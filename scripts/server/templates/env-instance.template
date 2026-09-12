@@ -36,7 +36,7 @@ SCRUB_DB_NAME=__SCRUB_DB_NAME__
 TEST_DB_USER=__TEST_DB_USER__
 TEST_DB_PASSWORD=__TEST_DB_PASSWORD__
 
-# Google service-account key. The app reads it (apps/core/gauth.py): the
+# Google service-account key. The app reads it (apps/platform/integrations/google/credentials.py): the
 # password-reset email sends through Gmail and the health-and-safety import
 # writes to Drive, as well as the rclone backup upload and the scripts/gdocs/
 # authoring toolchain.

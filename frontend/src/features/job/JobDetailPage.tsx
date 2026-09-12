@@ -3,6 +3,7 @@ import { FileText, Printer } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { apiErrorMessage, getFullJobOptions, jobJobsStatusValuesRetrieveOptions } from '@/api'
+import { Button } from '@/components/ui/button'
 import { InlineEditSelect } from '@/components/InlineEditSelect'
 import { InlineEditText } from '@/components/InlineEditText'
 import { isConcurrencyError } from '@/lib/concurrency/interceptors'
@@ -36,6 +37,10 @@ const JobActualTab = lazy(() =>
 // visitor, most of whom never open History.
 const JobHistoryTab = lazy(() =>
   import('./JobHistoryTab').then((module) => ({ default: module.JobHistoryTab })),
+)
+
+const JobQuotingChatTab = lazy(() =>
+  import('./JobQuotingChatTab').then((module) => ({ default: module.JobQuotingChatTab })),
 )
 
 const PRICING_OPTIONS = [
@@ -73,8 +78,8 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
 
   return (
     <div className="flex min-h-screen flex-col">
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 p-4">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span data-automation-id="JobView-job-number" className="text-xl font-bold text-gray-900">
             Job #{job.job_number} -
           </span>
@@ -108,29 +113,31 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
             }
           />
         </div>
-        <div className="flex space-x-2">
-          <button
+        <div className="flex flex-wrap gap-2">
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             data-automation-id="JobView-print-workshop-pdf"
-            className="inline-flex items-center rounded-md border border-gray-300 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50"
             onClick={() => {
               void printWorkshopPdf(jobId)
             }}
           >
-            <Printer className="mr-1 h-4 w-4" />
+            <Printer className="h-4 w-4" />
             Workshop PDF
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             data-automation-id="JobView-print-delivery-docket"
-            className="inline-flex items-center rounded-md border border-gray-300 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50"
             onClick={() => {
               void printDeliveryDocket(jobId)
             }}
           >
-            <FileText className="mr-1 h-4 w-4" />
+            <FileText className="h-4 w-4" />
             Delivery Docket
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -140,36 +147,42 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
         onChangeTab={onChangeTab}
       />
 
-      {/* Keyed by job: both tabs hydrate local state once per mount, and
+      <div id="JobViewTabs-panel" role="tabpanel" aria-labelledby={`JobViewTabs-${activeTab}`}>
+        {/* Keyed by job: both tabs hydrate local state once per mount, and
           navigating to another job must remount them, not leak the old
           job's values. */}
-      {activeTab === 'jobSettings' ? (
-        <JobSettingsTab key={jobId} jobId={jobId} job={job} />
-      ) : activeTab === 'attachments' ? (
-        <JobAttachmentsTab key={jobId} jobId={jobId} />
-      ) : activeTab === 'finishJob' ? (
-        <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
-          <JobFinishTab key={jobId} jobId={jobId} job={job} />
-        </Suspense>
-      ) : activeTab === 'quote' ? (
-        <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
-          <JobQuoteTab key={jobId} jobId={jobId} job={job} />
-        </Suspense>
-      ) : activeTab === 'estimate' ? (
-        <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
-          <JobEstimateTab key={jobId} jobId={jobId} />
-        </Suspense>
-      ) : activeTab === 'actual' ? (
-        <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
-          <JobActualTab key={jobId} jobId={jobId} />
-        </Suspense>
-      ) : activeTab === 'history' ? (
-        <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
-          <JobHistoryTab key={jobId} jobId={jobId} />
-        </Suspense>
-      ) : (
-        <div className="p-6 text-sm text-gray-500">This tab ships in a later slice.</div>
-      )}
+        {activeTab === 'jobSettings' ? (
+          <JobSettingsTab key={jobId} jobId={jobId} job={job} />
+        ) : activeTab === 'attachments' ? (
+          <JobAttachmentsTab key={jobId} jobId={jobId} />
+        ) : activeTab === 'finishJob' ? (
+          <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+            <JobFinishTab key={jobId} jobId={jobId} job={job} />
+          </Suspense>
+        ) : activeTab === 'quote' ? (
+          <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+            <JobQuoteTab key={jobId} jobId={jobId} job={job} />
+          </Suspense>
+        ) : activeTab === 'estimate' ? (
+          <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+            <JobEstimateTab key={jobId} jobId={jobId} />
+          </Suspense>
+        ) : activeTab === 'actual' ? (
+          <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+            <JobActualTab key={jobId} jobId={jobId} />
+          </Suspense>
+        ) : activeTab === 'quotingChat' ? (
+          <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+            <JobQuotingChatTab key={jobId} jobId={jobId} />
+          </Suspense>
+        ) : activeTab === 'history' ? (
+          <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+            <JobHistoryTab key={jobId} jobId={jobId} />
+          </Suspense>
+        ) : (
+          <div className="p-6 text-sm text-gray-500">This tab ships in a later slice.</div>
+        )}
+      </div>
     </div>
   )
 }

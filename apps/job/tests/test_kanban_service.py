@@ -24,7 +24,7 @@ pytestmark = pytest.mark.django_db
 
 def _set_summary_revenue(cost_set: CostSet, revenue: Decimal) -> None:
     """Set the precomputed revenue total that serialize_job_for_api reads."""
-    cost_set.summary = {"rev": float(revenue)}
+    cost_set.summary = {"cost": 0, "rev": float(revenue), "hours": 0}
     cost_set.save(update_fields=["summary"])
 
 

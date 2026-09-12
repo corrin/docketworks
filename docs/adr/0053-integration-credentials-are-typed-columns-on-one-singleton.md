@@ -1,9 +1,14 @@
 # 0053 — Integration credentials are typed columns on one singleton
 
 Every credential the install uses to reach an external service lives in the database, on
-`apps.core.models.IntegrationSettings`, as a typed column of its own. Nothing reads a vendor
+`apps.platform.integrations.models.IntegrationSettings`, as a typed column of its own. Nothing reads a vendor
 credential from the environment; `.env` holds what Django needs to boot (database, Redis,
 signing keys, paths) and nothing the application could change without a deploy.
+
+IntegrationSettings is owned by platform.integrations (ADR 0055). The existing
+`GCP_CREDENTIALS` key file and `GCP_DELEGATED_SUBJECT` override are a known migration
+remainder, explicitly excluded from the ownership extraction; no new environment
+credentials may be added. Callers supply the company mailbox to the Google adapter.
 
 ## Rules
 
@@ -25,9 +30,11 @@ signing keys, paths) and nothing the application could change without a deploy.
   business configuration; `IntegrationSettings` holds how the install reaches the outside.
 - **Reads never write.** `get_solo()` returns the row or raises `ImproperlyConfigured`; the
   row is created by `core/0003_integration_settings_row`, which the cutover script re-applies
-  after the restore. A `get_or_create` on a read path makes a GET a mutation.
-- **Secrets are write-only on the wire.** The one admin surface is superuser-only
-  `GET`/`PATCH /api/integration-settings/` and the `/admin/integrations` page. The response
+  after the restore. `integrations/0001` adopts that table without DDL;
+  `integrations/0002` relabels its ContentType in place to preserve permission grants.
+  A `get_or_create` on a read path makes a GET a mutation.
+- **Secrets are write-only on the wire.** The admin surface is the superuser-only `/admin/integrations` page, backed by
+  `GET`/`PATCH /api/integration-settings/` and `/api/ai/providers/` for the provider catalogue. The response
   carries `has_<column>` booleans in place of secret values; the request takes a value to set
   or `null` to clear, and an omitted field leaves the stored value alone.
 - **One seed, one check, one scrub.** `scripts/server/instance.sh` renders every column from
@@ -52,3 +59,17 @@ signing keys, paths) and nothing the application could change without a deploy.
   shows configured/not configured and takes a new value.
 - **Do not add a generic `extra_config` JSON column** to absorb a new integration's fields. The
   migration is the point.
+
+## AI catalogue lifecycle
+
+Owner-approved: `AIProvider` remains the credential owner, allowing several models
+per vendor. The ChatKit public domain key remains on `IntegrationSettings`. Admin
+and provisioning share `apps.ai.services.provider_configuration`; platform does not
+import AI configuration services across its ownership boundary.
+
+`load_ai_providers` consumes the instance renderer's fixture vendor by vendor.
+A configured vendor is preserved; an absent vendor is added; an exact, unambiguous
+empty seed can be refilled. Other incomplete entries require operator attention.
+Unset optional vendors produce no rows. An existing application default is never
+replaced by bootstrap. Scrubbing already removes `workflow_aiprovider` as a private
+table. The restore check probes each configured row through the shared gateway.
