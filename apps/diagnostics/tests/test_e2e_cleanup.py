@@ -332,6 +332,31 @@ def test_documents_on_the_standing_company_are_removed_but_it_is_not_archived(
     assert Company.objects.filter(pk=standing.pk).exists()
 
 
+def test_an_ordinarily_named_job_on_the_standing_company_keeps_its_xero_documents(
+    office_staff: Staff, xero: RecordingOrganisation
+) -> None:
+    """The fixture company is shared with hand-made work, and a Xero deletion is final.
+
+    Every row a spec creates carries the [TEST] prefix, so the prefix is the
+    whole of what cleanup may claim on this company. A job without it belongs
+    to whoever made it — and the E2E preflight, which counts only [TEST]-named
+    rows, would report the database clean while this ran.
+    """
+    standing = Company.objects.create(
+        name=TEST_COMPANY_NAME,
+        xero_contact_id="contact-standing",
+        xero_last_modified="2026-08-08T00:00Z",
+    )
+    mine = make_job(standing, office_staff, name="Quote for the Henderson roof")
+    invoice = make_invoice(standing, job=mine)
+
+    _run_cleanup("--confirm")
+
+    assert Job.objects.filter(pk=mine.pk).exists()
+    assert Invoice.objects.filter(pk=invoice.pk).exists()
+    assert xero.ids_of("invoice") == set()
+
+
 def test_a_purchase_order_never_pushed_to_xero_is_not_deleted_there(
     xero: RecordingOrganisation,
 ) -> None:

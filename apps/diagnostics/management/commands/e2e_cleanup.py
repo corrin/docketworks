@@ -103,21 +103,28 @@ class Command(BaseCommand):
         legacy_company_people = CompanyPersonLink.objects.filter(company__in=named_legacy_companies)
 
         test_company = Company.objects.filter(name=TEST_COMPANY_NAME)
-        test_company_jobs = Job.objects.filter(company__in=test_company)
-        test_company_people = CompanyPersonLink.objects.filter(company__in=test_company)
 
         # The named test company is seed data, not test residue: specs select
         # it by name and CompanyDefaults.test_company_name documents that it is
         # preserved during backports. Its E2E-created jobs and people are
-        # removed; the company row itself must survive.
+        # removed by the [TEST] name match above; the company row itself must
+        # survive.
+        #
+        # Opus: matching this company's dependants by foreign key instead was
+        # rejected. all_jobs drives the Xero invoice and quote deletions, and a
+        # Xero deletion is not something the database restore undoes, so a
+        # hand-made ordinarily-named job on this company would lose its Xero
+        # documents. The E2E preflight (checkSafeToTest) counts only
+        # [TEST]-named rows and could not have warned about one either. Every
+        # row a spec creates carries the prefix, so the name match loses
+        # nothing and leaves the preflight asking the same question this
+        # command answers.
         deletable_companies = (test_companies | legacy_companies).distinct()
         named_companies = (named_test_companies | named_legacy_companies).distinct()
         all_people_links = (
-            test_people | test_prefix_company_people | legacy_company_people | test_company_people
+            test_people | test_prefix_company_people | legacy_company_people
         ).distinct()
-        all_jobs = (
-            test_jobs | test_prefix_company_jobs | legacy_company_jobs | test_company_jobs
-        ).distinct()
+        all_jobs = (test_jobs | test_prefix_company_jobs | legacy_company_jobs).distinct()
 
         self.stdout.write("\n=== E2E Test Data ===\n")
         self._report_queryset("[TEST]-prefixed jobs", test_jobs, "name")
@@ -134,14 +141,6 @@ class Command(BaseCommand):
         self._report_queryset("Named E2E test company", test_company, "name")
         self._report_queryset("Legacy E2E company jobs", legacy_company_jobs, "name")
         self._report_queryset("Legacy E2E company people", legacy_company_people, "person__name")
-        self._report_queryset(
-            f"Jobs on test company ({TEST_COMPANY_NAME})", test_company_jobs, "name"
-        )
-        self._report_queryset(
-            f"People on test company ({TEST_COMPANY_NAME})",
-            test_company_people,
-            "person__name",
-        )
         self._report_queryset("Jobs on [TEST]-prefixed companies", test_prefix_company_jobs, "name")
         self._report_queryset(
             "People on [TEST]-prefixed companies",
