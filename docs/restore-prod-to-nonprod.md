@@ -572,31 +572,13 @@ you are already in a browser, not a limitation of the script.
 **Check:** the browser lands back on the application, and re-running the
 connections command above now prints the organisation.
 
-## Activate payroll in the Xero organisation
+## If a payroll call answers 403
 
-A recreated demo organisation has the payroll product unprovisioned, and there is
-no API that turns it on. Open Payroll in the Xero web UI for this organisation
-once, as a browser step, and complete whatever activation prompt it shows.
-
-Until that is done every NZ Payroll call — including the ones
-`xero --setup --seed-xero` and `xero --configure-payroll` make below — answers
-**`403 Forbidden` with an empty body**, while everything about the connection
-looks correct: the token is valid, `get_connections` lists the organisation, the
-tenant id in the request headers is the right one, and the stored scope string
-carries every payroll scope.
-
-The two 403s a refresh produces are different failures and the body is what
-tells them apart:
-
-- **Empty body** — payroll is not provisioned for this organisation. Activate it
-  in the browser as above.
-- **Body naming the error**, `{"Title":"Forbidden","Detail":"AuthenticationUnsuccessful"}`
-  — tenant drift: a valid token for an organisation that no longer exists. Re-run
-  `xero --setup`, and see "Demo organisation lifecycle" in
-  [`xero_setup.md`](xero_setup.md#demo-organisation-lifecycle).
-
-**Check:** `uv run python manage.py xero --configure-payroll` in the next section
-reaches Xero instead of answering 403.
+Payroll needs no activation step and no browser visit: `--seed-xero` below
+creates the calendar, leave types and earnings rates through the ordinary API,
+like everything else that syncs. So a 403 there is a connection fault, almost
+always tenant drift — diagnosed and repaired under "Demo organisation lifecycle"
+in [`xero_setup.md`](xero_setup.md#demo-organisation-lifecycle).
 
 ## Configure the Xero connection
 
