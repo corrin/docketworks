@@ -11,10 +11,22 @@
  * ping's 500-with-error_id), test_sync_stream.py (stream auth gate) — and
  * role gating likewise: the E2E account is office staff and superuser.
  */
+import type { Locator, Page, Response } from '@playwright/test'
+
 import { expect, test } from '../fixtures/auth'
 import { autoId } from '../helpers'
 
 const SYNC_INFO_PATH = '/api/xero/sync-info/'
+
+/** Ask for a detail refresh once the page believes no sync is running. */
+async function dispatchDetailRefresh(page: Page, refresh: Locator): Promise<Response> {
+  await expect(refresh).toBeEnabled({ timeout: 210_000 })
+  const dispatched = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === '/api/xero/sync/' && r.request().method() === 'POST',
+  )
+  await refresh.click()
+  return dispatched
+}
 
 test.describe('Xero connection page', () => {
   test('shows the connected state with sync and disconnect available', async ({
@@ -48,11 +60,21 @@ test.describe('Xero connection page', () => {
     test.setTimeout(240_000)
     await page.goto('/admin/xero')
     const refresh = autoId(page, 'XeroPage-refresh-details')
-    await expect(refresh).toBeEnabled()
+
+    // Opus: one lock covers every Xero sync, and the scheduler holds it
+    // whenever it is due — so 409 `already_running` is the server being right,
+    // not a defect. The button's disabled state cannot close the gap either: it
+    // comes from a polled query, so it can still read "idle" while the
+    // scheduler is taking the lock. Waiting for a quiet window and dispatching
+    // again is what this spec can honestly assert; its subject is the detail
+    // refresh, not who won the lock.
     const startedAt = Date.now()
-    const dispatch = page.waitForResponse(
-      (r) => new URL(r.url()).pathname === '/api/xero/sync/' && r.request().method() === 'POST',
-    )
+    let response = await dispatchDetailRefresh(page, refresh)
+    while (response.status() === 409) {
+      await expect(refresh).toBeDisabled()
+      await expect(refresh).toBeEnabled({ timeout: 210_000 })
+      response = await dispatchDetailRefresh(page, refresh)
+    }
     const completed = page.waitForResponse(
       async (r) => {
         if (new URL(r.url()).pathname !== SYNC_INFO_PATH || r.status() !== 200) return false
@@ -65,8 +87,6 @@ test.describe('Xero connection page', () => {
       },
       { timeout: 210_000 },
     )
-    await refresh.click()
-    const response = await dispatch
     expect(response.status()).toBe(202)
     expect(new URL(response.url()).searchParams.get('detail_refresh')).toBe('true')
     await expect(refresh).toBeDisabled()
