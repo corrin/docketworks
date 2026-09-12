@@ -18,6 +18,15 @@ import { autoId } from '../helpers'
 
 const SYNC_INFO_PATH = '/api/xero/sync-info/'
 
+/** Whether the server says a sync holds the lock; narrowed, never asserted. */
+async function syncInProgress(page: Page): Promise<boolean> {
+  const body: unknown = await (await page.request.get(SYNC_INFO_PATH)).json()
+  if (typeof body !== 'object' || body === null || !('sync_in_progress' in body)) {
+    throw new Error('sync-info did not report sync_in_progress')
+  }
+  return body.sync_in_progress === true
+}
+
 /** Ask for a detail refresh once the page believes no sync is running. */
 async function dispatchDetailRefresh(page: Page, refresh: Locator): Promise<Response> {
   await expect(refresh).toBeEnabled({ timeout: 210_000 })
@@ -71,8 +80,13 @@ test.describe('Xero connection page', () => {
     const startedAt = Date.now()
     let response = await dispatchDetailRefresh(page, refresh)
     while (response.status() === 409) {
-      await expect(refresh).toBeDisabled()
-      await expect(refresh).toBeEnabled({ timeout: 210_000 })
+      // Ask the server, not the button. The button reflects a polled query, so
+      // a sync that starts and finishes between polls is never visible as a
+      // disabled state — asserting one made this wait for something that had
+      // already happened.
+      await expect
+        .poll(() => syncInProgress(page), { timeout: 210_000, intervals: [2000] })
+        .toBe(false)
       response = await dispatchDetailRefresh(page, refresh)
     }
     const completed = page.waitForResponse(
