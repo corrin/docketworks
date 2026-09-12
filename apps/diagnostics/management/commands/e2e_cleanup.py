@@ -52,7 +52,7 @@ from apps.diagnostics.services.e2e_xero_residue import (
 )
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.process.models import Form, FormEntry, Procedure
-from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
+from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock, StockMovement
 
 
 class Command(BaseCommand):
@@ -159,6 +159,21 @@ class Command(BaseCommand):
         linked_quote_sheets = QuoteSpreadsheet.objects.filter(job__in=all_jobs)
         linked_pos = PurchaseOrder.objects.filter(supplier__in=named_companies)
 
+        # A receipt turns an order line into stock, and the inventory ledger
+        # protects what it records (ADR 0058): the stock row protects its
+        # order line, every movement protects its stock, and a reversal
+        # protects the movement it reverses. So a run that receipted anything
+        # leaves a purchase order nothing can delete, which is what stranded
+        # the teardown after it had already removed the order from Xero.
+        # Scoped by the ORDER as well as the job: stock received to the
+        # workshop rather than to a job has no job to be found through.
+        run_po_lines = PurchaseOrderLine.objects.filter(
+            Q(purchase_order__in=linked_pos) | Q(job__in=all_jobs)
+        )
+        run_stock = Stock.objects.filter(source_purchase_order_line__in=run_po_lines)
+        run_movements = StockMovement.objects.filter(stock__in=run_stock)
+        reversing_movements = run_movements.filter(reverses__isnull=False)
+
         # The description is the whole rule. Matching on the call's job or
         # company instead would miss every call whose job and company have
         # already been set to NULL, and would sweep the standing test
@@ -245,6 +260,12 @@ class Command(BaseCommand):
             self._delete_queryset("E2E phone calls", e2e_calls)
 
             self._delete_queryset("Invoices", linked_invoices)
+            # Reversals before the movements they reverse, movements before
+            # the stock they record, stock before the order line it came
+            # from: each step frees the next.
+            self._delete_queryset("Reversing stock movements", reversing_movements)
+            self._delete_queryset("Stock movements", run_movements)
+            self._delete_queryset("Receipted stock", run_stock)
             self._delete_queryset("Purchase orders", linked_pos)
             self._delete_queryset("Quotes", linked_quotes)
             self._delete_queryset("PO lines", linked_po_lines)

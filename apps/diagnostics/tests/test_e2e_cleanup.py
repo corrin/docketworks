@@ -2,6 +2,7 @@
 
 import uuid
 from collections.abc import Sequence
+from decimal import Decimal
 from io import StringIO
 from pathlib import Path
 
@@ -22,7 +23,8 @@ from apps.crm.tests.helpers import make_call, make_recording
 from apps.diagnostics.management.commands.e2e_cleanup import Command
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.process.models import Acknowledgement, Form, FormEntry
-from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
+from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock, StockMovement
+from apps.purchasing.tests.factories import make_po_line, receive_po_line
 from apps.quoting.models import SupplierPriceList
 from apps.xero.contacts import ArchiveOutcome
 
@@ -183,6 +185,33 @@ def test_confirm_deletes_company_scoped_invoice_without_job() -> None:
     assert "Done." in output
     assert not Invoice.objects.filter(pk=invoice.pk).exists()
     assert not Company.objects.filter(pk=test_company.pk).exists()
+
+
+def test_a_receipted_order_is_deletable_with_its_stock_and_movements(
+    office_staff: Staff, job: Job, stock_holding_job: Job
+) -> None:
+    """A receipt protects its order line, which once stranded the whole teardown.
+
+    The teardown removes from Xero before deleting locally, so a purchase order
+    nothing could delete left the organisation and the database disagreeing —
+    and the run had already voided the order in Xero by then.
+    """
+    supplier = Company.objects.create(
+        name="[TEST] Receipt Supplier", xero_last_modified="2026-08-08T00:00Z"
+    )
+    po = make_purchase_order(supplier)
+    po.status = "submitted"
+    po.save(update_fields=["status"])
+    line = make_po_line(po, description="[TEST] steel sheet", quantity="4.00")
+    receive_po_line(line, Decimal("4"), job, stock_holding_job, office_staff)
+    assert Stock.objects.filter(source_purchase_order_line=line).exists()
+    assert StockMovement.objects.filter(stock__source_purchase_order_line=line).exists()
+
+    _run_cleanup("--confirm")
+
+    assert not PurchaseOrder.objects.filter(pk=po.pk).exists()
+    assert not Stock.objects.filter(source_purchase_order_line_id=line.id).exists()
+    assert not StockMovement.objects.filter(stock__source_purchase_order_line_id=line.id).exists()
 
 
 def test_refuses_when_company_carries_quoting_data() -> None:
