@@ -10,10 +10,10 @@ Delete this file when the branch merges and nothing is left in it.
 
 ## Blocking the merge
 
-- **The E2E suite is not green from the first spec.** Both session-replay specs fail and
-  are still unclassified: the recording is never created, so the POST the spec waits on
-  never happens. Recording is enabled and the database holds recordings. The person-linking
-  failure listed here was Xero, not drift, and is gone.
+- **The E2E suite is not green from the first spec.** `admin/session-replay.spec.ts` is
+  excluded from that bar by owner ruling and now sits in
+  [`rewrite-status.md`](rewrite-status.md). Every other failure is either fixed or listed
+  below.
 - **`admin/xero.spec.ts:45` cannot start a sync while one is running.** It asserts 202 from
   `POST /api/xero/sync/` and gets 409 `already_running`, because the run holds one global
   lock for every sync. Previously read as the daily allowance; it is not, and it failed on a
