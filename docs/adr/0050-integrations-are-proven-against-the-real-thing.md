@@ -84,6 +84,18 @@ A path that touches an external system is not done until a durable test has exec
   valid JSON, required fields present, values in plausible ranges. That proves auth, wire
   format, model availability and parsing, and tolerates the model wording things
   differently.
+- **A change that alters how many vendor calls a user action or a test run makes says
+  so, with the number, before it merges.** Integration tests are a hard gate and an
+  expensive one, so the decision is when to run them, and that decision needs the
+  number: one live Xero write per field edit is a different suite from one per state
+  change, and ADR 0056's recorder is what the number is read from. "Expensive is not an
+  exception" stops a test being skipped; this stops a test quietly becoming twenty times
+  the cost with nobody choosing it.
+- **An integration run records what the vendor actually returned, and unit fixtures for
+  that integration are built from the recordings.** The run is the one time the real
+  answer is in hand, so it is captured; a fixture cites the run that produced it; and a
+  hand-written fake is refused where a recording exists, because the fake is the belief
+  this ADR exists to stop testing against.
 - **Scrapers run on a schedule, not per merge.** Third-party sites are rate-limited and
   fragile, and hammering them on every merge is both unreliable and impolite. Their
   integration test runs scheduled against the real site and gates on a freshness signal;
