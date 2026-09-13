@@ -684,7 +684,6 @@ def sync_local_purchase_orders_to_xero() -> Iterator[XeroSyncEvent]:
         po
         for po in PurchaseOrder.objects.select_related("supplier")
         .filter(xero_push_due=True)
-        .exclude(status="draft")
         .order_by("updated_at")[:PURCHASE_ORDER_CATCH_UP_LIMIT]
         if is_locally_raised(po)
     ]

@@ -189,3 +189,30 @@ def test_hourly_push_cannot_clear_a_newer_failed_transition(office_staff: Staff)
     po.refresh_from_db()
     assert po.status == "deleted"
     assert po.xero_push_due, "the older push acknowledged the newer unsent transition"
+
+
+def test_deferred_return_to_draft_is_retried(office_staff: Staff) -> None:
+    """Owing a call is a boolean the transition sets; the selector does not second-guess it.
+
+    Returning an order to draft is Xero learning it was pulled. When that push
+    is refused by a 429 the order stays owed, and the hourly sync must send it
+    like any other transition: excluding drafts there left the Xero copy
+    submitted for good.
+    """
+    po = make_purchase_order(created_by=office_staff, status="submitted", xero_id=uuid4())
+    make_po_line(po)
+    with patch(MIRROR) as provider:
+        provider.return_value.push_purchase_order.return_value = DocumentResult(
+            success=False, status_code=429, error="Quota exhausted"
+        )
+        po = update_purchase_order(
+            po.id, {"status": "draft"}, staff=office_staff, if_match=purchase_order_etag(po)
+        )
+        assert po.xero_push_due
+        provider.return_value.push_purchase_order.reset_mock()
+        provider.return_value.push_purchase_order.return_value = DocumentResult(success=True)
+        with patch("apps.xero.sync.quota_floor_breached", return_value=False):
+            list(sync_local_purchase_orders_to_xero())
+        provider.return_value.push_purchase_order.assert_called_once()
+    po.refresh_from_db()
+    assert not po.xero_push_due
