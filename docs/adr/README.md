@@ -28,7 +28,7 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | 0005 | (retired 2026-09-13: Gemini emit-tools no longer exist; every AI call is [0041](0041-one-llm-gateway.md)'s gateway) |
 | [0006](0006-rest-resource-hierarchy.md) | REST resource hierarchy and operationId hygiene |
 | [0007](0007-xero-payroll-sync.md) | Xero Payroll NZ sync with four-bucket hour categorisation |
-| [0008](0008-frontend-subtree-merge.md) | Frontend integrated as a git subtree (not submodule) |
+| 0008 | (retired 2026-09-13: this repository was never a subtree; the one-repo rule lives in [0017](0017-zero-backwards-compatibility.md)) |
 | [0012](0012-accounting-provider-strategy.md) | Accounting provider strategy with registry |
 | 0013 | (retired 2026-09-13: merged into [0038](0038-transparent-errors-trusted-environment.md)) |
 | [0015](0015-fix-data-not-fallback.md) | Fix incorrect data; do not add read-side fallbacks |
