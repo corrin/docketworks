@@ -219,8 +219,20 @@ def seed_accounting(store: FakeXeroStore) -> dict[str, int]:
         "items": _seed_documents(
             store, Kind.ITEM, Item, Stock.objects.filter(xero_id__isnull=False).iterator(), "item"
         ),
+        # Scoped to the tenant the store represents, as the payroll phases are.
+        # The mirror keeps account rows from earlier tenants and rows the sync
+        # never stamped (production: 148 of 149 carry no tenant), and Xero lets
+        # an archived and a live account share one code, so an unscoped seed
+        # collides on fakexeroobject_number_unique_per_kind. Legacy rows are
+        # not migrated: the hourly accounts sync stamps every account the
+        # tenant still has, and a row it never touches is one the tenant no
+        # longer has.
         "accounts": _seed_documents(
-            store, Kind.ACCOUNT, Account, XeroAccount.objects.iterator(), "account"
+            store,
+            Kind.ACCOUNT,
+            Account,
+            XeroAccount.objects.filter(xero_tenant_id=store.tenant_id).iterator(),
+            "account",
         ),
     }
 

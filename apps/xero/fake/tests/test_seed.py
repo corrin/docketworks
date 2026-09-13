@@ -15,6 +15,7 @@ from apps.xero.fake.models import FakeXeroObject
 from apps.xero.fake.seed import SeedError, recorded_body, seed_accounting
 from apps.xero.fake.store import FakeXeroStore, Kind
 from apps.xero.fake.tests.conftest import TENANT, sdk_client_answering
+from apps.xero.models import XeroAccount
 from apps.xero.tests.xero_fixtures import make_contact_raw_json
 from apps.xero.transforms import process_xero_data
 
@@ -126,3 +127,32 @@ def test_the_command_refuses_a_full_store_without_replace(store: FakeXeroStore) 
     assert FakeXeroObject.objects.filter(tenant_id=TENANT, kind=Kind.ORGANISATION).count() == 1
     organisation = FakeXeroObject.objects.get(tenant_id=TENANT, kind=Kind.ORGANISATION)
     assert organisation.name == "Seed Co (FAKE XERO)"
+
+
+def test_the_seed_holds_only_the_tenant_s_own_accounts(store: FakeXeroStore) -> None:
+    """A code the tenant uses may also sit on a row from another tenant, or on one never stamped."""
+    fetched = (
+        AccountingApi(sdk_client_answering(recorded_body("accounts")))
+        .get_accounts(TENANT)
+        .accounts[0]
+    )
+    body = process_xero_data(fetched)
+
+    def account(name: str, tenant: str | None) -> XeroAccount:
+        return XeroAccount.objects.create(
+            xero_id=uuid.uuid4(),
+            xero_tenant_id=tenant,
+            account_code=str(fetched.code),
+            account_name=name,
+            xero_last_modified=timezone.now(),
+            raw_json=body,
+        )
+
+    own = account("[TEST] Own tenant", TENANT)
+    account("[TEST] Another tenant", str(uuid.uuid4()))
+    account("[TEST] Never stamped", None)
+
+    counts = seed_accounting(store)
+
+    assert counts["accounts"] == 1
+    assert store.get(Kind.ACCOUNT, str(own.xero_id)) is not None
