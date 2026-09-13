@@ -15,6 +15,7 @@ Model-free on purpose: config/settings.py and settings_test import it at
 settings-load time, before the app registry exists.
 """
 
+import os
 from typing import Literal
 
 from django.conf import settings
@@ -84,4 +85,49 @@ def validate_scrub_db_name(name: str) -> None:
         raise RuntimeError(
             f"SCRUB_DB_NAME ({name!r}) must end in '_scrub' — refusing to "
             "operate on a database that could be a live one."
+        )
+
+
+def required_flag(name: str) -> bool:
+    """Parse a required boolean environment variable that may not be misspelt.
+
+    ``os.environ`` rather than ``getenv``: the variable is in
+    ``REQUIRED_ENV_VARS``, so absence is a crash, never a default. Only the two
+    exact spellings parse, because a typo silently enabling Xero writes — or
+    silently leaving them enabled — is the failure these flags exist to
+    prevent; ``bool("false")`` is ``True``.
+    """
+    raw = os.environ[name].lower()
+    if raw not in {"true", "false"}:
+        raise ValueError(f"{name} must be 'true' or 'false', got {raw!r}")
+    return raw == "true"
+
+
+def validate_xero_fake_flag(*, fake: bool, readonly: bool, debug: bool) -> None:
+    """Refuse the combinations under which the fake Xero must not exist (ADR 0060).
+
+    The fake answers every Xero call from a local table, so a process running
+    it against real users would mint ids Xero has never issued straight into
+    the mirror. ``DEBUG`` is the signal a development stack carries and a
+    server never does; the database-name and tenant refusals are made where
+    the fake is installed, because they need the database, and settings load
+    before it exists.
+
+    ``XERO_READONLY`` is the valve for a local process pointed at production
+    (ADR 0050); the fake is for a development stack that must reach no Xero at
+    all. Both set is not "extra safe", it is two contradictory answers to
+    "where does a Xero call go", and the operator has to say which they meant.
+    """
+    if not fake:
+        return
+    if not debug:
+        raise ValueError(
+            "XERO_FAKE=true is refused outside DEBUG: the fake Xero exists for a "
+            "development E2E stack and must never serve real users (ADR 0060)."
+        )
+    if readonly:
+        raise ValueError(
+            "XERO_FAKE=true and XERO_READONLY=true contradict each other: the "
+            "readonly valve is for a local process pointed at production, the "
+            "fake is for a development stack that reaches no Xero at all. Set one."
         )

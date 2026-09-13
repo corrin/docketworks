@@ -33,7 +33,7 @@ durable).
   `deploy.sh` now checks the target release's settings against the instance `.env`
   before it stops any unit, so a missing variable fails the deploy with the instance
   still up; it does not add the variable. New ones arrive with their feature
-  (`SESSION_REPLAY_STORAGE_ROOT` with session replay).
+  (`SESSION_REPLAY_STORAGE_ROOT` with session replay, `XERO_FAKE=false` with ADR 0060).
 - **A data migration that can refuse is rehearsed against a production restore.** When the
   checkout is ahead of the archive, re-insert this installation's private rows after
   `migrate`, not after `pg_restore`: the archive's tables predate columns the checkout

@@ -14,7 +14,7 @@ from redis.connection import parse_url as parse_redis_url
 
 # Model-free by design (see its docstring), so importing it here — before the
 # app registry exists — is safe.
-from apps.core.environment import validate_scrub_db_name
+from apps.core.environment import required_flag, validate_scrub_db_name, validate_xero_fake_flag
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -37,6 +37,7 @@ REQUIRED_ENV_VARS = [
     "SESSION_REPLAY_STORAGE_ROOT",
     "MEDIA_ROOT",
     "XERO_READONLY",
+    "XERO_FAKE",
 ]
 
 
@@ -329,14 +330,15 @@ SOLO_CACHE_TIMEOUT = 300
 FRONT_END_URL = os.environ["FRONT_END_URL"]
 
 # Process-scoped: suppress all Xero writes (reads/token refresh stay live).
-# For E2E/test backends only — never set on a live server or celery worker
-# serving real users. os.environ (not getenv): required var, crash if absent —
-# and only the two exact spellings parse, because a typo silently enabling
-# writes is the failure this flag exists to prevent.
-_xero_readonly_raw = os.environ["XERO_READONLY"].lower()
-if _xero_readonly_raw not in {"true", "false"}:
-    raise ValueError(f"XERO_READONLY must be 'true' or 'false', got {_xero_readonly_raw!r}")
-XERO_READONLY = _xero_readonly_raw == "true"
+# The valve for a local process pointed at PRODUCTION data (ADR 0050) — never
+# a test mode, and never set on a live server or celery worker serving real
+# users.
+XERO_READONLY = required_flag("XERO_READONLY")
+# Process-scoped: answer every Xero call from the local fake (ADR 0060). Set
+# by `run_e2e.sh --use-fake-xero` for the stack it starts, so an iteration run
+# spends no Xero quota; the merge-gate run never sets it.
+XERO_FAKE = required_flag("XERO_FAKE")
+validate_xero_fake_flag(fake=XERO_FAKE, readonly=XERO_READONLY, debug=DEBUG)
 
 # Hardcoded, not env: these guard against pointing a non-production install
 # at a production Xero tenant/app, and a guard that can be misconfigured
