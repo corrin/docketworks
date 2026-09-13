@@ -101,5 +101,20 @@ def send_state_change(po: PurchaseOrder, staff: Staff) -> None:
             "Xero deferred purchase order %s; left owed for the hourly sync", po.po_number
         )
         return
-    PurchaseOrder.objects.filter(pk=po.pk).update(xero_push_due=False)
+    # The acknowledgement belongs to the version that was sent. The hourly
+    # caller holds no lock across the vendor call, so an operator can commit a
+    # newer transition (which sets the flag again and moves updated_at) while
+    # this one is in flight; clearing by pk alone would erase that newer work.
+    # Locking the row across the call was rejected: it makes the operator's
+    # own save wait on Xero, the wait this module exists to refuse. Matching on
+    # status was rejected: an A->B->A round trip reads as unchanged. A change
+    # that lands between the caller's read and the manager's snapshot is sent
+    # and then sent again next hour: one redundant idempotent update, never a
+    # lost one.
+    acknowledged = PurchaseOrder.objects.filter(pk=po.pk, updated_at=po.updated_at).update(
+        xero_push_due=False
+    )
+    if not acknowledged:
+        logger.info("Purchase order %s moved during the push; left owed", po.po_number)
+        return
     po.xero_push_due = False

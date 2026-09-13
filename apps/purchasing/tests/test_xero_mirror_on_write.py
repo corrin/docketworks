@@ -155,6 +155,19 @@ class TestWhenXeroRefuses:
         assert po.status == "submitted"
         assert po.xero_push_due is True, "the hourly sync has nothing to find"
 
+    def test_a_taken_change_owes_nothing(self, api: Client) -> None:
+        """The version the operator saved is the version Xero took, so the flag clears."""
+        po = make_purchase_order(status="draft")
+        make_po_line(po, quantity="1.00", unit_cost="5.00")
+
+        with patch(PROVIDER) as provider:
+            provider.return_value.push_purchase_order.return_value = DocumentResult(success=True)
+            assert _patch(api, po, status="submitted") == 200
+
+        po.refresh_from_db()
+        assert po.status == "submitted"
+        assert po.xero_push_due is False
+
 
 def test_an_order_is_created_without_asking_xero(api: Client, supplier: Company) -> None:
     """The create page posts a header with no lines, which Xero would refuse.

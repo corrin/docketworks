@@ -14,6 +14,7 @@ order make the same mistake available twice over.
 """
 
 from decimal import Decimal
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -26,7 +27,10 @@ from apps.purchasing.etag import purchase_order_etag
 from apps.purchasing.models import PurchaseOrder
 from apps.purchasing.services.purchase_order_service import update_purchase_order
 from apps.purchasing.tests.factories import make_po_line, make_purchase_order
+from apps.xero.sync import sync_local_purchase_orders_to_xero
 from apps.xero.tests.conftest import make_po_manager, make_po_provider
+
+MIRROR = "apps.purchasing.services.accounting_mirror.get_provider"
 
 pytestmark = pytest.mark.django_db
 
@@ -135,3 +139,53 @@ def test_duplicate_descriptions_receive_distinct_response_line_ids(
     )
     assert make_po_manager(po, make_po_provider(success)).sync_to_xero()["success"]
     assert set(po.po_lines.values_list("xero_line_item_id", flat=True)) == set(response_ids)
+
+
+def test_hourly_push_cannot_clear_a_newer_failed_transition(office_staff: Staff) -> None:
+    """An acknowledgement belongs to the version that was sent.
+
+    The hourly sync holds no lock across the vendor call. An operator deletes
+    the order while its SUBMITTED push is in flight; that transition is refused
+    by a 429 and left owed. The older push then completes. The flag it clears
+    must be the one it earned, or the newer transition is never sent: locally
+    deleted, submitted in Xero, and nothing left for the hourly sync to find.
+    """
+    po = make_purchase_order(created_by=office_staff, status="submitted", xero_id=uuid4())
+    make_po_line(po)
+    PurchaseOrder.objects.filter(pk=po.pk).update(xero_push_due=True)
+    success = DocumentResult(success=True, external_id=str(po.xero_id), document_status="SUBMITTED")
+    transport = make_po_provider(success)
+
+    def edit_during_send(payload: POPayload) -> DocumentResult:
+        assert payload.status == "SUBMITTED"
+        current = PurchaseOrder.objects.get(pk=po.pk)
+        with patch(MIRROR) as unavailable:
+            unavailable.return_value.push_purchase_order.return_value = DocumentResult(
+                success=False, status_code=429, error="Later request refused"
+            )
+            changed = update_purchase_order(
+                current.id,
+                {"status": "deleted"},
+                staff=office_staff,
+                if_match=purchase_order_etag(current),
+            )
+            assert changed.xero_push_due
+        return success
+
+    transport.update_purchase_order.side_effect = edit_during_send
+
+    def real_manager(order: PurchaseOrder, _staff: Staff) -> DocumentResult:
+        result = make_po_manager(order, transport).sync_to_xero()
+        return DocumentResult(success=result["success"])
+
+    with (
+        patch(MIRROR) as provider,
+        patch("apps.xero.sync.quota_floor_breached", return_value=False),
+        patch("apps.xero.documents.po.get_tenant_id", return_value=str(uuid4())),
+    ):
+        provider.return_value.push_purchase_order.side_effect = real_manager
+        list(sync_local_purchase_orders_to_xero())
+
+    po.refresh_from_db()
+    assert po.status == "deleted"
+    assert po.xero_push_due, "the older push acknowledged the newer unsent transition"
