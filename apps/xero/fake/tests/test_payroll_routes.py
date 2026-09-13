@@ -76,6 +76,19 @@ class TestEmployees:
             payroll.get_employees(TENANT, page=2)
         assert refused.value.status == 400
 
+    def test_an_employee_carries_the_address_xero_was_given(
+        self, store: FakeXeroStore, payroll: PayrollNzApi
+    ) -> None:
+        # The E2E user has an office address and no payroll one; the real seed
+        # created its employee with the office address, so that is what Xero
+        # holds and what the inbound sync requires.
+        staff = _linked_staff("office@example.test", hourly_rate="36.05")
+        staff.payroll_email = None
+        staff.save(update_fields=["payroll_email"])
+        seed_payroll(store, CALENDAR)
+        employee = payroll.get_employee(TENANT, str(staff.xero_user_id)).employee
+        assert employee is not None and employee.email == "office@example.test"
+
     def test_the_detail_routes_answer_the_seeded_terms(
         self, store: FakeXeroStore, payroll: PayrollNzApi
     ) -> None:

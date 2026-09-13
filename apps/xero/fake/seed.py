@@ -24,6 +24,7 @@ from apps.company.models import Company
 from apps.core.models import CompanyDefaults
 from apps.purchasing.models import PurchaseOrder as PurchaseOrderModel
 from apps.purchasing.models import Stock
+from apps.timesheet.services.payroll_employee_sync import xero_employee_email
 from apps.xero.contacts import contact_from_company
 from apps.xero.fake import defaults
 from apps.xero.fake.minting import as_list, as_mapping, new_id, now_utc, text
@@ -262,12 +263,20 @@ def seed_payroll(store: FakeXeroStore, calendar_id: str) -> dict[str, int]:
     ).prefetch_related("payroll_terms")
     for staff in staff_rows:
         employee_id = str(staff.xero_user_id)
+        # The address Xero holds is the one the real seed sent when it created
+        # the employee, office first; payroll_email alone rendered null for a
+        # staff member Xero itself lists with an email.
+        email = xero_employee_email(staff)
+        if email is None:
+            raise SeedError(
+                f"staff {staff.id} is linked to employee {employee_id} but has no email to render"
+            )
         employee: dict[str, Json] = {
             **_EMPLOYEE_TEMPLATE,
             "employeeID": employee_id,
             "firstName": staff.first_name,
             "lastName": staff.last_name,
-            "email": staff.payroll_email,
+            "email": email,
             "startDate": _day(staff.employment_start_date),
             "endDate": _day(staff.date_left),
             "payrollCalendarID": calendar_id,
