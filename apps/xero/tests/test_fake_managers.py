@@ -185,3 +185,4 @@ def test_connecting_to_the_fake_forgets_a_tenant_cached_by_an_earlier_test() -> 
     tenant_cache().set(TENANT_ID_CACHE_KEY, "tenant-left-by-an-earlier-test")
     with connected_to_the_fake(TEST_TENANT_ID):
         assert get_tenant_id() == TEST_TENANT_ID
+    assert tenant_cache().get(TENANT_ID_CACHE_KEY) is None, "the fake's tenant outlived its block"

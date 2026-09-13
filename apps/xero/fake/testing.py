@@ -76,3 +76,7 @@ def connected_to_the_fake(tenant_id: str) -> Iterator[FakeXeroStore]:
             yield store
     finally:
         _reset_api_client()
+        # get_tenant_id() inside the block cached this tenant; the next test in
+        # the worker must not inherit it any more than this one inherited its
+        # predecessor's.
+        tenant_cache().delete(TENANT_ID_CACHE_KEY)

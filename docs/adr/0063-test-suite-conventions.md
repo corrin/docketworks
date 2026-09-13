@@ -1,4 +1,4 @@
-# 0063 — Every test starts from a provisioned instance, asserts over what it created, and drives the UI by automation id
+# 0063 — Every test starts from a provisioned instance and asserts over what it created; E2E drives the UI by automation id
 Unratified: Fable
 
 Every test starts from a provisioned instance, asserts over what it created, takes its actors from the root `conftest.py` by name, and drives the UI through stable automation ids.
