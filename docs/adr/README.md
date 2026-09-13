@@ -72,3 +72,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0060](0060-an-iteration-run-may-fake-an-integration.md) | An iteration run may point the unmodified app at a simulated integration; the gate never does |
 | [0061](0061-checking-is-not-doing.md) | Checking is not doing: one owner per action, one check at the boundary that matters |
 | [0062](0062-ai-provider-selection-and-administration.md) | A caller selects an AI provider from the configured catalogue, and Admin → Integrations owns the catalogue |
+| [0063](0063-test-suite-conventions.md) | Test-suite conventions: a provisioned instance, scoped assertions, named actors, stable selectors |
