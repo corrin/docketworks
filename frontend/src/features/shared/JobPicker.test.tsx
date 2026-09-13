@@ -303,6 +303,40 @@ describe('JobPicker', () => {
     expect(terms.every((term) => term === '')).toBe(true)
   })
 
+  it('highlights the first background result when the local list has none, so Enter picks it', async () => {
+    // A screen whose own list holds nothing for the term still gets background
+    // results; defaulting the highlight from the local count alone left Enter
+    // and Tab with no target until an arrow key was pressed.
+    const user = userEvent.setup()
+    const older = makeJob({
+      id: 'job-older',
+      job_number: 304,
+      name: 'Gate older',
+      status: 'archived',
+    })
+    const oldest = makeJob({
+      id: 'job-oldest',
+      job_number: 305,
+      name: 'Gate oldest',
+      status: 'archived',
+    })
+    const { onSelect } = await renderPicker({
+      jobs: [],
+      searchOptions: (term) => ({
+        queryKey: ['test-search', term],
+        queryFn: () => Promise.resolve([older, oldest]),
+        enabled: term !== '',
+      }),
+    })
+    await user.click(trigger())
+    await user.keyboard('gate')
+    await waitFor(() => expect(autoId(option(304))).toBeInTheDocument())
+
+    await user.keyboard('{Enter}')
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect.mock.calls[0]![0].job_number).toBe(304)
+  })
+
   it('closes on Escape without picking anything', async () => {
     const user = userEvent.setup()
     const { onSelect } = await renderPicker()

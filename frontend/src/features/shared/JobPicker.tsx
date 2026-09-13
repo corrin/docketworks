@@ -223,7 +223,9 @@ export function JobPicker<T extends JobPickerOption>({
   }, [local, backgroundJobs])
   const localCount = local.length
 
-  // The default highlight is the first match, and a moved highlight holds
+  // The default highlight is the first row listed — local, or the first
+  // background result when the screen's own list has nothing, so Enter and
+  // Tab always have a target — and a moved highlight holds
   // only while the TERM and the LOCAL count it was moved under still stand —
   // not the filtered array's identity, because a parent re-render rebuilds
   // the jobs array and would clobber arrow-key state, and not the background
@@ -231,7 +233,11 @@ export function JobPicker<T extends JobPickerOption>({
   // already moved.
   const highlightKey = `${search}\u0000${localCount}`
   const highlighted =
-    highlight !== null && highlight.key === highlightKey ? highlight.index : localCount > 0 ? 0 : -1
+    highlight !== null && highlight.key === highlightKey
+      ? highlight.index
+      : filtered.length > 0
+        ? 0
+        : -1
   const moveHighlight = (index: number) => setHighlight({ key: highlightKey, index })
 
   // Closing clears the search and the highlight from the event that closes,
