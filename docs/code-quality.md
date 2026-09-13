@@ -105,7 +105,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 226 |
-| non-test functions | 2853 |
+| non-test functions | 2855 |
 
 ## Wire contract (response side)
 
@@ -117,3 +117,18 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 | response properties | 2003 |
 | optional (pinned at zero) | 0 |
 | nullable | 431 |
+
+## Automation ids (frontend)
+
+Interactive elements under `frontend/src` with no `data-automation-id`, the selector every Playwright spec must be able to use (ADR 0063). Not meant to be zero today: it shrinks as screens are touched, and a change that adds a control without an id moves it up in front of a reviewer. A tag that spreads props is skipped — a shared primitive is given its id by its caller.
+
+| metric | count |
+|---|---:|
+| interactive elements | 384 |
+| without data-automation-id | 129 |
+| without id: <a> | 3 |
+| without id: <button> | 34 |
+| without id: <input> | 27 |
+| without id: <select> | 6 |
+| without id: <textarea> | 5 |
+| without id: <Button> | 54 |
