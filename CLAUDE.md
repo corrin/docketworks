@@ -2,7 +2,7 @@
 
 This codebase is exhibited as an example of how the architecture should be done, and it
 replaced a system that already worked, so "working but structurally compromised" delivers
-nothing: scope bends, the standard does not (ADR 0039). Colliding with a rule — an ADR, a
+nothing: scope bends, the standard does not. Colliding with a rule — an ADR, a
 linter, a type error, a layer contract — means the approach is wrong, not that a rule is in
 the way. Stop, name the belief the tool contradicted, and check it (query the data, read the
 writers, read the ADR in full) before editing; never search for the smallest edit that gets
