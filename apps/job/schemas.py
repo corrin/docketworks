@@ -1,7 +1,7 @@
 """Pydantic wire contracts for the job router.
 
 The service layer builds matching TypedDict data, and error responses use the
-standard envelope from ADR 0013.
+standard envelope from ADR 0038.
 """
 
 import datetime as datetime_module

@@ -37,7 +37,7 @@ class PasswordChangeRequiredError(Exception):
 
     Its own type, not NinjaAuthorizationError: the envelope must emit a stable
     machine code with error_id null and persist no AppError (an expected
-    security outcome, ADR 0013/0038), where AuthorizationError persists.
+    security outcome, ADR 0038), where AuthorizationError persists.
     """
 
 

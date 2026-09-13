@@ -1,7 +1,7 @@
 """Pydantic wire contracts for the purchasing router.
 
 The service layer builds matching TypedDict data, and error responses use the
-standard envelope from ADR 0013. PO, PO-line, and Stock API field lists live
+standard envelope from ADR 0038. PO, PO-line, and Stock API field lists live
 only here so model and response declarations cannot drift (ADR 0039).
 """
 

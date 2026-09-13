@@ -23,7 +23,7 @@ mismatch → 412 via the ``PreconditionFailedError`` handler in
 ETags into ``X-Resource-Version``.
 
 Reads require authenticated staff; mutations and delta-rejection triage require
-office staff. Error bodies use the standard envelope from ADR 0013.
+office staff. Error bodies use the standard envelope from ADR 0038.
 
 Integration wiring (config/api.py): ``api.add_router("/", router)`` — the
 paths below carry their own ``/job/`` prefix.

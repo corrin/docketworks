@@ -30,7 +30,7 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0007](0007-xero-payroll-sync.md) | Xero Payroll NZ sync with four-bucket hour categorisation |
 | [0008](0008-frontend-subtree-merge.md) | Frontend integrated as a git subtree (not submodule) |
 | [0012](0012-accounting-provider-strategy.md) | Accounting provider strategy with registry |
-| [0013](0013-error-message-clarity-over-info-hiding.md) | Error clarity follows the authentication boundary |
+| 0013 | (retired 2026-09-13: merged into [0038](0038-transparent-errors-trusted-environment.md)) |
 | [0015](0015-fix-data-not-fallback.md) | Fix incorrect data; do not add read-side fallbacks |
 | [0017](0017-zero-backwards-compatibility.md) | Zero backwards compatibility; rewrite every call site in one PR |
 | [0019](0019-mandatory-error-persistence.md) | Unexpected exceptions are persisted to AppError |

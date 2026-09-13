@@ -272,7 +272,7 @@
   change: "Error bodies use the v2 envelope, not v1's {success,error,details:{error_id}}"
   reason: >
     v1's purchasing views hand-built PurchaseOrderMutationErrorResponse /
-    PurchasingErrorResponse bodies. v2 answers with the single ADR 0013
+    PurchasingErrorResponse bodies. v2 answers with the single ADR 0038
     envelope {"detail", "error_id"} that every other v2 endpoint uses; status
     codes (400/404/412/428/500) are unchanged. Phase 3c-2.
 

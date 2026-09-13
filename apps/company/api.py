@@ -6,7 +6,7 @@ provides the person directory. Company-domain data-quality reports retain their
 ``/api/job/data-quality/`` URLs but live here so the concept has one home
 (ADR 0039).
 
-Error bodies use the standard envelope from ADR 0013. People and data-quality
+Error bodies use the standard envelope from ADR 0038. People and data-quality
 endpoints require office staff.
 
 Integration wiring (config/api.py): ``api.add_router("/", router)`` — the
