@@ -30,7 +30,7 @@ import {
   poLineJobLabel,
   type PoLineDraft,
 } from './lines'
-import { usePoJobSearch } from './usePoJobSearch'
+import { poJobSearchOptions } from './poJobSearch'
 import type { PoLinePatch } from './usePoLines'
 
 type GridRow =
@@ -286,7 +286,7 @@ function JobCell({ row, table }: CellProps) {
       // Committing on Tab would bind the first listed job to a cell the user
       // only tabbed through.
       commitOnTab={false}
-      useJobSearch={usePoJobSearch}
+      searchOptions={poJobSearchOptions}
       disabled={rowLocked(context, gridRow)}
       onSelect={(job) => {
         if (gridRow.type === 'server') {

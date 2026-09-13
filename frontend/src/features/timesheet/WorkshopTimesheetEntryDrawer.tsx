@@ -21,7 +21,7 @@ import { JobPicker } from '@/features/shared/JobPicker'
 
 import { formatHoursDisplay } from '@/lib/format'
 import { deriveHoursFromTimes, entryUpdateBody } from './myTime'
-import { useTimesheetJobSearch } from './useTimesheetJobSearch'
+import { timesheetJobSearchOptions } from './timesheetJobSearch'
 
 export type EntryDrawerState =
   | { mode: 'closed' }
@@ -193,7 +193,7 @@ export function WorkshopTimesheetEntryDrawer({
                   }}
                   typedSearchLimit={null}
                   commitOnTab={false}
-                  useJobSearch={useTimesheetJobSearch}
+                  searchOptions={timesheetJobSearchOptions}
                   onSelect={(job) => {
                     setJobId(job.id)
                     setShopJob(job.shop_job)

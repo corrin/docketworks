@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, type UseQueryOptions } from '@tanstack/react-query'
 
 import { jobJobsStatusChoicesRetrieveOptions } from '@/api'
 
@@ -29,14 +29,18 @@ export interface JobPickerOption {
   status: string
 }
 
-/** What the picker needs back from a screen's background search. Opus: Deliberately
-    not TanStack's UseQueryResult: the picker uses three fields, and naming them
-    keeps a caller free to satisfy this without a query at all. */
-export interface BackgroundJobSearch<T extends JobPickerOption> {
-  jobs: readonly T[]
-  isFetching: boolean
-  isError: boolean
-}
+/**
+ * A screen's background job search, as the query the picker runs for a term:
+ * the jobs array alone as its data, `enabled` false while the term is blank.
+ * Query options rather than a hook passed as a prop — a hook held as a value
+ * is what `react(hooks)` forbids, and options are plain data the picker can
+ * call `useQuery` on itself.
+ */
+export type JobSearchOptions<T extends JobPickerOption> = UseQueryOptions<
+  readonly T[],
+  Error,
+  readonly T[]
+>
 
 export interface JobPickerProps<T extends JobPickerOption> {
   /** Every inner id derives from it: -trigger, -search, -list, -option-{job_number}. */
@@ -72,12 +76,12 @@ export interface JobPickerProps<T extends JobPickerOption> {
   commitOnTab: boolean
   /** data-entry-seq on the trigger; the keyboard-nav spec binds rows by it. */
   entrySeq?: number | null
-  /** Runs the screen's background search for a term, in parallel with the
+  /** The screen's background search for a term, run in parallel with the
       local filter. Omit it where there is nothing beyond the local list to
       reach (leave settings holds every special job already). Its results are
       APPENDED below the local ones, never merged into them — see the merge
       below for why that ordering is load-bearing. */
-  useJobSearch?: (term: string) => BackgroundJobSearch<T>
+  searchOptions?: (term: string) => JobSearchOptions<T>
   onSelect: (job: T) => void
 }
 
@@ -92,10 +96,15 @@ function matchesTerm(job: JobPickerOption, loweredTerm: string): boolean {
   )
 }
 
-/** The no-background-search default. Uses no hooks, so standing in for a hook
-    is safe; it exists so the real one can be called unconditionally. */
-function useNoJobSearch<T extends JobPickerOption>(_term: string): BackgroundJobSearch<T> {
-  return { jobs: NO_BACKGROUND_JOBS, isFetching: false, isError: false }
+/** The no-background-search default: a disabled query, so the picker's one
+    useQuery call is unconditional and a caller with nothing beyond its local
+    list simply omits the prop. */
+function noJobSearch<T extends JobPickerOption>(): JobSearchOptions<T> {
+  return {
+    queryKey: ['job-picker', 'no-search'],
+    queryFn: () => Promise.resolve([]),
+    enabled: false,
+  }
 }
 
 /**
@@ -149,7 +158,7 @@ export function JobPicker<T extends JobPickerOption>({
   typedSearchLimit,
   commitOnTab,
   entrySeq = null,
-  useJobSearch,
+  searchOptions,
   onSelect,
 }: JobPickerProps<T>) {
   const statusLabels = useStatusLabels()
@@ -195,11 +204,10 @@ export function JobPicker<T extends JobPickerOption>({
   const searchableTerm =
     open && debouncedSearch.length >= MIN_SEARCH_TERM_LENGTH ? debouncedSearch : ''
 
-  // Always called, so the hook count never varies between renders; a caller
-  // with nothing beyond its local list omits the prop and gets the constant.
-  // Callers pass a stable module-level function — swapping one in or out
-  // mid-life would break the rules of hooks, and none does.
-  const background = (useJobSearch ?? useNoJobSearch)(searchableTerm)
+  const background = useQuery(
+    searchOptions === undefined ? noJobSearch<T>() : searchOptions(searchableTerm),
+  )
+  const backgroundJobs = background.data ?? NO_BACKGROUND_JOBS
 
   // Local matches keep their positions and the background ones APPEND below.
   // Ordering is load-bearing twice over: a response landing mid-keystroke must
@@ -207,10 +215,10 @@ export function JobPicker<T extends JobPickerOption>({
   // answer that was already on screen — reordering it would make the picker
   // appear to disagree with itself as the network resolves.
   const filtered = useMemo<T[]>(() => {
-    if (background.jobs.length === 0) return local
+    if (backgroundJobs.length === 0) return local
     const seen = new Set(local.map((job) => job.id))
-    return [...local, ...background.jobs.filter((job) => !seen.has(job.id))]
-  }, [local, background.jobs])
+    return [...local, ...backgroundJobs.filter((job) => !seen.has(job.id))]
+  }, [local, backgroundJobs])
   const localCount = local.length
 
   // The default highlight is the first match, reset when the TERM changes —
