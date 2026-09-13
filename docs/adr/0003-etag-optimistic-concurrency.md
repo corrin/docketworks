@@ -4,7 +4,7 @@ Every Job, PO and stocktake mutation requires an `If-Match` header with the late
 
 ## Rules
 
-- GETs return an `ETag` derived from `updated_at` (plus the primary key for delivery receipts) and honour `If-None-Match` with `304 Not Modified`.
+- GETs return an `ETag` — derived from `updated_at` for a Job or PO (plus the primary key for delivery receipts) and from the row's `version` counter for a stocktake — and honour `If-None-Match` with `304 Not Modified`.
 - Mutating endpoints (`PUT`, `PATCH`, `DELETE`, and the domain-specific POSTs such as "Accept quote" or "Post delivery receipt") require `If-Match`. Missing header → `428 Precondition Required`; mismatched value → `412 Precondition Failed`. Clients recover from a `412` by refetching.
 - The comparison happens inside the service layer under `select_for_update`, so check and write are atomic — a check-then-write race cannot slip through.
 - `GZipMiddleware` weakens a representation ETag, so `ResourceVersionMiddleware` (`apps/core/middleware.py`) mirrors every resource ETag — the `"job:`, `"po:` and `"stocktake:` prefixes — into `X-Resource-Version`, which the frontend's concurrency interceptor (`frontend/src/lib/concurrency/interceptors.ts`) prefers over the `ETag` it may have weakened.

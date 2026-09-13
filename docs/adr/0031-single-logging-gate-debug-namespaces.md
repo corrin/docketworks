@@ -9,7 +9,7 @@ All frontend and E2E diagnostic logging flows through the `debug` library under 
 - App→test log surfacing goes only through the gated forwarder (`frontend/tests/e2e/fixtures/debug-forwarder.ts`, wired into the `page` fixture in `frontend/tests/e2e/fixtures/auth.ts`), opt-in via `DEBUG=e2e:<area>`. Per-test `page.on('console')` handlers are not used.
 - Existing and legacy logs: gate genuine feature narration behind a namespace (silent-but-preserved, never deleted for being noisy); delete a log only when it is redundant with a neighbouring assertion or the failure trace; keep bad-state / error-branch / skip-notice logs ungated — they fire only when something is already wrong.
 - `debug` is a runtime dependency, not dev-only.
-- The console-error guard is separate and still holds: every `console.error` must toast or throw (ADRs 0019/0013). This ADR gates narration, not error signalling.
+- The console-error guard is separate and still holds: every `console.error` must toast or throw (ADRs 0019/0038). This ADR gates narration, not error signalling.
 
 ## Do not
 
