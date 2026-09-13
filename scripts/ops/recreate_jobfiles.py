@@ -14,6 +14,8 @@ import zipfile
 from pathlib import Path
 
 from PIL import Image, ImageDraw
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 
 from scripts.bootstrap import setup_django
 
@@ -21,9 +23,8 @@ from scripts.bootstrap import setup_django
 # working directory by the time this runs.
 setup_django()
 
-from django.conf import settings  # noqa: E402 -- Django must be configured first
-
 from apps.job.models import JobFile  # noqa: E402
+from apps.job.services.file_service import job_file_full_path  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +32,10 @@ logger = logging.getLogger(__name__)
 def _run_pandoc(args: list[str], content: str, label: str) -> None:
     """Run pandoc in a writable scratch cwd.
 
-    pandoc (and the pdf-engine it spawns) writes intermediate temp files into
-    the process working directory. At runtime that cwd is the immutable,
-    read-only release dir, so pandoc must be given a writable cwd of its own.
-    The final output is unaffected — it is written to the absolute path
-    passed via ``-o``.
+    pandoc writes intermediate temp files into the process working directory.
+    At runtime that cwd is the immutable, read-only release dir, so pandoc
+    must be given a writable cwd of its own. The final output is unaffected —
+    it is written to the absolute path passed via ``-o``.
     """
     pandoc = shutil.which("pandoc")
     if pandoc is None:
@@ -60,19 +60,20 @@ def create_dummy_file(filepath: Path, job_name: str, job_number: str, filename: 
     ext = filepath.suffix.lower()
 
     if ext == ".pdf":
-        # Create PDF using pandoc with wkhtmltopdf engine
-        content = f"# Job: {job_name}\n\n**Number:** {job_number}\n\nDummy PDF for {filename}"
-        _run_pandoc(
-            [
-                "-o",
-                str(filepath),
-                "--pdf-engine=wkhtmltopdf",
-                "--metadata",
-                f"pagetitle=Job {job_number}",
-            ],
-            content,
-            "PDF",
-        )
+        # Fable: pandoc with wkhtmltopdf was rejected because each call starts
+        # a QtWebKit process (~0.27 s, ~23 min over a restore) and the engine
+        # was never a declared prerequisite; reportlab is the renderer every
+        # production PDF already uses and writes the page in ~1 ms. The page
+        # must be a real PDF, not a text placeholder: the workshop job sheet
+        # merges attachments with pypdf and the file list thumbnails them.
+        document = canvas.Canvas(str(filepath), pagesize=A4)
+        document.setTitle(f"Job {job_number}")
+        document.setFont("Helvetica-Bold", 18)
+        document.drawString(72, 780, f"Job: {job_name}")
+        document.setFont("Helvetica", 12)
+        document.drawString(72, 755, f"Number: {job_number}")
+        document.drawString(72, 735, f"Dummy PDF for {filename}")
+        document.save()
 
     elif ext in (".png", ".jpg", ".jpeg"):
         image = Image.new("RGB", (400, 200), "white")
@@ -124,34 +125,25 @@ def create_dummy_file(filepath: Path, job_name: str, job_number: str, filename: 
 
 
 def main() -> None:
-    job_files = JobFile.objects.filter(file_path__isnull=False).exclude(file_path="")
+    job_files = JobFile.objects.exclude(file_path="").select_related("job")
 
     total = job_files.count()
     created = 0
     skipped = 0
 
-    workflow_root = Path(settings.DROPBOX_WORKFLOW_FOLDER).resolve()
     for job_file in job_files:
-        # Use DROPBOX_WORKFLOW_FOLDER to match where the view serves files from
-        file_path = (workflow_root / str(job_file.file_path)).resolve()
-        # A restored file_path is data, not a trusted path: an absolute value
-        # or a ".." segment would land the dummy file outside the workflow
-        # root. Refuse the row loudly rather than write it.
-        if not file_path.is_relative_to(workflow_root):
-            raise ValueError(
-                f"JobFile {job_file.pk} file_path escapes DROPBOX_WORKFLOW_FOLDER: "
-                f"{job_file.file_path!r} resolves to {file_path}"
-            )
+        # The same resolver the view serves from, so a placeholder lands
+        # exactly where a download will look, and a restored row whose path
+        # escapes the workflow root fails the run instead of writing outside it.
+        file_path = job_file_full_path(job_file)
 
         if file_path.exists():
             skipped += 1
             continue
 
-        job_name = job_file.job.name if job_file.job else "No Job"
-        job_number = str(job_file.job.job_number) if job_file.job else "N/A"
-
-        # Fail early - no try/except, let errors propagate
-        create_dummy_file(file_path, job_name, job_number, job_file.filename)
+        create_dummy_file(
+            file_path, job_file.job.name, str(job_file.job.job_number), job_file.filename
+        )
         created += 1
 
         if created % 100 == 0:

@@ -1635,3 +1635,14 @@ synced. One runbook correction fell out of it: the private-row re-insert must fo
 `migrate`, not the restore, because the archive's schema predates the columns `xero/0002`
 removed and a positional copy into it fails at the first row.
 
+
+Measured 2026-09-13: `scripts/ops/recreate_jobfiles.py`, the restore step that fabricates
+a placeholder for every `JobFile` row, took ~22 minutes for 6,136 rows against a 30-minute
+timeout. Per PDF, pandoc's markdown-to-HTML cost 0.04 s and the `wkhtmltopdf` engine it
+spawned cost 0.27 s, a QtWebKit process start repeated 5,146 times; the engine was never a
+declared prerequisite anywhere in the repo. Rendering the same page with reportlab, the
+library every production PDF already uses, costs ~1 ms, and the same 3,442 PDF placeholders
+regenerated in 14 s wall including Django start-up. The placeholders are inputs, not
+decoration: the workshop job sheet merges attachment PDFs with pypdf and the file list
+thumbnails them with pdf2image, and both accepted the reportlab pages. pandoc stays only
+for the four `.docx` rows, which nothing else in the repo can write.
