@@ -132,6 +132,16 @@ reconciliation read has no bulk leave endpoint, so it costs one call per staff
 member. Exhausting the day is not subtle: reads start failing with
 `X-Rate-Limit-Problem: day` and a `Retry-After` of roughly an hour.
 
+`scripts/ops/run_e2e.sh` reads the quota before its first Xero-spending step
+and refuses to start at or below 150 remaining, so a run that would fail on
+its first refused call is refused up front instead of half an hour in. The
+threshold is the automated floor of 100 (below it celery beat's syncs stop
+partway through the suite) plus the 45 calls above. Two spenders sit on top
+of the 45 and have not been measured: the reset step's Xero cleanup of the
+previous run's writes, and beat's syncs during the run. The runner prints the
+same reading again after the suite, and that pair is the measurement to
+revisit the threshold from.
+
 Two consequences worth designing around. Iterating on a Xero-touching spec by
 re-running it is budgeted, not free, so diagnose from `logs/e2e/worker.log` and
 the database before spending another run. And a live Xero read belongs behind

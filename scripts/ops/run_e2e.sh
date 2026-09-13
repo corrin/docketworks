@@ -76,6 +76,13 @@ cd "$ROOT"
 # Django that will not boot — and the run stops rather than proceeding with no
 # shape report at all.
 "$ROOT/.venv/bin/python" "$ROOT/scripts/checks/data_shape_gap.py"
+# Opus: Read before the reset step, which is the run's first Xero spender: it
+# deletes the previous run's writes from Xero and has been the point past
+# runs were refused with the day at zero. 150 is the automated floor of 100
+# (below it beat's syncs go quiet partway through the suite) plus the 45
+# calls a non-payroll run measured at; the reading after the suite is what
+# refines that number. Both readings cost one call each.
+"$ROOT/.venv/bin/python" -m scripts.ops.assert_xero_quota --min 150
 npm --prefix "$FRONTEND" run test:e2e:reset -- --confirm
 rm -rf "$FRONTEND/test-results" "$FRONTEND/playwright-report" "$LOG_DIR"
 mkdir -p "$LOG_DIR"
@@ -105,3 +112,6 @@ wait_for ngrok curl -fsS http://127.0.0.1:4040/api/tunnels
 
 # Use the same configured public origin as an ordinary Playwright run.
 npm --prefix "$FRONTEND" run test:e2e -- "$@"
+# The same reading again: the difference from the one above is what this run
+# spent, printed where the next threshold decision will find it.
+"$ROOT/.venv/bin/python" -m scripts.ops.assert_xero_quota
