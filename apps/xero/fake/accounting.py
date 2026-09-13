@@ -28,6 +28,7 @@ from apps.xero.fake.minting import (
     text,
     totalled_lines,
 )
+from apps.xero.fake.models import FakeXeroObject
 from apps.xero.fake.pdf import render_quote_pdf
 from apps.xero.fake.store import FakeXeroNotFoundError, FakeXeroStore, Kind
 from apps.xero.fake.wire import Json, ms_date_now
@@ -364,6 +365,21 @@ def _base_currency(store: FakeXeroStore) -> str:
     return currency
 
 
+def _merged_body(
+    family: _DocumentKind, existing: FakeXeroObject | None, sent: dict[str, Json]
+) -> dict[str, Json]:
+    """Merge what stood with what was sent into the body this write stores."""
+    current: dict[str, Json] = dict(existing.body) if existing else dict(family.defaults)
+    merged: dict[str, Json] = {**current, **sent}
+    if family is _QUOTES and "LineAmountTypes" in sent:
+        # Xero echoes a quote's LineAmountTypes in the quote enum's own form
+        # (EXCLUSIVE, recordings/quote.json) whatever casing the request used;
+        # this app sends the invoice form (Exclusive), which the SDK's quote
+        # deserialiser refuses, so the echo canonicalises as the tenant does.
+        merged["LineAmountTypes"] = str(sent["LineAmountTypes"]).upper()
+    return merged
+
+
 def _write_document(
     store: FakeXeroStore, family: _DocumentKind, sent: dict[str, Json]
 ) -> tuple[Json, bool]:
@@ -394,8 +410,7 @@ def _write_document(
             ),
             True,
         )
-    current: dict[str, Json] = dict(existing.body) if existing else dict(family.defaults)
-    merged: dict[str, Json] = {**current, **sent}
+    merged = _merged_body(family, existing, sent)
     if "Contact" in sent:
         merged["Contact"] = embedded_contact(store, sent["Contact"], f"{family.key}[].Contact")
     if "LineItems" in sent:

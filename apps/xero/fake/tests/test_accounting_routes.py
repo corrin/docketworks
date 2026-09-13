@@ -13,7 +13,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from xero_python.accounting import AccountingApi, Contact, Phone
+from xero_python.accounting import AccountingApi, Contact, Phone, QuoteLineAmountTypes
 from xero_python.api_client import ApiClient
 from xero_python.exceptions import ApiException
 
@@ -170,6 +170,36 @@ class TestInvoices:
         assert invoice.line_items is not None and invoice.line_items[0].line_item_id
         assert invoice.status == "AUTHORISED"
         assert invoice.currency_code is not None
+
+    def test_a_created_quote_echoes_the_quote_enum_whatever_casing_was_sent(
+        self, accounting: AccountingApi
+    ) -> None:
+        # provider.create_quote sends the invoice form, "Exclusive"; Xero echoes
+        # the quote enum, "EXCLUSIVE", and the SDK refuses anything else.
+        contact_id = _contact(accounting, "[TEST] Client")
+        created = accounting.create_quotes(
+            TENANT,
+            quotes={
+                "Quotes": [
+                    {
+                        "Contact": {"ContactID": contact_id},
+                        "Date": "2026-09-09",
+                        "LineAmountTypes": "Exclusive",
+                        "LineItems": [
+                            {
+                                "Description": "Job: 1 - widgets",
+                                "Quantity": 1,
+                                "UnitAmount": "10.50",
+                                "AccountCode": "200",
+                            }
+                        ],
+                        "Status": "DRAFT",
+                    }
+                ]
+            },
+        ).quotes
+        assert created is not None
+        assert created[0].line_amount_types == QuoteLineAmountTypes.EXCLUSIVE
 
     def test_deleting_an_authorised_invoice_is_refused_per_element(
         self, accounting: AccountingApi

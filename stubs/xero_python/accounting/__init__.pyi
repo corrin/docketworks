@@ -134,6 +134,11 @@ class Invoices(BaseModel):
     invoices: list[Invoice] | None
     def __init__(self, invoices: list[Invoice] | None = None, **kwargs: Any) -> None: ...
 
+class QuoteLineAmountTypes(Enum):
+    EXCLUSIVE = "EXCLUSIVE"
+    INCLUSIVE = "INCLUSIVE"
+    NOTAX = "NOTAX"
+
 class Quote(BaseModel):
     quote_id: str | None
     quote_number: str | None
@@ -141,6 +146,7 @@ class Quote(BaseModel):
     date: Any
     expiry_date: Any
     status: str | None
+    line_amount_types: QuoteLineAmountTypes | None
     line_items: list[LineItem] | None
     branding_theme_id: str | None
     terms: str | None
