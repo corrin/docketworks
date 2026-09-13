@@ -1,0 +1,330 @@
+{
+  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": 2,
+  "request": {
+    "method": "GET",
+    "path": "/payroll.xro/2.0/PaySlips",
+    "query": {
+      "PayRunID": "cd22805b-0f42-4251-a62a-73d0fdcc0c33"
+    }
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "id": "3d438a15-a4b6-4c3c-b504-751fcd4ab3b8",
+    "providerName": "Docketworks%20MSM%20Dev",
+    "dateTimeUTC": "2026-09-13T03:16:48.4203038",
+    "httpStatusCode": "OK",
+    "pagination": {
+      "page": 1,
+      "pageSize": 100,
+      "pageCount": 1,
+      "itemCount": 6
+    },
+    "problem": null,
+    "paySlips": [
+      {
+        "paySlipID": "66404fa5-e403-4f2c-85db-e86311a98bb7",
+        "employeeID": "2b74b572-884b-4859-bf67-8d673816243a",
+        "payRunID": "cd22805b-0f42-4251-a62a-73d0fdcc0c33",
+        "lastEdited": null,
+        "firstName": "firstName-scrubbed",
+        "lastName": "lastName-scrubbed",
+        "totalEarnings": 1730.77,
+        "grossEarnings": 1730.77,
+        "totalPay": 1149.29,
+        "totalEmployerTaxes": 22.77,
+        "totalEmployeeTaxes": 413.02,
+        "totalDeductions": 30.0,
+        "totalReimbursements": 0.0,
+        "totalStatutoryDeductions": 138.46,
+        "totalSuperannuation": 69.23,
+        "bacsHash": null,
+        "paymentMethod": "Electronically",
+        "earningsLines": [
+          {
+            "earningsLineID": "2980135c-5ec8-4907-aaef-4096f407ca7d",
+            "earningsRateID": "2980135c-5ec8-4907-aaef-4096f407ca7d",
+            "displayName": "Ordinary Time",
+            "ratePerUnit": 43.269231,
+            "numberOfUnits": 40.0,
+            "fixedAmount": null,
+            "amount": 1730.77,
+            "isLinkedToTimesheet": false,
+            "isAverageDailyPayRate": null,
+            "isSystemGenerated": true
+          }
+        ],
+        "leaveEarningsLines": [],
+        "timesheetEarningsLines": [],
+        "deductionLines": [
+          {
+            "deductionTypeID": "982bda87-be2f-4d41-a1a4-d9d31ce0678b",
+            "displayName": "World Vision",
+            "amount": 30.0,
+            "subjectToTax": null,
+            "percentage": null
+          }
+        ],
+        "reimbursementLines": [],
+        "leaveAccrualLines": [
+          {
+            "leaveTypeID": "3dfcb21b-20bf-49b8-9a1b-877eb33da71a",
+            "numberOfUnits": 0.0
+          },
+          {
+            "leaveTypeID": "1e7707cc-4669-4f27-b2ab-6c80f5b3ef5f",
+            "numberOfUnits": 0.0
+          },
+          {
+            "leaveTypeID": "a44ab907-6aab-4c08-9984-21eb46c3494c",
+            "numberOfUnits": 0.0
+          },
+          {
+            "leaveTypeID": "e4555617-892a-460d-96ed-7a5e03a55ce0",
+            "numberOfUnits": 0.0
+          },
+          {
+            "leaveTypeID": "fdc5303c-745e-4d9f-ab80-7c62f4f0626a",
+            "numberOfUnits": 138.4616
+          }
+        ],
+        "superannuationLines": [
+          {
+            "superannuationTypeID": "e4ddcd26-b0ad-4a37-8681-df9ec0f658fc",
+            "displayName": "KiwiSaver",
+            "amount": 69.23,
+            "fixedAmount": null,
+            "percentage": 4.0,
+            "manualAdjustment": null
+          }
+        ],
+        "paymentLines": [
+          {
+            "paymentLineID": "63c84042-540e-4ddc-aedd-c658a0dce372",
+            "amount": 1149.29,
+            "accountNumber": "accountNumber-scrubbed",
+            "sortCode": null,
+            "accountName": "accountName-scrubbed"
+          }
+        ],
+        "employeeTaxLines": [
+          {
+            "taxLineID": "b2a5e4cd-d6a7-484f-9c22-d4941b02c427",
+            "description": null,
+            "amount": -9.99,
+            "globalTaxTypeID": 9,
+            "manualAdjustment": false
+          },
+          {
+            "taxLineID": "fa87d84d-45f1-4275-b77e-4ae3d400ca21",
+            "description": null,
+            "amount": 423.01,
+            "globalTaxTypeID": 11,
+            "manualAdjustment": false
+          }
+        ],
+        "employerTaxLines": [
+          {
+            "taxLineID": "0d060c75-94ae-47fb-bd72-b67e729fd7c1",
+            "description": null,
+            "amount": 22.77,
+            "globalTaxTypeID": 10,
+            "manualAdjustment": false
+          }
+        ],
+        "statutoryDeductionLines": [
+          {
+            "statutoryDeductionTypeID": "4dbdc401-e039-4db6-a33f-a1223e2cf380",
+            "amount": 138.46,
+            "fixedAmount": null,
+            "manualAdjustment": null
+          }
+        ],
+        "taxSettings": {
+          "periodUnits": 1.0,
+          "periodType": "weeks",
+          "taxCode": "M",
+          "specialTaxRate": null,
+          "lumpSumTaxCode": "SB",
+          "lumpSumAmount": null
+        },
+        "grossEarningsHistory": {
+          "daysPaid": 5,
+          "unpaidWeeks": 0
+        }
+      },
+      {
+        "paySlipID": "b5d0e02f-5f55-44a9-8d97-d543a2bb1f3f",
+        "employeeID": "1423d919-5990-45be-b698-51d53ded35e5",
+        "payRunID": "cd22805b-0f42-4251-a62a-73d0fdcc0c33",
+        "lastEdited": null,
+        "firstName": "firstName-scrubbed",
+        "lastName": "lastName-scrubbed",
+        "totalEarnings": 1400.0,
+        "grossEarnings": 1400.0,
+        "totalPay": 1019.86,
+        "totalEmployerTaxes": 13.86,
+        "totalEmployeeTaxes": 302.14,
+        "totalDeductions": 22.0,
+        "totalReimbursements": 0.0,
+        "totalStatutoryDeductions": 56.0,
+        "totalSuperannuation": 42.0,
+        "bacsHash": null,
+        "paymentMethod": "Electronically",
+        "earningsLines": [
+          {
+            "earningsLineID": "2980135c-5ec8-4907-aaef-4096f407ca7d",
+            "earningsRateID": "2980135c-5ec8-4907-aaef-4096f407ca7d",
+            "displayName": "Ordinary Time",
+            "ratePerUnit": 35.0,
+            "numberOfUnits": 40.0,
+            "fixedAmount": null,
+            "amount": 1400.0,
+            "isLinkedToTimesheet": false,
+            "isAverageDailyPayRate": null,
+            "isSystemGenerated": true
+          }
+        ],
+        "leaveEarningsLines": [],
+        "timesheetEarningsLines": [],
+        "deductionLines": [
+          {
+            "deductionTypeID": "c8381978-1ed9-4816-b2ba-048c1c2d7d25",
+            "displayName": "Social Club",
+            "amount": 2.0,
+            "subjectToTax": null,
+            "percentage": null
+          },
+          {
+            "deductionTypeID": "982bda87-be2f-4d41-a1a4-d9d31ce0678b",
+            "displayName": "World Vision",
+            "amount": 20.0,
+            "subjectToTax": null,
+            "percentage": null
+          }
+        ],
+        "reimbursementLines": [],
+        "leaveAccrualLines": [
+          {
+            "leaveTypeID": "3dfcb21b-20bf-49b8-9a1b-877eb33da71a",
+            "numberOfUnits": 0.0
+          },
+          {
+            "leaveTypeID": "1e7707cc-4669-4f27-b2ab-6c80f5b3ef5f",
+            "numberOfUnits": 0.0
+          },
+          {
+            "leaveTypeID": "a44ab907-6aab-4c08-9984-21eb46c3494c",
+            "numberOfUnits": 0.0
+          },
+          {
+            "leaveTypeID": "e4555617-892a-460d-96ed-7a5e03a55ce0",
+            "numberOfUnits": 0.0
+          },
+          {
+            "leaveTypeID": "fdc5303c-745e-4d9f-ab80-7c62f4f0626a",
+            "numberOfUnits": 112.0
+          }
+        ],
+        "superannuationLines": [
+          {
+            "superannuationTypeID": "e4ddcd26-b0ad-4a37-8681-df9ec0f658fc",
+            "displayName": "KiwiSaver",
+            "amount": 42.0,
+            "fixedAmount": null,
+            "percentage": 3.0,
+            "manualAdjustment": null
+          }
+        ],
+        "paymentLines": [
+          {
+            "paymentLineID": "e745e80f-2ace-4a35-a3a9-d139a96cb5ed",
+            "amount": 1019.86,
+            "accountNumber": "accountNumber-scrubbed",
+            "sortCode": null,
+            "accountName": "accountName-scrubbed"
+          }
+        ],
+        "employeeTaxLines": [
+          {
+            "taxLineID": "cfe3b130-66ce-4020-a355-ef551d894496",
+            "description": null,
+            "amount": -6.66,
+            "globalTaxTypeID": 9,
+            "manualAdjustment": false
+          },
+          {
+            "taxLineID": "ef796ae0-1e3a-4877-9f2b-292418a3e90b",
+            "description": null,
+            "amount": 308.8,
+            "globalTaxTypeID": 11,
+            "manualAdjustment": false
+          }
+        ],
+        "employerTaxLines": [
+          {
+            "taxLineID": "a7708b5d-d4e2-4c29-9614-887207bf5cdf",
+            "description": null,
+            "amount": 13.86,
+            "globalTaxTypeID": 10,
+            "manualAdjustment": false
+          }
+        ],
+        "statutoryDeductionLines": [
+          {
+            "statutoryDeductionTypeID": "4dbdc401-e039-4db6-a33f-a1223e2cf380",
+            "amount": 56.0,
+            "fixedAmount": null,
+            "manualAdjustment": null
+          }
+        ],
+        "taxSettings": {
+          "periodUnits": 1.0,
+          "periodType": "weeks",
+          "taxCode": "M",
+          "specialTaxRate": null,
+          "lumpSumTaxCode": "SB",
+          "lumpSumAmount": null
+        },
+        "grossEarningsHistory": {
+          "daysPaid": 5,
+          "unpaidWeeks": 0
+        }
+      }
+    ]
+  }
+}

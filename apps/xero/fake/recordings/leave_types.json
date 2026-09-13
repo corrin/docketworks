@@ -1,0 +1,79 @@
+{
+  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": 2,
+  "request": {
+    "method": "GET",
+    "path": "/payroll.xro/2.0/LeaveTypes",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "id": "f04cbe8f-784c-43c1-924c-0827d8d57ab6",
+    "providerName": "Docketworks%20MSM%20Dev",
+    "dateTimeUTC": "2026-09-13T03:16:42.6736768",
+    "httpStatusCode": "OK",
+    "pagination": {
+      "page": 1,
+      "pageSize": 100,
+      "pageCount": 1,
+      "itemCount": 18
+    },
+    "problem": null,
+    "leaveTypes": [
+      {
+        "leaveTypeID": "fdc5303c-745e-4d9f-ab80-7c62f4f0626a",
+        "name": "Holiday Pay",
+        "isPaidLeave": true,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:49:26",
+        "isActive": true,
+        "typeOfUnits": "Dollars",
+        "typeOfUnitsToAccrue": "Dollars"
+      },
+      {
+        "leaveTypeID": "8d0099a7-3adc-4af4-a6a4-55d4a973287d",
+        "name": "Parental Leave - Extended",
+        "isPaidLeave": false,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:49:26",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      }
+    ]
+  }
+}

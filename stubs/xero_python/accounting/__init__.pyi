@@ -3,12 +3,13 @@ from enum import Enum
 from typing import Any, Literal, overload
 
 from xero_python.api_client import ApiClient
+from xero_python.models import BaseModel
 
-class Purchase:
+class Purchase(BaseModel):
     unit_price: float | None
     def __init__(self, unit_price: float | None = None) -> None: ...
 
-class Item:
+class Item(BaseModel):
     code: str | None
     name: str | None
     is_tracked_as_inventory: bool | None
@@ -48,7 +49,7 @@ class AccountType(Enum):
     TERMLIAB = "TERMLIAB"
     PAYG = "PAYG"
 
-class Account:
+class Account(BaseModel):
     account_id: str | None
     code: str | None
     name: str | None
@@ -59,18 +60,18 @@ class Account:
     updated_date_utc: datetime | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class Phone:
+class Phone(BaseModel):
     phone_type: str | None
     phone_number: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class Address:
+class Address(BaseModel):
     address_type: str | None
     attention_to: str | None
     address_line1: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class Contact:
+class Contact(BaseModel):
     contact_id: str | None
     contact_status: str | None
     has_validation_errors: bool | None
@@ -85,11 +86,11 @@ class Contact:
     def __init__(self, **kwargs: Any) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...
 
-class Contacts:
+class Contacts(BaseModel):
     contacts: list[Contact] | None
     def __init__(self, contacts: list[Contact] | None = None, **kwargs: Any) -> None: ...
 
-class LineItem:
+class LineItem(BaseModel):
     description: str | None
     quantity: float | None
     unit_amount: float | None
@@ -99,7 +100,7 @@ class LineItem:
     def __init__(self, **kwargs: Any) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...
 
-class Invoice:
+class Invoice(BaseModel):
     invoice_id: str | None
     invoice_number: str | None
     type: str | None
@@ -117,11 +118,11 @@ class Invoice:
     def __init__(self, **kwargs: Any) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...
 
-class Invoices:
+class Invoices(BaseModel):
     invoices: list[Invoice] | None
     def __init__(self, invoices: list[Invoice] | None = None, **kwargs: Any) -> None: ...
 
-class Quote:
+class Quote(BaseModel):
     quote_id: str | None
     quote_number: str | None
     contact: Contact | None
@@ -137,15 +138,15 @@ class Quote:
     def __init__(self, **kwargs: Any) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...
 
-class Quotes:
+class Quotes(BaseModel):
     quotes: list[Quote] | None
     def __init__(self, quotes: list[Quote] | None = None, **kwargs: Any) -> None: ...
 
-class ValidationError:
+class ValidationError(BaseModel):
     message: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class PurchaseOrder:
+class PurchaseOrder(BaseModel):
     purchase_order_id: str | None
     purchase_order_number: str | None
     contact: Contact | None
@@ -159,21 +160,30 @@ class PurchaseOrder:
     def __init__(self, **kwargs: Any) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...
 
-class PurchaseOrders:
+class PurchaseOrders(BaseModel):
     purchase_orders: list[PurchaseOrder] | None
     def __init__(
         self, purchase_orders: list[PurchaseOrder] | None = None, **kwargs: Any
     ) -> None: ...
 
-class HistoryRecord:
+class HistoryRecord(BaseModel):
     details: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class HistoryRecords:
+class TaxRate(BaseModel):
+    name: str | None
+    tax_type: str | None
+    status: str | None
+    effective_rate: float | None
+
+class TaxRates(BaseModel):
+    tax_rates: list[TaxRate] | None
+
+class HistoryRecords(BaseModel):
     history_records: list[HistoryRecord] | None
     def __init__(self, history_records: list[HistoryRecord] | None = None) -> None: ...
 
-class Organisation:
+class Organisation(BaseModel):
     organisation_id: str | None
     name: str | None
     short_code: str | None
@@ -182,17 +192,17 @@ class Organisation:
     country_code: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class Organisations:
+class Organisations(BaseModel):
     organisations: list[Organisation] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class BrandingTheme:
+class BrandingTheme(BaseModel):
     branding_theme_id: str | None
     name: str | None
     sort_order: int | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class BrandingThemes:
+class BrandingThemes(BaseModel):
     branding_themes: list[BrandingTheme] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
@@ -206,6 +216,11 @@ class AccountingApi:
         self, xero_tenant_id: str, contacts: Any, **kwargs: Any
     ) -> Contacts: ...
     def get_contacts(self, xero_tenant_id: str, **kwargs: Any) -> Contacts: ...
+    def get_contact(self, xero_tenant_id: str, contact_id: str, **kwargs: Any) -> Contacts: ...
+    def get_tax_rates(self, xero_tenant_id: str, **kwargs: Any) -> TaxRates: ...
+    def get_invoice_history(
+        self, xero_tenant_id: str, invoice_id: str, **kwargs: Any
+    ) -> HistoryRecords: ...
     def get_branding_themes(self, xero_tenant_id: str, **kwargs: Any) -> BrandingThemes: ...
     # The SDK hands back (body, status, headers) when asked not to strip the
     # response; the quota headers only exist in that shape.

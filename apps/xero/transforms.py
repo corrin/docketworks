@@ -111,6 +111,12 @@ def serialize_xero_object(obj: Any) -> Any:  # noqa: PLR0911 -- a type-dispatch 
     return str(obj)
 
 
+# The two SDK attributes every stored raw_json lacks: clean_json drops them as
+# bulk the mirror never reads, so a renderer working back from raw_json must
+# know they were removed rather than never sent (apps/xero/fake/wire.py).
+STRIPPED_RAW_KEYS = frozenset({"_currency_code", "_currency_rate"})
+
+
 def clean_json(data: Any) -> Any:
     """Remove Xero's internal fields and bulky repeated data."""
     if not isinstance(data, dict):
@@ -122,7 +128,7 @@ def clean_json(data: Any) -> Any:
         "_member_names_",
         "__objclass__",
     ]
-    exclude_keys = {"_currency_code", "_currency_rate", *exclude_patterns}
+    exclude_keys = {*STRIPPED_RAW_KEYS, *exclude_patterns}
 
     cleaned = {}
     for key, value in data.items():

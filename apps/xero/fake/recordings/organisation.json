@@ -1,0 +1,99 @@
+{
+  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "GET",
+    "path": "/api.xro/2.0/Organisation",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "Id": "8c0d299e-b9ba-48e6-9f13-8eebc9442bb4",
+    "Status": "OK",
+    "ProviderName": "Docketworks MSM Dev",
+    "DateTimeUTC": "/Date(1789269364440)/",
+    "Organisations": [
+      {
+        "Name": "Demo Company (NZ)",
+        "LegalName": "LegalName-scrubbed",
+        "PaysTax": true,
+        "Version": "NZ",
+        "OrganisationType": "COMPANY",
+        "BaseCurrency": "NZD",
+        "CountryCode": "NZ",
+        "IsDemoCompany": true,
+        "OrganisationStatus": "ACTIVE",
+        "TaxNumber": "TaxNumber-scrubbed",
+        "FinancialYearEndDay": 31,
+        "FinancialYearEndMonth": 3,
+        "SalesTaxBasis": "PAYMENTS",
+        "SalesTaxPeriod": "TWOMONTHS",
+        "DefaultSalesTax": "Remember previous",
+        "DefaultPurchasesTax": "Remember previous",
+        "PeriodLockDate": "/Date(1254268800000+0000)/",
+        "CreatedDateUTC": "/Date(1789184814237)/",
+        "OrganisationEntityType": "COMPANY",
+        "Timezone": "NEWZEALANDSTANDARDTIME",
+        "ShortCode": "!Qj35V",
+        "OrganisationID": "96d8fbb9-e7bf-4327-a284-cb5da3384f97",
+        "Edition": "BUSINESS",
+        "Class": "DEMO",
+        "Addresses": [
+          {
+            "AddressType": "POBOX",
+            "AddressLine1": "AddressLine1-scrubbed",
+            "AddressLine2": "AddressLine2-scrubbed",
+            "City": "Marineville",
+            "Region": "",
+            "PostalCode": "1234",
+            "Country": "",
+            "AttentionTo": ""
+          }
+        ],
+        "Phones": [
+          {
+            "PhoneType": "OFFICE",
+            "PhoneNumber": "PhoneNumber-scrubbed",
+            "PhoneCountryCode": "64"
+          }
+        ],
+        "ExternalLinks": [],
+        "PaymentTerms": {}
+      }
+    ]
+  }
+}

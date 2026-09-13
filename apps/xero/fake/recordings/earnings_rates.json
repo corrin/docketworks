@@ -1,0 +1,83 @@
+{
+  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": 2,
+  "request": {
+    "method": "GET",
+    "path": "/payroll.xro/2.0/EarningsRates",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "id": "b71af9a8-549f-47ea-bad9-cce9c108a95d",
+    "providerName": "Docketworks%20MSM%20Dev",
+    "dateTimeUTC": "2026-09-13T03:16:45.2998349",
+    "httpStatusCode": "OK",
+    "pagination": {
+      "page": 1,
+      "pageSize": 100,
+      "pageCount": 1,
+      "itemCount": 22
+    },
+    "problem": null,
+    "earningsRates": [
+      {
+        "earningsRateID": "2980135c-5ec8-4907-aaef-4096f407ca7d",
+        "name": "Ordinary Time",
+        "earningsType": "RegularEarnings",
+        "rateType": "RatePerUnit",
+        "typeOfUnits": "hours",
+        "currentRecord": true,
+        "expenseAccountID": "1c91e520-a12b-45cc-8194-99950858e5bf",
+        "fixedAmount": null,
+        "ratePerUnit": null,
+        "multipleOfOrdinaryEarningsRate": null
+      },
+      {
+        "earningsRateID": "65fe285c-cf2d-4289-ad8f-8f5fdf391885",
+        "name": "Salary",
+        "earningsType": "RegularEarnings",
+        "rateType": "RatePerUnit",
+        "typeOfUnits": "hours",
+        "currentRecord": true,
+        "expenseAccountID": "1c91e520-a12b-45cc-8194-99950858e5bf",
+        "fixedAmount": null,
+        "ratePerUnit": null,
+        "multipleOfOrdinaryEarningsRate": null
+      }
+    ]
+  }
+}
