@@ -1,4 +1,4 @@
-# 0053 — Integration credentials are typed columns on one singleton
+# 0053 — Integration credentials are typed columns on one singleton; never .env, never CompanyDefaults
 
 Every credential the install uses to reach an external service lives in the database, on
 `apps.platform.integrations.models.IntegrationSettings`, as a typed column of its own. Nothing reads a vendor
