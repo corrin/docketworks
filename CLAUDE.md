@@ -218,7 +218,8 @@ produced that ADR shipped on a database already holding hundreds of the rows.
   access directly.
 - **DRY is structural (ADR 0039).** One implementation per concept; search
   before implement; extending a near-match beats writing a sibling.
-- **The application decides, the database stores (ADR 0058).** A rule that
+- **Code that looks short and simple runs short and simple (ADR 0058).** A write
+  that reads as one statement does one thing; nothing beneath it decides. A rule that
   refuses a write lives in one service function and raises a typed error. `CHECK`,
   `UNIQUE`, `NOT NULL` and `on_delete` state facts about a row and belong in the
   schema; a trigger, rule or stored procedure that raises does not. It fires for the
