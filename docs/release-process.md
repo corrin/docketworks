@@ -34,7 +34,10 @@ durable).
   before it stops any unit, so a missing variable fails the deploy with the instance
   still up; it does not add the variable. New ones arrive with their feature
   (`SESSION_REPLAY_STORAGE_ROOT` with session replay).
-- **A data migration that can refuse is rehearsed against a production restore.** The
+- **A data migration that can refuse is rehearsed against a production restore.** When the
+  checkout is ahead of the archive, re-insert this installation's private rows after
+  `migrate`, not after `pg_restore`: the archive's tables predate columns the checkout
+  has removed, and a positional copy into the older shape fails at the first row. The
   inventory cutover chain refuses on data it cannot reconcile, and `migrate` runs with
   the units stopped, so run `manage.py audit_inventory_openings --preflight-only`
   against a restore first, per [`inventory-legacy-repair.md`](inventory-legacy-repair.md).

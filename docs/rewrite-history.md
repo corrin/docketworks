@@ -1620,3 +1620,18 @@ because its comparison, baseline and detail sections merge in dynamically, so th
 client types it as `{ [key: string]: unknown }` and the page re-declares the shape it reads
 in zod. That is the wire-contract gap ADR 0028 names; the honest fix is a response schema
 with optional sections, not a wider client type.
+
+Rehearsed 2026-09-13 on the 2026-09-09 scrubbed production restore, per the release
+process: the sanctioned wipe, `pg_restore`, the inventory preflight (one duplicated
+balance named, the known historical repair), then `migrate` applying all 42 unreleased
+migrations including the six cutover migrations edited in place for the delivery
+vocabulary. Afterwards `audit_inventory_openings` reported clean, `reconcile_cost_summaries
+--all` checked 7,410 cost sets with 0 incorrect, `inventory_audit_findings()` was empty,
+and the ledger held `delivery_opening` 1,320, `job_opening` 1,567 and `opening` 706 rows
+with no `receipt_*` kind anywhere. The backfills landed as designed: 589 purchase orders and
+29 jobs now name System Automation and none lacks a creator; every staff row holding
+payroll terms carries its checksum and the 8 without terms stay NULL, meaning never
+synced. One runbook correction fell out of it: the private-row re-insert must follow
+`migrate`, not the restore, because the archive's schema predates the columns `xero/0002`
+removed and a positional copy into it fails at the first row.
+
