@@ -183,9 +183,10 @@ export const autoId = (page: Page, id: string) => page.locator(`[data-automation
  * Run a semantic Playwright step whose duration is logged to the trace for
  * offline budget analysis. maxMs is documentation-only — the step never
  * fails on timing; hard timeouts are governed by the test-level timeout and
- * INFINITE_TIMEOUT safety net elsewhere.
+ * INFINITE_TIMEOUT safety net elsewhere. Named for what it does: a reader at
+ * a call site must not take the budget for an assertion.
  */
-export async function expectStepUnder<T>(
+export async function tracedStep<T>(
   title: string,
   maxMs: number,
   body: () => Promise<T>,

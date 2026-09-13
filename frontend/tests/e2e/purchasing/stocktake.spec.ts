@@ -155,9 +155,10 @@ test('a multi-item count preserves blank entries and the count list stays paged'
   })
   const response = await nextPage
   expect(response.status()).toBe(200)
-  await expect(page.locator('tbody tr')).not.toHaveCount(50)
-  await expect(page.locator('[data-automation-id="StocktakeList-load-more-count"]')).toContainText(
-    'stocktakes',
+  // Exact, because the seed is: not.toHaveCount(50) also passes on an emptied list.
+  await expect(page.locator('tbody tr')).toHaveCount(51)
+  await expect(page.locator('[data-automation-id="StocktakeList-load-more-count"]')).toHaveText(
+    /\b51 stocktakes\b/,
   )
 })
 

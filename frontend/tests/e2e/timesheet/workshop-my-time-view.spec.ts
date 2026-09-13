@@ -78,7 +78,9 @@ test.describe.serial('workshop my time view', () => {
 
     const refresh = timesheetResponse(page, 'GET')
     await autoId(page, 'WorkshopTimesheetSummaryCard-refresh').click()
-    await refresh
+    const response = await refresh
+    expect(response.status()).toBe(200)
+    await expect(autoId(page, 'WorkshopTimesheetSummaryCard-refresh')).toBeEnabled()
   })
 
   test('adds, updates, and deletes an entry', async ({ authenticatedPage: page }) => {

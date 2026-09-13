@@ -70,10 +70,9 @@ test.describe('create job with new xero company', () => {
 
     await autoId(page, 'JobCreateView-pricing-method').selectOption('time_materials')
     await dismissToasts(page)
-
-    const url = await submitJobAndWaitForCreatedJob(page, 'estimate')
-    expect(url).toContain('/jobs/')
-    expect(url).not.toContain('/create')
+    // The submission is the step under test; the URL it returns was only ever
+    // re-asserted against itself, so nothing binds it.
+    await submitJobAndWaitForCreatedJob(page, 'estimate')
 
     const jobNumberElement = autoId(page, 'JobView-job-number').first()
     await expect(jobNumberElement).toContainText(/#\d+/, { timeout: 10000 })
@@ -136,8 +135,6 @@ test.describe('create job with new xero company', () => {
 
     await autoId(page, 'JobCreateView-pricing-method').selectOption('fixed_price')
     await dismissToasts(page)
-
-    const url = await submitJobAndWaitForCreatedJob(page, 'quote')
-    expect(url).toContain('/jobs/')
+    await submitJobAndWaitForCreatedJob(page, 'quote')
   })
 })

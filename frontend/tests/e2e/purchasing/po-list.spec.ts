@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/auth'
-import { autoId } from '../helpers'
+import { autoId, createTestPurchaseOrder } from '../helpers'
 
 /**
  * The purchase-order list is served one page at a time, and searched by the
@@ -20,6 +20,20 @@ const LIST_PATH = '/api/purchasing/purchase-orders/'
 
 test.describe('Purchase order list', () => {
   test('serves one page and reports the server total', async ({ authenticatedPage: page }) => {
+    // Seed past one page (ADR 0054): the assertion below was conditional on the
+    // database already holding more than a page, so a thin corpus passed it
+    // without exercising paging at all. One order through the UI supplies a
+    // supplier; the rest are drafts through the API, which pushes nothing.
+    const firstUrl = await createTestPurchaseOrder(page)
+    const firstId = new URL(firstUrl).pathname.split('/').at(-1)
+    const first = await (await page.request.get(`${LIST_PATH}${firstId}/`)).json()
+    for (let index = 0; index < 50; index++) {
+      const created = await page.request.post(LIST_PATH, {
+        data: { supplier_id: first.supplier_id },
+      })
+      expect(created.status()).toBe(201)
+    }
+
     const listResponse = page.waitForResponse(
       (response) =>
         new URL(response.url()).pathname === LIST_PATH &&
@@ -48,11 +62,11 @@ test.describe('Purchase order list', () => {
       body.results.length,
     )
 
-    // When more pages exist the footer names the server's total, not the rows
-    // on screen — that is what tells an operator the list is partial.
-    if (body.total_pages > 1) {
-      await expect(autoId(page, 'PurchaseOrderView-load-more')).toContainText(String(body.count))
-    }
+    // More pages exist by construction, so the footer must name the server's
+    // total, not the rows on screen — that is what tells an operator the list
+    // is partial.
+    expect(body.total_pages).toBeGreaterThan(1)
+    await expect(autoId(page, 'PurchaseOrderView-load-more')).toContainText(String(body.count))
   })
 
   test('search narrows on the server, not in the browser', async ({ authenticatedPage: page }) => {
