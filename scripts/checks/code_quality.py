@@ -405,6 +405,9 @@ def measure_wire_contract() -> Section:
 # short list: this measures a smell, not an audit.
 INTERACTIVE_TAGS = ("a", "button", "input", "select", "textarea", "Button")
 _INTERACTIVE_OPEN = re.compile(r"<(" + "|".join(INTERACTIVE_TAGS) + r")\b")
+# An attribute NAME followed by `=`: a value or comment that merely contains
+# the words is not coverage.
+_AUTOMATION_ID_ATTRIBUTE = re.compile(r"\b(?:data-automation-id|automationId)\s*=")
 
 
 def _jsx_attribute_span(text: str, start: int) -> str:
@@ -457,7 +460,7 @@ def measure_automation_ids() -> Section:
                 continue
             tag = match.group(1)
             counted[tag] += 1
-            if "data-automation-id" not in attributes and "automationId" not in attributes:
+            if _AUTOMATION_ID_ATTRIBUTE.search(attributes) is None:
                 missing[tag] += 1
     total = sum(counted.values())
     absent = sum(missing.values())
