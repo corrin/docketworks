@@ -56,7 +56,8 @@ class Section:
 
     title: str
     note: str
-    rows: list[tuple[str, int]] = field(default_factory=list)
+    # A value is usually a count; a ratio reads as "a of b (x%)" instead.
+    rows: list[tuple[str, int | str]] = field(default_factory=list)
 
 
 def _python_files() -> Iterator[Path]:
@@ -458,9 +459,11 @@ def measure_automation_ids() -> Section:
             counted[tag] += 1
             if "data-automation-id" not in attributes and "automationId" not in attributes:
                 missing[tag] += 1
-    rows: list[tuple[str, int]] = [
-        ("interactive elements", sum(counted.values())),
-        ("without data-automation-id", sum(missing.values())),
+    total = sum(counted.values())
+    absent = sum(missing.values())
+    share = round(100 * absent / total) if total else 0
+    rows: list[tuple[str, int | str]] = [
+        ("without data-automation-id", f"{absent} of {total} ({share}%)"),
     ]
     rows += [(f"without id: <{tag}>", missing[tag]) for tag in INTERACTIVE_TAGS if missing[tag]]
     return Section(

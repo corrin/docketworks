@@ -124,8 +124,7 @@ Interactive elements under `frontend/src` with no `data-automation-id`, the sele
 
 | metric | count |
 |---|---:|
-| interactive elements | 384 |
-| without data-automation-id | 129 |
+| without data-automation-id | 129 of 384 (34%) |
 | without id: <a> | 3 |
 | without id: <button> | 34 |
 | without id: <input> | 27 |
