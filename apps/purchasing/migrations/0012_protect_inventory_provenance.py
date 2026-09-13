@@ -17,9 +17,9 @@ class Migration(migrations.Migration):
             UPDATE purchasing_stock s SET is_active = FALSE
             WHERE s.quantity = 0
               AND EXISTS (SELECT 1 FROM purchasing_stockmovement m
-                          WHERE m.stock_id = s.id AND m.kind = 'receipt_opening')
+                          WHERE m.stock_id = s.id AND m.kind = 'delivery_opening')
               AND NOT EXISTS (SELECT 1 FROM purchasing_stockmovement m
-                              WHERE m.stock_id = s.id AND m.kind IN ('opening', 'receipt'));
+                              WHERE m.stock_id = s.id AND m.kind IN ('opening', 'delivery'));
             """,
             reverse_sql=migrations.RunSQL.noop,
         ),

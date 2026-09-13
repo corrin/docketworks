@@ -35,8 +35,8 @@ class Migration(migrations.Migration):
                     models.CharField(
                         choices=[
                             ("opening", "Opening balance"),
-                            ("receipt", "Receipt"),
-                            ("receipt_reversal", "Receipt reversal"),
+                            ("delivery", "Delivery"),
+                            ("delivery_reversal", "Delivery reversal"),
                             ("issue", "Job issue"),
                             ("return", "Job return"),
                             ("stocktake", "Stocktake"),
@@ -262,7 +262,7 @@ class Migration(migrations.Migration):
             model_name="stockmovement",
             constraint=models.CheckConstraint(
                 condition=models.Q(
-                    ("kind__in", ["opening", "receipt", "receipt_reversal"]),
+                    ("kind__in", ["opening", "delivery", "delivery_reversal"]),
                     ("counterpart_job__isnull", False),
                     _connector="OR",
                 ),

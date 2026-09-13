@@ -141,7 +141,7 @@ def test_invalid_position_aborts_all_openings(job: Job, stock_holding_job: Job) 
     assert not StockMovement.objects.filter(cost_line=valid).exists()
 
 
-def test_receipt_opening_preserves_totals_and_uses_the_same_reversal(
+def test_delivery_opening_preserves_totals_and_uses_the_same_reversal(
     api: Client, job: Job, stock_holding_job: Job, office_staff: Staff
 ) -> None:
     """A migrated receipt returns through the normal command, preserving its original job charge."""
@@ -170,7 +170,7 @@ def test_receipt_opening_preserves_totals_and_uses_the_same_reversal(
     po_line.refresh_from_db()
     assert original.unit_cost == Decimal("15")
     assert po_line.received_quantity == Decimal("2")
-    receipt = stock.movements.get(kind="receipt_opening")
+    receipt = stock.movements.get(kind="delivery_opening")
     assert receipt.opening_quantity == Decimal("2")
     assert not api.get("/api/purchasing/stock/search/?countable=true").json()["results"]
     detail = api.get(f"/api/purchasing/purchase-orders/{po.id}/")
@@ -224,7 +224,7 @@ def test_allocation_whose_order_line_is_gone_is_booked_as_manual_provenance(job:
     assert opening.counterpart_job_id == job.id
     assert "no longer exists" in opening.reason
 
-    receipt = stock.movements.get(kind="receipt_opening")
+    receipt = stock.movements.get(kind="delivery_opening")
     assert receipt.opening_quantity == Decimal("2")
     assert "Receipt evidence lost" in receipt.reason
 

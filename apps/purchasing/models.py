@@ -769,9 +769,9 @@ class StockMovementKind(models.TextChoices):
 
     OPENING = "opening", "Opening balance"
     JOB_OPENING = "job_opening", "Job position at cutover"
-    RECEIPT = "receipt", "Receipt"
-    RECEIPT_OPENING = "receipt_opening", "Received allocation at cutover"
-    RECEIPT_REVERSAL = "receipt_reversal", "Receipt reversal"
+    DELIVERY = "delivery", "Delivery"
+    DELIVERY_OPENING = "delivery_opening", "Delivered allocation at cutover"
+    DELIVERY_REVERSAL = "delivery_reversal", "Delivery reversal"
     ISSUE = "issue", "Job issue"
     RETURN = "return", "Job return"
     STOCKTAKE = "stocktake", "Stocktake"
@@ -813,7 +813,7 @@ class StockMovement(models.Model):
             ),
             models.CheckConstraint(
                 condition=models.Q(
-                    kind__in=["opening", "receipt", "receipt_opening", "receipt_reversal"]
+                    kind__in=["opening", "delivery", "delivery_opening", "delivery_reversal"]
                 )
                 | models.Q(counterpart_job__isnull=False),
                 name="movement_job_counterpart",

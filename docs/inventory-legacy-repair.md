@@ -12,7 +12,7 @@ open at the true quantity. It derives the surplus from the order line's received
 against the evidence the cutover is about to book, empties no more than a handful of
 identities, and refuses a surplus that is not carried by exactly one identity. Migration
 `purchasing/0015_backfill_legacy_receipt_evidence` measures each order line's gap with
-the audit's own arithmetic and books one `receipt_opening` against a zero-quantity stock
+the audit's own arithmetic and books one `delivery_opening` against a zero-quantity stock
 identity, which is how the ledger already records "received historically, no balance
 remains" (ADR 0059). It moves no balance, creates no charge, and aborts if any line holds
 more evidence than its recorded received quantity.

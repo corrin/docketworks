@@ -57,7 +57,7 @@ def test_audit_detects_a_broken_chain_even_when_the_total_matches(stock_holding_
     stock = make_stock(stock_holding_job, quantity="3")
     StockMovement.objects.create(
         stock=stock,
-        kind="receipt",
+        kind="delivery",
         quantity_change=2,
         quantity_before=0,
         quantity_after=2,
@@ -66,7 +66,7 @@ def test_audit_detects_a_broken_chain_even_when_the_total_matches(stock_holding_
     )
     broken = StockMovement.objects.create(
         stock=stock,
-        kind="receipt",
+        kind="delivery",
         quantity_change=1,
         quantity_before=0,
         quantity_after=1,
@@ -86,7 +86,7 @@ def test_audit_reports_supplier_totals_disagreeing_with_receipt_evidence(
     receive_po_line(line, Decimal("4"), job, stock_holding_job, office_staff)
     # Deliberately corrupt the projection; the real receipt evidence remains immutable.
     PurchaseOrderLine.objects.filter(pk=line.id).update(received_quantity=3)
-    assert inventory_audit_findings()["Supplier receipt totals"] == [str(line.id)]
+    assert inventory_audit_findings()["Supplier delivery totals"] == [str(line.id)]
     assert Stock.objects.filter(source_purchase_order_line=line).count() == 2
 
 
@@ -138,7 +138,7 @@ def test_pending_receipt_totals_become_auditable_after_the_opening(stock_holding
     assert inventory_audit_findings() == {}
     StockMovement.objects.create(
         stock=stock,
-        kind="receipt_opening",
+        kind="delivery_opening",
         quantity_change=0,
         quantity_before=2,
         quantity_after=2,
@@ -146,4 +146,4 @@ def test_pending_receipt_totals_become_auditable_after_the_opening(stock_holding
         opening_quantity=1,
         reason="Incomplete receipt observation",
     )
-    assert inventory_audit_findings()["Supplier receipt totals"] == [str(line.id)]
+    assert inventory_audit_findings()["Supplier delivery totals"] == [str(line.id)]

@@ -28,9 +28,9 @@ class Migration(migrations.Migration):
                 choices=[
                     ("opening", "Opening balance"),
                     ("job_opening", "Job position at cutover"),
-                    ("receipt", "Receipt"),
-                    ("receipt_opening", "Received allocation at cutover"),
-                    ("receipt_reversal", "Receipt reversal"),
+                    ("delivery", "Delivery"),
+                    ("delivery_opening", "Delivered allocation at cutover"),
+                    ("delivery_reversal", "Delivery reversal"),
                     ("issue", "Job issue"),
                     ("return", "Job return"),
                     ("stocktake", "Stocktake"),
@@ -42,7 +42,7 @@ class Migration(migrations.Migration):
             model_name="stockmovement",
             constraint=models.CheckConstraint(
                 condition=models.Q(
-                    ("kind__in", ["opening", "receipt", "receipt_opening", "receipt_reversal"]),
+                    ("kind__in", ["opening", "delivery", "delivery_opening", "delivery_reversal"]),
                     ("counterpart_job__isnull", False),
                     _connector="OR",
                 ),

@@ -5173,9 +5173,9 @@ export const zStockMetadataRequest = z.object({
 export const zStockMovementKind = z.enum([
     'opening',
     'job_opening',
-    'receipt',
-    'receipt_opening',
-    'receipt_reversal',
+    'delivery',
+    'delivery_opening',
+    'delivery_reversal',
     'issue',
     'return',
     'stocktake'

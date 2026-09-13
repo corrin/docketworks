@@ -85,5 +85,5 @@ def test_sync_waits_for_receipt_and_preserves_its_committed_status(
     line.refresh_from_db()
     assert po.status == expected
     assert line.received_quantity == received
-    receipt = StockMovement.objects.get(stock__source_purchase_order_line=line, kind="receipt")
+    receipt = StockMovement.objects.get(stock__source_purchase_order_line=line, kind="delivery")
     assert receipt.quantity_change == received

@@ -40,7 +40,7 @@ def test_catalogue_refresh_preserves_local_inventory(
         stock.xero_id = str(xero_id)
         stock.save(update_fields=["xero_id"])
         move_stock(
-            stock, Decimal("1"), MovementContext(kind=StockMovementKind.RECEIPT, reason="Receipt")
+            stock, Decimal("1"), MovementContext(kind=StockMovementKind.DELIVERY, reason="Delivery")
         )
     original_apply = transforms._track_and_apply_changes
 
@@ -51,7 +51,7 @@ def test_catalogue_refresh_preserves_local_inventory(
             move_stock(
                 other,
                 Decimal("1"),
-                MovementContext(kind=StockMovementKind.RECEIPT, reason="Delivery"),
+                MovementContext(kind=StockMovementKind.DELIVERY, reason="Delivery"),
             )
         return changed
 

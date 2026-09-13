@@ -38,8 +38,8 @@ from apps.purchasing.models import (
 from apps.purchasing.schemas import AllocationReversalRequest
 from apps.purchasing.services.stock_movement_service import (
     MovementContext,
+    delivery_quantity,
     move_stock,
-    receipt_quantity,
     reverse_issue,
 )
 from apps.purchasing.tasks import queue_metadata_parse_if_eligible
@@ -179,7 +179,7 @@ def create_stock_from_allocation(
         stock,
         qty,
         MovementContext(
-            kind=StockMovementKind.RECEIPT,
+            kind=StockMovementKind.DELIVERY,
             reason=f"Receipt against PO line {line.id}",
             actor=staff,
         ),
@@ -408,9 +408,9 @@ def reverse_allocation(
     if stock.source_purchase_order_line_id != line_id:
         raise AllocationReversalError("The allocation does not belong to this purchase order line.")
     po_line = PurchaseOrderLine.objects.select_for_update().get(id=line_id, purchase_order=po)
-    receipt = stock.movements.get(kind__in=["receipt", "receipt_opening"])
+    receipt = stock.movements.get(kind__in=["delivery", "delivery_opening"])
     already_reversed = StockMovement.objects.filter(reverses=receipt).exists()
-    quantity = Decimal("0") if already_reversed else receipt_quantity(receipt)
+    quantity = Decimal("0") if already_reversed else delivery_quantity(receipt)
     job_name = (
         cost_line.cost_set.job.name if cost_line is not None else Stock.STOCK_HOLDING_JOB_NAME
     )
@@ -426,7 +426,7 @@ def reverse_allocation(
             stock,
             -quantity,
             MovementContext(
-                kind=StockMovementKind.RECEIPT_REVERSAL,
+                kind=StockMovementKind.DELIVERY_REVERSAL,
                 reason=f"Reverse receipt allocation from PO line {po_line.id}",
                 actor=staff,
                 reverses=receipt,
@@ -446,7 +446,7 @@ def _reversed_stock_ids(po: PurchaseOrder) -> set[UUID]:
     """Read receipt corrections once for an allocation response."""
     return set(
         StockMovement.objects.filter(
-            kind=StockMovementKind.RECEIPT_REVERSAL,
+            kind=StockMovementKind.DELIVERY_REVERSAL,
             stock__source_purchase_order_line__purchase_order=po,
         ).values_list("stock_id", flat=True)
     )

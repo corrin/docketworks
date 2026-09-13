@@ -11420,7 +11420,7 @@ export type StockMetadataRequest = {
  *
  * Live postings and the three historical cutover observations.
  */
-export type StockMovementKind = 'opening' | 'job_opening' | 'receipt' | 'receipt_opening' | 'receipt_reversal' | 'issue' | 'return' | 'stocktake';
+export type StockMovementKind = 'opening' | 'job_opening' | 'delivery' | 'delivery_opening' | 'delivery_reversal' | 'issue' | 'return' | 'stocktake';
 
 /**
  * StockMovementOut
