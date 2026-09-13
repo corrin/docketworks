@@ -169,18 +169,22 @@ export function useKanbanBoard(
   )
   loadErrors.push({ label: 'the board columns', error: statusValues.error })
   loadErrors.push({ label: 'search results', error: search.error })
-  const latestLoadErrors = useRef(loadErrors)
-  latestLoadErrors.current = loadErrors
   const loadErrorSignature = loadErrors
     .map((entry) => `${entry.label}:${entry.error?.message ?? ''}`)
     .join('|')
+  // Runs after every render and toasts only when the set of failures changed:
+  // the signature compare is the whole cost, and it is the one already paid
+  // to build the string above.
+  const toastedSignatureRef = useRef('')
   useEffect(() => {
-    for (const entry of latestLoadErrors.current) {
+    if (toastedSignatureRef.current === loadErrorSignature) return
+    toastedSignatureRef.current = loadErrorSignature
+    for (const entry of loadErrors) {
       if (entry.error) {
         toast.error(apiErrorMessage(entry.error, `Failed to load ${entry.label}`))
       }
     }
-  }, [loadErrorSignature])
+  })
 
   // search.data === undefined (not just !isSearchActive) is the other half
   // of this guard: the debounced search-input navigation lands 300ms after
