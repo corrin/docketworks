@@ -60,15 +60,24 @@ export function KanbanBoard({ searchQuery }: KanbanBoardProps) {
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY)
 
   const [statusDrawerJob, setStatusDrawerJob] = useState<KanbanJobOut | null>(null)
-  const [armedSelection, setArmedSelection] = useState<string | null>(null)
-  // Tap-assign is a mobile concept (v1 kanban.vue watch(isDesktop, ...)): on
-  // desktop a card click navigates, so an armed selection is inert there.
-  // Derived rather than cleared by an effect: the Assign control only renders
-  // below `lg`, so a selection can only be made, and is only shown, on mobile.
-  const armedStaffId = isDesktop ? null : armedSelection
+  // Tap-assign is a mobile concept (v1 kanban.vue watch(isDesktop, ...)): a
+  // selection armed on mobile must not come back armed after a trip through
+  // the desktop layout, where nothing shows it. The selection carries the
+  // layout it was armed under and is cleared during the first render under
+  // the other one — React's adjust-state-on-prop-change shape, not an effect,
+  // so nothing ever reads the stale value.
+  const [armed, setArmed] = useState<{ staffId: string | null; isDesktop: boolean }>({
+    staffId: null,
+    isDesktop,
+  })
+  if (armed.isDesktop !== isDesktop) setArmed({ staffId: null, isDesktop })
+  const armedStaffId = isDesktop || armed.isDesktop !== isDesktop ? null : armed.staffId
 
   const handleToggleTapAssign = useCallback((staffId: string) => {
-    setArmedSelection((current) => (current === staffId ? null : staffId))
+    setArmed((current) => ({
+      staffId: current.staffId === staffId ? null : staffId,
+      isDesktop: current.isDesktop,
+    }))
   }, [])
 
   const handleTapAssign = useCallback(
@@ -76,7 +85,7 @@ export function KanbanBoard({ searchQuery }: KanbanBoardProps) {
       if (!armedStaffId) return
       const staffId = armedStaffId
       const success = await assignStaff(jobId, staffId)
-      if (success) setArmedSelection(null)
+      if (success) setArmed((current) => ({ ...current, staffId: null }))
     },
     [armedStaffId, assignStaff],
   )
