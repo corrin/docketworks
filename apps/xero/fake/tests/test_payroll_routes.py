@@ -89,6 +89,22 @@ class TestEmployees:
         employee = payroll.get_employee(TENANT, str(staff.xero_user_id)).employee
         assert employee is not None and employee.email == "office@example.test"
 
+    def test_a_staff_member_without_terms_carries_the_record_the_seed_created(
+        self, store: FakeXeroStore, payroll: PayrollNzApi
+    ) -> None:
+        # The E2E user after a restore: linked, no StaffPayrollTerm rows. The
+        # real seed created its pay record from base_wage_rate and the hours.
+        staff = _linked_staff("office@example.test", hourly_rate="36.05")
+        staff.payroll_terms.all().delete()
+        seed_payroll(store, CALENDAR)
+        employee_id = str(staff.xero_user_id)
+        pay = payroll.get_employee_salary_and_wages(TENANT, employee_id).salary_and_wages
+        assert pay is not None and len(pay) == 1
+        assert Decimal(str(pay[0].rate_per_unit)) == staff.base_wage_rate
+        assert str(pay[0].effective_from).startswith("2025-04-01")
+        patterns = payroll.get_employee_working_patterns(TENANT, employee_id).payee_working_patterns
+        assert patterns is not None and len(patterns) == 1
+
     def test_the_detail_routes_answer_the_seeded_terms(
         self, store: FakeXeroStore, payroll: PayrollNzApi
     ) -> None:

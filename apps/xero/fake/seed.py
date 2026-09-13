@@ -24,7 +24,7 @@ from apps.company.models import Company
 from apps.core.models import CompanyDefaults
 from apps.purchasing.models import PurchaseOrder as PurchaseOrderModel
 from apps.purchasing.models import Stock
-from apps.timesheet.services.payroll_employee_sync import xero_employee_email
+from apps.timesheet.services.payroll_employee_sync import hours_per_week, xero_employee_email
 from apps.xero.contacts import contact_from_company
 from apps.xero.fake import defaults
 from apps.xero.fake.minting import as_list, as_mapping, new_id, now_utc, text
@@ -292,8 +292,11 @@ def seed_payroll(store: FakeXeroStore, calendar_id: str) -> dict[str, int]:
             name=f"{staff.first_name} {staff.last_name}",
             parent_id=None,
         )
-        for term in staff.payroll_terms.all():
+        terms = list(staff.payroll_terms.all())
+        for term in terms:
             _seed_term(store, employee_id, term, stamp)
+        if not terms:
+            _seed_created_records(store, employee_id, staff, stamp)
         counts["employees"] += 1
 
     counts["pay_items"] = _seed_pay_items(store)
@@ -355,6 +358,53 @@ def _seed_term(
         "workingWeeks": [
             {day: float(week.get(day, 0)) for day in _WEEKDAYS} for week in term.working_weeks
         ],
+    }
+    store.save(
+        Kind.WORKING_PATTERN,
+        str(pattern["payeeWorkingPatternID"]),
+        pattern,
+        updated_date_utc=stamp,
+        parent_id=employee_id,
+    )
+
+
+def _seed_created_records(
+    store: FakeXeroStore, employee_id: str, staff: Staff, stamp: datetime
+) -> None:
+    """Render the pay record and pattern the real seed created for a staff member with no terms.
+
+    A linked staff member without payroll terms (the E2E user after a restore)
+    was created in Xero from base_wage_rate, the contracted hours and the start
+    date (payroll_employees._create_salary_and_wage, _create_working_pattern),
+    so those two records are what the tenant holds and what the inbound
+    refresh requires; the mirror learns them only after that refresh.
+    """
+    hours = hours_per_week(staff)
+    total_hours = sum(hours.values())
+    working_days = sum(1 for value in hours.values() if value > 0)
+    salary: dict[str, Json] = {
+        **_SALARY_TEMPLATE,
+        "salaryAndWagesID": new_id(),
+        "numberOfUnitsPerWeek": total_hours,
+        "numberOfUnitsPerDay": total_hours / working_days,
+        "daysPerWeek": float(working_days),
+        "ratePerUnit": float(staff.base_wage_rate),
+        "annualSalary": 0.0,
+        "effectiveFrom": _day(staff.employment_start_date),
+        "status": "Active",
+        "paymentType": "Hourly",
+    }
+    store.save(
+        Kind.SALARY_AND_WAGE,
+        str(salary["salaryAndWagesID"]),
+        salary,
+        updated_date_utc=stamp,
+        parent_id=employee_id,
+    )
+    pattern: dict[str, Json] = {
+        "payeeWorkingPatternID": new_id(),
+        "effectiveFrom": _day(staff.employment_start_date),
+        "workingWeeks": [{day: hours[day] for day in _WEEKDAYS}],
     }
     store.save(
         Kind.WORKING_PATTERN,
