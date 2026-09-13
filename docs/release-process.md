@@ -27,6 +27,23 @@ durable).
   than by force-pushing `production`, which the prod hosts track and the
   `prod-*` tags name.
 
+## Before the deploy
+
+- **Every required environment variable reaches each instance's `.env` first.**
+  `deploy.sh` now checks the target release's settings against the instance `.env`
+  before it stops any unit, so a missing variable fails the deploy with the instance
+  still up; it does not add the variable. New ones arrive with their feature
+  (`SESSION_REPLAY_STORAGE_ROOT` with session replay).
+- **A data migration that can refuse is rehearsed against a production restore.** The
+  inventory cutover chain refuses on data it cannot reconcile, and `migrate` runs with
+  the units stopped, so run `manage.py audit_inventory_openings --preflight-only`
+  against a restore first, per [`inventory-legacy-repair.md`](inventory-legacy-repair.md).
+- **The integration tier is the merge gate for anything that touches Xero, the AI
+  gateway, Maps, the phone provider or mail** (ADR 0050). It is human-run because CI
+  has no sandbox credentials: `./scripts/ops/run_integration_tests.sh` before the
+  release PR merges, and the PR states any change to the number of vendor calls a user
+  action or a test run makes.
+
 ## Every genuine production deploy gets a GitHub Release
 
 Tag scheme: `prod-YYYY-MM-DD-<sha8>` (the date and the short SHA of the

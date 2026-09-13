@@ -1576,3 +1576,47 @@ the modular monolith as a direction the project is heading in and not a descript
 the tree, so the ADR now separates destination from present and `CLAUDE.md` describes the
 import-linter contract that actually gates. ADRs 0012, 0021 and 0033 named a module path,
 a Django setting and a Poetry constraint syntax this repository does not have.
+
+## 2026-09-13: promotion-readiness rulings
+
+The owner ruled, in one sitting, on the questions the release review raised. Docketworks
+masters a purchase order and Xero mirrors it; the push happens on a state change, not on
+every keystroke, and a vendor refusal leaves the order owing a call to the hourly sync
+(`xero_push_due`) rather than failing the operator's write. Ownership is the number's
+prefix, not `created_by`: `created_by` was unrecorded until 2026-01-09, so 419 of the 825
+orders Docketworks raised carried none, and reading ownership from it would have handed
+Xero the right to overwrite every one of them on the next pull. The prefix is therefore
+not an ordinary setting, and `"PO-"`, Xero's own, cannot be saved.
+
+`created_by` is backfilled to the System Automation row and made `NOT NULL` on purchase
+orders and jobs together, because one concept gets one rule. A supplier-less purchase
+order is invalid data, not a supported state; the eleven in production were corrected by
+hand on 2026-09-13 (ADR 0059's form is a migration matching the predicate, which is still
+owed so dev, UAT and older backups converge). ChatKit is the chatbot runtime, and ADR 0041's
+ban on adding a vendor SDK is restored with the Agents and ChatKit SDKs as its one named
+exception.
+
+The inventory ledger begins at cutover and legacy is forced into shape, never supported.
+The three cutover movement kinds were measured rather than assumed: every collapse tested
+either adds column-presence branches or invents movement history, so they stay until two
+rulings exist — that a lost-evidence gap corrects `received_quantity` on the order line,
+and that synthetic cutover-dated issues are acceptable. The ledger's own vocabulary is
+corrected instead: `delivery`, because a receipt in this business is what a customer gets
+when they pay. The larger finding is recorded rather than acted on: the code models stock
+as a pool with a quantity (`Stock.job` is a constant discriminator, never a location), while
+the owner's model is material always on a job with every movement a transfer between two.
+Which is the target is an open ruling.
+
+ADR 0058 is the no-surprises rule — code that looks short and simple runs short and
+simple — and its refusal mechanics are consequences of that, not its premise. ADR 0050
+gains two rules: a change that alters how many vendor calls a user action or a test run
+makes states the number before merge, and integration runs record the vendor's real
+answers so unit fixtures are built from recordings rather than belief. ADRs 0054–0059 are
+ratified. `admin/xero.spec.ts:57` stays failing until the owner authorises the live
+employee-refresh budget it needs.
+
+Found and recorded, not fixed: `/api/accounting/reports/job-movement/` answers `response=dict`
+because its comparison, baseline and detail sections merge in dynamically, so the generated
+client types it as `{ [key: string]: unknown }` and the page re-declares the shape it reads
+in zod. That is the wire-contract gap ADR 0028 names; the honest fix is a response schema
+with optional sections, not a wider client type.
