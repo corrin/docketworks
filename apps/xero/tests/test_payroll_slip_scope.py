@@ -160,3 +160,47 @@ def test_a_partial_posted_run_is_read_again_until_every_slip_is_mirrored() -> No
     assert XeroPaySlip.objects.filter(pay_run=mirrored).count() == 2
 
     assert fetched_and_persisted(fail_second=False) == [], "a whole run costs no further call"
+
+
+def test_a_run_read_while_draft_is_read_again_once_posted() -> None:
+    """A Draft's slips are provisional; only a Posted read can complete the run."""
+    from apps.xero.payroll_sync import PayRunsForSync  # noqa: PLC0415
+
+    _draft, mirrored = _xero_pay_run("Draft")
+    slip = SimpleNamespace(
+        pay_slip_id=str(uuid4()),
+        pay_run_id=str(mirrored.xero_id),
+        employee_id=str(uuid4()),
+        first_name="Only",
+        last_name="Employee",
+        gross_earnings=100,
+        tax=20,
+        net_pay=80,
+    )
+
+    def fetched(status: str) -> list[str]:
+        remote = PayRun(pay_run_id=str(mirrored.xero_id), pay_run_status=status)
+        with (
+            patch(
+                "apps.xero.payroll_sync.get_pay_runs_for_sync",
+                return_value=PayRunsForSync(pay_runs=[remote]),
+            ),
+            patch("apps.xero.payroll_sync.get_pay_slips_for_run", return_value=[slip]) as fetch,
+            patch("apps.xero.payroll_sync._resolve_tenant_id", return_value=TENANT),
+        ):
+            get_all_pay_slips_for_sync()
+        return [call.args[0] for call in fetch.call_args_list]
+
+    assert fetched("Draft") == [str(mirrored.xero_id)]
+    _mirror_a_slip(mirrored)
+    mirrored.refresh_from_db()
+    assert mirrored.pay_slip_count is None, "a Draft read must not complete the run"
+
+    assert fetched("Posted") == [str(mirrored.xero_id)], "the Posted values are read"
+    mirrored.refresh_from_db()
+    assert mirrored.pay_slip_count == 1
+    assert fetched("Posted") == [], "and then the run is whole"
+
+    assert fetched("Draft") == [str(mirrored.xero_id)], "reverted to Draft, it is provisional again"
+    mirrored.refresh_from_db()
+    assert mirrored.pay_slip_count is None

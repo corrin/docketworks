@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 #: Xero's own value; the SDK validates ``pay_run_status`` against
 #: ["Draft", "Posted", "None"].
 PAY_RUN_STATUS_DRAFT = "Draft"
+PAY_RUN_STATUS_POSTED = "Posted"
 
 
 @dataclass(frozen=True)
@@ -151,10 +152,17 @@ def get_all_pay_slips_for_sync(**kwargs: Any) -> PaySlipsForSync:
     for pay_run in worth_reading:
         pay_run_id = str(pay_run.pay_run_id)
         slips = get_pay_slips_for_run(pay_run_id, xero_tenant_id=tenant_id)
-        # Recorded where it is learned. A run row that is not mirrored yet
-        # updates nothing, and its slips are not persisted either (the
+        # Recorded where it is learned, and only from a Posted read: a Draft's
+        # slips are provisional (ADR 0007), and a count taken then would make
+        # the run whole the moment it posted, with its final values never read.
+        # A Draft read clears the count for the same reason: a run reverted to
+        # Draft and reposted must be read again. A run row that is not mirrored
+        # yet updates nothing, and its slips are not persisted either (the
         # transform needs the parent); both resolve next hour.
-        XeroPayRun.objects.filter(xero_id=pay_run_id).update(pay_slip_count=len(slips))
+        posted = pay_run.pay_run_status == PAY_RUN_STATUS_POSTED
+        XeroPayRun.objects.filter(xero_id=pay_run_id).update(
+            pay_slip_count=len(slips) if posted else None
+        )
         all_pay_slips.extend(slips)
 
     logger.info(
