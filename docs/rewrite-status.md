@@ -558,18 +558,12 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   at least states a claim that can be tested; most sit inside those three and clear with the
   rulings, leaving chiefly BLE001 and C901 to read one at a time. S603, the
   security-sensitive rule, has zero unreasoned sites.
-- **Audit the ADR corpus for rules the tree does not support.** A skim of all 46 found five
-  classes, none of which is work for the change that raised them. ADR 0005's Gemini emit-tool
-  pattern has zero code presence and is contradicted by ADR 0041 — retire it or mark it
-  superseded. ADR 0031 mandates namespaced `debug` logging across the frontend and not one
-  file under `frontend/src` imports it; decide whether that is a plan or a fiction. ADRs 0024
-  and 0012 contradict each other on tenancy: 0024 forbids resolving a tenant from a singleton
-  while 0012 states the product is single-tenant and `apps/xero/sync_worker.py` does exactly
-  what 0024 forbids, with a comment saying so — and ADR 0056 already cites 0024 as authority.
-  ADRs 0007, 0048, 0049 and 0050 carry the narrative sections the index conventions forbid,
-  including 0007's self-declared "KNOWN GAP" that belongs in this file. ADRs 0054–0059 are
-  ratified (owner, 2026-09-13); every earlier AI-drafted ADR still needs the `Unratified:`
-  marker of ADR 0051 or an owner ruling.
+- **The week reconciliation does not poll to a deadline.** `get_week_reconciliation`
+  (`apps/accounting/services/payroll_reconciliation_service.py`) makes one unguarded
+  `get_pay_slips_for_week` call, and the page that shows it is reached in the minutes after
+  posting, while a Draft pay run's slips are still recomputing (ADR 0007). Poll to a deadline
+  and fail on expiry; `PaySlip.lastEdited` exists in the Xero SDK (the hand-written stub omits
+  it) and may be the convergence signal.
 - **Finish or reopen the modular monolith slices (KAN-357).** The epic is marked Done while
   `config/architecture.py` records one migrated context of thirteen. ADR 0055 and CLAUDE.md
   now say so plainly, but the ticket still claims otherwise, and the epic's own gate — an
