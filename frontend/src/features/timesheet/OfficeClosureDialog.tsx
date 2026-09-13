@@ -31,7 +31,9 @@ interface OfficeClosureDialogProps {
 /**
  * The form's state lives in OfficeClosureForm, which DialogContent unmounts
  * when the dialog closes — so every open starts fresh, dates included, with
- * no reset to run.
+ * no reset to run. Only `saving` lives here: while the create is in flight
+ * the dialog refuses to dismiss, so its completion cannot close a reopened
+ * instance.
  */
 export function OfficeClosureDialog({
   open,
@@ -39,8 +41,16 @@ export function OfficeClosureDialog({
   onSaved,
   publicHolidayName,
 }: OfficeClosureDialogProps) {
+  const [saving, setSaving] = useState(false)
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && saving) return
+        onOpenChange(next)
+      }}
+    >
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Office closed</DialogTitle>
@@ -48,16 +58,26 @@ export function OfficeClosureDialog({
             Add {publicHolidayName} leave for every active employee scheduled in this range.
           </DialogDescription>
         </DialogHeader>
-        <OfficeClosureForm onOpenChange={onOpenChange} onSaved={onSaved} />
+        <OfficeClosureForm
+          saving={saving}
+          setSaving={setSaving}
+          onOpenChange={onOpenChange}
+          onSaved={onSaved}
+        />
       </DialogContent>
     </Dialog>
   )
 }
 
 function OfficeClosureForm({
+  saving,
+  setSaving,
   onOpenChange,
   onSaved,
-}: Pick<OfficeClosureDialogProps, 'onOpenChange' | 'onSaved'>) {
+}: Pick<OfficeClosureDialogProps, 'onOpenChange' | 'onSaved'> & {
+  saving: boolean
+  setSaving: (saving: boolean) => void
+}) {
   const [startDate, setStartDate] = useState(localIsoDate())
   const [endDate, setEndDate] = useState(localIsoDate())
   const [note, setNote] = useState('Office closed')
@@ -79,12 +99,15 @@ function OfficeClosureForm({
 
   const save = async () => {
     setError(null)
+    setSaving(true)
     try {
       await createMutation.mutateAsync({ body })
       await onSaved()
       onOpenChange(false)
     } catch (caught) {
       setError(apiErrorMessage(caught, 'Could not create the office closure.'))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -162,16 +185,17 @@ function OfficeClosureForm({
         <Button
           variant="outline"
           data-automation-id="OfficeClosureDialog-cancel"
+          disabled={saving}
           onClick={() => onOpenChange(false)}
         >
           Cancel
         </Button>
         <Button
-          disabled={!preview || createMutation.isPending || preview.available_staff === 0}
+          disabled={!preview || saving || preview.available_staff === 0}
           data-automation-id="OfficeClosureDialog-submit"
           onClick={() => void save()}
         >
-          {createMutation.isPending ? 'Creating…' : 'Create office closure'}
+          {saving ? 'Creating…' : 'Create office closure'}
         </Button>
       </DialogFooter>
     </>

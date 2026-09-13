@@ -26,7 +26,10 @@ interface CreateCompanyModalProps {
  *
  * The form's state lives in CreateCompanyForm, which DialogContent unmounts
  * when the dialog closes — so each open starts from the lookup's current
- * query, not last open's edits, with no reset to run.
+ * query, not last open's edits, with no reset to run. Only `saving` lives
+ * here: while the create is in flight the dialog refuses to dismiss, so no
+ * reopened instance exists for the completion to close and no fresh form
+ * exists to submit the same name twice.
  */
 export function CreateCompanyModal({
   open,
@@ -34,14 +37,27 @@ export function CreateCompanyModal({
   onClose,
   onCreated,
 }: CreateCompanyModalProps) {
+  const [saving, setSaving] = useState(false)
+
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !saving) onClose()
+      }}
+    >
       <DialogContent data-automation-id="CreateCompanyModal-container">
         <DialogHeader>
           <DialogTitle>Add New Company</DialogTitle>
           <DialogDescription>Creates the company here and as a contact in Xero.</DialogDescription>
         </DialogHeader>
-        <CreateCompanyForm initialName={initialName} onClose={onClose} onCreated={onCreated} />
+        <CreateCompanyForm
+          initialName={initialName}
+          saving={saving}
+          setSaving={setSaving}
+          onClose={onClose}
+          onCreated={onCreated}
+        />
       </DialogContent>
     </Dialog>
   )
@@ -49,9 +65,14 @@ export function CreateCompanyModal({
 
 function CreateCompanyForm({
   initialName,
+  saving,
+  setSaving,
   onClose,
   onCreated,
-}: Omit<CreateCompanyModalProps, 'open'>) {
+}: Omit<CreateCompanyModalProps, 'open'> & {
+  saving: boolean
+  setSaving: (saving: boolean) => void
+}) {
   const nameId = useId()
   const errorId = useId()
   const [name, setName] = useState(initialName)
@@ -65,6 +86,7 @@ function CreateCompanyForm({
       return
     }
     setError(null)
+    setSaving(true)
     try {
       const response = await create.mutateAsync({
         body: { name: trimmed, is_account_customer: false },
@@ -72,6 +94,8 @@ function CreateCompanyForm({
       onCreated(requireXeroLinkedCompany(response))
     } catch (mutationError) {
       setError(apiErrorMessage(mutationError, 'Failed to create company.'))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -115,6 +139,7 @@ function CreateCompanyForm({
           type="button"
           className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
           data-automation-id="CreateCompanyModal-cancel"
+          disabled={saving}
           onClick={onClose}
         >
           Cancel
@@ -123,9 +148,9 @@ function CreateCompanyForm({
           type="submit"
           data-automation-id="CreateCompanyModal-submit"
           className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={create.isPending}
+          disabled={saving}
         >
-          {create.isPending ? 'Creating…' : 'Create Company'}
+          {saving ? 'Creating…' : 'Create Company'}
         </button>
       </div>
     </form>

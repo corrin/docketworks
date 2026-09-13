@@ -37,7 +37,9 @@ interface Props {
 /**
  * The form's state lives in LeaveRequestForm, which DialogContent unmounts
  * when the dialog closes — so each open seeds from the request being edited
- * (or blank), with no reset to run.
+ * (or blank), with no reset to run. Only `saving` lives here: while a save is
+ * in flight the dialog refuses to dismiss, so its completion cannot close a
+ * reopened instance and no fresh form exists to save the same leave twice.
  */
 export function LeaveRequestDialog({
   open,
@@ -47,8 +49,16 @@ export function LeaveRequestDialog({
   request,
   onSaved,
 }: Props) {
+  const [saving, setSaving] = useState(false)
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && saving) return
+        onOpenChange(next)
+      }}
+    >
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{request ? 'Edit leave' : 'New leave'}</DialogTitle>
@@ -57,6 +67,8 @@ export function LeaveRequestDialog({
           </DialogDescription>
         </DialogHeader>
         <LeaveRequestForm
+          saving={saving}
+          setSaving={setSaving}
           onOpenChange={onOpenChange}
           staff={staff}
           leaveTypes={leaveTypes}
@@ -69,12 +81,14 @@ export function LeaveRequestDialog({
 }
 
 function LeaveRequestForm({
+  saving,
+  setSaving,
   onOpenChange,
   staff,
   leaveTypes,
   request,
   onSaved,
-}: Omit<Props, 'open'>) {
+}: Omit<Props, 'open'> & { saving: boolean; setSaving: (saving: boolean) => void }) {
   const [staffId, setStaffId] = useState(request?.staff_id ?? '')
   const [leaveTypeCode, setLeaveTypeCode] = useState(request?.leave_type_code ?? '')
   const [startDate, setStartDate] = useState(request?.start_date ?? localIsoDate())
@@ -133,6 +147,7 @@ function LeaveRequestForm({
       note: note.trim() || null,
       days,
     }
+    setSaving(true)
     try {
       const result = request
         ? await updateMutation.mutateAsync({ path: { request_id: request.id }, body })
@@ -144,10 +159,12 @@ function LeaveRequestForm({
       onOpenChange(false)
     } catch (caught) {
       setError(apiErrorMessage(caught, 'Could not save leave.'))
+    } finally {
+      setSaving(false)
     }
   }
 
-  const pending = previewMutation.isPending || createMutation.isPending || updateMutation.isPending
+  const pending = previewMutation.isPending || saving
 
   return (
     <>
@@ -322,6 +339,7 @@ function LeaveRequestForm({
         <Button
           variant="outline"
           data-automation-id="LeaveRequestDialog-cancel"
+          disabled={saving}
           onClick={() => onOpenChange(false)}
         >
           Cancel
