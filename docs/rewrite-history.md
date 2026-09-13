@@ -1,5 +1,14 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-13 — ADR 0055 owns the shared-home rule; ADR 0039 defers to it
+
+Owner ruling, by approving the ADR corpus rewrite plan. Fable: the plan stated that 0039 drops
+its ownership bullet and cites 0055, and that 0039 carries a supersession line naming 0055 and
+0061; approval closed the task that asked whether the supersession stood or 0039's original
+shared-homes wording should be restored. The same approval retired 0005, 0008, 0013 and 0045,
+created 0061–0063, and set the retired-ADR convention: the file is deleted and the index row
+records the date and the successor.
+
 ## 2026-09-13 — An E2E iteration run may be pointed at a recorded fake of Xero
 
 Owner ruling. The E2E gate could not run once the dev tenant's 1000-call day was spent,

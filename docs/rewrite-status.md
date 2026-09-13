@@ -564,14 +564,15 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   posting, while a Draft pay run's slips are still recomputing (ADR 0007). Poll to a deadline
   and fail on expiry; `PaySlip.lastEdited` exists in the Xero SDK (the hand-written stub omits
   it) and may be the convergence signal.
+- **Two ADR questions the 2026-09-13 corpus review left open.** ADR 0031 mandates namespaced
+  `debug` logging across the frontend and not one file under `frontend/src` imports it;
+  decide whether that is a plan or a fiction. ADRs 0001–0053 carry no provenance line: walk
+  them with the owner and put `Ratified:` or `Unratified:` on line 2 of each (ADR 0051),
+  starting with 0051 itself and 0060–0063.
 - **Finish or reopen the modular monolith slices (KAN-357).** The epic is marked Done while
   `config/architecture.py` records one migrated context of thirteen. ADR 0055 and CLAUDE.md
   now say so plainly, but the ticket still claims otherwise, and the epic's own gate — an
   owner-ratified ADR before any slice starts — was satisfied by an ADR the owner had not read.
-- **Rule on ADR 0055 superseding ADR 0039's shared-home rule.** The session that wrote 0055
-  also rewrote 0039 to defer to it, in the same commit. The owner has ratified the
-  modular-monolith direction; that is not the same as ratifying the supersession of the prime
-  rule. Confirm it, or restore 0039's original shared-homes wording and drop the claim.
 - **Purge "v1" and "v2" from comments, docstrings, docs, ADRs and filenames.** We document
   state, not change: "v1 silently substituted the company default; v2 raises" becomes "a
   staff member without a wage rate cannot be costed". Delete first, reword only what states
