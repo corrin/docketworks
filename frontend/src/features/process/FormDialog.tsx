@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -127,21 +127,60 @@ interface Props {
  * label/type-badge preview, so the person defining a form's fields sees
  * immediately whether the JSON they typed is even well-formed before it
  * reaches the server's real structural validator.
+ *
+ * The form's state lives in FormDefinitionForm, which DialogContent unmounts
+ * when the dialog closes — so each open snapshots the definition afresh with
+ * no reset to run. Only `saving` lives here, because the shell needs it to
+ * refuse dismissal mid-save.
  */
 export function FormDialog({ open, onOpenChange, form }: Props) {
+  const [saving, setSaving] = useState(false)
+
+  return (
+    // While a save is in flight the dialog must not dismiss (Esc/outside
+    // click) — a completion landing after a re-open would close the wrong
+    // dialog and toast out of context.
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!saving) onOpenChange(next)
+      }}
+    >
+      <DialogContent
+        className="max-h-[85vh] overflow-y-auto sm:max-w-3xl"
+        data-automation-id="FormDialog-container"
+      >
+        <DialogHeader>
+          <DialogTitle>{form === null ? 'New Form' : 'Edit Form'}</DialogTitle>
+        </DialogHeader>
+        <FormDefinitionForm
+          form={form}
+          saving={saving}
+          setSaving={setSaving}
+          onOpenChange={onOpenChange}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function FormDefinitionForm({
+  form,
+  saving,
+  setSaving,
+  onOpenChange,
+}: {
+  form: FormOut | null
+  saving: boolean
+  setSaving: (saving: boolean) => void
+  onOpenChange: (open: boolean) => void
+}) {
   const queryClient = useQueryClient()
   const categoriesQuery = useQuery(processCategoriesRetrieveOptions())
   const createMutation = useMutation(processFormsCreateMutation())
   const updateMutation = useMutation(processFormsPartialUpdateMutation())
   const [drafts, setDrafts] = useState<Drafts>(() => snapshot(form))
   const [validationError, setValidationError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    if (!open) return
-    setDrafts(snapshot(form))
-    setValidationError(null)
-  }, [open, form])
 
   const setDraft = <K extends keyof Drafts>(key: K, value: Drafts[K]): void => {
     setDrafts((previous) => ({ ...previous, [key]: value }))
@@ -240,178 +279,162 @@ export function FormDialog({ open, onOpenChange, form }: Props) {
   }
 
   return (
-    // While a save is in flight the dialog must not dismiss (Esc/outside
-    // click) — a completion landing after a re-open would close the wrong
-    // dialog and toast out of context.
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!saving) onOpenChange(next)
-      }}
-    >
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{form === null ? 'New Form' : 'Edit Form'}</DialogTitle>
-        </DialogHeader>
-
-        <div className="flex flex-col gap-6">
-          <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
-            <TextField
-              label="Title"
-              automationId="FormDialog-title"
-              value={drafts.title}
-              onChange={(value) => setDraft('title', value)}
-            />
-            <TextField
-              label="Document number"
-              automationId="FormDialog-document-number"
-              value={drafts.document_number}
-              onChange={(value) => setDraft('document_number', value)}
-            />
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              <span className="text-slate-700">Category</span>
-              <select
-                className={INPUT_CLASS}
-                value={drafts.category}
-                onChange={(event) => setDraft('category', event.target.value)}
-                data-automation-id="FormDialog-category"
-              >
-                <option value="">Select a category</option>
-                {(categoriesQuery.data?.forms ?? []).map((option) => (
-                  <option key={option.key} value={option.key}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              <span className="text-slate-700">Document type</span>
-              <select
-                className={INPUT_CLASS}
-                value={drafts.document_type}
-                disabled={form !== null}
-                onChange={(event) => setDraft('document_type', event.target.value)}
-                data-automation-id="FormDialog-document-type"
-              >
-                <option value="">Select a type</option>
-                <option value="form">Form</option>
-                <option value="register">Register</option>
-              </select>
-              {form !== null && (
-                <span className="text-xs font-normal text-slate-500">
-                  Fixed once a form is created.
-                </span>
-              )}
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium md:col-span-2">
-              <span className="text-slate-700">Tags</span>
-              <input
-                type="text"
-                className={INPUT_CLASS}
-                value={drafts.tags}
-                placeholder="comma, separated, tags"
-                onChange={(event) => setDraft('tags', event.target.value)}
-                data-automation-id="FormDialog-tags"
-              />
-            </label>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              <span className="text-slate-700">Schema (JSON)</span>
-              <textarea
-                className={`${INPUT_CLASS} min-h-64 font-mono text-xs`}
-                value={drafts.schemaText}
-                aria-invalid={!parsedSchema.ok}
-                onChange={(event) => setDraft('schemaText', event.target.value)}
-                data-automation-id="FormDialog-schema"
-              />
-              {!parsedSchema.ok && (
-                <p className="text-xs text-red-700" data-automation-id="FormDialog-schema-error">
-                  {parsedSchema.message}
-                </p>
-              )}
-            </label>
-            <div className="flex flex-col gap-1 text-sm font-medium">
-              <span className="text-slate-700">Preview</span>
-              {/* The real EntryForm, disabled — what a staff member sees
-                  filling this form, not a schema editor's guess at it. */}
-              <div
-                className="flex min-h-64 flex-col gap-2 overflow-y-auto rounded-md border border-slate-200 p-3"
-                data-automation-id="FormDialog-preview"
-              >
-                {!parsedSchema.ok ? (
-                  <span className="text-xs font-normal text-slate-500">
-                    Fix the JSON to preview fields.
-                  </span>
-                ) : previewFields.length === 0 ? (
-                  <span className="text-xs font-normal text-slate-500">No fields yet.</span>
-                ) : (
-                  <EntryForm
-                    schema={previewFields}
-                    staffOptions={[]}
-                    submitting={false}
-                    automationIdPrefix="FormDialog-preview-entry"
-                    disabled
-                    onSubmit={() => {
-                      throw new Error('The disabled preview form must never submit.')
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-
-          {validationError && (
-            <p
-              role="alert"
-              className="text-sm text-red-700"
-              data-automation-id="FormDialog-validation"
+    <>
+      <div className="flex flex-col gap-6">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+          <TextField
+            label="Title"
+            automationId="FormDialog-title"
+            value={drafts.title}
+            onChange={(value) => setDraft('title', value)}
+          />
+          <TextField
+            label="Document number"
+            automationId="FormDialog-document-number"
+            value={drafts.document_number}
+            onChange={(value) => setDraft('document_number', value)}
+          />
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            <span className="text-slate-700">Category</span>
+            <select
+              className={INPUT_CLASS}
+              value={drafts.category}
+              onChange={(event) => setDraft('category', event.target.value)}
+              data-automation-id="FormDialog-category"
             >
-              {validationError}
-            </p>
-          )}
+              <option value="">Select a category</option>
+              {(categoriesQuery.data?.forms ?? []).map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            <span className="text-slate-700">Document type</span>
+            <select
+              className={INPUT_CLASS}
+              value={drafts.document_type}
+              disabled={form !== null}
+              onChange={(event) => setDraft('document_type', event.target.value)}
+              data-automation-id="FormDialog-document-type"
+            >
+              <option value="">Select a type</option>
+              <option value="form">Form</option>
+              <option value="register">Register</option>
+            </select>
+            {form !== null && (
+              <span className="text-xs font-normal text-slate-500">
+                Fixed once a form is created.
+              </span>
+            )}
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium md:col-span-2">
+            <span className="text-slate-700">Tags</span>
+            <input
+              type="text"
+              className={INPUT_CLASS}
+              value={drafts.tags}
+              placeholder="comma, separated, tags"
+              onChange={(event) => setDraft('tags', event.target.value)}
+              data-automation-id="FormDialog-tags"
+            />
+          </label>
         </div>
 
-        <DialogFooter className={form !== null ? 'sm:justify-between' : undefined}>
-          {/* Archiving replaces delete (apps/process/api.py: "there is
-              deliberately no DELETE route on forms"), so this is the only
-              archive control there is — create mode has no existing row to
-              archive, and the create endpoint has no status field. */}
-          {form !== null && (
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-slate-300"
-                checked={drafts.status === 'archived'}
-                onChange={(event) =>
-                  setDraft('status', event.target.checked ? 'archived' : 'active')
-                }
-                data-automation-id="FormDialog-archived"
-              />
-              <span className="text-slate-700">Archived</span>
-            </label>
-          )}
-          <div className="flex flex-col-reverse gap-2 sm:flex-row">
-            <Button
-              variant="outline"
-              disabled={saving}
-              onClick={() => onOpenChange(false)}
-              data-automation-id="FormDialog-cancel"
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            <span className="text-slate-700">Schema (JSON)</span>
+            <textarea
+              className={`${INPUT_CLASS} min-h-64 font-mono text-xs`}
+              value={drafts.schemaText}
+              aria-invalid={!parsedSchema.ok}
+              onChange={(event) => setDraft('schemaText', event.target.value)}
+              data-automation-id="FormDialog-schema"
+            />
+            {!parsedSchema.ok && (
+              <p className="text-xs text-red-700" data-automation-id="FormDialog-schema-error">
+                {parsedSchema.message}
+              </p>
+            )}
+          </label>
+          <div className="flex flex-col gap-1 text-sm font-medium">
+            <span className="text-slate-700">Preview</span>
+            {/* The real EntryForm, disabled — what a staff member sees
+                filling this form, not a schema editor's guess at it. */}
+            <div
+              className="flex min-h-64 flex-col gap-2 overflow-y-auto rounded-md border border-slate-200 p-3"
+              data-automation-id="FormDialog-preview"
             >
-              Cancel
-            </Button>
-            <Button
-              disabled={saving}
-              onClick={() => void save()}
-              data-automation-id="FormDialog-submit"
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </Button>
+              {!parsedSchema.ok ? (
+                <span className="text-xs font-normal text-slate-500">
+                  Fix the JSON to preview fields.
+                </span>
+              ) : previewFields.length === 0 ? (
+                <span className="text-xs font-normal text-slate-500">No fields yet.</span>
+              ) : (
+                <EntryForm
+                  schema={previewFields}
+                  staffOptions={[]}
+                  submitting={false}
+                  automationIdPrefix="FormDialog-preview-entry"
+                  disabled
+                  onSubmit={() => {
+                    throw new Error('The disabled preview form must never submit.')
+                  }}
+                />
+              )}
+            </div>
           </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+
+        {validationError && (
+          <p
+            role="alert"
+            className="text-sm text-red-700"
+            data-automation-id="FormDialog-validation"
+          >
+            {validationError}
+          </p>
+        )}
+      </div>
+
+      <DialogFooter className={form !== null ? 'sm:justify-between' : undefined}>
+        {/* Archiving replaces delete (apps/process/api.py: "there is
+            deliberately no DELETE route on forms"), so this is the only
+            archive control there is — create mode has no existing row to
+            archive, and the create endpoint has no status field. */}
+        {form !== null && (
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-slate-300"
+              checked={drafts.status === 'archived'}
+              onChange={(event) => setDraft('status', event.target.checked ? 'archived' : 'active')}
+              data-automation-id="FormDialog-archived"
+            />
+            <span className="text-slate-700">Archived</span>
+          </label>
+        )}
+        <div className="flex flex-col-reverse gap-2 sm:flex-row">
+          <Button
+            variant="outline"
+            disabled={saving}
+            onClick={() => onOpenChange(false)}
+            data-automation-id="FormDialog-cancel"
+          >
+            Cancel
+          </Button>
+          <Button
+            disabled={saving}
+            onClick={() => void save()}
+            data-automation-id="FormDialog-submit"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </DialogFooter>
+    </>
   )
 }
 

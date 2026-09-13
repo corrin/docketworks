@@ -14,7 +14,7 @@
  * component over a different column set), and every value including an
  * absent key means "office" until then.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 import type { KanbanJobOut } from '@/api'
 import { DESKTOP_MEDIA_QUERY, useMediaQuery } from '@/lib/useMediaQuery'
@@ -60,18 +60,15 @@ export function KanbanBoard({ searchQuery }: KanbanBoardProps) {
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY)
 
   const [statusDrawerJob, setStatusDrawerJob] = useState<KanbanJobOut | null>(null)
-  const [armedStaffId, setArmedStaffId] = useState<string | null>(null)
-
-  // Tap-assign is a mobile concept (v1 kanban.vue watch(isDesktop, ...)): an
-  // armed selection surviving a resize to desktop would leave the next card
-  // click assigning instead of navigating, with no armed-state UI visible to
-  // explain why.
-  useEffect(() => {
-    if (isDesktop) setArmedStaffId(null)
-  }, [isDesktop])
+  const [armedSelection, setArmedSelection] = useState<string | null>(null)
+  // Tap-assign is a mobile concept (v1 kanban.vue watch(isDesktop, ...)): on
+  // desktop a card click navigates, so an armed selection is inert there.
+  // Derived rather than cleared by an effect: the Assign control only renders
+  // below `lg`, so a selection can only be made, and is only shown, on mobile.
+  const armedStaffId = isDesktop ? null : armedSelection
 
   const handleToggleTapAssign = useCallback((staffId: string) => {
-    setArmedStaffId((current) => (current === staffId ? null : staffId))
+    setArmedSelection((current) => (current === staffId ? null : staffId))
   }, [])
 
   const handleTapAssign = useCallback(
@@ -79,7 +76,7 @@ export function KanbanBoard({ searchQuery }: KanbanBoardProps) {
       if (!armedStaffId) return
       const staffId = armedStaffId
       const success = await assignStaff(jobId, staffId)
-      if (success) setArmedStaffId(null)
+      if (success) setArmedSelection(null)
     },
     [armedStaffId, assignStaff],
   )

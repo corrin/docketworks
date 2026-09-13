@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { CheckCircle, Plus, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -47,7 +47,8 @@ export function CompanyLookup({
   const [query, setQuery] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null)
+  // The row the user last moved to; the ACTIVE row is derived from it below.
+  const [preferredCompanyId, setPreferredCompanyId] = useState<string | null>(null)
   const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const createCompany = useMutation(companiesCreateCreateMutation())
 
@@ -66,15 +67,21 @@ export function CompanyLookup({
   const suggestions = useMemo(() => search.data?.results ?? [], [search.data])
   const listboxId = `${id}-results`
 
-  useEffect(() => {
-    if (!showSuggestions || suggestions.length === 0) {
-      setActiveCompanyId(null)
-      return
-    }
-    setActiveCompanyId((current) =>
-      suggestions.some((company) => company.id === current) ? current : suggestions[0]!.id,
-    )
-  }, [showSuggestions, suggestions])
+  // Derived, not synchronised: the preference holds while it is still in the
+  // list, and the list's first row stands in otherwise — so a new response
+  // never strands a highlight on a row that is gone, and the dropdown always
+  // opens on its first row.
+  const activeCompanyId =
+    !showSuggestions || suggestions.length === 0
+      ? null
+      : suggestions.some((company) => company.id === preferredCompanyId)
+        ? preferredCompanyId
+        : suggestions[0]!.id
+
+  const hideSuggestions = () => {
+    setShowSuggestions(false)
+    setPreferredCompanyId(null)
+  }
 
   const handleInput = (value: string) => {
     if (selectedCompany) {
@@ -87,7 +94,7 @@ export function CompanyLookup({
   const handleSelect = (company: CompanySearchResult) => {
     onSelectCompany(company)
     setQuery('')
-    setShowSuggestions(false)
+    hideSuggestions()
   }
 
   const handleCompanyCreated = (company: CompanySearchResult) => {
@@ -119,8 +126,7 @@ export function CompanyLookup({
       return
     }
     if (event.key === 'Escape') {
-      setShowSuggestions(false)
-      setActiveCompanyId(null)
+      hideSuggestions()
       return
     }
     if (!searchEnabled || suggestions.length === 0) {
@@ -144,7 +150,7 @@ export function CompanyLookup({
     const offset = event.key === 'ArrowDown' ? 1 : -1
     const nextIndex =
       currentIndex === -1 ? 0 : (currentIndex + offset + suggestions.length) % suggestions.length
-    setActiveCompanyId(suggestions[nextIndex]!.id)
+    setPreferredCompanyId(suggestions[nextIndex]!.id)
   }
 
   const xeroValid = hasXeroContact(selectedCompany)
@@ -192,7 +198,7 @@ export function CompanyLookup({
             // The 200ms grace period lets an option's mousedown land before
             // the dropdown unmounts; closing on blur alone loses the click.
             onBlur={() => {
-              blurTimeout.current = setTimeout(() => setShowSuggestions(false), 200)
+              blurTimeout.current = setTimeout(hideSuggestions, 200)
             }}
           />
 
@@ -213,7 +219,7 @@ export function CompanyLookup({
                       className={`cursor-pointer border-b border-gray-100 px-4 py-2 last:border-b-0 hover:bg-blue-50 ${
                         activeCompanyId === company.id ? 'bg-blue-50' : ''
                       }`}
-                      onMouseEnter={() => setActiveCompanyId(company.id)}
+                      onMouseEnter={() => setPreferredCompanyId(company.id)}
                       onMouseDown={(event) => {
                         event.preventDefault()
                         handleSelect(company)
@@ -233,7 +239,7 @@ export function CompanyLookup({
                     data-automation-id="CompanyLookup-create-new"
                     onMouseDown={(event) => {
                       event.preventDefault()
-                      setShowSuggestions(false)
+                      hideSuggestions()
                       setShowCreateModal(true)
                     }}
                   >

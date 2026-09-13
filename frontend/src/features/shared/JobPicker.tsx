@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useQuery, type UseQueryOptions } from '@tanstack/react-query'
 
 import { jobJobsStatusChoicesRetrieveOptions } from '@/api'
@@ -166,7 +166,9 @@ export function JobPicker<T extends JobPickerOption>({
   const listPending = loading || statusLabels === undefined
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const [highlighted, setHighlighted] = useState(-1)
+  // The row the user moved the highlight to, valid only for the term and
+  // local count it was set under; `highlighted` below derives from it.
+  const [highlight, setHighlight] = useState<{ key: string; index: number } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   // Set while closing because of a pick: the caller may move focus (to the
   // hours cell), so Radix's default focus-restore-to-trigger must not run.
@@ -221,44 +223,48 @@ export function JobPicker<T extends JobPickerOption>({
   }, [local, backgroundJobs])
   const localCount = local.length
 
-  // The default highlight is the first match, reset when the TERM changes —
-  // not when the filtered array's identity changes, because a parent
-  // re-render rebuilds the jobs array and would clobber arrow-key state.
-  // Keyed on the LOCAL count specifically: background results arriving must
-  // not reset a highlight the user has already moved.
-  useEffect(() => {
-    if (!open) return
-    setHighlighted(localCount > 0 ? 0 : -1)
-  }, [open, search, localCount])
+  // The default highlight is the first match, and a moved highlight holds
+  // only while the TERM and the LOCAL count it was moved under still stand —
+  // not the filtered array's identity, because a parent re-render rebuilds
+  // the jobs array and would clobber arrow-key state, and not the background
+  // count, because results arriving must not reset a highlight the user has
+  // already moved.
+  const highlightKey = `${search}\u0000${localCount}`
+  const highlighted =
+    highlight !== null && highlight.key === highlightKey ? highlight.index : localCount > 0 ? 0 : -1
+  const moveHighlight = (index: number) => setHighlight({ key: highlightKey, index })
 
-  useEffect(() => {
-    if (!open) {
+  // Closing clears the search and the highlight from the event that closes,
+  // whichever path (pick, Escape, outside click) took it.
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next)
+    if (!next) {
       setSearch('')
-      setHighlighted(-1)
+      setHighlight(null)
     }
-  }, [open])
+  }
 
   const pick = (job: T) => {
     pickedRef.current = true
     onSelect(job)
-    setOpen(false)
+    handleOpenChange(false)
   }
 
   const onSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape') {
       event.preventDefault()
-      setOpen(false)
+      handleOpenChange(false)
       return
     }
     if (filtered.length === 0) return
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault()
-        setHighlighted((current) => Math.min(current + 1, filtered.length - 1))
+        moveHighlight(Math.min(highlighted + 1, filtered.length - 1))
         break
       case 'ArrowUp':
         event.preventDefault()
-        setHighlighted((current) => Math.max(current - 1, 0))
+        moveHighlight(Math.max(highlighted - 1, 0))
         break
       case 'Enter': {
         event.preventDefault()
@@ -288,7 +294,7 @@ export function JobPicker<T extends JobPickerOption>({
   const label = bound === '' ? placeholder : bound
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -388,7 +394,7 @@ export function JobPicker<T extends JobPickerOption>({
                   aria-selected={index === highlighted}
                   className={`cursor-pointer border-b border-slate-100 px-3 py-2 text-sm last:border-b-0 ${index === highlighted ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
                   data-automation-id={`${automationIdPrefix}-option-${job.job_number}`}
-                  onMouseEnter={() => setHighlighted(index)}
+                  onMouseEnter={() => moveHighlight(index)}
                   onClick={() => pick(job)}
                 >
                   <div className="flex items-start justify-between gap-2">

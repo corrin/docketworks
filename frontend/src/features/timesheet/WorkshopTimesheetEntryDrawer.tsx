@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { timesheetsJobsRetrieveOptions } from '@/api'
@@ -52,6 +52,10 @@ function inputTime(value: string | null): string {
  * for it. Billability follows the job type on create and on any job move —
  * billable shop time is refused at the model. An entry with no stored times
  * may be edited without imposing a pair; its hours then stay untouched.
+ *
+ * The form's state lives in WorkshopEntryForm, which DrawerContent unmounts
+ * when the drawer closes — so each open seeds from the entry being edited
+ * (or the tapped start time), with no reset to run.
  */
 export function WorkshopTimesheetEntryDrawer({
   state,
@@ -64,32 +68,67 @@ export function WorkshopTimesheetEntryDrawer({
 }: WorkshopTimesheetEntryDrawerProps) {
   const open = state.mode !== 'closed'
   const entry = state.mode === 'edit' ? state.entry : null
+  const initialStart = state.mode === 'create' ? state.start : null
 
-  const [jobId, setJobId] = useState<string | null>(null)
+  return (
+    <Drawer
+      open={open}
+      onOpenChange={(nowOpen) => {
+        // Dismissal is blocked while a write is pending: closing this drawer
+        // and opening another entry's would let the first write's completion
+        // close the second drawer.
+        if (!nowOpen && !saving) onClose()
+      }}
+    >
+      <DrawerContent className="max-h-[90vh]" data-automation-id="WorkshopTimesheetEntryDrawer">
+        <div className="mx-auto w-full max-w-md overflow-y-auto">
+          <DrawerHeader>
+            <DrawerTitle>{entry === null ? 'Add entry' : 'Edit entry'}</DrawerTitle>
+            <DrawerDescription>
+              {entry === null
+                ? 'Book your own time against a job.'
+                : `#${entry.job_number} ${entry.job_name}`}
+            </DrawerDescription>
+          </DrawerHeader>
+          <WorkshopEntryForm
+            entry={entry}
+            initialStart={initialStart}
+            date={date}
+            saving={saving}
+            onCreate={onCreate}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+            onClose={onClose}
+          />
+        </div>
+      </DrawerContent>
+    </Drawer>
+  )
+}
+
+function WorkshopEntryForm({
+  entry,
+  initialStart,
+  date,
+  saving,
+  onCreate,
+  onUpdate,
+  onDelete,
+  onClose,
+}: Omit<WorkshopTimesheetEntryDrawerProps, 'state'> & {
+  entry: WorkshopTimesheetEntryOut | null
+  /** The tapped calendar slot a new entry starts from, "HH:mm" or null. */
+  initialStart: string | null
+}) {
+  const [jobId, setJobId] = useState<string | null>(entry?.job_id ?? null)
   const [shopJob, setShopJob] = useState(false)
-  const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
-  const [description, setDescription] = useState('')
+  const [start, setStart] = useState(
+    entry === null ? (initialStart ?? '') : inputTime(entry.start_time),
+  )
+  const [end, setEnd] = useState(entry === null ? '' : inputTime(entry.end_time))
+  const [description, setDescription] = useState(entry?.description ?? '')
 
-  // Reset per open, not per render: the drawer keeps a half-typed form only
-  // while it stays open.
-  useEffect(() => {
-    if (state.mode === 'create') {
-      setJobId(null)
-      setShopJob(false)
-      setStart(state.start ?? '')
-      setEnd('')
-      setDescription('')
-    } else if (state.mode === 'edit') {
-      setJobId(state.entry.job_id)
-      setShopJob(false)
-      setStart(inputTime(state.entry.start_time))
-      setEnd(inputTime(state.entry.end_time))
-      setDescription(state.entry.description)
-    }
-  }, [state])
-
-  const jobsQuery = useQuery({ ...timesheetsJobsRetrieveOptions(), enabled: open })
+  const jobsQuery = useQuery(timesheetsJobsRetrieveOptions())
   const jobs = useMemo<TimesheetJobOut[]>(() => jobsQuery.data?.jobs ?? [], [jobsQuery.data])
   const selected = jobs.find((job) => job.id === jobId) ?? null
 
@@ -150,155 +189,134 @@ export function WorkshopTimesheetEntryDrawer({
   }
 
   return (
-    <Drawer
-      open={open}
-      onOpenChange={(nowOpen) => {
-        // Dismissal is blocked while a write is pending: closing this drawer
-        // and opening another entry's would let the first write's completion
-        // close the second drawer.
-        if (!nowOpen && !saving) onClose()
-      }}
-    >
-      <DrawerContent className="max-h-[90vh]">
-        <div className="mx-auto w-full max-w-md overflow-y-auto">
-          <DrawerHeader>
-            <DrawerTitle>{entry === null ? 'Add entry' : 'Edit entry'}</DrawerTitle>
-            <DrawerDescription>
-              {entry === null
-                ? 'Book your own time against a job.'
-                : `#${entry.job_number} ${entry.job_name}`}
-            </DrawerDescription>
-          </DrawerHeader>
-
-          <div className="space-y-4 px-4 pb-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Job</label>
-              <div className="rounded border border-slate-200">
-                <JobPicker
-                  automationIdPrefix="WorkshopTimesheetEntryDrawer-job-picker"
-                  ariaLabel="Job"
-                  jobs={jobs}
-                  selected={selected}
-                  disabled={saving}
-                  loading={jobsQuery.isPending}
-                  placeholder="Select a job"
-                  triggerLabel={(job) => {
-                    if (job) return `#${job.job_number} ${job.name}`
-                    // A bound job the list no longer offers (archived since)
-                    // must still show what the entry holds.
-                    if (entry !== null && jobId === entry.job_id) {
-                      return `#${entry.job_number} ${entry.job_name}`
-                    }
-                    return ''
-                  }}
-                  typedSearchLimit={null}
-                  commitOnTab={false}
-                  searchOptions={timesheetJobSearchOptions}
-                  onSelect={(job) => {
-                    setJobId(job.id)
-                    setShopJob(job.shop_job)
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                  htmlFor="workshop-entry-start"
-                >
-                  Start
-                </label>
-                <input
-                  id="workshop-entry-start"
-                  type="time"
-                  value={start}
-                  className="h-9 w-full rounded border border-slate-200 px-2 text-sm"
-                  data-automation-id="WorkshopTimesheetEntryDrawer-start-time"
-                  onChange={(event) => setStart(event.target.value)}
-                />
-              </div>
-              <div>
-                <label
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                  htmlFor="workshop-entry-end"
-                >
-                  End
-                </label>
-                <input
-                  id="workshop-entry-end"
-                  type="time"
-                  value={end}
-                  className="h-9 w-full rounded border border-slate-200 px-2 text-sm"
-                  data-automation-id="WorkshopTimesheetEntryDrawer-end-time"
-                  onChange={(event) => setEnd(event.target.value)}
-                />
-              </div>
-            </div>
-
-            <p
-              className="text-sm text-gray-500"
-              data-automation-id="WorkshopTimesheetEntryDrawer-duration"
-            >
-              {hours !== null && `Duration: ${formatHoursDisplay(hours)}`}
-              {hours === null &&
-                (entry !== null && untimedEdit
-                  ? `No times recorded — ${formatHoursDisplay(entry.hours)} stays as booked. Add a pair to place it on the calendar.`
-                  : 'Pick a start and an end time.')}
-            </p>
-
-            <div>
-              <label
-                className="mb-1 block text-sm font-medium text-gray-700"
-                htmlFor="workshop-entry-description"
-              >
-                Description
-              </label>
-              <textarea
-                id="workshop-entry-description"
-                value={description}
-                rows={3}
-                maxLength={255}
-                className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
-                data-automation-id="WorkshopTimesheetEntryDrawer-description"
-                onChange={(event) => setDescription(event.target.value)}
-              />
-            </div>
+    <>
+      <div className="space-y-4 px-4 pb-2">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Job</label>
+          <div className="rounded border border-slate-200">
+            <JobPicker
+              automationIdPrefix="WorkshopTimesheetEntryDrawer-job-picker"
+              ariaLabel="Job"
+              jobs={jobs}
+              selected={selected}
+              disabled={saving}
+              loading={jobsQuery.isPending}
+              placeholder="Select a job"
+              triggerLabel={(job) => {
+                if (job) return `#${job.job_number} ${job.name}`
+                // A bound job the list no longer offers (archived since)
+                // must still show what the entry holds.
+                if (entry !== null && jobId === entry.job_id) {
+                  return `#${entry.job_number} ${entry.job_name}`
+                }
+                return ''
+              }}
+              typedSearchLimit={null}
+              commitOnTab={false}
+              searchOptions={timesheetJobSearchOptions}
+              onSelect={(job) => {
+                setJobId(job.id)
+                setShopJob(job.shop_job)
+              }}
+            />
           </div>
-
-          <DrawerFooter>
-            <div className="flex items-center gap-2">
-              <Button
-                className="flex-1"
-                disabled={!canSubmit}
-                data-automation-id="WorkshopTimesheetEntryDrawer-submit"
-                onClick={() => void submit()}
-              >
-                {entry === null ? 'Add entry' : 'Save changes'}
-              </Button>
-              <Button
-                variant="outline"
-                disabled={saving}
-                data-automation-id="WorkshopTimesheetEntryDrawer-cancel"
-                onClick={onClose}
-              >
-                Cancel
-              </Button>
-              {entry !== null && (
-                <Button
-                  variant="destructive"
-                  disabled={saving}
-                  data-automation-id="WorkshopTimesheetEntryDrawer-delete"
-                  onClick={() => void remove()}
-                >
-                  Delete
-                </Button>
-              )}
-            </div>
-          </DrawerFooter>
         </div>
-      </DrawerContent>
-    </Drawer>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label
+              className="mb-1 block text-sm font-medium text-gray-700"
+              htmlFor="workshop-entry-start"
+            >
+              Start
+            </label>
+            <input
+              id="workshop-entry-start"
+              type="time"
+              value={start}
+              className="h-9 w-full rounded border border-slate-200 px-2 text-sm"
+              data-automation-id="WorkshopTimesheetEntryDrawer-start-time"
+              onChange={(event) => setStart(event.target.value)}
+            />
+          </div>
+          <div>
+            <label
+              className="mb-1 block text-sm font-medium text-gray-700"
+              htmlFor="workshop-entry-end"
+            >
+              End
+            </label>
+            <input
+              id="workshop-entry-end"
+              type="time"
+              value={end}
+              className="h-9 w-full rounded border border-slate-200 px-2 text-sm"
+              data-automation-id="WorkshopTimesheetEntryDrawer-end-time"
+              onChange={(event) => setEnd(event.target.value)}
+            />
+          </div>
+        </div>
+
+        <p
+          className="text-sm text-gray-500"
+          data-automation-id="WorkshopTimesheetEntryDrawer-duration"
+        >
+          {hours !== null && `Duration: ${formatHoursDisplay(hours)}`}
+          {hours === null &&
+            (entry !== null && untimedEdit
+              ? `No times recorded — ${formatHoursDisplay(entry.hours)} stays as booked. Add a pair to place it on the calendar.`
+              : 'Pick a start and an end time.')}
+        </p>
+
+        <div>
+          <label
+            className="mb-1 block text-sm font-medium text-gray-700"
+            htmlFor="workshop-entry-description"
+          >
+            Description
+          </label>
+          <textarea
+            id="workshop-entry-description"
+            value={description}
+            rows={3}
+            maxLength={255}
+            className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
+            data-automation-id="WorkshopTimesheetEntryDrawer-description"
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </div>
+      </div>
+
+      <DrawerFooter>
+        <div className="flex items-center gap-2">
+          <Button
+            className="flex-1"
+            disabled={!canSubmit}
+            data-automation-id="WorkshopTimesheetEntryDrawer-submit"
+            onClick={() => void submit()}
+          >
+            {entry === null ? 'Add entry' : 'Save changes'}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={saving}
+            data-automation-id="WorkshopTimesheetEntryDrawer-cancel"
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          {entry !== null && (
+            <Button
+              variant="destructive"
+              disabled={saving}
+              data-automation-id="WorkshopTimesheetEntryDrawer-delete"
+              onClick={() => void remove()}
+            >
+              Delete
+            </Button>
+          )}
+        </div>
+      </DrawerFooter>
+    </>
   )
 }
