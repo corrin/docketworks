@@ -140,7 +140,9 @@ def seed_contacts(store: FakeXeroStore) -> int:
     count = 0
     for company in Company.objects.filter(xero_contact_id__isnull=False).iterator():
         contact_id = str(company.xero_contact_id)
-        if isinstance(company.raw_json, Mapping):
+        # An empty body is no body: the standing seed company ("Demo Company
+        # Shop", the onboarding's own row) carries {} rather than NULL.
+        if isinstance(company.raw_json, Mapping) and company.raw_json:
             body = to_wire(Contact, company.raw_json)
         else:
             pushed = XeroAccountingProvider._to_xero_payload(contact_from_company(company))

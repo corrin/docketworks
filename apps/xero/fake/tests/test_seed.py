@@ -58,11 +58,19 @@ def test_the_seed_renders_mirrored_and_pushed_companies_and_mirrored_documents(
         xero_last_modified=timezone.now(),
     )
     Company.objects.create(name="[TEST] Local Only", xero_last_modified=timezone.now())
+    empty = Company.objects.create(
+        name="[TEST] Empty Body Co",
+        xero_contact_id=str(uuid.uuid4()),
+        xero_last_modified=timezone.now(),
+        raw_json={},
+    )
     invoice = _mirrored_invoice(pushed)
 
     counts = seed_accounting(store)
 
-    assert counts["contacts"] == 2
+    assert counts["contacts"] == 3
+    from_columns = store.get(Kind.CONTACT, str(empty.xero_contact_id))
+    assert from_columns is not None and from_columns.body["Name"] == "[TEST] Empty Body Co"
     assert counts["invoices"] == 1
     mirrored = store.get(Kind.CONTACT, mirrored_id)
     assert mirrored is not None and mirrored.body["ContactStatus"] == "ACTIVE"

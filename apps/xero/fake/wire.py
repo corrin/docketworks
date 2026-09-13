@@ -37,17 +37,23 @@ class WireShapeError(ValueError):
 def to_wire(model: type[BaseModel], raw_json: Mapping[str, object]) -> dict[str, Json]:
     """Return the wire JSON for one stored object of the given SDK model."""
     models_package = importlib.import_module(model.__module__.rsplit(".", 1)[0])
+    if not any(_stored_key(model, attribute) in raw_json for attribute in model.openapi_types):
+        raise WireShapeError(
+            f"the stored body carries none of {model.__name__}'s attributes; it was not "
+            "written by process_xero_data"
+        )
     wire: dict[str, Json] = {}
     for attribute, type_name in model.openapi_types.items():
         stored_key = _stored_key(model, attribute)
         if stored_key in STRIPPED_RAW_KEYS:
             # clean_json removed these before storing; there is nothing to render.
             continue
-        if stored_key not in raw_json:
-            # Every SDK constructor sets every attribute, so a missing key is a
-            # body from somewhere other than process_xero_data.
-            raise WireShapeError(f"{model.__name__}.{attribute} is absent from the stored body")
-        value = raw_json[stored_key]
+        # An absent key is an attribute the SDK has gained since the row was
+        # written (1,442 of 2,000 contacts on the 2026-09-13 restore predate
+        # Contact.tax_number_type; items predate quantity_available). The
+        # deserialiser gives an absent wire key the constructor's None, so
+        # that is what the stored body means too.
+        value = raw_json.get(stored_key)
         where = f"{_api_family(model)}:{model.__name__}.{attribute}"
         rendered = (
             None if value is None else _to_wire_value(type_name, value, models_package, where)

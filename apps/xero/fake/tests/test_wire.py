@@ -205,11 +205,21 @@ class TestMintedValues:
 class TestShapeRefusals:
     """A stored value that does not fit the SDK's type is a bug to see, not a null to send."""
 
-    def test_a_missing_attribute_is_refused(self) -> None:
+    def test_a_body_with_none_of_the_model_s_attributes_is_refused(self) -> None:
         from xero_python.accounting import Phone  # noqa: PLC0415 -- the smallest model
 
-        with pytest.raises(WireShapeError, match=r"Phone\.phone_type is absent"):
-            to_wire(Phone, {})
+        with pytest.raises(WireShapeError, match="none of Phone's attributes"):
+            to_wire(Phone, {"discriminator": None})
+
+    def test_an_attribute_the_sdk_gained_since_the_row_was_written_renders_absent(self) -> None:
+        # A restored production row predates Contact.tax_number_type; the SDK
+        # would read such a wire body as None, and so does the renderer.
+        from xero_python.accounting import Contact  # noqa: PLC0415
+
+        stored: Mapping[str, object] = {
+            f"_{attr}": None for attr in Contact.openapi_types if attr != "tax_number_type"
+        }
+        assert "TaxNumberType" not in to_wire(Contact, {**stored, "_name": "Old Row Ltd"})
 
     def test_a_string_where_a_bool_belongs_is_refused(self) -> None:
         from xero_python.accounting import Contact  # noqa: PLC0415
