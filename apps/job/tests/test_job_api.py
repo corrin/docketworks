@@ -21,8 +21,8 @@ if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse
 
 from apps.accounts.models import Staff
+from apps.accounts.tests.helpers import authenticate
 from apps.company.models import Company
-from apps.company.tests.conftest import authenticate
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job, JobDeltaRejection
 from apps.job.services.delta_checksum import compute_job_delta_checksum

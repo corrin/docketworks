@@ -16,7 +16,7 @@ Status mapping:
 - Http404                      -> 404 ``Not found.``
 - ninja HttpError              -> its status code, message verbatim
 - request validation           -> 422 with Ninja's native error list
-- anything else                -> 500, message verbatim (ADR 0013)
+- anything else                -> 500, message verbatim (ADR 0038)
 """
 
 import logging
@@ -36,6 +36,7 @@ from apps.core.errors import (
     ApplicationError,
     ConflictError,
     InvalidInputError,
+    UpstreamRefusedError,
     app_error_for,
     persist_app_error,
 )
@@ -52,6 +53,7 @@ _APPLICATION_ERROR_STATUSES: tuple[tuple[type[ApplicationError], int], ...] = (
     (InvalidInputError, 400),
     (AccessDeniedError, 403),
     (ConflictError, 409),
+    (UpstreamRefusedError, 503),
 )
 
 
@@ -185,7 +187,7 @@ def _handle_password_change_required(
     api: NinjaAPI, request: HttpRequest, exc: PasswordChangeRequiredError
 ) -> HttpResponse:
     """Render the typed refusal that locks a flagged session to the change screen."""
-    # Expected security outcome (ADR 0013): stable code, no AppError row.
+    # Expected security outcome (ADR 0038): stable code, no AppError row.
     _log_auth_warning("Password change required", request, exc)
     return api.create_response(request, password_change_required_body(), status=403)
 
@@ -289,3 +291,11 @@ def register_exception_handlers(api: NinjaAPI) -> None:
             {"detail": exc.errors, "error_id": error_id},
             status=422,
         )
+
+
+def require_if_match(request: HttpRequest) -> str:
+    """Require the version header before a resource mutation reaches its service."""
+    value = request.headers.get("If-Match")
+    if not value:
+        raise HttpError(428, "Missing If-Match header (precondition required)")
+    return value

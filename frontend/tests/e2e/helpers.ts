@@ -1,4 +1,4 @@
-import type { Locator, Page, Response } from '@playwright/test'
+import type { Browser, Locator, Page, Response } from '@playwright/test'
 import { expect, test } from '@playwright/test'
 import { appendFileSync, existsSync, mkdirSync } from 'fs'
 import path from 'path'
@@ -72,7 +72,9 @@ export function enableNetworkLogging(
     // the wire-size guard is meant to catch missing-filter bugs on JSON
     // listings, not flag legitimate document downloads.
     const isGeneratedPdfEndpoint =
-      url.includes('/delivery-docket/') || url.includes('/workshop-pdf/')
+      url.includes('/delivery-docket/') ||
+      url.includes('/workshop-pdf/') ||
+      (url.includes('/purchase-orders/') && url.includes('/pdf/'))
 
     // Opus: A payload a specific test deliberately downloads. Unlike the PDF
     // endpoints above this is scoped to one spec, so every OTHER spec still
@@ -181,9 +183,10 @@ export const autoId = (page: Page, id: string) => page.locator(`[data-automation
  * Run a semantic Playwright step whose duration is logged to the trace for
  * offline budget analysis. maxMs is documentation-only — the step never
  * fails on timing; hard timeouts are governed by the test-level timeout and
- * INFINITE_TIMEOUT safety net elsewhere.
+ * INFINITE_TIMEOUT safety net elsewhere. Named for what it does: a reader at
+ * a call site must not take the budget for an assertion.
  */
-export async function expectStepUnder<T>(
+export async function tracedStep<T>(
   title: string,
   maxMs: number,
   body: () => Promise<T>,
@@ -499,16 +502,25 @@ export async function createTestPurchaseOrder(page: Page): Promise<string> {
   const savePromise = page.waitForResponse(
     (response) =>
       response.url().includes('/api/purchasing/purchase-orders') &&
-      response.request().method() === 'POST' &&
-      response.status() === 201,
+      response.request().method() === 'POST',
     { timeout: 30000 },
   )
 
   await autoId(page, 'PoCreateView-save').click()
-  await savePromise
+  const saved = await savePromise
+  expect(saved.status(), await saved.text()).toBe(201)
 
   // Wait for redirect to PO form
   await page.waitForURL(/\/purchasing\/po\/[a-f0-9-]+$/, { timeout: 15000 })
+
+  // Opus: the URL changes before the detail route's lazy chunk has mounted, and
+  // PoSummaryCard renders two separate trees either side of mode === 'detail'.
+  // A caller that acts on the returned URL straight away is therefore acting on
+  // the CREATE tree, which the transition then unmounts underneath it — the
+  // pickup-address modal opened, fired its query, and was torn down mid-flight,
+  // which the trace shows as an aborted request. Print only exists on the
+  // detail view, so waiting for it is waiting for the tree the caller means.
+  await autoId(page, 'PoDetailView-print').waitFor({ timeout: 15000 })
 
   return page.url()
 }
@@ -518,13 +530,13 @@ export async function createTestPurchaseOrder(page: Page): Promise<string> {
  * upserts alike) to complete successfully.
  */
 export async function waitForPoAutosave(page: Page): Promise<void> {
-  await page.waitForResponse(
+  const saved = await page.waitForResponse(
     (response) =>
       response.url().includes('/api/purchasing/purchase-orders/') &&
-      response.request().method() === 'PATCH' &&
-      response.status() === 200,
+      response.request().method() === 'PATCH',
     { timeout: 10000 },
   )
+  expect(saved.status(), await saved.text()).toBe(200)
 }
 
 /**
@@ -708,4 +720,44 @@ export async function addAdjustmentCostLine(
   const savePromise = waitForAutosave(page)
   await page.getByRole('heading', { name: sectionHeading }).click()
   await savePromise
+}
+
+/** Saved rows keep the same relative order across writes and independent page loads. */
+export async function expectSavedRowOrder(page: Page, ids: readonly string[]): Promise<void> {
+  const selector = ids.map((id) => `[data-row-id="${id}"]`).join(',')
+  // Polled under the test-level budget, not expect's 5s default: the call
+  // follows a reload or a fresh context, so the rows exist only after the
+  // app's boot requests, and on the public origin those alone take seconds.
+  // A wrong order is still reported as soon as the rows are there.
+  await expect
+    .poll(
+      () =>
+        page
+          .locator(selector)
+          .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-row-id'))),
+      { timeout: INFINITE_TIMEOUT },
+    )
+    .toEqual(ids)
+}
+
+/** A fresh authenticated context must receive the same saved order from the server. */
+export async function expectSavedRowOrderInNewSession(
+  page: Page,
+  browser: Browser,
+  ids: readonly string[],
+): Promise<void> {
+  const context = await browser.newContext({ storageState: await page.context().storageState() })
+  try {
+    const other = await context.newPage()
+    const errors: string[] = []
+    other.on('pageerror', (error) => errors.push(error.message))
+    other.on('console', (message) => {
+      if (message.type() === 'error') errors.push(message.text())
+    })
+    await other.goto(page.url())
+    await expectSavedRowOrder(other, ids)
+    expect(errors).toEqual([])
+  } finally {
+    await context.close()
+  }
 }

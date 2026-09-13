@@ -53,6 +53,7 @@ export function PersonSelector({
     enabled: companyId !== '',
   })
   const people = peopleQuery.data ?? []
+  const peopleError = peopleQuery.isError
 
   useEffect(() => {
     if (!autoSelectPrimary) {
@@ -138,6 +139,14 @@ export function PersonSelector({
       </div>
 
       {!companyId && <p className="mt-1 text-xs text-gray-500">Please select a company first</p>}
+      {peopleError && (
+        <p className="mt-1 text-xs text-red-700">
+          Could not load people.{' '}
+          <button type="button" className="underline" onClick={() => void peopleQuery.refetch()}>
+            Retry
+          </button>
+        </p>
+      )}
 
       <PersonSelectionModal
         open={isModalOpen}
@@ -145,6 +154,7 @@ export function PersonSelector({
         companyName={companyName}
         people={people}
         isLoadingPeople={companyId !== '' && peopleQuery.isPending}
+        isErrorPeople={peopleError}
         selectedPersonId={selectedPerson?.person_id ?? null}
         onClose={() => setIsModalOpen(false)}
         onSelectPerson={selectManually}

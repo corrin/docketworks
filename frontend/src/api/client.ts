@@ -46,7 +46,7 @@ client.instance.interceptors.response.use(
   (error: unknown) => handleConcurrencyFailure(error),
 )
 
-installAuthRecovery(client.instance, async () => {
+export const refreshAccessToken = installAuthRecovery(client.instance, async () => {
   await accountsTokenRefreshCreate({ body: {}, throwOnError: true })
 })
 

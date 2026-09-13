@@ -81,7 +81,13 @@ def test_a_stamped_entry_reaches_the_worker_as_request_periodic_task_name(
     """
     options = app.conf.beat_schedule["run_all_scrapers_weekly"]["options"]
 
-    probe_app = Celery("beat_header_probe", broker="memory://", backend="cache+memory://")
+    # set_as_current=False: a Celery() call otherwise becomes the process's
+    # current app, and every schedule in config.celery resolves its timezone
+    # through the current app on first use, so the beat entries read back as
+    # UTC for the rest of the module.
+    probe_app = Celery(
+        "beat_header_probe", broker="memory://", backend="cache+memory://", set_as_current=False
+    )
 
     @probe_app.task(name="probe.capture")
     def probe() -> None: ...
@@ -153,6 +159,13 @@ class TestXeroBeatEntries:
         entry = app.conf.beat_schedule["xero_regular_sync_task"]
         assert entry["task"] == "apps.xero.tasks.xero_regular_sync_task"
         assert entry["schedule"] == crontab(minute="15")
+
+    def test_employee_details_daily_at_local_1550(self) -> None:
+        entry = app.conf.beat_schedule["xero_detail_refresh"]
+        assert entry["task"] == "apps.xero.tasks.xero_regular_sync_task"
+        assert entry["schedule"] == crontab(minute="50", hour="15")
+        assert entry["kwargs"] == {"detail_refresh": True}
+        assert str(entry["schedule"].tz) == "Pacific/Auckland"
 
     def test_deep_sync_window_saturday_2am(self) -> None:
         entry = app.conf.beat_schedule["xero_30_day_sync_task"]

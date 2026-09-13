@@ -9,6 +9,10 @@
  *   npx tsx tests/scripts/analyze-e2e-rolling.ts test-history/test-runs.csv
  *   npx tsx tests/scripts/analyze-e2e-rolling.ts --window=5 --min-observations=6
  *   npx tsx tests/scripts/analyze-e2e-rolling.ts --include-v1-baseline
+ *   npx tsx tests/scripts/analyze-e2e-rolling.ts --include-fake
+ *
+ * Rows from runs against the fake Xero (ADR 0060) are left out unless
+ * --include-fake is passed: they time a different backend.
  *
  * Ported from v1 (same path). Adaptation: reads v2's own test-history/ by
  * default; --include-v1-baseline merges the archived v1 corpus in (see
@@ -329,10 +333,12 @@ const cli = parseCliArgs({
     output: { type: 'string' },
     csv: { type: 'string' },
     [includeV1Option]: { type: 'boolean' },
+    'include-fake': { type: 'boolean' },
   },
   allowPositionals: true,
 })
 const includeV1 = cli.booleanFlag(includeV1Option)
+const includeFake = cli.booleanFlag('include-fake')
 const windowSize = cli.integerFlag('window', 5)
 const minObservations = cli.integerFlag('min-observations', windowSize + 1)
 const outputFlag = cli.stringFlag('output')
@@ -353,6 +359,7 @@ for (const source of sources) {
 
 const rows = sources
   .flatMap((source) => parseTestRunHistory(fs.readFileSync(source.path, 'utf8'), source.era))
+  .filter((row) => includeFake || row.xero === 'real')
   .toSorted((left, right) => left.runDate.localeCompare(right.runDate))
 const series = buildSeries(rows, windowSize)
 const rankings = latestRankings(series, minObservations)

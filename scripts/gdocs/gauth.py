@@ -1,8 +1,7 @@
 """Client builders shared by the Google Docs/Drive authoring scripts.
 
-The credential builders live in ``apps/core/gauth.py`` (one implementation,
-ADR 0039 — they moved there when the password-reset email gave application
-code its first Google call; scripts may import apps, never the reverse).
+The credential builders live in ``apps/platform/integrations/google/credentials.py``
+(ADR 0039: scripts consume the application's adapter, never the reverse).
 This module keeps the Drive/Docs client constructors and scope constants the
 authoring toolchain shares.
 """
@@ -13,8 +12,9 @@ from typing import TYPE_CHECKING
 
 from googleapiclient.discovery import build
 
-from apps.core.gauth import (
+from apps.platform.integrations.google.credentials import (
     delegated_credentials,
+    delegated_subject,
     service_account_credentials,
 )
 
@@ -31,8 +31,6 @@ __all__ = [
     "build_delegated_drive_and_docs",
     "build_drive",
     "build_service_account_drive",
-    "delegated_credentials",
-    "service_account_credentials",
 ]
 
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
@@ -64,10 +62,20 @@ def build_service_account_drive() -> DriveResource:
 
 def build_delegated_drive() -> DriveResource:
     """Drive client impersonating the resolved Workspace subject."""
-    return build_drive(delegated_credentials([DRIVE_SCOPE]))
+    from apps.core.models import CompanyDefaults
+
+    return build_drive(
+        delegated_credentials(
+            [DRIVE_SCOPE], delegated_subject(CompanyDefaults.get_solo().company_email)
+        )
+    )
 
 
 def build_delegated_drive_and_docs() -> tuple[DriveResource, DocsResource]:
     """Drive + Docs client pair sharing one set of delegated credentials."""
-    creds = delegated_credentials([DRIVE_SCOPE, DOCS_SCOPE])
+    from apps.core.models import CompanyDefaults
+
+    creds = delegated_credentials(
+        [DRIVE_SCOPE, DOCS_SCOPE], delegated_subject(CompanyDefaults.get_solo().company_email)
+    )
     return build_drive(creds), build("docs", "v1", credentials=creds)

@@ -32,6 +32,7 @@ from apps.purchasing.models import Stock
 from apps.purchasing.services import stock_service
 from apps.purchasing.services.allocation_service import (
     AllocationMetadata,
+    MaterialAllocation,
     create_stock_from_allocation,
 )
 from apps.purchasing.tasks import (
@@ -41,7 +42,7 @@ from apps.purchasing.tasks import (
     stock_metadata_incomplete,
     stock_metadata_parse_eligible,
 )
-from apps.purchasing.tests.conftest import make_po_line, make_purchase_order, make_stock
+from apps.purchasing.tests.factories import make_po_line, make_purchase_order, make_stock
 from apps.quoting.models import ProductParsingMapping
 from apps.quoting.services.stock_parser import auto_parse_stock_item
 from apps.quoting.tests.conftest import LLM_BOUNDARY, llm_reply
@@ -385,7 +386,7 @@ class TestStockWriteSitesQueueTheParser:
 
     def test_the_create_endpoint_queues_a_parse(
         self,
-        client: Client,
+        api: Client,
         stock_holding_job: Job,  # noqa: ARG002 -- resolves Stock.get_stock_holding_job()
         django_capture_on_commit_callbacks: DjangoCaptureOnCommitCallbacks,
     ) -> None:
@@ -393,11 +394,11 @@ class TestStockWriteSitesQueueTheParser:
             patch("apps.purchasing.tasks.parse_stock_item_task.delay") as delay,
             django_capture_on_commit_callbacks(execute=True),
         ):
-            response = client.post(
+            response = api.post(
                 STOCK_URL,
                 data={
                     "description": ALUMINIUM_SHEET,
-                    "quantity": "1",
+                    "quantity": 0,
                     "unit_cost": "10.00",
                     "source": "manual",
                 },
@@ -410,7 +411,7 @@ class TestStockWriteSitesQueueTheParser:
 
     def test_the_create_endpoint_skips_the_parse_when_metadata_is_supplied(
         self,
-        client: Client,
+        api: Client,
         stock_holding_job: Job,  # noqa: ARG002 -- resolves Stock.get_stock_holding_job()
         django_capture_on_commit_callbacks: DjangoCaptureOnCommitCallbacks,
     ) -> None:
@@ -418,11 +419,11 @@ class TestStockWriteSitesQueueTheParser:
             patch("apps.purchasing.tasks.parse_stock_item_task.delay") as delay,
             django_capture_on_commit_callbacks(execute=True),
         ):
-            response = client.post(
+            response = api.post(
                 STOCK_URL,
                 data={
                     "description": ALUMINIUM_SHEET,
-                    "quantity": "1",
+                    "quantity": 0,
                     "unit_cost": "10.00",
                     "source": "manual",
                     "metal_type": "aluminium",
@@ -437,7 +438,7 @@ class TestStockWriteSitesQueueTheParser:
 
     def test_the_patch_endpoint_queues_a_parse(
         self,
-        client: Client,
+        api: Client,
         stock_holding_job: Job,
         django_capture_on_commit_callbacks: DjangoCaptureOnCommitCallbacks,
     ) -> None:
@@ -447,7 +448,7 @@ class TestStockWriteSitesQueueTheParser:
             patch("apps.purchasing.tasks.parse_stock_item_task.delay") as delay,
             django_capture_on_commit_callbacks(execute=True),
         ):
-            response = client.patch(
+            response = api.patch(
                 f"{STOCK_URL}{stock.id}/",
                 data={"description": ALUMINIUM_SHEET},
                 content_type="application/json",
@@ -472,10 +473,13 @@ class TestStockWriteSitesQueueTheParser:
         ):
             stock = create_stock_from_allocation(
                 line=line,
-                job=stock_holding_job,
-                qty=Decimal("1.00"),
-                metadata=AllocationMetadata.from_line(line),
-                retail_rate_pct=Decimal("20.00"),
+                allocation=MaterialAllocation(
+                    stock_holding_job,
+                    Decimal("1.00"),
+                    AllocationMetadata.from_line(line),
+                    Decimal("20.00"),
+                ),
+                staff=office_staff,
             )
 
         delay.assert_called_once_with(str(stock.id), force=False)
@@ -497,9 +501,8 @@ class TestStockWriteSitesQueueTheParser:
                 stock_service.create_stock(
                     {
                         "description": ALUMINIUM_SHEET,
-                        "quantity": Decimal("1"),
-                        "unit_cost": Decimal("10.00"),
-                    }
+                    },
+                    unit_cost=Decimal("10.00"),
                 )
 
             delay.assert_not_called()

@@ -9,22 +9,25 @@ The beat entries that drive the hourly/weekly runs are pinned in
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime
 from unittest.mock import MagicMock, call, patch
 
 import pytest
 from django.conf import settings
 from django.core.cache import caches
 from django.test import Client, override_settings
+from django.utils import timezone
 
 from apps.core.models import AppError, CompanyDefaults
 from apps.xero.client import XeroQuotaFloorReached, XeroSyncLockLost
+from apps.xero.models import XeroDetailRefresh
 from apps.xero.sync_constants import (
     LOCK_TIMEOUT,
     SYNC_STATUS_KEY,
     renew_sync_lock,
     require_sync_lock,
 )
-from apps.xero.sync_service import XeroSyncService
+from apps.xero.sync_service import XeroSyncService, detail_refresh_due
 from apps.xero.sync_worker import xero_sync_task
 
 SYNC_URL = "/api/xero/sync/"
@@ -89,7 +92,7 @@ class TestXeroSyncCreate:
         assert body["status"] == "started"
         task_id = body["task_id"]
         assert task_id
-        mock_delay.assert_called_once_with(task_id)
+        mock_delay.assert_called_once_with(task_id, detail_refresh=False, only_if_due=False)
         # The lock value IS the task id, so readers can attach to the run.
         assert _shared.get(SYNC_STATUS_KEY) == task_id
 
@@ -162,7 +165,7 @@ class TestStartSyncLockRelease:
         provider = MagicMock()
         provider.get_valid_token.return_value = {"access_token": "t"}
 
-        def _steal_then_fail(_task_id: str) -> None:
+        def _steal_then_fail(_task_id: str, **_kwargs: object) -> None:
             self._steal_the_lock()
             raise RuntimeError("broker down")
 
@@ -385,3 +388,83 @@ class TestLockRenewal:
 
         assert renew_sync_lock("my-run") is True
         assert _shared.get(SYNC_STATUS_KEY) == "my-run"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("now", "last_success", "due"),
+    [
+        ("2026-09-09T15:49:00+12:00", "2026-09-08T15:50:00+12:00", False),
+        ("2026-09-09T15:50:00+12:00", "2026-09-09T09:00:00+12:00", True),
+        ("2026-09-09T17:00:00+12:00", "2026-09-09T16:00:00+12:00", False),
+        ("2026-09-10T09:00:00+12:00", "2026-09-08T16:00:00+12:00", True),
+        ("2026-09-27T15:49:00+13:00", "2026-09-26T15:50:00+12:00", False),
+        ("2026-09-27T15:50:00+13:00", "2026-09-26T15:50:00+12:00", True),
+        ("2027-04-04T15:49:00+12:00", "2027-04-03T15:50:00+13:00", False),
+        ("2027-04-04T15:50:00+12:00", "2027-04-03T15:50:00+13:00", True),
+    ],
+)
+def test_detail_refresh_due_uses_local_boundary_and_dst(
+    now: str,
+    last_success: str,
+    due: bool,
+) -> None:
+
+    XeroDetailRefresh.objects.create(
+        tenant_id="tenant-1",
+        last_success_at=datetime.fromisoformat(last_success),
+    )
+    with patch("apps.xero.sync_service.timezone.now", return_value=datetime.fromisoformat(now)):
+        assert detail_refresh_due("tenant-1") is due
+        assert detail_refresh_due("different-tenant") is True
+
+
+@pytest.mark.django_db
+@override_settings(XERO_READONLY=False)
+def test_scheduled_details_recheck_due_under_worker_lock() -> None:
+
+    _shared.set(SYNC_STATUS_KEY, "scheduled-details")
+    XeroDetailRefresh.objects.create(tenant_id="tenant-1", last_success_at=timezone.now())
+    with (
+        patch("apps.xero.sync.get_tenant_id", return_value="tenant-1"),
+        patch("apps.xero.sync.sync_all_xero_data") as fetch,
+        _captured_events() as events,
+    ):
+        xero_sync_task("scheduled-details", detail_refresh=True, only_if_due=True)
+
+    fetch.assert_not_called()
+    assert events[-1]["sync_status"] == "success"
+    assert _shared.get(SYNC_STATUS_KEY) is None
+
+
+@pytest.mark.django_db
+def test_manual_detail_trigger_uses_shared_dispatch_and_progress_lock(api: Client) -> None:
+    with (
+        patch("apps.xero.sync_service.get_provider") as provider,
+        patch.object(xero_sync_task, "delay") as dispatch,
+    ):
+        provider.return_value.get_valid_token.return_value = {"access_token": "test"}
+        response = api.post(SYNC_URL + "?detail_refresh=true")
+        assert response.status_code == 202
+        task_id = response.json()["task_id"]
+        dispatch.assert_called_once_with(task_id, detail_refresh=True, only_if_due=False)
+        assert api.post(SYNC_URL + "?detail_refresh=true").status_code == 409
+        assert api.get(SYNC_INFO_URL).json()["sync_in_progress"] is True
+
+
+@pytest.mark.django_db
+def test_sync_info_reads_only_the_connected_tenants_detail_success(api: Client) -> None:
+
+    defaults = CompanyDefaults.get_solo()
+    defaults.xero_tenant_id = "connected-tenant"
+    defaults.save(update_fields=["xero_tenant_id"])
+    XeroDetailRefresh.objects.create(tenant_id="other-tenant", last_success_at=timezone.now())
+    with patch(
+        "apps.xero.sync_service.get_provider", side_effect=AssertionError("GET called Xero")
+    ):
+        assert api.get(SYNC_INFO_URL).json()["last_detail_refresh"] is None
+        successful = timezone.now()
+        XeroDetailRefresh.objects.create(tenant_id="connected-tenant", last_success_at=successful)
+        assert api.get(SYNC_INFO_URL).json()["last_detail_refresh"] == successful.isoformat(
+            timespec="milliseconds"
+        ).replace("+00:00", "Z")

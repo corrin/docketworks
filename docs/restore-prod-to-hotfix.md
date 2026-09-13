@@ -31,10 +31,12 @@ no further superuser access.
 ## The load sequence
 
 The load itself is the one in
-[`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md): restore the dump
-into a v1-shaped source database, reset and migrate the target, and load it
-with `scripts/ops/migrate_v1_data.sh`. It differs here only in which checkout,
-domain, and database it targets, plus the unscrubbed-specific repairs below.
+[`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md): empty the target with
+the sanctioned wipe, `pg_restore` the archive into it, then `migrate` forward. It
+differs here only in which checkout, domain, and database it targets, plus the
+unscrubbed-specific repairs below. Role parity makes it simpler here than there:
+this checkout connects as `dw_msm_prod`, the role the dump already records, so the
+restore needs no ownership rewriting.
 Two of that runbook's steps change meaning against an unscrubbed dump:
 
 - **The preserve/re-insert step does not apply.** The scrubbed dump strips
@@ -80,10 +82,11 @@ Two of that runbook's steps change meaning against an unscrubbed dump:
    The same URI must be registered in the Xero developer app:
    `https://docketworks-msm-hotfix.ngrok-free.app/api/xero/oauth/callback/`.
 
-   Generated links need no equivalent repair: `migrate_v1_data.sh` excludes
-   `django_site`, nothing reads the sites framework, and every absolute URL is
-   built from this checkout's `APP_DOMAIN`, so production's domain never
-   reaches the target database.
+   Generated links need no equivalent repair. The restore does bring
+   production's `django_site` row, but no code in this repository reads the
+   sites framework — it is installed for a dependency's benefit, and every
+   absolute URL is built from this checkout's `APP_DOMAIN` — so that row
+   changes no link the application emits.
 
 4. **Restore production-owned files referenced by the database.** The restore
    brings file **paths**, not files. Before testing anything that renders

@@ -26,8 +26,8 @@ if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse
 
 from apps.accounts.models import Staff
+from apps.accounts.tests.helpers import authenticate
 from apps.company.models import Company
-from apps.company.tests.conftest import authenticate
 from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job, JobFile
 from apps.job.tasks import create_job_file_thumbnail_task

@@ -19,7 +19,7 @@ from apps.accounting.services import (
     staff_performance_service,
     wip_service,
 )
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import make_invoice, make_job, make_material_line
 from apps.core.models import CompanyDefaults
 from apps.timesheet.tests.conftest import make_staff, make_time_line

@@ -20,7 +20,9 @@ from __future__ import annotations
 import datetime
 import shutil
 from decimal import Decimal
+from itertools import count
 from pathlib import Path
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from django.apps import apps as django_apps
@@ -115,10 +117,14 @@ def build_golden_job(test_staff: Staff) -> Job:
     # so PDF output stays byte-identical regardless of which seed fixtures a
     # caller happens to load — this builder is the single source of truth for
     # every field that influences the rendered PDF.
-    PhoneEndpoint.objects.create(
-        number="+6496365131",
-        label="Main line",
-        endpoint_type=PhoneEndpoint.EndpointType.MAIN_LINE,
+    PhoneEndpoint.objects.update_or_create(
+        normalized_number="+6496365131",
+        defaults={
+            "number": "+6496365131",
+            "label": "Main line",
+            "endpoint_type": PhoneEndpoint.EndpointType.MAIN_LINE,
+            "is_active": True,
+        },
     )
 
     company = Company.objects.create(
@@ -151,6 +157,8 @@ def build_golden_job(test_staff: Staff) -> Job:
         delta_after={"status": "approved"},
     )
 
+    # GPT: frozen timestamps tie, so the PDF fixture also needs reproducible line IDs.
+    cost_line_ids = count(1)
     estimate = job.cost_sets.get(kind="estimate")
     for subtype_name, desc, quantity in [
         ("Workshop", "Fabrication and welding", Decimal("3.50")),
@@ -160,6 +168,7 @@ def build_golden_job(test_staff: Staff) -> Job:
         ("Supervision", "Workshop supervision", Decimal("0.50")),
     ]:
         CostLine.objects.create(
+            id=UUID(int=next(cost_line_ids)),
             cost_set=estimate,
             kind="time",
             labour_subtype=LabourSubtype.objects.get(name=subtype_name),
@@ -177,6 +186,7 @@ def build_golden_job(test_staff: Staff) -> Job:
         ("Onsite", "Onsite actual", Decimal("0.50")),
     ]:
         CostLine.objects.create(
+            id=UUID(int=next(cost_line_ids)),
             cost_set=actual,
             kind="time",
             labour_subtype=LabourSubtype.objects.get(name=subtype_name),
@@ -196,6 +206,7 @@ def build_golden_job(test_staff: Staff) -> Job:
         )
 
     CostLine.objects.create(
+        id=UUID(int=next(cost_line_ids)),
         cost_set=actual,
         kind="material",
         desc="Stainless steel sheet 3mm",
@@ -205,6 +216,7 @@ def build_golden_job(test_staff: Staff) -> Job:
         accounting_date=FROZEN_NOW.date(),
     )
     CostLine.objects.create(
+        id=UUID(int=next(cost_line_ids)),
         cost_set=actual,
         kind="material",
         desc="M6 fasteners",

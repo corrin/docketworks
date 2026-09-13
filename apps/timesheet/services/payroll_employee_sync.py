@@ -203,6 +203,17 @@ def match_staff_to_employee(staff: Staff, index: EmployeeIndex) -> EmployeeRecor
     return index.by_name.get((first, last))
 
 
+def xero_employee_email(staff: Staff) -> str | None:
+    """Name the mailbox Xero holds for this staff member; None when there is none to send.
+
+    Fable: office first to preserve the proven both-emails behaviour; for
+    payroll-only staff the payroll address IS the mailbox Xero should hold.
+    One rule for the seed that creates the employee and for anything that
+    must say what Xero was told, so the two cannot drift.
+    """
+    return clean_string(staff.office_email, 255) or clean_string(staff.payroll_email, 255)
+
+
 def email_label(staff: Staff) -> str | None:
     """Whichever address identifies this staff member in diagnostics."""
     return staff.office_email or staff.payroll_email
@@ -409,9 +420,7 @@ def _employee_spec(
     """
     first_name = clean_string(staff.first_name, 35)
     last_name = clean_string(staff.last_name, 35)
-    # Fable: office first to preserve the proven both-emails behaviour; for
-    # payroll-only staff the payroll address IS the mailbox Xero should hold.
-    email = clean_string(staff.office_email, 255) or clean_string(staff.payroll_email, 255)
+    email = xero_employee_email(staff)
     if first_name is None or last_name is None or email is None:
         raise StaffNotPayrollReadyError(f"Staff {staff.id} has no usable name or email")
 

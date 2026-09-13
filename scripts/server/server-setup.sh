@@ -404,19 +404,18 @@ fi
 
 # --- Firewall (UFW) ---
 # UFW is the sole host firewall: default-deny incoming, IPv4 and IPv6,
-# with only SSH (rate-limited), HTTP and HTTPS exposed. Raw iptables +
-# iptables-persistent (the v1 approach) opened 80/443 but never set a
-# default-deny policy and never covered IPv6 — hosts still carrying that
-# setup must go through the cutover helper, which snapshots and disables
-# it first; enabling UFW alongside a live netfilter-persistent ruleset
-# would leave two owners fighting over the same tables.
+# with only SSH (rate-limited), HTTP and HTTPS exposed. Enabling UFW
+# alongside a live netfilter-persistent ruleset would leave two owners
+# fighting over the same tables, so a host still carrying one is refused
+# until the old ruleset is recorded and switched off.
 
 if systemctl is-enabled --quiet netfilter-persistent 2>/dev/null; then
     echo "ERROR: netfilter-persistent is still enabled on this host." >&2
-    echo "  This is a legacy v1 firewall setup. Migrate it first with the" >&2
-    echo "  cutover helper (scripts/server/cutover/), which records the" >&2
-    echo "  existing rules and disables netfilter-persistent before UFW" >&2
-    echo "  takes over." >&2
+    echo "  Two firewall owners cannot share the same tables. Record the" >&2
+    echo "  existing rules and disable it before re-running:" >&2
+    echo "    iptables-save > ~/netfilter-rules-\$(date +%Y%m%d).bak" >&2
+    echo "    ip6tables-save > ~/netfilter6-rules-\$(date +%Y%m%d).bak" >&2
+    echo "    systemctl disable --now netfilter-persistent" >&2
     exit 1
 fi
 

@@ -167,7 +167,10 @@ def append_chunk(new: NewChunk) -> SessionReplayChunk:
     """
     recording = new.recording
     events = _decode_events(new.events_json)
-    compressed = gzip.compress(new.events_json.encode("utf-8"), compresslevel=6)
+    # mtime=0: gzip stamps the current time into its header, so two compressions
+    # of one payload differ and the FileExistsError retry below could never
+    # match the stored hash. Zero makes the bytes a function of the payload.
+    compressed = gzip.compress(new.events_json.encode("utf-8"), compresslevel=6, mtime=0)
     storage_path = _chunk_storage_path(recording.id, new.sequence)
 
     chunk = SessionReplayChunk.objects.create(
@@ -194,7 +197,7 @@ def append_chunk(new: NewChunk) -> SessionReplayChunk:
     recording.event_count = F("event_count") + chunk.event_count
     recording.compressed_bytes = F("compressed_bytes") + chunk.compressed_bytes
     recording.latest_path = new.path
-    recording.job_id = new.job_id or recording.job_id
+    recording.job_id = new.job_id
     recording.viewport_width = new.viewport.width
     recording.viewport_height = new.viewport.height
     recording.save(

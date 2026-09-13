@@ -6,7 +6,7 @@
  * Opus: two functions rather than one nullable return. A test asserting
  * presence wants the failure at the missing element, naming it; a test
  * asserting absence needs the null. One `| null` function would push a guard
- * into every presence caller, which is the shape ADR 0045 rejects — and it is
+ * into every presence caller, which is the shape ADR 0028 rejects — and it is
  * how six copies of this drifted into two different signatures.
  *
  * `within` narrows the search to one subtree, for asserting over what a test

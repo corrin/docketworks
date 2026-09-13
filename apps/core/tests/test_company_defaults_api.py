@@ -172,3 +172,59 @@ def test_patch_rejects_a_shop_company_that_does_not_exist(superuser_api: Client)
     )
 
     assert response.status_code == 400
+
+
+class TestXeroSyncGate:
+    """Sync may not be switched on before the Xero organisation is bound.
+
+    Opus: the settings screen is the only writer that can reach that state. Both
+    management commands run `xero --setup` first, which discovers the tenant from
+    the connection, so they cannot open the gate against a null one.
+    """
+
+    def test_patch_refuses_to_enable_sync_without_a_tenant(self, superuser_api: Client) -> None:
+        """The baseline row has no tenant, which is a fresh instance before OAuth."""
+        assert CompanyDefaults.get_solo().xero_tenant_id is None
+        CompanyDefaults.set_xero_sync_enabled(enabled=False)
+
+        response = superuser_api.patch(
+            URL, {"enable_xero_sync": True}, content_type="application/json"
+        )
+
+        assert response.status_code == 400
+        assert CompanyDefaults.get_solo().enable_xero_sync is False
+
+    def test_patch_enables_sync_once_the_tenant_is_bound(self, superuser_api: Client) -> None:
+        defaults = CompanyDefaults.get_solo()
+        defaults.xero_tenant_id = str(uuid.uuid4())
+        defaults.enable_xero_sync = False
+        defaults.save(update_fields=["xero_tenant_id", "enable_xero_sync"])
+
+        response = superuser_api.patch(
+            URL, {"enable_xero_sync": True}, content_type="application/json"
+        )
+
+        assert response.status_code == 200
+        assert CompanyDefaults.get_solo().enable_xero_sync is True
+
+    def test_patch_always_allows_disabling_sync(self, superuser_api: Client) -> None:
+        """Closing the gate is how an operator stops a misbehaving sync; never refuse it."""
+        response = superuser_api.patch(
+            URL, {"enable_xero_sync": False}, content_type="application/json"
+        )
+
+        assert response.status_code == 200
+        assert CompanyDefaults.get_solo().enable_xero_sync is False
+
+    def test_a_refused_enable_writes_none_of_the_other_fields(self, superuser_api: Client) -> None:
+        """The handler has two writers, so a partial apply is the failure to prevent."""
+        original = CompanyDefaults.get_solo().company_name
+
+        response = superuser_api.patch(
+            URL,
+            {"enable_xero_sync": True, "company_name": "Renamed By A Refused Patch"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        assert CompanyDefaults.get_solo().company_name == original

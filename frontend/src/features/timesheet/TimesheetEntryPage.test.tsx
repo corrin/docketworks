@@ -67,6 +67,7 @@ function line(id: string, quantity: string, isBillable: boolean, totalRev: numbe
     xero_last_modified: null,
     xero_last_synced: null,
     approved: true,
+    managed_by: null,
     xero_pay_item: null,
     staff: STAFF_ID,
     entry_seq: 1,

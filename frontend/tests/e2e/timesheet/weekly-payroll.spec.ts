@@ -85,8 +85,11 @@ test.describe('weekly timesheets', () => {
 
     await openWeek(page, week)
     const firstCell = page.locator('[data-automation-id^="WeeklyOverview-cell-"]').first()
+    // The id is WeeklyOverview-cell-<staffId>-<YYYY-MM-DD>; the route carries both.
+    const cellId = (await firstCell.getAttribute('data-automation-id'))!
+    const staffId = cellId.replace('WeeklyOverview-cell-', '').slice(0, -'YYYY-MM-DD'.length - 1)
     await firstCell.click()
-    await page.waitForURL('**/timesheets/entry**')
+    await page.waitForURL(`**/timesheets/entry**staffId=${staffId}**`)
   })
 
   test('a staff row expands into its payroll categories', async ({ authenticatedPage: page }) => {

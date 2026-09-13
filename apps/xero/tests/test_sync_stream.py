@@ -24,14 +24,22 @@ def test_requires_the_access_cookie(client: Client) -> None:
     response = client.get(STREAM_URL)
 
     assert response.status_code == 401
-    assert response.json() == {"detail": "Authentication credentials were not provided."}
+    assert response.json() == {
+        "code": "authentication_required",
+        "detail": "Authentication required.",
+        "error_id": None,
+    }
 
 
 def test_workshop_staff_get_the_same_unrevealing_401(non_office_api: Client) -> None:
     response = non_office_api.get(STREAM_URL)
 
     assert response.status_code == 401
-    assert response.json() == {"detail": "Authentication credentials were not provided."}
+    assert response.json() == {
+        "code": "authentication_required",
+        "detail": "Authentication required.",
+        "error_id": None,
+    }
 
 
 def test_opens_an_event_stream_for_office_staff(api: Client) -> None:

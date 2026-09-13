@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class XeroValidationError(Exception):
-    """A Xero object is missing required fields.
+    """A Xero object has missing fields or violates a domain amendment rule.
 
     Args:
         missing_fields: Names of the missing attributes.
@@ -21,12 +21,21 @@ class XeroValidationError(Exception):
         xero_id: Identifier for the record in Xero.
     """
 
-    def __init__(self, missing_fields: list[str], entity: str, xero_id: str | None) -> None:
+    def __init__(
+        self,
+        missing_fields: list[str],
+        entity: str,
+        xero_id: str | None,
+        *,
+        message: str | None = None,
+    ) -> None:
         """Carry the record's identity so the error row can name it."""
         self.missing_fields = missing_fields
         self.entity = entity
         self.xero_id = xero_id
-        super().__init__(f"Missing fields {missing_fields} for {entity} {xero_id}")
+        if message is None:
+            message = f"Missing fields {missing_fields} for {entity} {xero_id}"
+        super().__init__(message)
 
 
 def persist_xero_error(exc: XeroValidationError) -> None:

@@ -1,7 +1,13 @@
 import { flexRender, type RowData, type Table } from '@tanstack/react-table'
 
+import { cn } from '@/lib/utils'
 import type { editableGridFeatures } from './editableGridTable'
 import type { RowExitBlurEvent } from './useDraftRows'
+
+export interface DataTableColumnLayout {
+  widthClassName?: string
+  headerClassName?: string
+}
 
 interface RowExitHandlers {
   onBlur: (event: RowExitBlurEvent) => void
@@ -21,6 +27,7 @@ interface DataTableProps<TRow extends RowData> {
   wrapperClassName?: string
   /** Marker class on the table element (e.g. 'smart-costlines-table'). */
   tableClassName?: string
+  columnLayout?: Readonly<Record<string, DataTableColumnLayout>>
 }
 
 /**
@@ -53,17 +60,28 @@ export function DataTable<TRow extends RowData>({
   rowExitHandlers,
   wrapperClassName,
   tableClassName,
+  columnLayout,
 }: DataTableProps<TRow>) {
   return (
-    <div className={joinClasses(wrapperClassName, 'overflow-x-auto')}>
-      <table className={joinClasses(tableClassName, 'min-w-full text-sm')}>
+    <div className={cn('min-w-0 max-w-full overflow-x-auto', wrapperClassName)}>
+      <table className={cn('min-w-full text-sm', tableClassName)}>
+        {columnLayout && (
+          <colgroup>
+            {table.getVisibleLeafColumns().map((column) => (
+              <col key={column.id} className={columnLayout[column.id]?.widthClassName} />
+            ))}
+          </colgroup>
+        )}
         <thead>
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id} className="border-b border-slate-200 bg-slate-50">
               {headerGroup.headers.map((header) => (
                 <th
                   key={header.id}
-                  className="px-2 py-2 text-left text-xs font-semibold text-slate-600"
+                  className={cn(
+                    'px-2 py-2 text-left text-xs font-semibold text-slate-600',
+                    columnLayout?.[header.column.id]?.headerClassName,
+                  )}
                 >
                   {flexRender(header.column.columnDef.header, header.getContext())}
                 </th>
@@ -112,8 +130,4 @@ export function DataTable<TRow extends RowData>({
       </table>
     </div>
   )
-}
-
-function joinClasses(marker: string | undefined, base: string): string {
-  return marker ? `${marker} ${base}` : base
 }

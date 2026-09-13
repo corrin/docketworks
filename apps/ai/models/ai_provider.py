@@ -30,6 +30,11 @@ class AIProvider(models.Model):
         verbose_name = "AI Provider"
         verbose_name_plural = "AI Providers"
         constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.UniqueConstraint(
+                fields=["default"],
+                condition=models.Q(default=True),
+                name="ai_one_application_default",
+            ),
             models.CheckConstraint(
                 condition=~models.Q(api_key=""), name="workflow_aiprovider_api_key_not_blank"
             ),

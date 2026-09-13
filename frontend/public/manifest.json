@@ -1,0 +1,22 @@
+{
+  "name": "DocketWorks",
+  "short_name": "DocketWorks",
+  "description": "Workflow Management System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1f2937",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "16x16 32x32 48x48",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "1742x1480",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

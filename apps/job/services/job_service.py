@@ -22,24 +22,18 @@ from uuid import UUID, uuid4
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, connection, transaction
 from django.db.models import (
-    Case,
     Count,
-    F,
-    IntegerField,
     Max,
     Min,
     OuterRef,
-    Prefetch,
     Subquery,
-    Value,
-    When,
 )
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from apps.accounting.models import Invoice, Quote
 from apps.accounts.models import Staff
-from apps.core.errors import AppErrorContext, ConflictError, persist_app_error
+from apps.core.errors import AppErrorContext, ConflictError, InvalidInputError, persist_app_error
 from apps.core.etag import (
     PreconditionFailedError,
     generate_updated_at_etag,
@@ -47,7 +41,7 @@ from apps.core.etag import (
     updated_at_etag_value,
 )
 from apps.core.models import CompanyDefaults
-from apps.job.enums import RDTIType, SpeedQualityTradeoff
+from apps.job.enums import CostLineOwner, RDTIType, SpeedQualityTradeoff
 from apps.job.models import (
     Job,
     JobDeltaRejection,
@@ -57,10 +51,9 @@ from apps.job.models import (
     LabourSubtype,
     QuoteSpreadsheet,
 )
-from apps.job.models.costing import CostLine, CostSet
+from apps.job.models.costing import CostLine, CostSet, lock_costing_jobs
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
 from apps.job.services.time_entry_rates import pay_item_by_id, price_time_entry
-from apps.purchasing.models import Stock
 
 logger = logging.getLogger(__name__)
 
@@ -253,6 +246,7 @@ class CostLineData(TypedDict):
     xero_last_modified: datetime | None
     xero_last_synced: datetime | None
     approved: bool
+    managed_by: CostLineOwner | None
     xero_pay_item: UUID | None
     staff: UUID | None
     entry_seq: int | None
@@ -546,15 +540,9 @@ def _summary_with_margin(cost_set: CostSet) -> CostSetSummaryData:
     ``revisions`` never leak.
     """
     summary_raw = cost_set.summary
-    if not summary_raw:
-        logger.error("CostSet %s missing required summary data", cost_set.id)
-        return {"cost": 0.0, "rev": 0.0, "hours": 0.0, "profitMargin": 0.0}
-    rev_raw = summary_raw.get("rev", 0)
-    cost_raw = summary_raw.get("cost", 0)
-    hours_raw = summary_raw.get("hours", 0)
-    rev = float(rev_raw) if isinstance(rev_raw, (int, float)) else 0.0
-    cost = float(cost_raw) if isinstance(cost_raw, (int, float)) else 0.0
-    hours = float(hours_raw) if isinstance(hours_raw, (int, float)) else 0.0
+    rev = float(summary_raw["rev"])
+    cost = float(summary_raw["cost"])
+    hours = float(summary_raw["hours"])
     return {
         "cost": cost,
         "rev": rev,
@@ -582,6 +570,7 @@ def cost_line_data(line: CostLine) -> CostLineData:
         "xero_last_modified": line.xero_last_modified,
         "xero_last_synced": line.xero_last_synced,
         "approved": line.approved,
+        "managed_by": CostLineOwner(line.managed_by) if line.managed_by is not None else None,
         "xero_pay_item": line.xero_pay_item_id,
         "staff": line.staff_id,
         "entry_seq": line.entry_seq,
@@ -973,9 +962,8 @@ def _copied_line_values(line: CostLine) -> dict[str, object]:
 def _copy_cost_lines(source: CostSet, dest: CostSet) -> int:
     """Copy every cost line of ``source`` onto ``dest``; returns the count copied.
 
-    Fable: bulk_create plus ONE recompute — per-line ``objects.create`` was
-    reviewed away as O(n^2): every save re-reads the cost set, rewrites the
-    summary JSON and touches the job, and only the final state matters.
+    GPT: bulk_create plus one rebuild avoids updating the same cached totals
+    and job freshness for every copied line; only the final state matters.
     Skipping CostLine.save() costs nothing here: entry_seq is assigned only
     on actual-kind sets (refused below), full_clean still runs per line, and
     the shop-job no-revenue rule holds transitively — the source lines were
@@ -992,7 +980,7 @@ def _copy_cost_lines(source: CostSet, dest: CostSet) -> int:
     for line in lines:
         line.full_clean()
     CostLine.objects.bulk_create(lines)
-    lines[-1].update_cost_set_summary()
+    dest.recalculate_summary()
     return len(lines)
 
 
@@ -2093,31 +2081,12 @@ def get_job_timeline(job_id: UUID) -> list[TimelineEntryData]:  # noqa: C901 -- 
 
 COST_SET_KINDS: tuple[str, ...] = ("estimate", "quote", "actual")
 
-# The costing grid groups lines material → adjust → time, newest first within
-# each group; keep this ordering centralized.
-_COSTLINE_GRID_ORDER = Case(
-    When(kind="material", then=Value(1)),
-    When(kind="adjust", then=Value(2)),
-    When(kind="time", then=Value(3)),
-    default=Value(999),
-    output_field=IntegerField(),
-)
-
 
 def get_latest_cost_set(job: Job, kind: str) -> CostSet | None:
     """Return the newest CostSet of ``kind`` with grid-ordered lines."""
     if kind not in COST_SET_KINDS:
         raise ValueError(f"Invalid kind. Must be one of: {', '.join(COST_SET_KINDS)}")
-    return (
-        CostSet.objects.filter(job=job, kind=kind)
-        .prefetch_related(
-            Prefetch(
-                "cost_lines",
-                queryset=CostLine.objects.order_by(_COSTLINE_GRID_ORDER, "-created_at", "-id"),
-            )
-        )
-        .first()
-    )
+    return CostSet.objects.filter(job=job, kind=kind).prefetch_related("cost_lines").first()
 
 
 class CostLineWriteData(TypedDict, total=False):
@@ -2252,6 +2221,8 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
     if kind not in COST_SET_KINDS:
         raise ValueError(f"Invalid kind. Must be one of: {', '.join(COST_SET_KINDS)}")
     _validate_costline_write(data)
+    if kind == "actual" and staff.is_office_staff and "stock_id" in (data.get("ext_refs") or {}):
+        raise ValueError("Issue material through purchasing so its stock movement is recorded.")
 
     meta = data.get("meta") or {}
     # Timesheet lines may omit labour_subtype; the rate pipeline then uses the
@@ -2261,6 +2232,7 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
         raise ValueError("labour_subtype is required for time lines.")
 
     with transaction.atomic():
+        lock_costing_jobs([job.id])
         cost_set = get_or_create_cost_set(job, kind)
         # Workshop-created lines await office approval.
         line = CostLine(cost_set=cost_set, approved=staff.is_office_staff)
@@ -2273,27 +2245,24 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
     return line
 
 
-def refuse_leave_managed(line: CostLine, remedy: str) -> None:
-    """Refuse a write to a line the leave workflow owns.
-
-    The one guard for every cost-line write surface — leave lines satisfy the
-    timesheet filters (kind, staff, date), so any path that skips this lets an
-    edit desync ``CostLine.quantity`` from ``LeaveDay.hours``, and a delete
-    trips LeaveDay's PROTECT into a 500.
-    """
+def refuse_workflow_managed(line: CostLine, remedy: str) -> None:
+    """Refuse generic editing of costs owned by an operational workflow."""
+    if line.managed_by in ("stocktake", "stock"):
+        raise InvalidInputError(
+            "This line belongs to a stock movement; correct it through purchasing."
+        )
     if line.managed_by == "leave":
-        raise ValueError(
+        raise InvalidInputError(
             f"This line belongs to a leave request; {remedy} it from Timesheets → Leave."
         )
 
 
+@transaction.atomic
 def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
-    """Update a cost line from a partial payload.
-
-    A quantity change on a line with ``ext_refs.stock_id`` adjusts the
-    Stock row by the difference.
-    """
-    refuse_leave_managed(line, "edit")
+    """Edit unowned costs; issuing material belongs to purchasing."""
+    lock_costing_jobs([line.cost_set.job_id])
+    line = CostLine.objects.select_for_update().get(pk=line.pk)
+    refuse_workflow_managed(line, "edit")
     _validate_costline_write(data)
 
     kind = data.get("kind") or line.kind
@@ -2309,31 +2278,21 @@ def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
         _reprice_timesheet_line(line, data, patch_meta)
 
     with transaction.atomic():
-        old_quantity = line.quantity or Decimal("0")
         _apply_costline_fields(line, data)
+        if line.cost_set.kind == "actual" and line.approved and "stock_id" in line.ext_refs:
+            raise ValueError("Issue material through purchasing so its stock movement is recorded.")
         line.save()
 
-        stock_id = (line.ext_refs or {}).get("stock_id")
-        new_quantity = line.quantity or Decimal("0")
-        diff = new_quantity - old_quantity
-        # Only ACTUAL lines consume inventory; an estimate or quote references
-        # a stock item hypothetically, so a quantity edit there moves nothing.
-        if stock_id and diff and line.cost_set.kind == "actual":
-            # Use an F expression so concurrent stock adjustments cannot lose updates.
-            Stock.objects.filter(pk=stock_id).update(quantity=F("quantity") - diff)
     return line
 
 
+@transaction.atomic
 def delete_cost_line(line: CostLine) -> None:
-    """Delete a cost line, returning any consumed stock."""
-    refuse_leave_managed(line, "cancel")
+    """Delete an unowned cost; unissued drafts have no inventory effect."""
+    lock_costing_jobs([line.cost_set.job_id])
+    line = CostLine.objects.select_for_update().get(pk=line.pk)
+    refuse_workflow_managed(line, "cancel")
     with transaction.atomic():
-        stock_id = (line.ext_refs or {}).get("stock_id")
-        # Only ACTUAL lines consumed anything; deleting an estimate or quote
-        # line must not conjure stock that was never drawn.
-        if stock_id and line.quantity and line.cost_set.kind == "actual":
-            Stock.objects.filter(pk=stock_id).update(quantity=F("quantity") + line.quantity)
-        # CostLine.delete() refreshes the CostSet summary (model machinery).
         line.delete()
     logger.info("Deleted cost line %s", line.id)
 
@@ -2440,16 +2399,18 @@ def create_quote_revision(job: Job, reason: str | None, user: Staff) -> QuoteRev
     if current_quote is None:
         raise ValueError("No quote found for this job. Cannot create revision.")
 
-    cost_lines = list(current_quote.cost_lines.all())
-    if not cost_lines:
-        raise ValueError("No cost lines found in current quote. Nothing to revise.")
-
     with transaction.atomic():
+        lock_costing_jobs([job.id])
+        current_quote = CostSet.objects.get(pk=current_quote.id)
+        cost_lines = list(current_quote.cost_lines.all())
+        if not cost_lines:
+            raise ValueError("No cost lines found in current quote. Nothing to revise.")
         quote_revision = _archive_quote_revision(current_quote, cost_lines, reason)
 
         # Bulk delete intentionally skips CostLine.delete()'s summary refresh:
         # the archive above just zeroed the live totals.
         current_quote.cost_lines.all().delete()
+        current_quote.recalculate_summary()
 
         # Reset acceptance so the new revision can be accepted.
         job.quote_acceptance_date = None
@@ -2542,11 +2503,12 @@ def copy_estimate_to_quote(
     quote = job.get_latest("quote")
     if estimate is None or quote is None:
         raise ValueError("Job is missing its estimate or quote cost set.")
-    if not estimate.cost_lines.exists():
-        raise ValueError("The estimate has no cost lines to copy.")
-
     archived_quote_revision: int | None = None
     with transaction.atomic():
+        lock_costing_jobs([job.id])
+        estimate = CostSet.objects.get(pk=estimate.pk)
+        if not estimate.cost_lines.exists():
+            raise ValueError("The estimate has no cost lines to copy.")
         # Deciding outside the transaction was the reviewed-away shape: a line
         # created between the blank/equality reads and the replace would be
         # bulk-deleted without ever reaching the archive. The CostSet row lock

@@ -5,7 +5,6 @@ status-values, update-status and reorder validation, the incremental
 kanban-changes feed, and staff assignment.
 """
 
-from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -295,9 +294,9 @@ class TestOverBudgetOnWire:
         self, client: Client, company: Company, office_staff: Staff
     ) -> None:
         job = _make_status_job(company, office_staff, "Revenue Job", "in_progress")
-        job.latest_quote.summary = {"rev": float(Decimal("150.00"))}
+        job.latest_quote.summary = {"cost": 0, "rev": 150.0, "hours": 0}
         job.latest_quote.save(update_fields=["summary"])
-        job.latest_actual.summary = {"rev": float(Decimal("200.00"))}
+        job.latest_actual.summary = {"cost": 0, "rev": 200.0, "hours": 0}
         job.latest_actual.save(update_fields=["summary"])
 
         payload = client.get("/api/job/jobs/fetch-all/").json()

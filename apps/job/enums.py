@@ -31,3 +31,11 @@ class MetalType(models.TextChoices):
     ZINC = "zinc", "Zinc"
     GALVANIZED = "galvanized", "Galvanized"
     OTHER = "other", "Other"
+
+
+class CostLineOwner(models.TextChoices):
+    """The workflow responsible for a cost line's mutations."""
+
+    LEAVE = "leave", "Leave"
+    STOCKTAKE = "stocktake", "Stocktake"
+    STOCK = "stock", "Stock movement"

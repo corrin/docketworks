@@ -10,7 +10,8 @@ import path from 'node:path'
 // occupies :8000 on the same machine during the rewrite).
 const backendURL = process.env.BACKEND_URL ?? 'http://localhost:8000'
 const backendProxy = {
-  '/api': backendURL,
+  // GPT: Preserve the browser-facing Host so Django's CSRF origin check sees the same origin.
+  '/api': { target: backendURL, changeOrigin: false },
   '/media': backendURL,
 }
 

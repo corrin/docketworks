@@ -18,7 +18,7 @@ from apps.xero.active_app import (
     NoActiveXeroAppError,
     get_active_app,
     swap_active,
-    wipe_tokens_and_quota,
+    wipe_tokens,
 )
 from apps.xero.constants import TENANT_ID_CACHE_KEY
 from apps.xero.models import XeroApp
@@ -150,8 +150,8 @@ class TestSwapActive:
 
 
 @pytest.mark.django_db
-class TestWipeTokensAndQuota:
-    def test_wipes_token_and_quota_fields(self) -> None:
+class TestWipeTokens:
+    def test_wipes_every_token_field(self) -> None:
         row = make_xero_app(
             client_id="a1",
             access_token="aaa",
@@ -159,24 +159,10 @@ class TestWipeTokensAndQuota:
             token_type="Bearer",
             expires_at=datetime.now(UTC),
             scope="x",
-            day_remaining=42,
-            minute_remaining=10,
-            snapshot_at=datetime.now(UTC),
-            last_429_at=datetime.now(UTC),
         )
-        wipe_tokens_and_quota(row)
+        wipe_tokens(row)
         row.refresh_from_db()
-        for field in [
-            "access_token",
-            "refresh_token",
-            "token_type",
-            "expires_at",
-            "scope",
-            "day_remaining",
-            "minute_remaining",
-            "snapshot_at",
-            "last_429_at",
-        ]:
+        for field in ["access_token", "refresh_token", "token_type", "expires_at", "scope"]:
             assert getattr(row, field) is None, field
 
     def test_wipe_invalidates_tenant_id_cache(self) -> None:
@@ -185,5 +171,5 @@ class TestWipeTokensAndQuota:
         # global tenant cache must drop in lockstep.
         row = make_xero_app(client_id="a1")
         cache.set(TENANT_ID_CACHE_KEY, "stale-tenant")
-        wipe_tokens_and_quota(row)
+        wipe_tokens(row)
         assert cache.get(TENANT_ID_CACHE_KEY) is None

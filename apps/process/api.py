@@ -52,10 +52,9 @@ from django.db.models import Count, Q, QuerySet
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router
-from ninja.errors import HttpError
 from ninja.responses import Status
 
-from apps.accounts.models import Staff
+from apps.accounts.auth import authenticated_staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
 from apps.core.pagination import paginate
@@ -89,14 +88,6 @@ logger = logging.getLogger(__name__)
 router = Router(tags=["process"])
 auth = CookieJWTAuth()
 office_auth = OfficeStaffCookieJWTAuth()
-
-
-def _staff(request: HttpRequest) -> Staff:
-    """Narrow the authenticated user to a real Staff row (ADR 0028)."""
-    user = request.user
-    if not isinstance(user, Staff):  # pragma: no cover - CookieJWTAuth guarantees Staff
-        raise HttpError(401, "Authentication credentials were not provided.")
-    return user
 
 
 @router.get(
@@ -177,7 +168,7 @@ def process_forms_list(
 )
 def process_forms_create(request: HttpRequest, payload: FormCreateIn) -> Status[Form]:
     """Create a form/register and its form_created audit event."""
-    return Status(201, create_form(staff=_staff(request), payload=payload))
+    return Status(201, create_form(staff=authenticated_staff(request), payload=payload))
 
 
 @router.get(
@@ -204,7 +195,7 @@ def process_forms_partial_update(
 ) -> Form:
     """Apply only the fields the caller sent; write exactly one audit event."""
     form = get_object_or_404(Form, pk=form_id)
-    return update_form(staff=_staff(request), form=form, payload=payload)
+    return update_form(staff=authenticated_staff(request), form=form, payload=payload)
 
 
 def _enrich(entries: list[FormEntry]) -> list[FormEntry]:
@@ -269,7 +260,7 @@ def process_forms_entries_create(
 ) -> Status[FormEntry]:
     """Create an entry against one form; stamps entered_by and writes entry_created."""
     form = get_object_or_404(Form, pk=form_id)
-    entry = create_form_entry(staff=_staff(request), form=form, payload=payload)
+    entry = create_form_entry(staff=authenticated_staff(request), form=form, payload=payload)
     entry.display_data = display_data(entry.form, entry.data)
     return Status(201, entry)
 
@@ -290,7 +281,7 @@ def process_forms_acknowledge_create(
     accept on the wire, so the row always names ``request.user``.
     """
     form = get_object_or_404(Form, pk=form_id)
-    row = Acknowledgement.objects.create(staff=_staff(request), form=form)
+    row = Acknowledgement.objects.create(staff=authenticated_staff(request), form=form)
     return Status(201, row)
 
 
@@ -357,7 +348,7 @@ def process_entries_partial_update(
 ) -> FormEntry:
     """Apply only the fields the caller sent; write at most one audit event."""
     entry = get_object_or_404(FormEntry, pk=entry_id)
-    entry = update_form_entry(staff=_staff(request), entry=entry, payload=payload)
+    entry = update_form_entry(staff=authenticated_staff(request), entry=entry, payload=payload)
     entry.display_data = display_data(entry.form, entry.data)
     return entry
 
@@ -375,7 +366,7 @@ def process_entries_destroy(request: HttpRequest, entry_id: UUID) -> Status[None
     The row and its audit trail both survive — nothing is hard-deleted.
     """
     entry = get_object_or_404(FormEntry, pk=entry_id)
-    archive_entry(staff=_staff(request), entry=entry)
+    archive_entry(staff=authenticated_staff(request), entry=entry)
     return Status(204, None)
 
 

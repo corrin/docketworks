@@ -336,7 +336,7 @@ def measure_code_shape() -> tuple[Section, Section, Section]:
         title="Optional returns",
         note=(
             "Functions returning `X | None`, which moves a decision onto every "
-            "caller — and there are always more callers than functions (ADR 0045). "
+            "caller — and there are always more callers than functions (ADR 0028). "
             "Existing sites are a post-cutover sweep, not a blocker."
         ),
         rows=[

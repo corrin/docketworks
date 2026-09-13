@@ -66,6 +66,7 @@ class TestXeroPing:
             "connected": False,
             "xero_readonly": True,
             "xero_production_client": False,
+            "xero_fake": False,
         }
 
     @override_settings(XERO_READONLY=False)
@@ -209,8 +210,6 @@ class TestXeroAppsList:
             label="Primary",
             access_token="SECRET-DO-NOT-LEAK",
             refresh_token="ALSO-SECRET",
-            day_remaining=4321,
-            minute_remaining=55,
         )
 
         response = api.get(APPS_URL)
@@ -223,8 +222,6 @@ class TestXeroAppsList:
         assert row["client_id"] == "c-a"
         assert row["is_active"] is True
         assert row["has_tokens"] is True
-        assert row["day_remaining"] == 4321
-        assert row["minute_remaining"] == 55
         # Forbidden surface — none of these may appear in the response:
         assert "client_secret" not in row
         assert "access_token" not in row
@@ -279,8 +276,8 @@ class TestXeroAppsPatch:
         assert row.label == "Renamed"
         assert row.access_token == "AT"
 
-    def test_patch_client_id_wipes_tokens_and_quota(self, api: Client) -> None:
-        row = _connected_app(day_remaining=100, is_active=False)
+    def test_patch_client_id_wipes_tokens(self, api: Client) -> None:
+        row = _connected_app(is_active=False)
 
         with patch("apps.xero.api._restart_sibling_workers"):
             response = api.patch(
@@ -292,7 +289,6 @@ class TestXeroAppsPatch:
         row.refresh_from_db()
         assert row.client_id == "c-rotated"
         assert row.access_token is None
-        assert row.day_remaining is None
 
     def test_patch_active_row_credentials_resets_singleton_and_restarts(self, api: Client) -> None:
         row = _connected_app(is_active=True)

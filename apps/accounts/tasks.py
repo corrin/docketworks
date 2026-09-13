@@ -11,7 +11,8 @@ import logging
 from celery import shared_task
 
 from apps.core.errors import AppErrorContext, persist_app_error
-from apps.core.gmail import send_company_email
+from apps.core.models import CompanyDefaults
+from apps.platform.integrations.google.gmail import send_company_email
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ def send_password_reset_email_task(recipient: str, link: str) -> None:
     """Send the reset link. Failure persists (nobody is watching a worker log)."""
     try:
         send_company_email(
+            company_email=CompanyDefaults.get_solo().company_email,
             to=recipient,
             subject="Reset your DocketWorks password",
             body=(

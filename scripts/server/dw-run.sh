@@ -23,7 +23,9 @@ fi
 INSTANCE="$1"
 shift
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
-APP_DIR="$INSTANCE_DIR/app"
+# DW_APP_DIR lets deploy.sh run the TARGET release before the instance symlink
+# is switched; every other caller wants the release the instance is running.
+APP_DIR="${DW_APP_DIR:-$INSTANCE_DIR/app}"
 INSTANCE_USER="$(instance_user "$INSTANCE")"
 
 if [[ ! -d "$INSTANCE_DIR" ]]; then

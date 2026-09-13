@@ -1,10 +1,9 @@
 """Assign every existing Form and Procedure its stored category.
 
-v1 categorised by overlapping tag filters, so a document could list twice
-and the category URL segment was decorative. The stored field is exclusive;
-this backfill derives it from tags most-specific-first. Runs against the
-empty database at provision time (finds nothing) and again after the v1
-data restore (see scripts/ops/migrate_v1_data.sh), which is when it works.
+Categorisation was once a set of overlapping tag filters, so a document could
+list twice and the category URL segment was decorative. The stored field is
+exclusive, and this backfill derives it from tags most-specific-first. It finds
+nothing on a fresh database, which has no documents to categorise.
 """
 
 from django.db import migrations

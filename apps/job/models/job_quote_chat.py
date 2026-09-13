@@ -1,4 +1,4 @@
-"""Chat messages for the interactive LLM quoting feature."""
+"""Durable job-scoped ChatKit conversations and protocol items."""
 
 import uuid
 from typing import ClassVar
@@ -8,67 +8,40 @@ from django.db import models
 from .job import Job
 
 
-class JobQuoteChat(models.Model):
-    """Stores chat messages for the interactive quoting feature linked to jobs.
+class JobQuoteChatThread(models.Model):
+    """One conversation, including the SDK's server-side metadata."""
 
-    Each job can have an associated chat conversation where users interact
-    with an LLM to generate quotes.
-    """
-
-    # CHECKLIST - when adding a new field or property to JobQuoteChat, check these locations:
-    #   1. JOBQUOTECHAT_API_FIELDS or JOBQUOTECHAT_INTERNAL_FIELDS below (if it's a model field)
-    #   2. JobQuoteChatSerializer in apps/job/serializers/job_quote_chat_serializer.py (read)
-    #   3. JobQuoteChatCreateSerializer in apps/job/serializers/job_quote_chat_serializer.py (write)
-    #   4. JobQuoteChatUpdateSerializer in apps/job/serializers/job_quote_chat_serializer.py (patch)
-    #   5. JobQuoteChatViewSet in apps/job/views/job_quote_chat_views.py (CRUD operations)
-    #   6. ChatService in apps/job/services/chat_service.py (AI chat logic)
-    #
-    # Database fields exposed via API serializers
-    JOBQUOTECHAT_API_FIELDS: ClassVar[list[str]] = [
-        "message_id",
-        "role",
-        "content",
-        "metadata",
-        "timestamp",
-    ]
-
-    # Internal fields not exposed in API
-    JOBQUOTECHAT_INTERNAL_FIELDS: ClassVar[list[str]] = [
-        "id",
-        "job",
-    ]
-
-    # All JobQuoteChat model fields (derived)
-    JOBQUOTECHAT_ALL_FIELDS: ClassVar[list[str]] = (
-        JOBQUOTECHAT_API_FIELDS + JOBQUOTECHAT_INTERNAL_FIELDS
-    )
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="quote_chat_messages")
-    message_id = models.CharField(
-        max_length=100, unique=True, help_text="Frontend-generated unique ID"
-    )
-
-    ROLE_CHOICES: ClassVar[list[tuple[str, str]]] = [
-        ("user", "User"),
-        ("assistant", "Assistant"),
-    ]
-
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
-    content = models.TextField()
-    timestamp = models.DateTimeField(auto_now_add=True)
-    metadata = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text="Extra data like streaming status, processing time, etc.",
-    )
+    id = models.CharField(primary_key=True, max_length=100)
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="quote_chat_threads")
+    created_at = models.DateTimeField()
+    payload = models.JSONField()
 
     class Meta:
-        ordering: ClassVar[list[str]] = ["timestamp"]
+        ordering: ClassVar[list[str]] = ["created_at", "id"]
         indexes: ClassVar[list[models.Index]] = [
-            models.Index(fields=["job", "timestamp"]),
-            models.Index(fields=["message_id"]),
+            models.Index(fields=["job", "created_at", "id"], name="job_chat_thread_created_idx")
         ]
 
     def __str__(self) -> str:
-        return f"{self.job.name} - {self.role}: {self.content}"
+        return self.id
+
+
+class JobQuoteChat(models.Model):
+    """One SDK item, retaining the existing message table and identifiers."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    thread = models.ForeignKey(JobQuoteChatThread, on_delete=models.CASCADE, related_name="items")
+    message_id = models.CharField(max_length=100, unique=True)
+    timestamp = models.DateTimeField()
+    payload = models.JSONField()
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["timestamp", "message_id"]
+        indexes: ClassVar[list[models.Index]] = [
+            models.Index(
+                fields=["thread", "timestamp", "message_id"], name="job_chat_item_created_idx"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.message_id

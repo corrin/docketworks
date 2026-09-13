@@ -7,7 +7,7 @@ from decimal import Decimal
 from operator import itemgetter
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from xero_python.accounting import (
     AccountingApi,
@@ -40,7 +40,7 @@ from apps.accounting.types import (
 )
 from apps.core.errors import persist_app_error
 from apps.xero import payroll_employees, payroll_push, payroll_sync
-from apps.xero.active_app import NoActiveXeroAppError, get_active_app, wipe_tokens_and_quota
+from apps.xero.active_app import NoActiveXeroAppError, get_active_app, wipe_tokens
 from apps.xero.auth import TokenPayload, get_api_client, get_tenant_id, get_valid_token
 from apps.xero.constants import ZERO_UUID
 from apps.xero.contacts import create_company_contact_in_xero, sync_company_to_xero
@@ -51,7 +51,11 @@ from apps.xero.transforms import process_xero_data
 if TYPE_CHECKING:
     from xero_python.payrollnz import EarningsLine, PaySlip
 
+    from apps.accounts.models import Staff
     from apps.company.models import Company
+
+    # Aliased: the module-level ``PurchaseOrder`` is Xero's SDK type.
+    from apps.purchasing.models import PurchaseOrder as PurchaseOrderModel
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +103,7 @@ class XeroAccountingProvider:
         # tokens"; an install with no active app already satisfies it
         except NoActiveXeroAppError:
             return
-        wipe_tokens_and_quota(active)
+        wipe_tokens(active)
 
     # --- Contacts ---
 
@@ -326,6 +330,7 @@ class XeroAccountingProvider:
                 logger.warning("Xero quote create validation errors: %s", errors)
                 return DocumentResult(
                     success=False,
+                    status_code=400,
                     error=" | ".join(errors),
                     validation_errors=errors,
                 )
@@ -385,6 +390,7 @@ class XeroAccountingProvider:
                 logger.warning("Xero quote %s delete validation errors: %s", external_id, errors)
                 return DocumentResult(
                     success=False,
+                    status_code=400,
                     external_id=external_id,
                     error=" | ".join(errors),
                     validation_errors=errors,
@@ -468,31 +474,38 @@ class XeroAccountingProvider:
         result_po = response.purchase_orders[0]
         po_id = str(result_po.purchase_order_id)
 
-        # Xero sometimes returns a zero UUID on create; recover the real id by
-        # number rather than storing a useless sentinel.
+        # Opus: a zero UUID means one thing, measured against the demo tenant on
+        # 2026-09-12: a DELETED order already holds this number, and Xero will
+        # not reuse it ("Deleted PurchaseOrders cannot be updated"). It is a
+        # refusal, so it is reported as one. Recovering the id by searching the
+        # listing for the number was the rejected alternative: the only order
+        # that number can find is the deleted one, and adopting it would make a
+        # live purchase order point at a voided document. delete_purchase_order
+        # renames an order as it voids it so this state stops arising at all.
+        # With summarize_errors=False Xero answers 200 and puts the 400 inside
+        # the element, so the code the transport dropped is restored here: a
+        # refusal the operator must fix (their contact, their number) and no
+        # later attempt helps. Defaulting the code downstream was rejected: a
+        # manager's `or 400` would also turn a genuinely missing code into a
+        # claim about the operator's input.
         if po_id == ZERO_UUID:
-            recovered = self._find_po_by_number(api, tenant_id, payload.po_number)
-            if recovered is not None:
-                result_po = recovered
-                po_id = str(recovered.purchase_order_id)
-            elif not result_po.validation_errors:
-                # Unrecovered and no validation errors to report instead: the
-                # PO may exist in Xero, but success with a sentinel id would
-                # be stored locally and route the next push to create a
-                # duplicate.
-                return DocumentResult(
-                    success=False,
-                    error=(
-                        f"Xero returned a zero UUID for PO {payload.po_number} and it "
-                        "could not be found by number; check Xero before retrying."
-                    ),
-                )
+            return DocumentResult(
+                success=False,
+                status_code=400,
+                error=(
+                    f"Xero refused PO {payload.po_number}: a deleted purchase order in the "
+                    "organisation still holds that number. Rename it in Xero, or use a "
+                    "different number."
+                ),
+                validation_errors=[str(ve.message) for ve in (result_po.validation_errors or [])],
+            )
 
         if result_po.validation_errors:
             errors = [str(ve.message) for ve in result_po.validation_errors]
             logger.warning("Xero PO %s validation errors: %s", payload.po_number, errors)
             return DocumentResult(
                 success=False,
+                status_code=400,
                 external_id=po_id if po_id != ZERO_UUID else None,
                 error=" | ".join(errors),
                 validation_errors=errors,
@@ -510,35 +523,23 @@ class XeroAccountingProvider:
             external_id=po_id,
             number=payload.po_number,
             online_url=online_url,
+            document_status=result_po.status,
             raw_response={
                 "line_items": result_po.to_dict().get("line_items", []),
-                "full": result_po.to_dict(),
+                # process_xero_data, not to_dict: this is what the manager
+                # stores as raw_json, and the inbound sync stores the same
+                # object through the same function. Two shapes in one column
+                # would mean every reader had to know which writer produced
+                # the row it is holding.
+                "echo": process_xero_data(result_po),
             },
         )
 
     @staticmethod
-    def _find_po_by_number(
-        api: AccountingApi, tenant_id: str, po_number: str
-    ) -> PurchaseOrder | None:
-        """Find a purchase order by its number, walking the paged listing.
-
-        Paged, not one call: get_purchase_orders returns ~100 rows per page,
-        and a just-created PO can sit past the first page. Bounded so a
-        misbehaving endpoint that keeps returning rows cannot pin the request
-        thread forever; a just-created PO sorts recent, far inside the cap.
-        """
-        max_pages = 50
-        for page in range(1, max_pages + 1):
-            listing: list[PurchaseOrder] = (
-                api.get_purchase_orders(tenant_id, page=page).purchase_orders or []
-            )
-            if not listing:
-                return None
-            for candidate in listing:
-                if candidate.purchase_order_number == po_number:
-                    return candidate
-        logger.warning("PO %s not found within %d pages of the Xero listing", po_number, max_pages)
-        return None
+    def _released_po_number(existing: PurchaseOrder) -> str:
+        """Name a voided order so its number is free without losing what it was."""
+        number = existing.purchase_order_number or "PO"
+        return f"{number}-VOID-{uuid4().hex[:8]}"
 
     def create_purchase_order(self, payload: POPayload) -> DocumentResult:
         """See AccountingProvider.create_purchase_order."""
@@ -574,17 +575,64 @@ class XeroAccountingProvider:
                 status="DELETED",
                 contact=Contact(contact_id=existing.contact.contact_id),
                 date=existing.date,
+                # Opus: released in the SAME update that voids the order, which
+                # is the only moment Xero allows it — measured 2026-09-12, a
+                # separate rename afterwards is refused with "Deleted
+                # PurchaseOrders cannot be updated". Xero keeps a voided order
+                # forever and it goes on owning its number, while our numbers
+                # are MAX(po_number)+1 over the rows that exist, so a deleted
+                # order's number comes round again and the next create is
+                # refused by a document nobody can see. The old number stays as
+                # the prefix: an operator reading the voided order in Xero still
+                # needs to know which order it was.
+                purchase_order_number=self._released_po_number(existing),
             )
-            api.update_or_create_purchase_orders(
+            response = api.update_or_create_purchase_orders(
                 tenant_id,
                 purchase_orders={"PurchaseOrders": [self._to_xero_payload(xero_po)]},
                 summarize_errors=False,
             )
+            # summarize_errors=False makes Xero answer 200 with the refusal
+            # inside the document, so discarding the response reports a delete
+            # that never happened — and a released number that was not.
+            if not response.purchase_orders:
+                raise ValueError("Xero returned no purchase orders for a delete call")
+            updated = response.purchase_orders[0]
+            if updated.validation_errors:
+                errors = [str(ve.message) for ve in updated.validation_errors]
+                logger.warning("Xero PO %s delete validation errors: %s", external_id, errors)
+                return DocumentResult(
+                    success=False,
+                    status_code=400,
+                    external_id=external_id,
+                    error=" | ".join(errors),
+                    validation_errors=errors,
+                )
             logger.info("Deleted Xero PO %s", external_id)
             return DocumentResult(success=True, external_id=external_id)
         except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require
             persist_app_error(exc)
             return self._make_error_result(exc)
+
+    def push_purchase_order(
+        self, purchase_order: "PurchaseOrderModel", staff: "Staff"
+    ) -> DocumentResult:
+        """See AccountingProvider.push_purchase_order."""
+        # Call-time import: the manager reaches back to this module through the
+        # registry, so binding it at module scope makes the provider and the
+        # document tree import each other.
+        from apps.xero.documents.po import XeroPurchaseOrderManager  # noqa: PLC0415
+
+        result = XeroPurchaseOrderManager(purchase_order=purchase_order, staff=staff).sync_to_xero()
+        if not result["success"]:
+            return DocumentResult(
+                success=False, error=result.get("error"), status_code=result.get("status")
+            )
+        return DocumentResult(
+            success=True,
+            external_id=result.get("xero_id"),
+            online_url=result.get("online_url"),
+        )
 
     # --- Attachments ---
 

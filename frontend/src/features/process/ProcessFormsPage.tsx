@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
@@ -23,6 +23,7 @@ import { formatDate } from '@/lib/format'
 import { EntryForm, type EntryFormSubmitBody } from './EntryForm'
 import { FormDialog, requireCategory } from './FormDialog'
 import { extractFields } from './formSchema'
+import { SearchInput } from '@/features/shared/SearchInput'
 
 const HEADER_CELL = 'border-b border-slate-200 px-3 py-2 text-left font-semibold text-slate-700'
 const CELL = 'border-b border-slate-100 px-3 py-2'
@@ -113,6 +114,44 @@ export function ProcessFormsPage({ category }: { category: string }) {
     setDialogOpen(true)
   }
 
+  /**
+   * The dialog's unhappy paths, in the order that makes the form impossible:
+   * no schema to render, a staff list that failed, a staff list still coming.
+   * Handled by the page that owns the query, the way FormEntriesPage already
+   * does, so EntryForm receives a staff list it can trust rather than an empty
+   * array standing in for three different answers.
+   */
+  function fillDialogBody(form: FormOut): ReactNode {
+    const fields = extractFields(form.form_schema)
+    if (fields.length === 0) {
+      return (
+        <p className="text-sm text-slate-600">
+          This document has no form schema defined. Entries cannot be added.
+        </p>
+      )
+    }
+    if (staffOptionsQuery.isError) {
+      return (
+        <p className="text-sm font-medium text-red-700">
+          Could not load the staff list. Reload the page.
+        </p>
+      )
+    }
+    if (staffOptionsQuery.data === undefined) {
+      return <p className="text-sm text-slate-500">Loading the staff list…</p>
+    }
+    return (
+      <EntryForm
+        schema={fields}
+        initial={{ staff: user.id }}
+        staffOptions={staffOptionsQuery.data}
+        submitting={createEntryMutation.isPending}
+        automationIdPrefix="EntryForm"
+        onSubmit={(body) => submitFillEntry(form, body)}
+      />
+    )
+  }
+
   return (
     <div className="min-h-screen p-6" data-automation-id="ProcessFormsPage-root">
       <div className="flex items-center justify-between">
@@ -123,14 +162,12 @@ export function ProcessFormsPage({ category }: { category: string }) {
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-4">
-        <input
-          type="text"
-          placeholder="Search forms..."
+        <SearchInput
           value={searchInput}
-          autoComplete="off"
-          data-automation-id="ProcessFormsPage-search"
-          className="w-full max-w-md rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
-          onChange={(event) => setSearchInput(event.target.value)}
+          onChange={setSearchInput}
+          placeholder="Search forms..."
+          automationId="ProcessFormsPage-search"
+          label="Search forms"
         />
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input
@@ -236,20 +273,7 @@ export function ProcessFormsPage({ category }: { category: string }) {
             <DialogHeader>
               <DialogTitle>Fill {filling.title}</DialogTitle>
             </DialogHeader>
-            {extractFields(filling.form_schema).length === 0 ? (
-              <p className="text-sm text-slate-600">
-                This document has no form schema defined. Entries cannot be added.
-              </p>
-            ) : (
-              <EntryForm
-                schema={extractFields(filling.form_schema)}
-                initial={{ staff: user.id }}
-                staffOptions={staffOptionsQuery.data ?? []}
-                submitting={createEntryMutation.isPending}
-                automationIdPrefix="EntryForm"
-                onSubmit={(body) => submitFillEntry(filling, body)}
-              />
-            )}
+            {fillDialogBody(filling)}
           </DialogContent>
         </Dialog>
       )}

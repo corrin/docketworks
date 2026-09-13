@@ -10,6 +10,7 @@ import {
   syncSequences,
   type DbConfig,
 } from './db-backup-utils'
+import { runE2ECleanup } from './e2e-cleanup'
 import { closeSyncWindow } from './e2e-sync-windows'
 import { assertSpawnSucceeded } from './process-result'
 
@@ -143,6 +144,23 @@ function reinjectXeroToken(dbConfig: DbConfig, xeroAppTokenRow: string): void {
   console.log('[db] Active Xero app token restored.')
 }
 
+function printXeroCleanupFailureBanner(reason: string): void {
+  console.error('')
+  console.error('================================================================')
+  console.error("E2E TEARDOWN COULD NOT REMOVE THIS RUN'S XERO OBJECTS")
+  console.error('================================================================')
+  console.error(reason)
+  console.error('')
+  console.error('The restore below still runs, and it erases the local rows that')
+  console.error("name those objects — so this run's invoices, quotes, purchase")
+  console.error('orders and contacts are now findable only in the organisation.')
+  console.error('')
+  console.error('Clear them with (dry run first):')
+  console.error('  uv run python manage.py e2e_xero_sweep')
+  console.error('  uv run python manage.py e2e_xero_sweep --confirm')
+  console.error('================================================================')
+}
+
 function printRestoreFailureBanner(backupFile: string, dbConfig: DbConfig, reason: string): void {
   const singleTx = '--single-transaction'
   const onErrorStop = '-v ON_ERROR_STOP=1'
@@ -195,6 +213,10 @@ export function requireBackupFile(
 function restoreDatabase(lockContents: string): void {
   console.log('\n[db] Restoring database after tests...')
   const dbConfig = getDbConfig()
+  // Lock file line 4, written by global-setup: "fake" when the run was
+  // started with --use-fake-xero. Absent (a lock from an older harness)
+  // means real, the mode every run had before the fake existed.
+  const xeroMode = lockContents.split('\n')[3]?.trim() === 'fake' ? 'fake' : 'real'
 
   let backupFile: string
   try {
@@ -226,11 +248,31 @@ function restoreDatabase(lockContents: string): void {
   )
   sleepSync(PRE_RESTORE_XERO_SETTLE_MS)
 
-  // Save AFTER the settle (v1 saved before it): a refresh completing during
-  // the wait rotates the refresh token, and reinjecting the pre-settle copy
-  // would strand the next run on a consumed token.
+  // Remove this run's writes from the Xero organisation. After the settle so
+  // in-flight Celery work has finished creating them, and before the restore
+  // because the restore erases the local rows that carry their Xero ids —
+  // this is the last moment anything knows what the run made.
+  //
+  // Reported rather than raised: the restore is the one step whose failure
+  // costs hours, so a Xero refusal must not take it down with it. The banner
+  // names the sweep, which finds the same objects by reading the organisation.
+  removeThisRunsXeroObjects()
+
+  // Save AFTER the settle and after the Xero cleanup (v1 saved before the
+  // settle): both can trigger a refresh, and Xero's refresh token is
+  // single-use, so reinjecting a copy taken earlier would strand the next run
+  // on a consumed token. The cleanup is the likelier of the two — it makes a
+  // real Xero call per document.
+  //
+  // Under the fake Xero nothing rotated: the fake's token refresh hands the
+  // stored refresh token straight back (ADR 0060), so the backup's copy is
+  // still live and re-injecting the run's copy would put a fake access token
+  // onto the restored row.
   const xeroTokenFile = `${backupFile}.xero-app-token.json`
-  const xeroAppTokenRow = saveActiveXeroToken(dbConfig, xeroTokenFile)
+  const xeroAppTokenRow = xeroMode === 'fake' ? null : saveActiveXeroToken(dbConfig, xeroTokenFile)
+  if (xeroMode === 'fake') {
+    console.log('[db] Fake Xero run: the real token was never rotated; no token to re-inject.')
+  }
 
   // Atomic restore: -v ON_ERROR_STOP=1 bails psql at the first SQL error
   // and --single-transaction wraps the whole dump replay in one BEGIN/COMMIT.
@@ -280,7 +322,9 @@ function restoreDatabase(lockContents: string): void {
   // Re-inject the saved active Xero app token so the connection stays live.
   // Throws on failure, which leaves the side-file below undeleted — the token
   // stays recoverable by hand instead of being lost with the process.
-  reinjectXeroToken(dbConfig, xeroAppTokenRow)
+  if (xeroAppTokenRow !== null) {
+    reinjectXeroToken(dbConfig, xeroAppTokenRow)
+  }
 
   // Sync sequences after restore
   console.log('[db] Syncing sequences...')
@@ -314,6 +358,15 @@ function restoreDatabase(lockContents: string): void {
   fs.rmSync(xeroTokenFile, { force: true })
 
   console.log('[db] Database restored successfully.')
+}
+
+function removeThisRunsXeroObjects(): void {
+  console.log("\n[xero] Removing this run's Xero objects...")
+  try {
+    runE2ECleanup(true)
+  } catch (error) {
+    printXeroCleanupFailureBanner(error instanceof Error ? error.message : String(error))
+  }
 }
 
 export default function globalTeardown(): void {

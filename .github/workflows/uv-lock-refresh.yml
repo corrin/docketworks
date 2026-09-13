@@ -58,11 +58,20 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         continue-on-error: true
         id: audit
-        run: uv run --with pip-audit python -m pip_audit | tail -40
+        # The report is captured whole and handed to the PR body; a `| tail`
+        # here masked the exit code and cut the "Found N vulnerabilities" line.
+        run: |
+          set -o pipefail
+          uv run --with pip-audit python -m pip_audit > pip-audit.txt 2>&1 || true
+          {
+            echo 'report<<EOF'
+            cat pip-audit.txt
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Open the PR
         if: steps.changes.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           branch: chore/uv-lock-refresh
           title: 'Weekly uv.lock refresh'
@@ -85,6 +94,14 @@ jobs:
 
             ```
             ${{ steps.changes.outputs.summary }}
+            ```
+
+            Still vulnerable after the refresh, per pip-audit (empty means
+            clean; a package listed here is one the declared ranges cannot
+            reach, and widening the range is a decision, not a refresh):
+
+            ```
+            ${{ steps.audit.outputs.report }}
             ```
 
             Treat this the way any dependency PR is treated here: let CI run,

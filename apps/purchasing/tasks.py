@@ -39,6 +39,9 @@ from apps.quoting.services.stock_parser import auto_parse_stock_item
 
 logger = logging.getLogger("apps.purchasing.tasks")
 
+#: The Xero-side push, addressed by name across the layer boundary.
+
+
 MAX_CATCH_UP_BATCH = 500
 
 

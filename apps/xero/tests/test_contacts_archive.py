@@ -5,7 +5,7 @@ from typing import ClassVar, Protocol
 import pytest
 
 from apps.xero import contacts as contacts_module
-from apps.xero import seeding as seeding_module
+from apps.xero import sync as sync_module
 from apps.xero.constants import XERO_BATCH_SIZE
 from apps.xero.seeding import get_all_xero_contacts
 
@@ -115,12 +115,15 @@ def test_listing_refuses_a_contact_status_xero_does_not_document(
         def __init__(self, _client: object) -> None:
             pass
 
-        def get_contacts(self, _tenant_id: str, **_kwargs: object) -> _Response:
+        def get_contacts(self, xero_tenant_id: str, **_kwargs: object) -> _Response:
+            assert xero_tenant_id == "tenant"
             return _Response([_Contact()])
 
-    monkeypatch.setattr(seeding_module, "AccountingApi", _Api)
-    monkeypatch.setattr(seeding_module, "get_api_client", object)
-    monkeypatch.setattr(seeding_module, "get_tenant_id", lambda: "tenant")
+    # The paged read lives in the sync engine, which get_all_xero_contacts
+    # calls; the validation under test is still seeding's.
+    monkeypatch.setattr(sync_module, "AccountingApi", _Api)
+    monkeypatch.setattr(sync_module, "get_api_client", object)
+    monkeypatch.setattr(sync_module, "get_tenant_id", lambda: "tenant")
 
     with pytest.raises(ValueError, match="GDPRREQUEST"):
         get_all_xero_contacts()

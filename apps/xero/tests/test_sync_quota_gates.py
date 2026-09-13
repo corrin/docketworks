@@ -32,7 +32,7 @@ from apps.xero.sync import get_sync_cursor, sync_xero_data, synchronise_xero_dat
 from apps.xero.sync_constants import SYNC_STATUS_KEY
 from apps.xero.sync_worker import xero_sync_task
 
-from .conftest import set_active_quota
+from .conftest import record_xero_quota
 
 # Sync state lives on the "shared" alias (Redis in prod, LocMem in tests).
 # The legacy "xero_sync_lock" in synchronise_xero_data stays on the default cache.
@@ -63,7 +63,7 @@ class TestSynchroniseXeroDataOrchestratorGate:
         # warning event and return. A returned generator looks like a
         # successful empty stream to the worker task, which would then emit
         # sync_status:"success" — masking the abort.
-        set_active_quota(day_remaining=0)
+        record_xero_quota(day_remaining=0)
 
         with (
             patch("apps.xero.sync.sync_xero_pay_items") as mock_pay_items,
@@ -80,7 +80,7 @@ class TestSynchroniseXeroDataOrchestratorGate:
     def test_floor_breached_does_not_advance_last_sync_timestamps(self) -> None:
         # A quota abort must not advance last-sync timestamps; otherwise the
         # next real sync skips work and stale Xero data stays hidden for days.
-        set_active_quota(day_remaining=0)
+        record_xero_quota(day_remaining=0)
 
         with pytest.raises(XeroQuotaFloorReached):
             list(synchronise_xero_data())
@@ -91,7 +91,7 @@ class TestSynchroniseXeroDataOrchestratorGate:
 
     def test_completion_stamp_preserves_loading_changed_during_the_run(self) -> None:
         """The hours-long sync window must not replay the loading captured at its start."""
-        set_active_quota(day_remaining=500)
+        record_xero_quota(day_remaining=500)
         defaults = CompanyDefaults.get_solo()
         defaults.labour_cost_loading = Decimal("20.00")
         defaults.last_xero_deep_sync = timezone.now()
@@ -142,7 +142,7 @@ class TestSyncXeroDataPerPageGate:
         _set_company_floor()
 
     def test_floor_breached_raises_before_fetch(self) -> None:
-        set_active_quota(day_remaining=50)
+        record_xero_quota(day_remaining=50)
         fetch = MagicMock()  # would explode if called
 
         with pytest.raises(XeroQuotaFloorReached):
@@ -160,7 +160,7 @@ class TestSyncXeroDataPerPageGate:
         assert not fetch.called
 
     def test_above_floor_proceeds_normally(self) -> None:
-        set_active_quota(day_remaining=500)
+        record_xero_quota(day_remaining=500)
         # One page returning no items ends the loop after a single fetch.
         fetch = MagicMock(return_value=SimpleNamespace(invoices=[]))
 

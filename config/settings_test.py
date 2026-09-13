@@ -40,6 +40,9 @@ os.environ.setdefault("REDIS_URL", "redis://localhost:6379/1")
 # exists for exactly that. A test of the valve itself sets it locally with
 # override_settings.
 os.environ.setdefault("XERO_READONLY", "false")
+# The fake Xero is selected per run by run_e2e.sh (ADR 0060); a unit test of
+# the fake itself sets it locally with override_settings, like the valve.
+os.environ.setdefault("XERO_FAKE", "false")
 os.environ.setdefault("FRONT_END_URL", "http://localhost:5173")
 os.environ.setdefault(
     "DROPBOX_WORKFLOW_FOLDER",

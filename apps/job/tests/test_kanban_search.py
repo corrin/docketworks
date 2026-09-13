@@ -35,7 +35,7 @@ from django.test.utils import CaptureQueriesContext
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import make_invoice, make_link, make_quote
 from apps.job.models import Job
 from apps.job.services.kanban_service import KanbanService

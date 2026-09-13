@@ -6,8 +6,10 @@ become events, untracked fields stay silent, enrichment kwargs flow through,
 and the .update() guard forces attributable writes.
 """
 
+import re
 import uuid
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 from django.utils import timezone
@@ -269,3 +271,98 @@ class TestEventDuplicateSuppression:
         assert _stable_key("Delivered to site") == _stable_key("Delivered to site")
         assert _stable_key("Delivered to site") != _stable_key("Delivered to site ")
         assert _stable_key("Delivered to site") == "b07ceac408a1821f1bcf6a13cfc9c43e"
+
+
+class TestEveryWrittenEventTypeRenders:
+    """A job event the app writes must describe itself from its own detail.
+
+    The description is recomputed on read, so an event type with no registered
+    builder renders the raw sentinel `(event_type)` in job history. Four did:
+    invoice amount changes, voided invoices, and both halves of the urgent flag.
+    Nothing caught it because the sentinel is a string like any other.
+    """
+
+    @staticmethod
+    def _written_event_types() -> set[str]:
+        """Every event_type literal the backend writes onto a JobEvent."""
+        written: set[str] = set()
+        for path in Path("apps").rglob("*.py"):
+            if "/tests/" in str(path) or "/migrations/" in str(path):
+                continue
+            source = path.read_text()
+            if "JobEvent" not in source and "_handle_boolean_change" not in source:
+                continue
+            written.update(re.findall(r"event_type\s*=\s*[\"']([a-z_]+)[\"']", source))
+            for pair in re.findall(
+                r"_handle_boolean_change\(\s*[\"']([a-z_]+)[\"'],\s*[\"']([a-z_]+)[\"']", source
+            ):
+                written.update(pair)
+        return written
+
+    def test_no_written_event_type_falls_through_to_the_sentinel(self) -> None:
+        unregistered = self._written_event_types() - set(JobEvent._DESCRIPTION_BUILDERS)
+        assert not unregistered, (
+            f"job history would show a raw sentinel for: {sorted(unregistered)}"
+        )
+
+    def test_an_invoice_amount_change_names_both_totals(self) -> None:
+        event = JobEvent(
+            event_type="invoice_amount_changed",
+            detail={
+                "xero_invoice_number": "INV-55537",
+                "old_total_excl_tax": "932.74",
+                "new_total_excl_tax": "712.74",
+            },
+        )
+        assert event.build_description() == (
+            "Invoice INV-55537 changed from $932.74 to $712.74 excluding tax"
+        )
+
+    def test_flagging_a_job_urgent_describes_the_change(self) -> None:
+        event = JobEvent(
+            event_type="urgent_flagged",
+            detail={
+                "changes": [{"field_name": "Urgent job", "old_value": "No", "new_value": "Yes"}]
+            },
+        )
+        assert event.build_description() != "(urgent_flagged)"
+        assert "Urgent job" in event.build_description()
+
+
+class TestLostDetailIsStated:
+    """Descriptions that cannot be rebuilt say so, rather than reading as complete.
+
+    Events written before 2026-04-22 stored a rendered sentence instead of the
+    values behind it. The wording matters more than the fallback: an entry that
+    reads like any other stops an auditor looking, where one that admits the gap
+    sends them to the backup.
+    """
+
+    def test_a_change_without_recorded_values_admits_it(self) -> None:
+        event = JobEvent(event_type="job_updated", detail={"changes": [{"field_name": "Notes"}]})
+        assert event.build_description() == "Notes changed (details lost)"
+
+    def test_a_change_with_values_is_unaffected(self) -> None:
+        event = JobEvent(
+            event_type="job_updated",
+            detail={"changes": [{"field_name": "Status", "old_value": "A", "new_value": "B"}]},
+        )
+        assert "details lost" not in event.build_description()
+
+    def test_a_creation_missing_its_facts_does_not_invent_them(self) -> None:
+        event = JobEvent(event_type="job_created", detail={"job_name": "Handrail"})
+        described = event.build_description()
+        assert "Unknown" not in described
+        assert "Some creation details lost" in described
+
+    def test_a_complete_creation_says_nothing_about_loss(self) -> None:
+        event = JobEvent(
+            event_type="job_created",
+            detail={
+                "job_name": "Handrail",
+                "company_name": "Acme",
+                "initial_status": "Draft",
+                "pricing_methodology": "Time & Materials",
+            },
+        )
+        assert "details lost" not in event.build_description()

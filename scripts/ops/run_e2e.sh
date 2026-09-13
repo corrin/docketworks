@@ -13,6 +13,24 @@
 #
 set -Eeuo pipefail
 
+# --use-fake-xero: an iteration run (ADR 0060). Every process below is
+# started with XERO_FAKE=true, the store is seeded from the mirror before the
+# pre-run dump so the restore resets it, and the run is never the gate. The
+# flag is peeled off here so Playwright still receives the rest of "$@".
+USE_FAKE_XERO=false
+PLAYWRIGHT_ARGS=()
+for arg in "$@"; do
+  if [[ "$arg" == "--use-fake-xero" ]]; then USE_FAKE_XERO=true; else PLAYWRIGHT_ARGS+=("$arg"); fi
+done
+if [[ "$USE_FAKE_XERO" == true ]]; then
+  if [[ -n "${E2E_XERO_PAYROLL:-}" ]]; then
+    echo "Refusing to start: the payroll-write specs post to the real tenant and the fake does not route them (ADR 0060)." >&2
+    exit 1
+  fi
+  export XERO_FAKE=true
+  echo "FAKE XERO: every Xero call is answered locally. This run is not a merge gate."
+fi
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 FRONTEND="$ROOT/frontend"
 LOG_DIR="$ROOT/logs/e2e"
@@ -32,7 +50,8 @@ cleanup() {
   done
   for pid in "${PIDS[@]}"; do kill -KILL -- "-$pid" 2>/dev/null; done
   for pid in "${PIDS[@]}"; do wait "$pid" 2>/dev/null; done
-  if (( status == 0 )); then echo "E2E PASSED — all managed services stopped."; else echo "E2E FAILED (exit $status) — logs: $LOG_DIR" >&2; fi
+  if (( status == 0 )) && [[ "$USE_FAKE_XERO" == true ]]; then echo "E2E PASSED AGAINST FAKE XERO — not a merge gate; all managed services stopped.";
+  elif (( status == 0 )); then echo "E2E PASSED — all managed services stopped."; else echo "E2E FAILED (exit $status) — logs: $LOG_DIR" >&2; fi
   exit "$status"
 }
 trap cleanup EXIT
@@ -49,6 +68,10 @@ if [[ "$(readlink -f "$NGROK")" == /usr/bin/snap && -x /snap/ngrok/current/ngrok
 
 if ! command -v lsof >/dev/null; then
   echo "Refusing to start: lsof is required for the port-in-use guard." >&2
+  exit 1
+fi
+if ! command -v jq >/dev/null; then
+  echo "Refusing to start: jq is required to read the tunnel's public URL from the ngrok agent." >&2
   exit 1
 fi
 for port in 4173 8000 4040; do
@@ -76,6 +99,19 @@ cd "$ROOT"
 # Django that will not boot — and the run stops rather than proceeding with no
 # shape report at all.
 "$ROOT/.venv/bin/python" "$ROOT/scripts/checks/data_shape_gap.py"
+# Opus: Read before the reset step, which is the run's first Xero spender: it
+# deletes the previous run's writes from Xero and has been the point past
+# runs were refused with the day at zero. 150 is the automated floor of 100
+# (below it beat's syncs go quiet partway through the suite) plus the 45
+# calls a non-payroll run measured at; the reading after the suite is what
+# refines that number. Both readings cost one call each.
+if [[ "$USE_FAKE_XERO" == true ]]; then
+  # The fake's Xero is the mirror as of now: seeded here, before the backup
+  # global-setup takes, so the teardown's restore puts the seed back and the
+  # next run seeds afresh. --replace: last run's store is not this run's.
+  "$ROOT/.venv/bin/python" manage.py fake_xero_seed --replace
+fi
+"$ROOT/.venv/bin/python" -m scripts.ops.assert_xero_quota --min 150
 npm --prefix "$FRONTEND" run test:e2e:reset -- --confirm
 rm -rf "$FRONTEND/test-results" "$FRONTEND/playwright-report" "$LOG_DIR"
 mkdir -p "$LOG_DIR"
@@ -102,9 +138,15 @@ wait_for frontend curl -fsS http://127.0.0.1:4173/
 wait_for 'Celery worker' grep -q 'ready\.' "$LOG_DIR/worker.log"
 wait_for 'Celery Beat' grep -q 'beat: Starting\.\.\.' "$LOG_DIR/beat.log"
 wait_for ngrok curl -fsS http://127.0.0.1:4040/api/tunnels
+# The agent lists the tunnel before ngrok's edge routes it, and the suite's
+# first navigation met ERR_CONNECTION_RESET in that gap. Readiness is the app
+# answering through the edge, and the URL is asked of the agent so there is
+# one source of it.
+public_url() { curl -fsS http://127.0.0.1:4040/api/tunnels | jq -er '.tunnels[0].public_url'; }
+wait_for 'the public edge' curl -fsS "$(public_url)/api/build-id/"
 
-# localhost, not 127.0.0.1: plain `npm run test:e2e` uses localhost:4173, and
-# the suite must never see two origins for the same server. Extra arguments
-# pass through to Playwright (e.g. a spec path while iterating on one file);
-# no argument runs the whole suite, which is what gates.
-E2E_MANAGED_BASE_URL=http://localhost:4173 npm --prefix "$FRONTEND" run test:e2e -- "$@"
+# Use the same configured public origin as an ordinary Playwright run.
+npm --prefix "$FRONTEND" run test:e2e -- "${PLAYWRIGHT_ARGS[@]}"
+# The same reading again: the difference from the one above is what this run
+# spent, printed where the next threshold decision will find it.
+"$ROOT/.venv/bin/python" -m scripts.ops.assert_xero_quota

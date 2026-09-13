@@ -8,7 +8,7 @@ from django.core.management import call_command
 from django.utils import timezone
 
 from apps.company.models import Company
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 
 pytestmark = pytest.mark.django_db
 

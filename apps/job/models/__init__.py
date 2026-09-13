@@ -5,7 +5,7 @@ from .job import Job
 from .job_delta_rejection import JobDeltaRejection
 from .job_event import JobEvent
 from .job_file import JobFile
-from .job_quote_chat import JobQuoteChat
+from .job_quote_chat import JobQuoteChat, JobQuoteChatThread
 from .labour import JobLabourRate, LabourSubtype
 from .spreadsheet import QuoteSpreadsheet
 
@@ -18,6 +18,7 @@ __all__ = [
     "JobFile",
     "JobLabourRate",
     "JobQuoteChat",
+    "JobQuoteChatThread",
     "LabourSubtype",
     "QuoteSpreadsheet",
 ]

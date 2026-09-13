@@ -19,6 +19,7 @@ import { STAFF_DRAG_TYPE } from './JobCard'
 interface StaffPanelProps {
   staff: KanbanStaffOut[]
   isLoading: boolean
+  isError: boolean
   activeStaffIds: string[]
   onToggleFilter: (staffId: string) => void
   /** The staff id currently armed for tap-assign, or null when idle. */
@@ -29,6 +30,7 @@ interface StaffPanelProps {
 export function StaffPanel({
   staff,
   isLoading,
+  isError,
   activeStaffIds,
   onToggleFilter,
   armedStaffId,
@@ -38,6 +40,14 @@ export function StaffPanel({
     return (
       <div className="flex items-center justify-center gap-2 py-4 text-sm text-gray-600">
         Loading staff members...
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-4 text-sm text-red-700">
+        Could not load staff members.
       </div>
     )
   }

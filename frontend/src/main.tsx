@@ -14,6 +14,17 @@ const router = createRouter({
   context: { queryClient },
 })
 
+// A route chunk that fails to load leaves the page dead: the router has no
+// component to render and nothing retries the import. A reload asks for the
+// current index, which names the chunks that exist, so it recovers both a
+// dropped connection mid-navigation and a tab left open across a deploy. The
+// event is Vite's own signal for exactly this case; an error boundary was
+// rejected because it can only report the failure, not fetch the chunk.
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault()
+  window.location.reload()
+})
+
 declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router

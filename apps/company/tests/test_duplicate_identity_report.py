@@ -9,12 +9,13 @@ import pytest
 from django.test import Client
 
 from apps.accounts.models import Staff
+from apps.accounts.tests.helpers import authenticate
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.company.services.duplicate_identity_report import (
     DuplicateIdentityReportService,
     person_names_compatible,
 )
-from apps.company.tests.conftest import authenticate, make_company
+from apps.company.tests.factories import make_company
 
 pytestmark = pytest.mark.django_db
 

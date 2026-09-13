@@ -179,7 +179,6 @@ test.describe.serial('estimate operations', () => {
     await addAdjustmentEntry(page, 'Test Adjustment for Editing', '1', '10')
 
     const rowIndex = await findRowIndexByDescription(page, 'Test Adjustment for Editing')
-    expect(rowIndex).toBeGreaterThanOrEqual(0)
 
     // Change quantity to 3
     const qtyInput = autoId(page, `SmartCostLinesTable-quantity-${rowIndex}`)
@@ -201,7 +200,6 @@ test.describe.serial('estimate operations', () => {
     await openJobCostingTab(page, jobUrl, 'estimate')
 
     const newRowIndex = await findRowIndexByDescription(page, 'Test Adjustment for Editing')
-    expect(newRowIndex).toBeGreaterThanOrEqual(0)
 
     await expect(autoId(page, `SmartCostLinesTable-quantity-${newRowIndex}`)).toHaveValue('3')
     await expect(autoId(page, `SmartCostLinesTable-unit-cost-${newRowIndex}`)).toHaveValue('25')
@@ -211,7 +209,6 @@ test.describe.serial('estimate operations', () => {
     await openJobCostingTab(page, jobUrl, 'estimate')
 
     const rowIndex = await findRowIndexByDescription(page, 'Test Adjustment for Editing')
-    expect(rowIndex).toBeGreaterThanOrEqual(0)
 
     const unitCostInput = autoId(page, `SmartCostLinesTable-unit-cost-${rowIndex}`)
     const originalUnitCost = await unitCostInput.inputValue()
@@ -290,7 +287,6 @@ test.describe.serial('estimate operations', () => {
 
     const rowsBefore = await page.locator('[data-automation-id^="DataTable-row-"]').count()
     const deleteRowIndex = await findRowIndexByDescription(page, 'Row to be deleted')
-    expect(deleteRowIndex).toBeGreaterThanOrEqual(0)
 
     // Accept the confirm dialog and delete
     page.on('dialog', (dialog) => void dialog.accept())

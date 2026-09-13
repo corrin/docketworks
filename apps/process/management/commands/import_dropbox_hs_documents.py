@@ -25,8 +25,8 @@ if TYPE_CHECKING:
     from googleapiclient._apis.drive.v3.schemas import File
 
 from apps.core.errors import persist_app_error
-from apps.core.gauth import delegated_credentials, delegated_subject
 from apps.core.models import CompanyDefaults
+from apps.platform.integrations.google.credentials import delegated_credentials, delegated_subject
 from apps.process.models import Form, Procedure
 
 # Maps individual doc numbers to (document_type, category, tags). Which model
@@ -502,7 +502,7 @@ class Command(BaseCommand):
         """Check upload prerequisites upfront and return the Drive folder id.
 
         Dry runs create and upload nothing, so they may proceed unconfigured.
-        Credentials come from the one builder (apps/core/gauth.py:
+        Credentials come from the one builder (apps/platform/integrations/google/credentials.py:
         GCP_CREDENTIALS key file, delegated subject) — this command carried
         its own --credentials path while it was v2's only Google client,
         which stopped being true when the Gmail sender landed (ADR 0039).
@@ -522,7 +522,7 @@ class Command(BaseCommand):
                     "Set it in Settings before uploading."
                 )
             try:
-                delegated_subject()
+                delegated_subject(company.company_email)
             except RuntimeError as exc:
                 raise CommandError(str(exc)) from exc
         return reference_folder_id
@@ -733,7 +733,12 @@ class Command(BaseCommand):
     ) -> tuple[str, str]:
         """Upload a .doc/.docx to Drive converting to Google Docs; return (id, url)."""
         drive_service = build(
-            "drive", "v3", credentials=delegated_credentials(GOOGLE_SCOPES), cache_discovery=False
+            "drive",
+            "v3",
+            credentials=delegated_credentials(
+                GOOGLE_SCOPES, delegated_subject(CompanyDefaults.get_solo().company_email)
+            ),
+            cache_discovery=False,
         )
 
         ext = file_path.suffix.lower()

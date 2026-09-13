@@ -11,7 +11,7 @@ from celery import shared_task
 from django.db import close_old_connections
 
 from apps.core.errors import persist_app_error
-from apps.core.models import IntegrationSettings
+from apps.platform.integrations.models import IntegrationSettings
 
 scheduler_logger = logging.getLogger("apps.crm.tasks")
 

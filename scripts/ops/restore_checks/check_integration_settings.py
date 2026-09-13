@@ -13,9 +13,9 @@ from scripts.bootstrap import setup_django
 
 setup_django()
 
-from apps.core.geocoding import search_places  # noqa: E402 -- Django first
-from apps.core.models import IntegrationSettings  # noqa: E402
 from apps.crm.services.phone_call_service import verify_portal_login  # noqa: E402
+from apps.platform.integrations.google.places import search_places  # noqa: E402 -- Django first
+from apps.platform.integrations.models import IntegrationSettings  # noqa: E402
 
 PROBE_ADDRESS = "1 Queen Street, Auckland"
 

@@ -13,6 +13,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 
 const STOCK_PAGE_SIZE = 50
 
@@ -41,6 +42,7 @@ interface ItemSelectProps {
       component must not let the user rebind. The wrapper automation id
       stays identical either way: callers bind to it regardless of mode. */
   textOnly?: boolean
+  triggerClassName?: string
   onPickStock: (stock: StockItem) => void
   onPickLabour?: (rate: JobLabourRateOut, allRates: readonly JobLabourRateOut[]) => void
 }
@@ -61,6 +63,7 @@ export function ItemSelect({
   disabled,
   allowLabour = true,
   textOnly = false,
+  triggerClassName,
   onPickStock,
   onPickLabour,
 }: ItemSelectProps) {
@@ -112,7 +115,12 @@ export function ItemSelect({
     <span data-automation-id={wrapperAutomationId}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" disabled={disabled} className="max-w-40 truncate">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            className={cn('max-w-40 truncate', triggerClassName)}
+          >
             {resolvedLabel}
           </Button>
         </PopoverTrigger>

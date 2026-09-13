@@ -12,7 +12,7 @@ import pytest
 from django.test import Client
 
 from apps.accounting.services import payroll_reconciliation_service
-from apps.company.tests.conftest import authenticate
+from apps.accounts.tests.helpers import authenticate
 from apps.core.models import CompanyDefaults
 from apps.timesheet.tests.conftest import make_staff
 

@@ -7,7 +7,7 @@ import { autoId } from '../helpers'
  * and never echoed. It saves the way every settings screen saves (Save/Cancel
  * disabled until dirty, dirty-fields-only PATCH, toast on result). Role gating
  * (both verbs are superuser-only) is proven in
- * apps/core/tests/test_integration_settings_api.py — the E2E account is a
+ * apps/platform/integrations/tests/test_integration_settings_api.py — the E2E account is a
  * superuser.
  */
 

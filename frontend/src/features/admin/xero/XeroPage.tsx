@@ -17,6 +17,7 @@ import {
 } from '@/api'
 import { Button } from '@/components/ui/button'
 import { QueryState } from '@/features/shared/QueryState'
+import { formatDateTime } from '@/lib/format'
 
 /**
  * The Xero connection page: status, connect/reconnect via the OAuth flow,
@@ -191,7 +192,7 @@ export function XeroPage() {
               </p>
             )}
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               {pingState.kind !== 'connected' && (
                 <Button asChild data-automation-id="XeroPage-connect">
                   <a href={AUTHENTICATE_URL}>Connect to Xero</a>
@@ -205,6 +206,14 @@ export function XeroPage() {
                     data-automation-id="XeroPage-start-sync"
                   >
                     {syncing ? 'Sync running...' : 'Start Sync'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => startSync.mutate({ query: { detail_refresh: true } })}
+                    disabled={startSync.isPending || syncing}
+                    data-automation-id="XeroPage-refresh-details"
+                  >
+                    Refresh Xero details
                   </Button>
                   <Button
                     variant="outline"
@@ -239,6 +248,15 @@ export function XeroPage() {
         >
           {syncInfo.data && (
             <section className="space-y-3 rounded-lg border p-4">
+              <p className="text-sm text-muted-foreground">
+                Refresh Xero details refreshes employee pay and working patterns.
+              </p>
+              <p className="text-sm" data-automation-id="XeroPage-last-detail-refresh">
+                Last successful detail refresh:{' '}
+                {syncInfo.data.last_detail_refresh
+                  ? formatDateTime(syncInfo.data.last_detail_refresh)
+                  : 'never'}
+              </p>
               <h2 className="text-lg font-medium">Last sync per entity</h2>
               <p className="text-sm text-muted-foreground">
                 Sync window: {syncInfo.data.sync_range}

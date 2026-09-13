@@ -33,14 +33,14 @@ test.describe('purchase order created by', () => {
     await page.waitForLoadState('networkidle')
 
     // Find the Created By field using automation ID
-    const createdByInput = autoId(page, 'PoSummaryCard-created-by')
-    await expect(createdByInput).toBeVisible({ timeout: 5000 })
+    const createdBy = autoId(page, 'PoSummaryCard-created-by')
+    await expect(createdBy).toBeVisible({ timeout: 5000 })
 
-    const createdByInputValue = await createdByInput.inputValue()
+    const createdByValue = await createdBy.innerText()
 
-    expect(createdByInputValue.trim()).not.toBe('')
+    expect(createdByValue.trim()).not.toBe('')
 
     // Both should match
-    expect(createdByInputValue.trim()).toBe(createdByText.trim())
+    expect(createdByValue.trim()).toBe(createdByText.trim())
   })
 })

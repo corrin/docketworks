@@ -30,9 +30,9 @@ from ninja import Query, Router
 from ninja.errors import HttpError
 from ninja.responses import Status
 
-from apps.accounts.models import Staff
+from apps.accounts.auth import authenticated_staff
 from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
-from apps.core.errors import AppErrorContext, app_error_for, persist_app_error
+from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.core.pagination import paginate
 from apps.diagnostics.models import SessionReplayRecording
@@ -56,14 +56,6 @@ auth = CookieJWTAuth()
 admin_auth = SuperuserCookieJWTAuth()
 
 
-def _staff(request: HttpRequest) -> Staff:
-    """Narrow the authenticated user to a real Staff row (ADR 0028)."""
-    user = request.user
-    if not isinstance(user, Staff):  # pragma: no cover - CookieJWTAuth guarantees Staff
-        raise HttpError(401, "Authentication credentials were not provided.")
-    return user
-
-
 def _own_recording(request: HttpRequest, recording_id: UUID) -> SessionReplayRecording:
     """Return the caller's own recording, or raise a 404.
 
@@ -71,7 +63,9 @@ def _own_recording(request: HttpRequest, recording_id: UUID) -> SessionReplayRec
     the id exists, which is more than a client uploading to its own session
     needs to know.
     """
-    return get_object_or_404(SessionReplayRecording, id=recording_id, user=_staff(request))
+    return get_object_or_404(
+        SessionReplayRecording, id=recording_id, user=authenticated_staff(request)
+    )
 
 
 def _recording_out(recording: SessionReplayRecording) -> dict[str, object]:
@@ -94,6 +88,17 @@ def _recording_out(recording: SessionReplayRecording) -> dict[str, object]:
     }
 
 
+def _require_session_replay_enabled() -> None:
+    """Refuse capture the moment the company switches it off.
+
+    On upload as well as on open: an open tab keeps flushing every ten seconds
+    for the rest of its session, so gating only the open call left the toggle
+    unable to stop a recording already in progress.
+    """
+    if not CompanyDefaults.get_solo().session_replay_enabled:
+        raise HttpError(409, "Session replay is disabled for this company.")
+
+
 @router.post(
     "/recordings/",
     auth=auth,
@@ -105,12 +110,11 @@ def session_replay_recordings_create(
     request: HttpRequest, payload: RecordingCreateIn
 ) -> Status[dict[str, object]]:
     """Open a recording owned by the caller."""
-    if not CompanyDefaults.get_solo().session_replay_enabled:
-        raise HttpError(409, "Session replay is disabled for this company.")
+    _require_session_replay_enabled()
 
     recording = replays.create_recording(
         replays.NewRecording(
-            user=_staff(request),
+            user=authenticated_staff(request),
             initial_path=payload.initial_path,
             user_agent=request.headers.get("User-Agent") or None,
             viewport=replays.Viewport(width=payload.viewport_width, height=payload.viewport_height),
@@ -131,6 +135,7 @@ def session_replay_recording_chunks_create(
     request: HttpRequest, recording_id: UUID, payload: ChunkCreateIn
 ) -> Status[dict[str, object]]:
     """Store one batch of events against the caller's own recording."""
+    _require_session_replay_enabled()
     recording = _own_recording(request, recording_id)
     if recording.chunks.filter(sequence=payload.sequence).exists():
         # 409, not 400: the client's retry loop treats this as "already
@@ -266,10 +271,9 @@ def session_replay_frontend_errors_create(
     fail. ``persist_app_error`` validates the replay id and demotes one that
     is not the caller's into the error's data.
     """
-    staff = _staff(request)
-    reported = RuntimeError(payload.message)
-    persist_app_error(
-        reported,
+    staff = authenticated_staff(request)
+    app_error = persist_app_error(
+        RuntimeError(payload.message),
         AppErrorContext(
             app="frontend",
             file=payload.path,
@@ -282,5 +286,4 @@ def session_replay_frontend_errors_create(
             },
         ),
     )
-    app_error = app_error_for(reported)
-    return Status(201, {"error_id": app_error.id if app_error is not None else None})
+    return Status(201, {"error_id": app_error.id})

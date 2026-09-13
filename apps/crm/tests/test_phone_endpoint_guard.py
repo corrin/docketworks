@@ -13,8 +13,9 @@ from django.core.exceptions import ValidationError
 from django.test import Client
 
 from apps.company.models import Company, ContactMethod
+from apps.company.tests.factories import make_company
 from apps.crm.models import PhoneEndpoint
-from apps.crm.tests.helpers import cookie_client, link_person, make_company, make_superuser
+from apps.crm.tests.helpers import cookie_client, link_person, make_superuser
 
 pytestmark = [
     pytest.mark.django_db,
@@ -61,14 +62,14 @@ class TestPhoneEndpointGuardModel:
             _endpoint("021 555 123")
 
     def test_inactive_endpoint_over_client_number_is_allowed(self) -> None:
-        _client_phone(make_company())
+        _client_phone(make_company("Acme Ltd"))
 
         endpoint = _endpoint("021 555 123", is_active=False)
 
         assert endpoint.pk is not None
 
     def test_reactivating_endpoint_over_client_number_raises(self) -> None:
-        _client_phone(make_company())
+        _client_phone(make_company("Acme Ltd"))
         endpoint = _endpoint("021 555 123", is_active=False)
 
         endpoint.is_active = True
@@ -76,7 +77,7 @@ class TestPhoneEndpointGuardModel:
             endpoint.save()
 
     def test_changing_number_onto_client_number_raises(self) -> None:
-        _client_phone(make_company())
+        _client_phone(make_company("Acme Ltd"))
         endpoint = _endpoint("09 555 000")
 
         endpoint.number = "021 555 123"
@@ -89,7 +90,7 @@ class TestPhoneEndpointGuardModel:
         # Legacy cross-owned row inserted bypassing the method-side guard,
         # as pre-guard data was.
         legacy = ContactMethod(
-            company=make_company(),
+            company=make_company("Acme Ltd"),
             method_type=ContactMethod.MethodType.PHONE,
             value="021 555 123",
         )
@@ -136,7 +137,7 @@ class TestPhoneEndpointGuardApi:
     def test_update_unrelated_field_on_grandfathered_endpoint_succeeds(self, api: Client) -> None:
         endpoint = _endpoint("021 555 123")
         legacy = ContactMethod(
-            company=make_company(),
+            company=make_company("Acme Ltd"),
             method_type=ContactMethod.MethodType.PHONE,
             value="021 555 123",
         )

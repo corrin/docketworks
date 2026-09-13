@@ -44,6 +44,19 @@ function readRunId(): string {
   return Math.random().toString(36).substring(2, 10)
 }
 
+/**
+ * Which Xero the run talked to (lock file line 4, written by global-setup):
+ * "fake" under --use-fake-xero, otherwise "real". Every history row carries
+ * it, because a fake run's timings and outcomes are not the gate's (ADR 0060)
+ * and the analysers leave them out unless asked.
+ */
+function readXeroMode(): 'fake' | 'real' {
+  if (fs.existsSync(LOCK_FILE)) {
+    return fs.readFileSync(LOCK_FILE, 'utf8').split('\n')[3]?.trim() === 'fake' ? 'fake' : 'real'
+  }
+  return 'real'
+}
+
 type CompletedStatus = 'passed' | 'failed' | 'timedOut' | 'interrupted' | 'perf-fail'
 
 interface CompletedTest {
@@ -76,7 +89,7 @@ interface GitMetadata {
 }
 
 const TEST_RUNS_HEADER =
-  'run_id,run_date,git_sha,git_branch,git_dirty,git_metadata_source,test_file,test_path,duration_ms,status\n'
+  'run_id,run_date,git_sha,git_branch,git_dirty,git_metadata_source,test_file,test_path,duration_ms,status,xero\n'
 
 // Tests that complete but exceed their threshold are tagged "perf-fail".
 // Default 30s; override by test file path prefix (relative to testDir) for
@@ -273,6 +286,7 @@ export default class HistoryReporter implements Reporter {
     }
 
     fs.mkdirSync(historyDir, { recursive: true })
+    const xeroMode = readXeroMode()
 
     // Per-test summary — primary artifact for setting timeouts and spotting
     // flakes. Status distinguishes pass/fail/timeout/interrupted; duration_ms
@@ -290,6 +304,7 @@ export default class HistoryReporter implements Reporter {
           csvCell(r.testPath),
           Math.round(r.durationMs),
           r.status,
+          xeroMode,
         ].join(','),
       )
       .join('\n')

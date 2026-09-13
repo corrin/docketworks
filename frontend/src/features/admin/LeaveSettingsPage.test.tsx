@@ -14,6 +14,7 @@ import { autoId } from '@/test/auto-id'
 const SETTINGS = '*/api/timesheets/leave-settings/'
 const PAY_ITEMS = '*/api/xero/pay-items/'
 const JOBS = '*/api/job/jobs/options/'
+const STATUS_CHOICES = '*/api/job/jobs/status-choices/'
 
 const LEAVE_JOB_ID = 'job-annual'
 const PAY_ITEM_ID = 'pay-annual'
@@ -68,6 +69,9 @@ function mockLoad(jobs: JobOptionOut[] = [job()]) {
     http.get(SETTINGS, () => HttpResponse.json(settings())),
     http.get(PAY_ITEMS, () => HttpResponse.json([payItem()])),
     http.get(JOBS, () => HttpResponse.json({ jobs })),
+    // The picker holds its options back until the status vocabulary lands, so a
+    // test that never answers this would be asserting on a list still loading.
+    http.get(STATUS_CHOICES, () => HttpResponse.json({ statuses: { special: 'Special' } })),
   )
 }
 

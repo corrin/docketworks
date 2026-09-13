@@ -37,10 +37,38 @@ from ninja import Schema
 from pydantic import (
     ConfigDict,
     Field,
+    GetJsonSchemaHandler,
     PlainSerializer,
     StringConstraints,
-    WithJsonSchema,
 )
+from pydantic.json_schema import JsonSchemaValue
+from pydantic_core import CoreSchema
+
+
+class DecimalNumberSchema:
+    """Publish decimal validation bounds on the numeric wire representation."""
+
+    def __get_pydantic_json_schema__(
+        self, schema: CoreSchema, _handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        if schema["type"] != "decimal":
+            raise TypeError("DecimalNumberSchema requires a Decimal field")
+        result: JsonSchemaValue = {"type": "number"}
+        digits, places = schema.get("max_digits"), schema.get("decimal_places")
+        if digits is not None and places is not None:
+            step = Decimal(10) ** -places
+            maximum = Decimal(10) ** (digits - places) - step
+            result.update(minimum=float(-maximum), maximum=float(maximum), multipleOf=float(step))
+        if (minimum := schema.get("ge")) is not None:
+            result["minimum"] = float(minimum)
+        if (maximum_inclusive := schema.get("le")) is not None:
+            result["maximum"] = float(maximum_inclusive)
+        if (exclusive_minimum := schema.get("gt")) is not None:
+            result["exclusiveMinimum"] = float(exclusive_minimum)
+        if (exclusive_maximum := schema.get("lt")) is not None:
+            result["exclusiveMaximum"] = float(exclusive_maximum)
+        return result
+
 
 #: Text that must carry a value when supplied. Whitespace is stripped BEFORE
 #: the length check, so "  " is the same 422 as "".
@@ -72,18 +100,17 @@ NullableText = NonBlankText | None
 Quantity = Annotated[
     Decimal,
     PlainSerializer(float, return_type=float),
-    WithJsonSchema({"type": "number"}),
+    DecimalNumberSchema(),
 ]
 
 #: A Quantity that a request may not take below zero — wage rates, hours.
 #: The published minimum reaches the generated client, so the constraint is
 #: declared once here rather than re-validated in every consumer.
-NonNegativeQuantity = Annotated[
-    Decimal,
-    Field(ge=0),
-    PlainSerializer(float, return_type=float),
-    WithJsonSchema({"type": "number", "minimum": 0}),
-]
+NonNegativeQuantity = Annotated[Quantity, Field(ge=0)]
+
+InventoryQuantity = Annotated[Quantity, Field(max_digits=11, decimal_places=3)]
+CountQuantity = Annotated[InventoryQuantity, Field(ge=0)]
+UnitCost = Annotated[Quantity, Field(ge=0, max_digits=10, decimal_places=2)]
 
 
 def _drop_default(schema: dict[str, Any]) -> None:

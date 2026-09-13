@@ -29,7 +29,7 @@ set -euo pipefail
 #   OS user:       dw_<client>_<env>  (e.g., dw_msm_uat)  — same string as the DB role
 #   URL:           <client>-<env>.docketworks.site
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
@@ -193,9 +193,6 @@ require_instance_credentials() {
     local MISSING=()
     [[ -z "${GCP_CREDENTIALS:-}" ]] && MISSING+=("GCP_CREDENTIALS")
     [[ -z "${BACKUP_GDRIVE_TEAM_DRIVE_ID:-}" ]] && MISSING+=("BACKUP_GDRIVE_TEAM_DRIVE_ID")
-    [[ -z "${ANTHROPIC_API_KEY:-}" ]] && MISSING+=("ANTHROPIC_API_KEY")
-    [[ -z "${GEMINI_API_KEY:-}" ]] && MISSING+=("GEMINI_API_KEY")
-    [[ -z "${MISTRAL_API_KEY:-}" ]] && MISSING+=("MISTRAL_API_KEY")
     [[ -z "${XERO_CLIENT_ID:-}" ]] && MISSING+=("XERO_CLIENT_ID")
     [[ -z "${XERO_CLIENT_SECRET:-}" ]] && MISSING+=("XERO_CLIENT_SECRET")
     [[ -z "${XERO_WEBHOOK_KEY:-}" ]] && MISSING+=("XERO_WEBHOOK_KEY")
@@ -351,14 +348,31 @@ render_ai_providers_fixture() {
 
     log "Generating AI providers fixture..."
     mkdir -p "$fixture_dir"
-    local ESC_ANTHROPIC_API_KEY ESC_GEMINI_API_KEY ESC_MISTRAL_API_KEY
-    ESC_ANTHROPIC_API_KEY="$(sed_escape "$ANTHROPIC_API_KEY")"
-    ESC_GEMINI_API_KEY="$(sed_escape "$GEMINI_API_KEY")"
-    ESC_MISTRAL_API_KEY="$(sed_escape "$MISTRAL_API_KEY")"
+    local OPENAI_API_KEY_JSON OPENAI_MODEL_NAME_JSON ANTHROPIC_API_KEY_JSON GEMINI_API_KEY_JSON MISTRAL_API_KEY_JSON
+    OPENAI_API_KEY_JSON="$(sed_escape "$(json_string_or_null "${OPENAI_API_KEY:-}")")"
+    OPENAI_MODEL_NAME_JSON="$(sed_escape "$(json_string_or_null "${OPENAI_MODEL_NAME:-}")")"
+    ANTHROPIC_API_KEY_JSON="$(sed_escape "$(json_string_or_null "${ANTHROPIC_API_KEY:-}")")"
+    GEMINI_API_KEY_JSON="$(sed_escape "$(json_string_or_null "${GEMINI_API_KEY:-}")")"
+    MISTRAL_API_KEY_JSON="$(sed_escape "$(json_string_or_null "${MISTRAL_API_KEY:-}")")"
+    local OPENAI_DEFAULT_ENABLED=false CLAUDE_DEFAULT_ENABLED=false GEMINI_DEFAULT_ENABLED=false MISTRAL_DEFAULT_ENABLED=false
+    case "${AI_DEFAULT_PROVIDER:-}" in
+        OpenAI) OPENAI_DEFAULT_ENABLED=true ;;
+        Claude) CLAUDE_DEFAULT_ENABLED=true ;;
+        Gemini) GEMINI_DEFAULT_ENABLED=true ;;
+        Mistral) MISTRAL_DEFAULT_ENABLED=true ;;
+        "") ;;
+        *) echo "ERROR: Unknown AI_DEFAULT_PROVIDER"; return 1 ;;
+    esac
     sed \
-        -e "s|__ANTHROPIC_API_KEY__|$ESC_ANTHROPIC_API_KEY|g" \
-        -e "s|__GEMINI_API_KEY__|$ESC_GEMINI_API_KEY|g" \
-        -e "s|__MISTRAL_API_KEY__|$ESC_MISTRAL_API_KEY|g" \
+        -e "s|__OPENAI_API_KEY_JSON__|$OPENAI_API_KEY_JSON|g" \
+        -e "s|__OPENAI_MODEL_NAME_JSON__|$OPENAI_MODEL_NAME_JSON|g" \
+        -e "s|__ANTHROPIC_API_KEY_JSON__|$ANTHROPIC_API_KEY_JSON|g" \
+        -e "s|__GEMINI_API_KEY_JSON__|$GEMINI_API_KEY_JSON|g" \
+        -e "s|__MISTRAL_API_KEY_JSON__|$MISTRAL_API_KEY_JSON|g" \
+        -e "s|__OPENAI_DEFAULT_ENABLED__|$OPENAI_DEFAULT_ENABLED|g" \
+        -e "s|__CLAUDE_DEFAULT_ENABLED__|$CLAUDE_DEFAULT_ENABLED|g" \
+        -e "s|__GEMINI_DEFAULT_ENABLED__|$GEMINI_DEFAULT_ENABLED|g" \
+        -e "s|__MISTRAL_DEFAULT_ENABLED__|$MISTRAL_DEFAULT_ENABLED|g" \
         "$TEMPLATE_DIR/ai-providers.json.template" \
         > "$fixture_dir/ai_providers.json"
     chown -R "$instance_user:$instance_user" "$fixture_dir"
@@ -398,14 +412,16 @@ render_integration_settings_fixture() {
 
     log "Generating integration settings fixture..."
     mkdir -p "$fixture_dir"
-    local GOOGLE_MAPS_API_KEY_JSON PHONE_PROVIDER_BASE_URL_JSON PHONE_PROVIDER_USERNAME_JSON
+    local CHATKIT_DOMAIN_KEY_JSON GOOGLE_MAPS_API_KEY_JSON PHONE_PROVIDER_BASE_URL_JSON PHONE_PROVIDER_USERNAME_JSON
     local PHONE_PROVIDER_PASSWORD_JSON PHONE_PROVIDER_ACCOUNT_CODE_JSON
+    CHATKIT_DOMAIN_KEY_JSON="$(sed_escape "$(json_string_or_null "${CHATKIT_DOMAIN_KEY:-}")")"
     GOOGLE_MAPS_API_KEY_JSON="$(sed_escape "$(json_string_or_null "${GOOGLE_MAPS_API_KEY:-}")")"
     PHONE_PROVIDER_BASE_URL_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_BASE_URL:-}")")"
     PHONE_PROVIDER_USERNAME_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_USERNAME:-}")")"
     PHONE_PROVIDER_PASSWORD_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_PASSWORD:-}")")"
     PHONE_PROVIDER_ACCOUNT_CODE_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_ACCOUNT_CODE:-}")")"
     sed \
+        -e "s|__CHATKIT_DOMAIN_KEY_JSON__|$CHATKIT_DOMAIN_KEY_JSON|g" \
         -e "s|__GOOGLE_MAPS_API_KEY_JSON__|$GOOGLE_MAPS_API_KEY_JSON|g" \
         -e "s|__PHONE_PROVIDER_ENABLED__|${PHONE_PROVIDER_ENABLED:-false}|g" \
         -e "s|__PHONE_PROVIDER_RECORDING_DELETION_ENABLED__|${PHONE_PROVIDER_RECORDING_DELETION_ENABLED:-false}|g" \
@@ -436,8 +452,10 @@ load_db_fixtures() {
     render_ai_providers_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
     log "Loading AI providers..."
     local AI_PROVIDERS_FIXTURE="$INSTANCE_DIR/.fixtures/ai_providers.json"
-    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
-        "from django.core.management import call_command; from apps.ai.models import AIProvider; print('AIProvider already configured; skipping ai_providers.json load') if AIProvider.objects.exists() else call_command('loaddata', '$AI_PROVIDERS_FIXTURE')"
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py load_ai_providers "$AI_PROVIDERS_FIXTURE" || {
+        rm -f "$AI_PROVIDERS_FIXTURE"
+        return 1
+    }
     rm -f "$AI_PROVIDERS_FIXTURE"
 
     render_xero_apps_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
@@ -474,32 +492,32 @@ validate_company_defaults_config() {
         exit 1
     fi
     require_root_owned_credentials_file "$config_file"
-    python3 -c '
-import json
-import pathlib
-import sys
-from uuid import UUID
+    python3 "$SCRIPT_DIR/validate_company_defaults.py" "$config_file"
+}
 
-path = pathlib.Path(sys.argv[1])
-text = path.read_text()
-records = json.loads(text)
-models = [record.get("model") for record in records]
-required = {"company.company", "core.companydefaults"}
-if set(models) != required or len(records) != 2:
-    raise SystemExit(f"ERROR: {path} must contain exactly one Company and one CompanyDefaults record")
-if "__" in text:
-    raise SystemExit(f"ERROR: {path} still contains unresolved __PLACEHOLDER__ values")
-defaults = next(record["fields"] for record in records if record["model"] == "core.companydefaults")
-tenant_id = defaults.get("xero_tenant_id")
-if not isinstance(tenant_id, str) or not tenant_id:
-    raise SystemExit(f"ERROR: {path} must set core.companydefaults.xero_tenant_id")
-try:
-    UUID(tenant_id)
-except ValueError as exc:
-    raise SystemExit(f"ERROR: {path} has an invalid core.companydefaults.xero_tenant_id") from exc
-if defaults.get("enable_xero_sync") is not False:
-    raise SystemExit(f"ERROR: {path} must keep enable_xero_sync false until onboarding is finalized")
-' "$config_file"
+ensure_instance_directories() {
+    local instance_dir="$1"
+    local instance_user="$2"
+
+    mkdir -p "$instance_dir"/{logs,mediafiles,dropbox,phone-recordings,session-replays}
+    chown "$instance_user:www-data" "$instance_dir"
+    chmod 750 "$instance_dir"
+    chown "$instance_user:$instance_user" "$instance_dir/logs" "$instance_dir/dropbox"
+    chmod 700 "$instance_dir/logs"
+    # Opus: dropbox is the client's Maestral sync root, and an external writer
+    # (the office scanner) delivers into it, so it cannot be 700 like the
+    # other instance-private directories. 700 was what shipped, and it cut
+    # scanner delivery on msm-prod every time this ran while Maestral, systemd
+    # and disk all reported healthy (KAN-360). The group is the instance's own,
+    # so this widens nothing until an account is deliberately added to it;
+    # setgid keeps the writer's files group-owned and readable by the app.
+    chmod 2770 "$instance_dir/dropbox"
+    chown "$instance_user:www-data" "$instance_dir/mediafiles"
+    chmod 750 "$instance_dir/mediafiles"
+    chown "$instance_user:$instance_user" \
+        "$instance_dir/phone-recordings" \
+        "$instance_dir/session-replays"
+    chmod 700 "$instance_dir/phone-recordings" "$instance_dir/session-replays"
 }
 
 do_configure() {
@@ -647,19 +665,8 @@ do_configure() {
     fi
 
     log "Ensuring instance directory structure..."
-    mkdir -p "$INSTANCE_DIR"/{logs,mediafiles,dropbox,phone-recordings,session-replays}
+    ensure_instance_directories "$INSTANCE_DIR" "$INSTANCE_USER"
     ensure_instance_backup_dir "$INSTANCE" "$INSTANCE_USER"
-    chown "$INSTANCE_USER:www-data" "$INSTANCE_DIR"
-    chmod 750 "$INSTANCE_DIR"
-    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/logs" "$INSTANCE_DIR/dropbox"
-    chmod 700 "$INSTANCE_DIR/logs"
-    chmod 700 "$INSTANCE_DIR/dropbox"
-    chown "$INSTANCE_USER:www-data" "$INSTANCE_DIR/mediafiles"
-    chmod 750 "$INSTANCE_DIR/mediafiles"
-    chown "$INSTANCE_USER:$INSTANCE_USER" \
-        "$INSTANCE_DIR/phone-recordings" \
-        "$INSTANCE_DIR/session-replays"
-    chmod 700 "$INSTANCE_DIR/phone-recordings" "$INSTANCE_DIR/session-replays"
     require_root_owned_credentials_file "$CREDS_FILE"
     # GCP_CREDENTIALS may legitimately point at the instance's own copy
     # (the documented fix when the original download path is gone) — cp
@@ -773,8 +780,9 @@ EOSQL
     fi
 
     if [[ "$SKIP_DB_FIXTURES" == "true" ]]; then
-        # The caller loads them itself once the schema is v2 — see the
-        # cutover script's post-swap `instance.sh load-db-fixtures`.
+        # For a caller that reconfigures against a database the current
+        # schema has not reached yet, and loads them itself afterwards with
+        # `instance.sh load-db-fixtures`.
         log "Skipping credential-derived DB fixtures (--skip-db-fixtures)."
     else
         load_db_fixtures
@@ -925,35 +933,17 @@ do_reconfigure() {
 # validate-config
 # ============================================================
 # The exact config checks create/reconfigure run before touching state,
-# callable on their own. Read-only: exists so a preflight (the cutover
-# script) can prove a later reconfigure will pass while the instance is
-# still up, instead of discovering a missing v2-only credential after
-# services are stopped and the release symlink is flipped.
+# callable on their own. Read-only, so an operator can prove a later
+# reconfigure will pass while the instance is still up, instead of
+# discovering a missing credential after services are stopped and the
+# release symlink is flipped.
 do_validate_config() {
     parse_client_env "$@"
     require_instance_credentials "$CONFIG_DIR/$INSTANCE.credentials.env"
-    # Validate what reconfigure will actually see: the cutover rewrites the
-    # v1 CompanyDefaults model label in place before reconfigure, so this
-    # read-only preflight applies the same rewrite to a temp copy. Without
-    # it a v1-era file fails a check the cutover itself cures — a false
-    # negative on every not-yet-cut-over host.
-    local defaults_file="$CONFIG_DIR/$INSTANCE.company-defaults.json"
-    if [[ ! -f "$defaults_file" ]]; then
-        validate_company_defaults_config "$defaults_file"
-    fi
-    local preview_dir preview
-    preview_dir="$(mktemp -d)"
-    chmod 755 "$preview_dir"
-    preview="$preview_dir/$INSTANCE.company-defaults.json"
-    cp "$defaults_file" "$preview"
-    chown root:root "$preview"
-    chmod 600 "$preview"
-    if rewrite_v1_company_defaults_labels "$preview"; then
-        log "company-defaults carries the v1 model label; the cutover rewrites it — validating the rewritten form"
-    fi
-    validate_company_defaults_config "$preview"
-    rm -rf "$preview_dir"
-    log "Config for $INSTANCE satisfies the v2 contract."
+    # Validated in place: validate_company_defaults_config reports a missing
+    # file itself, so there is nothing for this to check first.
+    validate_company_defaults_config "$CONFIG_DIR/$INSTANCE.company-defaults.json"
+    log "Config for $INSTANCE satisfies the contract."
 }
 
 # ============================================================

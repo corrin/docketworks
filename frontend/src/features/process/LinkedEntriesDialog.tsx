@@ -130,6 +130,7 @@ function LinkedEntriesBody({
     () => new Map((formsQuery.data ?? []).map((form) => [form.id, form])),
     [formsQuery.data],
   )
+  const formsError = formsQuery.isError
   const groups = useMemo(
     () => groupByForm(childrenQuery.data?.results ?? [], formsById),
     [childrenQuery.data, formsById],
@@ -197,13 +198,22 @@ function LinkedEntriesBody({
       <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4">
         <label className="flex flex-col gap-1 text-sm font-medium">
           <span className="text-slate-700">Add a linked entry</span>
+          {formsError && (
+            <p className="text-xs text-red-700">
+              Could not load forms.{' '}
+              <button type="button" className="underline" onClick={() => void formsQuery.refetch()}>
+                Retry
+              </button>
+            </p>
+          )}
           <select
             className={INPUT_CLASS}
             value={addingFormId}
             onChange={(event) => setAddingFormId(event.target.value)}
+            disabled={formsQuery.isPending}
             data-automation-id="LinkedEntriesDialog-add-form"
           >
-            <option value="">Choose a form…</option>
+            <option value="">{formsQuery.isPending ? 'Loading…' : 'Choose a form…'}</option>
             {(formsQuery.data ?? []).map((form) => (
               <option key={form.id} value={form.id}>
                 {form.title}

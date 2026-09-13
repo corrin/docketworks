@@ -16,8 +16,9 @@ if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse
 
 from apps.accounts.models import Staff
+from apps.accounts.tests.helpers import authenticate
 from apps.company.models import Company, ContactMethod, SupplierPickupAddress
-from apps.company.tests.conftest import authenticate, make_company
+from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import make_job
 
 pytestmark = [

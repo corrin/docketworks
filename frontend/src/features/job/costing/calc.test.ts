@@ -13,6 +13,7 @@ import { emptyDraft } from './types'
 const line = (overrides: Partial<CostLineOut> = {}): CostLineOut => ({
   accounting_date: '2026-08-09',
   approved: false,
+  managed_by: null,
   created_at: '2026-08-09T00:00:00Z',
   desc: 'Existing line',
   entry_seq: null,
@@ -37,6 +38,9 @@ const line = (overrides: Partial<CostLineOut> = {}): CostLineOut => ({
 })
 
 const stock = (overrides: Partial<StockItem> = {}): StockItem => ({
+  can_count: false,
+  can_retire: false,
+  inventory_version: 0,
   alloy: null,
   date: '2026-08-01',
   description: 'Steel plate 3mm',

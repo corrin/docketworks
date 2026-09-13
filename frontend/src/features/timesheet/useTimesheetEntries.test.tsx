@@ -37,6 +37,7 @@ function makeLine(overrides: Partial<TimesheetCostLineOut> = {}): TimesheetCostL
     xero_last_modified: null,
     xero_last_synced: null,
     approved: true,
+    managed_by: null,
     xero_pay_item: 'pay-ordinary',
     staff: STAFF_ID,
     entry_seq: 1,

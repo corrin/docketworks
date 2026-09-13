@@ -13,10 +13,11 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from django.conf import settings
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVector
-from django.db import IntegrityError, models
+from django.db import models
 from django.db.models import IntegerField, Max
 from django.db.models.functions import Cast, Substr
 from django.utils import timezone
+from solo.models import SingletonModel
 
 from apps.core.models import CompanyDefaults
 from apps.job.enums import MetalType
@@ -60,8 +61,6 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
     created_by = models.ForeignKey(
         "accounts.Staff",
         on_delete=models.PROTECT,
-        null=True,
-        blank=True,
         related_name="created_purchase_orders",
         help_text="Staff member who created this purchase order",
     )
@@ -92,7 +91,29 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     xero_last_modified = models.DateTimeField(null=True, blank=True)
-    xero_last_synced = models.DateTimeField(null=True, blank=True, default=timezone.now)
+    xero_last_synced = models.DateTimeField(null=True, blank=True)
+    xero_status = models.CharField(  # noqa: DJ001 -- NULL means Xero has never reported one
+        max_length=20,
+        null=True,
+        blank=True,
+        help_text=(
+            "Xero's own word for this order (DRAFT, SUBMITTED, AUTHORISED, BILLED, VOIDED). "
+            "Separate from `status` because that one answers a different question: whether the "
+            "goods arrived and were costed to a job, which only Docketworks knows. Xero saying "
+            "BILLED used to set status=fully_received, marking material received that nobody "
+            "had receipted."
+        ),
+    )
+    xero_push_due = models.BooleanField(
+        default=False,
+        help_text=(
+            "Xero is owed a call about this order. Set when the status moves, which is the "
+            "only thing Xero needs to hear about: the order leaving draft, and the receipt "
+            "that settles its total. Cleared when the push lands. A field edit never sets it "
+            "— the workspace saves each field as its own PATCH, and Xero holds the order only "
+            "so a bill has something to link against, which no intermediate state affects."
+        ),
+    )
     online_url = models.URLField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=500, null=True, blank=True
     )
@@ -113,6 +134,10 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
                 condition=~models.Q(xero_tenant_id=""),
                 name="purchasing_purchaseorder_xero_tenant_id_not_blank",
             ),
+            models.CheckConstraint(
+                condition=~models.Q(xero_status=""),
+                name="purchasing_purchaseorder_xero_status_not_blank",
+            ),
         ]
 
     def save(self, *args: Any, **kwargs: Any) -> None:
@@ -123,9 +148,9 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
         super().save(*args, **kwargs)
 
     @property
-    def created_by_name(self) -> str | None:
+    def created_by_name(self) -> str:
         """Return the display name of the staff member who created this PO."""
-        return self.created_by.get_display_full_name() if self.created_by else None
+        return self.created_by.get_display_full_name()
 
     def generate_po_number(self) -> str:
         """Generate the next sequential PO number based on the configured prefix."""
@@ -165,6 +190,7 @@ class PurchaseOrderLine(models.Model):  # noqa: DJ008 -- Lines have no useful sh
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
     purchase_order = models.ForeignKey(
         "purchasing.PurchaseOrder", on_delete=models.CASCADE, related_name="po_lines"
     )
@@ -241,6 +267,7 @@ class PurchaseOrderLine(models.Model):  # noqa: DJ008 -- Lines have no useful sh
     )
 
     class Meta:
+        ordering: ClassVar[list[str]] = ["created_at", "id"]
         constraints: ClassVar = [
             models.CheckConstraint(
                 condition=~models.Q(alloy=""),
@@ -367,8 +394,9 @@ class Stock(models.Model):
     description = models.CharField(max_length=255, help_text="Description of the stock item")
 
     quantity = models.DecimalField(
-        max_digits=10, decimal_places=2, help_text="Current quantity of the stock item"
+        max_digits=11, decimal_places=3, help_text="Current quantity of the stock item"
     )
+    inventory_version = models.PositiveBigIntegerField(default=0)
 
     unit_cost = models.DecimalField(
         max_digits=10, decimal_places=2, help_text="Cost per unit of the stock item"
@@ -397,19 +425,11 @@ class Stock(models.Model):
 
     source_purchase_order_line = models.ForeignKey(
         "purchasing.PurchaseOrderLine",
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name="stock_generated",
         help_text="The PO line this stock originated from (if source='purchase_order')",
-    )
-    active_source_purchase_order_line_id = models.UUIDField(
-        null=True,
-        blank=True,
-        editable=False,
-        help_text=(
-            "Denormalized pointer used to enforce single active stock item per purchase order line."
-        ),
     )
     source_parent_stock = models.ForeignKey(
         "self",
@@ -519,10 +539,6 @@ class Stock(models.Model):
     class Meta:
         constraints: ClassVar = [
             models.UniqueConstraint(fields=["xero_id"], name="unique_xero_id_stock"),
-            models.UniqueConstraint(
-                fields=["active_source_purchase_order_line_id"],
-                name="unique_active_stock_per_po_line",
-            ),
             models.CheckConstraint(
                 condition=~models.Q(alloy=""), name="purchasing_stock_alloy_not_blank"
             ),
@@ -565,22 +581,9 @@ class Stock(models.Model):
         """Override save to add logging and validation."""
         logger.debug("Saving stock item: %s", self.description)
 
-        desired_active_ref = (
-            self.source_purchase_order_line_id
-            if self.is_active and self.source_purchase_order_line_id
-            else None
-        )
-        needs_active_ref_update = self.active_source_purchase_order_line_id != desired_active_ref
-        self.active_source_purchase_order_line_id = desired_active_ref
-
         update_fields = kwargs.get("update_fields")
         if update_fields is not None:
-            extras: tuple[str, ...] = ("updated_at",)
-            if needs_active_ref_update:
-                extras = ("active_source_purchase_order_line_id", *extras)
-            merged = tuple(update_fields) + extras
-            deduped = tuple(dict.fromkeys(merged))
-            kwargs["update_fields"] = deduped
+            kwargs["update_fields"] = tuple(dict.fromkeys((*update_fields, "updated_at")))
 
         # Log negative quantities but allow them (backorders, emergency usage, etc.)
         if self.quantity < 0:
@@ -601,14 +604,7 @@ class Stock(models.Model):
             )
             raise ValueError("Unit cost cannot be negative")
 
-        try:
-            super().save(*args, **kwargs)
-        except IntegrityError as exc:
-            if "unique_active_stock_per_po_line" in str(exc):
-                raise IntegrityError(
-                    "An active stock entry already exists for this purchase order line."
-                ) from exc
-            raise
+        super().save(*args, **kwargs)
         logger.info("Saved stock item: %s", self.description)
 
     @property
@@ -680,3 +676,149 @@ class PurchaseOrderEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.timestamp}: Event for PO {self.purchase_order.po_number}"
+
+
+class StocktakeConfiguration(SingletonModel):
+    """The ongoing variance job, provisioned through the stocktake setup command."""
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    adjustment_job = models.OneToOneField("job.Job", on_delete=models.PROTECT)
+
+    class Meta:
+        constraints: ClassVar = [
+            models.CheckConstraint(
+                condition=models.Q(pk=1), name="stocktake_configuration_singleton"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return "Stocktake configuration"
+
+
+class Stocktake(models.Model):
+    """A dated observation of unassigned workshop material."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    adjustment_job = models.ForeignKey("job.Job", on_delete=models.PROTECT)
+    created_by = models.ForeignKey("accounts.Staff", on_delete=models.PROTECT)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
+    posted_at = models.DateTimeField(null=True, blank=True)
+    posted_by = models.ForeignKey(
+        "accounts.Staff",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="posted_stocktakes",
+    )
+    version = models.PositiveBigIntegerField(default=0)
+    corrects = models.OneToOneField(
+        "self",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="correction",
+    )
+
+    def __str__(self) -> str:
+        return f"Stocktake {self.created_at:%Y-%m-%d}"
+
+
+class StocktakeLine(models.Model):
+    """Count snapshots survive subsequent changes to the stock description and balance."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    stocktake = models.ForeignKey(Stocktake, on_delete=models.CASCADE, related_name="lines")
+    stock = models.ForeignKey(Stock, on_delete=models.PROTECT, null=True, blank=True)
+    description = models.CharField(max_length=255)
+    location = models.TextField(null=True, blank=True)  # noqa: DJ001 -- ADR 0040: unset is NULL
+    expected_quantity = models.DecimalField(max_digits=11, decimal_places=3)
+    expected_version = models.PositiveBigIntegerField()
+    counted_quantity = models.DecimalField(max_digits=11, decimal_places=3, null=True, blank=True)
+    counted_at = models.DateTimeField(null=True, blank=True)
+    unit_cost = models.DecimalField(max_digits=10, decimal_places=2)
+    reason = models.TextField(null=True, blank=True)  # noqa: DJ001 -- ADR 0040: uncounted needs no reason
+
+    class Meta:
+        constraints: ClassVar = [
+            models.UniqueConstraint(
+                fields=["stocktake", "stock"],
+                name="stocktake_unique_stock",
+                deferrable=models.Deferrable.DEFERRED,
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(location=""), name="stocktake_line_location_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(reason=""), name="stocktake_line_reason_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(counted_quantity__gte=0), name="count_nonnegative"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(unit_cost__gte=0), name="count_cost_nonnegative"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.description
+
+
+class StockMovementKind(models.TextChoices):
+    """Live postings and the three historical cutover observations."""
+
+    OPENING = "opening", "Opening balance"
+    JOB_OPENING = "job_opening", "Job position at cutover"
+    DELIVERY = "delivery", "Delivery"
+    DELIVERY_OPENING = "delivery_opening", "Delivered allocation at cutover"
+    DELIVERY_REVERSAL = "delivery_reversal", "Delivery reversal"
+    ISSUE = "issue", "Job issue"
+    RETURN = "return", "Job return"
+    STOCKTAKE = "stocktake", "Stocktake"
+
+
+class StockMovement(models.Model):
+    """Signed workshop balance movement; the counterpart receives the opposite quantity."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    stock = models.ForeignKey(Stock, on_delete=models.PROTECT, related_name="movements")
+    quantity_change = models.DecimalField(max_digits=11, decimal_places=3)
+    quantity_before = models.DecimalField(max_digits=11, decimal_places=3)
+    quantity_after = models.DecimalField(max_digits=11, decimal_places=3)
+    opening_quantity = models.DecimalField(max_digits=11, decimal_places=3, null=True, blank=True)
+    unit_cost = models.DecimalField(max_digits=10, decimal_places=2)
+    kind = models.CharField(max_length=25, choices=StockMovementKind.choices)
+    counterpart_job = models.ForeignKey("job.Job", on_delete=models.PROTECT, null=True, blank=True)
+    cost_line = models.OneToOneField(
+        "job.CostLine", on_delete=models.PROTECT, null=True, blank=True
+    )
+    stocktake_line = models.ForeignKey(
+        StocktakeLine, on_delete=models.PROTECT, null=True, blank=True
+    )
+    reverses = models.OneToOneField("self", on_delete=models.PROTECT, null=True, blank=True)
+    actor = models.ForeignKey("accounts.Staff", on_delete=models.PROTECT, null=True, blank=True)
+    recorded_at = models.DateTimeField(default=timezone.now)
+    reason = models.TextField()
+
+    class Meta:
+        constraints: ClassVar = [
+            models.CheckConstraint(
+                condition=models.Q(kind__in=StockMovementKind.values), name="movement_known_kind"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    quantity_after=models.F("quantity_before") + models.F("quantity_change")
+                ),
+                name="movement_balance_equation",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    kind__in=["opening", "delivery", "delivery_opening", "delivery_reversal"]
+                )
+                | models.Q(counterpart_job__isnull=False),
+                name="movement_job_counterpart",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind}: {self.quantity_change}"

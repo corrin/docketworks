@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import type { PaginatedPersonSummaryList, PersonSummary } from '@/api'
-import { queryAutoId } from '@/test/auto-id'
+import { autoId, queryAutoId } from '@/test/auto-id'
 import { renderWithProviders } from '@/test/render'
 import { server } from '@/test/msw'
 import { PeopleDirectoryPage } from './PeopleDirectoryPage'
@@ -161,7 +161,7 @@ describe('PeopleDirectoryPage', () => {
     const { user } = renderWithProviders(<PeopleDirectoryPage />)
     await screen.findByText('Alex Smith')
 
-    const search = screen.getByPlaceholderText('Search people...')
+    const search = autoId('PeopleDirectory-search')
     await user.type(search, 'alex')
     expect(queries).toEqual([null])
 

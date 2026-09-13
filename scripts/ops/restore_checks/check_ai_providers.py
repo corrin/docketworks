@@ -1,15 +1,5 @@
 #!/usr/bin/env python
-"""Validate AI provider API keys are configured and working.
-
-Deviation from v1: v1 validated Mistral separately via the ``mistralai`` SDK's
-``client.models.list()`` (a non-chat capability probe). v2 has no vendor SDK
-dependency for any provider — ADR 0041 routes every AI call through
-``apps.ai.services.llm_client``, the single LiteLLM-backed gateway — so this
-check validates Mistral the same way as the others: a live chat completion.
-That drops the "how many models does this key see" signal v1 had, but proves
-strictly more about what the app actually does with the key (the app itself
-never lists models).
-"""
+"""Verify configured provider rows through the same metered probe as Integrations."""
 
 import sys
 
@@ -17,32 +7,43 @@ from scripts.bootstrap import setup_django
 
 setup_django()
 
-from apps.ai.enums import AIProviderTypes  # noqa: E402 -- Django must be configured first
-from apps.ai.models import AIProvider  # noqa: E402
-from apps.ai.services.llm_client import LLMConfigurationError, chat_completion  # noqa: E402
-
-CHECKED_PROVIDER_TYPES = (
-    AIProviderTypes.ANTHROPIC,
-    AIProviderTypes.GOOGLE,
-    AIProviderTypes.MISTRAL,
-)
-
-
-def validate_provider(provider_type: str) -> str:
-    provider = AIProvider.objects.filter(provider_type=provider_type).first()
-    if not provider or not provider.api_key:
-        raise LLMConfigurationError(f"{provider_type}: Not configured")
-    response = chat_completion("Say hi in 2 words", provider_type=provider_type)
-    return f"{provider.name}: {response.strip()[:30]}"
+from apps.ai.models import AIProvider  # noqa: E402 -- Django must be configured first
+from apps.ai.services.provider_configuration import verify_provider  # noqa: E402
+from apps.core.errors import InvalidInputError, UpstreamRefusedError  # noqa: E402
 
 
 def main() -> int:
-    for provider_type in CHECKED_PROVIDER_TYPES:
+    """Test each configured row, including OpenAI; unused vendors need no credentials.
+
+    Opus: every provider is probed before the gate answers, so one bad vendor
+    cannot hide the state of the ones behind it — which is what an uncaught
+    refusal did. The two refusals are not the same fact and are not treated the
+    same: a rejected credential is misconfiguration this restore must fix, while
+    a rate limit says only that today's allowance is spent, so it leaves the row
+    unproven without failing a restore that is otherwise sound.
+    """
+    providers = AIProvider.objects.order_by("pk")
+    if not providers.exists():
+        print("AI: no providers configured; configure required vendors in Admin > Integrations")
+        return 0
+    rejected: list[str] = []
+    for provider in providers:
+        if provider.api_key is None:
+            print(f"{provider.name}: not configured")
+            continue
         try:
-            print(validate_provider(provider_type))
-        except LLMConfigurationError as exc:
-            print(f"ERROR: {exc}")
-            return 1
+            model = verify_provider(provider)
+        except UpstreamRefusedError as exc:
+            print(f"{provider.name}: NOT PROVEN — {exc}")
+            continue
+        except InvalidInputError as exc:
+            print(f"{provider.name}: REJECTED — {exc}")
+            rejected.append(provider.name)
+            continue
+        print(f"{provider.name}: verified {model}")
+    if rejected:
+        print(f"AI: rejected configuration on {', '.join(rejected)}")
+        return 1
     return 0
 
 

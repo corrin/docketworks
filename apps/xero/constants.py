@@ -6,7 +6,7 @@ from django.core.cache import BaseCache, caches
 
 # Cache key for the active app's resolved Xero tenant id. Read by
 # auth.get_tenant_id and xero_sync_service; INVALIDATED by
-# active_app.swap_active and active_app.wipe_tokens_and_quota — without
+# active_app.swap_active and active_app.wipe_tokens — without
 # that invalidation the cache can pin the prior app's tenant id under
 # the new app's credentials.
 TENANT_ID_CACHE_KEY = "xero_tenant_id"
@@ -59,7 +59,8 @@ SLEEP_TIME = 1
 
 #: Xero's documented maximum number of objects in one batch create or update;
 #: every batched write (contact seeding, document seeding, contact archiving)
-#: slices by it.
+#: slices by it. Always the maximum: the day allowance is spent per CALL, not
+#: per object, so a smaller batch multiplies the cost of every write.
 XERO_BATCH_SIZE = 50
 
 #: The two contact statuses Xero documents. GDPRREQUEST also exists and is

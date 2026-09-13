@@ -105,12 +105,19 @@ function useNoJobSearch<T extends JobPickerOption>(_term: string): BackgroundJob
  * status-choices endpoint (Job.JOB_STATUS_CHOICES), not the kanban
  * status-values one: the board's vocabulary is the column subset, and this
  * picker lists jobs in statuses (special, archived) no column carries.
- * Statuses are fixed per deployment, so the answer is cached for the session;
- * an unknown or not-yet-loaded status renders no label rather than a guess.
+ * Statuses are fixed per deployment, so the answer is cached for the session.
+ * Undefined is "not answered yet", and the option list is held back until it is
+ * answered: an option drawn before the vocabulary lands shows a job with no
+ * status at all, which is a claim the picker cannot yet make. Coalescing that
+ * to an empty map was the previous behaviour, and it made a pending request and
+ * a failed one indistinguishable from a deployment with no statuses — under
+ * `onUnhandledRequest: 'error'` it let unit tests pass on a request that never
+ * succeeded, and it hid a race until a loaded machine let the job list win.
+ * An unknown status still renders no label rather than a guess.
  */
-function useStatusLabels(): Record<string, string> {
+function useStatusLabels(): Record<string, string> | undefined {
   const query = useQuery({ ...jobJobsStatusChoicesRetrieveOptions(), staleTime: Infinity })
-  return query.data?.statuses ?? {}
+  return query.data?.statuses
 }
 
 /**
@@ -146,6 +153,8 @@ export function JobPicker<T extends JobPickerOption>({
   onSelect,
 }: JobPickerProps<T>) {
   const statusLabels = useStatusLabels()
+  // The jobs and the words that describe them are one readiness, not two.
+  const listPending = loading || statusLabels === undefined
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [highlighted, setHighlighted] = useState(-1)
@@ -343,54 +352,55 @@ export function JobPicker<T extends JobPickerOption>({
           className="max-h-[300px] overflow-y-auto"
           data-automation-id={`${automationIdPrefix}-list`}
         >
-          {loading && <div className="px-3 py-2 text-sm text-slate-500">Jobs are loading…</div>}
+          {listPending && <div className="px-3 py-2 text-sm text-slate-500">Jobs are loading…</div>}
           {/* Held back while the background search is still running: "no jobs
               found" would be a claim the picker cannot yet make. */}
-          {!loading && filtered.length === 0 && !background.isFetching && (
+          {!listPending && filtered.length === 0 && !background.isFetching && (
             <div className="px-3 py-2 text-sm italic text-slate-500">
               {search.trim() !== '' ? `No jobs found for "${search}"` : 'No jobs available'}
             </div>
           )}
-          {filtered.map((job, index) => (
-            <Fragment key={job.id}>
-              {index === localCount && (
-                // The boundary between what this screen holds and what the
-                // background search reached. Labelled, because picking one of
-                // these binds a job the screen's own list deliberately excludes.
+          {statusLabels !== undefined &&
+            filtered.map((job, index) => (
+              <Fragment key={job.id}>
+                {index === localCount && (
+                  // The boundary between what this screen holds and what the
+                  // background search reached. Labelled, because picking one of
+                  // these binds a job the screen's own list deliberately excludes.
+                  <div
+                    className="border-b border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-slate-500"
+                    data-automation-id={`${automationIdPrefix}-other-jobs`}
+                  >
+                    Other jobs
+                  </div>
+                )}
                 <div
-                  className="border-b border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-slate-500"
-                  data-automation-id={`${automationIdPrefix}-other-jobs`}
+                  id={`${automationIdPrefix}-option-${job.job_number}`}
+                  role="option"
+                  aria-selected={index === highlighted}
+                  className={`cursor-pointer border-b border-slate-100 px-3 py-2 text-sm last:border-b-0 ${index === highlighted ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
+                  data-automation-id={`${automationIdPrefix}-option-${job.job_number}`}
+                  onMouseEnter={() => setHighlighted(index)}
+                  onClick={() => pick(job)}
                 >
-                  Other jobs
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="shrink-0 font-semibold text-slate-800">#{job.job_number}</span>
+                    {statusLabels[job.status] && (
+                      <span className="text-right text-[11px] font-medium leading-tight text-slate-500">
+                        {statusLabels[job.status]}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-0.5 break-words font-medium leading-tight text-slate-700">
+                    {job.name}
+                  </div>
+                  <div className="text-xs leading-tight text-slate-500">
+                    Company: {job.company_name ?? 'No Company'}
+                  </div>
+                  {renderOptionDetail?.(job)}
                 </div>
-              )}
-              <div
-                id={`${automationIdPrefix}-option-${job.job_number}`}
-                role="option"
-                aria-selected={index === highlighted}
-                className={`cursor-pointer border-b border-slate-100 px-3 py-2 text-sm last:border-b-0 ${index === highlighted ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
-                data-automation-id={`${automationIdPrefix}-option-${job.job_number}`}
-                onMouseEnter={() => setHighlighted(index)}
-                onClick={() => pick(job)}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="shrink-0 font-semibold text-slate-800">#{job.job_number}</span>
-                  {statusLabels[job.status] && (
-                    <span className="text-right text-[11px] font-medium leading-tight text-slate-500">
-                      {statusLabels[job.status]}
-                    </span>
-                  )}
-                </div>
-                <div className="mt-0.5 break-words font-medium leading-tight text-slate-700">
-                  {job.name}
-                </div>
-                <div className="text-xs leading-tight text-slate-500">
-                  Company: {job.company_name ?? 'No Company'}
-                </div>
-                {renderOptionDetail?.(job)}
-              </div>
-            </Fragment>
-          ))}
+              </Fragment>
+            ))}
           {background.isFetching && (
             <div
               className="px-3 py-2 text-xs italic text-slate-500"

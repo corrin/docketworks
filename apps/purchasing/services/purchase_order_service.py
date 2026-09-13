@@ -11,15 +11,14 @@ caller's ``If-Match`` does not name the current version. The API layer answers
 """
 
 import logging
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import TypedDict
 from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Count, IntegerField
-from django.db.models.fields.json import KeyTextTransform
+from django.db.models import Count, IntegerField, Q
 from django.db.models.functions import Cast, Substr
 from django.http import Http404
 from django.utils import timezone
@@ -27,59 +26,23 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company, Supplier, SupplierPickupAddress
 from apps.company.services.company_rest_service import pickup_address_data
-from apps.core.etag import (
-    PreconditionFailedError,
-    generate_updated_at_etag,
-    if_match_satisfied,
-)
+from apps.core.errors import InvalidInputError
 from apps.core.models import CompanyDefaults
+from apps.core.pagination import paginate
 from apps.core.patching import apply_patch_fields
-from apps.job.models import Job
 from apps.job.models.costing import CostLine
+from apps.purchasing.etag import purchase_order_etag, require_current_etag
 from apps.purchasing.models import (
     PurchaseOrder,
     PurchaseOrderEvent,
     PurchaseOrderLine,
-    Stock,
 )
-from apps.purchasing.services.allocation_service import (
-    AllocationMetadata,
-    create_costline_from_allocation,
-    create_stock_from_allocation,
-    default_retail_rate_pct,
-)
+from apps.purchasing.schemas import PurchaseOrderStatus
+from apps.purchasing.services.accounting_mirror import send_state_change
+from apps.purchasing.services.allocation_service import recompute_purchase_order_status
+from apps.purchasing.services.delivery_receipt_service import receive_outstanding_order
 
 logger = logging.getLogger(__name__)
-
-# Validate status against model choices because they are not DB-enforced; a
-# client typo must be a visible 400 (ADR 0015).
-PURCHASE_ORDER_STATUSES: frozenset[str] = frozenset(
-    value for value, _label in PurchaseOrder._meta.get_field("status").choices or []
-)
-
-
-# ── ETag (ADR 0003) ──────────────────────────────────────────────────────
-
-
-def purchase_order_etag(po: PurchaseOrder) -> str:
-    """Return the strong ETag for a purchase order (resource label ``po``)."""
-    return generate_updated_at_etag("po", po.id, po.updated_at)
-
-
-def current_purchase_order_etag(po_id: UUID) -> str | None:
-    """Return the current ETag for ``po_id``, or None when it does not exist."""
-    po = PurchaseOrder.objects.only("id", "updated_at").filter(id=po_id).first()
-    return purchase_order_etag(po) if po else None
-
-
-def require_current_etag(po: PurchaseOrder, if_match: str) -> None:
-    """Raise ``PreconditionFailedError`` unless ``if_match`` names this version."""
-    current = purchase_order_etag(po)
-    if not if_match_satisfied(if_match, current):
-        logger.warning(
-            "ETag mismatch on PO %s: client sent %r, current %r", po.id, if_match, current
-        )
-        raise PreconditionFailedError("Purchase order modified since it was fetched.")
 
 
 # ── Read shapes ──────────────────────────────────────────────────────────
@@ -107,10 +70,21 @@ class PurchaseOrderListData(TypedDict):
     jobs: list[PurchaseOrderJobData]
 
 
+class PurchaseOrderListPage(TypedDict):
+    """One page of PO list rows in the shared envelope (apps/core/pagination)."""
+
+    results: list[PurchaseOrderListData]
+    count: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class PurchaseOrderLineData(TypedDict):
     """Data contract for PurchaseOrderLineData."""
 
     id: UUID
+    created_at: datetime
     description: str
     quantity: Decimal
     dimensions: str | None
@@ -130,21 +104,50 @@ class PurchaseOrderLineData(TypedDict):
     times_used: int
 
 
-def list_purchase_orders(status_filter: str | None = None) -> list[PurchaseOrderListData]:
-    """List every purchase order with its distinct jobs.
+def _purchase_order_search_filter(query: str) -> Q:
+    """Match ``query`` against the three things an operator searches a PO by.
 
-    ``status_filter`` is the comma-separated ``?status=`` query value.
+    Opus: job number is matched only when the query is all digits. Casting the
+    integer column to text to allow icontains would forfeit its index on every
+    search, and no operator searches a job by a fragment of its number.
     """
-    allowed = {value.strip() for value in status_filter.split(",")} if status_filter else None
-    rows: list[PurchaseOrderListData] = []
+    matches = Q(po_number__icontains=query) | Q(supplier__name__icontains=query)
+    # isdecimal, not isdigit: isdigit accepts characters int() rejects ("²"), a 500.
+    if query.isdecimal():
+        matches |= Q(po_lines__job__job_number=int(query))
+    return matches
+
+
+def list_purchase_orders(
+    *, status_filter: str | None, query: str, page: int, page_size: int
+) -> PurchaseOrderListPage:
+    """One page of purchase orders with their distinct jobs.
+
+    ``status_filter`` is the comma-separated ``?status=`` query value. Both the
+    filter and the search run in the database: production holds 990 orders over
+    2,315 lines, so returning them all — which is what reading every row and
+    filtering in Python amounted to — is not a page any client can use (ADR
+    0054).
+    """
     purchase_orders = (
         PurchaseOrder.objects.select_related("supplier", "created_by")
         .prefetch_related("po_lines__job__company")
         .order_by("-created_at")
     )
-    for po in purchase_orders:
-        if allowed is not None and po.status not in allowed:
-            continue
+    if status_filter:
+        purchase_orders = purchase_orders.filter(
+            status__in={value.strip() for value in status_filter.split(",")}
+        )
+    trimmed = query.strip()
+    if trimmed:
+        # distinct() because the job-number branch joins po_lines, which
+        # multiplies a PO by its matching lines.
+        purchase_orders = purchase_orders.filter(_purchase_order_search_filter(trimmed)).distinct()
+
+    page_data = paginate(purchase_orders, page=page, page_size=page_size)
+
+    rows: list[PurchaseOrderListData] = []
+    for po in page_data.rows:
         seen_jobs: dict[UUID, PurchaseOrderJobData] = {}
         for line in po.po_lines.all():
             if line.job and line.job.id not in seen_jobs:
@@ -166,7 +169,13 @@ def list_purchase_orders(status_filter: str | None = None) -> list[PurchaseOrder
                 "jobs": sorted(seen_jobs.values(), key=lambda job: job["job_number"]),
             }
         )
-    return rows
+    return {
+        "results": rows,
+        "count": page_data.count,
+        "page": page_data.page,
+        "page_size": page_data.page_size,
+        "total_pages": page_data.total_pages,
+    }
 
 
 def _material_usage_counts(item_codes: list[str]) -> dict[str, int]:
@@ -188,6 +197,7 @@ def purchase_order_line_data(
     job = line.job
     return {
         "id": line.id,
+        "created_at": line.created_at,
         "description": line.description,
         "quantity": line.quantity,
         "dimensions": line.dimensions,
@@ -222,11 +232,16 @@ def purchase_order_detail_data(po: PurchaseOrder) -> dict[str, object]:
         "expected_delivery": po.expected_delivery,
         "online_url": po.online_url,
         "xero_id": po.xero_id,
+        "xero_status": po.xero_status,
+        "xero_last_synced": po.xero_last_synced,
         "pickup_address_id": po.pickup_address_id,
         "created_by_id": po.created_by_id,
         "supplier": supplier.name if supplier else "",
         "supplier_id": po.supplier_id,
         "supplier_has_xero_id": bool(supplier and supplier.xero_contact_id is not None),
+        # The email composer refuses a supplier with no address, so the screen
+        # needs to know before offering the button rather than surfacing a 400.
+        "supplier_has_email": bool(supplier and supplier.email),
         "lines": [purchase_order_line_data(line, usage_counts) for line in lines],
         "pickup_address": (pickup_address_data(po.pickup_address) if po.pickup_address else None),
         "created_by_name": po.created_by_name or "",
@@ -270,7 +285,7 @@ class PurchaseOrderLineWriteData(TypedDict, total=False):
 class PurchaseOrderCreateData(TypedDict, total=False):
     """The PO fields a create payload may carry."""
 
-    supplier_id: UUID | None
+    supplier_id: UUID
     pickup_address_id: UUID | None
     reference: str | None
     order_date: date | None
@@ -285,7 +300,7 @@ class PurchaseOrderUpdateData(TypedDict, total=False):
     pickup_address_id: UUID | None
     reference: str | None
     expected_delivery: date | None
-    status: str
+    status: PurchaseOrderStatus
     lines_to_delete: list[UUID]
     lines: list[PurchaseOrderLineWriteData]
 
@@ -307,6 +322,15 @@ _LINE_WRITABLE_FIELDS = frozenset(
 )
 
 
+def validate_ordered_quantity(line: PurchaseOrderLine, quantity: Decimal) -> None:
+    """Amend the order without contradicting its net supplier receipts."""
+    if quantity < line.received_quantity:
+        raise InvalidInputError(
+            f"{line.description}: ordered quantity {quantity} cannot be below "
+            f"net received quantity {line.received_quantity}. Reverse the receipt first."
+        )
+
+
 def _apply_line_fields(line: PurchaseOrderLine, line_data: PurchaseOrderLineWriteData) -> None:
     """Write the supplied line fields onto ``line`` per the PATCH contract.
 
@@ -319,14 +343,17 @@ def _apply_line_fields(line: PurchaseOrderLine, line_data: PurchaseOrderLineWrit
     ``price_tbc`` and ``unit_cost`` need ordering the generic pass cannot
     express, so they are handled here: the flag lands first, then a supplied
     cost consults the line's effective flag, because ``price_tbc`` means "no
-    unit cost" (the field's own help_text). Each is still written only when its
-    own key is present, so toggling the checkbox never disturbs a stored cost.
+    unit cost" (the field's own help_text). Ticking TBC explicitly discards the
+    price; unticking alone does not invent or restore one.
     """
     apply_patch_fields(line, dict(line_data), fields=_LINE_WRITABLE_FIELDS)
     if "price_tbc" in line_data:
         line.price_tbc = bool(line_data["price_tbc"])
-    if "unit_cost" in line_data:
-        line.unit_cost = None if line.price_tbc else line_data["unit_cost"]
+    if line.price_tbc:
+        line.unit_cost = None
+    elif "unit_cost" in line_data:
+        line.unit_cost = line_data["unit_cost"]
+    validate_ordered_quantity(line, line.quantity)
 
 
 def _write_lines(po: PurchaseOrder, lines: list[PurchaseOrderLineWriteData]) -> None:
@@ -373,38 +400,35 @@ def _resolve_pickup_address(pickup_address_id: UUID, supplier: Company) -> Suppl
     return address
 
 
-def create_purchase_order(
-    data: PurchaseOrderCreateData, *, created_by: Staff | None = None
-) -> PurchaseOrder:
-    """Create a PO (and its lines); the model generates the PO number."""
-    supplier_id = data.get("supplier_id")
-    supplier = _resolve_supplier(supplier_id) if supplier_id else None
+def create_purchase_order(data: PurchaseOrderCreateData, *, created_by: Staff) -> PurchaseOrder:
+    """Create a PO (and its lines) here and in the accounting system.
+
+    ``created_by`` is required because every order this function makes is one
+    Docketworks raised. An order that arrives FROM the accounting system is
+    created by the inbound sync instead, and is never pushed back.
+    """
+    supplier = _resolve_supplier(data["supplier_id"])
 
     pickup_address: SupplierPickupAddress | None
     if "pickup_address_id" in data:
         # Sent, so the client chose: an id, or null for none (ADR 0040).
         pickup_address_id = data["pickup_address_id"]
-        if pickup_address_id is None:
-            pickup_address = None
-        elif supplier is None:
-            raise DjangoValidationError("A pickup address needs a supplier")
-        else:
-            pickup_address = _resolve_pickup_address(pickup_address_id, supplier)
-    elif supplier is not None:
+        pickup_address = (
+            None
+            if pickup_address_id is None
+            else _resolve_pickup_address(pickup_address_id, supplier)
+        )
+    else:
         # Not sent: the supplier's primary address, if it has one.
         pickup_address = SupplierPickupAddress.objects.filter(
             company=supplier, is_primary=True, is_active=True
         ).first()
-    else:
-        pickup_address = None
 
     with transaction.atomic():
         po = PurchaseOrder.objects.create(
             supplier=supplier,
             pickup_address=pickup_address,
-            # Blank reference means unset: the reference_not_blank constraint
-            # rejects ""; validate before reaching the database constraint.
-            reference=data.get("reference") or None,
+            reference=data.get("reference"),
             order_date=data.get("order_date") or timezone.localdate(),
             # A missing expected-delivery date defaults to today rather than NULL.
             expected_delivery=data.get("expected_delivery") or timezone.localdate(),
@@ -414,76 +438,39 @@ def create_purchase_order(
     return po
 
 
-def _auto_allocate_line(line: PurchaseOrderLine, po: PurchaseOrder, staff: Staff) -> None:
-    """Allocate a whole line automatically when a PO is marked fully received."""
-    stock_job = Stock.get_stock_holding_job()
-    retail_rate_pct = default_retail_rate_pct()
-
-    if line.job_id is None or line.job_id == stock_job.id:
-        already_stocked = Stock.objects.filter(
-            source="purchase_order", source_purchase_order_line=line
-        ).exists()
-        if already_stocked:
-            return
-        create_stock_from_allocation(
-            line=line,
-            job=stock_job,
-            qty=line.quantity,
-            metadata=AllocationMetadata.from_line(line),
-            retail_rate_pct=retail_rate_pct,
-        )
-        line.received_quantity = line.quantity
-        line.save()
-        return
-
-    job = Job.objects.get(id=line.job_id)
-    already_costed = (
-        CostLine.objects.annotate(
-            source_po_line_id=KeyTextTransform("purchase_order_line_id", "ext_refs"),
-        )
-        .filter(source_po_line_id=str(line.id))
-        .exists()
-    )
-    if already_costed:
-        return
-
-    create_costline_from_allocation(
-        purchase_order=po,
-        line=line,
-        job=job,
-        qty=line.quantity,
-        retail_rate_pct=retail_rate_pct,
-        staff=staff,
-    )
-    line.received_quantity = line.quantity
-    line.save()
-    # Bump the job's updated_at without recording a JobEvent.
-    Job.objects.filter(pk=job.pk).untracked_update(updated_at=timezone.now())
-
-
-def _apply_purchase_order_fields(
-    po: PurchaseOrder, data: PurchaseOrderUpdateData, staff: Staff
-) -> None:
+def _apply_purchase_order_fields(po: PurchaseOrder, data: PurchaseOrderUpdateData) -> None:
     if "reference" in data:
-        # Blank means unset (reference_not_blank), same rule as create.
-        po.reference = data.get("reference") or None
+        po.reference = data["reference"]
     if "expected_delivery" in data:
         po.expected_delivery = data.get("expected_delivery")
     if "status" not in data:
         return
 
     new_status = data["status"]
-    if new_status not in PURCHASE_ORDER_STATUSES:
-        raise DjangoValidationError(
-            f"Invalid status '{new_status}'. Must be one of: "
-            f"{', '.join(sorted(PURCHASE_ORDER_STATUSES))}"
-        )
     logger.info("Updating PO %s status: %s -> %s", po.po_number, po.status, new_status)
     po.status = new_status
-    if new_status != "fully_received":
+
+
+def _apply_supplier_and_pickup(po: PurchaseOrder, data: PurchaseOrderUpdateData) -> None:
+    """Repoint the order at a supplier and at where its goods are collected.
+
+    One unit because the two move together: an address belongs to a supplier,
+    so changing the supplier invalidates the address rather than keeping it.
+    """
+    supplier_id = data.get("supplier_id")
+    if supplier_id and supplier_id != po.supplier_id:
+        po.supplier = _resolve_supplier(supplier_id)
+        # The old supplier's yard is no collection point for the new one.
+        po.pickup_address = None
+    if "pickup_address_id" not in data:
         return
-    for line in po.po_lines.filter(quantity__gt=0):
-        _auto_allocate_line(line, po, staff)
+    pickup_address_id = data["pickup_address_id"]
+    if pickup_address_id is None:
+        po.pickup_address = None
+    elif po.supplier is None:
+        raise DjangoValidationError("A pickup address needs a supplier")
+    else:
+        po.pickup_address = _resolve_pickup_address(pickup_address_id, po.supplier)
 
 
 def update_purchase_order(
@@ -512,27 +499,36 @@ def update_purchase_order(
 
         lines_to_delete = data.get("lines_to_delete")
         if lines_to_delete:
+            if (
+                PurchaseOrderLine.objects.filter(purchase_order=po, id__in=lines_to_delete)
+                .filter(stock_generated__isnull=False)
+                .exists()
+            ):
+                raise DjangoValidationError(
+                    "This line preserves inventory provenance and cannot be deleted. "
+                    "See its allocations."
+                )
             PurchaseOrderLine.objects.filter(id__in=lines_to_delete, purchase_order=po).delete()
 
-        supplier_id = data.get("supplier_id")
-        if supplier_id and supplier_id != po.supplier_id:
-            po.supplier = _resolve_supplier(supplier_id)
-            # The old supplier's yard is no collection point for the new one.
-            po.pickup_address = None
-        if "pickup_address_id" in data:
-            pickup_address_id = data["pickup_address_id"]
-            if pickup_address_id is None:
-                po.pickup_address = None
-            elif po.supplier is None:
-                raise DjangoValidationError("A pickup address needs a supplier")
-            else:
-                po.pickup_address = _resolve_pickup_address(pickup_address_id, po.supplier)
+        _apply_supplier_and_pickup(po, data)
 
+        status_before = po.status
         _write_lines(po, data.get("lines", []))
-        _apply_purchase_order_fields(po, data, staff)
+        _apply_purchase_order_fields(po, data)
 
         po.save()
+        if data.get("status") == "fully_received":
+            po = receive_outstanding_order(po.id, staff, if_match=purchase_order_etag(po))
+        elif "lines" in data and po.po_lines.filter(received_quantity__gt=0).exists():
+            recompute_purchase_order_status(po)
         po.refresh_from_db()
+        if po.status != status_before:
+            # Any transition, in either direction: leaving draft is the first
+            # moment a bill can come back, a receipt settles the total, and
+            # going back to draft is Xero learning the order was pulled.
+            po.xero_push_due = True
+            po.save(update_fields=["xero_push_due"])
+            send_state_change(po, staff)
         return po
 
 

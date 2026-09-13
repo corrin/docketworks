@@ -168,7 +168,8 @@ test.describe('company defaults', () => {
       .not.toBe('loading')
     // A broken Xero connection is a real defect, not a reason to skip.
     await expect(errorMarker).toBeHidden()
-    test.skip(await emptyMarker.isVisible(), 'The connected Xero tenant has no branding themes')
+    // Refuse, never skip (ADR 0050): a tenant with no themes cannot prove this.
+    await expect(emptyMarker, 'The connected Xero tenant has no branding themes').toBeHidden()
 
     const originalValue = await selector.inputValue()
     // Read through HTMLOptionElement.value rather than the `value` attribute:
@@ -188,15 +189,16 @@ test.describe('company defaults', () => {
     // the stale id is still selected, so saving anything else deletes the only
     // way back — the restore below could never re-select it and the tenant would
     // be stranded on the test's theme.
-    test.skip(
-      originalValue !== '' && !candidateIds.includes(originalValue),
+    expect(
+      originalValue === '' || candidateIds.includes(originalValue),
       'The configured branding theme is no longer offered by Xero and could not be restored',
-    )
+    ).toBe(true)
 
     const testValue =
       originalValue === '' ? candidateIds[0] : candidateIds.find((id) => id !== originalValue)
-    test.skip(testValue === undefined, 'No alternative branding theme to exercise')
-    if (testValue === undefined) return
+    if (testValue === undefined) {
+      throw new Error('No alternative branding theme to exercise')
+    }
 
     const save = autoId(page, 'CompanyDefaultsPage-save-button')
     try {

@@ -1,11 +1,11 @@
 """Read-only Xero provider: real reads and auth, suppressed writes.
 
-Selected by the registry when ``settings.XERO_READONLY`` is true (E2E/test
-backends only). Every write logs a warning and returns a well-formed fake
-result so callers — the company-create flow today, document managers when
-they port — behave exactly as with real Xero, without anything reaching the
-Xero tenant. Suppressed writes are not errors: nothing here persists an
-AppError.
+Selected by the registry when ``settings.XERO_READONLY`` is true: the valve
+for a local process pointed at production data (ADR 0050), never a test
+mode — an E2E iteration run uses the transport-level fake of ADR 0060.
+Every write logs a warning and returns a well-formed fake result so callers
+behave exactly as with real Xero, without anything reaching the Xero
+tenant. Suppressed writes are not errors: nothing here persists an AppError.
 """
 
 import logging
@@ -212,9 +212,13 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
             external_id=external_id,
             number=payload.po_number,
             online_url=(f"https://go.xero.com/Accounts/Payable/PurchaseOrders/Edit/{external_id}/"),
+            # The status a live push would have been answered with is the one
+            # it sent: Xero stores what it is given here, and the manager now
+            # records that answer, so the local effects have to match.
+            document_status=payload.status,
             # Empty line_items: no fabricated per-line ids, so the manager's
             # xero_line_item_id backfill is a no-op under readonly.
-            raw_response={"line_items": [], "_e2e_stub": True},
+            raw_response={"line_items": [], "echo": {"_e2e_stub": True}},
         )
 
     def create_purchase_order(self, payload: POPayload) -> DocumentResult:
@@ -282,7 +286,7 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
     # listed — the reads (the calendar anchor, the week posting status, the
     # connection id) are inherited unchanged, because an override whose body is
     # identical to the one it overrides restates intent in a docstring and
-    # nothing else (ADR 0045).
+    # nothing else (ADR 0028).
     #
     # Payroll writes matter more than most: a suppressed post must still look
     # like a post to the caller, or the weekly screen's progress and result UI

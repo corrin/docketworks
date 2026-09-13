@@ -127,4 +127,4 @@ class FrontendErrorIn(Schema):
 class FrontendErrorOut(ResponseSchema):
     """The persisted error's id, so a browser log can name it."""
 
-    error_id: UUID | None
+    error_id: UUID

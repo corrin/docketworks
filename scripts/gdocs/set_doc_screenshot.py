@@ -8,7 +8,8 @@ is a separate replaceImage path (not yet built).
 This is the push half of the screenshot pipeline; the capture half is
 frontend/scripts/capture-screenshots.ts (run via `npm run manual:screenshots`).
 
-Auth is the shared delegated convention (credentials from apps/core/gauth.py).
+Auth is the shared delegated convention
+(credentials from apps/platform/integrations/google/credentials.py).
 
 Usage:
     GCP_CREDENTIALS=<key.json> uv run python -m scripts.gdocs.set_doc_screenshot \\

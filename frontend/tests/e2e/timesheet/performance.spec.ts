@@ -52,9 +52,13 @@ test.describe('timesheet entry performance', () => {
       const path = request.url.split('?')[0] ?? request.url
       byPath.set(path, (byPath.get(path) ?? 0) + 1)
     }
-    for (const [path, count] of byPath) {
-      if (count > 1) console.log(`Duplicate request: ${path} × ${count}`)
-    }
+    const duplicates = [...byPath].filter(([, count]) => count > 1)
+    expect(
+      duplicates,
+      `the same endpoint was requested more than once during load: ${duplicates
+        .map(([path, count]) => `${path} × ${count}`)
+        .join(', ')}`,
+    ).toEqual([])
     if (totalLoadTime > 5000) {
       console.log(`WARNING: Page load time (${totalLoadTime}ms) exceeds 5 seconds!`)
     }
@@ -85,10 +89,7 @@ test.describe('timesheet entry performance', () => {
     // Classify only after loading completes, or late responses skew the split.
     await page.waitForFunction(() => !document.querySelector('.animate-spin'), { timeout: 60000 })
 
-    if (timings.length === 0) {
-      console.log('No API requests captured')
-      return
-    }
+    expect(timings.length, 'the page made no API requests to measure').toBeGreaterThan(0)
     timings.sort((a, b) => a.start - b.start)
     let sequentialCount = 0
     let parallelCount = 0
@@ -96,10 +97,12 @@ test.describe('timesheet entry performance', () => {
       if (timings[i]!.start >= timings[i - 1]!.end) sequentialCount++
       else parallelCount++
     }
-    console.log(`Sequential: ${sequentialCount}, parallel: ${parallelCount}`)
-    if (sequentialCount > parallelCount * 2) {
-      console.log('WARNING: Requests appear to be mostly sequential - could be parallelized!')
-    }
+    // The property the test exists for: a waterfall of dependent requests is a
+    // regression, so it fails here instead of logging a warning nobody reads.
+    expect(
+      sequentialCount,
+      `requests are mostly sequential (${sequentialCount} sequential, ${parallelCount} parallel)`,
+    ).toBeLessThanOrEqual(parallelCount * 2)
     await expect(page.locator('.smart-timesheet-table')).toBeVisible()
   })
 })

@@ -9,6 +9,7 @@ import {
   formatHoursDisplay,
   formatMonth,
   formatPercentage,
+  formatQuantity,
   formatWholeCurrency,
   localIsoDate,
   localIsoMonth,
@@ -130,5 +131,13 @@ describe('month helpers refuse what they cannot format', () => {
     expect(() => formatMonth('2026-13')).toThrow(/Not a YYYY-MM month/)
     expect(() => formatMonth('2026-09-01')).toThrow(/Not a YYYY-MM month/)
     expect(() => formatMonth('')).toThrow(/Not a YYYY-MM month/)
+  })
+})
+
+describe('formatQuantity', () => {
+  it('preserves stock precision, groups thousands and displays shortages', () => {
+    expect(formatQuantity(1234.125)).toBe('1,234.125')
+    expect(formatQuantity(-0.001)).toBe('-0.001')
+    expect(formatQuantity(0)).toBe('0')
   })
 })

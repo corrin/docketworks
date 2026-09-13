@@ -104,6 +104,11 @@ Follow [xero_setup.md](xero_setup.md) Steps 2 and 3, with the production specifi
 - OAuth 2.0 Redirect URI: `https://<instance>.docketworks.site/api/xero/oauth/callback/`
 - Webhook Delivery URL: `https://<instance>.docketworks.site/api/xero/webhook/`
 
+A paying client gets its own app. The shared webhook router described in
+[xero_setup.md](xero_setup.md#alternative-share-an-app-through-the-webhook-router) is for trials,
+demos and internal environments: an uncertified Xero app is capped on connected organisations, and
+a shared registration makes every install behind it share one failure.
+
 The Client ID, Client Secret, and Webhook Key go into the instance's root-owned
 `/opt/docketworks/config/<client>-<env>.credentials.env` (`XERO_CLIENT_ID`,
 `XERO_CLIENT_SECRET`, `XERO_WEBHOOK_KEY`, `XERO_REDIRECT_URI`).

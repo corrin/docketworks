@@ -69,15 +69,20 @@ let generation = 0
  */
 function disabledForE2E(): boolean {
   if (!navigator.webdriver) return false
-  if (window.location.hostname.endsWith('.ngrok-free.app')) return true
   try {
-    return window.localStorage.getItem(E2E_DISABLE_KEY) === 'true'
+    // Opus: the explicit setting is read FIRST and wins. The tunnel is a
+    // reason to skip capture by default, not a reason the one spec whose
+    // subject IS capture cannot ask for it. Answering the hostname before
+    // reading the key meant that spec's opt-in was never heard, so no
+    // recording was ever created and it waited two minutes for a request
+    // that could not happen.
+    const explicit = window.localStorage.getItem(E2E_DISABLE_KEY)
+    if (explicit !== null) return explicit === 'true'
   } catch {
     // Opus: a browser configured to block site data throws on localStorage
-    // access. Recording is the safe default; only the explicit opt-out
-    // disables it, and an unreadable store is not one.
-    return false
+    // access. With no setting to read, the default below decides.
   }
+  return window.location.hostname.endsWith('.ngrok-free.app')
 }
 
 /** 401/403/404 mean this recording can never accept another chunk. */
@@ -123,17 +128,23 @@ function discardRecordingState(): void {
  * cannot be split, and holding it back would stall every event behind it
  * forever.
  */
-function takeChunk(): eventWithTime[] {
-  const taken: eventWithTime[] = []
-  let size = 2
-  for (const event of buffered) {
+type Chunk = { events: eventWithTime[]; first: eventWithTime; last: eventWithTime }
+
+function takeChunk(first: eventWithTime): Chunk {
+  // `first` is the caller's proof the buffer is non-empty, so the chunk's
+  // bounds are real events rather than a 0 standing in for one.
+  const taken: eventWithTime[] = [first]
+  let last = first
+  let size = 2 + JSON.stringify(first).length + 1
+  for (const event of buffered.slice(1)) {
     const eventSize = JSON.stringify(event).length + 1
-    if (taken.length > 0 && size + eventSize > MAX_CHUNK_CHARS) break
+    if (size + eventSize > MAX_CHUNK_CHARS) break
     taken.push(event)
+    last = event
     size += eventSize
   }
   buffered = buffered.slice(taken.length)
-  return taken
+  return { events: taken, first, last }
 }
 
 export async function flushSessionReplay(): Promise<void> {
@@ -146,8 +157,8 @@ export async function flushSessionReplay(): Promise<void> {
     // Opus: Drains in as many uploads as the backlog needs rather than one per
     // interval: after a tab has been hidden for a while the buffer holds
     // minutes of events, and one chunk per 10s would never catch up.
-    while (buffered.length > 0) {
-      const events = takeChunk()
+    for (let first = buffered[0]; first !== undefined; first = buffered[0]) {
+      const { events, first: firstEvent, last } = takeChunk(first)
       try {
         // Opus: The rule's Promise.all advice is wrong for this loop: chunks carry
         // an ordered `sequence` that only advances on a success, and the
@@ -160,8 +171,8 @@ export async function flushSessionReplay(): Promise<void> {
           body: {
             sequence,
             events_json: JSON.stringify(events),
-            first_event_timestamp_ms: events[0]?.timestamp ?? 0,
-            last_event_timestamp_ms: events[events.length - 1]?.timestamp ?? 0,
+            first_event_timestamp_ms: firstEvent.timestamp,
+            last_event_timestamp_ms: last.timestamp,
             path: currentPath(),
             job_id: currentJobId(),
             ...viewport(),

@@ -12,7 +12,7 @@ from django.db import IntegrityError, transaction
 from django.test import Client
 
 from apps.accounts.models import Staff
-from apps.company.tests.conftest import authenticate
+from apps.accounts.tests.helpers import authenticate
 from apps.process.models import Acknowledgement, Procedure
 from apps.process.tests.test_forms_api import make_form, make_staff
 

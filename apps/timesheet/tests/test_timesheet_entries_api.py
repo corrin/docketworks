@@ -10,10 +10,12 @@ from decimal import Decimal
 
 import pytest
 from django.test import Client
+from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
+from apps.timesheet.services.workshop_timesheet_service import list_entries
 from apps.timesheet.tests.conftest import (
     WEEK_START,
     authenticated_client,
@@ -139,3 +141,19 @@ class TestRetrieve:
     def test_bad_date_400s(self, manage_client: Client, worker: Staff) -> None:
         response = manage_client.get(entries_url(worker, "06/05/2026"))
         assert response.status_code == 400
+
+
+def test_creation_time_ties_override_daily_sequence(
+    manage_client: Client, job: Job, worker: Staff
+) -> None:
+    """Management and workshop readers use creation order, not a legacy sequence."""
+    lines = [make_time_line(job, worker, accounting_date=WEDNESDAY) for _ in range(8)]
+    stamp = timezone.now()
+    CostLine.objects.filter(id__in=[line.id for line in lines]).update(created_at=stamp)
+    first = lines[-1]
+    CostLine.objects.filter(id=first.id).update(created_at=stamp - timedelta(days=1))
+    expected = [first, *sorted(lines[:-1], key=lambda line: line.id)]
+    expected_ids = [str(line.id) for line in expected]
+    body = manage_client.get(entries_url(worker, WEDNESDAY.isoformat())).json()
+    assert [line["id"] for line in body["cost_lines"]] == expected_ids
+    assert [line["id"] for line in list_entries(worker, WEDNESDAY)["entries"]] == expected_ids

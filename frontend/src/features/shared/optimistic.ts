@@ -16,3 +16,12 @@ export function restoreDeletedRow<T extends { id: string }>(
   next.splice(Math.min(index, next.length), 0, deleted)
   return next
 }
+
+/** Restore rejected optimistic fields while preserving edits made after that request. */
+export function restoreRejectedPatch<T>(current: T, snapshot: T, display: Partial<T>): T {
+  const restored = { ...current }
+  for (const key in display) {
+    if (Object.is(current[key], display[key])) restored[key] = snapshot[key]
+  }
+  return restored
+}

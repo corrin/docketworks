@@ -25,7 +25,7 @@ from django.core.management import call_command
 from django.db import DatabaseError
 
 from apps.company.models import Company
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 from apps.core.models import AppError
 from apps.quoting.models import (
     ProductParsingMapping,

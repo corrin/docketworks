@@ -92,52 +92,33 @@ def distinct_usable_hashes(passwords: Iterable[str]) -> int:
 
 
 def _assert_passwords_scrubbed(archive: Path) -> None:
-    """Fail a v2-produced archive that still carries real password hashes.
+    """Fail an archive that still carries real password hashes.
 
     The scrub replaces every staff password with one shared hash of the public
     nonprod password, so a clean archive holds at most one distinct usable
     value; production hashes are per-row salted and show up as many. Checked
     without Django so this stays a plain archive reader.
-
-    Warns rather than fails for a v1-produced archive: v1's scrubber left the
-    hashes, and refusing those would block every restore until production runs
-    v2. The warning is the operator's cue to delete the file after restoring.
     """
     distinct = distinct_usable_hashes(_column_values(archive, STAFF_TABLE, "password"))
     if distinct <= 1:
         return
 
-    detail = f"{distinct} distinct usable password hashes in {STAFF_TABLE}"
-    if _is_v2_ledger(_table_rows(archive, "django_migrations")):
-        raise RuntimeError(
-            f"Backup carries unscrubbed password hashes ({detail}). The scrub replaces "
-            "every staff password; this archive was not scrubbed by that code."
-        )
-    print(
-        f"WARNING: {detail} — this archive was produced by the v1 host, whose scrubber "
-        "left password hashes in place. Delete the file once the restore is done.",
-        file=sys.stderr,
+    raise RuntimeError(
+        f"Backup carries unscrubbed password hashes "
+        f"({distinct} distinct usable hashes in {STAFF_TABLE}). The scrub replaces "
+        "every staff password; this archive was not scrubbed by that code."
     )
 
 
-def _squashed_baseline_apps(rows: list[str]) -> set[str]:
-    found: set[str] = set()
-    for row in rows:
-        columns = row.split("\t")
-        if len(columns) < 3:
-            continue
-        app, migration = columns[1:3]
-        if app in {"client", "company"} and migration == "0001_baseline":
-            found.add(app)
-    return found
+def _assert_ledger_is_this_codebase(rows: list[str]) -> None:
+    """Refuse an archive whose migration ledger this codebase cannot restore.
 
-
-def _is_v2_ledger(rows: list[str]) -> bool:
-    """True when the migration ledger was written by a v2 installation.
-
-    A v2 ledger carries ``company/0001_initial`` and no ``workflow`` app at
-    all — every v1 era had workflow migrations, v2 never does (its models
-    moved to other apps with the tables pinned by ``db_table``).
+    The restore is a plain ``pg_restore`` of a full archive into an emptied
+    database, so the archive's schema has to be one this codebase migrates
+    forward from. The ledger says so: it carries ``company/0001_initial`` and
+    no ``workflow`` app. An archive failing that predates the app layout and
+    has no load path here at all — reading it is not the failure, restoring it
+    would be.
     """
     apps_seen: set[str] = set()
     has_company_initial = False
@@ -149,27 +130,13 @@ def _is_v2_ledger(rows: list[str]) -> bool:
         apps_seen.add(app)
         if app == "company" and migration == "0001_initial":
             has_company_initial = True
-    return has_company_initial and "workflow" not in apps_seen
 
+    if has_company_initial and "workflow" not in apps_seen:
+        return
 
-def _assert_squashed_baseline(rows: list[str]) -> None:
-    found = _squashed_baseline_apps(rows)
-    if found == {"company"}:
-        return
-    if found == {"client"}:
-        raise RuntimeError(
-            "Backup uses the obsolete client migration label; restore it with "
-            "a matching pre-cutover checkout"
-        )
-    if found == {"client", "company"}:
-        raise RuntimeError("Backup has mixed client/company 0001_baseline migration labels")
-    # No baseline entry at all is fine for an archive v2's own producer wrote
-    # (post-cutover pulls): a v2 ledger never held the squash baseline. Only a
-    # baseline-less ledger that still looks like v1 predates the squash.
-    if _is_v2_ledger(rows):
-        return
     raise RuntimeError(
-        "Backup predates the July migration squash: no company 0001_baseline ledger entry"
+        "Backup's migration ledger is not one this codebase can restore: expected "
+        "company/0001_initial and no workflow app. Take a fresh backup."
     )
 
 
@@ -181,8 +148,7 @@ def verify_backup(archive: Path) -> None:
     # complete restore stream to /dev/null catches corruption anywhere in the
     # archive without creating or modifying a database.
     _pg_restore(archive, "--file=/dev/null")
-    migration_rows = _table_rows(archive, "django_migrations")
-    _assert_squashed_baseline(migration_rows)
+    _assert_ledger_is_this_codebase(_table_rows(archive, "django_migrations"))
 
     _assert_passwords_scrubbed(archive)
 

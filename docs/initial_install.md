@@ -82,27 +82,30 @@ gitignored because they hold live keys.
    them. Set `label` to `<your-name> xero` so your row is distinguishable from other devs'.
    The `redirect_uri` is `https://<your-ngrok-domain>/api/xero/oauth/callback/` and must
    match the redirect URI registered for the app in the Xero developer portal exactly.
+   A dev machine is the clearest case for sharing an app through the webhook router
+   (see [xero_setup.md](xero_setup.md#alternative-share-an-app-through-the-webhook-router)):
+   the shared credentials already work this way, and a route on the router keyed to your
+   tenant id delivers webhooks to your ngrok domain without a dev-only app registration.
    ```bash
    cp apps/xero/fixtures/xero_apps.json.example apps/xero/fixtures/xero_apps.json
    # edit in the shared credentials, then:
    uv run python manage.py loaddata apps/xero/fixtures/xero_apps.json
    ```
 
-3. **`apps/core/fixtures/integration_settings.json`** — the install-level credentials
+3. **`apps/platform/integrations/fixtures/integration_settings.json`** — the install-level credentials
    (ADR 0053): the Google Maps key and, if you need it, the phone provider's login. They are
    columns on the `IntegrationSettings` row that `migrate` creates; nothing reads them from
    `.env`. Leave the phone provider unset on a dev machine so dev Celery cannot reach the
    production phone system. The E2E preflight refuses to run without the Maps key.
    ```bash
-   cp apps/core/fixtures/integration_settings.json.example apps/core/fixtures/integration_settings.json
+   cp apps/platform/integrations/fixtures/integration_settings.json.example apps/platform/integrations/fixtures/integration_settings.json
    # edit in the shared Maps key, then:
-   uv run python manage.py load_integration_settings apps/core/fixtures/integration_settings.json
+   uv run python manage.py load_integration_settings apps/platform/integrations/fixtures/integration_settings.json
    ```
    The command applies each integration only while its columns are unset, so re-running it
    never overwrites what a superuser has since entered on **Admin > Integrations**.
 
-Production data moves from v1 by `pg_dump`/restore (models keep v1's app labels and table
-names — see [`../CLAUDE.md`](../CLAUDE.md)); refreshing from a production dump is
+Refreshing an installation from a production dump is
 [`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md), which preserves these rows
 across the load.
 

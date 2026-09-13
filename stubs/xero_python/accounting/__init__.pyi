@@ -1,8 +1,33 @@
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal, overload
 
 from xero_python.api_client import ApiClient
+from xero_python.models import BaseModel
+
+class Purchase(BaseModel):
+    unit_price: float | None
+    def __init__(self, unit_price: float | None = None) -> None: ...
+
+class Item(BaseModel):
+    code: str | None
+    name: str | None
+    is_tracked_as_inventory: bool | None
+    quantity_on_hand: float | None
+    updated_date_utc: datetime | None
+    purchase_details: Purchase | None
+    sales_details: Purchase | None
+    def __init__(
+        self,
+        *,
+        code: str | None = None,
+        name: str | None = None,
+        is_tracked_as_inventory: bool | None = None,
+        quantity_on_hand: float | None = None,
+        updated_date_utc: datetime | None = None,
+        purchase_details: Purchase | None = None,
+        sales_details: Purchase | None = None,
+    ) -> None: ...
 
 class AccountType(Enum):
     BANK = "BANK"
@@ -24,7 +49,7 @@ class AccountType(Enum):
     TERMLIAB = "TERMLIAB"
     PAYG = "PAYG"
 
-class Account:
+class Account(BaseModel):
     account_id: str | None
     code: str | None
     name: str | None
@@ -35,18 +60,18 @@ class Account:
     updated_date_utc: datetime | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class Phone:
+class Phone(BaseModel):
     phone_type: str | None
     phone_number: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class Address:
+class Address(BaseModel):
     address_type: str | None
     attention_to: str | None
     address_line1: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class Contact:
+class Contact(BaseModel):
     contact_id: str | None
     contact_status: str | None
     has_validation_errors: bool | None
@@ -61,11 +86,11 @@ class Contact:
     def __init__(self, **kwargs: Any) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...
 
-class Contacts:
+class Contacts(BaseModel):
     contacts: list[Contact] | None
     def __init__(self, contacts: list[Contact] | None = None, **kwargs: Any) -> None: ...
 
-class LineItem:
+class LineItem(BaseModel):
     description: str | None
     quantity: float | None
     unit_amount: float | None
@@ -75,7 +100,7 @@ class LineItem:
     def __init__(self, **kwargs: Any) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...
 
-class Invoice:
+class Invoice(BaseModel):
     invoice_id: str | None
     invoice_number: str | None
     type: str | None
@@ -89,21 +114,39 @@ class Invoice:
     total: Any
     amount_due: Any
     branding_theme_id: str | None
+    currency_code: Any
+    validation_errors: list[ValidationError] | None
     updated_date_utc: Any
     def __init__(self, **kwargs: Any) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...
 
-class Invoices:
+class CreditNote(BaseModel):
+    credit_note_id: str | None
+    credit_note_number: str | None
+    type: str | None
+    contact: Contact | None
+    status: str | None
+    line_items: list[LineItem] | None
+    updated_date_utc: Any
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class Invoices(BaseModel):
     invoices: list[Invoice] | None
     def __init__(self, invoices: list[Invoice] | None = None, **kwargs: Any) -> None: ...
 
-class Quote:
+class QuoteLineAmountTypes(Enum):
+    EXCLUSIVE = "EXCLUSIVE"
+    INCLUSIVE = "INCLUSIVE"
+    NOTAX = "NOTAX"
+
+class Quote(BaseModel):
     quote_id: str | None
     quote_number: str | None
     contact: Contact | None
     date: Any
     expiry_date: Any
     status: str | None
+    line_amount_types: QuoteLineAmountTypes | None
     line_items: list[LineItem] | None
     branding_theme_id: str | None
     terms: str | None
@@ -113,15 +156,15 @@ class Quote:
     def __init__(self, **kwargs: Any) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...
 
-class Quotes:
+class Quotes(BaseModel):
     quotes: list[Quote] | None
     def __init__(self, quotes: list[Quote] | None = None, **kwargs: Any) -> None: ...
 
-class ValidationError:
+class ValidationError(BaseModel):
     message: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class PurchaseOrder:
+class PurchaseOrder(BaseModel):
     purchase_order_id: str | None
     purchase_order_number: str | None
     contact: Contact | None
@@ -131,25 +174,37 @@ class PurchaseOrder:
     reference: str | None
     line_items: list[LineItem] | None
     validation_errors: list[ValidationError] | None
+    sub_total: Any
+    total_tax: Any
+    total: Any
     updated_date_utc: Any
     def __init__(self, **kwargs: Any) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...
 
-class PurchaseOrders:
+class PurchaseOrders(BaseModel):
     purchase_orders: list[PurchaseOrder] | None
     def __init__(
         self, purchase_orders: list[PurchaseOrder] | None = None, **kwargs: Any
     ) -> None: ...
 
-class HistoryRecord:
+class HistoryRecord(BaseModel):
     details: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class HistoryRecords:
+class TaxRate(BaseModel):
+    name: str | None
+    tax_type: str | None
+    status: str | None
+    effective_rate: float | None
+
+class TaxRates(BaseModel):
+    tax_rates: list[TaxRate] | None
+
+class HistoryRecords(BaseModel):
     history_records: list[HistoryRecord] | None
     def __init__(self, history_records: list[HistoryRecord] | None = None) -> None: ...
 
-class Organisation:
+class Organisation(BaseModel):
     organisation_id: str | None
     name: str | None
     short_code: str | None
@@ -158,17 +213,17 @@ class Organisation:
     country_code: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class Organisations:
+class Organisations(BaseModel):
     organisations: list[Organisation] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class BrandingTheme:
+class BrandingTheme(BaseModel):
     branding_theme_id: str | None
     name: str | None
     sort_order: int | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class BrandingThemes:
+class BrandingThemes(BaseModel):
     branding_themes: list[BrandingTheme] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
@@ -182,8 +237,22 @@ class AccountingApi:
         self, xero_tenant_id: str, contacts: Any, **kwargs: Any
     ) -> Contacts: ...
     def get_contacts(self, xero_tenant_id: str, **kwargs: Any) -> Contacts: ...
+    def get_contact(self, xero_tenant_id: str, contact_id: str, **kwargs: Any) -> Contacts: ...
+    def get_tax_rates(self, xero_tenant_id: str, **kwargs: Any) -> TaxRates: ...
+    def get_invoice_history(
+        self, xero_tenant_id: str, invoice_id: str, **kwargs: Any
+    ) -> HistoryRecords: ...
     def get_branding_themes(self, xero_tenant_id: str, **kwargs: Any) -> BrandingThemes: ...
-    def get_organisations(self, xero_tenant_id: str, **kwargs: Any) -> Organisations: ...
+    # The SDK hands back (body, status, headers) when asked not to strip the
+    # response; the quota headers only exist in that shape.
+    @overload
+    def get_organisations(
+        self, xero_tenant_id: str, *, _return_http_data_only: Literal[True] = ...
+    ) -> Organisations: ...
+    @overload
+    def get_organisations(
+        self, xero_tenant_id: str, *, _return_http_data_only: Literal[False]
+    ) -> tuple[Organisations, int, dict[str, str]]: ...
     def get_items(self, xero_tenant_id: str, **kwargs: Any) -> Any: ...
     def get_accounts(self, xero_tenant_id: str, **kwargs: Any) -> Any: ...
     def get_invoices(self, xero_tenant_id: str, **kwargs: Any) -> Any: ...

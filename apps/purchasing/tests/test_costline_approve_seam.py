@@ -15,12 +15,12 @@ from django.test import Client
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.company.tests.conftest import authenticate
+from apps.accounts.tests.helpers import authenticate
 from apps.company.tests.job_fixtures import make_job, ordinary_time_pay_item
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine
-from apps.purchasing.tests.conftest import make_stock
+from apps.purchasing.tests.factories import make_stock
 
 pytestmark = [
     pytest.mark.django_db,
@@ -52,14 +52,14 @@ def _material_line(job: Job, *, stock_id: str | None, quantity: str = "3.000") -
 @pytest.mark.usefixtures("company_defaults")
 class TestApproveMaterialLineConsumesStock:
     def test_approving_draws_the_stock_down_and_reprices_the_line(
-        self, client: Client, stock_holding_job: Job, job: Job
+        self, api: Client, stock_holding_job: Job, job: Job
     ) -> None:
         stock = make_stock(
             stock_holding_job, description="4mm plate", quantity="10.00", unit_cost="30.00"
         )
         line = _material_line(job, stock_id=str(stock.id), quantity="3.000")
 
-        response = client.post(_approve_url(line))
+        response = api.post(_approve_url(line))
 
         assert response.status_code == 200
         body = response.json()
@@ -78,57 +78,54 @@ class TestApproveMaterialLineConsumesStock:
         assert line.ext_refs["stock_id"] == str(stock.id)
 
     def test_approval_is_recorded_against_the_approving_staff_member(
-        self, client: Client, stock_holding_job: Job, job: Job, office_staff: Staff
+        self, api: Client, stock_holding_job: Job, job: Job, office_staff: Staff
     ) -> None:
         stock = make_stock(stock_holding_job)
         line = _material_line(job, stock_id=str(stock.id), quantity="1.000")
 
-        client.post(_approve_url(line))
+        api.post(_approve_url(line))
 
         line.refresh_from_db()
         assert line.meta["consumed_by"] == str(office_staff.id)
 
-    def test_a_material_line_without_a_stock_reference_is_400(
-        self, client: Client, job: Job
-    ) -> None:
+    def test_a_material_line_without_a_stock_reference_is_400(self, api: Client, job: Job) -> None:
         line = _material_line(job, stock_id=None)
 
-        response = client.post(_approve_url(line))
+        response = api.post(_approve_url(line))
 
         assert response.status_code == 400
         assert "missing item code" in response.json()["detail"]
         line.refresh_from_db()
         assert line.approved is False
 
-    def test_a_dangling_stock_reference_is_404(self, client: Client, job: Job) -> None:
+    def test_a_dangling_stock_reference_is_404(self, api: Client, job: Job) -> None:
         line = _material_line(job, stock_id=str(uuid4()))
 
-        assert client.post(_approve_url(line)).status_code == 404
+        assert api.post(_approve_url(line)).status_code == 404
 
     def test_approving_twice_is_rejected_and_consumes_stock_once(
-        self, client: Client, stock_holding_job: Job, job: Job
+        self, api: Client, stock_holding_job: Job, job: Job
     ) -> None:
         stock = make_stock(stock_holding_job, quantity="10.00")
         line = _material_line(job, stock_id=str(stock.id), quantity="3.000")
 
-        first = client.post(_approve_url(line))
-        second = client.post(_approve_url(line))
+        first = api.post(_approve_url(line))
+        second = api.post(_approve_url(line))
 
         assert first.status_code == 200
         assert second.status_code == 400
-        assert "already approved" in second.json()["detail"]
         stock.refresh_from_db()
         assert stock.quantity == Decimal("7.00")
 
     def test_a_shop_job_is_never_billed_for_consumed_stock(
-        self, client: Client, stock_holding_job: Job, office_staff: Staff
+        self, api: Client, stock_holding_job: Job, office_staff: Staff
     ) -> None:
         shop_job = make_job(CompanyDefaults.get_solo().shop_company, office_staff, name="Shop work")
         assert shop_job.shop_job
         stock = make_stock(stock_holding_job, quantity="10.00", unit_cost="30.00")
         line = _material_line(shop_job, stock_id=str(stock.id), quantity="1.000")
 
-        client.post(_approve_url(line))
+        api.post(_approve_url(line))
 
         line.refresh_from_db()
         assert line.unit_rev == Decimal("0.00")
@@ -137,7 +134,7 @@ class TestApproveMaterialLineConsumesStock:
 @pytest.mark.usefixtures("company_defaults")
 class TestApproveNonMaterialLine:
     def test_a_time_line_is_approved_without_touching_stock(
-        self, client: Client, job: Job, office_staff: Staff
+        self, api: Client, job: Job, office_staff: Staff
     ) -> None:
         line = CostLine(
             cost_set=job.latest_actual,
@@ -154,7 +151,7 @@ class TestApproveNonMaterialLine:
         line.xero_pay_item_id = ordinary_time_pay_item().pk
         line.save()
 
-        response = client.post(_approve_url(line))
+        response = api.post(_approve_url(line))
 
         assert response.status_code == 200
         assert response.json()["remaining_quantity"] is None

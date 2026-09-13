@@ -42,7 +42,7 @@
       "gdrive_sops_folder_id": null,
       "gdrive_reference_library_folder_id": null,
       "accounting_provider": "xero",
-      "xero_tenant_id": "00000000-0000-0000-0000-000000000000",
+      "xero_tenant_id": null,
       "xero_shortcode": null,
       "xero_sales_branding_theme_id": null,
       "xero_quote_terms": "Terms of trade can be found on our website: https://www.democompany.example.com/terms-of-trade",

@@ -46,6 +46,17 @@ class ConflictError(ApplicationError):
     """The request conflicts with the current state of another resource."""
 
 
+class UpstreamRefusedError(ApplicationError):
+    """A vendor declined to answer for a reason that is about today, not the request.
+
+    Opus: distinct from InvalidInputError because the caller has nothing to fix.
+    A rate limit, a quota floor or a busy vendor says the same operation would
+    succeed later, while an invalid input says it never will — and a caller that
+    cannot tell them apart either retries a fault forever or abandons a probe
+    that was only ever postponed.
+    """
+
+
 class _CallerContext(TypedDict):
     """Code location auto-extracted from the frame that called persist_app_error."""
 
@@ -258,7 +269,7 @@ def persist_app_error(
 def app_error_for(exception: Exception) -> AppError | None:
     """Return the AppError this exception was persisted as, if any.
 
-    Response builders use this to surface ``error_id`` (ADR 0013) without
+    Response builders use this to surface ``error_id`` (ADR 0038) without
     needing the exception to have been wrapped in a marker type.
     """
     return _existing_app_error(exception)

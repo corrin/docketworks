@@ -11,8 +11,9 @@ The suite hits real services rather than mocks. The cost (API credits, external
 traffic) is accepted because mocked integrations have repeatedly hidden
 real-world breakage.
 
-- **Xero** — real Xero **demo company**. Tests create/delete invoices, quotes,
-  POs against the demo org. DocketWorks sends the configured Xero quote terms in
+- **Xero** — real Xero **demo company** for the gate; an iteration run may point
+  the same unmodified stack at the recorded fake instead (`--use-fake-xero`,
+  below). Tests create/delete invoices, quotes, POs against the demo org. DocketWorks sends the configured Xero quote terms in
   the quote API payload. In the demo company only, those terms must contain the
   exact text `Terms of trade can be found`; the quote E2E
   (`tests/e2e/job/job-xero-quote.spec.ts`) requires the native Xero PDF to
@@ -36,24 +37,40 @@ real-world breakage.
 - **Recognised-data reset.** Tests that create data prefix names with `[TEST]`
   (jobs, people, companies, suppliers, PO references — see the helpers in
   `tests/e2e/helpers.ts`), and every UI-seeded spec works against the fixed seed
-  company `ABC Carpet Cleaning TEST IGNORE`. `npm run test:e2e:reset -- --confirm`
-  runs `manage.py e2e_cleanup`, which archives the run's contacts in the Xero
-  demo organisation (refused on a production tenant or under `XERO_READONLY`)
-  and then removes exactly that recognised
-  local data if a restore ever failed to fire; without `--confirm` it reports
-  both without mutating. A `[TEST]` company that is archived in Xero is the
+  company `ABC Carpet Cleaning TEST IGNORE`. `manage.py e2e_cleanup` removes
+  exactly that recognised local data, and the Xero objects it names; without
+  `--confirm` it reports both without mutating. It is refused on a production
+  tenant or under `XERO_READONLY`. Two callers run it: teardown (below) and
+  `npm run test:e2e:reset -- --confirm`, which is the pre-run sweep for a
+  restore that never fired. A `[TEST]` company that is archived in Xero is the
   organisation's mirror, not residue: it lives in the dev database permanently
   and neither the cleanup nor the preflight counts it.
-- **Xero writes outlive the database restore.** Objects the run creates in the
-  live demo org cannot be restored away, and the hourly Xero poll would replay
-  them into the clean database. Each run therefore records its wall-clock span
-  in `$TMPDIR/docketworks-e2e-sync-windows.json`
-  (`tests/scripts/e2e-sync-windows.ts`); the backend sync
-  (`apps/xero/e2e_artifacts.py`) reads it and ignores objects created inside a
-  recorded window. It is a temp file, not a table, precisely because the
-  database restore would erase any in-database record of the run. The window
-  covers invoices and quotes, which cannot be archived; contacts touched after
-  the window are what the archive step above exists for.
+- **The run's Xero writes are removed when the run ends.** A run creates a
+  contact per company plus invoices, quotes and purchase orders in the live
+  demo org, and the database restore cannot reach any of them. So teardown runs
+  `e2e_cleanup` after the settle and **before** the restore, which is the last
+  moment anything knows what the run made: the local rows carry the Xero ids,
+  and the restore erases them. Documents are deleted first and contacts
+  archived second, because Xero refuses to archive a contact that still has
+  transactions against it. A failure here is reported, not raised — the restore
+  matters more — and the banner names the sweep below.
+- **`manage.py e2e_xero_sweep` clears what the database has forgotten.** It
+  reads the organisation rather than the database: every `[TEST]`-named contact
+  and every document owned by one (or by the standing seed company) is removed,
+  the seed company's own contact never. Reach for it after a hard-killed run,
+  or when the org has accumulated residue from before teardown removed it. Dry
+  run without `--confirm`. It pages every invoice, quote, purchase order and
+  contact, so it is not a per-run step.
+- **The sync window still covers what removal cannot.** The hourly Xero poll
+  would replay a run's objects into the restored database, so each run records
+  its wall-clock span in `$TMPDIR/docketworks-e2e-sync-windows.json`
+  (`tests/scripts/e2e-sync-windows.ts`) and the backend sync
+  (`apps/xero/e2e_artifacts.py`) ignores objects changed inside a closed
+  window. A temp file, not a table, precisely because the restore would erase
+  any in-database record of the run. It covers the span between a document's
+  creation and teardown removing it, and it covers what Xero offers no way to
+  remove: a `BILLED` purchase order, an `ACCEPTED` quote, and the payroll draft
+  runs of ADR 0007.
 
 ## Serving model
 
@@ -62,14 +79,12 @@ refuses to start if ports 4173/8000/4040 are in use, resets recognised E2E data,
 then owns the full five-service stack — vite production preview (:4173), Django
 under uvicorn (:8000), celery worker, celery beat, and ngrok — and stops only
 the processes it started. Use bare `npm run test:e2e` only when intentionally
-targeting an environment that is already running.
+targeting an environment that is already running. Plain `npm run test:e2e` never
+starts the frontend or backend; start them through the normal launch task first.
 
-The Playwright `baseURL` defaults to the local preview (`http://localhost:4173`)
-and is overridden by `E2E_BASE_URL` in `frontend/.env` / `.env.test`, so the
-same suite runs against any host by swapping that variable.
-`E2E_MANAGED_BASE_URL` (set only by the managed runner) wins over a developer's
-`E2E_BASE_URL` so the one-shot local-stack run can never start local services
-while testing another host. Credentials come from `E2E_TEST_USERNAME` /
+The Playwright `baseURL` defaults to `https://APP_DOMAIN` from the backend `.env`,
+so the browser uses the same ngrok/public origin as integrations. `E2E_BASE_URL` is
+an explicit override. Credentials come from `E2E_TEST_USERNAME` /
 `E2E_TEST_PASSWORD` in `.env.test`.
 
 Tests run sequentially (`fullyParallel: false` — they share one database), stop
@@ -118,11 +133,41 @@ reconciliation read has no bulk leave endpoint, so it costs one call per staff
 member. Exhausting the day is not subtle: reads start failing with
 `X-Rate-Limit-Problem: day` and a `Retry-After` of roughly an hour.
 
+`scripts/ops/run_e2e.sh` reads the quota before its first Xero-spending step
+and refuses to start at or below 150 remaining, so a run that would fail on
+its first refused call is refused up front instead of half an hour in. The
+threshold is the automated floor of 100 (below it celery beat's syncs stop
+partway through the suite) plus the 45 calls above. Two spenders sit on top
+of the 45 and have not been measured: the reset step's Xero cleanup of the
+previous run's writes, and beat's syncs during the run. The runner prints the
+same reading again after the suite, and that pair is the measurement to
+revisit the threshold from.
+
 Two consequences worth designing around. Iterating on a Xero-touching spec by
 re-running it is budgeted, not free, so diagnose from `logs/e2e/worker.log` and
 the database before spending another run. And a live Xero read belongs behind
 an explicit trigger rather than a page load — which is why the weekly grid's
 reconciliation waits for "Check against Xero" instead of fetching on mount.
+
+## Iterating against the fake Xero
+
+`./scripts/ops/run_e2e.sh --use-fake-xero` runs the whole default gate with the
+backend, worker and beat started under `XERO_FAKE=true`. Nothing in the suite
+changes: the SDK's transport is replaced below it by `apps/xero/fake`, a
+simulation of the tenant. Its answer shapes are bodies recorded off the real
+tenant; its state is a store seeded from the mirror at run start
+(`manage.py fake_xero_seed --replace`, inside the pre-run dump so the restore
+resets it) and updated by every write; ids are minted fresh, timestamps stamped
+at the write, numbers and totals computed, and a route nobody recorded is a
+refusal. The organisation
+the run reports carries `(FAKE XERO)` in its name, the run's `test-runs.csv`
+rows carry `xero=fake`, and the runner's last line says the run was not a gate.
+ADR 0060 is the rule; the run before merge is the same command without the switch.
+
+Two things the fake is weaker at, on purpose. The quote-PDF spec passes against
+a locally rendered PDF that carries the terms the app sent, so it proves the
+terms reached the wire and not that Xero renders them. And the payroll write
+specs are unrouted: they stay opt-in against the real tenant.
 
 ## Known gaps
 
@@ -134,5 +179,5 @@ reconciliation waits for "Check against Xero" instead of fetching on mount.
 - **No automated guard against Xero writes outside the demo org.** Pointing the
   suite at an environment whose Xero connection is a real organisation is not
   detected. The backend's `XERO_READONLY` flag is a production-safety valve, not
-  a test mode; the long-term answer is tagging Xero-touching specs and skipping
-  them by tag, which is not built.
+  a test mode, and the fake (`--use-fake-xero`) refuses a production tenant but
+  does not detect a real non-production one.

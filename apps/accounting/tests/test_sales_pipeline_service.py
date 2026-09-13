@@ -16,7 +16,7 @@ from django.utils import timezone
 from apps.accounting.services.sales_pipeline_service import SalesPipelineService
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job, JobEvent
 from apps.job.models.costing import CostSet
@@ -127,18 +127,6 @@ def _attach_estimate(job: Job, *, hours: float, rev: float = 0.0) -> CostSet:
     return cs
 
 
-def _detach_summaries(job: Job) -> None:
-    """Simulate a job with no usable quote/estimate hours summary."""
-    quote = job.latest_quote
-    estimate = job.latest_estimate
-    assert quote is not None
-    assert estimate is not None
-    quote.summary = {"cost": 0.0, "rev": 0.0}
-    quote.save(update_fields=["summary"])
-    estimate.summary = {"cost": 0.0, "rev": 0.0}
-    estimate.save(update_fields=["summary"])
-
-
 # ─── Shared fixtures ─────────────────────────────────────────────────────────
 
 
@@ -229,22 +217,20 @@ class TestScoreboard:
         assert rep["scoreboard"]["target_hours_for_period"] == pytest.approx(100.0)
         assert rep["period"]["daily_approved_hours_target"] == pytest.approx(20.0)
 
-    def test_missing_hours_summary_excludes_and_warns(self, acme: Company, staff: Staff) -> None:
+    def test_zero_hours_still_counts_an_approved_job(self, acme: Company, staff: Staff) -> None:
         job = _make_job(
             name="No hours", company=acme, created_dt=_nz_dt(date(2026, 1, 5)), staff=staff
         )
-        # Remove hours from the default quote/estimate summaries so hours
-        # resolution genuinely fails (Job.save() seeds both with hours=0.0).
-        _detach_summaries(job)
         _add_status_change(job, old="draft", new="awaiting_approval", at=_nz_dt(date(2026, 2, 10)))
         _add_status_change(
             job, old="awaiting_approval", new="approved", at=_nz_dt(date(2026, 3, 4))
         )
 
         rep = SalesPipelineService.get_report(self.start, self.end, 4, 13)
-        assert rep["scoreboard"]["approved_jobs_count"] == 0
+        assert rep["scoreboard"]["approved_jobs_count"] == 1
+        assert rep["scoreboard"]["approved_hours_total"] == 0
         codes = {(w["code"], w["section"]) for w in rep["warnings"]}
-        assert ("missing_hours_summary", "scoreboard") in codes
+        assert ("missing_hours_summary", "scoreboard") not in codes
 
 
 class TestSnapshot:

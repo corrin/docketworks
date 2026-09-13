@@ -15,6 +15,7 @@ import {
 } from '@/api'
 import { QueryState } from '@/features/shared/QueryState'
 import { formatCurrency } from '@/lib/format'
+import { TabBar } from '@/features/shared/TabBar'
 
 const TABS = [
   { key: 'contact', label: 'Contact Details' },
@@ -104,7 +105,12 @@ function SupplierAliasesPanel({ companyId }: SupplierAliasesPanelProps) {
   }
 
   return (
-    <div role="tabpanel" className="mt-6 space-y-4">
+    <div
+      id="CompanyDetail-panel"
+      role="tabpanel"
+      aria-labelledby="CompanyDetail-tab-suppliers"
+      className="mt-6 space-y-4"
+    >
       <div className="flex space-x-2">
         <input
           type="text"
@@ -214,35 +220,34 @@ export function CompanyDetailPage({ companyId }: CompanyDetailPageProps) {
           <>
             <h1 className="mt-4 text-xl font-bold text-gray-900">{company.data.name}</h1>
 
-            <nav role="tablist" className="mt-4 flex space-x-1 border-b border-gray-200">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === tab.key}
-                  data-automation-id={`CompanyDetail-tab-${tab.key}`}
-                  className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-                    activeTab === tab.key
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-600 hover:text-gray-900'
-                  }`}
-                  onClick={() => setActiveTab(tab.key)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
+            <TabBar
+              tabs={TABS}
+              activeKey={activeTab}
+              onChange={setActiveTab}
+              idPrefix="CompanyDetail-tab"
+              panelId="CompanyDetail-panel"
+              className="mt-4"
+            />
 
             {activeTab === 'contact' && (
-              <div role="tabpanel" className="mt-6 space-y-4">
+              <div
+                id="CompanyDetail-panel"
+                role="tabpanel"
+                aria-labelledby={`CompanyDetail-tab-${activeTab}`}
+                className="mt-6 space-y-4"
+              >
                 <DetailField label="Address">{company.data.address}</DetailField>
                 <DetailField label="Email">{company.data.email}</DetailField>
                 <DetailField label="Phone">{company.data.phone}</DetailField>
               </div>
             )}
             {activeTab === 'financial' && (
-              <div role="tabpanel" className="mt-6 space-y-4">
+              <div
+                id="CompanyDetail-panel"
+                role="tabpanel"
+                aria-labelledby={`CompanyDetail-tab-${activeTab}`}
+                className="mt-6 space-y-4"
+              >
                 <DetailField label="Total Spend" valueAutomationId="CompanyDetail-total-spend">
                   <span className="text-2xl font-semibold">
                     {formatCurrency(company.data.total_spend)}

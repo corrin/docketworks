@@ -63,7 +63,7 @@ from apps.xero.operator_guards import assert_not_production_target, assert_xero_
 from apps.xero.payroll_employees import ensure_employee_leave_types, missing_employee_leave_types
 from apps.xero.payroll_sync import pay_items_needing_relink, sync_xero_pay_items
 from apps.xero.stock_sync import stock_pending_sync, sync_all_local_stock_to_xero
-from apps.xero.sync import ENTITY_CONFIGS, _resolve_api_method
+from apps.xero.sync import iter_xero_entities
 from apps.xero.transforms import process_xero_data
 
 logger = logging.getLogger(__name__)
@@ -73,8 +73,6 @@ logger = logging.getLogger(__name__)
 # predate every record in any Xero org, i.e. a full pull.
 _SYNC_EPOCH = datetime(2000, 1, 1, tzinfo=UTC)
 
-# Page size for paged reads; a shorter page means the last page.
-LOOKUP_PAGE_SIZE = 100
 # The account every seeded invoice and quote line is coded to. The seed
 # re-creates documents whose original line coding is not in the backup.
 SALES_ACCOUNT_NAME = "Sales"
@@ -168,12 +166,17 @@ def companies_needing_contacts() -> list[Company]:
 
 
 def get_all_xero_contacts() -> list[XeroContactRef]:
-    """Fetch every contact in the connected org, archived ones included."""
-    accounting_api = AccountingApi(get_api_client())
-    response = accounting_api.get_contacts(get_tenant_id(), include_archived=True)
+    """Fetch every contact in the connected org, archived ones included.
 
+    Paged through ``iter_xero_entities``, which also supplies the
+    ``include_archived`` param from ENTITY_CONFIGS. A single ``get_contacts``
+    call is the rejected alternative: Xero answers it with one page of 100,
+    and an organisation restored from production holds many times that, so
+    every contact past the first hundred was invisible to the by-name linker
+    and to the E2E archiver alike.
+    """
     contacts: list[XeroContactRef] = []
-    for contact in response.contacts or []:
+    for contact in iter_xero_entities("contacts"):
         if not contact.name or not contact.contact_id:
             raise ValueError(f"Xero returned a contact without a name or id: {contact}")
         if contact.contact_status not in XERO_CONTACT_STATUSES:
@@ -285,26 +288,23 @@ def seed_companies_to_xero(companies: Iterable[Company]) -> SeedContactsResult:
 # --- Idempotence lookups ----------------------------------------------------
 
 
-def _lookup_page(
+def _lookup_entry(
     entity_name: str,
-    items: list[Any],
+    item: Any,
     key_func: Callable[[Any], str | None],
     value_func: Callable[[Any], str | None],
-) -> dict[str, str]:
-    """Map one page of Xero entities to ``{key: value}``, skipping unkeyed ones."""
-    page: dict[str, str] = {}
-    for item in items:
-        key = key_func(item)
-        if not key:
-            continue
-        value = value_func(item)
-        if value is None:
-            # A keyed entity Xero names no id for cannot be claimed by the
-            # linker, so the seed would create a duplicate alongside it.
-            # Malformed remote data fails the read (ADR 0015).
-            raise ValueError(f"Xero {entity_name} {key!r} carries no id")
-        page[key] = value
-    return page
+) -> tuple[str, str] | None:
+    """Reduce one Xero entity to its ``(key, value)``, or None when unkeyed."""
+    key = key_func(item)
+    if not key:
+        return None
+    value = value_func(item)
+    if value is None:
+        # A keyed entity Xero names no id for cannot be claimed by the
+        # linker, so the seed would create a duplicate alongside it.
+        # Malformed remote data fails the read (ADR 0015).
+        raise ValueError(f"Xero {entity_name} {key!r} carries no id")
+    return key, value
 
 
 def fetch_xero_entity_lookup(
@@ -314,47 +314,17 @@ def fetch_xero_entity_lookup(
 ) -> dict[str, str]:
     """Fetch every entity of a type from Xero as ``{key: value}``.
 
-    Reuses ENTITY_CONFIGS for API-method resolution, pagination mode and
-    params so the seed reads Xero exactly the way the sync engine does. The
-    ``Any`` in the callbacks is the SDK seam: ENTITY_CONFIGS keys a different
-    untyped SDK model per entity, and each call site immediately narrows to
-    the two fields it reads.
+    Paging belongs to ``iter_xero_entities``; this adds only the reduction to
+    a lookup. The ``Any`` in the callbacks is the SDK seam: ENTITY_CONFIGS
+    keys a different untyped SDK model per entity, and each call site
+    immediately narrows to the two fields it reads.
     """
-    xero_type, _, _, api_method, _, config_params, pagination_mode = ENTITY_CONFIGS[entity_name]
-    api_func = _resolve_api_method(api_method)
-
-    params: dict[str, Any] = {"xero_tenant_id": get_tenant_id()}
-    # Same param quirk the sync engine applies (sync.py's pagination setup):
-    # get_quotes and get_accounts accept `page` but not `page_size`; their
-    # pages are Xero-fixed at 100, which is LOOKUP_PAGE_SIZE, so the
-    # short-page termination below still holds.
-    if pagination_mode == "page" and entity_name not in ["quotes", "accounts"]:
-        params["page_size"] = LOOKUP_PAGE_SIZE
-    if config_params:
-        params.update(config_params)
-
     lookup: dict[str, str] = {}
-    page = 1
-    while True:
-        if pagination_mode == "page":
-            params["page"] = page
-
-        entities = api_func(**params)
-        if entities is None:
-            raise ValueError(f"API returned None for {entity_name}")
-
-        items = entities if isinstance(entities, list) else getattr(entities, xero_type)
-        if not items:
-            break
-
-        lookup.update(_lookup_page(entity_name, items, key_func, value_func))
-
-        logger.info("Fetched %d %s (total: %d)", len(items), entity_name, len(lookup))
-
-        if len(items) < LOOKUP_PAGE_SIZE or pagination_mode != "page":
-            break
-        page += 1
-
+    for item in iter_xero_entities(entity_name):
+        entry = _lookup_entry(entity_name, item, key_func, value_func)
+        if entry is not None:
+            lookup[entry[0]] = entry[1]
+    logger.info("Fetched %d %s for lookup", len(lookup), entity_name)
     return lookup
 
 

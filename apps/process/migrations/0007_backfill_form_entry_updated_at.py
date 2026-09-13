@@ -1,11 +1,9 @@
-"""Backfill FormEntry.updated_at for rows restored from v1.
+"""Backfill FormEntry.updated_at for rows that predate the column.
 
-v1's formentry table predates this column (process/0002 added it with
-auto_now=True, a Python-side default that pg_restore's COPY never invokes),
-so the v1 data-only restore lands every row with updated_at NULL. Runs
-against the empty database at provision time (finds nothing) and again after
-the v1 data restore (see scripts/ops/migrate_v1_data.sh), which is when it
-works.
+process/0002 added the column with auto_now=True, a Python-side default that a
+bulk row load never invokes, so rows loaded that way landed with updated_at
+NULL. This gives each one the best timestamp available. It finds nothing on a
+fresh database, which has no entries predating the column.
 """
 
 from django.db import migrations

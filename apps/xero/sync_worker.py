@@ -97,6 +97,9 @@ def _publish_abort_marker(task_id: str, message: str) -> None:
 @shared_task(name="apps.xero.tasks.xero_sync_task")
 def xero_sync_task(
     task_id: str,
+    *,
+    detail_refresh: bool = False,
+    only_if_due: bool = False,
 ) -> None:
     """Execute one Xero sync run end-to-end.
 
@@ -133,9 +136,11 @@ def xero_sync_task(
         processed = 0
         # +2: the pay_items pseudo-entity the orchestrator emits first, and
         # the stock_local_to_xero push that also emits a Completed event.
-        total_entities = len(ENTITY_CONFIGS) + 2
+        total_entities = 1 if detail_refresh else len(ENTITY_CONFIGS) + 2
 
-        for message in synchronise_xero_data():
+        for message in synchronise_xero_data(
+            detail_refresh=detail_refresh, only_if_due=only_if_due
+        ):
             enriched: dict[str, object] = dict(message)
             enriched["task_id"] = task_id
 

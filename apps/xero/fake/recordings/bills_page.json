@@ -1,0 +1,182 @@
+{
+  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "GET",
+    "path": "/api.xro/2.0/Invoices",
+    "query": {
+      "where": "Type==\"ACCPAY\"",
+      "page": "1",
+      "pageSize": "2"
+    }
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "Id": "bd8385db-56de-4607-a4c1-7ffaef651779",
+    "Status": "OK",
+    "ProviderName": "Docketworks MSM Dev",
+    "DateTimeUTC": "/Date(1789269380414)/",
+    "pagination": {
+      "page": 1,
+      "pageSize": 2,
+      "pageCount": 24,
+      "itemCount": 48
+    },
+    "Invoices": [
+      {
+        "Type": "ACCPAY",
+        "InvoiceID": "22b3fab4-ef56-4d70-a110-a7cc3c1a26cd",
+        "InvoiceNumber": "Elec.",
+        "Reference": "",
+        "Payments": [],
+        "CreditNotes": [],
+        "Prepayments": [],
+        "Overpayments": [],
+        "AmountDue": 0.0,
+        "AmountPaid": 0.0,
+        "AmountCredited": 0.0,
+        "CurrencyRate": 1.0,
+        "IsDiscounted": false,
+        "HasAttachments": false,
+        "InvoiceAddresses": [],
+        "HasErrors": false,
+        "InvoicePaymentServices": [],
+        "UpdatedDateUTCString": "2010-11-12T12:55:16Z",
+        "Contact": {
+          "ContactID": "9b9ba9e5-e907-4b4e-8210-54d82b0aa479",
+          "Name": "PowerDirect",
+          "Addresses": [],
+          "Phones": [],
+          "ContactGroups": [],
+          "ContactPersons": [],
+          "HasValidationErrors": false
+        },
+        "DateString": "2025-12-17T00:00:00",
+        "Date": "/Date(1765929600000+0000)/",
+        "DueDateString": "2025-12-27T00:00:00",
+        "DueDate": "/Date(1766793600000+0000)/",
+        "Status": "VOIDED",
+        "LineAmountTypes": "Inclusive",
+        "LineItems": [
+          {
+            "Description": "Monthly electricity",
+            "UnitAmount": 89.0,
+            "TaxType": "INPUT2",
+            "TaxAmount": 11.61,
+            "LineAmount": 89.0,
+            "AccountCode": "445",
+            "Tracking": [],
+            "Quantity": 1.0,
+            "LineItemID": "1fc7c801-ce81-41b0-b986-f03d836dab04",
+            "AccountID": "2e277847-022c-48f3-8467-0207230004d6"
+          }
+        ],
+        "SubTotal": 77.39,
+        "TotalTax": 11.61,
+        "Total": 89.0,
+        "UpdatedDateUTC": "/Date(1289566516347+0000)/",
+        "CurrencyCode": "NZD"
+      },
+      {
+        "Type": "ACCPAY",
+        "InvoiceID": "33f11d54-2105-4041-b77b-9097578e7c9d",
+        "InvoiceNumber": "RPT445-1",
+        "Reference": "",
+        "Payments": [
+          {
+            "PaymentID": "285d0c41-5e16-45d2-90b6-673c91540df3",
+            "Date": "/Date(1761091200000+0000)/",
+            "Amount": 97.0,
+            "Reference": "",
+            "CurrencyRate": 1.0,
+            "HasAccount": false,
+            "HasValidationErrors": false
+          }
+        ],
+        "CreditNotes": [],
+        "Prepayments": [],
+        "Overpayments": [],
+        "AmountDue": 0.0,
+        "AmountPaid": 97.0,
+        "AmountCredited": 0.0,
+        "CurrencyRate": 1.0,
+        "IsDiscounted": false,
+        "HasAttachments": false,
+        "InvoiceAddresses": [],
+        "HasErrors": false,
+        "RepeatingInvoiceID": "ad3550bc-1ae0-45c0-a782-48c6d2061127",
+        "InvoicePaymentServices": [],
+        "UpdatedDateUTCString": "2010-11-12T16:25:46Z",
+        "Contact": {
+          "ContactID": "9b9ba9e5-e907-4b4e-8210-54d82b0aa479",
+          "Name": "PowerDirect",
+          "Addresses": [],
+          "Phones": [],
+          "ContactGroups": [],
+          "ContactPersons": [],
+          "HasValidationErrors": false
+        },
+        "DateString": "2025-10-16T00:00:00",
+        "Date": "/Date(1760572800000+0000)/",
+        "DueDateString": "2025-10-27T00:00:00",
+        "DueDate": "/Date(1761523200000+0000)/",
+        "Status": "PAID",
+        "LineAmountTypes": "Inclusive",
+        "LineItems": [
+          {
+            "Description": "Monthly electricity",
+            "UnitAmount": 97.0,
+            "TaxType": "INPUT2",
+            "TaxAmount": 12.65,
+            "LineAmount": 97.0,
+            "AccountCode": "445",
+            "Tracking": [],
+            "Quantity": 1.0,
+            "LineItemID": "1158c9fe-bec6-49b9-96e9-a2a47062a5f4",
+            "AccountID": "2e277847-022c-48f3-8467-0207230004d6"
+          }
+        ],
+        "SubTotal": 84.35,
+        "TotalTax": 12.65,
+        "Total": 97.0,
+        "UpdatedDateUTC": "/Date(1289579146917+0000)/",
+        "CurrencyCode": "NZD",
+        "FullyPaidOnDate": "/Date(1761091200000+0000)/"
+      }
+    ]
+  }
+}

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url'
 import { z } from 'zod'
 
 import { test, expect } from '../fixtures/auth'
-import { autoId, createTestJob, expectStepUnder, getJobIdFromUrl } from '../helpers'
+import { autoId, createTestJob, tracedStep, getJobIdFromUrl } from '../helpers'
 
 /**
  * Office staff link an imported phone-provider call to a job from the CRM
@@ -106,7 +106,7 @@ test('office staff links a CRM phone call to a job', async ({ authenticatedPage:
     }
   })
 
-  await expectStepUnder('open CRM calls page', 3000, async () => {
+  await tracedStep('open CRM calls page', 3000, async () => {
     // Through the menu rather than page.goto: a route nothing navigates to is
     // a route users cannot reach, which is what route reachability asserts.
     await autoId(page, 'AppNavbar-crm-menu').click()
@@ -147,14 +147,14 @@ test('office staff links a CRM phone call to a job', async ({ authenticatedPage:
     '× 2 attempts',
   )
 
-  await expectStepUnder('open link job dialog', 2000, async () => {
+  await tracedStep('open link job dialog', 2000, async () => {
     await autoId(page, `PhoneCallTable-link-job-${seeded.call_id}`).click()
     await expect(autoId(page, 'PhoneCallTable-link-dialog')).toBeVisible()
     await autoId(page, 'PhoneCallTable-job-trigger').click()
     await expect(autoId(page, 'PhoneCallTable-job-search')).toBeVisible()
   })
 
-  await expectStepUnder('select job and save link', 2500, async () => {
+  await tracedStep('select job and save link', 2500, async () => {
     await autoId(page, 'PhoneCallTable-job-search').fill('PhoneCallLink')
     const option = autoId(page, `PhoneCallTable-job-option-${seeded.job_number}`)
     await expect(option).toBeVisible()
@@ -174,14 +174,14 @@ test('office staff links a CRM phone call to a job', async ({ authenticatedPage:
     )
   })
 
-  await expectStepUnder('linked job persists after reload', 3500, async () => {
+  await tracedStep('linked job persists after reload', 3500, async () => {
     await page.reload()
     await expect(autoId(page, `PhoneCallTable-linked-job-${seeded.call_id}`)).toContainText(
       `Job #${seeded.job_number}`,
     )
   })
 
-  await expectStepUnder('linked call appears on job history', 7000, async () => {
+  await tracedStep('linked call appears on job history', 7000, async () => {
     await page.goto(jobUrl)
     await autoId(page, 'JobViewTabs-history').click()
     await expect(autoId(page, `PhoneCallTable-linked-job-${seeded.call_id}`)).toContainText(

@@ -14,6 +14,9 @@ import { autoId } from '../helpers'
  * under test.
  */
 
+// Capture is off by default over the tunnel. Setting this to 'false' is the
+// opt-IN: removing it only falls back to that default, which is what this spec
+// used to do while expecting the opposite.
 const DISABLE_KEY = 'e2e:disable-session-replay'
 const CHUNK_UPLOAD = /\/api\/session-replays\/recordings\/[^/]+\/chunks\/$/
 const EVENTS_FETCH = /\/api\/session-replays\/recordings\/[^/]+\/events\/$/
@@ -39,7 +42,7 @@ test.use({
 
 test.describe('session replay', () => {
   test('a recorded session reaches the admin player', async ({ authenticatedPage: page }) => {
-    await page.evaluate((key) => window.localStorage.removeItem(key), DISABLE_KEY)
+    await page.evaluate((key) => window.localStorage.setItem(key, 'false'), DISABLE_KEY)
 
     // The recording opens on the authenticated layout, so a reload is what
     // starts capture with the opt-out cleared.
@@ -157,7 +160,7 @@ test.describe('session replay', () => {
     })
 
     test('the company toggle stops recording entirely', async ({ authenticatedPage: page }) => {
-      await page.evaluate((key) => window.localStorage.removeItem(key), DISABLE_KEY)
+      await page.evaluate((key) => window.localStorage.setItem(key, 'false'), DISABLE_KEY)
 
       await page.goto('/admin/company-defaults/setup')
       const toggle = autoId(page, 'CompanyDefaultsPage-setup-field-session_replay_enabled')

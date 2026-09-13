@@ -1,8 +1,9 @@
 #!/usr/bin/env python
-"""Check restored v1 data against the contracts v2's models declare.
+"""Check restored data against the contracts the models declare.
 
-Run this after `migrate_v1_data.sh`, before trusting a load. It answers one
-question: is there a row in here that v2 will refuse to save?
+Run this after restoring a production dump, before trusting the load. It
+answers one question: is there a row in here the application will refuse to
+save?
 
 Three sweeps, because the database enforces only some of what the models
 promise:

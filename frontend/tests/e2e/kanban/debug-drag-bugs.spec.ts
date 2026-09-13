@@ -12,7 +12,7 @@ import debug from 'debug'
 import type { Page } from '@playwright/test'
 
 import { expect, test } from '../fixtures/auth'
-import { expectStepUnder, getJobIdFromUrl } from '../helpers'
+import { tracedStep, getJobIdFromUrl } from '../helpers'
 import {
   dragCardToColumn,
   FAST_DRAG_TIMING,
@@ -101,8 +101,8 @@ test.describe('debug: drag-and-drop bugs', () => {
     const sourceStatus = await sourceColumn.getAttribute('data-kanban-status')
     const { column: targetColumn } = await pickTargetColumn(page, sourceStatus)
 
-    // Try to catch the API response, but don't hard-fail if drag was too fast for pragmatic
-    let dropCompleted = false
+    // The drop reaches the API or the test fails: a drag that silently
+    // no-ops would leave every "nothing is stuck" assertion below trivially true.
     const reorderResponsePromise = page.waitForResponse(
       (response) =>
         response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
@@ -112,30 +112,12 @@ test.describe('debug: drag-and-drop bugs', () => {
     )
 
     await dragCardToColumn(page, jobCard, targetColumn, FAST_DRAG_TIMING)
-
-    // If the reorder never fires, the race below settles via the timeout and
-    // leaves reorderResponsePromise pending — attach a no-op catch so that
-    // late/never-resolving rejection doesn't surface as an unhandled
-    // rejection in a later test.
-    reorderResponsePromise.catch(() => {})
-
-    try {
-      await Promise.race([
-        reorderResponsePromise.then(() => {
-          dropCompleted = true
-        }),
-        page.waitForTimeout(5000),
-      ])
-    } catch {
-      // timeout — drop didn't fire
-    }
-
-    log(`Drop completed (API called): ${dropCompleted}`)
+    await reorderResponsePromise
 
     // Wait 3s for any async cleanup / safety timeout to settle
     await page.waitForTimeout(3000)
 
-    // Diagnose drag state — this is the key check regardless of whether drop completed
+    // Diagnose drag state after a drop that reached the API
     const diag = await getDragDiagnostics(page, jobId)
     log('isDragging diagnostics after drop:', JSON.stringify(diag, null, 2))
 
@@ -165,54 +147,46 @@ test.describe('debug: drag-and-drop bugs', () => {
     const jobCard = getVisibleJobCard(page, jobId)
     await expect(jobCard).toBeVisible({ timeout: 15000 })
 
-    await expectStepUnder(
-      'first drag succeeds on desktop',
-      KANBAN_BUDGET_MS.initialDrag,
-      async () => {
-        const sourceColumn1 = getJobColumn(page, jobId)
-        const sourceStatus1 = await sourceColumn1.getAttribute('data-kanban-status')
-        const { column: targetColumn1, status: targetStatus1 } = await pickTargetColumn(
-          page,
-          sourceStatus1,
-        )
+    await tracedStep('first drag succeeds on desktop', KANBAN_BUDGET_MS.initialDrag, async () => {
+      const sourceColumn1 = getJobColumn(page, jobId)
+      const sourceStatus1 = await sourceColumn1.getAttribute('data-kanban-status')
+      const { column: targetColumn1, status: targetStatus1 } = await pickTargetColumn(
+        page,
+        sourceStatus1,
+      )
 
-        const reorderResponse1 = page.waitForResponse(
-          (response) =>
-            response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
-            response.request().method() === 'POST' &&
-            response.status() >= 200 &&
-            response.status() < 300,
-        )
+      const reorderResponse1 = page.waitForResponse(
+        (response) =>
+          response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
+          response.request().method() === 'POST' &&
+          response.status() >= 200 &&
+          response.status() < 300,
+      )
 
-        await dragCardToColumn(page, jobCard, targetColumn1, FAST_DRAG_TIMING)
-        await reorderResponse1
-        // Exactly one card on the board for this job — guards against a stale
-        // drag registration leaving an orphaned DOM node alongside React's
-        // re-rendered card after a drop.
-        await expect(page.locator(`[data-job-id="${jobId}"]:visible`)).toHaveCount(1, {
-          timeout: 15000,
-        })
-        log(`First drag succeeded: ${sourceStatus1} → ${targetStatus1}`)
-      },
-    )
+      await dragCardToColumn(page, jobCard, targetColumn1, FAST_DRAG_TIMING)
+      await reorderResponse1
+      // Exactly one card on the board for this job — guards against a stale
+      // drag registration leaving an orphaned DOM node alongside React's
+      // re-rendered card after a drop.
+      await expect(page.locator(`[data-job-id="${jobId}"]:visible`)).toHaveCount(1, {
+        timeout: 15000,
+      })
+      log(`First drag succeeded: ${sourceStatus1} → ${targetStatus1}`)
+    })
 
-    await expectStepUnder('switch to tablet layout', KANBAN_BUDGET_MS.layoutSwitch, async () => {
+    await tracedStep('switch to tablet layout', KANBAN_BUDGET_MS.layoutSwitch, async () => {
       log('Switching to tablet viewport...')
       await page.setViewportSize(TABLET_VIEWPORT)
       await expect(getVisibleJobCard(page, jobId)).toBeVisible({ timeout: 15000 })
     })
 
-    await expectStepUnder(
-      'switch back to desktop layout',
-      KANBAN_BUDGET_MS.layoutSwitch,
-      async () => {
-        log('Switching back to desktop viewport...')
-        await page.setViewportSize(DESKTOP_VIEWPORT)
-        await expect(getVisibleJobCard(page, jobId)).toBeVisible({ timeout: 15000 })
-      },
-    )
+    await tracedStep('switch back to desktop layout', KANBAN_BUDGET_MS.layoutSwitch, async () => {
+      log('Switching back to desktop viewport...')
+      await page.setViewportSize(DESKTOP_VIEWPORT)
+      await expect(getVisibleJobCard(page, jobId)).toBeVisible({ timeout: 15000 })
+    })
 
-    const dragSucceeded = await expectStepUnder(
+    const dragSucceeded = await tracedStep(
       'second drag succeeds after layout switch',
       KANBAN_BUDGET_MS.secondDrag,
       async () => {
@@ -251,7 +225,7 @@ test.describe('debug: drag-and-drop bugs', () => {
 
     log(`Second drag (after layout switch): ${dragSucceeded ? 'PASSED' : 'FAILED'}`)
 
-    const diag = await expectStepUnder(
+    const diag = await tracedStep(
       'post-layout-switch diagnostics complete quickly',
       KANBAN_BUDGET_MS.diagnostics,
       async () => await getDragDiagnostics(page),

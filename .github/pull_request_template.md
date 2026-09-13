@@ -26,6 +26,8 @@ _Link the issue/ticket this addresses (if any)._
 
 **Frontend (React / Vite)**
 
+- [ ] UI changes follow [the design language](../docs/design-language.md); the description names shared patterns/components and explains explicit overrides
+- [ ] Relevant responsive/state evidence is included for UI changes; affected known breaches are updated
 - [ ] `npm run lint` (oxlint) and `npm run format:check` (prettier) pass
 - [ ] `npm run type-check` passes
 - [ ] `npm run test:unit` passes
@@ -35,6 +37,8 @@ _Link the issue/ticket this addresses (if any)._
 
 **Definition of done**
 
+- [ ] Integration changes cover admin setup, database credential ownership, consumer selection, provisioning, restore/scrub and live verification (or explain why each is inapplicable)
+- [ ] Supported setup is documented and exercised through the UI; outstanding acceptance checks are named explicitly
 - [ ] Browser console checked for relevant warnings/errors
 - [ ] Django/Celery logs checked for relevant warnings/errors
 - [ ] Affected business workflow regression-tested (E2E where applicable)

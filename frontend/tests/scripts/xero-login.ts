@@ -30,7 +30,7 @@ import { chromium, errors as playwrightErrors, type Browser } from '@playwright/
 import dotenv from 'dotenv'
 import fs from 'fs'
 import path from 'path'
-import { getBackendEnv, getFrontendDir } from './db-backup-utils'
+import { getApplicationUrl, getFrontendDir } from './db-backup-utils'
 
 const frontendDir = getFrontendDir()
 dotenv.config({ path: path.join(frontendDir, '.env') })
@@ -75,15 +75,7 @@ export async function ensureXeroConnected(): Promise<void> {
   const xeroPassword = process.env.XERO_PASSWORD
   const appUsername = process.env.E2E_TEST_USERNAME
   const appPassword = process.env.E2E_TEST_PASSWORD
-  const backendEnv = getBackendEnv()
-  const appDomain = backendEnv.APP_DOMAIN
-  if (!appDomain) {
-    throw new Error('APP_DOMAIN must be set in backend .env')
-  }
-  // The Xero app's registered OAuth redirect points at APP_DOMAIN, so the
-  // consent round-trip only works against that host — never a localhost
-  // preview server, which is why this ignores E2E_BASE_URL.
-  const frontendUrl = `https://${appDomain}`
+  const frontendUrl = getApplicationUrl()
 
   if (!xeroUsername || !xeroPassword) {
     throw new Error('XERO_USERNAME and XERO_PASSWORD must be set in .env')

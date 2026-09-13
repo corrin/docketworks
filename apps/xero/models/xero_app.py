@@ -40,11 +40,6 @@ class XeroApp(models.Model):
     expires_at = models.DateTimeField(null=True, blank=True)
     scope = models.TextField(null=True, blank=True)  # noqa: DJ001
 
-    day_remaining = models.IntegerField(null=True, blank=True)
-    minute_remaining = models.IntegerField(null=True, blank=True)
-    snapshot_at = models.DateTimeField(null=True, blank=True)
-    last_429_at = models.DateTimeField(null=True, blank=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -6,7 +6,7 @@ provides the person directory. Company-domain data-quality reports retain their
 ``/api/job/data-quality/`` URLs but live here so the concept has one home
 (ADR 0039).
 
-Error bodies use the standard envelope from ADR 0013. People and data-quality
+Error bodies use the standard envelope from ADR 0038. People and data-quality
 endpoints require office staff.
 
 Integration wiring (config/api.py): ``api.add_router("/", router)`` — the
@@ -114,12 +114,12 @@ from apps.company.services.person_service import (
 )
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
 from apps.core.errors import persist_app_error
-from apps.core.geocoding import (
+from apps.core.pagination import MAX_PAGE_SIZE, paginate
+from apps.platform.integrations.google.places import (
     GeocodingError,
     GeocodingNotConfiguredError,
     search_places,
 )
-from apps.core.pagination import MAX_PAGE_SIZE, paginate
 
 logger = logging.getLogger(__name__)
 

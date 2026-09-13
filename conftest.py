@@ -41,6 +41,8 @@ if TYPE_CHECKING:
     from psycopg import Connection
 
     from apps.accounts.models import Staff
+    from apps.company.models import Company
+    from apps.job.models import Job
 
 PASSWORD = "s3cret-Pass!"
 
@@ -66,13 +68,16 @@ PASSWORD = "s3cret-Pass!"
 #: identity.xero.com in `auth.py` bypasses the SDK entirely and needs its own
 #: entry.
 #:
-#: The other two are attribute lookups on a module (`litellm.completion`,
-#: `geocoding_service.requests`), which a patch does replace.
+#: The other three are attribute lookups on a module (`litellm.completion`, and
+#: `requests` inside the Places and phone clients), which a patch does replace.
+#: The phone client reaches it as `requests.Session`, the others as
+#: `requests.post` — the stand-in refuses attribute access, so both land.
 _VENDOR_ENTRY_POINTS: dict[str, str] = {
     "xero_python.rest.RESTClientObject.request": "Xero",
     "apps.xero.auth.requests": "Xero's token endpoint",
     "litellm.completion": "the LLM gateway",
-    "apps.core.geocoding.requests": "Google Maps",
+    "litellm.acompletion": "the streaming LLM gateway",
+    "apps.platform.integrations.google.places.requests": "Google Maps",
     "apps.crm.services.phone_call_service.requests": "the phone provider",
 }
 
@@ -154,7 +159,7 @@ class _Refusal:
 _CREDENTIAL_MODELS: tuple[tuple[str, str, tuple[str, ...], tuple[str, ...]], ...] = (
     ("xero", "XeroApp", ("client_id",), ()),
     ("ai", "AIProvider", ("name",), ()),
-    ("core", "IntegrationSettings", ("id",), ()),
+    ("integrations", "IntegrationSettings", ("id",), ()),
     # Fable: which numbers are OURS at the phone provider. Without them every
     # imported call classifies as unknown, so a direction assertion proves nothing.
     # No foreign keys, so the id travels with the row.
@@ -247,6 +252,14 @@ def integration_credentials(db: None) -> "Iterator[None]":  # noqa: ARG001 -- Op
     yield
 
     _write_back_rotated_token(xero_app, copied_token, source_dsn)
+
+
+@pytest.fixture
+def company_email() -> str | None:
+    """The instance's configured contact address, also used for delegation."""
+    from apps.core.models import CompanyDefaults
+
+    return CompanyDefaults.get_solo().company_email
 
 
 def _source_connection() -> str:
@@ -358,6 +371,34 @@ def _copy_company_defaults(source: "Connection[Any]", model: "type[Model]") -> N
 
 
 @pytest.fixture(autouse=True)
+def _accounting_provider_is_not_reached(request: "pytest.FixtureRequest") -> "Iterator[None]":
+    """Keep a purchase-order state change from reaching a real vendor.
+
+    Only a status transition sends anything now, so this covers the receipt and
+    allocation suites, which move an order's status as a side effect of what
+    they actually test.
+
+    Opus: it patches ``get_provider`` inside ``accounting_mirror`` and nothing
+    deeper, so everything this module decides — ownership by prefix, the
+    supplier check, the typed split between a refusal and an outage — still
+    runs. The earlier version of this fixture reached past
+    ``XeroPurchaseOrderManager`` as well, which hid a create path that Xero
+    could never have accepted. A fake vendor can only confirm what we already
+    assumed, so the real gate stays the integration tier (ADR 0050).
+    """
+    if "django_db" not in request.keywords and "committed_db" not in request.keywords:
+        yield
+        return
+    from unittest.mock import patch
+
+    from apps.accounting.types import DocumentResult
+
+    with patch("apps.purchasing.services.accounting_mirror.get_provider") as get_provider:
+        get_provider.return_value.push_purchase_order.return_value = DocumentResult(success=True)
+        yield
+
+
+@pytest.fixture(autouse=True)
 def _docketworks_prereqs(request: pytest.FixtureRequest) -> None:
     """Give every database test an installation that could actually boot.
 
@@ -371,6 +412,49 @@ def _docketworks_prereqs(request: pytest.FixtureRequest) -> None:
     from apps.company.tests.job_fixtures import seed_docketworks_prereqs
 
     seed_docketworks_prereqs()
+
+
+@pytest.fixture(autouse=True)
+def _committed_database(request: pytest.FixtureRequest) -> "Iterator[None]":
+    """Give transaction-contention tests their own disposable, migrated database.
+
+    Other connections cannot see rollback fixtures. Committed inventory history
+    cannot be flushed or deleted, so use Django's database creation/destruction
+    lifecycle and restore the worker's usual database afterward.
+    """
+    if request.node.get_closest_marker("committed_db") is None:
+        yield
+        return
+    if request.node.get_closest_marker("django_db") is not None:
+        raise ValueError("Use committed_db without django_db's rollback transaction.")
+
+    from unittest.mock import patch
+    from uuid import uuid4
+
+    from django.db import connection
+    from pytest_django.plugin import DjangoDbBlocker
+
+    from apps.company.tests.job_fixtures import seed_docketworks_prereqs
+
+    request.getfixturevalue("django_db_setup")
+    blocker = request.getfixturevalue("django_db_blocker")
+    if not isinstance(blocker, DjangoDbBlocker):
+        raise TypeError("The committed database requires pytest-django's database blocker.")
+    # Commits enqueue background work in production. Stub that dispatcher so
+    # eager Celery cannot run PDF/LLM jobs inside a transaction-contention test.
+    with blocker.unblock(), patch("celery.app.task.Task.apply_async"):
+        original_name = connection.settings_dict["NAME"]
+        original_test_name = connection.settings_dict["TEST"]["NAME"]
+        test_name = f"test_committed_{uuid4().hex}"
+        connection.settings_dict["TEST"]["NAME"] = test_name
+        try:
+            connection.creation.create_test_db(verbosity=0, autoclobber=True)
+            seed_docketworks_prereqs()
+            yield
+        finally:
+            if connection.settings_dict["NAME"] == test_name:
+                connection.creation.destroy_test_db(old_database_name=original_name, verbosity=0)
+            connection.settings_dict["TEST"]["NAME"] = original_test_name
 
 
 @pytest.fixture
@@ -415,11 +499,10 @@ def _authenticated(staff: "Staff") -> "Client":
     """
     from django.test import Client
 
-    from apps.core.auth import issue_refresh_token, jwt_cookie_config
+    from apps.accounts.tests.helpers import authenticate
 
     client = Client()
-    refresh = issue_refresh_token(staff)
-    client.cookies[jwt_cookie_config().access_name] = str(refresh.access_token)
+    authenticate(client, staff)
     return client
 
 
@@ -439,3 +522,29 @@ def api(office_staff: "Staff") -> "Client":
 def superuser_api(superuser: "Staff") -> "Client":
     """An authenticated superuser client, for the wider-visibility paths."""
     return _authenticated(superuser)
+
+
+@pytest.fixture
+def company() -> "Company":
+    """A company shared by cross-domain workflow tests."""
+    from apps.company.tests.factories import make_company
+
+    return make_company("Purchasing Test Company")
+
+
+@pytest.fixture
+def job(company: "Company", office_staff: "Staff") -> "Job":
+    """A customer job created through the supported model path."""
+    from apps.company.tests.job_fixtures import make_job
+
+    return make_job(company, office_staff, name="Purchasing Fixture Job")
+
+
+@pytest.fixture
+def stock_holding_job(company: "Company", office_staff: "Staff") -> "Job":
+    """The physical stock holding job shared by purchasing and Xero tests."""
+    from apps.company.tests.job_fixtures import make_job
+    from apps.purchasing.models import Stock
+
+    Stock._stock_holding_job = None
+    return make_job(company, office_staff, name=Stock.STOCK_HOLDING_JOB_NAME)

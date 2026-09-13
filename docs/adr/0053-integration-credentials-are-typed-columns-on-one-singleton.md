@@ -1,9 +1,14 @@
 # 0053 — Integration credentials are typed columns on one singleton
 
 Every credential the install uses to reach an external service lives in the database, on
-`apps.core.models.IntegrationSettings`, as a typed column of its own. Nothing reads a vendor
+`apps.platform.integrations.models.IntegrationSettings`, as a typed column of its own. Nothing reads a vendor
 credential from the environment; `.env` holds what Django needs to boot (database, Redis,
 signing keys, paths) and nothing the application could change without a deploy.
+
+IntegrationSettings is owned by platform.integrations (ADR 0055). The existing
+`GCP_CREDENTIALS` key file and `GCP_DELEGATED_SUBJECT` override are a known migration
+remainder, explicitly excluded from the ownership extraction; no new environment
+credentials may be added. Callers supply the company mailbox to the Google adapter.
 
 ## Rules
 
@@ -16,18 +21,21 @@ signing keys, paths) and nothing the application could change without a deploy.
   row discovered at runtime. A row-per-integration table can only be generic columns plus a
   JSON bag, which is the shape the read-side fallback backlog exists to remove.
 - **N-of integrations keep their own typed tables.** `XeroApp` (a rotation pair with token
-  state), `AIProvider` (a list with a default) and `SupplierCredential` (one per supplier) are
-  many of the same kind, so each is its own table where every row is the same shape. The
-  boundary is cardinality, never vendor: a second Google credential is another column, not a
-  second Google table.
+  state), `AIProvider` (a list with a default; its catalogue and selection are ADR 0062) and
+  `SupplierCredential` (one per supplier) are many of the same kind, so each is its own table
+  where every row is the same shape. The boundary is cardinality, never vendor: a second Google
+  credential is another column, not a second Google table.
 - **Never `CompanyDefaults`.** Its GET is any-staff boot data whose response is derived from
   every column, so a credential there is handed to every user on every page load. It holds
-  business configuration; `IntegrationSettings` holds how the install reaches the outside.
+  business configuration — the accounting provider selector of ADR 0012 is one — while
+  `IntegrationSettings` holds how the install reaches the outside.
 - **Reads never write.** `get_solo()` returns the row or raises `ImproperlyConfigured`; the
   row is created by `core/0003_integration_settings_row`, which the cutover script re-applies
-  after the restore. A `get_or_create` on a read path makes a GET a mutation.
-- **Secrets are write-only on the wire.** The one admin surface is superuser-only
-  `GET`/`PATCH /api/integration-settings/` and the `/admin/integrations` page. The response
+  after the restore. `integrations/0001` adopts that table without DDL;
+  `integrations/0002` relabels its ContentType in place to preserve permission grants.
+  A `get_or_create` on a read path makes a GET a mutation.
+- **Secrets are write-only on the wire.** The admin surface is the superuser-only `/admin/integrations` page, backed by
+  `GET`/`PATCH /api/integration-settings/` and `/api/ai/providers/` for the provider catalogue. The response
   carries `has_<column>` booleans in place of secret values; the request takes a value to set
   or `null` to clear, and an omitted field leaves the stored value alone.
 - **One seed, one check, one scrub.** `scripts/server/instance.sh` renders every column from

@@ -2,10 +2,7 @@
 
 Fable: ``get_solo()`` never writes (a GET is a safe method), so the row has to exist
 before anything reads it. The reverse is deliberately a no-op: rolling back a
-migration must never delete the install's live credentials. The cutover script
-clears the table before the restore instead (v1's row collides on pk=1) and
-re-applies this afterwards, so a v1 dump with no row still ends up with one —
-classified in both sets of config/tests/test_data_migration_script.py.
+migration must never delete the install's live credentials.
 """
 
 from django.db import migrations

@@ -3,7 +3,7 @@ import dotenv from 'dotenv'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { assertSpawnSucceeded } from './process-result'
+import { assertSpawnSucceeded } from './process-result.js'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 
@@ -56,6 +56,11 @@ function requireBackendEnvEntry(env: Record<string, string | undefined>, key: st
 export function getBackendEnv(): Record<string, string> {
   const backendEnvPath = resolveBackendEnvPath(getFrontendDir())
   return dotenv.parse(fs.readFileSync(backendEnvPath, 'utf8'))
+}
+
+export function getApplicationUrl(): string {
+  const domain = requireBackendEnvEntry(getBackendEnv(), 'APP_DOMAIN')
+  return `https://${domain}`
 }
 
 export function getDbConfig(): DbConfig {

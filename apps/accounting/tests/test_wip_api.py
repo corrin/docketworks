@@ -14,7 +14,7 @@ from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import make_invoice, make_job, make_material_line
 from apps.job.models import Job
 from apps.timesheet.tests.conftest import make_time_line

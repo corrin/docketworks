@@ -36,17 +36,20 @@ from ninja import Query, Router
 from ninja.errors import HttpError
 from ninja.responses import Status
 
-from apps.accounts.models import Staff
+from apps.accounts.auth import authenticated_staff
 from apps.core.auth import CookieJWTAuth
+from apps.core.envelope import require_if_match
 from apps.core.etag import if_none_match_satisfied
 from apps.job.models import Job
 from apps.job.services import job_search, job_service
+from apps.platform.integrations.google.gmail import Attachment, create_draft
+from apps.purchasing.etag import purchase_order_etag
 from apps.purchasing.models import PurchaseOrder, Stock
 from apps.purchasing.schemas import (
     AllJobsResponse,
-    AllocationDeleteRequest,
-    AllocationDeleteResponse,
     AllocationDetailsResponse,
+    AllocationReversalRequest,
+    AllocationReversalResponse,
     DeliveryReceiptRequest,
     DeliveryReceiptResponse,
     PatchedStockItemRequest,
@@ -65,8 +68,8 @@ from apps.purchasing.schemas import (
     PurchaseOrderLastNumberResponse,
     PurchaseOrderLineCreateRequest,
     PurchaseOrderLineUpdateRequest,
-    PurchaseOrderList,
     PurchaseOrderListQuery,
+    PurchaseOrderListResponse,
     PurchaseOrderUpdateRequest,
     PurchaseOrderUpdateResponse,
     PurchasingJob,
@@ -74,6 +77,7 @@ from apps.purchasing.schemas import (
     StockConsumeResponse,
     StockItem,
     StockItemRequest,
+    StockMetadataRequest,
     StockSearchQuery,
     StockSearchResponse,
     SupplierPriceStatusResponse,
@@ -119,23 +123,6 @@ PURCHASING_JOB_STATUSES = (
 
 
 # ── Shared helpers ───────────────────────────────────────────────────────
-
-
-def _staff(request: HttpRequest) -> Staff:
-    """Narrow the authenticated user to a real Staff row (ADR 0028)."""
-    auth_user: object = getattr(request, "auth", None)
-    user = auth_user if isinstance(auth_user, Staff) else request.user
-    if not isinstance(user, Staff):
-        raise HttpError(401, "Authentication credentials were not provided.")
-    return user
-
-
-def _require_if_match(request: HttpRequest) -> str:
-    """Return the If-Match header or answer 428 Precondition Required."""
-    if_match = request.headers.get("If-Match")
-    if not if_match:
-        raise HttpError(428, "Missing If-Match header (precondition required)")
-    return if_match
 
 
 def _get_po_or_404(po_id: UUID) -> PurchaseOrder:
@@ -232,15 +219,20 @@ def purchasing_jobs_retrieve(request: HttpRequest) -> list[dict[str, object]]:
     "/purchasing/purchase-orders/",
     auth=auth,
     operation_id="listPurchaseOrders",
-    response=list[PurchaseOrderList],
+    response=PurchaseOrderListResponse,
     summary="List purchase orders",
     tags=["purchasing"],
 )
 def list_purchase_orders(
     request: HttpRequest, params: Query[PurchaseOrderListQuery]
-) -> list[purchase_order_service.PurchaseOrderListData]:
-    """List POs, optionally filtered to a comma-separated set of statuses."""
-    return purchase_order_service.list_purchase_orders(params.status)
+) -> purchase_order_service.PurchaseOrderListPage:
+    """One page of POs, filtered by a comma-separated status set and ``q``."""
+    return purchase_order_service.list_purchase_orders(
+        status_filter=params.status,
+        query=params.q,
+        page=params.page,
+        page_size=params.page_size,
+    )
 
 
 @router.post(
@@ -267,10 +259,12 @@ def create_purchase_order(
     if "pickup_address_id" in payload.model_fields_set:
         data["pickup_address_id"] = payload.pickup_address_id
     try:
-        po = purchase_order_service.create_purchase_order(data, created_by=_staff(request))
+        po = purchase_order_service.create_purchase_order(
+            data, created_by=authenticated_staff(request)
+        )
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
-    response.headers["ETag"] = purchase_order_service.purchase_order_etag(po)
+    response.headers["ETag"] = purchase_order_etag(po)
     return Status(201, {"id": po.id, "po_number": po.po_number})
 
 
@@ -300,7 +294,7 @@ def retrieve_purchase_order(
 ) -> Status[None] | dict[str, object]:
     """Fetch PO details (conditional GET via If-None-Match, ADR 0003)."""
     po = _get_po_or_404(po_id)
-    etag = purchase_order_service.purchase_order_etag(po)
+    etag = purchase_order_etag(po)
     response.headers["ETag"] = etag
     if_none_match = request.headers.get("If-None-Match")
     if if_none_match and if_none_match_satisfied(if_none_match, etag):
@@ -360,7 +354,7 @@ def purchasing_purchase_orders_partial_update(
     response: HttpResponse,
 ) -> dict[str, object]:
     """Update a PO under optimistic concurrency (If-Match required, ADR 0003)."""
-    if_match = _require_if_match(request)
+    if_match = require_if_match(request)
     provided = payload.model_fields_set
     data: PurchaseOrderUpdateData = {}
     if "supplier_id" in provided:
@@ -380,7 +374,7 @@ def purchasing_purchase_orders_partial_update(
 
     try:
         po = purchase_order_service.update_purchase_order(
-            po_id, data, staff=_staff(request), if_match=if_match
+            po_id, data, staff=authenticated_staff(request), if_match=if_match
         )
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
@@ -389,7 +383,7 @@ def purchasing_purchase_orders_partial_update(
         # refuses a line whose price is still TBC. That is a bad request, not
         # a crash. Stock and job allocations use the same 400 contract.
         raise HttpError(400, str(exc)) from exc
-    response.headers["ETag"] = purchase_order_service.purchase_order_etag(po)
+    response.headers["ETag"] = purchase_order_etag(po)
     return {"id": po.id, "status": po.status}
 
 
@@ -422,20 +416,43 @@ def get_purchase_order_pdf(request: HttpRequest, po_id: UUID) -> FileResponse:
 def get_purchase_order_email(
     request: HttpRequest, po_id: UUID, payload: PurchaseOrderEmailRequest
 ) -> dict[str, object]:
-    """Build the mailto payload, applying any recipient/message overrides."""
+    """Draft the supplier email, with the order PDF attached, for this operator.
+
+    The draft lands in the mailbox of whoever pressed the button — they signed
+    in with that Workspace address, so it is a mailbox they have — and nothing
+    is sent until they read it and send it.
+    """
     po = _get_po_or_404(po_id)
+    staff = authenticated_staff(request)
+    if not staff.office_email:
+        raise HttpError(400, "Your account has no office email to draft from.")
     try:
         email = create_purchase_order_email(
             po, recipient_email=payload.recipient_email, message=payload.message
         )
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
+
+    draft = create_draft(
+        as_user=staff.office_email,
+        to=email.email,
+        subject=email.subject,
+        body=email.body,
+        attachments=[
+            Attachment(
+                filename=f"Purchase_Order_{po.po_number}.pdf",
+                content=create_purchase_order_pdf(po).getvalue(),
+                mime_type="application/pdf",
+            )
+        ],
+    )
     return {
         "success": True,
         "email_subject": email.subject,
         "email_body": email.body,
-        "mailto_url": email.mailto_url,
-        "message": "Email data generated successfully",
+        "draft_id": draft.draft_id,
+        "draft_url": draft.web_url,
+        "message": f"Draft created in {staff.office_email}",
     }
 
 
@@ -467,7 +484,7 @@ def create_purchase_order_event(
     """Record a manual note/comment on the PO."""
     po = _get_po_or_404(po_id)
     event = purchase_order_service.create_purchase_order_event(
-        po, payload.description, _staff(request)
+        po, payload.description, authenticated_staff(request)
     )
     return Status(
         201,
@@ -500,13 +517,13 @@ def purchasing_purchase_orders_allocations_retrieve(
     auth=auth,
     operation_id="getAllocationDetails",
     response=AllocationDetailsResponse,
-    summary="Describe one allocation before deleting it",
+    summary="Describe one allocation before reversing it",
     tags=["purchasing"],
 )
 def get_allocation_details(
     request: HttpRequest, po_id: UUID, allocation_type: str, allocation_id: UUID
 ) -> dict[str, object]:
-    """Return the allocation's quantity, job and whether it can still be deleted."""
+    """Return the allocation's quantity, job and whether it can still be reversed."""
     valid_types = (allocation_service.STOCK_ALLOCATION, allocation_service.JOB_ALLOCATION)
     if allocation_type not in valid_types:
         raise HttpError(400, f"Invalid allocation type: {allocation_type}")
@@ -516,34 +533,47 @@ def get_allocation_details(
             allocation_type=allocation_type,
             allocation_id=allocation_id,
         )
-    except allocation_service.AllocationDeletionError as exc:
+    except allocation_service.AllocationReversalError as exc:
         raise HttpError(404, str(exc)) from exc
 
 
 @router.post(
-    "/purchasing/purchase-orders/{uuid:po_id}/lines/{uuid:line_id}/allocations/delete/",
+    "/purchasing/purchase-orders/{uuid:po_id}/lines/{uuid:line_id}/allocations/reverse/",
     auth=auth,
-    operation_id="deleteAllocation",
-    response=AllocationDeleteResponse,
-    summary="Delete one allocation from a purchase order line",
+    operation_id="reverseAllocation",
+    response=AllocationReversalResponse,
+    summary="Reverse one receipt allocation from a purchase order line",
     tags=["purchasing"],
 )
-def delete_allocation(
-    request: HttpRequest, po_id: UUID, line_id: UUID, payload: AllocationDeleteRequest
+def reverse_allocation(
+    request: HttpRequest,
+    po_id: UUID,
+    line_id: UUID,
+    payload: AllocationReversalRequest,
+    response: HttpResponse,
 ) -> dict[str, object]:
-    """Delete a Stock or CostLine allocation and recompute the PO status."""
+    """Reverse a Stock or CostLine receipt allocation (If-Match required, ADR 0003).
+
+    The reversal decrements ``received_quantity`` and recomputes the PO status, so
+    it carries the same precondition as the PO PATCH and answers with the
+    refreshed ETag -- without that header the client's stored version goes stale
+    and its next mutation 412s for no reason.
+    """
+    if_match = require_if_match(request)
     try:
-        result = allocation_service.delete_allocation(
+        po, result = allocation_service.reverse_allocation(
             po_id=po_id,
-            allocation_type=payload.allocation_type,
-            allocation_id=payload.allocation_id,
+            line_id=line_id,
+            allocation=payload,
+            if_match=if_match,
+            staff=authenticated_staff(request),
         )
-    except allocation_service.AllocationDeletionError as exc:
+    except allocation_service.AllocationReversalError as exc:
         raise HttpError(400, str(exc)) from exc
+    response.headers["ETag"] = purchase_order_etag(po)
     return {
-        "success": result.success,
-        "message": result.message,
-        "deleted_quantity": result.deleted_quantity,
+        "status": result.status,
+        "reversed_quantity": result.reversed_quantity,
         "description": result.description,
         "job_name": result.job_name,
         "updated_received_quantity": result.updated_received_quantity,
@@ -568,7 +598,7 @@ def purchasing_delivery_receipts_create(
 
     The PO id is in the body, not the URL — see the module docstring.
     """
-    if_match = _require_if_match(request)
+    if_match = require_if_match(request)
     line_allocations = {
         line_id: delivery_receipt_service.ReceiptLineRequest(
             total_received=line.total_received,
@@ -588,32 +618,16 @@ def purchasing_delivery_receipts_create(
         po = delivery_receipt_service.process_delivery_receipt(
             payload.purchase_order_id,
             line_allocations,
-            _staff(request),
+            authenticated_staff(request),
             if_match=if_match,
         )
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
-    response.headers["ETag"] = purchase_order_service.purchase_order_etag(po)
+    response.headers["ETag"] = purchase_order_etag(po)
     return {"success": True}
 
 
 # ── Stock ────────────────────────────────────────────────────────────────
-
-
-@router.get(
-    "/purchasing/stock/",
-    auth=auth,
-    operation_id="purchasing_stock_list",
-    response=list[StockItem],
-    summary="List active stock",
-    tags=["purchasing"],
-)
-def purchasing_stock_list(request: HttpRequest) -> list[stock_service.StockItemData]:
-    """List every active stock item, newest first."""
-    return [
-        stock_service.stock_item_data(stock)
-        for stock in Stock.objects.filter(is_active=True).order_by("-date")
-    ]
 
 
 @router.post(
@@ -628,10 +642,18 @@ def purchasing_stock_create(
     request: HttpRequest, payload: StockItemRequest
 ) -> Status[stock_service.StockItemData]:
     """Create a stock item on the stock-holding job."""
-    stock = stock_service.create_stock(_stock_write_data(payload))
+    stock = stock_service.create_stock(_stock_write_data(payload), unit_cost=payload.unit_cost)
     return Status(201, stock_service.stock_item_data(stock))
 
 
+@router.get(
+    "/purchasing/stock/",
+    auth=auth,
+    operation_id="purchasing_stock_list",
+    response=StockSearchResponse,
+    summary="List stock",
+    tags=["purchasing"],
+)
 @router.get(
     "/purchasing/stock/search/",
     auth=auth,
@@ -647,11 +669,18 @@ def purchasing_stock_search_retrieve(
     query = params.q.strip()
     try:
         return stock_search_service.list_stock(
-            query=query if len(query) >= 3 else None,
-            page=max(1, params.page),
-            page_size=params.page_size,
-            sort_by=params.sort_by,
-            sort_dir=params.sort_dir,
+            stock_search_service.StockSearchOptions(
+                query=query if len(query) >= 3 else None,
+                page=params.page,
+                page_size=params.page_size,
+                sort_by=params.sort_by,
+                sort_dir=params.sort_dir,
+                stock_ids=tuple(params.stock_ids),
+                job_id=params.job_id,
+                location=params.location,
+                countable=params.countable,
+                include_inactive=params.include_inactive,
+            )
         )
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
@@ -666,8 +695,8 @@ def purchasing_stock_search_retrieve(
     tags=["purchasing"],
 )
 def purchasing_stock_retrieve(request: HttpRequest, id: UUID) -> stock_service.StockItemData:
-    """Fetch one active stock item."""
-    return stock_service.stock_item_data(_get_stock_or_404(id))
+    """Fetch an identity, including retired stock whose evidence remains accessible."""
+    return stock_service.stock_item_data(get_object_or_404(Stock, pk=id))
 
 
 @router.put(
@@ -679,7 +708,7 @@ def purchasing_stock_retrieve(request: HttpRequest, id: UUID) -> stock_service.S
     tags=["purchasing"],
 )
 def purchasing_stock_update(
-    request: HttpRequest, id: UUID, payload: StockItemRequest
+    request: HttpRequest, id: UUID, payload: StockMetadataRequest
 ) -> stock_service.StockItemData:
     """Full update of a stock item."""
     stock = stock_service.update_stock(_get_stock_or_404(id), _stock_write_data(payload))
@@ -735,7 +764,7 @@ def consume_stock(
             item=stock,
             job=job,
             qty=payload.quantity,
-            user=_staff(request),
+            user=authenticated_staff(request),
             unit_cost=payload.unit_cost,
             unit_rev=payload.unit_rev,
         )
@@ -754,27 +783,23 @@ def _get_stock_or_404(stock_id: UUID) -> Stock:
     return get_object_or_404(Stock, id=stock_id, is_active=True)
 
 
-def _stock_write_data(payload: StockItemRequest) -> StockWriteData:
+def _stock_write_data(payload: StockMetadataRequest) -> StockWriteData:
     """Collect the full stock write payload (``date`` defaults on create)."""
     data: StockWriteData = {
         "description": payload.description,
-        "quantity": payload.quantity,
-        "unit_cost": payload.unit_cost,
-        "source": payload.source,
         "item_code": payload.item_code,
         "unit_revenue": payload.unit_revenue,
         "location": payload.location,
         "metal_type": payload.metal_type,
         "alloy": payload.alloy,
         "specifics": payload.specifics,
-        "is_active": payload.is_active,
     }
-    if payload.date is not None:
+    if "date" in payload.model_fields_set:
         data["date"] = payload.date
     return data
 
 
-def _patched_stock_write_data(  # noqa: C901 -- one branch per Stock field; a loop would need dynamic keys
+def _patched_stock_write_data(
     payload: PatchedStockItemRequest,
 ) -> StockWriteData:
     """Collect only the stock fields the caller actually sent."""
@@ -784,15 +809,7 @@ def _patched_stock_write_data(  # noqa: C901 -- one branch per Stock field; a lo
     # only question left here.
     if "description" in provided:
         data["description"] = payload.description
-    if "quantity" in provided:
-        data["quantity"] = payload.quantity
-    if "unit_cost" in provided:
-        data["unit_cost"] = payload.unit_cost
-    if "source" in provided:
-        data["source"] = payload.source
-    if "is_active" in provided:
-        data["is_active"] = payload.is_active
-    # Nullable fields: an explicit null (or blank) clears them.
+    # Nullable fields: an explicit null clears them.
     if "item_code" in provided:
         data["item_code"] = payload.item_code
     if "unit_revenue" in provided:
@@ -900,7 +917,9 @@ def validate_product_mapping(
         data["mapped_price_unit"] = payload.mapped_price_unit
     if "validation_notes" in provided:
         data["validation_notes"] = payload.validation_notes
-    updated = supplier_pricing_service.validate_product_mapping(mapping, data, _staff(request))
+    updated = supplier_pricing_service.validate_product_mapping(
+        mapping, data, authenticated_staff(request)
+    )
     return {
         "success": True,
         "message": f"Mapping validated successfully. Updated {updated} related products.",

@@ -9,11 +9,14 @@ can attach to a run they didn't start.
 import logging
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Literal
 
 from django.core.cache import caches
+from django.utils import timezone
 
 from apps.accounting.registry import get_provider
+from apps.xero.models import XeroDetailRefresh
 from apps.xero.sync_constants import LOCK_TIMEOUT, SYNC_STATUS_KEY, release_sync_lock
 from apps.xero.sync_worker import xero_sync_task
 
@@ -31,11 +34,32 @@ class XeroSyncStartResult:
     task_id: str | None = None
 
 
+def last_detail_refresh(tenant_id: str | None) -> datetime | None:
+    """Read the connected tenant's last complete detail import without a vendor call."""
+    return (
+        XeroDetailRefresh.objects.filter(tenant_id=tenant_id)
+        .values_list("last_success_at", flat=True)
+        .first()
+    )
+
+
+def detail_refresh_due(tenant_id: str) -> bool:
+    """Check success against the latest scheduled afternoon boundary."""
+    now = timezone.localtime(timezone.now(), timezone.get_default_timezone())
+    boundary = now.replace(hour=15, minute=50, second=0, microsecond=0)
+    if now < boundary:
+        boundary -= timedelta(days=1)
+    last_success = last_detail_refresh(tenant_id)
+    return last_success is None or last_success < boundary
+
+
 class XeroSyncService:
     """Dispatches sync runs to Celery and reads their progress state."""
 
     @staticmethod
-    def start_sync() -> XeroSyncStartResult:
+    def start_sync(
+        *, detail_refresh: bool = False, only_if_due: bool = False
+    ) -> XeroSyncStartResult:
         """Acquire the lock and dispatch a Celery task for the sync run.
 
         Returns an explicit outcome for expected dispatch states. Broker
@@ -68,7 +92,7 @@ class XeroSyncService:
             return XeroSyncStartResult(started=False, reason="no_valid_token")
 
         try:
-            xero_sync_task.delay(task_id)
+            xero_sync_task.delay(task_id, detail_refresh=detail_refresh, only_if_due=only_if_due)
         except Exception:
             # Broker unavailable — release the lock so the next attempt can
             # try. Don't persist here; the caller (beat task or view) owns

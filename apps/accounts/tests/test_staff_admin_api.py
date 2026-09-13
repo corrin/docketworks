@@ -15,7 +15,7 @@ from django.contrib.auth.models import Group
 from django.test import Client
 
 from apps.accounts.models import Staff
-from apps.company.tests.conftest import authenticate
+from apps.accounts.tests.helpers import authenticate
 
 if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse

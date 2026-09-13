@@ -16,7 +16,7 @@ from apps.company.services.company_rest_service import (
     CompanyRestService,
     CompanySearchPage,
 )
-from apps.company.tests.conftest import make_company
+from apps.company.tests.factories import make_company
 
 pytestmark = pytest.mark.django_db
 
