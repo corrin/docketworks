@@ -27,6 +27,17 @@ export function PoDocumentActions({ po }: PoDocumentActionsProps) {
   const composeEmail = useMutation(getPurchaseOrderEmailMutation())
 
   const emailSupplier = () => {
+    // Opened now, inside the click, and pointed at the draft once it exists:
+    // a window.open issued from onSuccess arrives after a network round trip,
+    // which browsers treat as no gesture at all and block, leaving a green
+    // toast and nowhere to go. noopener is set on the handle instead of the
+    // features string, because noopener makes window.open return null.
+    const draftTab = window.open('', '_blank')
+    if (draftTab === null) {
+      toast.error('Allow pop-ups for this site to open the supplier email.')
+      return
+    }
+    draftTab.opener = null
     composeEmail.mutate(
       { path: { po_id: po.id }, body: {} },
       {
@@ -34,11 +45,13 @@ export function PoDocumentActions({ po }: PoDocumentActionsProps) {
           // The server drafts the message in this operator's own mailbox with
           // the order PDF attached, and hands back where to open it. Nothing is
           // sent: they read it and send it themselves.
-          toast.success(email.message ?? 'Draft created')
-          window.open(email.draft_url, '_blank', 'noopener,noreferrer')
+          toast.success(email.message)
+          draftTab.location.href = email.draft_url
         },
-        onError: (error) =>
-          toast.error(apiErrorMessage(error, 'Failed to draft the supplier email.')),
+        onError: (error) => {
+          draftTab.close()
+          toast.error(apiErrorMessage(error, 'Failed to draft the supplier email.'))
+        },
       },
     )
   }

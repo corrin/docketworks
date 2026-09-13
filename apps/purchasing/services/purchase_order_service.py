@@ -112,7 +112,8 @@ def _purchase_order_search_filter(query: str) -> Q:
     search, and no operator searches a job by a fragment of its number.
     """
     matches = Q(po_number__icontains=query) | Q(supplier__name__icontains=query)
-    if query.isdigit():
+    # isdecimal, not isdigit: isdigit accepts characters int() rejects ("²"), a 500.
+    if query.isdecimal():
         matches |= Q(po_lines__job__job_number=int(query))
     return matches
 

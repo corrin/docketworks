@@ -61,9 +61,10 @@ def mirror_purchase_order(po: PurchaseOrder, staff: Staff) -> None:
         # the mirror and has nothing to publish, and its shape is not ours to
         # refuse. The next pull is what settles it.
         return
-    # SEAM: every other automated Xero path checks quota_floor_breached before
-    # spending from the daily allowance; this one does not, so a state change
-    # can take the last calls an operator was holding. Its own change.
+    # No quota-floor check here, deliberately: the floor exists so automated
+    # work yields to interactive use, and a state change an operator just made
+    # is the interactive use. The hourly catch-up stage is the automated side,
+    # and that is where the floor is checked (apps/xero/sync.py).
     if po.supplier is None:
         # The mirror is a document addressed to a supplier, so there is nothing
         # to send. Raised here rather than left to the provider, which would

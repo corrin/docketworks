@@ -585,9 +585,10 @@ class XeroAccountingProvider:
             # summarize_errors=False makes Xero answer 200 with the refusal
             # inside the document, so discarding the response reports a delete
             # that never happened — and a released number that was not.
-            updated_orders = response.purchase_orders or []
-            updated = updated_orders[0] if updated_orders else None
-            if updated is not None and updated.validation_errors:
+            if not response.purchase_orders:
+                raise ValueError("Xero returned no purchase orders for a delete call")
+            updated = response.purchase_orders[0]
+            if updated.validation_errors:
                 errors = [str(ve.message) for ve in updated.validation_errors]
                 logger.warning("Xero PO %s delete validation errors: %s", external_id, errors)
                 return DocumentResult(

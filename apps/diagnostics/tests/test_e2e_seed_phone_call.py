@@ -17,10 +17,11 @@ from pytest_django.fixtures import SettingsWrapper
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
+from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import make_job
 from apps.core.test_data import TEST_DATA_PREFIX, is_e2e_name
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
-from apps.crm.tests.helpers import cookie_client, make_company
+from apps.crm.tests.helpers import cookie_client
 from apps.job.models import Job
 
 pytestmark = pytest.mark.django_db

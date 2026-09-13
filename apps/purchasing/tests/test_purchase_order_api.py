@@ -229,7 +229,9 @@ class TestPurchaseOrderDetail:
         assert body["supplier"] == ""
         assert body["supplier_id"] is None
         assert body["supplier_has_xero_id"] is False
-        assert body["created_by_name"] == ""
+        # A legacy row names System Automation, never nobody: the column is
+        # backfilled and NOT NULL, so the wire's created_by_name is always a name.
+        assert body["created_by_name"] == "System Automation"
 
     def test_deleted_purchase_orders_stay_viewable(self, api: Client) -> None:
         po = make_purchase_order(status="deleted")

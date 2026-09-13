@@ -4016,11 +4016,9 @@ components:
       description: The persisted error's id, so a browser log can name it.
       properties:
         error_id:
-          anyOf:
-          - format: uuid
-            type: string
-          - type: 'null'
+          format: uuid
           title: Error Id
+          type: string
       required:
       - error_id
       title: FrontendErrorOut
@@ -10434,10 +10432,8 @@ components:
           title: Email Subject
           type: string
         message:
-          anyOf:
-          - type: string
-          - type: 'null'
           title: Message
+          type: string
         success:
           title: Success
           type: boolean

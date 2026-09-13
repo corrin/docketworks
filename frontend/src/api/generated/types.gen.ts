@@ -3525,7 +3525,7 @@ export type FrontendErrorOut = {
     /**
      * Error Id
      */
-    error_id: string | null;
+    error_id: string;
 };
 
 /**
@@ -9260,7 +9260,7 @@ export type PurchaseOrderEmailResponse = {
     /**
      * Message
      */
-    message: string | null;
+    message: string;
     /**
      * Success
      */

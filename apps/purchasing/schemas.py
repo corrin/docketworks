@@ -352,7 +352,7 @@ class PurchaseOrderEmailResponse(ResponseSchema):
     email_body: str
     draft_id: str
     draft_url: str
-    message: str | None = None
+    message: str
 
 
 # ── Delivery receipts ────────────────────────────────────────────────────

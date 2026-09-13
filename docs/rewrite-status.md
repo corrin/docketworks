@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **57 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 266 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3234 collected |
+| Unit tests | 3235 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 134 recorded deviations |
@@ -567,9 +567,9 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   while 0012 states the product is single-tenant and `apps/xero/sync_worker.py` does exactly
   what 0024 forbids, with a comment saying so — and ADR 0056 already cites 0024 as authority.
   ADRs 0007, 0048, 0049 and 0050 carry the narrative sections the index conventions forbid,
-  including 0007's self-declared "KNOWN GAP" that belongs in this file. And every ADR needs
-  the `Unratified:` marker of ADR 0051 or an owner ruling; seven of the twelve most recent
-  arrived inside unrelated feature PRs, which the index conventions now forbid.
+  including 0007's self-declared "KNOWN GAP" that belongs in this file. ADRs 0054–0059 are
+  ratified (owner, 2026-09-13); every earlier AI-drafted ADR still needs the `Unratified:`
+  marker of ADR 0051 or an owner ruling.
 - **Finish or reopen the modular monolith slices (KAN-357).** The epic is marked Done while
   `config/architecture.py` records one migrated context of thirteen. ADR 0055 and CLAUDE.md
   now say so plainly, but the ticket still claims otherwise, and the epic's own gate — an

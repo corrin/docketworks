@@ -91,6 +91,7 @@ def _sent_order(
         status=status,
         po_number=f"{prefix}{uuid4().int % 90_000 + 10_000}",
         xero_id=xero_id,
+        created_by=Staff.get_automation_user(),
     )
     PurchaseOrderLine.objects.create(
         purchase_order=po,
@@ -167,12 +168,14 @@ class TestAnOrderWeRaised:
         """created_by went unrecorded until 2026-01-09, so it cannot answer this.
 
         Measured 2026-09-13 against a production restore: 419 of the 825 orders
-        Docketworks raised carry no created_by. Reading ownership from it would
-        hand Xero the right to overwrite every one of them on the next pull.
+        Docketworks raised carried no created_by. Reading ownership from it would
+        have handed Xero the right to overwrite every one of them on the next
+        pull. The column is now backfilled and NOT NULL, which makes it even less
+        of an answer: every order names a creator, so the creator says nothing.
         """
         xero_id = uuid4()
         po = _sent_order(supplier, xero_id=xero_id, dw_raised=True)
-        assert po.created_by_id is None, "the fixture must not supply the easy answer"
+        assert po.created_by == Staff.get_automation_user(), "a creator is always recorded"
 
         transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
 

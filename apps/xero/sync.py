@@ -661,13 +661,25 @@ def sync_local_purchase_orders_to_xero() -> Iterator[XeroSyncEvent]:
     """
     # Call-time import: a domain service, and importing it at module scope
     # would pull the purchasing service tree into the sync engine.
-    from apps.accounts.models import Staff  # noqa: PLC0415
     from apps.purchasing.models import PurchaseOrder  # noqa: PLC0415
     from apps.purchasing.services.accounting_mirror import (  # noqa: PLC0415
         is_locally_raised,
         send_state_change,
     )
 
+    # Automated spend yields to interactive use: at the floor the orders stay
+    # owed and the next hour tries again. The state-change push itself does
+    # not check this, because it is the interactive use the floor protects.
+    floor = CompanyDefaults.get_solo().xero_automated_day_floor
+    if quota_floor_breached(floor):
+        yield {
+            "datetime": timezone.now().isoformat(),
+            "entity": "purchase_orders_local_to_xero",
+            "severity": "info",
+            "message": f"Owed purchase orders left for later: Xero day quota at floor ({floor})",
+            "progress": None,
+        }
+        return
     owed = [
         po
         for po in PurchaseOrder.objects.select_related("supplier")
@@ -685,9 +697,8 @@ def sync_local_purchase_orders_to_xero() -> Iterator[XeroSyncEvent]:
         "message": f"Sending {len(owed)} purchase orders that still owe Xero a call",
         "progress": None,
     }
-    automation_user = Staff.get_automation_user()
     for po in owed:
-        send_state_change(po, po.created_by or automation_user)
+        send_state_change(po, po.created_by)
     still_owed = sum(1 for po in owed if po.xero_push_due)
     yield {
         "datetime": timezone.now().isoformat(),

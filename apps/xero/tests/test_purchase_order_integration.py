@@ -324,7 +324,10 @@ def test_a_collision_publishes_ours_rather_than_dropping_either(
 
     # And Xero agrees now, which is the half that makes it a sync: re-read as
     # an order Xero raised, so the next pull mirrors its header and lines.
-    PurchaseOrder.objects.filter(id=po.id).update(created_by=None)
+    # Ownership is the number's prefix (accounting_mirror.is_locally_raised),
+    # so the order is renumbered the way Xero numbers its own; a null creator
+    # never meant "Xero raised it" and the column no longer admits one.
+    PurchaseOrder.objects.filter(id=po.id).update(po_number=f"XPO-{po.po_number[3:]}")
     _sync("purchase_orders")
     assert po.po_lines.filter(description="What the office confirmed").exists(), (
         "our edit never reached Xero"

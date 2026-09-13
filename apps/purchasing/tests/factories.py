@@ -36,7 +36,10 @@ def make_purchase_order(
         # test around a supplier the business would have had to fix first.
         supplier = make_company("Factory supplier", is_supplier=True, xero_contact_id=str(uuid4()))
     return PurchaseOrder.objects.create(
-        supplier=supplier, created_by=created_by, status=status, reference=reference
+        supplier=supplier,
+        created_by=created_by or Staff.get_automation_user(),
+        status=status,
+        reference=reference,
     )
 
 
@@ -48,7 +51,9 @@ def make_legacy_supplierless_order() -> PurchaseOrder:
     point of the row and not a default nobody chose: Xero will not hold a
     purchase order without a contact, so creating one is refused now.
     """
-    return PurchaseOrder.objects.create(supplier=None, status="draft")
+    return PurchaseOrder.objects.create(
+        supplier=None, status="draft", created_by=Staff.get_automation_user()
+    )
 
 
 def make_po_line(  # noqa: PLR0913 -- a factory: every field is an axis a test varies

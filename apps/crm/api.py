@@ -60,6 +60,7 @@ from ninja import Query, Router
 from ninja.errors import AuthorizationError
 from ninja.responses import Status
 
+from apps.accounts.auth import authenticated_staff
 from apps.accounts.models import Staff
 from apps.company.models import ContactMethod
 from apps.core.auth import CookieJWTAuth
@@ -102,16 +103,16 @@ FieldErrors = dict[str, list[str]]
 
 def _require_office_staff(request: HttpRequest) -> Staff:
     """Require the authenticated user to have ``is_office_staff``."""
-    user = request.user
-    if not isinstance(user, Staff) or not user.is_office_staff:
+    user = authenticated_staff(request)
+    if not user.is_office_staff:
         raise AuthorizationError
     return user
 
 
 def _require_superuser(request: HttpRequest) -> Staff:
     """Require the authenticated user to be a superuser."""
-    user = request.user
-    if not isinstance(user, Staff) or not user.is_superuser:
+    user = authenticated_staff(request)
+    if not user.is_superuser:
         raise AuthorizationError
     return user
 

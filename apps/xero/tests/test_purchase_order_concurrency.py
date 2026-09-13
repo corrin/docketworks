@@ -35,6 +35,7 @@ def test_sync_waits_for_receipt_and_preserves_its_committed_status(
         po_number=f"TEST-{uuid4()}",
         xero_id=uuid4(),
         status="submitted",
+        created_by=Staff.get_automation_user(),
     )
     line = PurchaseOrderLine.objects.create(
         purchase_order=po,

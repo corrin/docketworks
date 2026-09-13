@@ -1440,7 +1440,7 @@ export const zFrontendErrorIn = z.object({
  * The persisted error's id, so a browser log can name it.
  */
 export const zFrontendErrorOut = z.object({
-    error_id: z.uuid().nullable()
+    error_id: z.uuid()
 });
 
 /**
@@ -4059,7 +4059,7 @@ export const zPurchaseOrderEmailResponse = z.object({
     draft_url: z.string(),
     email_body: z.string(),
     email_subject: z.string(),
-    message: z.string().nullable(),
+    message: z.string(),
     success: z.boolean()
 });
 

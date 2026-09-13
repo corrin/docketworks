@@ -24,6 +24,7 @@ from django.utils import timezone
 from xero_python.accounting import Account, AccountingApi
 
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
+from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.errors import InvalidInputError, persist_app_error
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
@@ -744,6 +745,9 @@ def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[Purchas
             po = PurchaseOrder.objects.create(
                 xero_id=xero_id,
                 supplier=supplier,
+                # Xero raised it, so no person here did; System Automation is the
+                # row the codebase names wherever no human is on the call stack.
+                created_by=Staff.get_automation_user(),
                 po_number=po_number,
                 order_date=order_date,
                 status=map_status(status),

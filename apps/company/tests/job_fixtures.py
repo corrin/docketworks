@@ -222,9 +222,11 @@ def make_quote(company: Company, *, job: Job | None = None, number: str | None =
 
 
 def make_purchase_order(supplier: Company) -> PurchaseOrder:
+    """An order numbered the way Xero numbers its own, so the app reads it as Xero-raised."""
     return PurchaseOrder.objects.create(
         supplier=supplier,
         po_number=f"PO-{uuid.uuid4().hex[:8]}",
+        created_by=Staff.get_automation_user(),
     )
 
 

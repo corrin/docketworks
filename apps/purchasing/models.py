@@ -61,8 +61,6 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
     created_by = models.ForeignKey(
         "accounts.Staff",
         on_delete=models.PROTECT,
-        null=True,
-        blank=True,
         related_name="created_purchase_orders",
         help_text="Staff member who created this purchase order",
     )
@@ -150,9 +148,9 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
         super().save(*args, **kwargs)
 
     @property
-    def created_by_name(self) -> str | None:
+    def created_by_name(self) -> str:
         """Return the display name of the staff member who created this PO."""
-        return self.created_by.get_display_full_name() if self.created_by else None
+        return self.created_by.get_display_full_name()
 
     def generate_po_number(self) -> str:
         """Generate the next sequential PO number based on the configured prefix."""

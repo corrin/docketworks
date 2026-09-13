@@ -135,7 +135,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         max_length=255, null=True, blank=True
     )
     xero_last_modified = models.DateTimeField(null=True, blank=True)
-    xero_payroll_terms_checksum = models.CharField(  # noqa: DJ001 -- NULL means history integrity is not yet recorded
+    xero_payroll_terms_checksum = models.CharField(  # noqa: DJ001 -- NULL means payroll terms never synced, as xero_fields_checksum below
         max_length=64, null=True, blank=True
     )
     xero_fields_checksum = models.CharField(  # noqa: DJ001 -- NULL means never synced

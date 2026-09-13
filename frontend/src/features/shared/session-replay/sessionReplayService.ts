@@ -128,17 +128,23 @@ function discardRecordingState(): void {
  * cannot be split, and holding it back would stall every event behind it
  * forever.
  */
-function takeChunk(): eventWithTime[] {
-  const taken: eventWithTime[] = []
-  let size = 2
-  for (const event of buffered) {
+type Chunk = { events: eventWithTime[]; first: eventWithTime; last: eventWithTime }
+
+function takeChunk(first: eventWithTime): Chunk {
+  // `first` is the caller's proof the buffer is non-empty, so the chunk's
+  // bounds are real events rather than a 0 standing in for one.
+  const taken: eventWithTime[] = [first]
+  let last = first
+  let size = 2 + JSON.stringify(first).length + 1
+  for (const event of buffered.slice(1)) {
     const eventSize = JSON.stringify(event).length + 1
-    if (taken.length > 0 && size + eventSize > MAX_CHUNK_CHARS) break
+    if (size + eventSize > MAX_CHUNK_CHARS) break
     taken.push(event)
+    last = event
     size += eventSize
   }
   buffered = buffered.slice(taken.length)
-  return taken
+  return { events: taken, first, last }
 }
 
 export async function flushSessionReplay(): Promise<void> {
@@ -151,8 +157,8 @@ export async function flushSessionReplay(): Promise<void> {
     // Opus: Drains in as many uploads as the backlog needs rather than one per
     // interval: after a tab has been hidden for a while the buffer holds
     // minutes of events, and one chunk per 10s would never catch up.
-    while (buffered.length > 0) {
-      const events = takeChunk()
+    for (let first = buffered[0]; first !== undefined; first = buffered[0]) {
+      const { events, first: firstEvent, last } = takeChunk(first)
       try {
         // Opus: The rule's Promise.all advice is wrong for this loop: chunks carry
         // an ordered `sequence` that only advances on a success, and the
@@ -165,8 +171,8 @@ export async function flushSessionReplay(): Promise<void> {
           body: {
             sequence,
             events_json: JSON.stringify(events),
-            first_event_timestamp_ms: events[0]?.timestamp ?? 0,
-            last_event_timestamp_ms: events[events.length - 1]?.timestamp ?? 0,
+            first_event_timestamp_ms: firstEvent.timestamp,
+            last_event_timestamp_ms: last.timestamp,
             path: currentPath(),
             job_id: currentJobId(),
             ...viewport(),

@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 
 import {
   apiErrorMessage,
+  purchasingStockListOptions,
+  stocktakeListOptions,
   stocktakeRetrieveOptions,
   purchasingStockSearchRetrieveOptions,
   stocktakeUpdateMutation,
@@ -98,6 +100,13 @@ function StocktakeEditor({
   )
   const refreshStock = async () => {
     await Promise.all(observations.map((query) => query.refetch({ throwOnError: true })))
+    // Posting moves balances and closes the draft; the list and the stock page
+    // hold both for staleTime unless told, so a user clicking straight through
+    // to them saw Draft and pre-post balances for thirty seconds.
+    await Promise.all([
+      cache.invalidateQueries({ queryKey: stocktakeListOptions().queryKey }),
+      cache.invalidateQueries({ queryKey: purchasingStockListOptions().queryKey }),
+    ])
   }
   const failed = async (error: unknown) => {
     if (isConcurrencyError(error)) setConflicted(true)

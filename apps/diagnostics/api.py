@@ -32,7 +32,7 @@ from ninja.responses import Status
 
 from apps.accounts.auth import authenticated_staff
 from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
-from apps.core.errors import AppErrorContext, app_error_for, persist_app_error
+from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.core.pagination import paginate
 from apps.diagnostics.models import SessionReplayRecording
@@ -272,9 +272,8 @@ def session_replay_frontend_errors_create(
     is not the caller's into the error's data.
     """
     staff = authenticated_staff(request)
-    reported = RuntimeError(payload.message)
-    persist_app_error(
-        reported,
+    app_error = persist_app_error(
+        RuntimeError(payload.message),
         AppErrorContext(
             app="frontend",
             file=payload.path,
@@ -287,5 +286,4 @@ def session_replay_frontend_errors_create(
             },
         ),
     )
-    app_error = app_error_for(reported)
-    return Status(201, {"error_id": app_error.id if app_error is not None else None})
+    return Status(201, {"error_id": app_error.id})

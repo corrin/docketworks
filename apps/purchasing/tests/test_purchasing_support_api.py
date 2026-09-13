@@ -109,7 +109,9 @@ class TestSupplierSearch:
     ) -> None:
         busy = make_company("Busy Steel")
         quiet = make_company("Quiet Metals")
-        PurchaseOrder.objects.create(supplier=busy, order_date=timezone.localdate())
+        PurchaseOrder.objects.create(
+            supplier=busy, order_date=timezone.localdate(), created_by=Staff.get_automation_user()
+        )
 
         body = api.get("/api/purchasing/suppliers/search/").json()
 
@@ -144,12 +146,21 @@ class TestSupplierSearch:
 
     def test_recent_purchase_counts_ignore_deleted_and_stale_orders(self, api: Client) -> None:
         supplier = make_company("Counted Steel")
-        PurchaseOrder.objects.create(supplier=supplier, order_date=timezone.localdate())
         PurchaseOrder.objects.create(
-            supplier=supplier, order_date=timezone.localdate(), status="deleted"
+            supplier=supplier,
+            order_date=timezone.localdate(),
+            created_by=Staff.get_automation_user(),
         )
         PurchaseOrder.objects.create(
-            supplier=supplier, order_date=timezone.localdate() - timedelta(days=800)
+            supplier=supplier,
+            order_date=timezone.localdate(),
+            status="deleted",
+            created_by=Staff.get_automation_user(),
+        )
+        PurchaseOrder.objects.create(
+            supplier=supplier,
+            order_date=timezone.localdate() - timedelta(days=800),
+            created_by=Staff.get_automation_user(),
         )
 
         body = api.get("/api/purchasing/suppliers/search/?q=counted").json()
