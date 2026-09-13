@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createRecoveredLoadAllowance } from './authConsoleErrors'
+import { createRecoveredLoadAllowance } from '../e2e/fixtures/authConsoleErrors'
 
 const chunk = 'https://app.example/assets/shell-abc.js'
 const failed = {
