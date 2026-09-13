@@ -24,7 +24,8 @@ from apps.company.services.company_rest_service import CompanyRestService, Dupli
 from apps.company.tests.job_fixtures import make_material_line
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
-from apps.xero.auth import get_api_client
+from apps.xero.auth import get_api_client, get_tenant_id
+from apps.xero.constants import TENANT_ID_CACHE_KEY, tenant_cache
 from apps.xero.documents.invoice import XeroInvoiceManager
 from apps.xero.fake.rest_client import FakeXeroRESTClient
 from apps.xero.fake.seed import (
@@ -172,3 +173,15 @@ def test_the_employee_sync_sees_the_seeded_staff_as_unchanged(fake_xero: FakeXer
     assert _xero_fields_checksum(incoming) == _xero_fields_checksum(
         _current_employee_projection(staff)
     )
+
+
+def test_connecting_to_the_fake_forgets_a_tenant_cached_by_an_earlier_test() -> None:
+    """The tenant id is cached per process; a stale one sends writes to another store.
+
+    CI, 2026-09-13: a test earlier in the same worker left its tenant in the
+    cache, the cleanup test then created its invoice under that tenant and
+    looked for it under the fake's, and the fake answered 404.
+    """
+    tenant_cache().set(TENANT_ID_CACHE_KEY, "tenant-left-by-an-earlier-test")
+    with connected_to_the_fake(TEST_TENANT_ID):
+        assert get_tenant_id() == TEST_TENANT_ID
