@@ -276,7 +276,7 @@ def _coordinate(value: float | None) -> Decimal | None:
 # Xero identity; v1's effective gate was the superuser /admin route guard, and the
 # admin nav + leave-settings use the same class. GET stays any-staff: company
 # defaults is app-shell boot data for every user.
-# Opus: If-Match rejected here — ADR 0003 scopes optimistic concurrency to Job/PO;
+# Opus: If-Match rejected here — ADR 0003 scopes optimistic concurrency to Job, PO and stocktake;
 # the dirty-fields-only payload (exclude_unset) means concurrent editors of
 # different fields never clobber each other, and same-field conflict on a
 # rarely-edited singleton is accepted last-write-wins (ruling in

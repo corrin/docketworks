@@ -1,13 +1,8 @@
-# 0052 — A test survives a rewrite and fails a behaviour change
+# 0052 — Assert the guarantee, not the implementation: a rewrite leaves the test passing and a behaviour change fails it
 
-Design every test so that a total rewrite of the implementation would leave it passing, and so
-that any change to what the code guarantees would make it fail. A test that has to be deleted
-when its feature is rewritten was testing the implementation, and a test that keeps passing when
-the guarantee is removed was testing nothing.
-
-ADR 0025 decides **which** regression a test guards. This one decides **whether the assertion can
-see it** — and the two-sided check above is how you find out, before writing the assertion rather
-than after the rewrite.
+Design every test so that a total rewrite of the implementation would leave it passing, and
+any change to what the code guarantees would make it fail. ADR 0025 decides **which** regression
+a test guards; this one decides **whether the assertion can see it**.
 
 ## Rules
 
@@ -39,10 +34,8 @@ than after the rewrite.
 - **Reach the code through the door the product uses.** Test setup that uses `.update(...)`,
   `bulk_create`, raw SQL or a hand-built object skips `save`, `clean`, signals and the service
   owning the write, so it never crosses the code under test — and it will keep passing through a
-  rewrite by never having executed the thing that was rewritten. Three live defects survived a
-  full suite that way in August 2026: every test nulled a pay item with a queryset `.update()`, so
-  nothing exercised the validation that still forbade NULL, the service that still copied the
-  wrong pay item, or the settings write that silently did nothing. Fixtures may take shortcuts to
+  rewrite by never having executed the thing that was rewritten — three live defects once survived
+  a full suite because every test nulled a pay item with a queryset `.update()`. Fixtures may take shortcuts to
   reach an unrelated starting state; the path under test may not.
 - **Treat a test that a rewrite invalidates as a finding, not a chore.** Requirements survive
   rewrites — that is what makes them requirements — so deleting a test during one is evidence

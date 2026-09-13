@@ -21,34 +21,35 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 
 | N | Title |
 | --- | --- |
-| [0001](0001-exception-already-logged-dedup.md) | Idempotent error persistence |
+| [0001](0001-exception-already-logged-dedup.md) | Error persistence is idempotent: one failure, one AppError row |
 | [0002](0002-auth-gate-global-allowlist.md) | Auth gate: single global gate with explicit allowlist |
-| [0003](0003-etag-optimistic-concurrency.md) | ETag-based optimistic concurrency for Job and PO edits |
+| [0003](0003-etag-optimistic-concurrency.md) | Job, PO and stocktake mutations carry If-Match: missing is 428, stale is 412 |
 | [0004](0004-job-delta-envelope.md) | Job mutations require a self-contained delta envelope |
 | 0005 | (retired 2026-09-13: Gemini emit-tools no longer exist; every AI call is [0041](0041-one-llm-gateway.md)'s gateway) |
-| [0006](0006-rest-resource-hierarchy.md) | REST resource hierarchy and operationId hygiene |
-| [0007](0007-xero-payroll-sync.md) | Xero Payroll NZ sync with four-bucket hour categorisation |
+| [0006](0006-rest-resource-hierarchy.md) | Identifiers live in the URL path, bodies carry data only, one endpoint per operation |
+| [0007](0007-xero-payroll-sync.md) | Xero payroll posts each hour category through the one surface that can represent it, and never posts a public holiday |
 | 0008 | (retired 2026-09-13: this repository was never a subtree; the one-repo rule lives in [0017](0017-zero-backwards-compatibility.md)) |
-| [0012](0012-accounting-provider-strategy.md) | Accounting provider strategy with registry |
+| 0009–0011, 0014, 0016, 0018, 0022–0023, 0044 | (numbers never carried into this repository; no record of what they held) |
+| [0012](0012-accounting-provider-strategy.md) | Every accounting read and write reaches the vendor only through get_provider(); SDK types never cross the boundary |
 | 0013 | (retired 2026-09-13: merged into [0038](0038-transparent-errors-trusted-environment.md)) |
 | [0015](0015-fix-data-not-fallback.md) | Fix incorrect data; do not add read-side fallbacks |
 | [0017](0017-zero-backwards-compatibility.md) | Zero backwards compatibility; rewrite every call site in one PR |
 | [0019](0019-mandatory-error-persistence.md) | Unexpected exceptions are persisted to AppError |
 | [0020](0020-frontend-backend-separation.md) | Frontend/Backend separation: data is backend, presentation is frontend |
 | [0021](0021-frontend-generated-api-client-only.md) | Frontend reads and writes the API only through the generated client |
-| [0024](0024-celery-async-task-processing.md) | Background work runs through Celery; tasks are idempotent and tenant-aware |
+| [0024](0024-celery-async-task-processing.md) | Background work runs through Celery; tasks are idempotent and write-side |
 | [0025](0025-tests-state-business-risk.md) | Every test guards against a plausible regression |
 | [0026](0026-plan-the-tests-before-approval.md) | Plan the tests before the plan is approved |
 | [0027](0027-deploy-capability-with-its-controls.md) | A capability deploys with the means to operate it |
 | [0028](0028-type-annotations-are-data-contracts.md) | Type annotations are data contracts |
 | [0029](0029-servers-run-the-production-branch.md) | Separate integration from production releases |
-| [0030](0030-first-class-people-and-company-links.md) | First-class People and Company links |
-| [0031](0031-single-logging-gate-debug-namespaces.md) | One logging gate: the debug library with namespaces |
+| [0030](0030-first-class-people-and-company-links.md) | Person owns identity, CompanyPersonLink owns the relationship, jobs point at the person |
+| [0031](0031-single-logging-gate-debug-namespaces.md) | One logging gate: the `debug` library with namespaces |
 | [0032](0032-prefer-libraries-over-homegrown.md) | Less code is better: prefer libraries over homegrown implementations |
 | [0033](0033-version-constraints-record-tested-versions.md) | Version constraints record what passed testing, not what is compatible |
 | [0034](0034-company-merges-are-xero-first.md) | Company identity and merges are Xero-first |
 | 0035–0037 | (reserved: ninja adoption, beat-in-code, workflow decomposition — written as their phases land) |
-| [0038](0038-transparent-errors-trusted-environment.md) | Errors are transparent inside the authenticated trust boundary |
+| [0038](0038-transparent-errors-trusted-environment.md) | Authenticated callers get the real exception; anonymous callers get fixed wording and no secrets |
 | [0039](0039-one-implementation-per-concept.md) | One implementation per concept |
 | [0040](0040-nullable-text-write-contract.md) | Unset is NULL, and the request schema says so |
 | [0041](0041-one-llm-gateway.md) | One LLM gateway, and it lives in apps/ai |
@@ -57,19 +58,19 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | 0045 | (retired 2026-09-13: merged into [0028](0028-type-annotations-are-data-contracts.md)) |
 | [0046](0046-numbers-on-the-wire.md) | Numbers on the wire; the frontend owns all formatting |
 | [0047](0047-asgi-serving-and-sse-push.md) | The application is served over ASGI, and data versions are pushed over SSE |
-| [0048](0048-own-what-you-wipe-database-safety.md) | A role wipes only what it owns; deliberateness is graded, prod wipes need an explicit assertion and are always recoverable |
-| [0049](0049-one-home-per-operational-script.md) | Operational scripts are homed by confidentiality and recurrence: client adhoc, repo adhoc, scripts/, management command |
+| [0048](0048-own-what-you-wipe-database-safety.md) | A role wipes only what it owns; production wipes need an explicit assertion and are always recoverable |
+| [0049](0049-one-home-per-operational-script.md) | Operational scripts are homed by confidentiality and recurrence |
 | [0050](0050-integrations-are-proven-against-the-real-thing.md) | Every integration is proven against the real thing, and nothing merges without it |
 | [0051](0051-ai-rationales-name-their-author.md) | AI rationales name their author until ratified |
-| [0052](0052-tests-survive-rewrites.md) | A test survives a rewrite and fails a behaviour change |
-| [0053](0053-integration-credentials-are-typed-columns-on-one-singleton.md) | Integration credentials are typed columns on one database singleton; N-of integrations keep typed tables; never `.env`, never `CompanyDefaults` |
+| [0052](0052-tests-survive-rewrites.md) | Assert the guarantee, not the implementation: a rewrite leaves the test passing and a behaviour change fails it |
+| [0053](0053-integration-credentials-are-typed-columns-on-one-singleton.md) | Integration credentials are typed columns on one singleton; never .env, never CompanyDefaults |
 | [0054](0054-screens-are-tested-at-production-volume.md) | A screen is tested at the volume production gives it |
-| [0055](0055-modular-monolith-context-ownership.md) | Context ownership and directional dependencies |
+| [0055](0055-modular-monolith-context-ownership.md) | New code lives in the context that owns its concept, and dependencies point one way |
 | [0056](0056-vendor-calls-are-recorded-per-call.md) | Every external vendor call is recorded, one row per call |
-| [0057](0057-line-identity-and-creation-order.md) | Line identity and creation order |
-| [0058](0058-write-refusals-live-in-the-application.md) | A rule that refuses a write lives in the application |
+| [0057](0057-line-identity-and-creation-order.md) | Persisted lines keep permanent ids and a server-defined creation order |
+| [0058](0058-write-refusals-live-in-the-application.md) | Code that looks short and simple runs short and simple: a write refusal lives in one application function, never in a trigger |
 | [0059](0059-one-data-model-legacy-data-is-migrated.md) | The app supports one data model; legacy data is migrated to comply |
 | [0060](0060-an-iteration-run-may-fake-an-integration.md) | An iteration run may point the unmodified app at a simulated integration; the gate never does |
 | [0061](0061-checking-is-not-doing.md) | Checking is not doing: one owner per action, one check at the boundary that matters |
 | [0062](0062-ai-provider-selection-and-administration.md) | A caller selects an AI provider from the configured catalogue, and Admin → Integrations owns the catalogue |
-| [0063](0063-test-suite-conventions.md) | Test-suite conventions: a provisioned instance, scoped assertions, named actors, stable selectors |
+| [0063](0063-test-suite-conventions.md) | Every test starts from a provisioned instance and asserts over what it created; E2E drives the UI by automation id |

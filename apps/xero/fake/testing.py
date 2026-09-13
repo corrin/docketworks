@@ -15,6 +15,7 @@ from django.utils import timezone
 
 from apps.core.models import CompanyDefaults
 from apps.xero.auth import _reset_api_client
+from apps.xero.constants import TENANT_ID_CACHE_KEY, tenant_cache
 from apps.xero.fake.minting import new_id, now_utc
 from apps.xero.fake.seed import seed_branding_themes, seed_organisation, seed_tax_rates
 from apps.xero.fake.store import FakeXeroStore, Kind
@@ -58,6 +59,12 @@ def connected_to_the_fake(tenant_id: str) -> Iterator[FakeXeroStore]:
         xero_payroll_calendar_id=uuid.UUID(CALENDAR_ID),
     )
     CompanyDefaults.clear_cache()
+    # The tenant id is also cached per process (auth.get_tenant_id); a test
+    # that ran earlier in this worker may have left another tenant there, and
+    # the app would then write to that tenant's store while this one reads
+    # its own (CI, 2026-09-13: the cleanup test's invoice was 404 under the
+    # fake's tenant). Cleared as active_app does when the active app changes.
+    tenant_cache().delete(TENANT_ID_CACHE_KEY)
     store = FakeXeroStore(tenant_id)
     seed_organisation(store, "Test Org")
     seed_tax_rates(store)
@@ -69,3 +76,7 @@ def connected_to_the_fake(tenant_id: str) -> Iterator[FakeXeroStore]:
             yield store
     finally:
         _reset_api_client()
+        # get_tenant_id() inside the block cached this tenant; the next test in
+        # the worker must not inherit it any more than this one inherited its
+        # predecessor's.
+        tenant_cache().delete(TENANT_ID_CACHE_KEY)

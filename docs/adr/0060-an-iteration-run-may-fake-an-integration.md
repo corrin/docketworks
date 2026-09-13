@@ -1,7 +1,7 @@
 # 0060 — An iteration run may point the unmodified app at a simulated integration; the gate never does
+Unratified: Fable
 
 The app runs unchanged and every call an integration would answer is answered locally by a simulation of the vendor — its shapes recorded from the real tenant, its state remembered in a table, its ids, timestamps, numbers, totals and refusals computed — so an E2E iteration run costs the vendor nothing and can stage what the vendor will not; the run before merge, and every integration test, still reaches the real thing.
-Unratified: Fable
 
 ## Rules
 
@@ -9,7 +9,7 @@ Unratified: Fable
   call to the vendor passes through — for Xero, `xero_python.rest.RESTClientObject`,
   swapped in by `apps.xero.auth._build` — and answers with the vendor's own wire JSON. The
   SDK's deserialiser, its date parsers and its attribute maps run exactly as they do against
-  the vendor, which is the layer ADR 0050's payroll bug lived in. A fake above the SDK, at
+  the vendor, which is the layer a fake above the SDK never exercises. A fake above the SDK, at
   the provider or the service, proves nothing about that layer and is refused.
 - **It is a simulation built from recordings, not a replay of them.** A recording gives
   the shape of an answer; the fake supplies the substance — a fresh id for every create, a
@@ -43,7 +43,7 @@ Unratified: Fable
   refuses a run whose own flag disagrees with the backend's, the run's history rows carry
   `xero=fake` and the analysers exclude them by default, and the runner's last line says
   the run was not a merge gate. Merge readiness is still `./scripts/ops/run_e2e.sh` with
-  no switch, plus the integration tier — ADR 0050's rule is untouched for both.
+  no switch, plus the integration tier (ADR 0050).
 - **The same shape serves the next integration.** The AI gateway, the phone provider,
   Maps or Drive get a fake at their own transport seam, from their own recordings, under
   their own flag, and the gate for each stays real. A fake is also where a vendor's failure
@@ -55,8 +55,8 @@ Unratified: Fable
 - **Read a green fake run as evidence for merge** — it proves the application against
   what the vendor said last time it was asked, and the gate exists for what it says now.
 - **Hand-write a shape a recording could give** — the recorder costs one call per route,
-  and a hand-written shape is the belief ADR 0050 exists to stop testing against.
+  and a hand-written shape is a belief (ADR 0050).
 - **Route a write the real gate keeps opt-in** — a fake that accepts a payroll posting is
-  the fake-provider coverage the payroll incident came from.
+  the fake-provider coverage ADR 0050 refuses.
 - **Reach for `XERO_READONLY` as a test mode** — it suppresses writes and leaves reads
   live, so at quota zero it fails the run anyway, and it exists for production hotfixes.

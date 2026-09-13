@@ -1,4 +1,4 @@
-# 0058 — Code that looks short and simple runs short and simple
+# 0058 — Code that looks short and simple runs short and simple: a write refusal lives in one application function, never in a trigger
 Ratified: owner, 2026-09-13
 
 A write that reads as one statement does one thing. Nothing beneath it decides whether it may happen: whether a write is allowed is decided in one application function that raises a typed error, and the database stores data and states facts about a row. A reader who sees `save()` or `UPDATE` has seen the whole behaviour.

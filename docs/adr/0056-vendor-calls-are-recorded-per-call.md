@@ -31,7 +31,7 @@ seam each vendor is reached through, at the grain of a single call.
   break the business call" is how a swallow acquires a rationale (ADR 0019).
 - **Columns are typed and per meter** (ADR 0028); `None` means the vendor reports no such
   meter, which is a real value with a real reader. Never a JSON blob for the metrics, and never
-  a generic `extra` column for the next vendor (ADR 0053) — the migration is the point.
+  a generic `extra` column for the next vendor (ADR 0053).
 - **The log owns "how much is left".** No second copy of a vendor's current level lives on an
   adapter row to be overwritten per call; a consumer reads the newest recorded call inside a
   freshness window (ADR 0039).

@@ -1,19 +1,22 @@
 # 0046 — Numbers on the wire; the frontend owns all formatting
 
-The API sends quantities as numbers — never currency symbols, thousands separators, percent signs, or any other display formatting. Formatting in the backend is a bug.
+The API sends quantities as numbers — never currency symbols, thousands separators, percent signs, or any other display formatting. Formatting in the backend is a bug; ADR 0020's boundary is why.
 
 ## Rules
 
 A schema field carrying money, a rate, a count or any other quantity is a
-numeric type (`float`, `int`, `Decimal`). `total_spend: str` was a live
-defect: the service emitted `f"${value:,.2f}"`, and the first frontend
-consumer that treated the field as a number rendered `$NaN` — a display
-string on the wire poisons every consumer that is not a display.
+numeric type (`float`, `int`, `Decimal`). A display string on the wire poisons
+every consumer that is not a display: the first frontend consumer to treat an
+`f"${value:,.2f}"` field as a number renders `$NaN`.
 
 The frontend formats at the point of display, through the shared formatters
-in `frontend/src/lib/format.ts` (`formatCurrency`, `formatPercentage`) — one
-formatter per concept, because E2E specs assert cross-page string equality
-on formatted values, and two formatters diverge invisibly.
+in `frontend/src/lib/format.ts` (`formatCurrency`, `formatWholeCurrency`,
+`formatPercentage`) — one formatter per precision concept, because E2E specs
+assert cross-page string equality on formatted values, and two formatters for
+one concept diverge invisibly. A report that offers a precision setting uses
+`formatWholeCurrency` everywhere it shows money: the same figure rendering
+`$1,234` in a cell and `$1,234.00` one click away is the divergence this rule
+exists to prevent.
 
 Units are part of the contract, not formatting. Rates travel in percentage
 points (0–100, the scale `_rate()` in the accounting services produces);
