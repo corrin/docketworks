@@ -12,31 +12,25 @@ from xero_python.exceptions import HTTPStatusException
 from xero_python.rest import RESTClientObject, RESTResponse
 
 from apps.core.environment import assert_not_production_database
-from apps.core.models import CompanyDefaults
 from apps.xero.fake.http import request_from_sdk
 from apps.xero.fake.router import dispatch
-from apps.xero.operator_guards import is_production_tenant
 
 
 def assert_fake_permitted() -> None:
     """Refuse to exist anywhere a fabricated Xero id could reach real data.
 
-    settings.py already refuses ``XERO_FAKE`` outside DEBUG; the two checks
-    that need the database — a production database name, a production
-    tenant — are made here, where the fake is installed. ``get_tenant_id``
-    is not called: it refreshes the token, which would build this client,
-    which would call this.
+    The database name is the one signal (ADR 0048): a production database is
+    refused, anything else — a development database, or the scrub copy an
+    instance verifies its release on (ADR 0064) — may carry the fake. The
+    tenant the copy is bound to does not matter, because no call leaves the
+    fake and the copy is emptied after the run; the sync and seed commands
+    that DO reach the organisation keep their own tenant refusal
+    (``assert_not_production_target``).
     """
     assert_not_production_database(
         "the fake Xero would mint ids the real organisation has never issued "
         "straight into a production mirror."
     )
-    tenant_id = CompanyDefaults.get_solo().xero_tenant_id
-    if tenant_id and is_production_tenant(tenant_id):
-        raise ValueError(
-            f"XERO_FAKE is set but this installation is bound to production tenant {tenant_id}; "
-            "the fake exists for a development organisation only."
-        )
 
 
 class FakeXeroRESTClient(RESTClientObject):

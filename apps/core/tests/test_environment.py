@@ -68,18 +68,16 @@ class TestRequiredFlag:
 
 
 class TestValidateXeroFakeFlag:
-    def test_the_fake_is_refused_outside_debug(self) -> None:
-        with pytest.raises(ValueError, match="refused outside DEBUG"):
-            validate_xero_fake_flag(fake=True, readonly=False, debug=False)
-
     def test_the_fake_and_the_readonly_valve_together_are_refused(self) -> None:
         with pytest.raises(ValueError, match="contradict each other"):
-            validate_xero_fake_flag(fake=True, readonly=True, debug=True)
+            validate_xero_fake_flag(fake=True, readonly=True)
 
-    def test_a_development_stack_may_run_the_fake(self) -> None:
-        validate_xero_fake_flag(fake=True, readonly=False, debug=True)
+    def test_the_fake_alone_is_permitted_here(self) -> None:
+        # Whether the process may serve the fake is the database name's
+        # question, answered where the fake is installed (assert_fake_permitted).
+        validate_xero_fake_flag(fake=True, readonly=False)
 
     def test_the_readonly_valve_alone_is_not_the_fake_flag_s_concern(self) -> None:
-        # A hotfix process on production runs readonly without DEBUG; that is
-        # ADR 0050's case, and this check must not reach into it.
-        validate_xero_fake_flag(fake=False, readonly=True, debug=False)
+        # A hotfix process on production runs readonly; that is ADR 0050's
+        # case, and this check must not reach into it.
+        validate_xero_fake_flag(fake=False, readonly=True)

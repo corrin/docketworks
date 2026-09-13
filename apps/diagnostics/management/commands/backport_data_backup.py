@@ -64,36 +64,11 @@ class Command(BaseCommand):
         env["PGPASSWORD"] = default_db.password
 
         try:
-            self.stdout.write(f"drop/recreate public schema on {scrub_db.name}")
-            scrub_pipeline.reset_scrub_schema(tools.psql, scrub_db, env)
-
-            # Pipe pg_dump → pg_restore so raw prod data never lands on disk.
-            self.stdout.write(f"pg_dump {default_db.name} | pg_restore -> {scrub_db.name}")
-            scrub_pipeline.run_pipe(
-                [
-                    tools.pg_dump,
-                    "-Fc",
-                    "-h",
-                    default_db.host,
-                    "-U",
-                    default_db.user,
-                    "-d",
-                    default_db.name,
-                ],
-                [
-                    tools.pg_restore,
-                    "--no-owner",
-                    "--no-privileges",
-                    "--exit-on-error",
-                    "-h",
-                    scrub_db.host,
-                    "-U",
-                    scrub_db.user,
-                    "-d",
-                    scrub_db.name,
-                ],
-                env=env,
+            self.stdout.write(
+                f"drop/recreate public schema on {scrub_db.name}; "
+                f"pg_dump {default_db.name} | pg_restore -> {scrub_db.name}"
             )
+            scrub_pipeline.load_live_into_scrub(tools, default_db, scrub_db, env)
 
             self.stdout.write("db_scrubber.scrub()")
             db_scrubber.scrub()

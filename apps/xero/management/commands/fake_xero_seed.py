@@ -3,16 +3,16 @@
 ``run_e2e.sh --use-fake-xero`` runs this before the pre-run backup, so the
 seeded store is inside the dump the teardown restores: a run's writes
 vanish with the restore and the next run seeds afresh. Refuses a
-non-empty store without ``--replace`` and refuses a production target.
+non-empty store without ``--replace`` and refuses a production database.
 """
 
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 
 from apps.core.models import CompanyDefaults
 from apps.xero.fake.models import FakeXeroObject
+from apps.xero.fake.rest_client import assert_fake_permitted
 from apps.xero.fake.seed import SeedError, seed_everything
 from apps.xero.fake.store import FakeXeroStore
-from apps.xero.operator_guards import assert_not_production_target
 
 
 class Command(BaseCommand):
@@ -37,11 +37,7 @@ class Command(BaseCommand):
             raise CommandError(
                 "CompanyDefaults.xero_tenant_id is unset; bind the installation first"
             )
-        # The tenant is passed rather than resolved: assert_not_production_target
-        # resolves it through get_tenant_id, which refreshes the token — a call
-        # the fake would answer if it were installed, and this command must not
-        # depend on which transport the process has.
-        assert_not_production_target(tenant_id)
+        assert_fake_permitted()
         existing = FakeXeroObject.objects.filter(tenant_id=tenant_id).count()
         if existing and not options["replace"]:
             raise CommandError(
