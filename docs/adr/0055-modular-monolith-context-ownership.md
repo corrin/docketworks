@@ -1,4 +1,4 @@
-# 0055 — Context ownership and directional dependencies
+# 0055 — A context owns its concepts exclusively, and dependencies point one way
 Ratified: owner, 2026-09-13
 
 The target shape is a modular monolith organised by exclusive ownership, with `config` as its sole composition root; the tree is part-way there and `config/architecture.py` records how far.
@@ -45,7 +45,7 @@ The target shape is a modular monolith organised by exclusive ownership, with `c
 ## Do not
 
 - Do not move a business concept into a shared bucket merely because another context
-  consumes it. Consumption does not transfer ownership (supersedes ADR 0039's shared-home rule).
+  consumes it. Consumption does not transfer ownership (ADR 0039 defers to this rule).
 - Do not add import aliases, registries to bypass dependencies, duplicate implementations,
   or permanent transition scaffolding. Historical migration states are not runtime aliases.
 - **Do not cite an unmigrated context as though it existed.** Naming `apps.work` or

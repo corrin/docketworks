@@ -1,4 +1,4 @@
-# 0049 — One home per operational script
+# 0049 — Operational scripts are homed by confidentiality and recurrence
 
 Operational code — repairs, backfills, probes, harnesses — gets its home from
 two questions: **is it confidential, and is it expected to run again?** The
@@ -17,36 +17,28 @@ a side effect of porting.
 **Confidential content never enters the repo, even inside a useful mechanism.**
 A command whose mechanism is sound but whose payload is client data splits:
 the mechanism ships (or already exists — search first), the payload stays in
-the client's `adhoc/`. The live counterexample is v1's
-`create_leave_entries.py`: an append-only leave backfill whose entire content
-was a hardcoded batch of named staff sick/bereavement/unpaid leave. v2
-dropped it — the batch was already applied in production, and a future leave
-backfill is a client-adhoc CSV over `create_overtime_entries`'s
-preview/apply pattern.
+the client's `adhoc/`. A leave backfill is a client-adhoc CSV over
+`create_overtime_entries`'s preview/apply pattern, never a committed batch of
+named staff.
 
-**A one-shot does not become a management command.** Registering a command
-advertises "run me again"; an already-applied backfill registered as a
-command is a loaded gun in `manage.py help`. One-shots that must be recorded
-at all are recorded in the disposition ledger (dropped, with the applied
-outcome), not in the tree.
+**One-shots that must be recorded at all are recorded in the disposition
+ledger** (dropped, with the applied outcome), not in the tree.
 
-**Operator scripts never take pytest-shaped names.** A `test_*.py` under any
-directory is one `testpaths` edit or one IDE test-discovery run away from
-being collected, and these scripts reach live services and mutate data.
-Harnesses are named `*_harness.py`, probes `*_probe.py`
-(`ai_chat_harness.py` records the original rationale).
+**Harnesses are named `*_harness.py`, probes `*_probe.py`.**
 
 **Promotion is a move, not a copy.** When a repo-adhoc script generalises, it
 moves to `scripts/` (or becomes a command if it meets all three criteria) and
 the adhoc copy is deleted in the same change — two homes for one concept is
 the duplication pathology ADR 0039 exists to prevent.
 
-## Rejected alternatives
+## Do not
 
-- *Port every v1 operator script as a management command* (what the 2026-08
-  ops port initially did): rejected because it erases the
-  confidentiality and recurrence questions the ladder exists to ask — it is
-  how named HR data reached a public branch.
-- *A private repo for client scripts instead of client `adhoc/`*: rejected
-  for now; per-instance `adhoc/` needs no extra infrastructure and keeps
-  client data on the client's own host.
+- **Register a one-shot as a management command** — a command advertises
+  "run me again", and an already-applied backfill in `manage.py help` is a
+  loaded gun.
+- **Give an operator script a pytest-shaped name** — a `test_*.py` under any
+  directory is one `testpaths` edit or one IDE test-discovery run away from
+  being collected, and these scripts reach live services and mutate data.
+- **Port an operator script as a management command because that is where v1
+  had it** — it skips the confidentiality and recurrence questions the ladder
+  exists to ask, which is how named HR data reaches a public branch.
