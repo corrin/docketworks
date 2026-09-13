@@ -25,11 +25,10 @@ from django.utils import timezone
 from apps.accounting.types import DocumentResult
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
-from apps.purchasing.tests.factories import receive_po_line
+from apps.purchasing.tests.factories import make_purchase_order, receive_po_line
 from apps.xero.models import XeroError
 from apps.xero.tests.conftest import make_po_manager, make_po_provider
 from apps.xero.transforms import sync_entities, transform_purchase_order
@@ -75,23 +74,15 @@ def _sent_order(
     status: str = "submitted",
     dw_raised: bool = False,
 ) -> PurchaseOrder:
-    """An order Xero holds. By default one Xero raised, so Xero is its source.
+    """An order Xero holds, with one line. By default one Xero raised.
 
     The number is what decides, because both systems raise orders and each
-    numbers its own. ``created_by`` is left unset either way: it went
-    unrecorded for the first eight months, so a fixture that set it would let
-    the ownership rule regress to a column that cannot answer the question.
+    numbers its own; the factory owns that numbering. Every order names a
+    creator (the column is NOT NULL), which is why the creator can never be
+    the ownership rule's answer.
     """
-    # "XPO-" stands in for Xero's own numbering: anything outside the
-    # instance's prefix. The default prefix IS "PO-", so a fixture reaching for
-    # the obvious Xero-looking number would have made every order a local one.
-    prefix = CompanyDefaults.get_solo().po_prefix if dw_raised else "XPO-"
-    po = PurchaseOrder.objects.create(
-        supplier=supplier,
-        status=status,
-        po_number=f"{prefix}{uuid4().int % 90_000 + 10_000}",
-        xero_id=xero_id,
-        created_by=Staff.get_automation_user(),
+    po = make_purchase_order(
+        supplier=supplier, status=status, xero_raised=not dw_raised, xero_id=xero_id
     )
     PurchaseOrderLine.objects.create(
         purchase_order=po,

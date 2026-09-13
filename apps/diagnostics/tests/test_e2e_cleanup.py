@@ -15,7 +15,7 @@ from apps.accounting.models import Invoice, Quote
 from apps.accounting.types import DocumentResult
 from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, Person
-from apps.company.tests.job_fixtures import make_invoice, make_job, make_purchase_order, make_quote
+from apps.company.tests.job_fixtures import make_invoice, make_job, make_quote
 from apps.core.test_data import TEST_COMPANY_NAME, TEST_DATA_PREFIX, silent_wav
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.crm.services.phone_call_service import store_recording_bytes
@@ -24,7 +24,7 @@ from apps.diagnostics.management.commands.e2e_cleanup import Command
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.process.models import Acknowledgement, Form, FormEntry
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock, StockMovement
-from apps.purchasing.tests.factories import make_po_line, receive_po_line
+from apps.purchasing.tests.factories import make_po_line, make_purchase_order, receive_po_line
 from apps.quoting.models import SupplierPriceList
 from apps.xero.contacts import ArchiveOutcome
 
@@ -199,7 +199,7 @@ def test_a_receipted_order_is_deletable_with_its_stock_and_movements(
     supplier = Company.objects.create(
         name="[TEST] Receipt Supplier", xero_last_modified="2026-08-08T00:00Z"
     )
-    po = make_purchase_order(supplier)
+    po = make_purchase_order(supplier=supplier, xero_raised=True)
     po.status = "submitted"
     po.save(update_fields=["status"])
     line = make_po_line(po, description="[TEST] steel sheet", quantity="4.00")
@@ -247,7 +247,7 @@ def test_confirm_deletes_protected_dependants(office_staff: Staff) -> None:
     supplier = Company.objects.create(
         name="Ordinary Supplier", xero_last_modified="2026-08-08T00:00Z"
     )
-    purchase_order = make_purchase_order(supplier)
+    purchase_order = make_purchase_order(supplier=supplier, xero_raised=True)
     line = PurchaseOrderLine.objects.create(
         purchase_order=purchase_order,
         job=job,
@@ -313,7 +313,7 @@ def test_confirm_removes_the_run_s_documents_and_contacts_from_xero(
     job = make_job(company, office_staff, name="[TEST] Job")
     invoice = make_invoice(company, job=job)
     quote = make_quote(company, job=job)
-    order = make_purchase_order(company)
+    order = make_purchase_order(supplier=company, xero_raised=True)
     order.xero_id = uuid.uuid4()
     order.save(update_fields=["xero_id"])
 
@@ -393,7 +393,7 @@ def test_a_purchase_order_never_pushed_to_xero_is_not_deleted_there(
     supplier = Company.objects.create(
         name="[TEST] Supplier", xero_last_modified="2026-08-08T00:00Z"
     )
-    make_purchase_order(supplier)
+    make_purchase_order(supplier=supplier, xero_raised=True)
 
     _run_cleanup("--confirm")
 
@@ -478,7 +478,7 @@ def test_dependants_of_an_archived_company_are_still_residue() -> None:
     archived = Company.objects.create(
         name="[TEST] Archived Supplier", xero_archived=True, xero_last_modified="2026-08-08T00:00Z"
     )
-    po = make_purchase_order(archived)
+    po = make_purchase_order(supplier=archived, xero_raised=True)
 
     _run_cleanup("--confirm")
 
