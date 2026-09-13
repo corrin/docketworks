@@ -49,8 +49,8 @@ class FakeXeroStore:
         """Return the object, or None when the organisation holds no such id."""
         try:
             key = UUID(object_id)
+        # deliberate-swallow: Xero answers a malformed id the same way as an unknown one
         except ValueError:
-            # Xero answers a malformed id the same way as an unknown one.
             return None
         return self._rows(kind).filter(id=key).first()
 

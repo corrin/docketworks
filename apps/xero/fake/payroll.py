@@ -88,6 +88,7 @@ def _past_the_end(key: str) -> RESTResponse:
 def _listing(request: FakeRequest, key: str, rows: list[Json]) -> RESTResponse:
     try:
         page, pagination = _page_of(request, rows)
+    # deliberate-swallow: a page past the end is Payroll's empty answer, not an error
     except _PastTheEnd:
         return _past_the_end(key)
     return json_response(200, payroll_envelope(key, page, pagination=pagination), QUOTA_HEADERS)
@@ -140,6 +141,7 @@ def get_employee(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
     """GET /Employees/{id}: one employee under ``employee`` (recordings/employee.json)."""
     try:
         row = FakeXeroStore(request.tenant_id).require(Kind.EMPLOYEE, match["id"])
+    # deliberate-swallow: an employee id Payroll never issued answers 404 with its problem block
     except FakeXeroNotFoundError:
         return _not_found()
     return json_response(200, payroll_envelope("employee", row.body), QUOTA_HEADERS)
@@ -150,6 +152,7 @@ def list_salary_and_wages(request: FakeRequest, match: re.Match[str]) -> RESTRes
     store = FakeXeroStore(request.tenant_id)
     try:
         employee = store.require(Kind.EMPLOYEE, match["id"])
+    # deliberate-swallow: pay records of an employee Payroll does not hold answer 404
     except FakeXeroNotFoundError:
         return _not_found()
     rows = store.listing(Kind.SALARY_AND_WAGE, parent_id=str(employee.id))
@@ -161,6 +164,7 @@ def list_working_patterns(request: FakeRequest, match: re.Match[str]) -> RESTRes
     store = FakeXeroStore(request.tenant_id)
     try:
         employee = store.require(Kind.EMPLOYEE, match["id"])
+    # deliberate-swallow: working patterns of an employee Payroll does not hold answer 404
     except FakeXeroNotFoundError:
         return _not_found()
     summaries: list[Json] = [
@@ -179,6 +183,7 @@ def get_working_pattern(request: FakeRequest, match: re.Match[str]) -> RESTRespo
     try:
         employee = store.require(Kind.EMPLOYEE, match["id"])
         pattern = store.require(Kind.WORKING_PATTERN, match["pattern"])
+    # deliberate-swallow: an unknown employee or an unknown pattern id is Payroll's 404
     except FakeXeroNotFoundError:
         return _not_found()
     if pattern.parent_id != employee.id:
@@ -195,6 +200,7 @@ def list_pay_slips(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
         return _past_the_end("paySlips")
     try:
         pay_run = store.require(Kind.PAY_RUN, pay_run_id)
+    # deliberate-swallow: slips of a pay run Payroll never issued answer 404
     except FakeXeroNotFoundError:
         return _not_found()
     rows = store.listing(Kind.PAY_SLIP, parent_id=str(pay_run.id))

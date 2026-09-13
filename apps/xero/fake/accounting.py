@@ -107,6 +107,8 @@ def _modified_since(request: FakeRequest) -> datetime | None:
         return None
     try:
         parsed = datetime.fromisoformat(header)
+    # deliberate-swallow: the SDK sends If-Modified-Since as ISO-8601 and the spec
+    # allows RFC 1123; the second parser is the other accepted form
     except ValueError:
         parsed = parsedate_to_datetime(header)
     return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
@@ -163,6 +165,7 @@ def get_resource(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
     store = FakeXeroStore(request.tenant_id)
     try:
         row = store.require(_LISTINGS[resource], match["id"])
+    # deliberate-swallow: reading an id the organisation never issued is Xero's 404
     except FakeXeroNotFoundError:
         return not_found()
     if resource == "Quotes" and (request.header("Accept") or "").startswith("application/pdf"):
@@ -444,6 +447,8 @@ def _write_documents(family: _DocumentKind) -> Callable[[FakeRequest, re.Match[s
                 )
                 written.append(element)
                 refused = refused or was_refused
+        # deliberate-swallow: a write naming an unknown document answers 404 before
+        # anything is written
         except FakeXeroNotFoundError:
             return not_found()
         return _answer_writes(
@@ -463,6 +468,7 @@ def write_history(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
     store = FakeXeroStore(request.tenant_id)
     try:
         parent = store.require(_LISTINGS[match["resource"]], match["id"])
+    # deliberate-swallow: a note against a document Xero does not hold is its 404
     except FakeXeroNotFoundError:
         return not_found()
     stamp = now_utc()
@@ -490,6 +496,7 @@ def write_attachment(request: FakeRequest, match: re.Match[str]) -> RESTResponse
     store = FakeXeroStore(request.tenant_id)
     try:
         parent = store.require(Kind.INVOICE, match["id"])
+    # deliberate-swallow: an attachment for an invoice Xero does not hold is its 404
     except FakeXeroNotFoundError:
         return not_found()
     if request.raw_body is None:
