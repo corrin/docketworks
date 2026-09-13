@@ -1,4 +1,4 @@
-# 0007 — Xero Payroll NZ sync: one classifier, three posting surfaces
+# 0007 — Xero payroll posts each hour category through the one surface that can represent it, and never posts a public holiday
 
 A week's time entries are classified once (`hour_categories.LeaveCatalogue`) and each category is posted through the one Xero surface that can represent it: the Timesheets API for work and rate-paid leave, the Employee Leave API for balance-debiting leave, and nothing at all for a public holiday, which Xero computes itself.
 

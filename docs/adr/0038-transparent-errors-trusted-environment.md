@@ -1,4 +1,4 @@
-# 0038 — Errors are transparent inside the authenticated trust boundary
+# 0038 — Authenticated callers get the real exception; anonymous callers get fixed wording and no secrets
 
 Authenticated staff receive the real failure; anonymous callers receive a fixed public contract. The origin is internet-reachable, so a request becomes trusted only after its app credential verifies.
 

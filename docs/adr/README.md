@@ -27,10 +27,10 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0004](0004-job-delta-envelope.md) | Job mutations require a self-contained delta envelope |
 | 0005 | (retired 2026-09-13: Gemini emit-tools no longer exist; every AI call is [0041](0041-one-llm-gateway.md)'s gateway) |
 | [0006](0006-rest-resource-hierarchy.md) | Identifiers live in the URL path, bodies carry data only, one endpoint per operation |
-| [0007](0007-xero-payroll-sync.md) | Xero Payroll NZ sync: one classifier, three posting surfaces |
+| [0007](0007-xero-payroll-sync.md) | Xero payroll posts each hour category through the one surface that can represent it, and never posts a public holiday |
 | 0008 | (retired 2026-09-13: this repository was never a subtree; the one-repo rule lives in [0017](0017-zero-backwards-compatibility.md)) |
 | 0009–0011, 0014, 0016, 0018, 0022–0023, 0044 | (numbers never carried into this repository; no record of what they held) |
-| [0012](0012-accounting-provider-strategy.md) | All accounting access goes through get_provider(); SDK types never leave their provider |
+| [0012](0012-accounting-provider-strategy.md) | Every accounting read and write reaches the vendor only through get_provider(); SDK types never cross the boundary |
 | 0013 | (retired 2026-09-13: merged into [0038](0038-transparent-errors-trusted-environment.md)) |
 | [0015](0015-fix-data-not-fallback.md) | Fix incorrect data; do not add read-side fallbacks |
 | [0017](0017-zero-backwards-compatibility.md) | Zero backwards compatibility; rewrite every call site in one PR |
@@ -49,7 +49,7 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0033](0033-version-constraints-record-tested-versions.md) | Version constraints record what passed testing, not what is compatible |
 | [0034](0034-company-merges-are-xero-first.md) | Company identity and merges are Xero-first |
 | 0035–0037 | (reserved: ninja adoption, beat-in-code, workflow decomposition — written as their phases land) |
-| [0038](0038-transparent-errors-trusted-environment.md) | Errors are transparent inside the authenticated trust boundary |
+| [0038](0038-transparent-errors-trusted-environment.md) | Authenticated callers get the real exception; anonymous callers get fixed wording and no secrets |
 | [0039](0039-one-implementation-per-concept.md) | One implementation per concept |
 | [0040](0040-nullable-text-write-contract.md) | Unset is NULL, and the request schema says so |
 | [0041](0041-one-llm-gateway.md) | One LLM gateway, and it lives in apps/ai |
@@ -62,15 +62,15 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0049](0049-one-home-per-operational-script.md) | Operational scripts are homed by confidentiality and recurrence |
 | [0050](0050-integrations-are-proven-against-the-real-thing.md) | Every integration is proven against the real thing, and nothing merges without it |
 | [0051](0051-ai-rationales-name-their-author.md) | AI rationales name their author until ratified |
-| [0052](0052-tests-survive-rewrites.md) | A test survives a rewrite and fails a behaviour change |
+| [0052](0052-tests-survive-rewrites.md) | Assert the guarantee, not the implementation: a rewrite leaves the test passing and a behaviour change fails it |
 | [0053](0053-integration-credentials-are-typed-columns-on-one-singleton.md) | Integration credentials are typed columns on one singleton; never .env, never CompanyDefaults |
 | [0054](0054-screens-are-tested-at-production-volume.md) | A screen is tested at the volume production gives it |
-| [0055](0055-modular-monolith-context-ownership.md) | A context owns its concepts exclusively, and dependencies point one way |
+| [0055](0055-modular-monolith-context-ownership.md) | New code lives in the context that owns its concept, and dependencies point one way |
 | [0056](0056-vendor-calls-are-recorded-per-call.md) | Every external vendor call is recorded, one row per call |
 | [0057](0057-line-identity-and-creation-order.md) | Persisted lines keep permanent ids and a server-defined creation order |
-| [0058](0058-write-refusals-live-in-the-application.md) | Code that looks short and simple runs short and simple |
+| [0058](0058-write-refusals-live-in-the-application.md) | Code that looks short and simple runs short and simple: a write refusal lives in one application function, never in a trigger |
 | [0059](0059-one-data-model-legacy-data-is-migrated.md) | The app supports one data model; legacy data is migrated to comply |
 | [0060](0060-an-iteration-run-may-fake-an-integration.md) | An iteration run may point the unmodified app at a simulated integration; the gate never does |
 | [0061](0061-checking-is-not-doing.md) | Checking is not doing: one owner per action, one check at the boundary that matters |
 | [0062](0062-ai-provider-selection-and-administration.md) | A caller selects an AI provider from the configured catalogue, and Admin → Integrations owns the catalogue |
-| [0063](0063-test-suite-conventions.md) | Test-suite conventions: a provisioned instance, scoped assertions, named actors, stable selectors |
+| [0063](0063-test-suite-conventions.md) | Every test starts from a provisioned instance, asserts over what it created, and drives the UI by automation id |

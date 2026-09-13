@@ -1,4 +1,4 @@
-# 0063 — Test-suite conventions: a provisioned instance, scoped assertions, named actors, stable selectors
+# 0063 — Every test starts from a provisioned instance, asserts over what it created, and drives the UI by automation id
 Unratified: Fable
 
 Every test starts from a provisioned instance, asserts over what it created, takes its actors from the root `conftest.py` by name, and drives the UI through stable automation ids.

@@ -1,4 +1,4 @@
-# 0012 — All accounting access goes through get_provider(); SDK types never leave their provider
+# 0012 — Every accounting read and write reaches the vendor only through get_provider(); SDK types never cross the boundary
 
 All accounting access goes through `get_provider()`; SDK types never leave the provider that owns them.
 

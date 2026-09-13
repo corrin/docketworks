@@ -1,12 +1,8 @@
-# 0052 — A test survives a rewrite and fails a behaviour change
+# 0052 — Assert the guarantee, not the implementation: a rewrite leaves the test passing and a behaviour change fails it
 
-Design every test so that a total rewrite of the implementation would leave it passing, and so
-that any change to what the code guarantees would make it fail. A test that has to be deleted
-when its feature is rewritten was testing the implementation, and a test that keeps passing when
-the guarantee is removed was testing nothing.
-
-ADR 0025 decides **which** regression a test guards; this one decides **whether the assertion can
-see it**.
+Design every test so that a total rewrite of the implementation would leave it passing, and
+any change to what the code guarantees would make it fail. ADR 0025 decides **which** regression
+a test guards; this one decides **whether the assertion can see it**.
 
 ## Rules
 

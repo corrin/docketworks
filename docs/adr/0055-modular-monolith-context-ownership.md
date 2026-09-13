@@ -1,4 +1,4 @@
-# 0055 — A context owns its concepts exclusively, and dependencies point one way
+# 0055 — New code lives in the context that owns its concept, and dependencies point one way
 Ratified: owner, 2026-09-13
 
 The target shape is a modular monolith organised by exclusive ownership, with `config` as its sole composition root; the tree is part-way there and `config/architecture.py` records how far.
