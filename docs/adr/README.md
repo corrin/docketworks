@@ -25,7 +25,7 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0002](0002-auth-gate-global-allowlist.md) | Auth gate: single global gate with explicit allowlist |
 | [0003](0003-etag-optimistic-concurrency.md) | ETag-based optimistic concurrency for Job and PO edits |
 | [0004](0004-job-delta-envelope.md) | Job mutations require a self-contained delta envelope |
-| [0005](0005-emit-tools-pattern.md) | Emit-tool pattern for Gemini structured output |
+| 0005 | (retired 2026-09-13: Gemini emit-tools no longer exist; every AI call is [0041](0041-one-llm-gateway.md)'s gateway) |
 | [0006](0006-rest-resource-hierarchy.md) | REST resource hierarchy and operationId hygiene |
 | [0007](0007-xero-payroll-sync.md) | Xero Payroll NZ sync with four-bucket hour categorisation |
 | [0008](0008-frontend-subtree-merge.md) | Frontend integrated as a git subtree (not submodule) |
