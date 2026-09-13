@@ -725,11 +725,17 @@ export async function addAdjustmentCostLine(
 /** Saved rows keep the same relative order across writes and independent page loads. */
 export async function expectSavedRowOrder(page: Page, ids: readonly string[]): Promise<void> {
   const selector = ids.map((id) => `[data-row-id="${id}"]`).join(',')
+  // Polled under the test-level budget, not expect's 5s default: the call
+  // follows a reload or a fresh context, so the rows exist only after the
+  // app's boot requests, and on the public origin those alone take seconds.
+  // A wrong order is still reported as soon as the rows are there.
   await expect
-    .poll(() =>
-      page
-        .locator(selector)
-        .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-row-id'))),
+    .poll(
+      () =>
+        page
+          .locator(selector)
+          .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-row-id'))),
+      { timeout: INFINITE_TIMEOUT },
     )
     .toEqual(ids)
 }

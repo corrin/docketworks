@@ -155,10 +155,15 @@ test('a multi-item count preserves blank entries and the count list stays paged'
   })
   const response = await nextPage
   expect(response.status()).toBe(200)
-  // Exact, because the seed is: not.toHaveCount(50) also passes on an emptied list.
-  await expect(page.locator('tbody tr')).toHaveCount(51)
+  // The server's total, not a literal: the counts this file's earlier tests
+  // posted are in the list too, so the exact number is whatever the server
+  // holds, and a list that shows every one of them is what paging promises.
+  // not.toHaveCount(50) was rejected because an emptied list passes it.
+  const total: number = (await (await page.request.get('/api/purchasing/stocktakes/')).json()).count
+  expect(total).toBeGreaterThan(50)
+  await expect(page.locator('tbody tr')).toHaveCount(total)
   await expect(page.locator('[data-automation-id="StocktakeList-load-more-count"]')).toHaveText(
-    /\b51 stocktakes\b/,
+    `Showing ${total} of ${total} stocktakes`,
   )
 })
 
