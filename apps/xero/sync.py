@@ -705,7 +705,9 @@ def sync_local_purchase_orders_to_xero() -> Iterator[XeroSyncEvent]:
         # fixed that one. The row is what the operator sees.
         except InvalidInputError as exc:
             persist_app_error(exc, AppErrorContext(additional_context={"po_number": po.po_number}))
-    still_owed = sum(1 for po in owed if po.xero_push_due)
+    still_owed = PurchaseOrder.objects.filter(
+        pk__in=[po.pk for po in owed], xero_push_due=True
+    ).count()
     yield {
         "datetime": timezone.now().isoformat(),
         "entity": "purchase_orders_local_to_xero",

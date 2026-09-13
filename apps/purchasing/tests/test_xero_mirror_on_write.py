@@ -21,14 +21,19 @@ and the last test states that as a guarantee rather than an accident.
 """
 
 from unittest.mock import patch
+from uuid import uuid4
 
 import pytest
+from django.db import connection
 from django.test import Client
+from django.test.utils import CaptureQueriesContext
 
 from apps.accounting.types import DocumentResult
+from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder
+from apps.purchasing.services.accounting_mirror import send_state_change
 from apps.purchasing.tests.factories import make_po_line, make_purchase_order
 
 pytestmark = pytest.mark.django_db
@@ -166,6 +171,52 @@ class TestWhenXeroRefuses:
 
         po.refresh_from_db()
         assert po.status == "submitted"
+        assert po.xero_push_due is False
+
+
+class TestTheOrderIsHeldAcrossTheCall:
+    """Two pushes of one order cannot cross at Xero.
+
+    The SQL is the witness (see test_allocations_api): ``django_db(transaction=True)``
+    is closed by ADR 0048, so a second connection cannot see the row, and a
+    Postgres row lock lasts to the end of the transaction, so "the row was
+    selected FOR UPDATE before the vendor call" is exactly "held across it".
+    Without this an hourly push and an operator's transition raced, and
+    whichever reached Xero last stood while the other's acknowledgement
+    cleared the flag.
+    """
+
+    def test_the_row_is_locked_before_the_vendor_is_called(self, office_staff: Staff) -> None:
+        po = make_purchase_order(created_by=office_staff, status="submitted", xero_id=uuid4())
+        make_po_line(po, quantity="1.00", unit_cost="5.00")
+        PurchaseOrder.objects.filter(pk=po.pk).update(xero_push_due=True)
+        queries_before_push: list[int] = []
+
+        def during_send(_order: PurchaseOrder, _staff: Staff) -> DocumentResult:
+            queries_before_push.append(len(captured.captured_queries))
+            return DocumentResult(success=True)
+
+        with CaptureQueriesContext(connection) as captured, patch(PROVIDER) as provider:
+            provider.return_value.push_purchase_order.side_effect = during_send
+            send_state_change(po, office_staff)
+
+        sql_before_push = [q["sql"] for q in captured.captured_queries[: queries_before_push[0]]]
+        assert any(
+            "FOR UPDATE" in sql.upper() and '"purchasing_purchaseorder"' in sql
+            for sql in sql_before_push
+        ), "the order was not locked before the vendor call"
+        assert PurchaseOrder.objects.get(pk=po.pk).xero_push_due is False
+
+    def test_an_order_acknowledged_by_an_earlier_push_costs_no_call(
+        self, office_staff: Staff
+    ) -> None:
+        po = make_purchase_order(created_by=office_staff, status="submitted", xero_id=uuid4())
+        make_po_line(po, quantity="1.00", unit_cost="5.00")
+
+        with patch(PROVIDER) as provider:
+            send_state_change(po, office_staff)
+
+        provider.return_value.push_purchase_order.assert_not_called()
         assert po.xero_push_due is False
 
 

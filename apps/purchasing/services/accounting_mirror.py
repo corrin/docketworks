@@ -18,6 +18,8 @@ other: ``purchase_order_service`` imports ``receive_outstanding_order`` from
 import logging
 import re
 
+from django.db import transaction
+
 from apps.accounting.registry import get_provider
 from apps.accounts.models import Staff
 from apps.core.errors import InvalidInputError, UpstreamRefusedError
@@ -82,6 +84,15 @@ def mirror_purchase_order(po: PurchaseOrder, staff: Staff) -> None:
 def send_state_change(po: PurchaseOrder, staff: Staff) -> None:
     """Spend the call now, or leave the order owing one to the hourly sync.
 
+    The order's row is held for the duration of the call, vendor round trip
+    included, so two pushes of one order cannot cross at Xero and the
+    acknowledgement belongs to the version that stands. The operator's save and
+    the receipt already hold it across their own push, so taking it here costs
+    them nothing (a re-take on the same connection is a savepoint) and is new
+    only for the hourly stage. Acknowledging by version without the lock was
+    rejected: a stale push completing after a newer one still reached Xero
+    last, with nothing left owed.
+
     A validation refusal is raised: a supplier with no Xero contact, or an
     order Xero will not accept, is the operator's to fix and no later attempt
     helps, so the state change fails while they are still looking at it.
@@ -91,30 +102,27 @@ def send_state_change(po: PurchaseOrder, staff: Staff) -> None:
     a copy nothing reads until a bill arrives overnight. ``xero_push_due`` is
     still set, so the sync stage sends it inside the hour.
     """
-    try:
-        mirror_purchase_order(po, staff)
-    # deliberate-swallow: converted to "still owed", which is a state the hourly
-    # sync acts on, rather than an error the operator can do anything about.
-    # Re-raising would fail a local write over a vendor's availability.
-    except UpstreamRefusedError:
-        logger.warning(
-            "Xero deferred purchase order %s; left owed for the hourly sync", po.po_number
+    with transaction.atomic():
+        owed = (
+            PurchaseOrder.objects.select_for_update(of=("self",))
+            .filter(pk=po.pk)
+            .values_list("xero_push_due", flat=True)
+            .get()
         )
-        return
-    # The acknowledgement belongs to the version that was sent. The hourly
-    # caller holds no lock across the vendor call, so an operator can commit a
-    # newer transition (which sets the flag again and moves updated_at) while
-    # this one is in flight; clearing by pk alone would erase that newer work.
-    # Locking the row across the call was rejected: it makes the operator's
-    # own save wait on Xero, the wait this module exists to refuse. Matching on
-    # status was rejected: an A->B->A round trip reads as unchanged. A change
-    # that lands between the caller's read and the manager's snapshot is sent
-    # and then sent again next hour: one redundant idempotent update, never a
-    # lost one.
-    acknowledged = PurchaseOrder.objects.filter(pk=po.pk, updated_at=po.updated_at).update(
-        xero_push_due=False
-    )
-    if not acknowledged:
-        logger.info("Purchase order %s moved during the push; left owed", po.po_number)
-        return
+        if not owed:
+            # A push that held the row before this one acknowledged the order;
+            # sending it again would spend a Xero call on the same content.
+            po.xero_push_due = False
+            return
+        try:
+            mirror_purchase_order(po, staff)
+        # deliberate-swallow: converted to "still owed", which is a state the
+        # hourly sync acts on, rather than an error the operator can do anything
+        # about. Re-raising would fail a local write over a vendor's availability.
+        except UpstreamRefusedError:
+            logger.warning(
+                "Xero deferred purchase order %s; left owed for the hourly sync", po.po_number
+            )
+            return
+        PurchaseOrder.objects.filter(pk=po.pk).update(xero_push_due=False)
     po.xero_push_due = False
