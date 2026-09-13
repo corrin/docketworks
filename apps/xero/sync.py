@@ -24,7 +24,7 @@ from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.accounting.registry import is_accounting_enabled
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.core.errors import persist_app_error
+from apps.core.errors import AppErrorContext, InvalidInputError, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.purchasing.models import PurchaseOrder, Stock
 from apps.xero.auth import (
@@ -697,7 +697,14 @@ def sync_local_purchase_orders_to_xero() -> Iterator[XeroSyncEvent]:
         "progress": None,
     }
     for po in owed:
-        send_state_change(po, po.created_by)
+        try:
+            send_state_change(po, po.created_by)
+        # deliberate-swallow: persisted, and the order stays owed. The stage is
+        # a batch over independent orders; letting one operator-fixable refusal
+        # abort it would starve every other order of its push until a person
+        # fixed that one. The row is what the operator sees.
+        except InvalidInputError as exc:
+            persist_app_error(exc, AppErrorContext(additional_context={"po_number": po.po_number}))
     still_owed = sum(1 for po in owed if po.xero_push_due)
     yield {
         "datetime": timezone.now().isoformat(),

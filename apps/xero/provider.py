@@ -330,6 +330,7 @@ class XeroAccountingProvider:
                 logger.warning("Xero quote create validation errors: %s", errors)
                 return DocumentResult(
                     success=False,
+                    status_code=400,
                     error=" | ".join(errors),
                     validation_errors=errors,
                 )
@@ -389,6 +390,7 @@ class XeroAccountingProvider:
                 logger.warning("Xero quote %s delete validation errors: %s", external_id, errors)
                 return DocumentResult(
                     success=False,
+                    status_code=400,
                     external_id=external_id,
                     error=" | ".join(errors),
                     validation_errors=errors,
@@ -480,9 +482,16 @@ class XeroAccountingProvider:
         # that number can find is the deleted one, and adopting it would make a
         # live purchase order point at a voided document. delete_purchase_order
         # renames an order as it voids it so this state stops arising at all.
+        # With summarize_errors=False Xero answers 200 and puts the 400 inside
+        # the element, so the code the transport dropped is restored here: a
+        # refusal the operator must fix (their contact, their number) and no
+        # later attempt helps. Defaulting the code downstream was rejected: a
+        # manager's `or 400` would also turn a genuinely missing code into a
+        # claim about the operator's input.
         if po_id == ZERO_UUID:
             return DocumentResult(
                 success=False,
+                status_code=400,
                 error=(
                     f"Xero refused PO {payload.po_number}: a deleted purchase order in the "
                     "organisation still holds that number. Rename it in Xero, or use a "
@@ -496,6 +505,7 @@ class XeroAccountingProvider:
             logger.warning("Xero PO %s validation errors: %s", payload.po_number, errors)
             return DocumentResult(
                 success=False,
+                status_code=400,
                 external_id=po_id if po_id != ZERO_UUID else None,
                 error=" | ".join(errors),
                 validation_errors=errors,
@@ -593,6 +603,7 @@ class XeroAccountingProvider:
                 logger.warning("Xero PO %s delete validation errors: %s", external_id, errors)
                 return DocumentResult(
                     success=False,
+                    status_code=400,
                     external_id=external_id,
                     error=" | ".join(errors),
                     validation_errors=errors,

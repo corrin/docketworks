@@ -23,6 +23,7 @@ from django.utils import timezone
 from apps.accounting.types import DocumentResult, POPayload
 from apps.accounts.models import Staff
 from apps.company.models import Company
+from apps.core.models import AppError
 from apps.purchasing.etag import purchase_order_etag
 from apps.purchasing.models import PurchaseOrder
 from apps.purchasing.services.purchase_order_service import update_purchase_order
@@ -216,3 +217,27 @@ def test_deferred_return_to_draft_is_retried(office_staff: Staff) -> None:
         provider.return_value.push_purchase_order.assert_called_once()
     po.refresh_from_db()
     assert not po.xero_push_due
+
+
+def test_one_refused_order_does_not_starve_the_rest_of_the_hourly_push(office_staff: Staff) -> None:
+    """A refusal the operator must fix is persisted; the other owed orders are still sent."""
+    refused = make_purchase_order(created_by=office_staff, status="submitted", xero_id=uuid4())
+    make_po_line(refused)
+    sent = make_purchase_order(created_by=office_staff, status="submitted", xero_id=uuid4())
+    make_po_line(sent)
+    PurchaseOrder.objects.filter(pk__in=[refused.pk, sent.pk]).update(xero_push_due=True)
+
+    with (
+        patch(MIRROR) as provider,
+        patch("apps.xero.sync.quota_floor_breached", return_value=False),
+    ):
+        provider.return_value.push_purchase_order.side_effect = [
+            DocumentResult(success=False, status_code=400, error="Contact is archived"),
+            DocumentResult(success=True),
+        ]
+        list(sync_local_purchase_orders_to_xero())
+
+    refused.refresh_from_db()
+    sent.refresh_from_db()
+    assert refused.xero_push_due and not sent.xero_push_due
+    assert AppError.objects.filter(message__contains="Contact is archived").exists()
