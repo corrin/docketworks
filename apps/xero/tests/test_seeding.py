@@ -21,10 +21,11 @@ from apps.accounting.models import Invoice, InvoiceLineItem
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.factories import make_company
-from apps.company.tests.job_fixtures import make_invoice, make_job, make_purchase_order, make_quote
+from apps.company.tests.job_fixtures import make_invoice, make_job, make_quote
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder, Stock
+from apps.purchasing.tests.factories import make_purchase_order
 from apps.xero.models import XeroAccount, XeroPayItem, XeroSyncCursor
 from apps.xero.operator_guards import assert_not_production_target
 from apps.xero.seeding import (
@@ -652,7 +653,7 @@ class TestClearProductionXeroIds:
         )
         job = make_job(company, staff)
         Job.objects.filter(id=job.id).update(xero_project_id="prod-project")
-        purchase_order = make_purchase_order(company)
+        purchase_order = make_purchase_order(supplier=company, xero_raised=True)
         PurchaseOrder.objects.filter(id=purchase_order.id).update(
             xero_id=uuid.uuid4(), xero_tenant_id="prod-tenant"
         )

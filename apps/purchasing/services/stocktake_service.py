@@ -77,14 +77,20 @@ def create_stocktake(staff: Staff, stock_id: UUID | None) -> Stocktake:
     return count
 
 
+def require_revision(count: Stocktake, if_match: str, version: int, message: str) -> None:
+    """Refuse unless ``if_match`` names this count at ``version``; ``message`` says why."""
+    if not if_match_satisfied(if_match, generate_revision_etag("stocktake", count.id, version)):
+        raise PreconditionFailedError(message)
+
+
 def require_draft(count: Stocktake, if_match: str) -> None:
     """Require an unchanged, unposted draft."""
-    if not if_match_satisfied(
-        if_match, generate_revision_etag("stocktake", count.id, count.version)
-    ):
-        raise PreconditionFailedError(
-            "This draft changed in another session. Reload before saving."
-        )
+    require_revision(
+        count,
+        if_match,
+        count.version,
+        "This draft changed in another session. Reload before saving.",
+    )
     if count.posted_at is not None:
         raise InvalidInputError("Posted counts are read-only. Create a linked correction.")
 
@@ -189,9 +195,12 @@ def post_stocktake(count_id: UUID, if_match: str, staff: Staff) -> Stocktake:
     """Post all counted differences atomically and exactly once."""
     count = Stocktake.objects.select_for_update().get(pk=count_id)
     if count.posted_at is not None:
-        original = generate_revision_etag("stocktake", count.id, count.version - 1)
-        if not if_match_satisfied(if_match, original):
-            raise PreconditionFailedError("This posting request does not match the posted draft.")
+        require_revision(
+            count,
+            if_match,
+            count.version - 1,
+            "This posting request does not match the posted draft.",
+        )
         return count
     require_draft(count, if_match)
     lines = list(count.lines.select_related("stock").order_by("stock_id", "id"))
@@ -228,10 +237,12 @@ def post_stocktake(count_id: UUID, if_match: str, staff: Staff) -> Stocktake:
 def correct_stocktake(count_id: UUID, staff: Staff, *, if_match: str) -> Stocktake:
     """Create a linked recount preserving the earlier posting."""
     original = Stocktake.objects.select_for_update().get(pk=count_id)
-    if not if_match_satisfied(
-        if_match, generate_revision_etag("stocktake", original.id, original.version)
-    ):
-        raise PreconditionFailedError("Reload the posted count before creating its correction.")
+    require_revision(
+        original,
+        if_match,
+        original.version,
+        "Reload the posted count before creating its correction.",
+    )
     if original.posted_at is None:
         raise InvalidInputError("Edit this draft directly; it has not been posted.")
     existing = Stocktake.objects.filter(corrects=original).first()

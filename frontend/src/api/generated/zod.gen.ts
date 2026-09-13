@@ -948,7 +948,7 @@ export const zDeliveryReceiptAllocationRequest = z.object({
     job_id: z.uuid(),
     metadata: z.record(z.string(), z.string()).optional().default({}),
     quantity: z.union([
-        z.number(),
+        z.number().gte(0),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
     ]),
     retail_rate: z.union([
@@ -965,7 +965,7 @@ export const zDeliveryReceiptAllocationRequest = z.object({
 export const zDeliveryReceiptLineRequest = z.object({
     allocations: z.array(zDeliveryReceiptAllocationRequest),
     total_received: z.union([
-        z.number(),
+        z.number().gte(0),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
     ])
 });
@@ -1440,7 +1440,7 @@ export const zFrontendErrorIn = z.object({
  * The persisted error's id, so a browser log can name it.
  */
 export const zFrontendErrorOut = z.object({
-    error_id: z.uuid().nullable()
+    error_id: z.uuid()
 });
 
 /**
@@ -4059,7 +4059,7 @@ export const zPurchaseOrderEmailResponse = z.object({
     draft_url: z.string(),
     email_body: z.string(),
     email_subject: z.string(),
-    message: z.string().nullable(),
+    message: z.string(),
     success: z.boolean()
 });
 
@@ -4152,6 +4152,14 @@ export const zPurchaseOrderLineCreateRequest = z.object({
  * PurchaseOrderCreateRequest
  *
  * Wire contract for PurchaseOrderCreateRequest.
+ *
+ * ``supplier_id`` is required because an order without one is invalid data
+ * rather than a stage of writing one — the owner is correcting the rows that
+ * predate the rule. Not because of Xero: creation no longer touches it.
+ *
+ * The column stays nullable so those rows keep reading, which is the same
+ * split ``Job.company`` makes: nullable on the model, required by
+ * ``JobCreateRequest`` and ``create_job``.
  */
 export const zPurchaseOrderCreateRequest = z.object({
     expected_delivery: z.iso.date().nullish(),
@@ -4159,7 +4167,7 @@ export const zPurchaseOrderCreateRequest = z.object({
     order_date: z.iso.date().nullish(),
     pickup_address_id: z.uuid().nullish(),
     reference: z.string().min(1).nullish(),
-    supplier_id: z.uuid().nullish()
+    supplier_id: z.uuid()
 });
 
 /**
@@ -5165,9 +5173,9 @@ export const zStockMetadataRequest = z.object({
 export const zStockMovementKind = z.enum([
     'opening',
     'job_opening',
-    'receipt',
-    'receipt_opening',
-    'receipt_reversal',
+    'delivery',
+    'delivery_opening',
+    'delivery_reversal',
     'issue',
     'return',
     'stocktake'
@@ -6298,10 +6306,14 @@ export const zXeroPingErrorOut = z.object({
 /**
  * XeroPingOut
  *
- * Connection status plus the two safety flags the E2E preflight reads.
+ * Connection status plus the safety flags the E2E preflight reads.
+ *
+ * ``xero_fake`` says the backend answers Xero from the fake (ADR 0060): the
+ * harness labels the run with it and refuses a run whose own flag disagrees.
  */
 export const zXeroPingOut = z.object({
     connected: z.boolean(),
+    xero_fake: z.boolean(),
     xero_production_client: z.boolean(),
     xero_readonly: z.boolean()
 });

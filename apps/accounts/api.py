@@ -34,13 +34,14 @@ from django.shortcuts import get_object_or_404
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from ninja import File, Query, Router
-from ninja.errors import AuthenticationError, HttpError
+from ninja.errors import HttpError
 from ninja.files import UploadedFile
 from ninja.responses import Status
 from ninja_jwt.exceptions import TokenError
 from ninja_jwt.settings import api_settings
 from ninja_jwt.tokens import RefreshToken
 
+from apps.accounts.auth import authenticated_staff
 from apps.accounts.models import STAFF_MANAGER_GROUP_NAME, Staff
 from apps.accounts.schemas import (
     KanbanStaffOut,
@@ -217,10 +218,7 @@ def me(request: HttpRequest) -> Staff:
     The SPA's session probe. CookieJWTAuth has already set request.user; no
     cookie or an invalid cookie yields the expected 401.
     """
-    user = request.user
-    if not isinstance(user, Staff):  # pragma: no cover - CookieJWTAuth guarantees Staff
-        raise AuthenticationError
-    return user
+    return authenticated_staff(request)
 
 
 @router.post(
@@ -241,9 +239,7 @@ def accounts_me_password_create(
     bodies, not HttpErrors — the wire contract carries their shape, and an
     expected refusal writes no AppError row.
     """
-    user = request.user
-    if not isinstance(user, Staff):  # pragma: no cover - CookieJWTAuth guarantees Staff
-        raise AuthenticationError
+    user = authenticated_staff(request)
     if not user.check_password(payload.current_password):
         # ADR 0038: transparent after authentication — a wrong current
         # password here is the caller's error to fix, not an authentication

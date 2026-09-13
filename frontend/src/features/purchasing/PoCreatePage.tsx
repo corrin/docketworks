@@ -23,11 +23,16 @@ export function PoCreatePage() {
   const [pickupAddress, setPickupAddress] = useState<SupplierPickupAddressOut | null>()
   const createPo = useMutation(createPurchaseOrderMutation())
 
+  // Xero holds no purchase order without a contact on it, and the order is
+  // created there as it is created here, so an order with no supplier is not
+  // an order yet. Guarded on the control rather than left to the 422, which
+  // names the field but not the reason.
   const save = () => {
+    if (supplier === null) return
     createPo.mutate(
       {
         body: {
-          supplier_id: supplier?.id ?? null,
+          supplier_id: supplier.id,
           reference: orNull(reference),
           ...(pickupAddress === undefined ? {} : { pickup_address_id: pickupAddress?.id ?? null }),
         },
@@ -70,7 +75,12 @@ export function PoCreatePage() {
         >
           Cancel
         </Button>
-        <Button disabled={createPo.isPending} data-automation-id="PoCreateView-save" onClick={save}>
+        <Button
+          disabled={createPo.isPending || supplier === null}
+          title={supplier === null ? 'Choose a supplier first' : undefined}
+          data-automation-id="PoCreateView-save"
+          onClick={save}
+        >
           {createPo.isPending ? 'Creating PO...' : 'Save'}
         </Button>
       </div>

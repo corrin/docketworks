@@ -11,4 +11,3 @@ When a consumer finds data that violates the model's contract, repair the data; 
 ## Do not
 
 - **The one-line read-side fallback** — it spreads: the same workaround appears in service B, then C, and the field is authoritative nowhere.
-- **Making the field optional to accommodate bad rows** — the same workaround moved into the type system, where it is harder to see and outlives everyone's memory of why.

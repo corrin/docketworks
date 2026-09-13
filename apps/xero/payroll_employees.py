@@ -334,13 +334,24 @@ def _term_snapshots(
     pay_records: list[SalaryAndWage],
     patterns: list[tuple[date, str | None, list[dict[str, float]]]],
     employee_id: str,
+    *,
+    require_active: bool,
 ) -> tuple[PayrollTermSnapshot, ...]:
-    """Join independently effective pay and work-pattern records into snapshots."""
+    """Join independently effective pay and work-pattern records into snapshots.
+
+    ``require_active`` is the same rule ``_current_pay`` applies, passed in
+    rather than fixed here: when the two disagreed, a terminated employee's
+    wage came from an inactive record while the terms ignored it, so the two
+    checksums differed and every hourly run rewrote the other's answer.
+    """
     pays: list[tuple[SalaryAndWage, date]] = []
     for row in pay_records:
         effective = as_date(row.effective_from)
-        if effective is not None and str(row.status or "").lower() == "active":
-            pays.append((row, effective))
+        if effective is None:
+            continue
+        if require_active and str(row.status or "").lower() != "active":
+            continue
+        pays.append((row, effective))
     if not pays:
         return ()
     dates = sorted({effective for _row, effective in pays} | {row[0] for row in patterns})
@@ -446,14 +457,15 @@ def _snapshot(
         hourly_rate = current.hourly_rate if pay_basis == "hourly" else None
     else:
         pay_records = _salary_and_wages(payroll_api, tenant_id, employee_id)
+        require_active = end_date is None or end_date > timezone.localdate()
         pay_basis, hourly_rate = _current_pay(
             pay_records,
             employee_id=employee_id,
             effective_on=effective_on,
-            require_active=end_date is None or end_date > timezone.localdate(),
+            require_active=require_active,
         )
         patterns = _working_patterns(payroll_api, tenant_id, employee_id)
-        terms = _term_snapshots(pay_records, patterns, employee_id)
+        terms = _term_snapshots(pay_records, patterns, employee_id, require_active=require_active)
     return PayrollEmployeeSnapshot(
         tenant_id=tenant_id,
         employee_id=employee_id,
@@ -700,10 +712,7 @@ def _reusable_terms(staff: Staff) -> tuple[PayrollTermSnapshot, ...]:
     terms = projection["payroll_terms"]
     if not terms:
         return ()
-    if staff.xero_payroll_terms_checksum is None:
-        if staff.xero_fields_checksum != _xero_fields_checksum(projection):
-            return ()
-    elif staff.xero_payroll_terms_checksum != _xero_fields_checksum(terms):
+    if staff.xero_payroll_terms_checksum != _xero_fields_checksum(terms):
         return ()
     snapshots: list[PayrollTermSnapshot] = []
     for term in terms:

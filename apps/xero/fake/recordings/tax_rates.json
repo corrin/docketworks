@@ -1,0 +1,199 @@
+{
+  "recorded_at": "2026-09-13T03:47:51+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "GET",
+    "path": "/api.xro/2.0/TaxRates",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "Id": "766e8251-4f8a-4528-a10f-65a77af46468",
+    "Status": "OK",
+    "ProviderName": "Docketworks MSM Dev",
+    "DateTimeUTC": "/Date(1789271274261)/",
+    "TaxRates": [
+      {
+        "Name": "12.5% GST on Expenses",
+        "TaxType": "INPUT",
+        "ReportTaxType": "INPUT",
+        "CanApplyToAssets": true,
+        "CanApplyToEquity": true,
+        "CanApplyToExpenses": true,
+        "CanApplyToLiabilities": true,
+        "CanApplyToRevenue": false,
+        "DisplayTaxRate": 12.5,
+        "EffectiveRate": 12.5,
+        "Status": "DELETED",
+        "TaxComponents": [
+          {
+            "Name": "GST",
+            "Rate": 12.5,
+            "IsCompound": false,
+            "IsNonRecoverable": false
+          }
+        ]
+      },
+      {
+        "Name": "12.5% GST on Income",
+        "TaxType": "OUTPUT",
+        "ReportTaxType": "OUTPUT",
+        "CanApplyToAssets": true,
+        "CanApplyToEquity": true,
+        "CanApplyToExpenses": false,
+        "CanApplyToLiabilities": true,
+        "CanApplyToRevenue": true,
+        "DisplayTaxRate": 12.5,
+        "EffectiveRate": 12.5,
+        "Status": "DELETED",
+        "TaxComponents": [
+          {
+            "Name": "GST",
+            "Rate": 12.5,
+            "IsCompound": false,
+            "IsNonRecoverable": false
+          }
+        ]
+      },
+      {
+        "Name": "15% GST on Expenses",
+        "TaxType": "INPUT2",
+        "ReportTaxType": "INPUT",
+        "CanApplyToAssets": true,
+        "CanApplyToEquity": true,
+        "CanApplyToExpenses": true,
+        "CanApplyToLiabilities": true,
+        "CanApplyToRevenue": false,
+        "DisplayTaxRate": 15.0,
+        "EffectiveRate": 15.0,
+        "Status": "ACTIVE",
+        "TaxComponents": [
+          {
+            "Name": "GST",
+            "Rate": 15.0,
+            "IsCompound": false,
+            "IsNonRecoverable": false
+          }
+        ]
+      },
+      {
+        "Name": "15% GST on Income",
+        "TaxType": "OUTPUT2",
+        "ReportTaxType": "OUTPUT",
+        "CanApplyToAssets": true,
+        "CanApplyToEquity": true,
+        "CanApplyToExpenses": false,
+        "CanApplyToLiabilities": true,
+        "CanApplyToRevenue": true,
+        "DisplayTaxRate": 15.0,
+        "EffectiveRate": 15.0,
+        "Status": "ACTIVE",
+        "TaxComponents": [
+          {
+            "Name": "GST",
+            "Rate": 15.0,
+            "IsCompound": false,
+            "IsNonRecoverable": false
+          }
+        ]
+      },
+      {
+        "Name": "GST on Imports",
+        "TaxType": "GSTONIMPORTS",
+        "ReportTaxType": "GSTONIMPORTS",
+        "CanApplyToAssets": false,
+        "CanApplyToEquity": false,
+        "CanApplyToExpenses": false,
+        "CanApplyToLiabilities": true,
+        "CanApplyToRevenue": false,
+        "DisplayTaxRate": 0.0,
+        "EffectiveRate": 0.0,
+        "Status": "ACTIVE",
+        "TaxComponents": [
+          {
+            "Name": "GST",
+            "Rate": 0.0,
+            "IsCompound": false,
+            "IsNonRecoverable": false
+          }
+        ]
+      },
+      {
+        "Name": "No GST",
+        "TaxType": "NONE",
+        "ReportTaxType": "NONE",
+        "CanApplyToAssets": true,
+        "CanApplyToEquity": true,
+        "CanApplyToExpenses": true,
+        "CanApplyToLiabilities": true,
+        "CanApplyToRevenue": true,
+        "DisplayTaxRate": 0.0,
+        "EffectiveRate": 0.0,
+        "Status": "ACTIVE",
+        "TaxComponents": [
+          {
+            "Name": "GST",
+            "Rate": 0.0,
+            "IsCompound": false,
+            "IsNonRecoverable": false
+          }
+        ]
+      },
+      {
+        "Name": "Zero Rated",
+        "TaxType": "ZERORATED",
+        "ReportTaxType": "OUTPUT",
+        "CanApplyToAssets": false,
+        "CanApplyToEquity": false,
+        "CanApplyToExpenses": false,
+        "CanApplyToLiabilities": true,
+        "CanApplyToRevenue": true,
+        "DisplayTaxRate": 0.0,
+        "EffectiveRate": 0.0,
+        "Status": "ACTIVE",
+        "TaxComponents": [
+          {
+            "Name": "GST",
+            "Rate": 0.0,
+            "IsCompound": false,
+            "IsNonRecoverable": false
+          }
+        ]
+      }
+    ]
+  }
+}

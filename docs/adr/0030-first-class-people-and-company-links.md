@@ -1,4 +1,4 @@
-# 0030 — First-class People and Company links
+# 0030 — Person owns identity, CompanyPersonLink owns the relationship, jobs point at the person
 
 `Person` owns human identity; `CompanyPersonLink` owns the relationship-at-company; jobs and calls point at the person.
 

@@ -1,5 +1,76 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-13 — ADR 0055 owns the shared-home rule; ADR 0039 defers to it
+
+Owner ruling, by approving the ADR corpus rewrite plan. Fable: the plan stated that 0039 drops
+its ownership bullet and cites 0055, and that 0039 carries a supersession line naming 0055 and
+0061; approval closed the task that asked whether the supersession stood or 0039's original
+shared-homes wording should be restored. The same approval retired 0005, 0008, 0013 and 0045,
+created 0061–0063, and set the retired-ADR convention: the file is deleted and the index row
+records the date and the successor.
+
+## 2026-09-13 — An E2E iteration run may be pointed at a recorded fake of Xero
+
+Owner ruling. The E2E gate could not run once the dev tenant's 1000-call day was spent,
+and the suite was the cheap consumer (about 45 calls) locked out by the expensive ones.
+The owner ruled for an opt-in simulated Xero, default real: `run_e2e.sh --use-fake-xero`
+points the unmodified stack at a simulation whose shapes are recorded, whose state is a
+Postgres store and whose ids, timestamps and totals are computed; the merge-gate run stays real,
+and the same shape is to serve the other integrations and the failure scenarios (a vendor
+down) the real vendor will not stage. ADR 0060 records the rule. The rejected alternative
+was `XERO_READONLY`, which fakes writes only and leaves reads live, so at quota zero the
+run fails anyway; the readonly provider keeps its one job.
+
+What the recordings showed. The Accounting API writes dates as `/Date(ms+0000)/` and
+omits absent fields; Payroll NZ writes ISO-8601 naive UTC, sends absent fields as explicit
+nulls and answers a page past the last with 400 `InvalidRequest`. The SDK turns a
+Payroll null string into the text `"None"`, a null bool into `False`, and a null nested
+object into an instance whose first attribute is `""` — all three reach the mirror's
+`raw_json`, and the fake's renderer undoes each on the way back out.
+
+## 2026-09-12 — The purchase order has one master, and it is Docketworks
+
+Owner ruling. Purchase orders are not normally edited in Xero, and an order that is not in
+Xero is a bug rather than a state. So the order is created in Xero when it is created here
+and updated there when it changes here, on the invoice model: `xero_create_invoice` calls
+the manager synchronously and returns Xero's refusal as a 400, and `Invoice.xero_id` is
+non-null because the local row exists only because Xero made one.
+
+What that deleted. Commit `4bf940f` was titled "Give the purchase order one owner, and make
+it Docketworks" and built the opposite — a bidirectional collision resolver. `xero_agreed_at`,
+`_has_unsent_change`, `_stamp_agreement`, the queued push and an hourly
+`reconcile_purchase_orders_to_xero` beat task all existed to decide which of two masters held
+the newer edit, a question the business never asks. The sweep was also a second scheduled Xero
+driver: the one pre-existing outbound sweep, `sync_local_stock_to_xero`, is a stage inside the
+single sync run, under its lock and quota gate.
+
+Measured before deleting it. The sweep's staleness test was `xero_agreed_at IS NULL OR
+xero_agreed_at < updated_at` on a column with no backfill, so every pre-existing order matched.
+On a local restore of production 308 orders passed its ownership and status gates, nearly all
+`fully_received` from January onward; at 50 an hour it would have rewritten the back catalogue in
+the live organisation over about seven hours. **None of it had shipped** — `origin/production`
+carried neither the beat entry nor the column — so the column was dropped before release rather
+than backfilled, and there is no legacy data to migrate.
+
+The consequence, and it was wrong. The mirror ran on every write, inside the write's own
+transaction, on a workspace that saves each field as its own PATCH. That is 9 Xero calls to build
+an eight-line order and 33 in a normal session, at **a dollar a call**, each one a round trip with
+the operator waiting. It also could not create an order at all: Xero refuses a purchase order with
+no line items and the create page posts a header with no lines, so the push raised and the create
+rolled back. The unit suite stayed green because an autouse fixture stubbed the provider above the
+validation that refused it — the fake-provider failure ADR 0050 exists to name.
+
+The reason given for it was false too. It was justified as following the invoice, and the invoice
+does the opposite: `apps/accounting/provider.py` declares `create_invoice` and `delete_invoice` and
+no update at all, same for quotes. Nothing in this codebase pushes per edit.
+
+Corrected the same day. Xero holds the order so the supplier's bill has something to link against
+and bills arrive overnight, so the schedule follows the purpose: a **status transition** sends one
+call as it happens, in either direction, and nothing else does. A field edit is free. What that
+call could not deliver is left owed on a boolean and picked up by a stage inside the one hourly
+sync, beside `sync_local_stock_to_xero`. Two calls over an order's life rather than thirty-three in
+a sitting.
+
 ## 2026-09-12 — One number, one person: the phone rule was wrong, not the data
 
 Owner scan of production. Ten phone numbers are held by more than one company. One is an
@@ -360,6 +431,16 @@ carried it.
 it becoming a third backlog.** A fact that constrains code lives in an ADR or a
 seam comment at the code it constrains; this file links there rather than
 restating it. Nothing here is a task.
+
+## 2026-08-04 — Three linters were green while three days of debt accumulated
+
+Finding. During 2–4 August ruff, mypy and import-linter ran on every commit, and the
+structural debt that then took three days to clear accumulated anyway. The gates catch
+structure and the unit suite catches behaviour within a layer; only the E2E spec catches
+the user-visible path across frontend, wire contract and backend, which is where the port's
+bugs were. The consequence was a rule rather than another linter: speed is made safe by the
+spec shipping with the slice. Carried in CLAUDE.md until 2026-09-13, when that file stopped
+holding stories.
 
 ## Cutover
 
@@ -1533,3 +1614,73 @@ the modular monolith as a direction the project is heading in and not a descript
 the tree, so the ADR now separates destination from present and `CLAUDE.md` describes the
 import-linter contract that actually gates. ADRs 0012, 0021 and 0033 named a module path,
 a Django setting and a Poetry constraint syntax this repository does not have.
+
+## 2026-09-13: promotion-readiness rulings
+
+The owner ruled, in one sitting, on the questions the release review raised. Docketworks
+masters a purchase order and Xero mirrors it; the push happens on a state change, not on
+every keystroke, and a vendor refusal leaves the order owing a call to the hourly sync
+(`xero_push_due`) rather than failing the operator's write. Ownership is the number's
+prefix, not `created_by`: `created_by` was unrecorded until 2026-01-09, so 419 of the 825
+orders Docketworks raised carried none, and reading ownership from it would have handed
+Xero the right to overwrite every one of them on the next pull. The prefix is therefore
+not an ordinary setting, and `"PO-"`, Xero's own, cannot be saved.
+
+`created_by` is backfilled to the System Automation row and made `NOT NULL` on purchase
+orders and jobs together, because one concept gets one rule. A supplier-less purchase
+order is invalid data, not a supported state; the eleven in production were corrected by
+hand on 2026-09-13 (ADR 0059's form is a migration matching the predicate, which is still
+owed so dev, UAT and older backups converge). ChatKit is the chatbot runtime, and ADR 0041's
+ban on adding a vendor SDK is restored with the Agents and ChatKit SDKs as its one named
+exception.
+
+The inventory ledger begins at cutover and legacy is forced into shape, never supported.
+The three cutover movement kinds were measured rather than assumed: every collapse tested
+either adds column-presence branches or invents movement history, so they stay until two
+rulings exist — that a lost-evidence gap corrects `received_quantity` on the order line,
+and that synthetic cutover-dated issues are acceptable. The ledger's own vocabulary is
+corrected instead: `delivery`, because a receipt in this business is what a customer gets
+when they pay. The larger finding is recorded rather than acted on: the code models stock
+as a pool with a quantity (`Stock.job` is a constant discriminator, never a location), while
+the owner's model is material always on a job with every movement a transfer between two.
+Which is the target is an open ruling.
+
+ADR 0058 is the no-surprises rule — code that looks short and simple runs short and
+simple — and its refusal mechanics are consequences of that, not its premise. ADR 0050
+gains two rules: a change that alters how many vendor calls a user action or a test run
+makes states the number before merge, and integration runs record the vendor's real
+answers so unit fixtures are built from recordings rather than belief. ADRs 0054–0059 are
+ratified. `admin/xero.spec.ts:57` stays failing until the owner authorises the live
+employee-refresh budget it needs.
+
+Found and recorded, not fixed: `/api/accounting/reports/job-movement/` answers `response=dict`
+because its comparison, baseline and detail sections merge in dynamically, so the generated
+client types it as `{ [key: string]: unknown }` and the page re-declares the shape it reads
+in zod. That is the wire-contract gap ADR 0028 names; the honest fix is a response schema
+with optional sections, not a wider client type.
+
+Rehearsed 2026-09-13 on the 2026-09-09 scrubbed production restore, per the release
+process: the sanctioned wipe, `pg_restore`, the inventory preflight (one duplicated
+balance named, the known historical repair), then `migrate` applying all 42 unreleased
+migrations including the six cutover migrations edited in place for the delivery
+vocabulary. Afterwards `audit_inventory_openings` reported clean, `reconcile_cost_summaries
+--all` checked 7,410 cost sets with 0 incorrect, `inventory_audit_findings()` was empty,
+and the ledger held `delivery_opening` 1,320, `job_opening` 1,567 and `opening` 706 rows
+with no `receipt_*` kind anywhere. The backfills landed as designed: 589 purchase orders and
+29 jobs now name System Automation and none lacks a creator; every staff row holding
+payroll terms carries its checksum and the 8 without terms stay NULL, meaning never
+synced. One runbook correction fell out of it: the private-row re-insert must follow
+`migrate`, not the restore, because the archive's schema predates the columns `xero/0002`
+removed and a positional copy into it fails at the first row.
+
+
+Measured 2026-09-13: `scripts/ops/recreate_jobfiles.py`, the restore step that fabricates
+a placeholder for every `JobFile` row, took ~22 minutes for 6,136 rows against a 30-minute
+timeout. Per PDF, pandoc's markdown-to-HTML cost 0.04 s and the `wkhtmltopdf` engine it
+spawned cost 0.27 s, a QtWebKit process start repeated 5,146 times; the engine was never a
+declared prerequisite anywhere in the repo. Rendering the same page with reportlab, the
+library every production PDF already uses, costs ~1 ms, and the same 3,442 PDF placeholders
+regenerated in 14 s wall including Django start-up. The placeholders are inputs, not
+decoration: the workshop job sheet merges attachment PDFs with pypdf and the file list
+thumbnails them with pdf2image, and both accepted the reportlab pages. pandoc stays only
+for the four `.docx` rows, which nothing else in the repo can write.

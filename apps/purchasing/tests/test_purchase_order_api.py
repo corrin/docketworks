@@ -27,7 +27,11 @@ from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.platform.integrations.google.gmail import GmailDraft
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
-from apps.purchasing.tests.factories import make_po_line, make_purchase_order
+from apps.purchasing.tests.factories import (
+    make_legacy_supplierless_order,
+    make_po_line,
+    make_purchase_order,
+)
 
 #: The one seam to Gmail; the real API is exercised by the integration suite.
 DRAFT = "apps.purchasing.api.create_draft"
@@ -218,14 +222,16 @@ class TestPurchaseOrderDetail:
         assert lines[str(used.id)]["job_number"] == job.job_number
 
     def test_supplierless_po_keeps_the_v1_defaults(self, api: Client) -> None:
-        po = make_purchase_order()
+        po = make_legacy_supplierless_order()
 
         body = api.get(_detail_url(po)).json()
 
         assert body["supplier"] == ""
         assert body["supplier_id"] is None
         assert body["supplier_has_xero_id"] is False
-        assert body["created_by_name"] == ""
+        # A legacy row names System Automation, never nobody: the column is
+        # backfilled and NOT NULL, so the wire's created_by_name is always a name.
+        assert body["created_by_name"] == "System Automation"
 
     def test_deleted_purchase_orders_stay_viewable(self, api: Client) -> None:
         po = make_purchase_order(status="deleted")
@@ -265,42 +271,61 @@ class TestPurchaseOrderCreate:
         # The create response carries the ETag the client needs to mutate.
         assert response.headers["ETag"].startswith('"po:')
 
-    def test_a_blank_reference_is_a_validation_error(self, api: Client) -> None:
+    def test_a_blank_reference_is_a_validation_error(self, api: Client, supplier: Company) -> None:
         # The reference_not_blank constraint is NOT visible in v1's models.py --
         # it was added by a raw-SQL migration and lives only in the live schema
         # (verified against v1 production: 0 blank, 167 NULL of 913 purchase
         # orders). So "" can never be stored, and NullableText refuses it at the
         # boundary with a 422 naming the field rather than letting it reach the
         # constraint (ADR 0040). Do not "correct" this by reading v1's models.
-        response = api.post(PO_LIST_URL, data={"reference": ""}, content_type="application/json")
+        response = api.post(
+            PO_LIST_URL,
+            data={"supplier_id": str(supplier.id), "reference": ""},
+            content_type="application/json",
+        )
 
         assert response.status_code == 422
         assert not PurchaseOrder.objects.exists()
 
-    def test_an_omitted_reference_is_stored_as_unset(self, api: Client) -> None:
-        response = api.post(PO_LIST_URL, data={}, content_type="application/json")
-
-        assert response.status_code == 201
-        assert PurchaseOrder.objects.get(id=response.json()["id"]).reference is None
-
-    def test_an_explicit_null_reference_is_stored_as_unset(self, api: Client) -> None:
-        response = api.post(PO_LIST_URL, data={"reference": None}, content_type="application/json")
-
-        assert response.status_code == 201
-        assert PurchaseOrder.objects.get(id=response.json()["id"]).reference is None
-
-    def test_surrounding_whitespace_is_trimmed_from_a_reference(self, api: Client) -> None:
+    def test_an_omitted_reference_is_stored_as_unset(self, api: Client, supplier: Company) -> None:
         response = api.post(
-            PO_LIST_URL, data={"reference": "  PO-42  "}, content_type="application/json"
+            PO_LIST_URL,
+            data={"supplier_id": str(supplier.id)},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201
+        assert PurchaseOrder.objects.get(id=response.json()["id"]).reference is None
+
+    def test_an_explicit_null_reference_is_stored_as_unset(
+        self, api: Client, supplier: Company
+    ) -> None:
+        response = api.post(
+            PO_LIST_URL,
+            data={"supplier_id": str(supplier.id), "reference": None},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201
+        assert PurchaseOrder.objects.get(id=response.json()["id"]).reference is None
+
+    def test_surrounding_whitespace_is_trimmed_from_a_reference(
+        self, api: Client, supplier: Company
+    ) -> None:
+        response = api.post(
+            PO_LIST_URL,
+            data={"supplier_id": str(supplier.id), "reference": "  PO-42  "},
+            content_type="application/json",
         )
 
         assert response.status_code == 201
         assert PurchaseOrder.objects.get(id=response.json()["id"]).reference == "PO-42"
 
-    def test_price_tbc_clears_the_unit_cost(self, api: Client) -> None:
+    def test_price_tbc_clears_the_unit_cost(self, api: Client, supplier: Company) -> None:
         response = api.post(
             PO_LIST_URL,
             data={
+                "supplier_id": str(supplier.id),
                 "lines": [
                     {
                         "description": "TBC item",
@@ -308,7 +333,7 @@ class TestPurchaseOrderCreate:
                         "unit_cost": "9.99",
                         "price_tbc": True,
                     }
-                ]
+                ],
             },
             content_type="application/json",
         )
@@ -316,7 +341,7 @@ class TestPurchaseOrderCreate:
         po = PurchaseOrder.objects.get(id=response.json()["id"])
         assert po.po_lines.get().unit_cost is None
 
-    def test_dimensions_are_written_on_create(self, api: Client) -> None:
+    def test_dimensions_are_written_on_create(self, api: Client, supplier: Company) -> None:
         # v1 declared dimensions on the create serializer and wrote it on the
         # update path, but create_purchase_order() omitted the field, so a
         # dimension entered on a brand-new PO was lost until the line was
@@ -324,7 +349,8 @@ class TestPurchaseOrderCreate:
         response = api.post(
             PO_LIST_URL,
             data={
-                "lines": [{"description": "Plate", "quantity": "1", "dimensions": "2400x1200x6"}]
+                "supplier_id": str(supplier.id),
+                "lines": [{"description": "Plate", "quantity": "1", "dimensions": "2400x1200x6"}],
             },
             content_type="application/json",
         )
@@ -352,19 +378,27 @@ class TestPurchaseOrderCreate:
     def test_a_pickup_address_without_a_supplier_is_refused(
         self, api: Client, supplier: Company
     ) -> None:
-        """An address belongs to a supplier; a PO with none cannot collect from one."""
+        """An address belongs to a supplier; a PO with none cannot collect from one.
+
+        Tested on the update path because create can no longer reach it: a new
+        order names its supplier, so only the eleven orders that predate that
+        rule can still be asked to collect from a yard they have no claim on.
+        """
+        po = make_legacy_supplierless_order()
         own = SupplierPickupAddress.objects.create(
             company=supplier, name="Yard", street="1 Steel Rd", city="Auckland"
         )
 
-        response = api.post(
-            "/api/purchasing/purchase-orders/",
+        response = api.patch(
+            _detail_url(po),
             data={"pickup_address_id": str(own.id)},
             content_type="application/json",
+            headers={"If-Match": _current_etag(api, po)},
         )
 
         assert response.status_code == 400
-        assert PurchaseOrder.objects.count() == 0
+        po.refresh_from_db()
+        assert po.pickup_address_id is None
 
     def test_primary_pickup_address_is_selected_automatically(
         self, api: Client, supplier: Company
@@ -1002,7 +1036,7 @@ class TestPurchaseOrderEmail:
         assert body["email_body"].startswith("Urgent please\n\n")
 
     def test_a_po_without_a_supplier_is_400(self, api: Client) -> None:
-        po = make_purchase_order()
+        po = make_legacy_supplierless_order()
 
         response = api.post(f"{_detail_url(po)}email/", data={}, content_type="application/json")
 
@@ -1091,16 +1125,17 @@ def test_detail_reports_the_specific_orders_inbound_xero_observation(api: Client
 
 class TestLineCreationOrder:
     def test_batch_order_survives_edits_and_is_shared_by_users(
-        self, api: Client, workshop_staff: Staff
+        self, api: Client, workshop_staff: Staff, supplier: Company
     ) -> None:
         """A saved edit must not move a row or change another user's view of the PO."""
         response = api.post(
             PO_LIST_URL,
             data={
+                "supplier_id": str(supplier.id),
                 "lines": [
                     {"description": f"Line {index}", "quantity": "1", "unit_cost": "2"}
                     for index in range(8)
-                ]
+                ],
             },
             content_type="application/json",
         )

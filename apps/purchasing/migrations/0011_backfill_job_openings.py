@@ -88,7 +88,7 @@ WHERE cs.kind = 'actual' AND c.kind = 'material' AND c.approved
 #: what "a handful" means, not a measurement, so it is stated here rather than derived.
 LOST_PROVENANCE_LIMIT = 20
 
-RECEIPT_PREFLIGHT_SQL = f"""
+DELIVERY_PREFLIGHT_SQL = f"""
 DO $$
 DECLARE invalid_ids text;
 DECLARE lost_provenance integer;
@@ -137,7 +137,7 @@ END;
 $$;
 """  # noqa: S608 -- sole interpolation is LOST_PROVENANCE_LIMIT, an int constant
 
-RECEIPT_BACKFILL_SQL = """
+DELIVERY_BACKFILL_SQL = """
 CREATE TEMP TABLE receipt_job_positions ON COMMIT DROP AS
 SELECT c.id AS cost_id, gen_random_uuid() AS stock_id, cs.job_id,
        c.quantity, c.unit_cost, c.unit_rev, c.desc, pl.id AS po_line_id,
@@ -173,10 +173,10 @@ FROM receipt_job_positions;
 INSERT INTO purchasing_stockmovement
     (id, stock_id, quantity_change, quantity_before, quantity_after, unit_cost,
      kind, recorded_at, reason, opening_quantity)
-SELECT gen_random_uuid(), stock_id, 0, 0, 0, unit_cost, 'receipt_opening', CURRENT_TIMESTAMP,
+SELECT gen_random_uuid(), stock_id, 0, 0, 0, unit_cost, 'delivery_opening', CURRENT_TIMESTAMP,
        CASE WHEN po_line_id IS NULL
             THEN 'Receipt evidence lost before the inventory cutover; quantity taken from the cost line'
-            ELSE 'Supplier receipt allocation observed at inventory cutover' END,
+            ELSE 'Supplier delivery allocation observed at inventory cutover' END,
        quantity
 FROM receipt_job_positions;
 
@@ -184,19 +184,19 @@ INSERT INTO purchasing_stockmovement
     (id, stock_id, quantity_change, quantity_before, quantity_after, unit_cost,
      kind, recorded_at, reason, opening_quantity)
 SELECT gen_random_uuid(), s.id, 0, s.quantity, s.quantity, s.unit_cost,
-       'receipt_opening', CURRENT_TIMESTAMP, 'Supplier receipt allocation observed at inventory cutover',
+       'delivery_opening', CURRENT_TIMESTAMP, 'Supplier delivery allocation observed at inventory cutover',
        s.quantity + COALESCE((SELECT sum(c.quantity) FROM purchasing_stockmovement m
            JOIN job_costline c ON c.id = m.cost_line_id
            WHERE m.stock_id = s.id AND m.kind = 'job_opening'), 0)
 FROM purchasing_stock s WHERE s.source = 'purchase_order'
   AND NOT EXISTS (SELECT 1 FROM purchasing_stockmovement m
-                  WHERE m.stock_id = s.id AND m.kind IN ('receipt', 'receipt_opening'));
+                  WHERE m.stock_id = s.id AND m.kind IN ('delivery', 'delivery_opening'));
 DROP TABLE receipt_job_positions;
 """
 
 
-PREFLIGHT_SQL = JOB_PREFLIGHT_SQL + RECEIPT_PREFLIGHT_SQL
-BACKFILL_SQL = JOB_BACKFILL_SQL + RECEIPT_BACKFILL_SQL
+PREFLIGHT_SQL = JOB_PREFLIGHT_SQL + DELIVERY_PREFLIGHT_SQL
+BACKFILL_SQL = JOB_BACKFILL_SQL + DELIVERY_BACKFILL_SQL
 
 
 #: A stock identity claiming a purchase order origin with no order line is mislabelled,
@@ -239,7 +239,7 @@ class Migration(migrations.Migration):
             reverse_sql="""
             DO $$ BEGIN
                 IF EXISTS (SELECT 1 FROM purchasing_stockmovement
-                           WHERE kind IN ('job_opening', 'receipt_opening')) THEN
+                           WHERE kind IN ('job_opening', 'delivery_opening')) THEN
                     RAISE EXCEPTION 'Inventory cutover cannot be reversed after booking positions';
                 END IF;
             END; $$;

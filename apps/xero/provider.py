@@ -51,7 +51,11 @@ from apps.xero.transforms import process_xero_data
 if TYPE_CHECKING:
     from xero_python.payrollnz import EarningsLine, PaySlip
 
+    from apps.accounts.models import Staff
     from apps.company.models import Company
+
+    # Aliased: the module-level ``PurchaseOrder`` is Xero's SDK type.
+    from apps.purchasing.models import PurchaseOrder as PurchaseOrderModel
 
 logger = logging.getLogger(__name__)
 
@@ -326,6 +330,7 @@ class XeroAccountingProvider:
                 logger.warning("Xero quote create validation errors: %s", errors)
                 return DocumentResult(
                     success=False,
+                    status_code=400,
                     error=" | ".join(errors),
                     validation_errors=errors,
                 )
@@ -385,6 +390,7 @@ class XeroAccountingProvider:
                 logger.warning("Xero quote %s delete validation errors: %s", external_id, errors)
                 return DocumentResult(
                     success=False,
+                    status_code=400,
                     external_id=external_id,
                     error=" | ".join(errors),
                     validation_errors=errors,
@@ -476,9 +482,16 @@ class XeroAccountingProvider:
         # that number can find is the deleted one, and adopting it would make a
         # live purchase order point at a voided document. delete_purchase_order
         # renames an order as it voids it so this state stops arising at all.
+        # With summarize_errors=False Xero answers 200 and puts the 400 inside
+        # the element, so the code the transport dropped is restored here: a
+        # refusal the operator must fix (their contact, their number) and no
+        # later attempt helps. Defaulting the code downstream was rejected: a
+        # manager's `or 400` would also turn a genuinely missing code into a
+        # claim about the operator's input.
         if po_id == ZERO_UUID:
             return DocumentResult(
                 success=False,
+                status_code=400,
                 error=(
                     f"Xero refused PO {payload.po_number}: a deleted purchase order in the "
                     "organisation still holds that number. Rename it in Xero, or use a "
@@ -492,6 +505,7 @@ class XeroAccountingProvider:
             logger.warning("Xero PO %s validation errors: %s", payload.po_number, errors)
             return DocumentResult(
                 success=False,
+                status_code=400,
                 external_id=po_id if po_id != ZERO_UUID else None,
                 error=" | ".join(errors),
                 validation_errors=errors,
@@ -581,13 +595,15 @@ class XeroAccountingProvider:
             # summarize_errors=False makes Xero answer 200 with the refusal
             # inside the document, so discarding the response reports a delete
             # that never happened — and a released number that was not.
-            updated_orders = response.purchase_orders or []
-            updated = updated_orders[0] if updated_orders else None
-            if updated is not None and updated.validation_errors:
+            if not response.purchase_orders:
+                raise ValueError("Xero returned no purchase orders for a delete call")
+            updated = response.purchase_orders[0]
+            if updated.validation_errors:
                 errors = [str(ve.message) for ve in updated.validation_errors]
                 logger.warning("Xero PO %s delete validation errors: %s", external_id, errors)
                 return DocumentResult(
                     success=False,
+                    status_code=400,
                     external_id=external_id,
                     error=" | ".join(errors),
                     validation_errors=errors,
@@ -597,6 +613,26 @@ class XeroAccountingProvider:
         except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require
             persist_app_error(exc)
             return self._make_error_result(exc)
+
+    def push_purchase_order(
+        self, purchase_order: "PurchaseOrderModel", staff: "Staff"
+    ) -> DocumentResult:
+        """See AccountingProvider.push_purchase_order."""
+        # Call-time import: the manager reaches back to this module through the
+        # registry, so binding it at module scope makes the provider and the
+        # document tree import each other.
+        from apps.xero.documents.po import XeroPurchaseOrderManager  # noqa: PLC0415
+
+        result = XeroPurchaseOrderManager(purchase_order=purchase_order, staff=staff).sync_to_xero()
+        if not result["success"]:
+            return DocumentResult(
+                success=False, error=result.get("error"), status_code=result.get("status")
+            )
+        return DocumentResult(
+            success=True,
+            external_id=result.get("xero_id"),
+            online_url=result.get("online_url"),
+        )
 
     # --- Attachments ---
 

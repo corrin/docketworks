@@ -145,6 +145,9 @@ def loaded_wage_rate(base_wage_rate: Decimal, loading_percent: Decimal) -> Decim
     )
 
 
+XERO_PURCHASE_ORDER_PREFIX = "PO-"
+
+
 class CompanyDefaults(SingletonModel):
     """Singleton company configuration managed by django-solo.
 

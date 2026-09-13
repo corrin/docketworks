@@ -66,12 +66,18 @@ test.describe.serial('kanban search', () => {
     const jobId = getJobIdFromUrl(sharedEditJobUrl)
     await openBoard(page)
     const jobNumber = await readJobNumber(page, jobId)
+    const otherJobId = await page
+      .locator(`[data-job-id]:visible:not([data-job-id="${jobId}"])`)
+      .first()
+      .getAttribute('data-job-id')
 
     // How a person writes the link by hand. It parses to a NUMBER, which the
     // route used to drop — leaving an unfiltered board under a filled-in box.
     await page.goto(`/kanban?q=${jobNumber}`)
     await expect(page.getByPlaceholder('Search jobs...')).toHaveValue(jobNumber)
     await expect(getVisibleJobCard(page, jobId)).toBeVisible({ timeout: 15000 })
+    // The failure mode named above: the box filled in over an unfiltered board.
+    await expect(page.locator(`[data-job-id="${otherJobId}"]:visible`)).toHaveCount(0)
   })
 
   test('the board renders an Archived column', async ({ authenticatedPage: page }) => {

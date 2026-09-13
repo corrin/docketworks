@@ -121,9 +121,16 @@ test.describe.serial('kanban desktop', () => {
     const jobNumber = jobNumberText.replace('#', '').trim()
     expect(jobNumber).not.toBe('')
 
+    // A search wired to nothing keeps the matching card visible too; the
+    // proof is a card that does not match disappearing.
+    const otherCard = page.locator(`[data-job-id]:visible:not([data-job-id="${jobId}"])`).first()
+    await expect(otherCard).toBeVisible({ timeout: 15000 })
+    const otherJobId = await otherCard.getAttribute('data-job-id')
+
     const searchInput = page.getByPlaceholder('Search jobs...')
     await searchInput.fill(jobNumber)
 
     await expect(getVisibleJobCard(page, jobId)).toBeVisible({ timeout: 15000 })
+    await expect(page.locator(`[data-job-id="${otherJobId}"]:visible`)).toHaveCount(0)
   })
 })

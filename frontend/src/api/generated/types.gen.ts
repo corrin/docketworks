@@ -3525,7 +3525,7 @@ export type FrontendErrorOut = {
     /**
      * Error Id
      */
-    error_id: string | null;
+    error_id: string;
 };
 
 /**
@@ -9086,6 +9086,14 @@ export type PurchaseOrderAllocationsResponse = {
  * PurchaseOrderCreateRequest
  *
  * Wire contract for PurchaseOrderCreateRequest.
+ *
+ * ``supplier_id`` is required because an order without one is invalid data
+ * rather than a stage of writing one — the owner is correcting the rows that
+ * predate the rule. Not because of Xero: creation no longer touches it.
+ *
+ * The column stays nullable so those rows keep reading, which is the same
+ * split ``Job.company`` makes: nullable on the model, required by
+ * ``JobCreateRequest`` and ``create_job``.
  */
 export type PurchaseOrderCreateRequest = {
     /**
@@ -9111,7 +9119,7 @@ export type PurchaseOrderCreateRequest = {
     /**
      * Supplier Id
      */
-    supplier_id?: string | null;
+    supplier_id: string;
 };
 
 /**
@@ -9252,7 +9260,7 @@ export type PurchaseOrderEmailResponse = {
     /**
      * Message
      */
-    message: string | null;
+    message: string;
     /**
      * Success
      */
@@ -11412,7 +11420,7 @@ export type StockMetadataRequest = {
  *
  * Live postings and the three historical cutover observations.
  */
-export type StockMovementKind = 'opening' | 'job_opening' | 'receipt' | 'receipt_opening' | 'receipt_reversal' | 'issue' | 'return' | 'stocktake';
+export type StockMovementKind = 'opening' | 'job_opening' | 'delivery' | 'delivery_opening' | 'delivery_reversal' | 'issue' | 'return' | 'stocktake';
 
 /**
  * StockMovementOut
@@ -13767,13 +13775,20 @@ export type XeroPingErrorOut = {
 /**
  * XeroPingOut
  *
- * Connection status plus the two safety flags the E2E preflight reads.
+ * Connection status plus the safety flags the E2E preflight reads.
+ *
+ * ``xero_fake`` says the backend answers Xero from the fake (ADR 0060): the
+ * harness labels the run with it and refuses a run whose own flag disagrees.
  */
 export type XeroPingOut = {
     /**
      * Connected
      */
     connected: boolean;
+    /**
+     * Xero Fake
+     */
+    xero_fake: boolean;
     /**
      * Xero Production Client
      */

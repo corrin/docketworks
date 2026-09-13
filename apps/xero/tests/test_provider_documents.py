@@ -274,7 +274,11 @@ class TestPurchaseOrders:
                 )
             ]
         )
-        api.update_or_create_purchase_orders.return_value = SimpleNamespace(purchase_orders=[])
+        # Xero answers a void with the voided order; an empty answer is refused
+        # like it is on upsert, so the mock says what Xero says.
+        api.update_or_create_purchase_orders.return_value = SimpleNamespace(
+            purchase_orders=[SimpleNamespace(validation_errors=[])]
+        )
 
         result = provider.delete_purchase_order(external_id)
 

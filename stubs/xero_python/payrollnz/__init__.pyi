@@ -3,8 +3,9 @@ from enum import Enum
 from typing import Any
 
 from xero_python.api_client import ApiClient
+from xero_python.models import BaseModel
 
-class PayRun:
+class PayRun(BaseModel):
     pay_run_id: str | None
     payroll_calendar_id: str | None
     period_start_date: date | None
@@ -14,16 +15,16 @@ class PayRun:
     pay_run_type: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class PayRuns:
+class PayRuns(BaseModel):
     pay_runs: list[PayRun] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class EarningsLine:
+class EarningsLine(BaseModel):
     earnings_rate_id: str | None
     number_of_units: float | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class PaySlip:
+class PaySlip(BaseModel):
     pay_slip_id: str | None
     employee_id: str | None
     pay_run_id: str | None
@@ -37,20 +38,20 @@ class PaySlip:
     leave_earnings_lines: list[EarningsLine] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class PaySlips:
+class PaySlips(BaseModel):
     pay_slips: list[PaySlip] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class LeaveType:
+class LeaveType(BaseModel):
     leave_type_id: str | None
     name: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class LeaveTypes:
+class LeaveTypes(BaseModel):
     leave_types: list[LeaveType] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class EarningsRate:
+class EarningsRate(BaseModel):
     earnings_rate_id: str | None
     name: str | None
     earnings_type: str | None
@@ -60,11 +61,11 @@ class EarningsRate:
     expense_account_id: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class EarningsRates:
+class EarningsRates(BaseModel):
     earnings_rates: list[EarningsRate] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class PayRunObject:
+class PayRunObject(BaseModel):
     pay_run: PayRun | None
     def __init__(self, **kwargs: Any) -> None: ...
 
@@ -77,7 +78,7 @@ class CalendarType(Enum):
     QUARTERLY = "Quarterly"
     ANNUAL = "Annual"
 
-class PayRunCalendar:
+class PayRunCalendar(BaseModel):
     payroll_calendar_id: str | None
     name: str | None
     calendar_type: CalendarType | None
@@ -86,11 +87,11 @@ class PayRunCalendar:
     payment_date: date | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class PayRunCalendars:
+class PayRunCalendars(BaseModel):
     pay_run_calendars: list[PayRunCalendar] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class Address:
+class Address(BaseModel):
     address_line1: str | None
     address_line2: str | None
     city: str | None
@@ -99,7 +100,7 @@ class Address:
     post_code: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class Employee:
+class Employee(BaseModel):
     employee_id: str | None
     first_name: str | None
     last_name: str | None
@@ -114,23 +115,23 @@ class Employee:
     updated_date_utc: datetime | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class Pagination:
+class Pagination(BaseModel):
     page: int | None
     page_size: int | None
     page_count: int | None
     item_count: int | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class Employees:
+class Employees(BaseModel):
     employees: list[Employee] | None
     pagination: Pagination | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class EmployeeObject:
+class EmployeeObject(BaseModel):
     employee: Employee | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class Employment:
+class Employment(BaseModel):
     payroll_calendar_id: str | None
     start_date: date | None
     # Nullable only because payroll_employees._sdk_null_tolerance relaxes the SDK's
@@ -138,7 +139,7 @@ class Employment:
     engagement_type: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class SalaryAndWage:
+class SalaryAndWage(BaseModel):
     salary_and_wages_id: str | None
     earnings_rate_id: str | None
     rate_per_unit: float | None
@@ -153,12 +154,12 @@ class SalaryAndWage:
     days_per_week: float | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class SalaryAndWages:
+class SalaryAndWages(BaseModel):
     pagination: Pagination | None
     salary_and_wages: list[SalaryAndWage] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class WorkingWeek:
+class WorkingWeek(BaseModel):
     monday: float | None
     tuesday: float | None
     wednesday: float | None
@@ -168,24 +169,24 @@ class WorkingWeek:
     sunday: float | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class EmployeeWorkingPatternWithWorkingWeeksRequest:
+class EmployeeWorkingPatternWithWorkingWeeksRequest(BaseModel):
     effective_from: date | None
     working_weeks: list[WorkingWeek] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class EmployeeWorkingPattern:
+class EmployeeWorkingPattern(BaseModel):
     payee_working_pattern_id: str | None
     effective_from: date | None
 
-class EmployeeWorkingPatternWithWorkingWeeks:
+class EmployeeWorkingPatternWithWorkingWeeks(BaseModel):
     payee_working_pattern_id: str | None
     effective_from: date | None
     working_weeks: list[WorkingWeek] | None
 
-class EmployeeWorkingPatternsObject:
+class EmployeeWorkingPatternsObject(BaseModel):
     payee_working_patterns: list[EmployeeWorkingPattern] | None
 
-class EmployeeWorkingPatternWithWorkingWeeksObject:
+class EmployeeWorkingPatternWithWorkingWeeksObject(BaseModel):
     payee_working_pattern: EmployeeWorkingPatternWithWorkingWeeks | None
 
 class TaxCode(Enum):
@@ -195,40 +196,40 @@ class TaxCode(Enum):
     NSW = "NSW"
     SB = "SB"
 
-class EmployeeTax:
+class EmployeeTax(BaseModel):
     ird_number: str | None
     tax_code: TaxCode | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class EmployeeLeaveSetup:
+class EmployeeLeaveSetup(BaseModel):
     def __init__(self, **kwargs: Any) -> None: ...
 
-class EmployeeLeaveType:
+class EmployeeLeaveType(BaseModel):
     leave_type_id: str | None
     schedule_of_accrual: str | None
     opening_balance: float | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class EmployeeLeaveTypes:
+class EmployeeLeaveTypes(BaseModel):
     leave_types: list[EmployeeLeaveType] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class EmployeeLeaveTypeObject:
+class EmployeeLeaveTypeObject(BaseModel):
     leave_type: EmployeeLeaveType | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class BankAccount:
+class BankAccount(BaseModel):
     account_name: str | None
     account_number: str | None
     sort_code: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class PaymentMethod:
+class PaymentMethod(BaseModel):
     payment_method: str | None
     bank_accounts: list[BankAccount] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class TimesheetLine:
+class TimesheetLine(BaseModel):
     timesheet_line_id: str | None
     date: date | None
     earnings_rate_id: str | None
@@ -236,7 +237,7 @@ class TimesheetLine:
     number_of_units: float | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class Timesheet:
+class Timesheet(BaseModel):
     timesheet_id: str | None
     payroll_calendar_id: str | None
     employee_id: str | None
@@ -247,15 +248,15 @@ class Timesheet:
     timesheet_lines: list[TimesheetLine] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class TimesheetObject:
+class TimesheetObject(BaseModel):
     timesheet: Timesheet | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class Timesheets:
+class Timesheets(BaseModel):
     timesheets: list[Timesheet] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class LeavePeriod:
+class LeavePeriod(BaseModel):
     period_start_date: date | None
     period_end_date: date | None
     number_of_units: float | None
@@ -263,7 +264,7 @@ class LeavePeriod:
     period_status: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class EmployeeLeave:
+class EmployeeLeave(BaseModel):
     leave_id: str | None
     leave_type_id: str | None
     description: str | None
@@ -272,22 +273,22 @@ class EmployeeLeave:
     periods: list[LeavePeriod] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class EmployeeLeaves:
+class EmployeeLeaves(BaseModel):
     leave: list[EmployeeLeave] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class EmployeeLeaveBalance:
+class EmployeeLeaveBalance(BaseModel):
     leave_type_id: str | None
     name: str | None
     balance: float | None
     type_of_units: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class EmployeeLeaveBalances:
+class EmployeeLeaveBalances(BaseModel):
     leave_balances: list[EmployeeLeaveBalance] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
-class EmployeeLeaveObject:
+class EmployeeLeaveObject(BaseModel):
     leave: EmployeeLeave | None
     def __init__(self, **kwargs: Any) -> None: ...
 

@@ -1,7 +1,7 @@
 """Pydantic wire contracts for the purchasing router.
 
 The service layer builds matching TypedDict data, and error responses use the
-standard envelope from ADR 0013. PO, PO-line, and Stock API field lists live
+standard envelope from ADR 0038. PO, PO-line, and Stock API field lists live
 only here so model and response declarations cannot drift (ADR 0039).
 """
 
@@ -227,9 +227,18 @@ class PurchaseOrderLineUpdateRequest(PurchaseOrderLineCreateRequest):
 
 
 class PurchaseOrderCreateRequest(Schema):
-    """Wire contract for PurchaseOrderCreateRequest."""
+    """Wire contract for PurchaseOrderCreateRequest.
 
-    supplier_id: UUID | None = None
+    ``supplier_id`` is required because an order without one is invalid data
+    rather than a stage of writing one — the owner is correcting the rows that
+    predate the rule. Not because of Xero: creation no longer touches it.
+
+    The column stays nullable so those rows keep reading, which is the same
+    split ``Job.company`` makes: nullable on the model, required by
+    ``JobCreateRequest`` and ``create_job``.
+    """
+
+    supplier_id: UUID
     pickup_address_id: UUID | None = None
     reference: NullableText = None
     order_date: date | None = None
@@ -343,7 +352,7 @@ class PurchaseOrderEmailResponse(ResponseSchema):
     email_body: str
     draft_id: str
     draft_url: str
-    message: str | None = None
+    message: str
 
 
 # ── Delivery receipts ────────────────────────────────────────────────────
@@ -353,7 +362,7 @@ class DeliveryReceiptAllocationRequest(Schema):
     """Wire contract for DeliveryReceiptAllocationRequest."""
 
     job_id: UUID
-    quantity: Decimal
+    quantity: Annotated[Decimal, Field(ge=0)]
     retail_rate: Decimal | None = None
     metadata: dict[str, str] = {}  # noqa: RUF012 -- pydantic copies defaults
 
@@ -361,7 +370,7 @@ class DeliveryReceiptAllocationRequest(Schema):
 class DeliveryReceiptLineRequest(Schema):
     """Wire contract for DeliveryReceiptLineRequest."""
 
-    total_received: Decimal
+    total_received: Annotated[Decimal, Field(ge=0)]
     allocations: list[DeliveryReceiptAllocationRequest]
 
 

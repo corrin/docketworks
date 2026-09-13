@@ -75,7 +75,7 @@ def test_movement_history_is_bounded_and_retired_stock_remains_readable(
         [
             StockMovement(
                 stock=stock,
-                kind="receipt",
+                kind="delivery",
                 quantity_before=0,
                 quantity_after=0,
                 quantity_change=0,

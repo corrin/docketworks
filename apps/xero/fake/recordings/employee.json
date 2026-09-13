@@ -1,0 +1,79 @@
+{
+  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "GET",
+    "path": "/payroll.xro/2.0/Employees/3cedd91a-f903-4bdb-ae51-8078be2f5795",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "id": "e6fc7319-f992-4476-a9de-8c0417456c5e",
+    "providerName": "Docketworks%20MSM%20Dev",
+    "dateTimeUTC": "2026-09-13T03:16:33.8424335",
+    "httpStatusCode": "OK",
+    "pagination": null,
+    "problem": null,
+    "employee": {
+      "employeeID": "3cedd91a-f903-4bdb-ae51-8078be2f5795",
+      "firstName": "firstName-scrubbed",
+      "lastName": "lastName-scrubbed",
+      "otherGivenNames": null,
+      "dateOfBirth": "1990-01-01T00:00:00",
+      "gender": null,
+      "email": "email-scrubbed",
+      "phoneNumber": "phoneNumber-scrubbed",
+      "startDate": "2025-04-01T00:00:00",
+      "address": {
+        "addressLine1": "addressLine1-scrubbed",
+        "addressLine2": "addressLine2-scrubbed",
+        "city": "city-scrubbed",
+        "suburb": "suburb-scrubbed",
+        "countryName": "NEW ZEALAND",
+        "postCode": "postCode-scrubbed"
+      },
+      "payrollCalendarID": "d015dc21-981e-4d26-a9cc-f8e8432fc76d",
+      "updatedDateUTC": "2026-09-13T02:52:42",
+      "createdDateUTC": "2026-09-12T03:55:45",
+      "engagementType": null,
+      "fixedTermEndDate": null,
+      "endDate": null,
+      "employmentType": "Employee",
+      "jobTitle": "Workshop Worker [ceb97ba9-4a45-5c95-b056-4d24f4d516b1]"
+    }
+  }
+}

@@ -318,10 +318,6 @@ name = "Platform does not consume legacy business models (ADR 0055)"
 type = "forbidden"
 source_modules = ["apps.platform"]
 forbidden_modules = ["apps.core.models", "apps.accounts", "apps.company", "apps.crm", "apps.job", "apps.timesheet", "apps.purchasing", "apps.quoting", "apps.accounting", "apps.operations", "apps.process", "apps.xero", "apps.search", "apps.diagnostics", "apps.ai"]
-# GPT: core.auth still owns the web authentication primitives and imports
-# ServiceAPIKey. ADR 0055 permits that existing web dependency, not direct
-# access to its business models. Platform.web's slice removes this placement.
-allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
 name = "Platform packages have no cycles (ADR 0055)"

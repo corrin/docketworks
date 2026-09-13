@@ -12,7 +12,9 @@ from typing import TYPE_CHECKING, Protocol
 from uuid import UUID
 
 if TYPE_CHECKING:
+    from apps.accounts.models import Staff
     from apps.company.models import Company
+    from apps.purchasing.models import PurchaseOrder
 
     from .types import (
         ContactResult,
@@ -102,6 +104,20 @@ class AccountingProvider(Protocol):
 
     def delete_purchase_order(self, external_id: str) -> "DocumentResult":
         """Void/delete the purchase order identified by ``external_id``."""
+        ...
+
+    def push_purchase_order(
+        self, purchase_order: "PurchaseOrder", staff: "Staff"
+    ) -> "DocumentResult":
+        """Make the provider's copy of ``purchase_order`` match ours.
+
+        Takes the order, not a ``POPayload``, for the same reason
+        ``create_contact`` takes the ``Company``: the caller is a domain app,
+        and turning an order into a payload means reading its lines and
+        capturing the version they were read at, which is the provider's work.
+        Creating and updating are one operation here because the order already
+        carries the external id that decides which of the two it is.
+        """
         ...
 
     def attach_file_to_invoice(

@@ -272,7 +272,7 @@
   change: "Error bodies use the v2 envelope, not v1's {success,error,details:{error_id}}"
   reason: >
     v1's purchasing views hand-built PurchaseOrderMutationErrorResponse /
-    PurchasingErrorResponse bodies. v2 answers with the single ADR 0013
+    PurchasingErrorResponse bodies. v2 answers with the single ADR 0038
     envelope {"detail", "error_id"} that every other v2 endpoint uses; status
     codes (400/404/412/428/500) are unchanged. Phase 3c-2.
 
@@ -717,7 +717,7 @@
     16 `uuid` contract gaps and deleted both string-to-UUID helpers
     (`_uuid_or_404` in apps/crm/api.py, `_uuid_or_client_error` in
     phone_call_service.py) - two implementations of one concept, disagreeing
-    on the status code (ADR 0039, ADR 0045). A well-formed id that matches no
+    on the status code (ADR 0039, ADR 0028). A well-formed id that matches no
     row still returns the same business 400 or 404 it always did; only the
     malformed case moved. User decision 2026-08-07.
 
@@ -1379,14 +1379,21 @@
     cost line, so cost never reached a job (KAN-144). Xero's own word is kept
     verbatim on xero_status, so nothing is lost.
 
-- operation: (xero purchase-order agreement)
-  change: "xero_agreed_at records when the two copies last matched, separately from xero_last_synced"
+- operation: (xero purchase-order ownership)
+  change: "Docketworks masters the purchase order; Xero mirrors it, synchronously, on every write"
   reason: >
-    xero_last_synced is stamped by every inbound sync, so it reported "up to
-    date" the moment we looked and hid an unsent edit behind the next pull.
-    updated_at cannot answer it either: that is the row's ETag and must advance
-    whenever the row changes, including when the change came from Xero. A push
-    stamps agreement only if the row is unchanged when the response lands.
+    An order is created in Xero when it is created here and updated there when
+    it changes here, inside the same transaction, so a refusal rolls the local
+    write back and an order this system holds is always one Xero holds too.
+    v1 pushed nothing at all — the only path was two endpoints with no caller.
+    The design between the two committed locally and queued the push, which made
+    a lost send invisible and then needed an hourly sweep to find it; that sweep
+    was a second scheduled Xero driver and is gone. Nothing retries: a refusal
+    is reported to the operator rather than healed quietly. The inbound sync
+    therefore takes nothing back for an order Docketworks raised except the
+    fields Xero owns (xero_last_modified, xero_last_synced, xero_status,
+    raw_json); an order with no created_by has no other source, so Xero keeps
+    its header and lines current.
 
 - operation: (instance provisioning)
   change: "A company-defaults file with a null xero_tenant_id is accepted (was refused)"

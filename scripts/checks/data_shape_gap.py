@@ -17,7 +17,6 @@ import argparse
 import sys
 from pathlib import Path
 
-import django
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -29,18 +28,6 @@ MEANINGFUL_ROWS = 50
 # Opus: Half of production is the line between "the same order of magnitude" and a
 # corpus that cannot exercise what production does.
 THIN_FRACTION = 0.5
-
-
-def _local_counts() -> dict[str, int]:
-    """Count every project model in the database this process is pointed at."""
-    from django.apps import apps
-
-    counts: dict[str, int] = {}
-    for model in apps.get_models():
-        if not model._meta.app_config.name.startswith("apps."):
-            continue
-        counts[f"{model._meta.app_label}.{model.__name__}"] = model._default_manager.count()
-    return counts
 
 
 def main() -> int:
@@ -60,11 +47,16 @@ def main() -> int:
     production: dict[str, int] = shape["counts"]
 
     sys.path.insert(0, str(REPO_ROOT))
-    import os
+    from scripts.bootstrap import (
+        setup_django,
+    )
 
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
-    django.setup()
-    local = _local_counts()
+    setup_django()
+    from apps.diagnostics.management.commands.data_shape import (
+        project_model_counts,
+    )
+
+    local = project_model_counts()
 
     thin = [
         (produced / max(local.get(label, 0), 1), label, local.get(label, 0), produced)

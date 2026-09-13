@@ -38,9 +38,9 @@ from apps.purchasing.models import (
     PurchaseOrderLine,
 )
 from apps.purchasing.schemas import PurchaseOrderStatus
+from apps.purchasing.services.accounting_mirror import send_state_change
 from apps.purchasing.services.allocation_service import recompute_purchase_order_status
 from apps.purchasing.services.delivery_receipt_service import receive_outstanding_order
-from apps.purchasing.tasks import queue_purchase_order_push
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,8 @@ def _purchase_order_search_filter(query: str) -> Q:
     search, and no operator searches a job by a fragment of its number.
     """
     matches = Q(po_number__icontains=query) | Q(supplier__name__icontains=query)
-    if query.isdigit():
+    # isdecimal, not isdigit: isdigit accepts characters int() rejects ("²"), a 500.
+    if query.isdecimal():
         matches |= Q(po_lines__job__job_number=int(query))
     return matches
 
@@ -284,7 +285,7 @@ class PurchaseOrderLineWriteData(TypedDict, total=False):
 class PurchaseOrderCreateData(TypedDict, total=False):
     """The PO fields a create payload may carry."""
 
-    supplier_id: UUID | None
+    supplier_id: UUID
     pickup_address_id: UUID | None
     reference: str | None
     order_date: date | None
@@ -399,30 +400,29 @@ def _resolve_pickup_address(pickup_address_id: UUID, supplier: Company) -> Suppl
     return address
 
 
-def create_purchase_order(
-    data: PurchaseOrderCreateData, *, created_by: Staff | None = None
-) -> PurchaseOrder:
-    """Create a PO (and its lines); the model generates the PO number."""
-    supplier_id = data.get("supplier_id")
-    supplier = _resolve_supplier(supplier_id) if supplier_id else None
+def create_purchase_order(data: PurchaseOrderCreateData, *, created_by: Staff) -> PurchaseOrder:
+    """Create a PO (and its lines) here and in the accounting system.
+
+    ``created_by`` is required because every order this function makes is one
+    Docketworks raised. An order that arrives FROM the accounting system is
+    created by the inbound sync instead, and is never pushed back.
+    """
+    supplier = _resolve_supplier(data["supplier_id"])
 
     pickup_address: SupplierPickupAddress | None
     if "pickup_address_id" in data:
         # Sent, so the client chose: an id, or null for none (ADR 0040).
         pickup_address_id = data["pickup_address_id"]
-        if pickup_address_id is None:
-            pickup_address = None
-        elif supplier is None:
-            raise DjangoValidationError("A pickup address needs a supplier")
-        else:
-            pickup_address = _resolve_pickup_address(pickup_address_id, supplier)
-    elif supplier is not None:
+        pickup_address = (
+            None
+            if pickup_address_id is None
+            else _resolve_pickup_address(pickup_address_id, supplier)
+        )
+    else:
         # Not sent: the supplier's primary address, if it has one.
         pickup_address = SupplierPickupAddress.objects.filter(
             company=supplier, is_primary=True, is_active=True
         ).first()
-    else:
-        pickup_address = None
 
     with transaction.atomic():
         po = PurchaseOrder.objects.create(
@@ -449,6 +449,28 @@ def _apply_purchase_order_fields(po: PurchaseOrder, data: PurchaseOrderUpdateDat
     new_status = data["status"]
     logger.info("Updating PO %s status: %s -> %s", po.po_number, po.status, new_status)
     po.status = new_status
+
+
+def _apply_supplier_and_pickup(po: PurchaseOrder, data: PurchaseOrderUpdateData) -> None:
+    """Repoint the order at a supplier and at where its goods are collected.
+
+    One unit because the two move together: an address belongs to a supplier,
+    so changing the supplier invalidates the address rather than keeping it.
+    """
+    supplier_id = data.get("supplier_id")
+    if supplier_id and supplier_id != po.supplier_id:
+        po.supplier = _resolve_supplier(supplier_id)
+        # The old supplier's yard is no collection point for the new one.
+        po.pickup_address = None
+    if "pickup_address_id" not in data:
+        return
+    pickup_address_id = data["pickup_address_id"]
+    if pickup_address_id is None:
+        po.pickup_address = None
+    elif po.supplier is None:
+        raise DjangoValidationError("A pickup address needs a supplier")
+    else:
+        po.pickup_address = _resolve_pickup_address(pickup_address_id, po.supplier)
 
 
 def update_purchase_order(
@@ -488,20 +510,9 @@ def update_purchase_order(
                 )
             PurchaseOrderLine.objects.filter(id__in=lines_to_delete, purchase_order=po).delete()
 
-        supplier_id = data.get("supplier_id")
-        if supplier_id and supplier_id != po.supplier_id:
-            po.supplier = _resolve_supplier(supplier_id)
-            # The old supplier's yard is no collection point for the new one.
-            po.pickup_address = None
-        if "pickup_address_id" in data:
-            pickup_address_id = data["pickup_address_id"]
-            if pickup_address_id is None:
-                po.pickup_address = None
-            elif po.supplier is None:
-                raise DjangoValidationError("A pickup address needs a supplier")
-            else:
-                po.pickup_address = _resolve_pickup_address(pickup_address_id, po.supplier)
+        _apply_supplier_and_pickup(po, data)
 
+        status_before = po.status
         _write_lines(po, data.get("lines", []))
         _apply_purchase_order_fields(po, data)
 
@@ -511,10 +522,13 @@ def update_purchase_order(
         elif "lines" in data and po.po_lines.filter(received_quantity__gt=0).exists():
             recompute_purchase_order_status(po)
         po.refresh_from_db()
-        # Xero holds a copy of this order so the supplier's bill has something
-        # to reconcile against; keeping that copy current is the system's job,
-        # not an operator's. Queued after the write, on commit.
-        queue_purchase_order_push(po)
+        if po.status != status_before:
+            # Any transition, in either direction: leaving draft is the first
+            # moment a bill can come back, a receipt settles the total, and
+            # going back to draft is Xero learning the order was pulled.
+            po.xero_push_due = True
+            po.save(update_fields=["xero_push_due"])
+            send_state_change(po, staff)
         return po
 
 

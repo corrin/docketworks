@@ -90,11 +90,15 @@ async function getAuthCookie(): Promise<string> {
  * at the production Xero app. Production Xero writes require XERO_READONLY.
  * Does NOT attempt to connect or refresh tokens.
  */
-async function checkXeroStatus(): Promise<{
+export interface XeroStatus {
   connected: boolean
   xeroReadonly: boolean
   productionClient: boolean | null
-}> {
+  /** null when the backend did not say: a build without the field fails closed. */
+  xeroFake: boolean | null
+}
+
+async function checkXeroStatus(): Promise<XeroStatus> {
   const cookieValue = await getAuthCookie()
 
   // Generous: ping may perform a real token refresh against Xero.
@@ -111,11 +115,11 @@ async function checkXeroStatus(): Promise<{
     // and a reconnect that does not fix it is still caught, because the
     // preflight below blocks on the re-check.
     console.log(`[xero] Ping returned HTTP ${response.status}: ${await response.text()}`)
-    return { connected: false, xeroReadonly: false, productionClient: null }
+    return { connected: false, xeroReadonly: false, productionClient: null, xeroFake: null }
   }
   const data: unknown = await response.json()
   if (typeof data !== 'object' || data === null) {
-    return { connected: false, xeroReadonly: false, productionClient: null }
+    return { connected: false, xeroReadonly: false, productionClient: null, xeroFake: null }
   }
   const payload: Record<string, unknown> = { ...data }
   return {
@@ -125,21 +129,48 @@ async function checkXeroStatus(): Promise<{
     // Missing production-client classification must fail closed when connected.
     productionClient:
       typeof payload.xero_production_client === 'boolean' ? payload.xero_production_client : null,
+    xeroFake: typeof payload.xero_fake === 'boolean' ? payload.xero_fake : null,
   }
 }
 
-/** Turn a ping result into blocking issues; exported so the guard itself is testable. */
-export function xeroPreflightIssues(xeroStatus: {
-  connected: boolean
-  xeroReadonly: boolean
-  productionClient: boolean | null
-}): string[] {
+/** The mode this harness was started for: run_e2e.sh exports XERO_FAKE to it. */
+export function harnessExpectsFake(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.XERO_FAKE === 'true'
+}
+
+/**
+ * Turn a ping result into blocking issues; exported so the guard itself is testable.
+ *
+ * `expectFake` is what the harness was told (run_e2e.sh --use-fake-xero exports
+ * XERO_FAKE to it); the backend's own flag is the truth, and a disagreement
+ * means the stack was started one way and the run asked for the other — a run
+ * that would then be labelled wrong, which ADR 0060 does not allow.
+ */
+export function xeroPreflightIssues(xeroStatus: XeroStatus, expectFake: boolean): string[] {
   const issues: string[] = []
   if (!xeroStatus.connected) {
     issues.push('Xero is not connected. Complete the OAuth flow (/api/xero/authenticate/) first.')
     return issues
   }
   console.log('[xero] Xero is connected.')
+  if (xeroStatus.xeroFake === null) {
+    issues.push(
+      'Backend did not report whether it answers Xero from the fake (xero_fake). ' +
+        'Deploy the backend ping update before running E2E.',
+    )
+  } else if (xeroStatus.xeroFake !== expectFake) {
+    issues.push(
+      xeroStatus.xeroFake
+        ? 'Backend is running the fake Xero (XERO_FAKE=true) but this run was not started with ' +
+            '--use-fake-xero. Restart the stack without the flag, or run the fake gate on purpose.'
+        : 'This run was started with --use-fake-xero but the backend is answering from real Xero. ' +
+            'Start the stack through run_e2e.sh --use-fake-xero so every process carries XERO_FAKE=true.',
+    )
+  } else if (xeroStatus.xeroFake) {
+    console.log(
+      '[xero] FAKE XERO: the backend answers every Xero call locally. This run is not a merge gate.',
+    )
+  }
   if (xeroStatus.productionClient === null) {
     issues.push(
       'Backend did not report whether the active Xero app is production. ' +
@@ -178,7 +209,7 @@ async function reconnectXero(): Promise<Awaited<ReturnType<typeof checkXeroStatu
     // Opus: Reported as not-connected rather than re-raising the ping's error: the
     // preflight's own message names the fix, which is what an environment
     // without Xero credentials needs to read.
-    return { connected: false, xeroReadonly: false, productionClient: null }
+    return { connected: false, xeroReadonly: false, productionClient: null, xeroFake: null }
   }
   console.log('[xero] Not connected — running the OAuth flow. Approve the MFA push if prompted.')
   await ensureXeroConnected()
@@ -213,7 +244,8 @@ export default async function globalSetup(): Promise<void> {
     if (!xeroStatus.connected) {
       xeroStatus = await reconnectXero()
     }
-    const xeroIssues = xeroPreflightIssues(xeroStatus)
+    const expectFake = harnessExpectsFake()
+    const xeroIssues = xeroPreflightIssues(xeroStatus, expectFake)
     if (xeroIssues.length > 0) {
       const issueList = xeroIssues.map((i) => `  - ${i}`).join('\n')
       throw new Error(`E2E Xero pre-flight checks failed:\n${issueList}`)
@@ -263,9 +295,15 @@ export default async function globalSetup(): Promise<void> {
     runPgDump(dbConfig, backupFile)
 
     // Record backup path in the lock file (line 2) so teardown knows a backup
-    // was taken in this run and where to find it, then the run id (line 3).
-    // Order matters: teardown reads the backup path positionally.
-    fs.appendFileSync(LOCK_FILE, `\n${backupFile}\n${runId}`, 'utf8')
+    // was taken in this run and where to find it, then the run id (line 3),
+    // then the Xero mode (line 4: "fake" or "real") the reporter labels every
+    // history row with and the teardown reads. Order matters: both read the
+    // lines positionally.
+    fs.appendFileSync(
+      LOCK_FILE,
+      `\n${backupFile}\n${runId}\n${expectFake ? 'fake' : 'real'}`,
+      'utf8',
+    )
 
     console.log(`[db] Backup complete: ${backupFile}`)
   } catch (error) {

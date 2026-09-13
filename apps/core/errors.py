@@ -269,7 +269,7 @@ def persist_app_error(
 def app_error_for(exception: Exception) -> AppError | None:
     """Return the AppError this exception was persisted as, if any.
 
-    Response builders use this to surface ``error_id`` (ADR 0013) without
+    Response builders use this to surface ``error_id`` (ADR 0038) without
     needing the exception to have been wrapped in a marker type.
     """
     return _existing_app_error(exception)

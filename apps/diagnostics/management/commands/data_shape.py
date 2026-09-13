@@ -17,6 +17,21 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.utils import timezone
 
 
+def project_model_counts() -> dict[str, int]:
+    """Count every project model in the database this process is pointed at.
+
+    Project models only: Django's own auth/contenttypes/sessions tables say
+    nothing about the business data a screen renders. Shared with
+    scripts/checks/data_shape_gap.py, which compares this against production.
+    """
+    counts: dict[str, int] = {}
+    for model in apps.get_models():
+        if not model._meta.app_config.name.startswith("apps."):
+            continue
+        counts[f"{model._meta.app_label}.{model.__name__}"] = model._default_manager.count()
+    return counts
+
+
 class Command(BaseCommand):
     """Emit `model: rows` for every model this project defines."""
 
@@ -39,14 +54,7 @@ class Command(BaseCommand):
         if not isinstance(instance, str):
             raise CommandError("--instance must be a name")
 
-        counts: dict[str, int] = {}
-        for model in apps.get_models():
-            # Opus: Project models only: Django's own auth/contenttypes/sessions
-            # tables say nothing about the business data a screen renders.
-            if not model._meta.app_config.name.startswith("apps."):
-                continue
-            label = f"{model._meta.app_label}.{model.__name__}"
-            counts[label] = model._default_manager.count()
+        counts = project_model_counts()
 
         self.stdout.write("# Row counts from a production instance, captured by")
         self.stdout.write("# `manage.py data_shape --instance <name>`. Counts only — no")

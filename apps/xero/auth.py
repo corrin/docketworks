@@ -20,6 +20,7 @@ from typing import Any, TypedDict
 from urllib.parse import quote, urlencode
 
 import requests
+from django.conf import settings
 from django.core.cache import caches
 from xero_python.api_client import ApiClient, Configuration
 from xero_python.api_client.oauth2 import OAuth2Token, TokenApi
@@ -90,7 +91,14 @@ def _build() -> ApiClient:
             ),
         ),
     )
-    client.rest_client = RateLimitedRESTClient(client.configuration)
+    if settings.XERO_FAKE:
+        # Call-time import: the fake reads the mirror's models, and this
+        # module is imported before the app registry is ready.
+        from apps.xero.fake.rest_client import FakeXeroRESTClient  # noqa: PLC0415
+
+        client.rest_client = FakeXeroRESTClient(client.configuration)
+    else:
+        client.rest_client = RateLimitedRESTClient(client.configuration)
     bind_token_callbacks(client, app.id)
     return client
 
@@ -412,6 +420,13 @@ def exchange_code_for_token(code: str) -> dict[str, Any]:
     is called — v1 threaded state/session_state in here and then only logged
     them, which is how the check went missing.
     """
+    if settings.XERO_FAKE:
+        # This is the one Xero call made with requests rather than the SDK, so
+        # the fake transport cannot answer it; a consent flow under the fake
+        # would reach the real identity service.
+        raise RuntimeError(
+            "XERO_FAKE is set: the Xero consent flow reaches the real identity service"
+        )
     try:
         app = XeroApp.objects.get(is_active=True)
     except XeroApp.DoesNotExist as exc:

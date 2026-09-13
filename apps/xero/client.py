@@ -24,6 +24,10 @@ from apps.core.errors import persist_app_error
 logger = logging.getLogger(__name__)
 
 MINIMUM_SLEEP = 1  # seconds between API calls
+# Xero reports remaining quota only on tenant-scoped responses; identity
+# endpoints carry neither header. quota.py reads them for a preflight.
+DAY_LIMIT_HEADER = "X-DayLimit-Remaining"
+MINUTE_LIMIT_HEADER = "X-MinLimit-Remaining"
 SUMMARY_INTERVAL_SECONDS = 300
 MINUTE_WARNING_THRESHOLDS = (10, 5, 1)
 DAY_WARNING_THRESHOLDS = (
@@ -268,8 +272,8 @@ class RateLimitedRESTClient(RESTClientObject):
                 url=url,
                 duration_ms=int((time.perf_counter() - started) * 1000),
                 status_code=status,
-                day_remaining=self._parse_int(resp_headers.get("X-DayLimit-Remaining")),
-                minute_remaining=self._parse_int(resp_headers.get("X-MinLimit-Remaining")),
+                day_remaining=self._parse_int(resp_headers.get(DAY_LIMIT_HEADER)),
+                minute_remaining=self._parse_int(resp_headers.get(MINUTE_LIMIT_HEADER)),
             )
         )
 
@@ -279,8 +283,8 @@ class RateLimitedRESTClient(RESTClientObject):
         if not resp_headers:
             return
 
-        day_remaining = resp_headers.get("X-DayLimit-Remaining")
-        min_remaining = resp_headers.get("X-MinLimit-Remaining")
+        day_remaining = resp_headers.get(DAY_LIMIT_HEADER)
+        min_remaining = resp_headers.get(MINUTE_LIMIT_HEADER)
         self._record_quota(day_remaining, min_remaining)
 
     def _handle_rate_limit(self, exc: ApiException) -> None:
@@ -293,8 +297,8 @@ class RateLimitedRESTClient(RESTClientObject):
         # not an instruction to block a worker thread for hours.
         retry_after = min(self._parse_int(resp_headers.get("Retry-After")) or 60, 300)
         limit_type = resp_headers.get("X-Rate-Limit-Problem", "unknown")
-        day_remaining = resp_headers.get("X-DayLimit-Remaining", "?")
-        min_remaining = resp_headers.get("X-MinLimit-Remaining", "?")
+        day_remaining = resp_headers.get(DAY_LIMIT_HEADER, "?")
+        min_remaining = resp_headers.get(MINUTE_LIMIT_HEADER, "?")
         self._rate_limit_hits += 1
 
         logger.warning(

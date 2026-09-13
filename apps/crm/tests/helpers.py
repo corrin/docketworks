@@ -6,8 +6,8 @@ from django.test import Client
 from django.utils import timezone
 
 from apps.accounts.models import Staff
+from apps.accounts.tests.helpers import authenticate
 from apps.company.models import Company, CompanyPersonLink, Person
-from apps.core.auth import issue_refresh_token
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.job.models import Job
 
@@ -17,8 +17,7 @@ PASSWORD = "testpass-123!"
 def cookie_client(staff: Staff) -> Client:
     """A django test Client authenticated via the HttpOnly JWT cookie."""
     client = Client()
-    refresh = issue_refresh_token(staff)
-    client.cookies["access_token"] = str(refresh.access_token)
+    authenticate(client, staff)
     return client
 
 
@@ -33,10 +32,6 @@ def make_superuser(email: str = "crm-admin@example.com") -> Staff:
         is_office_staff=True,
         is_superuser=True,
     )
-
-
-def make_company(name: str = "Acme Ltd") -> Company:
-    return Company.objects.create(name=name, xero_last_modified=timezone.now())
 
 
 def link_person(company: Company, name: str) -> CompanyPersonLink:

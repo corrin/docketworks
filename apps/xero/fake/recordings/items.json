@@ -1,0 +1,92 @@
+{
+  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": 2,
+  "request": {
+    "method": "GET",
+    "path": "/api.xro/2.0/Items",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "Id": "397f1897-9eba-4ac4-95bb-32399eb7779e",
+    "Status": "OK",
+    "ProviderName": "Docketworks MSM Dev",
+    "DateTimeUTC": "/Date(1789269370258)/",
+    "Items": [
+      {
+        "ItemID": "4bbde087-a3a4-46a8-8590-46173ef717a3",
+        "Code": "00002867",
+        "Description": "0.7X1219X2438 304/4 SS SHT FIBRE PE",
+        "UpdatedDateUTC": "/Date(1789268114447+0000)/",
+        "PurchaseDetails": {
+          "UnitPrice": 98.61,
+          "AccountCode": "300",
+          "TaxType": "INPUT2"
+        },
+        "SalesDetails": {
+          "UnitPrice": 128.19,
+          "AccountCode": "200",
+          "TaxType": "OUTPUT2"
+        },
+        "Name": "0.7X1219X2438 304/4 SS SHT FIBRE PE",
+        "IsTrackedAsInventory": false,
+        "IsSold": true,
+        "IsPurchased": true
+      },
+      {
+        "ItemID": "f31442c5-2b9d-486a-a580-467613725f8e",
+        "Code": "0000452",
+        "Description": "2.0X1200X2400 5005H32 AL SHT",
+        "UpdatedDateUTC": "/Date(1789268152903+0000)/",
+        "PurchaseDetails": {
+          "UnitPrice": 153.81,
+          "AccountCode": "300",
+          "TaxType": "INPUT2"
+        },
+        "SalesDetails": {
+          "UnitPrice": 199.95,
+          "AccountCode": "200",
+          "TaxType": "OUTPUT2"
+        },
+        "Name": "2.0X1200X2400 5005H32 AL SHT",
+        "IsTrackedAsInventory": false,
+        "IsSold": true,
+        "IsPurchased": true
+      }
+    ]
+  }
+}

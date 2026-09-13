@@ -24,16 +24,14 @@ from django.utils import timezone
 from xero_python.accounting import Account, AccountingApi
 
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
+from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.errors import InvalidInputError, persist_app_error
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
+from apps.purchasing.services.accounting_mirror import is_locally_raised
 from apps.purchasing.services.allocation_service import recompute_purchase_order_status
 from apps.purchasing.services.purchase_order_service import validate_ordered_quantity
-from apps.purchasing.tasks import (
-    enqueue_stock_metadata_parse,
-    queue_purchase_order_push,
-    stock_metadata_parse_eligible,
-)
+from apps.purchasing.tasks import enqueue_stock_metadata_parse, stock_metadata_parse_eligible
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.constants import SLEEP_TIME
 from apps.xero.models import XeroAccount, XeroError, XeroPayRun, XeroPaySlip
@@ -113,6 +111,12 @@ def serialize_xero_object(obj: Any) -> Any:  # noqa: PLR0911 -- a type-dispatch 
     return str(obj)
 
 
+# The two SDK attributes every stored raw_json lacks: clean_json drops them as
+# bulk the mirror never reads, so a renderer working back from raw_json must
+# know they were removed rather than never sent (apps/xero/fake/wire.py).
+STRIPPED_RAW_KEYS = frozenset({"_currency_code", "_currency_rate"})
+
+
 def clean_json(data: Any) -> Any:
     """Remove Xero's internal fields and bulky repeated data."""
     if not isinstance(data, dict):
@@ -124,7 +128,7 @@ def clean_json(data: Any) -> Any:
         "_member_names_",
         "__objclass__",
     ]
-    exclude_keys = {"_currency_code", "_currency_rate", *exclude_patterns}
+    exclude_keys = {*STRIPPED_RAW_KEYS, *exclude_patterns}
 
     cleaned = {}
     for key, value in data.items():
@@ -644,7 +648,12 @@ _PO_STATUS_MAP = {
     "SUBMITTED": "submitted",
     "AUTHORISED": "submitted",
     "BILLED": "submitted",
-    "VOIDED": "deleted",
+    # DELETED, not VOIDED: xero_python's PurchaseOrder enumerates exactly
+    # DRAFT, SUBMITTED, AUTHORISED, BILLED and DELETED, so the VOIDED entry
+    # mapped a value Xero cannot send while the one it does send was absent —
+    # and absent means _map_po_status raises on it. Our own outbound map
+    # already emits DELETED for a locally deleted order (documents/po.py).
+    "DELETED": "deleted",
 }
 
 
@@ -659,53 +668,22 @@ def _map_po_status(raw_status: str) -> str:
     return mapped
 
 
-def _has_unsent_change(po: PurchaseOrder) -> bool:
-    """Whether this order holds an edit that has not reached Xero yet.
-
-    Only orders Docketworks sends can hold one: a draft nobody has submitted,
-    or an order that arrived from Xero, is never waiting to be published.
-    ``xero_agreed_at`` answers this and ``xero_last_synced`` cannot — the
-    latter is stamped by every inbound sync, so it reports "up to date" the
-    moment we look, whether or not the edit was ever sent.
-    """
-    if po.created_by_id is None:
-        return False
-    if po.xero_id is None and po.status == "draft":
-        return False
-    return po.xero_agreed_at is None or po.updated_at > po.xero_agreed_at
-
-
-def _stamp_agreement(po: PurchaseOrder) -> None:
-    """Record that our copy and Xero's now hold the same version.
-
-    Written here as well as by the push because agreement is reached either
-    way — we sent ours, or we just took theirs. Without this, absorbing an
-    inbound edit is indistinguishable from making a local one: ``updated_at``
-    is the row's ETag (``apps/purchasing/etag.py``) and so must advance
-    whenever the row changes, including when the change came FROM Xero. The
-    sweep would then push the order straight back, Xero would report the
-    resulting modification on the next pull, and the pair would trade an
-    order back and forth for as long as the sync kept running.
-
-    ``QuerySet.update`` rather than ``save``: this is not a change to the
-    order, and bumping the ETag for it would invalidate every client's copy
-    on a row nobody edited.
-    """
-    stamp = timezone.now()
-    PurchaseOrder.objects.filter(id=po.id).update(xero_agreed_at=stamp)
-    po.xero_agreed_at = stamp
-
-
 def _purchase_order_sync_values(
     po: PurchaseOrder, header: dict[str, Any], status: str
 ) -> dict[str, Any]:
-    """Return the fields this sync writes, deferring to an unsent local edit.
+    """Return the fields this sync writes.
 
-    The sync runs in both directions and neither is dropped. Xero's version is
-    taken, because an order edited there is an edit that has to land somewhere.
-    The exception is a genuine collision — we hold a change Xero has not seen —
-    and it is resolved rather than ignored: the older copy does not overwrite
-    the newer edit, and the caller publishes ours instead.
+    Both systems raise purchase orders. One we raised is mastered here and
+    takes nothing back except the four fields Xero genuinely owns: when it last
+    changed there, when we last looked, Xero's own word for its state, and the
+    raw document. One Xero raised has no other source, so Xero keeps its header
+    current. ``is_locally_raised`` reads the number to tell them apart.
+
+    Opus: the rejected alternative was resolving edits from both sides by
+    comparing timestamps. It needs a column recording when the two copies last
+    agreed, a rule for which side wins, and a sweep to publish the loser — and
+    the business does not edit purchase orders in Xero, so it arbitrated a
+    collision that never happens.
     """
     values: dict[str, Any] = {
         "xero_last_modified": header["xero_last_modified"],
@@ -713,9 +691,8 @@ def _purchase_order_sync_values(
         "xero_status": status,
         "raw_json": header["raw_json"],
     }
-    if _has_unsent_change(po):
+    if is_locally_raised(po):
         return values
-    mapped_status = _map_po_status(status)
     values.update(
         po_number=header["po_number"],
         order_date=header["order_date"],
@@ -726,7 +703,7 @@ def _purchase_order_sync_values(
     # that label is already corrupt; purchasing owns its calculation/repair.
     if po.po_lines.filter(received_quantity__gt=0).exists():
         return values
-    return values | {"status": mapped_status}
+    return values | {"status": _map_po_status(status)}
 
 
 def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[PurchaseOrder, str]:
@@ -774,6 +751,9 @@ def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[Purchas
             po = PurchaseOrder.objects.create(
                 xero_id=xero_id,
                 supplier=supplier,
+                # Xero raised it, so no person here did; System Automation is the
+                # row the codebase names wherever no human is on the call stack.
+                created_by=Staff.get_automation_user(),
                 po_number=po_number,
                 order_date=order_date,
                 status=map_status(status),
@@ -782,7 +762,6 @@ def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[Purchas
             )
             created = True
 
-        unsent = _has_unsent_change(po)
         new_values = _purchase_order_sync_values(
             po,
             {
@@ -798,18 +777,13 @@ def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[Purchas
         if changed_fields or created or linked:
             po.save()
 
-        if unsent:
-            # Our edit is newer than anything Xero holds, so taking Xero's lines
-            # would revert it. Publish ours instead: both directions are handled,
-            # and the next sync finds the two agreeing. No agreement is stamped —
-            # the push stamps it once Xero has actually accepted ours.
-            queue_purchase_order_push(po)
-            return po, _build_sync_status(created, changed_fields)
-
-        _sync_purchase_order_lines(po, xero_po, po_number, xero_id)
-        if po.po_lines.filter(received_quantity__gt=0).exists():
-            recompute_purchase_order_status(po)
-        _stamp_agreement(po)
+        if not is_locally_raised(po):
+            # Xero is this order's only source, so its lines are too. An order
+            # Docketworks raised is mastered here and its lines are not taken
+            # back, which is why nothing publishes ours in response either.
+            _sync_purchase_order_lines(po, xero_po, po_number, xero_id)
+            if po.po_lines.filter(received_quantity__gt=0).exists():
+                recompute_purchase_order_status(po)
 
         # "linked" is special case for POs - existing PO matched by po_number
         if linked:

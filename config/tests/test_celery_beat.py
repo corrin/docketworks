@@ -81,7 +81,13 @@ def test_a_stamped_entry_reaches_the_worker_as_request_periodic_task_name(
     """
     options = app.conf.beat_schedule["run_all_scrapers_weekly"]["options"]
 
-    probe_app = Celery("beat_header_probe", broker="memory://", backend="cache+memory://")
+    # set_as_current=False: a Celery() call otherwise becomes the process's
+    # current app, and every schedule in config.celery resolves its timezone
+    # through the current app on first use, so the beat entries read back as
+    # UTC for the rest of the module.
+    probe_app = Celery(
+        "beat_header_probe", broker="memory://", backend="cache+memory://", set_as_current=False
+    )
 
     @probe_app.task(name="probe.capture")
     def probe() -> None: ...

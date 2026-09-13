@@ -1,4 +1,5 @@
-# 0057 — Line identity and creation order
+# 0057 — Persisted lines keep permanent ids and a server-defined creation order
+Ratified: owner, 2026-09-13
 
 Persisted line items have permanent IDs and a server-defined creation order shared by every reader.
 

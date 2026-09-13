@@ -728,6 +728,9 @@ test.describe.serial('edit job', () => {
       expect(optionCount).toBeGreaterThan(1) // More than just the placeholder
     })
 
+    // Chosen in one step, verified in the next: the read-back must be compared to
+    // the choice, not to itself.
+    let selectedValue = ''
     await test.step('select a different pay item', async () => {
       const payItemSelect = autoId(page, 'JobSettingsTab-default-pay-item')
 
@@ -735,7 +738,6 @@ test.describe.serial('edit job', () => {
       const options = payItemSelect.locator('option')
       const optionCount = await options.count()
 
-      let selectedValue = ''
       for (let i = 1; i < optionCount; i++) {
         const optionValue = await options.nth(i).getAttribute('value')
         if (optionValue) {
@@ -755,15 +757,14 @@ test.describe.serial('edit job', () => {
 
     await test.step('verify pay item was saved', async () => {
       const payItemSelect = autoId(page, 'JobSettingsTab-default-pay-item')
-      const savedValue = await payItemSelect.inputValue()
-      expect(savedValue).not.toBe('')
+      await expect(payItemSelect).toHaveValue(selectedValue)
 
       await page.reload()
       await autoId(page, 'JobViewTabs-jobSettings').click()
       await autoId(page, 'JobSettingsTab-default-pay-item').waitFor({ timeout: 10000 })
 
       const payItemSelectAfter = autoId(page, 'JobSettingsTab-default-pay-item')
-      await expect(payItemSelectAfter).toHaveValue(savedValue)
+      await expect(payItemSelectAfter).toHaveValue(selectedValue)
     })
   })
 })

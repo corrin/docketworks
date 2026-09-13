@@ -322,9 +322,12 @@ def test_a_collision_publishes_ours_rather_than_dropping_either(
     line.refresh_from_db()
     assert line.description == "What the office confirmed", "Xero's older copy won"
 
-    # And Xero agrees now, which is the half that makes it a sync: re-read by
-    # clearing our claim on the row so the next pull mirrors in full.
-    PurchaseOrder.objects.filter(id=po.id).update(created_by=None, xero_agreed_at=None)
+    # And Xero agrees now, which is the half that makes it a sync: re-read as
+    # an order Xero raised, so the next pull mirrors its header and lines.
+    # Ownership is the number's prefix (accounting_mirror.is_locally_raised),
+    # so the order is renumbered the way Xero numbers its own; a null creator
+    # never meant "Xero raised it" and the column no longer admits one.
+    PurchaseOrder.objects.filter(id=po.id).update(po_number=f"XPO-{po.po_number[3:]}")
     _sync("purchase_orders")
     assert po.po_lines.filter(description="What the office confirmed").exists(), (
         "our edit never reached Xero"
@@ -378,7 +381,6 @@ def test_recorded_receipt_survives_a_real_xero_round_trip(
     result = XeroPurchaseOrderManager(purchase_order=po, staff=pushing_staff).sync_to_xero()
     assert result["success"], result
     po.refresh_from_db()
-    assert po.xero_agreed_at is not None and po.xero_agreed_at >= po.updated_at
     _pull_back(po)
 
     line.refresh_from_db()

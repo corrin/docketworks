@@ -16,7 +16,7 @@ Status mapping:
 - Http404                      -> 404 ``Not found.``
 - ninja HttpError              -> its status code, message verbatim
 - request validation           -> 422 with Ninja's native error list
-- anything else                -> 500, message verbatim (ADR 0013)
+- anything else                -> 500, message verbatim (ADR 0038)
 """
 
 import logging
@@ -187,7 +187,7 @@ def _handle_password_change_required(
     api: NinjaAPI, request: HttpRequest, exc: PasswordChangeRequiredError
 ) -> HttpResponse:
     """Render the typed refusal that locks a flagged session to the change screen."""
-    # Expected security outcome (ADR 0013): stable code, no AppError row.
+    # Expected security outcome (ADR 0038): stable code, no AppError row.
     _log_auth_warning("Password change required", request, exc)
     return api.create_response(request, password_change_required_body(), status=403)
 

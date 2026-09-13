@@ -93,6 +93,10 @@ def test_string_foreign_keys_and_many_to_many_obey_context_direction(
             False,
         ),
         ({"apps/platform/integrations/api.py": "import apps.core.auth\n"}, True),
+        (
+            {"apps/platform/integrations/api.py": "import apps.core.service_auth\n"},
+            False,
+        ),
     ],
 )
 def test_production_import_contracts_reject_inversions_and_cycles(
@@ -125,7 +129,15 @@ def test_production_import_contracts_reject_inversions_and_cycles(
         directory.mkdir(parents=True, exist_ok=True)
         (directory / "__init__.py").write_text("")
     (tmp_path / "apps/core/models.py").write_text("")
-    (tmp_path / "apps/core/auth.py").write_text("import apps.core.models\n")
+    # The pair, not one module: ADR 0055 permits platform's existing dependency on
+    # core's web auth primitives, and refuses it a business model. Those only stay
+    # separable while auth.py imports no model, so the miniature tree mirrors the
+    # real split — auth.py clean, service_auth.py holding the one model import —
+    # and the two cases above prove the contract tells them apart. Writing auth.py
+    # with the model import instead would make the permitted case pass only while
+    # an exception is declared, which is the state this contract exists to end.
+    (tmp_path / "apps/core/auth.py").write_text("")
+    (tmp_path / "apps/core/service_auth.py").write_text("import apps.core.models\n")
     # GPT: the one inherited ignore must still match; no new violation is ignored.
     (tmp_path / "apps/job/models").mkdir()
     (tmp_path / "apps/job/models/__init__.py").write_text("")

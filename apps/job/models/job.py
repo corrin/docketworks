@@ -389,9 +389,7 @@ class Job(models.Model):
 
     # blank=True for the same reason as company above: jobs predating
     # attribution legitimately have no creator.
-    created_by = models.ForeignKey(
-        "accounts.Staff", on_delete=models.PROTECT, null=True, blank=True
-    )
+    created_by = models.ForeignKey("accounts.Staff", on_delete=models.PROTECT)
 
     people = models.ManyToManyField("accounts.Staff", related_name="assigned_jobs")
 

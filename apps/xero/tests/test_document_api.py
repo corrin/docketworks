@@ -355,7 +355,9 @@ class TestDeleteQuoteEndpoint:
 
 class TestPurchaseOrderEndpointClamp:
     def test_manager_429_is_clamped(self, api: Client, company: Company) -> None:
-        po = PurchaseOrder.objects.create(supplier=company, po_number="PO-API-1")
+        po = PurchaseOrder.objects.create(
+            supplier=company, po_number="PO-API-1", created_by=Staff.get_automation_user()
+        )
         with (
             patch("apps.xero.api.get_valid_token", return_value=TOKEN),
             patch.object(

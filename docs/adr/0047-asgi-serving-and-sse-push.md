@@ -12,17 +12,13 @@ stays `gunicorn-<instance>`: deploy, rollback and the sudoers rules address the
 service by that name, so renaming it silently breaks rollback rather than
 failing loudly. Editing the template changes the server-setup hash that
 `scripts/server/deploy.sh` compares, so the next deploy re-converges every host
-— that is the mechanism working, not a fault.
-
-**Know what the ASGI move does and does not buy.** Django's ASGI handler wraps
-each request in its own `ThreadSensitiveContext` (`django/core/handlers/
-asgi.py`), so every in-flight request gets its own thread-sensitive executor
-and sync views run concurrently: worker count does not bound sync-view
-concurrency. What does bound it is database connections — `CONN_MAX_AGE` is 0,
-so a request holds one while it queries — and process memory. What the ASGI
-move buys is that a stream costs an event-loop task rather than a request slot:
-a worker holds many open streams at once, and the arbiter's `--timeout`
-watchdog never sees a worker that looks hung mid-request.
+— that is the mechanism working, not a fault. ASGI is what lets a worker hold
+many open streams: a stream costs an event-loop task rather than a request
+slot, and the arbiter's `--timeout` watchdog never sees a worker that looks hung
+mid-request. `CONN_MAX_AGE` stays 0: under ASGI every in-flight request gets its
+own thread-sensitive executor, so database connections bound concurrency, not
+worker count, and raising it multiplies open Postgres connections by a number
+nothing has measured.
 
 **A stream must yield from an `async` generator, or it is not a stream.**
 `StreamingHttpResponse` decides `is_async` by whether `iter()` accepts what it
@@ -31,9 +27,8 @@ fall back to `for part in await sync_to_async(list)(...)` — draining the whole
 response into a list before the first byte, and holding a thread-sensitive
 worker thread for the duration. Nothing else detects it: the response still has
 the right status, content type and headers, and an E2E that waits for content to
-appear is satisfied by the blob that arrives at the end. The payroll progress
-stream shipped that defect. Both streams now assert `response.is_async`, which
-is the only check that sees it.
+appear is satisfied by the blob that arrives at the end. Every stream asserts
+`response.is_async`, which is the only check that sees it.
 
 **The trap is symmetric, so the generator and the server are chosen together.**
 `__iter__` has the mirror-image fallback: an ASYNC iterator served over WSGI is
@@ -47,15 +42,6 @@ reintroduce the buffering, so do not reach for it to debug a stream. Note that
 `response.is_async` cannot see this half — it stays true under WSGI while the
 stream buffers — so the assertion pins the generator and this paragraph pins the
 server.
-
-Measured 2026-08-20 by driving `config.asgi:application` directly and timing the
-ASGI `http.response.body` messages, publishing the second event 2s after the
-first: the sync generator delivered both at t=2.27, the async generator
-delivered the first at t=0.77 and the second at t=2.28.
-
-Nothing here has
-measured the load, so sizing `--workers` against observed connection and memory
-use is an operations question, not a number this ADR sets.
 
 **Version bumps come from signals over a source-model registry, never from
 publish calls at write sites.** `DATA_VERSION_SOURCE_MODELS` in
@@ -140,41 +126,26 @@ even on a healthy stream, because storage-free pub/sub drops a publication
 rather than queueing it and the connection survives that drop. For the same
 reason the connect catch-up restores a push that arrived while its read was
 open, rather than leaving the older document that read just wrote.
-Disconnection is
-reported once per streak, not once per retry. A malformed frame is dropped
-without touching stream health — a document the shape guard rejects means the
-server changed the document, which fails the polling sibling identically, so it
-is no evidence this connection is the broken part — and a stream the server
-ends cleanly reopens after three seconds without a report.
+Disconnection is reported once per streak, not once per retry. A malformed
+frame is dropped without touching stream health — a document the shape guard
+rejects means the server changed the document, which fails the polling sibling
+identically, so it is no evidence this connection is the broken part — and a
+stream the server ends cleanly reopens after three seconds without a report.
 
 **Watch the Redis listener, not just the streams.** django-eventstream 5.3.4
-schedules `start_redis_listener()` once per server process with
-`loop.create_task()` and never restarts it: it is an asyncio task on the
-worker's event loop, not a thread, and it ends when its Redis connection drops.
-The failure is silent from a client's side — streams stay open, keep-alives
-keep arriving, and nothing is ever pushed — so `streamHealthy` stays true and
-the client's disconnect fallback never arms. What still reconciles is an
-HTTP-originated write to the versions query: `useKanbanReconciliation` runs a
-pass for any cache write the stream did not make, so a focus refetch or a
-drag/move release closes the gap on a board someone is using. A board nobody
-touches stays stale, so treat "streams connected and no events during known
-writes" as an incident and restart the service.
-
-**`CONN_MAX_AGE` stays 0.** Persistent connections under many concurrent
-streams is a post-cutover tuning question, and raising it now would multiply
-open Postgres connections by a number nothing has measured.
-
-**`django_eventstream` in `INSTALLED_APPS` brings its migration.** Cutover
-migrates an empty database before restoring, so production takes it in the
-normal order; a developer database needs `manage.py migrate` after picking this
-up.
+schedules `start_redis_listener()` once per server process as an asyncio task
+and never restarts it, so a dropped Redis connection ends every push while the
+streams stay open and keep sending keep-alives: `streamHealthy` stays true and
+the client's disconnect fallback never arms. A board someone is using still
+reconciles on its own HTTP-originated writes; a board nobody touches stays
+stale. Treat "streams connected and no events during known writes" as an
+incident and restart the service.
 
 ## Do not
 
 - **Put a server-side poll loop behind the SSE endpoint** — a stream fed by the
   server polling its own database is a poll with a longer connection, not push,
-  and it reintroduces exactly the latency the push path exists to remove (user
-  decision, 2026-08-13).
+  and it reintroduces exactly the latency the push path exists to remove.
 - **Add channels or channels-redis** — django-eventstream 5.x runs
   channels-free under ASGI, so the ASGI application is the only runtime it
   needs.

@@ -61,8 +61,6 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
     created_by = models.ForeignKey(
         "accounts.Staff",
         on_delete=models.PROTECT,
-        null=True,
-        blank=True,
         related_name="created_purchase_orders",
         help_text="Staff member who created this purchase order",
     )
@@ -94,19 +92,6 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
     updated_at = models.DateTimeField(auto_now=True)
     xero_last_modified = models.DateTimeField(null=True, blank=True)
     xero_last_synced = models.DateTimeField(null=True, blank=True)
-    xero_agreed_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text=(
-            "When our copy of this order and Xero's were last known to match — "
-            "either because we sent ours or because we took theirs. Distinct "
-            "from xero_last_synced, which records when we last LOOKED at Xero "
-            "and is written on every inbound sync, so it hides an outstanding "
-            "send behind the next pull. It is also why updated_at cannot answer "
-            "this: updated_at is the row's ETag and must advance whenever the "
-            "row changes, including when the change came FROM Xero."
-        ),
-    )
     xero_status = models.CharField(  # noqa: DJ001 -- NULL means Xero has never reported one
         max_length=20,
         null=True,
@@ -117,6 +102,16 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
             "goods arrived and were costed to a job, which only Docketworks knows. Xero saying "
             "BILLED used to set status=fully_received, marking material received that nobody "
             "had receipted."
+        ),
+    )
+    xero_push_due = models.BooleanField(
+        default=False,
+        help_text=(
+            "Xero is owed a call about this order. Set when the status moves, which is the "
+            "only thing Xero needs to hear about: the order leaving draft, and the receipt "
+            "that settles its total. Cleared when the push lands. A field edit never sets it "
+            "— the workspace saves each field as its own PATCH, and Xero holds the order only "
+            "so a bill has something to link against, which no intermediate state affects."
         ),
     )
     online_url = models.URLField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
@@ -153,9 +148,9 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
         super().save(*args, **kwargs)
 
     @property
-    def created_by_name(self) -> str | None:
+    def created_by_name(self) -> str:
         """Return the display name of the staff member who created this PO."""
-        return self.created_by.get_display_full_name() if self.created_by else None
+        return self.created_by.get_display_full_name()
 
     def generate_po_number(self) -> str:
         """Generate the next sequential PO number based on the configured prefix."""
@@ -774,9 +769,9 @@ class StockMovementKind(models.TextChoices):
 
     OPENING = "opening", "Opening balance"
     JOB_OPENING = "job_opening", "Job position at cutover"
-    RECEIPT = "receipt", "Receipt"
-    RECEIPT_OPENING = "receipt_opening", "Received allocation at cutover"
-    RECEIPT_REVERSAL = "receipt_reversal", "Receipt reversal"
+    DELIVERY = "delivery", "Delivery"
+    DELIVERY_OPENING = "delivery_opening", "Delivered allocation at cutover"
+    DELIVERY_REVERSAL = "delivery_reversal", "Delivery reversal"
     ISSUE = "issue", "Job issue"
     RETURN = "return", "Job return"
     STOCKTAKE = "stocktake", "Stocktake"
@@ -818,7 +813,7 @@ class StockMovement(models.Model):
             ),
             models.CheckConstraint(
                 condition=models.Q(
-                    kind__in=["opening", "receipt", "receipt_opening", "receipt_reversal"]
+                    kind__in=["opening", "delivery", "delivery_opening", "delivery_reversal"]
                 )
                 | models.Q(counterpart_job__isnull=False),
                 name="movement_job_counterpart",

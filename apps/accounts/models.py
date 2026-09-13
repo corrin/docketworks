@@ -37,7 +37,7 @@ class StaffManager(BaseUserManager["Staff"]):
         email column, case-insensitive, exactly one row — shared by the login
         backend and the password-reset request so they can never disagree on
         who an address belongs to. None is a real business state (unknown or
-        ambiguous address) with a real branch at both callers (ADR 0045).
+        ambiguous address) with a real branch at both callers (ADR 0028).
         """
         normalized = self.normalize_email(email).strip()
         matches = list(
@@ -135,7 +135,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         max_length=255, null=True, blank=True
     )
     xero_last_modified = models.DateTimeField(null=True, blank=True)
-    xero_payroll_terms_checksum = models.CharField(  # noqa: DJ001 -- NULL means history integrity is not yet recorded
+    xero_payroll_terms_checksum = models.CharField(  # noqa: DJ001 -- NULL means payroll terms never synced, as xero_fields_checksum below
         max_length=64, null=True, blank=True
     )
     xero_fields_checksum = models.CharField(  # noqa: DJ001 -- NULL means never synced

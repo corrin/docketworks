@@ -1,0 +1,67 @@
+{
+  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "GET",
+    "path": "/payroll.xro/2.0/Employees/3cedd91a-f903-4bdb-ae51-8078be2f5795/Working-Patterns/664daf9d-33ec-43db-bf65-60338d4593ce",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "id": "027472f0-48a1-4948-9b02-61eed4b2de3c",
+    "providerName": "Docketworks%20MSM%20Dev",
+    "dateTimeUTC": "2026-09-13T03:16:38.9391337",
+    "httpStatusCode": "OK",
+    "pagination": null,
+    "problem": null,
+    "payeeWorkingPattern": {
+      "payeeWorkingPatternID": "664daf9d-33ec-43db-bf65-60338d4593ce",
+      "effectiveFrom": "2025-04-01T00:00:00",
+      "workingWeeks": [
+        {
+          "monday": 8.0,
+          "tuesday": 8.0,
+          "wednesday": 8.0,
+          "thursday": 8.0,
+          "friday": 8.0,
+          "saturday": 0.0,
+          "sunday": 0.0
+        }
+      ]
+    }
+  }
+}

@@ -373,6 +373,18 @@ for instance in "${TARGETS[@]}"; do
         log "  Skipping pre-deploy backup for $instance (--no-backup)"
     fi
 
+    # Settings import raises on a missing required variable. Checked here, on
+    # the target release with this instance's .env, it fails the deploy while
+    # every unit is still running; discovered inside migrate it failed with the
+    # units already stopped and the operator editing .env on a down instance.
+    log "  Checking the target release's settings against $instance's .env..."
+    if ! DW_APP_DIR="$(release_path "$TARGET_SHA")" \
+        "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py check; then
+        log "  ERROR: settings check failed for $instance — nothing stopped, nothing switched"
+        FAILED_INSTANCES+=("$instance")
+        continue
+    fi
+
     stop_instance_units "$instance"
 
     switch_instance_release "$instance" "$TARGET_SHA"

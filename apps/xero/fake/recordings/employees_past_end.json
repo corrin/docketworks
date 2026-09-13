@@ -1,0 +1,63 @@
+{
+  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "GET",
+    "path": "/payroll.xro/2.0/Employees",
+    "query": {
+      "page": "9999"
+    }
+  },
+  "response": {
+    "status": 400,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "id": "3df13af0-0fe9-4a18-bb0f-589be6d6056c",
+    "providerName": "Docketworks%20MSM%20Dev",
+    "dateTimeUTC": "2026-09-13T03:16:40.8254848",
+    "httpStatusCode": "BadRequest",
+    "pagination": null,
+    "problem": {
+      "type": "about:blank",
+      "title": "InvalidRequest",
+      "status": 400,
+      "detail": "Requested page does not exist",
+      "instance": null,
+      "invalidFields": null,
+      "invalidObjects": null
+    },
+    "employees": []
+  }
+}
