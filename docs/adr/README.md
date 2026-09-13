@@ -54,7 +54,7 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0041](0041-one-llm-gateway.md) | One LLM gateway, and it lives in apps/ai |
 | 0042 | (reserved: v1 data migration — written when that phase lands) |
 | [0043](0043-comments-record-the-rejected-alternative.md) | Comments record the rejected alternative |
-| [0045](0045-call-the-right-function-no-shims.md) | Call the right function; never return a shape the caller must decode |
+| 0045 | (retired 2026-09-13: merged into [0028](0028-type-annotations-are-data-contracts.md)) |
 | [0046](0046-numbers-on-the-wire.md) | Numbers on the wire; the frontend owns all formatting |
 | [0047](0047-asgi-serving-and-sse-push.md) | The application is served over ASGI, and data versions are pushed over SSE |
 | [0048](0048-own-what-you-wipe-database-safety.md) | A role wipes only what it owns; deliberateness is graded, prod wipes need an explicit assertion and are always recoverable |

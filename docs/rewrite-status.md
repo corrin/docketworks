@@ -45,7 +45,7 @@ does not have.
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 134 recorded deviations |
-| ADRs | 46 (v1's 25 carried forward + 0038–0041, 0043, 0045–0060 written here) |
+| ADRs | 45 (v1's 25 carried forward + 0038–0041, 0043, 0046–0060 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints
 written measures typing, not delivery. Every slice below authors its own E2E spec and
@@ -546,7 +546,7 @@ same class: the post duplicates what Xero already holds, and then self-reports s
 - **Response nullability** shrinks per slice, not in a sweep: when a slice ports a screen,
   the schemas that screen reads declare `| None` only where the producing service can
   return `None`. The count is in `code-quality.md`.
-- **`X | None` returns** — the *Optional returns* row of `code-quality.md`. ADR 0045 binds
+- **`X | None` returns** — the *Optional returns* row of `code-quality.md`. ADR 0028 binds
   new code; the existing sites are a sweep.
 - **Ratify every AI-argued ADR exception with the owner**
   ([KAN-342](https://docketworks.atlassian.net/browse/KAN-342)). ADR 0051 makes a

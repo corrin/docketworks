@@ -286,7 +286,7 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
     # listed — the reads (the calendar anchor, the week posting status, the
     # connection id) are inherited unchanged, because an override whose body is
     # identical to the one it overrides restates intent in a docstring and
-    # nothing else (ADR 0045).
+    # nothing else (ADR 0028).
     #
     # Payroll writes matter more than most: a suppressed post must still look
     # like a post to the caller, or the weekly screen's progress and result UI

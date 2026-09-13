@@ -717,7 +717,7 @@
     16 `uuid` contract gaps and deleted both string-to-UUID helpers
     (`_uuid_or_404` in apps/crm/api.py, `_uuid_or_client_error` in
     phone_call_service.py) - two implementations of one concept, disagreeing
-    on the status code (ADR 0039, ADR 0045). A well-formed id that matches no
+    on the status code (ADR 0039, ADR 0028). A well-formed id that matches no
     row still returns the same business 400 or 404 it always did; only the
     malformed case moved. User decision 2026-08-07.
 

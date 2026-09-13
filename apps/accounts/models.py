@@ -37,7 +37,7 @@ class StaffManager(BaseUserManager["Staff"]):
         email column, case-insensitive, exactly one row — shared by the login
         backend and the password-reset request so they can never disagree on
         who an address belongs to. None is a real business state (unknown or
-        ambiguous address) with a real branch at both callers (ADR 0045).
+        ambiguous address) with a real branch at both callers (ADR 0028).
         """
         normalized = self.normalize_email(email).strip()
         matches = list(

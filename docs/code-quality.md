@@ -100,7 +100,7 @@ The narrow subset of the above: functions whose ENTIRE body is one single-statem
 
 ## Optional returns
 
-Functions returning `X | None`, which moves a decision onto every caller — and there are always more callers than functions (ADR 0045). Existing sites are a post-cutover sweep, not a blocker.
+Functions returning `X | None`, which moves a decision onto every caller — and there are always more callers than functions (ADR 0028). Existing sites are a post-cutover sweep, not a blocker.
 
 | metric | count |
 |---|---:|
