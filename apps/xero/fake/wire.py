@@ -189,9 +189,11 @@ def _enum_value(value: object, where: str) -> str:
 
 def _ms_date(iso: str, where: str) -> str:
     """Accounting API form: milliseconds since the epoch, UTC, in Microsoft's wrapper."""
+    # Anything longer than a bare date is a datetime, whatever separates the
+    # two halves: some mirrored rows hold str(datetime), with a space.
     parsed = (
         datetime.fromisoformat(iso)
-        if "T" in iso
+        if len(iso) > len("YYYY-MM-DD")
         else datetime.combine(date.fromisoformat(iso), datetime.min.time())
     )
     if parsed.tzinfo is None:
