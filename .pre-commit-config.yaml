@@ -1,16 +1,19 @@
-# Two tiers, split on one measured fact: booting Django costs ~6s, and
-# everything that does not touch it totals ~1.5s.
+# Two tiers, split on membership, not speed.
 #
-#   cheap     stages: [pre-commit]  automatic, ~2.4s
-#   expensive stages: [pre-push]    automatic on push, ~23s
+#   commit  stages: [pre-commit]  the CI set: every hook here also runs in CI
+#   push    stages: [pre-push]    what CI does not run
 #
-# Neither is the actual gate — a local hook can be skipped with --no-verify or
-# never installed. CI runs every hook in both tiers and that is what gates. The
-# tiers exist so the commit loop stops paying for checks that need not run that
-# often, and moving a hook between them is a one-word edit.
+# A CI check missing from the commit tier is a bug in the tier, never a
+# saving; slowness argues for a faster check, never for moving it. The push
+# tier is the registry of custom checks: search it before writing one.
+# Moving a hook between tiers is a one-word stages: edit.
 #
-#   pre-commit run --all-files                        # cheap
-#   pre-commit run --all-files --hook-stage pre-push  # expensive
+# Neither local hook is the actual gate — it can be skipped with --no-verify
+# or never installed. CI runs the commit tier and the unit suites, and that
+# is what gates.
+#
+#   pre-commit run --all-files                        # the CI set
+#   pre-commit run --all-files --hook-stage pre-push  # plus what CI omits
 default_install_hook_types: [pre-commit, pre-push]
 
 repos:
@@ -40,7 +43,6 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-      # --- expensive tier: every hook below boots Django (~6s each) ---
       - id: migrations-check
         name: makemigrations --check
         entry: uv run python manage.py makemigrations --check --dry-run --settings=config.settings_test

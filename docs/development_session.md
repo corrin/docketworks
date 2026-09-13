@@ -80,18 +80,15 @@ npm run test:e2e:reset -- --confirm
 
 ## Before you push
 
-Pre-commit runs the full gate set on commit; do not bypass it with `--no-verify`. Manually:
+The commit and push hooks run automatically. By hand, the same set plus the unit suites:
 
 ```bash
-uv run ruff check . && uv run ruff format --check .
-uv run mypy                 # strict, zero baseline
-uv run lint-imports
-uv run deptry .
-uv run pytest
-cd frontend && npm run lint && npm run format:check && npm run type-check && npm run test:unit && npm run build
+pre-commit run --all-files                        # the CI set
+pre-commit run --all-files --hook-stage pre-push  # plus what CI omits
+uv run pytest && (cd frontend && npm run test:unit)
 ```
 
-See [`../CLAUDE.md`](../CLAUDE.md) for the standards these gates enforce.
+[`../CLAUDE.md`](../CLAUDE.md) has the tier table and the standards these gates enforce.
 
 ## Environment facts worth knowing
 

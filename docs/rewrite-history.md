@@ -423,6 +423,16 @@ it becoming a third backlog.** A fact that constrains code lives in an ADR or a
 seam comment at the code it constrains; this file links there rather than
 restating it. Nothing here is a task.
 
+## 2026-08-04 — Three linters were green while three days of debt accumulated
+
+Finding. During 2–4 August ruff, mypy and import-linter ran on every commit, and the
+structural debt that then took three days to clear accumulated anyway. The gates catch
+structure and the unit suite catches behaviour within a layer; only the E2E spec catches
+the user-visible path across frontend, wire contract and backend, which is where the port's
+bugs were. The consequence was a rule rather than another linter: speed is made safe by the
+spec shipping with the slice. Carried in CLAUDE.md until 2026-09-13, when that file stopped
+holding stories.
+
 ## Cutover
 
 **2026-09-08 — Incremental cost summaries and explicit recovery.**
