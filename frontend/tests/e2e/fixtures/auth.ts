@@ -15,6 +15,7 @@ import {
 } from '../helpers'
 import {
   createLoginSessionCheckConsoleAllowance,
+  createRecoveredLoadAllowance,
   isLoginCompletionResponse,
   LOGIN_ME_PATH,
   type CapturedBrowserError,
@@ -183,6 +184,7 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
     installBrowserDebugForwarder(page)
 
     const captured: CapturedBrowserError[] = []
+    const recoveredLoads = createRecoveredLoadAllowance()
     page.on('response', (response) => {
       const url = new URL(response.url())
       sessionCheckConsoleAllowance.recordResponse({
@@ -190,10 +192,20 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
         method: response.request().method(),
         status: response.status(),
       })
+      recoveredLoads.recordResponse({
+        url: response.url(),
+        status: response.status(),
+        observedAt: Date.now(),
+      })
     })
     page.on('console', (message) => {
       if (message.type() !== 'error') return
-      captured.push({ kind: 'console', text: message.text(), capturedAt: Date.now() })
+      captured.push({
+        kind: 'console',
+        text: message.text(),
+        capturedAt: Date.now(),
+        url: message.location().url,
+      })
     })
     page.on('pageerror', (error) => {
       captured.push({ kind: 'pageerror', text: error.message, capturedAt: Date.now() })
@@ -203,6 +215,9 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
 
     const unexpected = captured.filter((entry) => {
       if (sessionCheckConsoleAllowance.consumeIfExpected(entry)) {
+        return false
+      }
+      if (recoveredLoads.isRecovered(entry)) {
         return false
       }
       return !isExpectedBrowserError(entry.text, expectedConsoleErrors)

@@ -1,0 +1,87 @@
+{
+  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": 2,
+  "request": {
+    "method": "GET",
+    "path": "/payroll.xro/2.0/PayRuns",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "id": "8ca13dd5-6de3-40a7-a450-228ed1beb616",
+    "providerName": "Docketworks%20MSM%20Dev",
+    "dateTimeUTC": "2026-09-13T03:16:46.8265011",
+    "httpStatusCode": "OK",
+    "pagination": {
+      "page": 1,
+      "pageSize": 100,
+      "pageCount": 1,
+      "itemCount": 19
+    },
+    "problem": null,
+    "payRuns": [
+      {
+        "payRunID": "cd22805b-0f42-4251-a62a-73d0fdcc0c33",
+        "payrollCalendarID": "ccc86278-109b-4192-b2de-c5330b7bf8c7",
+        "periodStartDate": "2023-03-27T00:00:00",
+        "periodEndDate": "2023-04-02T00:00:00",
+        "paymentDate": "2023-04-04T00:00:00",
+        "totalCost": 5955.9,
+        "totalPay": 3882.35,
+        "payRunStatus": "Posted",
+        "payRunType": "Scheduled",
+        "calendarType": "Weekly",
+        "postedDateTime": "2023-05-23T00:45:49",
+        "payslipMessage": null
+      },
+      {
+        "payRunID": "6c857877-9275-47bd-98a1-60aee7deb618",
+        "payrollCalendarID": "ccc86278-109b-4192-b2de-c5330b7bf8c7",
+        "periodStartDate": "2023-04-03T00:00:00",
+        "periodEndDate": "2023-04-09T00:00:00",
+        "paymentDate": "2023-04-11T00:00:00",
+        "totalCost": 6698.2,
+        "totalPay": 4466.84,
+        "payRunStatus": "Posted",
+        "payRunType": "Scheduled",
+        "calendarType": "Weekly",
+        "postedDateTime": "2023-05-23T00:46:10",
+        "payslipMessage": null
+      }
+    ]
+  }
+}

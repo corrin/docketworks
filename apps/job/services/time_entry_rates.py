@@ -96,7 +96,7 @@ def rate_from_meta(meta: dict[str, object], key: str) -> Decimal | None:
     The single place a stored rate becomes a Decimal. ``meta`` is
     ``dict[str, object]`` because it is JSON, so the isinstance here is boundary
     validation, not a type probe — everything downstream is typed ``Decimal``
-    and no longer re-discriminates (ADR 0028, ADR 0045).
+    and no longer re-discriminates (ADR 0028).
 
     This replaced a ``to_decimal(value: object, *, default=)`` that every caller
     reached for. Accepting four types and coercing with ``str()`` let one call

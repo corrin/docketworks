@@ -371,6 +371,34 @@ def _copy_company_defaults(source: "Connection[Any]", model: "type[Model]") -> N
 
 
 @pytest.fixture(autouse=True)
+def _accounting_provider_is_not_reached(request: "pytest.FixtureRequest") -> "Iterator[None]":
+    """Keep a purchase-order state change from reaching a real vendor.
+
+    Only a status transition sends anything now, so this covers the receipt and
+    allocation suites, which move an order's status as a side effect of what
+    they actually test.
+
+    Opus: it patches ``get_provider`` inside ``accounting_mirror`` and nothing
+    deeper, so everything this module decides — ownership by prefix, the
+    supplier check, the typed split between a refusal and an outage — still
+    runs. The earlier version of this fixture reached past
+    ``XeroPurchaseOrderManager`` as well, which hid a create path that Xero
+    could never have accepted. A fake vendor can only confirm what we already
+    assumed, so the real gate stays the integration tier (ADR 0050).
+    """
+    if "django_db" not in request.keywords and "committed_db" not in request.keywords:
+        yield
+        return
+    from unittest.mock import patch
+
+    from apps.accounting.types import DocumentResult
+
+    with patch("apps.purchasing.services.accounting_mirror.get_provider") as get_provider:
+        get_provider.return_value.push_purchase_order.return_value = DocumentResult(success=True)
+        yield
+
+
+@pytest.fixture(autouse=True)
 def _docketworks_prereqs(request: pytest.FixtureRequest) -> None:
     """Give every database test an installation that could actually boot.
 

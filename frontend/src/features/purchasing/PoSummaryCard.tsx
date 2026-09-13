@@ -172,6 +172,12 @@ function DetailFields({ po, patchHeader }: PoSummaryCardDetailProps) {
   const referenceField = useAutosaveField(po.reference ?? '', (value) =>
     patchHeader({ reference: orNull(value) }),
   )
+  // Buffered, not PATCHed per keystroke: a date input reports '' whenever any
+  // segment is blank, so an operator backspacing the day of a stored date had
+  // already sent expected_delivery: null before they finished typing.
+  const expectedDeliveryField = useAutosaveField(po.expected_delivery ?? '', (value) =>
+    patchHeader({ expected_delivery: orNull(value) }),
+  )
 
   return (
     <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_160px_minmax(0,1.7fr)]">
@@ -209,14 +215,12 @@ function DetailFields({ po, patchHeader }: PoSummaryCardDetailProps) {
         <input
           id="po-expected-delivery"
           type="date"
-          value={po.expected_delivery ?? ''}
+          value={expectedDeliveryField.value}
           data-automation-id="PoSummaryCard-expected-delivery"
           className={INPUT_CLASS}
-          onChange={(event) =>
-            patchHeader({
-              expected_delivery: event.target.value === '' ? null : event.target.value,
-            })
-          }
+          onChange={(event) => expectedDeliveryField.onChange(event.target.value)}
+          onFocus={expectedDeliveryField.onFocus}
+          onBlur={expectedDeliveryField.onBlur}
         />
       </div>
       {po.supplier_id && (

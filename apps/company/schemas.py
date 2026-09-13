@@ -2,7 +2,7 @@
 
 Schemas here are pure shape declarations; payload building lives in the
 service formatters (one implementation per concept, ADR 0039). Error responses
-use the standard envelope from ADR 0013.
+use the standard envelope from ADR 0038.
 """
 
 from datetime import datetime

@@ -21,9 +21,9 @@ class Migration(migrations.Migration):
                         [
                             "opening",
                             "job_opening",
-                            "receipt",
-                            "receipt_opening",
-                            "receipt_reversal",
+                            "delivery",
+                            "delivery_opening",
+                            "delivery_reversal",
                             "issue",
                             "return",
                             "stocktake",

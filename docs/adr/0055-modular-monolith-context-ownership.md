@@ -1,4 +1,5 @@
 # 0055 — Context ownership and directional dependencies
+Ratified: owner, 2026-09-13
 
 The target shape is a modular monolith organised by exclusive ownership, with `config` as its sole composition root; the tree is part-way there and `config/architecture.py` records how far.
 

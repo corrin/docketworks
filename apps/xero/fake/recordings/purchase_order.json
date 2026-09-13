@@ -1,0 +1,121 @@
+{
+  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "GET",
+    "path": "/api.xro/2.0/PurchaseOrders/44d3f8a4-7031-45e8-b252-e92914e43c7e",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "Id": "797bc058-3100-4c68-a8eb-e1cfce85faf7",
+    "Status": "OK",
+    "ProviderName": "Docketworks MSM Dev",
+    "DateTimeUTC": "/Date(1789269391028)/",
+    "PurchaseOrders": [
+      {
+        "PurchaseOrderID": "44d3f8a4-7031-45e8-b252-e92914e43c7e",
+        "PurchaseOrderNumber": "PO-0001",
+        "DateString": "2026-09-04T00:00:00",
+        "Date": "/Date(1788480000000+0000)/",
+        "DeliveryDateString": "2026-09-05T00:00:00",
+        "DeliveryDate": "/Date(1788566400000+0000)/",
+        "DeliveryAddress": "23 Main Street\r\nCentral City\r\nMarineville\r\n1234\r\n",
+        "AttentionTo": "AttentionTo-scrubbed",
+        "Telephone": "0800 1234 5678",
+        "DeliveryInstructions": "Deliver to reception. As agreed, table needs to be assembled prior to delivery.",
+        "HasErrors": false,
+        "IsDiscounted": false,
+        "SentToContact": false,
+        "Reference": "710",
+        "Type": "PURCHASEORDER",
+        "CurrencyRate": 1.0,
+        "CurrencyCode": "NZD",
+        "Contact": {
+          "ContactID": "bde095a6-1c01-4e1d-b6f4-9190cfe89a9c",
+          "ContactStatus": "ACTIVE",
+          "Name": "ABC Furniture",
+          "FirstName": "FirstName-scrubbed",
+          "LastName": "LastName-scrubbed",
+          "EmailAddress": "",
+          "BankAccountDetails": "",
+          "AccountsReceivableTaxType": "",
+          "AccountsPayableTaxType": "",
+          "Addresses": [],
+          "Phones": [
+            {
+              "PhoneType": "DEFAULT",
+              "PhoneNumber": "PhoneNumber-scrubbed",
+              "PhoneAreaCode": "800",
+              "PhoneCountryCode": ""
+            }
+          ],
+          "UpdatedDateUTC": "/Date(1789236222297+0000)/",
+          "ContactGroups": [],
+          "IsSupplier": true,
+          "IsCustomer": false,
+          "DefaultCurrency": "NZD",
+          "SalesTrackingCategories": [],
+          "PurchasesTrackingCategories": [],
+          "ContactPersons": [],
+          "HasValidationErrors": false
+        },
+        "BrandingThemeID": "7889a0ac-262a-40e3-8a63-9a769b1a18af",
+        "Status": "BILLED",
+        "LineAmountTypes": "Exclusive",
+        "LineItems": [
+          {
+            "Description": "Coffee table for reception",
+            "UnitAmount": 1000.0,
+            "TaxType": "INPUT2",
+            "TaxAmount": 150.0,
+            "LineAmount": 1000.0,
+            "Tracking": [],
+            "Quantity": 1.0,
+            "LineItemID": "1aa3bf00-a5fe-420f-b4b3-d64349a13108"
+          }
+        ],
+        "SubTotal": 1000.0,
+        "TotalTax": 150.0,
+        "Total": 1150.0,
+        "UpdatedDateUTC": "/Date(1385147725247+0000)/",
+        "HasAttachments": false,
+        "Attachments": []
+      }
+    ]
+  }
+}

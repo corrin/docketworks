@@ -2,7 +2,7 @@
 
 Business risk covered: duplicate rows would wreck "how often does this fail?"
 queries (ADR 0019), and a lost marker would strand a response without its
-``error_id`` cross-reference (ADR 0013).
+``error_id`` cross-reference (ADR 0038).
 """
 
 from uuid import uuid4

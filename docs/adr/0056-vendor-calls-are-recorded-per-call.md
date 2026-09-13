@@ -1,4 +1,5 @@
 # 0056 — Every external vendor call is recorded, one row per call
+Ratified: owner, 2026-09-13
 
 What this install spends on external vendors is a table in postgres, written at the one
 seam each vendor is reached through, at the grain of a single call.

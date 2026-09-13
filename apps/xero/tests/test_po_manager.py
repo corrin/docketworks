@@ -40,7 +40,9 @@ def supplier() -> Company:
 
 @pytest.fixture
 def po(supplier: Company) -> PurchaseOrder:
-    order = PurchaseOrder.objects.create(supplier=supplier, po_number="PO-TEST-0001")
+    order = PurchaseOrder.objects.create(
+        created_by=Staff.get_automation_user(), supplier=supplier, po_number="PO-TEST-0001"
+    )
     PurchaseOrderLine.objects.create(
         purchase_order=order,
         description="Steel plate",
@@ -177,7 +179,9 @@ class TestSyncRouting:
 
 class TestValidation:
     def test_po_without_lines_refuses_sync(self, supplier: Company) -> None:
-        empty_po = PurchaseOrder.objects.create(supplier=supplier, po_number="PO-TEST-0002")
+        empty_po = PurchaseOrder.objects.create(
+            created_by=Staff.get_automation_user(), supplier=supplier, po_number="PO-TEST-0002"
+        )
         provider = make_po_provider()
 
         result = make_po_manager(empty_po, provider).sync_to_xero()
@@ -201,7 +205,9 @@ class TestValidation:
         provider.create_purchase_order.assert_not_called()
 
     def test_missing_supplier_fails_construction(self) -> None:
-        orphan = PurchaseOrder.objects.create(po_number="PO-TEST-0003")
+        orphan = PurchaseOrder.objects.create(
+            created_by=Staff.get_automation_user(), po_number="PO-TEST-0003"
+        )
         with pytest.raises(ValueError, match="supplier"):
             make_po_manager(orphan, make_po_provider())
 
@@ -209,7 +215,9 @@ class TestValidation:
 class TestLineItemBackfill:
     def test_duplicate_descriptions_claim_distinct_lines(self, supplier: Company) -> None:
         """Two identical descriptions must map to two different Xero line ids."""
-        order = PurchaseOrder.objects.create(supplier=supplier, po_number="PO-TEST-0004")
+        order = PurchaseOrder.objects.create(
+            created_by=Staff.get_automation_user(), supplier=supplier, po_number="PO-TEST-0004"
+        )
         line_a = PurchaseOrderLine.objects.create(
             purchase_order=order,
             description="Widget",
@@ -346,7 +354,9 @@ class TestPayload:
 
     def test_an_unpriced_line_costs_zero_rather_than_null(self, supplier: Company) -> None:
         """Xero requires a number; None would be rejected for the whole order."""
-        order = PurchaseOrder.objects.create(supplier=supplier, po_number="PO-TEST-0002")
+        order = PurchaseOrder.objects.create(
+            created_by=Staff.get_automation_user(), supplier=supplier, po_number="PO-TEST-0002"
+        )
         PurchaseOrderLine.objects.create(
             purchase_order=order, description="TBC", quantity=Decimal("1"), unit_cost=None
         )

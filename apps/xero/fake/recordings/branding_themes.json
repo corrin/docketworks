@@ -1,0 +1,76 @@
+{
+  "recorded_at": "2026-09-13T03:47:51+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "GET",
+    "path": "/api.xro/2.0/BrandingThemes",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "Id": "dda3da66-3ff9-47b8-b537-a0bd67cb6347",
+    "Status": "OK",
+    "ProviderName": "Docketworks MSM Dev",
+    "DateTimeUTC": "/Date(1789271275620)/",
+    "BrandingThemes": [
+      {
+        "BrandingThemeID": "7889a0ac-262a-40e3-8a63-9a769b1a18af",
+        "Name": "Standard",
+        "LogoUrl": "https://in.xero.com/logo?id=ZXcwS0lDQWlieUk2SUNJNU5tUTRabUppT1MxbE4ySm1MVFF6TWpjdFlUSTROQzFqWWpWa1lUTXpPRFJtT1RjaUxBMEtJQ0FpWmlJNklDSTJZMlUyWldVNU9DMHhPR1k1TFRSallqTXRZbU14TWkweE9EWm1aalV5TW1JMk16UWlEUXA5LWowc0prZ1VKMjlzPQ",
+        "Type": "INVOICE",
+        "SortOrder": 1,
+        "CreatedDateUTC": "/Date(946684800000+0000)/"
+      },
+      {
+        "BrandingThemeID": "4c82c365-35cb-467f-bb11-dce1f2f2f67c",
+        "Name": "Very orange invoice!",
+        "LogoUrl": "",
+        "Type": "INVOICE",
+        "SortOrder": 2,
+        "CreatedDateUTC": "/Date(1292546159853+0000)/"
+      },
+      {
+        "BrandingThemeID": "ec97a880-4b4f-4abb-be11-5e1d75b81b57",
+        "Name": "Special Projects",
+        "LogoUrl": "https://in.xero.com/logo?id=ZXcwS0lDQWlieUk2SUNJNU5tUTRabUppT1MxbE4ySm1MVFF6TWpjdFlUSTROQzFqWWpWa1lUTXpPRFJtT1RjaUxBMEtJQ0FpWmlJNklDSTVaRFExTUdGbU15MDJZekJrTFRSaU56VXRPVGd3WWkxaFpUZGxNemhpTlRRMk9XSWlEUXA5LW9tbDRYeE9PY1VNPQ",
+        "Type": "INVOICE",
+        "SortOrder": 4,
+        "CreatedDateUTC": "/Date(946684800000+0000)/"
+      }
+    ]
+  }
+}

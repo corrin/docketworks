@@ -12,7 +12,7 @@ from apps.purchasing.services.stock_movement_service import inventory_audit_find
 from apps.purchasing.tests.factories import make_po_line, make_purchase_order, make_stock
 
 pytestmark = pytest.mark.django_db
-AUDIT = "Supplier receipt totals"
+AUDIT = "Supplier delivery totals"
 
 
 def apply_backfill() -> None:
@@ -37,7 +37,7 @@ def test_gap_becomes_receipt_evidence_and_closes_the_audit() -> None:
 
     movement = StockMovement.objects.get(stock__source_purchase_order_line=line)
     assert (movement.kind, movement.quantity_change, movement.opening_quantity) == (
-        "receipt_opening",
+        "delivery_opening",
         Decimal("0"),
         Decimal("4"),
     )
@@ -57,7 +57,7 @@ def test_backfill_moves_no_stock_and_repeats_without_double_booking(
 
     held.refresh_from_db()
     assert held.quantity == Decimal("7")
-    assert StockMovement.objects.filter(kind="receipt_opening").count() == 1
+    assert StockMovement.objects.filter(kind="delivery_opening").count() == 1
     assert Stock.objects.filter(source="purchase_order").get().quantity == Decimal("0")
     assert AUDIT not in inventory_audit_findings()
 

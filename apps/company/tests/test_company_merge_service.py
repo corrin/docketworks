@@ -22,7 +22,6 @@ from apps.company.tests.job_fixtures import (
     make_job,
     make_link,
     make_phone_call,
-    make_purchase_order,
     make_quote,
     make_scrape_job,
     make_supplier_price_list,
@@ -30,6 +29,7 @@ from apps.company.tests.job_fixtures import (
 )
 from apps.crm.models import PhoneCallRecord
 from apps.job.models import Job, JobEvent
+from apps.purchasing.tests.factories import make_purchase_order
 
 pytestmark = pytest.mark.django_db
 
@@ -53,7 +53,7 @@ class TestReassignAllFkTypes:
         bill = make_bill(source)
         credit_note = make_credit_note(source)
         quote = make_quote(source)
-        po = make_purchase_order(source)
+        po = make_purchase_order(supplier=source, xero_raised=True)
         price_list = make_supplier_price_list(source)
         product = make_supplier_product(source, price_list)
         scrape = make_scrape_job(source)

@@ -32,8 +32,8 @@ from ninja.files import UploadedFile
 from pydantic import ConfigDict, model_validator
 
 from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
-from apps.core.errors import persist_app_error
-from apps.core.models import CompanyDefaults
+from apps.core.errors import InvalidInputError, persist_app_error
+from apps.core.models import XERO_PURCHASE_ORDER_PREFIX, CompanyDefaults
 from apps.core.schemas import derived_response, drop_model_defaults
 from apps.core.settings_metadata import CompanyDefaultsSchemaOut, build_company_defaults_schema
 from apps.core.uploads import delete_stored_image, validate_image_upload
@@ -331,6 +331,16 @@ def company_defaults_partial_update(
         instance.refresh_from_db(fields=["enable_xero_sync"])
         if not supplied:
             return instance
+    # A rule about the change, not the row: a fresh install holds the model
+    # default "PO-" until it is configured, and refusing that in a validator
+    # failed every save of any other field. Setting it to Xero's own prefix is
+    # what is refused, because the prefix decides which system masters an order
+    # (accounting_mirror.is_locally_raised) and a shared one decides nothing.
+    if supplied.get("po_prefix") == XERO_PURCHASE_ORDER_PREFIX:
+        raise InvalidInputError(
+            f"{XERO_PURCHASE_ORDER_PREFIX!r} is the prefix Xero numbers its own orders with; "
+            "choose one that is only ours."
+        )
     for field, value in supplied.items():
         setattr(instance, field, value)
     if "google_place_id" in supplied:

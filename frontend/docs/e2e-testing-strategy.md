@@ -11,8 +11,9 @@ The suite hits real services rather than mocks. The cost (API credits, external
 traffic) is accepted because mocked integrations have repeatedly hidden
 real-world breakage.
 
-- **Xero** — real Xero **demo company**. Tests create/delete invoices, quotes,
-  POs against the demo org. DocketWorks sends the configured Xero quote terms in
+- **Xero** — real Xero **demo company** for the gate; an iteration run may point
+  the same unmodified stack at the recorded fake instead (`--use-fake-xero`,
+  below). Tests create/delete invoices, quotes, POs against the demo org. DocketWorks sends the configured Xero quote terms in
   the quote API payload. In the demo company only, those terms must contain the
   exact text `Terms of trade can be found`; the quote E2E
   (`tests/e2e/job/job-xero-quote.spec.ts`) requires the native Xero PDF to
@@ -132,11 +133,41 @@ reconciliation read has no bulk leave endpoint, so it costs one call per staff
 member. Exhausting the day is not subtle: reads start failing with
 `X-Rate-Limit-Problem: day` and a `Retry-After` of roughly an hour.
 
+`scripts/ops/run_e2e.sh` reads the quota before its first Xero-spending step
+and refuses to start at or below 150 remaining, so a run that would fail on
+its first refused call is refused up front instead of half an hour in. The
+threshold is the automated floor of 100 (below it celery beat's syncs stop
+partway through the suite) plus the 45 calls above. Two spenders sit on top
+of the 45 and have not been measured: the reset step's Xero cleanup of the
+previous run's writes, and beat's syncs during the run. The runner prints the
+same reading again after the suite, and that pair is the measurement to
+revisit the threshold from.
+
 Two consequences worth designing around. Iterating on a Xero-touching spec by
 re-running it is budgeted, not free, so diagnose from `logs/e2e/worker.log` and
 the database before spending another run. And a live Xero read belongs behind
 an explicit trigger rather than a page load — which is why the weekly grid's
 reconciliation waits for "Check against Xero" instead of fetching on mount.
+
+## Iterating against the fake Xero
+
+`./scripts/ops/run_e2e.sh --use-fake-xero` runs the whole default gate with the
+backend, worker and beat started under `XERO_FAKE=true`. Nothing in the suite
+changes: the SDK's transport is replaced below it by `apps/xero/fake`, a
+simulation of the tenant. Its answer shapes are bodies recorded off the real
+tenant; its state is a store seeded from the mirror at run start
+(`manage.py fake_xero_seed --replace`, inside the pre-run dump so the restore
+resets it) and updated by every write; ids are minted fresh, timestamps stamped
+at the write, numbers and totals computed, and a route nobody recorded is a
+refusal. The organisation
+the run reports carries `(FAKE XERO)` in its name, the run's `test-runs.csv`
+rows carry `xero=fake`, and the runner's last line says the run was not a gate.
+ADR 0060 is the rule; the run before merge is the same command without the switch.
+
+Two things the fake is weaker at, on purpose. The quote-PDF spec passes against
+a locally rendered PDF that carries the terms the app sent, so it proves the
+terms reached the wire and not that Xero renders them. And the payroll write
+specs are unrouted: they stay opt-in against the real tenant.
 
 ## Known gaps
 
@@ -148,5 +179,5 @@ reconciliation waits for "Check against Xero" instead of fetching on mount.
 - **No automated guard against Xero writes outside the demo org.** Pointing the
   suite at an environment whose Xero connection is a real organisation is not
   detected. The backend's `XERO_READONLY` flag is a production-safety valve, not
-  a test mode; the long-term answer is tagging Xero-touching specs and skipping
-  them by tag, which is not built.
+  a test mode, and the fake (`--use-fake-xero`) refuses a production tenant but
+  does not detect a real non-production one.

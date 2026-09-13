@@ -1,0 +1,212 @@
+{
+  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "GET",
+    "path": "/api.xro/2.0/Invoices",
+    "query": {
+      "where": "Type==\"ACCREC\"",
+      "page": "1",
+      "pageSize": "2"
+    }
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "Id": "75da25d4-9df3-4263-92a2-5140a116402a",
+    "Status": "OK",
+    "ProviderName": "Docketworks MSM Dev",
+    "DateTimeUTC": "/Date(1789269376195)/",
+    "pagination": {
+      "page": 1,
+      "pageSize": 2,
+      "pageCount": 867,
+      "itemCount": 1734
+    },
+    "Invoices": [
+      {
+        "Type": "ACCREC",
+        "InvoiceID": "254591b2-68c7-403f-91af-e3584f9577fe",
+        "InvoiceNumber": "INV-0016",
+        "Reference": "Monthly Support",
+        "Payments": [],
+        "CreditNotes": [
+          {
+            "CreditNoteID": "5df42757-0fa7-47e8-bea4-fa3bf6085517",
+            "CreditNoteNumber": "CN-0025",
+            "ID": "5df42757-0fa7-47e8-bea4-fa3bf6085517",
+            "HasErrors": false,
+            "InvoiceAddresses": [],
+            "AppliedAmount": 541.25,
+            "DateString": "2026-06-29T00:00:00",
+            "Date": "/Date(1782691200000+0000)/",
+            "LineItems": [],
+            "Total": 541.25
+          }
+        ],
+        "Prepayments": [],
+        "Overpayments": [],
+        "AmountDue": 0.0,
+        "AmountPaid": 0.0,
+        "AmountCredited": 541.25,
+        "SentToContact": true,
+        "CurrencyRate": 1.0,
+        "IsDiscounted": false,
+        "HasAttachments": false,
+        "InvoiceAddresses": [],
+        "HasErrors": false,
+        "InvoicePaymentServices": [],
+        "UpdatedDateUTCString": "2010-11-19T12:01:01Z",
+        "Contact": {
+          "ContactID": "8696589a-a719-463b-8ff3-b58e0a08ab28",
+          "Name": "Hamilton Smith Ltd",
+          "Addresses": [],
+          "Phones": [],
+          "ContactGroups": [],
+          "ContactPersons": [],
+          "HasValidationErrors": false
+        },
+        "DateString": "2026-06-28T00:00:00",
+        "Date": "/Date(1782604800000+0000)/",
+        "DueDateString": "2026-07-08T00:00:00",
+        "DueDate": "/Date(1783468800000+0000)/",
+        "BrandingThemeID": "7889a0ac-262a-40e3-8a63-9a769b1a18af",
+        "Status": "PAID",
+        "LineAmountTypes": "Inclusive",
+        "LineItems": [
+          {
+            "ItemCode": "Support-M",
+            "Description": "Desktop/network support via email & phone.\r\nPer month fixed fee for minimum 20 hours/month.",
+            "UnitAmount": 541.25,
+            "TaxType": "OUTPUT2",
+            "TaxAmount": 70.6,
+            "LineAmount": 541.25,
+            "AccountCode": "200",
+            "Item": {
+              "ItemID": "8ce09974-784f-4701-b973-64b8e285812d",
+              "Name": "Desktop/network support via email & phone",
+              "Code": "Support-M"
+            },
+            "Tracking": [
+              {
+                "Name": "Region",
+                "Option": "North",
+                "TrackingCategoryID": "351953c4-8127-4009-88c3-f9cd8c9cbe9f",
+                "Options": []
+              }
+            ],
+            "Quantity": 1.0,
+            "LineItemID": "8f9fa7a6-fb58-41ed-bd06-b658e68c6a97",
+            "AccountID": "7d05a53d-613d-4eb2-a2fc-dcb6adb80b80"
+          }
+        ],
+        "SubTotal": 470.65,
+        "TotalTax": 70.6,
+        "Total": 541.25,
+        "UpdatedDateUTC": "/Date(1290168061560+0000)/",
+        "CurrencyCode": "NZD",
+        "FullyPaidOnDate": "/Date(1782691200000+0000)/"
+      },
+      {
+        "Type": "ACCREC",
+        "InvoiceID": "f3635dff-8b2e-4e79-8514-8acec1089764",
+        "InvoiceNumber": "INV-0010",
+        "Reference": "RPT200-1",
+        "Payments": [
+          {
+            "PaymentID": "7534ac52-dae6-4cf1-90e4-ee924341781e",
+            "Date": "/Date(1780185600000+0000)/",
+            "Amount": 500.0,
+            "Reference": "INV-0010",
+            "CurrencyRate": 1.0,
+            "HasAccount": false,
+            "HasValidationErrors": false
+          }
+        ],
+        "CreditNotes": [],
+        "Prepayments": [],
+        "Overpayments": [],
+        "AmountDue": 0.0,
+        "AmountPaid": 500.0,
+        "AmountCredited": 0.0,
+        "SentToContact": true,
+        "IsDiscounted": false,
+        "HasAttachments": false,
+        "InvoiceAddresses": [],
+        "HasErrors": false,
+        "RepeatingInvoiceID": "30997468-1b95-4948-891b-1766cfd94fec",
+        "InvoicePaymentServices": [],
+        "UpdatedDateUTCString": "2010-11-19T12:01:01Z",
+        "Contact": {
+          "ContactID": "fef6755f-549b-4617-b1e9-60bdffb517d8",
+          "Name": "Ridgeway University",
+          "Addresses": [],
+          "Phones": [],
+          "ContactGroups": [],
+          "ContactPersons": [],
+          "HasValidationErrors": false
+        },
+        "DateString": "2026-05-20T00:00:00",
+        "Date": "/Date(1779235200000+0000)/",
+        "DueDateString": "2026-05-30T00:00:00",
+        "DueDate": "/Date(1780099200000+0000)/",
+        "BrandingThemeID": "7889a0ac-262a-40e3-8a63-9a769b1a18af",
+        "Status": "PAID",
+        "LineAmountTypes": "Inclusive",
+        "LineItems": [
+          {
+            "Description": "Retainer for consulting work",
+            "UnitAmount": 500.0,
+            "TaxType": "OUTPUT2",
+            "TaxAmount": 65.22,
+            "LineAmount": 500.0,
+            "AccountCode": "200",
+            "Tracking": [],
+            "Quantity": 1.0,
+            "LineItemID": "fb33789f-7c57-4e06-8537-ee79fdeff78b",
+            "AccountID": "7d05a53d-613d-4eb2-a2fc-dcb6adb80b80"
+          }
+        ],
+        "SubTotal": 434.78,
+        "TotalTax": 65.22,
+        "Total": 500.0,
+        "UpdatedDateUTC": "/Date(1290168061593+0000)/",
+        "CurrencyCode": "NZD",
+        "FullyPaidOnDate": "/Date(1780185600000+0000)/"
+      }
+    ]
+  }
+}

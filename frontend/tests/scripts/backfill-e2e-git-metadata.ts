@@ -32,6 +32,7 @@ const OUTPUT_HEADER = [
   'test_path',
   'duration_ms',
   'status',
+  'xero',
 ]
 
 type MetadataSource = 'git' | 'inferred_from_run_date' | 'unresolved' | 'unavailable'
@@ -77,6 +78,8 @@ function parseCsv(content: string): TestRunRow[] {
       // era tags merged analysis populations and is never written back;
       // history-sources treats explicit inputs as v2-era, so this does too.
       era: 'v2',
+      // Carried through untouched: this script rewrites git metadata only.
+      xero: record.xero === 'fake' ? 'fake' : 'real',
       runId: record.run_id ?? '',
       runDate: record.run_date ?? '',
       gitSha: record.git_sha ?? '',
@@ -181,6 +184,7 @@ function renderCsv(rows: TestRunRow[]): string {
       csvCell(row.testPath),
       row.durationMs,
       row.status,
+      row.xero,
     ].join(','),
   )
   return `${OUTPUT_HEADER.join(',')}\n${renderedRows.join('\n')}\n`

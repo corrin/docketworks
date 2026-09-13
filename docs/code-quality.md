@@ -14,20 +14,20 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 
 | metric | count |
 |---|---:|
-| type: ignore | 10 |
-| pragma: no cover | 11 |
+| type: ignore | 9 |
+| pragma: no cover | 9 |
 | noqa (no rule code) | 0 |
 | @ts-ignore | 0 |
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 711 |
-| noqa: DJ001 | 171 |
-| noqa: PLC0415 | 135 |
-| noqa: E402 | 106 |
-| noqa: PLR0913 | 46 |
+| TOTAL suppressions | 746 |
+| noqa: DJ001 | 174 |
+| noqa: PLC0415 | 150 |
+| noqa: E402 | 111 |
+| noqa: PLR0913 | 52 |
 | noqa: ARG002 | 38 |
-| noqa: BLE001 | 34 |
+| noqa: BLE001 | 35 |
 | noqa: ARG001 | 22 |
 | noqa: C901 | 18 |
 | noqa: S603 | 17 |
@@ -39,12 +39,15 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: RUF001 | 6 |
 | noqa: S105 | 5 |
 | noqa: N815 | 4 |
+| noqa: N818 | 4 |
+| noqa: S106 | 4 |
 | noqa: S311 | 4 |
 | noqa: ARG005 | 3 |
-| noqa: N818 | 3 |
+| noqa: D107 | 3 |
 | noqa: PLW0603 | 3 |
 | noqa: RUF012 | 3 |
 | noqa: S608 | 3 |
+| noqa: DTZ001 | 2 |
 | noqa: F401 | 2 |
 | noqa: N803 | 2 |
 | noqa: S108 | 2 |
@@ -53,8 +56,6 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: B010 | 1 |
 | noqa: B904 | 1 |
 | noqa: C416 | 1 |
-| noqa: D107 | 1 |
-| noqa: DTZ001 | 1 |
 | noqa: DTZ007 | 1 |
 | noqa: F821 | 1 |
 | noqa: PIE804 | 1 |
@@ -79,11 +80,11 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 419 |
-| except handlers | 451 |
-| re-raises or converts | 293 |
-| returns instead | 93 |
-| falls through | 50 |
+| try statements | 438 |
+| except handlers | 469 |
+| re-raises or converts | 296 |
+| returns instead | 105 |
+| falls through | 53 |
 | continue/break in a loop | 14 |
 | pass (silent) | 1 |
 
@@ -99,12 +100,12 @@ The narrow subset of the above: functions whose ENTIRE body is one single-statem
 
 ## Optional returns
 
-Functions returning `X | None`, which moves a decision onto every caller — and there are always more callers than functions (ADR 0045). Existing sites are a post-cutover sweep, not a blocker.
+Functions returning `X | None`, which moves a decision onto every caller — and there are always more callers than functions (ADR 0028). Existing sites are a post-cutover sweep, not a blocker.
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 218 |
-| non-test functions | 2720 |
+| functions returning `X \| None` | 226 |
+| non-test functions | 2853 |
 
 ## Wire contract (response side)
 
@@ -113,6 +114,6 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 | metric | count |
 |---|---:|
 | response schemas | 313 |
-| response properties | 2002 |
+| response properties | 2003 |
 | optional (pinned at zero) | 0 |
-| nullable | 433 |
+| nullable | 431 |

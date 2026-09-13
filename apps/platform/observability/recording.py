@@ -79,11 +79,16 @@ def record_response(response: requests.Response, *, vendor: VendorCall.Vendor) -
     Refusals the vendor did answer, 4xx and 429 included, arrive here like any
     other response.
     """
+    if response.request.method is None or response.request.url is None:
+        # The row is the audit of what was spent where; a call with no method
+        # or URL is not a call this recorder can describe, so it refuses rather
+        # than booking a GET to "" that every later query would trust.
+        raise ValueError("A vendor response carries no request method or URL to record")
     record_vendor_call(
         VendorCallRecord(
             vendor=vendor,
-            method=response.request.method or "GET",
-            url=response.request.url or "",
+            method=response.request.method,
+            url=response.request.url,
             duration_ms=int(response.elapsed.total_seconds() * 1000),
             status_code=response.status_code,
         )

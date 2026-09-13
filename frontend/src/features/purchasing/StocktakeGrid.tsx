@@ -10,7 +10,7 @@ import { INPUT_CLASS } from '@/components/ui/field'
 import { DataTable } from '@/features/shared/DataTable'
 import { editableGridFeatures } from '@/features/shared/editableGridTable'
 import { trimDecimal } from '@/features/shared/decimal'
-import { formatCurrency } from '@/lib/format'
+import { formatCurrency, formatQuantity } from '@/lib/format'
 import type { StockItem, StocktakeLineWrite } from '@/api'
 
 export type CountRow = StocktakeLineWrite & { unitCostInput: string; countInput: string }
@@ -126,7 +126,7 @@ const columns = [
       const row = cell.row.original
       return row.counted_quantity === null
         ? 'Uncounted'
-        : trimDecimal(String(row.counted_quantity - row.expected_quantity))
+        : formatQuantity(row.counted_quantity - row.expected_quantity)
     },
   }),
   helper.display({

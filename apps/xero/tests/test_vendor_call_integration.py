@@ -18,6 +18,7 @@ from xero_python.accounting import AccountingApi
 from apps.platform.observability.models import VendorCall
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.operator_guards import assert_not_production_target
+from apps.xero.quota import read_day_quota
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 
@@ -51,3 +52,16 @@ def test_a_real_call_records_the_quota_xero_reported() -> None:
             # outside that range means the header was misparsed, not that the
             # quota is unusual.
             assert 0 <= row.day_remaining <= 5000
+
+
+def test_a_real_call_answers_the_tenant_and_its_remaining_quota() -> None:
+    # The preflight's whole value is that Xero's own header, not our belief
+    # about it, decides whether a run starts; only a real response can show
+    # the header arrives on this call, with this name, as an integer.
+    assert_not_production_target()
+
+    reading = read_day_quota()
+
+    assert reading.organisation_name
+    assert 0 <= reading.day_remaining <= 5000
+    assert 0 <= reading.minute_remaining <= 60

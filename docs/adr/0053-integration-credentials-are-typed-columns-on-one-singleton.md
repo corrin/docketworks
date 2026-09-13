@@ -21,13 +21,14 @@ credentials may be added. Callers supply the company mailbox to the Google adapt
   row discovered at runtime. A row-per-integration table can only be generic columns plus a
   JSON bag, which is the shape the read-side fallback backlog exists to remove.
 - **N-of integrations keep their own typed tables.** `XeroApp` (a rotation pair with token
-  state), `AIProvider` (a list with a default) and `SupplierCredential` (one per supplier) are
-  many of the same kind, so each is its own table where every row is the same shape. The
-  boundary is cardinality, never vendor: a second Google credential is another column, not a
-  second Google table.
+  state), `AIProvider` (a list with a default; its catalogue and selection are ADR 0062) and
+  `SupplierCredential` (one per supplier) are many of the same kind, so each is its own table
+  where every row is the same shape. The boundary is cardinality, never vendor: a second Google
+  credential is another column, not a second Google table.
 - **Never `CompanyDefaults`.** Its GET is any-staff boot data whose response is derived from
   every column, so a credential there is handed to every user on every page load. It holds
-  business configuration; `IntegrationSettings` holds how the install reaches the outside.
+  business configuration — the accounting provider selector of ADR 0012 is one — while
+  `IntegrationSettings` holds how the install reaches the outside.
 - **Reads never write.** `get_solo()` returns the row or raises `ImproperlyConfigured`; the
   row is created by `core/0003_integration_settings_row`, which the cutover script re-applies
   after the restore. `integrations/0001` adopts that table without DDL;
@@ -59,17 +60,3 @@ credentials may be added. Callers supply the company mailbox to the Google adapt
   shows configured/not configured and takes a new value.
 - **Do not add a generic `extra_config` JSON column** to absorb a new integration's fields. The
   migration is the point.
-
-## AI catalogue lifecycle
-
-Owner-approved: `AIProvider` remains the credential owner, allowing several models
-per vendor. The ChatKit public domain key remains on `IntegrationSettings`. Admin
-and provisioning share `apps.ai.services.provider_configuration`; platform does not
-import AI configuration services across its ownership boundary.
-
-`load_ai_providers` consumes the instance renderer's fixture vendor by vendor.
-A configured vendor is preserved; an absent vendor is added; an exact, unambiguous
-empty seed can be refilled. Other incomplete entries require operator attention.
-Unset optional vendors produce no rows. An existing application default is never
-replaced by bootstrap. Scrubbing already removes `workflow_aiprovider` as a private
-table. The restore check probes each configured row through the shared gateway.

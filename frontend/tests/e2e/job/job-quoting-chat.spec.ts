@@ -7,7 +7,11 @@ test('embedded quoting chat streams, retains history and resizes with the job ta
   await autoId(page, 'JobViewTabs-quotingChat').click()
   const frame = page.frameLocator('iframe[title="Quoting assistant"]')
   const composer = frame.getByRole('textbox')
-  await expect(composer).toBeVisible()
+  // ChatKit boots from OpenAI's CDN (bundle, domain-key verification, a
+  // Cloudflare challenge) before it renders a composer; that chain is not
+  // ours and took over five seconds on the public origin, so the boot gets
+  // the same deliberate budget as the streaming waits below.
+  await expect(composer).toBeVisible({ timeout: 90_000 })
   await composer.fill('Remember the reference ALPHA-731. Reply with that reference only.')
   await composer.press('Enter')
   await expect(frame.getByText('ALPHA-731', { exact: true })).toBeVisible({ timeout: 90_000 })

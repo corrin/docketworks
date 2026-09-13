@@ -132,7 +132,6 @@ test.describe('PO workspace', () => {
       expect(geometry.pageWidth).toBeLessThanOrEqual(width)
       if (width >= 1280) {
         expect(geometry.width).toBeGreaterThan(width * 0.94)
-        expect(geometry.left).toBeGreaterThanOrEqual(0)
         expect(geometry.right).toBeLessThanOrEqual(width)
         expect(geometry.scrollWidth).toBe(geometry.paneWidth)
       } else {

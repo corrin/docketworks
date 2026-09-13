@@ -213,6 +213,10 @@ export function requireBackupFile(
 function restoreDatabase(lockContents: string): void {
   console.log('\n[db] Restoring database after tests...')
   const dbConfig = getDbConfig()
+  // Lock file line 4, written by global-setup: "fake" when the run was
+  // started with --use-fake-xero. Absent (a lock from an older harness)
+  // means real, the mode every run had before the fake existed.
+  const xeroMode = lockContents.split('\n')[3]?.trim() === 'fake' ? 'fake' : 'real'
 
   let backupFile: string
   try {
@@ -259,8 +263,16 @@ function restoreDatabase(lockContents: string): void {
   // single-use, so reinjecting a copy taken earlier would strand the next run
   // on a consumed token. The cleanup is the likelier of the two — it makes a
   // real Xero call per document.
+  //
+  // Under the fake Xero nothing rotated: the fake's token refresh hands the
+  // stored refresh token straight back (ADR 0060), so the backup's copy is
+  // still live and re-injecting the run's copy would put a fake access token
+  // onto the restored row.
   const xeroTokenFile = `${backupFile}.xero-app-token.json`
-  const xeroAppTokenRow = saveActiveXeroToken(dbConfig, xeroTokenFile)
+  const xeroAppTokenRow = xeroMode === 'fake' ? null : saveActiveXeroToken(dbConfig, xeroTokenFile)
+  if (xeroMode === 'fake') {
+    console.log('[db] Fake Xero run: the real token was never rotated; no token to re-inject.')
+  }
 
   // Atomic restore: -v ON_ERROR_STOP=1 bails psql at the first SQL error
   // and --single-transaction wraps the whole dump replay in one BEGIN/COMMIT.
@@ -310,7 +322,9 @@ function restoreDatabase(lockContents: string): void {
   // Re-inject the saved active Xero app token so the connection stays live.
   // Throws on failure, which leaves the side-file below undeleted — the token
   // stays recoverable by hand instead of being lost with the process.
-  reinjectXeroToken(dbConfig, xeroAppTokenRow)
+  if (xeroAppTokenRow !== null) {
+    reinjectXeroToken(dbConfig, xeroAppTokenRow)
+  }
 
   // Sync sequences after restore
   console.log('[db] Syncing sequences...')

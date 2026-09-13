@@ -1,7 +1,7 @@
 """Pydantic wire contracts for the timesheet router.
 
 Timesheet services build matching TypedDict data, and error responses use the
-standard envelope from ADR 0013.
+standard envelope from ADR 0038.
 """
 
 from datetime import date, datetime, time

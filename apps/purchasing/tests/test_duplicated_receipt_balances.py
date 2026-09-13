@@ -17,7 +17,7 @@ pytestmark = pytest.mark.django_db
 RECONCILE = import_module("apps.purchasing.migrations.0007_reconcile_duplicated_receipt_balances")
 OPENINGS = import_module("apps.purchasing.migrations.0011_backfill_job_openings")
 BACKFILL = import_module("apps.purchasing.migrations.0015_backfill_legacy_receipt_evidence")
-AUDIT = "Supplier receipt totals"
+AUDIT = "Supplier delivery totals"
 
 
 def reconcile() -> None:

@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 #: Xero's own value; the SDK validates ``pay_run_status`` against
 #: ["Draft", "Posted", "None"].
 PAY_RUN_STATUS_DRAFT = "Draft"
+PAY_RUN_STATUS_POSTED = "Posted"
 
 
 @dataclass(frozen=True)
@@ -87,12 +88,19 @@ def _runs_that_can_still_change(pay_runs: list[PayRun]) -> list[PayRun]:
 
     A Posted run's slips are final — only a Draft recomputes (ADR 0007) — so
     a Posted run is read once, to fill the mirror, and never again. "Once" is
-    decided by whether the mirror holds slips for it rather than by its status
-    alone, because a run posted between two syncs would otherwise never have
-    its slips fetched at all.
+    decided by whether the mirror holds every slip Xero reported for it rather
+    than by its status alone, because a run posted between two syncs would
+    otherwise never have its slips fetched at all, and a run whose batch was
+    cut short (one slip persisted, the next one failed) would otherwise be
+    complete for ever. Equality, not "at least": the sync never deletes a
+    slip, so a mirror holding one Xero has since removed from a Draft is over
+    the count and is re-read until that slip is deleted here, which is its
+    own change.
     """
     # Local import: this module is imported at app boot, models may not be ready.
-    from apps.xero.models import XeroPaySlip  # noqa: PLC0415
+    from django.db.models import Count, F  # noqa: PLC0415
+
+    from apps.xero.models import XeroPayRun  # noqa: PLC0415
 
     # Scoped to this batch rather than asking for every mirrored run: the
     # answer is only ever consulted for these ids, and the unscoped form both
@@ -100,9 +108,10 @@ def _runs_that_can_still_change(pay_runs: list[PayRun]) -> list[PayRun]:
     run_ids = {str(pay_run.pay_run_id) for pay_run in pay_runs}
     mirrored = {
         str(xero_id)
-        for xero_id in XeroPaySlip.objects.filter(pay_run__xero_id__in=run_ids)
-        .values_list("pay_run__xero_id", flat=True)
-        .distinct()
+        for xero_id in XeroPayRun.objects.filter(xero_id__in=run_ids, pay_slip_count__isnull=False)
+        .annotate(mirrored_slips=Count("pay_slips"))
+        .filter(mirrored_slips=F("pay_slip_count"))
+        .values_list("xero_id", flat=True)
     }
     return [
         pay_run
@@ -135,12 +144,26 @@ def get_all_pay_slips_for_sync(**kwargs: Any) -> PaySlipsForSync:
         logger.info("No pay runs found")
         return PaySlipsForSync()
 
+    # Local import: this module is imported at app boot, models may not be ready.
+    from apps.xero.models import XeroPayRun  # noqa: PLC0415
+
     worth_reading = _runs_that_can_still_change(pay_runs)
     all_pay_slips: list[PaySlip] = []
     for pay_run in worth_reading:
-        all_pay_slips.extend(
-            get_pay_slips_for_run(str(pay_run.pay_run_id), xero_tenant_id=tenant_id)
+        pay_run_id = str(pay_run.pay_run_id)
+        slips = get_pay_slips_for_run(pay_run_id, xero_tenant_id=tenant_id)
+        # Recorded where it is learned, and only from a Posted read: a Draft's
+        # slips are provisional (ADR 0007), and a count taken then would make
+        # the run whole the moment it posted, with its final values never read.
+        # A Draft read clears the count for the same reason: a run reverted to
+        # Draft and reposted must be read again. A run row that is not mirrored
+        # yet updates nothing, and its slips are not persisted either (the
+        # transform needs the parent); both resolve next hour.
+        posted = pay_run.pay_run_status == PAY_RUN_STATUS_POSTED
+        XeroPayRun.objects.filter(xero_id=pay_run_id).update(
+            pay_slip_count=len(slips) if posted else None
         )
+        all_pay_slips.extend(slips)
 
     logger.info(
         "Retrieved %d pay slips from %d of %d pay runs",

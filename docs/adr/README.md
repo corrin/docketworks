@@ -25,12 +25,12 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0002](0002-auth-gate-global-allowlist.md) | Auth gate: single global gate with explicit allowlist |
 | [0003](0003-etag-optimistic-concurrency.md) | ETag-based optimistic concurrency for Job and PO edits |
 | [0004](0004-job-delta-envelope.md) | Job mutations require a self-contained delta envelope |
-| [0005](0005-emit-tools-pattern.md) | Emit-tool pattern for Gemini structured output |
+| 0005 | (retired 2026-09-13: Gemini emit-tools no longer exist; every AI call is [0041](0041-one-llm-gateway.md)'s gateway) |
 | [0006](0006-rest-resource-hierarchy.md) | REST resource hierarchy and operationId hygiene |
 | [0007](0007-xero-payroll-sync.md) | Xero Payroll NZ sync with four-bucket hour categorisation |
-| [0008](0008-frontend-subtree-merge.md) | Frontend integrated as a git subtree (not submodule) |
+| 0008 | (retired 2026-09-13: this repository was never a subtree; the one-repo rule lives in [0017](0017-zero-backwards-compatibility.md)) |
 | [0012](0012-accounting-provider-strategy.md) | Accounting provider strategy with registry |
-| [0013](0013-error-message-clarity-over-info-hiding.md) | Error clarity follows the authentication boundary |
+| 0013 | (retired 2026-09-13: merged into [0038](0038-transparent-errors-trusted-environment.md)) |
 | [0015](0015-fix-data-not-fallback.md) | Fix incorrect data; do not add read-side fallbacks |
 | [0017](0017-zero-backwards-compatibility.md) | Zero backwards compatibility; rewrite every call site in one PR |
 | [0019](0019-mandatory-error-persistence.md) | Unexpected exceptions are persisted to AppError |
@@ -54,7 +54,7 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0041](0041-one-llm-gateway.md) | One LLM gateway, and it lives in apps/ai |
 | 0042 | (reserved: v1 data migration — written when that phase lands) |
 | [0043](0043-comments-record-the-rejected-alternative.md) | Comments record the rejected alternative |
-| [0045](0045-call-the-right-function-no-shims.md) | Call the right function; never return a shape the caller must decode |
+| 0045 | (retired 2026-09-13: merged into [0028](0028-type-annotations-are-data-contracts.md)) |
 | [0046](0046-numbers-on-the-wire.md) | Numbers on the wire; the frontend owns all formatting |
 | [0047](0047-asgi-serving-and-sse-push.md) | The application is served over ASGI, and data versions are pushed over SSE |
 | [0048](0048-own-what-you-wipe-database-safety.md) | A role wipes only what it owns; deliberateness is graded, prod wipes need an explicit assertion and are always recoverable |
@@ -69,3 +69,7 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0057](0057-line-identity-and-creation-order.md) | Line identity and creation order |
 | [0058](0058-write-refusals-live-in-the-application.md) | A rule that refuses a write lives in the application |
 | [0059](0059-one-data-model-legacy-data-is-migrated.md) | The app supports one data model; legacy data is migrated to comply |
+| [0060](0060-an-iteration-run-may-fake-an-integration.md) | An iteration run may point the unmodified app at a simulated integration; the gate never does |
+| [0061](0061-checking-is-not-doing.md) | Checking is not doing: one owner per action, one check at the boundary that matters |
+| [0062](0062-ai-provider-selection-and-administration.md) | A caller selects an AI provider from the configured catalogue, and Admin → Integrations owns the catalogue |
+| [0063](0063-test-suite-conventions.md) | Test-suite conventions: a provisioned instance, scoped assertions, named actors, stable selectors |

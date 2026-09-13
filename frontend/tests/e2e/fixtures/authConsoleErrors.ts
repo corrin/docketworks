@@ -2,6 +2,40 @@ export type CapturedBrowserError = {
   kind: 'console' | 'pageerror'
   text: string
   capturedAt: number
+  /** The resource a browser-emitted network line names; absent for app console output. */
+  url?: string
+}
+
+export type ResourceResponseEvent = {
+  url: string
+  status: number
+  observedAt: number
+}
+
+export const NETWORK_FAILURE_CONSOLE_PREFIX = 'Failed to load resource: net::'
+
+/**
+ * A `net::ERR_*` console line is the browser reporting a connection that died,
+ * not the app reporting anything; when the same URL then loads, the app has
+ * recovered on its own (a query retried, a chunk fetched after reload) and has
+ * nothing to toast or throw. The allowance is per URL and only for a success
+ * observed AFTER the failure, so a resource that never loads still fails the test.
+ */
+export function createRecoveredLoadAllowance(): {
+  recordResponse: (event: ResourceResponseEvent) => void
+  isRecovered: (error: CapturedBrowserError) => boolean
+} {
+  const successes: ResourceResponseEvent[] = []
+  return {
+    recordResponse: (event) => {
+      if (event.status < 400) successes.push(event)
+    },
+    isRecovered: (error) =>
+      error.kind === 'console' &&
+      error.text.startsWith(NETWORK_FAILURE_CONSOLE_PREFIX) &&
+      error.url !== undefined &&
+      successes.some((s) => s.url === error.url && s.observedAt >= error.capturedAt),
+  }
 }
 
 export type AuthResponseEvent = {

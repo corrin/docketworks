@@ -1,0 +1,12 @@
+# 0063 — Test-suite conventions: a provisioned instance, scoped assertions, named actors, stable selectors
+Unratified: Fable
+
+Every test starts from a provisioned instance, asserts over what it created, takes its actors from the root `conftest.py` by name, and drives the UI through stable automation ids.
+
+## Rules
+
+- **Every test assumes a provisioned instance.** The root `conftest.py` seeds `CompanyDefaults`, its shop `Company` and the Xero pay-item catalogue for every test that touches the database. DocketWorks cannot boot without those rows, so a test starting from an empty database exercises a state the product never runs in — and a test that passes only in that state is asserting fiction, the same way a test of "Django works" is. Opt out with `@pytest.mark.bare_install` for instance provisioning; expect that to stay rare, because provisioning creates and seeds in one step.
+- **Assert over what the test creates, not over the whole table.** `assert [row["name"] for row in response.json()] == ["Acme", "Zeta"]` looks like a list assertion but is really an assertion that the installation is empty, and it breaks the moment the world is realistic. Scope the query, filter to the rows the test made, or assert the property — sortedness, inclusion, exclusion.
+- Actors come from the root conftest by fixture name: `office_staff`, `superuser`, `api` (authenticated office staff), `superuser_api`. `client` stays pytest-django's ANONYMOUS client — an authenticated fixture named `client` is how a `test_requires_authentication` silently stops testing authentication.
+- E2E selectors: elements the tests drive or assert against expose stable `data-automation-id` attributes. Never depend on incidental DOM position (`nth(3)`, "the next card") for values or controls whose meaning matters.
+- An E2E wait on a mutation's response matches URL and method only — never status — then asserts success explicitly, with the actual status and body in the failure message. A status-filtered wait can never match a real failure, so a failed mutation surfaces as a generic timeout that hides exactly the regression the wait exists to catch.

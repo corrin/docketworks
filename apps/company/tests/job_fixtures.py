@@ -19,7 +19,6 @@ from apps.core.models import CompanyDefaults
 from apps.crm.models import PhoneCallRecord
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.purchasing.models import PurchaseOrder
 from apps.quoting.models import ScrapeJob, SupplierPriceList, SupplierProduct
 
 
@@ -219,13 +218,6 @@ def make_quote(company: Company, *, job: Job | None = None, number: str | None =
         # by its quote number), so the caller must be able to set one.
         fields["number"] = number
     return Quote.objects.create(**fields)
-
-
-def make_purchase_order(supplier: Company) -> PurchaseOrder:
-    return PurchaseOrder.objects.create(
-        supplier=supplier,
-        po_number=f"PO-{uuid.uuid4().hex[:8]}",
-    )
 
 
 def make_supplier_price_list(supplier: Company) -> SupplierPriceList:

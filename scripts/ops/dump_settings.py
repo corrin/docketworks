@@ -70,6 +70,7 @@ def main() -> None:
     info["flags"] = {
         "DEBUG": settings.DEBUG,
         "XERO_READONLY": settings.XERO_READONLY,
+        "XERO_FAKE": settings.XERO_FAKE,
         "APP_DOMAIN": settings.APP_DOMAIN,
     }
 

@@ -50,7 +50,7 @@ def move_stock(stock: Stock, change: Decimal, context: MovementContext) -> Stock
     if context.kind in (
         StockMovementKind.OPENING,
         StockMovementKind.JOB_OPENING,
-        StockMovementKind.RECEIPT_OPENING,
+        StockMovementKind.DELIVERY_OPENING,
     ):
         raise InvalidInputError("Opening observations belong to the inventory cutover migration.")
     locked = Stock.objects.select_for_update().get(pk=stock.pk)
@@ -137,7 +137,7 @@ _LEDGER_AUDITS = {
         LEFT JOIN purchasing_stockmovement original ON original.id = m.reverses_id
         LEFT JOIN job_costline charge ON charge.id = original.cost_line_id
         LEFT JOIN job_costline credit ON credit.id = m.cost_line_id
-        WHERE m.kind IN ('return', 'receipt_reversal')
+        WHERE m.kind IN ('return', 'delivery_reversal')
           AND (original.id IS NULL OR original.stock_id <> m.stock_id
                OR m.unit_cost IS DISTINCT FROM original.unit_cost
                OR (m.kind = 'return' AND (
@@ -147,10 +147,10 @@ _LEDGER_AUDITS = {
                    OR m.quantity_change <> charge.quantity
                    OR credit.unit_cost IS DISTINCT FROM charge.unit_cost
                    OR credit.unit_rev IS DISTINCT FROM charge.unit_rev))
-               OR (m.kind = 'receipt_reversal' AND (
-                   original.kind NOT IN ('receipt', 'receipt_opening')
+               OR (m.kind = 'delivery_reversal' AND (
+                   original.kind NOT IN ('delivery', 'delivery_opening')
                    OR m.quantity_change IS DISTINCT FROM -CASE
-                       WHEN original.kind = 'receipt_opening' THEN original.opening_quantity
+                       WHEN original.kind = 'delivery_opening' THEN original.opening_quantity
                        ELSE original.quantity_change END)))
     """,
     "Stocktake posting evidence": """
@@ -170,12 +170,12 @@ _LEDGER_AUDITS = {
               SELECT 1 FROM purchasing_stockmovement m WHERE m.stocktake_line_id = l.id
           )
     """,
-    "Supplier receipt totals": """
+    "Supplier delivery totals": """
         WITH pending_lines AS (
             SELECT s.source_purchase_order_line_id AS id FROM purchasing_stock s
             WHERE s.source = 'purchase_order' AND NOT EXISTS (
                 SELECT 1 FROM purchasing_stockmovement m WHERE m.stock_id = s.id
-                  AND m.kind IN ('receipt', 'receipt_opening')
+                  AND m.kind IN ('delivery', 'delivery_opening')
             )
             UNION
             SELECT pl.id FROM purchasing_purchaseorderline pl
@@ -187,10 +187,10 @@ _LEDGER_AUDITS = {
               )
         ), receipts AS (
             SELECT s.source_purchase_order_line_id AS id,
-                   sum(CASE WHEN m.kind = 'receipt_opening' THEN m.opening_quantity
+                   sum(CASE WHEN m.kind = 'delivery_opening' THEN m.opening_quantity
                             ELSE m.quantity_change END) AS quantity
             FROM purchasing_stock s JOIN purchasing_stockmovement m ON m.stock_id = s.id
-            WHERE m.kind IN ('receipt', 'receipt_opening', 'receipt_reversal')
+            WHERE m.kind IN ('delivery', 'delivery_opening', 'delivery_reversal')
             GROUP BY s.source_purchase_order_line_id
         )
         SELECT pl.id::text FROM purchasing_purchaseorderline pl
@@ -221,11 +221,11 @@ def inventory_audit_findings() -> dict[str, list[str]]:
     return {label: rows for label, rows in findings.items() if rows}
 
 
-def receipt_quantity(movement: StockMovement) -> Decimal:
+def delivery_quantity(movement: StockMovement) -> Decimal:
     """Read the supplied quantity from either a posting or an explicit cutover observation."""
-    if movement.kind == "receipt":
+    if movement.kind == "delivery":
         return movement.quantity_change
-    if movement.kind != "receipt_opening" or movement.opening_quantity is None:
+    if movement.kind != "delivery_opening" or movement.opening_quantity is None:
         raise InvalidInputError("This movement is not receipt evidence.")
     return movement.opening_quantity
 

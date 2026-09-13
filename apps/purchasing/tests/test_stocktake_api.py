@@ -51,7 +51,7 @@ def test_workshop_staff_can_use_the_shared_setup_and_create_a_count(
 
 @pytest.mark.parametrize(
     "kind",
-    [StockMovementKind.OPENING, StockMovementKind.JOB_OPENING, StockMovementKind.RECEIPT_OPENING],
+    [StockMovementKind.OPENING, StockMovementKind.JOB_OPENING, StockMovementKind.DELIVERY_OPENING],
 )
 def test_live_writer_refuses_cutover_observations(
     stock_holding_job: Job, kind: StockMovementKind

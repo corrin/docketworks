@@ -14,6 +14,7 @@ from django.utils import timezone
 from pytest_django.fixtures import SettingsWrapper
 
 from apps.company.models import ContactMethod
+from apps.company.tests.factories import make_company
 from apps.core.models import AppError
 from apps.core.test_data import silent_wav
 from apps.crm.migrations import _0003_helpers as backfill
@@ -36,7 +37,6 @@ from apps.crm.services.phone_call_service import (
 from apps.crm.tests.helpers import (
     link_person,
     make_call,
-    make_company,
     make_job,
     make_office_staff,
     make_recording,

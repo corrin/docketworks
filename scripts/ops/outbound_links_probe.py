@@ -481,6 +481,8 @@ NOT_A_LINK_FIELDS: dict[str, str] = {
     "xero.XeroApp.client_id": "OAuth client id: a credential, not a link",
     "xero.XeroError.job_id": "our own row id",
     "xero.XeroError.user_id": "our own row id",
+    "xero.FakeXeroObject.tenant_id": "the fake's own organisation key, never a vendor object",
+    "xero.FakeXeroObject.parent_id": "the fake's own row id",
     "xero.XeroError.reference_id": (
         "Xero id of the entity that failed, kept on the error row for diagnosis; "
         "never emitted as a link"

@@ -1,0 +1,115 @@
+{
+  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": 2,
+  "request": {
+    "method": "GET",
+    "path": "/payroll.xro/2.0/Employees",
+    "query": {
+      "page": "1"
+    }
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "id": "6abe83b6-8150-4716-aa6f-4d4eaaf1c5db",
+    "providerName": "Docketworks%20MSM%20Dev",
+    "dateTimeUTC": "2026-09-13T03:16:32.3678542",
+    "httpStatusCode": "OK",
+    "pagination": {
+      "page": 1,
+      "pageSize": 100,
+      "pageCount": 1,
+      "itemCount": 29
+    },
+    "problem": null,
+    "employees": [
+      {
+        "employeeID": "10c31995-97ee-439c-ba2b-52aaa1c2da44",
+        "firstName": "firstName-scrubbed",
+        "lastName": "lastName-scrubbed",
+        "otherGivenNames": null,
+        "dateOfBirth": null,
+        "gender": null,
+        "email": null,
+        "phoneNumber": null,
+        "startDate": "2021-03-01T00:00:00",
+        "address": {
+          "addressLine1": "addressLine1-scrubbed",
+          "addressLine2": null,
+          "city": "city-scrubbed",
+          "suburb": null,
+          "countryName": "NEW ZEALAND",
+          "postCode": "postCode-scrubbed"
+        },
+        "payrollCalendarID": "8df7961e-e9f1-4407-b77d-672bcad8cf30",
+        "updatedDateUTC": "2026-09-12T03:49:26.917",
+        "createdDateUTC": "2026-09-12T03:49:26.917",
+        "endDate": null,
+        "engagementType": null,
+        "fixedTermEndDate": null,
+        "employmentType": "Contractor",
+        "jobTitle": null
+      },
+      {
+        "employeeID": "2b74b572-884b-4859-bf67-8d673816243a",
+        "firstName": "firstName-scrubbed",
+        "lastName": "lastName-scrubbed",
+        "otherGivenNames": null,
+        "dateOfBirth": "1990-01-01T00:00:00",
+        "gender": "F",
+        "email": null,
+        "phoneNumber": null,
+        "startDate": "2023-01-09T00:00:00",
+        "address": {
+          "addressLine1": "addressLine1-scrubbed",
+          "addressLine2": null,
+          "city": "city-scrubbed",
+          "suburb": null,
+          "countryName": "NEW ZEALAND",
+          "postCode": "postCode-scrubbed"
+        },
+        "payrollCalendarID": "ccc86278-109b-4192-b2de-c5330b7bf8c7",
+        "updatedDateUTC": "2026-09-12T03:49:26.917",
+        "createdDateUTC": "2026-09-12T03:49:26.917",
+        "endDate": null,
+        "engagementType": null,
+        "fixedTermEndDate": null,
+        "employmentType": "Employee",
+        "jobTitle": null
+      }
+    ]
+  }
+}

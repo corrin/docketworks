@@ -20,6 +20,7 @@ from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.accounts.models import SYSTEM_AUTOMATION_EMAIL, Staff
 from apps.accounts.nonprod_credentials import STAFF_PASSWORD
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
+from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import (
     make_bill,
     make_credit_note,
@@ -28,7 +29,6 @@ from apps.company.tests.job_fixtures import (
     make_quote,
 )
 from apps.core.models import CompanyDefaults, ServiceAPIKey
-from apps.crm.tests.helpers import make_company
 from apps.diagnostics.services import db_scrubber
 from apps.diagnostics.services.staff_anonymization import create_staff_profile
 from apps.process.models import Acknowledgement, Form, FormEntry, Procedure, ProcessEvent

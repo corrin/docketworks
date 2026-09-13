@@ -27,6 +27,13 @@ logger = logging.getLogger(__name__)
 
 # Local workflow status → the Xero PO status pushed on sync. Both received
 # states map to AUTHORISED: Xero has no notion of partial receipt.
+#
+# SEAM: whether Xero will match a supplier's bill against a DRAFT purchase
+# order is not established anywhere in this repo, and the whole reason Xero
+# holds a copy is that matching. Nothing pushes a draft today — a draft is not
+# in Xero at all — so the "draft" entry is only reached by an order pulled back
+# after it was sent. Worth measuring against the demo tenant before anything
+# relies on it.
 PO_STATUS_MAP = {
     "draft": "DRAFT",
     "submitted": "SUBMITTED",
@@ -224,14 +231,12 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
         po.save(update_fields=fields)
         self.purchase_order = po
         if po.updated_at != snapshot.version:
-            logger.info("PO %s changed during push; line IDs and agreement deferred", po.id)
+            logger.info("PO %s changed during push; line IDs deferred", po.id)
             return
         response_lines = echoed.get("line_items")
         if response_lines is not None:
             returned = TypeAdapter(list[POResponseLine]).validate_python(response_lines)
             self._update_line_item_ids_from_response(returned, snapshot.lines)
-        po.xero_agreed_at = timezone.now()
-        po.save(update_fields=["xero_agreed_at"])
 
     def _update_line_item_ids_from_response(
         self, response_lines: list[POResponseLine], sent_lines: tuple[SentPOLine, ...]
@@ -317,11 +322,8 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
             # Cleared with the id, for the same reason it is written with it:
             # a tenant claim on a row that links to nothing is a lie.
             self.purchase_order.xero_tenant_id = None
-            self.purchase_order.xero_agreed_at = timezone.now()
             self.purchase_order.status = "deleted"
-            self.purchase_order.save(
-                update_fields=["xero_id", "xero_tenant_id", "xero_agreed_at", "status"]
-            )
+            self.purchase_order.save(update_fields=["xero_id", "xero_tenant_id", "status"])
 
             return {  # noqa: TRY300 -- returns a value built across the try body
                 "success": True,

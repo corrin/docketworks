@@ -238,7 +238,7 @@ class TestAllocationReversal:
         stock.refresh_from_db()
         source.refresh_from_db()
         assert stock.quantity == source.received_quantity == 2
-        assert not StockMovement.objects.filter(kind="receipt_reversal").exists()
+        assert not StockMovement.objects.filter(kind="delivery_reversal").exists()
 
     def _reverse(
         self, api: Client, po: PurchaseOrder, line_id: str, alloc_type: str, alloc_id: str
@@ -341,7 +341,7 @@ class TestAllocationReversal:
         line.refresh_from_db()
         assert line.received_quantity == Decimal("0.00")
 
-    def test_receipt_reversal_preserves_onward_issues_and_negative_stock(
+    def test_delivery_reversal_preserves_onward_issues_and_negative_stock(
         self, api: Client, stock_holding_job: Job, job: Job
     ) -> None:
         po = make_purchase_order(status="submitted")

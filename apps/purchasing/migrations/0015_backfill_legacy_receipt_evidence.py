@@ -1,6 +1,6 @@
 """Book the receipt evidence a 2025 defect lost, in the shape the ledger already has.
 
-ADR 0059: a ``receipt_opening`` already means "received historically, no balance remains",
+ADR 0059: a ``delivery_opening`` already means "received historically, no balance remains",
 and migration 0011 books exactly that for consumed allocations. Recording these lines as a
 separate permanent model instead would leave every future reader handling two shapes.
 The gap is measured with the audit's own arithmetic, so the audit closes on the same rows.
@@ -12,16 +12,16 @@ BACKFILL_SQL = """
 CREATE TEMP TABLE legacy_receipt_gaps AS
 WITH receipts AS (
     SELECT s.source_purchase_order_line_id AS id,
-           sum(CASE WHEN m.kind = 'receipt_opening' THEN m.opening_quantity
+           sum(CASE WHEN m.kind = 'delivery_opening' THEN m.opening_quantity
                     ELSE m.quantity_change END) AS quantity
     FROM purchasing_stock s JOIN purchasing_stockmovement m ON m.stock_id = s.id
-    WHERE m.kind IN ('receipt', 'receipt_opening', 'receipt_reversal')
+    WHERE m.kind IN ('delivery', 'delivery_opening', 'delivery_reversal')
     GROUP BY s.source_purchase_order_line_id
 ), pending_lines AS (
     SELECT s.source_purchase_order_line_id AS id FROM purchasing_stock s
     WHERE s.source = 'purchase_order' AND NOT EXISTS (
         SELECT 1 FROM purchasing_stockmovement m WHERE m.stock_id = s.id
-          AND m.kind IN ('receipt', 'receipt_opening')
+          AND m.kind IN ('delivery', 'delivery_opening')
     )
     UNION
     SELECT pl.id FROM purchasing_purchaseorderline pl
@@ -72,7 +72,7 @@ FROM legacy_receipt_gaps;
 INSERT INTO purchasing_stockmovement
     (id, stock_id, quantity_change, quantity_before, quantity_after, unit_cost,
      kind, recorded_at, reason, opening_quantity)
-SELECT gen_random_uuid(), stock_id, 0, 0, 0, unit_cost, 'receipt_opening', CURRENT_TIMESTAMP,
+SELECT gen_random_uuid(), stock_id, 0, 0, 0, unit_cost, 'delivery_opening', CURRENT_TIMESTAMP,
        'Receipt evidence lost before the inventory cutover; quantity taken from the order line', gap
 FROM legacy_receipt_gaps;
 

@@ -13,6 +13,8 @@ from apps.core.environment import (
     ProductionDatabaseError,
     assert_not_production_database,
     database_class,
+    required_flag,
+    validate_xero_fake_flag,
 )
 
 
@@ -43,3 +45,41 @@ class TestAssertNotProductionDatabase:
         # against test_dw_msm_prod on a production-credentialled instance.
         assert database_class("test_dw_msm_prod") == "test"
         assert_not_production_database("this would delete every invoice.")
+
+
+class TestRequiredFlag:
+    def test_only_the_two_spellings_parse(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("XERO_FAKE", "False")
+        assert required_flag("XERO_FAKE") is False
+        monkeypatch.setenv("XERO_FAKE", "TRUE")
+        assert required_flag("XERO_FAKE") is True
+
+    def test_a_typo_is_a_crash_not_a_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # bool("flase") is True; a flag that governs whether Xero is written
+        # to cannot be allowed to fail that way.
+        monkeypatch.setenv("XERO_FAKE", "flase")
+        with pytest.raises(ValueError, match="XERO_FAKE must be 'true' or 'false'"):
+            required_flag("XERO_FAKE")
+
+    def test_an_absent_flag_is_a_crash(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("XERO_FAKE", raising=False)
+        with pytest.raises(KeyError):
+            required_flag("XERO_FAKE")
+
+
+class TestValidateXeroFakeFlag:
+    def test_the_fake_is_refused_outside_debug(self) -> None:
+        with pytest.raises(ValueError, match="refused outside DEBUG"):
+            validate_xero_fake_flag(fake=True, readonly=False, debug=False)
+
+    def test_the_fake_and_the_readonly_valve_together_are_refused(self) -> None:
+        with pytest.raises(ValueError, match="contradict each other"):
+            validate_xero_fake_flag(fake=True, readonly=True, debug=True)
+
+    def test_a_development_stack_may_run_the_fake(self) -> None:
+        validate_xero_fake_flag(fake=True, readonly=False, debug=True)
+
+    def test_the_readonly_valve_alone_is_not_the_fake_flag_s_concern(self) -> None:
+        # A hotfix process on production runs readonly without DEBUG; that is
+        # ADR 0050's case, and this check must not reach into it.
+        validate_xero_fake_flag(fake=False, readonly=True, debug=False)

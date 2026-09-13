@@ -1,282 +1,113 @@
 # CLAUDE.md — Docketworks
 
-**Every line here is exhibited.** This codebase is presented publicly as an example of how the
-architecture should be done — read by people judging the work, not only by the next session
-maintaining it. It also replaced a system that already worked, so "working but structurally
-compromised" delivers nothing (ADR 0039). The standard is not "does it pass" but "would you
-show it", and it binds every line of every file: a test fixture, a comment, a migration, a
-throwaway helper. Scope bends; the standard does not. A defect shipped is embarrassing once,
-but a compromise shipped is on display until someone removes it.
+This codebase is exhibited as an example of how the architecture should be done, and it
+replaced a system that already worked, so "working but structurally compromised" delivers
+nothing: scope bends, the standard does not. Colliding with a rule — an ADR, a
+linter, a type error, a layer contract — means the approach is wrong, not that a rule is in
+the way. Stop, name the belief the tool contradicted, and check it (query the data, read the
+writers, read the ADR in full) before editing; never search for the smallest edit that gets
+past it. A rule enters this file as one line naming its authority; the argument stays in the
+ADR, and nothing here is said twice.
 
-**Colliding with a rule means your approach is wrong — not that a rule is in the way.**
-Every ADR, linter, type error and layer contract you hit is evidence about the design you are
-part-way through building, and it arrives before you have paid for the mistake. The compliant
-version has been shorter and clearer every single time: a sentinel that needed a `type: ignore`
-wanted to be a boolean; a guard that would not typecheck was for a case the data never produces;
-a function too complex to pass wanted to be two functions; an import the layer contract refused
-belonged in the other app. So when something blocks you, **reconsider what you are building** —
-never search for the smallest edit that gets past it. A suppression, a cast, a widened
-annotation or a fallback default is the sound of a design being forced through a gap it does not
-fit, and it is always cheaper to stop at that moment than after the slice is written.
+## Where things are
 
-**So stop, and think — the next thing you produce is a question, not a diff.** The failure is
-not ignorance of the rule; it is answering the obstacle in seconds with whatever satisfies it.
-Ask what belief the tool just contradicted, then go and check that belief against reality —
-query the data, read the writers, read the ADR in full — before deciding anything. A correction
-that arrives as fast as the mistake was written has not been thought about, and it is usually
-the same mistake wearing a compliant shape.
+- [`docs/rewrite-status.md`](docs/rewrite-status.md) is the only to-do list: read it before
+  picking up work and update it at the end of every slice. It only shrinks; anything that is
+  not a task — a ruling, a finding, a measurement — goes to
+  [`docs/rewrite-history.md`](docs/rewrite-history.md). A Jira ticket (KAN) is the authority
+  wherever one exists.
+- [`docs/adr/`](docs/adr/README.md): read the index before non-trivial work; ADRs win over habit.
+- [`docs/design-language.md`](docs/design-language.md): read before designing or changing a screen.
+- [`docs/release-process.md`](docs/release-process.md) is how a change reaches production;
+  [`docs/README.md`](docs/README.md) indexes the rest.
+- `../docketworks_v1` is the frozen v1; this repo carries no copy.
+- Session transcripts are not durable; those files, the ADRs and seam comments are.
 
-The full rewrite of `../docketworks_v1` (v1) shipped: production has run this codebase since
-2026-08-29, and [`docs/release-process.md`](docs/release-process.md) is how a change reaches
-it. The approved plan lives at
-`/home/corrin/.claude/plans/the-docketworks-project-docketworks-cozy-steele.md`.
-**[`docs/rewrite-status.md`](docs/rewrite-status.md) is the single to-do list.** A Jira
-ticket (KAN) is the authority wherever one exists — it carries the reproduction, the evidence
-and the acceptance criteria — but every ticket raised from 2026-09-02 also gets a line in
-that file, in the same sitting, so one file answers "what is there to do". The rule is
-forward-only: tickets that predate it are in Jira alone, so check both until that backlog is
-triaged. Work with no ticket — the tail of the port, cross-cutting debt, seams left inside
-completed slices, and decisions waiting on the owner — lives there in full; read it before
-picking up work, and
-update it at the end of every slice. **That file only shrinks:** it holds tasks and nothing
-else, and finished work is deleted the moment it is finished. Anything worth recording that
-is NOT a task — a ruling, a finding, a measurement — goes to
-[`docs/rewrite-history.md`](docs/rewrite-history.md), never into the task list. Session
-transcripts are not durable; those files, the parity ledger, the ADRs, the cutover record
-and code-level seam comments are.
-Architectural decisions live in [`docs/adr/`](docs/adr/README.md) (carried forward from v1, numbering
-continuous) — read the index before non-trivial work; ADRs win over habit.
+## Commands
 
-## The prime rule: search before implement
-
-v1 rotted because AI sessions wrote "remarkably similar" parallel implementations instead of
-finding the existing one. In v2, **before writing any new function, component, service, or
-endpoint, search for an existing implementation of the concept** (`grep`/Glob across `apps/` or
-`frontend/src/`). One implementation per concept — if you find a near-match, extend or generalise
-it; never write a sibling. When porting from v1, first check whether the v1 code has divergent
-siblings and port exactly one canonical behaviour (ask the user to arbitrate if the divergence is
-user-visible).
-
-## Layout (one obvious home per concept)
-
-Frontend changes follow the [design language](docs/design-language.md): page composition,
-visual hierarchy, controls, editing, feedback and responsive behaviour. Read it before
-designing or changing a screen. Use the shared component/template and pass necessary
-overrides to that owner; never copy its implementation or wrap it to defeat its contract.
-UI PRs name the pattern used, explain overrides, provide the relevant visual/interaction
-evidence, and update affected known breaches. Tolerated exceptions are narrowly scoped
-presentation choices with reasons, not waivers of the shared-implementation rule.
-
-- Backend, as it is today: `config/` is the sole composition root and the top
-  import-linter layer, then `apps/diagnostics`, then the integrations `apps/xero` and
-  `apps/search`, then the domain apps (`job`, `accounts`, `company`, `crm`, `purchasing`,
-  `quoting`, `accounting`, `timesheet`, `operations`, `process`), which may import one
-  another, and at the bottom `apps/core`, `apps/ai` and `apps/platform`. That contract
-  lives in `pyproject.toml` and is what actually gates.
-- Backend, where it is going: ADR 0055's context taxonomy. `apps/platform` is the only
-  slice migrated so far and `config/architecture.py` holds the list — a context absent
-  from it does not exist yet, so never name one in a plan, a comment or a layout
-  description. Legacy apps keep their tier until their slice moves them; that tier is not
-  a template for a new context, and shared use does not mean shared ownership.
-- Frontend: `frontend/src/routes/` (thin) → `features/<domain>/` → generated API layer + `lib/`.
-  Server state lives in TanStack Query; ChatKit owns its conversation protocol/state
-  under ADR 0021’s scoped SDK exception. No hand-written service layer.
-
-## Gates (all on from day 1 — never weaken, never baseline)
-
-## Git discipline: commit completed slices immediately
-
-Commit each coherent, verified slice as soon as it is complete. Do not leave
-finished work uncommitted while starting another task or handing the workspace
-back to the user: this repository is often shared by concurrent agents, and a
-mixed worktree makes later ownership ambiguous. Stage explicit paths, never
-silently include unrelated changes, and push when the user has requested
-publication. A successful unit-test run is normally a commit boundary: commit
-the milestone it verified before continuing, so one PR will usually contain
-multiple incremental commits. If a required generated artifact contains
-another workstream's changes, use partial staging or stop and report the overlap
-before committing.
-
-Tiers are split on membership, not on speed. **The commit tier is exactly what
-CI runs**, so a green commit predicts a green CI run; a check CI performs and
-this tier omits is a bug in the tier, never a saving. The push tier holds what
-CI does not run — it is a registry, so one command rediscovers every custom
-check that already exists instead of a session writing a second script that
-does the same thing. Slowness argues for making a check faster, never for
-filing it where it will not run.
-
-| tier | what runs | cost | command |
+| tier | command | cost | note |
 |---|---|---|---|
-| **commit** | everything CI runs: ruff, ruff-format, mypy, import-linter, find-duplicates, deptry, exported schema, status table, code-quality metrics, delta goldens, frontend lint/format/boundary/type-check/audit, generated-client-current, server suites | ~64s | automatic on commit |
-| **push** | what CI does not run — today just makemigrations | ~5s | automatic on push |
-| **unit** | the Python suite | ~152s | `uv run pytest` |
-| **integration** | the real Xero/LLM/Maps/Drive/phone calls, the outbound-link probe (`scripts/ops/outbound_links_probe.py`: every URL and vendor id the app emits, asked with the instance's credentials) and its inverse, route reachability (`scripts/checks/route_reachability.py`: every route the app serves is a navigation target somewhere inside it) | ~1min | `./scripts/ops/run_integration_tests.sh` |
-| **e2e** | Playwright | ~25min | `npm run test:e2e` |
+| commit | automatic; `pre-commit run --all-files` | ~64s | `.pre-commit-config.yaml` is the list |
+| push | automatic; `pre-commit run --all-files --hook-stage pre-push` | ~5s | what CI does not run, and the registry of custom checks: search it before writing one |
+| unit | `uv run pytest` | ~152s | scope with `uv run pytest apps/job` or `--lf`; `-n auto --dist loadscope` is in `addopts`: never add it, never run serially |
+| integration | `./scripts/ops/run_integration_tests.sh`, `scripts/ops/outbound_links_probe.py`, `scripts/checks/route_reachability.py` | ~1min | human-run merge gate for anything that touches an external system; CI has no credentials (ADR 0050) |
+| e2e | `./scripts/ops/run_e2e.sh` | ~25min | bare `npm run test:e2e` only against an environment already running; `--use-fake-xero` is labelled everywhere and never the gate (ADR 0060) |
 
-**Nothing that touches an external system merges without an integration test
-(ADR 0050).** A fake provider is our belief about a vendor encoded as a test —
-it can only confirm what we already assumed, which is how a payroll path that
-could not post at all passed the unit suite, strict mypy and a green E2E spec.
-The `integration` marker is deselected from `uv run pytest` and never runs in
-CI, because CI has no sandbox credentials and must stay hermetic; the command
-above is how it gets run, and it is a merge gate rather than an optional extra.
-`XERO_READONLY` is a **production hotfix valve** and must never be set for a
-test run — it suppresses exactly the writes these tests exist to prove.
+The frontend loop check is `npm run type-check`, not `npm run build`. `uv run mypy` is strict
+at a zero baseline over `apps config manage.py scripts`. CI runs the commit tier plus the unit
+suites, never integration or E2E; a CI check missing from the commit tier is a bug in the
+tier, never a saving, and slowness argues for a faster check, never for moving it. Never
+weaken a gate, never baseline one.
 
-For an unattended full E2E gate, especially after an agent coding session, run
-`./scripts/ops/run_e2e.sh` from the repository root. It refuses an existing environment, resets
-recognised E2E data, owns the full five-service stack, restores the database, and stops only the
-processes it started. Use bare `npm run test:e2e` only when intentionally targeting an environment
-that is already running.
+## Never
 
-Keep the loop short: `-n auto --dist loadscope` is the pytest default (in
-`addopts`), so never add it by hand and never run the suite serially. Scope
-harder while iterating — `uv run pytest apps/job` beats the full run, and
-`--lf` reruns only last failures. On the frontend the loop check is
-`npm run type-check`, **not** `npm run build`: the build adds a full Vite bundle
-that tells you nothing a type error would not.
+- `--no-verify`.
+- `XERO_READONLY` on a test run: it is a production hotfix valve (ADR 0050).
+- Start uvicorn, the Vite preview, ngrok, Celery or Beat by hand; `.vscode/tasks.json` owns them.
+- `source .env`; `config/settings.py` calls `load_dotenv`.
 
-```shell
-pre-commit run --all-files                        # the CI set
-pre-commit run --all-files --hook-stage pre-push  # the CI set plus what CI omits
-```
+## Done
 
-**Done means the E2E spec passes.** A slice with green unit tests and no spec is
-not ported — report progress as specs green, never as endpoints or components
-written. Nothing releases without the suite green. The tiers above catch
-*structure* (duplication, layering, types) and the unit suite catches
-behaviour within a layer; only E2E catches behaviour ACROSS layers — the
-user-visible path through frontend, wire contract and backend — and that is
-where this port's bugs have been. During 2–4 Aug ruff, mypy and
-import-linter were all running while the debt that cost three days to clear
-accumulated anyway — so speed is made safe by the spec shipping with the slice,
-not by adding another linter.
+- Done means the E2E spec passes. Report progress as specs green, never as endpoints or
+  components written. Nothing releases without the suite green.
+- Commit each verified slice as soon as it is complete, staging explicit paths; push only when
+  asked. A green unit run is a commit boundary. A generated artifact carrying another
+  workstream's changes is partial-staged, or the overlap is reported before committing.
+- A screen that renders a collection is tested at production volume;
+  `docs/prod-data-shape.yml` holds the counts (ADR 0054).
+- An integration slice ships its admin UI, typed credential owner, consumer selection rules,
+  new-instance seed, restore/scrub behaviour, live verification and its setup doc, through the
+  existing configuration service (ADR 0053, 0027). Keys are write-only and a settings GET
+  never probes a vendor. Setup is tested through the UI, including failed saves and key
+  rotation; a terminal or database workaround proves nothing. An unverified acceptance step
+  is recorded in the PR and in `docs/rewrite-status.md`.
 
-**A screen that renders a collection is tested at production volume (ADR 0054).**
-`docs/prod-data-shape.yml` records how many rows production actually holds, per model;
-`scripts/checks/data_shape_gap.py` names the tables this database is too thin to exercise
-and `run_e2e.sh` prints it before every run. Read the shape before designing a list — a
-layout that is fine at the local count and unusable at the production one is a defect
-already written. Assert the mechanism (bounded scrollable pane, a count naming the
-server's total) so the assertion holds at any row count, and seed past the threshold
-where the property needs one. Volume alone catches nothing: the clipping defect that
-produced that ADR shipped on a database already holding hundreds of the rows.
+## Layout
 
-- `uv run mypy` — strict, ZERO baseline, covers `apps config manage.py scripts`.
-  New code must be fully type-clean; no `Any`, no shotgun `# type: ignore`
-  (specific error code + justification only).
-- A local hook is **not** the gate — it can be skipped with `--no-verify` or
-  never installed. **CI runs every check in every tier except integration**,
-  and that is what gates. The tiers exist so the commit loop mirrors CI and no custom check goes
-  unfound; moving a hook between them is a one-word `stages:` edit. Integration is the
-  one exception, and it is a deliberate one: CI has no sandbox credentials and
-  must stay hermetic, so that tier is a **human-run merge gate** — the command
-  above, run before merge, not an optional extra. It is the only gate this repo
-  cannot automate, which is exactly why it is written down twice.
-- Do not bypass with `--no-verify`.
-- `docs/code-quality.md` is generated and committed: suppression counts,
-  try/except shapes, optional returns. Not all are meant to be zero — the point
-  is that a change which moves one shows that movement in its own diff. Only
-  `passthrough` (a `try` whose handler just re-raises) is pinned at zero.
+- Backend: the import-linter contract in `pyproject.toml` gates — `config` on top, `core`,
+  `ai` and `platform` at the bottom. ADR 0055 is the target taxonomy and
+  `config/architecture.py` the list of migrated contexts; never name one absent from it.
+- Frontend: `routes/` (thin) → `features/<domain>/` → the generated client (ADR 0021, never
+  hand-edited) and `lib/`. Server state lives in TanStack Query; no hand-written service layer.
+- `docs/code-quality.md` is generated, never hand-edited; only `passthrough` is pinned at zero.
 
-## Coding standards (ADRs 0015, 0017, 0028, 0032, 0038, 0039, 0043, 0046, 0058, 0059 are the authority)
+## Standards
 
-- **A GET never writes.** Safe methods read; they do not create, update or
-  delete — not a row, not a default, not "just" a singleton. This is not about
-  idempotence (ADR 0001 and 0024 mean something else): a GET that writes makes
-  reading a report change the database, and makes a monitoring probe a mutation.
-  `CompanyDefaults.get_solo()` is the live example — django-solo ships it as
-  `get_or_create`, ~12 services call it, and several are reached from GET report
-  endpoints, so it is overridden in `apps/core/models.py` to read only.
-- **Fail early.** Check the bad case first (`if <bad>: raise`); validate
-  required inputs upfront and crash if missing; no defaults that mask
-  configuration or data problems. When a consumer meets malformed data, fix
-  the data (migration) — never add a read-side fallback (ADR 0015).
-  **Recognise a fallback by its syntax**: `x if y else None`, `or None`,
-  `.get(k, default)`, `?? fallback`, `hasattr`. Each one is a claim that the
-  model permits the bad case, so check the claim — query the data and read the
-  writers — and then take one of the two exits: the case cannot occur, so delete
-  the branch; or it can, so raise and tighten whatever let it in. Where code and
-  a contract disagree about nullability or a value set, **the contract is
-  presumed right and the branch is the suspect**; never widen a contract to fit
-  code you found, however long it has been there.
-- **Guard-clause shape.** Unhappy path first, early return/raise. Never wrap
-  the happy path in `if` and let the unhappy path fall through silently —
-  `if ok: do_thing()` with no else-branch is a bug, not a style choice.
-  Non-trivial branches get an explicit `else`. Errors are transparent after
-  authentication (ADR 0038); anonymous responses use the fixed public contract.
-- **Every unexpected handler persists.** A `try` needs a reason: convert an
-  expected refusal into a typed outcome, reshape the error, or persist it with
-  business context. Unexpected handlers call `persist_app_error(exc,
-  AppErrorContext(...))` (apps/core/errors.py) and re-raise; expected catches
-  carry a site-specific `deliberate-swallow` reason; converted exceptions chain
-  the cause (`raise X from exc`).
-- **Type annotations are data contracts (ADR 0028).** No `Any` as an escape
-  hatch, no fake `| None`, no broad unions or casts to silence the checker.
-  Complex inline types get a named type (dataclass, TypedDict, Protocol).
-  `dict.get()` fallbacks and `hasattr` probes are smells — validate, then
-  access directly.
-- **DRY is structural (ADR 0039).** One implementation per concept; search
-  before implement; extending a near-match beats writing a sibling.
-- **The application decides, the database stores (ADR 0058).** A rule that
-  refuses a write lives in one service function and raises a typed error. `CHECK`,
-  `UNIQUE`, `NOT NULL` and `on_delete` state facts about a row and belong in the
-  schema; a trigger, rule or stored procedure that raises does not. It fires for the
-  maintainer running a data fix as readily as for the bug, and it must be dropped by
-  hand on every server before any bulk correction. Immutability is proven by a test
-  that no writer mutates the row.
-- **One data model; legacy data is migrated to comply (ADR 0059).** A one-off
-  migration rewrites old rows into the current shape and is the only place that knows
-  the old one. Never a permanent model, column, flag or branch describing data the app
-  no longer produces. A creation timestamp is never nullable: where history did not
-  record one, the migration sets the best value available and the column is `NOT NULL`.
-- **Prefer libraries to DIY (ADR 0032).** Writing your own for something a
-  maintained library provides needs an explicit, recorded reason it is not a
-  library.
-- **One LLM gateway (ADR 0041).** Every AI call — extraction, chat, MCP,
-  supplier enrichment, quote-to-PO — goes through `apps/ai`'s LiteLLM-backed
-  client. Never import a vendor SDK (`genai`, `mistralai`, `anthropic`) from a
-  feature; v1 grew four parallel clients that way.
-- **Unset is NULL (ADR 0040).** Nullable text columns never store `""`. The
-  request schema declares such fields nullable-and-nonblank via the shared
-  `NullableText` type, so a blank string is a 422 before the database and
-  `null` is how a client clears a value; services never coerce with
-  `value or None`.
-- **Comments record the rejected alternative (ADR 0043).** A comment tells the
-  reader what the code cannot: which obvious alternative was rejected and what
-  fact rejected it. Delete code-to-English narration and review-feedback
-  echoes — record the constraint, not the conversation. Every rationale an AI
-  originates starts with its short model family (`GPT:`, `Opus:`, `Gemini:`)
-  until explicit owner ratification replaces it with a durable authority
-  citation (ADR 0051); attribution is provenance, never a waiver.
+- **Search before implement.** One implementation per concept; extend a near-match, never
+  write a sibling (ADR 0039).
+- A GET never writes: not a row, not a default, not a singleton. `CompanyDefaults.get_solo()`
+  is overridden read-only in `apps/core/models.py`.
+- Fail early. Malformed data is fixed by migration, never by a read-side fallback (ADR 0015).
+  `x if y else None`, `or None`, `.get(k, default)`, `?? fallback` and `hasattr` each claim the
+  model permits the bad case: check the claim, then delete the branch or raise and tighten the
+  writer. Where code and contract disagree, the contract is presumed right (ADR 0028).
+- Guard clauses: unhappy path first. `if ok: do_thing()` with no else is a bug; non-trivial
+  branches get an explicit `else`. Errors are transparent after authentication (ADR 0038).
+- A `try` needs a reason. Unexpected handlers call `persist_app_error` and re-raise; expected
+  catches carry a `deliberate-swallow` reason; conversions `raise X from exc` (ADR 0019, 0001).
+- Type annotations are contracts: no `Any`, no fake `| None`, no broad union or cast; complex
+  shapes get a named type (ADR 0028). A `type: ignore` or `noqa` names its code and its reason.
+- Code that looks simple runs simple. A refusal lives in one service function raising a typed
+  error; `CHECK`, `UNIQUE`, `NOT NULL` and `on_delete` belong in the schema, a raising trigger
+  never does (ADR 0058).
+- One data model. A one-off migration is the only thing that knows the old shape; a creation
+  timestamp is never nullable (ADR 0059).
+- Libraries over DIY (ADR 0032). One LLM gateway: every AI call goes through `apps/ai`, and no
+  feature imports a vendor SDK (ADR 0041). Unset is NULL, via `NullableText` (ADR 0040).
+  Numbers travel as JSON numbers (ADR 0046).
+- Comments record the rejected alternative and the fact that rejected it (ADR 0043). AI-authored
+  rationale carries its model prefix (`Opus:`, `GPT:`) until ratified (ADR 0051).
 
-## Integration completeness
+## Porting
 
-An integration slice includes its supported admin setup, typed database credential
-owner, consumer selection rules, new-instance seed, restore/scrub behaviour and live
-verification. Use the existing configuration service for both UI and provisioning.
-Keys stay write-only; a settings GET never probes an external service. Document the
-normal setup path and test it through the UI, including failed saves and key rotation.
-A terminal or database workaround does not establish that setup is complete. Record
-any unverified acceptance step explicitly in the PR and rewrite task list.
-
-## Porting rules
-
-- **Every v1 feature exists in v2.** The freedom below is over *shape* — the URL, the
-  payload, the component — never over what the business can do. Dropping a capability is
-  the owner's decision and `docs/accepted-api-differences.yml` records it; silence is not
-  a drop, it is a defect. So port a screen against the v1 component read in full, never
-  against the endpoints it called: v2 serves `getJobFileThumbnail` and no frontend code
-  calls it, which every operation-level count reads as done.
+- Every v1 feature exists in v2. Shape is free; capability is not. A drop is the owner's
+  decision and `docs/accepted-api-differences.yml` records it; an unrecorded loss is a defect.
+  Port a screen from the v1 component read in full, never from the endpoints it called; where
+  v1 has divergent siblings, port one canonical behaviour (ADR 0039).
 - Models keep v1 app labels and class names; models moved out of v1's `workflow` app pin
-  `Meta.db_table = "workflow_<modelname>"`. No renames in v2.0 — data migrates by pg_dump/restore.
-- `delta_checksum` canonicalisation is bit-identical between Python and TypeScript (golden vectors).
-- Exact-URL parity only where an external party holds the URL: Xero OAuth redirect, Xero webhook,
-  CRM phone ingestion, ServiceApiKey consumers. **Everywhere else the API is free** — v1's schema
-  is a reference while porting, never an authority, and nothing gates on it. v1 is being replaced
-  because its architecture was wrong, so preserving its contract preserves the mistake. Read
-  `../docketworks_v1` (the frozen v1 repo) when you need to know what v1 did; this repo no longer
-  carries a copy. `docs/accepted-api-differences.yml` now records **behaviour** changes worth
-  remembering, not schema deviations needing permission.
-- Tests port only if they assert real business behaviour; drop tests that mirror implementation
-  text or enshrine a v1 divergence.
+  `Meta.db_table = "workflow_<modelname>"`. No renames in v2.0.
+- `delta_checksum` canonicalisation is bit-identical between Python and TypeScript (ADR 0004).
+- Exact-URL parity only where an external party holds the URL: Xero OAuth redirect, Xero
+  webhook, CRM phone ingestion, ServiceApiKey consumers (ADR 0017 defers to this list).
+  Everywhere else the API is free; v1 is a reference, never an authority.
+- Tests port only if they assert business behaviour (ADR 0039, 0052).

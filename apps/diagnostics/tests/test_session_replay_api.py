@@ -16,6 +16,7 @@ from uuid import uuid4
 
 import pytest
 from django.test import Client
+from pytest_django.fixtures import SettingsWrapper
 
 if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse
@@ -31,9 +32,9 @@ EVENTS = [{"type": 2, "timestamp": 1}, {"type": 3, "timestamp": 2}]
 
 
 @pytest.fixture(autouse=True)
-def replay_storage(tmp_path: Path, settings: pytest.FixtureRequest) -> Path:
+def replay_storage(tmp_path: Path, settings: SettingsWrapper) -> Path:
     """Point the store at a temp dir so tests never touch the real root."""
-    settings.SESSION_REPLAY_STORAGE_ROOT = str(tmp_path)  # type: ignore[attr-defined]
+    settings.SESSION_REPLAY_STORAGE_ROOT = str(tmp_path)
     return tmp_path
 
 
@@ -256,6 +257,42 @@ def test_recording_is_refused_when_the_company_switched_it_off(api: Client) -> N
     )
     assert response.status_code == 409
     assert not SessionReplayRecording.objects.exists()
+
+
+def test_a_retried_chunk_whose_bytes_already_landed_is_accepted(api: Client) -> None:
+    """The row failed to commit, the file did not; the client retries the sequence."""
+    recording = SessionReplayRecording.objects.get(id=_open_recording(api))
+    events_json = json.dumps(EVENTS)
+    replays._store().write(
+        storage_path=replays._chunk_storage_path(recording.id, 0),
+        payload=gzip.compress(events_json.encode("utf-8"), compresslevel=6, mtime=0),
+        overwrite=False,
+    )
+
+    chunk = replays.append_chunk(
+        replays.NewChunk(
+            recording=recording,
+            sequence=0,
+            events_json=events_json,
+            first_event_timestamp_ms=1,
+            last_event_timestamp_ms=2,
+            path="/jobs/",
+            viewport=replays.Viewport(width=None, height=None),
+            job_id=None,
+        )
+    )
+
+    assert chunk.sequence == 0
+
+
+def test_switching_it_off_also_stops_a_recording_already_open(api: Client) -> None:
+    """An open tab keeps flushing; the switch has to reach it, not only new tabs."""
+    recording_id = _open_recording(api)
+    defaults = CompanyDefaults.get_solo()
+    defaults.session_replay_enabled = False
+    defaults.save(update_fields=["session_replay_enabled"])
+
+    assert _upload_chunk(api, recording_id, sequence=0).status_code == 409
 
 
 def test_a_frontend_error_links_to_the_replay_it_happened_in(api: Client) -> None:

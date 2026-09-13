@@ -94,6 +94,8 @@ export interface TestRunRow {
   testPath: string
   durationMs: number
   status: string
+  /** "fake" for a run against the fake Xero (ADR 0060); "real" otherwise, including rows older than the column. */
+  xero: 'fake' | 'real'
 }
 
 // Analyzers only trend completed-with-a-duration outcomes; failed/timedOut
@@ -133,6 +135,7 @@ export function parseTestRunHistory(content: string, era: Era): TestRunRow[] {
       gitMetadataSource: record.git_metadata_source ?? '',
       testFile: record.test_file ?? '',
       testPath: record.test_path ?? '',
+      xero: record.xero === 'fake' ? 'fake' : 'real',
       durationMs,
       status,
     })

@@ -1,0 +1,229 @@
+{
+  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.1.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "GET",
+    "path": "/api.xro/2.0/CreditNotes",
+    "query": {
+      "page": "1",
+      "pageSize": "2"
+    }
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null
+  },
+  "body": {
+    "Id": "9c46551d-1ea8-4ffe-af9b-745ed1237d91",
+    "Status": "OK",
+    "ProviderName": "Docketworks MSM Dev",
+    "DateTimeUTC": "/Date(1789269381775)/",
+    "pagination": {
+      "page": 1,
+      "pageSize": 2,
+      "pageCount": 3,
+      "itemCount": 5
+    },
+    "CreditNotes": [
+      {
+        "CreditNoteID": "5df42757-0fa7-47e8-bea4-fa3bf6085517",
+        "CreditNoteNumber": "CN-0025",
+        "SentToContact": true,
+        "Payments": [],
+        "ID": "5df42757-0fa7-47e8-bea4-fa3bf6085517",
+        "HasErrors": false,
+        "InvoiceAddresses": [],
+        "CurrencyRate": 1.0,
+        "Type": "ACCRECCREDIT",
+        "Reference": "Monthly Support",
+        "RemainingCredit": 0.0,
+        "Allocations": [
+          {
+            "AllocationID": "93f25c38-9ce8-442f-b45d-59868d6271e4",
+            "Amount": 541.25,
+            "Date": "/Date(1782691200000+0000)/",
+            "Invoice": {
+              "InvoiceID": "254591b2-68c7-403f-91af-e3584f9577fe",
+              "InvoiceNumber": "INV-0016",
+              "Payments": [],
+              "CreditNotes": [],
+              "Prepayments": [],
+              "Overpayments": [],
+              "IsDiscounted": false,
+              "InvoiceAddresses": [],
+              "HasErrors": false,
+              "InvoicePaymentServices": [],
+              "LineItems": []
+            }
+          }
+        ],
+        "HasAttachments": false,
+        "UpdatedDateUTCString": "2010-11-19T12:01:01Z",
+        "Contact": {
+          "ContactID": "8696589a-a719-463b-8ff3-b58e0a08ab28",
+          "Name": "Hamilton Smith Ltd",
+          "Addresses": [],
+          "Phones": [],
+          "ContactGroups": [],
+          "ContactPersons": [],
+          "HasValidationErrors": false
+        },
+        "DateString": "2026-06-29T00:00:00",
+        "Date": "/Date(1782691200000+0000)/",
+        "BrandingThemeID": "7889a0ac-262a-40e3-8a63-9a769b1a18af",
+        "Status": "PAID",
+        "LineAmountTypes": "Inclusive",
+        "LineItems": [
+          {
+            "ItemCode": "Support-M",
+            "Description": "Desktop/network support via email & phone.\r\nPer month fixed fee for minimum 20 hours/month.",
+            "UnitAmount": 541.25,
+            "TaxType": "OUTPUT2",
+            "TaxAmount": 70.6,
+            "LineAmount": 541.25,
+            "AccountCode": "200",
+            "Item": {
+              "ItemID": "8ce09974-784f-4701-b973-64b8e285812d",
+              "Name": "Desktop/network support via email & phone",
+              "Code": "Support-M"
+            },
+            "Tracking": [
+              {
+                "Name": "Region",
+                "Option": "North",
+                "TrackingCategoryID": "351953c4-8127-4009-88c3-f9cd8c9cbe9f",
+                "Options": []
+              }
+            ],
+            "Quantity": 1.0,
+            "LineItemID": "724122d4-6e1b-48a8-9752-9482f9f3cb68",
+            "AccountID": "7d05a53d-613d-4eb2-a2fc-dcb6adb80b80"
+          },
+          {
+            "Description": "FULL CREDIT of INV-0016 due to duplication of invoice INV-0012. Please accept our apologies.",
+            "Tracking": [],
+            "LineItemID": "fcfbeabb-2f91-4fbf-83d3-e1dc00ca6204"
+          }
+        ],
+        "SubTotal": 470.65,
+        "TotalTax": 70.6,
+        "Total": 541.25,
+        "UpdatedDateUTC": "/Date(1290168061547+0000)/",
+        "CurrencyCode": "NZD",
+        "FullyPaidOnDate": "/Date(1782691200000+0000)/"
+      },
+      {
+        "CreditNoteID": "b74f1ca8-9cc8-430e-9ee8-5214af52be6e",
+        "CreditNoteNumber": "CN-0026",
+        "Payments": [],
+        "ID": "b74f1ca8-9cc8-430e-9ee8-5214af52be6e",
+        "HasErrors": false,
+        "InvoiceAddresses": [],
+        "CurrencyRate": 1.0,
+        "Type": "ACCRECCREDIT",
+        "Reference": "Training",
+        "RemainingCredit": 0.0,
+        "Allocations": [
+          {
+            "AllocationID": "fd9a866e-ff34-4aaa-b09f-4ca087c59a04",
+            "Amount": 500.0,
+            "Date": "/Date(1785110400000+0000)/",
+            "Invoice": {
+              "InvoiceID": "0dca13c0-7610-411d-b23b-a9cd4dd789ee",
+              "InvoiceNumber": "INV-0021",
+              "Payments": [],
+              "CreditNotes": [],
+              "Prepayments": [],
+              "Overpayments": [],
+              "IsDiscounted": false,
+              "InvoiceAddresses": [],
+              "HasErrors": false,
+              "InvoicePaymentServices": [],
+              "LineItems": []
+            }
+          }
+        ],
+        "HasAttachments": false,
+        "UpdatedDateUTCString": "2010-11-24T18:45:47Z",
+        "Contact": {
+          "ContactID": "b319b3b5-373b-4f3a-874f-2c9acd3e5f8d",
+          "Name": "Boom FM",
+          "Addresses": [],
+          "Phones": [],
+          "ContactGroups": [],
+          "ContactPersons": [],
+          "HasValidationErrors": false
+        },
+        "DateString": "2026-07-27T00:00:00",
+        "Date": "/Date(1785110400000+0000)/",
+        "BrandingThemeID": "7889a0ac-262a-40e3-8a63-9a769b1a18af",
+        "Status": "PAID",
+        "LineAmountTypes": "Inclusive",
+        "LineItems": [
+          {
+            "ItemCode": "Train-MS",
+            "Description": "CREDIT Half day training - Microsoft Office and include in suite of training INV0021",
+            "UnitAmount": 500.0,
+            "TaxType": "OUTPUT2",
+            "TaxAmount": 65.22,
+            "LineAmount": 500.0,
+            "AccountCode": "200",
+            "Item": {
+              "ItemID": "41c98cb1-c710-419f-aa84-f0efe94df5fc",
+              "Name": "Half day training - Microsoft Office",
+              "Code": "Train-MS"
+            },
+            "Tracking": [
+              {
+                "Name": "Region",
+                "Option": "South",
+                "TrackingCategoryID": "351953c4-8127-4009-88c3-f9cd8c9cbe9f",
+                "Options": []
+              }
+            ],
+            "Quantity": 1.0,
+            "LineItemID": "37e363e5-a0d6-4331-8551-49bb3ad8271e",
+            "AccountID": "7d05a53d-613d-4eb2-a2fc-dcb6adb80b80"
+          }
+        ],
+        "SubTotal": 434.78,
+        "TotalTax": 65.22,
+        "Total": 500.0,
+        "UpdatedDateUTC": "/Date(1290624347590+0000)/",
+        "CurrencyCode": "NZD",
+        "FullyPaidOnDate": "/Date(1785110400000+0000)/"
+      }
+    ]
+  }
+}

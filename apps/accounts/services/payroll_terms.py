@@ -43,7 +43,7 @@ def _term_on(staff: Staff, target_date: date) -> StaffPayrollTerm | None:
 def salary_term_on(staff: Staff, target_date: date) -> StaffPayrollTerm:
     """Return the salaried terms in force on a date, refusing when they are not synced.
 
-    Opus: Raises rather than returning ``StaffPayrollTerm | None`` (ADR 0045): every
+    Opus: Raises rather than returning ``StaffPayrollTerm | None`` (ADR 0028): every
     caller wanted the same thing from ``None`` — stop — and each was writing its
     own version of that, so ``price_time_entry`` ran this query twice and
     produced two different messages for one condition.
