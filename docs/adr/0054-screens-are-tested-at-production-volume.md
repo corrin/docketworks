@@ -1,4 +1,5 @@
 # 0054 — A screen is tested at the volume production gives it
+Ratified: owner, 2026-09-13
 
 Every screen that renders a collection is tested against the row count production actually
 holds. A list behaves differently at three rows than at three thousand — it clips at the fold,
