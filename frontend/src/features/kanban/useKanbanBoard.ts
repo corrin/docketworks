@@ -14,6 +14,8 @@
  */
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import { useLatest } from '@/lib/useLatest'
 import { toast } from 'sonner'
 
 import {
@@ -65,8 +67,6 @@ export interface StatusOption {
 export interface KanbanBoardModel {
   columns: KanbanColumnView[]
   isSearchActive: boolean
-  /** The trimmed `q`; '' when no search is active. Trimmed in one place. */
-  searchTerm: string
   activeStaffIds: string[]
   toggleStaffFilter: (staffId: string) => void
   moveJob: (request: MoveJobRequest) => void
@@ -85,12 +85,6 @@ export interface KanbanBoardModel {
    * per-option spinner honest. Returns true on success.
    */
   updateStatus: (jobId: string, status: string) => Promise<boolean>
-  /**
-   * A ref, not state: pragmatic's draggable() is registered in an effect, and
-   * a state change here would tear that registration down and rebuild it
-   * mid-drag, aborting the drag the flag exists to guard.
-   */
-  movePendingRef: React.RefObject<boolean>
 }
 
 /**
@@ -113,6 +107,15 @@ function jobMatchesStaffFilters(job: KanbanJobOut, activeStaffIds: string[]): bo
 
 export interface KanbanBoardOptions {
   /**
+   * True while a move POST is in flight; moveJob and updateStatus share it.
+   * Owned by KanbanBoard, which reads it beside the drag monitor's pause in
+   * the reconciliation loop. A ref, not state: pragmatic's draggable() is
+   * registered in an effect, and a state change here would tear that
+   * registration down and rebuild it mid-drag, aborting the drag the flag
+   * exists to guard.
+   */
+  movePendingRef: React.RefObject<boolean>
+  /**
    * Called once moveJob's mutation settles and movePendingRef drops back to
    * false — one of the two places the drag/move pause the reconciliation
    * loop reads can release (useKanbanDragMonitor's onDragReleased is the
@@ -124,14 +127,13 @@ export interface KanbanBoardOptions {
 }
 
 export function useKanbanBoard(
-  searchQuery: string,
-  options: KanbanBoardOptions = {},
+  /** The trimmed `q`; '' when no search is active. KanbanBoard trims it once. */
+  searchTerm: string,
+  { movePendingRef, onMoveSettled }: KanbanBoardOptions,
 ): KanbanBoardModel {
   const queryClient = useQueryClient()
   const [activeStaffIds, setActiveStaffIds] = useState<string[]>([])
-  const movePendingRef = useRef(false)
-  const onMoveSettledRef = useRef(options.onMoveSettled)
-  onMoveSettledRef.current = options.onMoveSettled
+  const onMoveSettledRef = useLatest(onMoveSettled)
 
   const statusValues = useQuery(jobJobsStatusValuesRetrieveOptions())
   const columnQueries = useQueries({
@@ -140,7 +142,6 @@ export function useKanbanBoard(
     ),
   })
 
-  const searchTerm = searchQuery.trim()
   const isSearchActive = searchTerm.length > 0
   const search = useQuery({
     ...jobJobsAdvancedSearchRetrieveOptions({ query: { q: searchTerm } }),
@@ -323,7 +324,7 @@ export function useKanbanBoard(
         },
       )
     },
-    [queryClient, reorder, searchTerm],
+    [movePendingRef, onMoveSettledRef, queryClient, reorder, searchTerm],
   )
 
   // Ordered per the API response: get_status_choices() builds the six office
@@ -389,24 +390,20 @@ export function useKanbanBoard(
         )
       })
     },
-    [queryClient, updateStatusMutation, searchTerm],
+    [movePendingRef, queryClient, updateStatusMutation, searchTerm],
   )
 
   // Server truth for the reorders deliberately not invalidated above arrives
   // from useKanbanReconciliation, which KanbanBoard composes alongside this
-  // hook (it needs the drag monitor's pause signal, which is built from
-  // moveJob and so cannot be created here). movePendingRef is exported partly
-  // for that loop: it is half of the "do not apply a diff right now" test.
+  // hook and hands the same movePendingRef.
 
   return {
     columns,
     isSearchActive,
-    searchTerm,
     activeStaffIds,
     toggleStaffFilter,
     moveJob,
     statusOptions,
     updateStatus,
-    movePendingRef,
   }
 }

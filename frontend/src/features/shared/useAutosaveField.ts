@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { useLatest } from '@/lib/useLatest'
+
 export const AUTOSAVE_DEBOUNCE_MS = 600
 
 interface AutosaveField {
@@ -42,8 +44,7 @@ export function useAutosaveField(
   // The debounce timer fires up to 600ms after its render; a ref keeps the
   // comparison below against the LIVE server value, not the one the closure
   // captured (a stale value could suppress a commit that is not redundant).
-  const serverValueRef = useRef(serverValue)
-  serverValueRef.current = serverValue
+  const serverValueRef = useLatest(serverValue)
 
   // Unmount with a pending timer (e.g. the row was deleted mid-typing) must
   // not fire a commit against a line that no longer exists.

@@ -41,6 +41,8 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { useLatest } from '@/lib/useLatest'
+
 import {
   apiErrorMessage,
   getKanbanChangesOptions,
@@ -218,8 +220,7 @@ export function useKanbanReconciliation({
   const changesFailingRef = useRef(false)
   const versionsFailingRef = useRef(false)
   const streamFailingRef = useRef(false)
-  const searchTermRef = useRef(searchTerm)
-  searchTermRef.current = searchTerm
+  const searchTermRef = useLatest(searchTerm)
   // The last document the stream handler wrote into the query cache. Two
   // callers read it: the observer effect, to tell its own writes from
   // everyone else's, and the connect catch-up, to notice a push that landed
@@ -302,7 +303,7 @@ export function useKanbanReconciliation({
     }
 
     cursorRef.current = { kanban: polled.kanban, kanbanRelated: polled.kanban_related }
-  }, [queryClient, isDraggingRef, movePendingRef])
+  }, [queryClient, isDraggingRef, movePendingRef, searchTermRef])
 
   // One pass per completed poll or push. dataUpdatedAt (not the version
   // string) is the dependency because a tick has to run even when the write
@@ -315,8 +316,7 @@ export function useKanbanReconciliation({
   // the fallback poll is the live trigger, a failing poll never moves
   // dataUpdatedAt, so without it a dead versions endpoint would freeze the
   // board with no tick, no toast and nothing in the console to find it by.
-  const reconcileRef = useRef(reconcile)
-  reconcileRef.current = reconcile
+  const reconcileRef = useLatest(reconcile)
   const versionsError = versions.error
   useEffect(() => {
     if (versionsError) {
@@ -337,7 +337,7 @@ export function useKanbanReconciliation({
     // nothing else would ever heal that gap.
     if (streamHealthyRef.current && isTheStreamsOwnWrite(queryClient, lastPushedRef.current)) return
     void reconcileRef.current()
-  }, [queryClient, versions.dataUpdatedAt, versions.errorUpdatedAt, versionsError])
+  }, [queryClient, reconcileRef, versions.dataUpdatedAt, versions.errorUpdatedAt, versionsError])
 
   // The push channel: opened once per mount, closed on unmount, and the source
   // of every pass while it is up.
@@ -377,7 +377,7 @@ export function useKanbanReconciliation({
       controller.abort()
       clearTimeout(burst)
     }
-  }, [queryClient, setStreamHealth])
+  }, [queryClient, reconcileRef, setStreamHealth])
 
   return { reconcile }
 }
