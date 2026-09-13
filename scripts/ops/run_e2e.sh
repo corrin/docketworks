@@ -70,6 +70,10 @@ if ! command -v lsof >/dev/null; then
   echo "Refusing to start: lsof is required for the port-in-use guard." >&2
   exit 1
 fi
+if ! command -v jq >/dev/null; then
+  echo "Refusing to start: jq is required to read the tunnel's public URL from the ngrok agent." >&2
+  exit 1
+fi
 for port in 4173 8000 4040; do
   if lsof -nP -iTCP:"$port" -sTCP:LISTEN -t >/dev/null; then
     echo "Refusing to start: TCP port $port is already in use." >&2
@@ -134,6 +138,12 @@ wait_for frontend curl -fsS http://127.0.0.1:4173/
 wait_for 'Celery worker' grep -q 'ready\.' "$LOG_DIR/worker.log"
 wait_for 'Celery Beat' grep -q 'beat: Starting\.\.\.' "$LOG_DIR/beat.log"
 wait_for ngrok curl -fsS http://127.0.0.1:4040/api/tunnels
+# The agent lists the tunnel before ngrok's edge routes it, and the suite's
+# first navigation met ERR_CONNECTION_RESET in that gap. Readiness is the app
+# answering through the edge, and the URL is asked of the agent so there is
+# one source of it.
+public_url() { curl -fsS http://127.0.0.1:4040/api/tunnels | jq -er '.tunnels[0].public_url'; }
+wait_for 'the public edge' curl -fsS "$(public_url)/api/build-id/"
 
 # Use the same configured public origin as an ordinary Playwright run.
 npm --prefix "$FRONTEND" run test:e2e -- "${PLAYWRIGHT_ARGS[@]}"
