@@ -275,6 +275,7 @@ export {
   listPurchaseOrdersInfiniteOptions,
   listPurchaseOrdersOptions,
   purchasingAllJobsRetrieveOptions,
+  purchasingAllJobsRetrieveQueryKey,
   purchasingPurchaseOrdersPartialUpdateMutation,
   purchasingStockListOptions,
   purchasingSuppliersSearchRetrieveOptions,
@@ -349,6 +350,7 @@ export {
   jobTimesheetEntriesRetrieveOptions,
   jobTimesheetEntriesRetrieveQueryKey,
   timesheetsJobsRetrieveOptions,
+  timesheetsJobsRetrieveQueryKey,
   timesheetsStaffRetrieveOptions,
 } from './generated/@tanstack/react-query.gen'
 export {
@@ -583,3 +585,8 @@ export {
 } from './generated/@tanstack/react-query.gen'
 
 export { purchasingPurchaseOrdersPartialUpdate } from './generated/sdk.gen'
+// The job pickers' background search caches the jobs array alone, under the
+// endpoint's own key prefix so its invalidation still reaches it; the
+// generated options carry the whole response, so the search factories call
+// the sdk functions themselves.
+export { purchasingAllJobsRetrieve, timesheetsJobsRetrieve } from './generated/sdk.gen'

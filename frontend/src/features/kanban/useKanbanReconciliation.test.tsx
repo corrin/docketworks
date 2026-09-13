@@ -2,7 +2,7 @@ import { deferred } from '@/test/deferred'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { useCallback, useRef, type ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -652,14 +652,15 @@ describe('reconciliation closes the in-flight-first-fetch reorder race', () => {
 
     const hook = renderHook(
       () => {
-        const board = useKanbanBoard('')
         const isDraggingRef = useRef(false)
+        const movePendingRef = useRef(false)
+        const board = useKanbanBoard('', { movePendingRef })
         const reconciliation = useKanbanReconciliation({
           isDraggingRef,
-          movePendingRef: board.movePendingRef,
-          searchTerm: board.searchTerm,
+          movePendingRef,
+          searchTerm: '',
         })
-        return { board, reconciliation }
+        return { board, reconciliation, movePendingRef }
       },
       { wrapper: wrapperFor(queryClient) },
     )
@@ -668,7 +669,7 @@ describe('reconciliation closes the in-flight-first-fetch reorder race', () => {
     expect(queryClient.getQueryData(columnQueryKey('in_progress'))).toBeUndefined()
 
     hook.result.current.board.moveJob({ jobId: 'moved', status: 'in_progress' })
-    await waitFor(() => expect(hook.result.current.board.movePendingRef.current).toBe(false))
+    await waitFor(() => expect(hook.result.current.movePendingRef.current).toBe(false))
 
     // The invalidation had nothing to restart, so the stale GET is what lands.
     targetFetch.resolve()
@@ -720,14 +721,15 @@ describe('reconciliation closes the in-flight-first-fetch reorder race', () => {
 
     const hook = renderHook(
       () => {
-        const board = useKanbanBoard('')
         const isDraggingRef = useRef(false)
+        const movePendingRef = useRef(false)
+        const board = useKanbanBoard('', { movePendingRef })
         const reconciliation = useKanbanReconciliation({
           isDraggingRef,
-          movePendingRef: board.movePendingRef,
-          searchTerm: board.searchTerm,
+          movePendingRef,
+          searchTerm: '',
         })
-        return { board, reconciliation }
+        return { board, reconciliation, movePendingRef }
       },
       { wrapper: wrapperFor(queryClient) },
     )
@@ -788,24 +790,22 @@ describe('reconcile fires on release, without waiting for the next poll', () => 
 
     const hook = renderHook(
       () => {
-        // Mirrors KanbanBoard.tsx: the board and the drag monitor are built
-        // before reconcile() exists, so a ref bridges the release triggers
-        // (onMoveSettled, onDragReleased) to whatever reconcile() currently
-        // is, the same way useKanbanReconciliation's own reconcileRef bridges
-        // its interval effect.
-        const reconcileRef = useRef<() => Promise<void>>(() => Promise.resolve())
-        const triggerReconcile = useCallback(() => {
-          void reconcileRef.current()
-        }, [])
-        const board = useKanbanBoard('', { onMoveSettled: triggerReconcile })
-        const dragMonitor = useKanbanDragMonitor(board.moveJob, triggerReconcile)
+        // Mirrors KanbanBoard.tsx: the component owns both pause refs so
+        // reconcile() exists before the hooks that trigger it, and each hook
+        // takes it as a plain callback.
+        const isDraggingRef = useRef(false)
+        const movePendingRef = useRef(false)
         const reconciliation = useKanbanReconciliation({
-          isDraggingRef: dragMonitor.isDraggingRef,
-          movePendingRef: board.movePendingRef,
-          searchTerm: board.searchTerm,
+          isDraggingRef,
+          movePendingRef,
+          searchTerm: '',
         })
-        reconcileRef.current = reconciliation.reconcile
-        return { board }
+        const board = useKanbanBoard('', {
+          movePendingRef,
+          onMoveSettled: reconciliation.reconcile,
+        })
+        useKanbanDragMonitor(board.moveJob, reconciliation.reconcile, isDraggingRef)
+        return { board, movePendingRef }
       },
       { wrapper: wrapperFor(queryClient) },
     )
@@ -815,7 +815,7 @@ describe('reconcile fires on release, without waiting for the next poll', () => 
     expect(changesRequests).toEqual([])
 
     hook.result.current.board.moveJob({ jobId: 'a', status: 'in_progress' })
-    expect(hook.result.current.board.movePendingRef.current).toBe(true)
+    expect(hook.result.current.movePendingRef.current).toBe(true)
 
     // The version moves while the move is still persisting — the tick this
     // triggers is deferred by movePendingRef, exactly like a tick deferred
@@ -863,7 +863,9 @@ describe('archiving from the status drawer', () => {
       http.post('*/api/job/jobs/:jobId/update-status/', () => HttpResponse.json({ success: true })),
     )
 
-    const hook = renderHook(() => useKanbanBoard(''), { wrapper: wrapperFor(queryClient) })
+    const hook = renderHook(() => useKanbanBoard('', { movePendingRef: useRef(false) }), {
+      wrapper: wrapperFor(queryClient),
+    })
 
     await waitFor(() => expect(cachedIds(queryClient, 'archived')).toEqual(['old']))
 

@@ -300,6 +300,40 @@ describe('useKanbanReconciliation over the push channel', () => {
     expect(loop.changesRequests).toEqual([versionAt('1')])
   })
 
+  it('runs a pass for a refetch that returns the document the stream last pushed', async () => {
+    // A push's pass can fail at the changes fetch; the cursor then stays put
+    // and the retry is owed to whatever writes the query next. A focus refetch
+    // returning the SAME document is such a write. Telling it apart from the
+    // push by comparing documents cannot be done — the equality check that
+    // used to try skipped this pass, and with the stream healthy the fallback
+    // poll is off, so the board stayed stale until the next push.
+    const loop = await mountConnectedLoop()
+    const cursors: string[] = []
+    let changesDown = true
+    server.use(
+      http.get(CHANGES_URL, ({ request }) => {
+        cursors.push(new URL(request.url).searchParams.get('after') ?? '')
+        return changesDown
+          ? HttpResponse.json({ detail: 'changes is down' }, { status: 503 })
+          : HttpResponse.json(changes())
+      }),
+    )
+
+    const pushed = versions({ kanban: versionAt('2') })
+    loop.stream.send('data_versions', JSON.stringify(pushed))
+    await settle(PAST_THE_DEBOUNCE_MS)
+    expect(cursors).toEqual([versionAt('1')])
+
+    changesDown = false
+    act(() => {
+      loop.queryClient.setQueryData(dataVersionsQueryOptions().queryKey, pushed)
+    })
+    await settle(PAST_THE_DEBOUNCE_MS)
+
+    // Retried from the same cursor: the write was not the stream's.
+    expect(cursors).toEqual([versionAt('1'), versionAt('1')])
+  })
+
   it('runs one pass per push, not one per cache write', async () => {
     const loop = await mountConnectedLoop()
 

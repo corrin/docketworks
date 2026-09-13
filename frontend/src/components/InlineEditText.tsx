@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+
+import { useLatest } from '@/lib/useLatest'
 import { Check, Pencil, X } from 'lucide-react'
 
 interface InlineEditTextProps {
@@ -25,8 +27,7 @@ export function InlineEditText({
   const [editValue, setEditValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const editingRef = useRef(false)
-  editingRef.current = isEditing
+  const editingRef = useLatest(isEditing)
 
   useEffect(() => {
     if (isEditing) {

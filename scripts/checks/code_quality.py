@@ -56,7 +56,8 @@ class Section:
 
     title: str
     note: str
-    rows: list[tuple[str, int]] = field(default_factory=list)
+    # A value is usually a count; a ratio reads as "a of b (x%)" instead.
+    rows: list[tuple[str, int | str]] = field(default_factory=list)
 
 
 def _python_files() -> Iterator[Path]:
@@ -399,6 +400,89 @@ def measure_wire_contract() -> Section:
     )
 
 
+# The tags a Playwright spec drives. Lowercase are the DOM elements; `Button`
+# is the shared primitive every screen's buttons go through. Deliberately a
+# short list: this measures a smell, not an audit.
+INTERACTIVE_TAGS = ("a", "button", "input", "select", "textarea", "Button")
+_INTERACTIVE_OPEN = re.compile(r"<(" + "|".join(INTERACTIVE_TAGS) + r")\b")
+# An attribute NAME followed by `=`: a value or comment that merely contains
+# the words is not coverage.
+_AUTOMATION_ID_ATTRIBUTE = re.compile(r"\b(?:data-automation-id|automationId)\s*=")
+
+
+def _jsx_attribute_span(text: str, start: int) -> str:
+    """The attribute text of the JSX tag opening at `start`, up to its `>`.
+
+    Attributes hold arrow functions and template strings, so the closing `>`
+    is the first one outside braces and quotes — a regex to the next `>`
+    would stop inside `onClick={() => ...}`.
+    """
+    depth = 0
+    quote: str | None = None
+    index = start
+    while index < len(text):
+        char = text[index]
+        if quote is not None:
+            if char == quote:
+                quote = None
+        elif char in "\"'`":
+            quote = char
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+        elif char == ">" and depth == 0:
+            return text[start:index]
+        index += 1
+    return text[start:]
+
+
+def measure_automation_ids() -> Section:
+    """Interactive elements a Playwright spec could not select by automation id.
+
+    ADR 0063 puts a `data-automation-id` on every control whether or not a test
+    drives it yet, because an id added later costs a spec its selector. Counted
+    over `frontend/src` only (tests select, they do not render). A tag that
+    spreads props is not counted: a shared primitive such as `components/ui`'s
+    button gets its id from the caller, and the caller's tag is the one counted.
+    """
+    counted: Counter[str] = Counter()
+    missing: Counter[str] = Counter()
+    for path in _frontend_files():
+        if path.suffix != ".tsx" or "frontend/src" not in path.as_posix():
+            continue
+        if path.name.endswith(".test.tsx"):
+            continue
+        text = path.read_text()
+        for match in _INTERACTIVE_OPEN.finditer(text):
+            attributes = _jsx_attribute_span(text, match.end())
+            if "{..." in attributes:
+                continue
+            tag = match.group(1)
+            counted[tag] += 1
+            if _AUTOMATION_ID_ATTRIBUTE.search(attributes) is None:
+                missing[tag] += 1
+    total = sum(counted.values())
+    absent = sum(missing.values())
+    share = round(100 * absent / total) if total else 0
+    rows: list[tuple[str, int | str]] = [
+        ("without data-automation-id", f"{absent} of {total} ({share}%)"),
+    ]
+    rows += [(f"without id: <{tag}>", missing[tag]) for tag in INTERACTIVE_TAGS if missing[tag]]
+    return Section(
+        title="Automation ids (frontend)",
+        note=(
+            "Interactive elements under `frontend/src` with no `data-automation-id`, "
+            "the selector every Playwright spec must be able to use (ADR 0063). Not "
+            "meant to be zero today: it shrinks as screens are touched, and a change "
+            "that adds a control without an id moves it up in front of a reviewer. "
+            "A tag that spreads props is skipped — a shared primitive is given its id "
+            "by its caller."
+        ),
+        rows=rows,
+    )
+
+
 def render(sections: list[Section]) -> str:
     lines = [
         "# Code quality metrics",
@@ -438,6 +522,7 @@ def main() -> int:
         shape,
         returns,
         measure_wire_contract(),
+        measure_automation_ids(),
     ]
     report = render(sections)
 
