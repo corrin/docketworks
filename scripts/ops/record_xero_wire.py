@@ -11,7 +11,8 @@ Refuses a production target: the pass only reads, but a shape captured from
 a live organisation carries its values, and the dev tenant exists for this.
 
 Usage:
-    uv run python -m scripts.ops.record_xero_wire
+    uv run python -m scripts.ops.record_xero_wire                  # every route
+    uv run python -m scripts.ops.record_xero_wire tax_rates quote  # these only
 """
 
 import json
@@ -47,13 +48,14 @@ def _json_default(value: object) -> float:
 
 
 def main() -> int:
-    """Capture every route and write one file per recording."""
+    """Capture every route (or the named ones) and write one file per recording."""
+    only = frozenset(sys.argv[1:]) or None
     assert_not_production_target()
     reading = read_day_quota()
     recorded_at = datetime.now(tz=UTC).isoformat(timespec="seconds")
     print(f"Recording from {reading.organisation_name} ({reading.day_remaining} calls left today)")
     count = 0
-    for capture in capture_all(get_api_client(), get_tenant_id()):
+    for capture in capture_all(get_api_client(), get_tenant_id(), only):
         document = {
             "recorded_at": recorded_at,
             "organisation": reading.organisation_name,

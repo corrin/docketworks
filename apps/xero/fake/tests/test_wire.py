@@ -17,61 +17,15 @@ from pathlib import Path
 
 import pytest
 from xero_python.accounting import AccountingApi
-from xero_python.api_client import ApiClient
-from xero_python.api_client.configuration import Configuration
-from xero_python.api_client.oauth2 import OAuth2Token
 from xero_python.models import BaseModel
 from xero_python.payrollnz import PayrollNzApi
-from xero_python.rest import RESTClientObject, RESTResponse
 
-from apps.xero.fake.http import json_response
+from apps.xero.fake.tests.conftest import sdk_client_answering
 from apps.xero.fake.wire import Json, WireShapeError, ms_date_now, to_wire
 from apps.xero.transforms import process_xero_data
 
 RECORDINGS_DIR = Path(__file__).resolve().parent.parent / "recordings"
 TENANT = "00000000-0000-0000-0000-000000000000"
-
-
-class _Canned(RESTClientObject):
-    """Answer every request with one recorded body; the SDK does the rest."""
-
-    def __init__(self, configuration: Configuration, body: Json) -> None:
-        super().__init__(configuration)
-        self._body = body
-
-    def request(  # noqa: PLR0913, PLR0917 -- the SDK base-class signature
-        self,
-        method: str,
-        url: str,
-        query_params: object = None,
-        headers: object = None,
-        body: object = None,
-        post_params: object = None,
-        _preload_content: bool = True,
-        _request_timeout: object = None,
-    ) -> RESTResponse:
-        del method, url, query_params, headers, body, post_params, _request_timeout
-        return json_response(200, self._body, {})
-
-
-def _client_answering(body: Json) -> ApiClient:
-    client = ApiClient(
-        Configuration(oauth2_token=OAuth2Token(client_id="fake", client_secret="fake"))
-    )
-
-    @client.oauth2_token_getter
-    def _token() -> dict[str, object]:
-        # No expires_at: the SDK treats such a token as valid forever, so the
-        # canned client is never asked to refresh.
-        return {
-            "access_token": "fake-access-token",
-            "token_type": "Bearer",
-            "scope": [],
-            "expires_in": 1800,
-        }
-
-    client.rest_client = _Canned(client.configuration, body)
-    return client
 
 
 def _recorded_body(name: str) -> Json:
@@ -212,7 +166,7 @@ def _entity_key(recorded: Json) -> str:
 @pytest.mark.parametrize("name", sorted(_ACCOUNTING_ROUTES))
 def test_accounting_recordings_round_trip(name: str) -> None:
     recorded = _recorded_body(name)
-    response = _ACCOUNTING_ROUTES[name](AccountingApi(_client_answering(recorded)))
+    response = _ACCOUNTING_ROUTES[name](AccountingApi(sdk_client_answering(recorded)))
     rendered = to_wire(type(response), process_xero_data(response))
     key = _entity_key(recorded)
     assert key in rendered, f"{name}: the renderer emitted no {key}"
@@ -222,7 +176,7 @@ def test_accounting_recordings_round_trip(name: str) -> None:
 @pytest.mark.parametrize("name", sorted(_PAYROLL_ROUTES))
 def test_payroll_recordings_round_trip(name: str) -> None:
     recorded = _recorded_body(name)
-    response = _PAYROLL_ROUTES[name](PayrollNzApi(_client_answering(recorded)))
+    response = _PAYROLL_ROUTES[name](PayrollNzApi(sdk_client_answering(recorded)))
     rendered = to_wire(type(response), process_xero_data(response))
     key = _entity_key(recorded)
     assert key in rendered, f"{name}: the renderer emitted no {key}"

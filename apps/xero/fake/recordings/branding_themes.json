@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "recorded_at": "2026-09-13T03:47:51+00:00",
   "organisation": "Demo Company (NZ)",
   "sdk": "xero-python 15.1.0",
   "scrubbed_keys": [
@@ -30,7 +30,7 @@
     "postCode",
     "suburb"
   ],
-  "lists_kept_to": 2,
+  "lists_kept_to": null,
   "request": {
     "method": "GET",
     "path": "/api.xro/2.0/BrandingThemes",
@@ -42,10 +42,10 @@
     "content_disposition": null
   },
   "body": {
-    "Id": "245e21ff-2051-4d5f-bf00-738e26c9cd4b",
+    "Id": "dda3da66-3ff9-47b8-b537-a0bd67cb6347",
     "Status": "OK",
     "ProviderName": "Docketworks MSM Dev",
-    "DateTimeUTC": "/Date(1789269367291)/",
+    "DateTimeUTC": "/Date(1789271275620)/",
     "BrandingThemes": [
       {
         "BrandingThemeID": "7889a0ac-262a-40e3-8a63-9a769b1a18af",
@@ -62,6 +62,14 @@
         "Type": "INVOICE",
         "SortOrder": 2,
         "CreatedDateUTC": "/Date(1292546159853+0000)/"
+      },
+      {
+        "BrandingThemeID": "ec97a880-4b4f-4abb-be11-5e1d75b81b57",
+        "Name": "Special Projects",
+        "LogoUrl": "https://in.xero.com/logo?id=ZXcwS0lDQWlieUk2SUNJNU5tUTRabUppT1MxbE4ySm1MVFF6TWpjdFlUSTROQzFqWWpWa1lUTXpPRFJtT1RjaUxBMEtJQ0FpWmlJNklDSTVaRFExTUdGbU15MDJZekJrTFRSaU56VXRPVGd3WWkxaFpUZGxNemhpTlRRMk9XSWlEUXA5LW9tbDRYeE9PY1VNPQ",
+        "Type": "INVOICE",
+        "SortOrder": 4,
+        "CreatedDateUTC": "/Date(946684800000+0000)/"
       }
     ]
   }

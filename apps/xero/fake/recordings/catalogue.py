@@ -29,12 +29,16 @@ from xero_python.rest import RESTResponse
 
 from apps.accounts.models import StaffPayrollTerm
 from apps.xero.client import RateLimitedRESTClient
+from apps.xero.fake.http import query_dict
 from apps.xero.fake.wire import Json
 
 # A recording keeps two elements of any top-level list: the shape of an
 # element is what the fake and the drift check read, and a full page of
-# contacts is a hundred copies of it.
+# contacts is a hundred copies of it. The reference lists are the exception:
+# the fake serves them whole (every tax rate prices a line; every theme is
+# selectable), so those recordings keep every element.
 LIST_ELEMENTS_KEPT = 2
+UNTRUNCATED = frozenset({"tax_rates", "branding_themes", "leave_types", "earnings_rates"})
 
 # Replaced before anything is written: the dev tenant is a restore of a real
 # business, and a shape needs none of these values. The organisation's own
@@ -112,7 +116,7 @@ class _TransportTap(RateLimitedRESTClient):
     ) -> RESTResponse | HTTPResponse:
         self.last_method = method
         self.last_url = url
-        self.last_query = _query_of(query_params)
+        self.last_query = query_dict(query_params)
         try:
             response = super().request(
                 method,
@@ -139,22 +143,26 @@ class _TransportTap(RateLimitedRESTClient):
         return response
 
 
-def _query_of(query_params: object) -> dict[str, str]:
-    if query_params is None:
-        return {}
-    if isinstance(query_params, Mapping):
-        return {str(key): str(value) for key, value in query_params.items()}
-    if isinstance(query_params, list):
-        return {str(key): str(value) for key, value in query_params}
-    raise TypeError(f"unexpected query_params shape: {type(query_params).__name__}")
+def capture_all(
+    client: ApiClient, tenant_id: str, only: frozenset[str] | None = None
+) -> Iterator[Capture]:
+    """Drive every route the fake serves and yield each raw answer, scrubbed.
 
-
-def capture_all(client: ApiClient, tenant_id: str) -> Iterator[Capture]:
-    """Drive every route the fake serves and yield each raw answer, scrubbed."""
+    ``only`` names a subset to re-record; the routes a subset depends on
+    for an id are still called, because the call is how the id is found.
+    """
     tap = _TransportTap(client.configuration)
     client.rest_client = tap
     accounting = AccountingApi(client)
     payroll = PayrollNzApi(client)
+    for capture in _capture_every_route(tap, accounting, payroll, tenant_id):
+        if only is None or capture.name in only:
+            yield capture
+
+
+def _capture_every_route(
+    tap: "_TransportTap", accounting: AccountingApi, payroll: PayrollNzApi, tenant_id: str
+) -> Iterator[Capture]:
 
     yield _record(tap, "organisation", lambda: accounting.get_organisations(tenant_id))
     yield _record(tap, "tax_rates", lambda: accounting.get_tax_rates(tenant_id))
@@ -297,7 +305,9 @@ def _capture(name: str, tap: _TransportTap) -> Capture:
     content_type = tap.last_headers.get("Content-Type", "")
     if "application/json" in content_type:
         body: Json = _scrub(json.loads(tap.last_data, parse_float=Decimal))
-        body, truncated = _truncate_lists(body)
+        truncated = False
+        if name not in UNTRUNCATED:
+            body, truncated = _truncate_lists(body)
     else:
         # A PDF's bytes are not a shape; its headers are what the SDK reads.
         body, truncated = None, False

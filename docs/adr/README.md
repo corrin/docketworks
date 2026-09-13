@@ -69,3 +69,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0057](0057-line-identity-and-creation-order.md) | Line identity and creation order |
 | [0058](0058-write-refusals-live-in-the-application.md) | A rule that refuses a write lives in the application |
 | [0059](0059-one-data-model-legacy-data-is-migrated.md) | The app supports one data model; legacy data is migrated to comply |
+| [0060](0060-an-iteration-run-may-fake-an-integration.md) | An iteration run may point the unmodified app at a simulated integration; the gate never does |

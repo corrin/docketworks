@@ -114,9 +114,21 @@ class Invoice(BaseModel):
     total: Any
     amount_due: Any
     branding_theme_id: str | None
+    currency_code: Any
+    validation_errors: list[ValidationError] | None
     updated_date_utc: Any
     def __init__(self, **kwargs: Any) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...
+
+class CreditNote(BaseModel):
+    credit_note_id: str | None
+    credit_note_number: str | None
+    type: str | None
+    contact: Contact | None
+    status: str | None
+    line_items: list[LineItem] | None
+    updated_date_utc: Any
+    def __init__(self, **kwargs: Any) -> None: ...
 
 class Invoices(BaseModel):
     invoices: list[Invoice] | None
@@ -156,6 +168,9 @@ class PurchaseOrder(BaseModel):
     reference: str | None
     line_items: list[LineItem] | None
     validation_errors: list[ValidationError] | None
+    sub_total: Any
+    total_tax: Any
+    total: Any
     updated_date_utc: Any
     def __init__(self, **kwargs: Any) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...

@@ -13775,13 +13775,20 @@ export type XeroPingErrorOut = {
 /**
  * XeroPingOut
  *
- * Connection status plus the two safety flags the E2E preflight reads.
+ * Connection status plus the safety flags the E2E preflight reads.
+ *
+ * ``xero_fake`` says the backend answers Xero from the fake (ADR 0060): the
+ * harness labels the run with it and refuses a run whose own flag disagrees.
  */
 export type XeroPingOut = {
     /**
      * Connected
      */
     connected: boolean;
+    /**
+     * Xero Fake
+     */
+    xero_fake: boolean;
     /**
      * Xero Production Client
      */

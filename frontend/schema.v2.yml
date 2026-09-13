@@ -15541,10 +15541,18 @@ components:
       title: XeroPingErrorOut
       type: object
     XeroPingOut:
-      description: Connection status plus the two safety flags the E2E preflight reads.
+      description: 'Connection status plus the safety flags the E2E preflight reads.
+
+
+        ``xero_fake`` says the backend answers Xero from the fake (ADR 0060): the
+
+        harness labels the run with it and refuses a run whose own flag disagrees.'
       properties:
         connected:
           title: Connected
+          type: boolean
+        xero_fake:
+          title: Xero Fake
           type: boolean
         xero_production_client:
           title: Xero Production Client
@@ -15554,6 +15562,7 @@ components:
           type: boolean
       required:
       - connected
+      - xero_fake
       - xero_production_client
       - xero_readonly
       title: XeroPingOut

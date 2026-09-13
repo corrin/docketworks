@@ -106,11 +106,16 @@ def xero_pay_items_list(request: HttpRequest) -> list[XeroPayItem]:
 
 
 class XeroPingOut(ResponseSchema):
-    """Connection status plus the two safety flags the E2E preflight reads."""
+    """Connection status plus the safety flags the E2E preflight reads.
+
+    ``xero_fake`` says the backend answers Xero from the fake (ADR 0060): the
+    harness labels the run with it and refuses a run whose own flag disagrees.
+    """
 
     connected: bool
     xero_readonly: bool
     xero_production_client: bool
+    xero_fake: bool
 
 
 class XeroPingErrorOut(ResponseSchema):
@@ -139,6 +144,7 @@ def _xero_ping_payload(*, connected: bool) -> XeroPingOut:
         connected=connected,
         xero_readonly=settings.XERO_READONLY,
         xero_production_client=_xero_production_client(),
+        xero_fake=settings.XERO_FAKE,
     )
 
 

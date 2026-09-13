@@ -1,11 +1,11 @@
 """Read-only Xero provider: real reads and auth, suppressed writes.
 
-Selected by the registry when ``settings.XERO_READONLY`` is true (E2E/test
-backends only). Every write logs a warning and returns a well-formed fake
-result so callers — the company-create flow today, document managers when
-they port — behave exactly as with real Xero, without anything reaching the
-Xero tenant. Suppressed writes are not errors: nothing here persists an
-AppError.
+Selected by the registry when ``settings.XERO_READONLY`` is true: the valve
+for a local process pointed at production data (ADR 0050), never a test
+mode — an E2E iteration run uses the transport-level fake of ADR 0060.
+Every write logs a warning and returns a well-formed fake result so callers
+behave exactly as with real Xero, without anything reaching the Xero
+tenant. Suppressed writes are not errors: nothing here persists an AppError.
 """
 
 import logging

@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-09-13T03:16:03+00:00",
+  "recorded_at": "2026-09-13T03:47:51+00:00",
   "organisation": "Demo Company (NZ)",
   "sdk": "xero-python 15.1.0",
   "scrubbed_keys": [
@@ -30,7 +30,7 @@
     "postCode",
     "suburb"
   ],
-  "lists_kept_to": 2,
+  "lists_kept_to": null,
   "request": {
     "method": "GET",
     "path": "/payroll.xro/2.0/LeaveTypes",
@@ -42,9 +42,9 @@
     "content_disposition": null
   },
   "body": {
-    "id": "f04cbe8f-784c-43c1-924c-0827d8d57ab6",
+    "id": "8ee6b0b3-3c41-47a4-902b-31d9c2ee18d2",
     "providerName": "Docketworks%20MSM%20Dev",
-    "dateTimeUTC": "2026-09-13T03:16:42.6736768",
+    "dateTimeUTC": "2026-09-13T03:48:29.8575197",
     "httpStatusCode": "OK",
     "pagination": {
       "page": 1,
@@ -70,6 +70,166 @@
         "isPaidLeave": false,
         "showOnPayslip": true,
         "updatedDateUTC": "2026-09-12T03:49:26",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "3f9f25a5-2da0-4a26-8059-ef4e7b8bb16e",
+        "name": "Parental Leave - Partner",
+        "isPaidLeave": false,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:49:26",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "0e3380d8-e8dc-4111-85f1-7b7191e73806",
+        "name": "Parental Leave - Primary Carer",
+        "isPaidLeave": false,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:49:26",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "925f09b9-5414-45ea-a094-f581eacab55b",
+        "name": "Parental Leave - Special",
+        "isPaidLeave": false,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:49:26",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "9dfe1d42-1000-4e6b-9b44-b3855070c871",
+        "name": "Unpaid Sick Leave",
+        "isPaidLeave": false,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:49:26",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "1e7707cc-4669-4f27-b2ab-6c80f5b3ef5f",
+        "name": "Annual Leave",
+        "isPaidLeave": true,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:49:26",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "11c23cca-dd9d-48eb-83e0-0c0b4ba1c7d5",
+        "name": "Annual Leave - Cash Up",
+        "isPaidLeave": true,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:49:26",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "55e51a88-735d-418f-8d96-a9019370a645",
+        "name": "Annual Leave - Parental",
+        "isPaidLeave": true,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:49:26",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "7e96d662-4e48-4b18-9fc6-38797edb2ea1",
+        "name": "Bereavement Leave",
+        "isPaidLeave": true,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:49:26",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "1a586ec4-a40c-44ab-9c7b-6640d4a2b4af",
+        "name": "Employment Relations Education Leave",
+        "isPaidLeave": true,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:49:26",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "3dfcb21b-20bf-49b8-9a1b-877eb33da71a",
+        "name": "Alternative Holidays",
+        "isPaidLeave": true,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:49:26",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "e4555617-892a-460d-96ed-7a5e03a55ce0",
+        "name": "Sick Leave",
+        "isPaidLeave": true,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:49:26",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "a44ab907-6aab-4c08-9984-21eb46c3494c",
+        "name": "Family Violence Leave",
+        "isPaidLeave": true,
+        "showOnPayslip": false,
+        "updatedDateUTC": "2026-09-12T03:49:26",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "3224f6ad-9f9a-4680-8527-242275b128af",
+        "name": "Domestic Violence Leave",
+        "isPaidLeave": true,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:50:11",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "85f078aa-51d8-43d7-b0db-cb823615fd12",
+        "name": "Stand Down Leave",
+        "isPaidLeave": true,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:50:12",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "81d0434b-e7ba-4d78-9ec2-5bcf56d46798",
+        "name": "Unpaid Domestic Violence Leave",
+        "isPaidLeave": true,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:50:14",
+        "isActive": true,
+        "typeOfUnits": "Hours",
+        "typeOfUnitsToAccrue": "Hours"
+      },
+      {
+        "leaveTypeID": "36950ca0-87ee-4a2d-b6a9-52f1c737891c",
+        "name": "Unpaid Leave",
+        "isPaidLeave": false,
+        "showOnPayslip": true,
+        "updatedDateUTC": "2026-09-12T03:50:15",
         "isActive": true,
         "typeOfUnits": "Hours",
         "typeOfUnitsToAccrue": "Hours"

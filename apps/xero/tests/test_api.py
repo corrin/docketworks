@@ -66,6 +66,7 @@ class TestXeroPing:
             "connected": False,
             "xero_readonly": True,
             "xero_production_client": False,
+            "xero_fake": False,
         }
 
     @override_settings(XERO_READONLY=False)

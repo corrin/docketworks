@@ -6306,10 +6306,14 @@ export const zXeroPingErrorOut = z.object({
 /**
  * XeroPingOut
  *
- * Connection status plus the two safety flags the E2E preflight reads.
+ * Connection status plus the safety flags the E2E preflight reads.
+ *
+ * ``xero_fake`` says the backend answers Xero from the fake (ADR 0060): the
+ * harness labels the run with it and refuses a run whose own flag disagrees.
  */
 export const zXeroPingOut = z.object({
     connected: z.boolean(),
+    xero_fake: z.boolean(),
     xero_production_client: z.boolean(),
     xero_readonly: z.boolean()
 });

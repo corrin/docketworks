@@ -21,11 +21,11 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 726 |
+| TOTAL suppressions | 739 |
 | noqa: DJ001 | 174 |
-| noqa: PLC0415 | 140 |
+| noqa: PLC0415 | 143 |
 | noqa: E402 | 111 |
-| noqa: PLR0913 | 49 |
+| noqa: PLR0913 | 52 |
 | noqa: ARG002 | 38 |
 | noqa: BLE001 | 35 |
 | noqa: ARG001 | 22 |
@@ -39,9 +39,11 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: RUF001 | 6 |
 | noqa: S105 | 5 |
 | noqa: N815 | 4 |
+| noqa: N818 | 4 |
+| noqa: S106 | 4 |
 | noqa: S311 | 4 |
 | noqa: ARG005 | 3 |
-| noqa: N818 | 3 |
+| noqa: D107 | 3 |
 | noqa: PLW0603 | 3 |
 | noqa: RUF012 | 3 |
 | noqa: S608 | 3 |
@@ -54,7 +56,6 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: B010 | 1 |
 | noqa: B904 | 1 |
 | noqa: C416 | 1 |
-| noqa: D107 | 1 |
 | noqa: DTZ007 | 1 |
 | noqa: F821 | 1 |
 | noqa: PIE804 | 1 |
@@ -79,11 +80,11 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 422 |
-| except handlers | 454 |
-| re-raises or converts | 294 |
-| returns instead | 94 |
-| falls through | 51 |
+| try statements | 437 |
+| except handlers | 468 |
+| re-raises or converts | 296 |
+| returns instead | 105 |
+| falls through | 52 |
 | continue/break in a loop | 14 |
 | pass (silent) | 1 |
 
@@ -103,8 +104,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 218 |
-| non-test functions | 2762 |
+| functions returning `X \| None` | 225 |
+| non-test functions | 2850 |
 
 ## Wire contract (response side)
 
@@ -113,6 +114,6 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 | metric | count |
 |---|---:|
 | response schemas | 313 |
-| response properties | 2002 |
+| response properties | 2003 |
 | optional (pinned at zero) | 0 |
 | nullable | 431 |

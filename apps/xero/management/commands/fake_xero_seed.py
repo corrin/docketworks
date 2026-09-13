@@ -1,0 +1,60 @@
+"""Fill the fake Xero's store from the mirror, so a fake run starts from "Xero as of now".
+
+``run_e2e.sh --use-fake-xero`` runs this before the pre-run backup, so the
+seeded store is inside the dump the teardown restores: a run's writes
+vanish with the restore and the next run seeds afresh. Refuses a
+non-empty store without ``--replace`` and refuses a production target.
+"""
+
+from django.core.management.base import BaseCommand, CommandError, CommandParser
+
+from apps.core.models import CompanyDefaults
+from apps.xero.fake.models import FakeXeroObject
+from apps.xero.fake.seed import SeedError, seed_everything
+from apps.xero.fake.store import FakeXeroStore
+from apps.xero.operator_guards import assert_not_production_target
+
+
+class Command(BaseCommand):
+    """Seed the fake Xero from the mirror."""
+
+    help = "Render every mirrored Xero object into the fake Xero's store (ADR 0060)."
+
+    def add_arguments(self, parser: CommandParser) -> None:
+        """Declare --replace."""
+        parser.add_argument(
+            "--replace",
+            action="store_true",
+            help="empty the store first; without it a non-empty store is refused",
+        )
+
+    def handle(self, *args: object, **options: object) -> None:
+        """Seed, reporting a count per kind."""
+        del args
+        company = CompanyDefaults.get_solo()
+        tenant_id = company.xero_tenant_id
+        if not tenant_id:
+            raise CommandError(
+                "CompanyDefaults.xero_tenant_id is unset; bind the installation first"
+            )
+        # The tenant is passed rather than resolved: assert_not_production_target
+        # resolves it through get_tenant_id, which refreshes the token — a call
+        # the fake would answer if it were installed, and this command must not
+        # depend on which transport the process has.
+        assert_not_production_target(tenant_id)
+        existing = FakeXeroObject.objects.filter(tenant_id=tenant_id).count()
+        if existing and not options["replace"]:
+            raise CommandError(
+                f"the fake store already holds {existing} objects for {tenant_id}; "
+                "pass --replace to seed over them"
+            )
+        FakeXeroObject.objects.filter(tenant_id=tenant_id).delete()
+        try:
+            counts = seed_everything(
+                FakeXeroStore(tenant_id), organisation_name=company.company_name
+            )
+        except SeedError as exc:
+            raise CommandError(str(exc)) from exc
+        for kind, count in counts.items():
+            self.stdout.write(f"  {kind:16s} {count}")
+        self.stdout.write(self.style.SUCCESS(f"Seeded the fake Xero for {tenant_id}"))

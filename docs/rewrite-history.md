@@ -1,5 +1,24 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-13 — An E2E iteration run may be pointed at a recorded fake of Xero
+
+Owner ruling. The E2E gate could not run once the dev tenant's 1000-call day was spent,
+and the suite was the cheap consumer (about 45 calls) locked out by the expensive ones.
+The owner ruled for an opt-in simulated Xero, default real: `run_e2e.sh --use-fake-xero`
+points the unmodified stack at a simulation whose shapes are recorded, whose state is a
+Postgres store and whose ids, timestamps and totals are computed; the merge-gate run stays real,
+and the same shape is to serve the other integrations and the failure scenarios (a vendor
+down) the real vendor will not stage. ADR 0060 records the rule. The rejected alternative
+was `XERO_READONLY`, which fakes writes only and leaves reads live, so at quota zero the
+run fails anyway; the readonly provider keeps its one job.
+
+What the recordings showed. The Accounting API writes dates as `/Date(ms+0000)/` and
+omits absent fields; Payroll NZ writes ISO-8601 naive UTC, sends absent fields as explicit
+nulls and answers a page past the last with 400 `InvalidRequest`. The SDK turns a
+Payroll null string into the text `"None"`, a null bool into `False`, and a null nested
+object into an instance whose first attribute is `""` — all three reach the mirror's
+`raw_json`, and the fake's renderer undoes each on the way back out.
+
 ## 2026-09-12 — The purchase order has one master, and it is Docketworks
 
 Owner ruling. Purchase orders are not normally edited in Xero, and an order that is not in

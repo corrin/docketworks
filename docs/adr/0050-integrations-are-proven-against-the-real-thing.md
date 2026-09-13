@@ -24,7 +24,9 @@ A path that touches an external system is not done until a durable test has exec
   Asserting the return value reproduces exactly the blind spot a mock has.
 - **E2E binds by the same rule, and takes no shortcuts.** The Playwright suite runs against
   the real services (`frontend/docs/e2e-testing-strategy.md`) and a spec may not substitute,
-  skip or defer the external call it exists to cover. The weekly payroll spec did: it
+  skip or defer the external call it exists to cover. (ADR 0060 carves out the iteration
+  run: the whole unmodified suite may be pointed at a simulation of the vendor built from
+  recordings, to iterate without spending the vendor, and the run before merge stays real.) The weekly payroll spec did: it
   asserted the pay-run state machine, declined to post, and pointed at "the backend suite and
   manual checks" — a fake provider and a thing nobody runs. Where a vendor constraint makes
   a write awkward, it shapes the spec (post the next postable week, reuse the draft), and a

@@ -122,6 +122,10 @@ CI, because CI has no sandbox credentials and must stay hermetic; the command
 above is how it gets run, and it is a merge gate rather than an optional extra.
 `XERO_READONLY` is a **production hotfix valve** and must never be set for a
 test run — it suppresses exactly the writes these tests exist to prove.
+`XERO_FAKE` is the E2E iteration fake (ADR 0060): `./scripts/ops/run_e2e.sh
+--use-fake-xero` points the unmodified stack at a simulated Xero (shapes recorded from the
+tenant, state remembered, ids and totals computed) so an iteration run spends no quota; a
+fake run is labelled everywhere and is never the gate.
 
 For an unattended full E2E gate, especially after an agent coding session, run
 `./scripts/ops/run_e2e.sh` from the repository root. It refuses an existing environment, resets
