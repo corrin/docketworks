@@ -1,13 +1,13 @@
-# 0003 — ETag-based optimistic concurrency for Job and PO edits
+# 0003 — Job, PO and stocktake mutations carry If-Match: missing is 428, stale is 412
 
-Every Job and PO mutation requires an `If-Match` header with the latest ETag; missing → `428`, stale → `412`.
+Every Job, PO and stocktake mutation requires an `If-Match` header with the latest ETag; missing → `428`, stale → `412`.
 
 ## Rules
 
 - GETs return an `ETag` derived from `updated_at` (plus the primary key for delivery receipts) and honour `If-None-Match` with `304 Not Modified`.
 - Mutating endpoints (`PUT`, `PATCH`, `DELETE`, and the domain-specific POSTs such as "Accept quote" or "Post delivery receipt") require `If-Match`. Missing header → `428 Precondition Required`; mismatched value → `412 Precondition Failed`. Clients recover from a `412` by refetching.
 - The comparison happens inside the service layer under `select_for_update`, so check and write are atomic — a check-then-write race cannot slip through.
-- CORS exposes `ETag` and allows `If-Match`/`If-None-Match`, so the cross-origin frontend can participate.
+- `GZipMiddleware` weakens a representation ETag, so `ResourceVersionMiddleware` (`apps/core/middleware.py`) mirrors every resource ETag — the `"job:`, `"po:` and `"stocktake:` prefixes — into `X-Resource-Version`, which the frontend's concurrency interceptor (`frontend/src/lib/concurrency/interceptors.ts`) prefers over the `ETag` it may have weakened.
 
 ## Do not
 
