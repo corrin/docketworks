@@ -38,6 +38,12 @@ class XeroPayRun(models.Model):
     raw_json = models.JSONField()
     xero_last_modified = models.DateTimeField()
     xero_last_synced = models.DateTimeField(null=True, blank=True, default=timezone.now)
+    # How many slips Xero reported for this run when its slips were last
+    # fetched; NULL until that fetch has happened. A run is mirrored when the
+    # slip rows match this, not when one exists: production has genuine
+    # one-slip Unscheduled runs, so a single row cannot tell a whole run from
+    # a truncated one.
+    pay_slip_count = models.PositiveIntegerField(null=True, blank=True)
     django_created_at = models.DateTimeField(auto_now_add=True)
     django_updated_at = models.DateTimeField(auto_now=True)
 
