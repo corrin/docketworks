@@ -621,6 +621,11 @@ def _capture_payroll(
     )
     yield _record(
         tap,
+        "leave_balances",
+        lambda: payroll.get_employee_leave_balances(tenant_id, employee_id),
+    )
+    yield _record(
+        tap,
         "working_patterns",
         lambda: payroll.get_employee_working_patterns(tenant_id, employee_id),
     )
