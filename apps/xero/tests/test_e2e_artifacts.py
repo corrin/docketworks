@@ -18,7 +18,7 @@ import pytest
 from django.conf import settings as django_settings
 from django.test import override_settings
 from django.utils import timezone
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 from apps.core.test_data import TEST_COMPANY_NAME, TEST_DATA_PREFIX
 from apps.xero import e2e_artifacts
@@ -86,7 +86,7 @@ class TestDropE2EArtifacts:
     """The skip decision itself, with both production guards out of the way."""
 
     @pytest.fixture(autouse=True)
-    def _debug_on(self, settings: SettingsWrapper) -> None:
+    def _debug_on(self, settings: Settings) -> None:
         """override_settings cannot decorate a plain pytest class, so the
         DEBUG=True guard-release rides an autouse fixture instead."""
         settings.DEBUG = True

@@ -11,7 +11,7 @@ from unittest import mock
 
 import pytest
 from django.utils import timezone
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 from apps.company.models import ContactMethod
 from apps.company.tests.factories import make_company
@@ -309,7 +309,7 @@ class TestPhoneCallSync:
     """
 
     @pytest.fixture(autouse=True)
-    def provider_env(self, settings: SettingsWrapper, tmp_path: Path) -> Path:
+    def provider_env(self, settings: Settings, tmp_path: Path) -> Path:
         settings.PHONE_RECORDING_STORAGE_ROOT = str(tmp_path)
         IntegrationSettings.objects.filter(pk=1).update(
             phone_provider_base_url="https://phone.example.test",
@@ -409,7 +409,7 @@ class TestStoreRecordingBytes:
     """
 
     @pytest.fixture(autouse=True)
-    def storage_root(self, settings: SettingsWrapper, tmp_path: Path) -> Path:
+    def storage_root(self, settings: Settings, tmp_path: Path) -> Path:
         settings.PHONE_RECORDING_STORAGE_ROOT = str(tmp_path)
         return tmp_path
 
@@ -497,7 +497,7 @@ class TestMeasureAudioDuration:
 @pytest.mark.django_db
 class TestRecordingDurationLifecycle:
     @pytest.fixture(autouse=True)
-    def storage_root(self, settings: SettingsWrapper, tmp_path: Path) -> Path:
+    def storage_root(self, settings: Settings, tmp_path: Path) -> Path:
         settings.PHONE_RECORDING_STORAGE_ROOT = str(tmp_path)
         return tmp_path
 

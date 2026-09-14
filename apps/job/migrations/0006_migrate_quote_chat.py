@@ -1,12 +1,12 @@
 """GPT: A separate transaction clears FK triggers before old columns are removed."""
 
-from django.apps.registry import Apps
+from typing import Any
+
 from django.db import migrations
-from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.migrations.exceptions import IrreversibleError
 
 
-def migrate_messages(apps: Apps, _schema_editor: BaseDatabaseSchemaEditor) -> None:
+def migrate_messages(apps: Any, _schema_editor: Any) -> None:
     """Retain message ids, timestamps, text and legacy metadata in one job thread."""
     message_model = apps.get_model("job", "JobQuoteChat")
     thread_model = apps.get_model("job", "JobQuoteChatThread")
@@ -54,7 +54,7 @@ def migrate_messages(apps: Apps, _schema_editor: BaseDatabaseSchemaEditor) -> No
             message.save(update_fields=["thread_id", "payload"])
 
 
-def reverse_empty_database(apps: Apps, _schema_editor: BaseDatabaseSchemaEditor) -> None:
+def reverse_empty_database(apps: Any, _schema_editor: Any) -> None:
     """Allow v1 restore preparation only before conversations exist."""
     if (
         apps.get_model("job", "JobQuoteChat").objects.exists()

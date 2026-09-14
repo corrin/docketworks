@@ -18,7 +18,7 @@ import pytest
 from django.core.cache import cache, caches
 from django.test import override_settings
 from django.utils import timezone
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 from apps.accounting.models import Invoice
 from apps.accounts.models import Staff
@@ -135,7 +135,7 @@ class TestSyncXeroDataPerPageGate:
     """
 
     @pytest.fixture(autouse=True)
-    def _floor(self, settings: SettingsWrapper) -> None:
+    def _floor(self, settings: Settings) -> None:
         # pytest-django forces DEBUG=False, which arms the production-tenant
         # guard; release it so the quota gate is what these tests exercise.
         settings.DEBUG = True
@@ -329,7 +329,7 @@ class TestSyncCursors:
     """Per-entity high-water marks: what the hourly sync resumes from."""
 
     @pytest.fixture(autouse=True)
-    def _debug_on(self, settings: SettingsWrapper) -> None:
+    def _debug_on(self, settings: Settings) -> None:
         # As in TestSyncXeroDataPerPageGate: keep the tenant guard released.
         settings.DEBUG = True
 

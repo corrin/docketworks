@@ -29,7 +29,7 @@ from decimal import Decimal
 
 import pytest
 from django.utils import timezone
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 from apps.accounting.registry import get_provider
 from apps.accounts.models import Staff
@@ -72,7 +72,7 @@ def _guards(xero_tenant_id: str) -> None:  # noqa: ARG001
 
 
 @pytest.fixture
-def syncing_enabled(settings: SettingsWrapper) -> None:
+def syncing_enabled(settings: Settings) -> None:
     """Let the inbound sync run against the demo tenant.
 
     ``sync.py`` reads DEBUG-off as "this is production" and aborts any sync of a
