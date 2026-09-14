@@ -31,9 +31,24 @@ async function findRowByDescription(page: Page, description: string): Promise<Lo
   return first === undefined ? null : first.row
 }
 
-async function findRowIndexByDescription(page: Page, description: string): Promise<number> {
-  const { index } = await waitForCostLineRow(page, description)
-  return index
+/**
+ * The row described, addressed by its `data-row-id` rather than its position.
+ *
+ * A created line is appended to the cached cost set and then re-sorted by
+ * kind when the settle refetch lands (the server orders material, adjust,
+ * time), so a positional index read between the two addresses whichever row
+ * has moved into that slot by click time: under the fake Xero the gap is
+ * about 10ms, and an adjustment's edit landed on the Workshop labour line.
+ */
+async function rowByDescription(page: Page, description: string): Promise<Locator> {
+  const { row } = await waitForCostLineRow(page, description)
+  const rowId = await row.getAttribute('data-row-id')
+  if (rowId === null) throw new Error(`row described "${description}" carries no data-row-id`)
+  return getRowById(page, rowId)
+}
+
+function cellInput(row: Locator, field: 'quantity' | 'unit-cost' | 'unit-rev'): Locator {
+  return row.locator(`[data-automation-id^="SmartCostLinesTable-${field}-"]`)
 }
 
 /** Leave the focused row so a completed draft POSTs (row-exit persistence). */
@@ -178,10 +193,10 @@ test.describe.serial('estimate operations', () => {
     // Add a new adjustment for editing tests
     await addAdjustmentEntry(page, 'Test Adjustment for Editing', '1', '10')
 
-    const rowIndex = await findRowIndexByDescription(page, 'Test Adjustment for Editing')
+    const row = await rowByDescription(page, 'Test Adjustment for Editing')
 
     // Change quantity to 3
-    const qtyInput = autoId(page, `SmartCostLinesTable-quantity-${rowIndex}`)
+    const qtyInput = cellInput(row, 'quantity')
     await qtyInput.click()
     await qtyInput.fill('3')
     const qtySave = waitForAutosave(page)
@@ -189,7 +204,7 @@ test.describe.serial('estimate operations', () => {
     await qtySave
 
     // Change unit cost to 25
-    const unitCostInput = autoId(page, `SmartCostLinesTable-unit-cost-${rowIndex}`)
+    const unitCostInput = cellInput(row, 'unit-cost')
     await unitCostInput.click()
     await unitCostInput.fill('25')
     const costSave = waitForAutosave(page)
@@ -199,22 +214,22 @@ test.describe.serial('estimate operations', () => {
     // Verify persistence
     await openJobCostingTab(page, jobUrl, 'estimate')
 
-    const newRowIndex = await findRowIndexByDescription(page, 'Test Adjustment for Editing')
+    const reloaded = await rowByDescription(page, 'Test Adjustment for Editing')
 
-    await expect(autoId(page, `SmartCostLinesTable-quantity-${newRowIndex}`)).toHaveValue('3')
-    await expect(autoId(page, `SmartCostLinesTable-unit-cost-${newRowIndex}`)).toHaveValue('25')
+    await expect(cellInput(reloaded, 'quantity')).toHaveValue('3')
+    await expect(cellInput(reloaded, 'unit-cost')).toHaveValue('25')
   })
 
   test('override unit revenue', async ({ authenticatedPage: page }) => {
     await openJobCostingTab(page, jobUrl, 'estimate')
 
-    const rowIndex = await findRowIndexByDescription(page, 'Test Adjustment for Editing')
+    const row = await rowByDescription(page, 'Test Adjustment for Editing')
 
-    const unitCostInput = autoId(page, `SmartCostLinesTable-unit-cost-${rowIndex}`)
+    const unitCostInput = cellInput(row, 'unit-cost')
     const originalUnitCost = await unitCostInput.inputValue()
 
     // Change unit revenue to 99
-    const unitRevInput = autoId(page, `SmartCostLinesTable-unit-rev-${rowIndex}`)
+    const unitRevInput = cellInput(row, 'unit-rev')
     await unitRevInput.click()
     await unitRevInput.fill('99')
     const revSave = waitForAutosave(page)
@@ -229,11 +244,9 @@ test.describe.serial('estimate operations', () => {
     // Verify persistence
     await openJobCostingTab(page, jobUrl, 'estimate')
 
-    const newRowIndex = await findRowIndexByDescription(page, 'Test Adjustment for Editing')
-    await expect(autoId(page, `SmartCostLinesTable-unit-rev-${newRowIndex}`)).toHaveValue('99')
-    await expect(autoId(page, `SmartCostLinesTable-unit-cost-${newRowIndex}`)).toHaveValue(
-      originalUnitCost,
-    )
+    const reloaded = await rowByDescription(page, 'Test Adjustment for Editing')
+    await expect(cellInput(reloaded, 'unit-rev')).toHaveValue('99')
+    await expect(cellInput(reloaded, 'unit-cost')).toHaveValue(originalUnitCost)
   })
 
   test('change material code', async ({ authenticatedPage: page }) => {
@@ -286,12 +299,12 @@ test.describe.serial('estimate operations', () => {
     await addAdjustmentEntry(page, 'Row to be deleted', '1', '100')
 
     const rowsBefore = await page.locator('[data-automation-id^="DataTable-row-"]').count()
-    const deleteRowIndex = await findRowIndexByDescription(page, 'Row to be deleted')
+    const doomed = await rowByDescription(page, 'Row to be deleted')
 
     // Accept the confirm dialog and delete
     page.on('dialog', (dialog) => void dialog.accept())
 
-    const deleteButton = autoId(page, `SmartCostLinesTable-delete-${deleteRowIndex}`)
+    const deleteButton = doomed.locator('[data-automation-id^="SmartCostLinesTable-delete-"]')
     const deleteSave = waitForAutosave(page)
     await deleteButton.click()
     await deleteSave
