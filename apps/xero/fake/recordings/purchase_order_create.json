@@ -1,0 +1,117 @@
+{
+  "recorded_at": "2026-09-14T09:29:27+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.2.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "POST",
+    "path": "/api.xro/2.0/PurchaseOrders",
+    "query": {
+      "summarizeErrors": "False"
+    }
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null,
+    "headers": {
+      "X-DayLimit-Remaining": "174",
+      "X-MinLimit-Remaining": "33"
+    }
+  },
+  "body": {
+    "Id": "8e99b8a4-5815-400e-8f3f-5eb0496f27af",
+    "Status": "OK",
+    "ProviderName": "Docketworks MSM Dev",
+    "DateTimeUTC": "/Date(1789378218098)/",
+    "PurchaseOrders": [
+      {
+        "PurchaseOrderID": "614ac0db-bc80-4396-93a8-841f2db81de6",
+        "PurchaseOrderNumber": "PO-REC-a1a54b7c",
+        "DateString": "2026-09-14T00:00:00",
+        "Date": "/Date(1789344000000+0000)/",
+        "HasErrors": false,
+        "IsDiscounted": false,
+        "TotalDiscount": 0.0,
+        "SentToContact": false,
+        "Type": "PURCHASEORDER",
+        "CurrencyRate": 1.0,
+        "CurrencyCode": "NZD",
+        "Contact": {
+          "ContactID": "50e71b5e-e368-4bda-ba17-044a6c0ec328",
+          "ContactStatus": "ACTIVE",
+          "Name": "[TEST] Recording a1a54b7c B",
+          "EmailAddress": "EmailAddress-scrubbed",
+          "BankAccountDetails": "",
+          "Addresses": [],
+          "Phones": [
+            {
+              "PhoneType": "DEFAULT",
+              "PhoneNumber": "PhoneNumber-scrubbed",
+              "PhoneAreaCode": "",
+              "PhoneCountryCode": ""
+            }
+          ],
+          "UpdatedDateUTC": "/Date(1789421409457+0000)/",
+          "ContactGroups": [],
+          "IsSupplier": false,
+          "IsCustomer": false,
+          "DefaultCurrency": "NZD",
+          "SalesTrackingCategories": [],
+          "PurchasesTrackingCategories": [],
+          "ContactPersons": [],
+          "HasValidationErrors": false
+        },
+        "Status": "SUBMITTED",
+        "LineAmountTypes": "Exclusive",
+        "LineItems": [
+          {
+            "Description": "steel",
+            "UnitAmount": 100.0,
+            "TaxType": "INPUT2",
+            "TaxAmount": 15.0,
+            "LineAmount": 100.0,
+            "AccountCode": "300",
+            "Tracking": [],
+            "Quantity": 1.0,
+            "LineItemID": "19154c27-e950-49fb-b26d-912467ed9a47",
+            "AccountID": "573a170b-6792-4cfa-b8ce-6f8fd27f5458"
+          }
+        ],
+        "SubTotal": 100.0,
+        "TotalTax": 15.0,
+        "Total": 115.0,
+        "UpdatedDateUTC": "/Date(1789378218063+0000)/",
+        "StatusAttributeString": "OK"
+      }
+    ]
+  }
+}

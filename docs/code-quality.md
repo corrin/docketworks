@@ -8,29 +8,39 @@ These are not all meant to be zero. They are here so that a change which
 moves one has to show that movement in its diff, rather than a reviewer
 having to notice. Only `passthrough` is pinned at zero.
 
+## Lines of source
+
+Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .scss`), split into the code itself, tests, and generated files (migrations, the generated API client, lock files), beside v1 at `e88dc420` measured by the same rule. v2 replaced v1 as an architectural cleanup, so the code figure is the one that has to keep shrinking; tests and generated files are allowed to grow.
+
+| metric | count |
+|---|---:|
+| code | 116,574 (v1 172,577, -32%) |
+| tests | 79,569 (v1 50,869, +56%) |
+| generated | 51,065 (v1 20,359, +151%) |
+
 ## Suppressions
 
 Every place a checker is told to look away. A bare `noqa` carries no rule code and is forbidden outright (CLAUDE.md); the count is here so that stays true rather than being assumed.
 
 | metric | count |
 |---|---:|
-| type: ignore | 9 |
+| type: ignore | 11 |
 | pragma: no cover | 9 |
 | noqa (no rule code) | 0 |
 | @ts-ignore | 0 |
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 746 |
-| noqa: DJ001 | 174 |
-| noqa: PLC0415 | 150 |
-| noqa: E402 | 111 |
-| noqa: PLR0913 | 52 |
+| TOTAL suppressions | 770 |
+| noqa: DJ001 | 198 |
+| noqa: PLC0415 | 148 |
+| noqa: E402 | 108 |
+| noqa: PLR0913 | 54 |
 | noqa: ARG002 | 38 |
 | noqa: BLE001 | 35 |
 | noqa: ARG001 | 22 |
 | noqa: C901 | 18 |
-| noqa: S603 | 17 |
+| noqa: S603 | 18 |
 | noqa: TRY300 | 9 |
 | noqa: TRY004 | 8 |
 | noqa: DJ008 | 7 |
@@ -43,10 +53,10 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: S106 | 4 |
 | noqa: S311 | 4 |
 | noqa: ARG005 | 3 |
-| noqa: D107 | 3 |
 | noqa: PLW0603 | 3 |
 | noqa: RUF012 | 3 |
 | noqa: S608 | 3 |
+| noqa: D107 | 2 |
 | noqa: DTZ001 | 2 |
 | noqa: F401 | 2 |
 | noqa: N803 | 2 |
@@ -57,6 +67,7 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: B904 | 1 |
 | noqa: C416 | 1 |
 | noqa: DTZ007 | 1 |
+| noqa: DTZ011 | 1 |
 | noqa: F821 | 1 |
 | noqa: PIE804 | 1 |
 | noqa: PLR0915 | 1 |
@@ -71,8 +82,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 228 |
-| in docstrings | 379 |
+| in comments | 230 |
+| in docstrings | 382 |
 
 ## Exception handling
 
@@ -80,11 +91,11 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 438 |
+| try statements | 439 |
 | except handlers | 469 |
-| re-raises or converts | 296 |
-| returns instead | 105 |
-| falls through | 53 |
+| re-raises or converts | 302 |
+| returns instead | 98 |
+| falls through | 54 |
 | continue/break in a loop | 14 |
 | pass (silent) | 1 |
 
@@ -95,7 +106,7 @@ The narrow subset of the above: functions whose ENTIRE body is one single-statem
 | metric | count |
 |---|---:|
 | passthrough | 0 |
-| rethrow | 16 |
+| rethrow | 18 |
 | fallback | 3 |
 
 ## Optional returns
@@ -104,8 +115,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 226 |
-| non-test functions | 2855 |
+| functions returning `X \| None` | 233 |
+| non-test functions | 2938 |
 
 ## Wire contract (response side)
 

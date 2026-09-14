@@ -2,10 +2,10 @@
 
 ``backport_data_backup`` (the production PII scrub — the ONE confidentiality
 transition; ADR 0039's exclusivity rule) pipes ``pg_dump`` into the scratch
-``scrub`` database,
-scrubs in place, re-dumps, and resets the scratch schema.
-``reset_public_schema`` reuses the connection/tool helpers. The process
-plumbing lives here once (ADR 0039).
+``scrub`` database, scrubs in place, re-dumps, and resets the scratch schema.
+``scrub_copy`` loads the same copy for a verification run and empties it after
+(ADR 0064). ``reset_public_schema`` reuses the connection/tool helpers. The
+process plumbing lives here once (ADR 0039).
 """
 
 import shutil
@@ -127,6 +127,36 @@ def reset_scrub_schema(psql: str, scrub_db: DbConnection, env: dict[str, str]) -
             scrub_db.name,
             "-c",
             "DROP SCHEMA public CASCADE; CREATE SCHEMA public;",
+        ],
+        env=env,
+    )
+
+
+def load_live_into_scrub(
+    tools: PgTools, live_db: DbConnection, scrub_db: DbConnection, env: dict[str, str]
+) -> None:
+    """Replace the scrub database's contents with a copy of the live one.
+
+    ``pg_dump`` is piped straight into ``pg_restore`` so raw production data
+    never lands on disk; the live database is only read, and the copy is one
+    consistent snapshot. ``--no-owner --no-privileges`` because the scrub
+    database is owned by the same role either way and a dump carrying grants
+    for roles this cluster lacks would abort the restore.
+    """
+    reset_scrub_schema(tools.psql, scrub_db, env)
+    run_pipe(
+        [tools.pg_dump, "-Fc", "-h", live_db.host, "-U", live_db.user, "-d", live_db.name],
+        [
+            tools.pg_restore,
+            "--no-owner",
+            "--no-privileges",
+            "--exit-on-error",
+            "-h",
+            scrub_db.host,
+            "-U",
+            scrub_db.user,
+            "-d",
+            scrub_db.name,
         ],
         env=env,
     )

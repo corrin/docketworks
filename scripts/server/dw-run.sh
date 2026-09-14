@@ -2,7 +2,9 @@
 set -euo pipefail
 
 # Run a command as an instance user with the app release venv and instance
-# .env loaded.
+# .env loaded. DW_ENV_FILE substitutes another env file for the instance's
+# own: verify-instance.sh --e2e runs the suite under the env its units carry
+# for the window (ADR 0064).
 #
 # Usage: dw-run <instance> <command> [args...]
 # Examples:
@@ -26,6 +28,7 @@ INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
 # DW_APP_DIR lets deploy.sh run the TARGET release before the instance symlink
 # is switched; every other caller wants the release the instance is running.
 APP_DIR="${DW_APP_DIR:-$INSTANCE_DIR/app}"
+ENV_FILE="${DW_ENV_FILE:-$INSTANCE_DIR/.env}"
 INSTANCE_USER="$(instance_user "$INSTANCE")"
 
 if [[ ! -d "$INSTANCE_DIR" ]]; then
@@ -33,8 +36,8 @@ if [[ ! -d "$INSTANCE_DIR" ]]; then
     exit 1
 fi
 
-if [[ ! -f "$INSTANCE_DIR/.env" ]]; then
-    echo "ERROR: No .env file found at $INSTANCE_DIR/.env" >&2
+if [[ ! -f "$ENV_FILE" ]]; then
+    echo "ERROR: No env file found at $ENV_FILE" >&2
     exit 1
 fi
 
@@ -58,7 +61,7 @@ fi
 CMD="set -euo pipefail
 source '$APP_DIR/.venv/bin/activate'
 set -a
-source '$INSTANCE_DIR/.env'
+source '$ENV_FILE'
 set +a
 export PYTHONDONTWRITEBYTECODE=1
 cd '$APP_DIR'

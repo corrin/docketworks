@@ -1,10 +1,8 @@
-import { spawnSync } from 'child_process'
-import path from 'path'
-import { fileURLToPath } from 'url'
 import { z } from 'zod'
 
 import { test, expect } from '../fixtures/auth'
 import { autoId, createTestJob, tracedStep, getJobIdFromUrl } from '../helpers'
+import { runManagePy } from '../../scripts/db-backup-utils'
 
 /**
  * Office staff link an imported phone-provider call to a job from the CRM
@@ -26,10 +24,6 @@ import { autoId, createTestJob, tracedStep, getJobIdFromUrl } from '../helpers'
  * below cannot pass vacuously on a page whose calls have no recordings.
  */
 
-const specDir = path.dirname(fileURLToPath(import.meta.url))
-const repoRoot = path.resolve(specDir, '../../../..')
-const managePy = path.join(repoRoot, 'manage.py')
-
 const seededCallSchema = z.object({
   call_id: z.uuid(),
   recording_id: z.uuid(),
@@ -48,32 +42,11 @@ type SeededCall = z.infer<typeof seededCallSchema>
  * and `e2e_cleanup` removes it by its `[TEST]` description.
  */
 function seedPhoneCallForJob(jobId: string): SeededCall {
-  // `uv run`, not bare `python`: the backend venv is uv-managed and nothing
-  // guarantees an activated interpreter in the npm test environment.
-  const result = spawnSync(
-    'uv',
-    ['run', 'python', managePy, 'e2e_seed_phone_call', '--job', jobId, '--busy-attempts', '2'],
-    {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      timeout: 120_000,
-    },
-  )
-
-  if (result.error) {
-    throw new Error(
-      `Phone-call seed could not run: ${result.error.message}\n${result.stderr}\n${result.stdout}`,
-    )
-  }
-  if (result.status !== 0) {
-    throw new Error(
-      `Phone-call seed failed with exit code ${result.status}:\n${result.stderr}\n${result.stdout}`,
-    )
-  }
+  const stdout = runManagePy(['e2e_seed_phone_call', '--job', jobId, '--busy-attempts', '2'])
 
   // The command's contract is a single JSON line, but the last non-empty line
   // is taken so stray startup logging can never break the parse.
-  const finalOutputLine = result.stdout
+  const finalOutputLine = stdout
     .split(/\r?\n/)
     .map((line) => line.trim())
     .findLast((line) => line.length > 0)

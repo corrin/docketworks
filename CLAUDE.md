@@ -49,7 +49,8 @@ weaken a gate, never baseline one.
 ## Done
 
 - Done means the E2E spec passes. Report progress as specs green, never as endpoints or
-  components written. Nothing releases without the suite green.
+  components written. Nothing releases without the suite green. UAT verification and PVT are
+  `scripts/server/verify-instance.sh --e2e` green on the instance (ADR 0064).
 - Commit each verified slice as soon as it is complete, staging explicit paths; push only when
   asked. A green unit run is a commit boundary. A generated artifact carrying another
   workstream's changes is partial-staged, or the overlap is reported before committing.

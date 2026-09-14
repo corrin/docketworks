@@ -27,6 +27,14 @@ describe('xeroPreflightIssues under the fake Xero (ADR 0060)', () => {
     expect(issue).toContain('xero_fake')
   })
 
+  it('lets the fake answer for a production app, and refuses a real production app', () => {
+    const production = { ...connected, productionClient: true }
+    expect(xeroPreflightIssues({ ...production, xeroFake: true }, true)).toEqual([])
+    const [issue] = xeroPreflightIssues(production, false)
+    expect(issue).toContain('production Xero app with writes enabled')
+    expect(issue).not.toContain('XERO_READONLY')
+  })
+
   it('reads the mode run_e2e.sh exports, and nothing else counts as fake', () => {
     expect(harnessExpectsFake({ XERO_FAKE: 'true' })).toBe(true)
     expect(harnessExpectsFake({ XERO_FAKE: 'false' })).toBe(false)

@@ -1013,7 +1013,7 @@
     commit 971e803.)
 
 - operation: (restore tooling — scripts/ops)
-  change: "Restore checks exit non-zero on failure (check_jobfiles counts, sync failures) and fix_test_company refuses an unset CompanyDefaults.test_company_name (v1: informational exit 0, and proceeded against a None name)"
+  change: "Restore checks exit non-zero on failure (check_jobfiles counts, sync failures) and e2e_ensure_fixtures sets an unset CompanyDefaults.test_company_name before creating the company (v1's fix_test_company: informational exit 0, and proceeded against a None name)"
   reason: >
     The restore-prod-to-nonprod runbook's check loop gates on exit codes;
     informational-only checks taught operators to read past red. The

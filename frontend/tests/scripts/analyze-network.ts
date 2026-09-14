@@ -12,6 +12,8 @@
  */
 
 import * as fs from 'fs'
+import * as path from 'path'
+import { runStateDir } from './history-sources'
 import { parseCsvLine, parseRows } from './csv'
 
 interface NetworkRow {
@@ -110,7 +112,7 @@ function formatKB(kb: number): string {
 
 // Main
 const args = process.argv.slice(2)
-const inputFile = args[0] || 'test-results/network-aggregate.csv'
+const inputFile = args[0] || path.join(runStateDir(), 'test-results', 'network-aggregate.csv')
 
 if (!fs.existsSync(inputFile)) {
   console.error(`File not found: ${inputFile}`)

@@ -17,11 +17,13 @@ export type DbConfig = {
 }
 
 function resolveBackendEnvPath(frontendDir: string): string {
-  const backendEnvPath = path.join(frontendDir, '..', '.env')
+  // DOCKETWORKS_ENV_FILE: a server points the harness at the env its units
+  // run under (ADR 0064); a workstation keeps the repo-root .env.
+  const backendEnvPath = process.env.DOCKETWORKS_ENV_FILE ?? path.join(frontendDir, '..', '.env')
   if (!fs.existsSync(backendEnvPath)) {
     throw new Error(
-      `Backend .env not found at ${backendEnvPath}. ` +
-        'Expected at repo root (one level up from frontend/).',
+      `Backend env file not found at ${backendEnvPath}. ` +
+        'Expected at the repo root (one level up from frontend/), or where DOCKETWORKS_ENV_FILE points.',
     )
   }
   return backendEnvPath
@@ -32,9 +34,13 @@ export function getFrontendDir(): string {
 }
 
 export function getBackupsDir(): string {
+  // Under E2E_STATE_DIR when a server sets it (ADR 0064); else
   // <repoRoot>/restore/e2e — kept outside frontend/ so tooling that walks the
   // frontend tree (bundlers, test collectors) never meets 400+ MB SQL dumps.
-  return path.join(scriptDir, '..', '..', '..', 'restore', 'e2e')
+  const stateDir = process.env.E2E_STATE_DIR
+  return stateDir === undefined
+    ? path.join(scriptDir, '..', '..', '..', 'restore', 'e2e')
+    : path.join(stateDir, 'restore')
 }
 
 /** Prefix used for all test-created data. Safety checks only look for this. */
@@ -141,23 +147,38 @@ export function runPgDump(dbConfig: DbConfig, outFile: string): void {
 }
 
 /**
+ * Run a management command with the repository interpreter and return its stdout.
+ *
+ * The one spawn for every caller — sync_sequences, e2e_cleanup, the specs that
+ * seed through a command. `.venv/bin/python` directly rather than `uv run`:
+ * agent shells can run a snap-packaged `uv` without a user systemd session,
+ * where `uv run` fails before Python starts, and a server's release is
+ * immutable, where `uv run` would try to sync it. Throws, with stderr, on
+ * any failure.
+ */
+export function runManagePy(args: string[], timeoutMs = 120_000): string {
+  const backendDir = path.resolve(getFrontendDir(), '..')
+  const result = spawnSync(
+    path.join(backendDir, '.venv', 'bin', 'python'),
+    ['manage.py', ...args],
+    {
+      cwd: backendDir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: timeoutMs,
+    },
+  )
+  assertSpawnSucceeded(`manage.py ${args[0]}`, result)
+  return result.stdout
+}
+
+/**
  * Sync all PostgreSQL sequences to match actual table data.
  * Uses the sync_sequences management command (apps/core) which discovers all
  * apps automatically and handles both serial and identity columns.
  */
 export function syncSequences(): void {
-  const frontendDir = getFrontendDir()
-  const backendDir = path.resolve(frontendDir, '..')
-
-  // Use the repository interpreter directly. Agent shells can run a snap-packaged
-  // `uv` without a user systemd session, where `uv run` fails before Python starts.
-  const python = path.join(backendDir, '.venv', 'bin', 'python')
-  const result = spawnSync(python, ['manage.py', 'sync_sequences'], {
-    cwd: backendDir,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    timeout: 120_000,
-  })
-  assertSpawnSucceeded('sync_sequences', result)
+  runManagePy(['sync_sequences'])
 }
 
 export type IntegrityCheckResult = {

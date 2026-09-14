@@ -3,13 +3,14 @@ import { expect, test } from '@playwright/test'
 import { appendFileSync, existsSync, mkdirSync } from 'fs'
 import path from 'path'
 import { isRecord } from './fixtures/api'
+import { runStateDir } from '../scripts/history-sources'
 
 /** The live-Xero-linked seed company every UI-seeded spec searches for. */
 export const TEST_COMPANY_NAME = 'ABC Carpet Cleaning TEST IGNORE'
 
 let networkRunId: string | null = null
 let networkRunDate: string | null = null
-const networkCsvPath = path.join(process.cwd(), 'test-results', 'network-aggregate.csv')
+const networkCsvPath = path.join(runStateDir(), 'test-results', 'network-aggregate.csv')
 
 // 100KB is generous: a 192KB JSON response compresses to ~60-80KB via gzip
 const DEFAULT_MAX_RESPONSE_KB = 100

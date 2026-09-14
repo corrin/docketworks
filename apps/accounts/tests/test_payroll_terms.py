@@ -146,3 +146,14 @@ class TestWorkingPatternCompleteness:
 
         assert average_weekly_hours(term) == Decimal("40")
         assert contracted_hours_on(salaried, date(2026, 8, 22)) == Decimal("0")  # a Saturday
+
+
+class TestEmptyWorkingPattern:
+    def test_a_term_without_a_pattern_is_valid_as_stored(self, salaried: Staff) -> None:
+        # The Xero sync stores [] when the employee has no working pattern and
+        # the costing reader refuses it by name; the restore validator sweeps
+        # full_clean() over every row, so the model must agree the row is valid.
+        term = _term(salaried, [])
+        term.full_clean(exclude=["staff"])
+        with pytest.raises(ValidationError, match="working pattern is not configured"):
+            contracted_hours_on(salaried, WORK_DATE)

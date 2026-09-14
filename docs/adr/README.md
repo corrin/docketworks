@@ -70,7 +70,8 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0057](0057-line-identity-and-creation-order.md) | Persisted lines keep permanent ids and a server-defined creation order |
 | [0058](0058-write-refusals-live-in-the-application.md) | Code that looks short and simple runs short and simple: a write refusal lives in one application function, never in a trigger |
 | [0059](0059-one-data-model-legacy-data-is-migrated.md) | The app supports one data model; legacy data is migrated to comply |
-| [0060](0060-an-iteration-run-may-fake-an-integration.md) | An iteration run may point the unmodified app at a simulated integration; the gate never does |
+| [0060](0060-an-iteration-run-may-fake-an-integration.md) | The fake Xero is a drop-in replacement for Xero's API, proven against Xero by recordings |
 | [0061](0061-checking-is-not-doing.md) | Checking is not doing: one owner per action, one check at the boundary that matters |
 | [0062](0062-ai-provider-selection-and-administration.md) | A caller selects an AI provider from the configured catalogue, and Admin → Integrations owns the catalogue |
 | [0063](0063-test-suite-conventions.md) | Every test starts from a provisioned instance and asserts over what it created; E2E drives the UI by automation id |
+| [0064](0064-an-instance-is-verified-on-a-copy-of-its-database.md) | A deployed instance is verified by the E2E suite on a copy of its database, against the fake Xero, with users fenced out |

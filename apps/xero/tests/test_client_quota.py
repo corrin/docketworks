@@ -5,11 +5,15 @@ they would burn API calls reserved for interactive work. False positives stop
 useful sync; false negatives burn the quota a user needs to send an invoice.
 """
 
+import json
+import logging
 import time
 from unittest.mock import MagicMock, patch
 
 import pytest
+from urllib3 import HTTPResponse
 from xero_python.exceptions import ApiException
+from xero_python.rest import RESTResponse
 
 from apps.platform.observability.models import VendorCall
 from apps.xero.client import RateLimitedRESTClient, quota_floor_breached
@@ -183,3 +187,71 @@ class TestPacedRequestRecording:
             self._client()._paced_request("GET", "https://api.xero.com/api.xro/2.0/Invoices")
 
         assert [row.status_code for row in VendorCall.objects.order_by("occurred_at")] == [429, 200]
+
+
+@pytest.mark.django_db
+class TestWireLog:
+    """Every accounting and payroll call leaves its request and response on one line."""
+
+    def _client(self) -> RateLimitedRESTClient:
+        return TestPacedRequestRecording()._client()
+
+    def test_a_response_is_logged_verbatim_with_its_request(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        response = MagicMock(spec=RESTResponse)
+        response.status = 200
+        response.getheaders.return_value = {}
+        response.data = b'{"Invoices": [{"InvoiceID": "abc", "Total": 12.5}]}'
+        with (
+            caplog.at_level(logging.DEBUG, logger="apps.xero.wire"),
+            patch("apps.xero.client.RESTClientObject.request", return_value=response),
+        ):
+            self._client()._paced_request(
+                "PUT",
+                "https://api.xero.com/api.xro/2.0/Invoices",
+                query_params=[("summarizeErrors", "false")],
+                body={"Invoices": [{"Type": "ACCREC"}]},
+            )
+
+        [line] = [r.message for r in caplog.records if r.name == "apps.xero.wire"]
+        wire = json.loads(line.removeprefix("XERO_WIRE "))
+        assert wire["method"] == "PUT"
+        assert wire["status"] == 200
+        assert wire["request"] == {"Invoices": [{"Type": "ACCREC"}]}
+        assert wire["response"] == {"Invoices": [{"InvoiceID": "abc", "Total": 12.5}]}
+
+    def test_a_refusal_is_logged_with_the_body_xero_sent(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        http_resp = MagicMock()
+        http_resp.getheaders.return_value = {}
+        http_resp.data = b'{"Type": "ValidationException"}'
+        refusal = ApiException(status=400, http_resp=http_resp)
+        with (
+            caplog.at_level(logging.DEBUG, logger="apps.xero.wire"),
+            patch("apps.xero.client.RESTClientObject.request", side_effect=refusal),
+            pytest.raises(ApiException),
+        ):
+            self._client()._paced_request("POST", "https://api.xero.com/api.xro/2.0/Contacts")
+
+        [line] = [r.message for r in caplog.records if r.name == "apps.xero.wire"]
+        wire = json.loads(line.removeprefix("XERO_WIRE "))
+        assert wire["status"] == 400
+        assert wire["response"] == {"Type": "ValidationException"}
+
+    def test_the_token_endpoint_is_never_logged(self, caplog: pytest.LogCaptureFixture) -> None:
+        # _preload_content=False hands back a raw urllib3 response, the token
+        # refresh's shape; its body is a credential and stays out of every log.
+        response = MagicMock(spec=HTTPResponse)
+        response.status = 200
+        response.headers = {}
+        with (
+            caplog.at_level(logging.DEBUG, logger="apps.xero.wire"),
+            patch("apps.xero.client.RESTClientObject.request", return_value=response),
+        ):
+            self._client()._paced_request(
+                "POST", "https://identity.xero.com/connect/token", _preload_content=False
+            )
+
+        assert not [r for r in caplog.records if r.name == "apps.xero.wire"]

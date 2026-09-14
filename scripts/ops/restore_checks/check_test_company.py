@@ -21,7 +21,7 @@ def main() -> int:
     if not company:
         print(
             f"ERROR: Test company {defaults.test_company_name!r} not found — "
-            "run scripts/ops/fix_test_company.py first"
+            "run manage.py e2e_ensure_fixtures first"
         )
         return 1
 

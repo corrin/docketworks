@@ -131,6 +131,32 @@ _ACCOUNTING_ROUTES: dict[str, Callable[[AccountingApi], BaseModel]] = {
     "quote": lambda api: api.get_quote(TENANT, "any"),
     "purchase_orders_page": lambda api: api.get_purchase_orders(TENANT, page=1),
     "purchase_order": lambda api: api.get_purchase_order(TENANT, "any"),
+    # The writes and transitions: each answer is the resource's own listing shape.
+    "contact_create": lambda api: api.get_contacts(TENANT),
+    "contact_update": lambda api: api.get_contacts(TENANT),
+    "contacts_by_name_other_case": lambda api: api.get_contacts(TENANT),
+    "contact_archive_with_documents": lambda api: api.get_contacts(TENANT),
+    "contact_archive": lambda api: api.get_contacts(TENANT),
+    "contact_archive_archived": lambda api: api.get_contacts(TENANT),
+    "invoice_create": lambda api: api.get_invoices(TENANT),
+    "invoice_delete_authorised": lambda api: api.get_invoices(TENANT),
+    "invoice_void": lambda api: api.get_invoices(TENANT),
+    "invoice_history_create": lambda api: api.get_invoice_history(TENANT, "any"),
+    # The SDK has the method; its stub does not.
+    "invoice_attachment_create": lambda api: api.get_invoice_attachments(TENANT, "any"),  # type: ignore[attr-defined]
+    "quote_create": lambda api: api.get_quotes(TENANT),
+    "quote_send": lambda api: api.get_quotes(TENANT),
+    "quote_accept": lambda api: api.get_quotes(TENANT),
+    "quote_delete_accepted": lambda api: api.get_quotes(TENANT),
+    "quote_delete": lambda api: api.get_quotes(TENANT),
+    "purchase_order_create": lambda api: api.get_purchase_orders(TENANT),
+    "purchase_order_update": lambda api: api.get_purchase_orders(TENANT),
+    "purchase_order_delete": lambda api: api.get_purchase_orders(TENANT),
+    "purchase_order_delete_keeping_number": lambda api: api.get_purchase_orders(TENANT),
+    "purchase_order_number_held_by_deleted": lambda api: api.get_purchase_orders(TENANT),
+    "purchase_order_delete_billed": lambda api: api.get_purchase_orders(TENANT),
+    "item_create": lambda api: api.get_items(TENANT),
+    "item_update": lambda api: api.get_items(TENANT),
 }
 _PAYROLL_ROUTES: dict[str, Callable[[PayrollNzApi], BaseModel]] = {
     "employees_page": lambda api: api.get_employees(TENANT, page=1),
@@ -141,6 +167,7 @@ _PAYROLL_ROUTES: dict[str, Callable[[PayrollNzApi], BaseModel]] = {
     "leave_types": lambda api: api.get_leave_types(TENANT),
     "earnings_rates": lambda api: api.get_earnings_rates(TENANT),
     "pay_runs": lambda api: api.get_pay_runs(TENANT),
+    "pay_run_calendars": lambda api: api.get_pay_run_calendars(TENANT),
     "pay_slips": lambda api: api.get_pay_slips(TENANT, "any"),
 }
 
@@ -185,9 +212,17 @@ def test_payroll_recordings_round_trip(name: str) -> None:
 
 def test_every_json_recording_has_a_round_trip_or_a_reason() -> None:
     # A recording nobody round-trips is a shape the fake could serve wrong.
-    # These three carry no model: a 404 is text/html, the past-the-end 400 is
-    # raised by the SDK before deserialising, and a PDF is bytes.
-    unmodelled = {"invoice_not_found", "employees_past_end", "quote_pdf"}
+    # These carry no model: a 404 is text/html, the past-the-end 400 is
+    # raised by the SDK before deserialising, a PDF is bytes, and the 429 is
+    # an empty body under four headers.
+    # The duplicate-name refusal is a 400 the SDK raises on before deserialising.
+    unmodelled = {
+        "invoice_not_found",
+        "employees_past_end",
+        "quote_pdf",
+        "rate_limit_minute",
+        "contact_create_duplicate_name",
+    }
     on_disk = {path.stem for path in RECORDINGS_DIR.glob("*.json")}
     assert on_disk == set(_ACCOUNTING_ROUTES) | set(_PAYROLL_ROUTES) | unmodelled
 

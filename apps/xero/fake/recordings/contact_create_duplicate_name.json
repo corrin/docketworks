@@ -1,0 +1,77 @@
+{
+  "recorded_at": "2026-09-14T09:29:27+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.2.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "PUT",
+    "path": "/api.xro/2.0/Contacts",
+    "query": {}
+  },
+  "response": {
+    "status": 400,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null,
+    "headers": {
+      "X-DayLimit-Remaining": "190",
+      "X-MinLimit-Remaining": "49"
+    }
+  },
+  "body": {
+    "ErrorNumber": 10,
+    "Type": "ValidationException",
+    "Message": "A validation exception occurred",
+    "Elements": [
+      {
+        "ContactID": "00000000-0000-0000-0000-000000000000",
+        "Name": "[TEST] Recording a1a54b7c",
+        "EmailAddress": "EmailAddress-scrubbed",
+        "Addresses": [],
+        "Phones": [
+          {
+            "PhoneType": "DEFAULT",
+            "PhoneNumber": "PhoneNumber-scrubbed",
+            "ValidationErrors": []
+          }
+        ],
+        "ContactGroups": [],
+        "IsCustomer": true,
+        "ContactPersons": [],
+        "HasValidationErrors": true,
+        "ValidationErrors": [
+          {
+            "Message": "The contact name [TEST] Recording a1a54b7c is already assigned to another contact. The contact name must be unique across all active contacts."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -107,6 +107,9 @@ dedicated app; where it says to create one, a shared app is the substitute.
      (e.g. `https://docketworks-dave.ngrok-free.app/api/xero/oauth/callback/`). This URL is
      exact-parity: Xero holds it, and it must match the `redirect_uri` stored on the `XeroApp`
      row verbatim.
+     It is the instance's canonical FQDN, never an alias (`docs/server_setup.md`): a connect
+     started on an alias still returns through this one URI, and the callback sends the
+     browser back to the hostname it started on.
 3. Copy the **Client ID** and **Client Secret**.
 4. Under Webhooks, create a subscription. Skip this step entirely if the install is sharing an
    app through the webhook router — the shared app already has a delivery URL, and adding a

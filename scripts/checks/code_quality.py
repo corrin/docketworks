@@ -20,6 +20,8 @@ database measurement that re-running corrected to 26,684 rows.
 import argparse
 import ast
 import re
+import shutil
+import subprocess
 import sys
 import tokenize
 from collections import Counter
@@ -48,6 +50,18 @@ FRONTEND_SUPPRESSIONS = {
     "oxlint-disable": re.compile(r"oxlint-disable"),
 }
 NOQA_RULE = re.compile(r"#\s*noqa:\s*([A-Z]+[0-9]+)")
+
+
+#: Every tracked file with one of these suffixes counts toward the lines figure.
+SOURCE_SUFFIXES = frozenset(
+    {".py", ".ts", ".tsx", ".js", ".jsx", ".vue", ".sh", ".html", ".css", ".scss"}
+)
+#: v1 (`../docketworks_v1`, frozen), measured by `--lines-of ../docketworks_v1`
+#: with the rule below, so the comparison is one rule over two trees. v2's
+#: whole point was an architectural cleanup, and this is where that claim is
+#: checked rather than believed: the code figure has to stay well under v1's.
+V1_COMMIT = "e88dc420"
+V1_LINES = {"code": 172577, "tests": 50869, "generated": 20359}
 
 
 @dataclass
@@ -83,6 +97,74 @@ def _frontend_files() -> Iterator[Path]:
                 if path.name.endswith((".gen.ts", ".gen.tsx")):
                     continue
                 yield path
+
+
+def _line_kind(path: str) -> str:
+    """Whether a tracked source file is generated, a test, or the code itself."""
+    parts = path.split("/")
+    name = parts[-1]
+    if (
+        "migrations" in parts
+        or "generated" in parts
+        or "dist" in parts
+        or name.endswith((".gen.ts", ".gen.tsx", ".lock", "-lock.json"))
+    ):
+        return "generated"
+    if (
+        "tests" in parts
+        or "test" in parts
+        or "e2e" in parts
+        or name == "conftest.py"
+        or name.startswith("test_")
+        or name.endswith((".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx"))
+    ):
+        return "tests"
+    return "code"
+
+
+def count_lines(root: Path) -> dict[str, int]:
+    """Non-blank lines of tracked source under `root`, by kind.
+
+    Tracked (`git ls-files`) rather than walked, so a build output or a
+    virtualenv on disk never counts; non-blank rather than non-comment, because
+    a comment is a line someone has to read and keep true.
+    """
+    git = shutil.which("git")
+    if git is None:
+        raise RuntimeError("git is not on PATH; the lines figure is counted over tracked files")
+    listing = subprocess.run(  # noqa: S603 -- fixed argv; root is a path the caller chose
+        [git, "-C", str(root), "ls-files"], check=True, capture_output=True, text=True
+    )
+    totals = {"code": 0, "tests": 0, "generated": 0}
+    for relative in listing.stdout.splitlines():
+        path = root / relative
+        if path.suffix not in SOURCE_SUFFIXES or not path.is_file():
+            continue
+        text = path.read_text(errors="replace")
+        totals[_line_kind(relative)] += sum(1 for line in text.splitlines() if line.strip())
+    return totals
+
+
+def measure_lines() -> Section:
+    """Lines of source by kind, against the v1 baseline."""
+    totals = count_lines(REPO_ROOT)
+    rows: list[tuple[str, int | str]] = []
+    for kind in ("code", "tests", "generated"):
+        now, before = totals[kind], V1_LINES[kind]
+        change = (now - before) / before
+        rows.append((kind, f"{now:,} (v1 {before:,}, {change:+.0%})"))
+    return Section(
+        title="Lines of source",
+        note=(
+            "Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html "
+            ".css .scss`), split into the code itself, tests, and generated files "
+            "(migrations, the generated API client, lock files), beside v1 at "
+            f"`{V1_COMMIT}` measured by the same rule. v2 replaced v1 as an "
+            "architectural cleanup, so the code figure is the one that has to keep "
+            "shrinking; tests and generated files are allowed to grow."
+        ),
+        rows=rows,
+    )
 
 
 def measure_suppressions() -> Section:
@@ -512,10 +594,22 @@ def main() -> int:
         action="store_true",
         help="exit non-zero when the committed file is out of date, writing nothing",
     )
+    parser.add_argument(
+        "--lines-of",
+        type=Path,
+        metavar="REPO",
+        help="print the lines-of-source counts for another checkout (how V1_LINES was measured)",
+    )
     args = parser.parse_args()
+
+    if args.lines_of is not None:
+        for kind, total in count_lines(args.lines_of).items():
+            print(f"{kind:10} {total:8,}")
+        return 0
 
     handling, shape, returns = measure_code_shape()
     sections = [
+        measure_lines(),
         measure_suppressions(),
         measure_version_mentions(),
         handling,

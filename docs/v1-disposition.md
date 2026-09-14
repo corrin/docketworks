@@ -59,7 +59,7 @@ Instances created before the scrub database existed gain it with one
 | `find_duplicates.py` | ported | `scripts/checks/find_duplicates.py`, wired as a pre-commit hook. |
 | `find_late_imports.py` | ported | Ruff `PLC0415` (import outside top level), which v2 suppresses individually where a cycle makes a late import correct. |
 | `find_wrapper_candidates.py` | dropped | Found short functions with few callers to drive a wrapper-deletion campaign against v1's accumulated indirection. v2's standing equivalents are the find-duplicates hook and the generated `docs/code-quality.md` metrics. |
-| `fix_test_company.py` | ported | `scripts/ops/fix_test_company.py` |
+| `fix_test_company.py` | ported | `apps/diagnostics/management/commands/e2e_ensure_fixtures.py` (with the E2E user) |
 | `fix_welding_stock_cost.py` | dropped | One-shot repair of a single stock item's unit cost, already applied to production data. |
 | `generate_url_docs.py` | dropped | Generated per-app Markdown URL listings. v2's route inventory is the exported OpenAPI schema, regenerated and gated by `scripts/checks/export_openapi.py`. |
 | `geocode_addresses.py` | ported | `scripts/ops/geocode_addresses.py` — the backfill sweep over rows that predate on-write geocoding (`apps/company/services/geocoding_service.py`). |

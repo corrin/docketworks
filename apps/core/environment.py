@@ -103,28 +103,25 @@ def required_flag(name: str) -> bool:
     return raw == "true"
 
 
-def validate_xero_fake_flag(*, fake: bool, readonly: bool, debug: bool) -> None:
-    """Refuse the combinations under which the fake Xero must not exist (ADR 0060).
+def validate_xero_fake_flag(*, fake: bool, readonly: bool) -> None:
+    """Refuse the combination under which the fake Xero must not exist (ADR 0060).
 
     The fake answers every Xero call from a local table, so a process running
     it against real users would mint ids Xero has never issued straight into
-    the mirror. ``DEBUG`` is the signal a development stack carries and a
-    server never does; the database-name and tenant refusals are made where
-    the fake is installed, because they need the database, and settings load
-    before it exists.
+    the mirror. Whether a process serves real users is answered by the
+    database name — the one signal a run cannot spoof (ADR 0048) — and that
+    refusal is made where the fake is installed, because settings load before
+    the database exists. ``DEBUG`` was the earlier proxy and was dropped: a
+    server verifies its release with the fake on a copy of its database
+    (ADR 0064) and never carries ``DEBUG``.
 
     ``XERO_READONLY`` is the valve for a local process pointed at production
-    (ADR 0050); the fake is for a development stack that must reach no Xero at
-    all. Both set is not "extra safe", it is two contradictory answers to
-    "where does a Xero call go", and the operator has to say which they meant.
+    (ADR 0050); the fake reaches no Xero at all. Both set is not "extra safe",
+    it is two contradictory answers to "where does a Xero call go", and the
+    operator has to say which they meant.
     """
     if not fake:
         return
-    if not debug:
-        raise ValueError(
-            "XERO_FAKE=true is refused outside DEBUG: the fake Xero exists for a "
-            "development E2E stack and must never serve real users (ADR 0060)."
-        )
     if readonly:
         raise ValueError(
             "XERO_FAKE=true and XERO_READONLY=true contradict each other: the "

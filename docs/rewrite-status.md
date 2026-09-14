@@ -41,11 +41,11 @@ does not have.
 | E2E specs ported | **57 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 266 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3325 collected |
+| Unit tests | 3404 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 134 recorded deviations |
-| ADRs | 46 (v1's 23 carried forward + 0038–0041, 0043, 0046–0063 written here) |
+| ADRs | 47 (v1's 23 carried forward + 0038–0041, 0043, 0046–0064 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints
 written measures typing, not delivery. Every slice below authors its own E2E spec and
@@ -622,9 +622,6 @@ never a second stream.
   how far each rename has to reach.
 - Port v1's kanban search-ranking test net (~30 tests); the scoring code is line-identical
   but v2's regression net is 4 tests.
-- **E2E harness: sync-window open/close** (seam comment atop `global-setup.ts`) is unbuilt —
-  only the sync loop consumes it, and kanban waits on its own board. v1's rich login
-  diagnostics are debugging aids, not blockers; port them if a flaky login ever needs them.
 - CRM wire-pin tests (portal login/CDR form fields, `b"200"` strip, `Result == "1"`,
   timeouts) and superuser-gate tests on recording deletes.
 - **The kanban board has no non-drag way to change a job's status on desktop** — the card's
