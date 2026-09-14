@@ -13,7 +13,7 @@ import pytest
 from django.conf import settings as django_settings
 from django.core.management import CommandError, call_command
 from django.http import StreamingHttpResponse
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
@@ -28,7 +28,7 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture(autouse=True)
-def storage_root(settings: SettingsWrapper, tmp_path: Path) -> Path:
+def storage_root(settings: Settings, tmp_path: Path) -> Path:
     settings.PHONE_RECORDING_STORAGE_ROOT = str(tmp_path)
     return tmp_path
 

@@ -57,7 +57,7 @@ class TestXeroPing:
     def test_requires_authentication(self, client: Client) -> None:
         assert client.get(PING_URL).status_code == 401
 
-    @override_settings(XERO_READONLY=True)
+    @override_settings(XERO_READONLY=True, XERO_FAKE=False)
     def test_not_connected_payload_carries_exact_keys(self, api: Client) -> None:
         response = api.get(PING_URL)
 

@@ -132,7 +132,7 @@ def _make_pay_slip(  # noqa: PLR0913 -- a factory: every field is an axis a test
         django_apps.get_model("xero", "XeroPaySlip")._default_manager.create(
             xero_id=uuid.uuid4(),
             xero_tenant_id="tenant-1",
-            pay_run=pay_run,
+            pay_run_id=pay_run.pk,
             xero_employee_id=employee_id if employee_id is not None else uuid.uuid4(),
             employee_name=employee_name,
             gross_earnings=Decimal(gross),

@@ -21,7 +21,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 from apps.core.models import AppError
 from apps.xero.models import XeroPayRun, XeroPaySlip
@@ -35,7 +35,7 @@ CALENDAR_ID = uuid.UUID("66666666-6666-6666-6666-666666666666")
 
 
 @pytest.fixture(autouse=True)
-def _non_production_install(settings: SettingsWrapper) -> None:
+def _non_production_install(settings: Settings) -> None:
     """DEBUG-off is the engine's production signal, and a production install
     aborts every entity when the tenant is not an onboarded one. These tenants
     are fixtures, so the run has to look like a dev install to reach persistence.

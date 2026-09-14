@@ -34,7 +34,7 @@ from io import StringIO
 import pytest
 from django.core.management import call_command
 from django.utils import timezone
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 from xero_python.accounting import AccountingApi, Contact
 
 from apps.accounting.models import Invoice
@@ -84,7 +84,7 @@ def _no_sequence_sync(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def syncing_enabled(settings: SettingsWrapper) -> None:
+def syncing_enabled(settings: Settings) -> None:
     """Let the inbound sync run against the demo tenant.
 
     ``sync.py`` reads DEBUG-off as production and aborts any sync of a

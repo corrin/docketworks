@@ -14,7 +14,7 @@ from datetime import UTC, date, datetime
 import django.apps
 import pytest
 from faker import Faker
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.accounts.models import SYSTEM_AUTOMATION_EMAIL, Staff
@@ -36,7 +36,7 @@ from scripts.ops.verify_scrubbed_backup import PRIVATE_CONFIG_TABLES
 
 
 class TestScrubAliasSafety:
-    def test_refuses_when_no_scrub_alias_is_configured(self, settings: SettingsWrapper) -> None:
+    def test_refuses_when_no_scrub_alias_is_configured(self, settings: Settings) -> None:
         settings.DATABASES = {
             key: value for key, value in settings.DATABASES.items() if key != "scrub"
         }

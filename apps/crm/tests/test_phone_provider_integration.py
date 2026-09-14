@@ -23,7 +23,7 @@ import pytest
 from django.http import StreamingHttpResponse
 from django.test import Client
 from django.utils import timezone
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 from apps.core.environment import assert_not_production_database
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneEndpoint
@@ -52,7 +52,7 @@ def _is_mpeg_audio(head: bytes) -> bool:
 
 
 @pytest.fixture(autouse=True)
-def _guards(integration_credentials: None, settings: SettingsWrapper, tmp_path: Path) -> None:  # noqa: ARG001 -- the credentials fixture is the dependency: it gives the test database the real provider settings
+def _guards(integration_credentials: None, settings: Settings, tmp_path: Path) -> None:  # noqa: ARG001 -- the credentials fixture is the dependency: it gives the test database the real provider settings
     assert_not_production_database("the phone integration test imports calls and recordings.")
     settings.PHONE_RECORDING_STORAGE_ROOT = str(tmp_path)
 

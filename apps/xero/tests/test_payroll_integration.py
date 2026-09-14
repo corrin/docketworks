@@ -19,7 +19,7 @@ from decimal import Decimal
 import pytest
 from django.core.management import call_command
 from django.utils import timezone
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 from apps.accounting.services import payroll_reconciliation_service
 from apps.accounting.types import StaffWeekPosting, StaffWeekPostResult
@@ -64,7 +64,7 @@ def postable_week() -> date:
 
 
 @pytest.fixture
-def payroll_staff(postable_week: date, settings: SettingsWrapper) -> Staff:
+def payroll_staff(postable_week: date, settings: Settings) -> Staff:
     # Fable: Converge employees INBOUND before choosing one. The test database
     # is cloned from the dev database, whose base_wage_rate can lag the rate
     # Xero currently pays — the employee detail refresh is what heals that in
