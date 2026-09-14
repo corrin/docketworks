@@ -300,7 +300,7 @@ whole `CompanyDefaults` row, and this step must hold the gate closed however
 the fixture evolves. The fixture also sets
 `xero_payroll_calendar_name="Weekly Testing"` and
 `test_company_name="ABC Carpet Cleaning TEST IGNORE"` — the values
-`xero --setup` and `fix_test_company.py` later match on.
+`xero --setup` and `e2e_ensure_fixtures` later match on.
 
 The fixture leaves `xero_tenant_id` null, so this database now names no
 organisation at all rather than production's. Any Xero call before the
@@ -355,94 +355,43 @@ NULL 0, rows failing validation 0` and exits zero. Any other totals print
 `Fix the DATA, not the reader (ADR 0015).` and exit 1 — the sweep names the
 model, the count and an example primary key for each failure.
 
-## The E2E user
+## The E2E user and the test company
+
+```bash
+uv run python manage.py e2e_ensure_fixtures
+```
 
 Playwright signs in as the user named in `frontend/.env.test`, and **no
-production dump carries that user** — the address exists only in
-non-production. This step creates it on a first refresh and re-aligns its
-password afterwards, when `setup_dev_logins.py` has just reset every password to
-the staff default and left Playwright's stored one wrong. Either way
-`global-setup.ts` fails at sign-in without it, and a failure there means the
-suite never starts.
+production dump carries that user**; the command reads `E2E_TEST_USERNAME` and
+`E2E_TEST_PASSWORD` from the environment (load `frontend/.env.test` into the
+shell first, e.g. `set -a; source frontend/.env.test; set +a`), creates the user
+on a first refresh and re-aligns the password afterwards, when
+`setup_dev_logins.py` has just reset every password to the staff default. It
+also sets the three properties no production dump carries: office staff (the
+navbar's Create Job link, so the whole job cluster stalls without it),
+superuser (the timesheet management surface answers 403 without it), and a
+costing wage of exactly **45.00**, the value `job-cost-entry-data.spec.ts` pins
+as its environment prerequisite. The base rate is derived from this database's
+labour-cost loading (37.50 at 20%), because the wage is computed on save;
+setting `base_wage_rate = 45.00` was the rejected obvious move: it computes a
+54.00 wage and fails that spec's labour-cost assertion while passing every
+"non-zero" check on the way.
 
-```bash
-uv run python manage.py shell -c "
-import pathlib
-from apps.accounts.models import Staff
-env = dict(
-    line.split('=', 1)
-    for line in pathlib.Path('frontend/.env.test').read_text().splitlines()
-    if '=' in line and not line.lstrip().startswith('#')
-)
-email = env['E2E_TEST_USERNAME']
-user = Staff.objects.filter(office_email=email).first()
-if user is None:
-    user = Staff.objects.create_user(
-        office_email=email, password=env['E2E_TEST_PASSWORD'], first_name='E2E', last_name='Test'
-    )
-else:
-    user.set_password(env['E2E_TEST_PASSWORD'])
-    user.save()
-print(user.office_email, 'password matches .env.test:', user.check_password(env['E2E_TEST_PASSWORD']))
-"
-```
+The same command creates the company named by
+`CompanyDefaults.test_company_name` when it is missing, setting the name first
+if the load left it unset; the Xero seed fails without it.
 
-The other direction — writing `E2E_TEST_PASSWORD=Default-staff-password` into
-`frontend/.env.test` — would re-align an existing user and is rejected: that
-file is tracked, so the edit shows up in `git status` on every refresh and is
-one careless `git commit -a` away from publishing a credential. It also does
-nothing about the user being absent. Reading the value out of the file keeps the
-password off the command line and out of shell history.
-
-**Check:** the printed line ends `password matches .env.test: True`.
-
-Three properties of that user are not carried by any production dump either,
-because production has no reason to hold them. Set them now, with the same
-address:
-
-```bash
-uv run python manage.py shell -c "
-from decimal import Decimal
-from apps.accounts.models import Staff
-user = Staff.objects.get(office_email='<E2E_TEST_USERNAME>')
-user.is_office_staff = True
-user.is_superuser = True
-user.base_wage_rate = Decimal('37.50')
-user.save()
-print(user.office_email, user.is_office_staff, user.is_superuser, user.wage_rate)
-"
-```
-
-`is_office_staff` gates the navbar's Create Job link, so the whole job cluster
-stalls without it. Superuser gates the timesheet management surface, so the
-timesheet cluster answers 403 without it. `wage_rate` is computed on save as
-`base_wage_rate` times one plus the labour cost loading — 20% in the demo
-company defaults, so 37.50 computes to exactly **45.00**, which is the value
-`job-cost-entry-data.spec.ts` pins as its environment prerequisite
-(`E2E_USER_WAGE_RATE`). Setting `base_wage_rate = 45.00` was the rejected
-obvious move: it computes a 54.00 wage and fails that spec's labour-cost
-assertion while passing every "non-zero" check on the way.
-
-**Check:** the printed line shows the E2E user's email, both flags true, and a
-wage rate of exactly `45.00`.
+**Check:** the output shows the E2E user's email with `office staff, superuser,
+wage 45.00`, and `Test company: <name> (ID: …)`.
 
 ## Company fixups
 
 ```bash
-uv run python -m scripts.ops.fix_test_company
 uv run python -m scripts.ops.restore_checks.fix_shop_company
 ```
 
-`fix_test_company.py` creates the company named by
-`CompanyDefaults.test_company_name` when it is missing; the Xero seed fails
-without it. `fix_shop_company.py` restores the shop company's name, which the
+`fix_shop_company.py` restores the shop company's name, which the
 production scrub anonymises.
-
-**Check:** `fix_test_company.py` prints either `Test company already exists:
-<name> (ID: …)` or `Created test company: <name> (ID: …)`. It raises
-`RuntimeError` and exits non-zero when `CompanyDefaults.test_company_name` is
-unset: set that field and re-run rather than creating the company by hand, since
-the seed matches on the same field.
 
 `fix_shop_company.py` rewrites the name unconditionally, so a successful run
 always prints `Updated shop company:` followed by the old and new names, the
