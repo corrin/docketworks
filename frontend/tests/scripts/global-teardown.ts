@@ -10,6 +10,7 @@ import {
   syncSequences,
   type DbConfig,
 } from './db-backup-utils'
+import { runStateDir } from './history-sources'
 import { runE2ECleanup } from './e2e-cleanup'
 import { closeSyncWindow } from './e2e-sync-windows'
 import { assertSpawnSucceeded } from './process-result'
@@ -258,6 +259,12 @@ function restoreDatabase(lockContents: string): void {
   // names the sweep, which finds the same objects by reading the organisation.
   removeThisRunsXeroObjects()
 
+  // The run's vendor calls, before the restore erases them: which routes the
+  // suite reached and what the vendor answered. A real run is the one time
+  // that inventory is in hand (ADR 0050), and it is what a route missing from
+  // the fake Xero is found by (ADR 0060).
+  exportVendorCalls(dbConfig, backupFile)
+
   // Save AFTER the settle and after the Xero cleanup (v1 saved before the
   // settle): both can trigger a refresh, and Xero's refresh token is
   // single-use, so reinjecting a copy taken earlier would strand the next run
@@ -358,6 +365,31 @@ function restoreDatabase(lockContents: string): void {
   fs.rmSync(xeroTokenFile, { force: true })
 
   console.log('[db] Database restored successfully.')
+}
+
+/**
+ * Write this run's vendor calls, grouped by route and status, beside the
+ * test results. "This run" is everything since the pre-run dump was taken;
+ * the dump file's own timestamp is that moment, and the restore that follows
+ * this export erases the rows.
+ */
+function exportVendorCalls(dbConfig: DbConfig, backupFile: string): void {
+  const since = fs.statSync(backupFile).mtime.toISOString()
+  const outFile = path.join(runStateDir(), 'test-results', 'vendor-calls.csv')
+  const rows = runPsql(
+    dbConfig,
+    `SELECT vendor, method, endpoint, status_code, COUNT(*)
+       FROM observability_vendorcall
+      WHERE occurred_at >= '${since}'
+      GROUP BY vendor, method, endpoint, status_code
+      ORDER BY vendor, endpoint, method, status_code`,
+  )
+  fs.mkdirSync(path.dirname(outFile), { recursive: true })
+  fs.writeFileSync(
+    outFile,
+    `vendor,method,endpoint,status_code,calls\n${rows.replaceAll('|', ',')}\n`,
+  )
+  console.log(`[vendor] ${rows ? rows.split('\n').length : 0} route(s) this run -> ${outFile}`)
 }
 
 function removeThisRunsXeroObjects(): void {
