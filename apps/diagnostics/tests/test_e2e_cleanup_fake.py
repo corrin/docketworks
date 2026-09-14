@@ -15,8 +15,8 @@ from xero_python.accounting import AccountingApi
 from apps.company.models import Company
 from apps.diagnostics.services.e2e_xero_residue import XeroResidue, remove_residue_from_xero
 from apps.xero.auth import get_api_client, get_tenant_id
+from apps.xero.fake.models import FakeContact, FakeInvoice
 from apps.xero.fake.seed import seed_contacts
-from apps.xero.fake.store import FakeXeroStore, Kind
 from apps.xero.fake.testing import connected_to_the_fake
 
 pytestmark = pytest.mark.django_db
@@ -24,13 +24,13 @@ TENANT = "22222222-2222-2222-2222-222222222222"
 
 
 @pytest.fixture
-def fake_xero() -> Iterator[FakeXeroStore]:
-    with connected_to_the_fake(TENANT) as store:
-        yield store
+def fake_xero() -> Iterator[str]:
+    with connected_to_the_fake(TENANT) as tenant:
+        yield tenant
 
 
 def test_the_cleanup_deletes_the_document_and_archives_the_contact(
-    fake_xero: FakeXeroStore,
+    fake_xero: str,
 ) -> None:
     company = Company.objects.create(
         name="[TEST] Residue Co",
@@ -68,7 +68,7 @@ def test_the_cleanup_deletes_the_document_and_archives_the_contact(
     )
 
     assert not outcome.refused
-    deleted = fake_xero.get(Kind.INVOICE, invoice_id)
-    archived = fake_xero.get(Kind.CONTACT, company.xero_contact_id)
+    deleted = FakeInvoice.held(fake_xero, invoice_id)
+    archived = FakeContact.held(fake_xero, company.xero_contact_id)
     assert deleted is not None and deleted.status == "DELETED"
     assert archived is not None and archived.status == "ARCHIVED"

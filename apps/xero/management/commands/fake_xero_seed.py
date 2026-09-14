@@ -9,10 +9,8 @@ non-empty store without ``--replace`` and refuses a production database.
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 
 from apps.core.models import CompanyDefaults
-from apps.xero.fake.models import FakeXeroObject
 from apps.xero.fake.rest_client import assert_fake_permitted
-from apps.xero.fake.seed import SeedError, seed_everything
-from apps.xero.fake.store import FakeXeroStore
+from apps.xero.fake.seed import SeedError, empty, held_objects, seed_everything
 
 
 class Command(BaseCommand):
@@ -38,17 +36,15 @@ class Command(BaseCommand):
                 "CompanyDefaults.xero_tenant_id is unset; bind the installation first"
             )
         assert_fake_permitted()
-        existing = FakeXeroObject.objects.filter(tenant_id=tenant_id).count()
+        existing = held_objects(tenant_id)
         if existing and not options["replace"]:
             raise CommandError(
-                f"the fake store already holds {existing} objects for {tenant_id}; "
+                f"the fake already holds {existing} objects for {tenant_id}; "
                 "pass --replace to seed over them"
             )
-        FakeXeroObject.objects.filter(tenant_id=tenant_id).delete()
+        empty(tenant_id)
         try:
-            counts = seed_everything(
-                FakeXeroStore(tenant_id), organisation_name=company.company_name
-            )
+            counts = seed_everything(tenant_id, organisation_name=company.company_name)
         except SeedError as exc:
             raise CommandError(str(exc)) from exc
         for kind, count in counts.items():

@@ -1,0 +1,65 @@
+{
+  "recorded_at": "2026-09-14T09:29:27+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.2.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "PUT",
+    "path": "/api.xro/2.0/Invoices/60aa5d55-a47e-4665-a974-874bb50263b9/Attachments/recording.pdf",
+    "query": {
+      "IncludeOnline": "False"
+    }
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null,
+    "headers": {
+      "X-DayLimit-Remaining": "185",
+      "X-MinLimit-Remaining": "44"
+    }
+  },
+  "body": {
+    "Id": "83f4fa7e-d007-4d14-866d-461d7fd6fec3",
+    "Status": "OK",
+    "ProviderName": "Docketworks MSM Dev",
+    "DateTimeUTC": "/Date(1789378202133)/",
+    "Attachments": [
+      {
+        "AttachmentID": "d5f390d8-4344-4fab-b5c4-17157039b721",
+        "FileName": "recording.pdf",
+        "Url": "https://api.xero.com/api.xro/2.0/Invoices/60aa5d55-a47e-4665-a974-874bb50263b9/Attachments/recording.pdf",
+        "MimeType": "application/pdf",
+        "ContentLength": 18
+      }
+    ]
+  }
+}

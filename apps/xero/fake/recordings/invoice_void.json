@@ -1,0 +1,159 @@
+{
+  "recorded_at": "2026-09-14T09:29:27+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.2.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "POST",
+    "path": "/api.xro/2.0/Invoices",
+    "query": {
+      "summarizeErrors": "False"
+    }
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null,
+    "headers": {
+      "X-DayLimit-Remaining": "183",
+      "X-MinLimit-Remaining": "42"
+    }
+  },
+  "body": {
+    "Id": "d0ac0463-d733-4dfe-9c2a-71a2988723e0",
+    "Status": "OK",
+    "ProviderName": "Docketworks MSM Dev",
+    "DateTimeUTC": "/Date(1789378205138)/",
+    "Invoices": [
+      {
+        "Type": "ACCREC",
+        "InvoiceID": "60aa5d55-a47e-4665-a974-874bb50263b9",
+        "InvoiceNumber": "INV-0055",
+        "Reference": "recording",
+        "Prepayments": [],
+        "Overpayments": [],
+        "AmountDue": 24.15,
+        "AmountPaid": 0.0,
+        "SentToContact": false,
+        "CurrencyRate": 1.0,
+        "IsDiscounted": false,
+        "HasErrors": false,
+        "InvoicePaymentServices": [],
+        "UpdatedDateUTCString": "2026-09-14T09:30:05Z",
+        "Contact": {
+          "ContactID": "2f79af6c-5f57-49e8-9e44-301499538add",
+          "ContactStatus": "ACTIVE",
+          "Name": "[TEST] Recording a1a54b7c",
+          "EmailAddress": "EmailAddress-scrubbed",
+          "BankAccountDetails": "",
+          "Addresses": [
+            {
+              "AddressType": "STREET",
+              "City": "",
+              "Region": "",
+              "PostalCode": "",
+              "Country": ""
+            },
+            {
+              "AddressType": "POBOX",
+              "City": "",
+              "Region": "",
+              "PostalCode": "",
+              "Country": ""
+            }
+          ],
+          "Phones": [
+            {
+              "PhoneType": "DEFAULT",
+              "PhoneNumber": "PhoneNumber-scrubbed",
+              "PhoneAreaCode": "",
+              "PhoneCountryCode": ""
+            },
+            {
+              "PhoneType": "DDI",
+              "PhoneNumber": "",
+              "PhoneAreaCode": "",
+              "PhoneCountryCode": ""
+            },
+            {
+              "PhoneType": "FAX",
+              "PhoneNumber": "",
+              "PhoneAreaCode": "",
+              "PhoneCountryCode": ""
+            },
+            {
+              "PhoneType": "MOBILE",
+              "PhoneNumber": "",
+              "PhoneAreaCode": "",
+              "PhoneCountryCode": ""
+            }
+          ],
+          "UpdatedDateUTC": "/Date(1789378196227+0000)/",
+          "ContactGroups": [],
+          "IsSupplier": false,
+          "IsCustomer": true,
+          "SalesTrackingCategories": [],
+          "PurchasesTrackingCategories": [],
+          "ContactPersons": [],
+          "HasValidationErrors": false
+        },
+        "DateString": "2026-09-14T00:00:00",
+        "Date": "/Date(1789344000000+0000)/",
+        "DueDateString": "2026-09-14T00:00:00",
+        "DueDate": "/Date(1789344000000+0000)/",
+        "BrandingThemeID": "7889a0ac-262a-40e3-8a63-9a769b1a18af",
+        "Status": "VOIDED",
+        "LineAmountTypes": "Exclusive",
+        "LineItems": [
+          {
+            "Description": "Job: 1 - recording",
+            "UnitAmount": 10.5,
+            "TaxType": "OUTPUT2",
+            "TaxAmount": 3.15,
+            "LineAmount": 21.0,
+            "AccountCode": "200",
+            "Tracking": [],
+            "Quantity": 2.0,
+            "LineItemID": "1831302c-5538-459f-bd8e-d49da0013705",
+            "AccountID": "7d05a53d-613d-4eb2-a2fc-dcb6adb80b80",
+            "ValidationErrors": []
+          }
+        ],
+        "SubTotal": 21.0,
+        "TotalTax": 3.15,
+        "Total": 24.15,
+        "UpdatedDateUTC": "/Date(1789378205093+0000)/",
+        "CurrencyCode": "NZD",
+        "StatusAttributeString": "OK"
+      }
+    ]
+  }
+}

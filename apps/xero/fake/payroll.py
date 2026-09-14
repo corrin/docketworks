@@ -1,24 +1,33 @@
-"""The Payroll NZ routes an E2E run reaches: employees, their terms, pay items, pay runs, slips.
+"""The Payroll NZ reads, answered from the model (ADR 0060).
 
-All reads. The writes the payroll screens make (timesheets, pay runs,
-employee creation) are deliberately not here: those specs are opt-in against
-the real tenant (ADR 0050's irreversibility exception), and a fake that
-accepted them would be the fake-provider coverage that ADR forbids.
+Employees, their pay records and patterns, the pay items, calendars, pay
+runs and slips. The payroll writes (employees, timesheets, leave, pay runs)
+and their state machines are the next slice; until they land, a payroll
+write is an unrouted call and the run says so.
 """
 
 import re
 from datetime import UTC
 
+from django.db.models import QuerySet
 from xero_python.rest import RESTResponse
 
-from apps.xero.fake import defaults
+from apps.xero.fake import defaults, query
 from apps.xero.fake.http import FakeRequest, json_response
 from apps.xero.fake.limits import quota_headers
 from apps.xero.fake.minting import new_id, now_utc
-from apps.xero.fake.store import FakeXeroNotFoundError, FakeXeroStore, Kind
+from apps.xero.fake.models import (
+    FakeEarningsRate,
+    FakeEmployee,
+    FakeLeaveType,
+    FakePayRun,
+    FakePayRunCalendar,
+    FakePaySlip,
+    FakeSalaryAndWage,
+    FakeWorkingPattern,
+    XeroRecord,
+)
 from apps.xero.fake.wire import Json
-
-PAGE_SIZE = 100
 
 
 def _stamp() -> str:
@@ -39,171 +48,143 @@ def payroll_envelope(key: str, value: Json, *, pagination: Json = None) -> Json:
     }
 
 
-def _page_of(request: FakeRequest, rows: list[Json]) -> tuple[list[Json], Json]:
-    """Slice a listing as Xero pages it, with the block the sync loops on.
-
-    A page past the last is a 400 (recordings/employees_past_end.json), which
-    ``payroll_employees._raw_employees`` relies on never meeting because it
-    stops at ``pageCount``.
-    """
-    page = int(request.query.get("page", 1))
-    page_count = max(1, -(-len(rows) // PAGE_SIZE))
-    if page > page_count:
-        raise _PastTheEnd
-    offset = (page - 1) * PAGE_SIZE
-    pagination: Json = {
-        "page": page,
-        "pageSize": PAGE_SIZE,
-        "pageCount": page_count,
-        "itemCount": len(rows),
-    }
-    return rows[offset : offset + PAGE_SIZE], pagination
-
-
-class _PastTheEnd(Exception):  # noqa: N818 -- a routed outcome, not a defect
-    """Xero's answer to a page beyond the last: 400 InvalidRequest."""
-
-
-def _past_the_end(key: str) -> RESTResponse:
-    body: Json = {
+def _problem(status: int, code: str, title: str, detail: str, key: str | None) -> RESTResponse:
+    body: dict[str, Json] = {
         "id": new_id(),
         "providerName": defaults.PROVIDER_NAME,
         "dateTimeUTC": _stamp(),
-        "httpStatusCode": "BadRequest",
+        "httpStatusCode": code,
         "pagination": None,
         "problem": {
             "type": "about:blank",
-            "title": "InvalidRequest",
-            "status": 400,
-            "detail": "Requested page does not exist",
+            "title": title,
+            "status": status,
+            "detail": detail,
             "instance": None,
             "invalidFields": None,
             "invalidObjects": None,
         },
-        key: [],
     }
-    return json_response(400, body, quota_headers())
+    if key is not None:
+        body[key] = []
+    return json_response(status, body, quota_headers())
 
 
-def _listing(request: FakeRequest, key: str, rows: list[Json]) -> RESTResponse:
-    try:
-        page, pagination = _page_of(request, rows)
-    # deliberate-swallow: a page past the end is Payroll's empty answer, not an error
-    except _PastTheEnd:
-        return _past_the_end(key)
-    return json_response(200, payroll_envelope(key, page, pagination=pagination), quota_headers())
+def _past_the_end(key: str) -> RESTResponse:
+    """Xero's answer to a page beyond the last (recordings/employees_past_end.json)."""
+    return _problem(400, "BadRequest", "InvalidRequest", "Requested page does not exist", key)
 
 
 def _not_found() -> RESTResponse:
     # Payroll answers an unknown id with 404 and a problem block; the
     # application reads only the status.
-    body: Json = {
-        "id": new_id(),
-        "providerName": defaults.PROVIDER_NAME,
-        "dateTimeUTC": _stamp(),
-        "httpStatusCode": "NotFound",
-        "pagination": None,
-        "problem": {
-            "type": "about:blank",
-            "title": "NotFound",
-            "status": 404,
-            "detail": "The resource was not found",
-            "instance": None,
-            "invalidFields": None,
-            "invalidObjects": None,
-        },
-    }
-    return json_response(404, body, quota_headers())
+    return _problem(404, "NotFound", "NotFound", "The resource was not found", None)
 
 
-_LISTINGS: dict[str, Kind] = {
-    "Employees": Kind.EMPLOYEE,
-    "LeaveTypes": Kind.LEAVE_TYPE,
-    "EarningsRates": Kind.EARNINGS_RATE,
-    "PayRuns": Kind.PAY_RUN,
-}
-_KEYS: dict[str, str] = {
-    "Employees": "employees",
-    "LeaveTypes": "leaveTypes",
-    "EarningsRates": "earningsRates",
-    "PayRuns": "payRuns",
+def _listing(request: FakeRequest, key: str, rows: QuerySet[XeroRecord]) -> RESTResponse:
+    try:
+        page, pagination = query.page(request, rows)
+    # deliberate-swallow: a page past the end is Payroll's own 400, not an error
+    except query.PastTheEnd:
+        return _past_the_end(key)
+    if pagination is None:
+        # Payroll pages every listing, asked or not (recordings/pay_runs.json).
+        pagination = {
+            "page": 1,
+            "pageSize": query.PAGE_SIZE,
+            "pageCount": 1,
+            "itemCount": len(page),
+        }
+    return json_response(
+        200,
+        payroll_envelope(key, [row.to_wire() for row in page], pagination=pagination),
+        quota_headers(),
+    )
+
+
+_LISTINGS: dict[str, tuple[type[XeroRecord], str]] = {
+    "Employees": (FakeEmployee, "employees"),
+    "LeaveTypes": (FakeLeaveType, "leaveTypes"),
+    "EarningsRates": (FakeEarningsRate, "earningsRates"),
+    "PayRuns": (FakePayRun, "payRuns"),
+    "PayRunCalendars": (FakePayRunCalendar, "payRunCalendars"),
 }
 
 
 def list_payroll_resource(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
-    """GET /{Employees|LeaveTypes|EarningsRates|PayRuns}, paged."""
-    resource = match["resource"]
-    rows = FakeXeroStore(request.tenant_id).listing(_LISTINGS[resource])
-    return _listing(request, _KEYS[resource], [row.body for row in rows])
+    """GET /{Employees|LeaveTypes|EarningsRates|PayRuns|PayRunCalendars}, paged."""
+    model, key = _LISTINGS[match["resource"]]
+    return _listing(request, key, query.listing(model, request))
 
 
 def get_employee(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
     """GET /Employees/{id}: one employee under ``employee`` (recordings/employee.json)."""
-    try:
-        row = FakeXeroStore(request.tenant_id).require(Kind.EMPLOYEE, match["id"])
-    # deliberate-swallow: an employee id Payroll never issued answers 404 with its problem block
-    except FakeXeroNotFoundError:
+    employee = FakeEmployee.held(request.tenant_id, match["id"])
+    if employee is None:
         return _not_found()
-    return json_response(200, payroll_envelope("employee", row.body), quota_headers())
+    return json_response(200, payroll_envelope("employee", employee.to_wire()), quota_headers())
 
 
 def list_salary_and_wages(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
     """GET /Employees/{id}/SalaryAndWages: the employee's pay records, paged."""
-    store = FakeXeroStore(request.tenant_id)
-    try:
-        employee = store.require(Kind.EMPLOYEE, match["id"])
-    # deliberate-swallow: pay records of an employee Payroll does not hold answer 404
-    except FakeXeroNotFoundError:
+    employee = FakeEmployee.held(request.tenant_id, match["id"])
+    if employee is None:
         return _not_found()
-    rows = store.listing(Kind.SALARY_AND_WAGE, parent_id=str(employee.id))
-    return _listing(request, "salaryAndWages", [row.body for row in rows])
+    rows = query.listing(FakeSalaryAndWage, request).filter(employee=employee)
+    return _listing(request, "salaryAndWages", rows)
 
 
 def list_working_patterns(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
     """GET /Employees/{id}/Working-Patterns: id and date only (recordings/working_patterns.json)."""
-    store = FakeXeroStore(request.tenant_id)
-    try:
-        employee = store.require(Kind.EMPLOYEE, match["id"])
-    # deliberate-swallow: working patterns of an employee Payroll does not hold answer 404
-    except FakeXeroNotFoundError:
+    employee = FakeEmployee.held(request.tenant_id, match["id"])
+    if employee is None:
         return _not_found()
+    rows = query.listing(FakeWorkingPattern, request).filter(employee=employee)
+    try:
+        page, pagination = query.page(request, rows)
+    # deliberate-swallow: as _listing
+    except query.PastTheEnd:
+        return _past_the_end("payeeWorkingPatterns")
     summaries: list[Json] = [
         {
-            "payeeWorkingPatternID": row.body["payeeWorkingPatternID"],
-            "effectiveFrom": row.body["effectiveFrom"],
+            "payeeWorkingPatternID": str(pattern.id),
+            "effectiveFrom": pattern.to_wire()["effectiveFrom"],
         }
-        for row in store.listing(Kind.WORKING_PATTERN, parent_id=str(employee.id))
+        for pattern in page
     ]
-    return _listing(request, "payeeWorkingPatterns", summaries)
+    if pagination is None:
+        pagination = {
+            "page": 1,
+            "pageSize": query.PAGE_SIZE,
+            "pageCount": 1,
+            "itemCount": len(summaries),
+        }
+    return json_response(
+        200,
+        payroll_envelope("payeeWorkingPatterns", summaries, pagination=pagination),
+        quota_headers(),
+    )
 
 
 def get_working_pattern(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
     """GET /Employees/{id}/Working-Patterns/{pattern}: the weeks (working_pattern.json)."""
-    store = FakeXeroStore(request.tenant_id)
-    try:
-        employee = store.require(Kind.EMPLOYEE, match["id"])
-        pattern = store.require(Kind.WORKING_PATTERN, match["pattern"])
-    # deliberate-swallow: an unknown employee or an unknown pattern id is Payroll's 404
-    except FakeXeroNotFoundError:
-        return _not_found()
-    if pattern.parent_id != employee.id:
+    employee = FakeEmployee.held(request.tenant_id, match["id"])
+    pattern = FakeWorkingPattern.held(request.tenant_id, match["pattern"])
+    if employee is None or pattern is None or pattern.employee_id != employee.id:
         return _not_found()
     return json_response(
-        200, payroll_envelope("payeeWorkingPattern", pattern.body), quota_headers()
+        200, payroll_envelope("payeeWorkingPattern", pattern.to_wire()), quota_headers()
     )
 
 
 def list_pay_slips(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
     """GET /PaySlips?PayRunID=…: the slips of one pay run, paged."""
     del match
-    store = FakeXeroStore(request.tenant_id)
     pay_run_id = request.query.get("PayRunID")
     if pay_run_id is None:
         return _past_the_end("paySlips")
-    try:
-        pay_run = store.require(Kind.PAY_RUN, pay_run_id)
-    # deliberate-swallow: slips of a pay run Payroll never issued answer 404
-    except FakeXeroNotFoundError:
+    pay_run = FakePayRun.held(request.tenant_id, pay_run_id)
+    if pay_run is None:
         return _not_found()
-    rows = store.listing(Kind.PAY_SLIP, parent_id=str(pay_run.id))
-    return _listing(request, "paySlips", [row.body for row in rows])
+    rows = query.listing(FakePaySlip, request, extra=("PayRunID",)).filter(pay_run=pay_run)
+    return _listing(request, "paySlips", rows)

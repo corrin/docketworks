@@ -5,17 +5,19 @@ recordings (defaults.py); the request is the application's own payload; this
 module is the third part, the values Xero would compute rather than accept.
 """
 
+import re
 from collections.abc import Mapping
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import uuid4
 
 from apps.xero.fake import defaults
-from apps.xero.fake.store import FakeXeroStore, Kind
+from apps.xero.fake.models import Document, FakeAccount, FakeTaxRate
 from apps.xero.fake.wire import Json, ms_date_now
 
 _CENT = Decimal("0.01")
 _DATE_FIELDS = ("Date", "DueDate", "ExpiryDate", "DeliveryDate", "ExpectedArrivalDate")
+_NUMBER = re.compile(r"^(?P<prefix>.*?)(?P<digits>\d+)$")
 
 
 class MintingError(ValueError):
@@ -63,13 +65,13 @@ def money(value: Json, where: str) -> Decimal:
     return Decimal(str(value))
 
 
-def date_fields(body: dict[str, Json]) -> dict[str, Json]:
+def date_fields(body: Mapping[str, Json]) -> dict[str, Json]:
     """Xero's two spellings of every date it stores: the Microsoft form and ``<Field>String``.
 
     The application sends ``"2026-09-09"``; Xero answers with
     ``/Date(1789...+0000)/`` and ``DateString: "2026-09-09T00:00:00"``
-    (recordings/invoice.json), and the SDK's ``date[ms-format]`` parser reads
-    only the first.
+    (recordings/invoice.json). The model renders stored dates this way
+    itself; this is for the echo of a refused element, which is never stored.
     """
     rendered: dict[str, Json] = {}
     for field in _DATE_FIELDS:
@@ -88,15 +90,39 @@ def date_fields(body: dict[str, Json]) -> dict[str, Json]:
     return rendered
 
 
-def tax_rate_for(store: FakeXeroStore, tax_type: str) -> Decimal:
-    """Look up the organisation's effective rate for a TaxType in the seeded tax rates."""
-    for row in store.listing(Kind.TAX_RATE):
-        if row.body.get("TaxType") == tax_type:
-            return money(row.body.get("EffectiveRate"), f"TaxRates[{tax_type}].EffectiveRate")
-    raise MintingError(f"the organisation has no tax rate of type {tax_type!r}")
+def next_number(model: type[Document], tenant_id: str) -> str:
+    """Return the number Xero would assign next: one past the highest the organisation holds.
+
+    The prefix and the zero-padding come from the organisation's own highest
+    number (INV-0016 → INV-0017), which is how Xero's sequence behaves; with
+    nothing of the kind numbered yet, ``FIRST_NUMBER`` is Xero's own first
+    number for a new organisation, not a choice of ours. A deleted document
+    keeps its number, so the sequence never reissues one.
+    """
+    highest: tuple[int, str, int] | None = None
+    for stored in model.for_tenant(tenant_id).exclude(number=None).values_list("number", flat=True):
+        match = _NUMBER.match(stored or "")
+        if match is None:
+            continue
+        digits = match.group("digits")
+        candidate = (int(digits), match.group("prefix"), len(digits))
+        if highest is None or candidate > highest:
+            highest = candidate
+    if highest is None:
+        return model.FIRST_NUMBER
+    value, prefix, width = highest
+    return f"{prefix}{value + 1:0{width}d}"
 
 
-def account_tax_type(store: FakeXeroStore, account_code: str) -> str:
+def tax_rate_for(tenant_id: str, tax_type: str) -> Decimal:
+    """Look up the organisation's effective rate for a TaxType in its tax rates."""
+    rate = FakeTaxRate.objects.filter(tenant_id=tenant_id, tax_type=tax_type).first()
+    if rate is None:
+        raise MintingError(f"the organisation has no tax rate of type {tax_type!r}")
+    return rate.effective_rate
+
+
+def account_tax_type(tenant_id: str, account_code: str) -> str:
     """Resolve the tax type Xero applies to a line that names an account and no TaxType.
 
     The application sends AccountCode alone (provider._build_line_items) and
@@ -104,17 +130,18 @@ def account_tax_type(store: FakeXeroStore, account_code: str) -> str:
     account's default; an account code the organisation does not hold is a
     refusal, as it is in Xero.
     """
-    for row in store.listing(Kind.ACCOUNT):
-        if row.number == account_code:
-            tax_type = text(row.body, "TaxType")
-            if tax_type is None:
-                raise MintingError(f"account {account_code} has no default TaxType")
-            return tax_type
-    raise MintingError(f"the organisation has no account with code {account_code!r}")
+    account = FakeAccount.objects.filter(
+        tenant_id=tenant_id, code=account_code, status="ACTIVE"
+    ).first()
+    if account is None:
+        raise MintingError(f"the organisation has no active account with code {account_code!r}")
+    if account.tax_type is None:
+        raise MintingError(f"account {account_code} has no default TaxType")
+    return account.tax_type
 
 
 def totalled_lines(
-    store: FakeXeroStore, lines: list[Json], line_amount_types: str
+    tenant_id: str, lines: list[Json], line_amount_types: str
 ) -> tuple[list[Json], dict[str, Json]]:
     """Return the lines as Xero stores them and the document totals they add up to.
 
@@ -138,8 +165,8 @@ def totalled_lines(
             account_code = text(line, "AccountCode")
             if account_code is None:
                 raise MintingError(f"LineItems[{index}]: a line names a TaxType or an AccountCode")
-            tax_type = account_tax_type(store, account_code)
-        rate = Decimal(0) if no_tax else tax_rate_for(store, tax_type)
+            tax_type = account_tax_type(tenant_id, account_code)
+        rate = Decimal(0) if no_tax else tax_rate_for(tenant_id, tax_type)
         if exclusive:
             tax_amount = (line_amount * rate / 100).quantize(_CENT, rounding=ROUND_HALF_UP)
             excl = line_amount
@@ -159,17 +186,3 @@ def totalled_lines(
         sub_total += excl
         total_tax += tax_amount
     return stored, {"SubTotal": sub_total, "TotalTax": total_tax, "Total": sub_total + total_tax}
-
-
-def embedded_contact(store: FakeXeroStore, request_contact: Json, where: str) -> dict[str, Json]:
-    """Embed the contact Xero holds in a document, not the one that was sent.
-
-    A document names its contact by id; Xero answers with the contact's own
-    record (recordings/invoice.json carries the full contact under
-    ``Contact``), and refuses an id it does not hold.
-    """
-    sent = as_mapping(request_contact, where)
-    contact_id = text(sent, "ContactID")
-    if contact_id is None:
-        raise MintingError(f"{where}: a document must name its contact by ContactID")
-    return dict(store.require(Kind.CONTACT, contact_id).body)

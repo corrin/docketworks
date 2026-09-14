@@ -16,7 +16,6 @@ from xero_python.payrollnz import PayrollNzApi
 
 from apps.accounts.models import Staff, StaffPayrollTerm
 from apps.xero.fake.seed import seed_payroll
-from apps.xero.fake.store import FakeXeroStore
 from apps.xero.fake.tests.conftest import TENANT
 
 pytestmark = pytest.mark.django_db
@@ -63,10 +62,10 @@ def _linked_staff(email: str, *, hourly_rate: str) -> Staff:
 
 class TestEmployees:
     def test_paging_stops_where_xero_says_and_a_page_past_it_is_a_400(
-        self, store: FakeXeroStore, payroll: PayrollNzApi
+        self, tenant: str, payroll: PayrollNzApi
     ) -> None:
         _linked_staff("ada@example.test", hourly_rate="36.05")
-        seed_payroll(store, CALENDAR)
+        seed_payroll(tenant, CALENDAR)
         page = payroll.get_employees(TENANT, page=1)
         assert page.pagination is not None
         assert page.pagination.page_count == 1
@@ -77,7 +76,7 @@ class TestEmployees:
         assert refused.value.status == 400
 
     def test_an_employee_carries_the_address_xero_was_given(
-        self, store: FakeXeroStore, payroll: PayrollNzApi
+        self, tenant: str, payroll: PayrollNzApi
     ) -> None:
         # The E2E user has an office address and no payroll one; the real seed
         # created its employee with the office address, so that is what Xero
@@ -85,18 +84,18 @@ class TestEmployees:
         staff = _linked_staff("office@example.test", hourly_rate="36.05")
         staff.payroll_email = None
         staff.save(update_fields=["payroll_email"])
-        seed_payroll(store, CALENDAR)
+        seed_payroll(tenant, CALENDAR)
         employee = payroll.get_employee(TENANT, str(staff.xero_user_id)).employee
         assert employee is not None and employee.email == "office@example.test"
 
     def test_a_staff_member_without_terms_carries_the_record_the_seed_created(
-        self, store: FakeXeroStore, payroll: PayrollNzApi
+        self, tenant: str, payroll: PayrollNzApi
     ) -> None:
         # The E2E user after a restore: linked, no StaffPayrollTerm rows. The
         # real seed created its pay record from base_wage_rate and the hours.
         staff = _linked_staff("office@example.test", hourly_rate="36.05")
         staff.payroll_terms.all().delete()
-        seed_payroll(store, CALENDAR)
+        seed_payroll(tenant, CALENDAR)
         employee_id = str(staff.xero_user_id)
         pay = payroll.get_employee_salary_and_wages(TENANT, employee_id).salary_and_wages
         assert pay is not None and len(pay) == 1
@@ -106,10 +105,10 @@ class TestEmployees:
         assert patterns is not None and len(patterns) == 1
 
     def test_the_detail_routes_answer_the_seeded_terms(
-        self, store: FakeXeroStore, payroll: PayrollNzApi
+        self, tenant: str, payroll: PayrollNzApi
     ) -> None:
         staff = _linked_staff("ada@example.test", hourly_rate="36.05")
-        seed_payroll(store, CALENDAR)
+        seed_payroll(tenant, CALENDAR)
         employee_id = str(staff.xero_user_id)
         pay = payroll.get_employee_salary_and_wages(TENANT, employee_id).salary_and_wages
         assert pay is not None and Decimal(str(pay[0].rate_per_unit)) == Decimal("36.05")

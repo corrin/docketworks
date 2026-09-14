@@ -23,15 +23,33 @@ from enum import Enum
 
 from xero_python.models import BaseModel
 
+from apps.xero.fake.dates import (
+    Json,
+    WireShapeError,
+    accounting_date,
+    accounting_datetime,
+    ms_date_now,
+    parse_wire_date,
+    parse_wire_datetime,
+    payroll_date,
+    payroll_datetime,
+)
 from apps.xero.transforms import STRIPPED_RAW_KEYS
 
-type Json = dict[str, Json] | list[Json] | str | int | float | bool | Decimal | None
+__all__ = [
+    "Json",
+    "WireShapeError",
+    "accounting_date",
+    "accounting_datetime",
+    "ms_date_now",
+    "parse_wire_date",
+    "parse_wire_datetime",
+    "payroll_date",
+    "payroll_datetime",
+    "to_wire",
+]
 
 _LIST_PREFIX = "list["
-
-
-class WireShapeError(ValueError):
-    """A stored value does not fit the SDK's declared type for its attribute."""
 
 
 def to_wire(model: type[BaseModel], raw_json: Mapping[str, object]) -> dict[str, Json]:
@@ -210,10 +228,3 @@ def _naive_utc_iso(iso: str) -> str:
     on the way in.
     """
     return iso.removesuffix("+00:00")
-
-
-def ms_date_now(moment: datetime) -> str:
-    """Render one aware instant in the Accounting API form, for values the fake mints."""
-    if moment.tzinfo is None:
-        raise WireShapeError("a minted timestamp must be timezone-aware")
-    return f"/Date({int(moment.timestamp() * 1000)}+0000)/"

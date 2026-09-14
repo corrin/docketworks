@@ -27,12 +27,12 @@ from apps.job.models import Job
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.constants import TENANT_ID_CACHE_KEY, tenant_cache
 from apps.xero.documents.invoice import XeroInvoiceManager
+from apps.xero.fake.models import FakeContact, FakeHistoryRecord, FakeInvoice
 from apps.xero.fake.rest_client import FakeXeroRESTClient
 from apps.xero.fake.seed import (
     seed_contacts,
     seed_payroll,
 )
-from apps.xero.fake.store import FakeXeroStore, Kind
 from apps.xero.fake.testing import CALENDAR_ID, connected_to_the_fake
 from apps.xero.models import XeroAccount
 from apps.xero.payroll_employees import (
@@ -48,14 +48,14 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def fake_xero() -> Iterator[FakeXeroStore]:
+def fake_xero() -> Iterator[str]:
     """The process pointed at the fake: flag set, a connected app row, the fixtures seeded."""
-    with connected_to_the_fake(TEST_TENANT_ID) as store:
-        yield store
+    with connected_to_the_fake(TEST_TENANT_ID) as tenant:
+        yield tenant
 
 
 @pytest.fixture
-def company(fake_xero: FakeXeroStore) -> Company:
+def company(fake_xero: str) -> Company:
     created = Company.objects.create(
         name="[TEST] Managers Co",
         xero_contact_id=str(uuid.uuid4()),
@@ -66,7 +66,7 @@ def company(fake_xero: FakeXeroStore) -> Company:
 
 
 def test_the_transport_under_the_flag_is_the_fake_and_the_provider_is_the_real_one(
-    fake_xero: FakeXeroStore,
+    fake_xero: str,
 ) -> None:
     del fake_xero
 
@@ -75,7 +75,7 @@ def test_the_transport_under_the_flag_is_the_fake_and_the_provider_is_the_real_o
 
 
 def test_the_invoice_manager_persists_the_fake_s_totals_and_number(
-    fake_xero: FakeXeroStore, company: Company, office_staff: Staff
+    fake_xero: str, company: Company, office_staff: Staff
 ) -> None:
     XeroAccount.objects.create(
         xero_id=uuid.uuid4(),
@@ -106,16 +106,19 @@ def test_the_invoice_manager_persists_the_fake_s_totals_and_number(
     assert invoice.total_excl_tax == Decimal("1000.00")
     assert invoice.tax == Decimal("150.00")
     assert invoice.total_incl_tax == Decimal("1150.00")
-    assert fake_xero.get(Kind.INVOICE, str(invoice.xero_id)) is not None
-    assert fake_xero.listing(Kind.HISTORY_RECORD, parent_id=str(invoice.xero_id)).count() == 1
+    assert FakeInvoice.held(fake_xero, str(invoice.xero_id)) is not None
+    assert (
+        FakeHistoryRecord.objects.filter(tenant_id=fake_xero, document_id=invoice.xero_id).count()
+        == 1
+    )
 
 
-def test_company_create_pushes_a_contact_the_fake_then_holds(fake_xero: FakeXeroStore) -> None:
+def test_company_create_pushes_a_contact_the_fake_then_holds(fake_xero: str) -> None:
     created = CompanyRestService.create_company(
         {"name": "[TEST] Pushed Co", "is_account_customer": True, "allow_jobs": True}
     )
     assert created.xero_contact_id
-    held = fake_xero.get(Kind.CONTACT, created.xero_contact_id)
+    held = FakeContact.held(fake_xero, created.xero_contact_id)
     assert held is not None and held.name == "[TEST] Pushed Co"
     with pytest.raises(DuplicateContactError):
         CompanyRestService.create_company(
@@ -123,7 +126,7 @@ def test_company_create_pushes_a_contact_the_fake_then_holds(fake_xero: FakeXero
         )
 
 
-def test_the_employee_sync_sees_the_seeded_staff_as_unchanged(fake_xero: FakeXeroStore) -> None:
+def test_the_employee_sync_sees_the_seeded_staff_as_unchanged(fake_xero: str) -> None:
     staff = Staff.objects.create_user(
         "ada@example.test",
         "x",

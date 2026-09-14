@@ -18,8 +18,8 @@ from xero_python.api_client import ApiClient
 from xero_python.exceptions import ApiException
 
 from apps.xero.constants import ZERO_UUID
-from apps.xero.fake.accounting import FakeXeroUnhandledRouteError
-from apps.xero.fake.store import FakeXeroStore, Kind
+from apps.xero.fake.http import FakeXeroUnhandledRouteError
+from apps.xero.fake.models import FakeAttachment
 from apps.xero.fake.tests.conftest import TENANT, THEME
 from apps.xero.fake.wire import Json
 
@@ -126,20 +126,39 @@ class TestContacts:
         since = accounting.get_contacts(TENANT, if_modified_since=cursor).contacts
         assert since is not None and [contact.contact_id for contact in since] == [newer]
 
-    def test_archiving_is_refused_while_a_document_stands_against_the_contact(
+    def test_archiving_succeeds_with_an_invoice_standing_and_is_refused_once_archived(
         self, accounting: AccountingApi
     ) -> None:
+        # recordings/contact_archive_with_documents.json and contact_archive_archived.json
         contact_id = _contact(accounting, "[TEST] Busy")
         accounting.create_invoices(TENANT, invoices={"Invoices": [_invoice_payload(contact_id)]})
-        response = accounting.update_or_create_contacts(
-            TENANT,
-            contacts={"contacts": [Contact(contact_id=contact_id, contact_status="ARCHIVED")]},
-            summarize_errors=False,
-        )
-        assert response.contacts is not None
-        refused = response.contacts[0]
+
+        def archive() -> list[Contact]:
+            response = accounting.update_or_create_contacts(
+                TENANT,
+                contacts={"contacts": [Contact(contact_id=contact_id, contact_status="ARCHIVED")]},
+                summarize_errors=False,
+            )
+            assert response.contacts is not None
+            return response.contacts
+
+        archived = archive()[0]
+        assert archived.contact_status == "ARCHIVED" and not archived.has_validation_errors
+        refused = archive()[0]
         assert refused.has_validation_errors is True
-        assert refused.validation_errors and refused.validation_errors[0].message
+        assert refused.validation_errors and "archived contact" in str(
+            refused.validation_errors[0].message
+        )
+
+    def test_a_second_active_contact_of_a_name_is_refused_in_xero_s_words(
+        self, accounting: AccountingApi
+    ) -> None:
+        # recordings/contact_create_duplicate_name.json
+        _contact(accounting, "[TEST] Twice")
+        with pytest.raises(ApiException) as refused:
+            _contact(accounting, "[TEST] twice")
+        assert refused.value.status == 400
+        assert "must be unique across all active contacts" in str(refused.value.body)
 
 
 class TestInvoices:
@@ -255,6 +274,7 @@ class TestInvoices:
         ).invoices
         assert created is not None
         invoice_id = created[0].invoice_id
+        assert invoice_id is not None
         notes = accounting.create_invoice_history(
             TENANT, invoice_id, {"HistoryRecords": [{"Details": "Job #7"}]}
         )
@@ -263,7 +283,7 @@ class TestInvoices:
             TENANT, invoice_id, "workshop_7.pdf", b"%PDF-1.4 fake", include_online=False
         )
         assert attached.attachments[0].file_name == "workshop_7.pdf"
-        assert FakeXeroStore(TENANT).listing(Kind.ATTACHMENT, parent_id=invoice_id).count() == 1
+        assert FakeAttachment.objects.filter(tenant_id=TENANT, document_id=invoice_id).count() == 1
 
 
 class TestPurchaseOrders:
@@ -338,7 +358,8 @@ class TestPurchaseOrders:
         assert reused[0].purchase_order_id == ZERO_UUID
         assert reused[0].validation_errors
 
-    def test_a_billed_order_cannot_be_deleted(self, accounting: AccountingApi) -> None:
+    def test_a_billed_order_deletes_as_xero_deletes_it(self, accounting: AccountingApi) -> None:
+        # recordings/purchase_order_delete_billed.json
         supplier = _contact(accounting, "[TEST] Supplier")
         created = accounting.update_or_create_purchase_orders(
             TENANT,
@@ -346,7 +367,7 @@ class TestPurchaseOrders:
             summarize_errors=False,
         ).purchase_orders
         assert created is not None
-        refused = accounting.update_or_create_purchase_orders(
+        deleted = accounting.update_or_create_purchase_orders(
             TENANT,
             purchase_orders={
                 "PurchaseOrders": [
@@ -361,8 +382,9 @@ class TestPurchaseOrders:
             },
             summarize_errors=False,
         ).purchase_orders
-        assert refused is not None
-        assert refused[0].validation_errors
+        assert deleted is not None
+        assert deleted[0].status == "DELETED" and not deleted[0].validation_errors
+        assert deleted[0].purchase_order_number == "PO-0011-VOID-abcd1234"
 
 
 class TestOrganisationAndRefusals:
