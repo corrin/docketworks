@@ -7,6 +7,7 @@ Subclasses the SDK's RESTClientObject to add:
 - Disables urllib3's silent Retry-After sleeping
 """
 
+import json
 import logging
 import threading
 import time
@@ -22,6 +23,12 @@ from xero_python.rest import RESTClientObject, RESTResponse
 from apps.core.errors import persist_app_error
 
 logger = logging.getLogger(__name__)
+#: One line per call, request and response as Xero saw and sent them: the
+#: record of the contract a run exercised, kept beside the row that records
+#: its cost. DEBUG, so a workstation gate writes it to logs/e2e/*.log and a
+#: server never does; the token endpoint is left out because its body is a
+#: credential. Read it back with: grep -h XERO_WIRE logs/e2e/*.log | sed 's/^.*XERO_WIRE //'
+wire_logger = logging.getLogger("apps.xero.wire")
 
 MINIMUM_SLEEP = 1  # seconds between API calls
 # Xero reports remaining quota only on tenant-scoped responses; identity
@@ -208,9 +215,12 @@ class RateLimitedRESTClient(RESTClientObject):
             except ApiException as exc:
                 self._last_call_time = time.time()
                 self._record_call(method, url, started, exc.status, exc.headers or {})
+                self._log_wire(method, url, query_params, body, exc.status, exc.body)
                 raise
             self._last_call_time = time.time()
             self._record_call(method, url, started, response.status, self._headers_of(response))
+            if isinstance(response, RESTResponse):
+                self._log_wire(method, url, query_params, body, response.status, response.data)
             return response
 
         try:
@@ -233,6 +243,54 @@ class RateLimitedRESTClient(RESTClientObject):
         else:
             self._log_quota(r)
             return r
+
+    @staticmethod
+    def _log_wire(  # noqa: PLR0913, PLR0917 -- the five facts a wire line carries
+        method: str,
+        url: str,
+        query_params: Any,
+        request_body: Any,
+        status: int | None,
+        response_body: bytes | str | None,
+    ) -> None:
+        """Emit the call's request and response, verbatim, on one line.
+
+        A JSON body is embedded parsed so the line is one JSON document; any
+        other body (a quote PDF) is reported by size, because bytes tell a
+        contract reader nothing. ``default=str`` covers the Decimals and dates
+        the SDK has already serialised into the request body.
+        """
+        if not wire_logger.isEnabledFor(logging.DEBUG):
+            return
+        # Only a real body is read: the SDK hands bytes for a response and a
+        # str for a refusal, and anything else is not a body at all.
+        if isinstance(response_body, bytes):
+            text = response_body.decode("utf-8", errors="replace")
+        elif isinstance(response_body, str):
+            text = response_body
+        else:
+            text = ""
+        response: object
+        try:
+            response = json.loads(text) if text else None
+        # deliberate-swallow: a non-JSON body (a quote PDF) is reported by
+        # size, because its bytes tell a contract reader nothing
+        except ValueError:
+            response = {"bytes": len(text)}
+        wire_logger.debug(
+            "XERO_WIRE %s",
+            json.dumps(
+                {
+                    "method": method,
+                    "url": url,
+                    "query": query_params,
+                    "request": request_body,
+                    "status": status,
+                    "response": response,
+                },
+                default=str,
+            ),
+        )
 
     @staticmethod
     def _headers_of(response: RESTResponse | HTTPResponse) -> dict[str, str]:

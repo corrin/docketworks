@@ -71,6 +71,14 @@ process groups. Its exit status is the Playwright result; service logs are retai
 `logs/e2e/`. On a deployed instance the equivalent is `verify-instance.sh --e2e`
 ([server_setup.md](server_setup.md), ADR 0064), which needs no ngrok.
 
+A real run leaves two records of the Xero contract it exercised. Every request and
+response, verbatim, is one `XERO_WIRE` JSON line in `logs/e2e/django.log` and `worker.log`
+(logger `apps.xero.wire`, DEBUG only, the token endpoint excluded); read them back with
+`grep -h XERO_WIRE logs/e2e/*.log | sed 's/^.*XERO_WIRE //'`. The routes and statuses the
+run reached, grouped, are in `frontend/test-results/vendor-calls.csv`, written by the
+teardown before the restore. Together they are how a recording in the fake Xero (ADR 0060)
+is checked against what Xero actually sent.
+
 The recovery command remains available independently. It is a dry run unless confirmed:
 
 ```bash
