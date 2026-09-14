@@ -31,20 +31,10 @@ async function findRowByDescription(page: Page, description: string): Promise<Lo
   return first === undefined ? null : first.row
 }
 
-/**
- * The row described, addressed by its `data-row-id` rather than its position.
- *
- * A created line is appended to the cached cost set and then re-sorted by
- * kind when the settle refetch lands (the server orders material, adjust,
- * time), so a positional index read between the two addresses whichever row
- * has moved into that slot by click time: under the fake Xero the gap is
- * about 10ms, and an adjustment's edit landed on the Workshop labour line.
- */
+/** The row described, addressed by id (see findCostLineRows on why never by position). */
 async function rowByDescription(page: Page, description: string): Promise<Locator> {
   const { row } = await waitForCostLineRow(page, description)
-  const rowId = await row.getAttribute('data-row-id')
-  if (rowId === null) throw new Error(`row described "${description}" carries no data-row-id`)
-  return getRowById(page, rowId)
+  return row
 }
 
 function cellInput(row: Locator, field: 'quantity' | 'unit-cost' | 'unit-rev'): Locator {
