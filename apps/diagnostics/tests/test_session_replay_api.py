@@ -16,7 +16,7 @@ from uuid import uuid4
 
 import pytest
 from django.test import Client
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse
@@ -32,7 +32,7 @@ EVENTS = [{"type": 2, "timestamp": 1}, {"type": 3, "timestamp": 2}]
 
 
 @pytest.fixture(autouse=True)
-def replay_storage(tmp_path: Path, settings: SettingsWrapper) -> Path:
+def replay_storage(tmp_path: Path, settings: Settings) -> Path:
     """Point the store at a temp dir so tests never touch the real root."""
     settings.SESSION_REPLAY_STORAGE_ROOT = str(tmp_path)
     return tmp_path

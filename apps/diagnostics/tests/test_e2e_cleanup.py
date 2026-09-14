@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from django.core.management import CommandError, call_command
 from django.db.models import Model, QuerySet
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 from apps.accounting.models import Invoice, Quote
 from apps.accounting.types import DocumentResult
@@ -560,7 +560,7 @@ def test_a_document_refusal_is_reported_by_number_and_does_not_stop_the_cleanup(
 
 
 @pytest.fixture
-def phone_storage_root(settings: SettingsWrapper, tmp_path: Path) -> Path:
+def phone_storage_root(settings: Settings, tmp_path: Path) -> Path:
     settings.PHONE_RECORDING_STORAGE_ROOT = str(tmp_path)
     return tmp_path
 

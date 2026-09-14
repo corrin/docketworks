@@ -4,6 +4,8 @@ Thumbnails live in a ``thumbnails/`` subfolder of the job folder;
 ``sync_job_folder`` reconciles JobFile rows with what is on disk.
 """
 
+from __future__ import annotations
+
 import logging
 import mimetypes
 import os
@@ -59,7 +61,7 @@ def create_thumbnail(
         converted.save(thumb_path, "JPEG", quality=85)
 
 
-def sync_job_folder(job: "Job") -> None:
+def sync_job_folder(job: Job) -> None:
     """Scan a job's folder and reconcile JobFile records and thumbnails."""
     # JobFile's thumbnail_path property imports this module, so the model
     # import must stay function-local.
@@ -111,7 +113,7 @@ def workflow_root() -> Path:
     return Path(root).resolve()
 
 
-def job_file_full_path(job_file: "JobFile") -> Path:
+def job_file_full_path(job_file: JobFile) -> Path:
     """Resolve a JobFile's on-disk path, refusing paths escaping the root.
 
     Mirrors the crm recording-download hardening: ``file_path`` is
@@ -126,8 +128,8 @@ def job_file_full_path(job_file: "JobFile") -> Path:
 
 
 def save_uploaded_job_file(
-    job: "Job", file_obj: UploadedFile, print_on_jobsheet: bool
-) -> "JobFile":
+    job: Job, file_obj: UploadedFile[bytes], print_on_jobsheet: bool
+) -> JobFile:
     """Save an uploaded file into the job folder and upsert its JobFile row.
 
     Re-uploading a filename overwrites the file and reactivates the row
@@ -172,11 +174,11 @@ def save_uploaded_job_file(
 
 
 def update_job_file(
-    job_file: "JobFile",
+    job_file: JobFile,
     *,
     print_on_jobsheet: bool | None = None,
     filename: str | None = None,
-) -> "JobFile":
+) -> JobFile:
     """Update job-file metadata; a filename change renames the file on disk.
 
     Raises ValueError for client errors (empty filename, missing
@@ -221,7 +223,7 @@ def update_job_file(
     return job_file
 
 
-def delete_job_file(job_file: "JobFile") -> None:
+def delete_job_file(job_file: JobFile) -> None:
     """Delete a job file from disk (with its thumbnail) and its DB row."""
     full_path = job_file_full_path(job_file)
     if full_path.exists():

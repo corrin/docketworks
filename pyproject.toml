@@ -24,6 +24,19 @@ dependencies = [
     "pypdf>=6.4.0",
     "beautifulsoup4>=4.13.4",
     "pdf2image>=1.17.0",
+    # ADR 0033 blocking reason — litellm 1.100.1 is itself the newest release and
+    # pins `openai<3.0.0,>=2.20.0`, which caps a chain of four packages below
+    # their latest:
+    #   openai             2.54.0  (3.13.0 excluded by litellm's own metadata)
+    #   openai-agents      0.20.0  (0.22.2 requires openai>=3.0.0 — unsatisfiable
+    #                               alongside litellm; 0.20.0 is the newest that
+    #                               still accepts openai 2.x)
+    #   websockets         16.1.1  (openai-agents 0.20.0 requires websockets<17)
+    #   importlib-metadata 8.9.0   (litellm requires importlib-metadata<9.0)
+    # pydantic-core 2.46.5 is separately capped: pydantic 2.13.5 (latest) pins it
+    # exactly, so it cannot move independently of pydantic.
+    # All five are external metadata pins, not failed gates. Re-check on the next
+    # sweep: the whole chain releases at once when litellm lifts its openai cap.
     "litellm>=1.95.0",
     "selenium>=4.46.0",
     "holidays>=0.102",
@@ -84,6 +97,7 @@ dev = [
     "types-reportlab>=4.5.1",
     "google-api-python-client-stubs>=1.39.0",
     "httplib2>=0.32.0",
+    "shellcheck-py>=0.11.0.1",
 ]
 
 [tool.ruff]
@@ -213,7 +227,7 @@ files = ["config", "apps", "manage.py", "scripts", "adhoc"]
 
 # xero-python ships no py.typed. The modules we subclass or call directly have
 # hand-written stubs in stubs/xero_python/ (signature drift is caught by the
-# ==15.0.0 pin); this override only silences the SDK's unstubbed remainder.
+# ==15.2.0 pin); this override only silences the SDK's unstubbed remainder.
 [[tool.mypy.overrides]]
 module = ["xero_python.*"]
 ignore_missing_imports = true

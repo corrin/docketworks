@@ -589,7 +589,7 @@ class Document(AccountingRecord):
         return wire
 
     @property
-    def lines(self) -> models.Manager["DocumentLine"]:
+    def lines(self) -> models.QuerySet["DocumentLine"]:
         """The document's lines; each concrete document names its own line table."""
         raise NotImplementedError
 
@@ -632,9 +632,9 @@ class FakeInvoice(Document):
         ]
 
     @property
-    def lines(self) -> models.Manager["FakeInvoiceLine"]:
+    def lines(self) -> models.QuerySet["FakeInvoiceLine"]:
         """The invoice's lines."""
-        return self.invoice_lines
+        return self.invoice_lines.all()
 
 
 class FakeCreditNote(Document):
@@ -665,9 +665,9 @@ class FakeCreditNote(Document):
         ]
 
     @property
-    def lines(self) -> models.Manager["FakeCreditNoteLine"]:
+    def lines(self) -> models.QuerySet["FakeCreditNoteLine"]:
         """The creditnote's lines."""
-        return self.creditnote_lines
+        return self.creditnote_lines.all()
 
 
 class FakeQuote(Document):
@@ -696,9 +696,9 @@ class FakeQuote(Document):
         ]
 
     @property
-    def lines(self) -> models.Manager["FakeQuoteLine"]:
+    def lines(self) -> models.QuerySet["FakeQuoteLine"]:
         """The quote's lines."""
-        return self.quote_lines
+        return self.quote_lines.all()
 
 
 class FakePurchaseOrder(Document):
@@ -729,9 +729,9 @@ class FakePurchaseOrder(Document):
         ]
 
     @property
-    def lines(self) -> models.Manager["FakePurchaseOrderLine"]:
+    def lines(self) -> models.QuerySet["FakePurchaseOrderLine"]:
         """The purchaseorder's lines."""
-        return self.purchaseorder_lines
+        return self.purchaseorder_lines.all()
 
 
 class DocumentLine(WireRow):

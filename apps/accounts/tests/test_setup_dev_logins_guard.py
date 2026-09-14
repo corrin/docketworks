@@ -6,13 +6,13 @@ disclosure. Classification is by the configured database name (ADR 0048).
 """
 
 import pytest
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 from scripts.ops.setup_dev_logins import refuse_production_database
 
 
 class TestProductionRefusal:
-    def test_a_prod_database_name_is_refused(self, settings: SettingsWrapper) -> None:
+    def test_a_prod_database_name_is_refused(self, settings: Settings) -> None:
         settings.DATABASES = {
             **settings.DATABASES,
             "default": {**settings.DATABASES["default"], "NAME": "dw_msm_prod"},
@@ -20,7 +20,7 @@ class TestProductionRefusal:
         with pytest.raises(SystemExit, match="publicly known default passwords"):
             refuse_production_database()
 
-    def test_a_nonprod_database_name_passes(self, settings: SettingsWrapper) -> None:
+    def test_a_nonprod_database_name_passes(self, settings: Settings) -> None:
         settings.DATABASES = {
             **settings.DATABASES,
             "default": {**settings.DATABASES["default"], "NAME": "dw_msm_dev"},

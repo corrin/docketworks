@@ -19,8 +19,16 @@ fail() {
 }
 
 # --- Every shipped script parses and is ShellCheck-clean ---
-if ! command -v shellcheck >/dev/null; then
-    echo "ERROR: shellcheck is required (apt install shellcheck)." >&2
+# The `shellcheck-py` dev dependency puts the binary in the project venv, so
+# `uv sync` provisions it and the lock file records the version that passed
+# these gates (ADR 0033). Prefer it; fall back to a system install for a
+# checkout without a venv.
+SHELLCHECK="$REPO_ROOT/.venv/bin/shellcheck"
+if [[ ! -x "$SHELLCHECK" ]]; then
+    SHELLCHECK="$(command -v shellcheck || true)"
+fi
+if [[ -z "$SHELLCHECK" ]]; then
+    echo "ERROR: shellcheck is required (uv sync, or apt install shellcheck)." >&2
     exit 1
 fi
 SCRIPTS=(
@@ -36,7 +44,7 @@ SCRIPTS=(
 for script in "${SCRIPTS[@]}"; do
     bash -n "$script" || fail "bash -n $script"
 done
-shellcheck -x -P SCRIPTDIR "${SCRIPTS[@]}" || fail "shellcheck"
+"$SHELLCHECK" -x -P SCRIPTDIR "${SCRIPTS[@]}" || fail "shellcheck"
 
 render() {
     local template="$1"

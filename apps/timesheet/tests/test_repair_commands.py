@@ -89,7 +89,7 @@ def _make_pay_slip(pay_run: PayRunRow, staff: Staff, raw_json: dict[str, object]
         django_apps.get_model("xero", "XeroPaySlip")._default_manager.create(
             xero_id=uuid.uuid4(),
             xero_tenant_id="tenant-1",
-            pay_run=pay_run,
+            pay_run_id=pay_run.pk,
             xero_employee_id=uuid.UUID(staff.xero_user_id),
             employee_name=staff.get_display_full_name(),
             raw_json=raw_json,

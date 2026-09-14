@@ -6,6 +6,8 @@ error messages, the storage prefix for its delete guard — instead of writing
 a sibling.
 """
 
+from __future__ import annotations
+
 import os
 import warnings
 from pathlib import Path
@@ -49,7 +51,7 @@ def delete_stored_image(field_file: FieldFile, *, allowed_prefix: str) -> None:
     field_file.delete(save=False)
 
 
-def validate_image_upload(file: UploadedFile, *, label: str = "Image") -> None:
+def validate_image_upload(file: UploadedFile[bytes], *, label: str = "Image") -> None:
     """400 unless the upload is a real, allowlisted, size-capped image."""
     suffix = Path(file.name or "").suffix.lower()
     if suffix not in ALLOWED_IMAGE_SUFFIXES:

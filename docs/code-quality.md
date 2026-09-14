@@ -14,8 +14,8 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 116,650 (v1 172,577, -32%) |
-| tests | 79,629 (v1 50,869, +57%) |
+| code | 116,700 (v1 172,577, -32%) |
+| tests | 79,664 (v1 50,869, +57%) |
 | generated | 51,110 (v1 20,359, +151%) |
 
 ## Suppressions
@@ -116,7 +116,16 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 233 |
-| non-test functions | 2940 |
+| non-test functions | 2942 |
+
+## Broad type annotations
+
+Code smells: explicit `Any` and `object` occurrences in Python parameter, return and variable annotations, PEP 695 type aliases, and casts. Includes tests and quoted annotations; excludes migrations, comments, literal values and Annotated metadata. `Any` bypasses type checking; `object` requires narrowing but can still hide a missing domain contract. These are review counts, not exemptions from ADR 0028.
+
+| metric | count |
+|---|---:|
+| Any annotations | 261 |
+| object annotations | 696 |
 
 ## Wire contract (response side)
 
