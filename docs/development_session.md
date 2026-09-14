@@ -68,7 +68,8 @@ It refuses to run when :4173, :8000, ngrok's :4040, or another Playwright run is
 Otherwise it runs `test:e2e:reset -- --confirm`, clears the old Playwright report/output, starts and
 waits for the same five services as the VS Code task, runs every E2E spec, and stops only its own
 process groups. Its exit status is the Playwright result; service logs are retained under
-`logs/e2e/`.
+`logs/e2e/`. On a deployed instance the equivalent is `verify-instance.sh --e2e`
+([server_setup.md](server_setup.md), ADR 0064), which needs no ngrok.
 
 The recovery command remains available independently. It is a dry run unless confirmed:
 

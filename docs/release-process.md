@@ -10,8 +10,14 @@ durable).
   work reaches UAT on the next deploy (the Deploy-to-UAT workflow updates
   the box's repo mirror on every push to `main`; an operator runs
   `scripts/server/deploy.sh` to release it to the UAT instance).
-- **A release PR promotes `main` to `production`** after UAT verification.
-  Production instances track `origin/production`.
+- **A release PR promotes `main` to `production`** after UAT verification:
+  `sudo scripts/server/verify-instance.sh <client> uat --e2e` green on the deployed UAT
+  instance (ADR 0064). Production instances track `origin/production`.
+- **PVT is the same command on production**, `verify-instance.sh <client> prod --e2e
+  --production`, after the deploy. It runs the suite on a copy of the database with the fake
+  Xero and fences users out for the run (about 40 minutes, including the cache settle), so
+  it is a declared window; uptime monitors will alert. Neither run is merge evidence: the
+  gate before merge is `./scripts/ops/run_e2e.sh` on a workstation against real Xero.
 - Hotfixes merge into `production` and are back-merged to `main`.
 - **Release PRs and hotfix back-merges are merged with a merge commit — never
   squashed, never rebased.** Squash is right for a feature PR, where one

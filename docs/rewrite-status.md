@@ -622,9 +622,6 @@ never a second stream.
   how far each rename has to reach.
 - Port v1's kanban search-ranking test net (~30 tests); the scoring code is line-identical
   but v2's regression net is 4 tests.
-- **E2E harness: sync-window open/close** (seam comment atop `global-setup.ts`) is unbuilt —
-  only the sync loop consumes it, and kanban waits on its own board. v1's rich login
-  diagnostics are debugging aids, not blockers; port them if a flaky login ever needs them.
 - CRM wire-pin tests (portal login/CDR form fields, `b"200"` strip, `Result == "1"`,
   timeouts) and superuser-gate tests on recording deletes.
 - **The kanban board has no non-drag way to change a job's status on desktop** — the card's

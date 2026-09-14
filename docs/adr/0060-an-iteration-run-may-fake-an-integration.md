@@ -33,11 +33,14 @@ The app runs unchanged and every call an integration would answer is answered lo
   names the method and path; the route is then added from a recording. Writes the real
   gate keeps opt-in — Xero's payroll postings (ADR 0050's irreversibility exception) — are
   deliberately unrouted.
-- **Selection is one required flag per process, and the flag refuses the wrong places.**
+- **Selection is one required flag per process, and the flag refuses the wrong place.**
   `XERO_FAKE=true` is set by `scripts/ops/run_e2e.sh --use-fake-xero` for the stack it
-  starts; settings refuse it outside `DEBUG` and alongside `XERO_READONLY`, and the transport
-  refuses to install on a production database or tenant. `XERO_READONLY` keeps its one job,
-  a local process pointed at production (ADR 0050).
+  starts, and by `verify-instance.sh --e2e` for the copy of an instance's database it
+  verifies (ADR 0064); settings refuse it alongside `XERO_READONLY`, and the transport
+  refuses to install on a production database — the database name, never `DEBUG` or the
+  tenant, because a server's copy is bound to the production tenant by construction while
+  no call leaves the fake (ADR 0048). `XERO_READONLY` keeps its one job, a local process
+  pointed at production (ADR 0050).
 - **A fake run says so everywhere and is never the gate.** The organisation the fake
   reports carries `(FAKE XERO)` in its name, the ping reports `xero_fake`, the harness
   refuses a run whose own flag disagrees with the backend's, the run's history rows carry

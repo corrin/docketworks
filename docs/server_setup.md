@@ -226,7 +226,10 @@ subsequent bare deploys remember it — and a bare `--all` can therefore send
 different refs to different instances. `--ref` against a `*-prod` instance
 requires interactive confirmation (or `--allow-prod-ref`).
 
-Run `instance.sh reconfigure` instead when root-owned credentials changed.
+Run `instance.sh reconfigure` instead when root-owned credentials changed. When a
+release adds a required env var or credential, the instance's running release does not
+yet carry the loader the new fixtures need: run `reconfigure --skip-db-fixtures`, then
+`deploy.sh`, then `instance.sh load-db-fixtures`.
 
 #### When a migration fails
 
@@ -361,6 +364,29 @@ curl -s https://<name>.docketworks.site/api/build-id/
 # Open in browser — should show login page
 # https://<name>.docketworks.site
 ```
+
+### The E2E suite on the instance (UAT verification, PVT)
+
+```bash
+# Once per instance: the E2E user's credentials, root-owned like the rest of config/
+sudo install -m 600 -o root -g root /dev/null /opt/docketworks/config/<name>.e2e.env
+sudoedit /opt/docketworks/config/<name>.e2e.env   # E2E_TEST_USERNAME= / E2E_TEST_PASSWORD=
+
+sudo scripts/server/verify-instance.sh <client> <env> --e2e                # uat
+sudo scripts/server/verify-instance.sh <client> prod --e2e --production   # PVT
+sudo scripts/server/verify-instance.sh <client> <env> --e2e -- --grep "@kanban"   # a subset
+```
+
+What it does (ADR 0064): fences users out (nginx answers 503 to everything but the box),
+copies the live database into `dw_<client>_<env>_scrub`, restarts gunicorn and the worker
+under a window env whose `DB_NAME` is the copy and whose Xero is the fake, stops beat for
+the window, runs the suite against `https://<fqdn>` from the box, then returns the units to
+the live database, purges the Celery queue, waits out the solo cache, empties the copy and
+drops the fence before the ordinary checks run. The report and traces stay under
+`/opt/docketworks/instances/<name>/e2e/`. The live database is only read; the real Xero
+organisation is never reached. A killed run is returned by the same trap. The suite needs
+`node_modules` in the release and Playwright's Chromium under `/opt/docketworks/.playwright`;
+the first run installs both.
 
 ### Full verification sequence
 
