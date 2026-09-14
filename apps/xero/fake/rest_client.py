@@ -1,17 +1,22 @@
 """The transport the SDK is given under ``XERO_FAKE``: every call answered locally.
 
-Installed by ``apps.xero.auth._build`` in place of ``RateLimitedRESTClient``.
-Same seam, same signature, same exception on a non-2xx, so nothing above the
-transport can tell — which is the point: the SDK deserialises the fake's
-bytes exactly as it would Xero's.
+Installed by ``apps.xero.auth._build`` in place of ``RateLimitedRESTClient`` —
+and it IS that client, with the one step that opens a socket replaced by the
+route table. Same seam, same signature, same exception on a non-2xx, the same
+observability row, wire line, quota bookkeeping and 429 retry, so nothing
+above the transport can tell — which is the point: the SDK deserialises the
+fake's bytes exactly as it would Xero's, and a run's record reads the same.
 """
+
+from typing import Any
 
 from urllib3 import HTTPResponse
 from xero_python.api_client.configuration import Configuration
 from xero_python.exceptions import HTTPStatusException
-from xero_python.rest import RESTClientObject, RESTResponse
+from xero_python.rest import RESTResponse
 
 from apps.core.environment import assert_not_production_database
+from apps.xero.client import RateLimitedRESTClient
 from apps.xero.fake.http import request_from_sdk
 from apps.xero.fake.router import dispatch
 
@@ -33,23 +38,27 @@ def assert_fake_permitted() -> None:
     )
 
 
-class FakeXeroRESTClient(RESTClientObject):
-    """``RESTClientObject`` whose every request is answered by the route table."""
+class FakeXeroRESTClient(RateLimitedRESTClient):
+    """The paced client whose socket is the route table."""
+
+    #: The fake's answers cost nothing to pace; the minute limit it enforces
+    #: is the store's, not the clock's.
+    minimum_sleep = 0
 
     def __init__(self, configuration: Configuration) -> None:  # noqa: D107 -- narrows the SDK constructor; class docstring covers it
         assert_fake_permitted()
         super().__init__(configuration)
 
-    def request(  # noqa: PLR0913, PLR0917 -- the SDK base-class signature; not ours to shrink
+    def _send(  # noqa: PLR0913, PLR0917 -- the SDK base-class signature; not ours to shrink
         self,
         method: str,
         url: str,
-        query_params: object = None,
-        headers: object = None,
-        body: object = None,
-        post_params: object = None,
+        query_params: Any = None,
+        headers: Any = None,
+        body: Any = None,
+        post_params: Any = None,
         _preload_content: bool = True,
-        _request_timeout: object = None,
+        _request_timeout: Any = None,
     ) -> RESTResponse | HTTPResponse:
         """Answer from the store; raise as the SDK's transport does on a non-2xx."""
         del _request_timeout

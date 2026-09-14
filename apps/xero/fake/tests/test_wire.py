@@ -185,9 +185,10 @@ def test_payroll_recordings_round_trip(name: str) -> None:
 
 def test_every_json_recording_has_a_round_trip_or_a_reason() -> None:
     # A recording nobody round-trips is a shape the fake could serve wrong.
-    # These three carry no model: a 404 is text/html, the past-the-end 400 is
-    # raised by the SDK before deserialising, and a PDF is bytes.
-    unmodelled = {"invoice_not_found", "employees_past_end", "quote_pdf"}
+    # These carry no model: a 404 is text/html, the past-the-end 400 is
+    # raised by the SDK before deserialising, a PDF is bytes, and the 429 is
+    # an empty body under four headers.
+    unmodelled = {"invoice_not_found", "employees_past_end", "quote_pdf", "rate_limit_minute"}
     on_disk = {path.stem for path in RECORDINGS_DIR.glob("*.json")}
     assert on_disk == set(_ACCOUNTING_ROUTES) | set(_PAYROLL_ROUTES) | unmodelled
 

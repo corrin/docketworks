@@ -16,6 +16,7 @@ from xero_python.rest import RESTResponse
 from apps.xero.constants import ZERO_UUID
 from apps.xero.fake import defaults
 from apps.xero.fake.http import FakeRequest, json_response, raw_response
+from apps.xero.fake.limits import quota_headers
 from apps.xero.fake.minting import (
     MintingError,
     as_list,
@@ -33,10 +34,6 @@ from apps.xero.fake.pdf import render_quote_pdf
 from apps.xero.fake.store import FakeXeroNotFoundError, FakeXeroStore, Kind
 from apps.xero.fake.wire import Json, ms_date_now
 
-# Every tenant-scoped answer carries Xero's quota headers: the paced client
-# records them and the preflight reads them. A day that never runs out is
-# the point of the fake.
-QUOTA_HEADERS = {"X-DayLimit-Remaining": "4999", "X-MinLimit-Remaining": "59"}
 PAGE_SIZE = 100
 _WHERE = re.compile(r'^(?P<field>[A-Za-z]+)=="(?P<value>(?:[^"\\]|\\.)*)"$')
 _UNHANDLED_ORDER = "the fake pages in UpdatedDateUTC ASC only; the sync asks for nothing else"
@@ -67,13 +64,13 @@ def envelope(key: str, elements: list[Json], *, summarize_errors: bool | None = 
 def ok(key: str, elements: list[Json], *, summarize_errors: bool | None = None) -> RESTResponse:
     """Answer 200 with the listing or the written objects under ``key``."""
     return json_response(
-        200, envelope(key, elements, summarize_errors=summarize_errors), QUOTA_HEADERS
+        200, envelope(key, elements, summarize_errors=summarize_errors), quota_headers()
     )
 
 
 def not_found() -> RESTResponse:
     """Xero's 404: text/html and no JSON (recordings/invoice_not_found.json)."""
-    return raw_response(404, b"", {"Content-Type": "text/html; charset=utf-8", **QUOTA_HEADERS})
+    return raw_response(404, b"", {"Content-Type": "text/html; charset=utf-8", **quota_headers()})
 
 
 def validation_failure(elements: list[Json]) -> RESTResponse:
@@ -84,7 +81,7 @@ def validation_failure(elements: list[Json]) -> RESTResponse:
         "Message": "A validation exception occurred",
         "Elements": elements,
     }
-    return json_response(400, body, QUOTA_HEADERS)
+    return json_response(400, body, quota_headers())
 
 
 # ---- listings ----------------------------------------------------------------
@@ -171,7 +168,7 @@ def get_resource(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
         return not_found()
     if resource == "Quotes" and (request.header("Accept") or "").startswith("application/pdf"):
         return raw_response(
-            200, render_quote_pdf(row.body), {"Content-Type": "application/pdf", **QUOTA_HEADERS}
+            200, render_quote_pdf(row.body), {"Content-Type": "application/pdf", **quota_headers()}
         )
     summarize = _summarize_errors(request) if resource == "Quotes" else None
     return ok(resource, [row.body], summarize_errors=summarize)

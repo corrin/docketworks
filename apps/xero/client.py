@@ -120,7 +120,17 @@ def quota_floor_breached(floor: int) -> bool:
 
 
 class RateLimitedRESTClient(RESTClientObject):
-    """RESTClientObject with pacing, quota tracking and 429 handling (see module docstring)."""
+    """RESTClientObject with pacing, quota tracking and 429 handling (see module docstring).
+
+    Everything above the socket — pacing, the observability row, the wire
+    line, the quota bookkeeping, the 429 retry — is here; ``_send`` is the one
+    step that reaches Xero, and the fake transport (ADR 0060) overrides only
+    that, so a fake run leaves the same record a real one does.
+    """
+
+    #: Seconds between calls to one app. The fake sets it to zero: its answers
+    #: cost nothing to pace, and a run against it should be as fast as the database.
+    minimum_sleep: float = MINIMUM_SLEEP
 
     def __init__(  # noqa: D107 -- narrows the SDK constructor; class docstring covers it
         self,
@@ -182,8 +192,8 @@ class RateLimitedRESTClient(RESTClientObject):
     ) -> RESTResponse | HTTPResponse:
         # Enforce minimum sleep between calls
         elapsed = time.time() - self._last_call_time
-        if elapsed < MINIMUM_SLEEP:
-            time.sleep(MINIMUM_SLEEP - elapsed)
+        if elapsed < self.minimum_sleep:
+            time.sleep(self.minimum_sleep - elapsed)
 
         def attempt() -> RESTResponse | HTTPResponse:
             """One request to Xero, timed and recorded whatever the outcome.
@@ -191,14 +201,11 @@ class RateLimitedRESTClient(RESTClientObject):
             The two attempts share this rather than repeating the SDK call:
             when they were written out twice, the retry's failure path was the
             copy that lost its recording, which is the drift one implementation
-            prevents (ADR 0039). ``RESTClientObject.request(self, ...)`` and not
-            ``super()`` — zero-argument ``super()`` reads the first argument of
-            the frame it runs in, and a nested function does not have one.
+            prevents (ADR 0039).
             """
             started = time.perf_counter()
             try:
-                response = RESTClientObject.request(
-                    self,
+                response = self._send(
                     method,
                     url,
                     query_params=query_params,
@@ -243,6 +250,35 @@ class RateLimitedRESTClient(RESTClientObject):
         else:
             self._log_quota(r)
             return r
+
+    def _send(  # noqa: PLR0913, PLR0917 -- mirrors the SDK signature it forwards
+        self,
+        method: str,
+        url: str,
+        query_params: Any = None,
+        headers: Any = None,
+        body: Any = None,
+        post_params: Any = None,
+        _preload_content: bool = True,
+        _request_timeout: Any = None,
+    ) -> RESTResponse | HTTPResponse:
+        """Open the socket: the one step the fake transport replaces.
+
+        ``RESTClientObject.request(self, ...)`` and not ``super()``: this is
+        called from a nested function, and zero-argument ``super()`` reads the
+        first argument of the frame it runs in.
+        """
+        return RESTClientObject.request(
+            self,
+            method,
+            url,
+            query_params=query_params,
+            headers=headers,
+            body=body,
+            post_params=post_params,
+            _preload_content=_preload_content,
+            _request_timeout=_request_timeout,
+        )
 
     @staticmethod
     def _log_wire(  # noqa: PLR0913, PLR0917 -- the five facts a wire line carries

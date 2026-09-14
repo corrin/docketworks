@@ -12,8 +12,8 @@ from datetime import UTC
 from xero_python.rest import RESTResponse
 
 from apps.xero.fake import defaults
-from apps.xero.fake.accounting import QUOTA_HEADERS
 from apps.xero.fake.http import FakeRequest, json_response
+from apps.xero.fake.limits import quota_headers
 from apps.xero.fake.minting import new_id, now_utc
 from apps.xero.fake.store import FakeXeroNotFoundError, FakeXeroStore, Kind
 from apps.xero.fake.wire import Json
@@ -82,7 +82,7 @@ def _past_the_end(key: str) -> RESTResponse:
         },
         key: [],
     }
-    return json_response(400, body, QUOTA_HEADERS)
+    return json_response(400, body, quota_headers())
 
 
 def _listing(request: FakeRequest, key: str, rows: list[Json]) -> RESTResponse:
@@ -91,7 +91,7 @@ def _listing(request: FakeRequest, key: str, rows: list[Json]) -> RESTResponse:
     # deliberate-swallow: a page past the end is Payroll's empty answer, not an error
     except _PastTheEnd:
         return _past_the_end(key)
-    return json_response(200, payroll_envelope(key, page, pagination=pagination), QUOTA_HEADERS)
+    return json_response(200, payroll_envelope(key, page, pagination=pagination), quota_headers())
 
 
 def _not_found() -> RESTResponse:
@@ -113,7 +113,7 @@ def _not_found() -> RESTResponse:
             "invalidObjects": None,
         },
     }
-    return json_response(404, body, QUOTA_HEADERS)
+    return json_response(404, body, quota_headers())
 
 
 _LISTINGS: dict[str, Kind] = {
@@ -144,7 +144,7 @@ def get_employee(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
     # deliberate-swallow: an employee id Payroll never issued answers 404 with its problem block
     except FakeXeroNotFoundError:
         return _not_found()
-    return json_response(200, payroll_envelope("employee", row.body), QUOTA_HEADERS)
+    return json_response(200, payroll_envelope("employee", row.body), quota_headers())
 
 
 def list_salary_and_wages(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
@@ -188,7 +188,9 @@ def get_working_pattern(request: FakeRequest, match: re.Match[str]) -> RESTRespo
         return _not_found()
     if pattern.parent_id != employee.id:
         return _not_found()
-    return json_response(200, payroll_envelope("payeeWorkingPattern", pattern.body), QUOTA_HEADERS)
+    return json_response(
+        200, payroll_envelope("payeeWorkingPattern", pattern.body), quota_headers()
+    )
 
 
 def list_pay_slips(request: FakeRequest, match: re.Match[str]) -> RESTResponse:

@@ -14,6 +14,7 @@ from xero_python.rest import RESTResponse
 from apps.xero.fake import accounting, identity, payroll
 from apps.xero.fake.accounting import FakeXeroUnhandledRouteError
 from apps.xero.fake.http import FakeRequest
+from apps.xero.fake.limits import rate_limit_refusal
 
 Handler = Callable[[FakeRequest, re.Match[str]], RESTResponse]
 
@@ -79,6 +80,11 @@ ROUTES: tuple[tuple[str, re.Pattern[str], Handler], ...] = (
 
 def dispatch(request: FakeRequest) -> RESTResponse:
     """Answer the request from the first route that matches it, or refuse."""
+    if request.host == "api.xero.com":
+        # Xero meters the tenant-scoped hosts and not identity (limits.py).
+        refusal = rate_limit_refusal()
+        if refusal is not None:
+            return refusal
     for method, pattern, handler in ROUTES:
         if method != request.method:
             continue

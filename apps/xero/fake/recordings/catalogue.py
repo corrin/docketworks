@@ -89,6 +89,21 @@ class Capture:
     content_disposition: str | None
     body: Json
     truncated: bool = field(default=False)
+    #: The quota and rate-limit headers Xero sent, when it sent them.
+    headers: dict[str, str] = field(default_factory=dict)
+
+
+#: The headers a recording keeps: the two quota meters every tenant-scoped
+#: answer carries, and the two a 429 adds. Nothing else in a header is contract.
+RECORDED_HEADERS = (
+    "X-DayLimit-Remaining",
+    "X-MinLimit-Remaining",
+    "Retry-After",
+    "X-Rate-Limit-Problem",
+)
+#: Xero allows 60 calls a minute per app and tenant; a burst past that is the
+#: only way to record its 429, and the only capture that spends more than one call.
+BURST_CALLS = 70
 
 
 class _TransportTap(RateLimitedRESTClient):
@@ -102,6 +117,14 @@ class _TransportTap(RateLimitedRESTClient):
         self.last_status = 0
         self.last_headers: dict[str, str] = {}
         self.last_data = b""
+        #: While a burst is being recorded the paced client's minute-limit
+        #: retry must not run: the 429 IS the answer being captured.
+        self.recording_a_refusal = False
+
+    def _handle_rate_limit(self, exc: ApiException) -> None:
+        if self.recording_a_refusal:
+            raise exc
+        super()._handle_rate_limit(exc)
 
     def request(  # noqa: PLR0913, PLR0917 -- the SDK base-class signature; not ours to shrink
         self,
@@ -268,6 +291,23 @@ def _capture_every_route(
         lambda: payroll.get_pay_slips(tenant_id, _text(_element(pay_runs, "payRuns"), "payRunID")),
     )
 
+    def burst() -> None:
+        # Unpaced: the paced client's 1s interval is exactly what keeps a real
+        # run under the minute limit, and the point here is to cross it.
+        tap.minimum_sleep = 0
+        tap.recording_a_refusal = True
+        try:
+            for _ in range(BURST_CALLS):
+                accounting.get_organisations(tenant_id)
+        finally:
+            tap.minimum_sleep = RateLimitedRESTClient.minimum_sleep
+            tap.recording_a_refusal = False
+        raise ValueError(
+            f"{BURST_CALLS} unpaced calls were all answered; no minute limit to record"
+        )
+
+    yield _record(tap, "rate_limit_minute", burst)
+
 
 def _employee_with_terms(tenant_id: str) -> tuple[str, str]:
     """Return one linked employee and a working pattern of theirs, from the mirror."""
@@ -294,7 +334,7 @@ def _employee_with_terms(tenant_id: str) -> tuple[str, str]:
 
 def _record(tap: _TransportTap, name: str, call: Callable[[], object]) -> Capture:
     """Make the call (its own error responses included) and read the tap."""
-    # deliberate-swallow: a 404 or a past-the-end 400 is a route the fake
+    # deliberate-swallow: a 404, a past-the-end 400 or a 429 is a route the fake
     # serves too, and the tap has already kept the body the SDK raised on.
     with contextlib.suppress(ApiException):
         call()
@@ -321,6 +361,9 @@ def _capture(name: str, tap: _TransportTap) -> Capture:
         content_disposition=tap.last_headers.get("Content-Disposition"),
         body=body,
         truncated=truncated,
+        headers={
+            name: tap.last_headers[name] for name in RECORDED_HEADERS if name in tap.last_headers
+        },
     )
 
 
