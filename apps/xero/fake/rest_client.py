@@ -39,11 +39,13 @@ def assert_fake_permitted() -> None:
 
 
 class FakeXeroRESTClient(RateLimitedRESTClient):
-    """The paced client whose socket is the route table."""
+    """The paced client whose socket is the route table.
 
-    #: The fake's answers cost nothing to pace; the minute limit it enforces
-    #: is the store's, not the clock's.
-    minimum_sleep = 0
+    The pace stays: the minute limit is a rolling window of the clock, and a
+    client that answered in microseconds would fill it in half a second and
+    be refused where Xero, paced, never is (the detail refresh at 21 staff
+    made 59 calls in 0.55s and was cut short by its own 429).
+    """
 
     def __init__(self, configuration: Configuration) -> None:  # noqa: D107 -- narrows the SDK constructor; class docstring covers it
         assert_fake_permitted()
