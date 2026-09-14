@@ -49,7 +49,9 @@ function readRunId(): string {
  * Which Xero the run talked to (lock file line 4, written by global-setup):
  * "fake" under --use-fake-xero, otherwise "real". Every history row carries
  * it, because a fake run's timings and outcomes are not the gate's (ADR 0060)
- * and the analysers leave them out unless asked.
+ * and the analysers leave them out unless asked. Read in onBegin beside the
+ * run id: global teardown deletes the lock before onEnd fires, and reading it
+ * there labelled every run "real", fake ones included.
  */
 function readXeroMode(): 'fake' | 'real' {
   if (fs.existsSync(LOCK_FILE)) {
@@ -186,6 +188,7 @@ function extractActions(traceZipPath: string): Array<{
 export default class HistoryReporter implements Reporter {
   private rootSuite: Suite | undefined
   private runId = ''
+  private xeroMode: 'fake' | 'real' = 'real'
   private runDate = ''
   private gitMetadata: GitMetadata = {
     sha: '',
@@ -198,6 +201,7 @@ export default class HistoryReporter implements Reporter {
   onBegin(_config: FullConfig, suite: Suite): void {
     this.rootSuite = suite
     this.runId = readRunId()
+    this.xeroMode = readXeroMode()
     this.runDate = new Date().toISOString()
     this.gitMetadata = getGitMetadata()
     this.completedSteps = []
@@ -287,7 +291,7 @@ export default class HistoryReporter implements Reporter {
     }
 
     fs.mkdirSync(historyDir, { recursive: true })
-    const xeroMode = readXeroMode()
+    const xeroMode = this.xeroMode
 
     // Per-test summary — primary artifact for setting timeouts and spotting
     // flakes. Status distinguishes pass/fail/timeout/interrupted; duration_ms
