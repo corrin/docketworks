@@ -86,6 +86,14 @@ grep -q 'location = /api/accounts/token/refresh/ {' <<<"$NGINX" \
     || fail "nginx: exact-match refresh location missing"
 grep -q 'zone=dw_login' "$TEMPLATE_DIR/nginx-ratelimit.conf" \
     || fail "ratelimit conf: dw_login zone missing"
+grep -q 'include /opt/docketworks/instances/test-uat/e2e/fence.conf\*;' <<<"$NGINX" \
+    || fail "nginx: the E2E fence include (ADR 0064) is missing"
+# Escaped: nginx variables, not shell expansions (see FORWARDED_HEADERS below).
+grep -qF "map \$remote_addr \$dw_limit_key" "$TEMPLATE_DIR/nginx-ratelimit.conf" \
+    || fail "ratelimit conf: loopback exemption map missing"
+if grep -qF "limit_req_zone \$binary_remote_addr" "$TEMPLATE_DIR/nginx-ratelimit.conf"; then
+    fail "ratelimit conf: zones must key on \$dw_limit_key so the box's own runs are unlimited"
+fi
 grep -q 'limit_req_status 429;' "$TEMPLATE_DIR/nginx-ratelimit.conf" \
     || fail "ratelimit conf: 429 status missing"
 # The stream's settings are asserted INSIDE its own location and their absence

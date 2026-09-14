@@ -2,6 +2,11 @@ server {
     server_name __FQDN__;
     client_max_body_size 50M;
 
+    # Present only while verify-instance.sh --e2e runs the suite on a copy of
+    # the database (ADR 0064): it answers 503 to everyone but the box itself,
+    # so nothing a user did lands in the copy that is emptied afterwards.
+    include /opt/docketworks/instances/__INSTANCE__/e2e/fence.conf*;
+
     # Authentication endpoints — per-IP rate limits (zones defined in
     # conf.d/docketworks-ratelimit.conf, installed by server-setup.sh).
     # Over-limit requests get 429, which fail2ban deliberately ignores;

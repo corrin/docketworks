@@ -67,8 +67,9 @@ FRONT_END_URL=https://__FQDN__
 # Suppress all Xero writes for this process (production hotfix valve —
 # reads and token refresh stay live). Never true on a live instance.
 XERO_READONLY=False
-# Only run_e2e.sh --use-fake-xero ever sets this true, and only for the
-# development stack it starts (ADR 0060). A server carries False.
+# False here, always. run_e2e.sh --use-fake-xero sets it true for the
+# development stack it starts (ADR 0060), and verify-instance.sh --e2e sets it
+# true in the window env its copy of the database runs under (ADR 0064).
 XERO_FAKE=False
 
 # Instance-local file roots. mediafiles is the one nginx serves at

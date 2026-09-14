@@ -243,6 +243,7 @@ Shows each instance's name, status (running/stopped/no service), current release
 
 ```
 config/<name>.credentials.env (root-owned operator input: Xero + AI + Maps + phone keys, backup GCP)
+config/<name>.e2e.env         (root-owned: E2E_TEST_USERNAME / E2E_TEST_PASSWORD for verify-instance.sh --e2e)
         ↓
 instance.sh reads + validates
         ↓
@@ -275,6 +276,7 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `deploy.sh`                                         | Pull updates and redeploy one or all instances                                                       |
 | `release-utils.sh`                                  | Build, switch, and clean up immutable release directories                                            |
 | `dw-run.sh`                                         | Run a command in an instance's environment                                                           |
+| `verify-instance.sh`                                | Verify the serving path; `--e2e` runs the E2E suite on a copy of the database (ADR 0064)             |
 | `certbot-dreamhost-auth.sh`                         | Certbot DNS-01 auth hook (adds TXT record via Dreamhost API)                                         |
 | `certbot-dreamhost-cleanup.sh`                      | Certbot DNS-01 cleanup hook (removes TXT record)                                                     |
 | `templates/credentials-instance.template`           | Template for per-instance credentials (Xero app, AI keys, backup GCP)                                |

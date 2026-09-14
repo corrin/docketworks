@@ -166,6 +166,33 @@ read_env_value() {
     printf "%s" "$value"
 }
 
+# The Redis database an instance env binds its Celery broker to. A v2 env
+# carries REDIS_URL; a v1 env (docketworks_v1, still the frozen demo) carries
+# REDIS_HOST/REDIS_PORT and pins its broker to database 1 in its settings, so
+# a v1 neighbour occupies 1 without saying so — which is how the first v2
+# instance on a box shared v1's broker and each worker consumed the other's
+# tasks. Anything else is a misconfigured neighbour and fails loudly rather
+# than being skipped: skipping could hand out its (unknown) database twice.
+redis_db_of_env() {
+    local env_file="$1"
+    local url db
+    url="$(read_env_value "$env_file" REDIS_URL)"
+    if [[ -z "$url" ]]; then
+        if [[ -n "$(read_env_value "$env_file" REDIS_HOST)" ]]; then
+            printf '1\n'
+            return 0
+        fi
+        echo "ERROR: $env_file carries neither REDIS_URL nor REDIS_HOST" >&2
+        return 1
+    fi
+    db="${url##*/}"
+    if [[ ! "$db" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: cannot parse a Redis database number from REDIS_URL='$url' in $env_file" >&2
+        return 1
+    fi
+    printf '%s\n' "$db"
+}
+
 ensure_config_dir() {
     if [[ -L "$CONFIG_DIR" ]]; then
         echo "ERROR: Credentials directory must not be a symlink: $CONFIG_DIR" >&2
