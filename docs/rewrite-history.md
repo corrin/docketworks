@@ -1747,3 +1747,8 @@ consume bytes, so the dependency upgrade does not require `Any` there. The code-
 report now counts explicit `Any` and `object` annotations separately as code smells,
 including quoted annotations and casts, while excluding prose and literal metadata.
 These review counts do not relax ADR 0028 or impose a new baseline.
+
+The subsequent full CI suite caught two unclassified link-shaped columns on
+`FakeLeaveBalance`: `tenant_id` and `leave_type_id`. Both are fake-store keys, like
+the neighbouring payroll resources, and are now classified by the existing outbound-link
+probe inventory rather than probed as live vendor links.

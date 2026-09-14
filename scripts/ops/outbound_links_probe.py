@@ -511,6 +511,8 @@ NOT_A_LINK_FIELDS: dict[str, str] = {
             ("FakeSalaryAndWage", "earnings_rate_id"),
             ("FakeWorkingPattern", "tenant_id"),
             ("FakeLeaveType", "tenant_id"),
+            ("FakeLeaveBalance", "tenant_id"),
+            ("FakeLeaveBalance", "leave_type_id"),
             ("FakeEarningsRate", "tenant_id"),
             ("FakePayRun", "tenant_id"),
             ("FakePayRun", "payroll_calendar_id"),
