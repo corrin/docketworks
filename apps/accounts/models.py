@@ -441,7 +441,10 @@ class StaffPayrollTerm(models.Model):
     annual_salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     # One to thirteen repeating weeks, each with monday..sunday numeric hours.
-    working_weeks = models.JSONField(default=list)
+    # Empty when Xero holds no working pattern for the employee: the sync
+    # stores [] (payroll_employees) and the costing reader refuses it by name
+    # (services.payroll_terms), so blank=True keeps the row valid as stored.
+    working_weeks = models.JSONField(default=list, blank=True)
     # Xero may omit either identity; ADR 0040 requires NULL rather than a blank sentinel.
     xero_salary_wage_id = models.CharField(  # noqa: DJ001
         max_length=255, null=True, blank=True
