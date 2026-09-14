@@ -24,6 +24,7 @@ import { execFileSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import { csvCell } from './csv'
 import { collectTraceCalls } from './trace-entries'
+import { v2HistoryDir } from './history-sources'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
@@ -225,7 +226,7 @@ export default class HistoryReporter implements Reporter {
   onEnd(_result: FullResult): void {
     if (!this.rootSuite) return
 
-    const historyDir = path.resolve(scriptDir, '..', '..', 'test-history')
+    const historyDir = v2HistoryDir()
     const testRunsFile = path.join(historyDir, 'test-runs.csv')
     const actionsFile = path.join(historyDir, 'timing-aggregate.csv')
     const stepsFile = path.join(historyDir, 'step-timing-aggregate.csv')

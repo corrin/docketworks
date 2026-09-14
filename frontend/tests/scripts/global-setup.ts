@@ -4,6 +4,7 @@ import path from 'path'
 import {
   checkSafeToTest,
   formatTimestamp,
+  getApplicationUrl,
   getBackupsDir,
   getDbConfig,
   runPgDump,
@@ -23,12 +24,6 @@ function mintRunId(): string {
 }
 
 /**
- * Preflight checks address the backend directly. Both ordinary Playwright runs
- * and the explicit stack runner require it to be running before tests begin.
- */
-const BACKEND_URL = 'http://127.0.0.1:8000'
-
-/**
  * The pickup-address spec validates addresses against Google for real, so the
  * E2E database must hold the Maps key (an IntegrationSettings column, never
  * env). Reported as a preflight issue naming the fix rather than left to fail
@@ -36,7 +31,7 @@ const BACKEND_URL = 'http://127.0.0.1:8000'
  */
 async function integrationSettingsIssues(): Promise<string[]> {
   const cookieValue = await getAuthCookie()
-  const response = await fetch(`${BACKEND_URL}/api/integration-settings/`, {
+  const response = await fetch(`${getApplicationUrl()}/api/integration-settings/`, {
     headers: { Cookie: cookieValue },
     signal: AbortSignal.timeout(30_000),
   })
@@ -67,7 +62,7 @@ async function getAuthCookie(): Promise<string> {
     throw new Error('E2E_TEST_USERNAME and E2E_TEST_PASSWORD must be set in .env.test')
   }
 
-  const loginResponse = await fetch(`${BACKEND_URL}/api/accounts/token/`, {
+  const loginResponse = await fetch(`${getApplicationUrl()}/api/accounts/token/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
@@ -87,8 +82,9 @@ async function getAuthCookie(): Promise<string> {
 
 /**
  * Safety check: verify Xero is connected and whether the backend is pointing
- * at the production Xero app. Production Xero writes require XERO_READONLY.
- * Does NOT attempt to connect or refresh tokens.
+ * at the production Xero app, whose writes are refused unless the fake
+ * answers them. Reached at the app's public origin, the same way the browser
+ * reaches it, so a server run needs no loopback port.
  */
 export interface XeroStatus {
   connected: boolean
@@ -102,7 +98,7 @@ async function checkXeroStatus(): Promise<XeroStatus> {
   const cookieValue = await getAuthCookie()
 
   // Generous: ping may perform a real token refresh against Xero.
-  const response = await fetch(`${BACKEND_URL}/api/xero/ping/`, {
+  const response = await fetch(`${getApplicationUrl()}/api/xero/ping/`, {
     headers: { Cookie: cookieValue },
     signal: AbortSignal.timeout(60_000),
   })
@@ -176,11 +172,15 @@ export function xeroPreflightIssues(xeroStatus: XeroStatus, expectFake: boolean)
       'Backend did not report whether the active Xero app is production. ' +
         'Deploy the backend ping update before running E2E.',
     )
+  } else if (xeroStatus.productionClient && xeroStatus.xeroFake) {
+    // A server's copy of its database names the production app; the fake
+    // answers every call, so the app is never reached (ADR 0064).
+    console.log('[xero] The active app is the production one; the fake answers for it.')
   } else if (xeroStatus.productionClient && !xeroStatus.xeroReadonly) {
     issues.push(
       'Backend is using the production Xero app with writes enabled. ' +
-        'Restart the backend and any celery worker with XERO_READONLY=true, ' +
-        'or switch the active Xero app to a non-production client.',
+        'Switch the active Xero app to a non-production client, or verify on a copy ' +
+        'of the database with the fake (verify-instance.sh --e2e, ADR 0064).',
     )
   } else if (xeroStatus.productionClient) {
     console.log('[xero] Backend is using the production Xero app in XERO_READONLY mode.')
