@@ -66,6 +66,9 @@ sudo ./scripts/server/instance.sh create mycompany uat --no-start
 
 # Re-run after root-owned credential edits
 sudo ./scripts/server/instance.sh reconfigure mycompany uat
+
+# A further hostname the instance answers on (docs/server_setup.md)
+sudo ./scripts/server/instance.sh reconfigure mycompany uat --alias office.mycompany.example
 ```
 
 prepare-config's `--seed` flag selects the seeded CompanyDefaults template

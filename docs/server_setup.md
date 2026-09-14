@@ -72,6 +72,28 @@ To add or remove a single cert-domain on an already-configured server,
 edit `/etc/letsencrypt/cert-domains.txt` (one FQDN per line; blanks and
 `#`-comments ignored) and re-run `server-setup.sh`.
 
+### An instance on a second hostname
+
+An instance answers on its canonical FQDN plus any aliases (a client-branded
+name beside the fleet name, e.g. `uat-office.morrissheetmetal.co.nz` beside
+`msm-uat.docketworks.site`). Every hostname serves the full app with its own
+login cookie; nginx gets one server block per hostname on that hostname's
+certificate, and the app admits it through `APP_DOMAIN_ALIASES`. Outbound
+links (password reset, job links in Xero documents) and the Xero redirect URI
+stay on the canonical FQDN, so nothing changes in the Xero developer portal;
+a Xero connect started on an alias returns the browser to the alias
+(`apps/xero/oauth_views.py`).
+
+```bash
+# 1. DNS: an A record for the alias at Dreamhost, pointing at this box.
+# 2. Its certificate (DNS-01, as above; the list is persisted and re-read):
+sudo ./scripts/server/server-setup.sh --cert-domain '*.docketworks.site' --cert-domain uat-office.morrissheetmetal.co.nz
+# 3. The instance: --alias replaces the persisted list; --no-alias clears it.
+sudo scripts/server/instance.sh reconfigure msm uat --alias uat-office.morrissheetmetal.co.nz
+# 4. Proof: the build-id probe runs on every hostname.
+sudo scripts/server/verify-instance.sh msm uat
+```
+
 The script logs every action to `/var/log/docketworks-setup.log` with timestamps,
 and writes a manifest of installed software to `/opt/docketworks/server-manifest.txt`.
 

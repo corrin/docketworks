@@ -92,12 +92,9 @@ check() {
     fi
 }
 
-FQDN_FILE="$INSTANCE_DIR/.fqdn"
-if [[ -f "$FQDN_FILE" ]]; then
-    FQDN="$(cat "$FQDN_FILE")"
-else
-    FQDN="$INSTANCE.$DOMAIN"
-fi
+HOSTNAMES="$(instance_hostnames "$INSTANCE")"
+FQDN="${HOSTNAMES%%$'\n'*}"
+ALIASES="$(tail -n +2 <<<"$HOSTNAMES")"
 # --resolve pins the FQDN to this host so verification never depends on
 # DNS having cut over yet; the certificate still validates because the
 # name matches.
@@ -300,6 +297,19 @@ else
     echo "FAIL: /api/build-id/ returned '${BUILD_ID:-<nothing>}', expected $EXPECTED_SHA"
     FAILURES=$((FAILURES + 1))
 fi
+
+# --- Aliases: every further hostname serves the same release ---
+# Each alias is its own nginx server block on its own certificate; the probe
+# proves the block, the certificate and the app's ALLOWED_HOSTS for that name.
+for alias in $ALIASES; do
+    ALIAS_BUILD_ID="$(curl -sS --max-time 15 --resolve "$alias:443:127.0.0.1" "https://$alias/api/build-id/" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["build_id"])' 2>/dev/null || true)"
+    if [[ -n "$ALIAS_BUILD_ID" && "$ALIAS_BUILD_ID" == "$EXPECTED_SHA" ]]; then
+        echo "PASS: alias $alias serves the linked release"
+    else
+        echo "FAIL: alias $alias returned '${ALIAS_BUILD_ID:-<nothing>}' for /api/build-id/, expected $EXPECTED_SHA"
+        FAILURES=$((FAILURES + 1))
+    fi
+done
 
 # --- Auth gate: a protected endpoint refuses anonymous requests ---
 # status-choices is a stable authenticated GET (a bare GET /api/job/jobs/

@@ -10,6 +10,7 @@ LOCAL_REPO="$BASE_DIR/repo"
 RELEASES_DIR="$BASE_DIR/releases"
 REMOTE_REPO_URL="https://github.com/corrin/docketworks.git"
 RCLONE_CONFIG_DIR="$CONFIG_DIR/rclone"
+NGINX_SITES_AVAILABLE="/etc/nginx/sites-available"
 
 VALID_ENVS="dev uat staging prod demo"
 
@@ -124,6 +125,61 @@ ensure_instance_backup_dir() {
     mkdir -p "$backup_dir"
     chown "$instance_user:$instance_user" "$backup_dir"
     chmod 700 "$backup_dir"
+}
+
+# The hostnames an instance answers on: its canonical FQDN (.fqdn) first, then
+# every alias (.aliases, one per line). instance.sh writes both files on every
+# create and reconfigure, so a missing file is an instance that predates them
+# and needs a reconfigure — not a case to default. The three readers this
+# replaced each fell back to <instance>.docketworks.site, which is wrong for
+# every --fqdn instance and was silently so.
+instance_hostnames() {
+    local instance="$1"
+    local instance_dir="$INSTANCES_DIR/$instance"
+    local file
+    for file in .fqdn .aliases; do
+        if [[ ! -f "$instance_dir/$file" ]]; then
+            echo "ERROR: $instance_dir/$file is missing; run instance.sh reconfigure for $instance." >&2
+            return 1
+        fi
+    done
+    head -n1 "$instance_dir/.fqdn"
+    sed '/^[[:space:]]*$/d' "$instance_dir/.aliases"
+}
+
+# The certbot live directory holding a hostname's certificate: a name under
+# the fleet domain is on the wildcard, filed under the apex (server-setup.sh);
+# any other name has a certificate of its own under its own name.
+cert_live_dir() {
+    local host="$1"
+    if [[ "$host" == *".$DOMAIN" ]]; then
+        echo "$DOMAIN"
+    else
+        echo "$host"
+    fi
+}
+
+# One nginx site per instance, one server block per hostname: nginx binds one
+# certificate per server block, and an alias off the fleet domain has its own.
+# The unchanged template renders once per hostname into the same file, so the
+# E2E fence include (ADR 0064), the auth rate limits and the access log reach
+# every hostname by construction. instance.sh and deploy.sh both render here;
+# deploy.sh used to scrape server_name out of the live file, which would now
+# re-render only the first block.
+render_instance_nginx() {
+    local instance="$1"
+    local hostnames host tmp_conf
+    hostnames="$(instance_hostnames "$instance")" || return 1
+    tmp_conf="$(mktemp)"
+    for host in $hostnames; do
+        sed \
+            -e "s|__INSTANCE__|$instance|g" \
+            -e "s|__FQDN__|$host|g" \
+            -e "s|__CERT_DOMAIN__|$(cert_live_dir "$host")|g" \
+            "$SCRIPT_DIR/templates/nginx-instance.conf.template" >> "$tmp_conf"
+    done
+    chmod 0644 "$tmp_conf"
+    mv "$tmp_conf" "$NGINX_SITES_AVAILABLE/docketworks-$instance"
 }
 
 node_major_from_nvmrc() {

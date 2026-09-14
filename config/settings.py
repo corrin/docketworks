@@ -59,8 +59,15 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 JWT_SIGNING_KEY = os.environ["JWT_SIGNING_KEY"]
 DEBUG = os.environ["DEBUG"].lower() == "true"
 APP_DOMAIN = os.environ["APP_DOMAIN"]
+# Further hostnames this instance answers on (instance.sh --alias; comma-
+# separated, usually empty). Everything that names the instance outbound —
+# reset links, job links in Xero documents, the cache prefix — stays on
+# APP_DOMAIN; an alias only admits requests. Present in every .env by the
+# env-template contract but legitimately empty, so it is read here rather
+# than listed in REQUIRED_ENV_VARS, which refuses an empty value.
+APP_DOMAIN_ALIASES = [host for host in os.environ["APP_DOMAIN_ALIASES"].split(",") if host]
 
-ALLOWED_HOSTS = [APP_DOMAIN, "localhost", "127.0.0.1"]
+ALLOWED_HOSTS = [APP_DOMAIN, *APP_DOMAIN_ALIASES, "localhost", "127.0.0.1"]
 
 # No django.contrib.admin: administration happens through the app's own SPA.
 INSTALLED_APPS = [
@@ -179,7 +186,11 @@ USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
 
 # Unsafe-method requests arriving through the tunnel carry the public origin.
-CSRF_TRUSTED_ORIGINS = [f"https://{APP_DOMAIN}", f"http://{APP_DOMAIN}"]
+CSRF_TRUSTED_ORIGINS = [
+    f"https://{APP_DOMAIN}",
+    f"http://{APP_DOMAIN}",
+    *(f"https://{host}" for host in APP_DOMAIN_ALIASES),
+]
 
 ROOT_URLCONF = "config.urls"
 

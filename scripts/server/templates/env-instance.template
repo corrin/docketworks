@@ -60,8 +60,11 @@ GCP_DELEGATED_SUBJECT=
 # cache as database 2 of the same server (KEY_PREFIX isolates instances).
 REDIS_URL=redis://127.0.0.1:6379/__REDIS_DB__
 
-# Public identity
+# Public identity. APP_DOMAIN_ALIASES lists the further hostnames the instance
+# answers on (instance.sh --alias, comma-separated, usually empty); the
+# canonical name stays APP_DOMAIN and nginx gets one server block per name.
 APP_DOMAIN=__FQDN__
+APP_DOMAIN_ALIASES=__APP_DOMAIN_ALIASES__
 FRONT_END_URL=https://__FQDN__
 
 # Suppress all Xero writes for this process (production hotfix valve —

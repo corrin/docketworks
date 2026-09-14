@@ -3,8 +3,8 @@ set -euo pipefail
 
 # Manage docketworks instances.
 # Usage: instance.sh prepare-config <client> <env> [--seed]
-#        instance.sh create <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]
-#        instance.sh reconfigure <client> <env> [--fqdn <hostname>] [--no-start]
+#        instance.sh create <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--alias <hostname>]... [--no-start]
+#        instance.sh reconfigure <client> <env> [--fqdn <hostname>] [--alias <hostname>]... [--no-alias] [--no-start]
 #        instance.sh validate-config <client> <env>
 #        instance.sh load-db-fixtures <client> <env>
 #        instance.sh destroy <client> <env>
@@ -14,6 +14,13 @@ set -euo pipefail
 #
 # --ref: on create only, the git ref this instance tracks (default
 # origin/production). Re-point an existing instance with deploy.sh --ref.
+#
+# --alias: a further hostname the instance answers on (repeatable), on top of
+# the canonical --fqdn. Same semantics as server-setup.sh --cert-domain: an
+# explicit list replaces the persisted one (.aliases), --no-alias clears it,
+# neither keeps it. Each hostname gets its own nginx server block and needs
+# its own certificate (server-setup.sh --cert-domain); the app's outbound
+# links and the Xero redirect URI stay on the canonical FQDN.
 #
 # --no-start: create the instance but do NOT enable/restart celery-beat-* and
 # celery-worker-* services, and drop a .dr-mode marker in the instance dir.
@@ -44,17 +51,6 @@ json_string_or_null() {
         printf 'null'
     else
         python3 -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$1"
-    fi
-}
-
-# Get the FQDN for an instance: custom if set, else <instance>.<domain>
-get_fqdn() {
-    local instance="$1"
-    local fqdn_file="$INSTANCES_DIR/$instance/.fqdn"
-    if [[ -f "$fqdn_file" ]]; then
-        cat "$fqdn_file"
-    else
-        echo "${instance}.${DOMAIN}"
     fi
 }
 
@@ -286,6 +282,7 @@ render_instance_env() {
     local scrub_db_name="$5"
     local test_db_user="$6"
     local fqdn="$7"
+    local aliases_csv="$8"
 
     local env_file="$instance_dir/.env"
     local db_password test_db_password secret_key jwt_signing_key redis_db
@@ -316,6 +313,7 @@ render_instance_env() {
     sed \
         -e "s|__INSTANCE__|$INSTANCE|g" \
         -e "s|__FQDN__|$fqdn|g" \
+        -e "s|__APP_DOMAIN_ALIASES__|$aliases_csv|g" \
         -e "s|__DB_NAME__|$db_name|g" \
         -e "s|__DB_USER__|$db_user|g" \
         -e "s|__DB_PASSWORD__|$db_password|g" \
@@ -562,12 +560,14 @@ do_configure() {
     local ALLOW_PROD_REF=false
     local SKIP_DB_FIXTURES=false
     local parsed
-    local long_opts="ref:,allow-prod-ref,fqdn:,no-start,skip-db-fixtures"
+    local ALIASES=()
+    local NO_ALIAS=false
+    local long_opts="ref:,allow-prod-ref,fqdn:,alias:,no-alias,no-start,skip-db-fixtures"
     if ! parsed=$(getopt -o '' --long "$long_opts" -n "$(basename "$0") $command_name" -- "$@"); then
         if [[ "$command_name" == "create" ]]; then
-            echo "Usage: $(basename "$0") $command_name <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]" >&2
+            echo "Usage: $(basename "$0") $command_name <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--alias <hostname>]... [--no-start]" >&2
         else
-            echo "Usage: $(basename "$0") $command_name <client> <env> [--fqdn <hostname>] [--no-start] [--skip-db-fixtures]" >&2
+            echo "Usage: $(basename "$0") $command_name <client> <env> [--fqdn <hostname>] [--alias <hostname>]... [--no-alias] [--no-start] [--skip-db-fixtures]" >&2
         fi
         exit 1
     fi
@@ -577,6 +577,8 @@ do_configure() {
             --ref)      REF="$2"; REF_SET=true; shift 2 ;;
             --allow-prod-ref) ALLOW_PROD_REF=true; shift ;;
             --fqdn)     CUSTOM_FQDN="$2";       shift 2 ;;
+            --alias)    ALIASES+=("$2");        shift 2 ;;
+            --no-alias) NO_ALIAS=true;          shift ;;
             --no-start) NO_START=true;          shift ;;
             --skip-db-fixtures) SKIP_DB_FIXTURES=true; shift ;;
             --)         shift; break ;;
@@ -584,6 +586,10 @@ do_configure() {
     done
     if [[ $# -gt 0 ]]; then
         echo "ERROR: Unexpected arguments to '$command_name': $*" >&2
+        exit 1
+    fi
+    if [[ "$NO_ALIAS" == "true" && ${#ALIASES[@]} -gt 0 ]]; then
+        echo "ERROR: --no-alias and --alias contradict each other." >&2
         exit 1
     fi
     if [[ "$REF_SET" == "true" && "$command_name" != "create" ]]; then
@@ -674,21 +680,21 @@ do_configure() {
         log "WARNING: setquota not found — install quota package: sudo apt install quota"
     fi
 
-    local FQDN CERT_DOMAIN
+    local FQDN
     if [[ -n "$CUSTOM_FQDN" ]]; then
         FQDN="$CUSTOM_FQDN"
-        CERT_DOMAIN="$CUSTOM_FQDN"
     elif [[ "$IS_EXISTING" == "true" && -f "$INSTANCE_DIR/.fqdn" ]]; then
-        FQDN="$(cat "$INSTANCE_DIR/.fqdn")"
-        if [[ "$FQDN" == *".$DOMAIN" ]]; then
-            CERT_DOMAIN="$DOMAIN"
-        else
-            CERT_DOMAIN="$FQDN"
-        fi
+        FQDN="$(head -n1 "$INSTANCE_DIR/.fqdn")"
     else
         FQDN="${INSTANCE}.${DOMAIN}"
-        CERT_DOMAIN="$DOMAIN"
     fi
+    # An explicit list replaces the persisted one; --no-alias clears it;
+    # neither keeps it (.aliases is absent only on an instance that predates it).
+    if [[ "$NO_ALIAS" == "false" && ${#ALIASES[@]} -eq 0 && -f "$INSTANCE_DIR/.aliases" ]]; then
+        mapfile -t ALIASES < <(sed '/^[[:space:]]*$/d' "$INSTANCE_DIR/.aliases")
+    fi
+    local ALIASES_CSV
+    ALIASES_CSV="$(IFS=,; echo "${ALIASES[*]}")"
 
     log "Ensuring instance directory structure..."
     ensure_instance_directories "$INSTANCE_DIR" "$INSTANCE_USER"
@@ -710,7 +716,8 @@ do_configure() {
         "${BACKUP_GDRIVE_ROOT_FOLDER_ID:-}" \
         "${BACKUP_GDRIVE_TEAM_DRIVE_ID:-}"
     echo "$FQDN" > "$INSTANCE_DIR/.fqdn"
-    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.fqdn"
+    printf '%s\n' "${ALIASES[@]}" > "$INSTANCE_DIR/.aliases"
+    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.fqdn" "$INSTANCE_DIR/.aliases"
 
     cat > "$INSTANCE_DIR/.bash_profile" <<'BASH_PROFILE'
 source ~/app/.venv/bin/activate
@@ -728,7 +735,8 @@ BASH_PROFILE
         "$DB_USER" \
         "$SCRUB_DB_NAME" \
         "$TEST_DB_USER" \
-        "$FQDN"
+        "$FQDN" \
+        "$ALIASES_CSV"
 
     local DB_PASSWORD TEST_DB_PASSWORD
     DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" DB_PASSWORD)"
@@ -852,21 +860,21 @@ EOSQL
     install -m 0440 -o root -g root "$SUDOERS_TMP" "/etc/sudoers.d/$INSTANCE_USER"
     rm -f "$SUDOERS_TMP"
 
-    log "Installing Nginx config for $FQDN..."
-    sed \
-        -e "s|__INSTANCE__|$INSTANCE|g" \
-        -e "s|__FQDN__|$FQDN|g" \
-        -e "s|__CERT_DOMAIN__|$CERT_DOMAIN|g" \
-        "$TEMPLATE_DIR/nginx-instance.conf.template" \
-        > "/etc/nginx/sites-available/docketworks-$INSTANCE"
-    ln -sf "/etc/nginx/sites-available/docketworks-$INSTANCE" "/etc/nginx/sites-enabled/"
+    log "Installing Nginx config for $FQDN${ALIASES_CSV:+ (aliases: $ALIASES_CSV)}..."
+    render_instance_nginx "$INSTANCE"
+    ln -sf "$NGINX_SITES_AVAILABLE/docketworks-$INSTANCE" "/etc/nginx/sites-enabled/"
 
-    local CERT_PATH="/etc/letsencrypt/live/$CERT_DOMAIN/fullchain.pem"
-    if [[ -f "$CERT_PATH" ]]; then
+    local host CERT_PATH MISSING_CERT=false
+    for host in "$FQDN" "${ALIASES[@]}"; do
+        CERT_PATH="/etc/letsencrypt/live/$(cert_live_dir "$host")/fullchain.pem"
+        if [[ ! -f "$CERT_PATH" ]]; then
+            log "  NOTE: no certificate for $host at $CERT_PATH — skipping nginx reload."
+            log "  After DNS cutover: sudo scripts/server/server-setup.sh --cert-domain $host (docs/server_setup.md)"
+            MISSING_CERT=true
+        fi
+    done
+    if [[ "$MISSING_CERT" == "false" ]]; then
         nginx -t && systemctl reload nginx
-    else
-        log "  NOTE: SSL cert not yet at $CERT_PATH — skipping nginx reload."
-        log "  After DNS cutover: sudo certbot --nginx -d $FQDN"
     fi
 
     # The auth jails read the per-instance nginx access logs by glob; the
@@ -1201,7 +1209,7 @@ do_list() {
             sha="no release"
         fi
 
-        printf "%-15s %-12s %-12s %-10s %-40s\n" "$name" "$status" "$sched_status" "$sha" "https://$(get_fqdn "$name")"
+        printf "%-15s %-12s %-12s %-10s %-40s\n" "$name" "$status" "$sched_status" "$sha" "https://$(instance_hostnames "$name" | head -n1)"
     done
 }
 

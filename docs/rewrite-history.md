@@ -1,5 +1,17 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-14 — An instance answers on aliases; the Xero redirect URI stays canonical
+
+Owner ruling. UAT serves `uat-office.morrissheetmetal.co.nz` beside `msm-uat.docketworks.site`,
+both the full app. Xero's developer portal is the only place an app's redirect URIs are managed
+(no API, exact match, no wildcards), and the owner would not register a second one, so the
+canonical FQDN (`APP_DOMAIN`) keeps the one redirect URI and every outbound link; an alias only
+admits requests (`APP_DOMAIN_ALIASES`, `instance.sh --alias`). The OAuth state therefore moved
+from the per-host session to the shared cache, carrying the absolute return address, so a
+connect started on an alias lands back on it. Fable: the owner set the bar for this change at
+minimal change rather than a shrink; the nginx template is rendered once per hostname rather
+than split.
+
 ## 2026-09-13 — ADR 0055 owns the shared-home rule; ADR 0039 defers to it
 
 Owner ruling, by approving the ADR corpus rewrite plan. Fable: the plan stated that 0039 drops

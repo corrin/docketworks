@@ -11,6 +11,17 @@ from django.core.cache import BaseCache, caches
 # the new app's credentials.
 TENANT_ID_CACHE_KEY = "xero_tenant_id"
 
+# The OAuth state minted by oauth_views.xero_authenticate and consumed once by
+# xero_oauth_callback, holding the absolute URL to return the browser to. In the
+# shared cache, not the session; oauth_views' docstring says why.
+OAUTH_STATE_KEY_PREFIX = "xero_oauth_state:"
+OAUTH_STATE_TTL_SECONDS = 600
+
+
+def oauth_state_key(state: str) -> str:
+    """Return the shared-cache key under which a minted state holds its return address."""
+    return f"{OAUTH_STATE_KEY_PREFIX}{state}"
+
 
 def tenant_cache() -> BaseCache:
     """Return the cache holding TENANT_ID_CACHE_KEY, which must span processes.

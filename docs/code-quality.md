@@ -14,8 +14,8 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 114,743 (v1 172,577, -34%) |
-| tests | 78,744 (v1 50,869, +55%) |
+| code | 114,831 (v1 172,577, -33%) |
+| tests | 78,837 (v1 50,869, +55%) |
 | generated | 49,993 (v1 20,359, +146%) |
 
 ## Suppressions
@@ -81,8 +81,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 231 |
-| in docstrings | 381 |
+| in comments | 230 |
+| in docstrings | 382 |
 
 ## Exception handling
 
@@ -114,8 +114,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 226 |
-| non-test functions | 2866 |
+| functions returning `X \| None` | 227 |
+| non-test functions | 2867 |
 
 ## Wire contract (response side)
 

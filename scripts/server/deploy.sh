@@ -159,40 +159,8 @@ render_backup_timer() {
 
 render_nginx_config() {
     local instance="$1"
-    local existing_conf="/etc/nginx/sites-available/docketworks-$instance"
-    local fqdn cert_domain
-
-    if [[ ! -f "$existing_conf" ]]; then
-        log "  ERROR: No existing nginx config at $existing_conf. Run instance.sh first."
-        return 1
-    fi
-
-    fqdn=$(grep -oP 'server_name \K[^;]+' "$existing_conf" | head -1 | awk '{$1=$1; print}' || true)
-    cert_domain=$(grep -oP 'ssl_certificate /etc/letsencrypt/live/\K[^/]+' "$existing_conf" | head -1 || true)
-    if [[ -z "$fqdn" || -z "$cert_domain" ]]; then
-        log "  ERROR: Could not extract FQDN/CERT_DOMAIN from $existing_conf"
-        return 1
-    fi
-
-    log "  Re-rendering nginx config (FQDN=$fqdn, CERT_DOMAIN=$cert_domain)"
-    # Render to a temp file, then move: redirecting straight into
-    # $existing_conf truncates it before sed runs, and that file is the
-    # ONLY source of this instance's FQDN/cert-domain — a failed render
-    # would destroy the values a re-run needs to recover.
-    local tmp_conf
-    tmp_conf="$(mktemp)"
-    if ! sed \
-        -e "s|__INSTANCE__|$instance|g" \
-        -e "s|__FQDN__|$fqdn|g" \
-        -e "s|__CERT_DOMAIN__|$cert_domain|g" \
-        "$SCRIPT_DIR/templates/nginx-instance.conf.template" \
-        > "$tmp_conf"; then
-        rm -f "$tmp_conf"
-        log "  ERROR: nginx template render failed; existing config left untouched."
-        return 1
-    fi
-    install -m 0644 -o root -g root "$tmp_conf" "$existing_conf"
-    rm -f "$tmp_conf"
+    log "  Re-rendering nginx config from $INSTANCES_DIR/$instance/.fqdn and .aliases"
+    render_instance_nginx "$instance"
 }
 
 restart_instance_units() {
