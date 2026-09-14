@@ -31,7 +31,7 @@ cp ngrok.yml.example ngrok.yml           # fill in authtoken + your static domai
 pre-commit install
 ```
 
-Full setup detail (Postgres/Redis, ngrok domains, Xero) is in
+Full setup details (Postgres/Redis, ngrok domains, Xero) are in
 [docs/initial_install.md](docs/initial_install.md) and [docs/ngrok_setup.md](docs/ngrok_setup.md).
 
 ## Starting
