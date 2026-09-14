@@ -8,6 +8,16 @@ These are not all meant to be zero. They are here so that a change which
 moves one has to show that movement in its diff, rather than a reviewer
 having to notice. Only `passthrough` is pinned at zero.
 
+## Lines of source
+
+Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .scss`), split into the code itself, tests, and generated files (migrations, the generated API client, lock files), beside v1 at `e88dc420` measured by the same rule. v2 replaced v1 as an architectural cleanup, so the code figure is the one that has to keep shrinking; tests and generated files are allowed to grow.
+
+| metric | count |
+|---|---:|
+| code | 114,743 (v1 172,577, -34%) |
+| tests | 78,744 (v1 50,869, +55%) |
+| generated | 49,993 (v1 20,359, +146%) |
+
 ## Suppressions
 
 Every place a checker is told to look away. A bare `noqa` carries no rule code and is forbidden outright (CLAUDE.md); the count is here so that stays true rather than being assumed.
@@ -21,7 +31,7 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 743 |
+| TOTAL suppressions | 744 |
 | noqa: DJ001 | 174 |
 | noqa: PLC0415 | 150 |
 | noqa: E402 | 108 |
@@ -30,7 +40,7 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: BLE001 | 35 |
 | noqa: ARG001 | 22 |
 | noqa: C901 | 18 |
-| noqa: S603 | 17 |
+| noqa: S603 | 18 |
 | noqa: TRY300 | 9 |
 | noqa: TRY004 | 8 |
 | noqa: DJ008 | 7 |
@@ -71,8 +81,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 228 |
-| in docstrings | 380 |
+| in comments | 231 |
+| in docstrings | 381 |
 
 ## Exception handling
 
@@ -105,7 +115,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 226 |
-| non-test functions | 2863 |
+| non-test functions | 2866 |
 
 ## Wire contract (response side)
 
