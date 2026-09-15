@@ -73,22 +73,31 @@ test.describe('Xero connection page', () => {
     // Opus: one lock covers every Xero sync, and the scheduler holds it
     // whenever it is due — so 409 `already_running` is the server being right,
     // not a defect. The button's disabled state cannot close the gap either: it
-    // comes from a polled query, so it can still read "idle" while the
-    // scheduler is taking the lock. Waiting for a quiet window and dispatching
-    // again is what this spec can honestly assert; its subject is the detail
-    // refresh, not who won the lock.
+    // is read from sync-info on mount and after the stream's terminal event,
+    // never polled, so it can still read "idle" while the scheduler is taking
+    // the lock. Waiting for a quiet window and dispatching again is what this
+    // spec can honestly assert; its subject is the detail refresh, not who won
+    // the lock.
     const startedAt = Date.now()
     let response = await dispatchDetailRefresh(page, refresh)
     while (response.status() === 409) {
-      // Ask the server, not the button. The button reflects a polled query, so
-      // a sync that starts and finishes between polls is never visible as a
-      // disabled state — asserting one made this wait for something that had
-      // already happened.
+      // Ask the server, not the button: a sync that starts and finishes
+      // between sync-info reads is never visible as a disabled state.
       await expect
         .poll(() => syncInProgress(page), { timeout: 210_000, intervals: [2000] })
         .toBe(false)
       response = await dispatchDetailRefresh(page, refresh)
     }
+    // Fable: the run this spec dispatched, by id. The progress log shows every
+    // sync's events and sync-info's timestamp is written by any employee
+    // refresh, so an hourly sync overlapping this one could satisfy both and
+    // the spec would pass on a refresh it never asked for: the 16s "passes"
+    // against Xero were exactly that, a real refresh costs about 98s.
+    const started: unknown = await response.json()
+    if (typeof started !== 'object' || started === null || !('task_id' in started)) {
+      throw new Error('sync dispatch did not report a task_id')
+    }
+    const taskId = String(started.task_id)
     const completed = page.waitForResponse(
       async (r) => {
         if (new URL(r.url()).pathname !== SYNC_INFO_PATH || r.status() !== 200) return false
@@ -104,9 +113,11 @@ test.describe('Xero connection page', () => {
     expect(response.status()).toBe(202)
     expect(new URL(response.url()).searchParams.get('detail_refresh')).toBe('true')
     await expect(refresh).toBeDisabled()
-    await expect(autoId(page, 'XeroPage-progress')).toContainText('Completed sync of employees', {
-      timeout: 210_000,
-    })
+    await expect(
+      autoId(page, 'XeroPage-progress').locator(`[data-task-id="${taskId}"]`, {
+        hasText: 'Completed sync of employees',
+      }),
+    ).toBeVisible({ timeout: 210_000 })
     await completed
     await expect(autoId(page, 'XeroPage-last-detail-refresh')).not.toContainText('never')
     await expect(refresh).toBeEnabled()
