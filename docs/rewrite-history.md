@@ -1761,3 +1761,28 @@ connection. The runner now takes its post-restore quota reading only in real mod
 The full Python suite passed 3,384 tests after the link-inventory fix. The first browser
 attempt after recovery could not launch the newly required Playwright Chromium binary;
 its teardown restored the database, and the matching browser was installed for the retry.
+
+## 2026-09-15 — The two real-gate failures, root-caused (PR #165)
+
+The detail-refresh spec never sent its request: `run_e2e.sh` started Celery Beat against the
+repo-root `celerybeat-schedule`, Beat replayed the missed hourly tick 3 s after the stack came
+up, and because a restored database is always due a full employee detail refresh
+(`sync.py:609` upgrades an hourly run when `detail_refresh_due`), that sync held the one lock
+for 538 s (64 payroll calls in the first 98 s, then invoices, quotes, contacts, pay runs). The
+spec opened the page 141 s in and its 210 s wait on the button ended 187 s before the lock
+freed. The 16 s passes on 14 Sep could only have been the hourly sync's events satisfying the
+spec's assertions, since a real refresh costs about 98 s. Ruling (owner): Beat runs the suite
+on a run-scoped schedule file, and the spec asserts on the run it dispatched, by task id.
+Residual: a real `:15` tick can still land inside the spec's window about one run in twenty.
+
+JO-0829 is spent for good. The Demo Company holds JO-0826, JO-0829 and JO-0833 as DELETED
+without the rename-on-void (deleted 12 Sep at 05:05–05:53 UTC, before the rename landed the
+same day; every delete since carries a `-VOID-` suffix). Measured today: an update of JO-0829
+by id with status DRAFT answers HTTP 400, "PurchaseOrder status change is invalid" and
+"Deleted PurchaseOrders cannot be updated"; the SDK has no restore endpoint and the 12 Sep
+measurement already showed a rename of a deleted order refused. The number recurs because
+`generate_po_number` is MAX over surviving rows plus one and the E2E teardown restores the
+pre-run dump, so every real run starts again at JO-0826. Ruling (owner): left failing for now;
+the Xero web UI is untried. Options on record: step `starting_po_number` past the band on dev;
+route the app's own Deleted status through the rename-on-void call (`apps/xero/documents/po.py`
+sends DELETED under the order's own number, which burns it); make numbering monotonic.
