@@ -1752,3 +1752,12 @@ The subsequent full CI suite caught two unclassified link-shaped columns on
 `FakeLeaveBalance`: `tenant_id` and `leave_type_id`. Both are fake-store keys, like
 the neighbouring payroll resources, and are now classified by the existing outbound-link
 probe inventory rather than probed as live vendor links.
+
+The live E2E preflight then exposed a fake-runner cleanup defect: its final quota
+read happened after Playwright restored the database, and the fake transport refreshed
+the restored access token into a fake one. The next live Organisation call returned 401.
+The real refresh token remained intact; the application's normal refresh recovered the
+connection. The runner now takes its post-restore quota reading only in real mode.
+The full Python suite passed 3,384 tests after the link-inventory fix. The first browser
+attempt after recovery could not launch the newly required Playwright Chromium binary;
+its teardown restored the database, and the matching browser was installed for the retry.

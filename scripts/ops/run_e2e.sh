@@ -147,6 +147,9 @@ wait_for 'the public edge' curl -fsS "$(public_url)/api/build-id/"
 
 # Use the same configured public origin as an ordinary Playwright run.
 npm --prefix "$FRONTEND" run test:e2e -- "${PLAYWRIGHT_ARGS[@]}"
-# The same reading again: the difference from the one above is what this run
-# spent, printed where the next threshold decision will find it.
-"$ROOT/.venv/bin/python" -m scripts.ops.assert_xero_quota
+# The real quota delta measures the run's spend. GPT: Playwright has already
+# restored the database here, so a fake call can refresh the restored REAL
+# access token into a fake one and leave the next live run disconnected.
+if [[ "$USE_FAKE_XERO" == false ]]; then
+  "$ROOT/.venv/bin/python" -m scripts.ops.assert_xero_quota
+fi
