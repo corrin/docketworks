@@ -128,8 +128,8 @@ class RateLimitedRESTClient(RESTClientObject):
     that, so a fake run leaves the same record a real one does.
     """
 
-    #: Seconds between calls to one app. The fake sets it to zero: its answers
-    #: cost nothing to pace, and a run against it should be as fast as the database.
+    #: Seconds between calls to one app; the recorder lifts it only to provoke
+    #: the minute limit (recordings/catalogue.py).
     minimum_sleep: float = MINIMUM_SLEEP
 
     def __init__(  # noqa: D107 -- narrows the SDK constructor; class docstring covers it

@@ -73,6 +73,7 @@ ROUTES: tuple[tuple[str, re.Pattern[str], Handler], ...] = (
     ),
     _route("GET", f"{_PAYROLL}/Employees/{_ID}", payroll.get_employee),
     _route("GET", f"{_PAYROLL}/Employees/{_ID}/SalaryAndWages", payroll.list_salary_and_wages),
+    _route("GET", f"{_PAYROLL}/Employees/{_ID}/LeaveBalances", payroll.list_leave_balances),
     _route("GET", f"{_PAYROLL}/Employees/{_ID}/Working-Patterns", payroll.list_working_patterns),
     _route(
         "GET",

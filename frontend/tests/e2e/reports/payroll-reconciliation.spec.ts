@@ -5,6 +5,7 @@ import { getPostableWeek } from '../fixtures/api'
 // cross-page string equality on formatted values (ADR 0046).
 import { formatDate } from '../../../src/lib/format'
 import { autoId } from '../helpers'
+import { seedLabourForWeek } from '../timesheet/support'
 
 /**
  * The money reconciliation: what DocketWorks expects Xero to pay for a week,
@@ -52,6 +53,10 @@ test.describe('payroll reconciliation', () => {
     authenticatedPage: page,
   }) => {
     const week = await getPostableWeek(page)
+    // Opus: The toggle is between two DocketWorks figures for the week, and the
+    // postable week advances past the restored time as runs are posted: on an
+    // empty week both figures are $0.00 and the toggle has nothing to switch.
+    await seedLabourForWeek(page, week)
     await openReconciliation(page, week)
 
     const total = autoId(page, 'PayrollReconciliation-total-ours')

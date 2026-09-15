@@ -50,7 +50,6 @@ EXPECTED_UNSERVED: frozenset[tuple[str, str]] = frozenset(
         ("PUT", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/Leave/{LeaveID}"),
         ("DELETE", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/Leave/{LeaveID}"),
         ("GET", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/Leave"),
-        ("GET", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/LeaveBalances"),
         ("GET", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/LeaveTypes"),
         ("POST", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/LeaveSetup"),
         ("POST", "api.xero.com/payroll.xro/2.0/Employees/{EmployeeID}/LeaveTypes"),

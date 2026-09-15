@@ -40,6 +40,7 @@ from apps.xero.fake.models import (
     FakeEmployee,
     FakeInvoice,
     FakeItem,
+    FakeLeaveBalance,
     FakeLeaveType,
     FakeOrganisation,
     FakePayRun,
@@ -300,7 +301,7 @@ def _day(value: date | None) -> str | None:
 
 def seed_payroll(tenant_id: str, calendar_id: str) -> dict[str, int]:
     """Employees from Staff and their terms, pay items from the mirror, pay runs and slips."""
-    counts = {"employees": 0, "pay_items": 0, "pay_runs": 0, "pay_slips": 0}
+    counts = {"employees": 0, "pay_items": 0, "leave_balances": 0, "pay_runs": 0, "pay_slips": 0}
     staff_rows = Staff.objects.filter(
         xero_tenant_id=tenant_id, xero_user_id__isnull=False
     ).prefetch_related("payroll_terms")
@@ -338,6 +339,7 @@ def seed_payroll(tenant_id: str, calendar_id: str) -> dict[str, int]:
         counts["employees"] += 1
 
     counts["pay_items"] = _seed_pay_items(tenant_id)
+    counts["leave_balances"] = _seed_leave_balances(tenant_id)
     for pay_run in XeroPayRun.objects.filter(xero_tenant_id=tenant_id).iterator():
         run_id = str(pay_run.xero_id)
         run = FakePayRun.from_wire(
@@ -471,6 +473,40 @@ def _seed_pay_items(tenant_id: str) -> int:
                 updated_date_utc=now_utc(),
             )
         count += 1
+    return count
+
+
+def _seed_leave_balances(tenant_id: str) -> int:
+    """Every employee's balance in every seeded leave type, over the recorded shapes.
+
+    The application holds no balance of its own (leave_service reads it live),
+    so the figure is the Demo Company's balance in the leave type's unit:
+    recordings/leave_balances.json carries one element per unit Xero pays in.
+    """
+    by_unit: dict[str, dict[str, Json]] = {}
+    for raw in as_list(recorded_body("leave_balances")["leaveBalances"], "leaveBalances"):
+        balance = as_mapping(raw, "leaveBalances[]")
+        unit = text(balance, "typeOfUnits")
+        if unit is None:
+            raise SeedError("recordings/leave_balances.json holds a balance with no typeOfUnits")
+        by_unit[unit] = balance
+    count = 0
+    for employee in FakeEmployee.for_tenant(tenant_id):
+        for leave_type in FakeLeaveType.for_tenant(tenant_id):
+            template = by_unit.get(leave_type.type_of_units)
+            if template is None:
+                raise SeedError(
+                    f"recordings/leave_balances.json holds no balance in "
+                    f"{leave_type.type_of_units}, the unit of {leave_type.name}"
+                )
+            FakeLeaveBalance.write(
+                tenant_id,
+                uuid4(),
+                {**template, "leaveTypeID": str(leave_type.id), "name": leave_type.name},
+                updated_date_utc=employee.updated_date_utc,
+                employee=employee,
+            )
+            count += 1
     return count
 
 

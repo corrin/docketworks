@@ -430,6 +430,57 @@ def measure_code_shape() -> tuple[Section, Section, Section]:
     return measure_exception_handling(handlers, try_statements), shape, returns
 
 
+def _broad_types(annotation: ast.AST) -> Counter[str]:
+    """Count broad types, including forward references but excluding literal values."""
+    if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
+        return _broad_types(ast.parse(annotation.value, mode="eval").body)
+    if isinstance(annotation, ast.Name):
+        return Counter({annotation.id: 1}) if annotation.id in {"Any", "object"} else Counter()
+    if isinstance(annotation, ast.Attribute):
+        return Counter({annotation.attr: 1}) if annotation.attr in {"Any", "object"} else Counter()
+    if isinstance(annotation, ast.Subscript):
+        name = ast.unparse(annotation.value).rsplit(".", 1)[-1]
+        if name == "Literal":
+            return Counter()
+        if name == "Annotated" and isinstance(annotation.slice, ast.Tuple):
+            return _broad_types(annotation.slice.elts[0])
+    counts: Counter[str] = Counter()
+    for child in ast.iter_child_nodes(annotation):
+        counts.update(_broad_types(child))
+    return counts
+
+
+def measure_broad_types() -> Section:
+    """Broad annotations are code smells, not explicit checker suppressions."""
+    counts: Counter[str] = Counter()
+    for path in _python_files():
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.arg | ast.AnnAssign) and node.annotation is not None:
+                counts.update(_broad_types(node.annotation))
+            elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.returns:
+                counts.update(_broad_types(node.returns))
+            elif isinstance(node, ast.TypeAlias):
+                counts.update(_broad_types(node.value))
+            elif (
+                isinstance(node, ast.Call)
+                and ast.unparse(node.func).rsplit(".", 1)[-1] == "cast"
+                and node.args
+            ):
+                counts.update(_broad_types(node.args[0]))
+    return Section(
+        title="Broad type annotations",
+        note=(
+            "Code smells: explicit `Any` and `object` occurrences in Python parameter, "
+            "return and variable annotations, PEP 695 type aliases, and casts. Includes "
+            "tests and quoted annotations; excludes migrations, comments, literal values "
+            "and Annotated metadata. `Any` bypasses type checking; `object` requires "
+            "narrowing but can still hide a missing domain contract. These are review "
+            "counts, not exemptions from ADR 0028."
+        ),
+        rows=[("Any annotations", counts["Any"]), ("object annotations", counts["object"])],
+    )
+
+
 def measure_wire_contract() -> Section:
     """How permissive the published response contract is.
 
@@ -615,6 +666,7 @@ def main() -> int:
         handling,
         shape,
         returns,
+        measure_broad_types(),
         measure_wire_contract(),
         measure_automation_ids(),
     ]

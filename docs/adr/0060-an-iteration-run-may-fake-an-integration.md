@@ -12,7 +12,7 @@
 - **The model is relational and complete for what Xero lets a caller query.** One table per
   Xero resource — contacts, invoices and their lines, credit notes, quotes, purchase orders,
   items, accounts, tax rates, branding themes, organisation, employees, salary lines,
-  working patterns, leave types, earnings rates, leave, timesheets and their lines, pay
+  working patterns, leave types, leave balances, earnings rates, leave, timesheets and their lines, pay
   runs, pay slips, pay-run calendars, connections, tokens — with a typed, indexed column
   for every field Xero filters, orders or keys on, and Xero's own uniqueness: a number per
   document kind, one draft pay run per calendar, one timesheet per employee and period, a

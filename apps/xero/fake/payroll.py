@@ -19,6 +19,7 @@ from apps.xero.fake.minting import new_id, now_utc
 from apps.xero.fake.models import (
     FakeEarningsRate,
     FakeEmployee,
+    FakeLeaveBalance,
     FakeLeaveType,
     FakePayRun,
     FakePayRunCalendar,
@@ -132,6 +133,15 @@ def list_salary_and_wages(request: FakeRequest, match: re.Match[str]) -> RESTRes
         return _not_found()
     rows = query.listing(FakeSalaryAndWage, request).filter(employee=employee)
     return _listing(request, "salaryAndWages", rows)
+
+
+def list_leave_balances(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
+    """GET /Employees/{id}/LeaveBalances: one balance per leave type, paged."""
+    employee = FakeEmployee.held(request.tenant_id, match["id"])
+    if employee is None:
+        return _not_found()
+    rows = query.listing(FakeLeaveBalance, request).filter(employee=employee)
+    return _listing(request, "leaveBalances", rows)
 
 
 def list_working_patterns(request: FakeRequest, match: re.Match[str]) -> RESTResponse:

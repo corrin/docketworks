@@ -162,6 +162,7 @@ _PAYROLL_ROUTES: dict[str, Callable[[PayrollNzApi], BaseModel]] = {
     "employees_page": lambda api: api.get_employees(TENANT, page=1),
     "employee": lambda api: api.get_employee(TENANT, "any"),
     "salary_and_wages": lambda api: api.get_employee_salary_and_wages(TENANT, "any"),
+    "leave_balances": lambda api: api.get_employee_leave_balances(TENANT, "any"),
     "working_patterns": lambda api: api.get_employee_working_patterns(TENANT, "any"),
     "working_pattern": lambda api: api.get_employee_working_pattern(TENANT, "any", "any"),
     "leave_types": lambda api: api.get_leave_types(TENANT),

@@ -1696,3 +1696,68 @@ regenerated in 14 s wall including Django start-up. The placeholders are inputs,
 decoration: the workshop job sheet merges attachment PDFs with pypdf and the file list
 thumbnails them with pdf2image, and both accepted the reportlab pages. pandoc stays only
 for the four `.docx` rows, which nothing else in the repo can write.
+
+## 2026-09-15 — The fake serves leave balances; the fake keeps the client's pace (PR #165)
+
+Recorded `GET /Employees/{id}/LeaveBalances` from the Demo Company: paged like every
+Payroll listing, one element per leave type with `name`, `leaveTypeID`, `balance` and
+`typeOfUnits`, no id of its own. A subset recording (`record_xero_wire leave_balances`)
+still drives every capture ahead of the named one, accounting writes included, so the one
+route cost 54 calls: the day quota read 161 before the pass and 108 after it. The real E2E
+gate and `test_fake_recordings_current.py` (every route plus the 70-call burst) both wait on
+the quota returning.
+
+Measured on the first fake gate (166 passed, 3 failed, no fake refusals): the fake's minute
+limit was Xero's rolling wall-clock window over the observability rows, but the fake
+transport had set the client's pace to zero. The detail refresh at 21 linked staff made 59
+payroll calls in 0.55 s, the window already held two web-process calls from 59 s earlier,
+the sixtieth was refused, the single Retry-After retry was refused too because the refusal
+itself counts, and the sync aborted at employee 21 of 21. Against Xero the same calls spread
+over about 75 s and never trip. Ruling (owner): the fake keeps the client's pace rather than
+modelling a logical minute; a fake call costs a second as a real one does. Cost: the detail
+refresh spec runs in 75 s under the fake where it short-circuited in 16 s against Xero, and
+the gate went from 26.9 min to 30.5 min.
+
+Found and fixed in the specs, not the fake: the estimate spec addressed a cost line by
+positional index read between the optimistic append and the settle refetch that re-sorts by
+kind; under the fake the gap was 10 ms and an adjustment's quantity edit landed on the
+Workshop labour line, whose unit cost is never editable. The first fix read the id from the
+matched position and lost the same race (a delete removed Workshop). A cost-line row is now
+matched in one `evaluateAll` snapshot and addressed by `data-row-id`. The payroll
+reconciliation toggle spec assumed the postable week held DocketWorks time; it had failed
+twice against Xero on 13 Sep once posted runs advanced the calendar past 2026-09-04, and
+under the fake it opened on the recorded demo calendar's 2023 period. The spec seeds the
+week through the weekly-payroll spec's helper, now shared.
+
+Environmental signature worth knowing: one spec failed on a browser-side 503 while Django
+logged no requests at all for four minutes, and the client address in the access log changed
+at the moment traffic resumed. The owner's public IP had changed and the tunnel reconnected.
+Not a defect; repeat the spec.
+
+Left as recorded: the fake holds no pay runs (the mirror's 63 rows carry the production
+tenant and calendars, so `seed_payroll`'s tenant filter excludes them) and its pay calendar
+wears the recording's period. Both are PR B's ground, where the fake gains pay-run state to
+compute the calendar from.
+
+## 2026-09-15 — PR #165 incorporates the dependency sweep and exposes broad type smells
+
+Merged main after PR #164 and regenerated the conflicting code-quality report. The two
+upload helpers now accept `UploadedFile[bytes]`: image verification and binary file writes
+consume bytes, so the dependency upgrade does not require `Any` there. The code-quality
+report now counts explicit `Any` and `object` annotations separately as code smells,
+including quoted annotations and casts, while excluding prose and literal metadata.
+These review counts do not relax ADR 0028 or impose a new baseline.
+
+The subsequent full CI suite caught two unclassified link-shaped columns on
+`FakeLeaveBalance`: `tenant_id` and `leave_type_id`. Both are fake-store keys, like
+the neighbouring payroll resources, and are now classified by the existing outbound-link
+probe inventory rather than probed as live vendor links.
+
+The live E2E preflight then exposed a fake-runner cleanup defect: its final quota
+read happened after Playwright restored the database, and the fake transport refreshed
+the restored access token into a fake one. The next live Organisation call returned 401.
+The real refresh token remained intact; the application's normal refresh recovered the
+connection. The runner now takes its post-restore quota reading only in real mode.
+The full Python suite passed 3,384 tests after the link-inventory fix. The first browser
+attempt after recovery could not launch the newly required Playwright Chromium binary;
+its teardown restored the database, and the matching browser was installed for the retry.

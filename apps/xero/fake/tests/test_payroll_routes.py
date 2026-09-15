@@ -17,6 +17,7 @@ from xero_python.payrollnz import PayrollNzApi
 from apps.accounts.models import Staff, StaffPayrollTerm
 from apps.xero.fake.seed import seed_payroll
 from apps.xero.fake.tests.conftest import TENANT
+from apps.xero.models import XeroPayItem
 
 pytestmark = pytest.mark.django_db
 CALENDAR = "d015dc21-981e-4d26-a9cc-f8e8432fc76d"
@@ -120,3 +121,32 @@ class TestEmployees:
         assert detail is not None and detail.working_weeks is not None
         assert detail.working_weeks[0].monday == 8.0
         assert detail.working_weeks[0].saturday == 0.0
+
+
+class TestLeaveBalances:
+    def test_an_employee_holds_a_balance_in_every_leave_type_under_its_own_id(
+        self, tenant: str, payroll: PayrollNzApi
+    ) -> None:
+        # leave_service.get_leave_balance matches on the pay item's xero_id, so
+        # a balance under any other id reads as "Xero returned no balance".
+        staff = _linked_staff("ada@example.test", hourly_rate="36.05")
+        item = XeroPayItem.objects.create(
+            xero_id="1e7707cc-4669-4f27-b2ab-6c80f5b3ef5f",
+            xero_tenant_id=tenant,
+            name="Long Service Leave",
+            uses_leave_api=True,
+        )
+        seed_payroll(tenant, CALENDAR)
+        balances = payroll.get_employee_leave_balances(
+            TENANT, str(staff.xero_user_id)
+        ).leave_balances
+        assert balances is not None and len(balances) == 1
+        assert str(balances[0].leave_type_id) == item.xero_id
+        assert balances[0].name == "Long Service Leave"
+        assert balances[0].balance is not None and balances[0].type_of_units
+
+    def test_an_unknown_employee_is_a_404(self, tenant: str, payroll: PayrollNzApi) -> None:
+        seed_payroll(tenant, CALENDAR)
+        with pytest.raises(ApiException) as refused:
+            payroll.get_employee_leave_balances(TENANT, "3cedd91a-f903-4bdb-ae51-8078be2f5795")
+        assert refused.value.status == 404

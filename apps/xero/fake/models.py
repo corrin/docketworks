@@ -1016,6 +1016,38 @@ class FakeLeaveType(PayrollRecord):
         ]
 
 
+class FakeLeaveBalance(PayrollRecord):
+    """GET /Employees/{id}/LeaveBalances (recordings/leave_balances.json).
+
+    Xero keys a balance by its leave type, never by an id of its own, so the
+    row id is minted and the leave type is the unique key per employee.
+    """
+
+    UPDATED_KEY = None
+    WIRE: ClassVar[Mapping[str, str]] = {
+        "leaveTypeID": "leave_type_id",
+        "name": "name",
+        "balance": "balance",
+        "typeOfUnits": "type_of_units",
+    }
+
+    employee = models.ForeignKey(
+        FakeEmployee, on_delete=models.CASCADE, related_name="leave_balances"
+    )
+    leave_type_id = models.UUIDField()
+    name = models.CharField(max_length=255)
+    balance = models.DecimalField(max_digits=20, decimal_places=4)
+    type_of_units = models.CharField(max_length=50)
+
+    class Meta(PayrollRecord.Meta):
+        db_table = "xero_fake_leavebalance"
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.UniqueConstraint(
+                fields=["employee", "leave_type_id"], name="leavebalance_type_unique"
+            ),
+        ]
+
+
 class FakeEarningsRate(PayrollRecord):
     """GET /EarningsRates (recordings/earnings_rates.json)."""
 
@@ -1150,6 +1182,7 @@ RESOURCES: tuple[type[XeroRecord], ...] = (
     FakeSalaryAndWage,
     FakeWorkingPattern,
     FakeLeaveType,
+    FakeLeaveBalance,
     FakeEarningsRate,
     FakePayRun,
     FakePaySlip,

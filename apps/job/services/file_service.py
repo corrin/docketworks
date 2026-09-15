@@ -10,7 +10,7 @@ import logging
 import mimetypes
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
@@ -128,7 +128,7 @@ def job_file_full_path(job_file: JobFile) -> Path:
 
 
 def save_uploaded_job_file(
-    job: Job, file_obj: UploadedFile[Any], print_on_jobsheet: bool
+    job: Job, file_obj: UploadedFile[bytes], print_on_jobsheet: bool
 ) -> JobFile:
     """Save an uploaded file into the job folder and upsert its JobFile row.
 
