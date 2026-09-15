@@ -1,15 +1,10 @@
-import { spawnSync } from 'child_process'
-import path from 'path'
-import { fileURLToPath } from 'url'
 import { z } from 'zod'
 import type { Page } from '@playwright/test'
 
 import { test, expect } from '../fixtures/auth'
 import { autoId, createTestJob, getJobIdFromUrl, waitForAutosave } from '../helpers'
+import { runManagePy } from '../../scripts/db-backup-utils'
 
-const specDir = path.dirname(fileURLToPath(import.meta.url))
-const repoRoot = path.resolve(specDir, '../../../..')
-const managePy = path.join(repoRoot, 'manage.py')
 const expectedTermsText = 'Terms of trade can be found'
 
 const quotePdfInspectionSchema = z.object({
@@ -30,40 +25,16 @@ const createQuoteResponseSchema = z.object({
 })
 
 const inspectXeroQuotePdf = (quoteId: string): QuotePdfInspection => {
-  // `uv run`, not bare `python`: the backend venv is uv-managed and nothing
-  // guarantees an activated interpreter in the npm test environment.
-  const result = spawnSync(
-    'uv',
-    [
-      'run',
-      'python',
-      managePy,
-      'inspect_xero_quote_pdf',
-      quoteId,
-      '--expected-text',
-      expectedTermsText,
-    ],
-    {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      timeout: 120_000,
-    },
-  )
-
-  if (result.error) {
-    throw new Error(
-      `Xero quote PDF inspection could not run: ${result.error.message}\n${result.stderr}\n${result.stdout}`,
-    )
-  }
-  if (result.status !== 0) {
-    throw new Error(
-      `Xero quote PDF inspection failed with exit code ${result.status}:\n${result.stderr}\n${result.stdout}`,
-    )
-  }
+  const stdout = runManagePy([
+    'inspect_xero_quote_pdf',
+    quoteId,
+    '--expected-text',
+    expectedTermsText,
+  ])
 
   // The command's contract is a single JSON line, but the last non-empty
   // line is taken so stray startup logging can never break the parse.
-  const finalOutputLine = result.stdout
+  const finalOutputLine = stdout
     .split(/\r?\n/)
     .map((line) => line.trim())
     .findLast((line) => line.length > 0)

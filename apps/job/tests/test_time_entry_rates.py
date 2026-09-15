@@ -302,7 +302,7 @@ class TestPriceTimeEntry:
         from django.apps import apps as django_apps  # noqa: PLC0415
 
         unmapped = django_apps.get_model("xero", "XeroPayItem")._default_manager.create(
-            name="Parental Leave - Primary Carer", uses_leave_api=True, xero_id=uuid4()
+            name="Parental Leave - Primary Carer", uses_leave_api=True, xero_id=str(uuid4())
         )
         leave_job = make_job(company, office_staff, name="Parental Leave")
         leave_job.default_xero_pay_item_id = unmapped.pk

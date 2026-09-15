@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { apiErrorMessage, getFullJobOptions, jobJobsPartialUpdateMutation } from '@/api'
 import { isConcurrencyError } from '@/lib/concurrency/interceptors'
 import { onConcurrencyRetry } from '@/lib/concurrency/retry-bus'
+import { useLatest } from '@/lib/useLatest'
 import { buildJobDeltaEnvelope, changedFieldsOnly, snapshotJob, type JobFieldValues } from './delta'
 import { invalidateJobViews } from './invalidateJobViews'
 
@@ -29,8 +30,7 @@ export function useJobFieldSave(jobId: string, options?: UseJobFieldSaveOptions)
   // memoised on save) every render.
   const { mutateAsync } = patch
   const rejectedChanges = useRef<JobFieldValues | null>(null)
-  const onSavedRef = useRef(options?.onSaved)
-  onSavedRef.current = options?.onSaved
+  const onSavedRef = useLatest(options?.onSaved)
 
   const save = useCallback(
     async (baseline: JobFieldValues, changes: JobFieldValues): Promise<void> => {
@@ -63,7 +63,7 @@ export function useJobFieldSave(jobId: string, options?: UseJobFieldSaveOptions)
       // its delta from the pre-save values.
       await invalidateJobViews(queryClient, jobId)
     },
-    [jobId, mutateAsync, queryClient],
+    [jobId, mutateAsync, onSavedRef, queryClient],
   )
 
   useEffect(() => {

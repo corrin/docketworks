@@ -206,35 +206,76 @@ interface Props {
  * save is two-phase (JSON first, then the icon), and a failed second phase
  * reports "saved, but the photo could not be uploaded" rather than failing
  * the save — the row exists either way.
+ *
+ * The form's state lives in StaffForm, which DialogContent unmounts when the
+ * dialog closes — so each open snapshots the staff member afresh with no
+ * reset to run. Only `saving` lives here, because the shell needs it to
+ * refuse dismissal mid-save.
  */
 export function StaffFormDialog({ open, onOpenChange, staff }: Props) {
+  const [saving, setSaving] = useState(false)
+
+  return (
+    // While a save is in flight the dialog must not dismiss (Esc/outside
+    // click) — a completion landing after a re-open would close the wrong
+    // dialog and toast out of context.
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!saving) onOpenChange(next)
+      }}
+    >
+      <DialogContent
+        className="max-h-[85vh] overflow-y-auto sm:max-w-2xl"
+        data-automation-id="StaffFormDialog-container"
+      >
+        <DialogHeader>
+          <DialogTitle>{staff === null ? 'New Staff' : 'Edit Staff'}</DialogTitle>
+        </DialogHeader>
+        <StaffForm
+          staff={staff}
+          saving={saving}
+          setSaving={setSaving}
+          onOpenChange={onOpenChange}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** The staged photo and the object URL that previews it, set together from
+ * the file input's change event and revoked together when replaced or on
+ * unmount — an object URL left behind leaks a blob per pick. */
+interface StagedIcon {
+  file: File
+  previewUrl: string
+}
+
+function StaffForm({
+  staff,
+  saving,
+  setSaving,
+  onOpenChange,
+}: {
+  staff: StaffListItemOut | null
+  saving: boolean
+  setSaving: (saving: boolean) => void
+  onOpenChange: (open: boolean) => void
+}) {
   const queryClient = useQueryClient()
   const createMutation = useMutation(accountsStaffCreateMutation())
   const updateMutation = useMutation(accountsStaffPartialUpdateMutation())
   const iconMutation = useMutation(accountsStaffIconCreateMutation())
   const [drafts, setDrafts] = useState<Drafts>(() => snapshot(staff))
-  const [iconFile, setIconFile] = useState<File | null>(null)
-  const [iconPreview, setIconPreview] = useState<string | null>(null)
+  const [icon, setIcon] = useState<StagedIcon | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    if (!open) return
-    setDrafts(snapshot(staff))
-    setIconFile(null)
-    setValidationError(null)
-  }, [open, staff])
-
-  // An object URL must be revoked or every staged pick leaks a blob.
-  useEffect(() => {
-    if (!iconFile) {
-      setIconPreview(null)
-      return undefined
-    }
-    const url = URL.createObjectURL(iconFile)
-    setIconPreview(url)
-    return () => URL.revokeObjectURL(url)
-  }, [iconFile])
+  useEffect(
+    () => () => {
+      if (icon !== null) URL.revokeObjectURL(icon.previewUrl)
+    },
+    [icon],
+  )
 
   const setDraft = <K extends keyof Drafts>(key: K, value: Drafts[K]): void => {
     setDrafts((previous) => ({ ...previous, [key]: value }))
@@ -301,11 +342,11 @@ export function StaffFormDialog({ open, onOpenChange, staff }: Props) {
         }
         setRows((rows) => rows.map((row) => (row.id === fresh.id ? fresh : row)))
       }
-      if (iconFile) {
+      if (icon !== null) {
         try {
           const withIcon = await iconMutation.mutateAsync({
             path: { staff_id: fresh.id },
-            body: { file: iconFile },
+            body: { file: icon.file },
           })
           setRows((rows) => rows.map((row) => (row.id === withIcon.id ? withIcon : row)))
         } catch (error) {
@@ -327,247 +368,235 @@ export function StaffFormDialog({ open, onOpenChange, staff }: Props) {
     }
   }
 
-  const iconUrl = iconPreview ?? staff?.icon_url ?? null
+  const iconUrl = icon?.previewUrl ?? staff?.icon_url ?? null
 
   return (
-    // While a save is in flight the dialog must not dismiss (Esc/outside
-    // click) — a completion landing after a re-open would close the wrong
-    // dialog and toast out of context.
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!saving) onOpenChange(next)
-      }}
-    >
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{staff === null ? 'New Staff' : 'Edit Staff'}</DialogTitle>
-        </DialogHeader>
-
-        <div className="flex flex-col gap-6">
-          <FormSection title="Personal">
-            <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
-              <TextField
-                label="First name"
-                automationId="StaffFormDialog-first-name"
-                value={drafts.first_name}
-                onChange={(value) => setDraft('first_name', value)}
+    <>
+      <div className="flex flex-col gap-6">
+        <FormSection title="Personal">
+          <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+            <TextField
+              label="First name"
+              automationId="StaffFormDialog-first-name"
+              value={drafts.first_name}
+              onChange={(value) => setDraft('first_name', value)}
+            />
+            <TextField
+              label="Last name"
+              automationId="StaffFormDialog-last-name"
+              value={drafts.last_name}
+              onChange={(value) => setDraft('last_name', value)}
+            />
+            <TextField
+              label="Preferred name"
+              automationId="StaffFormDialog-preferred-name"
+              value={drafts.preferred_name}
+              onChange={(value) => setDraft('preferred_name', value)}
+            />
+            <TextField
+              label="Office email"
+              type="email"
+              automationId="StaffFormDialog-email"
+              value={drafts.office_email}
+              onChange={(value) => setDraft('office_email', value)}
+            />
+            <TextField
+              label="Payroll email"
+              type="email"
+              automationId="StaffFormDialog-payroll-email"
+              value={drafts.payroll_email}
+              onChange={(value) => setDraft('payroll_email', value)}
+            />
+            <TextField
+              label="Xero user id"
+              automationId="StaffFormDialog-xero-user-id"
+              value={drafts.xero_user_id}
+              onChange={(value) => setDraft('xero_user_id', value)}
+              hint="Without a valid Xero payroll id this person is excluded from timesheets and payroll."
+            />
+            <TextField
+              label={staff === null ? 'Password' : 'New password (leave blank to keep)'}
+              type="password"
+              automationId="StaffFormDialog-password"
+              value={drafts.password}
+              onChange={(value) => setDraft('password', value)}
+            />
+            <TextField
+              label="Confirm password"
+              type="password"
+              automationId="StaffFormDialog-password-confirm"
+              value={drafts.password_confirm}
+              onChange={(value) => setDraft('password_confirm', value)}
+            />
+            <FlagField
+              label="Require password change at next login"
+              automationId="StaffFormDialog-password-needs-reset"
+              checked={drafts.flags.password_needs_reset}
+              onChange={(value) =>
+                setDraft('flags', { ...drafts.flags, password_needs_reset: value })
+              }
+            />
+            <NumberField
+              label="Base wage rate"
+              automationId="StaffFormDialog-base-wage-rate"
+              value={drafts.base_wage_rate}
+              min={0}
+              step={0.01}
+              onChange={(value) => setDraft('base_wage_rate', value)}
+            />
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              <span className="text-slate-700">Costing rate</span>
+              <input
+                type="text"
+                className={INPUT_CLASS}
+                value={staff === null ? '' : staff.wage_rate.toFixed(2)}
+                disabled
+                data-automation-id="StaffFormDialog-wage-rate"
               />
-              <TextField
-                label="Last name"
-                automationId="StaffFormDialog-last-name"
-                value={drafts.last_name}
-                onChange={(value) => setDraft('last_name', value)}
-              />
-              <TextField
-                label="Preferred name"
-                automationId="StaffFormDialog-preferred-name"
-                value={drafts.preferred_name}
-                onChange={(value) => setDraft('preferred_name', value)}
-              />
-              <TextField
-                label="Office email"
-                type="email"
-                automationId="StaffFormDialog-email"
-                value={drafts.office_email}
-                onChange={(value) => setDraft('office_email', value)}
-              />
-              <TextField
-                label="Payroll email"
-                type="email"
-                automationId="StaffFormDialog-payroll-email"
-                value={drafts.payroll_email}
-                onChange={(value) => setDraft('payroll_email', value)}
-              />
-              <TextField
-                label="Xero user id"
-                automationId="StaffFormDialog-xero-user-id"
-                value={drafts.xero_user_id}
-                onChange={(value) => setDraft('xero_user_id', value)}
-                hint="Without a valid Xero payroll id this person is excluded from timesheets and payroll."
-              />
-              <TextField
-                label={staff === null ? 'Password' : 'New password (leave blank to keep)'}
-                type="password"
-                automationId="StaffFormDialog-password"
-                value={drafts.password}
-                onChange={(value) => setDraft('password', value)}
-              />
-              <TextField
-                label="Confirm password"
-                type="password"
-                automationId="StaffFormDialog-password-confirm"
-                value={drafts.password_confirm}
-                onChange={(value) => setDraft('password_confirm', value)}
-              />
-              <FlagField
-                label="Require password change at next login"
-                automationId="StaffFormDialog-password-needs-reset"
-                checked={drafts.flags.password_needs_reset}
-                onChange={(value) =>
-                  setDraft('flags', { ...drafts.flags, password_needs_reset: value })
-                }
-              />
-              <NumberField
-                label="Base wage rate"
-                automationId="StaffFormDialog-base-wage-rate"
-                value={drafts.base_wage_rate}
-                min={0}
-                step={0.01}
-                onChange={(value) => setDraft('base_wage_rate', value)}
-              />
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                <span className="text-slate-700">Costing rate</span>
-                <input
-                  type="text"
-                  className={INPUT_CLASS}
-                  value={staff === null ? '' : staff.wage_rate.toFixed(2)}
-                  disabled
-                  data-automation-id="StaffFormDialog-wage-rate"
-                />
-                <span className="text-xs font-normal text-slate-500">
-                  Computed from the base rate with labour cost loading.
-                </span>
-              </label>
-              <DateField
-                label="Employment start date"
-                automationId="StaffFormDialog-start-date"
-                value={drafts.employment_start_date}
-                onChange={(value) => setDraft('employment_start_date', value)}
-              />
-              <DateField
-                label="Date left"
-                automationId="StaffFormDialog-date-left"
-                value={drafts.date_left}
-                onChange={(value) => setDraft('date_left', value)}
-                hint="Leave blank for current employees."
-              />
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                <span className="text-slate-700">Pay basis</span>
-                <select
-                  className={INPUT_CLASS}
-                  value={drafts.pay_basis}
-                  onChange={(event) => setDraft('pay_basis', requirePayBasis(event.target.value))}
-                  data-automation-id="StaffFormDialog-pay-basis"
-                >
-                  <option value="">Not set</option>
-                  <option value="hourly">Hourly</option>
-                  <option value="salary">Salary</option>
-                </select>
-              </label>
-              <div className="flex flex-col gap-1 text-sm font-medium">
-                <span className="text-slate-700">Photo</span>
-                <div className="flex items-center gap-3">
-                  {iconUrl ? (
-                    <img
-                      src={iconUrl}
-                      alt="Staff icon preview"
-                      className="h-12 w-12 rounded-full border border-slate-200 object-cover"
-                    />
-                  ) : (
-                    <span className="text-xs font-normal text-slate-500">No photo</span>
-                  )}
-                  <label className="inline-flex cursor-pointer items-center rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-slate-400 focus-within:ring-offset-2">
-                    {iconFile ? 'Change photo' : 'Choose photo'}
-                    <input
-                      type="file"
-                      accept={ICON_ACCEPT}
-                      className="sr-only"
-                      aria-label="Upload staff photo"
-                      data-automation-id="StaffFormDialog-icon"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0]
-                        event.target.value = ''
-                        if (file) setIconFile(file)
-                      }}
-                    />
-                  </label>
-                </div>
-                <span className="text-xs font-normal text-slate-500">Uploaded on save.</span>
+              <span className="text-xs font-normal text-slate-500">
+                Computed from the base rate with labour cost loading.
+              </span>
+            </label>
+            <DateField
+              label="Employment start date"
+              automationId="StaffFormDialog-start-date"
+              value={drafts.employment_start_date}
+              onChange={(value) => setDraft('employment_start_date', value)}
+            />
+            <DateField
+              label="Date left"
+              automationId="StaffFormDialog-date-left"
+              value={drafts.date_left}
+              onChange={(value) => setDraft('date_left', value)}
+              hint="Leave blank for current employees."
+            />
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              <span className="text-slate-700">Pay basis</span>
+              <select
+                className={INPUT_CLASS}
+                value={drafts.pay_basis}
+                onChange={(event) => setDraft('pay_basis', requirePayBasis(event.target.value))}
+                data-automation-id="StaffFormDialog-pay-basis"
+              >
+                <option value="">Not set</option>
+                <option value="hourly">Hourly</option>
+                <option value="salary">Salary</option>
+              </select>
+            </label>
+            <div className="flex flex-col gap-1 text-sm font-medium">
+              <span className="text-slate-700">Photo</span>
+              <div className="flex items-center gap-3">
+                {iconUrl ? (
+                  <img
+                    src={iconUrl}
+                    alt="Staff icon preview"
+                    className="h-12 w-12 rounded-full border border-slate-200 object-cover"
+                    data-automation-id="StaffFormDialog-icon-preview"
+                  />
+                ) : (
+                  <span
+                    className="text-xs font-normal text-slate-500"
+                    data-automation-id="StaffFormDialog-icon-empty"
+                  >
+                    No photo
+                  </span>
+                )}
+                <label className="inline-flex cursor-pointer items-center rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-slate-400 focus-within:ring-offset-2">
+                  {icon !== null ? 'Change photo' : 'Choose photo'}
+                  <input
+                    type="file"
+                    accept={ICON_ACCEPT}
+                    className="sr-only"
+                    aria-label="Upload staff photo"
+                    data-automation-id="StaffFormDialog-icon"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      event.target.value = ''
+                      if (file) setIcon({ file, previewUrl: URL.createObjectURL(file) })
+                    }}
+                  />
+                </label>
               </div>
+              <span className="text-xs font-normal text-slate-500">Uploaded on save.</span>
             </div>
-          </FormSection>
+          </div>
+        </FormSection>
 
-          <FormSection title="Working hours">
-            <div className="grid grid-cols-4 gap-x-4 gap-y-3 md:grid-cols-7">
-              {HOUR_KEYS.map(([key, label]) => (
-                <NumberField
-                  key={key}
-                  label={label}
-                  automationId={`StaffFormDialog-${key.replace('_', '-')}`}
-                  value={drafts.hours[key]}
-                  min={0}
-                  max={24}
-                  step={0.25}
-                  onChange={(value) => setDraft('hours', { ...drafts.hours, [key]: value })}
-                />
-              ))}
-            </div>
-          </FormSection>
+        <FormSection title="Working hours">
+          <div className="grid grid-cols-4 gap-x-4 gap-y-3 md:grid-cols-7">
+            {HOUR_KEYS.map(([key, label]) => (
+              <NumberField
+                key={key}
+                label={label}
+                automationId={`StaffFormDialog-${key.replace('_', '-')}`}
+                value={drafts.hours[key]}
+                min={0}
+                max={24}
+                step={0.25}
+                onChange={(value) => setDraft('hours', { ...drafts.hours, [key]: value })}
+              />
+            ))}
+          </div>
+        </FormSection>
 
-          <FormSection title="Permissions">
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-              <FlagField
-                label="Office staff"
-                automationId="StaffFormDialog-office-staff"
-                checked={drafts.flags.is_office_staff}
-                onChange={(value) => setDraft('flags', { ...drafts.flags, is_office_staff: value })}
-              />
-              <FlagField
-                label="Workshop staff"
-                automationId="StaffFormDialog-workshop-staff"
-                checked={drafts.flags.is_workshop_staff}
-                onChange={(value) =>
-                  setDraft('flags', { ...drafts.flags, is_workshop_staff: value })
-                }
-              />
-              <FlagField
-                label="Superuser"
-                automationId="StaffFormDialog-superuser"
-                checked={drafts.flags.is_superuser}
-                onChange={(value) => setDraft('flags', { ...drafts.flags, is_superuser: value })}
-              />
-              <FlagField
-                label="Staff manager"
-                automationId="StaffFormDialog-staff-manager"
-                checked={drafts.flags.is_staff_manager}
-                onChange={(value) =>
-                  setDraft('flags', { ...drafts.flags, is_staff_manager: value })
-                }
-              />
-            </div>
-          </FormSection>
+        <FormSection title="Permissions">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            <FlagField
+              label="Office staff"
+              automationId="StaffFormDialog-office-staff"
+              checked={drafts.flags.is_office_staff}
+              onChange={(value) => setDraft('flags', { ...drafts.flags, is_office_staff: value })}
+            />
+            <FlagField
+              label="Workshop staff"
+              automationId="StaffFormDialog-workshop-staff"
+              checked={drafts.flags.is_workshop_staff}
+              onChange={(value) => setDraft('flags', { ...drafts.flags, is_workshop_staff: value })}
+            />
+            <FlagField
+              label="Superuser"
+              automationId="StaffFormDialog-superuser"
+              checked={drafts.flags.is_superuser}
+              onChange={(value) => setDraft('flags', { ...drafts.flags, is_superuser: value })}
+            />
+            <FlagField
+              label="Staff manager"
+              automationId="StaffFormDialog-staff-manager"
+              checked={drafts.flags.is_staff_manager}
+              onChange={(value) => setDraft('flags', { ...drafts.flags, is_staff_manager: value })}
+            />
+          </div>
+        </FormSection>
 
-          {validationError && (
-            <p
-              role="alert"
-              className="text-sm text-red-700"
-              data-automation-id="StaffFormDialog-validation"
-            >
-              {validationError}
-            </p>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button
-            variant="outline"
-            disabled={saving}
-            onClick={() => onOpenChange(false)}
-            data-automation-id="StaffFormDialog-cancel"
+        {validationError && (
+          <p
+            role="alert"
+            className="text-sm text-red-700"
+            data-automation-id="StaffFormDialog-validation"
           >
-            Cancel
-          </Button>
-          <Button
-            disabled={saving}
-            onClick={() => void save()}
-            data-automation-id="StaffFormDialog-submit"
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            {validationError}
+          </p>
+        )}
+      </div>
+
+      <DialogFooter>
+        <Button
+          variant="outline"
+          disabled={saving}
+          onClick={() => onOpenChange(false)}
+          data-automation-id="StaffFormDialog-cancel"
+        >
+          Cancel
+        </Button>
+        <Button
+          disabled={saving}
+          onClick={() => void save()}
+          data-automation-id="StaffFormDialog-submit"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+      </DialogFooter>
+    </>
   )
 }
 

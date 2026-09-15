@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 
+import { useLatest } from '@/lib/useLatest'
+
 interface LoadMoreSentinelProps {
   automationId: string
   /** Plural noun for the count line: "Showing 50 of 120 people". */
@@ -40,8 +42,7 @@ export function LoadMoreSentinel({
   // callback with the current intersection state, and a render landing
   // between fetchNextPage() and the isFetchingNextPage commit would issue a
   // second fetch that cancels the first.
-  const onLoadMoreRef = useRef(onLoadMore)
-  onLoadMoreRef.current = onLoadMore
+  const onLoadMoreRef = useLatest(onLoadMore)
   // Fable: after a failure the observer is off — retry is a deliberate
   // click, not a refetch storm every time the foot scrolls into view.
   const canLoad = hasNextPage && !isFetchingNextPage && !isFetchNextPageError
@@ -55,7 +56,7 @@ export function LoadMoreSentinel({
     })
     observer.observe(ref.current)
     return () => observer.disconnect()
-  }, [canLoad])
+  }, [canLoad, onLoadMoreRef])
 
   if (total === 0) return null
 

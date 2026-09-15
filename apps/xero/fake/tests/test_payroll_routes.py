@@ -16,8 +16,8 @@ from xero_python.payrollnz import PayrollNzApi
 
 from apps.accounts.models import Staff, StaffPayrollTerm
 from apps.xero.fake.seed import seed_payroll
-from apps.xero.fake.store import FakeXeroStore
 from apps.xero.fake.tests.conftest import TENANT
+from apps.xero.models import XeroPayItem
 
 pytestmark = pytest.mark.django_db
 CALENDAR = "d015dc21-981e-4d26-a9cc-f8e8432fc76d"
@@ -63,10 +63,10 @@ def _linked_staff(email: str, *, hourly_rate: str) -> Staff:
 
 class TestEmployees:
     def test_paging_stops_where_xero_says_and_a_page_past_it_is_a_400(
-        self, store: FakeXeroStore, payroll: PayrollNzApi
+        self, tenant: str, payroll: PayrollNzApi
     ) -> None:
         _linked_staff("ada@example.test", hourly_rate="36.05")
-        seed_payroll(store, CALENDAR)
+        seed_payroll(tenant, CALENDAR)
         page = payroll.get_employees(TENANT, page=1)
         assert page.pagination is not None
         assert page.pagination.page_count == 1
@@ -77,7 +77,7 @@ class TestEmployees:
         assert refused.value.status == 400
 
     def test_an_employee_carries_the_address_xero_was_given(
-        self, store: FakeXeroStore, payroll: PayrollNzApi
+        self, tenant: str, payroll: PayrollNzApi
     ) -> None:
         # The E2E user has an office address and no payroll one; the real seed
         # created its employee with the office address, so that is what Xero
@@ -85,18 +85,18 @@ class TestEmployees:
         staff = _linked_staff("office@example.test", hourly_rate="36.05")
         staff.payroll_email = None
         staff.save(update_fields=["payroll_email"])
-        seed_payroll(store, CALENDAR)
+        seed_payroll(tenant, CALENDAR)
         employee = payroll.get_employee(TENANT, str(staff.xero_user_id)).employee
         assert employee is not None and employee.email == "office@example.test"
 
     def test_a_staff_member_without_terms_carries_the_record_the_seed_created(
-        self, store: FakeXeroStore, payroll: PayrollNzApi
+        self, tenant: str, payroll: PayrollNzApi
     ) -> None:
         # The E2E user after a restore: linked, no StaffPayrollTerm rows. The
         # real seed created its pay record from base_wage_rate and the hours.
         staff = _linked_staff("office@example.test", hourly_rate="36.05")
         staff.payroll_terms.all().delete()
-        seed_payroll(store, CALENDAR)
+        seed_payroll(tenant, CALENDAR)
         employee_id = str(staff.xero_user_id)
         pay = payroll.get_employee_salary_and_wages(TENANT, employee_id).salary_and_wages
         assert pay is not None and len(pay) == 1
@@ -106,10 +106,10 @@ class TestEmployees:
         assert patterns is not None and len(patterns) == 1
 
     def test_the_detail_routes_answer_the_seeded_terms(
-        self, store: FakeXeroStore, payroll: PayrollNzApi
+        self, tenant: str, payroll: PayrollNzApi
     ) -> None:
         staff = _linked_staff("ada@example.test", hourly_rate="36.05")
-        seed_payroll(store, CALENDAR)
+        seed_payroll(tenant, CALENDAR)
         employee_id = str(staff.xero_user_id)
         pay = payroll.get_employee_salary_and_wages(TENANT, employee_id).salary_and_wages
         assert pay is not None and Decimal(str(pay[0].rate_per_unit)) == Decimal("36.05")
@@ -121,3 +121,32 @@ class TestEmployees:
         assert detail is not None and detail.working_weeks is not None
         assert detail.working_weeks[0].monday == 8.0
         assert detail.working_weeks[0].saturday == 0.0
+
+
+class TestLeaveBalances:
+    def test_an_employee_holds_a_balance_in_every_leave_type_under_its_own_id(
+        self, tenant: str, payroll: PayrollNzApi
+    ) -> None:
+        # leave_service.get_leave_balance matches on the pay item's xero_id, so
+        # a balance under any other id reads as "Xero returned no balance".
+        staff = _linked_staff("ada@example.test", hourly_rate="36.05")
+        item = XeroPayItem.objects.create(
+            xero_id="1e7707cc-4669-4f27-b2ab-6c80f5b3ef5f",
+            xero_tenant_id=tenant,
+            name="Long Service Leave",
+            uses_leave_api=True,
+        )
+        seed_payroll(tenant, CALENDAR)
+        balances = payroll.get_employee_leave_balances(
+            TENANT, str(staff.xero_user_id)
+        ).leave_balances
+        assert balances is not None and len(balances) == 1
+        assert str(balances[0].leave_type_id) == item.xero_id
+        assert balances[0].name == "Long Service Leave"
+        assert balances[0].balance is not None and balances[0].type_of_units
+
+    def test_an_unknown_employee_is_a_404(self, tenant: str, payroll: PayrollNzApi) -> None:
+        seed_payroll(tenant, CALENDAR)
+        with pytest.raises(ApiException) as refused:
+            payroll.get_employee_leave_balances(TENANT, "3cedd91a-f903-4bdb-ae51-8078be2f5795")
+        assert refused.value.status == 404

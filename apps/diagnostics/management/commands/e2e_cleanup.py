@@ -171,8 +171,17 @@ class Command(BaseCommand):
             Q(purchase_order__in=linked_pos) | Q(job__in=all_jobs)
         )
         run_stock = Stock.objects.filter(source_purchase_order_line__in=run_po_lines)
-        run_movements = StockMovement.objects.filter(stock__in=run_stock)
-        reversing_movements = run_movements.filter(reverses__isnull=False)
+        # A movement is the run's by the stock it moved OR by the job it moved
+        # it to: a spec that issues standing workshop stock to a [TEST] job
+        # writes a movement on stock the run never received, and the job
+        # cannot be deleted while that movement protects it. Reversals of any
+        # run movement go first, whether or not they matched on their own.
+        run_movements = StockMovement.objects.filter(
+            Q(stock__in=run_stock)
+            | Q(counterpart_job__in=all_jobs)
+            | Q(cost_line__cost_set__job__in=all_jobs)
+        )
+        reversing_movements = StockMovement.objects.filter(reverses__in=run_movements)
 
         # The description is the whole rule. Matching on the call's job or
         # company instead would miss every call whose job and company have

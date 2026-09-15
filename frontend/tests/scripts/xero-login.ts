@@ -31,13 +31,15 @@ import dotenv from 'dotenv'
 import fs from 'fs'
 import path from 'path'
 import { getApplicationUrl, getFrontendDir } from './db-backup-utils'
+import { runStateDir } from './history-sources'
 
+// Same precedence as playwright.config.ts: environment, then .env.test, then .env.
 const frontendDir = getFrontendDir()
-dotenv.config({ path: path.join(frontendDir, '.env') })
 const testEnvPath = path.join(frontendDir, '.env.test')
 if (fs.existsSync(testEnvPath)) {
-  dotenv.config({ path: testEnvPath, override: true })
+  dotenv.config({ path: testEnvPath })
 }
+dotenv.config({ path: path.join(frontendDir, '.env') })
 
 async function launchBrowserWithFallback(): Promise<Browser> {
   try {
@@ -204,7 +206,7 @@ export async function ensureXeroConnected(): Promise<void> {
     // gitignored artifact directory, so it turned up staged for commit with a
     // Xero login page captured in it. test-results/ is where the rest of the
     // run's artifacts go and run_e2e.sh wipes it, so it cannot accumulate.
-    const artifactDir = path.join(frontendDir, 'test-results')
+    const artifactDir = path.join(runStateDir(), 'test-results')
     fs.mkdirSync(artifactDir, { recursive: true })
     await page.screenshot({ path: path.join(artifactDir, 'xero-login-error.png') })
     throw error

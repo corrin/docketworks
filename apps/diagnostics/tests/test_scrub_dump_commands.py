@@ -180,3 +180,43 @@ class TestBackportDataBackup:
         assert error.data is not None
         assert error.data["operation"] == "backport_data_backup"
         assert "scrub" not in recorder.events
+
+
+class TestScrubCopy:
+    """The copy a verification run works on: loaded from live, emptied after (ADR 0064)."""
+
+    def test_load_replaces_the_scrub_copy_with_a_snapshot_of_live(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        recorder = _install_pipeline(monkeypatch, db_name="dw_msm_prod")
+
+        output = _run("scrub_copy", "load")
+
+        assert recorder.events == ["reset", "run_pipe"]
+        dump_cmd, restore_cmd = recorder.pipes[0]
+        assert dump_cmd[-2:] == ["-d", "dw_msm_prod"]
+        assert restore_cmd[-2:] == ["-d", "dw_msm_prod_scrub"]
+        assert "scrub copy: load done (dw_msm_prod_scrub)" in output
+
+    def test_empty_drops_the_copy_and_touches_nothing_else(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        recorder = _install_pipeline(monkeypatch, db_name="dw_msm_prod")
+
+        output = _run("scrub_copy", "empty")
+
+        assert recorder.events == ["reset"]
+        assert "scrub copy: empty done (dw_msm_prod_scrub)" in output
+
+    def test_refuses_before_any_destructive_step_when_the_scrub_alias_is_absent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        recorder = _install_pipeline(monkeypatch, db_name="dw_msm_prod")
+
+        def refuse() -> tuple[DbConnection, DbConnection]:
+            raise CommandError("No 'scrub' database alias is configured.")
+
+        monkeypatch.setattr(scrub_pipeline, "require_scrub_config", refuse)
+        with pytest.raises(CommandError, match="scrub"):
+            _run("scrub_copy", "load")
+        assert recorder.events == []

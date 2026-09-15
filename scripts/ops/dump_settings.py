@@ -72,6 +72,7 @@ def main() -> None:
         "XERO_READONLY": settings.XERO_READONLY,
         "XERO_FAKE": settings.XERO_FAKE,
         "APP_DOMAIN": settings.APP_DOMAIN,
+        "APP_DOMAIN_ALIASES": settings.APP_DOMAIN_ALIASES,
     }
 
     info["proxy"] = {

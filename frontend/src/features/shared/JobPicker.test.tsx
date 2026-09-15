@@ -199,11 +199,16 @@ describe('JobPicker', () => {
     })
     await renderPicker({
       jobs: [makeJob({ job_number: 101, name: 'Gate frame' })],
-      useJobSearch: () => ({ jobs: [archived], isFetching: false, isError: false }),
+      searchOptions: (term) => ({
+        queryKey: ['test-search', term],
+        queryFn: () => Promise.resolve([archived]),
+        enabled: term !== '',
+      }),
     })
     await user.click(trigger())
     await user.keyboard('gate')
 
+    await waitFor(() => expect(autoId(option(303))).toBeInTheDocument())
     const ids = [...document.querySelectorAll(`[data-automation-id^="${PREFIX}-option-"]`)].map(
       (el) => el.getAttribute('data-automation-id'),
     )
@@ -224,10 +229,10 @@ describe('JobPicker', () => {
         makeJob({ id: 'b', job_number: 102, name: 'Gate two' }),
       ],
       typedSearchLimit: null,
-      useJobSearch: (term: string) => ({
-        jobs: term === '' ? [] : [archived],
-        isFetching: false,
-        isError: false,
+      searchOptions: (term) => ({
+        queryKey: ['test-search', term],
+        queryFn: () => Promise.resolve([archived]),
+        enabled: term !== '',
       }),
     })
     await user.click(trigger())
@@ -246,12 +251,16 @@ describe('JobPicker', () => {
   it('reports a failed background search without blanking the local results', async () => {
     const user = userEvent.setup()
     await renderPicker({
-      useJobSearch: () => ({ jobs: [], isFetching: false, isError: true }),
+      searchOptions: (term) => ({
+        queryKey: ['test-search', term],
+        queryFn: () => Promise.reject(new Error('search is down')),
+        enabled: term !== '',
+      }),
     })
     await user.click(trigger())
     await user.keyboard('fab')
 
-    expect(autoId(`${PREFIX}-search-failed`)).toBeInTheDocument()
+    await waitFor(() => expect(autoId(`${PREFIX}-search-failed`)).toBeInTheDocument())
     expect(autoId(option(101))).toBeInTheDocument()
   })
 
@@ -259,12 +268,17 @@ describe('JobPicker', () => {
     const user = userEvent.setup()
     await renderPicker({
       jobs: [],
-      useJobSearch: () => ({ jobs: [], isFetching: true, isError: false }),
+      searchOptions: (term) => ({
+        queryKey: ['test-search', term],
+        // Never resolves: the search is in flight for the rest of the test.
+        queryFn: () => new Promise<readonly TestJob[]>(() => {}),
+        enabled: term !== '',
+      }),
     })
     await user.click(trigger())
     await user.keyboard('gate')
 
-    expect(autoId(`${PREFIX}-searching`)).toBeInTheDocument()
+    await waitFor(() => expect(autoId(`${PREFIX}-searching`)).toBeInTheDocument())
     expect(document.body.textContent).not.toContain('No jobs found')
   })
 
@@ -272,9 +286,13 @@ describe('JobPicker', () => {
     const user = userEvent.setup()
     const terms: string[] = []
     await renderPicker({
-      useJobSearch: (term: string) => {
+      searchOptions: (term) => {
         terms.push(term)
-        return { jobs: [], isFetching: false, isError: false }
+        return {
+          queryKey: ['test-search', term],
+          queryFn: () => Promise.resolve([]),
+          enabled: term !== '',
+        }
       },
     })
     await user.click(trigger())
@@ -283,6 +301,40 @@ describe('JobPicker', () => {
 
     // Every call saw the blank term, so the caller's query stayed disabled.
     expect(terms.every((term) => term === '')).toBe(true)
+  })
+
+  it('highlights the first background result when the local list has none, so Enter picks it', async () => {
+    // A screen whose own list holds nothing for the term still gets background
+    // results; defaulting the highlight from the local count alone left Enter
+    // and Tab with no target until an arrow key was pressed.
+    const user = userEvent.setup()
+    const older = makeJob({
+      id: 'job-older',
+      job_number: 304,
+      name: 'Gate older',
+      status: 'archived',
+    })
+    const oldest = makeJob({
+      id: 'job-oldest',
+      job_number: 305,
+      name: 'Gate oldest',
+      status: 'archived',
+    })
+    const { onSelect } = await renderPicker({
+      jobs: [],
+      searchOptions: (term) => ({
+        queryKey: ['test-search', term],
+        queryFn: () => Promise.resolve([older, oldest]),
+        enabled: term !== '',
+      }),
+    })
+    await user.click(trigger())
+    await user.keyboard('gate')
+    await waitFor(() => expect(autoId(option(304))).toBeInTheDocument())
+
+    await user.keyboard('{Enter}')
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect.mock.calls[0]![0].job_number).toBe(304)
   })
 
   it('closes on Escape without picking anything', async () => {

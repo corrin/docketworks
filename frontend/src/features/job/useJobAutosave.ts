@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 
 import { apiErrorMessage, type JobDetail } from '@/api'
 import { isConcurrencyError } from '@/lib/concurrency/interceptors'
+import { useLatest } from '@/lib/useLatest'
 import { snapshotJob, type JobEditableField, type JobFieldValues } from './delta'
 import { useJobFieldSave } from './useJobFieldSave'
 
@@ -81,19 +82,20 @@ export function useJobAutosave(jobId: string, serverJob: JobDetail) {
     [flush],
   )
 
-  const flushRef = useRef(flush)
-  flushRef.current = flush
+  const flushRef = useLatest(flush)
 
   useEffect(() => {
+    // A pending debounce on unmount is a typed edit the user expects to
+    // keep — flush it (fire-and-forget; unmount cannot await). The ref, not
+    // flush itself, is the dependency: keying this effect on flush would run
+    // the cleanup — and therefore a flush — on every render that changes
+    // flush's identity, which is a mid-typing save. The ref object is stable,
+    // so the cleanup runs once, at unmount, with whatever flush is by then.
+    const latestFlush = flushRef
     return () => {
-      // A pending debounce on unmount is a typed edit the user expects to
-      // keep — flush it (fire-and-forget; unmount cannot await). Mount-only
-      // via a ref: keying this effect on flush would run the cleanup — and
-      // therefore a flush — on every render that changes flush's identity,
-      // which is a mid-typing save.
-      flushRef.current()
+      latestFlush.current()
     }
-  }, [])
+  }, [flushRef])
 
   return useMemo(() => ({ queueChange, flush }), [queueChange, flush])
 }

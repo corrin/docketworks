@@ -160,6 +160,53 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
     return () => controller.abort()
   }, [queryClient])
 
+  // A plain function: nothing depends on its identity, and it must be
+  // declared before the announce effect below that reaches it through
+  // reportOutcome.
+  function invalidate(): void {
+    void queryClient.invalidateQueries({ queryKey: timesheetsPayrollPayRunsRetrieveQueryKey() })
+    void queryClient.invalidateQueries({
+      queryKey: timesheetsWeeklyRetrieveQueryKey({ query: { start_date: weekStart } }),
+    })
+    // Opus: Invalidate rather than refetch: a disabled query stays disabled, so this
+    // only marks a previously fetched answer stale. Re-reading Xero is
+    // checkXero's job, and reportOutcome calls it after a post.
+    void queryClient.invalidateQueries({
+      queryKey: timesheetsPayrollWeekStatusRetrieveQueryKey({
+        query: { week_start_date: weekStart },
+      }),
+    })
+  }
+
+  function reportOutcome(finishedRun: PayrollPostRunOut): void {
+    invalidate()
+    // Opus: The one moment the Xero read pays for itself: the operator has just
+    // written to payroll and the next question is always whether it landed.
+    void statusQuery.refetch()
+    if (finishedRun.status === 'failed') {
+      // Opus: The batch-level message verbatim, because it names the fix — "delete
+      // the draft pay run for 2026-07-13, then post again" is the whole of what
+      // an operator needs. This is the sentence the old shape published and then
+      // never delivered: `error` counted as terminal, so the stream closed
+      // before the `done` the client keyed "finished" off, and a real failure
+      // read as "the run ended without reporting an outcome".
+      toast.error(finishedRun.message ?? `Posting failed.${UNKNOWN_OUTCOME_ADVICE}`)
+      return
+    }
+    if (finishedRun.failed === 0) {
+      toast.success(
+        `Posted ${finishedRun.successful} staff member${finishedRun.successful === 1 ? '' : 's'} to Xero. ` +
+          'Xero may take a minute or two to finish recalculating payslips.',
+      )
+      return
+    }
+    // Opus: Not a toast that disappears: a failed staff member is work the operator
+    // still has to do, and the rows below carry the reason for each one.
+    toast.error(
+      `${finishedRun.failed} of ${finishedRun.successful + finishedRun.failed} staff failed to post — see the rows below`,
+    )
+  }
+
   // Opus: Announce a run's outcome once, when it turns terminal. Derived from the
   // document rather than fired from a stream callback, so a reconnect that
   // re-delivers the terminal state cannot toast twice.
@@ -179,21 +226,6 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
   )
   const payRunState: PayRunState =
     payRun === undefined ? 'missing' : payRun.pay_run_status === 'Posted' ? 'posted' : 'draft'
-
-  const invalidate = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: timesheetsPayrollPayRunsRetrieveQueryKey() })
-    void queryClient.invalidateQueries({
-      queryKey: timesheetsWeeklyRetrieveQueryKey({ query: { start_date: weekStart } }),
-    })
-    // Opus: Invalidate rather than refetch: a disabled query stays disabled, so this
-    // only marks a previously fetched answer stale. Re-reading Xero is
-    // checkXero's job, and reportOutcome calls it after a post.
-    void queryClient.invalidateQueries({
-      queryKey: timesheetsPayrollWeekStatusRetrieveQueryKey({
-        query: { week_start_date: weekStart },
-      }),
-    })
-  }, [queryClient, weekStart])
 
   const postMutation = useMutation({
     ...timesheetsPayrollPostStaffWeekCreateMutation(),
@@ -231,35 +263,6 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
       },
     )
   }, [postMutation, queryClient, weekStart])
-
-  function reportOutcome(finishedRun: PayrollPostRunOut): void {
-    invalidate()
-    // Opus: The one moment the Xero read pays for itself: the operator has just
-    // written to payroll and the next question is always whether it landed.
-    void statusQuery.refetch()
-    if (finishedRun.status === 'failed') {
-      // Opus: The batch-level message verbatim, because it names the fix — "delete
-      // the draft pay run for 2026-07-13, then post again" is the whole of what
-      // an operator needs. This is the sentence the old shape published and then
-      // never delivered: `error` counted as terminal, so the stream closed
-      // before the `done` the client keyed "finished" off, and a real failure
-      // read as "the run ended without reporting an outcome".
-      toast.error(finishedRun.message ?? `Posting failed.${UNKNOWN_OUTCOME_ADVICE}`)
-      return
-    }
-    if (finishedRun.failed === 0) {
-      toast.success(
-        `Posted ${finishedRun.successful} staff member${finishedRun.successful === 1 ? '' : 's'} to Xero. ` +
-          'Xero may take a minute or two to finish recalculating payslips.',
-      )
-      return
-    }
-    // Opus: Not a toast that disappears: a failed staff member is work the operator
-    // still has to do, and the rows below carry the reason for each one.
-    toast.error(
-      `${finishedRun.failed} of ${finishedRun.successful + finishedRun.failed} staff failed to post — see the rows below`,
-    )
-  }
 
   return {
     payRun,

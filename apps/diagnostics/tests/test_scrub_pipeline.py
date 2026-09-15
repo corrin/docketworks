@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 from django.core.management.base import CommandError
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 from apps.diagnostics.services import scrub_pipeline
 from apps.diagnostics.services.scrub_pipeline import DbConnection, PgTools
@@ -48,14 +48,14 @@ class TestRequirePgTools:
 
 
 class TestRequireScrubConfig:
-    def test_refuses_when_no_scrub_alias_is_configured(self, settings: SettingsWrapper) -> None:
+    def test_refuses_when_no_scrub_alias_is_configured(self, settings: Settings) -> None:
         settings.DATABASES = {
             key: value for key, value in settings.DATABASES.items() if key != "scrub"
         }
         with pytest.raises(CommandError, match="No 'scrub' database alias"):
             scrub_pipeline.require_scrub_config()
 
-    def test_refuses_a_name_not_ending_in_scrub(self, settings: SettingsWrapper) -> None:
+    def test_refuses_a_name_not_ending_in_scrub(self, settings: Settings) -> None:
         # The pre-flight check on the destructive path is wired: settings
         # cannot define a bad alias, but this function is what a DROP SCHEMA
         # runs behind, so it verifies rather than assumes.
@@ -66,9 +66,7 @@ class TestRequireScrubConfig:
         with pytest.raises(CommandError, match="_scrub"):
             scrub_pipeline.require_scrub_config()
 
-    def test_refuses_a_scrub_name_equal_to_the_default_name(
-        self, settings: SettingsWrapper
-    ) -> None:
+    def test_refuses_a_scrub_name_equal_to_the_default_name(self, settings: Settings) -> None:
         # A name can satisfy the suffix check and still point at the live DB.
         settings.DATABASES = {
             **settings.DATABASES,
@@ -78,15 +76,13 @@ class TestRequireScrubConfig:
         with pytest.raises(CommandError, match="same as DB_NAME"):
             scrub_pipeline.require_scrub_config()
 
-    def test_refuses_a_non_string_connection_field(self, settings: SettingsWrapper) -> None:
+    def test_refuses_a_non_string_connection_field(self, settings: Settings) -> None:
         incomplete = {"NAME": "dw_msm_prod_scrub", "USER": "app", "PASSWORD": "pw-123"}
         settings.DATABASES = {**settings.DATABASES, "scrub": incomplete}
         with pytest.raises(CommandError, match="HOST"):
             scrub_pipeline.require_scrub_config()
 
-    def test_returns_both_connections_for_a_safe_configuration(
-        self, settings: SettingsWrapper
-    ) -> None:
+    def test_returns_both_connections_for_a_safe_configuration(self, settings: Settings) -> None:
         settings.DATABASES = {
             **settings.DATABASES,
             "scrub": _string_db("dw_msm_prod_scrub"),
@@ -108,7 +104,7 @@ class TestResolveOutputPath:
         assert scrub_pipeline.resolve_output_path(str(out), "ignored-prefix") == out
 
     def test_defaults_into_a_created_restore_dir_under_base_dir(
-        self, settings: SettingsWrapper, tmp_path: Path
+        self, settings: Settings, tmp_path: Path
     ) -> None:
         settings.BASE_DIR = tmp_path
         result = scrub_pipeline.resolve_output_path(None, "scrubbed_dw_msm_prod")

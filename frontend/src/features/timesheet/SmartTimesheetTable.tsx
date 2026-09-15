@@ -33,7 +33,7 @@ import {
 import { parseHoursInput } from './hours'
 import { rateForSubtype, subtypeName } from './labourRates'
 import { lineBillMultiplier, lineIsBillable, lineMeta, lineWageMultiplier } from './lineMeta'
-import { useTimesheetJobSearch } from './useTimesheetJobSearch'
+import { timesheetJobSearchOptions } from './timesheetJobSearch'
 import {
   applyJobPick,
   draftIsEmpty,
@@ -255,7 +255,7 @@ function JobPickerCell({ row, table }: CellProps) {
       // Tab is this grid's forward-commit key: the row chains job → hours →
       // description by Tab alone, so the picker must commit and hand focus on.
       commitOnTab
-      useJobSearch={useTimesheetJobSearch}
+      searchOptions={timesheetJobSearchOptions}
       entrySeq={gridRow.type === 'server' ? gridRow.line.entry_seq : null}
       onSelect={(job) => {
         if (gridRow.type !== 'draft') return

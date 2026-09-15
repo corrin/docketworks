@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useQuery, type UseQueryOptions } from '@tanstack/react-query'
 
 import { jobJobsStatusChoicesRetrieveOptions } from '@/api'
 
@@ -29,14 +29,18 @@ export interface JobPickerOption {
   status: string
 }
 
-/** What the picker needs back from a screen's background search. Opus: Deliberately
-    not TanStack's UseQueryResult: the picker uses three fields, and naming them
-    keeps a caller free to satisfy this without a query at all. */
-export interface BackgroundJobSearch<T extends JobPickerOption> {
-  jobs: readonly T[]
-  isFetching: boolean
-  isError: boolean
-}
+/**
+ * A screen's background job search, as the query the picker runs for a term:
+ * the jobs array alone as its data, `enabled` false while the term is blank.
+ * Query options rather than a hook passed as a prop — a hook held as a value
+ * is what `react(hooks)` forbids, and options are plain data the picker can
+ * call `useQuery` on itself.
+ */
+export type JobSearchOptions<T extends JobPickerOption> = UseQueryOptions<
+  readonly T[],
+  Error,
+  readonly T[]
+>
 
 export interface JobPickerProps<T extends JobPickerOption> {
   /** Every inner id derives from it: -trigger, -search, -list, -option-{job_number}. */
@@ -72,12 +76,12 @@ export interface JobPickerProps<T extends JobPickerOption> {
   commitOnTab: boolean
   /** data-entry-seq on the trigger; the keyboard-nav spec binds rows by it. */
   entrySeq?: number | null
-  /** Runs the screen's background search for a term, in parallel with the
+  /** The screen's background search for a term, run in parallel with the
       local filter. Omit it where there is nothing beyond the local list to
       reach (leave settings holds every special job already). Its results are
       APPENDED below the local ones, never merged into them — see the merge
       below for why that ordering is load-bearing. */
-  useJobSearch?: (term: string) => BackgroundJobSearch<T>
+  searchOptions?: (term: string) => JobSearchOptions<T>
   onSelect: (job: T) => void
 }
 
@@ -92,10 +96,15 @@ function matchesTerm(job: JobPickerOption, loweredTerm: string): boolean {
   )
 }
 
-/** The no-background-search default. Uses no hooks, so standing in for a hook
-    is safe; it exists so the real one can be called unconditionally. */
-function useNoJobSearch<T extends JobPickerOption>(_term: string): BackgroundJobSearch<T> {
-  return { jobs: NO_BACKGROUND_JOBS, isFetching: false, isError: false }
+/** The no-background-search default: a disabled query, so the picker's one
+    useQuery call is unconditional and a caller with nothing beyond its local
+    list simply omits the prop. */
+function noJobSearch<T extends JobPickerOption>(): JobSearchOptions<T> {
+  return {
+    queryKey: ['job-picker', 'no-search'],
+    queryFn: () => Promise.resolve([]),
+    enabled: false,
+  }
 }
 
 /**
@@ -149,7 +158,7 @@ export function JobPicker<T extends JobPickerOption>({
   typedSearchLimit,
   commitOnTab,
   entrySeq = null,
-  useJobSearch,
+  searchOptions,
   onSelect,
 }: JobPickerProps<T>) {
   const statusLabels = useStatusLabels()
@@ -157,7 +166,9 @@ export function JobPicker<T extends JobPickerOption>({
   const listPending = loading || statusLabels === undefined
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const [highlighted, setHighlighted] = useState(-1)
+  // The row the user moved the highlight to, valid only for the term and
+  // local count it was set under; `highlighted` below derives from it.
+  const [highlight, setHighlight] = useState<{ key: string; index: number } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   // Set while closing because of a pick: the caller may move focus (to the
   // hours cell), so Radix's default focus-restore-to-trigger must not run.
@@ -195,11 +206,10 @@ export function JobPicker<T extends JobPickerOption>({
   const searchableTerm =
     open && debouncedSearch.length >= MIN_SEARCH_TERM_LENGTH ? debouncedSearch : ''
 
-  // Always called, so the hook count never varies between renders; a caller
-  // with nothing beyond its local list omits the prop and gets the constant.
-  // Callers pass a stable module-level function — swapping one in or out
-  // mid-life would break the rules of hooks, and none does.
-  const background = (useJobSearch ?? useNoJobSearch)(searchableTerm)
+  const background = useQuery(
+    searchOptions === undefined ? noJobSearch<T>() : searchOptions(searchableTerm),
+  )
+  const backgroundJobs = background.data ?? NO_BACKGROUND_JOBS
 
   // Local matches keep their positions and the background ones APPEND below.
   // Ordering is load-bearing twice over: a response landing mid-keystroke must
@@ -207,50 +217,60 @@ export function JobPicker<T extends JobPickerOption>({
   // answer that was already on screen — reordering it would make the picker
   // appear to disagree with itself as the network resolves.
   const filtered = useMemo<T[]>(() => {
-    if (background.jobs.length === 0) return local
+    if (backgroundJobs.length === 0) return local
     const seen = new Set(local.map((job) => job.id))
-    return [...local, ...background.jobs.filter((job) => !seen.has(job.id))]
-  }, [local, background.jobs])
+    return [...local, ...backgroundJobs.filter((job) => !seen.has(job.id))]
+  }, [local, backgroundJobs])
   const localCount = local.length
 
-  // The default highlight is the first match, reset when the TERM changes —
-  // not when the filtered array's identity changes, because a parent
-  // re-render rebuilds the jobs array and would clobber arrow-key state.
-  // Keyed on the LOCAL count specifically: background results arriving must
-  // not reset a highlight the user has already moved.
-  useEffect(() => {
-    if (!open) return
-    setHighlighted(localCount > 0 ? 0 : -1)
-  }, [open, search, localCount])
+  // The default highlight is the first row listed — local, or the first
+  // background result when the screen's own list has nothing, so Enter and
+  // Tab always have a target — and a moved highlight holds
+  // only while the TERM and the LOCAL count it was moved under still stand —
+  // not the filtered array's identity, because a parent re-render rebuilds
+  // the jobs array and would clobber arrow-key state, and not the background
+  // count, because results arriving must not reset a highlight the user has
+  // already moved.
+  const highlightKey = `${search}\u0000${localCount}`
+  const highlighted =
+    highlight !== null && highlight.key === highlightKey
+      ? highlight.index
+      : filtered.length > 0
+        ? 0
+        : -1
+  const moveHighlight = (index: number) => setHighlight({ key: highlightKey, index })
 
-  useEffect(() => {
-    if (!open) {
+  // Closing clears the search and the highlight from the event that closes,
+  // whichever path (pick, Escape, outside click) took it.
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next)
+    if (!next) {
       setSearch('')
-      setHighlighted(-1)
+      setHighlight(null)
     }
-  }, [open])
+  }
 
   const pick = (job: T) => {
     pickedRef.current = true
     onSelect(job)
-    setOpen(false)
+    handleOpenChange(false)
   }
 
   const onSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape') {
       event.preventDefault()
-      setOpen(false)
+      handleOpenChange(false)
       return
     }
     if (filtered.length === 0) return
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault()
-        setHighlighted((current) => Math.min(current + 1, filtered.length - 1))
+        moveHighlight(Math.min(highlighted + 1, filtered.length - 1))
         break
       case 'ArrowUp':
         event.preventDefault()
-        setHighlighted((current) => Math.max(current - 1, 0))
+        moveHighlight(Math.max(highlighted - 1, 0))
         break
       case 'Enter': {
         event.preventDefault()
@@ -280,7 +300,7 @@ export function JobPicker<T extends JobPickerOption>({
   const label = bound === '' ? placeholder : bound
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -380,7 +400,7 @@ export function JobPicker<T extends JobPickerOption>({
                   aria-selected={index === highlighted}
                   className={`cursor-pointer border-b border-slate-100 px-3 py-2 text-sm last:border-b-0 ${index === highlighted ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
                   data-automation-id={`${automationIdPrefix}-option-${job.job_number}`}
-                  onMouseEnter={() => setHighlighted(index)}
+                  onMouseEnter={() => moveHighlight(index)}
                   onClick={() => pick(job)}
                 >
                   <div className="flex items-start justify-between gap-2">

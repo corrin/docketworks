@@ -1,0 +1,51 @@
+{
+  "recorded_at": "2026-09-14T08:06:19+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.2.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "GET",
+    "path": "/api.xro/2.0/Organisation",
+    "query": {}
+  },
+  "response": {
+    "status": 429,
+    "content_type": "",
+    "content_disposition": null,
+    "headers": {
+      "X-DayLimit-Remaining": "344",
+      "X-MinLimit-Remaining": "0",
+      "Retry-After": "26",
+      "X-Rate-Limit-Problem": "minute"
+    }
+  },
+  "body": null
+}

@@ -2,13 +2,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import {
-  formatTimestamp,
-  getBackupsDir,
-  getDbConfig,
-  runPgDump,
-  syncSequences,
-} from './db-backup-utils'
+import { getBackupsDir, syncSequences } from './db-backup-utils'
 import { runE2ECleanup } from './e2e-cleanup'
 
 const lockFile = path.join(os.tmpdir(), 'playwright-e2e.lock')
@@ -52,25 +46,6 @@ function supersededCrashBackup(): string | undefined {
   return resolved
 }
 
-function takeCleanBackup(): void {
-  const config = getDbConfig()
-  const backupDir = getBackupsDir()
-  fs.mkdirSync(backupDir, { recursive: true })
-  const backupFile = path.join(backupDir, `reset_backup_${formatTimestamp(new Date())}.sql`)
-  runPgDump(config, backupFile)
-  fs.writeFileSync(path.join(backupDir, '.latest_backup'), backupFile, 'utf8')
-  const backups = fs
-    .readdirSync(backupDir)
-    .filter((name) => name.startsWith('reset_backup_') && name.endsWith('.sql'))
-    .map((name) => ({
-      path: path.join(backupDir, name),
-      mtime: fs.statSync(path.join(backupDir, name)).mtimeMs,
-    }))
-    .toSorted((left, right) => right.mtime - left.mtime)
-  for (const backup of backups.slice(5)) fs.rmSync(backup.path)
-  console.log(`[reset] Clean backup: ${backupFile}`)
-}
-
 const lockState = inspectLock()
 if (lockState === 'live' && confirmed) {
   throw new Error(
@@ -86,7 +61,6 @@ if (lockState === 'live') {
 runE2ECleanup(confirmed)
 if (confirmed) {
   syncSequences()
-  takeCleanBackup()
   if (lockState === 'stale') {
     const crashBackup = supersededCrashBackup()
     if (crashBackup) {
@@ -98,5 +72,5 @@ if (confirmed) {
   }
   console.log('=== Reset complete. Database is clean and ready for E2E. ===')
 } else {
-  console.log('=== Dry run only. Re-run with --confirm to delete and re-baseline. ===')
+  console.log('=== Dry run only. Re-run with --confirm to delete. ===')
 }

@@ -11,9 +11,8 @@ from xero_python.accounting import AccountingApi
 from apps.accounting.models import Invoice
 from apps.company.models import Company
 from apps.core.models import CompanyDefaults
-from apps.xero.fake.models import FakeXeroObject
+from apps.xero.fake.models import FakeAccount, FakeContact, FakeInvoice, FakeOrganisation
 from apps.xero.fake.seed import SeedError, recorded_body, seed_accounting
-from apps.xero.fake.store import FakeXeroStore, Kind
 from apps.xero.fake.tests.conftest import TENANT, sdk_client_answering
 from apps.xero.models import XeroAccount
 from apps.xero.tests.xero_fixtures import make_contact_raw_json
@@ -44,7 +43,7 @@ def _mirrored_invoice(company: Company) -> Invoice:
 
 
 def test_the_seed_renders_mirrored_and_pushed_companies_and_mirrored_documents(
-    store: FakeXeroStore,
+    tenant: str,
 ) -> None:
     mirrored_id = str(uuid.uuid4())
     Company.objects.create(
@@ -67,32 +66,32 @@ def test_the_seed_renders_mirrored_and_pushed_companies_and_mirrored_documents(
     )
     invoice = _mirrored_invoice(pushed)
 
-    counts = seed_accounting(store)
+    counts = seed_accounting(tenant)
 
     assert counts["contacts"] == 3
-    from_columns = store.get(Kind.CONTACT, str(empty.xero_contact_id))
-    assert from_columns is not None and from_columns.body["Name"] == "[TEST] Empty Body Co"
+    from_columns = FakeContact.held(tenant, str(empty.xero_contact_id))
+    assert from_columns is not None and from_columns.name == "[TEST] Empty Body Co"
     assert counts["invoices"] == 1
-    mirrored = store.get(Kind.CONTACT, mirrored_id)
-    assert mirrored is not None and mirrored.body["ContactStatus"] == "ACTIVE"
+    mirrored = FakeContact.held(tenant, mirrored_id)
+    assert mirrored is not None and mirrored.status == "ACTIVE"
     assert mirrored.name == "[TEST] Mirrored Co"
-    held = store.get(Kind.CONTACT, str(pushed.xero_contact_id))
-    assert held is not None and held.body["Name"] == "[TEST] Pushed Co"
-    seeded_invoice = store.get(Kind.INVOICE, str(invoice.xero_id))
+    held = FakeContact.held(tenant, str(pushed.xero_contact_id))
+    assert held is not None and held.name == "[TEST] Pushed Co"
+    seeded_invoice = FakeInvoice.held(tenant, str(invoice.xero_id))
     assert seeded_invoice is not None
     assert seeded_invoice.number == "INV-0016"
     assert seeded_invoice.status == "PAID"
-    assert str(seeded_invoice.body["Date"]).startswith("/Date(")
+    assert str(seeded_invoice.to_wire()["Date"]).startswith("/Date(")
     # The SDK reads the seeded body back exactly as it read the recording.
     again = (
-        AccountingApi(sdk_client_answering({"Invoices": [seeded_invoice.body]}))
+        AccountingApi(sdk_client_answering({"Invoices": [seeded_invoice.to_wire()]}))
         .get_invoice(TENANT, "any")
         .invoices[0]
     )
     assert Decimal(str(again.total)) == Decimal("541.25")
 
 
-def test_a_readonly_stub_row_is_refused_not_rendered(store: FakeXeroStore) -> None:
+def test_a_readonly_stub_row_is_refused_not_rendered(tenant: str) -> None:
     company = Company.objects.create(
         name="[TEST] Stub Co", xero_contact_id=str(uuid.uuid4()), xero_last_modified=timezone.now()
     )
@@ -112,11 +111,11 @@ def test_a_readonly_stub_row_is_refused_not_rendered(store: FakeXeroStore) -> No
         raw_json={"_e2e_stub": True},
     )
     with pytest.raises(SeedError, match="readonly provider"):
-        seed_accounting(store)
+        seed_accounting(tenant)
 
 
-def test_the_command_refuses_a_full_store_without_replace(store: FakeXeroStore) -> None:
-    del store
+def test_the_command_refuses_a_full_store_without_replace(tenant: str) -> None:
+    del tenant
     CompanyDefaults.objects.filter(pk=CompanyDefaults.singleton_instance_id).update(
         xero_tenant_id=TENANT, company_name="Seed Co"
     )
@@ -124,12 +123,10 @@ def test_the_command_refuses_a_full_store_without_replace(store: FakeXeroStore) 
     with pytest.raises(CommandError, match="already holds"):
         call_command("fake_xero_seed")
     call_command("fake_xero_seed", "--replace")
-    assert FakeXeroObject.objects.filter(tenant_id=TENANT, kind=Kind.ORGANISATION).count() == 1
-    organisation = FakeXeroObject.objects.get(tenant_id=TENANT, kind=Kind.ORGANISATION)
-    assert organisation.name == "Seed Co (FAKE XERO)"
+    assert FakeOrganisation.objects.get(tenant_id=TENANT).name == "Seed Co (FAKE XERO)"
 
 
-def test_the_seed_holds_only_the_tenant_s_own_accounts(store: FakeXeroStore) -> None:
+def test_the_seed_holds_only_the_tenant_s_own_accounts(tenant: str) -> None:
     """A code the tenant uses may also sit on a row from another tenant, or on one never stamped."""
     fetched = (
         AccountingApi(sdk_client_answering(recorded_body("accounts")))
@@ -152,7 +149,7 @@ def test_the_seed_holds_only_the_tenant_s_own_accounts(store: FakeXeroStore) -> 
     account("[TEST] Another tenant", str(uuid.uuid4()))
     account("[TEST] Never stamped", None)
 
-    counts = seed_accounting(store)
+    counts = seed_accounting(tenant)
 
     assert counts["accounts"] == 1
-    assert store.get(Kind.ACCOUNT, str(own.xero_id)) is not None
+    assert FakeAccount.held(tenant, str(own.xero_id)) is not None

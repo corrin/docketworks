@@ -276,7 +276,7 @@ export function EntryForm({
   // The optional job link: reuses the PO grid's "all non-archived jobs"
   // endpoint (frontend/src/features/purchasing/PoLinesTable.tsx:91) — the
   // one general, company-unscoped job list already wired to the shared
-  // JobPicker, unlike purchasing's own usePoJobSearch background search
+  // JobPicker, unlike purchasing's own poJobSearchOptions background search
   // (a PO-specific `q` reach into archived jobs this simpler picker skips).
   // NOT timesheetsJobsRetrieveOptions: although the my-time slice made that
   // endpoint self-service too, its payload is time-entry pricing (labour

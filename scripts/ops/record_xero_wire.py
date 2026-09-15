@@ -67,6 +67,7 @@ def main() -> int:
                 "status": capture.status,
                 "content_type": capture.content_type,
                 "content_disposition": capture.content_disposition,
+                "headers": capture.headers,
             },
             "body": capture.body,
         }

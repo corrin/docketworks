@@ -1,62 +1,62 @@
-# 0060 — An iteration run may point the unmodified app at a simulated integration; the gate never does
+# 0060 — The fake Xero is a drop-in replacement for Xero's API, proven against Xero by recordings
 
-The app runs unchanged and every call an integration would answer is answered locally by a simulation of the vendor — its shapes recorded from the real tenant, its state remembered in a table, its ids, timestamps, numbers, totals and refusals computed — so an E2E iteration run costs the vendor nothing and can stage what the vendor will not; the run before merge, and every integration test, still reaches the real thing.
-Unratified: Fable
+`XERO_FAKE=true` swaps the socket for an implementation of Xero's API: its own relational model of the organisation, Xero's query language over it, Xero's state transitions, numbering, totals, validation and limits — computed from state, never replayed. Recordings from the Demo Company are the oracle that proves each answer matches Xero, and the real E2E run before merge is the final proof. The app runs unchanged, and a run against the replacement is hard to tell from a run against Xero.
 
 ## Rules
 
-- **The fake sits at the transport seam, below the SDK.** It replaces the one object every
-  call to the vendor passes through — for Xero, `xero_python.rest.RESTClientObject`,
-  swapped in by `apps.xero.auth._build` — and answers with the vendor's own wire JSON. The
-  SDK's deserialiser, its date parsers and its attribute maps run exactly as they do against
-  the vendor, which is the layer ADR 0050's payroll bug lived in. A fake above the SDK, at
-  the provider or the service, proves nothing about that layer and is refused.
-- **It is a simulation built from recordings, not a replay of them.** A recording gives
-  the shape of an answer; the fake supplies the substance — a fresh id for every create, a
-  `UpdatedDateUTC` stamped at the write, the next document number in the organisation's
-  sequence, totals computed from the lines and the seeded tax rates, and a refusal where
-  Xero would refuse — and remembers the result so the next read answers with it.
-- **Its shapes are recordings, never beliefs.** Every route the fake serves has a body
-  captured from the real tenant at the transport (`apps/xero/fake/recordings/`, written by
-  `scripts/ops/record_xero_wire.py`), each citing the run that produced it. A default the
-  fake fills in is a key that recording shows the vendor filling in
-  (`apps/xero/fake/defaults.py`, asserted by `test_defaults.py`); a rule the fake refuses
-  by is one the application already handles, in the wording it was seen with; anything else
-  is not a rule the fake may invent. Recordings are re-fetched by
-  `apps/xero/tests/test_fake_recordings_current.py` in the integration tier, which alarms
-  when the vendor's shape moves.
-- **Its state is a table, seeded from the mirror at the start of every fake run.** Ids are
-  minted unique and timestamps are stamped at the write, so a create is a create and a
-  modified-since read is a real filter; the E2E restore that ends the run puts the table
-  back. Nothing is answered from an in-process store, because the stack is five processes.
-- **A call the fake has no route for is a refusal, never a 200.** `FakeXeroUnhandledRouteError`
-  names the method and path; the route is then added from a recording. Writes the real
-  gate keeps opt-in — Xero's payroll postings (ADR 0050's irreversibility exception) — are
-  deliberately unrouted.
-- **Selection is one required flag per process, and the flag refuses the wrong places.**
-  `XERO_FAKE=true` is set by `scripts/ops/run_e2e.sh --use-fake-xero` for the stack it
-  starts; settings refuse it outside `DEBUG` and alongside `XERO_READONLY`, and the transport
-  refuses to install on a production database or tenant. `XERO_READONLY` keeps its one job,
-  a local process pointed at production (ADR 0050).
-- **A fake run says so everywhere and is never the gate.** The organisation the fake
-  reports carries `(FAKE XERO)` in its name, the ping reports `xero_fake`, the harness
-  refuses a run whose own flag disagrees with the backend's, the run's history rows carry
-  `xero=fake` and the analysers exclude them by default, and the runner's last line says
-  the run was not a merge gate. Merge readiness is still `./scripts/ops/run_e2e.sh` with
-  no switch, plus the integration tier — ADR 0050's rule is untouched for both.
-- **The same shape serves the next integration.** The AI gateway, the phone provider,
-  Maps or Drive get a fake at their own transport seam, from their own recordings, under
-  their own flag, and the gate for each stays real. A fake is also where a vendor's failure
-  is staged — an outage, a refusal, a quota exhausted — which the real vendor will not
-  stage on request.
+- **It is Xero's behaviour, implemented.** Every route computes its answer from the
+  organisation's state: a create mints an id and the next number in Xero's sequence, a
+  document's totals and tax come from its lines and the tax rates, a listing applies the
+  request's filters and paging, a write applies Xero's status transitions, and a refusal
+  fires where Xero's rules refuse. Replaying a stored answer is never an implementation.
+- **The model is relational and complete for what Xero lets a caller query.** One table per
+  Xero resource — contacts, invoices and their lines, credit notes, quotes, purchase orders,
+  items, accounts, tax rates, branding themes, organisation, employees, salary lines,
+  working patterns, leave types, leave balances, earnings rates, leave, timesheets and their lines, pay
+  runs, pay slips, pay-run calendars, connections, tokens — with a typed, indexed column
+  for every field Xero filters, orders or keys on, and Xero's own uniqueness: a number per
+  document kind, one draft pay run per calendar, one timesheet per employee and period, a
+  number a deleted order still owns. The wire body is rendered from the model; nothing is
+  stored as a blob that a query would have to parse.
+- **Every object the replacement creates is queryable exactly as Xero's would be**: by id,
+  in the listing, through every filter Xero offers on that resource, through its owning
+  contact, employee, pay run or document. A conformance test runs that property over every
+  write route, so a route cannot create what it cannot then find.
+- **Xero's query language is one implementation.** `where`, `order`, `page`/`pageSize`,
+  `IDs`, `Statuses`, `includeArchived`, `If-Modified-Since`, `startDate`/`endDate`,
+  `PayRunID`, `summarizeErrors` are parsed once, in the store, into typed queries; a
+  parameter it does not implement is a refusal, never dropped.
+- **Every route the app calls is served; a call with no route is a refusal.** The route set
+  is the set of SDK methods the app invokes, resolved to verb and path from the SDK source,
+  and `test_every_call_is_routed.py` asserts the router covers it. Seed-time writes are
+  routes too.
+- **Recordings are the oracle, not the mechanism.** `record_xero_wire.py` captures from the
+  Demo Company every route's success and every refusal the app handles, writes included and
+  refusals provoked; the Demo Company exists for this. `test_fake_recordings_current.py`
+  re-fetches them and alarms when Xero moves; the conformance suite asserts the replacement's
+  computed answers carry the recorded shapes and the recorded refusal wording. Wording the
+  replacement authored is a defect.
+- **The replacement is the real transport with its socket replaced.** `FakeXeroRESTClient`
+  is `RateLimitedRESTClient` overriding `_send`, so the observability row, the wire line,
+  the quota bookkeeping and the 429 retry are one code path on both transports; the
+  replacement's quota headers count down from Xero's published limits over rolling windows
+  in those rows, and past a window it answers Xero's recorded 429.
+- **Tokens rotate as Xero's do**: a refresh issues a new single-use refresh token and a
+  re-used one is refused with Xero's `invalid_grant`. The authorization-code exchange is a
+  browser flow and stays refused under the flag.
+- **Selection is one flag per process, refused on a production database (ADR 0048)**, and a
+  fake run says so: the organisation name carries `(FAKE XERO)`, the ping reports
+  `xero_fake`, history rows carry `xero=fake`, the runner's last line says it is not a merge
+  gate. The call record is deliberately unmarked; the label is what tells runs apart. Merge
+  readiness is `run_e2e.sh` with no switch plus the integration tier (ADR 0050); the payroll
+  opt-in (ADR 0050, ADR 0007) is a property of the real gate only.
 
 ## Do not
 
-- **Read a green fake run as evidence for merge** — it proves the application against
-  what the vendor said last time it was asked, and the gate exists for what it says now.
-- **Hand-write a shape a recording could give** — the recorder costs one call per route,
-  and a hand-written shape is the belief ADR 0050 exists to stop testing against.
-- **Route a write the real gate keeps opt-in** — a fake that accepts a payroll posting is
-  the fake-provider coverage the payroll incident came from.
-- **Reach for `XERO_READONLY` as a test mode** — it suppresses writes and leaves reads
-  live, so at quota zero it fails the run anyway, and it exists for production hotfixes.
+- **Store an answer to hand back** — compute it; a stored answer stops being true the
+  first time state changes.
+- **Refuse in words the replacement wrote** — provoke Xero and record what it said.
+- **Drop a parameter the replacement does not implement** — that is a belief about Xero.
+- **Read a green fake run as evidence for merge** — it proves the app against the
+  replacement, and the replacement against Xero as of the last recording.
+- **Reach for `XERO_READONLY` as a test mode** — it is the production hotfix valve.

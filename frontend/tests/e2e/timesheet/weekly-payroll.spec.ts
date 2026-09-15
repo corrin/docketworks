@@ -1,20 +1,17 @@
 import type { Page } from '@playwright/test'
 
 import {
-  getJobLabourRates,
   getPostableWeek,
-  getTimesheetStaff,
   getWeekPostingStatus,
   refreshPayrollMirror,
-  seedTimesheetLabour,
   type StaffWeekPosting,
 } from '../fixtures/api'
 import { test, expect } from '../fixtures/auth'
 // The app's own date helpers, not a spec-local reimplementation: the fourth
 // sibling copy of Monday arithmetic is how the three job pickers happened.
 import { mondayOf, shiftDate } from '../../../src/lib/dates'
-import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
-import { getLatestWeekdayDate } from './support'
+import { autoId } from '../helpers'
+import { getLatestWeekdayDate, seedLabourForWeek } from './support'
 
 /**
  * The weekly overview and its payroll controls.
@@ -256,48 +253,7 @@ test.describe('posting a week to Xero @xero-payroll-write', () => {
   }) => {
     const week = await openPostableWeek(page)
 
-    // Opus: Whoever the app lists for that day, NOT the E2E login user: payroll
-    // requires a linked Xero employee, and `get_displayable_staff` drops
-    // anyone without a UUID-shaped xero_user_id — which the E2E account has
-    // none of. Hours seeded against it are hours nothing posts and the week
-    // status never reports, so the assertions below would be measuring an
-    // absence.
-    const seedDate = shiftDate(week, 1)
-    const candidates = await getTimesheetStaff(page, seedDate)
-    const staff = candidates[0]
-    if (staff === undefined) {
-      throw new Error(
-        `No staff are available for timesheet entry on ${seedDate}, so no hours can be ` +
-          'seeded for the postable week. Check the restore linked staff to Xero employees.',
-      )
-    }
-
-    // Opus: Seed onto a [TEST] job so e2e_cleanup cascades the line away; hours left
-    // on a restored production job would join every later post of this week.
-    const jobUrl = await createTestJob(page, 'Payroll')
-    const jobId = getJobIdFromUrl(jobUrl)
-    const labourRates = await getJobLabourRates(page, jobId)
-    const labourRate = labourRates[0]
-    if (labourRate === undefined) {
-      throw new Error(`Job ${jobId} has no labour rates; a time line cannot be priced.`)
-    }
-    // Opus: A quantity no previous run can already have posted. Teardown restores OUR
-    // database but not Xero's, so a fixed amount is re-seeded identically every
-    // run, the posting path detects "already matches the hours to post" and
-    // transmits nothing — while every assertion below still passes, on the
-    // strength of a previous run's work. A test of a payroll write that goes
-    // green while writing nothing is worse than no test.
-    const seededHours = 2 + (Math.floor(Date.now() / 1000) % 60) / 100
-
-    await seedTimesheetLabour(page, {
-      jobId,
-      staffId: staff.id,
-      labourSubtype: labourRate.labour_subtype,
-      // Opus: Tuesday: inside the week whichever way the week is configured.
-      date: seedDate,
-      hours: seededHours,
-      description: '[TEST] payroll posting',
-    })
+    const { staff } = await seedLabourForWeek(page, week)
 
     // Opus: Read the state the post has to change. The seeded hours are in our
     // database now and not yet in Xero, so these two MUST differ — if they

@@ -1,0 +1,109 @@
+{
+  "recorded_at": "2026-09-14T09:29:27+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.2.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "POST",
+    "path": "/api.xro/2.0/Invoices",
+    "query": {
+      "summarizeErrors": "False"
+    }
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null,
+    "headers": {
+      "X-DayLimit-Remaining": "184",
+      "X-MinLimit-Remaining": "43"
+    }
+  },
+  "body": {
+    "Id": "cccdfa77-77e2-468a-a4eb-ba384eccb600",
+    "Status": "OK",
+    "ProviderName": "Docketworks MSM Dev",
+    "DateTimeUTC": "/Date(1789378203533)/",
+    "Invoices": [
+      {
+        "Type": "ACCREC",
+        "InvoiceID": "60aa5d55-a47e-4665-a974-874bb50263b9",
+        "Payments": [],
+        "CreditNotes": [],
+        "Prepayments": [],
+        "Overpayments": [],
+        "IsDiscounted": false,
+        "InvoiceAddresses": [],
+        "HasErrors": true,
+        "InvoicePaymentServices": [],
+        "Contact": {
+          "ContactID": "2f79af6c-5f57-49e8-9e44-301499538add",
+          "Addresses": [],
+          "Phones": [],
+          "ContactGroups": [],
+          "ContactPersons": [],
+          "HasValidationErrors": false,
+          "ValidationErrors": []
+        },
+        "DateString": "2026-09-14T00:00:00",
+        "Date": "/Date(1789344000000+0000)/",
+        "DueDateString": "2026-09-14T00:00:00",
+        "DueDate": "/Date(1789344000000+0000)/",
+        "Status": "DELETED",
+        "LineAmountTypes": "Exclusive",
+        "LineItems": [
+          {
+            "Description": "Job: 1 - recording",
+            "UnitAmount": 10.5,
+            "TaxType": "OUTPUT2",
+            "TaxAmount": 3.15,
+            "LineAmount": 21.0,
+            "AccountCode": "200",
+            "Tracking": [],
+            "Quantity": 2.0,
+            "LineItemID": "1831302c-5538-459f-bd8e-d49da0013705",
+            "AccountID": "7d05a53d-613d-4eb2-a2fc-dcb6adb80b80"
+          }
+        ],
+        "SubTotal": 21.0,
+        "TotalTax": 3.15,
+        "Total": 24.15,
+        "CurrencyCode": "NZD",
+        "StatusAttributeString": "ERROR",
+        "ValidationErrors": [
+          {
+            "Message": "Invoice not of valid status for modification"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -481,8 +481,45 @@ NOT_A_LINK_FIELDS: dict[str, str] = {
     "xero.XeroApp.client_id": "OAuth client id: a credential, not a link",
     "xero.XeroError.job_id": "our own row id",
     "xero.XeroError.user_id": "our own row id",
-    "xero.FakeXeroObject.tenant_id": "the fake's own organisation key, never a vendor object",
-    "xero.FakeXeroObject.parent_id": "the fake's own row id",
+    # The fake Xero's tables (apps/xero/fake/models.py): every id there is
+    # the fake's own, minted or copied from the mirror; none names a vendor object.
+    **{
+        f"xero.{model}.{column}": "the fake Xero's own key"
+        for model, column in (
+            ("FakeOrganisation", "tenant_id"),
+            ("FakeContact", "tenant_id"),
+            ("FakeAccount", "tenant_id"),
+            ("FakeTaxRate", "tenant_id"),
+            ("FakeBrandingTheme", "tenant_id"),
+            ("FakeItem", "tenant_id"),
+            ("FakeInvoice", "tenant_id"),
+            ("FakeInvoice", "branding_theme_id"),
+            ("FakeCreditNote", "tenant_id"),
+            ("FakeCreditNote", "branding_theme_id"),
+            ("FakeQuote", "tenant_id"),
+            ("FakeQuote", "branding_theme_id"),
+            ("FakePurchaseOrder", "tenant_id"),
+            ("FakePurchaseOrder", "branding_theme_id"),
+            ("FakeHistoryRecord", "tenant_id"),
+            ("FakeHistoryRecord", "document_id"),
+            ("FakeAttachment", "tenant_id"),
+            ("FakeAttachment", "document_id"),
+            ("FakePayRunCalendar", "tenant_id"),
+            ("FakeEmployee", "tenant_id"),
+            ("FakeEmployee", "payroll_calendar_id"),
+            ("FakeSalaryAndWage", "tenant_id"),
+            ("FakeSalaryAndWage", "earnings_rate_id"),
+            ("FakeWorkingPattern", "tenant_id"),
+            ("FakeLeaveType", "tenant_id"),
+            ("FakeLeaveBalance", "tenant_id"),
+            ("FakeLeaveBalance", "leave_type_id"),
+            ("FakeEarningsRate", "tenant_id"),
+            ("FakePayRun", "tenant_id"),
+            ("FakePayRun", "payroll_calendar_id"),
+            ("FakePaySlip", "tenant_id"),
+            ("FakePaySlip", "employee_id"),
+        )
+    },
     "xero.XeroError.reference_id": (
         "Xero id of the entity that failed, kept on the error row for diagnosis; "
         "never emitted as a link"

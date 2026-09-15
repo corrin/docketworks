@@ -14,7 +14,7 @@
  * component over a different column set), and every value including an
  * absent key means "office" until then.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 import type { KanbanJobOut } from '@/api'
 import { DESKTOP_MEDIA_QUERY, useMediaQuery } from '@/lib/useMediaQuery'
@@ -35,54 +35,49 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ searchQuery }: KanbanBoardProps) {
-  // moveJob's onSettled and the drag monitor's onDrop are callbacks that
-  // never fire mid-render, so this ref is always populated (below, once
-  // useKanbanReconciliation exists) before either can read it — the board
-  // hook and the drag monitor are both built before reconcile() is, so a
-  // direct closure would be circular; a ref sidesteps that the same way
-  // useKanbanReconciliation's own reconcileRef does for its interval effect.
-  const reconcileRef = useRef<() => Promise<void>>(() => Promise.resolve())
-  const triggerReconcile = useCallback(() => {
-    void reconcileRef.current()
-  }, [])
+  // Trimmed once, here, for every consumer.
+  const searchTerm = searchQuery.trim()
+  // Both pauses the reconciliation loop reads are owned here: the drag
+  // monitor sets "a drag is in flight" and the board hook sets "a move is
+  // persisting", and only this component sees both. Owning the refs is what
+  // lets reconcile() exist before the hooks that trigger it, so each hook
+  // takes it as a plain callback instead of a ref filled in afterwards.
+  const isDraggingRef = useRef(false)
+  const movePendingRef = useRef(false)
+  const { reconcile } = useKanbanReconciliation({ isDraggingRef, movePendingRef, searchTerm })
 
   // On drag release — moveJob settling, or a drag that ends with no move to
   // settle — fire reconcile() once instead of leaving a deferred tick to
   // wait out the rest of the 30s interval. reconcile() re-checks the pause
-  // itself, so a call landing while still paused is a safe no-op; the future
-  // SSE trigger will call reconcile() through this same path.
-  const board = useKanbanBoard(searchQuery, { onMoveSettled: triggerReconcile })
-  const { dragOverStatus, setColumnDragOver, isDraggingRef } = useKanbanDragMonitor(
+  // itself, so a call landing while still paused is a safe no-op.
+  const board = useKanbanBoard(searchTerm, { movePendingRef, onMoveSettled: reconcile })
+  const { dragOverStatus, setColumnDragOver } = useKanbanDragMonitor(
     board.moveJob,
-    triggerReconcile,
+    reconcile,
+    isDraggingRef,
   )
-  const { staff, isStaffLoading, isStaffError, assignStaff } = useStaffAssignment(board.searchTerm)
+  const { staff, isStaffLoading, isStaffError, assignStaff } = useStaffAssignment(searchTerm)
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY)
 
-  // Composed here rather than inside useKanbanBoard: the loop pauses on both
-  // "a drag is in flight" and "a move is persisting", and only one component
-  // sees both — the drag monitor is created from board.moveJob, so the board
-  // hook cannot reach it without a circular dependency.
-  const { reconcile } = useKanbanReconciliation({
-    isDraggingRef,
-    movePendingRef: board.movePendingRef,
-    searchTerm: board.searchTerm,
-  })
-  reconcileRef.current = reconcile
-
   const [statusDrawerJob, setStatusDrawerJob] = useState<KanbanJobOut | null>(null)
-  const [armedStaffId, setArmedStaffId] = useState<string | null>(null)
-
-  // Tap-assign is a mobile concept (v1 kanban.vue watch(isDesktop, ...)): an
-  // armed selection surviving a resize to desktop would leave the next card
-  // click assigning instead of navigating, with no armed-state UI visible to
-  // explain why.
-  useEffect(() => {
-    if (isDesktop) setArmedStaffId(null)
-  }, [isDesktop])
+  // Tap-assign is a mobile concept (v1 kanban.vue watch(isDesktop, ...)): a
+  // selection armed on mobile must not come back armed after a trip through
+  // the desktop layout, where nothing shows it. The selection carries the
+  // layout it was armed under and is cleared during the first render under
+  // the other one — React's adjust-state-on-prop-change shape, not an effect,
+  // so nothing ever reads the stale value.
+  const [armed, setArmed] = useState<{ staffId: string | null; isDesktop: boolean }>({
+    staffId: null,
+    isDesktop,
+  })
+  if (armed.isDesktop !== isDesktop) setArmed({ staffId: null, isDesktop })
+  const armedStaffId = isDesktop || armed.isDesktop !== isDesktop ? null : armed.staffId
 
   const handleToggleTapAssign = useCallback((staffId: string) => {
-    setArmedStaffId((current) => (current === staffId ? null : staffId))
+    setArmed((current) => ({
+      staffId: current.staffId === staffId ? null : staffId,
+      isDesktop: current.isDesktop,
+    }))
   }, [])
 
   const handleTapAssign = useCallback(
@@ -90,7 +85,7 @@ export function KanbanBoard({ searchQuery }: KanbanBoardProps) {
       if (!armedStaffId) return
       const staffId = armedStaffId
       const success = await assignStaff(jobId, staffId)
-      if (success) setArmedStaffId(null)
+      if (success) setArmed((current) => ({ ...current, staffId: null }))
     },
     [armedStaffId, assignStaff],
   )
@@ -122,7 +117,7 @@ export function KanbanBoard({ searchQuery }: KanbanBoardProps) {
               column={column}
               isDragOver={dragOverStatus === column.id}
               isSearchActive={board.isSearchActive}
-              movePendingRef={board.movePendingRef}
+              movePendingRef={movePendingRef}
               setColumnDragOver={setColumnDragOver}
               onAssignStaff={assignStaff}
               armedStaffId={armedStaffId}
@@ -135,7 +130,7 @@ export function KanbanBoard({ searchQuery }: KanbanBoardProps) {
         <KanbanMobileLayout
           columns={board.columns}
           isSearchActive={board.isSearchActive}
-          movePendingRef={board.movePendingRef}
+          movePendingRef={movePendingRef}
           dragOverStatus={dragOverStatus}
           setColumnDragOver={setColumnDragOver}
           onAssignStaff={assignStaff}

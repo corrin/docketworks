@@ -20,6 +20,8 @@ database measurement that re-running corrected to 26,684 rows.
 import argparse
 import ast
 import re
+import shutil
+import subprocess
 import sys
 import tokenize
 from collections import Counter
@@ -50,13 +52,26 @@ FRONTEND_SUPPRESSIONS = {
 NOQA_RULE = re.compile(r"#\s*noqa:\s*([A-Z]+[0-9]+)")
 
 
+#: Every tracked file with one of these suffixes counts toward the lines figure.
+SOURCE_SUFFIXES = frozenset(
+    {".py", ".ts", ".tsx", ".js", ".jsx", ".vue", ".sh", ".html", ".css", ".scss"}
+)
+#: v1 (`../docketworks_v1`, frozen), measured by `--lines-of ../docketworks_v1`
+#: with the rule below, so the comparison is one rule over two trees. v2's
+#: whole point was an architectural cleanup, and this is where that claim is
+#: checked rather than believed: the code figure has to stay well under v1's.
+V1_COMMIT = "e88dc420"
+V1_LINES = {"code": 172577, "tests": 50869, "generated": 20359}
+
+
 @dataclass
 class Section:
     """One table in the report."""
 
     title: str
     note: str
-    rows: list[tuple[str, int]] = field(default_factory=list)
+    # A value is usually a count; a ratio reads as "a of b (x%)" instead.
+    rows: list[tuple[str, int | str]] = field(default_factory=list)
 
 
 def _python_files() -> Iterator[Path]:
@@ -82,6 +97,74 @@ def _frontend_files() -> Iterator[Path]:
                 if path.name.endswith((".gen.ts", ".gen.tsx")):
                     continue
                 yield path
+
+
+def _line_kind(path: str) -> str:
+    """Whether a tracked source file is generated, a test, or the code itself."""
+    parts = path.split("/")
+    name = parts[-1]
+    if (
+        "migrations" in parts
+        or "generated" in parts
+        or "dist" in parts
+        or name.endswith((".gen.ts", ".gen.tsx", ".lock", "-lock.json"))
+    ):
+        return "generated"
+    if (
+        "tests" in parts
+        or "test" in parts
+        or "e2e" in parts
+        or name == "conftest.py"
+        or name.startswith("test_")
+        or name.endswith((".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx"))
+    ):
+        return "tests"
+    return "code"
+
+
+def count_lines(root: Path) -> dict[str, int]:
+    """Non-blank lines of tracked source under `root`, by kind.
+
+    Tracked (`git ls-files`) rather than walked, so a build output or a
+    virtualenv on disk never counts; non-blank rather than non-comment, because
+    a comment is a line someone has to read and keep true.
+    """
+    git = shutil.which("git")
+    if git is None:
+        raise RuntimeError("git is not on PATH; the lines figure is counted over tracked files")
+    listing = subprocess.run(  # noqa: S603 -- fixed argv; root is a path the caller chose
+        [git, "-C", str(root), "ls-files"], check=True, capture_output=True, text=True
+    )
+    totals = {"code": 0, "tests": 0, "generated": 0}
+    for relative in listing.stdout.splitlines():
+        path = root / relative
+        if path.suffix not in SOURCE_SUFFIXES or not path.is_file():
+            continue
+        text = path.read_text(errors="replace")
+        totals[_line_kind(relative)] += sum(1 for line in text.splitlines() if line.strip())
+    return totals
+
+
+def measure_lines() -> Section:
+    """Lines of source by kind, against the v1 baseline."""
+    totals = count_lines(REPO_ROOT)
+    rows: list[tuple[str, int | str]] = []
+    for kind in ("code", "tests", "generated"):
+        now, before = totals[kind], V1_LINES[kind]
+        change = (now - before) / before
+        rows.append((kind, f"{now:,} (v1 {before:,}, {change:+.0%})"))
+    return Section(
+        title="Lines of source",
+        note=(
+            "Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html "
+            ".css .scss`), split into the code itself, tests, and generated files "
+            "(migrations, the generated API client, lock files), beside v1 at "
+            f"`{V1_COMMIT}` measured by the same rule. v2 replaced v1 as an "
+            "architectural cleanup, so the code figure is the one that has to keep "
+            "shrinking; tests and generated files are allowed to grow."
+        ),
+        rows=rows,
+    )
 
 
 def measure_suppressions() -> Section:
@@ -347,6 +430,57 @@ def measure_code_shape() -> tuple[Section, Section, Section]:
     return measure_exception_handling(handlers, try_statements), shape, returns
 
 
+def _broad_types(annotation: ast.AST) -> Counter[str]:
+    """Count broad types, including forward references but excluding literal values."""
+    if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
+        return _broad_types(ast.parse(annotation.value, mode="eval").body)
+    if isinstance(annotation, ast.Name):
+        return Counter({annotation.id: 1}) if annotation.id in {"Any", "object"} else Counter()
+    if isinstance(annotation, ast.Attribute):
+        return Counter({annotation.attr: 1}) if annotation.attr in {"Any", "object"} else Counter()
+    if isinstance(annotation, ast.Subscript):
+        name = ast.unparse(annotation.value).rsplit(".", 1)[-1]
+        if name == "Literal":
+            return Counter()
+        if name == "Annotated" and isinstance(annotation.slice, ast.Tuple):
+            return _broad_types(annotation.slice.elts[0])
+    counts: Counter[str] = Counter()
+    for child in ast.iter_child_nodes(annotation):
+        counts.update(_broad_types(child))
+    return counts
+
+
+def measure_broad_types() -> Section:
+    """Broad annotations are code smells, not explicit checker suppressions."""
+    counts: Counter[str] = Counter()
+    for path in _python_files():
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.arg | ast.AnnAssign) and node.annotation is not None:
+                counts.update(_broad_types(node.annotation))
+            elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.returns:
+                counts.update(_broad_types(node.returns))
+            elif isinstance(node, ast.TypeAlias):
+                counts.update(_broad_types(node.value))
+            elif (
+                isinstance(node, ast.Call)
+                and ast.unparse(node.func).rsplit(".", 1)[-1] == "cast"
+                and node.args
+            ):
+                counts.update(_broad_types(node.args[0]))
+    return Section(
+        title="Broad type annotations",
+        note=(
+            "Code smells: explicit `Any` and `object` occurrences in Python parameter, "
+            "return and variable annotations, PEP 695 type aliases, and casts. Includes "
+            "tests and quoted annotations; excludes migrations, comments, literal values "
+            "and Annotated metadata. `Any` bypasses type checking; `object` requires "
+            "narrowing but can still hide a missing domain contract. These are review "
+            "counts, not exemptions from ADR 0028."
+        ),
+        rows=[("Any annotations", counts["Any"]), ("object annotations", counts["object"])],
+    )
+
+
 def measure_wire_contract() -> Section:
     """How permissive the published response contract is.
 
@@ -399,6 +533,89 @@ def measure_wire_contract() -> Section:
     )
 
 
+# The tags a Playwright spec drives. Lowercase are the DOM elements; `Button`
+# is the shared primitive every screen's buttons go through. Deliberately a
+# short list: this measures a smell, not an audit.
+INTERACTIVE_TAGS = ("a", "button", "input", "select", "textarea", "Button")
+_INTERACTIVE_OPEN = re.compile(r"<(" + "|".join(INTERACTIVE_TAGS) + r")\b")
+# An attribute NAME followed by `=`: a value or comment that merely contains
+# the words is not coverage.
+_AUTOMATION_ID_ATTRIBUTE = re.compile(r"\b(?:data-automation-id|automationId)\s*=")
+
+
+def _jsx_attribute_span(text: str, start: int) -> str:
+    """The attribute text of the JSX tag opening at `start`, up to its `>`.
+
+    Attributes hold arrow functions and template strings, so the closing `>`
+    is the first one outside braces and quotes — a regex to the next `>`
+    would stop inside `onClick={() => ...}`.
+    """
+    depth = 0
+    quote: str | None = None
+    index = start
+    while index < len(text):
+        char = text[index]
+        if quote is not None:
+            if char == quote:
+                quote = None
+        elif char in "\"'`":
+            quote = char
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+        elif char == ">" and depth == 0:
+            return text[start:index]
+        index += 1
+    return text[start:]
+
+
+def measure_automation_ids() -> Section:
+    """Interactive elements a Playwright spec could not select by automation id.
+
+    ADR 0063 puts a `data-automation-id` on every control whether or not a test
+    drives it yet, because an id added later costs a spec its selector. Counted
+    over `frontend/src` only (tests select, they do not render). A tag that
+    spreads props is not counted: a shared primitive such as `components/ui`'s
+    button gets its id from the caller, and the caller's tag is the one counted.
+    """
+    counted: Counter[str] = Counter()
+    missing: Counter[str] = Counter()
+    for path in _frontend_files():
+        if path.suffix != ".tsx" or "frontend/src" not in path.as_posix():
+            continue
+        if path.name.endswith(".test.tsx"):
+            continue
+        text = path.read_text()
+        for match in _INTERACTIVE_OPEN.finditer(text):
+            attributes = _jsx_attribute_span(text, match.end())
+            if "{..." in attributes:
+                continue
+            tag = match.group(1)
+            counted[tag] += 1
+            if _AUTOMATION_ID_ATTRIBUTE.search(attributes) is None:
+                missing[tag] += 1
+    total = sum(counted.values())
+    absent = sum(missing.values())
+    share = round(100 * absent / total) if total else 0
+    rows: list[tuple[str, int | str]] = [
+        ("without data-automation-id", f"{absent} of {total} ({share}%)"),
+    ]
+    rows += [(f"without id: <{tag}>", missing[tag]) for tag in INTERACTIVE_TAGS if missing[tag]]
+    return Section(
+        title="Automation ids (frontend)",
+        note=(
+            "Interactive elements under `frontend/src` with no `data-automation-id`, "
+            "the selector every Playwright spec must be able to use (ADR 0063). Not "
+            "meant to be zero today: it shrinks as screens are touched, and a change "
+            "that adds a control without an id moves it up in front of a reviewer. "
+            "A tag that spreads props is skipped — a shared primitive is given its id "
+            "by its caller."
+        ),
+        rows=rows,
+    )
+
+
 def render(sections: list[Section]) -> str:
     lines = [
         "# Code quality metrics",
@@ -428,16 +645,30 @@ def main() -> int:
         action="store_true",
         help="exit non-zero when the committed file is out of date, writing nothing",
     )
+    parser.add_argument(
+        "--lines-of",
+        type=Path,
+        metavar="REPO",
+        help="print the lines-of-source counts for another checkout (how V1_LINES was measured)",
+    )
     args = parser.parse_args()
+
+    if args.lines_of is not None:
+        for kind, total in count_lines(args.lines_of).items():
+            print(f"{kind:10} {total:8,}")
+        return 0
 
     handling, shape, returns = measure_code_shape()
     sections = [
+        measure_lines(),
         measure_suppressions(),
         measure_version_mentions(),
         handling,
         shape,
         returns,
+        measure_broad_types(),
         measure_wire_contract(),
+        measure_automation_ids(),
     ]
     report = render(sections)
 

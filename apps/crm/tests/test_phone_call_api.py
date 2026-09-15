@@ -12,7 +12,7 @@ import pytest
 from django.http import StreamingHttpResponse
 from django.test import Client
 from django.utils import timezone
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
@@ -553,7 +553,7 @@ class TestRecordingDownload:
     """
 
     @pytest.fixture(autouse=True)
-    def storage_root(self, settings: SettingsWrapper, tmp_path: Path) -> Path:
+    def storage_root(self, settings: Settings, tmp_path: Path) -> Path:
         settings.PHONE_RECORDING_STORAGE_ROOT = str(tmp_path)
         return tmp_path
 

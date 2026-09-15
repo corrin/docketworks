@@ -72,6 +72,28 @@ To add or remove a single cert-domain on an already-configured server,
 edit `/etc/letsencrypt/cert-domains.txt` (one FQDN per line; blanks and
 `#`-comments ignored) and re-run `server-setup.sh`.
 
+### An instance on a second hostname
+
+An instance answers on its canonical FQDN plus any aliases (a client-branded
+name beside the fleet name, e.g. `uat-office.morrissheetmetal.co.nz` beside
+`msm-uat.docketworks.site`). Every hostname serves the full app with its own
+login cookie; nginx gets one server block per hostname on that hostname's
+certificate, and the app admits it through `APP_DOMAIN_ALIASES`. Outbound
+links (password reset, job links in Xero documents) and the Xero redirect URI
+stay on the canonical FQDN, so nothing changes in the Xero developer portal;
+a Xero connect started on an alias returns the browser to the alias
+(`apps/xero/oauth_views.py`).
+
+```bash
+# 1. DNS: an A record for the alias at Dreamhost, pointing at this box.
+# 2. Its certificate (DNS-01, as above; the list is persisted and re-read):
+sudo ./scripts/server/server-setup.sh --cert-domain '*.docketworks.site' --cert-domain uat-office.morrissheetmetal.co.nz
+# 3. The instance: --alias replaces the persisted list; --no-alias clears it.
+sudo scripts/server/instance.sh reconfigure msm uat --alias uat-office.morrissheetmetal.co.nz
+# 4. Proof: the build-id probe runs on every hostname.
+sudo scripts/server/verify-instance.sh msm uat
+```
+
 The script logs every action to `/var/log/docketworks-setup.log` with timestamps,
 and writes a manifest of installed software to `/opt/docketworks/server-manifest.txt`.
 
@@ -226,7 +248,10 @@ subsequent bare deploys remember it — and a bare `--all` can therefore send
 different refs to different instances. `--ref` against a `*-prod` instance
 requires interactive confirmation (or `--allow-prod-ref`).
 
-Run `instance.sh reconfigure` instead when root-owned credentials changed.
+Run `instance.sh reconfigure` instead when root-owned credentials changed. When a
+release adds a required env var or credential, the instance's running release does not
+yet carry the loader the new fixtures need: run `reconfigure --skip-db-fixtures`, then
+`deploy.sh`, then `instance.sh load-db-fixtures`.
 
 #### When a migration fails
 
@@ -361,6 +386,29 @@ curl -s https://<name>.docketworks.site/api/build-id/
 # Open in browser — should show login page
 # https://<name>.docketworks.site
 ```
+
+### The E2E suite on the instance (UAT verification, PVT)
+
+```bash
+# Once per instance: the E2E user's credentials, root-owned like the rest of config/
+sudo install -m 600 -o root -g root /dev/null /opt/docketworks/config/<name>.e2e.env
+sudoedit /opt/docketworks/config/<name>.e2e.env   # E2E_TEST_USERNAME= / E2E_TEST_PASSWORD=
+
+sudo scripts/server/verify-instance.sh <client> <env> --e2e                # uat
+sudo scripts/server/verify-instance.sh <client> prod --e2e --production   # PVT
+sudo scripts/server/verify-instance.sh <client> <env> --e2e -- --grep "@kanban"   # a subset
+```
+
+What it does (ADR 0064): fences users out (nginx answers 503 to everything but the box),
+copies the live database into `dw_<client>_<env>_scrub`, restarts gunicorn and the worker
+under a window env whose `DB_NAME` is the copy and whose Xero is the fake, stops beat for
+the window, runs the suite against `https://<fqdn>` from the box, then returns the units to
+the live database, purges the Celery queue, waits out the solo cache, empties the copy and
+drops the fence before the ordinary checks run. The report and traces stay under
+`/opt/docketworks/instances/<name>/e2e/`. The live database is only read; the real Xero
+organisation is never reached. A killed run is returned by the same trap. The suite needs
+`node_modules` in the release and Playwright's Chromium under `/opt/docketworks/.playwright`;
+the first run installs both.
 
 ### Full verification sequence
 

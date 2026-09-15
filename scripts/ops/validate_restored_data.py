@@ -19,7 +19,10 @@ promise:
 3. **Model validation.** `choices`, `blank`, `validators` and `clean()` live
    in Django's validation layer, which the write paths that produced v1's
    rows frequently did not run. Rows that violate them load fine and then
-   fail the first time anyone edits them.
+   fail the first time anyone edits them. Only the application's own models
+   (`apps.*`) are swept: v2 never runs `full_clean()` on a third-party row,
+   and `django_celery_results` leaves columns blank on every ordinary row,
+   so sweeping it reported thousands of "failures" nothing would ever refuse.
 
 Foreign keys are excluded from sweep 3, deliberately. `full_clean()` issues
 an existence query per foreign key per row, which on this dataset means
@@ -131,11 +134,16 @@ def sweep_foreign_keys() -> int:
     return orphans
 
 
+def _app_owned(model: type[models.Model]) -> bool:
+    """Whether the application declares the model, as opposed to a library it installs."""
+    return model._meta.app_config.name.startswith("apps.")
+
+
 def sweep_model_validation(*, quiet: bool) -> int:
     """Count rows that fail full_clean(), grouped by the message they fail with."""
     print("\n== Sweep 3: model validation ==")
     total = 0
-    for model in _models_to_check():
+    for model in filter(_app_owned, _models_to_check()):
         label = f"{model._meta.app_label}.{model.__name__}"
         failures: dict[str, list[str]] = defaultdict(list)
         count = 0

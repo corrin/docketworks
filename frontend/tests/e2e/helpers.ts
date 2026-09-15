@@ -3,13 +3,14 @@ import { expect, test } from '@playwright/test'
 import { appendFileSync, existsSync, mkdirSync } from 'fs'
 import path from 'path'
 import { isRecord } from './fixtures/api'
+import { runStateDir } from '../scripts/history-sources'
 
 /** The live-Xero-linked seed company every UI-seeded spec searches for. */
 export const TEST_COMPANY_NAME = 'ABC Carpet Cleaning TEST IGNORE'
 
 let networkRunId: string | null = null
 let networkRunDate: string | null = null
-const networkCsvPath = path.join(process.cwd(), 'test-results', 'network-aggregate.csv')
+const networkCsvPath = path.join(runStateDir(), 'test-results', 'network-aggregate.csv')
 
 // 100KB is generous: a 192KB JSON response compresses to ~60-80KB via gzip
 const DEFAULT_MAX_RESPONSE_KB = 100
@@ -581,10 +582,13 @@ export async function createPersonViaSelectionModal(
   await autoId(page, 'PersonSelectionModal-container').waitFor({ state: 'hidden' })
 }
 
-/** A cost-line row and its index, which the SmartCostLinesTable automation
-    ids are keyed on. */
+/**
+ * A cost-line row, addressed by its `data-row-id`, with the index the
+ * SmartCostLinesTable automation ids were keyed on when it was read.
+ */
 export interface CostLineRowMatch {
   row: Locator
+  rowId: string
   index: number
 }
 
@@ -592,27 +596,33 @@ export interface CostLineRowMatch {
  * One pass over the cost-line rows. Descriptions live in textareas, so a
  * row's description is not matchable as row text.
  *
- * A detached read throws rather than reading as an empty description: a row
- * that vanished mid-scan is a scan to retry, and swallowing it as `''` made
- * it indistinguishable from a row whose description really is blank.
+ * The rows are read in one DOM snapshot and the match is addressed by row
+ * id, never by position: a created line is appended to the cached cost set
+ * and re-sorted by kind when the settle refetch lands, so a position read
+ * before the refetch names whichever row moved into it by click time — under
+ * the fake Xero that gap was 10ms, and a delete aimed at an adjustment
+ * removed the Workshop labour line.
  */
 export async function findCostLineRows(
   page: Page,
   description: string,
   matcher: 'exact' | 'includes' = 'exact',
 ): Promise<CostLineRowMatch[]> {
-  const allRows = page.locator('[data-automation-id^="DataTable-row-"]')
-  const rowCount = await allRows.count()
+  const rows = await page
+    .locator('[data-automation-id^="DataTable-row-"]')
+    .evaluateAll((elements) =>
+      elements.map((element) => ({
+        rowId: element.getAttribute('data-row-id'),
+        description: element.querySelector('textarea')?.value ?? '',
+      })),
+    )
   const matches: CostLineRowMatch[] = []
-
-  for (let i = 0; i < rowCount; i++) {
-    const row = allRows.nth(i)
-    const value = await row.locator('textarea').first().inputValue()
+  rows.forEach(({ rowId, description: value }, index) => {
     const matched = matcher === 'exact' ? value === description : value.includes(description)
-    if (matched) {
-      matches.push({ row, index: i })
-    }
-  }
+    if (!matched) return
+    if (rowId === null) throw new Error(`cost-line row ${index} carries no data-row-id`)
+    matches.push({ row: page.locator(`[data-row-id="${rowId}"]`), rowId, index })
+  })
   return matches
 }
 
@@ -635,9 +645,6 @@ export async function waitForCostLineRows(
 ): Promise<CostLineRowMatch[]> {
   const found: CostLineRowMatch[] = []
   await expect(async () => {
-    // Those refetches can also reorder rows, so an index read before they
-    // land addresses the wrong row by click time. A quiet network first.
-    await page.waitForLoadState('networkidle')
     const matches = await findCostLineRows(page, description, matcher)
     found.length = 0
     found.push(...matches)

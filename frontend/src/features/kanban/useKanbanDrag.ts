@@ -21,6 +21,8 @@ import {
 import type { ElementDropTargetGetFeedbackArgs } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { useLatest } from '@/lib/useLatest'
+
 import type { MoveJobRequest } from './useKanbanBoard'
 
 const JOB_CARD_TYPE = 'job-card'
@@ -98,18 +100,6 @@ export interface KanbanDragMonitor {
   /** The column currently under the pointer, for the drop highlight. */
   dragOverStatus: string | null
   setColumnDragOver: (statusKey: string, isOver: boolean) => void
-  /**
-   * True for exactly as long as a card is under the pointer. The board-wide
-   * monitor is the only place that knows this — useJobCardDrag's isDragging
-   * is per card, and asking six columns of cards whether any of them is
-   * dragging is a second source of truth for one fact.
-   *
-   * A ref, not state: its reader is the reconciliation tick, which runs on a
-   * timer rather than in a render, and publishing it as state would re-render
-   * the whole board twice per gesture — including the draggable registrations
-   * this file's header warns must not be rebuilt mid-drag.
-   */
-  isDraggingRef: React.RefObject<boolean>
 }
 
 export function useKanbanDragMonitor(
@@ -124,13 +114,20 @@ export function useKanbanDragMonitor(
    * exists.
    */
   onDragReleased: () => void,
+  /**
+   * Set true for exactly as long as a card is under the pointer, false on
+   * drop or cancel. Owned by KanbanBoard because the reconciliation loop reads
+   * it beside the board hook's movePendingRef, and only that component sees
+   * both. A ref, not state: its reader is the reconciliation tick, which runs
+   * on a timer rather than in a render, and publishing it as state would
+   * re-render the whole board twice per gesture — including the draggable
+   * registrations this file's header warns must not be rebuilt mid-drag.
+   */
+  isDraggingRef: React.RefObject<boolean>,
 ): KanbanDragMonitor {
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null)
-  const isDraggingRef = useRef(false)
-  const onMoveRef = useRef(onMove)
-  onMoveRef.current = onMove
-  const onDragReleasedRef = useRef(onDragReleased)
-  onDragReleasedRef.current = onDragReleased
+  const onMoveRef = useLatest(onMove)
+  const onDragReleasedRef = useLatest(onDragReleased)
 
   useEffect(
     () =>
@@ -164,7 +161,7 @@ export function useKanbanDragMonitor(
           onDragReleasedRef.current()
         },
       }),
-    [],
+    [isDraggingRef, onDragReleasedRef, onMoveRef],
   )
 
   const setColumnDragOver = useCallback((statusKey: string, isOver: boolean) => {
@@ -176,7 +173,7 @@ export function useKanbanDragMonitor(
     })
   }, [])
 
-  return { dragOverStatus, setColumnDragOver, isDraggingRef }
+  return { dragOverStatus, setColumnDragOver }
 }
 
 export interface JobCardDrag {
@@ -247,10 +244,8 @@ export function useColumnDropTarget(
   setColumnDragOver: (statusKey: string, isOver: boolean) => void,
 ): React.RefObject<HTMLDivElement | null> {
   const ref = useRef<HTMLDivElement | null>(null)
-  const lastJobIdRef = useRef(lastJobId)
-  lastJobIdRef.current = lastJobId
-  const setColumnDragOverRef = useRef(setColumnDragOver)
-  setColumnDragOverRef.current = setColumnDragOver
+  const lastJobIdRef = useLatest(lastJobId)
+  const setColumnDragOverRef = useLatest(setColumnDragOver)
 
   useEffect(() => {
     const element = ref.current
@@ -276,7 +271,7 @@ export function useColumnDropTarget(
         canScroll: ({ source }) => isJobCardData(source.data),
       }),
     )
-  }, [statusKey])
+  }, [statusKey, lastJobIdRef, setColumnDragOverRef])
 
   return ref
 }

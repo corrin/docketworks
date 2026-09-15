@@ -3,8 +3,8 @@ set -euo pipefail
 
 # Manage docketworks instances.
 # Usage: instance.sh prepare-config <client> <env> [--seed]
-#        instance.sh create <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]
-#        instance.sh reconfigure <client> <env> [--fqdn <hostname>] [--no-start]
+#        instance.sh create <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--alias <hostname>]... [--no-start]
+#        instance.sh reconfigure <client> <env> [--fqdn <hostname>] [--alias <hostname>]... [--no-alias] [--no-start]
 #        instance.sh validate-config <client> <env>
 #        instance.sh load-db-fixtures <client> <env>
 #        instance.sh destroy <client> <env>
@@ -14,6 +14,13 @@ set -euo pipefail
 #
 # --ref: on create only, the git ref this instance tracks (default
 # origin/production). Re-point an existing instance with deploy.sh --ref.
+#
+# --alias: a further hostname the instance answers on (repeatable), on top of
+# the canonical --fqdn. Same semantics as server-setup.sh --cert-domain: an
+# explicit list replaces the persisted one (.aliases), --no-alias clears it,
+# neither keeps it. Each hostname gets its own nginx server block and needs
+# its own certificate (server-setup.sh --cert-domain); the app's outbound
+# links and the Xero redirect URI stay on the canonical FQDN.
 #
 # --no-start: create the instance but do NOT enable/restart celery-beat-* and
 # celery-worker-* services, and drop a .dr-mode marker in the instance dir.
@@ -44,17 +51,6 @@ json_string_or_null() {
         printf 'null'
     else
         python3 -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$1"
-    fi
-}
-
-# Get the FQDN for an instance: custom if set, else <instance>.<domain>
-get_fqdn() {
-    local instance="$1"
-    local fqdn_file="$INSTANCES_DIR/$instance/.fqdn"
-    if [[ -f "$fqdn_file" ]]; then
-        cat "$fqdn_file"
-    else
-        echo "${instance}.${DOMAIN}"
     fi
 }
 
@@ -260,27 +256,20 @@ allocate_redis_db() {
     local other_env
     for other_env in "$INSTANCES_DIR"/*/.env; do
         [[ -f "$other_env" ]] || continue
-        url="$(read_env_value "$other_env" REDIS_URL)"
-        [[ -n "$url" ]] || continue
-        db="${url##*/}"
-        # v1 .envs have no REDIS_URL; anything unparseable here is a
-        # misconfigured neighbour and must fail loudly, not be skipped —
-        # skipping could hand out its (unknown) database twice.
-        if [[ ! "$db" =~ ^[0-9]+$ ]]; then
-            echo "ERROR: cannot parse a Redis database number from REDIS_URL='$url' in $other_env" >&2
-            return 1
-        fi
+        db="$(redis_db_of_env "$other_env")" || return 1
         used+=("$db")
     done
 
+    # 0 is what an unnamed client lands in, 1 is v1's broker, 2 is the shared
+    # cache: never handed out, whatever the neighbours say.
     local candidate
-    for candidate in 1 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    for candidate in 3 4 5 6 7 8 9 10 11 12 13 14 15; do
         if [[ ! " ${used[*]-} " == *" $candidate "* ]]; then
             printf '%s\n' "$candidate"
             return 0
         fi
     done
-    echo "ERROR: No free Redis database left on this host (0-15, 2 reserved)." >&2
+    echo "ERROR: No free Redis database left on this host (0-15; 0, 1 and 2 reserved)." >&2
     echo "  Raise 'databases' in /etc/redis/redis.conf or retire an instance." >&2
     return 1
 }
@@ -293,6 +282,7 @@ render_instance_env() {
     local scrub_db_name="$5"
     local test_db_user="$6"
     local fqdn="$7"
+    local aliases_csv="$8"
 
     local env_file="$instance_dir/.env"
     local db_password test_db_password secret_key jwt_signing_key redis_db
@@ -323,6 +313,7 @@ render_instance_env() {
     sed \
         -e "s|__INSTANCE__|$INSTANCE|g" \
         -e "s|__FQDN__|$fqdn|g" \
+        -e "s|__APP_DOMAIN_ALIASES__|$aliases_csv|g" \
         -e "s|__DB_NAME__|$db_name|g" \
         -e "s|__DB_USER__|$db_user|g" \
         -e "s|__DB_PASSWORD__|$db_password|g" \
@@ -520,6 +511,39 @@ ensure_instance_directories() {
     chmod 700 "$instance_dir/phone-recordings" "$instance_dir/session-replays"
 }
 
+# Render one runtime unit and start it. `create` starts every unit; on a
+# `reconfigure` a unit that was not running stays that way, because an
+# operator mid-restore or a DR standby stopped it on purpose and a
+# reconfigure that dispatched a Xero sync into a half-loaded database was how
+# that was learned. `.dr-mode` never starts anything: docs/server_setup.md
+# and deploy.sh both gate the units on it so the box accepts no traffic
+# before DNS cutover, and "go live" is `rm .dr-mode && systemctl enable --now`.
+# Reads INSTANCE, INSTANCE_USER, INSTANCE_DIR and command_name from the
+# caller (do_configure).
+install_runtime_unit() {
+    local unit="$1"
+    local template="$2"
+    local was_active=false
+    systemctl is-active --quiet "$unit" 2>/dev/null && was_active=true
+
+    log "Installing systemd service $unit..."
+    sed \
+        -e "s|__INSTANCE__|$INSTANCE|g" \
+        -e "s|__INSTANCE_USER__|$INSTANCE_USER|g" \
+        "$TEMPLATE_DIR/$template" \
+        > "/etc/systemd/system/$unit.service"
+    systemctl daemon-reload
+    if [[ -f "$INSTANCE_DIR/.dr-mode" ]]; then
+        log "  DR mode: skipping enable/restart of $unit"
+    elif [[ "$command_name" != "create" && "$was_active" == "false" ]]; then
+        log "  $unit was not running; left stopped (reconfigure keeps the operator's state)"
+        systemctl enable "$unit"
+    else
+        systemctl enable "$unit"
+        systemctl restart "$unit"
+    fi
+}
+
 do_configure() {
     local command_name="$1"
     shift
@@ -536,12 +560,14 @@ do_configure() {
     local ALLOW_PROD_REF=false
     local SKIP_DB_FIXTURES=false
     local parsed
-    local long_opts="ref:,allow-prod-ref,fqdn:,no-start,skip-db-fixtures"
+    local ALIASES=()
+    local NO_ALIAS=false
+    local long_opts="ref:,allow-prod-ref,fqdn:,alias:,no-alias,no-start,skip-db-fixtures"
     if ! parsed=$(getopt -o '' --long "$long_opts" -n "$(basename "$0") $command_name" -- "$@"); then
         if [[ "$command_name" == "create" ]]; then
-            echo "Usage: $(basename "$0") $command_name <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]" >&2
+            echo "Usage: $(basename "$0") $command_name <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--alias <hostname>]... [--no-start]" >&2
         else
-            echo "Usage: $(basename "$0") $command_name <client> <env> [--fqdn <hostname>] [--no-start] [--skip-db-fixtures]" >&2
+            echo "Usage: $(basename "$0") $command_name <client> <env> [--fqdn <hostname>] [--alias <hostname>]... [--no-alias] [--no-start] [--skip-db-fixtures]" >&2
         fi
         exit 1
     fi
@@ -551,6 +577,8 @@ do_configure() {
             --ref)      REF="$2"; REF_SET=true; shift 2 ;;
             --allow-prod-ref) ALLOW_PROD_REF=true; shift ;;
             --fqdn)     CUSTOM_FQDN="$2";       shift 2 ;;
+            --alias)    ALIASES+=("$2");        shift 2 ;;
+            --no-alias) NO_ALIAS=true;          shift ;;
             --no-start) NO_START=true;          shift ;;
             --skip-db-fixtures) SKIP_DB_FIXTURES=true; shift ;;
             --)         shift; break ;;
@@ -558,6 +586,10 @@ do_configure() {
     done
     if [[ $# -gt 0 ]]; then
         echo "ERROR: Unexpected arguments to '$command_name': $*" >&2
+        exit 1
+    fi
+    if [[ "$NO_ALIAS" == "true" && ${#ALIASES[@]} -gt 0 ]]; then
+        echo "ERROR: --no-alias and --alias contradict each other." >&2
         exit 1
     fi
     if [[ "$REF_SET" == "true" && "$command_name" != "create" ]]; then
@@ -648,21 +680,21 @@ do_configure() {
         log "WARNING: setquota not found — install quota package: sudo apt install quota"
     fi
 
-    local FQDN CERT_DOMAIN
+    local FQDN
     if [[ -n "$CUSTOM_FQDN" ]]; then
         FQDN="$CUSTOM_FQDN"
-        CERT_DOMAIN="$CUSTOM_FQDN"
     elif [[ "$IS_EXISTING" == "true" && -f "$INSTANCE_DIR/.fqdn" ]]; then
-        FQDN="$(cat "$INSTANCE_DIR/.fqdn")"
-        if [[ "$FQDN" == *".$DOMAIN" ]]; then
-            CERT_DOMAIN="$DOMAIN"
-        else
-            CERT_DOMAIN="$FQDN"
-        fi
+        FQDN="$(head -n1 "$INSTANCE_DIR/.fqdn")"
     else
         FQDN="${INSTANCE}.${DOMAIN}"
-        CERT_DOMAIN="$DOMAIN"
     fi
+    # An explicit list replaces the persisted one; --no-alias clears it;
+    # neither keeps it (.aliases is absent only on an instance that predates it).
+    if [[ "$NO_ALIAS" == "false" && ${#ALIASES[@]} -eq 0 && -f "$INSTANCE_DIR/.aliases" ]]; then
+        mapfile -t ALIASES < <(sed '/^[[:space:]]*$/d' "$INSTANCE_DIR/.aliases")
+    fi
+    local ALIASES_CSV
+    ALIASES_CSV="$(IFS=,; echo "${ALIASES[*]}")"
 
     log "Ensuring instance directory structure..."
     ensure_instance_directories "$INSTANCE_DIR" "$INSTANCE_USER"
@@ -684,7 +716,8 @@ do_configure() {
         "${BACKUP_GDRIVE_ROOT_FOLDER_ID:-}" \
         "${BACKUP_GDRIVE_TEAM_DRIVE_ID:-}"
     echo "$FQDN" > "$INSTANCE_DIR/.fqdn"
-    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.fqdn"
+    printf '%s\n' "${ALIASES[@]}" > "$INSTANCE_DIR/.aliases"
+    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.fqdn" "$INSTANCE_DIR/.aliases"
 
     cat > "$INSTANCE_DIR/.bash_profile" <<'BASH_PROFILE'
 source ~/app/.venv/bin/activate
@@ -702,7 +735,8 @@ BASH_PROFILE
         "$DB_USER" \
         "$SCRUB_DB_NAME" \
         "$TEST_DB_USER" \
-        "$FQDN"
+        "$FQDN" \
+        "$ALIASES_CSV"
 
     local DB_PASSWORD TEST_DB_PASSWORD
     DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" DB_PASSWORD)"
@@ -803,51 +837,9 @@ EOSQL
         chmod 644 "$INSTANCE_DIR/.dr-mode"
     fi
 
-    log "Installing systemd service gunicorn-$INSTANCE..."
-    sed \
-        -e "s|__INSTANCE__|$INSTANCE|g" \
-        -e "s|__INSTANCE_USER__|$INSTANCE_USER|g" \
-        "$TEMPLATE_DIR/gunicorn-instance.service.template" \
-        > "/etc/systemd/system/gunicorn-$INSTANCE.service"
-    systemctl daemon-reload
-    if [[ -f "$INSTANCE_DIR/.dr-mode" ]]; then
-        # Cold-standby: docs/server_setup.md and deploy.sh both gate
-        # gunicorn on .dr-mode so the box doesn't accept HTTP traffic
-        # before DNS cutover. The unit file is rendered above so "go
-        # live" is just `rm .dr-mode && systemctl enable --now ...`.
-        log "  DR mode: skipping enable/restart of gunicorn-$INSTANCE"
-    else
-        systemctl enable "gunicorn-$INSTANCE"
-        systemctl restart "gunicorn-$INSTANCE"
-    fi
-
-    log "Installing systemd service celery-beat-$INSTANCE..."
-    sed \
-        -e "s|__INSTANCE__|$INSTANCE|g" \
-        -e "s|__INSTANCE_USER__|$INSTANCE_USER|g" \
-        "$TEMPLATE_DIR/celery-beat-instance.service.template" \
-        > "/etc/systemd/system/celery-beat-$INSTANCE.service"
-    systemctl daemon-reload
-    if [[ -f "$INSTANCE_DIR/.dr-mode" ]]; then
-        log "  DR mode: skipping enable/restart of celery-beat-$INSTANCE"
-    else
-        systemctl enable "celery-beat-$INSTANCE"
-        systemctl restart "celery-beat-$INSTANCE"
-    fi
-
-    log "Installing systemd service celery-worker-$INSTANCE..."
-    sed \
-        -e "s|__INSTANCE__|$INSTANCE|g" \
-        -e "s|__INSTANCE_USER__|$INSTANCE_USER|g" \
-        "$TEMPLATE_DIR/celery-worker-instance.service.template" \
-        > "/etc/systemd/system/celery-worker-$INSTANCE.service"
-    systemctl daemon-reload
-    if [[ -f "$INSTANCE_DIR/.dr-mode" ]]; then
-        log "  DR mode: skipping enable/restart of celery-worker-$INSTANCE"
-    else
-        systemctl enable "celery-worker-$INSTANCE"
-        systemctl restart "celery-worker-$INSTANCE"
-    fi
+    install_runtime_unit "gunicorn-$INSTANCE" gunicorn-instance.service.template
+    install_runtime_unit "celery-beat-$INSTANCE" celery-beat-instance.service.template
+    install_runtime_unit "celery-worker-$INSTANCE" celery-worker-instance.service.template
 
     log "Installing backup timers for $INSTANCE..."
     render_backup_units "$INSTANCE" "$INSTANCE_USER" "$TEMPLATE_DIR"
@@ -868,21 +860,21 @@ EOSQL
     install -m 0440 -o root -g root "$SUDOERS_TMP" "/etc/sudoers.d/$INSTANCE_USER"
     rm -f "$SUDOERS_TMP"
 
-    log "Installing Nginx config for $FQDN..."
-    sed \
-        -e "s|__INSTANCE__|$INSTANCE|g" \
-        -e "s|__FQDN__|$FQDN|g" \
-        -e "s|__CERT_DOMAIN__|$CERT_DOMAIN|g" \
-        "$TEMPLATE_DIR/nginx-instance.conf.template" \
-        > "/etc/nginx/sites-available/docketworks-$INSTANCE"
-    ln -sf "/etc/nginx/sites-available/docketworks-$INSTANCE" "/etc/nginx/sites-enabled/"
+    log "Installing Nginx config for $FQDN${ALIASES_CSV:+ (aliases: $ALIASES_CSV)}..."
+    render_instance_nginx "$INSTANCE"
+    ln -sf "$NGINX_SITES_AVAILABLE/docketworks-$INSTANCE" "/etc/nginx/sites-enabled/"
 
-    local CERT_PATH="/etc/letsencrypt/live/$CERT_DOMAIN/fullchain.pem"
-    if [[ -f "$CERT_PATH" ]]; then
+    local host CERT_PATH MISSING_CERT=false
+    for host in "$FQDN" "${ALIASES[@]}"; do
+        CERT_PATH="/etc/letsencrypt/live/$(cert_live_dir "$host")/fullchain.pem"
+        if [[ ! -f "$CERT_PATH" ]]; then
+            log "  NOTE: no certificate for $host at $CERT_PATH — skipping nginx reload."
+            log "  After DNS cutover: sudo scripts/server/server-setup.sh --cert-domain $host (docs/server_setup.md)"
+            MISSING_CERT=true
+        fi
+    done
+    if [[ "$MISSING_CERT" == "false" ]]; then
         nginx -t && systemctl reload nginx
-    else
-        log "  NOTE: SSL cert not yet at $CERT_PATH — skipping nginx reload."
-        log "  After DNS cutover: sudo certbot --nginx -d $FQDN"
     fi
 
     # The auth jails read the per-instance nginx access logs by glob; the
@@ -1217,7 +1209,7 @@ do_list() {
             sha="no release"
         fi
 
-        printf "%-15s %-12s %-12s %-10s %-40s\n" "$name" "$status" "$sched_status" "$sha" "https://$(get_fqdn "$name")"
+        printf "%-15s %-12s %-12s %-10s %-40s\n" "$name" "$status" "$sched_status" "$sha" "https://$(instance_hostnames "$name" | head -n1)"
     done
 }
 

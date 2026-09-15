@@ -18,7 +18,7 @@ from django.core.cache import cache, caches
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import override_settings
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 from apps.accounting.models import Invoice
 from apps.accounting.types import DocumentTheme
@@ -48,7 +48,7 @@ def _clear_caches() -> None:
 
 
 @pytest.fixture
-def _readonly(settings: SettingsWrapper) -> None:
+def _readonly(settings: Settings) -> None:
     """Set the production hotfix valve, which is the state these tests are about.
 
     Opus: Set here and nowhere else: XERO_READONLY exists so an operator running a

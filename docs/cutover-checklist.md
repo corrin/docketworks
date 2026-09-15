@@ -164,8 +164,9 @@ way and is still live for any future restore.
   report no 5xx. This is what caught both the sequence bug and the
   `input_data` shape bug below; synthetic test fixtures produce only
   well-formed data.
-- Full test suite and `./scripts/ops/run_e2e.sh` green against the loaded data; confirm the
-  command reports a successful database restore and leaves no managed services running.
+- Full test suite green, and `sudo scripts/server/verify-instance.sh <client> <env> --e2e`
+  green on the instance (ADR 0064); confirm it reports the copy emptied and the ordinary
+  checks passing afterwards.
 
 ## The environment contract
 

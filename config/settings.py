@@ -59,8 +59,15 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 JWT_SIGNING_KEY = os.environ["JWT_SIGNING_KEY"]
 DEBUG = os.environ["DEBUG"].lower() == "true"
 APP_DOMAIN = os.environ["APP_DOMAIN"]
+# Further hostnames this instance answers on (instance.sh --alias; comma-
+# separated, usually empty). Everything that names the instance outbound —
+# reset links, job links in Xero documents, the cache prefix — stays on
+# APP_DOMAIN; an alias only admits requests. Present in every .env by the
+# env-template contract but legitimately empty, so it is read here rather
+# than listed in REQUIRED_ENV_VARS, which refuses an empty value.
+APP_DOMAIN_ALIASES = [host for host in os.environ["APP_DOMAIN_ALIASES"].split(",") if host]
 
-ALLOWED_HOSTS = [APP_DOMAIN, "localhost", "127.0.0.1"]
+ALLOWED_HOSTS = [APP_DOMAIN, *APP_DOMAIN_ALIASES, "localhost", "127.0.0.1"]
 
 # No django.contrib.admin: administration happens through the app's own SPA.
 INSTALLED_APPS = [
@@ -179,7 +186,11 @@ USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
 
 # Unsafe-method requests arriving through the tunnel carry the public origin.
-CSRF_TRUSTED_ORIGINS = [f"https://{APP_DOMAIN}", f"http://{APP_DOMAIN}"]
+CSRF_TRUSTED_ORIGINS = [
+    f"https://{APP_DOMAIN}",
+    f"http://{APP_DOMAIN}",
+    *(f"https://{host}" for host in APP_DOMAIN_ALIASES),
+]
 
 ROOT_URLCONF = "config.urls"
 
@@ -336,9 +347,10 @@ FRONT_END_URL = os.environ["FRONT_END_URL"]
 XERO_READONLY = required_flag("XERO_READONLY")
 # Process-scoped: answer every Xero call from the local fake (ADR 0060). Set
 # by `run_e2e.sh --use-fake-xero` for the stack it starts, so an iteration run
-# spends no Xero quota; the merge-gate run never sets it.
+# spends no Xero quota, and by `verify-instance.sh --e2e` for the copy of an
+# instance it verifies (ADR 0064); the merge-gate run never sets it.
 XERO_FAKE = required_flag("XERO_FAKE")
-validate_xero_fake_flag(fake=XERO_FAKE, readonly=XERO_READONLY, debug=DEBUG)
+validate_xero_fake_flag(fake=XERO_FAKE, readonly=XERO_READONLY)
 
 # Hardcoded, not env: these guard against pointing a non-production install
 # at a production Xero tenant/app, and a guard that can be misconfigured

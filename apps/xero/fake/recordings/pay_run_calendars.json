@@ -1,0 +1,81 @@
+{
+  "recorded_at": "2026-09-14T08:56:07+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.2.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": 2,
+  "request": {
+    "method": "GET",
+    "path": "/payroll.xro/2.0/PayRunCalendars",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null,
+    "headers": {
+      "X-DayLimit-Remaining": "316",
+      "X-MinLimit-Remaining": "58"
+    }
+  },
+  "body": {
+    "id": "90d7a0d3-7700-424d-b201-e9b3f8f3ca12",
+    "providerName": "Docketworks%20MSM%20Dev",
+    "dateTimeUTC": "2026-09-14T08:56:42.2523505",
+    "httpStatusCode": "OK",
+    "pagination": {
+      "page": 1,
+      "pageSize": 100,
+      "pageCount": 1,
+      "itemCount": 3
+    },
+    "problem": null,
+    "payRunCalendars": [
+      {
+        "payrollCalendarID": "ccc86278-109b-4192-b2de-c5330b7bf8c7",
+        "name": "Weekly",
+        "calendarType": "Weekly",
+        "periodStartDate": "2023-07-10T00:00:00",
+        "periodEndDate": "2023-07-16T00:00:00",
+        "paymentDate": "2023-07-18T00:00:00",
+        "updatedDateUTC": "2026-09-12T03:49:26"
+      },
+      {
+        "payrollCalendarID": "8df7961e-e9f1-4407-b77d-672bcad8cf30",
+        "name": "Monthly",
+        "calendarType": "Monthly",
+        "periodStartDate": "2023-08-01T00:00:00",
+        "periodEndDate": "2023-08-31T00:00:00",
+        "paymentDate": "2023-08-23T00:00:00",
+        "updatedDateUTC": "2026-09-12T03:49:26"
+      }
+    ]
+  }
+}

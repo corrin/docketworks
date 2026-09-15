@@ -1,0 +1,113 @@
+{
+  "recorded_at": "2026-09-14T09:29:27+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.2.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": null,
+  "request": {
+    "method": "PUT",
+    "path": "/api.xro/2.0/Contacts",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null,
+    "headers": {
+      "X-DayLimit-Remaining": "191",
+      "X-MinLimit-Remaining": "50"
+    }
+  },
+  "body": {
+    "Id": "bf7ee1ea-6daf-4706-a0bd-036be590295d",
+    "Status": "OK",
+    "ProviderName": "Docketworks MSM Dev",
+    "DateTimeUTC": "/Date(1789378193539)/",
+    "Contacts": [
+      {
+        "ContactID": "2f79af6c-5f57-49e8-9e44-301499538add",
+        "ContactStatus": "ACTIVE",
+        "Name": "[TEST] Recording a1a54b7c",
+        "EmailAddress": "EmailAddress-scrubbed",
+        "BankAccountDetails": "",
+        "Addresses": [
+          {
+            "AddressType": "STREET",
+            "City": "",
+            "Region": "",
+            "PostalCode": "",
+            "Country": ""
+          },
+          {
+            "AddressType": "POBOX",
+            "City": "",
+            "Region": "",
+            "PostalCode": "",
+            "Country": ""
+          }
+        ],
+        "Phones": [
+          {
+            "PhoneType": "DEFAULT",
+            "PhoneNumber": "PhoneNumber-scrubbed",
+            "PhoneAreaCode": "",
+            "PhoneCountryCode": ""
+          },
+          {
+            "PhoneType": "DDI",
+            "PhoneNumber": "",
+            "PhoneAreaCode": "",
+            "PhoneCountryCode": ""
+          },
+          {
+            "PhoneType": "FAX",
+            "PhoneNumber": "",
+            "PhoneAreaCode": "",
+            "PhoneCountryCode": ""
+          },
+          {
+            "PhoneType": "MOBILE",
+            "PhoneNumber": "",
+            "PhoneAreaCode": "",
+            "PhoneCountryCode": ""
+          }
+        ],
+        "UpdatedDateUTC": "/Date(1789378193493+0000)/",
+        "ContactGroups": [],
+        "IsSupplier": false,
+        "IsCustomer": false,
+        "SalesTrackingCategories": [],
+        "PurchasesTrackingCategories": [],
+        "ContactPersons": [],
+        "HasValidationErrors": false
+      }
+    ]
+  }
+}

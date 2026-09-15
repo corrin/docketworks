@@ -49,7 +49,8 @@ weaken a gate, never baseline one.
 ## Done
 
 - Done means the E2E spec passes. Report progress as specs green, never as endpoints or
-  components written. Nothing releases without the suite green.
+  components written. Nothing releases without the suite green. UAT verification and PVT are
+  `scripts/server/verify-instance.sh --e2e` green on the instance (ADR 0064).
 - Commit each verified slice as soon as it is complete, staging explicit paths; push only when
   asked. A green unit run is a commit boundary. A generated artifact carrying another
   workstream's changes is partial-staged, or the overlap is reported before committing.
@@ -90,8 +91,8 @@ weaken a gate, never baseline one.
 - Code that looks simple runs simple. A refusal lives in one service function raising a typed
   error; `CHECK`, `UNIQUE`, `NOT NULL` and `on_delete` belong in the schema, a raising trigger
   never does (ADR 0058).
-- One data model. A one-off migration is the only thing that knows the old shape; a creation
-  timestamp is never nullable (ADR 0059).
+- One data model. A one-off migration is the only thing that knows the old shape (ADR 0059); a creation
+  timestamp is never nullable (ADR 0057).
 - Libraries over DIY (ADR 0032). One LLM gateway: every AI call goes through `apps/ai`, and no
   feature imports a vendor SDK (ADR 0041). Unset is NULL, via `NullableText` (ADR 0040).
   Numbers travel as JSON numbers (ADR 0046).

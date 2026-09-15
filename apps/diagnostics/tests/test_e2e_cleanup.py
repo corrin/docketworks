@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from django.core.management import CommandError, call_command
 from django.db.models import Model, QuerySet
-from pytest_django.fixtures import SettingsWrapper
+from pytest_django import Settings
 
 from apps.accounting.models import Invoice, Quote
 from apps.accounting.types import DocumentResult
@@ -24,6 +24,7 @@ from apps.diagnostics.management.commands.e2e_cleanup import Command
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.process.models import Acknowledgement, Form, FormEntry
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock, StockMovement
+from apps.purchasing.services.stock_service import consume_stock
 from apps.purchasing.tests.factories import make_po_line, make_purchase_order, receive_po_line
 from apps.quoting.models import SupplierPriceList
 from apps.xero.contacts import ArchiveOutcome
@@ -559,7 +560,7 @@ def test_a_document_refusal_is_reported_by_number_and_does_not_stop_the_cleanup(
 
 
 @pytest.fixture
-def phone_storage_root(settings: SettingsWrapper, tmp_path: Path) -> Path:
+def phone_storage_root(settings: Settings, tmp_path: Path) -> Path:
     settings.PHONE_RECORDING_STORAGE_ROOT = str(tmp_path)
     return tmp_path
 
@@ -682,3 +683,32 @@ def test_sweeps_test_prefixed_process_documents(office_staff: Staff) -> None:
     assert not FormEntry.objects.exists()
     assert not Acknowledgement.objects.filter(pk=acknowledgement.pk).exists()
     assert Form.objects.filter(pk=keeper.pk).exists()
+
+
+def test_standing_stock_issued_to_a_test_job_does_not_protect_the_job(
+    office_staff: Staff, job: Job, stock_holding_job: Job
+) -> None:
+    """An issue from stock the run never received still protects the run's job.
+
+    A spec that consumes workshop stock into a [TEST] job writes a movement
+    whose counterpart is that job; the movement's stock is standing data, so
+    matching movements by stock alone left the job undeletable and the whole
+    teardown delete aborted after Xero had already been cleaned.
+    """
+    po = make_purchase_order(status="submitted")
+    line = make_po_line(po, quantity="4")
+    receive_po_line(line, Decimal("4"), job, stock_holding_job, office_staff)
+    standing = Stock.objects.get(source_purchase_order_line=line, quantity=2)
+    customer = Company.objects.create(
+        name="Standing customer", xero_last_modified="2026-08-08T00:00Z"
+    )
+    test_job = make_job(customer, office_staff, name=f"{TEST_DATA_PREFIX} stock issue target")
+    consume_stock(item=standing, job=test_job, qty=Decimal("1"), user=office_staff)
+    assert StockMovement.objects.filter(counterpart_job=test_job).exists()
+
+    _run_cleanup("--confirm")
+
+    assert not Job.objects.filter(pk=test_job.pk).exists()
+    assert not StockMovement.objects.filter(counterpart_job_id=test_job.id).exists()
+    assert Stock.objects.filter(pk=standing.pk).exists()
+    assert PurchaseOrder.objects.filter(pk=po.pk).exists()

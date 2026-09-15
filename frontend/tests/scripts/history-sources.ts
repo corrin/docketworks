@@ -25,8 +25,18 @@ export interface HistorySource {
   path: string
 }
 
+/**
+ * Where a run writes its artifacts: test results, the report, the history
+ * corpus. `E2E_STATE_DIR` when set — on a server the release directory is
+ * immutable and `verify-instance.sh --e2e` points this at the instance's own
+ * directory (ADR 0064) — else the frontend package, as always.
+ */
+export function runStateDir(): string {
+  return process.env.E2E_STATE_DIR ?? path.resolve(scriptDir, '..', '..')
+}
+
 export function v2HistoryDir(): string {
-  return path.resolve(scriptDir, '..', '..', 'test-history')
+  return path.join(runStateDir(), 'test-history')
 }
 
 function v1HistoryDir(): string {

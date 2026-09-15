@@ -3,6 +3,7 @@ import dotenv from 'dotenv'
 import fs from 'node:fs'
 import path from 'node:path'
 import { getApplicationUrl } from './tests/scripts/db-backup-utils.js'
+import { runStateDir } from './tests/scripts/history-sources.js'
 
 // Anchored to this file's own directory, not process.cwd(): npm --prefix and
 // direct `npx playwright test` invocations from the repo root both leave cwd
@@ -11,14 +12,16 @@ import { getApplicationUrl } from './tests/scripts/db-backup-utils.js'
 // testDir/outputDir at the wrong location instead of erroring loudly.
 const configDir = import.meta.dirname
 
-// Load environment variables from .env, then override with .env.test when
-// present (same pattern as v1). Provides E2E_TEST_USERNAME / E2E_TEST_PASSWORD
-// and optionally E2E_BASE_URL.
-dotenv.config({ path: path.join(configDir, '.env') })
+// The environment wins, .env.test fills what it lacks, .env fills the rest:
+// dotenv never overwrites a variable that is already set, so an exported
+// credential (a server's verify-instance.sh exports the instance's E2E user,
+// ADR 0064) beats the tracked file. Provides E2E_TEST_USERNAME /
+// E2E_TEST_PASSWORD and optionally E2E_BASE_URL.
 const testEnvPath = path.join(configDir, '.env.test')
 if (fs.existsSync(testEnvPath)) {
-  dotenv.config({ path: testEnvPath, override: true })
+  dotenv.config({ path: testEnvPath })
 }
+dotenv.config({ path: path.join(configDir, '.env') })
 
 // The operator launches the stack; browser tests use its public origin, including ngrok.
 const baseURL = process.env.E2E_BASE_URL ?? getApplicationUrl()
@@ -45,7 +48,7 @@ export default defineConfig({
   maxFailures: 1, // Stop early — don't wait if something's broken
   ...(runsXeroPayrollWrites ? {} : { grepInvert: /@xero-payroll-write/ }),
   reporter: [
-    ['html', { open: 'never', outputFolder: path.join(configDir, 'playwright-report') }],
+    ['html', { open: 'never', outputFolder: path.join(runStateDir(), 'playwright-report') }],
     ['list', { printSteps: true }], // Show steps and console output
     // Appends per-test wall durations of completed tests to test-history/ so
     // timeouts can be reasoned about from real history. Must run as a
@@ -77,5 +80,5 @@ export default defineConfig({
     },
   ],
 
-  outputDir: path.join(configDir, 'test-results'),
+  outputDir: path.join(runStateDir(), 'test-results'),
 })

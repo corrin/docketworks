@@ -17,6 +17,10 @@ class FakeXeroRequestError(ValueError):
     """The SDK sent something the fake cannot read; a bug on one side or the other."""
 
 
+class FakeXeroUnhandledRouteError(NotImplementedError):
+    """A call, a parameter or a filter the fake has no answer for: never a guess, always this."""
+
+
 @dataclass(frozen=True)
 class FakeRequest:
     """One call as it reached the transport, before any socket would have opened."""

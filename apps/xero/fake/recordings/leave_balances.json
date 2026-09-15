@@ -1,0 +1,75 @@
+{
+  "recorded_at": "2026-09-14T10:17:30+00:00",
+  "organisation": "Demo Company (NZ)",
+  "sdk": "xero-python 15.2.0",
+  "scrubbed_keys": [
+    "AddressLine1",
+    "AddressLine2",
+    "AddressLine3",
+    "AddressLine4",
+    "AttentionTo",
+    "BankAccountDetails",
+    "EmailAddress",
+    "FirstName",
+    "LastName",
+    "LegalName",
+    "PhoneNumber",
+    "RegistrationNumber",
+    "TaxNumber",
+    "accountName",
+    "accountNumber",
+    "addressLine1",
+    "addressLine2",
+    "bacsHash",
+    "city",
+    "dateOfBirth",
+    "email",
+    "firstName",
+    "lastName",
+    "phoneNumber",
+    "postCode",
+    "suburb"
+  ],
+  "lists_kept_to": 2,
+  "request": {
+    "method": "GET",
+    "path": "/payroll.xro/2.0/Employees/3cedd91a-f903-4bdb-ae51-8078be2f5795/LeaveBalances",
+    "query": {}
+  },
+  "response": {
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "content_disposition": null,
+    "headers": {
+      "X-DayLimit-Remaining": "108",
+      "X-MinLimit-Remaining": "56"
+    }
+  },
+  "body": {
+    "id": "260c44b9-d100-4326-a0f7-ee397e2b6d2a",
+    "providerName": "Docketworks%20MSM%20Dev",
+    "dateTimeUTC": "2026-09-14T10:18:44.4616216",
+    "httpStatusCode": "OK",
+    "pagination": {
+      "page": 1,
+      "pageSize": 100,
+      "pageCount": 1,
+      "itemCount": 5
+    },
+    "problem": null,
+    "leaveBalances": [
+      {
+        "name": "Holiday Pay",
+        "leaveTypeID": "fdc5303c-745e-4d9f-ab80-7c62f4f0626a",
+        "balance": 0.0,
+        "typeOfUnits": "Dollars"
+      },
+      {
+        "name": "Annual Leave",
+        "leaveTypeID": "1e7707cc-4669-4f27-b2ab-6c80f5b3ef5f",
+        "balance": 216.0,
+        "typeOfUnits": "Hours"
+      }
+    ]
+  }
+}

@@ -1,56 +1,65 @@
-"""The Accounting API routes an E2E run reaches, answered from the store.
+"""The Accounting API routes, answered from the model (ADR 0060).
 
-Reads page the store the way Xero pages its own listings; writes are
-``defaults ⊕ request ⊕ minted`` (defaults.py, minting.py) and refuse in
-exactly the cases the application already handles — each refusal names the
-provider line that handles it, and none is a rule Xero was not seen to apply.
+Reads filter, order and page the model through the one query language;
+writes are ``defaults ⊕ request ⊕ minted`` (defaults.py, minting.py) and
+refuse where Xero refuses — each refusal names the recording or the
+measurement it was seen in, and none is a rule Xero was not seen to apply.
 """
 
 import re
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime
-from email.utils import parsedate_to_datetime
+from datetime import date
+from uuid import UUID, uuid4
 
+from django.db.models import QuerySet
 from xero_python.rest import RESTResponse
 
 from apps.xero.constants import ZERO_UUID
-from apps.xero.fake import defaults
+from apps.xero.fake import defaults, query
 from apps.xero.fake.http import FakeRequest, json_response, raw_response
+from apps.xero.fake.limits import quota_headers
 from apps.xero.fake.minting import (
     MintingError,
     as_list,
     as_mapping,
     date_fields,
-    embedded_contact,
     money,
     new_id,
+    next_number,
     now_utc,
     text,
     totalled_lines,
 )
-from apps.xero.fake.models import FakeXeroObject
+from apps.xero.fake.models import (
+    Document,
+    FakeAccount,
+    FakeAttachment,
+    FakeBrandingTheme,
+    FakeContact,
+    FakeCreditNote,
+    FakeHistoryRecord,
+    FakeInvoice,
+    FakeItem,
+    FakeOrganisation,
+    FakePurchaseOrder,
+    FakeQuote,
+    FakeTaxRate,
+    XeroRecord,
+)
 from apps.xero.fake.pdf import render_quote_pdf
-from apps.xero.fake.store import FakeXeroNotFoundError, FakeXeroStore, Kind
 from apps.xero.fake.wire import Json, ms_date_now
-
-# Every tenant-scoped answer carries Xero's quota headers: the paced client
-# records them and the preflight reads them. A day that never runs out is
-# the point of the fake.
-QUOTA_HEADERS = {"X-DayLimit-Remaining": "4999", "X-MinLimit-Remaining": "59"}
-PAGE_SIZE = 100
-_WHERE = re.compile(r'^(?P<field>[A-Za-z]+)=="(?P<value>(?:[^"\\]|\\.)*)"$')
-_UNHANDLED_ORDER = "the fake pages in UpdatedDateUTC ASC only; the sync asks for nothing else"
-
-
-class FakeXeroUnhandledRouteError(NotImplementedError):
-    """A call the fake has no answer for: never a guess, always this."""
-
 
 # ---- envelopes ---------------------------------------------------------------
 
 
-def envelope(key: str, elements: list[Json], *, summarize_errors: bool | None = None) -> Json:
-    """Wrap elements the way the Accounting API does (recordings/contact.json, quotes_page.json)."""
+def envelope(
+    key: str,
+    elements: list[Json],
+    *,
+    summarize_errors: bool | None = None,
+    pagination: dict[str, Json] | None = None,
+) -> Json:
+    """Wrap elements as the Accounting API does (recordings/contact.json, invoices_page.json)."""
     body: dict[str, Json] = {
         "Id": new_id(),
         "Status": "OK",
@@ -58,22 +67,31 @@ def envelope(key: str, elements: list[Json], *, summarize_errors: bool | None = 
         "DateTimeUTC": ms_date_now(now_utc()),
     }
     if summarize_errors is not None:
-        # Only the Quotes family echoes the flag (recordings/quotes_page.json).
-        body["SummarizeErrors"] = summarize_errors
+        body = {"SummarizeErrors": summarize_errors, **body}
+    if pagination is not None:
+        body["pagination"] = pagination
     body[key] = elements
     return body
 
 
-def ok(key: str, elements: list[Json], *, summarize_errors: bool | None = None) -> RESTResponse:
+def ok(
+    key: str,
+    elements: list[Json],
+    *,
+    summarize_errors: bool | None = None,
+    pagination: dict[str, Json] | None = None,
+) -> RESTResponse:
     """Answer 200 with the listing or the written objects under ``key``."""
     return json_response(
-        200, envelope(key, elements, summarize_errors=summarize_errors), QUOTA_HEADERS
+        200,
+        envelope(key, elements, summarize_errors=summarize_errors, pagination=pagination),
+        quota_headers(),
     )
 
 
 def not_found() -> RESTResponse:
     """Xero's 404: text/html and no JSON (recordings/invoice_not_found.json)."""
-    return raw_response(404, b"", {"Content-Type": "text/html; charset=utf-8", **QUOTA_HEADERS})
+    return raw_response(404, b"", {"Content-Type": "text/html; charset=utf-8", **quota_headers()})
 
 
 def validation_failure(elements: list[Json]) -> RESTResponse:
@@ -84,132 +102,151 @@ def validation_failure(elements: list[Json]) -> RESTResponse:
         "Message": "A validation exception occurred",
         "Elements": elements,
     }
-    return json_response(400, body, QUOTA_HEADERS)
+    return json_response(400, body, quota_headers())
 
 
 # ---- listings ----------------------------------------------------------------
 
-_LISTINGS: dict[str, Kind] = {
-    "Contacts": Kind.CONTACT,
-    "Invoices": Kind.INVOICE,
-    "CreditNotes": Kind.CREDIT_NOTE,
-    "Quotes": Kind.QUOTE,
-    "PurchaseOrders": Kind.PURCHASE_ORDER,
-    "Items": Kind.ITEM,
-    "Accounts": Kind.ACCOUNT,
-    "TaxRates": Kind.TAX_RATE,
-    "BrandingThemes": Kind.BRANDING_THEME,
+_LISTINGS: dict[str, type[XeroRecord]] = {
+    "Contacts": FakeContact,
+    "Invoices": FakeInvoice,
+    "CreditNotes": FakeCreditNote,
+    "Quotes": FakeQuote,
+    "PurchaseOrders": FakePurchaseOrder,
+    "Items": FakeItem,
+    "Accounts": FakeAccount,
+    "TaxRates": FakeTaxRate,
+    "BrandingThemes": FakeBrandingTheme,
 }
-
-
-def _modified_since(request: FakeRequest) -> datetime | None:
-    header = request.header("If-Modified-Since")
-    if header is None:
-        return None
-    try:
-        parsed = datetime.fromisoformat(header)
-    # deliberate-swallow: the SDK sends If-Modified-Since as ISO-8601 and the spec
-    # allows RFC 1123; the second parser is the other accepted form
-    except ValueError:
-        parsed = parsedate_to_datetime(header)
-    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
-
-
-def _where(request: FakeRequest) -> tuple[str, str] | None:
-    where = request.query.get("where")
-    if where is None:
-        return None
-    match = _WHERE.match(where)
-    if match is None:
-        # Only Name=="…" (the duplicate check) and Type=="ACCREC"/"ACCPAY"
-        # (the sync) are sent; anything else is a new caller to route.
-        raise FakeXeroUnhandledRouteError(f"where filter {where!r} on {request.path}")
-    value = match["value"].replace('\\"', '"').replace("\\\\", "\\")
-    return match["field"], value
-
-
-def list_resource(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
-    """GET /{resource}: filter, order and page the store as Xero would."""
-    resource = match["resource"]
-    kind = _LISTINGS[resource]
-    store = FakeXeroStore(request.tenant_id)
-    order = request.query.get("order")
-    if order not in (None, "UpdatedDateUTC ASC"):
-        raise FakeXeroUnhandledRouteError(f"order={order!r}: {_UNHANDLED_ORDER}")
-    exclude = () if kind is not Kind.CONTACT or request.flag("includeArchived") else ("ARCHIVED",)
-    name = None
-    body_filter: dict[str, str] = {}
-    where = _where(request)
-    if where is not None:
-        field, value = where
-        if field == "Name":
-            name = value
-        else:
-            body_filter[field] = value
-    rows = store.listing(
-        kind, modified_since=_modified_since(request), exclude_status=exclude, name=name
-    )
-    for field, value in body_filter.items():
-        rows = rows.filter(**{f"body__{field}": value})
-    page = request.query.get("page")
-    if page is not None:
-        size = int(request.query.get("pageSize", PAGE_SIZE))
-        offset = (int(page) - 1) * size
-        rows = rows[offset : offset + size]
-    summarize = _summarize_errors(request) if resource == "Quotes" else None
-    return ok(resource, [row.body for row in rows], summarize_errors=summarize)
-
-
-def get_resource(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
-    """GET /{resource}/{id}: one object, or Xero's 404."""
-    resource = match["resource"]
-    store = FakeXeroStore(request.tenant_id)
-    try:
-        row = store.require(_LISTINGS[resource], match["id"])
-    # deliberate-swallow: reading an id the organisation never issued is Xero's 404
-    except FakeXeroNotFoundError:
-        return not_found()
-    if resource == "Quotes" and (request.header("Accept") or "").startswith("application/pdf"):
-        return raw_response(
-            200, render_quote_pdf(row.body), {"Content-Type": "application/pdf", **QUOTA_HEADERS}
-        )
-    summarize = _summarize_errors(request) if resource == "Quotes" else None
-    return ok(resource, [row.body], summarize_errors=summarize)
-
-
-def get_organisation(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
-    """GET /Organisation: the seeded organisation, name suffixed so every banner says FAKE."""
-    del match
-    rows = list(FakeXeroStore(request.tenant_id).listing(Kind.ORGANISATION))
-    if len(rows) != 1:
-        raise MintingError(
-            f"the fake holds {len(rows)} organisations for {request.tenant_id}; seed it"
-        )
-    return ok("Organisations", [rows[0].body])
-
-
-# ---- writes ------------------------------------------------------------------
-
-
-def _elements(request: FakeRequest, key: str) -> list[Json]:
-    """Read the list under the envelope key, whatever case the application spelt it in.
-
-    ``contacts.py`` sends ``{"contacts": [...]}`` and the provider
-    ``{"Invoices": [...]}``; Xero reads both.
-    """
-    body = as_mapping(request.json_body, f"{request.method} {request.path}")
-    for candidate, value in body.items():
-        if candidate.lower() == key.lower():
-            return as_list(value, candidate)
-    raise MintingError(f"{request.method} {request.path}: no {key} in the request body")
+#: The listings whose answer carries Xero's ``pagination`` block when a page is asked for
+#: (recordings/contacts_page.json, invoices_page.json; quotes_page.json has none).
+_PAGINATED = frozenset({"Contacts", "Invoices", "CreditNotes", "PurchaseOrders"})
+#: The quote and purchase-order listings' own parameters, which name columns rather
+#: than a ``where`` (the SDK offers neither listing a ``where``).
+_QUOTE_FILTERS: dict[str, str] = {
+    "Status": "status",
+    "ContactID": "contact_id",
+    "QuoteNumber": "number",
+    "DateFrom": "date__gte",
+    "DateTo": "date__lte",
+    "ExpiryDateFrom": "expiry_date__gte",
+    "ExpiryDateTo": "expiry_date__lte",
+}
+_PURCHASE_ORDER_FILTERS: dict[str, str] = {
+    "Status": "status",
+    "DateFrom": "date__gte",
+    "DateTo": "date__lte",
+}
+_OWN_FILTERS: dict[str, dict[str, str]] = {
+    "Quotes": _QUOTE_FILTERS,
+    "PurchaseOrders": _PURCHASE_ORDER_FILTERS,
+}
 
 
 def _summarize_errors(request: FakeRequest) -> bool:
     return request.query.get("summarizeErrors", "true").lower() == "true"
 
 
+def list_resource(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
+    """GET /{resource}: filter, order and page the model as Xero would."""
+    resource = match["resource"]
+    extra = _OWN_FILTERS.get(resource, {})
+    rows: QuerySet[XeroRecord]
+    if resource == "Contacts":
+        contacts = query.listing(FakeContact, request)
+        # Xero lists live contacts unless asked for the archived too.
+        rows = contacts if request.flag("includeArchived") else contacts.exclude(status="ARCHIVED")
+    else:
+        rows = query.listing(_LISTINGS[resource], request, extra=extra)
+    for key, path in extra.items():
+        raw = request.query.get(key)
+        if raw is None:
+            continue
+        value: object = date.fromisoformat(raw) if path.startswith(("date", "expiry_date")) else raw
+        rows = rows.filter(**{path: value})
+    page, pagination = query.page(request, rows)
+    summarize = _summarize_errors(request) if resource == "Quotes" else None
+    return ok(
+        resource,
+        [row.to_wire() for row in page],
+        summarize_errors=summarize,
+        pagination=pagination if resource in _PAGINATED else None,
+    )
+
+
+def get_resource(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
+    """GET /{resource}/{id}: one object, or Xero's 404."""
+    resource = match["resource"]
+    row = _LISTINGS[resource].held(request.tenant_id, match["id"])
+    if row is None:
+        return not_found()
+    if resource == "Quotes" and (request.header("Accept") or "").startswith("application/pdf"):
+        return raw_response(
+            200,
+            render_quote_pdf(row.to_wire()),
+            {"Content-Type": "application/pdf", **quota_headers()},
+        )
+    summarize = _summarize_errors(request) if resource == "Quotes" else None
+    return ok(resource, [row.to_wire()], summarize_errors=summarize)
+
+
+def _organisation(tenant_id: str) -> FakeOrganisation:
+    organisation = FakeOrganisation.objects.filter(tenant_id=tenant_id).first()
+    if organisation is None:
+        raise MintingError(f"the fake holds no organisation for {tenant_id}; seed it")
+    return organisation
+
+
+def get_organisation(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
+    """GET /Organisation: the seeded organisation, name suffixed so every banner says FAKE."""
+    del match
+    return ok("Organisations", [_organisation(request.tenant_id).to_wire()])
+
+
+def get_history(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
+    """GET /{resource}/{id}/History (recordings/invoice_history.json)."""
+    resource = match["resource"]
+    parent = _LISTINGS[resource].held(request.tenant_id, match["id"])
+    if parent is None:
+        return not_found()
+    rows = FakeHistoryRecord.for_tenant(request.tenant_id).filter(
+        resource=resource, document_id=parent.id
+    )
+    return ok("HistoryRecords", [row.to_wire() for row in rows])
+
+
+# ---- writes ------------------------------------------------------------------
+
+
+def _elements(request: FakeRequest, key: str, match: re.Match[str], id_key: str) -> list[Json]:
+    """Read the list under the envelope key, whatever case the application spelt it in.
+
+    ``contacts.py`` sends ``{"contacts": [...]}`` and the provider
+    ``{"Invoices": [...]}``; Xero reads both. On the single-object route
+    (``POST /Contacts/{id}``) the path names the object and the element
+    need not.
+    """
+    body = as_mapping(request.json_body, f"{request.method} {request.path}")
+    path_id = match.groupdict().get("id")
+    for candidate, value in body.items():
+        if candidate.lower() != key.lower():
+            continue
+        elements = as_list(value, candidate)
+        if path_id is None:
+            return elements
+        named: list[Json] = []
+        for raw in elements:
+            element = as_mapping(raw, f"{key}[]")
+            sent_id = text(element, id_key)
+            if sent_id is not None and sent_id.lower() != path_id.lower():
+                raise MintingError(f"{request.path} names {path_id} but the element {sent_id}")
+            named.append({**element, id_key: path_id})
+        return named
+    raise MintingError(f"{request.method} {request.path}: no {key} in the request body")
+
+
 def _refused(
-    element: dict[str, Json], message: str, *, id_key: str, object_id: str
+    element: dict[str, Json], *messages: str, id_key: str, object_id: str
 ) -> dict[str, Json]:
     """Xero's element-level refusal: the element back, with its errors attached."""
     return {
@@ -221,7 +258,7 @@ def _refused(
         "HasErrors": True,
         "HasValidationErrors": True,
         "StatusAttributeString": "ERROR",
-        "ValidationErrors": [{"Message": message}],
+        "ValidationErrors": [{"Message": message} for message in messages],
     }
 
 
@@ -251,32 +288,51 @@ def _merge_slots(current: Json, sent: Json, slot_key: str) -> list[Json]:
 
 
 def write_contacts(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
-    """PUT (create) and POST (update or create) /Contacts."""
-    del match
-    store = FakeXeroStore(request.tenant_id)
+    """PUT (create) and POST (update or create) /Contacts, and POST /Contacts/{id}."""
+    tenant_id = request.tenant_id
     written: list[Json] = []
     refused = False
-    for raw in _elements(request, "Contacts"):
+    for raw in _elements(request, "Contacts", match, "ContactID"):
         sent = as_mapping(raw, "Contacts[]")
         contact_id = text(sent, "ContactID")
-        existing = store.get(Kind.CONTACT, contact_id) if contact_id else None
+        existing = FakeContact.held(tenant_id, contact_id) if contact_id else None
         if contact_id and existing is None:
             # An id the organisation never issued: Xero answers 404 to the
             # whole request rather than creating under that id.
             return not_found()
-        current: dict[str, Json] = dict(existing.body) if existing else dict(defaults.CONTACT)
+        current: dict[str, Json] = existing.to_wire() if existing else dict(defaults.CONTACT)
+        name = text(sent, "Name")
         if (
-            sent.get("ContactStatus") == "ARCHIVED"
-            and existing is not None
-            and store.owned_documents(str(existing.id)).exists()
+            existing is None
+            and name is not None
+            and FakeContact.objects.filter(
+                tenant_id=tenant_id, name__iexact=name, status="ACTIVE"
+            ).exists()
         ):
-            # contacts.py:archive_contacts_in_xero reads this per element.
-            # Wording is the fake's: the refusal was seen, its text was not
-            # recorded.
+            # recordings/contact_create_duplicate_name.json: the whole request
+            # is a 400 under the SDK's summarised errors, the element carries
+            # the zero id and the reason.
             written.append(
                 _refused(
                     sent,
-                    "Contact has transactions and cannot be archived",
+                    f"The contact name {name} is already assigned to another contact. "
+                    "The contact name must be unique across all active contacts.",
+                    id_key="ContactID",
+                    object_id=ZERO_UUID,
+                )
+            )
+            refused = True
+            continue
+        if existing is not None and existing.status == "ARCHIVED":
+            # Xero archives a contact whatever stands against it
+            # (recordings/contact_archive_with_documents.json: an authorised
+            # invoice) and refuses every later edit, the archive included
+            # (contact_archive_archived.json); contacts.py reads it per element.
+            written.append(
+                _refused(
+                    sent,
+                    "The specified contact details matched an archived contact. "
+                    "Archived contacts cannot currently be edited via the API.",
                     id_key="ContactID",
                     object_id=str(existing.id),
                 )
@@ -287,282 +343,234 @@ def write_contacts(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
         for slot_key, plural in (("PhoneType", "Phones"), ("AddressType", "Addresses")):
             if plural in sent:
                 merged[plural] = _merge_slots(current.get(plural, []), sent[plural], slot_key)
-        merged["ContactID"] = contact_id or new_id()
-        merged["UpdatedDateUTC"] = ms_date_now(now_utc())
-        name = text(merged, "Name")
-        if not name:
+        if not text(merged, "Name"):
             raise MintingError("a contact must have a Name")
-        row = store.save(
-            Kind.CONTACT,
-            str(merged["ContactID"]),
+        row = FakeContact.write(
+            tenant_id,
+            UUID(contact_id) if contact_id else uuid4(),
             merged,
             updated_date_utc=now_utc(),
-            name=name,
-            status=text(merged, "ContactStatus"),
         )
-        written.append(row.body)
+        written.append(row.to_wire())
     return _answer_writes(request, "Contacts", written, refused=refused)
 
 
-class _DocumentKind:
-    """How one document family is keyed, numbered and defaulted."""
+def _refusal_for(model: type[Document], existing: Document, sent: Mapping[str, Json]) -> str | None:
+    """Name the refusal Xero applies to an update of a standing document, in Xero's words.
 
-    def __init__(
-        self, kind: Kind, key: str, id_key: str, number_key: str, defaults_body: Mapping[str, Json]
-    ) -> None:
-        self.kind = kind
-        self.key = key
-        self.id_key = id_key
-        self.number_key = number_key
-        self.defaults = defaults_body
-
-
-_INVOICES = _DocumentKind(Kind.INVOICE, "Invoices", "InvoiceID", "InvoiceNumber", defaults.INVOICE)
-_QUOTES = _DocumentKind(Kind.QUOTE, "Quotes", "QuoteID", "QuoteNumber", defaults.QUOTE)
-_PURCHASE_ORDERS = _DocumentKind(
-    Kind.PURCHASE_ORDER,
-    "PurchaseOrders",
-    "PurchaseOrderID",
-    "PurchaseOrderNumber",
-    defaults.PURCHASE_ORDER,
-)
-
-
-def _refusal_for(
-    family: _DocumentKind, existing: Mapping[str, Json], sent: Mapping[str, Json]
-) -> str | None:
-    """Name the refusal for a case the application handles, in the wording it was seen with."""
-    current_status = text(existing, "Status")
-    wanted = text(sent, "Status")
-    if family is _PURCHASE_ORDERS and current_status == "DELETED":
-        # Measured 2026-09-12 against the demo tenant (provider.py, the
-        # ZERO_UUID comment): Xero's own words.
+    An accepted quote and a billed order delete without complaint
+    (recordings/quote_delete_accepted.json, purchase_order_delete_billed.json);
+    an authorised invoice and a deleted order refuse.
+    """
+    if model is FakePurchaseOrder and existing.status == "DELETED":
+        # recordings/purchase_order_number_held_by_deleted.json, and measured
+        # on 2026-09-12 (provider.py, the ZERO_UUID comment).
         return "Deleted PurchaseOrders cannot be updated"
-    if wanted != "DELETED":
-        return None
-    if family is _INVOICES and current_status in ("AUTHORISED", "PAID"):
-        # provider.delete_invoice sends DELETED; an approved invoice is voided,
-        # never deleted. Wording is the fake's.
-        return "Invoice not of valid status for deletion"
-    if family is _QUOTES and current_status == "ACCEPTED":
-        # provider.delete_quote reads the element-level refusal. Wording is the fake's.
-        return "Quote is ACCEPTED and cannot be deleted"
-    if family is _PURCHASE_ORDERS and current_status == "BILLED":
-        # provider.delete_purchase_order reads the element-level refusal. Wording is the fake's.
-        return "A BILLED purchase order cannot be deleted"
+    if (
+        model is FakeInvoice
+        and text(sent, "Status") == "DELETED"
+        and existing.status
+        in (
+            "AUTHORISED",
+            "PAID",
+        )
+    ):
+        # recordings/invoice_delete_authorised.json: an approved invoice is
+        # voided, never deleted.
+        return "Invoice not of valid status for modification"
     return None
 
 
-def _base_currency(store: FakeXeroStore) -> str:
-    rows = list(store.listing(Kind.ORGANISATION))
-    if len(rows) != 1:
-        raise MintingError(
-            f"the fake holds {len(rows)} organisations for {store.tenant_id}; seed it"
+_DEFAULTS: dict[type[Document], Mapping[str, Json]] = {
+    FakeInvoice: defaults.INVOICE,
+    FakeQuote: defaults.QUOTE,
+    FakePurchaseOrder: defaults.PURCHASE_ORDER,
+}
+
+
+def _write_document(
+    tenant_id: str, model: type[Document], sent: dict[str, Json]
+) -> tuple[Json, bool]:
+    """Create or update one document; return the element and whether it was refused."""
+    object_id = text(sent, model.ID_KEY or "")
+    existing = model.held(tenant_id, object_id) if object_id else None
+    if object_id and existing is None:
+        raise Document.DoesNotExist(f"{model.RESOURCE} {object_id}")
+    if existing is not None:
+        refusal = _refusal_for(model, existing, sent)
+        if refusal is not None:
+            return _refused(
+                sent, refusal, id_key=model.ID_KEY or "", object_id=str(existing.id)
+            ), True
+    number = text(sent, model.NUMBER_KEY)
+    if (
+        existing is None
+        and model is FakePurchaseOrder
+        and number is not None
+        and model.for_tenant(tenant_id).filter(number=number, status="DELETED").exists()
+    ):
+        # recordings/purchase_order_number_held_by_deleted.json: a number a
+        # deleted order still owns comes back as the all-zero id with two
+        # messages, and the provider reads the id.
+        return (
+            _refused(
+                sent,
+                "PurchaseOrder status change is invalid",
+                "Deleted PurchaseOrders cannot be updated",
+                id_key=model.ID_KEY or "",
+                object_id=ZERO_UUID,
+            ),
+            True,
         )
-    currency = text(rows[0].body, "BaseCurrency")
-    if currency is None:
-        raise MintingError("the seeded organisation has no BaseCurrency")
-    return currency
+    current: dict[str, Json] = existing.to_wire() if existing else dict(_DEFAULTS[model])
+    merged = _computed(tenant_id, model, current, sent)
+    if existing is None:
+        merged[model.NUMBER_KEY] = number or next_number(model, tenant_id)
+        merged.setdefault("CurrencyCode", _organisation(tenant_id).base_currency)
+    row = model.write(
+        tenant_id, existing.id if existing else uuid4(), merged, updated_date_utc=now_utc()
+    )
+    return row.to_wire(), False
 
 
-def _merged_body(
-    family: _DocumentKind, existing: FakeXeroObject | None, sent: dict[str, Json]
+def _computed(
+    tenant_id: str, model: type[Document], current: Mapping[str, Json], sent: Mapping[str, Json]
 ) -> dict[str, Json]:
-    """Merge what stood with what was sent into the body this write stores."""
-    current: dict[str, Json] = dict(existing.body) if existing else dict(family.defaults)
+    """Merge what stood with what was sent, then compute what Xero computes: lines, totals, due."""
     merged: dict[str, Json] = {**current, **sent}
-    if family is _QUOTES and "LineAmountTypes" in sent:
+    if model is FakeQuote and "LineAmountTypes" in sent:
         # Xero echoes a quote's LineAmountTypes in the quote enum's own form
         # (EXCLUSIVE, recordings/quote.json) whatever casing the request used;
         # this app sends the invoice form (Exclusive), which the SDK's quote
         # deserialiser refuses, so the echo canonicalises as the tenant does.
         merged["LineAmountTypes"] = str(sent["LineAmountTypes"]).upper()
-    return merged
-
-
-def _write_document(
-    store: FakeXeroStore, family: _DocumentKind, sent: dict[str, Json]
-) -> tuple[Json, bool]:
-    """Create or update one document; return the element and whether it was refused."""
-    object_id = text(sent, family.id_key)
-    existing = store.get(family.kind, object_id) if object_id else None
-    if object_id and existing is None:
-        raise FakeXeroNotFoundError(f"{family.kind} {object_id}")
-    if existing is not None:
-        refusal = _refusal_for(family, existing.body, sent)
-        if refusal is not None:
-            return _refused(sent, refusal, id_key=family.id_key, object_id=str(existing.id)), True
-    number = text(sent, family.number_key)
-    if (
-        existing is None
-        and family is _PURCHASE_ORDERS
-        and number is not None
-        and store.holds_number(family.kind, number, status="DELETED")
-    ):
-        # Measured 2026-09-12 (provider.py, ZERO_UUID): a number a deleted
-        # order still owns comes back as the all-zero id with the refusal.
-        return (
-            _refused(
-                sent,
-                "Deleted PurchaseOrders cannot be updated",
-                id_key=family.id_key,
-                object_id=ZERO_UUID,
-            ),
-            True,
-        )
-    merged = _merged_body(family, existing, sent)
     if "Contact" in sent:
-        merged["Contact"] = embedded_contact(store, sent["Contact"], f"{family.key}[].Contact")
+        contact_id = text(as_mapping(sent["Contact"], "Contact"), "ContactID")
+        if contact_id is None or FakeContact.held(tenant_id, contact_id) is None:
+            # A document names its contact by id, and Xero holds it.
+            raise FakeContact.DoesNotExist(f"{model.RESOURCE}[].Contact {contact_id}")
+        merged["Contact"] = {"ContactID": contact_id}
     if "LineItems" in sent:
         lines, totals = totalled_lines(
-            store,
+            tenant_id,
             as_list(sent["LineItems"], "LineItems"),
             str(merged.get("LineAmountTypes", "Exclusive")),
         )
         merged["LineItems"] = lines
         merged.update(totals)
-    if family is _INVOICES and "Total" in merged:
+    if model is FakeInvoice and "Total" in merged:
         merged["AmountDue"] = (
             money(merged["Total"], "Total")
             - money(merged.get("AmountPaid", 0), "AmountPaid")
             - money(merged.get("AmountCredited", 0), "AmountCredited")
         )
-    merged.update(date_fields(sent))
-    merged[family.id_key] = object_id or new_id()
-    if existing is None:
-        merged[family.number_key] = number or store.next_number(
-            family.kind, defaults.FIRST_NUMBER[family.kind.value]
-        )
-        merged.setdefault("CurrencyCode", _base_currency(store))
-    stamp = now_utc()
-    merged["UpdatedDateUTC"] = ms_date_now(stamp)
-    if family is _INVOICES:
-        merged["UpdatedDateUTCString"] = stamp.strftime("%Y-%m-%dT%H:%M:%SZ")
-    row = store.save(
-        family.kind,
-        str(merged[family.id_key]),
-        merged,
-        updated_date_utc=stamp,
-        number=text(merged, family.number_key),
-        status=text(merged, "Status"),
-    )
-    return row.body, False
+    return merged
 
 
-def _write_documents(family: _DocumentKind) -> Callable[[FakeRequest, re.Match[str]], RESTResponse]:
+def _write_documents(model: type[Document]) -> Callable[[FakeRequest, re.Match[str]], RESTResponse]:
     def handler(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
-        del match
-        store = FakeXeroStore(request.tenant_id)
         written: list[Json] = []
         refused = False
         try:
-            for raw in _elements(request, family.key):
+            for raw in _elements(request, model.RESOURCE, match, model.ID_KEY or ""):
                 element, was_refused = _write_document(
-                    store, family, as_mapping(raw, f"{family.key}[]")
+                    request.tenant_id, model, as_mapping(raw, f"{model.RESOURCE}[]")
                 )
                 written.append(element)
                 refused = refused or was_refused
-        # deliberate-swallow: a write naming an unknown document answers 404 before
-        # anything is written
-        except FakeXeroNotFoundError:
+        # deliberate-swallow: a write naming an unknown document or contact answers 404
+        # before anything is written
+        except (Document.DoesNotExist, FakeContact.DoesNotExist):
             return not_found()
         return _answer_writes(
-            request, family.key, written, refused=refused, quotes=family is _QUOTES
+            request, model.RESOURCE, written, refused=refused, quotes=model is FakeQuote
         )
 
     return handler
 
 
-write_invoices = _write_documents(_INVOICES)
-write_quotes = _write_documents(_QUOTES)
-write_purchase_orders = _write_documents(_PURCHASE_ORDERS)
+write_invoices = _write_documents(FakeInvoice)
+write_quotes = _write_documents(FakeQuote)
+write_purchase_orders = _write_documents(FakePurchaseOrder)
 
 
 def write_history(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
-    """PUT /{Invoices|Quotes}/{id}/History: a note against a document."""
-    store = FakeXeroStore(request.tenant_id)
-    try:
-        parent = store.require(_LISTINGS[match["resource"]], match["id"])
-    # deliberate-swallow: a note against a document Xero does not hold is its 404
-    except FakeXeroNotFoundError:
+    """PUT /{resource}/{id}/History: a note against a document."""
+    resource = match["resource"]
+    parent = _LISTINGS[resource].held(request.tenant_id, match["id"])
+    if parent is None:
         return not_found()
     stamp = now_utc()
     written: list[Json] = []
-    for raw in _elements(request, "HistoryRecords"):
+    for raw in _elements(request, "HistoryRecords", match, ""):
         sent = as_mapping(raw, "HistoryRecords[]")
         # Shape from recordings/invoice_history.json; the user is the fake,
         # because that is who wrote it.
         record: dict[str, Json] = {
             "Changes": "Note",
-            "DateUTCString": stamp.strftime("%Y-%m-%dT%H:%M:%S"),
             "DateUTC": ms_date_now(stamp),
             "User": defaults.PROVIDER_NAME,
             "Details": text(sent, "Details") or "",
         }
-        store.save(
-            Kind.HISTORY_RECORD, new_id(), record, updated_date_utc=stamp, parent_id=str(parent.id)
+        row = FakeHistoryRecord.write(
+            request.tenant_id,
+            uuid4(),
+            record,
+            updated_date_utc=stamp,
+            resource=resource,
+            document_id=parent.id,
         )
-        written.append(record)
+        written.append(row.to_wire())
     return ok("HistoryRecords", written)
 
 
 def write_attachment(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
-    """PUT /Invoices/{id}/Attachments/{name}: the bytes are kept by size only."""
-    store = FakeXeroStore(request.tenant_id)
-    try:
-        parent = store.require(Kind.INVOICE, match["id"])
-    # deliberate-swallow: an attachment for an invoice Xero does not hold is its 404
-    except FakeXeroNotFoundError:
+    """PUT /{resource}/{id}/Attachments/{name}: the bytes are kept by size only."""
+    resource = match["resource"]
+    parent = _LISTINGS[resource].held(request.tenant_id, match["id"])
+    if parent is None:
         return not_found()
     if request.raw_body is None:
         raise MintingError("an attachment upload carries the file as its body")
     stamp = now_utc()
-    attachment_id = new_id()
     # No recording of an attachment answer exists (the run attaches, it never
     # lists); these are the fields Xero documents for one, and the application
     # reads none of them.
     body: dict[str, Json] = {
-        "AttachmentID": attachment_id,
         "FileName": match["name"],
-        "Url": f"https://api.xero.com/api.xro/2.0/Invoices/{parent.id}/Attachments/{match['name']}",
+        "Url": f"https://api.xero.com/api.xro/2.0/{resource}/{parent.id}/Attachments/{match['name']}",
         "MimeType": request.header("Content-Type") or "application/octet-stream",
         "ContentLength": len(request.raw_body),
         "IncludeOnline": request.flag("IncludeOnline"),
     }
-    store.save(
-        Kind.ATTACHMENT,
-        attachment_id,
+    row = FakeAttachment.write(
+        request.tenant_id,
+        uuid4(),
         body,
         updated_date_utc=stamp,
-        name=match["name"],
-        parent_id=str(parent.id),
+        resource=resource,
+        document_id=parent.id,
     )
-    return ok("Attachments", [body])
+    return ok("Attachments", [row.to_wire()])
 
 
 def write_items(request: FakeRequest, match: re.Match[str]) -> RESTResponse:
     """POST /Items: the stock sync's upsert, keyed by Code as Xero keys it."""
-    del match
-    store = FakeXeroStore(request.tenant_id)
+    tenant_id = request.tenant_id
     stamp = now_utc()
     written: list[Json] = []
-    for raw in _elements(request, "Items"):
+    for raw in _elements(request, "Items", match, "ItemID"):
         sent = as_mapping(raw, "Items[]")
         code = text(sent, "Code")
         if not code:
             raise MintingError("an item must have a Code")
-        existing = next((row for row in store.listing(Kind.ITEM) if row.number == code), None)
-        current: dict[str, Json] = dict(existing.body) if existing else {}
-        merged: dict[str, Json] = {**current, **sent}
-        merged["ItemID"] = str(existing.id) if existing else new_id()
-        merged["UpdatedDateUTC"] = ms_date_now(stamp)
-        row = store.save(
-            Kind.ITEM,
-            str(merged["ItemID"]),
-            merged,
+        existing = FakeItem.objects.filter(tenant_id=tenant_id, code=code).first()
+        current: dict[str, Json] = existing.to_wire() if existing else {}
+        row = FakeItem.write(
+            tenant_id,
+            existing.id if existing else uuid4(),
+            {**current, **sent},
             updated_date_utc=stamp,
-            number=code,
-            name=text(merged, "Name"),
         )
-        written.append(row.body)
+        written.append(row.to_wire())
     return ok("Items", written)

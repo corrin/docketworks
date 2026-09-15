@@ -19,8 +19,16 @@ fail() {
 }
 
 # --- Every shipped script parses and is ShellCheck-clean ---
-if ! command -v shellcheck >/dev/null; then
-    echo "ERROR: shellcheck is required (apt install shellcheck)." >&2
+# The `shellcheck-py` dev dependency puts the binary in the project venv, so
+# `uv sync` provisions it and the lock file records the version that passed
+# these gates (ADR 0033). Prefer it; fall back to a system install for a
+# checkout without a venv.
+SHELLCHECK="$REPO_ROOT/.venv/bin/shellcheck"
+if [[ ! -x "$SHELLCHECK" ]]; then
+    SHELLCHECK="$(command -v shellcheck || true)"
+fi
+if [[ -z "$SHELLCHECK" ]]; then
+    echo "ERROR: shellcheck is required (uv sync, or apt install shellcheck)." >&2
     exit 1
 fi
 SCRIPTS=(
@@ -36,7 +44,7 @@ SCRIPTS=(
 for script in "${SCRIPTS[@]}"; do
     bash -n "$script" || fail "bash -n $script"
 done
-shellcheck -x -P SCRIPTDIR "${SCRIPTS[@]}" || fail "shellcheck"
+"$SHELLCHECK" -x -P SCRIPTDIR "${SCRIPTS[@]}" || fail "shellcheck"
 
 render() {
     local template="$1"
@@ -44,6 +52,7 @@ render() {
         -e "s|__INSTANCE__|test-uat|g" \
         -e "s|__INSTANCE_USER__|dw_test_uat|g" \
         -e "s|__FQDN__|test-uat.docketworks.site|g" \
+        -e "s|__APP_DOMAIN_ALIASES__||g" \
         -e "s|__CERT_DOMAIN__|docketworks.site|g" \
         -e "s|__DB_NAME__|dw_test_uat|g" \
         -e "s|__DB_USER__|dw_test_uat|g" \
@@ -86,6 +95,14 @@ grep -q 'location = /api/accounts/token/refresh/ {' <<<"$NGINX" \
     || fail "nginx: exact-match refresh location missing"
 grep -q 'zone=dw_login' "$TEMPLATE_DIR/nginx-ratelimit.conf" \
     || fail "ratelimit conf: dw_login zone missing"
+grep -q 'include /opt/docketworks/instances/test-uat/e2e/fence.conf\*;' <<<"$NGINX" \
+    || fail "nginx: the E2E fence include (ADR 0064) is missing"
+# Escaped: nginx variables, not shell expansions (see FORWARDED_HEADERS below).
+grep -qF "map \$remote_addr \$dw_limit_key" "$TEMPLATE_DIR/nginx-ratelimit.conf" \
+    || fail "ratelimit conf: loopback exemption map missing"
+if grep -qF "limit_req_zone \$binary_remote_addr" "$TEMPLATE_DIR/nginx-ratelimit.conf"; then
+    fail "ratelimit conf: zones must key on \$dw_limit_key so the box's own runs are unlimited"
+fi
 grep -q 'limit_req_status 429;' "$TEMPLATE_DIR/nginx-ratelimit.conf" \
     || fail "ratelimit conf: 429 status missing"
 # The stream's settings are asserted INSIDE its own location and their absence
@@ -134,6 +151,44 @@ for header in "${FORWARDED_HEADERS[@]}"; do
     grep -qF "$header" <<<"$SSE_BLOCK" \
         || fail "nginx: SSE stream location must set '$header' like /api/ does"
 done
+
+# --- nginx site render: one server block per hostname, every block fenced ---
+# The fence cannot be probed at runtime from the box (its own address is
+# exempt), so the proof that an alias is fenced, rate-limited and logged like
+# the canonical name is this static render of the shared function.
+NGINX_TMP="$(mktemp -d)"
+mkdir -p "$NGINX_TMP/instances/test-uat" "$NGINX_TMP/sites"
+echo "test-uat.docketworks.site" > "$NGINX_TMP/instances/test-uat/.fqdn"
+echo "uat-office.example.test" > "$NGINX_TMP/instances/test-uat/.aliases"
+(
+    # shellcheck source=common.sh
+    # shellcheck disable=SC2031
+    source "$SCRIPT_DIR/common.sh"
+    INSTANCES_DIR="$NGINX_TMP/instances"
+    NGINX_SITES_AVAILABLE="$NGINX_TMP/sites"
+    render_instance_nginx test-uat
+) || fail "nginx render: render_instance_nginx failed"
+RENDERED_SITE="$NGINX_TMP/sites/docketworks-test-uat"
+count_in_site() { grep -cF -- "$1" "$RENDERED_SITE" || true; }
+[[ "$(count_in_site 'listen 443 ssl;')" == 2 ]] \
+    || fail "nginx render: expected one 443 server block per hostname"
+[[ "$(count_in_site 'listen 80;')" == 2 ]] \
+    || fail "nginx render: expected one port-80 redirect block per hostname"
+grep -q 'server_name test-uat.docketworks.site;' "$RENDERED_SITE" \
+    || fail "nginx render: canonical server_name missing"
+grep -q 'server_name uat-office.example.test;' "$RENDERED_SITE" \
+    || fail "nginx render: alias server_name missing"
+grep -q 'ssl_certificate /etc/letsencrypt/live/docketworks.site/fullchain.pem;' "$RENDERED_SITE" \
+    || fail "nginx render: a name under the fleet domain must use the wildcard certificate"
+grep -q 'ssl_certificate /etc/letsencrypt/live/uat-office.example.test/fullchain.pem;' "$RENDERED_SITE" \
+    || fail "nginx render: an alias must use its own certificate"
+[[ "$(count_in_site 'include /opt/docketworks/instances/test-uat/e2e/fence.conf*;')" == 2 ]] \
+    || fail "nginx render: the E2E fence must be included in every server block"
+[[ "$(count_in_site 'limit_req zone=dw_login burst=5 nodelay;')" == 2 ]] \
+    || fail "nginx render: the login rate limit must apply on every hostname"
+[[ "$(count_in_site 'access_log /var/log/nginx/docketworks_test-uat_access.log docketworks_timed_combined;')" == 2 ]] \
+    || fail "nginx render: every hostname must log to the instance access log fail2ban reads"
+rm -rf "$NGINX_TMP"
 
 # --- systemd units: v2 serving model and module names ---
 GUNICORN="$(render "$TEMPLATE_DIR/gunicorn-instance.service.template")"

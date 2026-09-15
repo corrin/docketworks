@@ -4,7 +4,7 @@ The concrete models pin their ``workflow_*`` table names because data restores
 depend on those stable database identifiers.
 """
 
-from apps.xero.fake.models import FakeXeroObject
+from apps.xero.fake import models as fake
 
 from .xero_account import XeroAccount
 from .xero_app import XeroApp
@@ -14,7 +14,6 @@ from .xero_payroll import XeroPayRun, XeroPaySlip
 from .xero_sync_cursor import XeroDetailRefresh, XeroSyncCursor
 
 __all__ = [
-    "FakeXeroObject",
     "XeroAccount",
     "XeroApp",
     "XeroDetailRefresh",
@@ -23,4 +22,5 @@ __all__ = [
     "XeroPayRun",
     "XeroPaySlip",
     "XeroSyncCursor",
+    "fake",
 ]
