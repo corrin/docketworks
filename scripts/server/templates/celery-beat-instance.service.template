@@ -1,7 +1,7 @@
 [Unit]
 Description=Celery beat for docketworks __INSTANCE__
-After=network.target redis-server.service
-Requires=redis-server.service
+After=network.target redis-__INSTANCE__.service
+Requires=redis-__INSTANCE__.service
 
 [Service]
 User=__INSTANCE_USER__

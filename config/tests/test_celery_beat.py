@@ -12,6 +12,7 @@ These tests are the reason a new beat entry cannot reintroduce that hole.
 """
 
 import importlib
+import os
 from datetime import timedelta
 
 import pytest
@@ -217,3 +218,16 @@ def test_task_results_outlive_the_longest_schedule_interval() -> None:
         f"result_expires {expires!r} is shorter than the weekly scrape's interval; "
         "its TaskResult row is deleted before the next run and last_run_at reads null"
     )
+
+
+def test_the_queue_is_named_by_the_database() -> None:
+    """A worker consumes only work queued for the database it runs on (ADR 0065).
+
+    The verification window (ADR 0064) restarts the worker on the scrub copy
+    against the instance's own Redis; one shared queue name let it drain and
+    then discard work the live instance had queued. Compared against the env,
+    not ``settings.DATABASES``: the test runner rewrites that dict in place to
+    the test database's name.
+    """
+    assert app.conf.task_default_queue == os.environ["DB_NAME"]
+    assert app.conf.task_queues is None, "an explicit task_queues would need its own -Q on the unit"

@@ -276,7 +276,8 @@ CACHES = {
         "LOCATION": "unique-snowflake",
     },
     # Cross-process cache (gunicorn workers + celery): PDF-refresh dedup keys,
-    # django-solo CompanyDefaults propagation uses a dedicated Redis database.
+    # django-solo CompanyDefaults propagation. Database 2 of the instance's own
+    # Redis server (ADR 0065), beside the broker on the database REDIS_URL names.
     "shared": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": REDIS_URL.rsplit("/", 1)[0] + "/2",
@@ -313,9 +314,10 @@ if "connection_class" in EVENTSTREAM_REDIS:
     )
 
 # Redis pub/sub is server-wide rather than scoped to a database index, and
-# django-eventstream publishes every event on one hardcoded "events_channel",
-# so two instances sharing a Redis server would deliver each other's events.
-# The database name is the thing that tells those instances apart.
+# django-eventstream publishes every event on one hardcoded "events_channel".
+# An instance's Redis server is its own (ADR 0065), but it still serves both
+# the live database and the copy the verification window runs on (ADR 0064),
+# so the database name is the thing that tells those two apart.
 DATA_VERSIONS_CHANNEL = f"data-versions-{DATABASES['default']['NAME']}"
 
 # Opus: Payroll runs get their OWN channel rather than an event on the one above,
@@ -431,6 +433,15 @@ LOGGING = {
 }
 
 CELERY_BROKER_URL = REDIS_URL
+# The queue is named by the database, so a worker consumes only work queued
+# for the database it is running on. The verification window (ADR 0064)
+# restarts the worker on the scrub copy against the same Redis server; with
+# one shared queue name it drained tasks the live instance had queued before
+# the fence into the copy, and the teardown purge discarded the rest — on a
+# production PVT that was lost work. No -Q on the worker unit: with
+# task_queues unset the worker consumes exactly this queue, and a name baked
+# into the unit would pin the live queue while the window changes the database.
+CELERY_TASK_DEFAULT_QUEUE = DATABASES["default"]["NAME"]
 CELERY_RESULT_BACKEND = "django-db"
 CELERY_RESULT_EXTENDED = True
 # TaskResult rows are the only record of a beat firing (`last_run_at` on the

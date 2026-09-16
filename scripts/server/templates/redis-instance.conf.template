@@ -1,0 +1,14 @@
+# Managed by scripts/server/instance.sh — do not edit by hand (ADR 0065).
+# This instance's own Redis server: the Celery broker on database 0 and the
+# cross-process cache on database 2 (config/settings.py derives it). The port
+# is allocated per instance and the password lives in this instance's .env;
+# neither is shared with a neighbour. The host's stock redis-server on 6379
+# serves only the frozen v1 demo.
+bind 127.0.0.1
+port __REDIS_PORT__
+protected-mode yes
+requirepass __REDIS_PASSWORD__
+daemonize no
+supervised systemd
+logfile ""
+dir /opt/docketworks/instances/__INSTANCE__/redis

@@ -1,5 +1,40 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-17 — Each instance owns its Redis server; the queue is named by the database
+
+Owner ruling, by approving the plan for GitHub #169 and #170 (KAN-365), ahead of msm-prod
+joining msm-uat on the shared v2 host. Findings that reshaped both issues: the cross-delivery
+seen on 2026-09-13 was msm-uat on Redis database 1 beside v1, drift that predates the
+allocator now on main (which refuses 0, 1 and 2, and which `verify-instance.sh` polices), so
+the live remainder of #169 was confidentiality — one unauthenticated redis-server every local
+process could read — not the queue name; and #170's premise was stale against main, where
+PR #162 had already shipped `instance.sh --alias`, per-hostname nginx blocks and per-alias
+verification. The owner ruled for one redis-server per instance (ADR 0065) over ACL users on
+the shared server: the frozen v1 demo cannot authenticate and is not modified, so that server
+stays open and v2 leaves it. Fable: the same change removed a latent production defect in the
+ADR 0064 window, which drained tasks the live instance had queued before the fence into the
+scrub copy and then purged the rest — the queue is now named by the database, so live work
+waits — and replaced the teardown's 300s cache-expiry sleep with a flush of the instance's
+own cache, five minutes off every server E2E and PVT run. For msm-prod the owner set the
+client's real production name as the canonical `--fqdn` and `msm-prod.docketworks.site` as
+the alias.
+
+Second ruling the same day, on an outside review that argued for one Redis with per-tenant
+ACL users because "the money is in Celery": per-instance Redis stands, and the money is indeed
+in Celery. Measured on the shared host (`systemctl MemoryCurrent`, msm-uat idle): gunicorn
+1354 MiB across 10 processes, the prefork worker 902 MiB across 5, beat 340 MiB, and the whole
+shared redis-server 8 MiB — a Redis daemon per instance is under 10 MiB against 2.6 GiB of
+Python. ACL users on one server would not have isolated tenants anyway: django-eventstream
+publishes every event on the single fixed Redis channel `events_channel`, so every tenant's
+user would need it. The footprint work (a threads pool, beat embedded in the worker, a
+free-tier gunicorn worker count, each behind an ADR 0047 amendment and a measurement) is
+KAN-366; a worker shared across tenants is out, because an install is single-tenant per
+process (ADR 0012, 0024). Fable: the first UAT deploy of the branch failed safely at the
+settings precheck because msm-uat's `.env` predated PR #162's `APP_DOMAIN_ALIASES`, which is
+the rollout order the plan states (reconfigure first); after it, `verify-instance.sh` passed
+every check including the new isolation probe, with `redis-msm-uat` on 6381 (6380 belongs to
+Docker on this host, and the allocator's listener check skipped it).
+
 ## 2026-09-14 — An instance answers on aliases; the Xero redirect URI stays canonical
 
 Owner ruling. UAT serves `uat-office.morrissheetmetal.co.nz` beside `msm-uat.docketworks.site`,
