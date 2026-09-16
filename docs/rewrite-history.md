@@ -1,5 +1,24 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-17 — Each instance owns its Redis server; the queue is named by the database
+
+Owner ruling, by approving the plan for GitHub #169 and #170 (KAN-365), ahead of msm-prod
+joining msm-uat on the shared v2 host. Findings that reshaped both issues: the cross-delivery
+seen on 2026-09-13 was msm-uat on Redis database 1 beside v1, drift that predates the
+allocator now on main (which refuses 0, 1 and 2, and which `verify-instance.sh` polices), so
+the live remainder of #169 was confidentiality — one unauthenticated redis-server every local
+process could read — not the queue name; and #170's premise was stale against main, where
+PR #162 had already shipped `instance.sh --alias`, per-hostname nginx blocks and per-alias
+verification. The owner ruled for one redis-server per instance (ADR 0065) over ACL users on
+the shared server: the frozen v1 demo cannot authenticate and is not modified, so that server
+stays open and v2 leaves it. Fable: the same change removed a latent production defect in the
+ADR 0064 window, which drained tasks the live instance had queued before the fence into the
+scrub copy and then purged the rest — the queue is now named by the database, so live work
+waits — and replaced the teardown's 300s cache-expiry sleep with a flush of the instance's
+own cache, five minutes off every server E2E and PVT run. For msm-prod the owner set the
+client's real production name as the canonical `--fqdn` and `msm-prod.docketworks.site` as
+the alias.
+
 ## 2026-09-14 — An instance answers on aliases; the Xero redirect URI stays canonical
 
 Owner ruling. UAT serves `uat-office.morrissheetmetal.co.nz` beside `msm-uat.docketworks.site`,
