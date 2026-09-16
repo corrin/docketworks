@@ -489,7 +489,7 @@ bugs were. The consequence was a rule rather than another linter: speed is made 
 spec shipping with the slice. Carried in CLAUDE.md until 2026-09-13, when that file stopped
 holding stories.
 
-## Cutover
+## Costing, stock and purchasing slices (2026-09-06 to 2026-09-08)
 
 **2026-09-08 — Incremental cost summaries and explicit recovery.**
 Cost-line saves/deletes now apply exact persisted contributions to the existing
@@ -694,6 +694,12 @@ Xero's daily-limit 429; 46 tests did not run. Its database restore and managed
 service shutdown completed. These are verification results, not a green merge
 gate or a reason to broaden this PR into phone provisioning or Xero changes.
 
+## Cutover (planned 2026-08-14, ran 2026-08-29)
+
+The cutover ran on 29 August 2026 after the two deferrals below; the record of the
+night is [`cutover-checklist.md`](cutover-checklist.md). The tiering these entries
+describe was the plan of 2026-08-14 and was retired with the release.
+
 **2026-08-14: the 15 August window was declined and cutover moved one week to
 22–23 August.** At decision time MUST-tier specs were still red — among them
 `/timesheets/weekly` (declared MUST that same day, unstarted),
@@ -703,7 +709,7 @@ the rehearsal items were open, so the functionality gate could not pass inside
 the window. Scope was frozen as tiered that day; deferral moves the date, never
 the definition of done.
 
-**2026-08-14 tiering.** Reports slip about a week past cutover. Process
+**2026-08-14 tiering, as planned that day.** Reports slip about a week past cutover. Process
 documents stay deferred except the four safety-AI operations.
 `/purchasing/mappings` slips about a week — the purchasing MUST is the ability
 to make purchase orders, which the green purchasing specs plus `pickup-address`
@@ -712,10 +718,10 @@ than a week: no scheduling algorithm exists in either repo's backend, so the
 slice is algorithm plus page plus fresh spec. The admin tail is SHOULD-plus —
 really painful to slip — and AI is SHOULD rather than MUST.
 
-**Every deferred screen ships spec-first (2026-08-14).** Most have no v1 spec to
-port, so the slice authors one and is done when it is green. The spec is written
-with the slice, not before cutover — an explicit choice not to spend pre-flip
-hours on specs for unbuilt screens.
+**Every deferred screen ships spec-first (ruled 2026-08-14).** Most have no v1 spec
+to port, so the slice authors one and is done when it is green. The spec is written
+with the slice; before the cutover this was an explicit choice not to spend pre-flip
+hours on specs for unbuilt screens, and it still holds.
 
 ## Rulings that closed a question
 
@@ -1110,10 +1116,10 @@ dropped NULL-office-email rows from the identity scrub (SQL NULL
 semantics), and it never scrubbed `payroll_email` at all — it now excludes
 by pk and scrubs a set payroll address while preserving NULL shape.
 
-**The flip and its triage, 2026-08-29.** Production cuts over to v2 the
-night of 2026-08-29; v1 is never deployed again unless something goes very
-wrong, with `rollback-instance.sh` plus the preserved v1-final database as
-the escape hatch and Monday 07:00 as the decide-by point. Owner triage the
+**The flip and its triage, 2026-08-29.** Production cut over to v2 the
+night of 2026-08-29. v1 was never deployed again; the escape hatch,
+`rollback-instance.sh` plus the preserved v1-final database with Monday
+07:00 as the decide-by point, was not used. Owner triage the
 same day: the weak-password path, AccessLogging/DisallowedHost, the
 one-implementation gate expansion and the 500-line passes are DEFERRED —
 large refactors days before a flip add regression risk and remove none.

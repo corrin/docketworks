@@ -8,11 +8,17 @@ this file.
 
 **This is a record, not a to-do list.** It documents the procedure that was followed and
 the facts that shaped it — the carry-over surface, the migration mechanics and the
-environment contract — because every one of them applies again the next time an instance
-is created or restored. Nothing here is work waiting to be done: what the cutover left
-open moved to [`rewrite-status.md`](rewrite-status.md), which is the only place work
-lives. The bullets below are therefore statements, not checkboxes; nobody ticked them on
-the night and pretending otherwise would make this file lie in a new way.
+environment contract. The environment contract and the restore traps still apply, and
+[`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md) and `verify-instance.sh` are
+where they are enforced today. The migration mechanics ran once: `migrate_v1_data.sh`,
+`extract_v1_credentials.py`, `apply_v1_credentials.py`, `db_schema_diff.sh`,
+`test_data_migration_script.py`, `cutover-instance.sh` and `rollback-instance.sh` were
+deleted in September 2026 (ee9aa5a, fd5da4c). Every script named below is what ran on the
+night, not something to run. Nothing here is work waiting
+to be done: what the cutover left open moved to [`rewrite-status.md`](rewrite-status.md),
+which is the only place work lives. The bullets below are therefore statements, not
+checkboxes; nobody ticked them on the night and pretending otherwise would make this file
+lie in a new way.
 
 ## Carry-over inventory — the complete surface
 
@@ -213,8 +219,7 @@ it; the reasoning is here.
   `scripts/server/test_server_templates.sh`; the contract is ADR 0047).
   A sync-worker template pins one worker per open kanban tab, and the
   arbiter watchdog SIGKILLs a sync worker mid-stream, which is why this
-  item blocks the release. It checks off when that template is what the
-  live hosts run.
+  item blocked the release until the live hosts ran that template.
 - **Re-render and install the updated unit and nginx templates on every
   host.** Both changed in the live-updates slice (the nginx config gained
   an exact-match `/api/data-versions/stream/` location carrying
@@ -243,7 +248,7 @@ it; the reasoning is here.
   sudoers scripts name `gunicorn-<instance>`, which the serving-model
   change deliberately left untouched; a renamed unit breaks rollback
   silently rather than loudly.
-- **Run [`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md) against
+- **[`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md) was run against
   the dev database before the go/no-go full-suite pass** — a recreated Xero
   demo organisation leaves the mirror tables holding a dead org's entity
   ids, and the sync then creates duplicate companies that break the
