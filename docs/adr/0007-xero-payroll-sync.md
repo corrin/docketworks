@@ -31,6 +31,14 @@ A week's time entries are classified once (`hour_categories.LeaveCatalogue`) and
   pattern — and more than one period per pay period is rejected on update (KAN-326). The total
   is the only figure that round-trips, and the only one leave can be matched on when
   reconciling.
+- **The post writes leave only inside the week it is posting.** A Xero leave application
+  that crosses the week boundary is never created, updated or deleted by the reconcile, and
+  it is never written over either: recorded leave sharing a day with such an application
+  refuses the week before any write, whatever the leave type, naming the application and the
+  operator's fix in Xero (`SpanningLeaveOverlapError`). Xero pays both applications for the
+  shared days and debits the balance twice. A spanning application counts its in-week period
+  in `posted_leave_hours`, because that period is what this week's pay run pays, and a
+  status check that ignored it reported a doubled week as matching.
 - **The order of operations is load-bearing**: validate pay items → reconcile leave → ensure the
   Draft pay run → fetch every existing timesheet in one call → post per staff. Leave is
   reconciled before the pay run exists, because Xero locks leave deletion once the employee is
