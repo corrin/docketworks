@@ -143,6 +143,8 @@ if [[ "$E2E" == "true" ]]; then
         exit 1
     fi
 
+    in_window() { DW_ENV_FILE="$E2E_ENV" "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" "$@"; }
+
     E2E_RESTORED=false
     e2e_restore_instance() {
         # Always runs, whatever happened to the run: the instance comes back.
@@ -152,8 +154,10 @@ if [[ "$E2E" == "true" ]]; then
         echo "E2E: returning $INSTANCE to its live database..."
         systemctl stop "celery-worker-$INSTANCE" "gunicorn-$INSTANCE"
         # A task the last spec queued must not run against the live database
-        # with the real transport.
-        "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" celery -A config purge -f >/dev/null
+        # with the real transport. The queue is named by the database (ADR
+        # 0065), so purging under the window env empties the copy's queue only;
+        # work the live instance queued before the fence waits in its own.
+        in_window celery -A config purge -f >/dev/null
         local unit
         for unit in "${RUNTIME_UNIT_NAMES[@]}"; do
             rm -f "/run/systemd/system/$unit-$INSTANCE.service.d/e2e.conf"
@@ -244,7 +248,6 @@ FENCE_EOF
     systemctl restart "celery-worker-$INSTANCE" "gunicorn-$INSTANCE"
     wait_for_build_id || { echo "ERROR: $INSTANCE did not come up on the copy." >&2; exit 1; }
 
-    in_window() { DW_ENV_FILE="$E2E_ENV" "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" "$@"; }
     # run_e2e.sh's order: the shape report, the fixtures a production
     # database never held, the fake seeded from the copy, the reset that
     # clears any residue, then the suite.

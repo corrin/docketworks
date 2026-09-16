@@ -124,6 +124,7 @@ def main() -> None:
 
     info["celery"] = {
         "BROKER_URL": sanitize_redis_url(settings.CELERY_BROKER_URL),
+        "TASK_DEFAULT_QUEUE": settings.CELERY_TASK_DEFAULT_QUEUE,
         "RESULT_BACKEND": settings.CELERY_RESULT_BACKEND,
         "RESULT_EXPIRES": str(settings.CELERY_RESULT_EXPIRES),
         "TASK_ACKS_LATE": settings.CELERY_TASK_ACKS_LATE,
