@@ -290,11 +290,9 @@ fi
 
 # --- Redis ---
 
-# Celery broker: each instance gets its own Redis database number
-# (allocated by instance.sh into REDIS_URL) so one instance's worker can
-# never consume another's tasks. Database 2 is reserved: settings.py
-# derives the cross-process "shared" cache as database 2 of the same
-# server, isolated per instance by KEY_PREFIX.
+# The package supplies the redis-server binary that every instance's own
+# redis-<instance> unit runs (ADR 0065, instance.sh). The stock service on
+# 6379 stays enabled for the frozen v1 demo, the only thing that uses it.
 if dpkg -l | grep -q "ii  redis-server "; then
     log "Redis already installed, skipping."
 else

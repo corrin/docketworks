@@ -1,0 +1,52 @@
+[Unit]
+Description=Redis for docketworks __INSTANCE__ (ADR 0065)
+After=network.target
+
+[Service]
+# The conf carries this instance's port and password and is rendered by
+# instance.sh alone. `supervised systemd` in it is what lets Type=notify hold
+# start until Redis listens, so the units that Requires= this one never race it.
+Type=notify
+ExecStart=/usr/bin/redis-server /opt/docketworks/instances/__INSTANCE__/redis.conf
+User=__INSTANCE_USER__
+Group=__INSTANCE_USER__
+WorkingDirectory=/opt/docketworks/instances/__INSTANCE__/redis
+TimeoutStopSec=0
+Restart=always
+RestartSec=5
+UMask=077
+LimitNOFILE=65535
+
+# The distro's own Redis unit's hardening, with the instance's redis/
+# directory as the one writable path. RemoveIPC is deliberately absent: the
+# unit shares its OS user with the celery worker, whose prefork pool holds
+# POSIX semaphores that RemoveIPC would strip on every Redis stop.
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/docketworks/instances/__INSTANCE__/redis
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+NoNewPrivileges=true
+PrivateUsers=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~ @privileged @resources
+NoExecPaths=/
+ExecPaths=/usr/bin/redis-server /usr/lib /lib
+
+[Install]
+WantedBy=multi-user.target

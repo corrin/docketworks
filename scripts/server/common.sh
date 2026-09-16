@@ -222,31 +222,70 @@ read_env_value() {
     printf "%s" "$value"
 }
 
-# The Redis database an instance env binds its Celery broker to. A v2 env
-# carries REDIS_URL; a v1 env (docketworks_v1, still the frozen demo) carries
-# REDIS_HOST/REDIS_PORT and pins its broker to database 1 in its settings, so
-# a v1 neighbour occupies 1 without saying so — which is how the first v2
-# instance on a box shared v1's broker and each worker consumed the other's
-# tasks. Anything else is a misconfigured neighbour and fails loudly rather
-# than being skipped: skipping could hand out its (unknown) database twice.
-redis_db_of_env() {
+# The host's stock redis-server. It serves only the frozen v1 demo
+# (docketworks_v1), whose env carries REDIS_HOST/REDIS_PORT for it; every v2
+# instance runs its own redis-<instance> on a private port (ADR 0065). The
+# first v2 instance on a box once shared this server with v1 and each worker
+# consumed the other's tasks, which is why no instance is ever allocated it.
+REDIS_SHARED_PORT=6379
+
+# The Redis port an instance env binds to. A v2 env carries REDIS_URL; a v1
+# env answers its REDIS_PORT, or the shared port when it names none. Anything
+# else is a misconfigured neighbour and fails loudly rather than being
+# skipped: skipping could hand out its (unknown) port twice. The URL is never
+# echoed, because its userinfo is the password.
+redis_port_of_env() {
     local env_file="$1"
-    local url db
+    local url hostport port
     url="$(read_env_value "$env_file" REDIS_URL)"
     if [[ -z "$url" ]]; then
         if [[ -n "$(read_env_value "$env_file" REDIS_HOST)" ]]; then
-            printf '1\n'
+            port="$(read_env_value "$env_file" REDIS_PORT)"
+            printf '%s\n' "${port:-$REDIS_SHARED_PORT}"
             return 0
         fi
         echo "ERROR: $env_file carries neither REDIS_URL nor REDIS_HOST" >&2
         return 1
     fi
-    db="${url##*/}"
-    if [[ ! "$db" =~ ^[0-9]+$ ]]; then
-        echo "ERROR: cannot parse a Redis database number from REDIS_URL='$url' in $env_file" >&2
+    hostport="${url##*@}"
+    hostport="${hostport#redis://}"
+    hostport="${hostport%%/*}"
+    port="${hostport##*:}"
+    if [[ "$hostport" != *:* || ! "$port" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: cannot parse a Redis port from REDIS_URL in $env_file" >&2
         return 1
     fi
-    printf '%s\n' "$db"
+    printf '%s\n' "$port"
+}
+
+# The password in a v2 env's REDIS_URL userinfo; empty when the URL carries
+# none, which is the shape an instance had before it owned a Redis server.
+redis_password_of_env() {
+    local env_file="$1"
+    local url userinfo
+    url="$(read_env_value "$env_file" REDIS_URL)"
+    if [[ "$url" != *@* ]]; then
+        return 0
+    fi
+    userinfo="${url#redis://}"
+    userinfo="${userinfo%%@*}"
+    printf '%s' "${userinfo#*:}"
+}
+
+# The instance's Redis unit (ADR 0065). instance.sh installs it and deploy.sh
+# re-renders it with the other units so a template change reaches every
+# instance; the conf beside it, which carries the password, is instance.sh's
+# alone, and deploy never restarts the unit.
+render_redis_unit() {
+    local instance="$1"
+    local instance_user="$2"
+    local template_dir="${3:-$SCRIPT_DIR/templates}"
+
+    sed \
+        -e "s|__INSTANCE__|$instance|g" \
+        -e "s|__INSTANCE_USER__|$instance_user|g" \
+        "$template_dir/redis-instance.service.template" \
+        > "/etc/systemd/system/redis-$instance.service"
 }
 
 ensure_config_dir() {

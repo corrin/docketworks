@@ -100,6 +100,20 @@ ALIASES="$(tail -n +2 <<<"$HOSTNAMES")"
 # name matches.
 CURL=(curl -sS --max-time 15 --resolve "$FQDN:443:127.0.0.1")
 
+# redis_reply <port> <password-or-empty> <command...>: the password reaches
+# redis-cli through REDISCLI_AUTH, never an argument another local user could
+# read in ps, which is the exact exposure GitHub #169 is about. An empty
+# password unsets the variable: redis-cli would otherwise send AUTH "".
+redis_reply() {
+    local port="$1" password="$2"
+    shift 2
+    if [[ -n "$password" ]]; then
+        REDISCLI_AUTH="$password" redis-cli -p "$port" --no-auth-warning "$@" 2>&1
+    else
+        env -u REDISCLI_AUTH redis-cli -p "$port" "$@" 2>&1
+    fi
+}
+
 wait_for_build_id() {
     # Retried: the first HTTP probe after a restart, and gunicorn may not
     # have bound its socket yet — a race, not a failure.
@@ -164,13 +178,15 @@ if [[ "$E2E" == "true" ]]; then
             rmdir "/run/systemd/system/$unit-$INSTANCE.service.d" 2>/dev/null
         done
         systemctl daemon-reload
+        # CompanyDefaults edits a spec made sit in the cache for
+        # SOLO_CACHE_TIMEOUT (config/settings.py) and real users must never
+        # read them. The cache is database 2 of the instance's own Redis (ADR
+        # 0065), so it is flushed while nothing runs against it; it used to
+        # be waited out for 300s because the cache server was shared and a
+        # flush would have emptied every instance's.
+        echo "E2E: flushing the instance's cache..."
+        redis_reply "$(redis_port_of_env "$INSTANCE_DIR/.env")" "$(redis_password_of_env "$INSTANCE_DIR/.env")" -n 2 FLUSHDB >/dev/null
         systemctl start "celery-worker-$INSTANCE" "celery-beat-$INSTANCE" "gunicorn-$INSTANCE"
-        # CompanyDefaults edits a spec made sit in the shared Redis under this
-        # instance's prefix for SOLO_CACHE_TIMEOUT (300s, config/settings.py);
-        # real users must not read them, and cache.clear() would empty every
-        # instance's cache, so the fence stays up until they have expired.
-        echo "E2E: fence stays up 300s for the solo cache to expire..."
-        sleep 300
         "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py scrub_copy empty >/dev/null
         rm -rf "${E2E_DIR:?}/media" "${E2E_DIR:?}/phone-recordings" "${E2E_DIR:?}/session-replays" "${E2E_DIR:?}/tmp"
         rm -f "$FENCE"
@@ -275,7 +291,7 @@ fi
 # verified green on UAT. NRestarts must also hold still across a window
 # longer than every unit's RestartSec (10s beat/worker, 5s gunicorn), so
 # a loop is forced to tick at least once inside it.
-RUNTIME_UNITS=("gunicorn-$INSTANCE" "celery-worker-$INSTANCE" "celery-beat-$INSTANCE")
+RUNTIME_UNITS=("redis-$INSTANCE" "gunicorn-$INSTANCE" "celery-worker-$INSTANCE" "celery-beat-$INSTANCE")
 declare -A NRESTARTS_BEFORE
 for unit in "${RUNTIME_UNITS[@]}"; do
     NRESTARTS_BEFORE[$unit]="$(systemctl show "$unit" -p NRestarts --value)"
@@ -286,6 +302,7 @@ unit_running_stably() {
     systemctl is-active --quiet "$unit" || return 1
     [[ "$(systemctl show "$unit" -p NRestarts --value)" == "${NRESTARTS_BEFORE[$unit]}" ]]
 }
+check "redis-$INSTANCE active and stable" unit_running_stably "redis-$INSTANCE"
 check "gunicorn-$INSTANCE active and stable" unit_running_stably "gunicorn-$INSTANCE"
 check "celery-worker-$INSTANCE active and stable" unit_running_stably "celery-worker-$INSTANCE"
 check "celery-beat-$INSTANCE active and stable" unit_running_stably "celery-beat-$INSTANCE"
@@ -386,29 +403,61 @@ dropbox_root_group_accessible() {
 }
 check --verbose "dropbox sync root is group-accessible" dropbox_root_group_accessible
 
-# --- Celery broker: this instance's Redis database is its alone ---
-# v1 pins its broker to database 1 without naming it in its env, which is
-# how the first v2 instance on this box once shared v1's broker and each
-# worker consumed the other's tasks; 0 and 2 are the default and the shared
-# cache. redis_db_of_env is the one reading the allocator uses too.
-broker_db_isolated() {
-    local mine other db
-    mine="$(redis_db_of_env "$INSTANCE_DIR/.env")" || return 1
-    case "$mine" in
-        0|1|2)
-            echo "  Redis database $mine is reserved (0 default, 1 v1 broker, 2 shared cache)" >&2
-            return 1 ;;
-    esac
+# --- Redis: this instance's server is its alone (ADR 0065) ---
+# GitHub #169's acceptance, literally: the port is nobody else's, the server
+# refuses an unauthenticated client, answers this instance's password, and
+# every neighbour's server refuses that password. Replies are matched, not
+# exit codes: redis-cli exits 0 on an error reply. redis_port_of_env is the
+# one reading the allocator uses too.
+redis_is_instances_own() {
+    local mine password other other_port
+    mine="$(redis_port_of_env "$INSTANCE_DIR/.env")" || return 1
+    password="$(redis_password_of_env "$INSTANCE_DIR/.env")"
+    if [[ "$mine" == "$REDIS_SHARED_PORT" ]]; then
+        echo "  REDIS_URL points at the host's shared Redis on $REDIS_SHARED_PORT (v1's)" >&2
+        return 1
+    fi
+    if [[ -z "$password" ]]; then
+        echo "  REDIS_URL carries no password" >&2
+        return 1
+    fi
+    if [[ "$(systemctl show "redis-$INSTANCE" -p User --value)" != "$INSTANCE_USER" ]]; then
+        echo "  redis-$INSTANCE does not run as $INSTANCE_USER" >&2
+        return 1
+    fi
+    if [[ "$(stat -c '%a %U' "$INSTANCE_DIR/redis.conf")" != "600 $INSTANCE_USER" ]]; then
+        echo "  $INSTANCE_DIR/redis.conf is not mode 600 owned by $INSTANCE_USER" >&2
+        return 1
+    fi
+    if ! redis_reply "$mine" "" PING | grep -q NOAUTH; then
+        echo "  redis-$INSTANCE answered an unauthenticated PING" >&2
+        return 1
+    fi
+    if [[ "$(redis_reply "$mine" "$password" PING)" != "PONG" ]]; then
+        echo "  redis-$INSTANCE did not answer this instance's password" >&2
+        return 1
+    fi
+    if [[ "$(redis_reply "$mine" "$password" CONFIG GET bind | tail -n1)" != "127.0.0.1" ]]; then
+        echo "  redis-$INSTANCE is not bound to 127.0.0.1 alone" >&2
+        return 1
+    fi
     for other in "$INSTANCES_DIR"/*/.env; do
         [[ "$other" == "$INSTANCE_DIR/.env" ]] && continue
-        db="$(redis_db_of_env "$other")" || return 1
-        if [[ "$db" == "$mine" ]]; then
-            echo "  $other also binds Redis database $mine" >&2
+        other_port="$(redis_port_of_env "$other")" || return 1
+        if [[ "$other_port" == "$mine" ]]; then
+            echo "  $other also binds Redis port $mine" >&2
+            return 1
+        fi
+        # The shared server is nopass and would accept any password; the
+        # assertion about it is the one above, that no v2 env points there.
+        [[ "$other_port" == "$REDIS_SHARED_PORT" ]] && continue
+        if [[ "$(redis_reply "$other_port" "$password" PING)" == "PONG" ]]; then
+            echo "  $(dirname "$other")'s Redis on $other_port accepts this instance's password" >&2
             return 1
         fi
     done
 }
-check --verbose "Celery broker Redis database is this instance's alone" broker_db_isolated
+check --verbose "Redis server is this instance's alone" redis_is_instances_own
 
 # --- Host security posture ---
 check "UFW active" bash -c "ufw status | grep -q '^Status: active'"
