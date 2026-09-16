@@ -1,0 +1,18 @@
+# 0065 — Each instance owns its Redis server
+Unratified: Fable
+
+An instance's Celery broker, cross-process cache and event fan-out run on a `redis-server` process that is the instance's alone, on a private loopback port, behind a password only that instance's `.env` carries; the host's stock Redis on 6379 is nobody's.
+
+## Rules
+
+- **One `redis-<instance>` unit per instance**, rendered from `scripts/server/templates/redis-instance.service.template` and `redis-instance.conf.template` by `instance.sh create` and `reconfigure`, removed by `destroy`. The unit runs as the instance's OS user, `Type=notify` with `supervised systemd`, so `systemctl start` returns only once Redis is listening, which is what makes the runtime units' `Requires=redis-<instance>.service` non-racy. `deploy.sh` re-renders the unit like the other three and never restarts it; the conf, which holds the password, is rendered only by `instance.sh`, so a deploy against an instance without one stops before any unit is touched.
+- **The port is allocated, the password is generated, and both live in `REDIS_URL`** (`redis://:<password>@127.0.0.1:<port>/0`). `instance.sh` hands out the lowest free port from 6380 across every neighbour's `.env` and refuses a port something already listens on; 6379 is the shared server and is never an instance's, and a `.env` found pointing there is what an instance had before it owned a Redis and is re-allocated. `REDIS_URL` stays the one Redis contract dev, CI and instances share, because redis-py, kombu and Django's cache all read the password from the URL's userinfo, so `config/settings.py` has one Redis shape. Database 2 of the instance's server is the cross-process cache, exactly as before.
+- **RDB persistence stays at Redis defaults.** A clean restart or reboot keeps the queue — an on-commit Xero push has nothing else that would re-derive it — and the dump lives in the instance's own `redis/` directory, mode 0700, which `backup_instance_files.sh` never uploads.
+- **The Celery queue is named by the database** (`CELERY_TASK_DEFAULT_QUEUE = DATABASES["default"]["NAME"]`, no `-Q` on the worker unit). The ADR 0064 window restarts the worker on the scrub copy against the same server; with one queue name it consumed tasks the live instance queued before the fence, and the teardown purge discarded the rest. Named by the database, live tasks wait in their own queue and run when the units return, and the teardown purges only the copy's queue. Pub/sub channels keep their database-name suffix for the same reason (ADR 0047).
+- **`verify-instance.sh` proves the isolation** (GitHub #169's acceptance): the port is unique on the host and not 6379; an unauthenticated `PING` is refused; the instance's password answers `PONG` and binds `127.0.0.1`; the instance's password is refused by every neighbour's Redis. The password reaches `redis-cli` through `REDISCLI_AUTH`, never an argument.
+
+## Do not
+
+- **ACL users on one shared server** — the frozen v1 demo cannot authenticate, so its `default` user stays `nopass` and any local client keeps full access; django-eventstream also publishes on one fixed channel, and kombu, the cache and pub/sub each name keys differently, so no key pattern separates tenants.
+- **A unix socket instead of a port and password** — kernel-enforced, but Django's cache, kombu and eventstream each want a different socket URL dialect and `settings.py` would grow a second Redis shape beside the TCP one dev and CI use.
+- **`-Q <queue>` on the worker unit** — a queue name baked into the unit pins the live queue while the verification window changes the database, which is the exact case the database-named queue exists for.

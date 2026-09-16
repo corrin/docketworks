@@ -1,5 +1,40 @@
 # Rewrite history — what was decided, found and measured
 
+## 2026-09-17 — Each instance owns its Redis server; the queue is named by the database
+
+Owner ruling, by approving the plan for GitHub #169 and #170 (KAN-365), ahead of msm-prod
+joining msm-uat on the shared v2 host. Findings that reshaped both issues: the cross-delivery
+seen on 2026-09-13 was msm-uat on Redis database 1 beside v1, drift that predates the
+allocator now on main (which refuses 0, 1 and 2, and which `verify-instance.sh` polices), so
+the live remainder of #169 was confidentiality — one unauthenticated redis-server every local
+process could read — not the queue name; and #170's premise was stale against main, where
+PR #162 had already shipped `instance.sh --alias`, per-hostname nginx blocks and per-alias
+verification. The owner ruled for one redis-server per instance (ADR 0065) over ACL users on
+the shared server: the frozen v1 demo cannot authenticate and is not modified, so that server
+stays open and v2 leaves it. Fable: the same change removed a latent production defect in the
+ADR 0064 window, which drained tasks the live instance had queued before the fence into the
+scrub copy and then purged the rest — the queue is now named by the database, so live work
+waits — and replaced the teardown's 300s cache-expiry sleep with a flush of the instance's
+own cache, five minutes off every server E2E and PVT run. For msm-prod the owner set the
+client's real production name as the canonical `--fqdn` and `msm-prod.docketworks.site` as
+the alias.
+
+Second ruling the same day, on an outside review that argued for one Redis with per-tenant
+ACL users because "the money is in Celery": per-instance Redis stands, and the money is indeed
+in Celery. Measured on the shared host (`systemctl MemoryCurrent`, msm-uat idle): gunicorn
+1354 MiB across 10 processes, the prefork worker 902 MiB across 5, beat 340 MiB, and the whole
+shared redis-server 8 MiB — a Redis daemon per instance is under 10 MiB against 2.6 GiB of
+Python. ACL users on one server would not have isolated tenants anyway: django-eventstream
+publishes every event on the single fixed Redis channel `events_channel`, so every tenant's
+user would need it. The footprint work (a threads pool, beat embedded in the worker, a
+free-tier gunicorn worker count, each behind an ADR 0047 amendment and a measurement) is
+KAN-366; a worker shared across tenants is out, because an install is single-tenant per
+process (ADR 0012, 0024). Fable: the first UAT deploy of the branch failed safely at the
+settings precheck because msm-uat's `.env` predated PR #162's `APP_DOMAIN_ALIASES`, which is
+the rollout order the plan states (reconfigure first); after it, `verify-instance.sh` passed
+every check including the new isolation probe, with `redis-msm-uat` on 6381 (6380 belongs to
+Docker on this host, and the allocator's listener check skipped it).
+
 ## 2026-09-14 — An instance answers on aliases; the Xero redirect URI stays canonical
 
 Owner ruling. UAT serves `uat-office.morrissheetmetal.co.nz` beside `msm-uat.docketworks.site`,
@@ -1761,3 +1796,62 @@ connection. The runner now takes its post-restore quota reading only in real mod
 The full Python suite passed 3,384 tests after the link-inventory fix. The first browser
 attempt after recovery could not launch the newly required Playwright Chromium binary;
 its teardown restored the database, and the matching browser was installed for the retry.
+
+## 2026-09-15 — The two real-gate failures, root-caused (PR #165)
+
+The detail-refresh spec never sent its request: `run_e2e.sh` started Celery Beat against the
+repo-root `celerybeat-schedule`, Beat replayed the missed hourly tick 3 s after the stack came
+up, and because a restored database is always due a full employee detail refresh
+(`sync.py:609` upgrades an hourly run when `detail_refresh_due`), that sync held the one lock
+for 538 s (64 payroll calls in the first 98 s, then invoices, quotes, contacts, pay runs). The
+spec opened the page 141 s in and its 210 s wait on the button ended 187 s before the lock
+freed. The 16 s passes on 14 Sep could only have been the hourly sync's events satisfying the
+spec's assertions, since a real refresh costs about 98 s. Ruling (owner): Beat runs the suite
+on a run-scoped schedule file, and the spec asserts on the run it dispatched, by task id.
+Residual: a real `:15` tick can still land inside the spec's window about one run in twenty.
+
+JO-0829 is spent for good. The Demo Company holds JO-0826, JO-0829 and JO-0833 as DELETED
+without the rename-on-void (deleted 12 Sep at 05:05–05:53 UTC, before the rename landed the
+same day; every delete since carries a `-VOID-` suffix). Measured today: an update of JO-0829
+by id with status DRAFT answers HTTP 400, "PurchaseOrder status change is invalid" and
+"Deleted PurchaseOrders cannot be updated"; the SDK has no restore endpoint and the 12 Sep
+measurement already showed a rename of a deleted order refused. The number recurs because
+`generate_po_number` is MAX over surviving rows plus one and the E2E teardown restores the
+pre-run dump, so every real run starts again at JO-0826. Ruling (owner): left failing for now;
+the Xero web UI is untried. Options on record: step `starting_po_number` past the band on dev;
+route the app's own Deleted status through the rename-on-void call (`apps/xero/documents/po.py`
+sends DELETED under the order's own number, which burns it); make numbering monotonic.
+
+## 2026-09-17 — The payroll post refuses recorded leave under a spanning Xero application (KAN-356)
+
+`reconcile_leave_for_staff_week` only saw Xero leave applications fully contained in the
+posting week. An application entered in Xero across two payroll weeks was invisible, so the
+week's recorded leave found no counterpart and was created beside it; Xero paid both and
+debited the balance twice, on two consecutive production weeks. `posted_leave_hours` applied
+the same containment rule, so the status check reported the doubled week as matching. The
+containment rule arrived in PR #74 with no stated rationale and was pinned by a unit test
+whose docstring reasoned that counting a spanning application's in-week period "would double
+it across two weeks"; the arithmetic runs the other way, since Xero already holds one period
+per week.
+
+Rulings (owner): a spanning application refuses the week whenever recorded leave shares a
+day with it, regardless of leave type — a spanning Annual Leave under recorded Sick Leave
+pays the day twice just the same. No "accept an exact in-week match" path: the operator
+fixes the application in Xero and posts again. The refusal aborts the whole week before any
+pay run or timesheet write, per ADR 0007; a per-staff skip would need the pipeline
+restructured for no gain. A spanning application nothing was recorded under is left alone
+and alerts through the status check instead (Xero holds Nh leave, recorded 0h). ADR 0007
+carries the rule.
+
+Contract measured on the dev tenant 2026-09-17: an Annual Leave application from a Wednesday
+to the following Tuesday came back with exactly two periods, each Monday-to-Sunday, each with
+its own `numberOfUnits`; `GET /Employees/{id}/Leave` takes no date filter. The status figure
+now sums the periods inside the week for every application overlapping it; a spanning
+application with no in-week period is refused rather than guessed.
+
+Production remediation is an operator action in Xero, not code: the 24–30 Aug 2026 pay run
+(`2fd223ad-…`) is Posted with the duplicate line and needs the same offsetting entry that
+17–23 Aug received by hand. The fake serves no `/Employees/{id}/Leave` routes, so no E2E spec
+can stage a spanning application; the live integration suite carries the pair
+(`test_live_spanning_leave_carries_one_period_per_payroll_week`,
+`test_live_spanning_leave_is_refused_and_counted`).

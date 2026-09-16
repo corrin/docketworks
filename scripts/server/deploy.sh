@@ -103,11 +103,21 @@ validate_instance() {
         echo "ERROR: nginx config not found at $nginx_conf. Run instance.sh first." >&2
         exit 1
     fi
+    # The runtime units Requires= the instance's own Redis (ADR 0065); its
+    # conf is instance.sh's to render, so an instance without one would come
+    # back from this deploy with nothing to start.
+    if [[ ! -f "$local_dir/redis.conf" ]]; then
+        echo "ERROR: $local_dir/redis.conf not found: this instance predates its own Redis server. Run instance.sh reconfigure first." >&2
+        exit 1
+    fi
 }
 
 render_runtime_units() {
     local instance="$1"
     local inst_user="$2"
+
+    log "  Rendering redis-$instance unit"
+    render_redis_unit "$instance" "$inst_user" "$SCRIPT_DIR/templates"
 
     log "  Rendering celery-worker-$instance unit"
     sed \

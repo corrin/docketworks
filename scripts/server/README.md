@@ -298,6 +298,8 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `templates/gunicorn-instance.service.template`      | Systemd unit template (web)                                                                          |
 | `templates/celery-worker-instance.service.template` | Systemd unit template (Celery worker)                                                                |
 | `templates/celery-beat-instance.service.template`   | Systemd unit template (Celery Beat — periodic task dispatcher)                                       |
+| `templates/redis-instance.service.template`         | Systemd unit template (the instance's own Redis server, ADR 0065)                                    |
+| `templates/redis-instance.conf.template`            | redis.conf for that server: private port, password, instance-owned dump directory                    |
 | `templates/backup-db-instance.service.template`     | Systemd unit template (database backup)                                                              |
 | `templates/backup-db-instance.timer.template`       | Systemd timer template (nightly database backup)                                                     |
 | `templates/backup-files-instance.service.template`  | Systemd unit template (mutable instance file backup)                                                  |

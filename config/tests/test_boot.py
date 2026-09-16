@@ -1,11 +1,13 @@
 """Smoke tests: the project boots, the API mounts, the gates are on."""
 
+import importlib
 from pathlib import Path
 
 import pytest
 from django.conf import settings
 from django.test import Client
 
+import config.settings
 from apps.core.environment import validate_scrub_db_name
 from config.settings import REQUIRED_ENV_VARS, validate_required_settings
 
@@ -57,3 +59,24 @@ def test_reusing_django_secret_for_jwt_fails_fast(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setenv("JWT_SIGNING_KEY", shared_key)
     with pytest.raises(RuntimeError, match="distinct from SECRET_KEY"):
         validate_required_settings()
+
+
+def test_aliases_admit_requests_and_their_origins(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An instance answers on every alias `instance.sh --alias` gave it.
+
+    Django rejects a request whose Host is outside ALLOWED_HOSTS with a 400
+    and a form POST from an origin outside CSRF_TRUSTED_ORIGINS with a 403,
+    so an alias that reaches nginx but not these two lists is a hostname that
+    serves nothing. The module is reloaded because both lists are derived at
+    import; the reload afterwards restores it.
+    """
+    monkeypatch.setenv("APP_DOMAIN_ALIASES", "office.example.test,second.example.test")
+    try:
+        reloaded = importlib.reload(config.settings)
+        assert {"office.example.test", "second.example.test"} <= set(reloaded.ALLOWED_HOSTS)
+        assert {"https://office.example.test", "https://second.example.test"} <= set(
+            reloaded.CSRF_TRUSTED_ORIGINS
+        )
+    finally:
+        monkeypatch.undo()
+        importlib.reload(config.settings)

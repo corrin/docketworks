@@ -233,44 +233,44 @@ require_instance_credentials() {
     fi
 }
 
-# Pick this instance's Redis database number. Preserved from an existing
-# .env; otherwise the lowest free index across every instance on the host.
-# Database 2 is never allocated — settings.py derives the cross-process
-# "shared" cache as database 2 of the same server. Redis ships with 16
-# databases (0-15); a handful of instances per host fits comfortably.
-allocate_redis_db() {
+# Pick this instance's Redis port (ADR 0065). Preserved from an existing .env
+# that names a private port; otherwise the lowest port from 6380 that no
+# neighbour's .env names and nothing is listening on. The shared port is
+# never handed out: a .env found pointing there is what an instance had
+# before it owned a Redis server, and is allocated afresh.
+allocate_redis_port() {
     local env_file="$1"
-    local existing url db
-    existing="$(read_env_value "$env_file" REDIS_URL)"
-    if [[ -n "$existing" ]]; then
-        db="${existing##*/}"
-        if [[ ! "$db" =~ ^[0-9]+$ ]]; then
-            echo "ERROR: cannot parse a Redis database number from REDIS_URL='$existing' in $env_file" >&2
-            return 1
+    local existing port
+    if [[ -n "$(read_env_value "$env_file" REDIS_URL)" ]]; then
+        existing="$(redis_port_of_env "$env_file")" || return 1
+        if [[ "$existing" != "$REDIS_SHARED_PORT" ]]; then
+            printf '%s\n' "$existing"
+            return 0
         fi
-        printf '%s\n' "$db"
-        return 0
     fi
 
     local used=()
     local other_env
     for other_env in "$INSTANCES_DIR"/*/.env; do
-        [[ -f "$other_env" ]] || continue
-        db="$(redis_db_of_env "$other_env")" || return 1
-        used+=("$db")
+        [[ -f "$other_env" && "$other_env" != "$env_file" ]] || continue
+        port="$(redis_port_of_env "$other_env")" || return 1
+        used+=("$port")
     done
 
-    # 0 is what an unnamed client lands in, 1 is v1's broker, 2 is the shared
-    # cache: never handed out, whatever the neighbours say.
     local candidate
-    for candidate in 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-        if [[ ! " ${used[*]-} " == *" $candidate "* ]]; then
-            printf '%s\n' "$candidate"
-            return 0
+    for candidate in $(seq 6380 6399); do
+        if [[ " ${used[*]-} " == *" $candidate "* ]]; then
+            continue
         fi
+        # A listener no .env names (a stray redis, anything) would turn the
+        # new unit into a bind crash loop; refuse the port here instead.
+        if [[ -n "$(ss -ltnH "sport = :$candidate")" ]]; then
+            continue
+        fi
+        printf '%s\n' "$candidate"
+        return 0
     done
-    echo "ERROR: No free Redis database left on this host (0-15; 0, 1 and 2 reserved)." >&2
-    echo "  Raise 'databases' in /etc/redis/redis.conf or retire an instance." >&2
+    echo "ERROR: No free Redis port left on this host (6380-6399); retire an instance." >&2
     return 1
 }
 
@@ -285,8 +285,8 @@ render_instance_env() {
     local aliases_csv="$8"
 
     local env_file="$instance_dir/.env"
-    local db_password test_db_password secret_key jwt_signing_key redis_db
-    local dropbox_workflow_folder
+    local db_password test_db_password secret_key jwt_signing_key
+    local redis_port redis_password dropbox_workflow_folder
     db_password="$(read_env_value "$env_file" DB_PASSWORD)"
     test_db_password="$(read_env_value "$env_file" TEST_DB_PASSWORD)"
     secret_key="$(read_env_value "$env_file" SECRET_KEY)"
@@ -296,10 +296,15 @@ render_instance_env() {
     # a reconfigure that reverted it to the empty instance dir would 404
     # every attachment (2026-08-31 production incident).
     dropbox_workflow_folder="$(read_env_value "$env_file" DROPBOX_WORKFLOW_FOLDER)"
-    redis_db="$(allocate_redis_db "$env_file")"
+    redis_port="$(allocate_redis_port "$env_file")"
+    redis_password="$(redis_password_of_env "$env_file")"
 
     [[ -n "$db_password" ]] || db_password="$(generate_password)"
     [[ -n "$test_db_password" ]] || test_db_password="$(generate_password)"
+    [[ -n "$redis_password" ]] || redis_password="$(generate_password)"
+    # Interpolated into redis.conf and the URL by sed: the same alphabet rule
+    # the SQL-bound passwords carry.
+    require_safe_password "REDIS_URL password" "$redis_password"
     [[ -n "$secret_key" ]] || secret_key="$(generate_secret)"
     # Generated independently of SECRET_KEY: settings.py refuses to boot
     # when the two match, and rotating one must not rotate the other.
@@ -322,7 +327,8 @@ render_instance_env() {
         -e "s|__TEST_DB_PASSWORD__|$test_db_password|g" \
         -e "s|__SECRET_KEY__|$secret_key|g" \
         -e "s|__JWT_SIGNING_KEY__|$jwt_signing_key|g" \
-        -e "s|__REDIS_DB__|$redis_db|g" \
+        -e "s|__REDIS_PORT__|$redis_port|g" \
+        -e "s|__REDIS_PASSWORD__|$redis_password|g" \
         -e "s|__DROPBOX_WORKFLOW_FOLDER__|$(sed_escape "$dropbox_workflow_folder")|g" \
         -e "s|__GCP_CREDENTIALS__|$(sed_escape "$instance_dir/gcp-credentials.json")|g" \
         "$TEMPLATE_DIR/env-instance.template" > "$tmp_env"
@@ -330,6 +336,40 @@ render_instance_env() {
     chown "$instance_user:$instance_user" "$tmp_env"
     chmod 600 "$tmp_env"
     mv "$tmp_env" "$env_file"
+}
+
+# The instance's own Redis server (ADR 0065), from the port and password the
+# freshly rendered .env carries. Always enabled and restarted, .dr-mode or
+# not: it holds no vendor token and sends nothing, and a standby that goes
+# live must find it running. Restarted rather than started because the conf
+# may have changed; Requires= carries that restart to the runtime units,
+# which are re-installed later in the same run anyway.
+install_redis_unit() {
+    local instance_dir="$1"
+    local instance_user="$2"
+    local env_file="$instance_dir/.env"
+    local redis_dir="$instance_dir/redis"
+    local port password tmp_conf
+    port="$(redis_port_of_env "$env_file")"
+    password="$(redis_password_of_env "$env_file")"
+
+    log "Installing redis-$INSTANCE on 127.0.0.1:$port..."
+    mkdir -p "$redis_dir"
+    chown "$instance_user:$instance_user" "$redis_dir"
+    chmod 700 "$redis_dir"
+    tmp_conf="$(mktemp "$instance_dir/redis.conf.tmp.XXXXXX")"
+    sed \
+        -e "s|__INSTANCE__|$INSTANCE|g" \
+        -e "s|__REDIS_PORT__|$port|g" \
+        -e "s|__REDIS_PASSWORD__|$password|g" \
+        "$TEMPLATE_DIR/redis-instance.conf.template" > "$tmp_conf"
+    chown "$instance_user:$instance_user" "$tmp_conf"
+    chmod 600 "$tmp_conf"
+    mv "$tmp_conf" "$instance_dir/redis.conf"
+    render_redis_unit "$INSTANCE" "$instance_user" "$TEMPLATE_DIR"
+    systemctl daemon-reload
+    systemctl enable "redis-$INSTANCE"
+    systemctl restart "redis-$INSTANCE"
 }
 
 render_ai_providers_fixture() {
@@ -601,9 +641,9 @@ do_configure() {
         exit 1
     fi
 
-    # One instance mutation at a time per host: the Redis-database
-    # allocation reads every neighbour's .env, so two concurrent runs
-    # could hand out the same broker database.
+    # One instance mutation at a time per host: the Redis port allocation
+    # reads every neighbour's .env, so two concurrent runs could hand out
+    # the same port.
     exec 8>"$BASE_DIR/.instance.lock"
     if ! flock -n 8; then
         echo "ERROR: another instance.sh create/reconfigure is already running." >&2
@@ -737,6 +777,9 @@ BASH_PROFILE
         "$TEST_DB_USER" \
         "$FQDN" \
         "$ALIASES_CSV"
+    # Before anything boots against the new .env: migrations, fixture loads
+    # and the runtime units all reach the Redis it names.
+    install_redis_unit "$INSTANCE_DIR" "$INSTANCE_USER"
 
     local DB_PASSWORD TEST_DB_PASSWORD
     DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" DB_PASSWORD)"
@@ -1025,6 +1068,18 @@ do_destroy() {
         rm -f "/etc/systemd/system/celery-worker-$INSTANCE.service"
         systemctl daemon-reload
     fi
+    # After its dependants: the instance dir removal below takes the conf
+    # and the dump with it.
+    if systemctl is-active --quiet "redis-$INSTANCE" 2>/dev/null; then
+        echo "=== Stopping Redis service ==="
+        systemctl stop "redis-$INSTANCE"
+    fi
+    if [[ -f "/etc/systemd/system/redis-$INSTANCE.service" ]]; then
+        echo "=== Removing Redis service ==="
+        systemctl disable "redis-$INSTANCE" 2>/dev/null || true
+        rm -f "/etc/systemd/system/redis-$INSTANCE.service"
+        systemctl daemon-reload
+    fi
     # Legacy: clean up the pre-celery-beat scheduler-$INSTANCE unit if present
     # (from an instance created before the apscheduler→celery-beat migration).
     if systemctl is-active --quiet "scheduler-$INSTANCE" 2>/dev/null; then
@@ -1223,8 +1278,8 @@ fi
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 {prepare-config|create|reconfigure|validate-config|load-db-fixtures|destroy|status|history|list} [args...]"
     echo "  prepare-config   <client> <env> [--seed]"
-    echo "  create           <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]"
-    echo "  reconfigure      <client> <env> [--fqdn <hostname>] [--no-start] [--skip-db-fixtures]"
+    echo "  create           <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--alias <hostname>]... [--no-alias] [--no-start]"
+    echo "  reconfigure      <client> <env> [--fqdn <hostname>] [--alias <hostname>]... [--no-alias] [--no-start] [--skip-db-fixtures]"
     echo "  validate-config  <client> <env>"
     echo "  load-db-fixtures <client> <env>"
     echo "  destroy          <client> <env>"

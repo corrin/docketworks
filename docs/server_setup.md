@@ -94,6 +94,15 @@ sudo scripts/server/instance.sh reconfigure msm uat --alias uat-office.morrisshe
 sudo scripts/server/verify-instance.sh msm uat
 ```
 
+When the client's own name is the canonical one — a production instance, where
+bookmarks, emailed links and the Xero app's registered redirect URI live — pass
+it as `--fqdn` and add the fleet name as the alias, after `server-setup.sh
+--cert-domain` has issued the client name's certificate:
+
+```bash
+sudo scripts/server/instance.sh reconfigure msm prod --fqdn <client-fqdn> --alias msm-prod.docketworks.site
+```
+
 The script logs every action to `/var/log/docketworks-setup.log` with timestamps,
 and writes a manifest of installed software to `/opt/docketworks/server-manifest.txt`.
 
@@ -105,7 +114,8 @@ It is **idempotent** — safe to re-run on an already-configured server.
 - Python 3.12 + dev packages
 - Node.js 22 (NodeSource)
 - PostgreSQL server (configured for password auth over sockets)
-- Redis (per-instance Celery broker databases; database 2 is the shared cache)
+- Redis (the `redis-server` binary; each instance runs its own `redis-<instance>` server on a
+  private port behind its own password, ADR 0065; the stock service on 6379 serves only the v1 demo)
 - Nginx, with per-IP rate-limit zones for the two authentication endpoints
 - Certbot + Dreamhost DNS hook scripts (for wildcard cert auto-renewal)
 - pnpm (via corepack) and pm2 (for marketing website)
@@ -164,9 +174,10 @@ sudo scripts/server/instance.sh reconfigure <client> <env>
 ### What instance.sh creates
 
 `instance.sh create` is the supported provisioning path. It creates the OS
-user, database, generated `.env` (including a per-instance Redis broker
-database, so one instance's celery worker can never consume another's
-tasks), per-instance data directories, service units, backup timers,
+user, database, generated `.env`, the instance's own Redis server
+(`redis-<instance>` on a private port behind its own password, so no
+instance can consume or read another's, ADR 0065), per-instance data
+directories, service units, backup timers,
 sudoers drop-in, nginx config, and `app` symlink to a shared
 `/opt/docketworks/releases/<sha>` release. App code, Python dependencies,
 and frontend builds live in the shared release, not in the instance
@@ -403,7 +414,7 @@ What it does (ADR 0064): fences users out (nginx answers 503 to everything but t
 copies the live database into `dw_<client>_<env>_scrub`, restarts gunicorn and the worker
 under a window env whose `DB_NAME` is the copy and whose Xero is the fake, stops beat for
 the window, runs the suite against `https://<fqdn>` from the box, then returns the units to
-the live database, purges the Celery queue, waits out the solo cache, empties the copy and
+the live database, purges the copy's Celery queue, flushes the instance's own cache, empties the copy and
 drops the fence before the ordinary checks run. The report and traces stay under
 `/opt/docketworks/instances/<name>/e2e/`. The live database is only read; the real Xero
 organisation is never reached. A killed run is returned by the same trap. The suite needs

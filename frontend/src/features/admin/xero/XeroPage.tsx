@@ -303,6 +303,7 @@ export function XeroPage() {
             {log.map((line) => (
               <li
                 key={line.seq}
+                data-task-id={line.task_id}
                 className={
                   line.severity === 'error'
                     ? 'text-red-700 dark:text-red-400'

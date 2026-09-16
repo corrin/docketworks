@@ -120,7 +120,13 @@ start() { local name=$1; shift; setsid "$@" >"$LOG_DIR/$name.log" 2>&1 & NAMES+=
 start frontend npm --prefix "$FRONTEND" run preview:e2e
 start django "$ROOT/.venv/bin/python" -m uvicorn config.asgi:application --port 8000
 start worker "$ROOT/.venv/bin/celery" -A config worker --concurrency=4 --loglevel=info
-start beat "$ROOT/.venv/bin/celery" -A config beat --loglevel=info
+# Fable: a run-scoped schedule file. Beat persists last-run times in
+# celerybeat-schedule and replays a missed tick at start-up: against the
+# repo-root file the hourly sync fired 3s after the stack came up, held the
+# one sync lock for 538s (a restored database is always due a full employee
+# detail refresh), and the detail-refresh spec waited out its budget against
+# it. A file the run creates holds no missed ticks; the crontab still fires.
+start beat "$ROOT/.venv/bin/celery" -A config beat --loglevel=info --schedule "$LOG_DIR/celerybeat-schedule"
 start ngrok "$ROOT/scripts/ops/start_ngrok_when_ready.sh" "$NGROK"
 
 wait_for() {

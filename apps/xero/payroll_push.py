@@ -916,7 +916,11 @@ def post_payroll_week(
             continue
         split = _split_by_surface(lines_by_staff.get(staff_id, []), catalogue)
         reconcile_leave_for_staff_week(
-            UUID(str(staff.xero_user_id)), split.leave_api, week, tenant_id=connection_id
+            UUID(str(staff.xero_user_id)),
+            split.leave_api,
+            week,
+            tenant_id=connection_id,
+            staff_name=staff.get_display_full_name(),
         )
 
     ensure_pay_run_for_week(week.start, tenant_id=connection_id)

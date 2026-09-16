@@ -62,7 +62,8 @@ render() {
         -e "s|__TEST_DB_PASSWORD__|tpw|g" \
         -e "s|__SECRET_KEY__|sk|g" \
         -e "s|__JWT_SIGNING_KEY__|jwtk|g" \
-        -e "s|__REDIS_DB__|3|g" \
+        -e "s|__REDIS_PORT__|6380|g" \
+        -e "s|__REDIS_PASSWORD__|rpw|g" \
         -e "s|__DROPBOX_WORKFLOW_FOLDER__|/opt/docketworks/instances/test-uat/dropbox|g" \
         -e "s|__GCP_CREDENTIALS__|/opt/docketworks/instances/test-uat/gcp-credentials.json|g" \
         -e "s|__RCLONE_CONFIG__|/opt/docketworks/config/rclone/test-uat.conf|g" \
@@ -217,9 +218,45 @@ WORKER="$(render "$TEMPLATE_DIR/celery-worker-instance.service.template")"
 assert_no_tokens "celery-worker unit" "$WORKER"
 grep -q -- '-A config worker' <<<"$WORKER" || fail "celery-worker: must target -A config"
 
+# --- redis: the instance's own server (ADR 0065) ---
+REDIS_UNIT="$(render "$TEMPLATE_DIR/redis-instance.service.template")"
+assert_no_tokens "redis unit" "$REDIS_UNIT"
+grep -q '^User=dw_test_uat$' <<<"$REDIS_UNIT" || fail "redis unit: must run as the instance user"
+grep -q '^Type=notify$' <<<"$REDIS_UNIT" || fail "redis unit: Type=notify is what holds start until Redis listens"
+grep -q 'redis-server /opt/docketworks/instances/test-uat/redis.conf' <<<"$REDIS_UNIT" \
+    || fail "redis unit: must run the instance's own conf"
+# The unit shares its OS user with the celery worker, whose prefork pool
+# holds POSIX semaphores; RemoveIPC would strip them on every Redis stop.
+if grep -q '^RemoveIPC=' <<<"$REDIS_UNIT"; then fail "redis unit: RemoveIPC leaked from the distro unit"; fi
+REDIS_CONF="$(render "$TEMPLATE_DIR/redis-instance.conf.template")"
+assert_no_tokens "redis conf" "$REDIS_CONF"
+grep -q '^bind 127.0.0.1$' <<<"$REDIS_CONF" || fail "redis conf: loopback only"
+grep -q '^port 6380$' <<<"$REDIS_CONF" || fail "redis conf: the port comes from the allocator"
+grep -q '^requirepass rpw$' <<<"$REDIS_CONF" || fail "redis conf: requirepass comes from the instance env"
+grep -q '^supervised systemd$' <<<"$REDIS_CONF" || fail "redis conf: supervised systemd pairs with the unit's Type=notify"
+grep -q '^logfile ""$' <<<"$REDIS_CONF" || fail "redis conf: logs go to the journal"
+grep -q '^dir /opt/docketworks/instances/test-uat/redis$' <<<"$REDIS_CONF" \
+    || fail "redis conf: the dump lives in the instance's own directory"
+# Every token the conf template declares must be substituted by instance.sh
+# (the env template's check below says why).
+while read -r token; do
+    grep -qF "s|$token|" "$SCRIPT_DIR/instance.sh" \
+        || fail "redis conf template: $token is never substituted by instance.sh"
+done < <(grep -o '__[A-Z0-9_]*__' "$TEMPLATE_DIR/redis-instance.conf.template" | sort -u)
+# The runtime units depend on the instance's Redis, never the host's.
+for unit_template in gunicorn-instance celery-worker-instance celery-beat-instance; do
+    grep -q '^Requires=redis-test-uat.service$' <<<"$(render "$TEMPLATE_DIR/$unit_template.service.template")" \
+        || fail "$unit_template: must Requires= the instance's own redis unit"
+done
+if grep -q 'redis-server.service' "$TEMPLATE_DIR"/*.template; then
+    fail "a template still names the host's redis-server.service (v1's, ADR 0065)"
+fi
+
 # --- env template: full render, and in sync with .env.example ---
 ENV_RENDERED="$(render "$TEMPLATE_DIR/env-instance.template")"
 assert_no_tokens "env" "$ENV_RENDERED"
+grep -q '^REDIS_URL=redis://:rpw@127.0.0.1:6380/0$' <<<"$ENV_RENDERED" \
+    || fail "env template: REDIS_URL must carry the instance's own password and port"
 while IFS='=' read -r var _; do
     [[ "$var" =~ ^[A-Z][A-Z0-9_]*$ ]] || continue
     grep -q "^$var=" <<<"$ENV_RENDERED" \
@@ -379,7 +416,7 @@ rm -rf "$CREDENTIAL_TMP"
 grep -qF '[[ "$(systemctl show "$unit" -p NRestarts --value)" == "${NRESTARTS_BEFORE[$unit]}" ]]' \
     "$SCRIPT_DIR/verify-instance.sh" \
     || fail "verify-instance: service checks must assert NRestarts stability, not bare is-active"
-for unit in gunicorn celery-worker celery-beat; do
+for unit in redis gunicorn celery-worker celery-beat; do
     # shellcheck disable=SC2031
     grep -qF "unit_running_stably \"$unit-\$INSTANCE\"" "$SCRIPT_DIR/verify-instance.sh" \
         || fail "verify-instance: $unit check must use the crash-loop-aware stability probe"
@@ -398,6 +435,9 @@ grep -q '^RestartSec=10$' "$TEMPLATE_DIR/celery-worker-instance.service.template
 # shellcheck disable=SC2031
 grep -q '^RestartSec=5$' "$TEMPLATE_DIR/gunicorn-instance.service.template" \
     || fail "gunicorn template: RestartSec changed — re-derive the verifier's stability window"
+# shellcheck disable=SC2031
+grep -q '^RestartSec=5$' "$TEMPLATE_DIR/redis-instance.service.template" \
+    || fail "redis template: RestartSec changed — re-derive the verifier's stability window"
 
 # The permanent verifier's final success must include the real DB-backed
 # integration probe; a standalone restore check cannot make that claim true.

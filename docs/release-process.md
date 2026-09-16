@@ -15,7 +15,7 @@ durable).
   instance (ADR 0064). Production instances track `origin/production`.
 - **PVT is the same command on production**, `verify-instance.sh <client> prod --e2e
   --production`, after the deploy. It runs the suite on a copy of the database with the fake
-  Xero and fences users out for the run (about 40 minutes, including the cache settle), so
+  Xero and fences users out for the run (about 35 minutes), so
   it is a declared window; uptime monitors will alert. Neither run is merge evidence: the
   gate before merge is `./scripts/ops/run_e2e.sh` on a workstation against real Xero.
 - Hotfixes merge into `production` and are back-merged to `main`.
