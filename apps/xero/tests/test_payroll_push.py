@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-from xero_python.payrollnz import EmployeeLeave, TimesheetLine
+from xero_python.payrollnz import EmployeeLeave, LeavePeriod, TimesheetLine
 
 from apps.accounting.types import NotAPayrollWeekError
 from apps.accounts.models import Staff
@@ -775,12 +775,32 @@ class TestPostedLeaveHours:
     a week containing leave reported a shortfall equal to the leave.
     """
 
-    def _leave(self, start: date | None, end: date | None, units: str) -> SimpleNamespace:
+    def _leave(
+        self,
+        start: date | None,
+        end: date | None,
+        units: str,
+        *,
+        period_start: date | None = None,
+    ) -> SimpleNamespace:
+        # Fable: Xero holds one Monday-to-Sunday period per pay period, whatever
+        # day the leave starts (measured on the dev tenant 2026-09-17).
+        if period_start is None and start is not None:
+            period_start = start - timedelta(days=start.weekday())
         return SimpleNamespace(
             leave_id="leave-1",
+            description="Annual Leave",
             start_date=start,
             end_date=end,
-            periods=[SimpleNamespace(period_start_date=start, number_of_units=float(units))],
+            periods=[
+                SimpleNamespace(
+                    period_start_date=period_start,
+                    period_end_date=None
+                    if period_start is None
+                    else period_start + timedelta(days=6),
+                    number_of_units=float(units),
+                )
+            ],
         )
 
     def _stub(self, monkeypatch: pytest.MonkeyPatch, leaves: list[SimpleNamespace]) -> None:
@@ -804,17 +824,69 @@ class TestPostedLeaveHours:
             "12.000"
         )
 
-    def test_leave_spanning_the_week_boundary_belongs_to_neither_week(
+    def test_a_spanning_applications_in_week_period_is_counted(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Same containment rule the reconcile uses, so the two cannot disagree.
+        """Xero pays the in-week period in this week's run, so this week's figure carries it.
 
-        Opus: Xero keeps one period per pay period, and a request straddling the
-        boundary is not this week's to count — splitting it here would double
-        it across two weeks.
+        Fable: This inverts ``test_leave_spanning_the_week_boundary_belongs_to_
+        neither_week``, whose reasoning — "splitting it here would double it
+        across two weeks" — got the arithmetic backwards: Xero already holds one
+        period per week, and counting nothing is what let a week doubled by a
+        spanning application read back as matching (KAN-356).
         """
         week = payroll_push._WeekWindow.of(WEEK_START)
-        self._stub(monkeypatch, [self._leave(WEEK_START - timedelta(days=1), WEEK_START, "8")])
+        previous_week = WEEK_START - timedelta(days=7)
+        spanning = SimpleNamespace(
+            leave_id="leave-1",
+            description="Annual Leave",
+            start_date=previous_week + timedelta(days=2),
+            end_date=WEEK_START + timedelta(days=1),
+            periods=[
+                SimpleNamespace(
+                    period_start_date=previous_week,
+                    period_end_date=previous_week + timedelta(days=6),
+                    number_of_units=24.0,
+                ),
+                SimpleNamespace(
+                    period_start_date=WEEK_START,
+                    period_end_date=WEEK_START + timedelta(days=6),
+                    number_of_units=16.0,
+                ),
+            ],
+        )
+        self._stub(monkeypatch, [spanning])
+
+        assert payroll_leave.posted_leave_hours(uuid.uuid4(), week, tenant_id="tenant") == Decimal(
+            "16.000"
+        )
+
+    def test_a_spanning_application_without_an_in_week_period_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """One period per pay period is the contract; a record without one is not guessed at."""
+        week = payroll_push._WeekWindow.of(WEEK_START)
+        self._stub(
+            monkeypatch,
+            [
+                self._leave(
+                    WEEK_START - timedelta(days=1),
+                    WEEK_START,
+                    "8",
+                    period_start=WEEK_START - timedelta(days=7),
+                )
+            ],
+        )
+
+        with pytest.raises(ValueError, match="no period inside it"):
+            payroll_leave.posted_leave_hours(uuid.uuid4(), week, tenant_id="tenant")
+
+    def test_leave_elsewhere_is_not_counted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        week = payroll_push._WeekWindow.of(WEEK_START)
+        self._stub(
+            monkeypatch,
+            [self._leave(WEEK_START - timedelta(days=7), WEEK_START - timedelta(days=1), "8")],
+        )
 
         assert payroll_leave.posted_leave_hours(uuid.uuid4(), week, tenant_id="tenant") == Decimal(
             "0.000"
@@ -827,6 +899,146 @@ class TestPostedLeaveHours:
 
         with pytest.raises(ValueError, match="unreadable date range"):
             payroll_leave.posted_leave_hours(uuid.uuid4(), week, tenant_id="tenant")
+
+
+@pytest.mark.django_db
+class TestSpanningLeaveRefusesTheWeek:
+    """Recorded leave under a Xero application that crosses the week boundary (KAN-356).
+
+    Fable: The post may only write leave inside the week it posts, so a spanning
+    application was skipped — and then the recorded leave, finding no
+    counterpart, was created beside it. Xero paid both and debited the balance
+    twice, on two consecutive production weeks. The refusal is paired with its
+    converse (ADR 0052): a spanning application nothing was recorded under is
+    still left alone, and leave elsewhere in the year is not the week's concern.
+    """
+
+    def _api(self, monkeypatch: pytest.MonkeyPatch, leaves: list[EmployeeLeave]) -> MagicMock:
+        api = MagicMock()
+        api.get_employee_leaves.return_value = SimpleNamespace(leave=leaves)
+        api.create_employee_leave.return_value = SimpleNamespace(
+            leave=SimpleNamespace(leave_id="created")
+        )
+        monkeypatch.setattr(payroll_sdk, "payroll_api", lambda: api)
+        monkeypatch.setattr("apps.xero.payroll_leave.time.sleep", lambda _seconds: None)
+        return api
+
+    def _spanning(self, leave_type_id: str, start: date, end: date) -> EmployeeLeave:
+        weeks = sorted({day - timedelta(days=day.weekday()) for day in (start, end)})
+        return EmployeeLeave(
+            leave_id="xero-span",
+            leave_type_id=leave_type_id,
+            description="Entered in Xero",
+            start_date=start,
+            end_date=end,
+            periods=[
+                LeavePeriod(
+                    period_start_date=week,
+                    period_end_date=week + timedelta(days=6),
+                    number_of_units=8.0,
+                    period_status="Approved",
+                )
+                for week in weeks
+            ],
+        )
+
+    def _reconcile(self, worker: Staff, lines: list[CostLine]) -> None:
+        payroll_leave.reconcile_leave_for_staff_week(
+            uuid.uuid4(),
+            lines,
+            payroll_push._WeekWindow.of(WEEK_START),
+            tenant_id="tenant",
+            staff_name=worker.get_display_full_name(),
+        )
+
+    def _writes(self, api: MagicMock) -> list[str]:
+        return [
+            name
+            for name in ("create_employee_leave", "update_employee_leave", "delete_employee_leave")
+            if getattr(api, name).called
+        ]
+
+    def test_recorded_leave_under_a_spanning_application_refuses_before_any_write(
+        self, monkeypatch: pytest.MonkeyPatch, company: Company, superuser: Staff, worker: Staff
+    ) -> None:
+        annual = make_leave_job(company, superuser, "Annual Leave")
+        make_time_line(
+            annual, worker, accounting_date=WEEK_START + timedelta(days=2), hours="8.000"
+        )
+        pay_item = annual.default_xero_pay_item
+        assert pay_item is not None
+        leave_type_id = str(pay_item.xero_id)
+        api = self._api(
+            monkeypatch,
+            [
+                self._spanning(
+                    leave_type_id, WEEK_START - timedelta(days=5), WEEK_START + timedelta(days=6)
+                )
+            ],
+        )
+
+        with pytest.raises(payroll_leave.SpanningLeaveOverlapError) as refused:
+            self._reconcile(worker, _lines(annual))
+
+        message = str(refused.value)
+        assert worker.get_display_full_name() in message
+        assert "xero-span" in message
+        assert str(WEEK_START - timedelta(days=5)) in message
+        assert self._writes(api) == [], "the refusal must precede every write"
+
+    def test_the_refusal_ignores_leave_type(
+        self, monkeypatch: pytest.MonkeyPatch, company: Company, superuser: Staff, worker: Staff
+    ) -> None:
+        """A spanning Annual Leave under recorded Sick Leave pays the day twice just the same."""
+        sick = make_leave_job(company, superuser, "Sick Leave")
+        make_time_line(sick, worker, accounting_date=WEEK_START, hours="8.000")
+        api = self._api(
+            monkeypatch,
+            [self._spanning("another-leave-type", WEEK_START - timedelta(days=1), WEEK_START)],
+        )
+
+        with pytest.raises(payroll_leave.SpanningLeaveOverlapError):
+            self._reconcile(worker, _lines(sick))
+
+        assert self._writes(api) == []
+
+    def test_a_spanning_application_nothing_was_recorded_under_is_left_alone(
+        self, monkeypatch: pytest.MonkeyPatch, company: Company, superuser: Staff, worker: Staff
+    ) -> None:
+        """The converse: recorded leave on other days still posts, the application is untouched."""
+        annual = make_leave_job(company, superuser, "Annual Leave")
+        make_time_line(
+            annual, worker, accounting_date=WEEK_START + timedelta(days=4), hours="8.000"
+        )
+        api = self._api(
+            monkeypatch,
+            [self._spanning("another-leave-type", WEEK_START - timedelta(days=1), WEEK_START)],
+        )
+
+        self._reconcile(worker, _lines(annual))
+
+        assert self._writes(api) == ["create_employee_leave"]
+        api.delete_employee_leave.assert_not_called()
+
+    def test_leave_elsewhere_in_the_year_is_ignored(
+        self, monkeypatch: pytest.MonkeyPatch, company: Company, superuser: Staff, worker: Staff
+    ) -> None:
+        annual = make_leave_job(company, superuser, "Annual Leave")
+        make_time_line(annual, worker, accounting_date=WEEK_START, hours="8.000")
+        api = self._api(
+            monkeypatch,
+            [
+                self._spanning(
+                    "another-leave-type",
+                    WEEK_START - timedelta(days=30),
+                    WEEK_START - timedelta(days=20),
+                )
+            ],
+        )
+
+        self._reconcile(worker, _lines(annual))
+
+        assert self._writes(api) == ["create_employee_leave"]
 
 
 @pytest.mark.django_db
@@ -935,6 +1147,46 @@ class TestWeekPostingStatus:
         assert status.recorded_timesheet_hours == Decimal("0")
         assert status.posted_leave_hours == Decimal("8.000")
         assert status.matches
+
+    def test_a_doubled_week_is_not_a_match(
+        self, monkeypatch: pytest.MonkeyPatch, company: Company, superuser: Staff, worker: Staff
+    ) -> None:
+        """Xero holding the recorded leave twice must read as out of sync (KAN-356).
+
+        Fable: ``posted_leave_hours`` now carries a spanning application's
+        in-week period, so the doubled week reports 80h against 40h recorded
+        instead of the 40h-against-40h "ok" the operator was shown.
+        """
+        leave_job = make_leave_job(company, superuser, "Annual Leave")
+        for offset in range(5):
+            make_time_line(
+                leave_job,
+                worker,
+                accounting_date=WEEK_START + timedelta(days=offset),
+                hours="8.000",
+            )
+        employee_id = str(worker.xero_user_id)
+        self._stub_xero(
+            monkeypatch,
+            timesheets={
+                employee_id: payroll_push.PostedTimesheet(
+                    timesheet_id="ts-1",
+                    employee_id=employee_id,
+                    status=payroll_push.STATUS_APPROVED,
+                )
+            },
+            leave_units="80.000",
+        )
+
+        [status] = [
+            row
+            for row in payroll_push.week_posting_status(WEEK_START, tenant_id="tenant")
+            if row.staff_id == str(worker.id)
+        ]
+
+        assert status.recorded_leave_hours == Decimal("40.000")
+        assert status.posted_leave_hours == Decimal("80.000")
+        assert not status.matches
 
     def test_someone_who_left_before_the_week_is_not_reported(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff

@@ -12,24 +12,32 @@ the first clean run; the application will report that operator action rather
 than trying to work around Xero's lock.
 """
 
+import logging
 import time
+from collections.abc import Iterator
+from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
+from uuid import UUID
 
 import pytest
 from django.core.management import call_command
 from django.utils import timezone
 from pytest_django import Settings
+from xero_python.payrollnz import EmployeeLeave, LeavePeriod
 
 from apps.accounting.services import payroll_reconciliation_service
 from apps.accounting.types import StaffWeekPosting, StaffWeekPostResult
 from apps.accounts.models import Staff, StaffPayrollTerm
 from apps.core.models import CompanyDefaults
+from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.platform.observability.models import VendorCall
 from apps.timesheet.services.leave_settings import employee_leave_mappings
-from apps.xero import payroll_push
+from apps.xero import payroll_leave, payroll_push, payroll_sdk
 from apps.xero.auth import get_tenant_id
+from apps.xero.constants import PAYROLL_SLEEP_SECONDS, PAYROLL_UNIT_PRECISION
+from apps.xero.helpers import as_date
 from apps.xero.leave_configuration import configure_default_leave_types
 from apps.xero.models import XeroPayItem, XeroPaySlip
 from apps.xero.operator_guards import assert_not_production_target, assert_xero_writes_enabled
@@ -37,6 +45,8 @@ from apps.xero.payroll_employees import employee_leave_type_ids, get_employee_le
 from apps.xero.payroll_sync import get_pay_slips_for_run
 from apps.xero.sync import one_way_sync_all_xero_data, synchronise_xero_data
 from apps.xero.transforms import transform_pay_slip
+
+logger = logging.getLogger(__name__)
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 
@@ -419,3 +429,200 @@ def test_complete_weekly_payroll_lifecycle(
     assert unchanged.leave_hours == initial_leave
     assert after_id == before_id
     assert _status(postable_week, payroll_staff).matches
+
+
+#: Fable: The leave application KAN-356 is about, in the form an operator enters
+#: it in Xero: one application across two payroll weeks. Placed a year past the
+#: postable week so it never sits under a pay run — a Draft locks leave deletion
+#: for the employee (KAN-326), and the demo tenant usually holds one.
+SPANNING_LEAVE_DESCRIPTION = "[TEST] KAN-356 leave across two payroll weeks"
+
+
+@dataclass(frozen=True)
+class _SpanningLeave:
+    leave: EmployeeLeave
+    first_week: date
+    second_week: date
+
+
+def _find_spanning_leave(employee_id: str) -> EmployeeLeave | None:
+    response = payroll_sdk.payroll_api().get_employee_leaves(
+        xero_tenant_id=get_tenant_id(), employee_id=employee_id
+    )
+    mine = [
+        leave for leave in response.leave or [] if leave.description == SPANNING_LEAVE_DESCRIPTION
+    ]
+    if len(mine) > 1:
+        raise RuntimeError(
+            f"the demo tenant holds {len(mine)} '{SPANNING_LEAVE_DESCRIPTION}' applications for "
+            f"employee {employee_id}; delete all but one in the Xero UI"
+        )
+    return mine[0] if mine else None
+
+
+@pytest.fixture
+def annual_leave_job(payroll_staff: Staff, payroll_lines: list[CostLine]) -> Job:
+    """A leave job bound to the tenant's Annual Leave type, as onboarding binds it."""
+    assert payroll_lines  # converges the tenant leave mappings first
+    from apps.company.tests.factories import make_company  # noqa: PLC0415
+    from apps.company.tests.job_fixtures import make_job  # noqa: PLC0415
+
+    company = make_company("[TEST] KAN-356")
+    job = make_job(company, payroll_staff, name="[TEST] KAN-356 Annual Leave")
+    job.default_xero_pay_item = XeroPayItem.objects.get(
+        xero_tenant_id=get_tenant_id(), uses_leave_api=True, name="Annual Leave"
+    )
+    job.save(update_fields=["default_xero_pay_item"], staff=payroll_staff)
+    return job
+
+
+@pytest.fixture
+def spanning_leave(
+    postable_week: date, payroll_staff: Staff, annual_leave_job: Job
+) -> Iterator[_SpanningLeave]:
+    """Xero holds one Annual Leave application from a Wednesday to the next Tuesday.
+
+    Found before created, so a run whose teardown could not delete it (the
+    standing Draft) reuses it instead of stacking a second one. Weeks are read
+    from the application's own dates, so the reuse survives the postable week
+    moving on between runs.
+    """
+    employee_id = str(payroll_staff.xero_user_id)
+    api = payroll_sdk.payroll_api()
+    leave = _find_spanning_leave(employee_id)
+    if leave is None:
+        first_week = postable_week + timedelta(weeks=52)
+        second_week = first_week + timedelta(weeks=1)
+        pay_item = annual_leave_job.default_xero_pay_item
+        assert pay_item is not None
+        response = api.create_employee_leave(
+            xero_tenant_id=get_tenant_id(),
+            employee_id=employee_id,
+            employee_leave=EmployeeLeave(
+                leave_type_id=str(pay_item.xero_id),
+                description=SPANNING_LEAVE_DESCRIPTION,
+                start_date=first_week + timedelta(days=2),
+                end_date=second_week + timedelta(days=1),
+                # One period per payroll week, the shape ADR 0007 records Xero keeps.
+                periods=[
+                    LeavePeriod(
+                        period_start_date=week,
+                        period_end_date=week + timedelta(days=6),
+                        number_of_units=float(units),
+                        period_status="Approved",
+                    )
+                    for week, units in ((first_week, 24), (second_week, 16))
+                ],
+            ),
+        )
+        time.sleep(PAYROLL_SLEEP_SECONDS)
+        assert response and response.leave and response.leave.leave_id
+        leave = _find_spanning_leave(employee_id)
+        assert leave is not None, "Xero did not return the application it had just created"
+    start = as_date(leave.start_date)
+    assert start is not None
+    first_week = start - timedelta(days=start.weekday())
+    yield _SpanningLeave(
+        leave=leave, first_week=first_week, second_week=first_week + timedelta(weeks=1)
+    )
+
+    session = payroll_leave._LeaveSession(
+        api=api,
+        tenant_id=get_tenant_id(),
+        employee_id=UUID(employee_id),
+        week=payroll_push._WeekWindow.of(first_week),
+    )
+    end = as_date(leave.end_date)
+    assert end is not None
+    try:
+        payroll_leave._delete_leave(session, leave, start, end)
+    except payroll_leave.DraftPayRunBlocksLeaveError as exc:
+        # deliberate-swallow: the standing demo Draft locks this employee's leave
+        # (KAN-326) and cannot be deleted through the API. The application is
+        # harmless a year out, and the next run finds and reuses it.
+        logger.warning("KAN-356 residue left in the demo tenant: %s", exc)
+
+
+def test_live_spanning_leave_carries_one_period_per_payroll_week(
+    spanning_leave: _SpanningLeave,
+) -> None:
+    """The contract the refusal and the posted-hours figure both rest on.
+
+    Fable: ADR 0007 records that Xero keeps one period per pay period. KAN-356's
+    fix counts a spanning application's IN-WEEK period as what Xero pays for the
+    week, so this proves, on the real tenant, that each period lies inside one
+    payroll week, carries its own units, and that the application's weeks are
+    exactly the two it spans.
+    """
+    by_week: dict[date, LeavePeriod] = {}
+    for period in spanning_leave.leave.periods or []:
+        period_start, period_end = (
+            as_date(period.period_start_date),
+            as_date(period.period_end_date),
+        )
+        assert period_start is not None and period_end is not None, period
+        assert period_start.weekday() == 0, f"period {period_start} does not start on a Monday"
+        assert period_end == period_start + timedelta(days=6), period
+        assert period.number_of_units is not None and period.number_of_units > 0, period
+        assert period_start not in by_week, f"two periods for the week of {period_start}"
+        by_week[period_start] = period
+    assert set(by_week) == {spanning_leave.first_week, spanning_leave.second_week}
+
+
+def test_live_spanning_leave_is_refused_and_counted(
+    payroll_staff: Staff, spanning_leave: _SpanningLeave, annual_leave_job: Job
+) -> None:
+    """Recorded leave under a spanning application refuses before any write; the
+    status figure counts the application's in-week period (KAN-356)."""
+    from apps.timesheet.tests.conftest import make_time_line  # noqa: PLC0415
+
+    employee_id = UUID(str(payroll_staff.xero_user_id))
+    tenant_id = get_tenant_id()
+    week = payroll_push._WeekWindow.of(spanning_leave.first_week)
+    line = make_time_line(
+        annual_leave_job,
+        payroll_staff,
+        accounting_date=spanning_leave.first_week + timedelta(days=2),
+        hours="8.000",
+    )
+    ids_before = {
+        leave.leave_id
+        for leave in payroll_sdk.payroll_api()
+        .get_employee_leaves(xero_tenant_id=tenant_id, employee_id=str(employee_id))
+        .leave
+        or []
+    }
+
+    with pytest.raises(payroll_leave.SpanningLeaveOverlapError) as refused:
+        payroll_leave.reconcile_leave_for_staff_week(
+            employee_id,
+            [line],
+            week,
+            tenant_id=tenant_id,
+            staff_name=payroll_staff.get_display_full_name(),
+        )
+    assert str(spanning_leave.leave.leave_id) in str(refused.value)
+    assert payroll_staff.get_display_full_name() in str(refused.value)
+
+    in_week = next(
+        period
+        for period in spanning_leave.leave.periods or []
+        if as_date(period.period_start_date) == spanning_leave.first_week
+    )
+    assert payroll_leave.posted_leave_hours(employee_id, week, tenant_id=tenant_id) == Decimal(
+        str(in_week.number_of_units)
+    ).quantize(PAYROLL_UNIT_PRECISION)
+
+    # The converse: with nothing recorded under it, the application is left alone
+    # and the week reconciles to nothing.
+    payroll_leave.reconcile_leave_for_staff_week(
+        employee_id, [], week, tenant_id=tenant_id, staff_name=payroll_staff.get_display_full_name()
+    )
+    ids_after = {
+        leave.leave_id
+        for leave in payroll_sdk.payroll_api()
+        .get_employee_leaves(xero_tenant_id=tenant_id, employee_id=str(employee_id))
+        .leave
+        or []
+    }
+    assert ids_after == ids_before

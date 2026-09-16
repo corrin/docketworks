@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **57 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 266 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3415 collected |
+| Unit tests | 3424 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 134 recorded deviations |
@@ -71,33 +71,23 @@ Not a tier — just the things a session should have a reason not to pick up.
    integration check on a Docker-capable host. Audit target-instance receipt/status
    mismatches before promotion; partial delivery has no receipt UI.
    See [the plan](plans/2026-09-07-KAN-358-po-receipt-status.md).
-2. **[KAN-356](https://docketworks.atlassian.net/browse/KAN-356): payroll posting
-   double-books leave, and reports `ok` while doing it.** Live in production, and money
-   is already out the door — $1,442 gross overpaid and 40h double-debited for one
-   employee, on each of two consecutive weeks; the second was caught only by a
-   hand-entered offsetting line. `reconcile_leave_for_staff_week`
-   (`apps/xero/payroll_leave.py:327`) skips any Xero leave application not fully
-   *contained* in the posting week, so a multi-week application entered in Xero is
-   invisible and `_create_leave` writes a second one on top. `posted_leave_hours`
-   (`:293`) applies the same containment rule, which is why `posting_status_for_week`
-   reports a match on the doubled week. Detect overlap, refuse, and name the Xero leave.
-3. **Eight production `Procedure` rows link dead Google Docs — one is on a clock.**
+2. **Eight production `Procedure` rows link dead Google Docs — one is on a clock.**
    Doc.363 Milling Machine SOP is in Drive trash and its 30-day purge window opened
    2026-08-26. Untrash it before that expires. The other seven are invisible even to
    the Workspace owner; the owner arbitrates restore-from-backup vs archive per doc,
    then the surviving rows are relinked or archived on the production instance — a data
    fix, never a read-side fallback (ADR 0015). The row list is in `rewrite-history.md`.
    Re-verify with `outbound_links_probe --kind google_file --google-as delegated`.
-4. **Port the workshop schedule.** No route, no `AppNavbar` entry and no algorithm, so
+3. **Port the workshop schedule.** No route, no `AppNavbar` entry and no algorithm, so
    the shop plans without it. See Screens for the port target and the two defects not to
    reproduce.
-5. **[KAN-335](https://docketworks.atlassian.net/browse/KAN-335)** was written "blocked
+4. **[KAN-335](https://docketworks.atlassian.net/browse/KAN-335)** was written "blocked
    until production cutover is complete" and is now unblocked. It restores the
    `format: uuid` contract the port dropped on 424 properties, extends
    `schema_parity_diff.py` to see property types at all, and gives `CostLine.meta` one
    definition instead of three. Its step 1 generates the work list for its step 2, so
    nothing here is hand-listed.
-6. **`/purchasing/mappings`** has been labelled "this slice lands first" since before
+5. **`/purchasing/mappings`** has been labelled "this slice lands first" since before
    the flip and is still unbuilt three releases later. Either it lands or it stops
    claiming to be first.
 

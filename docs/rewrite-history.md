@@ -1761,3 +1761,62 @@ connection. The runner now takes its post-restore quota reading only in real mod
 The full Python suite passed 3,384 tests after the link-inventory fix. The first browser
 attempt after recovery could not launch the newly required Playwright Chromium binary;
 its teardown restored the database, and the matching browser was installed for the retry.
+
+## 2026-09-15 — The two real-gate failures, root-caused (PR #165)
+
+The detail-refresh spec never sent its request: `run_e2e.sh` started Celery Beat against the
+repo-root `celerybeat-schedule`, Beat replayed the missed hourly tick 3 s after the stack came
+up, and because a restored database is always due a full employee detail refresh
+(`sync.py:609` upgrades an hourly run when `detail_refresh_due`), that sync held the one lock
+for 538 s (64 payroll calls in the first 98 s, then invoices, quotes, contacts, pay runs). The
+spec opened the page 141 s in and its 210 s wait on the button ended 187 s before the lock
+freed. The 16 s passes on 14 Sep could only have been the hourly sync's events satisfying the
+spec's assertions, since a real refresh costs about 98 s. Ruling (owner): Beat runs the suite
+on a run-scoped schedule file, and the spec asserts on the run it dispatched, by task id.
+Residual: a real `:15` tick can still land inside the spec's window about one run in twenty.
+
+JO-0829 is spent for good. The Demo Company holds JO-0826, JO-0829 and JO-0833 as DELETED
+without the rename-on-void (deleted 12 Sep at 05:05–05:53 UTC, before the rename landed the
+same day; every delete since carries a `-VOID-` suffix). Measured today: an update of JO-0829
+by id with status DRAFT answers HTTP 400, "PurchaseOrder status change is invalid" and
+"Deleted PurchaseOrders cannot be updated"; the SDK has no restore endpoint and the 12 Sep
+measurement already showed a rename of a deleted order refused. The number recurs because
+`generate_po_number` is MAX over surviving rows plus one and the E2E teardown restores the
+pre-run dump, so every real run starts again at JO-0826. Ruling (owner): left failing for now;
+the Xero web UI is untried. Options on record: step `starting_po_number` past the band on dev;
+route the app's own Deleted status through the rename-on-void call (`apps/xero/documents/po.py`
+sends DELETED under the order's own number, which burns it); make numbering monotonic.
+
+## 2026-09-17 — The payroll post refuses recorded leave under a spanning Xero application (KAN-356)
+
+`reconcile_leave_for_staff_week` only saw Xero leave applications fully contained in the
+posting week. An application entered in Xero across two payroll weeks was invisible, so the
+week's recorded leave found no counterpart and was created beside it; Xero paid both and
+debited the balance twice, on two consecutive production weeks. `posted_leave_hours` applied
+the same containment rule, so the status check reported the doubled week as matching. The
+containment rule arrived in PR #74 with no stated rationale and was pinned by a unit test
+whose docstring reasoned that counting a spanning application's in-week period "would double
+it across two weeks"; the arithmetic runs the other way, since Xero already holds one period
+per week.
+
+Rulings (owner): a spanning application refuses the week whenever recorded leave shares a
+day with it, regardless of leave type — a spanning Annual Leave under recorded Sick Leave
+pays the day twice just the same. No "accept an exact in-week match" path: the operator
+fixes the application in Xero and posts again. The refusal aborts the whole week before any
+pay run or timesheet write, per ADR 0007; a per-staff skip would need the pipeline
+restructured for no gain. A spanning application nothing was recorded under is left alone
+and alerts through the status check instead (Xero holds Nh leave, recorded 0h). ADR 0007
+carries the rule.
+
+Contract measured on the dev tenant 2026-09-17: an Annual Leave application from a Wednesday
+to the following Tuesday came back with exactly two periods, each Monday-to-Sunday, each with
+its own `numberOfUnits`; `GET /Employees/{id}/Leave` takes no date filter. The status figure
+now sums the periods inside the week for every application overlapping it; a spanning
+application with no in-week period is refused rather than guessed.
+
+Production remediation is an operator action in Xero, not code: the 24–30 Aug 2026 pay run
+(`2fd223ad-…`) is Posted with the duplicate line and needs the same offsetting entry that
+17–23 Aug received by hand. The fake serves no `/Employees/{id}/Leave` routes, so no E2E spec
+can stage a spanning application; the live integration suite carries the pair
+(`test_live_spanning_leave_carries_one_period_per_payroll_week`,
+`test_live_spanning_leave_is_refused_and_counted`).
