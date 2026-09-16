@@ -87,6 +87,23 @@ reset that way and scanner delivery stopped silently while Maestral, systemd
 and disk all reported healthy (KAN-360). `verify-instance.sh` fails the instance
 if the mode is not 2770.
 
+### The client's own hostname
+
+The instance is created as `<client>-prod.docketworks.site`. The client's own
+name is where their bookmarks, emailed links and the Xero app's registered
+redirect URI live, so it is the canonical `--fqdn` and the fleet name becomes
+the alias; `XERO_REDIRECT_URI` in the credentials file names the canonical
+host. The full sequence (DNS record, certificate, reconfigure, verification on
+every hostname) is "An instance on a second hostname" in
+[`server_setup.md`](server_setup.md); the certificate list is persisted in
+`/etc/letsencrypt/cert-domains.txt`, so add the client name there and re-run
+`server-setup.sh` rather than passing a partial `--cert-domain` list.
+
+```bash
+sudo scripts/server/instance.sh reconfigure <client> prod --fqdn <client-fqdn> --alias <client>-prod.docketworks.site
+sudo scripts/server/verify-instance.sh <client> prod
+```
+
 ## 3. Start services and authorise Xero
 
 Sign in with the admin login, open Admin > Xero, and complete the OAuth flow.
