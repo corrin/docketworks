@@ -15,7 +15,7 @@ deletions), and only leave with no counterpart is deleted.
 import logging
 import time
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
@@ -60,6 +60,17 @@ class DraftPayRunBlocksLeaveError(ValueError):
     """
 
 
+class SpanningLeaveOverlapError(ValueError):
+    """Recorded leave sits under a Xero application that crosses the week boundary.
+
+    Fable: Its own class for the same reason as the draft-pay-run block: the fix is
+    an operator action in Xero, not a retry. The post may only write leave inside
+    the week it is posting, and a spanning application is not its to edit; writing
+    the recorded leave beside it paid the days twice and debited the balance twice
+    (KAN-356), so the week refuses instead and names the application to fix.
+    """
+
+
 class LeaveRequestSpec(TypedDict):
     """One leave request Docketworks wants to exist in Xero."""
 
@@ -89,26 +100,48 @@ class _LeaveSession:
     week: "_WeekWindow"
 
 
-def _leave_units(leave: EmployeeLeave) -> Decimal:
-    """Total paid hours across a Xero leave record's periods.
+def _units_within_week(leave: EmployeeLeave, week: "_WeekWindow") -> Decimal:
+    """Sum the hours a Xero leave record pays inside the payroll week.
 
     Opus: Xero collapses leave into one period per pay period and keeps only the
     total — per-day breakdowns sent to the API are discarded (KAN-326) — so the
     total is the only unit figure that round-trips, and therefore the only one
     leave can be matched on. ``number_of_units_taken`` is the CONSUMED amount,
     a different quantity, and is never a substitute.
+
+    Fable: Summed over the periods inside the week rather than over all of them.
+    For leave contained in the week the two are the same figure; for leave that
+    crosses the week boundary Xero holds one period per week it touches, and the
+    in-week one is what this week's pay run pays (KAN-356). A spanning record
+    with no period in a week it overlaps contradicts that contract, and the
+    figure is refused rather than guessed.
     """
     periods = leave.periods or []
     if not periods:
         raise ValueError(f"Xero leave {leave.leave_id} has no periods")
     total = Decimal("0")
+    matched = False
     for period in periods:
+        period_start = as_date(period.period_start_date)
+        period_end = as_date(period.period_end_date)
+        if period_start is None or period_end is None:
+            raise ValueError(
+                f"Xero leave {leave.leave_id} has a period with an unreadable date range: "
+                f"{period.period_start_date!r} to {period.period_end_date!r}"
+            )
+        if not (week.start <= period_start and period_end <= week.end):
+            continue
         if period.number_of_units is None:
             raise ValueError(
-                f"Xero leave {leave.leave_id} period {period.period_start_date} "
-                "has no number_of_units"
+                f"Xero leave {leave.leave_id} period {period_start} has no number_of_units"
             )
+        matched = True
         total += Decimal(str(period.number_of_units))
+    if not matched:
+        raise ValueError(
+            f"Xero leave {leave.leave_id} ({leave.start_date} to {leave.end_date}) overlaps "
+            f"the payroll week {week.start}-{week.end} but carries no period inside it"
+        )
     return total.quantize(PAYROLL_UNIT_PRECISION)
 
 
@@ -245,6 +278,11 @@ def _draft_block_message(action: str, leave_id: str, start: date, end: date, ten
     )
 
 
+def _shared_days(start_a: date, end_a: date, start_b: date, end_b: date) -> int:
+    """How many calendar days two inclusive date ranges have in common; zero or less is none."""
+    return (min(end_a, end_b) - max(start_a, start_b)).days + 1
+
+
 def _take_overlapping_spec(
     desired: dict[LeaveKey, LeaveRequestSpec], leave_type_id: str, start: date, end: date
 ) -> LeaveRequestSpec | None:
@@ -258,7 +296,7 @@ def _take_overlapping_spec(
     for key, spec in desired.items():
         if spec["leave_type_id"] != leave_type_id:
             continue
-        overlap = (min(spec["end_date"], end) - max(spec["start_date"], start)).days + 1
+        overlap = _shared_days(spec["start_date"], spec["end_date"], start, end)
         if overlap <= 0:
             continue
         rank = (-overlap, spec["start_date"])
@@ -267,22 +305,37 @@ def _take_overlapping_spec(
     return desired.pop(best_key) if best_key is not None else None
 
 
-def posted_leave_hours(employee_id: UUID, week: "_WeekWindow", *, tenant_id: str) -> Decimal:
-    """Total leave hours Xero currently holds for the employee inside the week.
+@dataclass(frozen=True)
+class _DatedLeave:
+    """A Xero leave record with its dates read once."""
 
-    Opus: The counterpart to ``payroll_push._posted_total``, which sees only the
-    Timesheets API. Leave never appears on a timesheet, so without this half a
-    recorded-versus-posted comparison reports a shortfall on every week that
-    contains any leave at all.
+    leave: EmployeeLeave
+    start: date
+    end: date
 
-    Containment matches ``reconcile_leave_for_staff_week``: leave spanning a
-    week boundary belongs to neither week's total, and that rule lives here
-    once rather than being restated by each caller.
+
+@dataclass(frozen=True)
+class _WeekLeave:
+    """The employee's Xero leave, sorted by how it sits against the week.
+
+    Fable: ``contained`` is the reconciler's to create, update and delete.
+    ``spanning`` overlaps the week but crosses its boundary, so the post may not
+    write it, yet Xero pays its in-week period in this week's pay run — it is
+    counted, and recorded leave under it is refused (KAN-356). Leave sharing no
+    day with the week is neither, and is not carried.
     """
+
+    contained: list[_DatedLeave]
+    spanning: list[_DatedLeave]
+
+
+def _week_leave(employee_id: UUID, week: "_WeekWindow", *, tenant_id: str) -> _WeekLeave:
+    """Fetch the employee's leave and sort it against the week."""
     response = payroll_sdk.payroll_api().get_employee_leaves(
         xero_tenant_id=tenant_id, employee_id=str(employee_id)
     )
-    total = Decimal("0")
+    contained: list[_DatedLeave] = []
+    spanning: list[_DatedLeave] = []
     for leave in response.leave or []:
         leave_start, leave_end = as_date(leave.start_date), as_date(leave.end_date)
         if leave_start is None or leave_end is None:
@@ -290,13 +343,44 @@ def posted_leave_hours(employee_id: UUID, week: "_WeekWindow", *, tenant_id: str
                 f"Xero leave {leave.leave_id} has an unreadable date range: "
                 f"{leave.start_date!r} to {leave.end_date!r}"
             )
-        if leave_start >= week.start and leave_end <= week.end:
-            total += _leave_units(leave)
+        if _shared_days(leave_start, leave_end, week.start, week.end) <= 0:
+            continue
+        dated = _DatedLeave(leave=leave, start=leave_start, end=leave_end)
+        if week.start <= leave_start and leave_end <= week.end:
+            contained.append(dated)
+        else:
+            spanning.append(dated)
+    return _WeekLeave(contained=contained, spanning=spanning)
+
+
+def posted_leave_hours(employee_id: UUID, week: "_WeekWindow", *, tenant_id: str) -> Decimal:
+    """Total leave hours Xero will pay the employee for the week.
+
+    Opus: The counterpart to ``payroll_push._posted_total``, which sees only the
+    Timesheets API. Leave never appears on a timesheet, so without this half a
+    recorded-versus-posted comparison reports a shortfall on every week that
+    contains any leave at all.
+
+    Fable: Leave crossing the week boundary counts its in-week period. It used to
+    count nothing, on the reasoning that it "belongs to neither week" — but Xero
+    pays that period in this week's run, so a week doubled by a spanning
+    application read back as matching the timesheet (KAN-356).
+    """
+    held = _week_leave(employee_id, week, tenant_id=tenant_id)
+    total = sum(
+        (_units_within_week(dated.leave, week) for dated in held.contained + held.spanning),
+        Decimal("0"),
+    )
     return total.quantize(PAYROLL_UNIT_PRECISION)
 
 
 def reconcile_leave_for_staff_week(
-    employee_id: UUID, lines: Sequence[CostLine], week: "_WeekWindow", *, tenant_id: str
+    employee_id: UUID,
+    lines: Sequence[CostLine],
+    week: "_WeekWindow",
+    *,
+    tenant_id: str,
+    staff_name: str,
 ) -> None:
     """Make the employee's Xero leave for the week match the timesheet.
 
@@ -306,54 +390,75 @@ def reconcile_leave_for_staff_week(
     is in a draft pay run but refuses deletions (KAN-326), so updating is the
     path that still works late in the week. Only leave with no counterpart is
     deleted, and leave spanning a week boundary is never touched at all.
+
+    Fable: Never touched, and never written over either. Recorded leave sharing a
+    day with a spanning application refuses the week before any write, whatever
+    the leave type: Xero would pay both applications for those days (KAN-356).
     """
-    api = payroll_sdk.payroll_api()
-    response = api.get_employee_leaves(xero_tenant_id=tenant_id, employee_id=str(employee_id))
+    held = _week_leave(employee_id, week, tenant_id=tenant_id)
     desired: dict[LeaveKey, LeaveRequestSpec] = {
         _leave_key(
             spec["leave_type_id"], spec["start_date"], spec["end_date"], spec["total_units"]
         ): spec
         for spec in _build_leave_requests(lines)
     }
+    _refuse_leave_under_spanning_applications(staff_name, held.spanning, desired.values())
 
-    stale: list[tuple[EmployeeLeave, date, date]] = []
-    for leave in response.leave or []:
-        leave_start, leave_end = as_date(leave.start_date), as_date(leave.end_date)
-        if leave_start is None or leave_end is None:
-            raise ValueError(
-                f"Xero leave {leave.leave_id} has an unreadable date range: "
-                f"{leave.start_date!r} to {leave.end_date!r}"
-            )
-        if not (leave_start >= week.start and leave_end <= week.end):
-            continue
+    stale: list[_DatedLeave] = []
+    for dated in held.contained:
+        leave = dated.leave
         if leave.leave_type_id is None:
             raise ValueError(f"Xero leave {leave.leave_id} has no leave_type_id")
-        key = _leave_key(leave.leave_type_id, leave_start, leave_end, _leave_units(leave))
+        key = _leave_key(
+            leave.leave_type_id, dated.start, dated.end, _units_within_week(leave, week)
+        )
         if key in desired:
             del desired[key]
         else:
-            stale.append((leave, leave_start, leave_end))
+            stale.append(dated)
 
-    session = _LeaveSession(api=api, tenant_id=tenant_id, employee_id=employee_id, week=week)
+    session = _LeaveSession(
+        api=payroll_sdk.payroll_api(), tenant_id=tenant_id, employee_id=employee_id, week=week
+    )
     _resolve_stale_leave(session, stale, desired)
     for spec in desired.values():
         _create_leave(session, spec)
 
 
+def _refuse_leave_under_spanning_applications(
+    staff_name: str, spanning: Sequence[_DatedLeave], desired: Iterable[LeaveRequestSpec]
+) -> None:
+    """Refuse the week when recorded leave shares a day with a spanning Xero application."""
+    for spec in desired:
+        for dated in spanning:
+            if _shared_days(spec["start_date"], spec["end_date"], dated.start, dated.end) <= 0:
+                continue
+            raise SpanningLeaveOverlapError(
+                f"{staff_name} has {spec['total_units']}h of {spec['description']} recorded for "
+                f"{spec['start_date']} to {spec['end_date']}, but Xero already holds leave "
+                f"request {dated.leave.leave_id} ({dated.leave.description!r}, {dated.start} to "
+                f"{dated.end}) covering those days and reaching outside the payroll week. "
+                "Posting would pay both. In Xero, go to Payroll then Leave, and either split "
+                "that request at the week boundary and remove this week's part, or delete "
+                "it and let the timesheet post it; then post to Xero again. Nothing was "
+                "posted for this week."
+            )
+
+
 def _resolve_stale_leave(
     session: _LeaveSession,
-    stale: Sequence[tuple[EmployeeLeave, date, date]],
+    stale: Sequence[_DatedLeave],
     desired: dict[LeaveKey, LeaveRequestSpec],
 ) -> None:
     """Update stale leave to a desired request where one overlaps, else delete it."""
-    for leave, leave_start, leave_end in stale:
+    for dated in stale:
         replacement = _take_overlapping_spec(
-            desired, str(leave.leave_type_id), leave_start, leave_end
+            desired, str(dated.leave.leave_type_id), dated.start, dated.end
         )
         if replacement is not None:
-            _update_leave(session, leave, replacement, leave_start, leave_end)
+            _update_leave(session, dated.leave, replacement, dated.start, dated.end)
             continue
-        _delete_leave(session, leave, leave_start, leave_end)
+        _delete_leave(session, dated.leave, dated.start, dated.end)
 
 
 def _update_leave(
