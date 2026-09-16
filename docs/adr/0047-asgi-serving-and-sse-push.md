@@ -101,9 +101,10 @@ channel.** `EVENTSTREAM_REDIS` is built from `REDIS_URL` with redis-py's
 `connection_class` at startup rather than at the first published event, because
 the library builds both a sync and an async client from that one dict.
 `DATA_VERSIONS_CHANNEL` includes the database name: Redis pub/sub is
-server-wide rather than scoped to a database index, and instances share one
-redis-server, so an unnamespaced channel delivers one instance's events to
-another. The test settings `del EVENTSTREAM_REDIS`, because the library selects
+server-wide rather than scoped to a database index, and the instance's own
+redis-server (ADR 0065) still serves both its live database and the copy the
+ADR 0064 window runs on, so an unnamespaced channel would deliver one
+database's events to the other. The test settings `del EVENTSTREAM_REDIS`, because the library selects
 its multiprocess listener on that setting's mere presence.
 
 **No storage backend, so no event ids and no replay.** The contract is
