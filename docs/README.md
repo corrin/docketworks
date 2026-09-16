@@ -40,5 +40,4 @@ Follow these in order:
 | [frontend-testing-plan.md](frontend-testing-plan.md) | Field-integrity testing plan for the React SPA, written 2026-08-04 and partly done |
 | [adr/](adr/README.md) | Architectural decision records |
 | [accepted-api-differences.yml](accepted-api-differences.yml) | v2 behaviour that deliberately differs from v1; a behaviour ledger, nothing gates on it |
-| [v1-baseline.md](v1-baseline.md) | Which v1 commit each port phase read; post-fork v1 changes and their port status |
 | [v1-disposition.md](v1-disposition.md) | Every v1 operational asset: ported (with its v2 path), dropped (with the rejecting fact), or blocked-by a named feature it lands with |
