@@ -43,6 +43,11 @@ never drove past one page.
 - **Some corpora are bounded by policy, not by growth.** Session replays live inside a retention
   window, so their production count is a moving ceiling rather than an ever-rising floor. Read
   what bounds a table before treating its production count as a target.
+- **Fable: a measurement answers only for a database built the way the claim's database is
+  built.** A migration judged harmless on a database that was already normalised, or a quota
+  budget summed on a run whose data differed from the gate's, has measured a different question.
+  Build the copy the way the target is built (a restore the way cutover restores; the E2E
+  corpus the gate runs on), then measure.
 
 ## Do not
 
