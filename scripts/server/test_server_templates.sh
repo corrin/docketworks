@@ -545,6 +545,7 @@ REHEARSE_OUT="$(
         || echo "MISSING_FUNCTION"
     declare -f do_destroy | grep -q 'read -r -p "Are you sure?' || echo "DESTROY_NO_PROMPT"
     declare -f destroy_instance | grep -q 'read -r -p' && echo "DESTROY_WORK_PROMPTS"
+    declare -f rehearse_report | grep -q 'systemctl stop' || echo "REPORT_LEAVES_UNITS_RUNNING"
     CONFIG_DIR="$REHEARSE_CONFIG_DIR"
     require_root_owned_credentials_file() { [[ -f "$1" ]]; }
     # Last: a refusal exits the subshell, which is why shellcheck reads the
@@ -565,6 +566,9 @@ echo "$REHEARSE_OUT" | grep -q 'prepare-config test uat --seed' \
     || fail "rehearse: refusal must name prepare-config"
 echo "$REHEARSE_OUT" | grep -q 'test-uat.e2e.env' \
     || fail "rehearse: refusal must name the e2e credentials file"
+# A red run's instance costs a tenant's worth of memory if left running (ADR 0066).
+echo "$REHEARSE_OUT" | grep -q "REPORT_LEAVES_UNITS_RUNNING" \
+    && fail "rehearse: the failure path must stop the instance's units"
 # The dev-box wrapper reports the host's status, not tee's.
 grep -q 'PIPESTATUS\[0\]' "$REPO_ROOT/scripts/ops/rehearse_instance.sh" \
     || fail "rehearse_instance.sh: must take its exit status from the ssh side of the pipe"

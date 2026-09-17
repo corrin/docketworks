@@ -482,8 +482,9 @@ The host's output streams to the terminal and to `logs/rehearsals/<timestamp>.lo
 exit status is the host's. On the host, each run writes
 `/opt/docketworks/rehearsals/<timestamp>-<sha8>/result.txt` (step reached, exit, ref, sha,
 duration, whether the instance was left) beside the Playwright report, traces and history.
-While a failed run's instance is left on the host, `deploy.sh --all` would deploy it like
-any other instance. The run is red at its `connect` step until the pieces named in
+A failed run leaves its instance stopped, with its directory and database intact; to look
+closer, `systemctl start` its four units by hand. While it is on the host, `deploy.sh --all`
+would deploy it like any other instance and start it again. The run is red at its `connect` step until the pieces named in
 `apps/xero/fake/tests/test_every_call_is_routed.py` land.
 
 ---

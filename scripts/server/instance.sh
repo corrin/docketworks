@@ -1226,8 +1226,20 @@ rehearse_report() {
     local status=$?
     set +e
     rehearse_collect_artifacts
-    local instance_left=yes
-    [[ "$STEP" == "done" ]] && instance_left=no
+    local unit_state=destroyed
+    if [[ "$STEP" != "done" && -d "$INSTANCE_DIR" ]]; then
+        # Inspection needs the directory and the database, not the processes:
+        # an idle instance holds ~2.5 GiB resident (measured 2026-09-17, the
+        # same as one serving users, because the process shape is fixed) and
+        # the host has no swap, so a red run left running is a tenant's worth
+        # of memory until the next rehearsal. Redis goes too: nothing queued
+        # on a stopped rehearsal instance is worth keeping.
+        local unit
+        for unit in celery-beat celery-worker gunicorn redis; do
+            systemctl stop "$unit-$INSTANCE" 2>/dev/null || true
+        done
+        unit_state=stopped
+    fi
     {
         echo "instance=$INSTANCE"
         echo "ref=$REF"
@@ -1236,12 +1248,12 @@ rehearse_report() {
         echo "duration_s=$SECONDS"
         echo "step_reached=$STEP"
         echo "exit=$status"
-        echo "instance_left=$instance_left"
+        echo "units=$unit_state"
     } > "$RUN_DIR/result.txt"
     if [[ "$STEP" == "done" ]]; then
         echo "REHEARSAL PASSED: $INSTANCE from $REF ($SHA8) created, onboarded, verified, destroyed — $RUN_DIR"
     else
-        echo "REHEARSAL FAILED at $STEP (exit $status): $INSTANCE left for inspection; artifacts under $RUN_DIR" >&2
+        echo "REHEARSAL FAILED at $STEP (exit $status): $INSTANCE stopped and left for inspection; artifacts under $RUN_DIR" >&2
     fi
     exit "$status"
 }
@@ -1296,8 +1308,6 @@ do_rehearse() {
     SHA8="$(short_release_sha "$TARGET_SHA")"
     mkdir -p "$REHEARSALS_DIR"
     chmod 755 "$REHEARSALS_DIR"
-    RUN_DIR="$REHEARSALS_DIR/$(date +%Y%m%d_%H%M%S)-$SHA8"
-    mkdir "$RUN_DIR"
     local marker="$REHEARSALS_DIR/.active"
 
     STEP=leftover
@@ -1311,6 +1321,9 @@ do_rehearse() {
             exit 1
         fi
     fi
+    # After the guard: a refused run has no report and leaves no directory.
+    RUN_DIR="$REHEARSALS_DIR/$(date +%Y%m%d_%H%M%S)-$SHA8"
+    mkdir "$RUN_DIR"
     echo "$INSTANCE" > "$marker"
 
     STARTED="$(date '+%Y-%m-%d %H:%M:%S')"
