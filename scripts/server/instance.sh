@@ -1080,16 +1080,6 @@ do_destroy() {
         rm -f "/etc/systemd/system/redis-$INSTANCE.service"
         systemctl daemon-reload
     fi
-    # Legacy: clean up the pre-celery-beat scheduler-$INSTANCE unit if present
-    # (from an instance created before the apscheduler→celery-beat migration).
-    if systemctl is-active --quiet "scheduler-$INSTANCE" 2>/dev/null; then
-        systemctl stop "scheduler-$INSTANCE"
-    fi
-    if [[ -f "/etc/systemd/system/scheduler-$INSTANCE.service" ]]; then
-        systemctl disable "scheduler-$INSTANCE" 2>/dev/null || true
-        rm -f "/etc/systemd/system/scheduler-$INSTANCE.service"
-        systemctl daemon-reload
-    fi
     if [[ -f "/etc/systemd/system/backup-db-$INSTANCE.timer" ]]; then
         echo "=== Removing Backup timer ==="
         systemctl stop "backup-db-$INSTANCE.timer" 2>/dev/null || true

@@ -189,7 +189,7 @@ loaders skip anything a restored database already carries.
 
 ### Per-instance test database
 
-`create` (and `reconfigure`, for instances that predate this) also provisions
+`create` also provisions
 a per-tenant pytest role: a `dw_<client>_<env>_test` Postgres role with
 `CREATEDB`, its credentials written into the instance `.env` as
 `TEST_DB_USER` and `TEST_DB_PASSWORD`. The role owns no database at rest:

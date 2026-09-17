@@ -33,8 +33,7 @@ production data never lands on disk on either host.
 `scripts/ops/verify_scrubbed_backup.py` remains the acceptance check of its
 output.
 
-Instances created before the scrub database existed gain it with one
-`sudo scripts/server/instance.sh reconfigure <client> <env>`.
+
 
 ## scripts/
 

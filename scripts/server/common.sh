@@ -129,8 +129,8 @@ ensure_instance_backup_dir() {
 
 # The hostnames an instance answers on: its canonical FQDN (.fqdn) first, then
 # every alias (.aliases, one per line). instance.sh writes both files on every
-# create and reconfigure, so a missing file is an instance that predates them
-# and needs a reconfigure — not a case to default. The three readers this
+# create and reconfigure, so a missing file needs a reconfigure — not a case to
+# default. The three readers this
 # replaced each fell back to <instance>.docketworks.site, which is wrong for
 # every --fqdn instance and was silently so.
 instance_hostnames() {

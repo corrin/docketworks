@@ -18,9 +18,8 @@ scrubs in place, and re-dumps the scrubbed copy. Raw production data never lands
 on disk on either host; the scrubbed dump carries no external-system credentials
 and no password hashes, because the scrub replaces every one. The producer needs
 the instance's `dw_<client>_<env>_scrub` database and the `SCRUB_DB_NAME` line in
-its `.env`. Instances are created with both; an older instance gains them with one
-`sudo scripts/server/instance.sh reconfigure <client> <env>` on its host, and
-nothing in this runbook changes the production host's configuration.
+its `.env`, both written at instance creation; nothing in this runbook changes the
+production host's configuration.
 
 ## Audit
 
