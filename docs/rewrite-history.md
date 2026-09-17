@@ -1877,4 +1877,8 @@ Ruling: no skip flag. The validator that runs before any state is mutated now re
 record's field set to equal the shipped fixture's, in both directions, and a Django test
 holds that fixture to the model; the sync-gate and tenant-id rules no longer carry their own
 presence checks. A release that renames or adds a `CompanyDefaults` field is followed by
-editing every host's config file, which `validate-config` now names.
+editing every host's config file, which `validate-config` now names. Two stale references
+went with it: the post-create check `check_company_defaults.py` told the operator to reload
+a `.fixtures` file that `create` deletes, and now names the PDF that needs the wide logo and
+the admin screen and config file that set it; the 2026-08-10 timesheet spec dropped its
+shipped "environmental prerequisites" list, which still named `annual_leave_loading`.
