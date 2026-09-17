@@ -6,6 +6,7 @@ Decisions that shape this codebase, written for the reader about to do work here
 
 - **Filename:** `NNNN-short-kebab-topic.md`, zero-padded 4-digit sequential.
 - **Numbering is stable.** Never renumber; never re-use a number; gaps from removed ADRs stay as gaps. Code cites ADRs by number.
+- **A retired ADR is deleted, and its index row stays.** The row records the retirement date and where the rule went, so a citation by number still resolves to the successor rather than to nothing.
 - **Substance bar.** An ADR captures a non-obvious decision a careful reader of the code couldn't reconstruct.
 - **Every sentence is load-bearing:** a rule, or the forcing fact that makes a rule stick. No narrative problem statements, no essays defending alternatives, no consequences sections restating the decision — deliberation history lives in git. Rationale is a clause attached to its rule.
 - **Clear prose, not fragments.** Brevity comes from cutting sentences that don't change behaviour, never from telegraphic writing — compressed fragments are harder to follow than plain sentences.
@@ -53,7 +54,7 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0039](0039-one-implementation-per-concept.md) | One implementation per concept |
 | [0040](0040-nullable-text-write-contract.md) | Unset is NULL, and the request schema says so |
 | [0041](0041-one-llm-gateway.md) | One LLM gateway, and it lives in apps/ai |
-| 0042 | (unused: the v1 data migration ran on 2026-08-29 without an ADR; its record is the Cutover section of [`rewrite-history.md`](../rewrite-history.md)) |
+| 0042 | (unused: the v1 data migration ran once on 2026-08-29 without an ADR; the rule it left is [0059](0059-one-data-model-legacy-data-is-migrated.md)) |
 | [0043](0043-comments-record-the-rejected-alternative.md) | Comments record the rejected alternative |
 | 0045 | (retired 2026-09-13: merged into [0028](0028-type-annotations-are-data-contracts.md)) |
 | [0046](0046-numbers-on-the-wire.md) | Numbers on the wire; the frontend owns all formatting |
