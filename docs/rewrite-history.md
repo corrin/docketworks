@@ -1882,3 +1882,48 @@ went with it: the post-create check `check_company_defaults.py` told the operato
 a `.fixtures` file that `create` deletes, and now names the PDF that needs the wide logo and
 the admin screen and config file that set it; the 2026-08-10 timesheet spec dropped its
 shipped "environmental prerequisites" list, which still named `annual_leave_loading`.
+
+## 2026-09-17 — The new-instance path is rehearsed after every merge (ADR 0066)
+
+Finding: `instance.sh create` is exercised only when a real client is set up, so it rots
+silently between those events; the company-defaults incident above is one instance. The
+owner ruled for a gate run from the dev box after each merge to `main`: a throwaway instance
+created from `origin/main` on the UAT host, checked, onboarded against the fake Xero the way
+a new client is onboarded, verified by the suite, destroyed. Data is what `create` produces
+plus real onboarding, never a copy of another database, so the run proves provisioning and
+not a restore.
+
+The run is red at its `connect` step until three pieces land, and the owner chose to land
+the gate first so the red is a record rather than a plan:
+
+- `manage.py fake_xero_connect`: binds a fresh installation as-if-connected under the fake by
+  putting a token on the active `XeroApp` row (`access_token`, `refresh_token`, `token_type`,
+  `expires_at`, `scope`, the columns `_payload_from_row` reads), minting a tenant id, seeding
+  the organisation and the connection row the next item answers from. It must not write
+  `CompanyDefaults.xero_tenant_id`: `xero --setup` discovers it from the connections list,
+  and that discovery is part of what the rehearsal proves. The fake's identity endpoint only
+  refreshes a token the database holds, and the consent exchange stays refused under the
+  fake because it would reach the real identity service; the binding is a data step, never
+  a faked consent flow.
+- PR C in `apps/xero/fake/tests/test_every_call_is_routed.py`: `GET api.xero.com/Connections`,
+  with the connection and token tables ADR 0060 names and `apps/xero/fake/models.py` lacks.
+- The onboarding subset of PR B in the same list: `POST EarningsRates`, `LeaveTypes` and
+  `PayRunCalendars` from `xero --setup --seed-xero`; `POST Employees` and the per-employee
+  `Employment`, `Tax`, `SalaryAndWages`, `PaymentMethods`, `Working-Patterns`, `LeaveSetup` and
+  `LeaveTypes` from `seed_xero_from_database --only employees`.
+
+Measured against a database holding only what `create` and onboarding produce, eleven spec
+files still assume restore data and will fail once the run reaches the suite: stock rows by
+name (`job/create-estimate-entry`, `job/job-cost-entry-data`, `purchasing/create-purchase-order`,
+`purchasing/stock-search`); a second job card or job history (`kanban/kanban-desktop`,
+`kanban/kanban-drag-vanishing`, `kanban/kanban-mobile`, `kanban/kanban-search`); invoice
+history or more than a page of companies or people (`crm/people`, `reports/companies`,
+`reports/sales-forecast`). Each is a spec that does not seed what it needs (ADR 0063) and is
+fixed one file at a time. Nothing was added to rewrite-status.md; KAN-359 is the line these
+hang off.
+
+Two decisions the design settled: a rehearsal instance renders `XERO_FAKE=True` for its
+whole life, because onboarding ends by enabling sync and a live beat on the real client
+would otherwise run with a fake token; and the prompt-free removal is reachable only through
+the rehearsal marker, never a flag, because a flag makes every instance destroyable from a
+script.
