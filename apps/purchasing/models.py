@@ -36,6 +36,10 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no sho
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # A supplier-less order is invalid data (owner ruling 2026-09-13): the eleven
+    # production rows were corrected by hand that day, and the ADR 0059 migration
+    # that makes this NOT NULL is still owed so dev, UAT and older backups
+    # converge. null=True is the pre-migration shape, not a supported state.
     supplier = models.ForeignKey(
         "company.Company",
         on_delete=models.PROTECT,
@@ -585,7 +589,9 @@ class Stock(models.Model):
         if update_fields is not None:
             kwargs["update_fields"] = tuple(dict.fromkeys((*update_fields, "updated_at")))
 
-        # Log negative quantities but allow them (backorders, emergency usage, etc.)
+        # Negative stock on hand and an explicit zero cost are supported states,
+        # not defects (owner rulings 2026-09-07 and 2026-09-08): an issue past the
+        # balance succeeds and the next count corrects it. Logged, never refused.
         if self.quantity < 0:
             logger.info(
                 "Stock item has negative quantity: %s (%s)", self.quantity, self.description

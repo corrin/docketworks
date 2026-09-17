@@ -98,6 +98,10 @@ test.describe('Xero connection page', () => {
       throw new Error('sync dispatch did not report a task_id')
     }
     const taskId = String(started.task_id)
+    // Residual flake, about one run in twenty: beat's real :15 tick can land
+    // inside this window and hold the sync lock, so the dispatched task waits
+    // on it and the wait below runs long. Root-caused 2026-09-15; not a
+    // regression when the task id eventually completes.
     const completed = page.waitForResponse(
       async (r) => {
         if (new URL(r.url()).pathname !== SYNC_INFO_PATH || r.status() !== 200) return false

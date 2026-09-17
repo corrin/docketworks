@@ -396,13 +396,24 @@ def _write_document(
     existing = model.held(tenant_id, object_id) if object_id else None
     if object_id and existing is None:
         raise Document.DoesNotExist(f"{model.RESOURCE} {object_id}")
+    number = text(sent, model.NUMBER_KEY)
+    if existing is None and model is FakePurchaseOrder and number is not None:
+        # Measured against the demo tenant on 2026-09-12: a number a LIVE order
+        # already holds turns the create into an update of that order, answered
+        # with its id and no error, so a duplicate number silently edits another
+        # supplier's document and reports success. Reproduced rather than
+        # refused: the fake is Xero's behaviour, not a kinder one (ADR 0060), and
+        # a fake that refused here would hide the one collision the provider
+        # cannot see.
+        existing = (
+            model.for_tenant(tenant_id).filter(number=number).exclude(status="DELETED").first()
+        )
     if existing is not None:
         refusal = _refusal_for(model, existing, sent)
         if refusal is not None:
             return _refused(
                 sent, refusal, id_key=model.ID_KEY or "", object_id=str(existing.id)
             ), True
-    number = text(sent, model.NUMBER_KEY)
     if (
         existing is None
         and model is FakePurchaseOrder

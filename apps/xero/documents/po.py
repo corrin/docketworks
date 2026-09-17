@@ -310,6 +310,12 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
             }
 
         try:
+            # The provider renames the order as it voids it, so the number is
+            # free again (JO-0829: a number held by a voided order refuses the
+            # next create with a zero UUID). Left on record, not decided:
+            # stepping starting_po_number past the burnt number, or monotonic
+            # numbering instead of MAX+1 over surviving rows, would remove the
+            # recurrence at its source.
             result = self.provider.delete_purchase_order(xero_id)
             if not result.success:
                 return {
