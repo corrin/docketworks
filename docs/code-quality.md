@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 116,466 (v1 172,577, -33%) |
-| tests | 79,840 (v1 50,869, +57%) |
-| generated | 51,110 (v1 20,359, +151%) |
+| code | 116,698 (v1 172,577, -32%) |
+| tests | 79,886 (v1 50,869, +57%) |
+| generated | 51,153 (v1 20,359, +151%) |
 
 ## Suppressions
 
@@ -31,8 +31,8 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 770 |
-| noqa: DJ001 | 198 |
+| TOTAL suppressions | 768 |
+| noqa: DJ001 | 196 |
 | noqa: PLC0415 | 151 |
 | noqa: E402 | 106 |
 | noqa: PLR0913 | 54 |
@@ -82,7 +82,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 230 |
+| in comments | 226 |
 | in docstrings | 381 |
 
 ## Exception handling
