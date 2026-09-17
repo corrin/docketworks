@@ -456,6 +456,44 @@ sudo scripts/server/instance.sh destroy test uat
 sudo scripts/server/instance.sh destroy test2 uat
 ```
 
+### Rehearsing the new-instance path after a merge
+
+`create` is otherwise exercised only when a real client is set up. After a merge to
+`main`, a rehearsal creates a throwaway instance from `origin/main`, runs the post-create
+checks on what `create` produced, loads the demo staff, onboards against the fake Xero the
+way a new client is onboarded, runs the E2E suite through `verify-instance.sh --e2e`, and
+destroys the instance (ADR 0066).
+
+Once, on the host: the rehearsal instance's three config files. The credentials file takes
+msm-uat's values (Maps key, GCP key, team drive, Xero app); the E2E file names the user the
+suite signs in as, which `e2e_ensure_fixtures` creates.
+
+```bash
+sudo scripts/server/instance.sh prepare-config rehearsal uat --seed
+sudoedit /opt/docketworks/config/rehearsal-uat.credentials.env
+sudo install -m 600 -o root -g root /dev/null /opt/docketworks/config/rehearsal-uat.e2e.env
+sudoedit /opt/docketworks/config/rehearsal-uat.e2e.env   # E2E_TEST_USERNAME= / E2E_TEST_PASSWORD=
+```
+
+Then, from the dev box, after each merge:
+
+```bash
+scripts/ops/rehearse_instance.sh <uat-host> rehearsal            # origin/main
+scripts/ops/rehearse_instance.sh <uat-host> rehearsal --ref <ref>
+```
+
+The host's output streams to the terminal and to `logs/rehearsals/<timestamp>.log`; the
+exit status is the host's. On the host, each run writes
+`/opt/docketworks/rehearsals/<timestamp>-<sha8>/result.txt` (step reached, exit, ref, sha,
+duration, whether the instance was left) beside the Playwright report, traces and history.
+A failed run leaves `rehearsal-uat` for inspection and the next run destroys it first;
+until then `deploy.sh --all` would deploy it like any other instance. The run verifies
+`create` and onboarding and is never merge evidence.
+
+Until `fake_xero_connect`, the fake's `GET /Connections` and the onboarding payroll writes
+land, the run is red at the `connect` step; `docs/rewrite-history.md` (2026-09-17) names
+the three.
+
 ---
 
 ## Part F: Continuous Deployment

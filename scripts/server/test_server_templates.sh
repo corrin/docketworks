@@ -565,6 +565,9 @@ echo "$REHEARSE_OUT" | grep -q 'prepare-config test uat --seed' \
     || fail "rehearse: refusal must name prepare-config"
 echo "$REHEARSE_OUT" | grep -q 'test-uat.e2e.env' \
     || fail "rehearse: refusal must name the e2e credentials file"
+# The dev-box wrapper reports the host's status, not tee's.
+grep -q 'PIPESTATUS\[0\]' "$REPO_ROOT/scripts/ops/rehearse_instance.sh" \
+    || fail "rehearse_instance.sh: must take its exit status from the ssh side of the pipe"
 
 if (( FAILURES > 0 )); then
     echo "$FAILURES server template check(s) failed." >&2

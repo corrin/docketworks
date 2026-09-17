@@ -206,7 +206,23 @@ Mutable instance file backups run separately via `backup-files-<instance>.timer`
 sudo ./scripts/server/instance.sh destroy mycompany uat
 ```
 
-Prompts for confirmation, then removes: systemd service, Nginx config, database + DB user, instance directory, OS user.
+Prompts for confirmation, then removes: systemd service, Nginx config, database + DB user, instance directory, OS user. The only prompt-free removal is the rehearsal's, below, and it reaches only the instance the rehearsal marker names.
+
+## Rehearsing the New-Instance Path
+
+```bash
+# Once: the rehearsal instance's three config files (docs/server_setup.md, Part E)
+sudo ./scripts/server/instance.sh prepare-config rehearsal uat --seed
+
+# After a merge to main, from the dev box:
+scripts/ops/rehearse_instance.sh <uat-host> rehearsal            # origin/main
+scripts/ops/rehearse_instance.sh <uat-host> rehearsal --ref <ref>
+
+# On the host directly
+sudo ./scripts/server/instance.sh rehearse rehearsal [--ref <ref>]
+```
+
+Creates `rehearsal-uat` from the ref, runs the post-create checks on what `create` produced, loads the demo staff, onboards against the fake Xero, runs `verify-instance.sh --e2e`, and destroys the instance (ADR 0066). Artifacts and `result.txt` land under `/opt/docketworks/rehearsals/<timestamp>-<sha8>/`. A failed run leaves the instance for inspection; the next run destroys it first. The run verifies `create` and onboarding and is never merge evidence.
 
 ## Listing Instances
 
@@ -275,7 +291,7 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `common.sh`                                         | Shared constants: domain, paths, directories                                                         |
 | `server-setup.sh`                                   | Host-level convergence (system packages, SSL, shared config). Runs every deploy — see "Server Setup". |
-| `instance.sh`                                       | Prepare config, create/reconfigure, destroy, or list instances                                       |
+| `instance.sh`                                       | Prepare config, create/reconfigure, destroy, rehearse, or list instances                             |
 | `deploy.sh`                                         | Pull updates and redeploy one or all instances                                                       |
 | `release-utils.sh`                                  | Build, switch, and clean up immutable release directories                                            |
 | `dw-run.sh`                                         | Run a command in an instance's environment                                                           |
@@ -293,7 +309,6 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `templates/fail2ban-jail-docketworks.conf`          | Fail2ban jails: sshd + the two 401-only auth jails, banning via UFW                                  |
 | `templates/fail2ban-filter-docketworks-auth-login.conf` | 401-only filter for POST /api/accounts/token/                                                    |
 | `templates/fail2ban-filter-docketworks-auth-refresh.conf` | 401-only filter for POST /api/accounts/token/refresh/                                          |
-| `verify-instance.sh`                                | Full serving-path verification (units, build-id, auth gate, media, UFW, jails)                       |
 | `test_server_templates.sh`                          | The cheap-tier gate: shellcheck, rendered-template contracts, filter fixtures                        |
 | `templates/gunicorn-instance.service.template`      | Systemd unit template (web)                                                                          |
 | `templates/celery-worker-instance.service.template` | Systemd unit template (Celery worker)                                                                |
