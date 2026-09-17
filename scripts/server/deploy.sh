@@ -107,7 +107,7 @@ validate_instance() {
     # conf is instance.sh's to render, so an instance without one would come
     # back from this deploy with nothing to start.
     if [[ ! -f "$local_dir/redis.conf" ]]; then
-        echo "ERROR: $local_dir/redis.conf not found: this instance predates its own Redis server. Run instance.sh reconfigure first." >&2
+        echo "ERROR: $local_dir/redis.conf not found. Run instance.sh reconfigure first." >&2
         exit 1
     fi
 }

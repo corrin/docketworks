@@ -73,7 +73,7 @@ XERO_READONLY=False
 # False here, always. run_e2e.sh --use-fake-xero sets it true for the
 # development stack it starts (ADR 0060), and verify-instance.sh --e2e sets it
 # true in the window env its copy of the database runs under (ADR 0064).
-XERO_FAKE=False
+XERO_FAKE=__XERO_FAKE__
 
 # Instance-local file roots. mediafiles is the one nginx serves at
 # /media/ (staff icons, company logos) and MUST live outside the

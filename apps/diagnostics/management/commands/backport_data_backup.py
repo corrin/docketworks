@@ -7,24 +7,17 @@ pinned by ``scripts/ops/verify_scrubbed_backup.py`` and the scrubber tests).
 
 Pipeline: drop/recreate the scrub database's public schema, pipe ``pg_dump``
 of the live DB straight into ``pg_restore`` on the scrub DB (raw production
-data never lands on disk), scrub in place, snapshot ``django_migrations`` to
-a ``<output>.migrations.json`` sidecar (consumed by
-``scripts/ops/migrate_to_snapshot.py``), re-dump the scrubbed copy, then
+data never lands on disk), scrub in place, re-dump the scrubbed copy, then
 empty the scrub schema again. The consumer-side acceptance check is
 ``scripts/ops/verify_scrubbed_backup.py``.
 """
 
 import os
-from pathlib import Path
 
-from django.core.management.base import BaseCommand, CommandError, CommandParser
+from django.core.management.base import BaseCommand, CommandParser
 
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.diagnostics.services import db_scrubber, scrub_pipeline
-from apps.diagnostics.services.migrations_snapshot import (
-    EmptyMigrationLedgerError,
-    write_migrations_snapshot,
-)
 
 
 class Command(BaseCommand):
@@ -32,9 +25,7 @@ class Command(BaseCommand):
 
     help = (
         "Produces a scrubbed pg_dump of prod for dev refresh. "
-        "Raw prod data never leaves the prod host. Also writes a "
-        "<output>.migrations.json snapshot of django_migrations beside the "
-        "archive."
+        "Raw prod data never leaves the prod host."
     )
 
     def add_arguments(self, parser: CommandParser) -> None:
@@ -73,9 +64,6 @@ class Command(BaseCommand):
             self.stdout.write("db_scrubber.scrub()")
             db_scrubber.scrub()
 
-            snapshot_path = self._write_migrations_snapshot(scrubbed_dump)
-            self.stdout.write(f"migrations snapshot written: {snapshot_path}")
-
             self.stdout.write(f"pg_dump {scrub_db.name} -> {scrubbed_dump}")
             scrub_pipeline.run(
                 [
@@ -106,14 +94,3 @@ class Command(BaseCommand):
                 ),
             )
             raise
-
-    def _write_migrations_snapshot(self, dump_path: Path) -> Path:
-        """Snapshot django_migrations from the scrub DB beside the archive.
-
-        Read from the scrub alias, not default, so the snapshot describes
-        exactly the ledger the archive carries.
-        """
-        try:
-            return write_migrations_snapshot(db_scrubber.SCRUB_ALIAS, dump_path)
-        except EmptyMigrationLedgerError as exc:
-            raise CommandError(str(exc)) from exc

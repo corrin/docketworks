@@ -48,12 +48,12 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0032](0032-prefer-libraries-over-homegrown.md) | Less code is better: prefer libraries over homegrown implementations |
 | [0033](0033-version-constraints-record-tested-versions.md) | Version constraints record what passed testing, not what is compatible |
 | [0034](0034-company-merges-are-xero-first.md) | Company identity and merges are Xero-first |
-| 0035–0037 | (reserved: ninja adoption, beat-in-code, workflow decomposition — written as their phases land) |
+| 0035–0037 | (unused: ninja adoption, beat-in-code and the workflow-app decomposition landed without an ADR) |
 | [0038](0038-transparent-errors-trusted-environment.md) | Authenticated callers get the real exception; anonymous callers get fixed wording and no secrets |
 | [0039](0039-one-implementation-per-concept.md) | One implementation per concept |
 | [0040](0040-nullable-text-write-contract.md) | Unset is NULL, and the request schema says so |
 | [0041](0041-one-llm-gateway.md) | One LLM gateway, and it lives in apps/ai |
-| 0042 | (reserved: v1 data migration — written when that phase lands) |
+| 0042 | (unused: the v1 data migration ran on 2026-08-29 without an ADR; its record is the Cutover section of [`rewrite-history.md`](../rewrite-history.md)) |
 | [0043](0043-comments-record-the-rejected-alternative.md) | Comments record the rejected alternative |
 | 0045 | (retired 2026-09-13: merged into [0028](0028-type-annotations-are-data-contracts.md)) |
 | [0046](0046-numbers-on-the-wire.md) | Numbers on the wire; the frontend owns all formatting |
@@ -76,3 +76,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0063](0063-test-suite-conventions.md) | Every test starts from a provisioned instance and asserts over what it created; E2E drives the UI by automation id |
 | [0064](0064-an-instance-is-verified-on-a-copy-of-its-database.md) | A deployed instance is verified by the E2E suite on a copy of its database, against the fake Xero, with users fenced out |
 | [0065](0065-each-instance-owns-its-redis-server.md) | Each instance owns its Redis server |
+| [0066](0066-the-new-instance-path-is-rehearsed-after-every-merge.md) | The new-instance path is rehearsed on a throwaway instance after every merge |

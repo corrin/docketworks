@@ -76,7 +76,7 @@ are additive migrations plus one removal).
    `jsa_generated` (job-side JobEvent also written, hook already exists).
    A schema edit is an event because it re-interprets existing entries.
    Hoisting a shared event mechanism (JobEvent + ProcessEvent) into
-   `apps/core` is recorded as post-cutover work, not done now.
+   `apps/core` is recorded as open work, not done now.
 3. **Remove `HistoricalRecords`** from Form, FormEntry, Procedure. v2 moved
    off django-simple-history in favour of custom delta logs; leaving it
    recording beside ProcessEvent would be a second live audit implementation.

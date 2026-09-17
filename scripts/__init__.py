@@ -2,11 +2,7 @@
 
 - ``checks/``   gate: exits non-zero when something is wrong. CI runs these.
 - ``generate/`` writes a committed artefact; CI re-runs and diffs the result.
-- ``ops/``      operational tooling for cutover and diagnosis, run by hand.
-
-``registry.py`` is the inventory: every script above appears there with its role
-and tier, and a test fails if CI and the registry disagree. Adding a script
-without registering it is the failure this exists to prevent.
+- ``ops/``      operational tooling run by hand: restores, probes, harnesses.
 
 Run them as ``uv run python -m scripts.<group>.<name>``; ``-m`` puts the working
 directory on ``sys.path``, which is what makes the ``scripts.`` imports resolve.

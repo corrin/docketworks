@@ -1,12 +1,12 @@
 """Re-enter a supplier credential's secret material.
 
 Fable: the one surface for writing SupplierCredential secrets — v2 ships no
-django.contrib.admin and no API touches the model, yet the cutover migration
-deliberately clears the formerly-Fernet columns, so without this command the
-checklist's "re-enter supplier credentials" step had nowhere to happen short
-of hand-written SQL. Secrets are prompted, never taken as arguments: argv is
-visible to every local user while the process runs (the same reason the
-fixture renderers are being moved off sed arguments).
+django.contrib.admin and no API touches the model, and the 2026-08-29 cutover
+cleared the formerly-Fernet columns, so without this command re-entering a
+supplier credential had nowhere to happen short of hand-written SQL. Secrets
+are prompted, never taken as arguments: argv is visible to every local user
+while the process runs (the same reason the fixture renderers are being moved
+off sed arguments).
 """
 
 from getpass import getpass

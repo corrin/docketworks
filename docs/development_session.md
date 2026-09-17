@@ -117,6 +117,6 @@ uv run pytest && (cd frontend && npm run test:unit)
 - A Gemini API key lives in the local `AIProvider` row: DB only, not in the
   repo or env files. Anything needing the LLM path needs that row.
 - Steel & Tube login and page selectors are credential-blocked — never
-  exercised against the live portal (cutover checklist item).
+  exercised against the live portal (`rewrite-status.md`, Operations).
 - Demo-organisation expiry, tenant drift, and Xero token-material rules:
   see [xero_setup.md](xero_setup.md#demo-organisation-lifecycle).

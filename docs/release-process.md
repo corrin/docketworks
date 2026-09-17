@@ -10,6 +10,11 @@ durable).
   work reaches UAT on the next deploy (the Deploy-to-UAT workflow updates
   the box's repo mirror on every push to `main`; an operator runs
   `scripts/server/deploy.sh` to release it to the UAT instance).
+- **After a merge to `main`, the new-instance path is rehearsed**:
+  `scripts/ops/rehearse_instance.sh <uat-host> rehearsal` creates a throwaway instance from
+  `origin/main` on the UAT host, onboards it against the fake Xero, runs the suite and
+  destroys it (ADR 0066). It proves `create` and onboarding still work; it is never merge
+  evidence.
 - **A release PR promotes `main` to `production`** after UAT verification:
   `sudo scripts/server/verify-instance.sh <client> uat --e2e` green on the deployed UAT
   instance (ADR 0064). Production instances track `origin/production`.
@@ -18,6 +23,11 @@ durable).
   Xero and fences users out for the run (about 35 minutes), so
   it is a declared window; uptime monitors will alert. Neither run is merge evidence: the
   gate before merge is `./scripts/ops/run_e2e.sh` on a workstation against real Xero.
+- **A two-browser live-update smoke follows PVT.** Sign in to the kanban board in two
+  browsers, move a card in one, and confirm it appears in the other without a reload. That
+  exercises the whole push path (signal, commit hook, Redis fan-out, stream, client
+  reconcile) in one action, and it is the only check that fails visibly when the Redis
+  pub/sub listener is dead while streams stay connected; no E2E spec covers it.
 - Hotfixes merge into `production` and are back-merged to `main`.
 - **Release PRs and hotfix back-merges are merged with a merge commit — never
   squashed, never rebased.** Squash is right for a feature PR, where one
@@ -43,10 +53,9 @@ durable).
 - **A data migration that can refuse is rehearsed against a production restore.** When the
   checkout is ahead of the archive, re-insert this installation's private rows after
   `migrate`, not after `pg_restore`: the archive's tables predate columns the checkout
-  has removed, and a positional copy into the older shape fails at the first row. The
-  inventory cutover chain refuses on data it cannot reconcile, and `migrate` runs with
-  the units stopped, so run `manage.py audit_inventory_openings --preflight-only`
-  against a restore first, per [`inventory-legacy-repair.md`](inventory-legacy-repair.md).
+  has removed, and a positional copy into the older shape fails at the first row. A data
+  migration that refuses runs with the units stopped, so rehearse it against a restore
+  first.
 - **The integration tier is the merge gate for anything that touches Xero, the AI
   gateway, Maps, the phone provider or mail** (ADR 0050). It is human-run because CI
   has no sandbox credentials: `./scripts/ops/run_integration_tests.sh` before the

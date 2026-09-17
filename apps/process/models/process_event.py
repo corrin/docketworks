@@ -4,7 +4,7 @@ Mirrors JobEvent's delta shape (staff, event_type, delta_before/after,
 detail.changes, derived description) without the envelope machinery —
 checksums, undo and change ids exist for the job screen's optimistic
 concurrency, which this domain does not have. Hoisting a shared event
-mechanism into apps/core is recorded post-cutover work (see the design doc).
+mechanism into apps/core is open work (see the design doc).
 """
 
 import uuid

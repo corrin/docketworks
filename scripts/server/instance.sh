@@ -8,6 +8,7 @@ set -euo pipefail
 #        instance.sh validate-config <client> <env>
 #        instance.sh load-db-fixtures <client> <env>
 #        instance.sh destroy <client> <env>
+#        instance.sh rehearse <client> [--ref <ref>]
 #        instance.sh status <client> <env>
 #        instance.sh history <client> <env>
 #        instance.sh list
@@ -283,6 +284,10 @@ render_instance_env() {
     local test_db_user="$6"
     local fqdn="$7"
     local aliases_csv="$8"
+    # True only for a rehearsal instance (ADR 0066): every unit, the
+    # onboarding and the verification window then agree on the fake, and
+    # no token minted for it can reach the real organisation from beat.
+    local xero_fake="$9"
 
     local env_file="$instance_dir/.env"
     local db_password test_db_password secret_key jwt_signing_key
@@ -329,6 +334,7 @@ render_instance_env() {
         -e "s|__JWT_SIGNING_KEY__|$jwt_signing_key|g" \
         -e "s|__REDIS_PORT__|$redis_port|g" \
         -e "s|__REDIS_PASSWORD__|$redis_password|g" \
+        -e "s|__XERO_FAKE__|$xero_fake|g" \
         -e "s|__DROPBOX_WORKFLOW_FOLDER__|$(sed_escape "$dropbox_workflow_folder")|g" \
         -e "s|__GCP_CREDENTIALS__|$(sed_escape "$instance_dir/gcp-credentials.json")|g" \
         "$TEMPLATE_DIR/env-instance.template" > "$tmp_env"
@@ -472,11 +478,11 @@ render_integration_settings_fixture() {
 # ============================================================
 # Load the credential-derived database rows: AI providers, Xero apps,
 # integration settings. Requires the instance database to already carry
-# the v2 schema — load_integration_settings touches v2-only columns
-# (crm_phoneprovidersettings.google_maps_api_key), which is why a v1->v2
-# cutover defers this past the database swap (--skip-db-fixtures on
-# reconfigure, then the load-db-fixtures subcommand) instead of running
-# it from reconfigure while the data is still v1-shaped.
+# every column load_integration_settings writes
+# (crm_phoneprovidersettings.google_maps_api_key), which is why a release that
+# adds a required credential runs reconfigure --skip-db-fixtures, then
+# deploy.sh, then the load-db-fixtures subcommand (docs/server_setup.md)
+# instead of loading from reconfigure before that release has migrated.
 # Callers provide INSTANCE, INSTANCE_DIR, INSTANCE_USER and the sourced
 # credentials (require_instance_credentials).
 load_db_fixtures() {
@@ -584,8 +590,21 @@ install_runtime_unit() {
     fi
 }
 
+# The dir/user/database triple that means an instance exists in any degree:
+# create refuses over it, and rehearse decides between a leftover its marker
+# names and a neighbour it must never touch.
+instance_state_exists() {
+    local instance_dir="$1"
+    local instance_user="$2"
+    local db_name="$3"
+    [[ -e "$instance_dir" ]] || id "$instance_user" &>/dev/null || \
+        sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$db_name'" | grep -q 1
+}
+
 do_configure() {
     local command_name="$1"
+    shift
+    local xero_fake="$1"
     shift
 
     parse_client_env "$@"
@@ -663,8 +682,7 @@ do_configure() {
     local IS_EXISTING=false
     local NEEDS_APP_BOOTSTRAP=false
     if [[ "$command_name" == "create" ]]; then
-        if [[ -e "$INSTANCE_DIR" ]] || id "$INSTANCE_USER" &>/dev/null || \
-            sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1; then
+        if instance_state_exists "$INSTANCE_DIR" "$INSTANCE_USER" "$DB_NAME"; then
             echo "ERROR: Refusing to create over existing or partial instance state for $INSTANCE." >&2
             echo "  Use reconfigure for a complete instance, or destroy partial state first." >&2
             exit 1
@@ -729,7 +747,7 @@ do_configure() {
         FQDN="${INSTANCE}.${DOMAIN}"
     fi
     # An explicit list replaces the persisted one; --no-alias clears it;
-    # neither keeps it (.aliases is absent only on an instance that predates it).
+    # neither keeps it.
     if [[ "$NO_ALIAS" == "false" && ${#ALIASES[@]} -eq 0 && -f "$INSTANCE_DIR/.aliases" ]]; then
         mapfile -t ALIASES < <(sed '/^[[:space:]]*$/d' "$INSTANCE_DIR/.aliases")
     fi
@@ -776,7 +794,8 @@ BASH_PROFILE
         "$SCRUB_DB_NAME" \
         "$TEST_DB_USER" \
         "$FQDN" \
-        "$ALIASES_CSV"
+        "$ALIASES_CSV" \
+        "$xero_fake"
     # Before anything boots against the new .env: migrations, fixture loads
     # and the runtime units all reach the Redis it names.
     install_redis_unit "$INSTANCE_DIR" "$INSTANCE_USER"
@@ -957,11 +976,11 @@ EOSQL
 }
 
 do_create() {
-    do_configure create "$@"
+    do_configure create False "$@"
 }
 
 do_reconfigure() {
-    do_configure reconfigure "$@"
+    do_configure reconfigure False "$@"
 }
 
 # ============================================================
@@ -985,8 +1004,8 @@ do_validate_config() {
 # load-db-fixtures
 # ============================================================
 # The credential-derived DB rows on their own, for a caller that ran
-# reconfigure --skip-db-fixtures because the database did not yet have
-# the v2 schema (the cutover script, after its database swap).
+# reconfigure --skip-db-fixtures because the running release did not yet
+# carry the loader the new fixtures need (docs/server_setup.md).
 do_load_db_fixtures() {
     parse_client_env "$@"
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
@@ -1035,6 +1054,23 @@ do_destroy() {
         exit 0
     fi
 
+    destroy_instance "$CLIENT" "$ENV"
+}
+
+# The removal itself, prompt-free. do_destroy asks first; rehearse calls it
+# for the one instance its marker names. No confirmation-skipping flag
+# exists: a flag would make every instance destroyable from a script, the
+# marker makes exactly one.
+destroy_instance() {
+    local client="$1"
+    local env="$2"
+    local INSTANCE="${client}-${env}"
+    local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
+    local INSTANCE_USER
+    INSTANCE_USER="$(instance_user "$INSTANCE")"
+    local DB_NAME DB_USER SCRUB_DB_NAME TEST_DB_USER TEST_DB_NAME
+    instance_db_names "$client" "$env"
+
     # --- Stop and remove systemd services ---
     if systemctl is-active --quiet "gunicorn-$INSTANCE" 2>/dev/null; then
         echo "=== Stopping Gunicorn service ==="
@@ -1078,16 +1114,6 @@ do_destroy() {
         echo "=== Removing Redis service ==="
         systemctl disable "redis-$INSTANCE" 2>/dev/null || true
         rm -f "/etc/systemd/system/redis-$INSTANCE.service"
-        systemctl daemon-reload
-    fi
-    # Legacy: clean up the pre-celery-beat scheduler-$INSTANCE unit if present
-    # (from an instance created before the apscheduler→celery-beat migration).
-    if systemctl is-active --quiet "scheduler-$INSTANCE" 2>/dev/null; then
-        systemctl stop "scheduler-$INSTANCE"
-    fi
-    if [[ -f "/etc/systemd/system/scheduler-$INSTANCE.service" ]]; then
-        systemctl disable "scheduler-$INSTANCE" 2>/dev/null || true
-        rm -f "/etc/systemd/system/scheduler-$INSTANCE.service"
         systemctl daemon-reload
     fi
     if [[ -f "/etc/systemd/system/backup-db-$INSTANCE.timer" ]]; then
@@ -1171,6 +1197,164 @@ do_destroy() {
 
     echo ""
     echo "=== Instance '$INSTANCE' destroyed ==="
+}
+
+# ============================================================
+# rehearse
+# ============================================================
+# The new-instance path end to end on a throwaway instance (ADR 0066):
+# create from the ref, check what create produced, onboard against the
+# fake Xero the way a new client is onboarded, run the E2E suite through
+# verify-instance.sh, destroy. The env is fixed to uat: create would accept
+# prod, and only verify-instance.sh would refuse it, after the instance
+# existed. Every step's failure is the run's failure; a failed run leaves
+# the instance for inspection and the next run destroys it first.
+#
+# Red at `connect` until fake_xero_connect, the fake's GET /Connections
+# (PR C) and the onboarding payroll writes (PR B) land; docs/rewrite-history.md
+# 2026-09-17 names all three.
+#
+# The values the EXIT trap reports are deliberately not `local`: the trap
+# runs after this function has returned.
+# Idempotent: called before destroy removes the instance directory, and
+# again by the trap for a run that never reached destroy.
+rehearse_collect_artifacts() {
+    local artifact
+    for artifact in playwright-report test-results test-history; do
+        if [[ -e "$INSTANCE_DIR/e2e/$artifact" && ! -e "$RUN_DIR/$artifact" ]]; then
+            cp -a "$INSTANCE_DIR/e2e/$artifact" "$RUN_DIR/"
+        fi
+    done
+}
+
+rehearse_report() {
+    local status=$?
+    set +e
+    rehearse_collect_artifacts
+    local instance_left=yes
+    [[ "$STEP" == "done" ]] && instance_left=no
+    {
+        echo "instance=$INSTANCE"
+        echo "ref=$REF"
+        echo "sha=$TARGET_SHA"
+        echo "started=$STARTED"
+        echo "duration_s=$SECONDS"
+        echo "step_reached=$STEP"
+        echo "exit=$status"
+        echo "instance_left=$instance_left"
+    } > "$RUN_DIR/result.txt"
+    if [[ "$STEP" == "done" ]]; then
+        echo "REHEARSAL PASSED: $INSTANCE from $REF ($SHA8) created, onboarded, verified, destroyed — $RUN_DIR"
+    else
+        echo "REHEARSAL FAILED at $STEP (exit $status): $INSTANCE left for inspection; artifacts under $RUN_DIR" >&2
+    fi
+    exit "$status"
+}
+
+do_rehearse() {
+    if [[ $# -lt 1 ]]; then
+        echo "Usage: $0 rehearse <client> [--ref <ref>]" >&2
+        exit 1
+    fi
+    parse_client_env "$1" uat
+    shift
+    REF="origin/main"
+    local parsed
+    if ! parsed=$(getopt -o '' --long ref: -n "$(basename "$0") rehearse" -- "$@"); then
+        echo "Usage: $0 rehearse <client> [--ref <ref>]" >&2
+        exit 1
+    fi
+    eval set -- "$parsed"
+    while true; do
+        case "$1" in
+            --ref) REF="$2"; shift 2 ;;
+            --)    shift; break ;;
+        esac
+    done
+    if [[ $# -gt 0 ]]; then
+        echo "ERROR: Unexpected arguments to 'rehearse': $*" >&2
+        exit 1
+    fi
+
+    INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
+    local INSTANCE_USER
+    INSTANCE_USER="$(instance_user "$INSTANCE")"
+    local DB_NAME DB_USER SCRUB_DB_NAME TEST_DB_USER TEST_DB_NAME
+    instance_db_names "$CLIENT" "$ENV"
+
+    # All three before anything is mutated: the E2E user's credentials are
+    # first read inside verify-instance.sh, which would otherwise refuse
+    # with the instance already built.
+    local file
+    for file in "$INSTANCE.credentials.env" "$INSTANCE.company-defaults.json" "$INSTANCE.e2e.env"; do
+        if [[ ! -f "$CONFIG_DIR/$file" ]]; then
+            echo "ERROR: No $CONFIG_DIR/$file." >&2
+            echo "  Run: sudo $0 prepare-config $CLIENT uat --seed, complete both files, and create" >&2
+            echo "  $CONFIG_DIR/$INSTANCE.e2e.env (docs/server_setup.md, Part E)." >&2
+            exit 1
+        fi
+        require_root_owned_credentials_file "$CONFIG_DIR/$file"
+    done
+
+    fetch_local_repo
+    TARGET_SHA="$(resolve_release_ref "$REF")"
+    SHA8="$(short_release_sha "$TARGET_SHA")"
+    mkdir -p "$REHEARSALS_DIR"
+    chmod 755 "$REHEARSALS_DIR"
+    RUN_DIR="$REHEARSALS_DIR/$(date +%Y%m%d_%H%M%S)-$SHA8"
+    mkdir "$RUN_DIR"
+    local marker="$REHEARSALS_DIR/.active"
+
+    STEP=leftover
+    if instance_state_exists "$INSTANCE_DIR" "$INSTANCE_USER" "$DB_NAME"; then
+        if [[ -f "$marker" && "$(cat "$marker")" == "$INSTANCE" ]]; then
+            log "Destroying $INSTANCE, left by the previous rehearsal..."
+            destroy_instance "$CLIENT" "$ENV"
+        else
+            echo "ERROR: $INSTANCE exists and no rehearsal left it; refusing to destroy a neighbour." >&2
+            echo "  If it is yours to remove: sudo $0 destroy $CLIENT uat" >&2
+            exit 1
+        fi
+    fi
+    echo "$INSTANCE" > "$marker"
+
+    STARTED="$(date '+%Y-%m-%d %H:%M:%S')"
+    SECONDS=0
+    trap rehearse_report EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+
+    STEP=create
+    do_configure create True "$CLIENT" uat --ref "$REF"
+
+    STEP=post-create-checks
+    local check
+    for check in check_company_defaults check_xero_app check_integration_settings; do
+        "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python -m "scripts.ops.restore_checks.$check"
+    done
+
+    STEP=staff
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata apps/accounts/fixtures/initial_data.json
+
+    log "Onboarding under the fake Xero: red until fake_xero_connect, the fake's GET /Connections (PR C) and the onboarding payroll writes (PR B) land (docs/rewrite-history.md, 2026-09-17)."
+    STEP=connect
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py fake_xero_connect
+
+    STEP=onboarding
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py finalize_instance_onboarding --seed-xero
+
+    STEP=verify-e2e
+    "$SCRIPT_DIR/verify-instance.sh" "$CLIENT" uat --e2e
+
+    STEP=collect
+    rehearse_collect_artifacts
+
+    STEP=destroy
+    destroy_instance "$CLIENT" uat
+    rm -f "$marker"
+
+    STEP="done"
+    exit 0
 }
 
 # ============================================================
@@ -1276,13 +1460,14 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
 fi
 
 if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 {prepare-config|create|reconfigure|validate-config|load-db-fixtures|destroy|status|history|list} [args...]"
+    echo "Usage: $0 {prepare-config|create|reconfigure|validate-config|load-db-fixtures|destroy|rehearse|status|history|list} [args...]"
     echo "  prepare-config   <client> <env> [--seed]"
     echo "  create           <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--alias <hostname>]... [--no-alias] [--no-start]"
     echo "  reconfigure      <client> <env> [--fqdn <hostname>] [--alias <hostname>]... [--no-alias] [--no-start] [--skip-db-fixtures]"
     echo "  validate-config  <client> <env>"
     echo "  load-db-fixtures <client> <env>"
     echo "  destroy          <client> <env>"
+    echo "  rehearse         <client> [--ref <ref>]"
     echo "  status           <client> <env>"
     echo "  history          <client> <env>"
     echo "  list"
@@ -1303,8 +1488,9 @@ case "$COMMAND" in
     validate-config)  do_validate_config "$@" ;;
     load-db-fixtures) do_load_db_fixtures "$@" ;;
     destroy)          do_destroy "$@" ;;
+    rehearse)         do_rehearse "$@" ;;
     status)           do_status "$@" ;;
     history)          do_history "$@" ;;
     list)             do_list ;;
-    *)                echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|validate-config|load-db-fixtures|destroy|status|history|list}"; exit 1 ;;
+    *)                echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|validate-config|load-db-fixtures|destroy|rehearse|status|history|list}"; exit 1 ;;
 esac

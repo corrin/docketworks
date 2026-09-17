@@ -10,6 +10,9 @@ LOCAL_REPO="$BASE_DIR/repo"
 RELEASES_DIR="$BASE_DIR/releases"
 REMOTE_REPO_URL="https://github.com/corrin/docketworks.git"
 RCLONE_CONFIG_DIR="$CONFIG_DIR/rclone"
+# One directory per rehearsal run (ADR 0066), and the marker naming the
+# throwaway instance a rehearsal is allowed to destroy without asking.
+REHEARSALS_DIR="$BASE_DIR/rehearsals"
 NGINX_SITES_AVAILABLE="/etc/nginx/sites-available"
 
 VALID_ENVS="dev uat staging prod demo"
@@ -129,8 +132,8 @@ ensure_instance_backup_dir() {
 
 # The hostnames an instance answers on: its canonical FQDN (.fqdn) first, then
 # every alias (.aliases, one per line). instance.sh writes both files on every
-# create and reconfigure, so a missing file is an instance that predates them
-# and needs a reconfigure — not a case to default. The three readers this
+# create and reconfigure, so a missing file needs a reconfigure — not a case to
+# default. The three readers this
 # replaced each fell back to <instance>.docketworks.site, which is wrong for
 # every --fqdn instance and was silently so.
 instance_hostnames() {

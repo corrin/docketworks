@@ -62,12 +62,12 @@ cleanup() {
     # Dump is owned by $INSTANCE_USER and /tmp has the sticky bit, so the
     # delete has to run as the same user that created it.
     # shellcheck disable=SC2029  # values are meant to expand client-side
-    ssh "$REMOTE_USER@$REMOTE_HOST" "sudo -u $INSTANCE_USER rm -f '$TMP_PATH' '$TMP_PATH.migrations.json'"
+    ssh "$REMOTE_USER@$REMOTE_HOST" "sudo -u $INSTANCE_USER rm -f '$TMP_PATH'"
     cleanup_status=$?
 
     if [[ $command_status -ne 0 ]]; then
         echo ">> Removing failed local backup..." >&2
-        rm -f "$LOCAL_PATH" "$LOCAL_PATH.migrations.json"
+        rm -f "$LOCAL_PATH"
         exit "$command_status"
     fi
     exit "$cleanup_status"
@@ -82,12 +82,6 @@ ssh "$REMOTE_USER@$REMOTE_HOST" \
 
 echo ">> Copying $DUMP_NAME to $LOCAL_DIR/..."
 scp "$REMOTE_USER@$REMOTE_HOST:$TMP_PATH" "$LOCAL_DIR/"
-# The producer writes a <dump>.migrations.json sidecar recording the archive's
-# own migration ledger. Every producer writes one, so a missing sidecar is a
-# failed pull, not a variant: `scp || echo` once treated a network or permission
-# error as "no sidecar" and silently restored to the wrong migration graph.
-# shellcheck disable=SC2029  # values are meant to expand client-side
-scp "$REMOTE_USER@$REMOTE_HOST:$TMP_PATH.migrations.json" "$LOCAL_DIR/"
 
 echo ">> Verifying scrubbed backup..."
 # Module form, run from the repo root: scripts/ import each other, which only

@@ -27,18 +27,13 @@ It pipes `pg_dump` of the live database into the `scrub` connection alias
 (`SCRUB_DB_NAME`, which must end in `_scrub` or settings, command and scrubber
 all refuse), anonymises the configured PII columns, deletes accounting records
 not linked to a job, truncates the excluded tables, strips every
-database-backed external-system credential, writes a
-`<dump>.migrations.json` ledger snapshot beside the archive, and re-dumps the
+database-backed external-system credential, and re-dumps the
 scrubbed copy to `<BASE_DIR>/restore/` or a named `--output` path. Raw
 production data never lands on disk on either host.
 `scripts/ops/verify_scrubbed_backup.py` remains the acceptance check of its
 output.
 
-**Until cutover the production hosts run v1 and therefore v1's copy of this
-command** — the v2 port takes over when those hosts move to v2. A live
-rehearsal of the v2 command against production is a cutover-checklist item.
-Instances created before the scrub database existed gain it with one
-`sudo scripts/server/instance.sh reconfigure <client> <env>`.
+
 
 ## scripts/
 
@@ -63,7 +58,7 @@ Instances created before the scrub database existed gain it with one
 | `fix_welding_stock_cost.py` | dropped | One-shot repair of a single stock item's unit cost, already applied to production data. |
 | `generate_url_docs.py` | dropped | Generated per-app Markdown URL listings. v2's route inventory is the exported OpenAPI schema, regenerated and gated by `scripts/checks/export_openapi.py`. |
 | `geocode_addresses.py` | ported | `scripts/ops/geocode_addresses.py` — the backfill sweep over rows that predate on-write geocoding (`apps/company/services/geocoding_service.py`). |
-| `migrate_to_snapshot.py` | ported | `scripts/ops/migrate_to_snapshot.py` — applies migrations up to the `migrations.json` snapshot a backup archive ships, so a dump migrates to exactly the graph it came from. |
+| `migrate_to_snapshot.py` | dropped | Brought a restored archive back to the migration graph it was taken at. A full dump carries its own `django_migrations`, and no procedure restores an archive older than the checkout, so nothing writes or reads a migration snapshot. |
 | `move_time_between_jobs.py` | ported | `scripts/ops/move_time_between_jobs.py` — moves every actual time entry from one job number to another, dry-run by default. |
 | `payroll_reconciliation.py` | ported | Its draft functions became `apps/accounting/services/payroll_reconciliation_service.py`. |
 | `poc_phone_provider_scraper.py` | ported | `scripts/ops/poc_phone_provider_scraper.py`. Deliberately not a Beat harness: provider-side deletion must be exercised through the real Celery Beat task, never through this script. |
@@ -146,7 +141,7 @@ and jail, and the nginx rate-limit configuration.
 
 | v1 asset | disposition | note |
 |---|---|---|
-| `migrate-test-role.sh` | dropped | One-off migration for instances created before per-tenant pytest roles existed: it gave one tenant its own `dw_<instance>_test` role and database in place of the shared cluster-wide `dw_test` role. v2's `instance.sh` creates the per-tenant `dw_<client>_<env>_test` role at instance creation (landing in this branch), so there is no pre-change instance to migrate. |
+| `migrate-test-role.sh` | dropped | One-off migration for instances created before per-tenant pytest roles existed: it gave one tenant its own `dw_<instance>_test` role and database in place of the shared cluster-wide `dw_test` role. v2's `instance.sh` creates the per-tenant `dw_<client>_<env>_test` role at instance creation, so there is no pre-change instance to migrate. |
 
 ### scripts/server/templates/
 
@@ -275,7 +270,7 @@ Three orphan test fixtures reject on their own content or history:
 | `adr/` | ported | `docs/adr/`, numbering continuous with v1 — the v1 records themselves live on in v2. |
 | `architecture.md` | dropped | A narrative description of the system's layers and flows. v2 states its architecture in `CLAUDE.md`'s layout and standards sections and in the ADRs, both of which are read before non-trivial work; a second narrative would drift from them without anything noticing. |
 | `updating.md` | dropped | v1's deploy runbook plus a caveat about pre-squash dumps. Deploy is `server_setup.md`'s Part D and `scripts/server/README.md`. The caveat does not transfer: a dump predating v1's July 2026 migration squash needs a pre-squash v1 checkout to migrate, `scripts/ops/verify_scrubbed_backup.py` refuses such an archive outright, and v2's load path takes data only and never v1's migration ledger. |
-| `jira-usage.md`, `jira.md` | dropped | The Jira project, board states, labels and definition of done. v2's work is tracked in the approved plan, `rewrite-status.md` and the cutover checklist. |
+| `jira-usage.md`, `jira.md` | dropped | The Jira project, board states, labels and definition of done. v2's work is tracked in Jira and `rewrite-status.md`, the only to-do list. |
 | `urls/` | dropped | Generated per-app URL listings, the output of `generate_url_docs.py`. The exported OpenAPI schema is v2's route inventory. |
 | `function_character_counts.tsv`, `function_under_80_review.tsv` | dropped | Snapshots of a one-off function-length review. v2's `docs/code-quality.md` is generated, committed and gated, so its numbers move in the diff that moves them. |
 | `.codesight/KNOWLEDGE.md` | dropped | A knowledge map generated by an external analysis tool over v1's history: decisions, notes and open questions extracted from commits and sessions. Its durable content is the ADRs, which v2 carries forward with continuous numbering. |
@@ -404,7 +399,7 @@ job survives, the v2 hook that does it is named; the rest reject:
 | `pyproject.toml`, `poetry.lock`, `requirements.txt` | ported | `pyproject.toml` + `uv.lock`: same manifest concept under uv. `requirements.txt` and the poetry lock die with poetry (see `check_requirements.sh` above). |
 | `codesight.config.json`, `.codesightignore` | dropped | Configuration for the retired codesight analysis tool; its hooks and caches are dropped in the pre-commit and docs sections above. |
 | `.claude/settings.json`, `.claude/settings.local.json` | dropped | v1's tracked file set only `plansDirectory: docs/plans`; v2 keeps its own `.claude/` settings, and the local file is per-machine state. |
-| `.env` (live secrets, on disk) | ported | Each secret's v2 home: `XERO_CLIENT_ID`/`SECRET` → the `workflow_xeroapp` row (dev bootstrap: `apps/xero/fixtures/xero_apps.json.example`; instances: `xero-apps.json.template`); `PHONE_PROVIDER_*` → the `phone_provider_*` columns of the `IntegrationSettings` row (instances: `integration-settings.json.template`; dev deliberately leaves them unset); scraper credentials (`STEEL_TUBE_*`) → `SupplierScraperConfig.active_credential` rows; `NGROK_AUTH_TOKEN` → local `ngrok.yml` (see its row); `GOOGLE_MAPS_API_KEY` → `IntegrationSettings.google_maps_api_key` (instances: the same template; dev: Admin > Integrations); `GCP_CREDENTIALS` path + key file → see `django-integrations-dev.json` row (rotation is a USER cutover action); `UAT_AWS_*` → dropped, no v2 code or workflow reads them (the UAT deploy authenticates with `UAT_HOST`/`UAT_USER`/`UAT_SSH_KEY` GitHub secrets). DB/Django settings map field-for-field onto v2's `.env.example`. |
+| `.env` (live secrets, on disk) | ported | Each secret's v2 home: `XERO_CLIENT_ID`/`SECRET` → the `workflow_xeroapp` row (dev bootstrap: `apps/xero/fixtures/xero_apps.json.example`; instances: `xero-apps.json.template`); `PHONE_PROVIDER_*` → the `phone_provider_*` columns of the `IntegrationSettings` row (instances: `integration-settings.json.template`; dev deliberately leaves them unset); scraper credentials (`STEEL_TUBE_*`) → `SupplierScraperConfig.active_credential` rows; `NGROK_AUTH_TOKEN` → local `ngrok.yml` (see its row); `GOOGLE_MAPS_API_KEY` → `IntegrationSettings.google_maps_api_key` (instances: the same template; dev: Admin > Integrations); `GCP_CREDENTIALS` path + key file → see `django-integrations-dev.json` row (rotation is still owed: `docs/rewrite-status.md`, Credential rotations); `UAT_AWS_*` → dropped, no v2 code or workflow reads them (the UAT deploy authenticates with `UAT_HOST`/`UAT_USER`/`UAT_SSH_KEY` GitHub secrets). DB/Django settings map field-for-field onto v2's `.env.example`. |
 | `.env.example` | ported | `.env.example`, with v2's own variable set. The `EMAIL_*` variables are deliberately absent: v2 consumes no email settings and sends no mail (blocked-by:email-feature — they return with the email flow). |
 | `.env.precommit` | dropped | The no-secrets env v1's CI (and one payroll test) loaded. v2's `config/settings_test.py` loads the real `.env` when present and carries safe setdefaults matching the CI service containers, so no committed env file exists. |
 | `.mcp.json.example` | dropped | Configured a `claude-code-mcp` server pointing at the then-separate frontend repository — a layout that stopped existing at v1's own subtree merge (v1 ADR 0008). |
@@ -414,7 +409,7 @@ job survives, the v2 hook that does it is named; the rest reject:
 | `stubs/celery` | dropped | v2 takes `celery-types` from PyPI (pyproject dev dependencies) instead of hand-maintaining stubs (ADR 0032). |
 | `stubs/drf_spectacular` | dropped | v2 has no DRF. |
 | `stubs/simple_history` | ported | `stubs/simple_history` |
-| `django-integrations-dev.json` | dropped | A live GCP private key (service account `id-django-integrator-dev@django-integrations`), not code — it was never a repo asset to port. Deleting the v1 repository does not revoke it: rotation is recorded as a USER action in `docs/cutover-checklist.md`, and the replacement goes wherever `GCP_CREDENTIALS` points. |
+| `django-integrations-dev.json` | dropped | A live GCP private key (service account `id-django-integrator-dev@django-integrations`), not code — it was never a repo asset to port. Deleting the v1 repository does not revoke it: rotation is still owed and tracked in `docs/rewrite-status.md` (Credential rotations), and the replacement goes wherever `GCP_CREDENTIALS` points. |
 | `ngrok.yml`, `ngrok.yml.example` | ported | v2 has its own `ngrok.yml` (gitignored) and `ngrok.yml.example`. v1's real file carried the live authtoken and the reserved `docketworks-msm-dev.ngrok-free.app` domain binding; both are carried in v2's local `ngrok.yml`, so deleting v1 loses neither. |
 | `SECURITY.md` | ported | `SECURITY.md` — the GitHub vulnerability-reporting policy; both repositories are public, so the report-privately channel must survive the v1 deletion. |
 | `.claude/skills/stock/SKILL.md`, `.claude/skills/add-stock/SKILL.md` | ported | `.claude/skills/stock/`, `.claude/skills/add-stock/` — operator skills for stock lookup and adding stock to job material lines over `manage.py shell`. Ported verbatim: every model and field they reference (`purchasing.Stock` item_code/description/unit_cost/unit_revenue/is_active, `quoting.SupplierProduct` product_name/parsed_description/parsed_metal_type, `job.Job`) exists unchanged in v2 (verified against the live models). |

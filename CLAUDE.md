@@ -20,7 +20,7 @@ ADR, and nothing here is said twice.
 - [`docs/design-language.md`](docs/design-language.md): read before designing or changing a screen.
 - [`docs/release-process.md`](docs/release-process.md) is how a change reaches production;
   [`docs/README.md`](docs/README.md) indexes the rest.
-- `../docketworks_v1` is the frozen v1; this repo carries no copy.
+- `../docketworks_v1`, where present, is a clone of the archived v1 at `e88dc420`; this repo carries no copy.
 - Session transcripts are not durable; those files, the ADRs and seam comments are.
 
 ## Commands

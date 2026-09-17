@@ -178,17 +178,6 @@ login fixture, generated types are camelCase, and wire shapes follow v2's
 schema where it differs from v1 (v1's schema is reference, not authority).
 `getPhantomRowIndex` ports into v2's helpers if not already present.
 
-Environmental prerequisites — verify against the E2E restore DB during
-implementation and record anything new in rewrite-status:
-
-- An **"Annual Leave" job** findable by name in the picker and mapped to the
-  Annual Leave pay item.
-- `annual_leave_loading > 0` in company defaults.
-- At least one active staff member (`date_left` null) with
-  `base_wage_rate > 0`.
-- The E2E user passes superuser auth (the management-surface ops require it).
-- The latest weekday has at least one staff row on the daily page.
-
 ## Testing
 
 - Backend units: both ops — envelope shape, `staff_id`/`date` params, auth

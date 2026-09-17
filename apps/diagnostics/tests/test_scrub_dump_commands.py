@@ -2,18 +2,15 @@
 
 The subprocess layer is stubbed (pg_dump/pg_restore/psql only exist on
 provisioned hosts); what these tests pin is order — every refusal fires
-before the first destructive step — the argv each stage receives, the
-migrations sidecar's content, and that unexpected failures persist an
-AppError before re-raising.
+before the first destructive step — the argv each stage receives, and that
+unexpected failures persist an AppError before re-raising.
 """
 
-import json
 from io import StringIO
 from pathlib import Path
 
 import pytest
 from django.core.management import CommandError, call_command
-from django.db import connections
 
 from apps.core.models import AppError
 from apps.diagnostics.services import db_scrubber, scrub_pipeline
@@ -70,9 +67,6 @@ class TestBackportDataBackup:
     @pytest.fixture
     def recorder(self, monkeypatch: pytest.MonkeyPatch) -> PipelineRecorder:
         recorder = _install_pipeline(monkeypatch, db_name="dw_msm_prod")
-        # The snapshot must read the ledger the archive carries; the pytest
-        # database stands in for the scrub copy.
-        monkeypatch.setattr(db_scrubber, "SCRUB_ALIAS", "default")
         monkeypatch.setattr(db_scrubber, "scrub", lambda: recorder.events.append("scrub"))
         return recorder
 
@@ -96,38 +90,6 @@ class TestBackportDataBackup:
         assert redump_cmd[-2:] == ["-f", str(out_path)]
         assert all(env["PGPASSWORD"] == "pw-123" for env in recorder.envs)
         assert f"Scrubbed dump written: {out_path}" in output
-
-    @pytest.mark.usefixtures("recorder")
-    def test_migrations_sidecar_matches_the_applied_ledger(self, tmp_path: Path) -> None:
-        out_path = tmp_path / "scrubbed.dump"
-
-        output = _run("backport_data_backup", "--output", str(out_path))
-
-        sidecar = Path(f"{out_path}.migrations.json")
-        assert f"migrations snapshot written: {sidecar}" in output
-        payload: dict[str, object] = json.loads(sidecar.read_text(encoding="utf-8"))
-        assert payload["dumped_at"]
-        rows = payload["rows"]
-        assert isinstance(rows, list)
-        snapshot: set[tuple[str, str]] = set()
-        for row in rows:
-            assert isinstance(row, dict)
-            snapshot.add((str(row["app"]), str(row["name"])))
-            assert row["applied"]
-        with connections["default"].cursor() as cur:
-            cur.execute("SELECT app, name FROM django_migrations")
-            applied = {(app, name) for app, name in cur.fetchall()}
-        assert snapshot == applied
-        assert snapshot
-
-    @pytest.mark.usefixtures("recorder")
-    def test_an_empty_migrations_ledger_is_refused(self, tmp_path: Path) -> None:
-        # A dump whose sidecar lists nothing would make the consumer-side
-        # migrate-to-snapshot step a silent no-op.
-        with connections["default"].cursor() as cur:
-            cur.execute("DELETE FROM django_migrations")
-        with pytest.raises(CommandError, match="zero rows"):
-            _run("backport_data_backup", "--output", str(tmp_path / "scrubbed.dump"))
 
     def test_missing_pg_tools_refuse_before_any_destructive_step(
         self, recorder: PipelineRecorder, monkeypatch: pytest.MonkeyPatch

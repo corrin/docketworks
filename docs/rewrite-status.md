@@ -41,11 +41,11 @@ does not have.
 | E2E specs ported | **57 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 266 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3426 collected |
+| Unit tests | 3415 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 134 recorded deviations |
-| ADRs | 48 (v1's 23 carried forward + 0038–0041, 0043, 0046–0065 written here) |
+| ADRs | 49 (v1's 23 carried forward + 0038–0041, 0043, 0046–0066 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints
 written measures typing, not delivery. Every slice below authors its own E2E spec and
@@ -88,7 +88,7 @@ Not a tier — just the things a session should have a reason not to pick up.
    definition instead of three. Its step 1 generates the work list for its step 2, so
    nothing here is hand-listed.
 5. **`/purchasing/mappings`** has been labelled "this slice lands first" since before
-   the flip and is still unbuilt three releases later. Either it lands or it stops
+   the 29 August cutover and is still unbuilt three releases later. Either it lands or it stops
    claiming to be first.
 
 ## Operations
@@ -566,7 +566,7 @@ same class: the post duplicates what Xero already holds, and then self-reports s
 - **Purge "v1" and "v2" from comments, docstrings, docs, ADRs and filenames.** We document
   state, not change: "v1 silently substituted the company default; v2 raises" becomes "a
   staff member without a wage rate cannot be costed". Delete first, reword only what states
-  a live invariant. Scope includes this file, the cutover checklist, the behaviour ledger,
+  a live invariant. Scope includes this file, the behaviour ledger,
   the `db_table = "workflow_*"` overrides, `scripts/v1-frontend-operations.yml`,
   `export_openapi.py`'s `DISSOLVED_V1_APPS` and `status_table.py`'s port rows. The
   port-progress machinery cannot go until the operations it counts are ported or dropped.
@@ -754,7 +754,8 @@ Not tasks. Each is invisible until it burns a slice.
    and `quill` (specs assert `.ql-editor`). Needed by no spec, so do not port:
    `pdf-vue3`, `@unovis`, `vue-advanced-chat`. (`rrweb` arrived with session replay and
    is off that list.) The v1 source is the archived private repository
-   `corrin/docketworks_v1`, not a sibling checkout.
+   `corrin/docketworks_v1`; a local `../docketworks_v1` is a clone of it at `e88dc420`,
+   and nothing gated needs it.
 9. **`JobViewTabs.vue` static-imports all ten job tabs**, so a faithful port drags in
    `SafetyWizardModal`, `McpToolDetails`, Quill, `CameraModal` and the
    Quote/History/QuotingChat/Safety/Pdf tabs — 3,100 v1 lines no spec touches. Lazy-route

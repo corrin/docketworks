@@ -30,8 +30,8 @@ credentials may be added. Callers supply the company mailbox to the Google adapt
   business configuration — the accounting provider selector of ADR 0012 is one — while
   `IntegrationSettings` holds how the install reaches the outside.
 - **Reads never write.** `get_solo()` returns the row or raises `ImproperlyConfigured`; the
-  row is created by `core/0003_integration_settings_row`, which the cutover script re-applies
-  after the restore. `integrations/0001` adopts that table without DDL;
+  row is created by `core/0003_integration_settings_row`. `integrations/0001` adopts that
+  table without DDL;
   `integrations/0002` relabels its ContentType in place to preserve permission grants.
   A `get_or_create` on a read path makes a GET a mutation.
 - **Secrets are write-only on the wire.** The admin surface is the superuser-only `/admin/integrations` page, backed by
@@ -47,10 +47,10 @@ credentials may be added. Callers supply the company mailbox to the Google adapt
   `scripts/ops/restore_checks/check_integration_settings.py` proves each credential the way the
   app uses it (a live Address Validation call for the Maps key). The scrubber truncates the
   table whole, and its private-table list is the scrub contract for every column at once.
-- **The table is named for its history until the post-cutover rename.** `db_table` is
-  `crm_phoneprovidersettings`, the table v1 created for the phone row: the v1 dump restores by
-  table name and the scrubber lists it, so adopting it moves no data and changes no contract.
-  The physical rename belongs to the purge of v1/v2 names in `docs/rewrite-status.md`.
+- **The table keeps the name v1 gave it.** `db_table` is `crm_phoneprovidersettings`, the
+  table v1 created for the phone row; keeping it moved no data at the cutover and changes no
+  scrub contract, since the scrubber's private-table list names it. The physical rename is
+  the purge of v1/v2 names in `docs/rewrite-status.md`.
 
 ## Do not
 

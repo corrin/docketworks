@@ -115,7 +115,9 @@ It is **idempotent** — safe to re-run on an already-configured server.
 - Node.js 22 (NodeSource)
 - PostgreSQL server (configured for password auth over sockets)
 - Redis (the `redis-server` binary; each instance runs its own `redis-<instance>` server on a
-  private port behind its own password, ADR 0065; the stock service on 6379 serves only the v1 demo)
+  private port behind its own password, ADR 0065; the stock service on 6379 serves only the v1 demo).
+  `CACHES["shared"]` must reach it: PDF-refresh dedup and django-solo propagation live there,
+  and `Job.save()` fails at commit time without it
 - Nginx, with per-IP rate-limit zones for the two authentication endpoints
 - Certbot + Dreamhost DNS hook scripts (for wildcard cert auto-renewal)
 - pnpm (via corepack) and pm2 (for marketing website)
@@ -187,7 +189,7 @@ loaders skip anything a restored database already carries.
 
 ### Per-instance test database
 
-`create` (and `reconfigure`, for instances that predate this) also provisions
+`create` also provisions
 a per-tenant pytest role: a `dw_<client>_<env>_test` Postgres role with
 `CREATEDB`, its credentials written into the instance `.env` as
 `TEST_DB_USER` and `TEST_DB_PASSWORD`. The role owns no database at rest:
@@ -227,6 +229,10 @@ sudo scripts/server/dw-run.sh <client>-<env> python manage.py finalize_instance_
 
 The root-owned `/opt/docketworks/config/<name>.company-defaults.json` is the
 durable tenant configuration; repo fixtures are only templates.
+It must name every field of the current `Company` and `CompanyDefaults` models, so a
+release that renames or adds one leaves every host's file behind it: `instance.sh
+validate-config` names the difference, and `create`/`reconfigure` refuse the file before
+touching anything.
 
 ---
 
@@ -319,7 +325,7 @@ The job runs as the instance user (`dw_<name>`), writes local dumps under
 `/opt/docketworks/instances/<name>/backups`, applies retention, and syncs to
 Google Drive under `gdrive:dw_backups/`. Cleanup copies local dumps
 before pruning and purges only the same expired backup names remotely, so
-unrelated remote-only history is not mirrored away. Each DB dump has a sibling `<dump>.migrations.json` sidecar recording the database's migration state (the snapshot `migrate_to_snapshot.py` consumes); legacy `.sha` release-pointer sidecars are deleted by the next retention run.
+unrelated remote-only history is not mirrored away.
 
 Mutable instance file backups run separately via `backup-files-<name>.timer`.
 They incrementally sync `phone-recordings`, `mediafiles`, and the currently
@@ -449,6 +455,44 @@ sudo scripts/server/instance.sh reconfigure test uat
 sudo scripts/server/instance.sh destroy test uat
 sudo scripts/server/instance.sh destroy test2 uat
 ```
+
+### Rehearsing the new-instance path after a merge
+
+`create` is otherwise exercised only when a real client is set up. After a merge to
+`main`, a rehearsal creates a throwaway instance from `origin/main`, runs the post-create
+checks on what `create` produced, loads the demo staff, onboards against the fake Xero the
+way a new client is onboarded, runs the E2E suite through `verify-instance.sh --e2e`, and
+destroys the instance (ADR 0066).
+
+Once, on the host: the rehearsal instance's three config files. The credentials file takes
+msm-uat's values (Maps key, GCP key, team drive, Xero app); the E2E file names the user the
+suite signs in as, which `e2e_ensure_fixtures` creates.
+
+```bash
+sudo scripts/server/instance.sh prepare-config rehearsal uat --seed
+sudoedit /opt/docketworks/config/rehearsal-uat.credentials.env
+sudo install -m 600 -o root -g root /dev/null /opt/docketworks/config/rehearsal-uat.e2e.env
+sudoedit /opt/docketworks/config/rehearsal-uat.e2e.env   # E2E_TEST_USERNAME= / E2E_TEST_PASSWORD=
+```
+
+Then, from the dev box, after each merge:
+
+```bash
+scripts/ops/rehearse_instance.sh <uat-host> rehearsal            # origin/main
+scripts/ops/rehearse_instance.sh <uat-host> rehearsal --ref <ref>
+```
+
+The host's output streams to the terminal and to `logs/rehearsals/<timestamp>.log`; the
+exit status is the host's. On the host, each run writes
+`/opt/docketworks/rehearsals/<timestamp>-<sha8>/result.txt` (step reached, exit, ref, sha,
+duration, whether the instance was left) beside the Playwright report, traces and history.
+A failed run leaves `rehearsal-uat` for inspection and the next run destroys it first;
+until then `deploy.sh --all` would deploy it like any other instance. The run verifies
+`create` and onboarding and is never merge evidence.
+
+Until `fake_xero_connect`, the fake's `GET /Connections` and the onboarding payroll writes
+land, the run is red at the `connect` step; `docs/rewrite-history.md` (2026-09-17) names
+the three.
 
 ---
 

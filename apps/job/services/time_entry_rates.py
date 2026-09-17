@@ -105,10 +105,10 @@ def rate_from_meta(meta: dict[str, object], key: str) -> Decimal | None:
     Absent and JSON null are unset (ADR 0040); a present non-numeric value is
     bad data and raises, because the fix is the row (ADR 0015).
 
-    Safe to raise: dw_cutover_rehearsal holds 26,684 cost lines, 14,474 with a
-    wage multiplier and 2,550 with a bill multiplier, and not one fails the
-    numeric pattern. No repair migration is needed, so this cannot reject a row
-    that exists today.
+    Safe to raise: the August 2026 cutover rehearsal database held 26,684 cost
+    lines, 14,474 with a wage multiplier and 2,550 with a bill multiplier, and
+    not one failed the numeric pattern. No repair migration was needed, so this
+    cannot reject a row that exists today.
     """
     value = meta.get(key)
     if value is None:

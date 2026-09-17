@@ -37,23 +37,11 @@ writers, retain the affected job numbers, make the reviewed ledger changes, then
 repair and check those jobs before writers resume. Rebuilding a cache cannot
 repair an incorrect ledger or supply missing inventory movement evidence.
 
-## First deployment
+## After a migration of the costing tables
 
-Rehearse the complete migration chain against a current scrubbed production
-snapshot, including the inventory repair dispositions required by this branch.
-Stop application, worker and scheduled writers during rollout. Job migration
-`0011_incremental_cost_summary` locks the costing tables, rebuilds every incorrect
-cache from its cost lines, preserves object extension keys and archived revisions,
-and enforces three numeric live totals. Empty cost sets get zero totals. The
-migration changes job freshness for repaired caches but never changes ledger rows.
-
-After migration, run `reconcile_cost_summaries --all` and require a clean result.
-Resume the new application and workers, then request the existing PDF refresh
-reconciler once so jobs changed by the data migration are discovered:
+Run `reconcile_cost_summaries --all` and require a clean result, then request the existing
+PDF refresh reconciler once so jobs the migration changed are discovered:
 
 ```bash
 uv run python manage.py shell -c 'from apps.job.tasks import request_job_summary_pdf_refresh; request_job_summary_pdf_refresh()'
 ```
-
-Do not mix old full-rebuild writers with the new incremental writers during the
-rollout. Reversing the schema migration does not restore previously wrong caches.

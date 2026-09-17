@@ -447,7 +447,7 @@ PO-line references and orphan stock sources. Legacy receipt adjustments record
 the exact unexplained quantity separately from stock movements, with an existing
 PO note; they create no receipt, allocation or charge. Their immutable records
 protect PO-line deletion, and the audit still rejects additional discrepancies.
-The [repair runbook](inventory-legacy-repair.md) records preview, application and
+The repair runbook (`inventory-legacy-repair.md`, since deleted) recorded preview, application and
 restore ordering.
 
 A backed-up local clone and then the local database passed the same rehearsal:
@@ -489,7 +489,7 @@ bugs were. The consequence was a rule rather than another linter: speed is made 
 spec shipping with the slice. Carried in CLAUDE.md until 2026-09-13, when that file stopped
 holding stories.
 
-## Cutover
+## Costing, stock and purchasing slices (2026-09-06 to 2026-09-08)
 
 **2026-09-08 — Incremental cost summaries and explicit recovery.**
 Cost-line saves/deletes now apply exact persisted contributions to the existing
@@ -694,6 +694,11 @@ Xero's daily-limit 429; 46 tests did not run. Its database restore and managed
 service shutdown completed. These are verification results, not a green merge
 gate or a reason to broaden this PR into phone provisioning or Xero changes.
 
+## Cutover (planned 2026-08-14, ran 2026-08-29)
+
+The cutover ran on 29 August 2026 after the two deferrals below. The tiering these
+entries describe was the plan of 2026-08-14 and was retired with the release.
+
 **2026-08-14: the 15 August window was declined and cutover moved one week to
 22–23 August.** At decision time MUST-tier specs were still red — among them
 `/timesheets/weekly` (declared MUST that same day, unstarted),
@@ -703,7 +708,7 @@ the rehearsal items were open, so the functionality gate could not pass inside
 the window. Scope was frozen as tiered that day; deferral moves the date, never
 the definition of done.
 
-**2026-08-14 tiering.** Reports slip about a week past cutover. Process
+**2026-08-14 tiering, as planned that day.** Reports slip about a week past cutover. Process
 documents stay deferred except the four safety-AI operations.
 `/purchasing/mappings` slips about a week — the purchasing MUST is the ability
 to make purchase orders, which the green purchasing specs plus `pickup-address`
@@ -712,10 +717,10 @@ than a week: no scheduling algorithm exists in either repo's backend, so the
 slice is algorithm plus page plus fresh spec. The admin tail is SHOULD-plus —
 really painful to slip — and AI is SHOULD rather than MUST.
 
-**Every deferred screen ships spec-first (2026-08-14).** Most have no v1 spec to
-port, so the slice authors one and is done when it is green. The spec is written
-with the slice, not before cutover — an explicit choice not to spend pre-flip
-hours on specs for unbuilt screens.
+**Every deferred screen ships spec-first (ruled 2026-08-14).** Most have no v1 spec
+to port, so the slice authors one and is done when it is green. The spec is written
+with the slice; before the cutover this was an explicit choice not to spend pre-flip
+hours on specs for unbuilt screens, and it still holds.
 
 ## Rulings that closed a question
 
@@ -1110,10 +1115,10 @@ dropped NULL-office-email rows from the identity scrub (SQL NULL
 semantics), and it never scrubbed `payroll_email` at all — it now excludes
 by pk and scrubs a set payroll address while preserving NULL shape.
 
-**The flip and its triage, 2026-08-29.** Production cuts over to v2 the
-night of 2026-08-29; v1 is never deployed again unless something goes very
-wrong, with `rollback-instance.sh` plus the preserved v1-final database as
-the escape hatch and Monday 07:00 as the decide-by point. Owner triage the
+**The flip and its triage, 2026-08-29.** Production cut over to v2 the
+night of 2026-08-29. v1 was never deployed again; the escape hatch,
+`rollback-instance.sh` plus the preserved v1-final database with Monday
+07:00 as the decide-by point, was not used. Owner triage the
 same day: the weak-password path, AccessLogging/DisallowedHost, the
 one-implementation gate expansion and the 500-line passes are DEFERRED —
 large refactors days before a flip add regression risk and remove none.
@@ -1855,3 +1860,70 @@ Production remediation is an operator action in Xero, not code: the 24–30 Aug 
 can stage a spanning application; the live integration suite carries the pair
 (`test_live_spanning_leave_carries_one_period_per_payroll_week`,
 `test_live_spanning_leave_is_refused_and_counted`).
+
+## 2026-09-17 — A company-defaults file is held to the model's field set
+
+Finding: `instance.sh create` on a new host failed at `loaddata` because the root-owned
+config file still carried `annual_leave_loading`, renamed to `labour_cost_loading` on
+2026-09-02 (KAN-351). The rename updated the shipped fixture and its symlinked template but
+no host's file, and nothing before `loaddata` compared the two; the failure landed after the
+OS user, database and migrations existed, so `create` then refused to run over its own
+partial state. Measured against the current models, the shipped fixture and prospect
+template were themselves eleven fields behind (`gst_rate`, `quote_expiry_days`, the two
+session-replay settings, the six geocode columns, `Company.merged_into`), each silently
+taking the model default at load.
+
+Ruling: no skip flag. The validator that runs before any state is mutated now requires each
+record's field set to equal the shipped fixture's, in both directions, and a Django test
+holds that fixture to the model; the sync-gate and tenant-id rules no longer carry their own
+presence checks. A release that renames or adds a `CompanyDefaults` field is followed by
+editing every host's config file, which `validate-config` now names. Two stale references
+went with it: the post-create check `check_company_defaults.py` told the operator to reload
+a `.fixtures` file that `create` deletes, and now names the PDF that needs the wide logo and
+the admin screen and config file that set it; the 2026-08-10 timesheet spec dropped its
+shipped "environmental prerequisites" list, which still named `annual_leave_loading`.
+
+## 2026-09-17 — The new-instance path is rehearsed after every merge (ADR 0066)
+
+Finding: `instance.sh create` is exercised only when a real client is set up, so it rots
+silently between those events; the company-defaults incident above is one instance. The
+owner ruled for a gate run from the dev box after each merge to `main`: a throwaway instance
+created from `origin/main` on the UAT host, checked, onboarded against the fake Xero the way
+a new client is onboarded, verified by the suite, destroyed. Data is what `create` produces
+plus real onboarding, never a copy of another database, so the run proves provisioning and
+not a restore.
+
+The run is red at its `connect` step until three pieces land, and the owner chose to land
+the gate first so the red is a record rather than a plan:
+
+- `manage.py fake_xero_connect`: binds a fresh installation as-if-connected under the fake by
+  putting a token on the active `XeroApp` row (`access_token`, `refresh_token`, `token_type`,
+  `expires_at`, `scope`, the columns `_payload_from_row` reads), minting a tenant id, seeding
+  the organisation and the connection row the next item answers from. It must not write
+  `CompanyDefaults.xero_tenant_id`: `xero --setup` discovers it from the connections list,
+  and that discovery is part of what the rehearsal proves. The fake's identity endpoint only
+  refreshes a token the database holds, and the consent exchange stays refused under the
+  fake because it would reach the real identity service; the binding is a data step, never
+  a faked consent flow.
+- PR C in `apps/xero/fake/tests/test_every_call_is_routed.py`: `GET api.xero.com/Connections`,
+  with the connection and token tables ADR 0060 names and `apps/xero/fake/models.py` lacks.
+- The onboarding subset of PR B in the same list: `POST EarningsRates`, `LeaveTypes` and
+  `PayRunCalendars` from `xero --setup --seed-xero`; `POST Employees` and the per-employee
+  `Employment`, `Tax`, `SalaryAndWages`, `PaymentMethods`, `Working-Patterns`, `LeaveSetup` and
+  `LeaveTypes` from `seed_xero_from_database --only employees`.
+
+Measured against a database holding only what `create` and onboarding produce, eleven spec
+files still assume restore data and will fail once the run reaches the suite: stock rows by
+name (`job/create-estimate-entry`, `job/job-cost-entry-data`, `purchasing/create-purchase-order`,
+`purchasing/stock-search`); a second job card or job history (`kanban/kanban-desktop`,
+`kanban/kanban-drag-vanishing`, `kanban/kanban-mobile`, `kanban/kanban-search`); invoice
+history or more than a page of companies or people (`crm/people`, `reports/companies`,
+`reports/sales-forecast`). Each is a spec that does not seed what it needs (ADR 0063) and is
+fixed one file at a time. Nothing was added to rewrite-status.md; KAN-359 is the line these
+hang off.
+
+Two decisions the design settled: a rehearsal instance renders `XERO_FAKE=True` for its
+whole life, because onboarding ends by enabling sync and a live beat on the real client
+would otherwise run with a fake token; and the prompt-free removal is reachable only through
+the rehearsal marker, never a flag, because a flag makes every instance destroyable from a
+script.
