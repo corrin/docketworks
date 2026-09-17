@@ -4,6 +4,9 @@ import { expect, test } from '../fixtures/auth'
 import { autoId } from '../helpers'
 
 /**
+ * Reads the synced mirror only: a run of this spec spends no Xero quota, so it
+ * can run on a day the budget is gone.
+ *
  * Opus: the forecast compares Xero invoice totals with Job Manager revenue, so the
  * cross-layer risk is the drill-down: the month row the user clicks has to
  * become the path segment the detail endpoint validates, and the rows that

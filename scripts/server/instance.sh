@@ -1202,17 +1202,12 @@ destroy_instance() {
 # ============================================================
 # rehearse
 # ============================================================
-# The new-instance path end to end on a throwaway instance (ADR 0066):
-# create from the ref, check what create produced, onboard against the
-# fake Xero the way a new client is onboarded, run the E2E suite through
-# verify-instance.sh, destroy. The env is fixed to uat: create would accept
-# prod, and only verify-instance.sh would refuse it, after the instance
-# existed. Every step's failure is the run's failure; a failed run leaves
-# the instance for inspection and the next run destroys it first.
-#
-# Red at `connect` until fake_xero_connect, the fake's GET /Connections
-# (PR C) and the onboarding payroll writes (PR B) land; docs/rewrite-history.md
-# 2026-09-17 names all three.
+# ADR 0066 is the decision and its rules; docs/server_setup.md Part E is
+# how it is run. Two facts live here because the code depends on them: the
+# env is fixed to uat because create would accept prod and only
+# verify-instance.sh would refuse it, after the instance existed; and the
+# run is red at `connect` until the pieces named in
+# apps/xero/fake/tests/test_every_call_is_routed.py land.
 #
 # The values the EXIT trap reports are deliberately not `local`: the trap
 # runs after this function has returned.
@@ -1336,7 +1331,7 @@ do_rehearse() {
     STEP=staff
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata apps/accounts/fixtures/initial_data.json
 
-    log "Onboarding under the fake Xero: red until fake_xero_connect, the fake's GET /Connections (PR C) and the onboarding payroll writes (PR B) land (docs/rewrite-history.md, 2026-09-17)."
+    log "Onboarding under the fake Xero: red at connect until the pieces named in apps/xero/fake/tests/test_every_call_is_routed.py land."
     STEP=connect
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py fake_xero_connect
 

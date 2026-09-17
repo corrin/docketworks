@@ -488,6 +488,12 @@ class XeroAccountingProvider:
         # later attempt helps. Defaulting the code downstream was rejected: a
         # manager's `or 400` would also turn a genuinely missing code into a
         # claim about the operator's input.
+        # The other collision is invisible here: a number a LIVE order holds
+        # makes Xero update that order and return its id with no error, so a
+        # duplicate would adopt another supplier's document as this one's
+        # (measured 2026-09-12; the fake reproduces it). Nothing guards it
+        # yet; our numbers are MAX+1 over surviving rows, so it needs a hand
+        # edit of po_number to arise.
         if po_id == ZERO_UUID:
             return DocumentResult(
                 success=False,

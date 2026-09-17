@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
-# Rehearse the new-instance path on the UAT host from this machine (ADR 0066).
-#
-# Runs `instance.sh rehearse <client> --ref <ref>` as root on the remote: it
-# creates <client>-uat from the ref, checks what create produced, onboards
-# against the fake Xero, runs the E2E suite through verify-instance.sh and
-# destroys the instance. The host's output streams here and into
+# Run `instance.sh rehearse` on the UAT host from this machine (ADR 0066;
+# docs/server_setup.md, Part E). The host's output streams here and into
 # logs/rehearsals/<timestamp>.log; the exit status is the host's.
 #
 # Usage:

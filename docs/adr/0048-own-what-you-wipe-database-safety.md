@@ -56,6 +56,13 @@ create and drop test databases. The REVOKE does not stop a determined actor
 holding the owner role's own password; nightly and predeploy backups bound
 that damage.
 
+**A destructive predicate is proven against real data before it runs.** A
+`WHERE` clause written from the model's contract deletes what the contract
+says is junk, and production data is the only witness to what the contract got
+wrong (ADR 0015): run the predicate as a read against a restore, review the
+rows it selects, then run it. ADR 0015's dry-run rule covers migrations; this
+covers every ad-hoc delete, in a shell or a command.
+
 **Test databases isolate per checkout automatically.** Dev checkouts derive
 the test database name from a hash of the checkout path
 (`config/settings_test.py`), so concurrent worktrees never collide and

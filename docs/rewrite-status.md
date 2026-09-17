@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **57 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 266 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3415 collected |
+| Unit tests | 3416 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 134 recorded deviations |
@@ -76,7 +76,7 @@ Not a tier — just the things a session should have a reason not to pick up.
    2026-08-26. Untrash it before that expires. The other seven are invisible even to
    the Workspace owner; the owner arbitrates restore-from-backup vs archive per doc,
    then the surviving rows are relinked or archived on the production instance — a data
-   fix, never a read-side fallback (ADR 0015). The row list is in `rewrite-history.md`.
+   fix, never a read-side fallback (ADR 0015). The probe's `--json` output is the row list.
    Re-verify with `outbound_links_probe --kind google_file --google-as delegated`.
 3. **Port the workshop schedule.** No route, no `AppNavbar` entry and no algorithm, so
    the shop plans without it. See Screens for the port target and the two defects not to
@@ -147,8 +147,8 @@ Not a tier — just the things a session should have a reason not to pick up.
   itself, so the run needs a budget agreed first: the employee integration regression
   through the vendor-call ledger, then this spec and the applicable timesheet browser
   checks including responsive screenshots. Design is in
-  [the plan](plans/2026-09-09-xero-detail-refresh.md); implementation and local checks are
-  in [`rewrite-history.md`](rewrite-history.md).
+  [the plan](plans/2026-09-09-xero-detail-refresh.md); the implementation is on `main` and
+  its local checks passed, so the live run is the only step open.
 - **Record the restore runbook's acceptance test** once a full E2E suite passes from the
   first spec — `docs/restore-prod-to-nonprod.md`'s "the suite and its teardown both pass".
   The 2026-09-12 gate reached 165 passed, 2 failed, and both failures are now fixed; the
@@ -302,7 +302,9 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   results on the mappings screen: the manual-supplier twin of the scraper path. The seam
   note atop `apps/quoting/services/price_extraction.py` is the scope record. Routes
   through the gateway (ADR 0041), arbitrates the duplicate-detection conflict that note
-  flags, and rebuilds `/purchasing/pricing` with a working upload. Its spec owns the
+  flags, and rebuilds `/purchasing/pricing` with a working upload: v1's
+  `pages/purchasing/pricing.vue` accepted a drop and discarded it, so the upload is new
+  capability, not a port. Its spec owns the
   cross-screen flow; the mappings spec asserts nothing about uploads.
   [KAN-176](https://docketworks.atlassian.net/browse/KAN-176) carries the business ask.
 - **The job attachments tab is missing four v1 features** (prod bug reports 2026-08-31 and
@@ -434,7 +436,7 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   (`apps/diagnostics/api.py:210`) runs the whole payload through pydantic against a
   recursive `JsonValue` union; on a 4.28 MB replay that is 0.81s of `validate_python` plus
   0.28s of `dump_json`, against 0.05s of gzip. Return the joined chunks without
-  re-validating bytes the server just parsed. Measurements in `rewrite-history.md`.
+  re-validating bytes the server just parsed (measured on a 4.28 MB replay, 2026-09-04).
 - **`payload_available` costs a query and a stat per listed recording.** `_recording_out`
   (`apps/diagnostics/api.py:76`) calls `has_payloads`, which reads the first chunk row and
   stats its file — 50 of each per page of the admin list. `prefetch_related` does not fix
@@ -587,6 +589,13 @@ never a second stream.
 
 - **[KAN-359](https://docketworks.atlassian.net/browse/KAN-359): keep new-instance provisioning current as features change.**
   Require setup-impact review per feature, repair existing drift, and verify fresh production/demo setup.
+  The rehearsal (ADR 0066) is the check; once it reaches the suite, eleven spec files assume
+  restore data and must seed their own (ADR 0063): stock rows by name
+  (`job/create-estimate-entry`, `job/job-cost-entry-data`, `purchasing/create-purchase-order`,
+  `purchasing/stock-search`); a second job card or job history (`kanban/kanban-desktop`,
+  `kanban/kanban-drag-vanishing`, `kanban/kanban-mobile`, `kanban/kanban-search`); invoice
+  history or more than a page of companies or people (`crm/people`, `reports/companies`,
+  `reports/sales-forecast`).
 - **[KAN-357](https://docketworks.atlassian.net/browse/KAN-357): rebuild v2 as a clean
   modular monolith (ADR 0055).** Move the remaining `apps.core` owners — `AppError`,
   `CompanyDefaults` and `ServiceAPIKey` — and the remaining legacy contexts, replacing

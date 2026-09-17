@@ -24,7 +24,11 @@ source of competing components. No reference page is exempt from the breaches be
 ## Page composition
 
 - **Lists:** title and page actions, search/filter controls, then the collection and
-  its count/paging controls. Use the available width for the collection.
+  its running count. Use the available width for the collection. A directory scrolls to
+  load through [LoadMoreSentinel](../frontend/src/features/shared/LoadMoreSentinel.tsx);
+  it never pages or truncates, the count names the server's total, and "Load more" is the
+  keyboard path to the next rows. Offset paging stays on the backend, because keyset paging
+  answers a feed and a directory is not one.
 - **Tabbed records:** identity, status and record actions above one shared tab bar.
   Switching tabs preserves the outer alignment and content gutters. A short form may
   bound its fields without narrowing or recentering the tab's entire shell.
@@ -95,6 +99,7 @@ Change a shared default at its owner, rather than recolouring each caller.
 | Tabs and overlays | [TabBar](../frontend/src/features/shared/TabBar.tsx), [Dialog](../frontend/src/components/ui/dialog.tsx), [Drawer](../frontend/src/components/ui/drawer.tsx) |
 | Working sections and statistics | [EntryGridSection](../frontend/src/features/shared/EntryGridSection.tsx), [SummaryCard](../frontend/src/features/shared/SummaryCard.tsx) |
 | Editable and read-only tables | [DataTable](../frontend/src/features/shared/DataTable.tsx), [ListTable](../frontend/src/features/shared/ListTable.tsx) |
+| Scroll-to-load directories | [LoadMoreSentinel](../frontend/src/features/shared/LoadMoreSentinel.tsx) |
 | Drafts and autosave | [useDraftRows](../frontend/src/features/shared/useDraftRows.ts), [useAutosaveField](../frontend/src/features/shared/useAutosaveField.ts) |
 | Lookup and search controls | [JobPicker](../frontend/src/features/shared/JobPicker.tsx), [ItemSelect](../frontend/src/features/shared/ItemSelect.tsx), [CompanyLookup](../frontend/src/features/shared/company/CompanyLookup.tsx), [SearchInput](../frontend/src/features/shared/SearchInput.tsx) |
 | Inline record editing | [InlineEditText](../frontend/src/components/InlineEditText.tsx), [InlineEditSelect](../frontend/src/components/InlineEditSelect.tsx) |

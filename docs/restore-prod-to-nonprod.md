@@ -368,7 +368,11 @@ as its environment prerequisite. The base rate is derived from this database's
 labour-cost loading (37.50 at 20%), because the wage is computed on save;
 setting `base_wage_rate = 45.00` was the rejected obvious move: it computes a
 54.00 wage and fails that spec's labour-cost assertion while passing every
-"non-zero" check on the way.
+"non-zero" check on the way. The base rate's owner is Xero: the employee detail
+refresh overwrites it from the demo organisation, so that organisation holds
+37.50 for the E2E user and the value this command writes is a starting point,
+not the source. A snapshot restored from before the organisation was corrected
+brings the old rate back with it.
 
 The same command creates the company named by
 `CompanyDefaults.test_company_name` when it is missing, setting the name first

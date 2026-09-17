@@ -17,6 +17,7 @@ import {
 /**
  * Timesheet entry operations end to end: create an entry against a fresh
  * job, edit its description, and see the hours on the job's Actuals tab.
+ * Reads the synced pay items only: a run of this spec spends no Xero quota.
  *
  * Port deviations from v1, each deliberate:
  * - The shared job is created by the first serial test through the standard

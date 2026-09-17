@@ -18,7 +18,13 @@ from django.db.models.base import ModelBase
 
 
 class PhoneEndpoint(models.Model):
-    """Phone number controlled by this company, including staff and PABX routes."""
+    """Phone number controlled by this company, including staff and PABX routes.
+
+    A diversion leg (the main line forwarding to a staff mobile) classifies as the
+    company's own call only when the forward target is registered here as a
+    staff mobile; an unregistered target reads as an outside party and the leg
+    is filed as a separate call.
+    """
 
     class EndpointType(models.TextChoices):
         MAIN_LINE = "main_line", "Main line"

@@ -9,6 +9,22 @@ test failure here, not a discovery there.
 The payroll writes and the leave and timesheet reads are the next slice;
 they are named below so that the gate shrinks as they land and nothing new
 slips past it unnamed.
+
+The instance rehearsal (ADR 0066) runs the real onboarding against the fake on
+a fresh installation and is red at its ``connect`` step until three pieces land:
+PR C below; the onboarding subset of PR B below (``POST EarningsRates``,
+``LeaveTypes`` and ``PayRunCalendars`` from ``xero --setup --seed-xero``, ``POST
+Employees`` and the per-employee ``Employment``, ``Tax``, ``SalaryAndWages``,
+``PaymentMethods``, ``Working-Patterns``, ``LeaveSetup`` and ``LeaveTypes`` from
+``seed_xero_from_database --only employees``); and ``manage.py fake_xero_connect``,
+which binds a fresh installation as-if-connected by putting a token on the
+active ``XeroApp`` row (the columns ``_payload_from_row`` reads) and minting the
+tenant the connections list answers with. It must not write
+``CompanyDefaults.xero_tenant_id``: ``xero --setup`` discovers that from the
+connections list, and the discovery is part of what the rehearsal proves. The
+fake's identity endpoint only refreshes a token the database holds and the
+consent exchange stays refused under the fake, so the binding is a data step,
+never a faked consent flow.
 """
 
 import inspect

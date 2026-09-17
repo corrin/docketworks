@@ -131,7 +131,15 @@ cost **862** — 91% of the day's budget in one test, which is why it is now
 opt-in. A post makes several rate-limited calls per employee, and the
 reconciliation read has no bulk leave endpoint, so it costs one call per staff
 member. Exhausting the day is not subtle: reads start failing with
-`X-Rate-Limit-Problem: day` and a `Retry-After` of roughly an hour.
+`X-Rate-Limit-Problem: day` and a `Retry-After` measured at eleven hours on
+2026-08-21 (an earlier day saw about an hour; the header is the authority).
+
+An exhausted day looks like a code regression from the suite's side: every
+Xero-touching spec fails at once, each with a 500 whose traceback ends in
+`RateLimitException`. Confirm it in one command before bisecting anything, by
+comparing `grep -c RateLimitException logs/e2e/django.log` with the ERROR
+count in the same log; when they match, nothing in the run failed for any
+other reason.
 
 `scripts/ops/run_e2e.sh` reads the quota before its first Xero-spending step
 and refuses to start at or below 150 remaining, so a run that would fail on

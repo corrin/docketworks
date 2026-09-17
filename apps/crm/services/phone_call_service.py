@@ -835,7 +835,12 @@ class PhoneMatcher:
 
 
 def is_call_payload(payload: ProviderPayload) -> bool:
-    """Report whether the payload looks like a call row (has a date/time and a party)."""
+    """Report whether the payload looks like a call row (has a date/time and a party).
+
+    The provider's CDR interleaves billing lines (type "Add-On", no parties) with
+    the calls, which is why the test is a party plus a timestamp rather than the
+    row's presence in the feed; measured on 2026-09-01 against 45,637 payloads.
+    """
     if not payload.get("calldate") or not payload.get("calltime"):
         return False
     origin = normalize_phone(payload.get("origin"))

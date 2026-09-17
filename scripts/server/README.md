@@ -211,18 +211,10 @@ Prompts for confirmation, then removes: systemd service, Nginx config, database 
 ## Rehearsing the New-Instance Path
 
 ```bash
-# Once: the rehearsal instance's three config files (docs/server_setup.md, Part E)
-sudo ./scripts/server/instance.sh prepare-config rehearsal uat --seed
-
-# After a merge to main, from the dev box:
-scripts/ops/rehearse_instance.sh <uat-host> rehearsal            # origin/main
-scripts/ops/rehearse_instance.sh <uat-host> rehearsal --ref <ref>
-
-# On the host directly
 sudo ./scripts/server/instance.sh rehearse rehearsal [--ref <ref>]
 ```
 
-Creates `rehearsal-uat` from the ref, runs the post-create checks on what `create` produced, loads the demo staff, onboards against the fake Xero, runs `verify-instance.sh --e2e`, and destroys the instance (ADR 0066). Artifacts and `result.txt` land under `/opt/docketworks/rehearsals/<timestamp>-<sha8>/`. A failed run leaves the instance for inspection; the next run destroys it first. The run verifies `create` and onboarding and is never merge evidence.
+What it proves and its rules: ADR 0066. Setting it up and running it from the dev box: `docs/server_setup.md`, Part E.
 
 ## Listing Instances
 

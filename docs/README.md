@@ -18,7 +18,7 @@ Follow these in order:
 |----------|---------|
 | [project-overview.md](project-overview.md) | What DocketWorks is: the business problem, core features, typical workflow, scale |
 | [rewrite-status.md](rewrite-status.md) | The only to-do list: the tail of the port, cross-cutting debt and decisions waiting on the owner; it only shrinks |
-| [rewrite-history.md](rewrite-history.md) | Rulings, findings and measurements from the rewrite, dated; read it when asking why it is like this |
+| [rewrite-history.md](rewrite-history.md) | Rulings, findings and measurements from the rewrite, dated; ephemeral, deleted once v2 has every v1 feature, never a target for a durable pointer |
 | [code-quality.md](code-quality.md) | Generated counts of suppressions and exception shapes; a change that moves one shows it in its diff |
 | [prod-data-shape.yml](prod-data-shape.yml) | Row counts from a production instance; the volume collection screens are tested against (ADR 0054) |
 | [design-language.md](design-language.md) | Frontend design patterns, shared owners, responsive review, known breaches and tolerated exceptions |

@@ -16,6 +16,9 @@ from apps.accounting.enums import InvoiceStatus
 from apps.accounting.models.invoice import Invoice
 from apps.job.models import Job
 
+# The third definition of a valid invoice, kept as-is: WIP counts DRAFT, the sales
+# forecast excludes it, and this derives everything but VOIDED and DELETED from
+# the enum. Unifying the three is an owner decision nobody has asked for.
 INVOICE_VALID_STATUSES = [
     status for (status, _) in InvoiceStatus.choices if status not in ["VOIDED", "DELETED"]
 ]

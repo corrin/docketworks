@@ -10,11 +10,9 @@ durable).
   work reaches UAT on the next deploy (the Deploy-to-UAT workflow updates
   the box's repo mirror on every push to `main`; an operator runs
   `scripts/server/deploy.sh` to release it to the UAT instance).
-- **After a merge to `main`, the new-instance path is rehearsed**:
-  `scripts/ops/rehearse_instance.sh <uat-host> rehearsal` creates a throwaway instance from
-  `origin/main` on the UAT host, onboards it against the fake Xero, runs the suite and
-  destroys it (ADR 0066). It proves `create` and onboarding still work; it is never merge
-  evidence.
+- **After a merge to `main`, the new-instance path is rehearsed** with
+  `scripts/ops/rehearse_instance.sh <uat-host> rehearsal` (ADR 0066; docs/server_setup.md,
+  Part E).
 - **A release PR promotes `main` to `production`** after UAT verification:
   `sudo scripts/server/verify-instance.sh <client> uat --e2e` green on the deployed UAT
   instance (ADR 0064). Production instances track `origin/production`.
