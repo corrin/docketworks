@@ -1348,7 +1348,12 @@
     Owner ruling 2026-09-07: stock moves and its history is retained. Counts use
     one configured non-billable adjustment job, explicit new-item cost, stale
     balance/version checks and linked corrections. Opening entries preserve
-    existing balances without inventing past job costs.
+    existing balances without inventing past job costs. An issue below the
+    balance succeeds and shows the negative balance: negative stock on hand is
+    commonplace on the shop floor and is corrected by the next count, never by
+    refusing the issue or inventing stock. A receipt retains the purchased
+    quantity separately from the job's demand, so an order for one sheet of
+    which a job needs half allocates half to stock.
 
 - operation: purchasing_receipts_and_allocations
   change: "Repeated receipts append stock identities; reverseAllocation records reversing movements"

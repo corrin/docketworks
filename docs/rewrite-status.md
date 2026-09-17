@@ -302,7 +302,9 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   results on the mappings screen: the manual-supplier twin of the scraper path. The seam
   note atop `apps/quoting/services/price_extraction.py` is the scope record. Routes
   through the gateway (ADR 0041), arbitrates the duplicate-detection conflict that note
-  flags, and rebuilds `/purchasing/pricing` with a working upload. Its spec owns the
+  flags, and rebuilds `/purchasing/pricing` with a working upload: v1's
+  `pages/purchasing/pricing.vue` accepted a drop and discarded it, so the upload is new
+  capability, not a port. Its spec owns the
   cross-screen flow; the mappings spec asserts nothing about uploads.
   [KAN-176](https://docketworks.atlassian.net/browse/KAN-176) carries the business ask.
 - **The job attachments tab is missing four v1 features** (prod bug reports 2026-08-31 and
@@ -587,6 +589,13 @@ never a second stream.
 
 - **[KAN-359](https://docketworks.atlassian.net/browse/KAN-359): keep new-instance provisioning current as features change.**
   Require setup-impact review per feature, repair existing drift, and verify fresh production/demo setup.
+  The rehearsal (ADR 0066) is the check; once it reaches the suite, eleven spec files assume
+  restore data and must seed their own (ADR 0063): stock rows by name
+  (`job/create-estimate-entry`, `job/job-cost-entry-data`, `purchasing/create-purchase-order`,
+  `purchasing/stock-search`); a second job card or job history (`kanban/kanban-desktop`,
+  `kanban/kanban-drag-vanishing`, `kanban/kanban-mobile`, `kanban/kanban-search`); invoice
+  history or more than a page of companies or people (`crm/people`, `reports/companies`,
+  `reports/sales-forecast`).
 - **[KAN-357](https://docketworks.atlassian.net/browse/KAN-357): rebuild v2 as a clean
   modular monolith (ADR 0055).** Move the remaining `apps.core` owners — `AppError`,
   `CompanyDefaults` and `ServiceAPIKey` — and the remaining legacy contexts, replacing
