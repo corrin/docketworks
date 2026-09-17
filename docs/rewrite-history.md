@@ -416,8 +416,8 @@ modes into one function, made the sync root 2770 with setgid, and gated the mode
 The owner chose consistency across POs, job costs and timesheets: oldest creation
 time first, with UUID as the tie-breaker inside the existing business groups.
 [ADR 0057](adr/0057-line-identity-and-creation-order.md) records the shared contract.
-PO lines retain their UUIDs and gain read-only creation timestamps; historical
-timestamps remain NULL rather than being reconstructed. Model ordering now serves
+PO lines retain their UUIDs and gain read-only creation timestamps (historical ones
+were later backfilled from the parent, per ADR 0057). Model ordering now serves
 the APIs, cost grids, timesheet day projections, PDF line lists and Xero payloads.
 Timesheet sequence metadata remains stored but does not determine display order.
 
@@ -729,30 +729,11 @@ hours on specs for unbuilt screens, and it still holds.
 
 ## Rulings that closed a question
 
-**Purchase-order sync is bidirectional, and Xero's `BILLED` is not a receipt
-(2026-09-05).** Docketworks manages jobs; Xero manages the accounts — DW needs to
-know whether a job made money, Xero needs to know it is only paying bills that
-match a valid order. Neither side owns a purchase order, so an edit made in
-either flows to the other. The only exception is a genuine collision — we hold an
-edit Xero has not seen — and it is resolved by publishing ours, never by dropping
-either side. An earlier design here gave the order one owner and made it
-Docketworks (commits `4bf940f`, `0bce840`); it was wrong and was corrected in
-place (`f522bf8`) rather than rewritten out of history, because a sync that
-handles one direction and silently discards the other is not a sync. Separately:
-Xero's `BILLED` says a bill arrived, not that goods did, so mapping it to
-`fully_received` marked stock received that nobody had touched. Receiving stays a
-Docketworks fact.
-
-**`xero_last_synced` could not answer "has our edit reached Xero" (2026-09-05).**
-It had two writers — every inbound pull stamped it — so the reconcile sweep that
-used it to find unsent work found nothing. Split into `xero_agreed_at` — the
-moment the two copies were last known to match — alongside `xero_last_synced`
-("we looked"). The first attempt called it `xero_last_pushed`, which only the
-push could honestly write; absorbing an inbound edit then looked exactly like
-making a local one, and the sweep pushed the order straight back at Xero on
-every pull. `updated_at` cannot answer it either, being the row's ETag: it has
-to advance when the change came FROM Xero. One column, one meaning — and the
-meaning has to cover both ways of reaching agreement.
+**Xero's `BILLED` is not a receipt (2026-09-05).** `BILLED` says a bill arrived,
+not that goods did, so mapping it to `fully_received` marked stock received that
+nobody had touched. Receiving stays a Docketworks fact. (The bidirectional-sync
+ruling that stood beside this, and the `xero_agreed_at` column it led to, were
+reversed on 2026-09-12: the order has one master, above.)
 
 **Password tokens are fingerprint-bound with no grandfathering; the deploy
 carrying it logs every session out once (2026-08-31).** Every JWT now carries
@@ -848,7 +829,8 @@ that loses the lock now waits for the holder instead of looking once and giving 
 
 v1's reports disagree with each other on definitions users can see side by side.
 Each was ported as-is, because silently unifying them would be a functional
-change. Unifying any of them is a user decision that has not been asked for.
+change. Unifying any of them is a user decision that has not been asked for; each
+service's docstring says so at the seam.
 
 - **Working days**: the KPI calendar counts public holidays as working days
   (`kpi_service.py`); the sales pipeline excludes them
