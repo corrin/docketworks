@@ -447,7 +447,7 @@ PO-line references and orphan stock sources. Legacy receipt adjustments record
 the exact unexplained quantity separately from stock movements, with an existing
 PO note; they create no receipt, allocation or charge. Their immutable records
 protect PO-line deletion, and the audit still rejects additional discrepancies.
-The [repair runbook](inventory-legacy-repair.md) records preview, application and
+The repair runbook (`inventory-legacy-repair.md`, since deleted) recorded preview, application and
 restore ordering.
 
 A backed-up local clone and then the local database passed the same rehearsal:

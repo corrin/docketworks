@@ -34,7 +34,6 @@ Follow these in order:
 | [instance-setup-demo.md](instance-setup-demo.md) | Demo-variant instance creation, the monthly demo-org reset playbook, and acceptance criteria |
 | [instance-setup-production.md](instance-setup-production.md) | Production-variant instance creation: validate-never-create, finalisation contract, handover |
 | [cost-summary-maintenance.md](cost-summary-maintenance.md) | How `CostSet.summary` stays consistent with the cost lines that are its source of truth |
-| [inventory-legacy-repair.md](inventory-legacy-repair.md) | The three repairs run against a restored snapshot before the inventory ledger is trusted |
 | [quoting-chat.md](quoting-chat.md) | The job quoting chat: what ChatKit supplies, who can use it, how it is configured |
 | [frontend-testing-plan.md](frontend-testing-plan.md) | Field-integrity testing plan for the React SPA, written 2026-08-04 and partly done |
 | [adr/](adr/README.md) | Architectural decision records |

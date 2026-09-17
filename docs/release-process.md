@@ -48,10 +48,9 @@ durable).
 - **A data migration that can refuse is rehearsed against a production restore.** When the
   checkout is ahead of the archive, re-insert this installation's private rows after
   `migrate`, not after `pg_restore`: the archive's tables predate columns the checkout
-  has removed, and a positional copy into the older shape fails at the first row. The
-  inventory cutover chain refuses on data it cannot reconcile, and `migrate` runs with
-  the units stopped, so run `manage.py audit_inventory_openings --preflight-only`
-  against a restore first, per [`inventory-legacy-repair.md`](inventory-legacy-repair.md).
+  has removed, and a positional copy into the older shape fails at the first row. A data
+  migration that refuses runs with the units stopped, so rehearse it against a restore
+  first.
 - **The integration tier is the merge gate for anything that touches Xero, the AI
   gateway, Maps, the phone provider or mail** (ADR 0050). It is human-run because CI
   has no sandbox credentials: `./scripts/ops/run_integration_tests.sh` before the
