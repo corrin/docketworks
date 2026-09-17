@@ -27,8 +27,7 @@ It pipes `pg_dump` of the live database into the `scrub` connection alias
 (`SCRUB_DB_NAME`, which must end in `_scrub` or settings, command and scrubber
 all refuse), anonymises the configured PII columns, deletes accounting records
 not linked to a job, truncates the excluded tables, strips every
-database-backed external-system credential, writes a
-`<dump>.migrations.json` ledger snapshot beside the archive, and re-dumps the
+database-backed external-system credential, and re-dumps the
 scrubbed copy to `<BASE_DIR>/restore/` or a named `--output` path. Raw
 production data never lands on disk on either host.
 `scripts/ops/verify_scrubbed_backup.py` remains the acceptance check of its
@@ -60,7 +59,7 @@ Instances created before the scrub database existed gain it with one
 | `fix_welding_stock_cost.py` | dropped | One-shot repair of a single stock item's unit cost, already applied to production data. |
 | `generate_url_docs.py` | dropped | Generated per-app Markdown URL listings. v2's route inventory is the exported OpenAPI schema, regenerated and gated by `scripts/checks/export_openapi.py`. |
 | `geocode_addresses.py` | ported | `scripts/ops/geocode_addresses.py` — the backfill sweep over rows that predate on-write geocoding (`apps/company/services/geocoding_service.py`). |
-| `migrate_to_snapshot.py` | ported | `scripts/ops/migrate_to_snapshot.py` — applies migrations up to the `migrations.json` snapshot a backup archive ships, so a dump migrates to exactly the graph it came from. |
+| `migrate_to_snapshot.py` | dropped | Brought a restored archive back to the migration graph it was taken at. A full dump carries its own `django_migrations`, and no procedure restores an archive older than the checkout, so nothing writes or reads a migration snapshot. |
 | `move_time_between_jobs.py` | ported | `scripts/ops/move_time_between_jobs.py` — moves every actual time entry from one job number to another, dry-run by default. |
 | `payroll_reconciliation.py` | ported | Its draft functions became `apps/accounting/services/payroll_reconciliation_service.py`. |
 | `poc_phone_provider_scraper.py` | ported | `scripts/ops/poc_phone_provider_scraper.py`. Deliberately not a Beat harness: provider-side deletion must be exercised through the real Celery Beat task, never through this script. |

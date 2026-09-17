@@ -22,12 +22,6 @@ its `.env`. Instances are created with both; an older instance gains them with o
 `sudo scripts/server/instance.sh reconfigure <client> <env>` on its host, and
 nothing in this runbook changes the production host's configuration.
 
-The producer writes a `<dump>.migrations.json` sidecar beside the archive
-recording the migration state the dump was taken at. This runbook does not need
-it — the archive carries its own ledger — but it lets you read that state without
-restoring, which is how you find the matching checkout when restoring an older
-archive. `scripts/ops/migrate_to_snapshot.py` consumes it for that case.
-
 ## Audit
 
 **Everything typed into this terminal is audited for legal compliance.** Every
