@@ -1,0 +1,19 @@
+# 0066 — The new-instance path is rehearsed on a throwaway instance after every merge
+Unratified: Fable
+
+`instance.sh rehearse <client>` creates a throwaway instance from `origin/main` on the UAT host, checks what `create` produced, onboards it against the fake Xero the way a new client is onboarded, runs the E2E suite through `verify-instance.sh --e2e` and destroys it. A new client is provisioned rarely, so the path from an empty host to a working instance is otherwise exercised only when it matters most; rehearsing it after every merge is what keeps `create` and onboarding current as the app changes. The run verifies provisioning; it is never evidence for a merge (ADR 0060, ADR 0064).
+
+## Rules
+
+- **The instance is the real thing, built the real way.** `create` runs unchanged from the ref, with the same three root-owned config files a client instance has (`credentials.env`, `company-defaults.json`, `e2e.env`), and the post-create checks a runbook tells an operator to run are run. Onboarding is `finalize_instance_onboarding --seed-xero`, the command a new client's instance runs, against the fake; a run that needs a different command for the rehearsal has stopped proving the path.
+- **The whole instance lives on the fake.** A rehearsal instance renders `XERO_FAKE=True`, so its units, its onboarding and its verification window agree, and no token minted for it can leave the box from beat. The fake binds a fresh installation as-if-connected through its own seed, never through a faked consent flow: the consent exchange stays refused under the fake because it would reach the real identity service.
+- **The env is fixed to uat and the name is the operator's.** `create` would accept `prod`, and only the verifier would refuse it, after the instance existed. The rehearsal client is any lowercase name with its own config files; nothing about the run is special-cased on the name.
+- **A removal without a prompt reaches exactly one instance.** `destroy` still asks. The rehearsal writes a marker naming its instance before creating it and destroys, without asking, only an instance that marker names; existing state with no marker is a neighbour and the run refuses. No confirmation-skipping flag exists, because a flag makes every instance destroyable from a script and the marker makes one.
+- **Every step's failure is the run's failure, and a failed run leaves the instance.** The step reached, the exit status, the ref, the SHA and the duration are written to `result.txt` beside the Playwright report, traces and history under `/opt/docketworks/rehearsals/<timestamp>-<sha8>/`; a green run reads `created, onboarded, verified, destroyed`. The instance a red run leaves is there for inspection and is destroyed first by the next run.
+- **It runs from the dev box, by hand, after the merge.** `scripts/ops/rehearse_instance.sh <host> <client>` streams the host's output into `logs/rehearsals/` and exits with the host's status. CI stays hermetic (ADR 0050); the Deploy-to-UAT workflow keeps only mirroring the repository.
+
+## Do not
+
+- **Populate the instance from another instance's database** — the run would then prove a restore, and the rows `create` and onboarding produce would be overwritten before anything looked at them.
+- **Skip or stub a step that is red** — a step the fake cannot yet serve is a gap in the fake, named in `test_every_call_is_routed.py`, and the red run is the record of it.
+- **Run it on a production name, or wire it into the deploy workflow** — the runner's key would gain create and destroy on the host, and a forty-minute session from a hosted runner is not a gate anyone can watch.
