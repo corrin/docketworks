@@ -10,6 +10,9 @@ LOCAL_REPO="$BASE_DIR/repo"
 RELEASES_DIR="$BASE_DIR/releases"
 REMOTE_REPO_URL="https://github.com/corrin/docketworks.git"
 RCLONE_CONFIG_DIR="$CONFIG_DIR/rclone"
+# One directory per rehearsal run (ADR 0066), and the marker naming the
+# throwaway instance a rehearsal is allowed to destroy without asking.
+REHEARSALS_DIR="$BASE_DIR/rehearsals"
 NGINX_SITES_AVAILABLE="/etc/nginx/sites-available"
 
 VALID_ENVS="dev uat staging prod demo"
