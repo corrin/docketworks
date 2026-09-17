@@ -126,23 +126,6 @@ if [[ "$DREAMHOST_KEY_GIVEN" == false ]]; then
 fi
 
 # --- Resolve cert-domains list ---
-# Migration auto-detect: an existing UAT box that predates this rework has
-# the wildcard live-dir but no cert-domains.txt yet. The live-dir at
-# /etc/letsencrypt/live/docketworks.site/ is unambiguous evidence — only a
-# previous successful UAT bootstrap creates it — so writing the standard UAT
-# entry is safe. Never fires on a prod or DR box because they don't have
-# that path. Runs before the explicit-flag handling below so an operator
-# override still wins.
-if [[ ! -f "$CERT_DOMAINS_FILE" && -d /etc/letsencrypt/live/docketworks.site ]]; then
-    mkdir -p "$(dirname "$CERT_DOMAINS_FILE")"
-    cat > "$CERT_DOMAINS_FILE" <<'CERT_DOMAINS_EOF'
-# Cert domains for this server. One FQDN per line.
-# Wildcards (*.example.com) include the apex (example.com) automatically.
-# Edit to add or remove individual domains.
-*.docketworks.site
-CERT_DOMAINS_EOF
-fi
-
 if [[ "$CERT_DOMAINS_GIVEN" == true ]]; then
     # Explicit --cert-domain replaces the persisted list.
     mkdir -p "$(dirname "$CERT_DOMAINS_FILE")"

@@ -4,7 +4,7 @@ Business risk: v1 wrote ProductParsingMapping.input_data two ways from the same
 file — 644 object rows and 559 double-encoded JSON-string rows in the 2026-08-01
 restore. v2 declares ``input_data: dict``, so a string row 500s the
 product-mappings listing. The migration converts them; these tests pin the two
-things that make it trustworthy on cutover night, when nobody will be reading
+things that make it trustworthy on a production migration, when nobody is reading
 its output: that legacy keys are actually renamed, and that a row it cannot
 convert stops the migration instead of being counted and left to 500 later.
 """
@@ -74,7 +74,7 @@ def test_row_decoding_to_a_non_object_aborts() -> None:
 
 @pytest.mark.django_db
 def test_a_refusal_writes_nothing_at_all() -> None:
-    """A half-converted table on cutover night is worse than a stopped migration."""
+    """A half-converted table in production is worse than a stopped migration."""
     convertible = ProductParsingMapping.objects.create(
         input_hash="h-good", input_data='{"input_product_name": "good"}'
     )

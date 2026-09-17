@@ -472,11 +472,11 @@ render_integration_settings_fixture() {
 # ============================================================
 # Load the credential-derived database rows: AI providers, Xero apps,
 # integration settings. Requires the instance database to already carry
-# the v2 schema — load_integration_settings touches v2-only columns
-# (crm_phoneprovidersettings.google_maps_api_key), which is why a v1->v2
-# cutover defers this past the database swap (--skip-db-fixtures on
-# reconfigure, then the load-db-fixtures subcommand) instead of running
-# it from reconfigure while the data is still v1-shaped.
+# every column load_integration_settings writes
+# (crm_phoneprovidersettings.google_maps_api_key), which is why a release that
+# adds a required credential runs reconfigure --skip-db-fixtures, then
+# deploy.sh, then the load-db-fixtures subcommand (docs/server_setup.md)
+# instead of loading from reconfigure before that release has migrated.
 # Callers provide INSTANCE, INSTANCE_DIR, INSTANCE_USER and the sourced
 # credentials (require_instance_credentials).
 load_db_fixtures() {
@@ -729,7 +729,7 @@ do_configure() {
         FQDN="${INSTANCE}.${DOMAIN}"
     fi
     # An explicit list replaces the persisted one; --no-alias clears it;
-    # neither keeps it (.aliases is absent only on an instance that predates it).
+    # neither keeps it.
     if [[ "$NO_ALIAS" == "false" && ${#ALIASES[@]} -eq 0 && -f "$INSTANCE_DIR/.aliases" ]]; then
         mapfile -t ALIASES < <(sed '/^[[:space:]]*$/d' "$INSTANCE_DIR/.aliases")
     fi
@@ -985,8 +985,8 @@ do_validate_config() {
 # load-db-fixtures
 # ============================================================
 # The credential-derived DB rows on their own, for a caller that ran
-# reconfigure --skip-db-fixtures because the database did not yet have
-# the v2 schema (the cutover script, after its database swap).
+# reconfigure --skip-db-fixtures because the running release did not yet
+# carry the loader the new fixtures need (docs/server_setup.md).
 do_load_db_fixtures() {
     parse_client_env "$@"
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"

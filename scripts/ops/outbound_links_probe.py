@@ -41,7 +41,7 @@ Where the targets come from — and why a new integration cannot be missed:
 
 Rejected alternatives. An off-the-shelf link checker (lychee and kin) sees
 what an anonymous GET sees, and few of these targets are public. A Django
-system check runs inside ``scripts/rollback.sh`` and the cutover script, and a
+system check runs inside ``scripts/rollback.sh``, and a
 deploy must not depend on vendor credentials or outbound HTTP. A Celery task
 would need a result model and a page to read it; nothing surfaces it yet.
 

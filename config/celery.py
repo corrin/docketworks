@@ -118,8 +118,8 @@ app.conf.beat_schedule = _with_periodic_task_headers(
         },
         # Codex: session replay ingestion and playback are deferred. The
         # model and purge task stay ready for that slice; scheduling the
-        # cleanup now would present the feature as active. Fable: the cutover
-        # restore DOES carry up to 14 days of v1 replay rows — retained
+        # cleanup now would present the feature as active. Fable: the 2026-08-29
+        # cutover restore carried up to 14 days of v1 replay rows, retained
         # deliberately (owner: deferred features keep their data), a bounded
         # set with no ongoing growth. Until the ingestion slice returns the
         # schedule, those recordings' PROTECT user FKs keep their staff rows
