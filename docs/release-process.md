@@ -18,6 +18,11 @@ durable).
   Xero and fences users out for the run (about 35 minutes), so
   it is a declared window; uptime monitors will alert. Neither run is merge evidence: the
   gate before merge is `./scripts/ops/run_e2e.sh` on a workstation against real Xero.
+- **A two-browser live-update smoke follows PVT.** Sign in to the kanban board in two
+  browsers, move a card in one, and confirm it appears in the other without a reload. That
+  exercises the whole push path (signal, commit hook, Redis fan-out, stream, client
+  reconcile) in one action, and it is the only check that fails visibly when the Redis
+  pub/sub listener is dead while streams stay connected; no E2E spec covers it.
 - Hotfixes merge into `production` and are back-merged to `main`.
 - **Release PRs and hotfix back-merges are merged with a merge commit — never
   squashed, never rebased.** Squash is right for a feature PR, where one

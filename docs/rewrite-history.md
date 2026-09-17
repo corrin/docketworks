@@ -696,9 +696,8 @@ gate or a reason to broaden this PR into phone provisioning or Xero changes.
 
 ## Cutover (planned 2026-08-14, ran 2026-08-29)
 
-The cutover ran on 29 August 2026 after the two deferrals below; the record of the
-night is [`cutover-checklist.md`](cutover-checklist.md). The tiering these entries
-describe was the plan of 2026-08-14 and was retired with the release.
+The cutover ran on 29 August 2026 after the two deferrals below. The tiering these
+entries describe was the plan of 2026-08-14 and was retired with the release.
 
 **2026-08-14: the 15 August window was declined and cutover moved one week to
 22–23 August.** At decision time MUST-tier specs were still red — among them

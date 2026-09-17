@@ -33,7 +33,6 @@ Follow these in order:
 | [client_onboarding.md](client_onboarding.md) | Signed contract → running instance, in seven phases: collection, Xero, Google, AI, email, create, configure |
 | [instance-setup-demo.md](instance-setup-demo.md) | Demo-variant instance creation, the monthly demo-org reset playbook, and acceptance criteria |
 | [instance-setup-production.md](instance-setup-production.md) | Production-variant instance creation: validate-never-create, finalisation contract, handover |
-| [cutover-checklist.md](cutover-checklist.md) | Record of the 29 Aug 2026 v1 → v2 cutover: the carry-over surface, the traps a restore still hits, and the environment contract; not a procedure |
 | [cost-summary-maintenance.md](cost-summary-maintenance.md) | How `CostSet.summary` stays consistent with the cost lines that are its source of truth |
 | [inventory-legacy-repair.md](inventory-legacy-repair.md) | The three repairs run against a restored snapshot before the inventory ledger is trusted |
 | [quoting-chat.md](quoting-chat.md) | The job quoting chat: what ChatKit supplies, who can use it, how it is configured |

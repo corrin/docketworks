@@ -115,7 +115,9 @@ It is **idempotent** — safe to re-run on an already-configured server.
 - Node.js 22 (NodeSource)
 - PostgreSQL server (configured for password auth over sockets)
 - Redis (the `redis-server` binary; each instance runs its own `redis-<instance>` server on a
-  private port behind its own password, ADR 0065; the stock service on 6379 serves only the v1 demo)
+  private port behind its own password, ADR 0065; the stock service on 6379 serves only the v1 demo).
+  `CACHES["shared"]` must reach it: PDF-refresh dedup and django-solo propagation live there,
+  and `Job.save()` fails at commit time without it
 - Nginx, with per-IP rate-limit zones for the two authentication endpoints
 - Certbot + Dreamhost DNS hook scripts (for wildcard cert auto-renewal)
 - pnpm (via corepack) and pm2 (for marketing website)

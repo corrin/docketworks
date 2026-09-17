@@ -566,7 +566,7 @@ same class: the post duplicates what Xero already holds, and then self-reports s
 - **Purge "v1" and "v2" from comments, docstrings, docs, ADRs and filenames.** We document
   state, not change: "v1 silently substituted the company default; v2 raises" becomes "a
   staff member without a wage rate cannot be costed". Delete first, reword only what states
-  a live invariant. Scope includes this file, the cutover checklist, the behaviour ledger,
+  a live invariant. Scope includes this file, the behaviour ledger,
   the `db_table = "workflow_*"` overrides, `scripts/v1-frontend-operations.yml`,
   `export_openapi.py`'s `DISSOLVED_V1_APPS` and `status_table.py`'s port rows. The
   port-progress machinery cannot go until the operations it counts are ported or dropped.

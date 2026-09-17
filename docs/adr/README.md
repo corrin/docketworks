@@ -53,7 +53,7 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0039](0039-one-implementation-per-concept.md) | One implementation per concept |
 | [0040](0040-nullable-text-write-contract.md) | Unset is NULL, and the request schema says so |
 | [0041](0041-one-llm-gateway.md) | One LLM gateway, and it lives in apps/ai |
-| 0042 | (unused: the v1 data migration ran on 2026-08-29 without an ADR; its record is [`cutover-checklist.md`](../cutover-checklist.md)) |
+| 0042 | (unused: the v1 data migration ran on 2026-08-29 without an ADR; its record is the Cutover section of [`rewrite-history.md`](../rewrite-history.md)) |
 | [0043](0043-comments-record-the-rejected-alternative.md) | Comments record the rejected alternative |
 | 0045 | (retired 2026-09-13: merged into [0028](0028-type-annotations-are-data-contracts.md)) |
 | [0046](0046-numbers-on-the-wire.md) | Numbers on the wire; the frontend owns all formatting |
