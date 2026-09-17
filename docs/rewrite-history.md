@@ -1,5 +1,10 @@
 # Rewrite history — what was decided, found and measured
 
+This is an ephemeral file: context for the rewrite of Docketworks from v1 to v2, deleted
+once v2 has every feature v1 had. Use it to see what was learned along the way. Nothing
+durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
+that names it, a procedure lives in the runbook that runs it.
+
 ## 2026-09-17 — Each instance owns its Redis server; the queue is named by the database
 
 Owner ruling, by approving the plan for GitHub #169 and #170 (KAN-365), ahead of msm-prod

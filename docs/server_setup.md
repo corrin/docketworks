@@ -484,7 +484,7 @@ exit status is the host's. On the host, each run writes
 duration, whether the instance was left) beside the Playwright report, traces and history.
 While a failed run's instance is left on the host, `deploy.sh --all` would deploy it like
 any other instance. The run is red at its `connect` step until the pieces named in
-`docs/rewrite-history.md` (2026-09-17) land.
+`apps/xero/fake/tests/test_every_call_is_routed.py` land.
 
 ---
 

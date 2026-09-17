@@ -1206,8 +1206,8 @@ destroy_instance() {
 # how it is run. Two facts live here because the code depends on them: the
 # env is fixed to uat because create would accept prod and only
 # verify-instance.sh would refuse it, after the instance existed; and the
-# run is red at `connect` until the pieces docs/rewrite-history.md
-# (2026-09-17) names land.
+# run is red at `connect` until the pieces named in
+# apps/xero/fake/tests/test_every_call_is_routed.py land.
 #
 # The values the EXIT trap reports are deliberately not `local`: the trap
 # runs after this function has returned.
@@ -1331,7 +1331,7 @@ do_rehearse() {
     STEP=staff
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata apps/accounts/fixtures/initial_data.json
 
-    log "Onboarding under the fake Xero: red at connect until the pieces docs/rewrite-history.md (2026-09-17) names land."
+    log "Onboarding under the fake Xero: red at connect until the pieces named in apps/xero/fake/tests/test_every_call_is_routed.py land."
     STEP=connect
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py fake_xero_connect
 
