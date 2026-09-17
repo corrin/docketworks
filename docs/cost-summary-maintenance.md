@@ -37,17 +37,18 @@ writers, retain the affected job numbers, make the reviewed ledger changes, then
 repair and check those jobs before writers resume. Rebuilding a cache cannot
 repair an incorrect ledger or supply missing inventory movement evidence.
 
-## First deployment
+## First deployment (ran with `prod-2026-09-15`)
 
-Rehearse the complete migration chain against a current scrubbed production
-snapshot, including the inventory repair dispositions required by this branch.
-Stop application, worker and scheduled writers during rollout. Job migration
-`0011_incremental_cost_summary` locks the costing tables, rebuilds every incorrect
-cache from its cost lines, preserves object extension keys and archived revisions,
-and enforces three numeric live totals. Empty cost sets get zero totals. The
-migration changes job freshness for repaired caches but never changes ledger rows.
+The migration chain was rehearsed against a scrubbed production snapshot, including
+the inventory repair dispositions, and rolled out with application, worker and
+scheduled writers stopped. Job migration `0011_incremental_cost_summary` locked the
+costing tables, rebuilt every incorrect cache from its cost lines, preserved object
+extension keys and archived revisions, and enforces three numeric live totals. Empty
+cost sets get zero totals. The migration changed job freshness for repaired caches
+but never changed ledger rows.
 
-After migration, run `reconcile_cost_summaries --all` and require a clean result.
+After any migration of the costing tables, run `reconcile_cost_summaries --all` and
+require a clean result.
 Resume the new application and workers, then request the existing PDF refresh
 reconciler once so jobs changed by the data migration are discovered:
 

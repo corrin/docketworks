@@ -6,8 +6,9 @@ a balance a historical repair recorded against two identities, and a migration t
 the receipt evidence a 2025 duplicate-purchase-order defect destroyed.
 
 The last two need no operator input. Migration
-`purchasing/0007_reconcile_duplicated_receipt_balances` runs before the cutover mints
-opening balances, so a duplicated balance is emptied while the ledger can still simply
+`purchasing/0007_reconcile_duplicated_receipt_balances` runs before the inventory
+cutover (the migration that mints opening balances; unrelated to the v1 → v2 production
+cutover) books them, so a duplicated balance is emptied while the ledger can still simply
 open at the true quantity. It derives the surplus from the order line's received quantity
 against the evidence the cutover is about to book, empties no more than a handful of
 identities, and refuses a surplus that is not carried by exactly one identity. Migration
@@ -32,8 +33,8 @@ belong in this public repository.
 2. Run `manage.py audit_inventory_openings --preflight-only`, then `manage.py
    migrate`. Read what it reports before migrating: `migrate` runs with the services
    stopped, so a refusal there leaves the instance down on a half-migrated database.
-   A database restored from production has no ledger tables yet — they arrive with
-   `purchasing/0006` — so on a restore the preflight names every duplicated balance the
+   A database restored from an archive older than `prod-2026-09-15` has no ledger
+   tables yet — they arrive with `purchasing/0006` — so on such a restore the preflight names every duplicated balance the
    cutover will empty and says plainly that the movement checks belong to `migrate`.
    On an instance already past `0006` it also checks cutover sources and prints the
    pending-openings figure to check the backfill against. It is not the full ledger gate

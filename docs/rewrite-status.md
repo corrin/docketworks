@@ -88,7 +88,7 @@ Not a tier — just the things a session should have a reason not to pick up.
    definition instead of three. Its step 1 generates the work list for its step 2, so
    nothing here is hand-listed.
 5. **`/purchasing/mappings`** has been labelled "this slice lands first" since before
-   the flip and is still unbuilt three releases later. Either it lands or it stops
+   the 29 August cutover and is still unbuilt three releases later. Either it lands or it stops
    claiming to be first.
 
 ## Operations
@@ -754,7 +754,8 @@ Not tasks. Each is invisible until it burns a slice.
    and `quill` (specs assert `.ql-editor`). Needed by no spec, so do not port:
    `pdf-vue3`, `@unovis`, `vue-advanced-chat`. (`rrweb` arrived with session replay and
    is off that list.) The v1 source is the archived private repository
-   `corrin/docketworks_v1`, not a sibling checkout.
+   `corrin/docketworks_v1`; a local `../docketworks_v1` is a clone of it at `e88dc420`,
+   and nothing gated needs it.
 9. **`JobViewTabs.vue` static-imports all ten job tabs**, so a faithful port drags in
    `SafetyWizardModal`, `McpToolDetails`, Quill, `CameraModal` and the
    Quote/History/QuotingChat/Safety/Pdf tabs — 3,100 v1 lines no spec touches. Lazy-route

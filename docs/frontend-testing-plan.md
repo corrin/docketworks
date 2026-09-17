@@ -299,7 +299,7 @@ The port therefore changes four things:
 4. **Keep** the `autoId` / `data-automation-id` convention, the production-build preview
    harness, `trace: 'on'`, and port v1's console-error-fails-test fixture.
 
-## Landmines to defuse (both live today)
+## Landmines to defuse (landmine 2 was fixed 2026-08-07; landmine 1 is open)
 
 1. **Generated zod defaults re-create the bug client-side.** `zod.gen.ts` update-request
    schemas carry v1 DRF serializer defaults (`price_tbc: z.boolean().optional().default(false)`,
@@ -313,20 +313,6 @@ The port therefore changes four things:
    the backend schema declaration (`Optional[...] = None`), never post-process generator
    output. Note: ADR 0021 currently implies runtime request validation is intended and
    cites stale v1 paths — correct it when the Phase A ADR is written.
-2. **The generated client is the contract's only static check.** It means the
-   generated client currently tracks v1, not the live v2 backend; CI's "generated client
-   is current" step checks internal consistency only. Fix: new
-   `scripts/checks/export_openapi.py` — `django.setup()`, `from config.api import api`,
-   `api.get_openapi_schema(path_prefix="/api")` (the exact pattern at
-   the exporter), deterministic dump (sorted keys) to a
-   committed **`frontend/schema.v2.yml`**; a CI backend step runs it and
-   `git diff --exit-code` (same shape as the delta-goldens freshness check);
-   `openapi-ts.config.ts` input flips to
-   `schema.v2.yml`. Do the flip at the very start of the frontend phase, while auth is the
-   only consumer of generated code — the 16k-line regen churn is at its lifetime minimum.
-   Expect operation/component renames vs the DRF schema; repairing `src/api/index.ts`'s
-   auth re-exports is the bounded blast radius.
-
 ## Sequenced tasks
 
 ### Phase A — start of the frontend phase, before the first feature ports
