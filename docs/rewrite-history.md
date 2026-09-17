@@ -1860,3 +1860,21 @@ Production remediation is an operator action in Xero, not code: the 24–30 Aug 
 can stage a spanning application; the live integration suite carries the pair
 (`test_live_spanning_leave_carries_one_period_per_payroll_week`,
 `test_live_spanning_leave_is_refused_and_counted`).
+
+## 2026-09-17 — A company-defaults file is held to the model's field set
+
+Finding: `instance.sh create` on a new host failed at `loaddata` because the root-owned
+config file still carried `annual_leave_loading`, renamed to `labour_cost_loading` on
+2026-09-02 (KAN-351). The rename updated the shipped fixture and its symlinked template but
+no host's file, and nothing before `loaddata` compared the two; the failure landed after the
+OS user, database and migrations existed, so `create` then refused to run over its own
+partial state. Measured against the current models, the shipped fixture and prospect
+template were themselves eleven fields behind (`gst_rate`, `quote_expiry_days`, the two
+session-replay settings, the six geocode columns, `Company.merged_into`), each silently
+taking the model default at load.
+
+Ruling: no skip flag. The validator that runs before any state is mutated now requires each
+record's field set to equal the shipped fixture's, in both directions, and a Django test
+holds that fixture to the model; the sync-gate and tenant-id rules no longer carry their own
+presence checks. A release that renames or adds a `CompanyDefaults` field is followed by
+editing every host's config file, which `validate-config` now names.

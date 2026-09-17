@@ -229,6 +229,10 @@ sudo scripts/server/dw-run.sh <client>-<env> python manage.py finalize_instance_
 
 The root-owned `/opt/docketworks/config/<name>.company-defaults.json` is the
 durable tenant configuration; repo fixtures are only templates.
+It must name every field of the current `Company` and `CompanyDefaults` models, so a
+release that renames or adds one leaves every host's file behind it: `instance.sh
+validate-config` names the difference, and `create`/`reconfigure` refuse the file before
+touching anything.
 
 ---
 
