@@ -216,6 +216,15 @@ sudo ./scripts/server/instance.sh rehearse rehearsal [--ref <ref>]
 
 What it proves and its rules: ADR 0066. Setting it up and running it from the dev box: `docs/server_setup.md`, Part E.
 
+## Stopping and Starting an Instance
+
+```bash
+sudo ./scripts/server/instance.sh stop mycompany uat
+sudo ./scripts/server/instance.sh start mycompany uat
+```
+
+A stopped instance keeps everything and runs nothing; deploys keep it current without starting it (docs/server_setup.md, "Stopped instances"). An idle instance costs a serving instance's memory, so stop a tenant that is doing no work.
+
 ## Listing Instances
 
 ```bash
@@ -283,7 +292,7 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `common.sh`                                         | Shared constants: domain, paths, directories                                                         |
 | `server-setup.sh`                                   | Host-level convergence (system packages, SSL, shared config). Runs every deploy — see "Server Setup". |
-| `instance.sh`                                       | Prepare config, create/reconfigure, destroy, rehearse, or list instances                             |
+| `instance.sh`                                       | Prepare config, create/reconfigure, stop/start, destroy, rehearse, or list instances                 |
 | `deploy.sh`                                         | Pull updates and redeploy one or all instances                                                       |
 | `release-utils.sh`                                  | Build, switch, and clean up immutable release directories                                            |
 | `dw-run.sh`                                         | Run a command in an instance's environment                                                           |
