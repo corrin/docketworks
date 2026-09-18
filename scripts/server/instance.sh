@@ -8,6 +8,8 @@ set -euo pipefail
 #        instance.sh validate-config <client> <env>
 #        instance.sh load-db-fixtures <client> <env>
 #        instance.sh destroy <client> <env>
+#        instance.sh stop <client> <env>
+#        instance.sh start <client> <env>
 #        instance.sh rehearse <client> [--ref <ref>]
 #        instance.sh status <client> <env>
 #        instance.sh history <client> <env>
@@ -29,7 +31,8 @@ set -euo pipefail
 # fire their first heartbeat (and hit Xero with live tokens) within ~5 min of
 # creation, which is the wrong posture for a standby that shares creds with a
 # live primary. The marker also makes future deploy.sh runs leave the services
-# alone — to "go live", `rm .dr-mode` then enable+start the units by hand.
+# alone. `stop` and `start` enter and leave the same state on a live instance:
+# a tenant doing no work costs a running tenant's memory otherwise.
 #
 # Naming convention:
 #   Instance name: <client>-<env>     (e.g., msm-uat)     — directory, systemd unit suffix
@@ -563,7 +566,7 @@ ensure_instance_directories() {
 # reconfigure that dispatched a Xero sync into a half-loaded database was how
 # that was learned. `.dr-mode` never starts anything: docs/server_setup.md
 # and deploy.sh both gate the units on it so the box accepts no traffic
-# before DNS cutover, and "go live" is `rm .dr-mode && systemctl enable --now`.
+# before DNS cutover, and "go live" is `instance.sh start`.
 # Reads INSTANCE, INSTANCE_USER, INSTANCE_DIR and command_name from the
 # caller (do_configure).
 install_runtime_unit() {
@@ -1226,8 +1229,16 @@ rehearse_report() {
     local status=$?
     set +e
     rehearse_collect_artifacts
-    local instance_left=yes
-    [[ "$STEP" == "done" ]] && instance_left=no
+    local unit_state=destroyed
+    if [[ "$STEP" != "done" && -d "$INSTANCE_DIR" ]]; then
+        # Inspection needs the directory and the database, not the processes:
+        # an idle instance holds ~2.5 GiB resident (measured 2026-09-17, the
+        # same as one serving users, because the process shape is fixed) and
+        # the host has no swap, so a red run left running is a tenant's worth
+        # of memory until the next rehearsal.
+        stop_instance "$INSTANCE"
+        unit_state=stopped
+    fi
     {
         echo "instance=$INSTANCE"
         echo "ref=$REF"
@@ -1236,12 +1247,12 @@ rehearse_report() {
         echo "duration_s=$SECONDS"
         echo "step_reached=$STEP"
         echo "exit=$status"
-        echo "instance_left=$instance_left"
+        echo "units=$unit_state"
     } > "$RUN_DIR/result.txt"
     if [[ "$STEP" == "done" ]]; then
         echo "REHEARSAL PASSED: $INSTANCE from $REF ($SHA8) created, onboarded, verified, destroyed — $RUN_DIR"
     else
-        echo "REHEARSAL FAILED at $STEP (exit $status): $INSTANCE left for inspection; artifacts under $RUN_DIR" >&2
+        echo "REHEARSAL FAILED at $STEP (exit $status): $INSTANCE stopped and left for inspection; artifacts under $RUN_DIR" >&2
     fi
     exit "$status"
 }
@@ -1296,8 +1307,6 @@ do_rehearse() {
     SHA8="$(short_release_sha "$TARGET_SHA")"
     mkdir -p "$REHEARSALS_DIR"
     chmod 755 "$REHEARSALS_DIR"
-    RUN_DIR="$REHEARSALS_DIR/$(date +%Y%m%d_%H%M%S)-$SHA8"
-    mkdir "$RUN_DIR"
     local marker="$REHEARSALS_DIR/.active"
 
     STEP=leftover
@@ -1311,6 +1320,9 @@ do_rehearse() {
             exit 1
         fi
     fi
+    # After the guard: a refused run has no report and leaves no directory.
+    RUN_DIR="$REHEARSALS_DIR/$(date +%Y%m%d_%H%M%S)-$SHA8"
+    mkdir "$RUN_DIR"
     echo "$INSTANCE" > "$marker"
 
     STARTED="$(date '+%Y-%m-%d %H:%M:%S')"
@@ -1355,6 +1367,61 @@ do_rehearse() {
 # ============================================================
 # list
 # ============================================================
+# ============================================================
+# stop / start
+# ============================================================
+# A stopped instance keeps its directory, database, units and nginx site and
+# runs nothing. The state is the .dr-mode marker that deploy.sh, rollback.sh,
+# reconfigure and verify-instance.sh already honour (kept current, never
+# started), so a tenant doing no work and a red rehearsal share one
+# mechanism. Units are disabled as well as stopped, or a host reboot would
+# start what an operator stopped. Redis goes too: its queue is the stopped
+# instance's own and nothing consumes it. Backup timers keep running; a dump
+# of an unchanged database is cheap and keeps the retention chain whole.
+stop_instance() {
+    local instance="$1"
+    local instance_dir="$INSTANCES_DIR/$instance"
+    local instance_user
+    instance_user="$(instance_user "$instance")"
+    local unit
+    for unit in celery-beat celery-worker gunicorn redis; do
+        log "  Stopping $unit-$instance"
+        systemctl disable --now "$unit-$instance"
+    done
+    touch "$instance_dir/.dr-mode"
+    chown "$instance_user:$instance_user" "$instance_dir/.dr-mode"
+    chmod 644 "$instance_dir/.dr-mode"
+}
+
+require_complete_instance() {
+    local instance="$1"
+    local instance_dir="$INSTANCES_DIR/$instance"
+    if [[ ! -f "$instance_dir/.env" || ! -L "$instance_dir/app" ]]; then
+        echo "ERROR: $instance is not a complete instance on this host (no .env or release link)." >&2
+        exit 1
+    fi
+}
+
+do_stop() {
+    parse_client_env "$@"
+    require_complete_instance "$INSTANCE"
+    log "Stopping $INSTANCE; deploys keep it current, and 'sudo $0 start $CLIENT $ENV' brings it back..."
+    stop_instance "$INSTANCE"
+    log "$INSTANCE stopped: https://$(head -n1 "$INSTANCES_DIR/$INSTANCE/.fqdn") answers 502 until it is started."
+}
+
+do_start() {
+    parse_client_env "$@"
+    require_complete_instance "$INSTANCE"
+    rm -f "$INSTANCES_DIR/$INSTANCE/.dr-mode"
+    local unit
+    for unit in redis celery-worker celery-beat gunicorn; do
+        log "  Starting $unit-$INSTANCE"
+        systemctl enable --now "$unit-$INSTANCE"
+    done
+    log "$INSTANCE started: $(short_release_sha "$(instance_current_sha "$INSTANCE")") at https://$(head -n1 "$INSTANCES_DIR/$INSTANCE/.fqdn")"
+}
+
 do_status() {
     parse_client_env "$@"
 
@@ -1455,13 +1522,15 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
 fi
 
 if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 {prepare-config|create|reconfigure|validate-config|load-db-fixtures|destroy|rehearse|status|history|list} [args...]"
+    echo "Usage: $0 {prepare-config|create|reconfigure|validate-config|load-db-fixtures|destroy|stop|start|rehearse|status|history|list} [args...]"
     echo "  prepare-config   <client> <env> [--seed]"
     echo "  create           <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--alias <hostname>]... [--no-alias] [--no-start]"
     echo "  reconfigure      <client> <env> [--fqdn <hostname>] [--alias <hostname>]... [--no-alias] [--no-start] [--skip-db-fixtures]"
     echo "  validate-config  <client> <env>"
     echo "  load-db-fixtures <client> <env>"
     echo "  destroy          <client> <env>"
+    echo "  stop             <client> <env>"
+    echo "  start            <client> <env>"
     echo "  rehearse         <client> [--ref <ref>]"
     echo "  status           <client> <env>"
     echo "  history          <client> <env>"
@@ -1483,9 +1552,11 @@ case "$COMMAND" in
     validate-config)  do_validate_config "$@" ;;
     load-db-fixtures) do_load_db_fixtures "$@" ;;
     destroy)          do_destroy "$@" ;;
+    stop)             do_stop "$@" ;;
+    start)            do_start "$@" ;;
     rehearse)         do_rehearse "$@" ;;
     status)           do_status "$@" ;;
     history)          do_history "$@" ;;
     list)             do_list ;;
-    *)                echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|validate-config|load-db-fixtures|destroy|rehearse|status|history|list}"; exit 1 ;;
+    *)                echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|validate-config|load-db-fixtures|destroy|stop|start|rehearse|status|history|list}"; exit 1 ;;
 esac

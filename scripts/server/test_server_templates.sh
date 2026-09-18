@@ -545,6 +545,11 @@ REHEARSE_OUT="$(
         || echo "MISSING_FUNCTION"
     declare -f do_destroy | grep -q 'read -r -p "Are you sure?' || echo "DESTROY_NO_PROMPT"
     declare -f destroy_instance | grep -q 'read -r -p' && echo "DESTROY_WORK_PROMPTS"
+    declare -f rehearse_report | grep -q 'stop_instance' || echo "REPORT_LEAVES_UNITS_RUNNING"
+    declare -F do_stop do_start stop_instance >/dev/null || echo "MISSING_STOP_START"
+    declare -f stop_instance | grep -q 'disable --now' || echo "STOP_LEAVES_UNITS_ENABLED"
+    declare -f stop_instance | grep -q '\.dr-mode' || echo "STOP_WRITES_NO_MARKER"
+    declare -f do_start | grep -q 'rm -f.*\.dr-mode' || echo "START_KEEPS_MARKER"
     CONFIG_DIR="$REHEARSE_CONFIG_DIR"
     require_root_owned_credentials_file() { [[ -f "$1" ]]; }
     # Last: a refusal exits the subshell, which is why shellcheck reads the
@@ -565,6 +570,23 @@ echo "$REHEARSE_OUT" | grep -q 'prepare-config test uat --seed' \
     || fail "rehearse: refusal must name prepare-config"
 echo "$REHEARSE_OUT" | grep -q 'test-uat.e2e.env' \
     || fail "rehearse: refusal must name the e2e credentials file"
+# A red run's instance costs a tenant's worth of memory if left running (ADR 0066).
+echo "$REHEARSE_OUT" | grep -q "REPORT_LEAVES_UNITS_RUNNING" \
+    && fail "rehearse: the failure path must stop the instance's units"
+# stop/start: a stopped instance is the .dr-mode state deploys already honour, and a
+# reboot must not undo an operator's stop.
+for subcommand in stop start; do
+    grep -q "^    $subcommand)" "$INSTANCE_SCRIPT" \
+        || fail "stop/start: '$subcommand' missing from the dispatch"
+done
+echo "$REHEARSE_OUT" | grep -q "MISSING_STOP_START" \
+    && fail "stop/start: do_stop, do_start and stop_instance must all exist"
+echo "$REHEARSE_OUT" | grep -q "STOP_LEAVES_UNITS_ENABLED" \
+    && fail "stop: units must be disabled as well as stopped, or a reboot starts them"
+echo "$REHEARSE_OUT" | grep -q "STOP_WRITES_NO_MARKER" \
+    && fail "stop: must write .dr-mode so deploys keep the instance stopped"
+echo "$REHEARSE_OUT" | grep -q "START_KEEPS_MARKER" \
+    && fail "start: must remove .dr-mode"
 # The dev-box wrapper reports the host's status, not tee's.
 grep -q 'PIPESTATUS\[0\]' "$REPO_ROOT/scripts/ops/rehearse_instance.sh" \
     || fail "rehearse_instance.sh: must take its exit status from the ssh side of the pipe"

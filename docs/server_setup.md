@@ -357,16 +357,19 @@ sudo -u dw_<name> RCLONE_CONFIG=/opt/docketworks/config/rclone/<name>.conf \
   rclone lsf gdrive:dw_backups/
 ```
 
-### Cold standby (DR mode)
+### Stopped instances (standby)
 
-For a DR box that shares Xero credentials with a live primary: create with `--no-start` so celery-beat / celery-worker never auto-start (no heartbeat to Xero with shared tokens), and a `.dr-mode` marker is dropped in the instance dir. Subsequent `deploy.sh` runs see the marker and skip enable/restart of celery-beat, celery-worker, and gunicorn — migrations, builds, and unit/nginx re-renders still run, so the standby stays current.
+A stopped instance keeps its directory, database, units and nginx site and runs nothing. A `.dr-mode` marker in the instance dir records the state: `deploy.sh`, `rollback.sh` and `reconfigure` keep it current (migrations, builds, unit and nginx re-renders) without starting it, `verify-instance.sh` refuses it, and `list` shows it as stopped. Its hostname answers 502 while stopped. Use it for a tenant doing no work: an idle instance holds as much memory as one serving users (about 2.5 GiB) and the host has no swap to page it out.
+
+```bash
+sudo scripts/server/instance.sh stop <client> <env>    # disables and stops the four units, writes .dr-mode
+sudo scripts/server/instance.sh start <client> <env>   # removes .dr-mode, enables and starts them
+```
+
+The same state is the cold-standby posture for a DR box that shares Xero credentials with a live primary: create it with `--no-start` so beat and the worker never fire a heartbeat with shared tokens, and `start` it after DNS cutover.
 
 ```bash
 sudo scripts/server/instance.sh create <client> <env> --no-start
-
-# To go live (after DNS cutover):
-sudo rm /opt/docketworks/instances/<client>-<env>/.dr-mode
-sudo systemctl enable --now celery-beat-<client>-<env> celery-worker-<client>-<env> gunicorn-<client>-<env>
 ```
 
 ### Destroy (complete removal)
@@ -482,8 +485,9 @@ The host's output streams to the terminal and to `logs/rehearsals/<timestamp>.lo
 exit status is the host's. On the host, each run writes
 `/opt/docketworks/rehearsals/<timestamp>-<sha8>/result.txt` (step reached, exit, ref, sha,
 duration, whether the instance was left) beside the Playwright report, traces and history.
-While a failed run's instance is left on the host, `deploy.sh --all` would deploy it like
-any other instance. The run is red at its `connect` step until the pieces named in
+A failed run leaves its instance stopped, with its directory and database intact; to look
+closer, `systemctl start` its four units by hand. While it is on the host, `deploy.sh --all`
+would deploy it like any other instance and start it again. The run is red at its `connect` step until the pieces named in
 `apps/xero/fake/tests/test_every_call_is_routed.py` land.
 
 ---
