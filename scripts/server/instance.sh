@@ -1487,9 +1487,12 @@ do_list() {
 
     for name in "${INSTANCES[@]}"; do
         local status sched_status sha
+        # A unit file that exists but is not active is "stopped" whether or not
+        # it is enabled: `stop` disables so a reboot cannot undo it, and that
+        # instance is stopped, not serviceless.
         if systemctl is-active --quiet "gunicorn-$name" 2>/dev/null; then
             status="running"
-        elif systemctl is-enabled --quiet "gunicorn-$name" 2>/dev/null; then
+        elif [[ -f "/etc/systemd/system/gunicorn-$name.service" ]]; then
             status="stopped"
         else
             status="no service"
@@ -1497,7 +1500,7 @@ do_list() {
 
         if systemctl is-active --quiet "celery-beat-$name" 2>/dev/null; then
             sched_status="running"
-        elif systemctl is-enabled --quiet "celery-beat-$name" 2>/dev/null; then
+        elif [[ -f "/etc/systemd/system/celery-beat-$name.service" ]]; then
             sched_status="stopped"
         else
             sched_status="no service"
