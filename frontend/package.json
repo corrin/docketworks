@@ -73,7 +73,7 @@
     "dotenv": "17.4.2",
     "jsdom": "30.0.1",
     "msw": "2.15.0",
-    "oxlint": "1.82.0",
+    "oxlint": "1.83.0",
     "oxlint-tsgolint": "7.0.2001",
     "prettier": "3.9.6",
     "svelte": "^5.57.0",
