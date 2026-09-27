@@ -1,0 +1,67 @@
+Using CPython 3.12.3 interpreter at: /usr/bin/python3.12
+Creating virtual environment at: .venv
+Downloading pydantic-core (2.0MiB)
+Downloading ast-serialize (1.3MiB)
+Downloading openai (1.6MiB)
+Downloading aiohttp (1.7MiB)
+Downloading faker (2.0MiB)
+Downloading deptry (1.8MiB)
+Downloading hf-xet (4.3MiB)
+Downloading pygments (1.2MiB)
+Downloading google-api-python-client (15.3MiB)
+Downloading python-stdnum (1.1MiB)
+Downloading shellcheck-py (3.6MiB)
+Downloading mypy (14.6MiB)
+Downloading tokenizers (3.2MiB)
+Downloading holidays (1.6MiB)
+Downloading ruff (9.9MiB)
+Downloading virtualenv (5.2MiB)
+Downloading rapidfuzz (3.0MiB)
+Downloading tiktoken (1.1MiB)
+Downloading pillow (6.6MiB)
+Downloading selenium (11.2MiB)
+Downloading grimp (2.2MiB)
+Downloading psycopg-binary (5.0MiB)
+Downloading cryptography (4.5MiB)
+Downloading django (8.0MiB)
+Downloading django-ninja (2.3MiB)
+Downloading openai-agents (1.0MiB)
+Downloading google-api-python-client-stubs (3.7MiB)
+Downloading reportlab (1.9MiB)
+Downloading botocore (15.2MiB)
+Downloading litellm (26.8MiB)
+ Downloaded openai-agents
+ Downloaded tiktoken
+ Downloaded pygments
+ Downloaded ast-serialize
+ Downloaded python-stdnum
+ Downloaded openai
+ Downloaded holidays
+ Downloaded deptry
+ Downloaded aiohttp
+ Downloaded reportlab
+ Downloaded faker
+ Downloaded pydantic-core
+ Downloaded grimp
+ Downloaded django-ninja
+ Downloaded rapidfuzz
+ Downloaded tokenizers
+ Downloaded shellcheck-py
+ Downloaded google-api-python-client-stubs
+ Downloaded hf-xet
+ Downloaded cryptography
+ Downloaded psycopg-binary
+ Downloaded virtualenv
+ Downloaded pillow
+ Downloaded ruff
+ Downloaded selenium
+ Downloaded google-api-python-client
+ Downloaded botocore
+ Downloaded django
+ Downloaded mypy
+ Downloaded litellm
+Installed 185 packages in 415ms
+Downloading pip (1.7MiB)
+ Downloaded pip
+Installed 29 packages in 20ms
+No known vulnerabilities found
