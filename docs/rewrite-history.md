@@ -1914,3 +1914,37 @@ whole life, because onboarding ends by enabling sync and a live beat on the real
 would otherwise run with a fake token; and the prompt-free removal is reachable only through
 the rehearsal marker, never a flag, because a flag makes every instance destroyable from a
 script.
+
+## 2026-10-01 — Dependency sweep: everything to latest, two deferrals, one retired fixture model
+
+The five dependabot PRs (#178–#182) were red for a reason unrelated to them: `docs/code-quality.md`
+on main was two line-counts stale, so CI's "code quality metrics are current" step failed on
+every branch. The sweep that replaced them took every frontend and Python dependency to latest
+and froze what passed (ADR 0033, whose deferral rule was written down in full at the same time).
+
+Frontend: 22 packages moved, four of them majors (pragmatic-drag-and-drop 4, its hitbox 3, dotenv
+18, msw 3). Type-check, oxlint and vitest decided. oxlint 1.86 added `consistent-function-scoping`
+and three functions were hoisted to module scope for it, one on the kanban card (fewer closures per
+render, not more). msw 3.0.1 is deferred: the kanban push-channel fixture serves an SSE body through
+`http.get` and drops the socket with `controller.error()`; under 3.0.1 the client sees neither that
+error nor the unmount abort, and msw 3's new `sse()` handler is built around `EventSource` while
+the generated client reads the stream over fetch, so the fixture would be a rewrite. Everything
+else at latest with msw at 2.15.0 is green.
+
+Python: `uv lock --upgrade` moved 40 packages; 41 floors were raised to their locked versions and
+the `django<6.2` cap was removed (nobody had tried 6.2, so the cap claimed knowledge nobody had).
+openai-agents 0.22.3 is deferred: it requires openai>=3 and no litellm release accepts openai 3,
+so taking it means replacing LiteLLM as the gateway (ADR 0041). The resolver leaves openai,
+websockets, importlib-metadata, multidict and pydantic-core below latest for the same upstream
+pins; those get no comment in the file, which records what was tested, not why the resolver chose.
+
+One pytest failure predated the sweep: `test_streamed_usage_applies_cached_input_discount` priced
+`claude-sonnet-4-20250514`, which left LiteLLM's live pricing map after its June 2026 deprecation,
+and LiteLLM prices a retired model at zero rather than raising. The test was deleted, not
+re-pointed at a newer model: it guarded three field assignments in the recording hook whose
+output nothing in the application reads, and the number it asserted was LiteLLM's arithmetic over
+a vendor's price list — any model name in it is catch-up by construction. That a retired model
+records a zero cost silently is a fail-early candidate in `estimated_cost_usd`, noted here and
+not changed in a bump PR.
+
+E2E was not run for this PR: one release run covers it and the other small PRs of the week.
