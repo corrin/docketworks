@@ -29,6 +29,7 @@ Follow these in order:
 | [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md) | Rebuilding a dev or UAT installation from production data and re-pointing its Xero mirror |
 | [restore-prod-to-hotfix.md](restore-prod-to-hotfix.md) | The hotfix checkout: verbatim production restore under the production role, and its repairs |
 | [release-process.md](release-process.md) | Promoting main to production, the prod-* GitHub Release per deploy, and the user-focused release-notes convention |
+| [dependency-sweep.md](dependency-sweep.md) | The weekly dependency sweep: what the workflow opens, how to pick the PR up, the loop for a red run, and the sweep by hand |
 | [xero_setup.md](xero_setup.md) | Xero-side prerequisites: pay items, payroll calendar, developer app, OAuth callback, webhook key |
 | [client_onboarding.md](client_onboarding.md) | Signed contract → running instance, in seven phases: collection, Xero, Google, AI, email, create, configure |
 | [instance-setup-demo.md](instance-setup-demo.md) | Demo-variant instance creation, the monthly demo-org reset playbook, and acceptance criteria |

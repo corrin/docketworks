@@ -97,7 +97,9 @@ weaken a gate, never baseline one.
   feature imports a vendor SDK (ADR 0041). Unset is NULL, via `NullableText` (ADR 0040).
   Numbers travel as JSON numbers (ADR 0046).
 - Dependencies sweep to latest, the gates decide, the tested version is frozen exactly; a
-  version held below latest carries its dated reason beside the pin (ADR 0033).
+  version held below latest carries its dated reason beside the pin (ADR 0033). The sweep is
+  `scripts/ops/sweep_dependencies.sh`, weekly by workflow; a red run follows
+  `docs/dependency-sweep.md`.
 - A unit test names the Docketworks block whose plausible edit trips it; no such block, no test
   (ADR 0025).
 - Comments record the rejected alternative and the fact that rejected it (ADR 0043). AI-authored

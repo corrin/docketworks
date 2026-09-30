@@ -4,90 +4,90 @@ version = "2.0.0-dev"
 description = "Docketworks v2 — job/docket management for jobbing shops"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "django>=6.1.1",
-    "django-ninja>=1.7.1",
-    "psycopg[binary]>=3.3.6",
-    "python-dotenv>=1.2.3",
-    "pydantic>=2.13.5",
-    "celery>=5.6.3",
-    "django-celery-results>=2.6.0",
-    "redis>=8.1.0",
-    "django-ninja-jwt>=5.4.5",
-    "django-solo>=2.5.1",
-    "django-simple-history>=3.13.0",
-    "pillow>=12.3.0",
-    "jsonschema>=4.26.0",
-    "requests>=2.34.2",
-    "rapidfuzz>=3.14.6",
-    "nicknames>=1.0.1",
-    "reportlab>=5.0.1",
-    "pypdf>=6.19.0",
-    "beautifulsoup4>=4.15.0",
-    "pdf2image>=1.17.0",
-    "litellm>=1.103.1",
-    "selenium>=4.50.0",
-    "holidays>=0.105",
+    "django==6.1.1",
+    "django-ninja==1.7.1",
+    "psycopg[binary]==3.3.6",
+    "python-dotenv==1.2.3",
+    "pydantic==2.13.5",
+    "celery==5.6.3",
+    "django-celery-results==2.6.0",
+    "redis==8.1.0",
+    "django-ninja-jwt==5.4.5",
+    "django-solo==2.5.1",
+    "django-simple-history==3.13.0",
+    "pillow==12.3.0",
+    "jsonschema==4.26.0",
+    "requests==2.34.2",
+    "rapidfuzz==3.14.6",
+    "nicknames==1.0.1",
+    "reportlab==5.0.1",
+    "pypdf==6.19.0",
+    "beautifulsoup4==4.15.0",
+    "pdf2image==1.17.0",
+    "litellm==1.103.1",
+    "selenium==4.50.0",
+    "holidays==0.105",
     "xero-python==15.2.0",
-    "urllib3>=2.8.0",
-    "gunicorn>=26.2.0",
-    "uvicorn>=0.54.0",
-    "uvicorn-worker>=0.4.0",
-    "django-eventstream>=5.3.4",
+    "urllib3==2.8.0",
+    "gunicorn==26.2.0",
+    "uvicorn==0.54.0",
+    "uvicorn-worker==0.4.0",
+    "django-eventstream==5.3.4",
     # Main, not dev: the db_scrubber behind `manage.py backport_data_backup`
     # runs on the production host, whose venv is installed with
     # `uv sync --frozen --no-dev` (release-utils.sh).
-    "faker>=40.40.0",
+    "faker==40.40.0",
     # NZ IRD check digits for the fake-but-format-valid payroll data the
     # employees seed creates. Hand-rolling the two weight tables was the
     # rejected alternative (ADR 0032): the checksum has a documented
     # second-pass rule that a hand-rolled copy gets subtly wrong, and Xero
     # rejects the result at employee-creation time.
-    "python-stdnum>=2.2",
-    "tinytag>=2.3.2",
+    "python-stdnum==2.2",
+    "tinytag==2.3.2",
     # Main, not dev: platform.integrations.google.gmail (password-reset sender, imported
     # by apps/accounts/tasks.py at Celery worker boot) and the per-client
     # H&S onboarding command import_dropbox_hs_documents both run in the
     # production `uv sync --frozen --no-dev` venv. Dev-only was the
     # 2026-08-31 finding: the prod worker cannot even import its tasks
     # without them.
-    "google-api-python-client>=2.200.0",
-    "google-auth>=2.59.1",
-    "openai-chatkit>=1.6.5",
+    "google-api-python-client==2.201.0",
+    "google-auth==2.59.1",
+    "openai-chatkit==1.6.5",
     # ADR 0033 — deliberately deferring openai-agents 0.22.3 (2026-10-01): it
     # requires openai>=3 and no litellm release accepts openai 3, so taking it
     # means replacing LiteLLM as the gateway (ADR 0041) — not a sweep-sized change.
-    "openai-agents[litellm]>=0.20.0",
-    "mcp>=2.2.0",
-    "asgiref>=3.12.1",
-    "pydantic-core>=2.46.5",
+    "openai-agents[litellm]==0.20.0",
+    "mcp==2.2.0",
+    "asgiref==3.12.1",
+    "pydantic-core==2.46.5",
 ]
 
 [dependency-groups]
 dev = [
-    "ruff>=0.16.9",
-    "mypy>=2.3.1",
-    "django-stubs[compatible-mypy]>=6.1.1",
-    "pytest>=9.1.1",
-    "pytest-django>=4.14.0",
-    "pytest-cov>=7.1.0",
+    "ruff==0.16.9",
+    "mypy==2.3.1",
+    "django-stubs[compatible-mypy]==6.1.1",
+    "pytest==9.1.1",
+    "pytest-django==4.14.0",
+    "pytest-cov==7.1.0",
     # Imported directly by scripts/checks/status_table.py to read the coverage
     # total out of the .coverage data file, rather than arriving only through
     # pytest-cov. Declared because it is used, per ADR 0033.
-    "coverage>=7.16.2",
-    "pytest-xdist>=3.8.0",
-    "pre-commit>=4.6.2",
-    "import-linter>=2.15",
-    "celery-types>=0.26.0",
-    "deptry>=0.25.1",
-    "types-jsonschema>=4.26.0.20260518",
-    "pyyaml>=6.0.3",
-    "types-pyyaml>=6.0.12.20260906",
-    "types-requests>=2.33.0.20260906",
-    "freezegun>=1.5.5",
-    "types-reportlab>=5.0.0.20260911",
-    "google-api-python-client-stubs>=1.40.0",
-    "httplib2>=0.32.0",
-    "shellcheck-py>=0.11.0.1",
+    "coverage==7.16.2",
+    "pytest-xdist==3.8.0",
+    "pre-commit==4.6.2",
+    "import-linter==2.15",
+    "celery-types==0.26.0",
+    "deptry==0.25.1",
+    "types-jsonschema==4.26.0.20260518",
+    "pyyaml==6.0.3",
+    "types-pyyaml==6.0.12.20260906",
+    "types-requests==2.33.0.20260906",
+    "freezegun==1.5.5",
+    "types-reportlab==5.0.0.20260911",
+    "google-api-python-client-stubs==1.40.0",
+    "httplib2==0.32.0",
+    "shellcheck-py==0.11.0.1",
 ]
 
 [tool.ruff]
