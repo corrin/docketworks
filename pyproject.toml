@@ -4,98 +4,88 @@ version = "2.0.0-dev"
 description = "Docketworks v2 — job/docket management for jobbing shops"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "django>=6.0,<6.2",
-    "django-ninja>=1.4",
-    "psycopg[binary]>=3.2",
-    "python-dotenv>=1.1",
-    "pydantic>=2.13",
-    "celery>=5.5",
-    "django-celery-results>=2.5",
-    "redis>=5.0",
+    "django>=6.1.1",
+    "django-ninja>=1.7.1",
+    "psycopg[binary]>=3.3.6",
+    "python-dotenv>=1.2.3",
+    "pydantic>=2.13.5",
+    "celery>=5.6.3",
+    "django-celery-results>=2.6.0",
+    "redis>=8.1.0",
     "django-ninja-jwt>=5.4.5",
     "django-solo>=2.5.1",
     "django-simple-history>=3.13.0",
     "pillow>=12.3.0",
     "jsonschema>=4.26.0",
     "requests>=2.34.2",
-    "rapidfuzz>=3.14.5",
+    "rapidfuzz>=3.14.6",
     "nicknames>=1.0.1",
-    "reportlab>=5.0.0",
-    "pypdf>=6.4.0",
-    "beautifulsoup4>=4.13.4",
+    "reportlab>=5.0.1",
+    "pypdf>=6.19.0",
+    "beautifulsoup4>=4.15.0",
     "pdf2image>=1.17.0",
-    # ADR 0033 blocking reason — litellm 1.100.1 is itself the newest release and
-    # pins `openai<3.0.0,>=2.20.0`, which caps a chain of four packages below
-    # their latest:
-    #   openai             2.54.0  (3.13.0 excluded by litellm's own metadata)
-    #   openai-agents      0.20.0  (0.22.2 requires openai>=3.0.0 — unsatisfiable
-    #                               alongside litellm; 0.20.0 is the newest that
-    #                               still accepts openai 2.x)
-    #   websockets         16.1.1  (openai-agents 0.20.0 requires websockets<17)
-    #   importlib-metadata 8.9.0   (litellm requires importlib-metadata<9.0)
-    # pydantic-core 2.46.5 is separately capped: pydantic 2.13.5 (latest) pins it
-    # exactly, so it cannot move independently of pydantic.
-    # All five are external metadata pins, not failed gates. Re-check on the next
-    # sweep: the whole chain releases at once when litellm lifts its openai cap.
-    "litellm>=1.95.0",
-    "selenium>=4.46.0",
-    "holidays>=0.102",
+    "litellm>=1.103.1",
+    "selenium>=4.50.0",
+    "holidays>=0.105",
     "xero-python==15.2.0",
-    "urllib3>=2.7.0",
-    "gunicorn>=26.0.0",
-    "uvicorn>=0.52.2",
+    "urllib3>=2.8.0",
+    "gunicorn>=26.2.0",
+    "uvicorn>=0.54.0",
     "uvicorn-worker>=0.4.0",
     "django-eventstream>=5.3.4",
     # Main, not dev: the db_scrubber behind `manage.py backport_data_backup`
     # runs on the production host, whose venv is installed with
     # `uv sync --frozen --no-dev` (release-utils.sh).
-    "faker>=40.36.0",
+    "faker>=40.40.0",
     # NZ IRD check digits for the fake-but-format-valid payroll data the
     # employees seed creates. Hand-rolling the two weight tables was the
     # rejected alternative (ADR 0032): the checksum has a documented
     # second-pass rule that a hand-rolled copy gets subtly wrong, and Xero
     # rejects the result at employee-creation time.
-    "python-stdnum>=2.1",
-    "tinytag>=2.3.0",
+    "python-stdnum>=2.2",
+    "tinytag>=2.3.2",
     # Main, not dev: platform.integrations.google.gmail (password-reset sender, imported
     # by apps/accounts/tasks.py at Celery worker boot) and the per-client
     # H&S onboarding command import_dropbox_hs_documents both run in the
     # production `uv sync --frozen --no-dev` venv. Dev-only was the
     # 2026-08-31 finding: the prod worker cannot even import its tasks
     # without them.
-    "google-api-python-client>=2.198.0",
-    "google-auth>=2.56.3",
+    "google-api-python-client>=2.200.0",
+    "google-auth>=2.59.1",
     "openai-chatkit>=1.6.5",
+    # ADR 0033 — deliberately deferring openai-agents 0.22.3 (2026-10-01): it
+    # requires openai>=3 and no litellm release accepts openai 3, so taking it
+    # means replacing LiteLLM as the gateway (ADR 0041) — not a sweep-sized change.
     "openai-agents[litellm]>=0.20.0",
-    "mcp>=2.1.1",
+    "mcp>=2.2.0",
     "asgiref>=3.12.1",
-    "pydantic-core>=2.46.4",
+    "pydantic-core>=2.46.5",
 ]
 
 [dependency-groups]
 dev = [
-    "ruff>=0.16",
-    "mypy>=1.16",
-    "django-stubs[compatible-mypy]>=6.0",
-    "pytest>=9.0",
-    "pytest-django>=4.11",
-    "pytest-cov>=6.0",
+    "ruff>=0.16.9",
+    "mypy>=2.3.1",
+    "django-stubs[compatible-mypy]>=6.1.1",
+    "pytest>=9.1.1",
+    "pytest-django>=4.14.0",
+    "pytest-cov>=7.1.0",
     # Imported directly by scripts/checks/status_table.py to read the coverage
     # total out of the .coverage data file, rather than arriving only through
     # pytest-cov. Declared because it is used, per ADR 0033.
-    "coverage>=7.15",
-    "pytest-xdist>=3.6",
-    "pre-commit>=4.5",
-    "import-linter>=2.0",
-    "celery-types>=0.23",
-    "deptry>=0.25",
+    "coverage>=7.16.2",
+    "pytest-xdist>=3.8.0",
+    "pre-commit>=4.6.2",
+    "import-linter>=2.15",
+    "celery-types>=0.26.0",
+    "deptry>=0.25.1",
     "types-jsonschema>=4.26.0.20260518",
     "pyyaml>=6.0.3",
-    "types-pyyaml>=6.0.12.20260724",
-    "types-requests>=2.33.0.20260712",
+    "types-pyyaml>=6.0.12.20260906",
+    "types-requests>=2.33.0.20260906",
     "freezegun>=1.5.5",
-    "types-reportlab>=4.5.1",
-    "google-api-python-client-stubs>=1.39.0",
+    "types-reportlab>=5.0.0.20260911",
+    "google-api-python-client-stubs>=1.40.0",
     "httplib2>=0.32.0",
     "shellcheck-py>=0.11.0.1",
 ]
