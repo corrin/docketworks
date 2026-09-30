@@ -1948,3 +1948,20 @@ records a zero cost silently is a fail-early candidate in `estimated_cost_usd`, 
 not changed in a bump PR.
 
 E2E was not run for this PR: one release run covers it and the other small PRs of the week.
+
+## 2026-10-01 — The dependency sweep gets a mechanism: one script, one weekly PR, no per-package prompts
+
+The weekly `uv-lock-refresh.yml` had failed every run since 13 September: it opened its PR with
+`GITHUB_TOKEN`, which the repository setting "Allow GitHub Actions to create and approve pull
+requests" forbids, so the Python half of the cadence never ran and nothing retried a deferral
+but a hand-filed ticket (KAN-367, KAN-368). Dependabot covered the other half badly: one PR per
+package, five at a time, never the combination, never a transitive, never a Python version the
+declared range already admitted.
+
+Replaced by `scripts/ops/sweep_dependencies.sh`, run weekly by `dependency-sweep.yml` and by hand
+for an out-of-cycle sweep: every direct dependency in both ecosystems to latest, pinned exactly
+(`pyproject.toml` moves from floors to `==`, the same rule `package.json` already followed),
+both lockfiles re-locked, one PR whose body is the report. The PR is a prompt for a person to run
+the gates; CI on the bot's own push is a bonus the owner does not require, since E2E runs once
+per release anyway. Dependabot keeps only the github-actions ecosystem. `docs/dependency-sweep.md`
+holds the loop for a red run; ADR 0033 names the mechanism.

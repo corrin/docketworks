@@ -1,0 +1,55 @@
+# The weekly dependency sweep (ADR 0033). scripts/ops/sweep_dependencies.sh takes every direct
+# dependency in both ecosystems to its newest published version and pins it there; this workflow
+# runs it and opens one PR from the result. The PR is the prompt: a person picks it up, runs the
+# gates, handles a red run per docs/dependency-sweep.md, and merges.
+#
+# The PR is opened with GITHUB_TOKEN, which needs Settings → Actions → General → "Allow GitHub
+# Actions to create and approve pull requests". GitHub suppresses workflow triggers for pushes
+# made with that token, so CI does not run on the bot's own commit; the person's first push to
+# the branch triggers it, and E2E runs once per release rather than per sweep.
+name: Weekly dependency sweep
+
+on:
+  schedule:
+    # Sundays 20:00 UTC — Monday morning NZ, so the PR is waiting at the start
+    # of the week rather than landing mid-weekend.
+    - cron: '0 20 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Sweep
+        run: scripts/ops/sweep_dependencies.sh | tee "$RUNNER_TEMP/sweep-report.md"
+
+      - name: Open the PR
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: chore/weekly-dependency-sweep
+          title: 'Weekly dependency sweep'
+          labels: dependencies
+          body-path: ${{ runner.temp }}/sweep-report.md
+          add-paths: |
+            frontend/package.json
+            frontend/package-lock.json
+            pyproject.toml
+            uv.lock
+          commit-message: |
+            Weekly dependency sweep: every direct dependency to latest, pinned there
+
+            Opened by .github/workflows/dependency-sweep.yml from
+            scripts/ops/sweep_dependencies.sh (ADR 0033). The gates decide what
+            stays; docs/dependency-sweep.md is the loop for a red run.
