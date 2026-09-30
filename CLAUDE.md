@@ -96,6 +96,8 @@ weaken a gate, never baseline one.
 - Libraries over DIY (ADR 0032). One LLM gateway: every AI call goes through `apps/ai`, and no
   feature imports a vendor SDK (ADR 0041). Unset is NULL, via `NullableText` (ADR 0040).
   Numbers travel as JSON numbers (ADR 0046).
+- Dependencies sweep to latest, the gates decide, the tested version is frozen exactly; a
+  version held below latest carries its dated reason beside the pin (ADR 0033).
 - Comments record the rejected alternative and the fact that rejected it (ADR 0043). AI-authored
   rationale carries its model prefix (`Opus:`, `GPT:`) until ratified (ADR 0051).
 
