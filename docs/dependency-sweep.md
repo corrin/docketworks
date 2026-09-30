@@ -14,6 +14,10 @@ holds below latest, and the pip-audit report. It opens nothing when nothing move
 The PR is a prompt, not a verdict. CI does not run on the bot's own commit (GitHub suppresses
 triggers from `GITHUB_TOKEN`); it runs on the first push a person makes to the branch.
 
+While a sweep PR is open, the weekly run does nothing: the action rebuilds the branch from main
+on every run, which would discard the commits a person made on it. Merge or close the open
+sweep and the next run proceeds, so a sweep left open costs exactly the weeks it stays open.
+
 ## Picking it up
 
 1. Check the branch out, run the commit tier, `npm run type-check`, `npx vitest run`, `uv run
