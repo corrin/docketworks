@@ -221,32 +221,32 @@ async function postWeek(page: Page, week: string): Promise<void> {
   await expect(autoId(page, 'PayrollPanel-postAll')).toBeEnabled({ timeout: 120000 })
 }
 
+/**
+ * Put the page in the state an operator posts from, and return the week.
+ *
+ * Fable: The week must be read AFTER a mirror refresh: teardown restores the
+ * database out from under Xero, so the mirror's postable answer can name a
+ * week Xero has moved past. Refreshing is a step of posting now — not a
+ * button — so the fixture reaches it through the posting preflight's own
+ * refusal contract.
+ */
+async function openPostableWeek(page: Page): Promise<string> {
+  await refreshPayrollMirror(page)
+  const week = await getPostableWeek(page)
+  await openWeek(page, week)
+  await expect(
+    autoId(page, 'PayrollPanel-postAll'),
+    `Post stayed disabled on ${week}, the week the server calls postable. ` +
+      'Read the button title: it names which precondition is unmet.',
+  ).toBeEnabled({ timeout: 120000 })
+  return week
+}
+
 test.describe('posting a week to Xero @xero-payroll-write', () => {
   // Opus: The panel posts every staff member — there is no per-staff control — and
   // the service sleeps 3s four times per employee to survive Xero's rate
   // limits, so a full staff list runs for minutes.
   test.setTimeout(900000)
-
-  /**
-   * Put the page in the state an operator posts from, and return the week.
-   *
-   * Fable: The week must be read AFTER a mirror refresh: teardown restores the
-   * database out from under Xero, so the mirror's postable answer can name a
-   * week Xero has moved past. Refreshing is a step of posting now — not a
-   * button — so the fixture reaches it through the posting preflight's own
-   * refusal contract.
-   */
-  async function openPostableWeek(page: Page): Promise<string> {
-    await refreshPayrollMirror(page)
-    const week = await getPostableWeek(page)
-    await openWeek(page, week)
-    await expect(
-      autoId(page, 'PayrollPanel-postAll'),
-      `Post stayed disabled on ${week}, the week the server calls postable. ` +
-        'Read the button title: it names which precondition is unmet.',
-    ).toBeEnabled({ timeout: 120000 })
-    return week
-  }
 
   test('hours recorded for the week reach Xero, and Xero holds what was recorded', async ({
     authenticatedPage: page,

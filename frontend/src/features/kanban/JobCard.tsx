@@ -42,6 +42,11 @@ function dueDateColor(deliveryDate: string): string {
   return 'text-gray-900'
 }
 
+// Native HTML5 handlers, gated on the staff transfer type: a card drag is a
+// pragmatic drag and must fall through to it untouched.
+const isStaffDrag = (event: React.DragEvent<HTMLDivElement>) =>
+  event.dataTransfer.types.includes(STAFF_DRAG_TYPE)
+
 export function JobCard({
   job,
   movePendingRef,
@@ -65,11 +70,6 @@ export function JobCard({
     job.status_key !== 'archived'
   const description = job.description?.trim()
   const hasStatusIcons = job.is_urgent || job.fully_invoiced || job.paid || job.rejected_flag
-
-  // Native HTML5 handlers, gated on the staff transfer type: a card drag is a
-  // pragmatic drag and must fall through to it untouched.
-  const isStaffDrag = (event: React.DragEvent<HTMLDivElement>) =>
-    event.dataTransfer.types.includes(STAFF_DRAG_TYPE)
 
   return (
     <div
