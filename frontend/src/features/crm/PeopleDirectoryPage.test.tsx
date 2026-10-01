@@ -15,6 +15,8 @@ const person = (overrides: Partial<PersonSummary> = {}): PersonSummary => ({
   is_active: true,
   primary_phone: '021 555 111',
   companies: [{ company_id: 'c-1', company_name: 'Alpha Engineering' }],
+  last_invoice_date: '2026-02-20',
+  total_spend: 125.5,
   ...overrides,
 })
 
@@ -42,6 +44,8 @@ describe('PeopleDirectoryPage', () => {
                 { company_id: 'c-1', company_name: 'Alpha Engineering' },
                 { company_id: 'c-2', company_name: 'Beta Fabrication' },
               ],
+              last_invoice_date: null,
+              total_spend: 0,
             }),
           ]),
         ),
@@ -53,6 +57,8 @@ describe('PeopleDirectoryPage', () => {
     expect(screen.getByText('Alpha Engineering, Beta Fabrication')).toBeVisible()
     expect(screen.getByText('021 555 111')).toBeVisible()
     expect(queryAutoId('PeopleDirectory-row-p-1')).not.toBeNull()
+    expect(queryAutoId('PeopleDirectory-cell-p-1-total-spend')).toHaveTextContent('$125.50')
+    expect(queryAutoId('PeopleDirectory-cell-p-2-total-spend')).toHaveTextContent('$0.00')
     expect(screen.getAllByRole('button', { name: 'Manage' })).toHaveLength(2)
     // Complete result set: the count is shown, the Load more button is not.
     expect(screen.getByText('Showing 2 of 2 people')).toBeVisible()

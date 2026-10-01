@@ -848,14 +848,14 @@ def people_list(
 )
 def people_retrieve(request: HttpRequest, person_id: UUID) -> PersonDetailData:
     """Retrieve a Person's identity fields and relationships."""
-    person = get_object_or_404(Person, id=person_id)
+    person = get_object_or_404(Person.objects.with_invoice_summary(), id=person_id)
     return PersonDirectoryService.detail_data(person)
 
 
 def _apply_identity_update(
     person_id: UUID, payload: PersonIdentityUpdateRequest
 ) -> PersonDetailData:
-    person = get_object_or_404(Person, id=person_id)
+    person = get_object_or_404(Person.objects.with_invoice_summary(), id=person_id)
     supplied = payload.model_dump(exclude_unset=True)
     update_fields = ["updated_at"]
     if "name" in supplied:
@@ -907,8 +907,11 @@ def people_archive_create(request: HttpRequest, person_id: UUID) -> PersonDetail
     """Explicitly retire a person (deactivate all links + archive)."""
     person = get_object_or_404(Person, id=person_id)
     archive_person(person=person)
-    person.refresh_from_db()
-    return PersonDirectoryService.detail_data(person)
+    # Re-read through the annotated queryset rather than refresh_from_db():
+    # the detail body carries the invoice figures, which only that query sets.
+    return PersonDirectoryService.detail_data(
+        get_object_or_404(Person.objects.with_invoice_summary(), id=person_id)
+    )
 
 
 @router.get(

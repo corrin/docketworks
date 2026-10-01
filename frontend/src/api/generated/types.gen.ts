@@ -7755,6 +7755,10 @@ export type PersonDetail = {
      */
     is_active: boolean;
     /**
+     * Last Invoice Date
+     */
+    last_invoice_date: string | null;
+    /**
      * Name
      */
     name: string;
@@ -7762,6 +7766,10 @@ export type PersonDetail = {
      * Primary Phone
      */
     primary_phone: string;
+    /**
+     * Total Spend
+     */
+    total_spend: number;
     /**
      * Updated At
      */
@@ -7811,6 +7819,10 @@ export type PersonSummary = {
      */
     is_active: boolean;
     /**
+     * Last Invoice Date
+     */
+    last_invoice_date: string | null;
+    /**
      * Name
      */
     name: string;
@@ -7818,6 +7830,10 @@ export type PersonSummary = {
      * Primary Phone
      */
     primary_phone: string;
+    /**
+     * Total Spend
+     */
+    total_spend: number;
 };
 
 /**

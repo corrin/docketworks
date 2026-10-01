@@ -289,6 +289,11 @@ interface CreateTestJobOptions {
   materials?: string
   time?: string
   pricing?: 'fixed_price' | 'time_materials'
+  /**
+   * Creates this person as the job's contact instead of selecting the first
+   * existing card, so a spec can assert over a contact only it created.
+   */
+  personName?: string
 }
 
 /** Create a fresh [TEST] job through the UI and return its detail URL. */
@@ -333,7 +338,13 @@ export async function createTestJob(
     await page.getByText('Loading people...').waitFor({ state: 'hidden', timeout: 10000 })
 
     const selectButtons = autoId(page, 'PersonSelectionModal-select-button')
-    if ((await selectButtons.count()) > 0) {
+    if (options?.personName !== undefined) {
+      const submitButton = autoId(page, 'PersonSelectionModal-submit')
+      await autoId(page, 'PersonSelectionModal-name-input').fill(options.personName)
+      await autoId(page, 'PersonSelectionModal-email-input').fill(`test${timestamp}@example.com`)
+      await expect(submitButton).toHaveText('Create Person', { timeout: 10000 })
+      await submitButton.click()
+    } else if ((await selectButtons.count()) > 0) {
       // The Select button sits in a hover-revealed overlay on the card.
       const firstCard = page.locator('[data-automation-id^="PersonSelectionModal-card-"]').first()
       await firstCard.hover()

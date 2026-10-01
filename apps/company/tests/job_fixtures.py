@@ -94,13 +94,14 @@ def ordinary_time_pay_item() -> "Model":
     return _xero_pay_item_model()._default_manager.get(name="Ordinary Time", uses_leave_api=False)
 
 
-def make_job(
+def make_job(  # noqa: PLR0913 -- a factory: every field is an axis a test varies
     company: Company,
     staff: Staff,
     *,
     name: str = "Test Job",
     pricing_methodology: str = "time_materials",
     status: str | None = None,
+    person: Person | None = None,
 ) -> Job:
     """Create a Job through the real save path.
 
@@ -110,7 +111,7 @@ def make_job(
     handler (which fires on later edits) stays out of the picture — the same
     order ``create_shop_jobs`` uses when it creates the special jobs.
     """
-    job = Job(name=name, company=company, pricing_methodology=pricing_methodology)
+    job = Job(name=name, company=company, pricing_methodology=pricing_methodology, person=person)
     if status is not None:
         job.status = status
     job.save(staff=staff)

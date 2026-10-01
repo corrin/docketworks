@@ -5,7 +5,7 @@ service formatters (one implementation per concept, ADR 0039). Error responses
 use the standard envelope from ADR 0038.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -485,6 +485,8 @@ class PersonSummary(Schema):
     is_active: bool
     primary_phone: str
     companies: list[PersonCompanySummary]
+    last_invoice_date: date | None
+    total_spend: float
 
 
 class PaginatedPersonSummaryList(Schema):
@@ -512,6 +514,8 @@ class PersonDetail(Schema):
     updated_at: datetime
     primary_phone: str
     companies: list[PersonCompanySummary]
+    last_invoice_date: date | None
+    total_spend: float
     company_links: list[PersonCompanyLink]
 
 

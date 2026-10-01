@@ -10,6 +10,7 @@ import { LoadMoreSentinel } from '@/features/shared/LoadMoreSentinel'
 import { nextPageParam } from '@/features/shared/nextPageParam'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
 import { SearchInput } from '@/features/shared/SearchInput'
+import { formatCurrency } from '@/lib/format'
 
 /**
  * People directory: one identity per person, linked to every company they
@@ -172,6 +173,9 @@ export function PeopleDirectoryPage() {
             <th scope="col" className="px-3 py-2 text-left">
               Companies
             </th>
+            <th scope="col" className="px-3 py-2 text-right">
+              Total Spend
+            </th>
             <th scope="col" className="px-3 py-2 text-left">
               Action
             </th>
@@ -200,6 +204,12 @@ export function PeopleDirectoryPage() {
             <td className="px-3 py-2">{person.primary_phone || '—'}</td>
             <td className="px-3 py-2">
               {person.companies.map((company) => company.company_name).join(', ') || '—'}
+            </td>
+            <td
+              data-automation-id={`PeopleDirectory-cell-${person.id}-total-spend`}
+              className="px-3 py-2 text-right"
+            >
+              {formatCurrency(person.total_spend)}
             </td>
             <td className="px-3 py-2">
               <button

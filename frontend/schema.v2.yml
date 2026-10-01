@@ -8650,12 +8650,21 @@ components:
         is_active:
           title: Is Active
           type: boolean
+        last_invoice_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Last Invoice Date
         name:
           title: Name
           type: string
         primary_phone:
           title: Primary Phone
           type: string
+        total_spend:
+          title: Total Spend
+          type: number
         updated_at:
           format: date-time
           title: Updated At
@@ -8669,6 +8678,8 @@ components:
       - updated_at
       - primary_phone
       - companies
+      - last_invoice_date
+      - total_spend
       - company_links
       title: PersonDetail
       type: object
@@ -8713,12 +8724,21 @@ components:
         is_active:
           title: Is Active
           type: boolean
+        last_invoice_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Last Invoice Date
         name:
           title: Name
           type: string
         primary_phone:
           title: Primary Phone
           type: string
+        total_spend:
+          title: Total Spend
+          type: number
       required:
       - id
       - name
@@ -8726,6 +8746,8 @@ components:
       - is_active
       - primary_phone
       - companies
+      - last_invoice_date
+      - total_spend
       title: PersonSummary
       type: object
     PhoneCallJobLinkIn:

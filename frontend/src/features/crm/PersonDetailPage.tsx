@@ -27,6 +27,7 @@ import {
 import { CompanyLookup } from '@/features/shared/company/CompanyLookup'
 import { ListTable } from '@/features/shared/ListTable'
 import { QueryState } from '@/features/shared/QueryState'
+import { formatCurrency, formatDate } from '@/lib/format'
 
 interface MethodFormState {
   editingMethodId: string
@@ -681,6 +682,33 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                   </div>
                 ))}
               </div>
+            </section>
+
+            <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900">Financial summary</h2>
+              <p className="text-sm text-gray-600">
+                Sales invoices on jobs where this person is the contact, across every company those
+                jobs were for.
+              </p>
+              <dl className="mt-3 grid gap-4 md:grid-cols-2">
+                <div>
+                  <dt className="text-sm font-medium text-gray-700">Total Spend</dt>
+                  <dd
+                    data-automation-id="PersonDetail-total-spend"
+                    className="text-2xl font-semibold text-gray-900"
+                  >
+                    {formatCurrency(person.data.total_spend)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-gray-700">Last Invoice Date</dt>
+                  <dd data-automation-id="PersonDetail-last-invoice-date" className="text-gray-900">
+                    {person.data.last_invoice_date === null
+                      ? 'No invoices'
+                      : formatDate(person.data.last_invoice_date)}
+                  </dd>
+                </div>
+              </dl>
             </section>
           </>
         )}

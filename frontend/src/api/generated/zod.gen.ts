@@ -3324,8 +3324,10 @@ export const zPersonDetail = z.object({
     email: z.string().nullable(),
     id: z.uuid(),
     is_active: z.boolean(),
+    last_invoice_date: z.iso.date().nullable(),
     name: z.string(),
     primary_phone: z.string(),
+    total_spend: z.number(),
     updated_at: z.iso.datetime()
 });
 
@@ -3353,8 +3355,10 @@ export const zPersonSummary = z.object({
     email: z.string().nullable(),
     id: z.uuid(),
     is_active: z.boolean(),
+    last_invoice_date: z.iso.date().nullable(),
     name: z.string(),
-    primary_phone: z.string()
+    primary_phone: z.string(),
+    total_spend: z.number()
 });
 
 /**

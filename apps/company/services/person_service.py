@@ -4,7 +4,7 @@ Primary-phone rules live in ``services/contact_methods.py`` and CRM rematching
 is invoked through its dedicated side-effect seam.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import NotRequired, TypedDict
 from uuid import UUID
 
@@ -92,6 +92,11 @@ class PersonSummaryData(TypedDict):
     is_active: bool
     primary_phone: str
     companies: list[PersonCompanySummaryData]
+    #: Sales invoices on jobs whose contact is this person, across every
+    #: company those jobs were for (KAN-372); the date is a plain date, not
+    #: the NZ-midnight datetime the company payload carries.
+    last_invoice_date: date | None
+    total_spend: float
 
 
 class PersonDetailData(PersonSummaryData):
@@ -152,12 +157,18 @@ class PersonDirectoryService:
     def search(query: str, *, include_archived: bool = False) -> QuerySet[Person]:
         """Search active people by name, email, phone, or company name."""
         base = Person.objects.all() if include_archived else Person.objects.filter(is_active=True)
-        people = base.annotate(
-            primary_phone=ContactMethod.primary_phone_annotation(owner="person", outer_ref="pk")
-        ).prefetch_related(
-            Prefetch(
-                "company_links",
-                queryset=CompanyPersonLink.objects.filter(is_active=True).select_related("company"),
+        people = (
+            base.with_invoice_summary()
+            .annotate(
+                primary_phone=ContactMethod.primary_phone_annotation(owner="person", outer_ref="pk")
+            )
+            .prefetch_related(
+                Prefetch(
+                    "company_links",
+                    queryset=CompanyPersonLink.objects.filter(is_active=True).select_related(
+                        "company"
+                    ),
+                )
             )
         )
         search = query.strip()
@@ -228,6 +239,8 @@ class PersonDirectoryService:
             "email": person.email,
             "is_active": person.is_active,
             "primary_phone": PersonDirectoryService.primary_phone(person),
+            "last_invoice_date": person.last_invoice_date,
+            "total_spend": float(person.total_spend),
             "companies": [
                 {
                     "company_id": link["company_id"],
