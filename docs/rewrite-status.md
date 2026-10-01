@@ -517,7 +517,7 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   adapter beside the Google Drive one, and enumeration wiring.
 - **Read-side fallback cleanup**
   ([KAN-338](https://docketworks.atlassian.net/browse/KAN-338)). ~40 reads of our own JSON
-  shapes violate ADR 0015/0028/0045, concentrated in JSONField payloads mypy cannot see
+  shapes violate ADR 0015/0028, concentrated in JSONField payloads mypy cannot see
   into. The `is_billable` divergence between timesheet aggregation and the shop-job
   validator is the priority — billing math that can already disagree on real rows.
 - **Scrubber policy: exactly PII, exactly once**
