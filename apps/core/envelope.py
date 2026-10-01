@@ -60,7 +60,7 @@ _APPLICATION_ERROR_STATUSES: tuple[tuple[type[ApplicationError], int], ...] = (
 def _persist_from_request(exc: Exception, request: HttpRequest) -> str | None:
     """Persist the exception with request context and return its error_id.
 
-    ``persist_app_error`` is idempotent (ADR 0001), so an exception already
+    ``persist_app_error`` is idempotent (ADR 0019), so an exception already
     persisted deeper in the stack — where the context was richer — keeps its
     original row; ``app_error_for`` then reads that row's id.
     """

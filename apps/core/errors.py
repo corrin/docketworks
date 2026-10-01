@@ -1,6 +1,6 @@
 """Application error categories and persistence into ``AppError``.
 
-Opus: ADR 0019 requires every ``except`` block to persist; ADR 0001 makes marking
+Opus: ADR 0019 requires every ``except`` block to persist, and makes marking
 idempotent so one failure produces one row across all handlers.
 
 Expected domain refusals inherit one of the semantic categories below and

@@ -23,7 +23,6 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 
 | N | Title |
 | --- | --- |
-| [0001](0001-exception-already-logged-dedup.md) | Error persistence is idempotent: one failure, one AppError row |
 | [0002](0002-auth-gate-global-allowlist.md) | Auth gate: single global gate with explicit allowlist |
 | [0003](0003-etag-optimistic-concurrency.md) | Job, PO and stocktake mutations carry If-Match: missing is 428, stale is 412 |
 | [0004](0004-job-delta-envelope.md) | Job mutations require a self-contained delta envelope |
