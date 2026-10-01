@@ -36,7 +36,6 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0021](0021-frontend-generated-api-client-only.md) | Frontend reads and writes the API only through the generated client |
 | [0024](0024-celery-async-task-processing.md) | Background work runs through Celery; tasks are idempotent and write-side |
 | [0025](0025-tests-state-business-risk.md) | Every test guards against a plausible regression |
-| [0026](0026-plan-the-tests-before-approval.md) | Plan the tests before the plan is approved |
 | [0027](0027-deploy-capability-with-its-controls.md) | A capability deploys with the means to operate it |
 | [0028](0028-type-annotations-are-data-contracts.md) | Type annotations are data contracts |
 | [0030](0030-first-class-people-and-company-links.md) | Person owns identity, CompanyPersonLink owns the relationship, jobs point at the person |
