@@ -54,6 +54,11 @@ from apps.job.models import (
 from apps.job.models.costing import CostLine, CostSet, lock_costing_jobs
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
 from apps.job.services.time_entry_rates import pay_item_by_id, price_time_entry
+from apps.timesheet.services.timesheet_events import (
+    is_timesheet_entry,
+    line_snapshot,
+    record_timesheet_event,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -2242,6 +2247,14 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
         # CostLine.save() runs full_clean, assigns entry_seq and refreshes
         # the CostSet summary; do not duplicate those model responsibilities here.
         line.save()
+        if is_timesheet_entry(line):
+            record_timesheet_event(
+                staff=staff,
+                event_type="entry_created",
+                line=line,
+                before=None,
+                after=line_snapshot(line),
+            )
     return line
 
 
@@ -2258,12 +2271,13 @@ def refuse_workflow_managed(line: CostLine, remedy: str) -> None:
 
 
 @transaction.atomic
-def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
+def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> CostLine:
     """Edit unowned costs; issuing material belongs to purchasing."""
     lock_costing_jobs([line.cost_set.job_id])
     line = CostLine.objects.select_for_update().get(pk=line.pk)
     refuse_workflow_managed(line, "edit")
     _validate_costline_write(data)
+    before = line_snapshot(line) if is_timesheet_entry(line) else None
 
     kind = data.get("kind") or line.kind
     patch_meta = data.get("meta") or {}
@@ -2282,17 +2296,35 @@ def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
         if line.cost_set.kind == "actual" and line.approved and "stock_id" in line.ext_refs:
             raise ValueError("Issue material through purchasing so its stock movement is recorded.")
         line.save()
+        if before is not None:
+            record_timesheet_event(
+                staff=staff,
+                event_type="entry_updated",
+                line=line,
+                before=before,
+                after=line_snapshot(line),
+            )
 
     return line
 
 
 @transaction.atomic
-def delete_cost_line(line: CostLine) -> None:
+def delete_cost_line(line: CostLine, staff: Staff) -> None:
     """Delete an unowned cost; unissued drafts have no inventory effect."""
     lock_costing_jobs([line.cost_set.job_id])
     line = CostLine.objects.select_for_update().get(pk=line.pk)
     refuse_workflow_managed(line, "cancel")
     with transaction.atomic():
+        # Recorded before the delete: Django clears the pk on the instance it
+        # deleted, and the event names the line by that id.
+        if is_timesheet_entry(line):
+            record_timesheet_event(
+                staff=staff,
+                event_type="entry_deleted",
+                line=line,
+                before=line_snapshot(line),
+                after=None,
+            )
         line.delete()
     logger.info("Deleted cost line %s", line.id)
 

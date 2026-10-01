@@ -132,6 +132,11 @@ from apps.job.services.workshop_pdf_service import create_workshop_pdf
 from apps.job.tasks import create_job_file_thumbnail_task
 from apps.purchasing.models import Stock
 from apps.purchasing.services.stock_service import consume_stock
+from apps.timesheet.services.timesheet_events import (
+    is_timesheet_entry,
+    line_snapshot,
+    record_timesheet_event,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -917,10 +922,11 @@ def job_cost_lines_partial_update(
 ) -> job_service.CostLineData:
     """Edit unowned costs; posted material is corrected through purchasing."""
     line = get_object_or_404(CostLine, id=cost_line_id)
-    if line.cost_set.kind != "actual" and not authenticated_staff(request).is_office_staff:
+    staff = authenticated_staff(request)
+    if line.cost_set.kind != "actual" and not staff.is_office_staff:
         raise HttpError(403, "Only office staff can modify non-actual cost lines")
     try:
-        updated = job_service.update_cost_line(line, _costline_patch_data(payload))
+        updated = job_service.update_cost_line(line, _costline_patch_data(payload), staff)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
     except DjangoValidationError as exc:
@@ -939,10 +945,11 @@ def job_cost_lines_partial_update(
 def job_cost_lines_delete_destroy(request: HttpRequest, cost_line_id: UUID) -> Status[None]:
     """Delete a cost line, returning any consumed stock to inventory."""
     line = get_object_or_404(CostLine, id=cost_line_id)
-    if line.cost_set.kind != "actual" and not authenticated_staff(request).is_office_staff:
+    staff = authenticated_staff(request)
+    if line.cost_set.kind != "actual" and not staff.is_office_staff:
         raise HttpError(403, "Only office staff can delete non-actual cost lines")
     try:
-        job_service.delete_cost_line(line)
+        job_service.delete_cost_line(line, staff)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
     return Status(204, None)
@@ -973,8 +980,17 @@ def approve_cost_line(request: HttpRequest, cost_line_id: UUID) -> dict[str, obj
         raise HttpError(400, "Line is already approved")
 
     if line.kind != "material":
+        before = line_snapshot(line) if is_timesheet_entry(line) else None
         line.approved = True
         line.save(update_fields=["approved", "updated_at"])
+        if before is not None:
+            record_timesheet_event(
+                staff=authenticated_staff(request),
+                event_type="entry_approved",
+                line=line,
+                before=before,
+                after=line_snapshot(line),
+            )
         return {
             "success": True,
             "message": "Line approved successfully",

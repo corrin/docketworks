@@ -27,6 +27,7 @@ from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine, CostSet
 from apps.purchasing.models import Stock
+from apps.timesheet.models import TimesheetEvent
 
 pytestmark = [
     pytest.mark.django_db,
@@ -413,6 +414,26 @@ class TestCostLineUpdate:
         )
         assert response.status_code == 201, response.content
         return str(response.json()["id"])
+
+    def test_approving_a_timesheet_line_records_an_event(
+        self, client: Client, job: Job, timesheet_worker: Staff
+    ) -> None:
+        """The approve endpoint's time-line branch records entry_approved.
+
+        The branch saves the flag inline rather than through a service, so a
+        plausible edit drops the record call without any service test noticing.
+        """
+        line_id = self._create_timesheet_line(client, job, timesheet_worker)
+        CostLine.objects.filter(id=line_id).update(approved=False)
+
+        response = client.post(f"/api/job/cost_lines/{line_id}/approve/")
+
+        assert response.status_code == 200, response.content
+        event = TimesheetEvent.objects.get(cost_line_id=line_id, event_type="entry_approved")
+        assert event.worker == timesheet_worker
+        assert event.delta_before is not None and event.delta_before["approved"] is False
+        assert event.delta_after is not None and event.delta_after["approved"] is True
+        assert event.description == "Entry approved"
 
     def test_patch_subtype_of_timesheet_line_reprices_it(
         self, client: Client, job: Job, timesheet_worker: Staff

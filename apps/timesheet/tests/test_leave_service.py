@@ -198,9 +198,9 @@ def test_generic_cost_line_writes_refuse_managed_leave(
     line = CostLine.objects.get(managed_by="leave")
 
     with pytest.raises(InvalidInputError, match="Timesheets → Leave"):
-        job_service.update_cost_line(line, {"quantity": Decimal("4")})
+        job_service.update_cost_line(line, {"quantity": Decimal("4")}, superuser)
     with pytest.raises(InvalidInputError, match="Timesheets → Leave"):
-        job_service.delete_cost_line(line)
+        job_service.delete_cost_line(line, superuser)
 
 
 def test_balance_uses_configured_external_id(
