@@ -1,5 +1,5 @@
 # 0039 — One implementation per concept
-Superseded in part: ownership of a shared concept is ADR 0055; checking is not doing is ADR 0061.
+Superseded in part: ownership of a shared concept is ADR 0055.
 
 Search before implement; a near-match is extended, never given a sibling.
 
@@ -12,4 +12,9 @@ Search before implement; a near-match is extended, never given a sibling.
 - Never port v1 code without first checking whether it has siblings; port exactly one canonical behaviour.
 - **Unification is never deferred.** The change that would create a second implementation — or that discovers one — extracts the shared implementation before it merges. "Extract later", "post-cutover cleanup" and every equivalent are banned dispositions: a green test suite exists precisely so that refactoring is safe *now*, and a deferral note is how one duplicate becomes three.
 - Reviews — human, agent, `/code-review` — treat "does this already exist?" as a standing question, because duplication is largely invisible to tooling.
-- ADR 0032 is the same principle pointed at the ecosystem instead of the codebase; ADR 0061 is the same principle applied to checks and compensations.
+- ADR 0032 is the same principle pointed at the ecosystem instead of the codebase.
+- Fable: **One owner per action, and the consumer never compensates.** If the owner is incomplete, the owner is fixed; re-treating its output downstream is a second implementation of the one policy. Verifying a precondition and refusing is not: a consumer may check that the owner's work happened and abort when it did not, and on a destructive or irreversible path it must. The check calls the one implementation of the rule (`apps/core/environment.validate_scrub_db_name`, `apps/xero/operator_guards.is_production_tenant`) rather than restating it, and it runs once, immediately before the destructive step — the same precondition asserted at four call depths is bloat, and each copy is another place to drift.
+
+## Do not
+
+- Fable: **Defence in depth around an owner you could fix** — the second layer hides the first layer's defect and is a second implementation of its policy; a check whose only possible trigger is a mocked-out collaborator is dead code.
