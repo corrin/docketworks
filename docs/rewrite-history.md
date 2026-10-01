@@ -5,6 +5,29 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
+## 2026-10-01 — ADRs are forward-looking; three retired, four merged, the rest trimmed
+
+Owner ruling, reviewing ADR 0065 after GitHub #169 and #170 closed. The test an ADR must pass
+is whether future PRs should follow it and a session will read it again and again; whether
+today's code complies is a different question and no ground for retirement (the index
+conventions now say so). Retired: 0065 (per-instance Redis is provisioning; the design stays
+exactly as deployed, verified live on the shared host with `redis-msm-prod` and
+`redis-msm-uat` on 6381/6382), 0066 (the rehearsal is an operator procedure; Part E of
+`docs/server_setup.md` runs it), 0029 (branch topology; `docs/release-process.md` owns it).
+Kept against a compliance finding: 0031, because the `<domain>` namespace is the point and the
+code owes compliance (E2E narration through `debug`, the kanban console handler, `debug` as a
+runtime dependency — a code slice, not filed); 0002, because one gate with no per-endpoint
+repetition is the purpose. Merged, on the owner's one criterion of fewer lines and no rule
+lost: 0001→0019, 0026→0025, 0061→0039, 0062→0041. Ratified: 0063. Tombstone index rows go; a
+retirement rewords every citation of its number; numbers are never reused. Fable: two pending
+tasks left the ADRs without a new home and need the owner's word to enter `rewrite-status.md`:
+the physical rename of `crm_phoneprovidersettings` (was in 0053), and the two rulings the
+inventory ledger's `*_opening` kinds wait on — a lost-evidence gap correcting the order line's
+`received_quantity`, and an issue dated at the cutover standing as the movement that consumed
+stock the ledger never saw (was in 0059). 0004 and 0006 disagree with the code (optional
+envelope fields; `job_id` as a query filter) and were left as written, being compliance
+questions. 49 ADRs and 1536 lines became 42 and 1190.
+
 ## 2026-09-17 — Each instance owns its Redis server; the queue is named by the database
 
 Owner ruling, by approving the plan for GitHub #169 and #170 (KAN-365), ahead of msm-prod
