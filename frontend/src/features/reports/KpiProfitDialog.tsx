@@ -2,7 +2,7 @@ import type { KpiMonthlyTotalsOut, KpiThresholdsOut } from '@/api'
 import { formatMonth } from '@/lib/format'
 
 import { KpiDialog, Row, Section, Stat, Stats } from './kpiDialogParts'
-import { ratioText, signClass, type MoneyFormatter } from './kpiDisplay'
+import { moneyText, ratioText, signClass, type MoneyFormatter } from './kpiDisplay'
 
 interface KpiProfitDialogProps {
   open: boolean
@@ -97,7 +97,7 @@ export function KpiProfitDialog({
           />
           <Stat
             label="Average gross profit"
-            value={money(totals.avg_weekday_gp)}
+            value={moneyText(totals.avg_weekday_gp, money)}
             note="Per weekday"
           />
         </Stats>

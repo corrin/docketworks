@@ -2157,12 +2157,12 @@ export const zKpiMonthlyTotalsOut = z.object({
     adjustment_margin: z.number().nullable(),
     adjustment_profit: z.number(),
     adjustment_revenue: z.number(),
-    avg_active_day_billable_hours: z.number(),
-    avg_active_day_gp: z.number(),
+    avg_active_day_billable_hours: z.number().nullable(),
+    avg_active_day_gp: z.number().nullable(),
     avg_labour_rate: z.number().nullable(),
-    avg_weekday_gp: z.number(),
+    avg_weekday_gp: z.number().nullable(),
     billable_hours: z.number(),
-    billable_percentage: z.number(),
+    billable_percentage: z.number().nullable(),
     color_gp: z.enum([
         'green',
         'amber',
@@ -2206,7 +2206,7 @@ export const zKpiMonthlyTotalsOut = z.object({
     remaining_weekdays: z.int(),
     remaining_workdays: z.int(),
     shop_hours: z.number(),
-    shop_percentage: z.number(),
+    shop_percentage: z.number().nullable(),
     staff_cost: z.number(),
     time_revenue: z.number(),
     total_cost: z.number(),
@@ -2272,7 +2272,7 @@ export const zKpiDayDataOut = z.object({
     holiday: z.boolean(),
     holiday_name: z.string().nullable(),
     shop_hours: z.number(),
-    shop_percentage: z.number(),
+    shop_percentage: z.number().nullable(),
     total_hours: z.number()
 });
 

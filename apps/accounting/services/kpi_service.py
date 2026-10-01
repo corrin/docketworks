@@ -422,11 +422,8 @@ def _build_day_entry(  # noqa: PLR0913, PLR0917 -- one argument per precomputed 
 ) -> dict[str, object]:
     """Build one calendar-day response entry."""
     total_hours = day.time["total_hours"]
-    shop_percentage = (
-        Decimal(day.time["shop_hours"]) / Decimal(total_hours) * 100
-        if total_hours > 0
-        else Decimal("0")
-    )
+    # Null, like the month's ratios: a day with no hours has no shop share.
+    shop_percentage = _percentage(float(day.time["shop_hours"]), float(total_hours))
     gross_profit = day.gross_profit
     total_revenue = day.time["time_revenue"] + day.material["revenue"] + day.adjustment["revenue"]
     total_cost = day.time["staff_cost"] + day.material["cost"] + day.adjustment["cost"]
@@ -443,7 +440,7 @@ def _build_day_entry(  # noqa: PLR0913, PLR0917 -- one argument per precomputed 
             "billable_hours": float(day.time["billable_hours"]),
             "total_hours": float(total_hours),
             "shop_hours": float(day.time["shop_hours"]),
-            "shop_percentage": float(shop_percentage),
+            "shop_percentage": shop_percentage,
             "gross_profit": float(gross_profit),
             # Owner ruling 2026-09-01 (see module docstring): the report lets
             # the viewer choose which ladder tints the calendar, hours default.
@@ -671,41 +668,22 @@ def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -
     net_profit = totals["gross_profit"] - elapsed_target
     final["net_profit"] = net_profit
 
-    billable_percentage = 0.0
-    shop_percentage = 0.0
-    avg_weekday_gp = 0.0
-    avg_active_day_gp = 0.0
-    avg_active_day_billable_hours = 0.0
-
-    if totals["total_hours"] > 0:
-        billable_percentage = float(
-            round(
-                Decimal(totals["billable_hours"]) / Decimal(totals["total_hours"]) * 100,
-                1,
-            )
-        )
-        shop_percentage = float(
-            round(Decimal(totals["shop_hours"] / totals["total_hours"]) * 100, 1)
-        )
+    # Every ratio on the month reads the same way: null where there is
+    # nothing to divide by. A month with no hours has no utilisation, not 0%.
+    billable_percentage = _percentage(totals["billable_hours"], totals["total_hours"])
+    shop_percentage = _percentage(totals["shop_hours"], totals["total_hours"])
 
     # Over weekdays for the same reason elapsed_target is: dividing by the
     # days shown would drop a seven-day shop's average GP on a display
     # setting, with no change to the profit being averaged.
-    if totals["weekdays"] > 0:
-        avg_weekday_gp = float(round(Decimal(totals["gross_profit"] / totals["weekdays"]), 2))
+    avg_weekday_gp = _ratio(totals["gross_profit"], totals["weekdays"], places=2)
 
     # Averages divide by days that actually have hours so idle days don't
     # dilute them.
-    if totals["active_days"] > 0:
-        avg_active_day_gp = float(
-            round(Decimal(totals["gross_profit"]) / Decimal(totals["active_days"]), 2)
-        )
-        avg_active_day_billable_hours = float(
-            round(
-                Decimal(totals["billable_hours"]) / Decimal(totals["active_days"]),
-                1,
-            )
-        )
+    avg_active_day_gp = _ratio(totals["gross_profit"], totals["active_days"], places=2)
+    avg_active_day_billable_hours = _ratio(
+        totals["billable_hours"], totals["active_days"], places=1
+    )
 
     final["billable_percentage"] = billable_percentage
     final["shop_percentage"] = shop_percentage
@@ -733,16 +711,20 @@ def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -
     final["month_target"] = month_target
     final["month_target_achievement"] = _percentage(totals["gross_profit"], month_target)
 
+    # The month is always graded, and a month with no active days is graded
+    # as one that earned nothing: the average is absent, the shortfall is not.
     final["color_hours"] = _get_color(
-        avg_active_day_billable_hours,
+        0.0 if avg_active_day_billable_hours is None else avg_active_day_billable_hours,
         thresholds["kpi_daily_billable_hours_green"],
         thresholds["kpi_daily_billable_hours_amber"],
     )
     final["color_gp"] = _get_color(
-        avg_active_day_gp,
+        0.0 if avg_active_day_gp is None else avg_active_day_gp,
         thresholds["kpi_daily_gp_target"],
         thresholds["kpi_daily_gp_target"] / 2,
     )
     # v1's reversed-argument call, kept bit-for-bit (see module docstring).
-    final["color_shop"] = _get_color(20.0, shop_percentage, 25.0)
+    final["color_shop"] = _get_color(
+        20.0, 0.0 if shop_percentage is None else shop_percentage, 25.0
+    )
     return final

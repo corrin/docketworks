@@ -5,6 +5,7 @@ import { formatHoursDisplay } from '@/lib/format'
 
 import {
   GRADE_WORDING,
+  hoursText,
   kpiInkClass,
   monthColor,
   ratioText,
@@ -67,7 +68,7 @@ export function KpiSummaryCards({ totals, target, money, onOpen }: KpiSummaryCar
       >
         {formatHoursDisplay(totals.billable_hours)} billed
         <SubLine>{`${formatHoursDisplay(totals.total_hours)} total`}</SubLine>
-        <SubLine>{`${formatHoursDisplay(totals.avg_active_day_billable_hours)} billed per active day`}</SubLine>
+        <SubLine>{`${hoursText(totals.avg_active_day_billable_hours)} billed per active day`}</SubLine>
         <div
           className={`text-sm font-medium ${kpiInkClass(grade)}`}
           data-automation-id="KpiCalendarReport-card-labour-grade"

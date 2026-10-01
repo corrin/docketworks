@@ -1,5 +1,10 @@
 import type { KpiDayDataOut, KpiMonthlyTotalsOut } from '@/api'
-import { formatCurrency, formatPercentage, formatWholeCurrency } from '@/lib/format'
+import {
+  formatCurrency,
+  formatHoursDisplay,
+  formatPercentage,
+  formatWholeCurrency,
+} from '@/lib/format'
 
 /** The day's grade, straight off the wire: three rungs plus the ungraded weekend. */
 export type DayCategory = KpiDayDataOut['color_hours']
@@ -34,6 +39,11 @@ export function moneyFormatter(decimals: KpiDecimals): MoneyFormatter {
  */
 export function ratioText(value: number | null): string {
   return value === null ? '—' : formatPercentage(value)
+}
+
+/** A served hours average, or the same blank. */
+export function hoursText(value: number | null): string {
+  return value === null ? '—' : formatHoursDisplay(value)
 }
 
 /** A served rate, or the same blank. */

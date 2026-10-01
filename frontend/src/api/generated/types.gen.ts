@@ -5224,7 +5224,7 @@ export type KpiDayDataOut = {
     /**
      * Shop Percentage
      */
-    shop_percentage: number;
+    shop_percentage: number | null;
     /**
      * Total Hours
      */
@@ -5357,11 +5357,11 @@ export type KpiMonthlyTotalsOut = {
     /**
      * Avg Active Day Billable Hours
      */
-    avg_active_day_billable_hours: number;
+    avg_active_day_billable_hours: number | null;
     /**
      * Avg Active Day Gp
      */
-    avg_active_day_gp: number;
+    avg_active_day_gp: number | null;
     /**
      * Avg Labour Rate
      */
@@ -5369,7 +5369,7 @@ export type KpiMonthlyTotalsOut = {
     /**
      * Avg Weekday Gp
      */
-    avg_weekday_gp: number;
+    avg_weekday_gp: number | null;
     /**
      * Billable Hours
      */
@@ -5377,7 +5377,7 @@ export type KpiMonthlyTotalsOut = {
     /**
      * Billable Percentage
      */
-    billable_percentage: number;
+    billable_percentage: number | null;
     /**
      * Color Gp
      */
@@ -5505,7 +5505,7 @@ export type KpiMonthlyTotalsOut = {
     /**
      * Shop Percentage
      */
-    shop_percentage: number;
+    shop_percentage: number | null;
     /**
      * Staff Cost
      */

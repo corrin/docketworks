@@ -449,7 +449,8 @@ class TestKPICalendar:
         $0 against a $22,000 target is a real 0%, not an absence — until the
         target itself is unset, when there is nothing to achieve against.
         """
-        totals = authenticated_client.get(URL, JUNE).json()["monthly_totals"]
+        body = authenticated_client.get(URL, JUNE).json()
+        totals = body["monthly_totals"]
         for field in (
             "gross_margin",
             "net_margin",
@@ -458,8 +459,21 @@ class TestKPICalendar:
             "adjustment_margin",
             "avg_labour_rate",
             "labour_revenue_share",
+            # The older ratios read the same way: no hours, no utilisation and
+            # no per-active-day average — not 0% and 0h.
+            "billable_percentage",
+            "shop_percentage",
+            "avg_active_day_gp",
+            "avg_active_day_billable_hours",
         ):
             assert totals[field] is None, field
+        # 22 weekdays is a denominator the month always has.
+        assert totals["avg_weekday_gp"] == 0.0
+        assert body["calendar_data"]["2026-06-10"]["shop_percentage"] is None
+        # And the month is still graded: nothing earned is a shortfall, not an
+        # absence of grade.
+        assert totals["color_hours"] == "red"
+        assert totals["color_gp"] == "red"
         assert totals["month_target"] == 22000.0
         assert totals["month_target_achievement"] == 0.0
 

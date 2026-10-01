@@ -265,7 +265,7 @@ class KPIDayDataOut(ResponseSchema):
     billable_hours: float
     total_hours: float
     shop_hours: float
-    shop_percentage: float
+    shop_percentage: float | None
     gross_profit: float
     # "weekend" is a category, not a missing value: an ungraded day is not a
     # day whose grade went astray (owner ruling, 2026-09-01). The achievement
@@ -313,15 +313,16 @@ class KPIMonthlyTotalsOut(Schema):
     total_cost: float
     elapsed_target: float
     net_profit: float
-    billable_percentage: float
-    shop_percentage: float
-    avg_weekday_gp: float
-    avg_active_day_gp: float
-    avg_active_day_billable_hours: float
-    # Ratios the report displays, served rather than divided in the browser
-    # (owner ruling 2026-10-01). Null where the denominator is absent — a
-    # margin on zero revenue is not 0%, it is no margin — unlike the older
-    # percentages above, which predate the ruling and report 0.0 there.
+    # Every ratio and average on the month, served rather than divided in the
+    # browser (owner ruling 2026-10-01), null where the denominator is absent:
+    # a margin on zero revenue is not 0%, and a month with no hours has no
+    # utilisation. The colours below still grade such a month, as one that
+    # earned nothing.
+    billable_percentage: float | None
+    shop_percentage: float | None
+    avg_weekday_gp: float | None
+    avg_active_day_gp: float | None
+    avg_active_day_billable_hours: float | None
     gross_margin: float | None
     net_margin: float | None
     labour_margin: float | None

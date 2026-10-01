@@ -5950,8 +5950,10 @@ components:
           title: Shop Hours
           type: number
         shop_percentage:
+          anyOf:
+          - type: number
+          - type: 'null'
           title: Shop Percentage
-          type: number
         total_hours:
           title: Total Hours
           type: number
@@ -6089,25 +6091,33 @@ components:
           title: Adjustment Revenue
           type: number
         avg_active_day_billable_hours:
+          anyOf:
+          - type: number
+          - type: 'null'
           title: Avg Active Day Billable Hours
-          type: number
         avg_active_day_gp:
+          anyOf:
+          - type: number
+          - type: 'null'
           title: Avg Active Day Gp
-          type: number
         avg_labour_rate:
           anyOf:
           - type: number
           - type: 'null'
           title: Avg Labour Rate
         avg_weekday_gp:
+          anyOf:
+          - type: number
+          - type: 'null'
           title: Avg Weekday Gp
-          type: number
         billable_hours:
           title: Billable Hours
           type: number
         billable_percentage:
+          anyOf:
+          - type: number
+          - type: 'null'
           title: Billable Percentage
-          type: number
         color_gp:
           enum:
           - green
@@ -6226,8 +6236,10 @@ components:
           title: Shop Hours
           type: number
         shop_percentage:
+          anyOf:
+          - type: number
+          - type: 'null'
           title: Shop Percentage
-          type: number
         staff_cost:
           title: Staff Cost
           type: number

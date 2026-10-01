@@ -1,8 +1,8 @@
 import type { KpiDayDataOut, KpiMonthlyTotalsOut } from '@/api'
-import { formatHoursDisplay, formatMonth, formatPercentage } from '@/lib/format'
+import { formatHoursDisplay, formatMonth } from '@/lib/format'
 
 import { DailyTable, KpiDialog, Row, Section, Stat, Stats } from './kpiDialogParts'
-import { moneyText, ratioText, type MoneyFormatter } from './kpiDisplay'
+import { hoursText, moneyText, ratioText, type MoneyFormatter } from './kpiDisplay'
 
 interface KpiLabourDialogProps {
   open: boolean
@@ -55,7 +55,7 @@ export function KpiLabourDialog({
           />
           <Stat
             label="Billed per active day"
-            value={formatHoursDisplay(totals.avg_active_day_billable_hours)}
+            value={hoursText(totals.avg_active_day_billable_hours)}
             note="Days with any hours"
           />
         </Stats>
@@ -81,12 +81,12 @@ export function KpiLabourDialog({
         <Stats>
           <Stat
             label="Utilisation"
-            value={formatPercentage(totals.billable_percentage)}
+            value={ratioText(totals.billable_percentage)}
             note="Billable of total hours"
           />
           <Stat
             label="Shop share"
-            value={formatPercentage(totals.shop_percentage)}
+            value={ratioText(totals.shop_percentage)}
             note="Shop of total hours"
           />
           <Stat

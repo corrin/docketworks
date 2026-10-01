@@ -1333,7 +1333,10 @@
     where the denominator is absent (a margin on zero revenue is not 0%).
     v1's "Shop Labour Cost" and "Other Labour Cost", a pro-rata guess by
     hours, are dropped rather than served: no figure in the system is that
-    number (owner ruling, 2026-10-01).
+    number (owner ruling, 2026-10-01). The same rule reaches the older
+    ratios — billable_percentage, shop_percentage (month and day), the two
+    per-active-day averages — which v1 reported as 0 without a denominator;
+    the month's colours still grade an empty month red.
 
 - operation: (kpi calendar screen)
   change: "Export, Settings and the Refresh spinner are gone; Adjustments has its own breakdown; the month picker is prev/next plus a month input"
