@@ -45,7 +45,7 @@ does not have.
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 134 recorded deviations |
-| ADRs | 48 (v1's 23 carried forward + 0038–0041, 0043, 0046–0064, 0066 written here) |
+| ADRs | 47 (v1's 23 carried forward + 0038–0041, 0043, 0046–0064 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints
 written measures typing, not delivery. Every slice below authors its own E2E spec and
@@ -589,7 +589,7 @@ never a second stream.
 
 - **[KAN-359](https://docketworks.atlassian.net/browse/KAN-359): keep new-instance provisioning current as features change.**
   Require setup-impact review per feature, repair existing drift, and verify fresh production/demo setup.
-  The rehearsal (ADR 0066) is the check; once it reaches the suite, eleven spec files assume
+  The rehearsal (`scripts/ops/rehearse_instance.sh`) is the check; once it reaches the suite, eleven spec files assume
   restore data and must seed their own (ADR 0063): stock rows by name
   (`job/create-estimate-entry`, `job/job-cost-entry-data`, `purchasing/create-purchase-order`,
   `purchasing/stock-search`); a second job card or job history (`kanban/kanban-desktop`,

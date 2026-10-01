@@ -214,7 +214,7 @@ Prompts for confirmation, then removes: systemd service, Nginx config, database 
 sudo ./scripts/server/instance.sh rehearse rehearsal [--ref <ref>]
 ```
 
-What it proves and its rules: ADR 0066. Setting it up and running it from the dev box: `docs/server_setup.md`, Part E.
+What it proves, its rules, and running it from the dev box: `docs/server_setup.md`, Part E.
 
 ## Stopping and Starting an Instance
 

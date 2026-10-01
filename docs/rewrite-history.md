@@ -1870,7 +1870,7 @@ a `.fixtures` file that `create` deletes, and now names the PDF that needs the w
 the admin screen and config file that set it; the 2026-08-10 timesheet spec dropped its
 shipped "environmental prerequisites" list, which still named `annual_leave_loading`.
 
-## 2026-09-17 — The new-instance path is rehearsed after every merge (ADR 0066)
+## 2026-09-17 — The new-instance path is rehearsed after every merge
 
 Finding: `instance.sh create` is exercised only when a real client is set up, so it rots
 silently between those events; the company-defaults incident above is one instance. The

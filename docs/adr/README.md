@@ -70,4 +70,3 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0062](0062-ai-provider-selection-and-administration.md) | A caller selects an AI provider from the configured catalogue, and Admin → Integrations owns the catalogue |
 | [0063](0063-test-suite-conventions.md) | Every test starts from a provisioned instance and asserts over what it created; E2E drives the UI by automation id |
 | [0064](0064-an-instance-is-verified-on-a-copy-of-its-database.md) | A deployed instance is verified by the E2E suite on a copy of its database, against the fake Xero, with users fenced out |
-| [0066](0066-the-new-instance-path-is-rehearsed-after-every-merge.md) | The new-instance path is rehearsed on a throwaway instance after every merge |

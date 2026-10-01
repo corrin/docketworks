@@ -525,7 +525,7 @@ grep -q '^root_folder_id = folder123$' "$RENDERED_RCLONE" \
     || fail "rclone writer: root_folder_id missing from rendered config"
 rm -rf "$RCLONE_TMP"
 
-# --- rehearse (ADR 0066): destroy still asks, the prompt-free removal has
+# --- rehearse: destroy still asks, the prompt-free removal has
 # no flag, and a rehearsal refuses before any mutation without its three
 # config files ---
 grep -q -- '--yes)' "$INSTANCE_SCRIPT" \
@@ -570,7 +570,7 @@ echo "$REHEARSE_OUT" | grep -q 'prepare-config test uat --seed' \
     || fail "rehearse: refusal must name prepare-config"
 echo "$REHEARSE_OUT" | grep -q 'test-uat.e2e.env' \
     || fail "rehearse: refusal must name the e2e credentials file"
-# A red run's instance costs a tenant's worth of memory if left running (ADR 0066).
+# A red run's instance costs a tenant's worth of memory if left running.
 echo "$REHEARSE_OUT" | grep -q "REPORT_LEAVES_UNITS_RUNNING" \
     && fail "rehearse: the failure path must stop the instance's units"
 # stop/start: a stopped instance is the .dr-mode state deploys already honour, and a

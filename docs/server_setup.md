@@ -461,7 +461,17 @@ sudo scripts/server/instance.sh destroy test2 uat
 
 ### Rehearsing the new-instance path after a merge
 
-ADR 0066 is what the rehearsal proves and its rules; this section is how to run it.
+The rehearsal proves the path from an empty host to a working instance: `create` runs
+unchanged from the ref with the three root-owned config files a client instance has, the
+post-create checks run, onboarding is `finalize_instance_onboarding --seed-xero` against the
+fake Xero (the whole instance renders `XERO_FAKE=True`, so no token minted for it can leave
+the box), the suite runs through `verify-instance.sh --e2e`, and the instance is destroyed.
+It verifies provisioning, never a merge (ADR 0060, ADR 0064). Never populate it from another
+instance's database: the run would then prove a restore, not `create`. Never skip or stub a
+red step: a step the fake cannot serve is a gap named in
+`apps/xero/fake/tests/test_every_call_is_routed.py`, and the red run is the record of it.
+Never run it on a production name or wire it into the deploy workflow: the runner's key
+would gain create and destroy on the host.
 
 Once, on the host: the rehearsal instance's three config files. The credentials file takes
 msm-uat's values (Maps key, GCP key, team drive, Xero app); the E2E file names the user the

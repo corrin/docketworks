@@ -287,7 +287,7 @@ render_instance_env() {
     local test_db_user="$6"
     local fqdn="$7"
     local aliases_csv="$8"
-    # True only for a rehearsal instance (ADR 0066): every unit, the
+    # True only for a rehearsal instance: every unit, the
     # onboarding and the verification window then agree on the fake, and
     # no token minted for it can reach the real organisation from beat.
     local xero_fake="$9"
@@ -1205,8 +1205,8 @@ destroy_instance() {
 # ============================================================
 # rehearse
 # ============================================================
-# ADR 0066 is the decision and its rules; docs/server_setup.md Part E is
-# how it is run. Two facts live here because the code depends on them: the
+# docs/server_setup.md Part E is what the rehearsal proves and how it is
+# run. Two facts live here because the code depends on them: the
 # env is fixed to uat because create would accept prod and only
 # verify-instance.sh would refuse it, after the instance existed; and the
 # run is red at `connect` until the pieces named in

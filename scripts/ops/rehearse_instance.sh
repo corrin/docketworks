@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Run `instance.sh rehearse` on the UAT host from this machine (ADR 0066;
-# docs/server_setup.md, Part E). The host's output streams here and into
+# Run `instance.sh rehearse` on the UAT host from this machine
+# (docs/server_setup.md, Part E). The host's output streams here and into
 # logs/rehearsals/<timestamp>.log; the exit status is the host's.
 #
 # Usage:
