@@ -40,7 +40,6 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0026](0026-plan-the-tests-before-approval.md) | Plan the tests before the plan is approved |
 | [0027](0027-deploy-capability-with-its-controls.md) | A capability deploys with the means to operate it |
 | [0028](0028-type-annotations-are-data-contracts.md) | Type annotations are data contracts |
-| [0029](0029-servers-run-the-production-branch.md) | Separate integration from production releases |
 | [0030](0030-first-class-people-and-company-links.md) | Person owns identity, CompanyPersonLink owns the relationship, jobs point at the person |
 | [0031](0031-single-logging-gate-debug-namespaces.md) | One logging gate: the `debug` library with namespaces |
 | [0032](0032-prefer-libraries-over-homegrown.md) | Less code is better: prefer libraries over homegrown implementations |

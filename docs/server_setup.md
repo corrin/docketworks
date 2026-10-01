@@ -247,7 +247,7 @@ sudo scripts/server/deploy.sh --all          # every instance, each on its own r
 
 Each instance records its tracked git ref alongside its current and previous
 SHA in `/opt/docketworks/instances/<instance>/deploy-state.env`
-(`origin/production` for prod, `origin/main` for UAT, per ADR 0029).
+(`origin/production` for prod, `origin/main` for UAT; `docs/release-process.md`).
 `deploy.sh` fetches, resolves each target instance's ref, builds or reuses
 the shared `/opt/docketworks/releases/<sha>` release, then per instance:
 takes a pre-deploy DB backup, stops runtime services, switches `app` to the

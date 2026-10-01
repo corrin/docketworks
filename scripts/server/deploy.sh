@@ -13,7 +13,7 @@ set -euo pipefail
 # GitHub, resolves that ref to a SHA, builds
 # /opt/docketworks/releases/<sha> if missing, then switches only the requested
 # instance to that release. Production servers typically track production;
-# testing and UAT servers typically track main (ADR 0029). A non-production
+# testing and UAT servers typically track main (docs/release-process.md). A non-production
 # --ref on a *-prod instance is refused unless acknowledged (interactive
 # confirm, or --allow-prod-ref).
 

@@ -1,8 +1,6 @@
 # Release process
 
-Carried forward from v1's practice (ADR 0029 owns the branch topology; the
-notes convention below was previously unwritten — this file makes it
-durable).
+This file owns the branch topology and the release-notes convention.
 
 ## Branches and promotion
 
@@ -25,7 +23,8 @@ durable).
   exercises the whole push path (signal, commit hook, Redis fan-out, stream, client
   reconcile) in one action, and it is the only check that fails visibly when the Redis
   pub/sub listener is dead while streams stay connected; no E2E spec covers it.
-- Hotfixes merge into `production` and are back-merged to `main`.
+- A hotfix branches from `production`, merges back by PR, deploys, and is immediately
+  back-merged to `main`. `production` carries the same branch protections as `main`.
 - **Release PRs and hotfix back-merges are merged with a merge commit — never
   squashed, never rebased.** Squash is right for a feature PR, where one
   reviewable change lands on `main`; it is wrong for a promotion, because the
