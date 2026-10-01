@@ -65,25 +65,21 @@ export function splitDayEntries(entries: WorkshopTimesheetEntryOut[]): DayEntrie
 }
 
 /**
- * The PATCH fields a job repick contributes. Billability follows the job
- * type on any move — the same rule creation applies — because a billable
- * entry landing on a shop job is refused at the model, and a shop entry
- * landing on a normal job would otherwise keep earning zero revenue.
+ * The PATCH field a job repick contributes. Billability on a move is the
+ * server's rule (move_time_line): sending is_billable from here discarded an
+ * explicit unbillable choice on a normal-to-normal move.
  */
 export function jobChangeFields(
   entry: WorkshopTimesheetEntryOut,
   jobId: string,
-  shopJob: boolean,
-): { job_id?: string; is_billable?: boolean } {
+): { job_id?: string } {
   if (jobId === entry.job_id) return {}
-  return { job_id: jobId, is_billable: !shopJob }
+  return { job_id: jobId }
 }
 
 /** What the drawer's form holds when the user submits an edit. */
 export interface EntryFormValues {
   jobId: string
-  /** Whether the SELECTED job is a shop job (only read when the job moved). */
-  shopJob: boolean
   start: string
   end: string
   /** Derived from the pair; null means both time inputs are blank. */
@@ -104,7 +100,7 @@ export function entryUpdateBody(
   const trimmed = form.description.trim()
   return {
     entry_id: entry.id,
-    ...jobChangeFields(entry, form.jobId, form.shopJob),
+    ...jobChangeFields(entry, form.jobId),
     ...(form.hours === null
       ? {}
       : {

@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 119,268 (v1 172,577, -31%) |
-| tests | 81,256 (v1 50,869, +60%) |
-| generated | 51,535 (v1 20,359, +153%) |
+| code | 119,321 (v1 172,577, -31%) |
+| tests | 81,402 (v1 50,869, +60%) |
+| generated | 51,540 (v1 20,359, +153%) |
 
 ## Suppressions
 
@@ -91,9 +91,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 438 |
-| except handlers | 466 |
-| re-raises or converts | 298 |
+| try statements | 439 |
+| except handlers | 467 |
+| re-raises or converts | 299 |
 | returns instead | 98 |
 | falls through | 55 |
 | continue/break in a loop | 14 |
@@ -116,7 +116,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 237 |
-| non-test functions | 2956 |
+| non-test functions | 2958 |
 
 ## Broad type annotations
 
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 257 |
-| object annotations | 701 |
+| object annotations | 702 |
 
 ## Wire contract (response side)
 

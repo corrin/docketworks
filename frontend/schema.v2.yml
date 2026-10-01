@@ -2476,6 +2476,10 @@ components:
           additionalProperties: true
           title: Ext Refs
           type: object
+        job_id:
+          format: uuid
+          title: Job Id
+          type: string
         kind:
           title: Kind
           type: string

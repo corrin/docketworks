@@ -27,7 +27,9 @@ from apps.job.services.job_service import (
     CostLineData,
     cost_line_data,
     get_or_create_cost_set,
+    move_time_line,
     refuse_workflow_managed,
+    update_latest_actual,
 )
 from apps.job.services.time_entry_rates import (
     ZERO_MULTIPLIER,
@@ -347,13 +349,6 @@ def pricing_meta(
     return meta
 
 
-def update_latest_actual(job: Job, cost_set_rev: int, cost_set_id: UUID, staff: Staff) -> None:
-    """Point the job at its newest actual cost set."""
-    if job.latest_actual is None or cost_set_rev >= job.latest_actual.rev:
-        job.latest_actual_id = cost_set_id
-        job.save(staff=staff, update_fields=["latest_actual", "updated_at"])
-
-
 def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryData:
     """Create a time line for the authenticated staff member."""
     job = Job.objects.select_related("company", "default_xero_pay_item").get(id=data["job_id"])
@@ -495,8 +490,7 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
             job = Job.objects.select_related("company", "default_xero_pay_item").get(
                 id=data["job_id"]
             )
-            moved_cost_set = get_or_create_cost_set(job, "actual")
-            line.cost_set = moved_cost_set
+            moved_cost_set = move_time_line(line, job, meta)
             changed = True
             reprice = True
 

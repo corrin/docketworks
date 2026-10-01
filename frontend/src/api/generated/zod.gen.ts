@@ -828,6 +828,7 @@ export const zCostLineUpdateRequest = z.object({
     accounting_date: z.iso.date().optional(),
     desc: z.string().nullish(),
     ext_refs: z.record(z.string(), z.unknown()).optional(),
+    job_id: z.uuid().optional(),
     kind: z.string().optional(),
     labour_subtype: z.uuid().nullish(),
     meta: z.record(z.string(), z.unknown()).optional(),

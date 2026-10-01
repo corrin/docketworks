@@ -2159,6 +2159,10 @@ export type CostLineUpdateRequest = {
         [key: string]: unknown;
     };
     /**
+     * Job Id
+     */
+    job_id?: string;
+    /**
      * Kind
      */
     kind?: string;

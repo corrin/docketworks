@@ -898,6 +898,8 @@ def _collect_costline_patch_refs(
         data["staff"] = payload.staff
     if "labour_subtype" in provided:
         data["labour_subtype"] = payload.labour_subtype
+    if "job_id" in provided:
+        data["job_id"] = payload.job_id
 
 
 def _costline_patch_data(payload: CostLineUpdateRequest) -> CostLineWriteData:

@@ -2109,6 +2109,7 @@ class CostLineWriteData(TypedDict, total=False):
     staff: UUID | None
     labour_subtype: UUID | None
     managed_by: str | None
+    job_id: UUID
 
 
 def _apply_costline_values(line: CostLine, data: CostLineWriteData) -> None:
@@ -2221,6 +2222,51 @@ def get_or_create_cost_set(job: Job, kind: str) -> CostSet:
     return cost_set
 
 
+def update_latest_actual(job: Job, cost_set_rev: int, cost_set_id: UUID, staff: Staff) -> None:
+    """Point the job at its newest actual cost set."""
+    if job.latest_actual is None or cost_set_rev >= job.latest_actual.rev:
+        job.latest_actual_id = cost_set_id
+        job.save(staff=staff, update_fields=["latest_actual", "updated_at"])
+
+
+def _bills_its_time(job: Job) -> bool:
+    """Whether time on this job can be invoiced: shop work and special jobs cannot."""
+    return not job.shop_job and job.status != "special"
+
+
+def move_time_line(line: CostLine, destination: Job, meta: dict[str, object]) -> CostSet:
+    """Point a timesheet entry at ``destination``'s actual cost set; the one move (ADR 0039).
+
+    Both the office cost-line PATCH and the workshop self-service PATCH call
+    this. ``meta`` is the metadata the caller is about to store on the line;
+    the caller then reprices it through ``price_time_entry`` against
+    ``line.cost_set.job``, so the destination's charge-out rate is what the
+    entry earns. ``CostLine.save()`` locks both owners and moves both
+    summaries; the caller holds ``lock_costing_jobs`` on both jobs already.
+
+    Billing on a move keeps the entry's multipliers (owner ruling, 2026-10-01).
+    Re-applying the pick-time defaults (1.5x on an urgent job, 1.0x otherwise)
+    was rejected: a saved line cannot say whether its multiplier was a default
+    or a choice, and the rule would silently discard the choice. Only a
+    destination that cannot bill overrides the entry, and only the fact that
+    the source could not bill lets the stored zero go.
+    """
+    if not is_timesheet_entry(line):
+        raise InvalidInputError("Only timesheet entries move to another job.")
+    source = line.cost_set.job
+    cost_set = get_or_create_cost_set(destination, "actual")
+    line.cost_set = cost_set
+    if not _bills_its_time(destination):
+        meta["is_billable"] = False
+        meta["bill_rate_multiplier"] = 0.0
+    elif not _bills_its_time(source):
+        # The stored zero was the source's rule, not the entry's: dropping the
+        # multiplier lets the rate pipeline re-derive it from the wage multiplier.
+        meta["is_billable"] = True
+        meta.pop("bill_rate_multiplier", None)
+    return cost_set
+
+
 def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff) -> CostLine:
     """Create a cost line on the job's ``kind`` cost set."""
     if kind not in COST_SET_KINDS:
@@ -2272,8 +2318,15 @@ def refuse_workflow_managed(line: CostLine, remedy: str) -> None:
 
 @transaction.atomic
 def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> CostLine:
-    """Edit unowned costs; issuing material belongs to purchasing."""
-    lock_costing_jobs([line.cost_set.job_id])
+    """Edit unowned costs; issuing material belongs to purchasing.
+
+    A ``job_id`` that differs from the line's job moves a timesheet entry to
+    that job (``move_time_line``) and reprices it there.
+    """
+    job_ids = {line.cost_set.job_id}
+    if "job_id" in data:
+        job_ids.add(data["job_id"])
+    lock_costing_jobs(job_ids)
     line = CostLine.objects.select_for_update().get(pk=line.pk)
     refuse_workflow_managed(line, "edit")
     _validate_costline_write(data)
@@ -2288,6 +2341,19 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
     if not patch_meta and "labour_subtype" in data and instance_meta.get("created_from_timesheet"):
         patch_meta = dict(instance_meta)
         data["meta"] = patch_meta
+    moved_cost_set: CostSet | None = None
+    if "job_id" in data and data["job_id"] != line.cost_set.job_id:
+        try:
+            destination = Job.objects.select_related("company", "default_xero_pay_item").get(
+                id=data["job_id"]
+            )
+        except Job.DoesNotExist as exc:
+            raise InvalidInputError(f"Job {data['job_id']} does not exist.") from exc
+        # The move settles billability on the meta the line will store, so the
+        # stored meta is the base and the patch's own meta (if any) sits on top.
+        patch_meta = {**instance_meta, **patch_meta}
+        moved_cost_set = move_time_line(line, destination, patch_meta)
+        data["meta"] = patch_meta
     if kind == "time" and patch_meta.get("created_from_timesheet"):
         _reprice_timesheet_line(line, data, patch_meta)
 
@@ -2296,10 +2362,12 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
         if line.cost_set.kind == "actual" and line.approved and "stock_id" in line.ext_refs:
             raise ValueError("Issue material through purchasing so its stock movement is recorded.")
         line.save()
+        if moved_cost_set is not None:
+            update_latest_actual(line.cost_set.job, moved_cost_set.rev, moved_cost_set.id, staff)
         if before is not None:
             record_timesheet_event(
                 staff=staff,
-                event_type="entry_updated",
+                event_type="entry_moved" if moved_cost_set is not None else "entry_updated",
                 line=line,
                 before=before,
                 after=line_snapshot(line),
