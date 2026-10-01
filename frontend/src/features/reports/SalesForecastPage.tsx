@@ -1,10 +1,10 @@
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft } from 'lucide-react'
 
 import { type ForecastMonthOut, salesForecastListOptions } from '@/api'
 import { SummaryCard } from '@/features/shared/SummaryCard'
 import { downloadCsv } from '@/lib/csv'
+import { isIsoMonthString } from '@/lib/dates'
 import { formatCurrency, formatPercentage, localIsoDate } from '@/lib/format'
 
 import { SalesForecastDetailTable } from './SalesForecastDetailTable'
@@ -72,9 +72,28 @@ function exportMonths(months: readonly ForecastMonthOut[]): void {
  * post-cutover sweep; see the engineering backlog in
  * docs/rewrite-status.md.
  */
-export function SalesForecastPage() {
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
+/** The drilled-into month, off the URL. The list view has no filter, so a
+    bare URL is the list and needs no default written. */
+export interface SalesForecastSearch {
+  month?: string
+}
 
+export function salesForecastSearchFromUrl(search: Record<string, unknown>): SalesForecastSearch {
+  return {
+    month:
+      typeof search.month === 'string' && isIsoMonthString(search.month) ? search.month : undefined,
+  }
+}
+
+export interface SalesForecastPageProps {
+  /** null is the month list; a month is its drill-down. In the URL rather
+      than page state so a shared link opens on the same month
+      (docs/design-language.md, "Report filters live in the URL"). */
+  selectedMonth: string | null
+  onSelectMonth: (month: string | null) => void
+}
+
+export function SalesForecastPage({ selectedMonth, onSelectMonth }: SalesForecastPageProps) {
   const forecast = useQuery(salesForecastListOptions())
   const months = forecast.data?.months
   const summary = months === undefined ? null : summarise(months)
@@ -125,7 +144,7 @@ export function SalesForecastPage() {
           isPending={forecast.isPending}
           isError={forecast.isError}
           onRetry={() => void forecast.refetch()}
-          onSelect={setSelectedMonth}
+          onSelect={onSelectMonth}
         >
           <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
             <p className="font-medium">About this report</p>
@@ -179,7 +198,7 @@ export function SalesForecastPage() {
               type="button"
               data-automation-id="SalesForecastReport-back"
               className="cursor-pointer rounded-md p-1 hover:bg-gray-100"
-              onClick={() => setSelectedMonth(null)}
+              onClick={() => onSelectMonth(null)}
             >
               <ChevronLeft className="h-5 w-5" />
             </button>

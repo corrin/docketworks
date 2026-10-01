@@ -367,11 +367,15 @@ class CompanyDefaults(SingletonModel):
         help_text="Date Xero payroll went live — reconciliation ignores data before this",
     )
 
-    # Whether to show Sat/Sun columns in timesheet views (admin-togglable)
+    # Whether to show Sat/Sun columns in timesheet views and the KPI calendar
+    # (admin-togglable). Display only: weekend work counts in every money
+    # figure whatever this says.
     weekend_timesheets_enabled = models.BooleanField(
         default=False,
         help_text=(
-            "Show Saturday and Sunday in timesheet views (7-day week). Off = 5-day Mon-Fri."
+            "Show Saturday and Sunday in timesheet views and the KPI calendar (7-day week). "
+            "Off = 5-day Mon-Fri. Weekend work is counted either way; this only decides "
+            "whether the days are drawn."
         ),
     )
     job_delta_soft_fail = models.BooleanField(
@@ -563,7 +567,11 @@ class CompanyDefaults(SingletonModel):
         decimal_places=2,
         default=0,
         verbose_name="Daily gross profit target",
-        help_text="Daily gross profit target in dollars",
+        help_text=(
+            "Overhead per weekday in dollars: monthly operating expenses spread across the "
+            "month's weekdays. A day on the KPI calendar is green once its gross profit "
+            "covers this share; weekends are owed none of it."
+        ),
     )
     kpi_daily_shop_hours_percentage = models.DecimalField(
         max_digits=5,

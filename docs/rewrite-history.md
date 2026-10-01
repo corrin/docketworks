@@ -5,6 +5,22 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
+## 2026-10-01 — KPI calendar ported; report filters live in the URL
+
+Owner rulings while porting the KPI calendar (the largest of the remaining reports). The
+ratios the report shows — margins, average labour rate, labour revenue share, month target
+and achievement — are served on `monthly_totals`, one definition each, null where the
+denominator is absent; "really trivial" client arithmetic is allowed, drawn at a sum of two
+displayed server figures with no denominator and no rule. The calendar and staff-performance
+endpoints gain the office-staff gate the other four reports carry; v1 served all three on
+plain authentication. A requirement v1 never met: whatever a report filters on, defaults
+included — month, period, week, wage basis, grade ladder, money precision — is in the URL from
+the first paint, so a copied link reopens on what it showed; a bare route redirects to name
+its defaults (`beforeLoad`, `replace: true`, `lib/searchDefaults.ts`), and the rule is in
+`docs/design-language.md`. Applied to every dated route in the same slice: the KPI calendar,
+job movement, sales forecast's drill-down, payroll reconciliation, the daily overview and
+timesheet entry; the weekly overview already wrote its week on arrival.
+
 ## 2026-10-01 — ADRs are forward-looking; three retired, four merged, the rest trimmed
 
 Owner ruling, reviewing ADR 0065 after GitHub #169 and #170 closed. The test an ADR must pass

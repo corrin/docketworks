@@ -1312,6 +1312,53 @@
     gains labour_profit, so no consumer subtracts time_revenue - staff_cost
     for itself, and net_profit's divisor moved to elapsed WEEKDAYS.
 
+- operation: accounting_reports_calendar_retrieve
+  change: "Office-staff gate; v1 served the calendar to any authenticated user"
+  reason: >
+    The calendar is company-wide revenue and gross profit, the same class of
+    data the WIP, job-movement and sales-forecast reports gate on
+    is_office_staff. v1 served it on IsAuthenticated, so a workshop cookie
+    plus the bare URL returned every month's turnover; the navbar hiding the
+    link is presentation. staff-performance-summary and staff-performance
+    carry the same gate for the same reason (owner ruling, 2026-10-01).
+
+- operation: accounting_reports_calendar_retrieve
+  change: "monthly_totals serves the report's ratios: margins, average labour rate, labour revenue share, month target and achievement"
+  reason: >
+    v1 divided these in four browser components, each over its own
+    denominator, and its Profit modal subtracted kpi_daily_gp_green x
+    working_days on screen while the server subtracted kpi_daily_gp_target x
+    elapsed workdays — so "Gross Profit - Projected Expenses" never equalled
+    the Net Profit beneath it. One server-side definition per ratio, null
+    where the denominator is absent (a margin on zero revenue is not 0%).
+    v1's "Shop Labour Cost" and "Other Labour Cost", a pro-rata guess by
+    hours, are dropped rather than served: no figure in the system is that
+    number (owner ruling, 2026-10-01). The same rule reaches the older
+    ratios — billable_percentage, shop_percentage (month and day), the two
+    per-active-day averages — which v1 reported as 0 without a denominator;
+    the month's colours still grade an empty month red.
+
+- operation: (kpi calendar screen)
+  change: "Export, Settings and the Refresh spinner are gone; Adjustments has its own breakdown; the month picker is prev/next plus a month input"
+  reason: >
+    v1's Export wrote a debug log, its Settings gear set a flag no template
+    read, its Refresh spinner read a flag the fetch never set, and its
+    Adjustments card opened the Materials modal. None is a capability; all
+    are dropped (owner ruling, 2026-09-01). The month Select of the last ~25
+    months becomes prev/next arrows and a month input bounded to this month:
+    any past month is still one gesture away. The grade ladder (hours or
+    dollars) and money precision (whole dollars or cents) are URL settings so
+    a shared link carries them. A holiday cell is tinted by its grade like
+    any other weekday rather than v1's grey-over-red CSS accident, and the
+    Profit dialog's hard-coded 100%/80% tint on target achievement is not
+    reproduced: the served ladders are the only target grades on the screen
+    (net profit is inked by its sign, which the minus sign already states).
+    Also gone: the Labour card's trend pill (the billed hours it repeated sit
+    on the same card), the one-column phone layout (the grid scrolls inside
+    its container instead, keeping the week shape), the server's error text
+    in the failure card (the shared QueryState wording, as every report), and
+    whole-number percentages (the shared formatter's one decimal).
+
 - operation: job_quote_chat_config_retrieve
   change: "Office-only embed configuration supplies the public domain key and CSRF token"
   reason: >

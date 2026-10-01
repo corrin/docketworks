@@ -26,7 +26,7 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 export const accountingReportsCalendarRetrieve = <ThrowOnError extends boolean = false>(options?: Options<AccountingReportsCalendarRetrieveData, ThrowOnError>): RequestResult<AccountingReportsCalendarRetrieveResponses, unknown, ThrowOnError> => (options?.client ?? client).get<AccountingReportsCalendarRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',
     security: [{
-            key: 'CookieJWTAuth',
+            key: 'OfficeStaffCookieJWTAuth',
             in: 'cookie',
             name: 'access_token',
             type: 'apiKey'
@@ -217,7 +217,7 @@ export const accountingReportsSalesPipelineRetrieve = <ThrowOnError extends bool
 export const accountingReportsStaffPerformanceSummaryRetrieve = <ThrowOnError extends boolean = false>(options: Options<AccountingReportsStaffPerformanceSummaryRetrieveData, ThrowOnError>): RequestResult<AccountingReportsStaffPerformanceSummaryRetrieveResponses, unknown, ThrowOnError> => (options.client ?? client).get<AccountingReportsStaffPerformanceSummaryRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',
     security: [{
-            key: 'CookieJWTAuth',
+            key: 'OfficeStaffCookieJWTAuth',
             in: 'cookie',
             name: 'access_token',
             type: 'apiKey'
@@ -234,7 +234,7 @@ export const accountingReportsStaffPerformanceSummaryRetrieve = <ThrowOnError ex
 export const accountingReportsStaffPerformanceRetrieve = <ThrowOnError extends boolean = false>(options: Options<AccountingReportsStaffPerformanceRetrieveData, ThrowOnError>): RequestResult<AccountingReportsStaffPerformanceRetrieveResponses, unknown, ThrowOnError> => (options.client ?? client).get<AccountingReportsStaffPerformanceRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',
     security: [{
-            key: 'CookieJWTAuth',
+            key: 'OfficeStaffCookieJWTAuth',
             in: 'cookie',
             name: 'access_token',
             type: 'apiKey'

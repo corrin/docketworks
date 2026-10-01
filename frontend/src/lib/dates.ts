@@ -146,3 +146,8 @@ export function mondayOf(isoDate: string): string {
 export function spanFrom(isoDate: string, days: number): { startDate: string; endDate: string } {
   return { startDate: isoDate, endDate: shiftDate(isoDate, days - 1) }
 }
+
+/** The weekday of a YYYY-MM-DD date as 1 (Monday) through 7 (Sunday). */
+export function isoWeekday(isoDate: string): number {
+  return ((parseLocal(isoDate).getDay() + 6) % 7) + 1
+}

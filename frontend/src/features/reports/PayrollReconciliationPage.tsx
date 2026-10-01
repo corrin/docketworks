@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
 
 import {
   accountingReportsPayrollWeekReconciliationRetrieveOptions,
   type PayrollStaffWeekRowOut,
 } from '@/api'
 import { ListTable } from '@/features/shared/ListTable'
+import { SegmentedToggle } from '@/features/shared/SegmentedToggle'
+import { weeklySearchFromUrl } from '@/features/timesheet'
 import { formatCurrency, formatDate } from '@/lib/format'
 import { SummaryCard } from '@/features/shared/SummaryCard'
 
@@ -64,12 +65,37 @@ function ourDollars(row: PayrollStaffWeekRowOut, wageBasis: WageBasis): number {
   return wageBasis === 'base' ? row.jm_base_pay : row.jm_cost
 }
 
-type WageBasis = 'base' | 'loaded'
+export type WageBasis = 'base' | 'loaded'
 
-export function PayrollReconciliationPage({ weekStart }: { weekStart: string }) {
-  // Base by default: this page exists to be compared with Xero, and Xero pays
-  // the base wage.
-  const [wageBasis, setWageBasis] = useState<WageBasis>('base')
+export interface PayrollReconciliationSearch {
+  week?: string
+  basis?: WageBasis
+}
+
+/** The week (Monday-snapped, as the weekly page reads it) and the wage basis, off the URL. */
+export function payrollReconciliationSearchFromUrl(
+  search: Record<string, unknown>,
+): PayrollReconciliationSearch {
+  return {
+    ...weeklySearchFromUrl(search),
+    basis: search.basis === 'base' || search.basis === 'loaded' ? search.basis : undefined,
+  }
+}
+
+export interface PayrollReconciliationPageProps {
+  weekStart: string
+  /** Base by default (the route writes it): this page exists to be compared
+      with Xero, and Xero pays the base wage. In the URL rather than page
+      state so a shared link shows the same column (docs/design-language.md). */
+  wageBasis: WageBasis
+  onWageBasisChange: (basis: WageBasis) => void
+}
+
+export function PayrollReconciliationPage({
+  weekStart,
+  wageBasis,
+  onWageBasisChange,
+}: PayrollReconciliationPageProps) {
   const report = useQuery(
     accountingReportsPayrollWeekReconciliationRetrieveOptions({
       query: { week_start_date: weekStart },
@@ -97,22 +123,15 @@ export function PayrollReconciliationPage({ weekStart }: { weekStart: string }) 
 
       <div className="mt-3 flex items-center gap-2 text-sm">
         <span className="text-gray-500">DocketWorks wages:</span>
-        {(['base', 'loaded'] as const).map((basis) => (
-          <button
-            key={basis}
-            type="button"
-            onClick={() => setWageBasis(basis)}
-            aria-pressed={wageBasis === basis}
-            className={
-              wageBasis === basis
-                ? 'rounded bg-slate-800 px-2 py-1 text-white'
-                : 'rounded border border-slate-300 px-2 py-1 text-slate-700'
-            }
-            data-automation-id={`PayrollReconciliation-wageBasis-${basis}`}
-          >
-            {basis === 'base' ? 'Base' : 'Loaded'}
-          </button>
-        ))}
+        <SegmentedToggle
+          value={wageBasis}
+          options={[
+            { value: 'base', label: 'Base' },
+            { value: 'loaded', label: 'Loaded' },
+          ]}
+          automationPrefix="PayrollReconciliation-wageBasis"
+          onChange={onWageBasisChange}
+        />
         {wageBasis === 'loaded' && (
           <span className="text-amber-800" data-automation-id="PayrollReconciliation-loadedNote">
             Loaded wages allocate paid non-worked time to worked hours, while this week&rsquo;s Xero

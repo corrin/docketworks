@@ -1,10 +1,9 @@
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { z } from 'zod'
 
 import { accountingReportsJobMovementRetrieveOptions } from '@/api'
 import { QueryState } from '@/features/shared/QueryState'
-import { mondayOf, shiftDate, spanFrom } from '@/lib/dates'
+import { isIsoDateString, mondayOf, shiftDate, spanFrom } from '@/lib/dates'
 import { formatPercentage, localIsoDate } from '@/lib/format'
 import { SummaryCard } from '@/features/shared/SummaryCard'
 
@@ -29,14 +28,28 @@ const jobMovementReport = z.object({
   }),
 })
 
-interface DateRange {
+export interface DateRange {
   startDate: string
   endDate: string
 }
 
+/** The period, off the URL; the route writes this fortnight into a bare one. */
+export interface JobMovementSearch {
+  start?: string
+  end?: string
+}
+
+export function jobMovementSearchFromUrl(search: Record<string, unknown>): JobMovementSearch {
+  return {
+    start:
+      typeof search.start === 'string' && isIsoDateString(search.start) ? search.start : undefined,
+    end: typeof search.end === 'string' && isIsoDateString(search.end) ? search.end : undefined,
+  }
+}
+
 const FORTNIGHT_DAYS = 14
 
-function thisFortnight(): DateRange {
+export function thisFortnight(): DateRange {
   return spanFrom(mondayOf(localIsoDate()), FORTNIGHT_DAYS)
 }
 
@@ -44,14 +57,19 @@ function lastFortnight(): DateRange {
   return spanFrom(shiftDate(mondayOf(localIsoDate()), -FORTNIGHT_DAYS), FORTNIGHT_DAYS)
 }
 
+export interface JobMovementReportPageProps {
+  range: DateRange
+  /** Writes the period into the URL (docs/design-language.md, "Report
+      filters live in the URL"); the route re-renders the page with it. */
+  onRangeChange: (range: DateRange) => void
+}
+
 /**
  * Job movement report. Only the fortnight presets exist; the custom date
  * range, comparison and baseline controls ship with the slice that asserts
  * on them.
  */
-export function JobMovementReportPage() {
-  const [range, setRange] = useState<DateRange>(thisFortnight)
-
+export function JobMovementReportPage({ range, onRangeChange }: JobMovementReportPageProps) {
   const report = useQuery({
     ...accountingReportsJobMovementRetrieveOptions({
       query: { start_date: range.startDate, end_date: range.endDate },
@@ -73,7 +91,7 @@ export function JobMovementReportPage() {
             type="button"
             data-automation-id="JobMovementReport-this-fortnight"
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50"
-            onClick={() => setRange(thisFortnight())}
+            onClick={() => onRangeChange(thisFortnight())}
           >
             This Fortnight
           </button>
@@ -81,7 +99,7 @@ export function JobMovementReportPage() {
             type="button"
             data-automation-id="JobMovementReport-last-fortnight"
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm transition-colors hover:bg-gray-50"
-            onClick={() => setRange(lastFortnight())}
+            onClick={() => onRangeChange(lastFortnight())}
           >
             Last Fortnight
           </button>

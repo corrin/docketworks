@@ -38,13 +38,13 @@ does not have.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **58 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
+| E2E specs ported | **59 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 267 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3425 collected |
+| Unit tests | 3430 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
-| Behaviour ledger | 134 recorded deviations |
+| Behaviour ledger | 137 recorded deviations |
 | ADRs | 42 (v1's 20 carried forward + 0038–0041, 0043, 0046–0060, 0063–0064 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints
@@ -281,12 +281,10 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   [KAN-332](https://docketworks.atlassian.net/browse/KAN-332), where the greedy
   worker-picker truncates to the assigned staff and starves a small job while the shop
   is idle.
-- **Reports** — nine of eleven remaining are frontend-only against a done backend; only
+- **Reports** — eight of ten remaining are frontend-only against a done backend; only
   `job_profitability_report` and `check_archived_jobs_compliance` need backend work. No
   charting library anywhere in v1: every screen is cards plus hand-rolled tables, so
-  porting is layout plus typed fetch. `kpi` is the largest (the `components/kpi/`
-  calendar-and-modals tree, not the page; its backend landed with
-  `accounting_reports_calendar_retrieve`); `sales-pipeline` looks large only because
+  porting is layout plus typed fetch. `sales-pipeline` looks large only because
   ~700 lines are an inline `h()` table that becomes plain JSX. Each authors a fresh spec.
   A new page also earns its `AppNavbar` Reports entry under the matching v1 section
   heading — Management, Reconciliation, or a Data Quality group that does not exist yet

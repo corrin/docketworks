@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { screen, waitFor, within } from '@testing-library/react'
+import { useState } from 'react'
 import { describe, expect, it } from 'vitest'
 
 import { allAutoIds, autoId } from '@/test/auto-id'
@@ -77,6 +78,12 @@ const juneDetail: SalesForecastMonthDetailResponse = {
   ],
 }
 
+/** The route's job, in miniature: hold the drilled month and apply a change. */
+function Harness() {
+  const [month, setMonth] = useState<string | null>(null)
+  return <SalesForecastPage selectedMonth={month} onSelectMonth={setMonth} />
+}
+
 function serveForecast() {
   server.use(
     http.get(FORECAST_URL, () => HttpResponse.json(forecastResponse)),
@@ -95,7 +102,7 @@ function companyColumn(container: HTMLElement): string[] {
 describe('SalesForecastPage', () => {
   it('totals the months into the summary cards through the shared formatters', async () => {
     serveForecast()
-    const { container } = renderWithProviders(<SalesForecastPage />)
+    const { container } = renderWithProviders(<Harness />)
 
     await screen.findByText('Jul 2026')
     expect(
@@ -124,7 +131,7 @@ describe('SalesForecastPage', () => {
 
   it('drills into a month and back out again', async () => {
     serveForecast()
-    const { container, user } = renderWithProviders(<SalesForecastPage />)
+    const { container, user } = renderWithProviders(<Harness />)
 
     const juneRow = await screen.findByText('Jun 2026')
     await user.click(juneRow)
@@ -151,7 +158,7 @@ describe('SalesForecastPage', () => {
     // reaches the drill-down through the month button inside the cell, which
     // is the pair CompaniesListPage uses for the same table shape.
     serveForecast()
-    const { user } = renderWithProviders(<SalesForecastPage />)
+    const { user } = renderWithProviders(<Harness />)
 
     await screen.findByText('Jun 2026')
 
@@ -165,7 +172,7 @@ describe('SalesForecastPage', () => {
 
   it('sorts detail rows on the clicked column, keeping blanks last both ways', async () => {
     serveForecast()
-    const { container, user } = renderWithProviders(<SalesForecastPage />)
+    const { container, user } = renderWithProviders(<Harness />)
 
     await user.click(await screen.findByText('Jun 2026'))
     await screen.findByText('Zeta Engineering')
@@ -213,7 +220,7 @@ describe('SalesForecastPage', () => {
           : HttpResponse.json(forecastResponse)
       }),
     )
-    const { user } = renderWithProviders(<SalesForecastPage />)
+    const { user } = renderWithProviders(<Harness />)
 
     expect(await screen.findByText('Failed to load the sales forecast.')).toBeVisible()
 
