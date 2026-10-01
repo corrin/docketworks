@@ -21,7 +21,7 @@ credentials may be added. Callers supply the company mailbox to the Google adapt
   row discovered at runtime. A row-per-integration table can only be generic columns plus a
   JSON bag, which is the shape the read-side fallback backlog exists to remove.
 - **N-of integrations keep their own typed tables.** `XeroApp` (a rotation pair with token
-  state), `AIProvider` (a list with a default; its catalogue and selection are ADR 0062) and
+  state), `AIProvider` (a list with a default; its catalogue and selection are ADR 0041) and
   `SupplierCredential` (one per supplier) are many of the same kind, so each is its own table
   where every row is the same shape. The boundary is cardinality, never vendor: a second Google
   credential is another column, not a second Google table.

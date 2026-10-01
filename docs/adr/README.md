@@ -63,6 +63,5 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0058](0058-write-refusals-live-in-the-application.md) | Code that looks short and simple runs short and simple: a write refusal lives in one application function, never in a trigger |
 | [0059](0059-one-data-model-legacy-data-is-migrated.md) | The app supports one data model; legacy data is migrated to comply |
 | [0060](0060-an-iteration-run-may-fake-an-integration.md) | The fake Xero is a drop-in replacement for Xero's API, proven against Xero by recordings |
-| [0062](0062-ai-provider-selection-and-administration.md) | A caller selects an AI provider from the configured catalogue, and Admin → Integrations owns the catalogue |
 | [0063](0063-test-suite-conventions.md) | Every test starts from a provisioned instance and asserts over what it created; E2E drives the UI by automation id |
 | [0064](0064-an-instance-is-verified-on-a-copy-of-its-database.md) | A deployed instance is verified by the E2E suite on a copy of its database, against the fake Xero, with users fenced out |
