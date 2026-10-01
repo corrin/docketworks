@@ -59,7 +59,12 @@ describe('PeopleDirectoryPage', () => {
     expect(queryAutoId('PeopleDirectory-row-p-1')).not.toBeNull()
     expect(queryAutoId('PeopleDirectory-cell-p-1-total-spend')).toHaveTextContent('$125.50')
     expect(queryAutoId('PeopleDirectory-cell-p-2-total-spend')).toHaveTextContent('$0.00')
-    expect(screen.getAllByRole('button', { name: 'Manage' })).toHaveLength(2)
+    // The companies-list pattern: the name is a real link, there is no Manage button.
+    expect(screen.getByRole('link', { name: 'Alex Smith' })).toHaveAttribute(
+      'href',
+      '/crm/people/p-1',
+    )
+    expect(screen.queryByRole('button', { name: 'Manage' })).toBeNull()
     // Complete result set: the count is shown, the Load more button is not.
     expect(screen.getByText('Showing 2 of 2 people')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()

@@ -27,6 +27,7 @@ import {
 import { CompanyLookup } from '@/features/shared/company/CompanyLookup'
 import { ListTable } from '@/features/shared/ListTable'
 import { QueryState } from '@/features/shared/QueryState'
+import { RelatedJobsTable } from './RelatedJobsTable'
 import { formatCurrency, formatDate } from '@/lib/format'
 
 interface MethodFormState {
@@ -709,6 +710,20 @@ export function PersonDetailPage({ personId }: { personId: string }) {
                   </dd>
                 </div>
               </dl>
+            </section>
+
+            <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900">Jobs</h2>
+              <p className="text-sm text-gray-600">
+                Every job where this person is the contact, with the invoices raised on it.
+              </p>
+              <div className="mt-3">
+                <RelatedJobsTable
+                  owner={{ kind: 'person', personId }}
+                  automationId="PersonDetail-jobs"
+                  showCompany
+                />
+              </div>
             </section>
           </>
         )}

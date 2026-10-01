@@ -73,7 +73,7 @@ test.describe('person financial summary (KAN-372)', () => {
     const detailResponse = page.waitForResponse(
       (response) => new URL(response.url()).pathname === `/api/people/${summary.id}/`,
     )
-    await autoId(page, `PeopleDirectory-open-${summary.id}`).click()
+    await autoId(page, `PeopleDirectory-cell-${summary.id}-name`).click()
     const detail: PersonDetail = await (await detailResponse).json()
     expect(detail.total_spend).toBe(summary.total_spend)
     if (detail.last_invoice_date === null) {
@@ -85,5 +85,23 @@ test.describe('person financial summary (KAN-372)', () => {
     await expect(autoId(page, 'PersonDetail-last-invoice-date')).toHaveText(
       nzDate.format(new Date(detail.last_invoice_date)),
     )
+
+    // Jobs table: the job this test created, its one invoice, and an invoiced
+    // figure that reconciles to the Total Spend above it.
+    const jobRow = autoId(page, `PersonDetail-jobs-row-${jobId}`)
+    await expect(jobRow).toBeVisible()
+    await expect(jobRow.locator('[data-automation-id^="PersonDetail-jobs-invoice-"]')).toHaveCount(
+      1,
+    )
+    await expect(autoId(page, `PersonDetail-jobs-cell-${jobId}-invoiced`)).toHaveText(
+      nzd.format(detail.total_spend),
+    )
+    await expect(autoId(page, 'PersonDetail-jobs-total')).toHaveText(nzd.format(detail.total_spend))
+
+    // The row's company link opens the company page, whose Jobs tab shows the
+    // same job: one table, two owners.
+    await jobRow.getByRole('link', { name: /ABC/ }).click()
+    await autoId(page, 'CompanyDetail-tab-jobs').click()
+    await expect(autoId(page, `CompanyDetail-jobs-row-${jobId}`)).toBeVisible()
   })
 })

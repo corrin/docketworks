@@ -133,6 +133,7 @@ export {
   peopleContactMethodsPartialUpdateMutation,
   peopleListInfiniteOptions,
   peopleListQueryKey,
+  peopleJobsRetrieveOptions,
   peopleRetrieveOptions,
   peopleRetrieveQueryKey,
 } from './generated/@tanstack/react-query.gen'
@@ -159,8 +160,10 @@ export {
   unlinkPhoneCallJobMutation,
 } from './generated/@tanstack/react-query.gen'
 export type {
-  CompanyJobHeader,
   CrmPhoneCallsListData,
+  CrmJobRow,
+  CrmJobRowsResponse,
+  JobInvoiceRef,
   PaginatedPhoneCallRecordsOut,
   PhoneCallRecordOut,
   PhoneCallRecordingOut,

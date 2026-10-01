@@ -679,6 +679,9 @@ introduced:
 # half-copied quote. v2 makes it one atomic server call, archiving a priced
 # quote as a revision first (KAN-346).
 - job_jobs_cost_sets_quote_copy_from_estimate_create
+# KAN-372: the jobs a person is the contact for, with their invoices, for the
+# person page's Jobs table. v1 had no per-person financial view at all.
+- people_jobs_retrieve
 dropped:
   workflow_ai_providers_retrieve: >-
     GPT: the small admin catalogue returns safe row metadata in its list; editing needs no second GET.

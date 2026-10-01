@@ -19,7 +19,7 @@ test.describe('people directory and company links', () => {
       hasText: personName,
     })
     await expect(row).toContainText(companyName)
-    await row.getByRole('button', { name: 'Manage' }).click()
+    await row.getByRole('link', { name: personName }).click()
 
     const link = page.locator('[data-automation-id^="PersonDetail-company-link-"]').filter({
       hasText: companyName,

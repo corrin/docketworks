@@ -4,6 +4,8 @@ Covers phone updates, list rendering, and the main CRUD flows through the
 Django test client.
 """
 
+from datetime import date
+from decimal import Decimal
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
@@ -19,7 +21,7 @@ from apps.accounts.models import Staff
 from apps.accounts.tests.helpers import authenticate
 from apps.company.models import Company, ContactMethod, SupplierPickupAddress
 from apps.company.tests.factories import make_company
-from apps.company.tests.job_fixtures import make_job
+from apps.company.tests.job_fixtures import make_invoice, make_job
 
 pytestmark = [
     pytest.mark.django_db,
@@ -491,6 +493,23 @@ class TestCompanyJobs:
         response = client.get(f"/api/companies/{company.id}/jobs/")
         assert response.status_code == 200
         assert response.json() == {"results": []}
+
+    def test_company_jobs_carry_invoices(self, client: Client, office_staff: Staff) -> None:
+        """The company page's Jobs tab reads the same rows the person page does (KAN-372)."""
+        company = make_company("Acme")
+        job = make_job(company, office_staff, name="Invoiced thing")
+        make_invoice(
+            company, job=job, invoice_date=date(2024, 6, 1), total_excl_tax=Decimal("55.00")
+        )
+
+        response = client.get(f"/api/companies/{company.id}/jobs/")
+
+        assert response.status_code == 200
+        (row,) = response.json()["results"]
+        assert row["invoiced_total_excl_tax"] == 55.0
+        assert [(inv["date"], inv["total_excl_tax"]) for inv in row["invoices"]] == [
+            ("2024-06-01", 55.0)
+        ]
 
     def test_company_jobs_returns_header_rows(self, client: Client, office_staff: Staff) -> None:
         company = make_company("Acme")

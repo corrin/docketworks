@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { PersonCompanyLink, PersonDetail } from '@/api'
 import { queryAutoId } from '@/test/auto-id'
 import { renderWithProviders } from '@/test/render'
+import { crmJobRow } from '@/test/crmJobRow'
 import { server } from '@/test/msw'
 import { PersonDetailPage } from './PersonDetailPage'
 
@@ -46,6 +47,11 @@ function stubPerson(detail: PersonDetail, links: PersonCompanyLink[]) {
     http.get('*/api/people/p-1/', () => HttpResponse.json(detail)),
     http.get('*/api/people/p-1/contact-methods/', () => HttpResponse.json([])),
     http.get('*/api/people/p-1/company-links/', () => HttpResponse.json(links)),
+    http.get('*/api/people/p-1/jobs/', () =>
+      HttpResponse.json({
+        results: [crmJobRow({ job_id: 'job-1', job_number: 101, name: 'Fabricate frame' })],
+      }),
+    ),
   )
 }
 
@@ -61,6 +67,17 @@ describe('PersonDetailPage', () => {
     expect(await screen.findByText('Financial summary')).toBeVisible()
     expect(queryAutoId('PersonDetail-total-spend')).toHaveTextContent('$125.50')
     expect(queryAutoId('PersonDetail-last-invoice-date')).toHaveTextContent('20 Feb 2026')
+  })
+
+  it('lists the jobs the person is the contact for', async () => {
+    stubPerson(personDetail(), [activeLink])
+    renderWithProviders(<PersonDetailPage personId="p-1" />)
+
+    expect(await screen.findByText('Jobs')).toBeVisible()
+    expect(await screen.findByRole('link', { name: '#101 Fabricate frame' })).toHaveAttribute(
+      'href',
+      '/jobs/job-1',
+    )
   })
 
   it('says when a person has never been invoiced', async () => {

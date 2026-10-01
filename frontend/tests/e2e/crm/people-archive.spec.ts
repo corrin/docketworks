@@ -19,7 +19,7 @@ test.describe('people archive lifecycle', () => {
     const row = page
       .locator('[data-automation-id^="PeopleDirectory-row-"]')
       .filter({ hasText: personName })
-    await row.getByRole('button', { name: 'Manage' }).click()
+    await row.getByRole('link', { name: personName }).click()
 
     const link = page
       .locator('[data-automation-id^="PersonDetail-company-link-"]')
@@ -57,7 +57,7 @@ test.describe('people archive lifecycle', () => {
     await page
       .locator('[data-automation-id^="PeopleDirectory-row-"]')
       .filter({ hasText: personName })
-      .getByRole('button', { name: 'Manage' })
+      .getByRole('link', { name: personName })
       .click()
     await autoId(page, `PersonDetail-restore-link-${linkId}`).click()
     await expect(link).toContainText('Active')

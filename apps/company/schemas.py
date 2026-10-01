@@ -190,8 +190,19 @@ class CompanyJobCompanyRef(Schema):
     name: str
 
 
-class CompanyJobHeader(Schema):
-    """Wire contract for CompanyJobHeader."""
+class JobInvoiceRef(Schema):
+    """One sales invoice on a job header row (KAN-372)."""
+
+    id: UUID
+    number: str
+    date: date
+    status: str
+    total_excl_tax: float
+    online_url: str | None
+
+
+class CrmJobRow(Schema):
+    """One job as the company and person job lists both return it (KAN-372)."""
 
     job_id: UUID
     job_number: int
@@ -208,12 +219,14 @@ class CompanyJobHeader(Schema):
     rejected_flag: bool
     min_people: int
     max_people: int
+    invoices: list[JobInvoiceRef]
+    invoiced_total_excl_tax: float
 
 
-class CompanyJobsResponse(Schema):
-    """Wire contract for CompanyJobsResponse."""
+class CrmJobRowsResponse(Schema):
+    """Wire contract for CrmJobRowsResponse."""
 
-    results: list[CompanyJobHeader]
+    results: list[CrmJobRow]
 
 
 # ── Company people (links) ───────────────────────────────────────────────

@@ -541,3 +541,72 @@ class TestFinancialSummary:
         # Auth, count, page, link prefetch and the staff row; one more per
         # person is what this guards against.
         assert len(captured) <= 8
+
+
+class TestPersonJobs:
+    """KAN-372: every job the person is the contact for, with its invoices."""
+
+    def test_person_jobs_list_each_job_with_its_invoices_and_total(
+        self, client: Client, company_a: Company, company_b: Company, office_staff: Staff
+    ) -> None:
+        person = _person("Rusty", company_a)
+        invoiced_job = make_job(company_a, office_staff, name="Cushman job", person=person)
+        uninvoiced_job = make_job(company_b, office_staff, name="Allied job", person=person)
+        make_job(company_a, office_staff, name="Someone else's job")
+        first = make_invoice(
+            company_a,
+            job=invoiced_job,
+            invoice_date=date(2024, 1, 10),
+            total_excl_tax=Decimal("100.00"),
+            number="INV-0001",
+        )
+        first.online_url = "https://in.xero.com/first"
+        first.save(update_fields=["online_url"])
+        make_invoice(
+            company_a,
+            job=invoiced_job,
+            invoice_date=date(2024, 3, 5),
+            total_excl_tax=Decimal("20.00"),
+            number="INV-0002",
+        )
+
+        response = client.get(f"/api/people/{person.id}/jobs/")
+
+        assert response.status_code == 200
+        rows = {row["name"]: row for row in response.json()["results"]}
+        assert set(rows) == {"Cushman job", "Allied job"}
+        assert rows["Cushman job"]["job_id"] == str(invoiced_job.id)
+        assert rows["Cushman job"]["company"] == {"id": str(company_a.id), "name": company_a.name}
+        assert rows["Cushman job"]["invoiced_total_excl_tax"] == 120.0
+        assert [
+            (inv["number"], inv["date"], inv["total_excl_tax"], inv["online_url"])
+            for inv in rows["Cushman job"]["invoices"]
+        ] == [
+            ("INV-0001", "2024-01-10", 100.0, "https://in.xero.com/first"),
+            ("INV-0002", "2024-03-05", 20.0, None),
+        ]
+        assert rows["Allied job"]["job_id"] == str(uninvoiced_job.id)
+        assert rows["Allied job"]["invoices"] == []
+        assert rows["Allied job"]["invoiced_total_excl_tax"] == 0.0
+
+    def test_person_jobs_unknown_person_is_404(self, client: Client) -> None:
+        response = client.get("/api/people/00000000-0000-0000-0000-000000000000/jobs/")
+        assert response.status_code == 404
+
+    def test_person_jobs_query_count_is_flat(
+        self, client: Client, company_a: Company, office_staff: Staff
+    ) -> None:
+        """Invoices ride one prefetch; a per-job invoice query is what this guards against."""
+        person = _person("Busy", company_a)
+        for name in ("Alpha", "Beta", "Gamma"):
+            job = make_job(company_a, office_staff, name=name, person=person)
+            make_invoice(company_a, job=job)
+            make_invoice(company_a, job=job)
+
+        with CaptureQueriesContext(connection) as captured:
+            response = client.get(f"/api/people/{person.id}/jobs/")
+
+        assert response.status_code == 200
+        assert len(response.json()["results"]) == 3
+        # Auth, the person existence check, the jobs query, the invoice prefetch.
+        assert len(captured) <= 6

@@ -38,7 +38,6 @@ from apps.company.schemas import (
     CompanyCreateRequest,
     CompanyCreateResponse,
     CompanyDetailResponse,
-    CompanyJobsResponse,
     CompanyLinkWriteRequest,
     CompanyNameOnly,
     CompanyPerson,
@@ -50,6 +49,7 @@ from apps.company.schemas import (
     ContactMethodListQuery,
     ContactMethodOut,
     ContactMethodRequest,
+    CrmJobRowsResponse,
     DuplicateIdentitiesResponse,
     DuplicatePhonesResponse,
     PaginatedContactMethodList,
@@ -324,7 +324,7 @@ def companies_update_partial_update(
     "/companies/{uuid:company_id}/jobs/",
     auth=auth,
     operation_id="companies_jobs_retrieve",
-    response=CompanyJobsResponse,
+    response=CrmJobRowsResponse,
     summary="Get company jobs",
     tags=["Companies"],
 )
@@ -837,6 +837,22 @@ def people_list(
         "page_size": page_data.page_size,
         "total_pages": page_data.total_pages,
     }
+
+
+@router.get(
+    "/people/{uuid:person_id}/jobs/",
+    auth=office_auth,
+    operation_id="people_jobs_retrieve",
+    response=CrmJobRowsResponse,
+    summary="Get the jobs a person is the contact for",
+    tags=["people"],
+)
+def people_jobs_retrieve(request: HttpRequest, person_id: UUID) -> dict[str, object]:
+    """Every job whose contact is this person, with its invoices, newest first (KAN-372)."""
+    try:
+        return {"results": CompanyRestService.get_person_jobs(person_id)}
+    except ValueError as exc:
+        raise Http404(str(exc)) from exc
 
 
 @router.get(
