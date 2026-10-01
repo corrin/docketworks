@@ -1,5 +1,5 @@
 [Unit]
-Description=Redis for docketworks __INSTANCE__ (ADR 0065)
+Description=Redis for docketworks __INSTANCE__
 After=network.target
 
 [Service]

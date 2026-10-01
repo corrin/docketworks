@@ -14,7 +14,7 @@ allocator now on main (which refuses 0, 1 and 2, and which `verify-instance.sh` 
 the live remainder of #169 was confidentiality — one unauthenticated redis-server every local
 process could read — not the queue name; and #170's premise was stale against main, where
 PR #162 had already shipped `instance.sh --alias`, per-hostname nginx blocks and per-alias
-verification. The owner ruled for one redis-server per instance (ADR 0065) over ACL users on
+verification. The owner ruled for one redis-server per instance over ACL users on
 the shared server: the frozen v1 demo cannot authenticate and is not modified, so that server
 stays open and v2 leaves it. Fable: the same change removed a latent production defect in the
 ADR 0064 window, which drained tasks the live instance had queued before the fence into the

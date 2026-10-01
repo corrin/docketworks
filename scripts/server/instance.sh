@@ -237,7 +237,7 @@ require_instance_credentials() {
     fi
 }
 
-# Pick this instance's Redis port (ADR 0065). Preserved from an existing .env
+# Pick this instance's Redis port. Preserved from an existing .env
 # that names a private port; otherwise the lowest port from 6380 that no
 # neighbour's .env names and nothing is listening on. The shared port is
 # never handed out: a .env found pointing there is what an instance had
@@ -347,7 +347,7 @@ render_instance_env() {
     mv "$tmp_env" "$env_file"
 }
 
-# The instance's own Redis server (ADR 0065), from the port and password the
+# The instance's own Redis server, from the port and password the
 # freshly rendered .env carries. Always enabled and restarted, .dr-mode or
 # not: it holds no vendor token and sends nothing, and a standby that goes
 # live must find it running. Restarted rather than started because the conf

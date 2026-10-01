@@ -221,7 +221,7 @@ WORKER="$(render "$TEMPLATE_DIR/celery-worker-instance.service.template")"
 assert_no_tokens "celery-worker unit" "$WORKER"
 grep -q -- '-A config worker' <<<"$WORKER" || fail "celery-worker: must target -A config"
 
-# --- redis: the instance's own server (ADR 0065) ---
+# --- redis: the instance's own server ---
 REDIS_UNIT="$(render "$TEMPLATE_DIR/redis-instance.service.template")"
 assert_no_tokens "redis unit" "$REDIS_UNIT"
 grep -q '^User=dw_test_uat$' <<<"$REDIS_UNIT" || fail "redis unit: must run as the instance user"
@@ -252,7 +252,7 @@ for unit_template in gunicorn-instance celery-worker-instance celery-beat-instan
         || fail "$unit_template: must Requires= the instance's own redis unit"
 done
 if grep -q 'redis-server.service' "$TEMPLATE_DIR"/*.template; then
-    fail "a template still names the host's redis-server.service (v1's, ADR 0065)"
+    fail "a template still names the host's redis-server.service (v1's)"
 fi
 
 # --- env template: full render, and in sync with .env.example ---

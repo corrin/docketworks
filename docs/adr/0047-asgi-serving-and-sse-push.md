@@ -102,7 +102,7 @@ channel.** `EVENTSTREAM_REDIS` is built from `REDIS_URL` with redis-py's
 the library builds both a sync and an async client from that one dict.
 `DATA_VERSIONS_CHANNEL` includes the database name: Redis pub/sub is
 server-wide rather than scoped to a database index, and the instance's own
-redis-server (ADR 0065) still serves both its live database and the copy the
+redis-server still serves both its live database and the copy the
 ADR 0064 window runs on, so an unnamespaced channel would deliver one
 database's events to the other. The test settings `del EVENTSTREAM_REDIS`, because the library selects
 its multiprocess listener on that setting's mere presence.

@@ -227,7 +227,7 @@ read_env_value() {
 
 # The host's stock redis-server. It serves only the frozen v1 demo
 # (docketworks_v1), whose env carries REDIS_HOST/REDIS_PORT for it; every v2
-# instance runs its own redis-<instance> on a private port (ADR 0065). The
+# instance runs its own redis-<instance> on a private port. The
 # first v2 instance on a box once shared this server with v1 and each worker
 # consumed the other's tasks, which is why no instance is ever allocated it.
 REDIS_SHARED_PORT=6379
@@ -275,7 +275,7 @@ redis_password_of_env() {
     printf '%s' "${userinfo#*:}"
 }
 
-# The instance's Redis unit (ADR 0065). instance.sh installs it and deploy.sh
+# The instance's Redis unit. instance.sh installs it and deploy.sh
 # re-renders it with the other units so a template change reaches every
 # instance; the conf beside it, which carries the password, is instance.sh's
 # alone, and deploy never restarts the unit.

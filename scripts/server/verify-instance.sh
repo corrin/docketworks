@@ -168,8 +168,8 @@ if [[ "$E2E" == "true" ]]; then
         echo "E2E: returning $INSTANCE to its live database..."
         systemctl stop "celery-worker-$INSTANCE" "gunicorn-$INSTANCE"
         # A task the last spec queued must not run against the live database
-        # with the real transport. The queue is named by the database (ADR
-        # 0065), so purging under the window env empties the copy's queue only;
+        # with the real transport. The queue is named by the database, so
+        # purging under the window env empties the copy's queue only;
         # work the live instance queued before the fence waits in its own.
         in_window celery -A config purge -f >/dev/null
         local unit
@@ -180,8 +180,8 @@ if [[ "$E2E" == "true" ]]; then
         systemctl daemon-reload
         # CompanyDefaults edits a spec made sit in the cache for
         # SOLO_CACHE_TIMEOUT (config/settings.py) and real users must never
-        # read them. The cache is database 2 of the instance's own Redis (ADR
-        # 0065), so it is flushed while nothing runs against it; it used to
+        # read them. The cache is database 2 of the instance's own Redis, so it
+        # is flushed while nothing runs against it; it used to
         # be waited out for 300s because the cache server was shared and a
         # flush would have emptied every instance's.
         echo "E2E: flushing the instance's cache..."
@@ -403,7 +403,7 @@ dropbox_root_group_accessible() {
 }
 check --verbose "dropbox sync root is group-accessible" dropbox_root_group_accessible
 
-# --- Redis: this instance's server is its alone (ADR 0065) ---
+# --- Redis: this instance's server is its alone ---
 # GitHub #169's acceptance, literally: the port is nobody else's, the server
 # refuses an unauthenticated client, answers this instance's password, and
 # every neighbour's server refuses that password. Replies are matched, not

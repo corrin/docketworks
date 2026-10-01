@@ -23,7 +23,7 @@
 - **Users are fenced out for the window.** nginx answers 503 to every client but the box
   itself while `<instance>/e2e/fence.conf` exists, because anything a user did during the run
   would land in the copy. Before the units return to the live database the teardown flushes
-  the instance's own cache (ADR 0065), so no `CompanyDefaults` edit a spec made is ever served
+  the instance's own cache, so no `CompanyDefaults` edit a spec made is ever served
   to a real user, and it purges only the copy's Celery queue, so work the live instance queued
   before the fence runs once the units return. A production run is a declared window; `docs/release-process.md` says so.
 - **The harness is one implementation on every host.** It reaches the app at its public

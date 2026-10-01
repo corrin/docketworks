@@ -115,7 +115,7 @@ It is **idempotent** — safe to re-run on an already-configured server.
 - Node.js 22 (NodeSource)
 - PostgreSQL server (configured for password auth over sockets)
 - Redis (the `redis-server` binary; each instance runs its own `redis-<instance>` server on a
-  private port behind its own password, ADR 0065; the stock service on 6379 serves only the v1 demo).
+  private port behind its own password; the stock service on 6379 serves only the v1 demo).
   `CACHES["shared"]` must reach it: PDF-refresh dedup and django-solo propagation live there,
   and `Job.save()` fails at commit time without it
 - Nginx, with per-IP rate-limit zones for the two authentication endpoints
@@ -178,7 +178,7 @@ sudo scripts/server/instance.sh reconfigure <client> <env>
 `instance.sh create` is the supported provisioning path. It creates the OS
 user, database, generated `.env`, the instance's own Redis server
 (`redis-<instance>` on a private port behind its own password, so no
-instance can consume or read another's, ADR 0065), per-instance data
+instance can consume or read another's), per-instance data
 directories, service units, backup timers,
 sudoers drop-in, nginx config, and `app` symlink to a shared
 `/opt/docketworks/releases/<sha>` release. App code, Python dependencies,
