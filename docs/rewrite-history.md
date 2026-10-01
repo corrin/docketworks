@@ -5,6 +5,43 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
+## 2026-10-02 — One audit event shape; timesheet entries move from the grid and are audited (KAN-370)
+
+Owner rulings while delivering KAN-370, slice 1 of KAN-298. **One parent type for every
+audit trail:** `JobEvent`, `ProcessEvent`, `PurchaseOrderEvent` and the new `TimesheetEvent`
+subclass an abstract `AuditEvent` in `apps/core/audit.py` — actor, timestamp, event type,
+before/after deltas, detail, and one description rendering (builder, then recorded changes
+through the subtype's field descriptors, then the subtype's label, then the sentinel). This
+closes the hoist the process design doc of 2026-08-25 left as open work. Abstract rather than
+multi-table: a concrete parent would join every job-history read and migrate 80,673 JobEvent
+rows for a cross-domain query nothing asks for. JobEvent keeps its envelope columns (change
+id, checksum, dedup) because no other writer fills them (ADR 0028). PurchaseOrderEvent's note
+column became a `manual_note` event with the text in `detail.note_text`, JobEvent's shape for
+a typed note; three production rows migrated. `AuditEventOut` and `AuditEventList` are the
+shared wire shape and history list.
+
+**Timesheet entries are audited, and the trail starts at deploy.** Every write on the office
+cost-line path and the workshop self-service path — create, edit, move, delete, approve —
+records a `TimesheetEvent` in the write's transaction, with before/after snapshots of the
+entry quantized to the columns. The event is keyed on the worker and the day with the line
+named by a plain id, so a deletion's event outlives the row; the history is read per
+worker-day from a History button on the entry page for the same reason. No backfill: the
+job timeline was rebuilt from line timestamps and holds nothing to backfill from. Leave-managed
+lines record nothing (the leave request names its author) and neither do the repair commands
+(a command run has no actor); widening either is a separate decision. No JobEvent on a move.
+
+**A move keeps the entry's multipliers.** `move_time_line` is the one retarget-and-reprice,
+shared by the workshop PATCH (which could already move) and the office cost-line PATCH (which
+gained `job_id`). Only a destination that cannot bill — shop work or a `special` job — makes
+the entry unbillable, and only a source that could not bill lets a stored zero be re-derived
+from the wage multiplier. Re-applying the pick-time defaults (1.5x on urgent) was rejected: a
+saved line cannot say whether its multiplier was a default or a choice. In the grid the move
+is an inline edit with no confirmation; KAN-298's preview stays with the Job Actual tab move
+it still owns. The workshop client stopped sending `is_billable` on a move: the server owns
+the rule, and the client line also discarded an explicit unbillable choice on a
+normal-to-normal move. Open decision 1 in `rewrite-status.md` (cost-line writes are plain
+authenticated) is unchanged and now reaches one field further.
+
 ## 2026-10-01 — KPI calendar ported; report filters live in the URL
 
 Owner rulings while porting the KPI calendar (the largest of the remaining reports). The
