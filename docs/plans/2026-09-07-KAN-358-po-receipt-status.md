@@ -76,7 +76,7 @@ ticket's acceptance list; successful execution remains required.
 | Live integration / `apps/xero/tests/test_purchase_order_integration.py` | Extend the existing sandbox scenario through real partial and full receipts, application push, and application inbound pull. Read back AUTHORISED from Xero and verify local receipt status, quantities and allocations persist. Reuse existing credential fixtures and production/write guards. |
 | Browser / new `frontend/tests/e2e/purchasing/po-receipt-sync.spec.ts` | Create and receipt a PO through the real UI/API, run the real application Xero push/pull through the existing supported sync controls, reload detail/list and verify the received label survives. Cover partial and full receipt. Establish how the existing UI exposes receipt and sync before implementation; if a required control is absent, record that missing capability rather than substituting a mocked round trip. |
 
-GPT: the browser case is owed by ADR 0026 because the defect changes the
+GPT: the browser case is owed by ADR 0025 because the defect changes the
 operator's received/outstanding view. The existing integration scenario proves
 the vendor boundary but does not itself assert the browser's displayed result.
 The ticket's observation that no current E2E drives this path identifies a gap.

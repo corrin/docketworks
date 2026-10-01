@@ -22,11 +22,8 @@ security inputs. The `dw_<client>_<env>` naming standard
 suffix deterministic — the same signal
 `apps/xero/operator_guards.assert_not_production_target` uses.
 
-| class | rule | policy |
-|---|---|---|
-| test | starts `test_` or ends `_test` | wipe freely; synthetic data by construction; no snapshot by default |
-| app, non-prod | everything else not ending `_prod` | `--database` must name the target; pre-wipe snapshot by default, `--skip-backup` opts out |
-| app, prod | ends `_prod` | additionally `--wipe-production`; snapshot mandatory, `--skip-backup` refused |
+The three classes (test, app non-prod, app prod) and what each demands are the command's
+docstring.
 
 **Production is wipeable — deliberately, and only recoverably.** PVT and
 commissioning need prod wipes. The deliberateness marker is
@@ -45,16 +42,6 @@ truncated stream), tmp-then-rename, verified non-empty. Written to the
 provisioned instance backup directory when it exists, else
 `<checkout>/backups/`; `scripts/cleanup_backups.py` retains `pre_reset_*`
 files for 7 days.
-
-**Instances cannot reach each other's data.** `instance.sh` issues
-`REVOKE ALL ON DATABASE <main>,<scrub> FROM PUBLIC` plus an explicit owner
-`GRANT CONNECT` in its idempotent configure SQL, closing PUBLIC's implicit
-CONNECT under the cluster's `local all all scram-sha-256` pg_hba. One
-`reconfigure` retrofits a pre-existing instance. The `postgres` maintenance
-database is deliberately untouched — Django's test runner connects to it to
-create and drop test databases. The REVOKE does not stop a determined actor
-holding the owner role's own password; nightly and predeploy backups bound
-that damage.
 
 **A destructive predicate is proven against real data before it runs.** A
 `WHERE` clause written from the model's contract deletes what the contract

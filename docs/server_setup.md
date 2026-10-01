@@ -115,7 +115,7 @@ It is **idempotent** — safe to re-run on an already-configured server.
 - Node.js 22 (NodeSource)
 - PostgreSQL server (configured for password auth over sockets)
 - Redis (the `redis-server` binary; each instance runs its own `redis-<instance>` server on a
-  private port behind its own password, ADR 0065; the stock service on 6379 serves only the v1 demo).
+  private port behind its own password; the stock service on 6379 serves only the v1 demo).
   `CACHES["shared"]` must reach it: PDF-refresh dedup and django-solo propagation live there,
   and `Job.save()` fails at commit time without it
 - Nginx, with per-IP rate-limit zones for the two authentication endpoints
@@ -178,14 +178,20 @@ sudo scripts/server/instance.sh reconfigure <client> <env>
 `instance.sh create` is the supported provisioning path. It creates the OS
 user, database, generated `.env`, the instance's own Redis server
 (`redis-<instance>` on a private port behind its own password, so no
-instance can consume or read another's, ADR 0065), per-instance data
+instance can consume or read another's), per-instance data
 directories, service units, backup timers,
 sudoers drop-in, nginx config, and `app` symlink to a shared
 `/opt/docketworks/releases/<sha>` release. App code, Python dependencies,
 and frontend builds live in the shared release, not in the instance
 directory. Integration credentials (Xero app, AI provider keys, phone
 provider) are loaded into the instance's database as fixture rows; the
-loaders skip anything a restored database already carries.
+loaders skip anything a restored database already carries
+(`load_integration_settings` applies an integration only while all of its
+columns are unset, and creates the row a scrubbed restore leaves missing;
+`scripts/ops/restore_checks/check_integration_settings.py` proves each
+credential the way the app uses it). Each instance's databases revoke
+PUBLIC's implicit CONNECT and grant it to the owner role alone, so no
+instance can reach another's data; `reconfigure` retrofits that.
 
 ### Per-instance test database
 
@@ -247,7 +253,7 @@ sudo scripts/server/deploy.sh --all          # every instance, each on its own r
 
 Each instance records its tracked git ref alongside its current and previous
 SHA in `/opt/docketworks/instances/<instance>/deploy-state.env`
-(`origin/production` for prod, `origin/main` for UAT, per ADR 0029).
+(`origin/production` for prod, `origin/main` for UAT; `docs/release-process.md`).
 `deploy.sh` fetches, resolves each target instance's ref, builds or reuses
 the shared `/opt/docketworks/releases/<sha>` release, then per instance:
 takes a pre-deploy DB backup, stops runtime services, switches `app` to the
@@ -461,7 +467,17 @@ sudo scripts/server/instance.sh destroy test2 uat
 
 ### Rehearsing the new-instance path after a merge
 
-ADR 0066 is what the rehearsal proves and its rules; this section is how to run it.
+The rehearsal proves the path from an empty host to a working instance: `create` runs
+unchanged from the ref with the three root-owned config files a client instance has, the
+post-create checks run, onboarding is `finalize_instance_onboarding --seed-xero` against the
+fake Xero (the whole instance renders `XERO_FAKE=True`, so no token minted for it can leave
+the box), the suite runs through `verify-instance.sh --e2e`, and the instance is destroyed.
+It verifies provisioning, never a merge (ADR 0060, ADR 0064). Never populate it from another
+instance's database: the run would then prove a restore, not `create`. Never skip or stub a
+red step: a step the fake cannot serve is a gap named in
+`apps/xero/fake/tests/test_every_call_is_routed.py`, and the red run is the record of it.
+Never run it on a production name or wire it into the deploy workflow: the runner's key
+would gain create and destroy on the host.
 
 Once, on the host: the rehearsal instance's three config files. The credentials file takes
 msm-uat's values (Maps key, GCP key, team drive, Xero app); the E2E file names the user the
@@ -628,10 +644,16 @@ curl -sI https://docketworks.site/
 ## Resource Notes
 
 - Each Gunicorn service runs 4 uvicorn workers (`-k
-  uvicorn_worker.UvicornWorker`, per the ASGI serving model of ADR 0047) —
+  uvicorn_worker.UvicornWorker --timeout 180`, per the ASGI serving model of ADR 0047) —
   SSE streams ride the event loop, so many can be open per worker at once,
   and sync views are not serialised per worker either; resize against
-  observed load, not against this number
+  observed load, not against this number. The unit stays `gunicorn-<instance>`:
+  deploy, rollback and the sudoers rules address it by that name. Editing a
+  unit template changes the server-setup hash `deploy.sh` compares, so the next
+  deploy re-converges every host — the mechanism working, not a fault.
+- A board whose streams stay connected but receives no events during known
+  writes has lost its Redis listener (django-eventstream never restarts it):
+  restart the instance's gunicorn service.
 - Oracle Cloud ARM free tier: 4 OCPU / 24GB RAM
 - 5-10 concurrent demo instances should run comfortably
 - All packages (Python 3.12, Node 22, PostgreSQL, etc.) have aarch64/ARM builds

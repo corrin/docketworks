@@ -1,8 +1,6 @@
 # Release process
 
-Carried forward from v1's practice (ADR 0029 owns the branch topology; the
-notes convention below was previously unwritten — this file makes it
-durable).
+This file owns the branch topology and the release-notes convention.
 
 ## Branches and promotion
 
@@ -11,8 +9,7 @@ durable).
   the box's repo mirror on every push to `main`; an operator runs
   `scripts/server/deploy.sh` to release it to the UAT instance).
 - **After a merge to `main`, the new-instance path is rehearsed** with
-  `scripts/ops/rehearse_instance.sh <uat-host> rehearsal` (ADR 0066; docs/server_setup.md,
-  Part E).
+  `scripts/ops/rehearse_instance.sh <uat-host> rehearsal` (docs/server_setup.md, Part E).
 - **A release PR promotes `main` to `production`** after UAT verification:
   `sudo scripts/server/verify-instance.sh <client> uat --e2e` green on the deployed UAT
   instance (ADR 0064). Production instances track `origin/production`.
@@ -26,7 +23,8 @@ durable).
   exercises the whole push path (signal, commit hook, Redis fan-out, stream, client
   reconcile) in one action, and it is the only check that fails visibly when the Redis
   pub/sub listener is dead while streams stay connected; no E2E spec covers it.
-- Hotfixes merge into `production` and are back-merged to `main`.
+- A hotfix branches from `production`, merges back by PR, deploys, and is immediately
+  back-merged to `main`. `production` carries the same branch protections as `main`.
 - **Release PRs and hotfix back-merges are merged with a merge commit — never
   squashed, never rebased.** Squash is right for a feature PR, where one
   reviewable change lands on `main`; it is wrong for a promotion, because the

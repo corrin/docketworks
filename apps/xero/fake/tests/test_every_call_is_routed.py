@@ -10,7 +10,7 @@ The payroll writes and the leave and timesheet reads are the next slice;
 they are named below so that the gate shrinks as they land and nothing new
 slips past it unnamed.
 
-The instance rehearsal (ADR 0066) runs the real onboarding against the fake on
+The instance rehearsal (``instance.sh rehearse``) runs the real onboarding against the fake on
 a fresh installation and is red at its ``connect`` step until three pieces land:
 PR C below; the onboarding subset of PR B below (``POST EarningsRates``,
 ``LeaveTypes`` and ``PayRunCalendars`` from ``xero --setup --seed-xero``, ``POST

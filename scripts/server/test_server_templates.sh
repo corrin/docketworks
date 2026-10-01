@@ -221,7 +221,7 @@ WORKER="$(render "$TEMPLATE_DIR/celery-worker-instance.service.template")"
 assert_no_tokens "celery-worker unit" "$WORKER"
 grep -q -- '-A config worker' <<<"$WORKER" || fail "celery-worker: must target -A config"
 
-# --- redis: the instance's own server (ADR 0065) ---
+# --- redis: the instance's own server ---
 REDIS_UNIT="$(render "$TEMPLATE_DIR/redis-instance.service.template")"
 assert_no_tokens "redis unit" "$REDIS_UNIT"
 grep -q '^User=dw_test_uat$' <<<"$REDIS_UNIT" || fail "redis unit: must run as the instance user"
@@ -252,7 +252,7 @@ for unit_template in gunicorn-instance celery-worker-instance celery-beat-instan
         || fail "$unit_template: must Requires= the instance's own redis unit"
 done
 if grep -q 'redis-server.service' "$TEMPLATE_DIR"/*.template; then
-    fail "a template still names the host's redis-server.service (v1's, ADR 0065)"
+    fail "a template still names the host's redis-server.service (v1's)"
 fi
 
 # --- env template: full render, and in sync with .env.example ---
@@ -525,7 +525,7 @@ grep -q '^root_folder_id = folder123$' "$RENDERED_RCLONE" \
     || fail "rclone writer: root_folder_id missing from rendered config"
 rm -rf "$RCLONE_TMP"
 
-# --- rehearse (ADR 0066): destroy still asks, the prompt-free removal has
+# --- rehearse: destroy still asks, the prompt-free removal has
 # no flag, and a rehearsal refuses before any mutation without its three
 # config files ---
 grep -q -- '--yes)' "$INSTANCE_SCRIPT" \
@@ -570,7 +570,7 @@ echo "$REHEARSE_OUT" | grep -q 'prepare-config test uat --seed' \
     || fail "rehearse: refusal must name prepare-config"
 echo "$REHEARSE_OUT" | grep -q 'test-uat.e2e.env' \
     || fail "rehearse: refusal must name the e2e credentials file"
-# A red run's instance costs a tenant's worth of memory if left running (ADR 0066).
+# A red run's instance costs a tenant's worth of memory if left running.
 echo "$REHEARSE_OUT" | grep -q "REPORT_LEAVES_UNITS_RUNNING" \
     && fail "rehearse: the failure path must stop the instance's units"
 # stop/start: a stopped instance is the .dr-mode state deploys already honour, and a

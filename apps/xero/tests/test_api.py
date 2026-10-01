@@ -106,7 +106,7 @@ class TestXeroPing:
         # error_id already keys into the persisted detail.
         assert body["error"] == "Xero connection check failed; see error_id."
         assert body["error_id"] == str(app_error.id)
-        # One failure is one row (ADR 0001) — the endpoint reuses the
+        # One failure is one row (ADR 0019) — the endpoint reuses the
         # pre-persisted error instead of writing a duplicate.
         assert AppError.objects.count() == before
 

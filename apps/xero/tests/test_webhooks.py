@@ -222,7 +222,7 @@ class TestWebhookNoKeyConfigured:
         body = json.dumps({"events": [_event()]}).encode("utf-8")
         response = _post(client, body)
         assert response.status_code == 503
-        # One failure, one row (ADR 0001) — even though the view's handler
+        # One failure, one row (ADR 0019) — even though the view's handler
         # persists again after validate_webhook_signature already did.
         assert AppError.objects.count() == 1
 

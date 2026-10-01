@@ -18,7 +18,7 @@ seam each vendor is reached through, at the grain of a single call.
   later price changes must not rewrite historical spend. This is an estimate in USD,
   not a provider billing receipt. Historical and non-LLM rows have no cost estimate.
 - **Recorded at the one seam each vendor crosses, never per call site** (ADR 0039), and never
-  in middleware — scheduler jobs and management commands never pass through it (ADR 0001).
+  in middleware — scheduler jobs and management commands never pass through it (ADR 0019).
   The seams are the ones `conftest.py` already enumerates as the outbound call each vendor is
   actually reached through, because a hermetic-test guard and a recorder need the same
   chokepoint.

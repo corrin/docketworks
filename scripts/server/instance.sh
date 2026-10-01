@@ -237,7 +237,7 @@ require_instance_credentials() {
     fi
 }
 
-# Pick this instance's Redis port (ADR 0065). Preserved from an existing .env
+# Pick this instance's Redis port. Preserved from an existing .env
 # that names a private port; otherwise the lowest port from 6380 that no
 # neighbour's .env names and nothing is listening on. The shared port is
 # never handed out: a .env found pointing there is what an instance had
@@ -287,7 +287,7 @@ render_instance_env() {
     local test_db_user="$6"
     local fqdn="$7"
     local aliases_csv="$8"
-    # True only for a rehearsal instance (ADR 0066): every unit, the
+    # True only for a rehearsal instance: every unit, the
     # onboarding and the verification window then agree on the fake, and
     # no token minted for it can reach the real organisation from beat.
     local xero_fake="$9"
@@ -347,7 +347,7 @@ render_instance_env() {
     mv "$tmp_env" "$env_file"
 }
 
-# The instance's own Redis server (ADR 0065), from the port and password the
+# The instance's own Redis server, from the port and password the
 # freshly rendered .env carries. Always enabled and restarted, .dr-mode or
 # not: it holds no vendor token and sends nothing, and a standby that goes
 # live must find it running. Restarted rather than started because the conf
@@ -1205,8 +1205,8 @@ destroy_instance() {
 # ============================================================
 # rehearse
 # ============================================================
-# ADR 0066 is the decision and its rules; docs/server_setup.md Part E is
-# how it is run. Two facts live here because the code depends on them: the
+# docs/server_setup.md Part E is what the rehearsal proves and how it is
+# run. Two facts live here because the code depends on them: the
 # env is fixed to uat because create would accept prod and only
 # verify-instance.sh would refuse it, after the instance existed; and the
 # run is red at `connect` until the pieces named in

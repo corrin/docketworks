@@ -13,7 +13,7 @@ set -euo pipefail
 # GitHub, resolves that ref to a SHA, builds
 # /opt/docketworks/releases/<sha> if missing, then switches only the requested
 # instance to that release. Production servers typically track production;
-# testing and UAT servers typically track main (ADR 0029). A non-production
+# testing and UAT servers typically track main (docs/release-process.md). A non-production
 # --ref on a *-prod instance is refused unless acknowledged (interactive
 # confirm, or --allow-prod-ref).
 
@@ -103,7 +103,7 @@ validate_instance() {
         echo "ERROR: nginx config not found at $nginx_conf. Run instance.sh first." >&2
         exit 1
     fi
-    # The runtime units Requires= the instance's own Redis (ADR 0065); its
+    # The runtime units Requires= the instance's own Redis; its
     # conf is instance.sh's to render, so an instance without one would come
     # back from this deploy with nothing to start.
     if [[ ! -f "$local_dir/redis.conf" ]]; then

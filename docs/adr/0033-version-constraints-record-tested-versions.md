@@ -12,11 +12,9 @@ latest, the gates decide, and what passes is frozen.
   different facts.
 - **Upgrade, test, freeze.** A sweep re-locks every dependency, majors included, at the newest
   published version, runs the gates, and freezes what passed.
-- **The sweep is weekly and automatic.** `scripts/ops/sweep_dependencies.sh` moves every pin in
-  both ecosystems; `.github/workflows/dependency-sweep.yml` runs it and opens one PR that a
-  person picks up, and the same script by hand is an out-of-cycle sweep. `docs/dependency-sweep.md`
-  is the loop for a red run. Nothing else prompts a bump: a deferral needs no ticket, because
-  next week's sweep moves the pin again.
+- **The sweep is weekly and automatic** (`docs/dependency-sweep.md` is the procedure and the loop
+  for a red run). Nothing else prompts a bump: a deferral needs no ticket, because next week's
+  sweep moves the pin again.
 - **The bump PR owns the code the new version demands.** A renamed option, a new lint rule, a
   changed default: that change is made in the same PR, because the gates are the trust boundary
   and green gates are what let a major land. A change one upgrade forces in a second package is

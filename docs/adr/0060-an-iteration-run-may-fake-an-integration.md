@@ -10,11 +10,8 @@
   request's filters and paging, a write applies Xero's status transitions, and a refusal
   fires where Xero's rules refuse. Replaying a stored answer is never an implementation.
 - **The model is relational and complete for what Xero lets a caller query.** One table per
-  Xero resource — contacts, invoices and their lines, credit notes, quotes, purchase orders,
-  items, accounts, tax rates, branding themes, organisation, employees, salary lines,
-  working patterns, leave types, leave balances, earnings rates, leave, timesheets and their lines, pay
-  runs, pay slips, pay-run calendars, connections, tokens — with a typed, indexed column
-  for every field Xero filters, orders or keys on, and Xero's own uniqueness: a number per
+  Xero resource the app reaches (`test_every_call_is_routed.py` names the set), with a typed,
+  indexed column for every field Xero filters, orders or keys on, and Xero's own uniqueness: a number per
   document kind, one draft pay run per calendar, one timesheet per employee and period, a
   number a deleted order still owns. The wire body is rendered from the model; nothing is
   stored as a blob that a query would have to parse.
@@ -59,4 +56,3 @@
 - **Drop a parameter the replacement does not implement** — that is a belief about Xero.
 - **Read a green fake run as evidence for merge** — it proves the app against the
   replacement, and the replacement against Xero as of the last recording.
-- **Reach for `XERO_READONLY` as a test mode** — it is the production hotfix valve.

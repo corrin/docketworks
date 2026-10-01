@@ -214,7 +214,7 @@ Prompts for confirmation, then removes: systemd service, Nginx config, database 
 sudo ./scripts/server/instance.sh rehearse rehearsal [--ref <ref>]
 ```
 
-What it proves and its rules: ADR 0066. Setting it up and running it from the dev box: `docs/server_setup.md`, Part E.
+What it proves, its rules, and running it from the dev box: `docs/server_setup.md`, Part E.
 
 ## Stopping and Starting an Instance
 
@@ -314,7 +314,7 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `templates/gunicorn-instance.service.template`      | Systemd unit template (web)                                                                          |
 | `templates/celery-worker-instance.service.template` | Systemd unit template (Celery worker)                                                                |
 | `templates/celery-beat-instance.service.template`   | Systemd unit template (Celery Beat — periodic task dispatcher)                                       |
-| `templates/redis-instance.service.template`         | Systemd unit template (the instance's own Redis server, ADR 0065)                                    |
+| `templates/redis-instance.service.template`         | Systemd unit template (the instance's own Redis server)                                    |
 | `templates/redis-instance.conf.template`            | redis.conf for that server: private port, password, instance-owned dump directory                    |
 | `templates/backup-db-instance.service.template`     | Systemd unit template (database backup)                                                              |
 | `templates/backup-db-instance.timer.template`       | Systemd timer template (nightly database backup)                                                     |

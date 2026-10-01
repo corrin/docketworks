@@ -1,13 +1,12 @@
-# 0063 — Every test starts from a provisioned instance and asserts over what it created; E2E drives the UI by automation id
-Unratified: Fable
+# 0063 — A test asserts over what it created, takes its actors from the root conftest, and an E2E wait never filters on status
+Ratified: owner, 2026-10-01
 
-Every test starts from a provisioned instance, asserts over what it created, takes its actors from the root `conftest.py` by name, and drives the UI through stable automation ids.
+Every test asserts over what it created and takes its actors from the root `conftest.py` by name; an E2E spec waits on URL and method, never on a status or a disabled control.
 
 ## Rules
 
-- **Every test assumes a provisioned instance.** The root `conftest.py` seeds `CompanyDefaults`, its shop `Company` and the Xero pay-item catalogue for every test that touches the database. DocketWorks cannot boot without those rows, so a test starting from an empty database exercises a state the product never runs in — and a test that passes only in that state is asserting fiction, the same way a test of "Django works" is. Opt out with `@pytest.mark.bare_install` for instance provisioning; expect that to stay rare, because provisioning creates and seeds in one step.
 - **Assert over what the test creates, not over the whole table.** `assert [row["name"] for row in response.json()] == ["Acme", "Zeta"]` looks like a list assertion but is really an assertion that the installation is empty, and it breaks the moment the world is realistic. Scope the query, filter to the rows the test made, or assert the property — sortedness, inclusion, exclusion.
 - Actors come from the root conftest by fixture name: `office_staff`, `superuser`, `api` (authenticated office staff), `superuser_api`. `client` stays pytest-django's ANONYMOUS client — an authenticated fixture named `client` is how a `test_requires_authentication` silently stops testing authentication.
-- Every interactive control, and every rendered state a test could assert, exposes a stable `data-automation-id` — whether or not a test drives it yet. An id added with the element costs nothing; one added later costs a spec its selector, and `docs/code-quality.md` counts the controls still without one. Never depend on incidental DOM position (`nth(3)`, "the next card") for values or controls whose meaning matters.
+- Controls are located by `data-automation-id` (`frontend/docs/data-automation-ids.md`), never by incidental DOM position.
 - An E2E wait on a mutation's response matches URL and method only — never status — then asserts success explicitly, with the actual status and body in the failure message. A status-filtered wait can never match a real failure, so a failed mutation surfaces as a generic timeout that hides exactly the regression the wait exists to catch.
 - A control whose disabled state is also its in-flight state can be asserted, never awaited. Waiting for it to become enabled passes before the request it guards has landed, so the spec waits on something that can only become true after the response: the next action's control enabling, the row the response creates. `stocktake.spec.ts` waits on "Post stocktake" enabling for this reason.

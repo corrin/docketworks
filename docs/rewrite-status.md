@@ -45,7 +45,7 @@ does not have.
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 134 recorded deviations |
-| ADRs | 49 (v1's 23 carried forward + 0038–0041, 0043, 0046–0066 written here) |
+| ADRs | 42 (v1's 20 carried forward + 0038–0041, 0043, 0046–0060, 0063–0064 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints
 written measures typing, not delivery. Every slice below authors its own E2E spec and
@@ -517,7 +517,7 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   adapter beside the Google Drive one, and enumeration wiring.
 - **Read-side fallback cleanup**
   ([KAN-338](https://docketworks.atlassian.net/browse/KAN-338)). ~40 reads of our own JSON
-  shapes violate ADR 0015/0028/0045, concentrated in JSONField payloads mypy cannot see
+  shapes violate ADR 0015/0028, concentrated in JSONField payloads mypy cannot see
   into. The `is_billable` divergence between timesheet aggregation and the shop-job
   validator is the priority — billing math that can already disagree on real rows.
 - **Scrubber policy: exactly PII, exactly once**
@@ -589,7 +589,7 @@ never a second stream.
 
 - **[KAN-359](https://docketworks.atlassian.net/browse/KAN-359): keep new-instance provisioning current as features change.**
   Require setup-impact review per feature, repair existing drift, and verify fresh production/demo setup.
-  The rehearsal (ADR 0066) is the check; once it reaches the suite, eleven spec files assume
+  The rehearsal (`scripts/ops/rehearse_instance.sh`) is the check; once it reaches the suite, eleven spec files assume
   restore data and must seed their own (ADR 0063): stock rows by name
   (`job/create-estimate-entry`, `job/job-cost-entry-data`, `purchasing/create-purchase-order`,
   `purchasing/stock-search`); a second job card or job history (`kanban/kanban-desktop`,

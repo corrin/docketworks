@@ -221,7 +221,7 @@ def test_task_results_outlive_the_longest_schedule_interval() -> None:
 
 
 def test_the_queue_is_named_by_the_database() -> None:
-    """A worker consumes only work queued for the database it runs on (ADR 0065).
+    """A worker consumes only work queued for the database it runs on.
 
     The verification window (ADR 0064) restarts the worker on the scrub copy
     against the instance's own Redis; one shared queue name let it drain and

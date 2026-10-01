@@ -274,7 +274,7 @@ fi
 # --- Redis ---
 
 # The package supplies the redis-server binary that every instance's own
-# redis-<instance> unit runs (ADR 0065, instance.sh). The stock service on
+# redis-<instance> unit runs (instance.sh). The stock service on
 # 6379 stays enabled for the frozen v1 demo, the only thing that uses it.
 if dpkg -l | grep -q "ii  redis-server "; then
     log "Redis already installed, skipping."
