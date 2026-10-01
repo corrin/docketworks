@@ -152,6 +152,9 @@ export function AppNavbar() {
             <NavMenuLink to="/reports/job-movement" automationId="AppNavbar-job-movement">
               Job Movement
             </NavMenuLink>
+            <NavMenuLink to="/reports/kpi" automationId="AppNavbar-kpi-calendar">
+              KPI Calendar
+            </NavMenuLink>
             <NavMenuLink to="/reports/sales-forecast" automationId="AppNavbar-sales-forecast">
               Sales Forecast
             </NavMenuLink>

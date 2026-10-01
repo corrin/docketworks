@@ -622,6 +622,20 @@ def _empty_monthly_totals() -> dict[str, float]:
     return dict.fromkeys(counters, 0)
 
 
+def _ratio(numerator: float, denominator: float, *, places: int) -> float | None:
+    """``numerator / denominator`` rounded, or None when there is nothing to divide by."""
+    if denominator == 0:
+        return None
+    return round(numerator / denominator, places)
+
+
+def _percentage(numerator: float, denominator: float) -> float | None:
+    """``numerator`` as a one-decimal percentage of ``denominator``, or None."""
+    if denominator == 0:
+        return None
+    return round(numerator / denominator * 100, 1)
+
+
 def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -> dict[str, object]:
     """Return the response totals: accumulators plus derived values and colours."""
     final: dict[str, object] = dict(totals)
@@ -630,15 +644,17 @@ def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -
     # drawn cells, so turning weekends on swings it by eight and overstates the
     # overhead still to cover by about a third; weekends are owed no share.
     final["remaining_weekdays"] = totals["weekdays"] - totals["elapsed_weekdays"]
-    final["total_revenue"] = (
+    total_revenue = (
         totals["time_revenue"] + totals["material_revenue"] + totals["adjustment_revenue"]
     )
+    final["total_revenue"] = total_revenue
     final["total_cost"] = totals["staff_cost"] + totals["material_cost"] + totals["adjustment_cost"]
     # Opus: served rather than left to the client. `material_profit` and
     # `adjustment_profit` already ship, so a missing labour twin is the one
     # figure a page must subtract for itself — which is how v1 ended up with
     # cards and modals computing the same number two different ways.
-    final["labour_profit"] = totals["time_revenue"] - totals["staff_cost"]
+    labour_profit = totals["time_revenue"] - totals["staff_cost"]
+    final["labour_profit"] = labour_profit
 
     # Owner ruling 2026-09-01 (the daily GP target is overhead, see module
     # docstring): gross profit less overhead incurred is the net profit. It is an
@@ -652,7 +668,8 @@ def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -
     # should display `elapsed_target` itself rather than recompute one.
     elapsed_target = thresholds["kpi_daily_gp_target"] * totals["elapsed_weekdays"]
     final["elapsed_target"] = elapsed_target
-    final["net_profit"] = totals["gross_profit"] - elapsed_target
+    net_profit = totals["gross_profit"] - elapsed_target
+    final["net_profit"] = net_profit
 
     billable_percentage = 0.0
     shop_percentage = 0.0
@@ -695,6 +712,26 @@ def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -
     final["avg_weekday_gp"] = avg_weekday_gp
     final["avg_active_day_gp"] = avg_active_day_gp
     final["avg_active_day_billable_hours"] = avg_active_day_billable_hours
+
+    # Owner ruling 2026-10-01: the ratios the report shows are served, each
+    # over ITS OWN denominator, so the cards and the dialogs read one
+    # definition. v1 divided in four browser components and its Profit modal
+    # stopped reconciling. Null, not 0.0, where the denominator is absent:
+    # 0% on zero revenue reads as break-even, which an empty month is not.
+    final["gross_margin"] = _percentage(totals["gross_profit"], total_revenue)
+    final["net_margin"] = _percentage(net_profit, total_revenue)
+    final["labour_margin"] = _percentage(labour_profit, totals["time_revenue"])
+    final["material_margin"] = _percentage(totals["material_profit"], totals["material_revenue"])
+    final["adjustment_margin"] = _percentage(
+        totals["adjustment_profit"], totals["adjustment_revenue"]
+    )
+    final["avg_labour_rate"] = _ratio(totals["time_revenue"], totals["billable_hours"], places=2)
+    final["labour_revenue_share"] = _percentage(totals["time_revenue"], total_revenue)
+    # The whole month's overhead, over WEEKDAYS like elapsed_target, and the
+    # gross profit's share of it. v1 multiplied gp_green by working_days here.
+    month_target = thresholds["kpi_daily_gp_target"] * totals["weekdays"]
+    final["month_target"] = month_target
+    final["month_target_achievement"] = _percentage(totals["gross_profit"], month_target)
 
     final["color_hours"] = _get_color(
         avg_active_day_billable_hours,

@@ -136,3 +136,25 @@ class TestStaffPerformanceDetail:
         assert response.status_code == 404
         # v1's specific message, not the generic route-miss "Not found."
         assert "No performance data found" in response.json()["detail"]
+
+
+class TestStaffPerformanceGate:
+    """Per-staff billable rates are company-wide revenue read per person.
+
+    The navbar hides the Reports menu from a workshop login, which is
+    presentation; these assert the endpoint is the control, as the WIP,
+    job-movement, sales-forecast and calendar reports already do.
+    """
+
+    def test_summary_refuses_a_staff_member_who_is_not_office_staff(
+        self, workshop_client: Client
+    ) -> None:
+        assert workshop_client.get(SUMMARY_URL, JUNE).status_code == 403
+
+    def test_detail_refuses_a_staff_member_who_is_not_office_staff(
+        self, workshop_client: Client
+    ) -> None:
+        response = workshop_client.get(detail_url("00000000-0000-0000-0000-000000000000"), JUNE)
+        # Refused before the lookup: a 404 here would tell a workshop login
+        # which staff ids exist.
+        assert response.status_code == 403

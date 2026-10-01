@@ -797,7 +797,9 @@ components:
           title: Daily GP (green)
           type: string
         kpi_daily_gp_target:
-          description: Daily gross profit target in dollars
+          description: 'Overhead per weekday in dollars: monthly operating expenses spread across the
+            month''s weekdays. A day on the KPI calendar is green once its gross profit covers this share;
+            weekends are owed none of it.'
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Daily gross profit target
           type: string
@@ -979,7 +981,9 @@ components:
           title: Wed Start
           type: string
         weekend_timesheets_enabled:
-          description: Show Saturday and Sunday in timesheet views (7-day week). Off = 5-day Mon-Fri.
+          description: Show Saturday and Sunday in timesheet views and the KPI calendar (7-day week).
+            Off = 5-day Mon-Fri. Weekend work is counted either way; this only decides whether the days
+            are drawn.
           title: Weekend Timesheets Enabled
           type: boolean
         workshop_efficiency_factor:
@@ -1336,7 +1340,9 @@ components:
           - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             type: string
           - type: 'null'
-          description: Daily gross profit target in dollars
+          description: 'Overhead per weekday in dollars: monthly operating expenses spread across the
+            month''s weekdays. A day on the KPI calendar is green once its gross profit covers this share;
+            weekends are owed none of it.'
           title: Daily gross profit target
         kpi_daily_shop_hours_percentage:
           anyOf:
@@ -1555,7 +1561,9 @@ components:
           anyOf:
           - type: boolean
           - type: 'null'
-          description: Show Saturday and Sunday in timesheet views (7-day week). Off = 5-day Mon-Fri.
+          description: Show Saturday and Sunday in timesheet views and the KPI calendar (7-day week).
+            Off = 5-day Mon-Fri. Weekend work is counted either way; this only decides whether the days
+            are drawn.
           title: Weekend Timesheets Enabled
         workshop_efficiency_factor:
           anyOf:
@@ -6069,6 +6077,11 @@ components:
         adjustment_cost:
           title: Adjustment Cost
           type: number
+        adjustment_margin:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Adjustment Margin
         adjustment_profit:
           title: Adjustment Profit
           type: number
@@ -6081,6 +6094,11 @@ components:
         avg_active_day_gp:
           title: Avg Active Day Gp
           type: number
+        avg_labour_rate:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Avg Labour Rate
         avg_weekday_gp:
           title: Avg Weekday Gp
           type: number
@@ -6129,6 +6147,11 @@ components:
         elapsed_workdays:
           title: Elapsed Workdays
           type: integer
+        gross_margin:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Gross Margin
         gross_profit:
           title: Gross Profit
           type: number
@@ -6138,21 +6161,49 @@ components:
         labour_green_days:
           title: Labour Green Days
           type: integer
+        labour_margin:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Labour Margin
         labour_profit:
           title: Labour Profit
           type: number
         labour_red_days:
           title: Labour Red Days
           type: integer
+        labour_revenue_share:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Labour Revenue Share
         material_cost:
           title: Material Cost
           type: number
+        material_margin:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Material Margin
         material_profit:
           title: Material Profit
           type: number
         material_revenue:
           title: Material Revenue
           type: number
+        month_target:
+          title: Month Target
+          type: number
+        month_target_achievement:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Month Target Achievement
+        net_margin:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Net Margin
         net_profit:
           title: Net Profit
           type: number
@@ -6237,6 +6288,15 @@ components:
       - avg_weekday_gp
       - avg_active_day_gp
       - avg_active_day_billable_hours
+      - gross_margin
+      - net_margin
+      - labour_margin
+      - material_margin
+      - adjustment_margin
+      - avg_labour_rate
+      - labour_revenue_share
+      - month_target
+      - month_target_achievement
       - color_hours
       - color_gp
       - color_shop
@@ -15762,7 +15822,7 @@ paths:
                 $ref: '#/components/schemas/KPICalendarResponse'
           description: OK
       security:
-      - CookieJWTAuth: []
+      - OfficeStaffCookieJWTAuth: []
       summary: KPI calendar data
       tags:
       - accounting
@@ -16115,7 +16175,7 @@ paths:
                 $ref: '#/components/schemas/StaffPerformanceResponse'
           description: OK
       security:
-      - CookieJWTAuth: []
+      - OfficeStaffCookieJWTAuth: []
       summary: Staff performance summary (all staff)
       tags:
       - accounting
@@ -16153,7 +16213,7 @@ paths:
                 $ref: '#/components/schemas/StaffPerformanceResponse'
           description: OK
       security:
-      - CookieJWTAuth: []
+      - OfficeStaffCookieJWTAuth: []
       summary: Staff performance detail (one staff member)
       tags:
       - accounting

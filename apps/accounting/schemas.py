@@ -318,6 +318,19 @@ class KPIMonthlyTotalsOut(Schema):
     avg_weekday_gp: float
     avg_active_day_gp: float
     avg_active_day_billable_hours: float
+    # Ratios the report displays, served rather than divided in the browser
+    # (owner ruling 2026-10-01). Null where the denominator is absent — a
+    # margin on zero revenue is not 0%, it is no margin — unlike the older
+    # percentages above, which predate the ruling and report 0.0 there.
+    gross_margin: float | None
+    net_margin: float | None
+    labour_margin: float | None
+    material_margin: float | None
+    adjustment_margin: float | None
+    avg_labour_rate: float | None
+    labour_revenue_share: float | None
+    month_target: float
+    month_target_achievement: float | None
     # The month is always graded, so these are the three-rung ladder rather
     # than the day's four categories — a month is never "weekend".
     color_hours: DayColor

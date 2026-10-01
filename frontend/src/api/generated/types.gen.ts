@@ -755,7 +755,7 @@ export type CompanyDefaultsOut = {
     /**
      * Daily gross profit target
      *
-     * Daily gross profit target in dollars
+     * Overhead per weekday in dollars: monthly operating expenses spread across the month's weekdays. A day on the KPI calendar is green once its gross profit covers this share; weekends are owed none of it.
      */
     kpi_daily_gp_target: string;
     /**
@@ -933,7 +933,7 @@ export type CompanyDefaultsOut = {
     /**
      * Weekend Timesheets Enabled
      *
-     * Show Saturday and Sunday in timesheet views (7-day week). Off = 5-day Mon-Fri.
+     * Show Saturday and Sunday in timesheet views and the KPI calendar (7-day week). Off = 5-day Mon-Fri. Weekend work is counted either way; this only decides whether the days are drawn.
      */
     weekend_timesheets_enabled: boolean;
     /**
@@ -1169,7 +1169,7 @@ export type CompanyDefaultsPatchIn = {
     /**
      * Daily gross profit target
      *
-     * Daily gross profit target in dollars
+     * Overhead per weekday in dollars: monthly operating expenses spread across the month's weekdays. A day on the KPI calendar is green once its gross profit covers this share; weekends are owed none of it.
      */
     kpi_daily_gp_target?: number | string | null;
     /**
@@ -1335,7 +1335,7 @@ export type CompanyDefaultsPatchIn = {
     /**
      * Weekend Timesheets Enabled
      *
-     * Show Saturday and Sunday in timesheet views (7-day week). Off = 5-day Mon-Fri.
+     * Show Saturday and Sunday in timesheet views and the KPI calendar (7-day week). Off = 5-day Mon-Fri. Weekend work is counted either way; this only decides whether the days are drawn.
      */
     weekend_timesheets_enabled?: boolean | null;
     /**
@@ -5343,6 +5343,10 @@ export type KpiMonthlyTotalsOut = {
      */
     adjustment_cost: number;
     /**
+     * Adjustment Margin
+     */
+    adjustment_margin: number | null;
+    /**
      * Adjustment Profit
      */
     adjustment_profit: number;
@@ -5358,6 +5362,10 @@ export type KpiMonthlyTotalsOut = {
      * Avg Active Day Gp
      */
     avg_active_day_gp: number;
+    /**
+     * Avg Labour Rate
+     */
+    avg_labour_rate: number | null;
     /**
      * Avg Weekday Gp
      */
@@ -5407,6 +5415,10 @@ export type KpiMonthlyTotalsOut = {
      */
     elapsed_workdays: number;
     /**
+     * Gross Margin
+     */
+    gross_margin: number | null;
+    /**
      * Gross Profit
      */
     gross_profit: number;
@@ -5419,6 +5431,10 @@ export type KpiMonthlyTotalsOut = {
      */
     labour_green_days: number;
     /**
+     * Labour Margin
+     */
+    labour_margin: number | null;
+    /**
      * Labour Profit
      */
     labour_profit: number;
@@ -5427,9 +5443,17 @@ export type KpiMonthlyTotalsOut = {
      */
     labour_red_days: number;
     /**
+     * Labour Revenue Share
+     */
+    labour_revenue_share: number | null;
+    /**
      * Material Cost
      */
     material_cost: number;
+    /**
+     * Material Margin
+     */
+    material_margin: number | null;
     /**
      * Material Profit
      */
@@ -5438,6 +5462,18 @@ export type KpiMonthlyTotalsOut = {
      * Material Revenue
      */
     material_revenue: number;
+    /**
+     * Month Target
+     */
+    month_target: number;
+    /**
+     * Month Target Achievement
+     */
+    month_target_achievement: number | null;
+    /**
+     * Net Margin
+     */
+    net_margin: number | null;
     /**
      * Net Profit
      */

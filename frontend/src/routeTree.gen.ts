@@ -26,6 +26,7 @@ import { Route as AuthedJobsJobIdRouteImport } from './routes/_authed/jobs/$jobI
 import { Route as AuthedJobsCreateRouteImport } from './routes/_authed/jobs/create'
 import { Route as AuthedPurchasingStockRouteImport } from './routes/_authed/purchasing/stock'
 import { Route as AuthedReportsJobMovementRouteImport } from './routes/_authed/reports/job-movement'
+import { Route as AuthedReportsKpiRouteImport } from './routes/_authed/reports/kpi'
 import { Route as AuthedReportsPayrollReconciliationRouteImport } from './routes/_authed/reports/payroll-reconciliation'
 import { Route as AuthedReportsSalesForecastRouteImport } from './routes/_authed/reports/sales-forecast'
 import { Route as AuthedReportsWipRouteImport } from './routes/_authed/reports/wip'
@@ -135,6 +136,11 @@ const AuthedReportsJobMovementRoute =
     path: '/reports/job-movement',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedReportsKpiRoute = AuthedReportsKpiRouteImport.update({
+  id: '/reports/kpi',
+  path: '/reports/kpi',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedReportsPayrollReconciliationRoute =
   AuthedReportsPayrollReconciliationRouteImport.update({
     id: '/reports/payroll-reconciliation',
@@ -273,6 +279,7 @@ export interface FileRoutesByFullPath {
   '/jobs/create': typeof AuthedJobsCreateRoute
   '/purchasing/stock': typeof AuthedPurchasingStockRoute
   '/reports/job-movement': typeof AuthedReportsJobMovementRoute
+  '/reports/kpi': typeof AuthedReportsKpiRoute
   '/reports/payroll-reconciliation': typeof AuthedReportsPayrollReconciliationRoute
   '/reports/sales-forecast': typeof AuthedReportsSalesForecastRoute
   '/reports/wip': typeof AuthedReportsWipRoute
@@ -313,6 +320,7 @@ export interface FileRoutesByTo {
   '/jobs/create': typeof AuthedJobsCreateRoute
   '/purchasing/stock': typeof AuthedPurchasingStockRoute
   '/reports/job-movement': typeof AuthedReportsJobMovementRoute
+  '/reports/kpi': typeof AuthedReportsKpiRoute
   '/reports/payroll-reconciliation': typeof AuthedReportsPayrollReconciliationRoute
   '/reports/sales-forecast': typeof AuthedReportsSalesForecastRoute
   '/reports/wip': typeof AuthedReportsWipRoute
@@ -355,6 +363,7 @@ export interface FileRoutesById {
   '/_authed/jobs/create': typeof AuthedJobsCreateRoute
   '/_authed/purchasing/stock': typeof AuthedPurchasingStockRoute
   '/_authed/reports/job-movement': typeof AuthedReportsJobMovementRoute
+  '/_authed/reports/kpi': typeof AuthedReportsKpiRoute
   '/_authed/reports/payroll-reconciliation': typeof AuthedReportsPayrollReconciliationRoute
   '/_authed/reports/sales-forecast': typeof AuthedReportsSalesForecastRoute
   '/_authed/reports/wip': typeof AuthedReportsWipRoute
@@ -397,6 +406,7 @@ export interface FileRouteTypes {
     | '/jobs/create'
     | '/purchasing/stock'
     | '/reports/job-movement'
+    | '/reports/kpi'
     | '/reports/payroll-reconciliation'
     | '/reports/sales-forecast'
     | '/reports/wip'
@@ -437,6 +447,7 @@ export interface FileRouteTypes {
     | '/jobs/create'
     | '/purchasing/stock'
     | '/reports/job-movement'
+    | '/reports/kpi'
     | '/reports/payroll-reconciliation'
     | '/reports/sales-forecast'
     | '/reports/wip'
@@ -478,6 +489,7 @@ export interface FileRouteTypes {
     | '/_authed/jobs/create'
     | '/_authed/purchasing/stock'
     | '/_authed/reports/job-movement'
+    | '/_authed/reports/kpi'
     | '/_authed/reports/payroll-reconciliation'
     | '/_authed/reports/sales-forecast'
     | '/_authed/reports/wip'
@@ -631,6 +643,13 @@ declare module '@tanstack/react-router' {
       path: '/reports/job-movement'
       fullPath: '/reports/job-movement'
       preLoaderRoute: typeof AuthedReportsJobMovementRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/reports/kpi': {
+      id: '/_authed/reports/kpi'
+      path: '/reports/kpi'
+      fullPath: '/reports/kpi'
+      preLoaderRoute: typeof AuthedReportsKpiRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/reports/payroll-reconciliation': {
@@ -801,6 +820,7 @@ interface AuthedRouteChildren {
   AuthedJobsCreateRoute: typeof AuthedJobsCreateRoute
   AuthedPurchasingStockRoute: typeof AuthedPurchasingStockRoute
   AuthedReportsJobMovementRoute: typeof AuthedReportsJobMovementRoute
+  AuthedReportsKpiRoute: typeof AuthedReportsKpiRoute
   AuthedReportsPayrollReconciliationRoute: typeof AuthedReportsPayrollReconciliationRoute
   AuthedReportsSalesForecastRoute: typeof AuthedReportsSalesForecastRoute
   AuthedReportsWipRoute: typeof AuthedReportsWipRoute
@@ -836,6 +856,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedJobsCreateRoute: AuthedJobsCreateRoute,
   AuthedPurchasingStockRoute: AuthedPurchasingStockRoute,
   AuthedReportsJobMovementRoute: AuthedReportsJobMovementRoute,
+  AuthedReportsKpiRoute: AuthedReportsKpiRoute,
   AuthedReportsPayrollReconciliationRoute:
     AuthedReportsPayrollReconciliationRoute,
   AuthedReportsSalesForecastRoute: AuthedReportsSalesForecastRoute,
