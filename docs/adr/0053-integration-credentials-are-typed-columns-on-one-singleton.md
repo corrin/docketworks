@@ -2,7 +2,7 @@
 
 Every credential the install uses to reach an external service lives in the database, on
 `apps.platform.integrations.models.IntegrationSettings`, as a typed column of its own. Nothing reads a vendor
-credential from the environment; `.env` holds what Django needs to boot (database, Redis,
+credential from the environment, with the one remainder named below; `.env` holds what Django needs to boot (database, Redis,
 signing keys, paths) and nothing the application could change without a deploy.
 
 IntegrationSettings is owned by platform.integrations (ADR 0055). `GCP_CREDENTIALS` and
