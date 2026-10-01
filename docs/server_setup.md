@@ -185,7 +185,13 @@ sudoers drop-in, nginx config, and `app` symlink to a shared
 and frontend builds live in the shared release, not in the instance
 directory. Integration credentials (Xero app, AI provider keys, phone
 provider) are loaded into the instance's database as fixture rows; the
-loaders skip anything a restored database already carries.
+loaders skip anything a restored database already carries
+(`load_integration_settings` applies an integration only while all of its
+columns are unset, and creates the row a scrubbed restore leaves missing;
+`scripts/ops/restore_checks/check_integration_settings.py` proves each
+credential the way the app uses it). Each instance's databases revoke
+PUBLIC's implicit CONNECT and grant it to the owner role alone, so no
+instance can reach another's data; `reconfigure` retrofits that.
 
 ### Per-instance test database
 
@@ -638,10 +644,16 @@ curl -sI https://docketworks.site/
 ## Resource Notes
 
 - Each Gunicorn service runs 4 uvicorn workers (`-k
-  uvicorn_worker.UvicornWorker`, per the ASGI serving model of ADR 0047) —
+  uvicorn_worker.UvicornWorker --timeout 180`, per the ASGI serving model of ADR 0047) —
   SSE streams ride the event loop, so many can be open per worker at once,
   and sync views are not serialised per worker either; resize against
-  observed load, not against this number
+  observed load, not against this number. The unit stays `gunicorn-<instance>`:
+  deploy, rollback and the sudoers rules address it by that name. Editing a
+  unit template changes the server-setup hash `deploy.sh` compares, so the next
+  deploy re-converges every host — the mechanism working, not a fault.
+- A board whose streams stay connected but receives no events during known
+  writes has lost its Redis listener (django-eventstream never restarts it):
+  restart the instance's gunicorn service.
 - Oracle Cloud ARM free tier: 4 OCPU / 24GB RAM
 - 5-10 concurrent demo instances should run comfortably
 - All packages (Python 3.12, Node 22, PostgreSQL, etc.) have aarch64/ARM builds

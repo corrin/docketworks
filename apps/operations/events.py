@@ -17,6 +17,12 @@ configured (ADR 0047's "Do not" section forbids enabling one), so no event
 ids are emitted and there is no Last-Event-ID resume: catch-up after a
 reconnect is the client's job, done by fetching data-versions on the
 library's ``stream-open`` event.
+
+The library schedules ``start_redis_listener()`` once per server process as an
+asyncio task and never restarts it: a dropped Redis connection ends every push
+while the streams stay open and keep sending keep-alives, so the client's
+disconnect fallback never arms. "Streams connected, no events during known
+writes" is an incident; the fix is a service restart (docs/server_setup.md).
 """
 
 from django.conf import settings
