@@ -30,8 +30,10 @@ and read the value, for one answer. Four operations used it and none does now â€
 they send ``null`` instead, which the same client code already had to handle.
 """
 
+from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal
+from uuid import UUID
 
 from ninja import Schema
 from pydantic import (
@@ -43,6 +45,8 @@ from pydantic import (
 )
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema
+
+from apps.core.audit import AuditEvent
 
 
 class DecimalNumberSchema:
@@ -181,6 +185,51 @@ class ResponseSchema(Schema):
     """
 
     model_config = ConfigDict(json_schema_extra=always_present)
+
+
+class FieldChangeOut(ResponseSchema):
+    """One field's before/after values on an audit event."""
+
+    field_name: str
+    old_value: str
+    new_value: str
+
+
+class AuditEventOut(ResponseSchema):
+    """One audit event as every domain's history panel shows it.
+
+    A domain's event schema subclasses this and adds nothing unless its
+    panel shows more; the three resolvers read the ``AuditEvent`` base.
+    """
+
+    id: UUID
+    timestamp: datetime
+    event_type: str
+    staff_name: str
+    description: str
+    changes: list[FieldChangeOut]
+
+    @staticmethod
+    def resolve_staff_name(obj: AuditEvent) -> str:
+        """Resolve the acting staff member's display name."""
+        return obj.staff.get_display_full_name()
+
+    @staticmethod
+    def resolve_changes(obj: AuditEvent) -> list[FieldChangeOut]:
+        """Read the event's recorded field changes, empty if it made none."""
+        # detail defaults to {} at the model; absent "changes" means an event
+        # with no field changes (e.g. a creation), not corrupt data. The
+        # per-field str() casts are what keep this typed rather than
+        # JSONField's Any.
+        raw_changes = obj.detail.get("changes", [])
+        return [
+            FieldChangeOut(
+                field_name=str(change["field_name"]),
+                old_value=str(change["old_value"]),
+                new_value=str(change["new_value"]),
+            )
+            for change in raw_changes
+        ]
 
 
 AuthErrorCode = Literal["authentication_required", "invalid_credentials"]

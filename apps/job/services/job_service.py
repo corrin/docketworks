@@ -2840,7 +2840,7 @@ def update_job_labour_rates(
     """Apply per-subtype rate changes.
 
     Changed rates are recorded in one ``pricing_changed`` JobEvent whose
-    ``detail.changes`` entries render via ``_render_change``.
+    ``detail.changes`` entries render via ``AuditEvent.render_change``.
     """
     subtypes = LabourSubtype.objects.in_bulk([e["labour_subtype"] for e in entries])
     missing = [str(e["labour_subtype"]) for e in entries if e["labour_subtype"] not in subtypes]
@@ -2870,7 +2870,7 @@ def update_job_labour_rates(
             if rate.charge_out_rate == entry["charge_out_rate"]:
                 continue
             # Each change must be a dict {field_name, old_value, new_value} —
-            # JobEvent.build_description renders them via _render_change.
+            # JobEvent.build_description renders them via AuditEvent.render_change.
             changes.append(
                 {
                     "field_name": f"{rate.labour_subtype.name} charge-out rate",

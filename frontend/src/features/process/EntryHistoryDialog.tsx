@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 
 import { processEntriesHistoryListOptions, type EntryOut } from '@/api'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AuditEventList } from '@/features/shared/AuditEventList'
 import { QueryState } from '@/features/shared/QueryState'
-import { formatDateTime } from '@/lib/format'
 
 interface Props {
   /** The entry whose history is shown, or null while the dialog is closed. */
@@ -48,35 +48,11 @@ function HistoryBody({ entry }: { entry: EntryOut }) {
         loadingLabel="Loading history..."
         errorLabel="Failed to load this entry's history."
       >
-        {events.length === 0 ? (
-          <p className="text-sm text-slate-500">No history recorded yet.</p>
-        ) : (
-          <ul className="flex flex-col gap-3" data-automation-id="EntryHistoryDialog-list">
-            {events.map((event) => (
-              <li
-                key={event.id}
-                data-automation-id={`EntryHistoryDialog-event-${event.id}`}
-                className="rounded-md border border-slate-200 p-3 text-sm"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium text-slate-800">{event.staff_name}</span>
-                  <span className="text-xs text-slate-500">{formatDateTime(event.timestamp)}</span>
-                </div>
-                <p className="mt-1 text-slate-700">{event.description}</p>
-                {event.changes.length > 0 && (
-                  <ul className="mt-2 flex flex-col gap-1 text-xs text-slate-600">
-                    {event.changes.map((change) => (
-                      <li key={change.field_name}>
-                        <span className="font-medium">{change.field_name}</span>:{' '}
-                        {change.old_value || '—'} &rarr; {change.new_value || '—'}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        <AuditEventList
+          events={events}
+          automationIdPrefix="EntryHistoryDialog"
+          emptyLabel="No history recorded yet."
+        />
       </QueryState>
     </DialogContent>
   )

@@ -2937,9 +2937,7 @@ export type EntryEventOut = {
     /**
      * Changes
      */
-    changes: Array<{
-        [key: string]: string;
-    }>;
+    changes: Array<FieldChangeOut>;
     /**
      * Description
      */
@@ -3189,6 +3187,26 @@ export type FetchStatusValuesResponse = {
     tooltips: {
         [key: string]: string;
     };
+};
+
+/**
+ * FieldChangeOut
+ *
+ * One field's before/after values on an audit event.
+ */
+export type FieldChangeOut = {
+    /**
+     * Field Name
+     */
+    field_name: string;
+    /**
+     * New Value
+     */
+    new_value: string;
+    /**
+     * Old Value
+     */
+    old_value: string;
 };
 
 /**
@@ -9387,21 +9405,29 @@ export type PurchaseOrderEventCreateResponse = {
 /**
  * PurchaseOrderEventOut
  *
- * Wire contract for PurchaseOrderEventOut.
+ * One note on a purchase order, for its Notes & History section.
  */
 export type PurchaseOrderEventOut = {
+    /**
+     * Changes
+     */
+    changes: Array<FieldChangeOut>;
     /**
      * Description
      */
     description: string;
     /**
+     * Event Type
+     */
+    event_type: string;
+    /**
      * Id
      */
     id: string;
     /**
-     * Staff
+     * Staff Name
      */
-    staff: string;
+    staff_name: string;
     /**
      * Timestamp
      */

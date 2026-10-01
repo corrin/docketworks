@@ -14,9 +14,11 @@ describe('PO notes and history', () => {
     let saved = false
     const note = {
       id: 'note-1',
+      event_type: 'manual_note',
       description: 'Collect on Thursday\nAsk for Sam.',
-      staff: 'Office User',
+      staff_name: 'Office User',
       timestamp: '2026-09-06T04:00:00Z',
+      changes: [],
     }
     server.use(
       http.get(EVENTS, () => HttpResponse.json({ events: saved ? [note] : [] })),

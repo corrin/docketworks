@@ -300,7 +300,7 @@ class TestEveryWrittenEventTypeRenders:
         return written
 
     def test_no_written_event_type_falls_through_to_the_sentinel(self) -> None:
-        unregistered = self._written_event_types() - set(JobEvent._DESCRIPTION_BUILDERS)
+        unregistered = self._written_event_types() - set(JobEvent.DESCRIPTION_BUILDERS)
         assert not unregistered, (
             f"job history would show a raw sentinel for: {sorted(unregistered)}"
         )

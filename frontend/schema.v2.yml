@@ -3333,9 +3333,7 @@ components:
       properties:
         changes:
           items:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/components/schemas/FieldChangeOut'
           title: Changes
           type: array
         description:
@@ -3356,12 +3354,12 @@ components:
           title: Timestamp
           type: string
       required:
-      - id
-      - timestamp
-      - event_type
-      - staff_name
-      - description
       - changes
+      - description
+      - event_type
+      - id
+      - staff_name
+      - timestamp
       title: EntryEventOut
       type: object
     EntryOut:
@@ -3616,6 +3614,24 @@ components:
       - success
       - tooltips
       title: FetchStatusValuesResponse
+      type: object
+    FieldChangeOut:
+      description: One field's before/after values on an audit event.
+      properties:
+        field_name:
+          title: Field Name
+          type: string
+        new_value:
+          title: New Value
+          type: string
+        old_value:
+          title: Old Value
+          type: string
+      required:
+      - field_name
+      - new_value
+      - old_value
+      title: FieldChangeOut
       type: object
     FinishJobSummaryOut:
       description: 'The authoritative customer balance shown in the Finish Job workspace.
@@ -10608,27 +10624,37 @@ components:
       title: PurchaseOrderEventCreateResponse
       type: object
     PurchaseOrderEventOut:
-      description: Wire contract for PurchaseOrderEventOut.
+      description: One note on a purchase order, for its Notes & History section.
       properties:
+        changes:
+          items:
+            $ref: '#/components/schemas/FieldChangeOut'
+          title: Changes
+          type: array
         description:
           title: Description
+          type: string
+        event_type:
+          title: Event Type
           type: string
         id:
           format: uuid
           title: Id
           type: string
-        staff:
-          title: Staff
+        staff_name:
+          title: Staff Name
           type: string
         timestamp:
           format: date-time
           title: Timestamp
           type: string
       required:
-      - id
+      - changes
       - description
+      - event_type
+      - id
+      - staff_name
       - timestamp
-      - staff
       title: PurchaseOrderEventOut
       type: object
     PurchaseOrderEventsResponse:

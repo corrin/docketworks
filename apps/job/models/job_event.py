@@ -1,7 +1,6 @@
 """The JobEvent model: the append-only audit trail for job changes."""
 
 import hashlib
-import uuid
 from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, ClassVar
@@ -10,6 +9,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.timezone import now
 
+from apps.core.audit import AuditEvent, truncate_change
+
 
 def _truthy(value: object) -> bool:
     if isinstance(value, bool):
@@ -17,15 +18,6 @@ def _truthy(value: object) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"true", "yes", "1"}
     return bool(value)
-
-
-def _truncate(text: object, max_chars: int = 60) -> str:
-    if text is None or text == "":
-        return ""
-    text_str = str(text)
-    if len(text_str) <= max_chars:
-        return text_str
-    return text_str[: max_chars - 1].rstrip() + "…"
 
 
 def _format_ordinal(n: int | None) -> str:
@@ -43,10 +35,6 @@ def _format_status(slug: str | None) -> str:
     from apps.job.models.job import Job  # noqa: PLC0415
 
     return dict(Job.JOB_STATUS_CHOICES).get(slug, slug.replace("_", " ").title())
-
-
-def _truncate_change(label: str, old: object, new: object) -> str:
-    return f"{label} changed from '{_truncate(old)}' to '{_truncate(new)}'"
 
 
 def _completion_confirmation_descriptor(
@@ -76,7 +64,7 @@ def _quote_acceptance_descriptor(old: object, new: object) -> str:
 
 
 # Per-field descriptor: field_name (as it appears in detail.changes[].field_name)
-# → callable(old, new) → str. Fields not listed here use _default_descriptor.
+# → callable(old, new) → str. Fields not listed here use the base's default sentence.
 _FIELD_DESCRIPTORS: dict[str, Callable[[object, object], str]] = {
     "Rejected": lambda old, new: (  # noqa: ARG005 -- (old, new) callback protocol
         "Job marked as rejected" if _truthy(new) else "Rejection cleared"
@@ -101,41 +89,14 @@ _FIELD_DESCRIPTORS: dict[str, Callable[[object, object], str]] = {
         "Customer called", "Customer call unconfirmed"
     ),
     "Job released": _completion_confirmation_descriptor("Job released", "Job release withdrawn"),
-    "Internal notes": lambda old, new: _truncate_change("Notes", old, new),
-    "Job description": lambda old, new: _truncate_change("Description", old, new),
-    "Notes": lambda old, new: _truncate_change("Notes", old, new),
-    "Description": lambda old, new: _truncate_change("Description", old, new),
+    "Internal notes": lambda old, new: truncate_change("Notes", old, new),
+    "Job description": lambda old, new: truncate_change("Description", old, new),
+    "Notes": lambda old, new: truncate_change("Notes", old, new),
+    "Description": lambda old, new: truncate_change("Description", old, new),
 }
 
 
-def _default_descriptor(field_name: str, old: object, new: object) -> str:
-    return f"{field_name} changed from '{old}' to '{new}'"
-
-
-def _render_change(change: dict[str, Any]) -> str:
-    field = change.get("field_name", "")
-    # Fallback for events written before 2026-04-22, the last date a job event
-    # was recorded without structured values. Those rows name the field that
-    # moved but not what it moved between, because the writer of the day stored
-    # only a rendered sentence. The values cannot be recovered — nothing else
-    # holds a job's notes or description as they were at that moment — so this
-    # says what is known. Rendering "changed from '' to ''" was rejected: it
-    # asserts a change to empty, which is a different and false fact. Every
-    # writer since records both values, so no new row reaches this branch.
-    # The text says so outright. "Notes updated" reads like an ordinary entry
-    # and hides that the before and after are gone; someone auditing the job
-    # would take it at face value and stop looking.
-    if "old_value" not in change and "new_value" not in change:
-        return f"{field} changed (details lost)" if field else "Changed (details lost)"
-    old = change.get("old_value", "")
-    new = change.get("new_value", "")
-    descriptor = _FIELD_DESCRIPTORS.get(field)
-    if descriptor:
-        return descriptor(old, new)
-    return _default_descriptor(field, old, new)
-
-
-class JobEvent(models.Model):
+class JobEvent(AuditEvent):
     """One audit event on a job: a field change, status move, or business action."""
 
     # Field-change events are created automatically by Job.save() in
@@ -174,19 +135,16 @@ class JobEvent(models.Model):
     # All JobEvent model fields (derived)
     JOBEVENT_ALL_FIELDS: ClassVar[list[str]] = JOBEVENT_API_FIELDS + JOBEVENT_INTERNAL_FIELDS
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     job = models.ForeignKey(
         "Job", on_delete=models.CASCADE, related_name="events", null=True, blank=True
     )
-    timestamp = models.DateTimeField(default=now)
-    staff = models.ForeignKey("accounts.Staff", on_delete=models.PROTECT)
+    # Redeclared over the base: job events predate the base and their rows
+    # carry this default, so the column keeps it.
     event_type = models.CharField(
         max_length=100, null=False, blank=False, default="automatic_event"
     )  # e.g., "status_change", "manual_note"
     schema_version = models.PositiveSmallIntegerField(default=0)
     change_id = models.UUIDField(null=True, blank=True)
-    delta_before = models.JSONField(null=True, blank=True)
-    delta_after = models.JSONField(null=True, blank=True)
     delta_meta = models.JSONField(null=True, blank=True)
     delta_checksum = models.CharField(max_length=128, blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
 
@@ -204,9 +162,7 @@ class JobEvent(models.Model):
         help_text="MD5 hash for deduplication based on job+staff+description+type",
     )
 
-    class Meta:
-        ordering: ClassVar[list[str]] = ["-timestamp"]
-
+    class Meta(AuditEvent.Meta):
         # Database constraints for preventing duplicates
         constraints: ClassVar[list[models.BaseConstraint]] = [
             # Prevent duplicate manual events by same user on same job
@@ -261,34 +217,11 @@ class JobEvent(models.Model):
                     "Please wait before adding another."
                 )
 
-    @property
-    def description(self) -> str:
-        """Human-readable description of the event."""
-        return self.build_description()
-
-    def build_description(self) -> str:
-        """Generate human-readable description from event_type + detail.
-
-        Every event describes itself from its own detail: dispatch to
-        _DESCRIPTION_BUILDERS[event_type], falling through to a
-        f"({event_type})" sentinel that a registered builder makes unreachable.
-        """
-        detail = self.detail or {}
-        builder = self._DESCRIPTION_BUILDERS.get(self.event_type)
-        if builder:
-            built = builder(detail)
-            if built:
-                return built
-
-        return f"({self.event_type})"
-
     @staticmethod
     def _build_changes_description(detail: dict[str, Any]) -> str:
-        changes = detail.get("changes", [])
-        if not changes:
-            return ""
-        parts = [_render_change(change) for change in changes]
-        return ". ".join(part for part in parts if part)
+        # Bound at call time so the base's renderer sees JobEvent's descriptors;
+        # a bare name in the class body does not resolve to the inherited classmethod.
+        return JobEvent.build_changes_description(detail)
 
     @staticmethod
     def _build_priority_changed_description(detail: dict[str, Any]) -> str:  # noqa: PLR0911 -- Each event detail shape has an explicit rendering branch.
@@ -405,13 +338,6 @@ class JobEvent(models.Model):
         return ". ".join(sentences) + "."
 
     @staticmethod
-    def _build_manual_note_description(detail: dict[str, Any]) -> str:
-        note_text = detail.get("note_text", "")
-        # Non-str payloads (e.g. explicit null) render as "" — falsy either
-        # way, so build_description falls through to its generic rendering.
-        return note_text if isinstance(note_text, str) else ""
-
-    @staticmethod
     def _build_invoice_created_description(detail: dict[str, Any]) -> str:
         number = detail.get("xero_invoice_number", "Unknown")
         return f"Invoice {number} created in Xero"
@@ -460,7 +386,12 @@ class JobEvent(models.Model):
         title = detail.get("jsa_title", "Unknown")
         return f"JSA generated: {title}"
 
-    _DESCRIPTION_BUILDERS: ClassVar[dict[str, Callable[[dict[str, Any]], str]]] = {
+    FIELD_DESCRIPTORS = _FIELD_DESCRIPTORS
+
+    # Every event type a writer records is registered here: the sentinel the
+    # base falls through to is for a type nobody writes
+    # (test_no_written_event_type_falls_through_to_the_sentinel).
+    DESCRIPTION_BUILDERS: ClassVar[dict[str, Callable[[dict[str, Any]], str]]] = {
         "job_created": _build_job_created_description,
         "status_changed": _build_status_changed_description,
         "job_updated": _build_changes_description,
@@ -477,7 +408,7 @@ class JobEvent(models.Model):
         "collection_updated": _build_changes_description,
         "job_rejected": _build_changes_description,
         "completion_checklist_updated": _build_changes_description,
-        "manual_note": _build_manual_note_description,
+        "manual_note": AuditEvent.manual_note_description,
         "invoice_created": _build_invoice_created_description,
         "invoice_deleted": _build_invoice_deleted_description,
         "invoice_amount_changed": _build_invoice_amount_changed_description,

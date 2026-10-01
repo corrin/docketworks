@@ -1150,20 +1150,6 @@ export const zEntryCreateIn = z.object({
 });
 
 /**
- * EntryEventOut
- *
- * One audit event on a form entry, for the entry's history panel.
- */
-export const zEntryEventOut = z.object({
-    changes: z.array(z.record(z.string(), z.string())),
-    description: z.string(),
-    event_type: z.string(),
-    id: z.uuid(),
-    staff_name: z.string(),
-    timestamp: z.iso.datetime()
-});
-
-/**
  * EntryOut
  *
  * One form entry — the entry list row and the entry detail alike.
@@ -1231,6 +1217,31 @@ export const zFetchStatusValuesResponse = z.object({
     statuses: z.record(z.string(), z.string()),
     success: z.boolean().default(true),
     tooltips: z.record(z.string(), z.string())
+});
+
+/**
+ * FieldChangeOut
+ *
+ * One field's before/after values on an audit event.
+ */
+export const zFieldChangeOut = z.object({
+    field_name: z.string(),
+    new_value: z.string(),
+    old_value: z.string()
+});
+
+/**
+ * EntryEventOut
+ *
+ * One audit event on a form entry, for the entry's history panel.
+ */
+export const zEntryEventOut = z.object({
+    changes: z.array(zFieldChangeOut),
+    description: z.string(),
+    event_type: z.string(),
+    id: z.uuid(),
+    staff_name: z.string(),
+    timestamp: z.iso.datetime()
 });
 
 /**
@@ -4104,12 +4115,14 @@ export const zPurchaseOrderEventCreateRequest = z.object({
 /**
  * PurchaseOrderEventOut
  *
- * Wire contract for PurchaseOrderEventOut.
+ * One note on a purchase order, for its Notes & History section.
  */
 export const zPurchaseOrderEventOut = z.object({
+    changes: z.array(zFieldChangeOut),
     description: z.string(),
+    event_type: z.string(),
     id: z.uuid(),
-    staff: z.string(),
+    staff_name: z.string(),
     timestamp: z.iso.datetime()
 });
 

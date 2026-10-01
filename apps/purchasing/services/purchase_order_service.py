@@ -535,34 +535,18 @@ def update_purchase_order(
 # ── Events ───────────────────────────────────────────────────────────────
 
 
-class PurchaseOrderEventData(TypedDict):
-    """Data contract for PurchaseOrderEventData."""
-
-    id: UUID
-    description: str
-    timestamp: object
-    staff: str
-
-
-def purchase_order_event_data(event: PurchaseOrderEvent) -> PurchaseOrderEventData:
-    """Serialise one PO event."""
-    return {
-        "id": event.id,
-        "description": event.description,
-        "timestamp": event.timestamp,
-        "staff": event.staff.get_display_full_name(),
-    }
-
-
-def list_purchase_order_events(po: PurchaseOrder) -> list[PurchaseOrderEventData]:
+def list_purchase_order_events(po: PurchaseOrder) -> list[PurchaseOrderEvent]:
     """List a PO's events, newest first (model default ordering)."""
-    return [purchase_order_event_data(event) for event in po.events.select_related("staff").all()]
+    return list(po.events.select_related("staff"))
 
 
 def create_purchase_order_event(
     po: PurchaseOrder, description: str, staff: Staff
 ) -> PurchaseOrderEvent:
-    """Record a manual note on a PO."""
+    """Record a manual note on a PO, in the shape JobEvent gives a typed note."""
     return PurchaseOrderEvent.objects.create(
-        purchase_order=po, staff=staff, description=description
+        purchase_order=po,
+        staff=staff,
+        event_type="manual_note",
+        detail={"note_text": description},
     )

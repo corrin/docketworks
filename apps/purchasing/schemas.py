@@ -15,6 +15,7 @@ from pydantic import ConfigDict, Field, field_validator
 
 from apps.company.schemas import SupplierPickupAddressOut, clean_optional_email
 from apps.core.schemas import (
+    AuditEventOut,
     NonBlankText,
     NullableText,
     Quantity,
@@ -295,13 +296,8 @@ class PurchaseOrderLastNumberResponse(Schema):
 # ── Purchase order events ────────────────────────────────────────────────
 
 
-class PurchaseOrderEventOut(Schema):
-    """Wire contract for PurchaseOrderEventOut."""
-
-    id: UUID
-    description: str
-    timestamp: datetime
-    staff: str
+class PurchaseOrderEventOut(AuditEventOut):
+    """One note on a purchase order, for its Notes & History section."""
 
 
 class PurchaseOrderEventsResponse(Schema):
