@@ -38,6 +38,12 @@ source of competing components. No reference page is exempt from the breaches be
 - **Actions:** record actions belong in the record header, section actions beside
   their heading, and row actions in the row. Use clear verb labels and avoid repeating
   the same action in multiple locations without a workflow reason.
+- **Report filters live in the URL, defaults included.** The month, period, ladder or
+  precision a report is showing is in the address bar from the first paint: a bare route
+  redirects (`beforeLoad`, `replace: true`) to one that names its defaults, and every
+  control writes its change there. A copied link then reopens on what it showed, not on
+  what "today" means when it is opened. Owner requirement, 2026-10-01; the KPI calendar
+  route is the reference.
 - **Supporting information:** totals stay associated with the data they summarise.
   Side panels must leave the main task usable and stack when space is insufficient.
   Notes/history remain reachable after long collections and show author and timestamp.

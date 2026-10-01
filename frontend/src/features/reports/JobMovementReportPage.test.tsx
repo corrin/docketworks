@@ -1,10 +1,12 @@
 import { http, HttpResponse } from 'msw'
 import { screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { renderWithProviders } from '@/test/render'
 import { server } from '@/test/msw'
 import { JobMovementReportPage } from './JobMovementReportPage'
+
+const RANGE = { startDate: '2026-07-27', endDate: '2026-08-09' }
 
 const movementResponse = {
   period: { start_date: '2026-07-27', end_date: '2026-08-09', days: 14 },
@@ -29,7 +31,9 @@ describe('JobMovementReportPage', () => {
     server.use(
       http.get('*/api/accounting/reports/job-movement/', () => HttpResponse.json(movementResponse)),
     )
-    const { container } = renderWithProviders(<JobMovementReportPage />)
+    const { container } = renderWithProviders(
+      <JobMovementReportPage range={RANGE} onRangeChange={vi.fn()} />,
+    )
 
     expect(await screen.findByText('28.6%')).toBeVisible()
     expect(
@@ -47,7 +51,7 @@ describe('JobMovementReportPage', () => {
         HttpResponse.json({ metrics: { draft_jobs_created: { count: 'seven' } } }),
       ),
     )
-    renderWithProviders(<JobMovementReportPage />)
+    renderWithProviders(<JobMovementReportPage range={RANGE} onRangeChange={vi.fn()} />)
 
     expect(await screen.findByText('Failed to load the job movement report.')).toBeVisible()
   })

@@ -20,6 +20,10 @@ test.describe('Job Movement Report', () => {
         response.status() === 200,
     )
     await autoId(page, 'JobMovementReport-last-fortnight').click()
+    // The period is the URL's: a bare /reports/job-movement was redirected to
+    // name this fortnight, and the preset wrote last fortnight over it.
+    await expect(page).toHaveURL(/[?&]start=\d{4}-\d{2}-\d{2}/)
+    await expect(page).toHaveURL(/[?&]end=\d{4}-\d{2}-\d{2}/)
     // The endpoint answers `dict` (its comparison and detail sections merge in
     // dynamically), so the page pins the shape it reads with zod; the spec pins
     // the three fields it asserts the same way rather than asserting from any.

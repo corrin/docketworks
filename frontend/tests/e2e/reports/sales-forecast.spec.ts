@@ -98,6 +98,8 @@ test.describe('Sales Forecast Report', () => {
       await expect(autoId(page, 'SalesForecastReport-table')).toBeVisible()
     }
     expect(drilled, 'no month carried two different companies to sort').not.toBe('')
+    // The drilled month is the URL's, so this view can be linked to.
+    await expect(page).toHaveURL(/[?&]month=\d{4}-\d{2}/)
 
     // Opus: The clicked month, not merely "a month": the label proves the row's
     // YYYY-MM survived the round trip through the path parameter.
@@ -118,5 +120,6 @@ test.describe('Sales Forecast Report', () => {
     await autoId(page, 'SalesForecastReport-back').click()
     await expect(autoId(page, 'SalesForecastReport-table')).toBeVisible()
     await expect(detailTable).toBeHidden()
+    await expect(page).toHaveURL(/\/reports\/sales-forecast$/)
   })
 })

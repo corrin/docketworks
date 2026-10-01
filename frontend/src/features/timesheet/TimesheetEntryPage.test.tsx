@@ -95,7 +95,7 @@ function installHandlers(options: { weekendEnabled?: boolean; lines?: unknown[] 
   )
 }
 
-function renderPage(search: TimesheetEntrySearch) {
+function renderPage(search: TimesheetEntrySearch & { date: string }) {
   const onSearchChange = vi.fn()
   const onOpenDaily = vi.fn()
   renderWithProviders(

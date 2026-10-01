@@ -30,7 +30,9 @@ export interface TimesheetEntrySearch {
 }
 
 export interface TimesheetEntryPageProps {
-  search: TimesheetEntrySearch
+  /** The route has already written the date into the URL (docs/design-language.md);
+      the staff member is chosen on the page and may still be unset. */
+  search: TimesheetEntrySearch & { date: string }
   onSearchChange: (search: Required<TimesheetEntrySearch>) => void
   onOpenDaily: (date: string) => void
 }
@@ -48,7 +50,7 @@ export function TimesheetEntryPage({
   onSearchChange,
   onOpenDaily,
 }: TimesheetEntryPageProps) {
-  const date = search.date ?? localIsoDate()
+  const { date } = search
 
   const staffQuery = useQuery(timesheetsStaffRetrieveOptions({ query: { date } }))
   const jobsQuery = useQuery(timesheetsJobsRetrieveOptions())

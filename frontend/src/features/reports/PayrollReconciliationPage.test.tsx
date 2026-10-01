@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { server } from '@/test/msw'
 import { renderWithProviders } from '@/test/render'
@@ -77,7 +77,9 @@ describe('PayrollReconciliationPage', () => {
     // difference on every employee every week and bury the real ones.
     server.use(http.get(ENDPOINT, () => HttpResponse.json(response([row()]))))
 
-    renderWithProviders(<PayrollReconciliationPage weekStart={WEEK} />)
+    renderWithProviders(
+      <PayrollReconciliationPage weekStart={WEEK} wageBasis="base" onWageBasisChange={vi.fn()} />,
+    )
 
     expect(await screen.findByText('Charlie Nelson')).toBeVisible()
     expect(screen.getAllByText('$320.00').length).toBeGreaterThan(0)
@@ -94,7 +96,9 @@ describe('PayrollReconciliationPage', () => {
     // the place an operator is deciding whether payroll is right.
     server.use(http.get(ENDPOINT, () => HttpResponse.json(response([row()]))))
 
-    renderWithProviders(<PayrollReconciliationPage weekStart={WEEK} />)
+    renderWithProviders(
+      <PayrollReconciliationPage weekStart={WEEK} wageBasis="base" onWageBasisChange={vi.fn()} />,
+    )
 
     expect(await screen.findByText('Charlie Nelson')).toBeVisible()
     expect(screen.getByText('$1,234.56')).toBeVisible()
@@ -125,7 +129,9 @@ describe('PayrollReconciliationPage', () => {
       ),
     )
 
-    renderWithProviders(<PayrollReconciliationPage weekStart={WEEK} />)
+    renderWithProviders(
+      <PayrollReconciliationPage weekStart={WEEK} wageBasis="base" onWageBasisChange={vi.fn()} />,
+    )
 
     expect(await screen.findByText('Left — Xero is still paying them')).toBeVisible()
     expect(
@@ -137,7 +143,9 @@ describe('PayrollReconciliationPage', () => {
   it('says so when Xero has no pay run, rather than reporting a difference', async () => {
     server.use(http.get(ENDPOINT, () => HttpResponse.json(response([], 'no_pay_run'))))
 
-    renderWithProviders(<PayrollReconciliationPage weekStart={WEEK} />)
+    renderWithProviders(
+      <PayrollReconciliationPage weekStart={WEEK} wageBasis="base" onWageBasisChange={vi.fn()} />,
+    )
 
     expect(
       await screen.findByText(/Xero has no pay run for this week yet/, { exact: false }),
