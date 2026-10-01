@@ -5,7 +5,7 @@ import { getDailyTimesheetSummaryByDateOptions } from '@/api'
 import type { DailyTimesheetSummaryOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { QueryState } from '@/features/shared/QueryState'
-import { formatDate, localIsoDate } from '@/lib/format'
+import { formatDateLong, localIsoDate } from '@/lib/format'
 import { shiftDate } from '@/lib/dates'
 
 export interface DailyOverviewSearch {
@@ -66,7 +66,9 @@ export function DailyOverviewPage({ search, onDateChange, onOpenEntry }: DailyOv
         <Button variant="outline" size="sm" onClick={() => onDateChange(localIsoDate())}>
           Today
         </Button>
-        <span className="text-sm text-slate-600">{formatDate(date)}</span>
+        <span className="text-sm text-slate-600" data-automation-id="DailyOverview-date">
+          {formatDateLong(date)}
+        </span>
         <Button
           variant="outline"
           size="sm"

@@ -84,6 +84,14 @@ describe('DailyOverviewPage', () => {
     expect(autoId('StaffRow-name-staff-1')).toHaveTextContent('Wendy Workshop')
   })
 
+  it('names the weekday in the date header', async () => {
+    renderPage()
+    // Trips if the header span goes back to formatDate, which has no weekday.
+    await waitFor(() =>
+      expect(autoId('DailyOverview-date')).toHaveTextContent('Friday, 7 August 2026'),
+    )
+  })
+
   it('clicking the staff name opens the entry page for that staff and date', async () => {
     const { onOpenEntry } = renderPage()
     const user = userEvent.setup()
