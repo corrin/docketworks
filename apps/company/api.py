@@ -38,7 +38,6 @@ from apps.company.schemas import (
     CompanyCreateRequest,
     CompanyCreateResponse,
     CompanyDetailResponse,
-    CompanyJobsResponse,
     CompanyLinkWriteRequest,
     CompanyNameOnly,
     CompanyPerson,
@@ -50,6 +49,7 @@ from apps.company.schemas import (
     ContactMethodListQuery,
     ContactMethodOut,
     ContactMethodRequest,
+    CrmJobRowsResponse,
     DuplicateIdentitiesResponse,
     DuplicatePhonesResponse,
     PaginatedContactMethodList,
@@ -324,7 +324,7 @@ def companies_update_partial_update(
     "/companies/{uuid:company_id}/jobs/",
     auth=auth,
     operation_id="companies_jobs_retrieve",
-    response=CompanyJobsResponse,
+    response=CrmJobRowsResponse,
     summary="Get company jobs",
     tags=["Companies"],
 )
@@ -840,6 +840,22 @@ def people_list(
 
 
 @router.get(
+    "/people/{uuid:person_id}/jobs/",
+    auth=office_auth,
+    operation_id="people_jobs_retrieve",
+    response=CrmJobRowsResponse,
+    summary="Get the jobs a person is the contact for",
+    tags=["people"],
+)
+def people_jobs_retrieve(request: HttpRequest, person_id: UUID) -> dict[str, object]:
+    """Every job whose contact is this person, with its invoices, newest first (KAN-372)."""
+    try:
+        return {"results": CompanyRestService.get_person_jobs(person_id)}
+    except ValueError as exc:
+        raise Http404(str(exc)) from exc
+
+
+@router.get(
     "/people/{uuid:person_id}/",
     auth=office_auth,
     operation_id="people_retrieve",
@@ -848,14 +864,14 @@ def people_list(
 )
 def people_retrieve(request: HttpRequest, person_id: UUID) -> PersonDetailData:
     """Retrieve a Person's identity fields and relationships."""
-    person = get_object_or_404(Person, id=person_id)
+    person = get_object_or_404(Person.objects.with_invoice_summary(), id=person_id)
     return PersonDirectoryService.detail_data(person)
 
 
 def _apply_identity_update(
     person_id: UUID, payload: PersonIdentityUpdateRequest
 ) -> PersonDetailData:
-    person = get_object_or_404(Person, id=person_id)
+    person = get_object_or_404(Person.objects.with_invoice_summary(), id=person_id)
     supplied = payload.model_dump(exclude_unset=True)
     update_fields = ["updated_at"]
     if "name" in supplied:
@@ -907,8 +923,11 @@ def people_archive_create(request: HttpRequest, person_id: UUID) -> PersonDetail
     """Explicitly retire a person (deactivate all links + archive)."""
     person = get_object_or_404(Person, id=person_id)
     archive_person(person=person)
-    person.refresh_from_db()
-    return PersonDirectoryService.detail_data(person)
+    # Re-read through the annotated queryset rather than refresh_from_db():
+    # the detail body carries the invoice figures, which only that query sets.
+    return PersonDirectoryService.detail_data(
+        get_object_or_404(Person.objects.with_invoice_summary(), id=person_id)
+    )
 
 
 @router.get(

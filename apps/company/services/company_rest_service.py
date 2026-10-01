@@ -15,17 +15,18 @@ import json
 import logging
 import re
 from datetime import date, datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING, NotRequired, TypedDict, cast
 from uuid import UUID, uuid4
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Case, IntegerField, Q, QuerySet, When
+from django.db.models import Case, IntegerField, Prefetch, Q, QuerySet, When
 from django.http import HttpRequest
 from django.utils import timezone
 
 from apps.accounting.registry import get_provider
-from apps.company.models import Company, ContactMethod, SupplierPickupAddress
+from apps.company.models import Company, ContactMethod, Person, SupplierPickupAddress
 from apps.company.services.contact_methods import (
     clear_company_primary_phone,
     set_primary_phone,
@@ -139,8 +140,23 @@ class CompanyJobCompanyData(TypedDict):
     name: str
 
 
-class CompanyJobHeaderData(TypedDict):
-    """Data contract for CompanyJobHeaderData."""
+class JobInvoiceRefData(TypedDict):
+    """One sales invoice on a job header row (KAN-372)."""
+
+    id: str
+    number: str
+    date: date
+    status: str
+    total_excl_tax: float
+    online_url: str | None
+
+
+class CrmJobRowData(TypedDict):
+    """One job as the company and person job lists both return it (KAN-372).
+
+    Not ``job_service.JobHeaderData``: that is the job page's own header, with
+    description, notes and price cap; this is the CRM list row.
+    """
 
     job_id: str
     job_number: int
@@ -157,6 +173,8 @@ class CompanyJobHeaderData(TypedDict):
     rejected_flag: bool
     min_people: int
     max_people: int
+    invoices: list[JobInvoiceRefData]
+    invoiced_total_excl_tax: float
 
 
 class CompanyUpdateData(TypedDict, total=False):
@@ -821,58 +839,98 @@ class CompanyRestService:
         }
 
     @staticmethod
-    def get_company_jobs(company_id: UUID) -> list[CompanyJobHeaderData]:
+    def get_company_jobs(company_id: UUID) -> list[CrmJobRowData]:
         """Return all jobs for a company as header rows (newest first).
 
         Raises:
             ValueError: if the company does not exist.
         """
-        try:
-            if not Company.objects.filter(id=company_id).exists():
-                raise ValueError(f"Company with id {company_id} not found")
+        if not Company.objects.filter(id=company_id).exists():
+            raise ValueError(f"Company with id {company_id} not found")
+        return _job_headers(company_id=company_id)
 
-            # Function-level import: job imports company at module level, so a
-            # module-level import here would create a cycle.
-            from apps.job.models import Job  # noqa: PLC0415
+    @staticmethod
+    def get_person_jobs(person_id: UUID) -> list[CrmJobRowData]:
+        """Return all jobs a person is the contact for, newest first (KAN-372).
 
-            query_fields = ["id", "company_id", *Job.JOB_DIRECT_FIELDS]
-            jobs = (
-                Job.objects.filter(company_id=company_id)
-                # quote joined in because job.quoted reads it per job below
-                .select_related("company", "quote")
-                .only(*query_fields, "quote__id")
-                .order_by("-job_number")
+        Raises:
+            ValueError: if the person does not exist.
+        """
+        if not Person.objects.filter(id=person_id).exists():
+            raise ValueError(f"Person with id {person_id} not found")
+        return _job_headers(person_id=person_id)
+
+
+def _job_headers(
+    *, company_id: UUID | None = None, person_id: UUID | None = None
+) -> list[CrmJobRowData]:
+    """Build header rows for one owner's jobs: the company's, or the person's.
+
+    One builder for both CRM pages (ADR 0039): the rows, their invoices and
+    the prefetch that keeps the invoice read at one query are decided once.
+    """
+    # Function-level imports: job and accounting import company at module
+    # level, so module-level imports here would create a cycle.
+    from apps.accounting.models import Invoice  # noqa: PLC0415
+    from apps.job.models import Job  # noqa: PLC0415
+
+    owner = {"company_id": company_id} if company_id is not None else {"person_id": person_id}
+    query_fields = ["id", "company_id", *Job.JOB_DIRECT_FIELDS]
+    jobs = (
+        Job.objects.filter(**owner)
+        # quote joined in because job.quoted reads it per job below
+        .select_related("company", "quote")
+        .only(*query_fields, "quote__id")
+        .prefetch_related(
+            Prefetch(
+                "invoices",
+                queryset=Invoice.objects.only(
+                    "id", "job_id", "number", "date", "status", "total_excl_tax", "online_url"
+                ).order_by("date", "number"),
             )
+        )
+        .order_by("-job_number")
+    )
 
-            return [
-                {
-                    "job_id": str(job.id),
-                    "job_number": job.job_number,
-                    "name": job.name,
-                    "company": (
-                        {"id": str(job.company.id), "name": job.company.name}
-                        if job.company
-                        else None
-                    ),
-                    "status": job.status,
-                    "pricing_methodology": job.pricing_methodology,
-                    "speed_quality_tradeoff": job.speed_quality_tradeoff,
-                    "fully_invoiced": job.fully_invoiced,
-                    "has_quote_in_xero": job.quoted,
-                    "is_fixed_price": job.pricing_methodology == "fixed_price",
-                    "quote_acceptance_date": job.quote_acceptance_date,
-                    "paid": job.paid,
-                    "rejected_flag": job.rejected_flag,
-                    "min_people": job.min_people,
-                    "max_people": job.max_people,
-                }
-                for job in jobs
-            ]
-        except ValueError:
-            raise
-        except Exception as exc:
-            persist_app_error(exc)
-            raise
+    rows: list[CrmJobRowData] = []
+    for job in jobs:
+        invoices: list[JobInvoiceRefData] = [
+            {
+                "id": str(invoice.id),
+                "number": invoice.number,
+                "date": invoice.date,
+                "status": invoice.status,
+                "total_excl_tax": float(invoice.total_excl_tax),
+                "online_url": invoice.online_url,
+            }
+            for invoice in job.invoices.all()
+        ]
+        rows.append(
+            {
+                "job_id": str(job.id),
+                "job_number": job.job_number,
+                "name": job.name,
+                "company": (
+                    {"id": str(job.company.id), "name": job.company.name} if job.company else None
+                ),
+                "status": job.status,
+                "pricing_methodology": job.pricing_methodology,
+                "speed_quality_tradeoff": job.speed_quality_tradeoff,
+                "fully_invoiced": job.fully_invoiced,
+                "has_quote_in_xero": job.quoted,
+                "is_fixed_price": job.pricing_methodology == "fixed_price",
+                "quote_acceptance_date": job.quote_acceptance_date,
+                "paid": job.paid,
+                "rejected_flag": job.rejected_flag,
+                "min_people": job.min_people,
+                "max_people": job.max_people,
+                "invoices": invoices,
+                "invoiced_total_excl_tax": float(
+                    sum((invoice.total_excl_tax for invoice in job.invoices.all()), Decimal("0"))
+                ),
+            }
+        )
+    return rows
 
 
 # ── Supplier pickup addresses ───────────────────────────────────

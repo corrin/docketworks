@@ -1507,83 +1507,6 @@ export type CompanyJobCompanyRef = {
 };
 
 /**
- * CompanyJobHeader
- *
- * Wire contract for CompanyJobHeader.
- */
-export type CompanyJobHeader = {
-    company: CompanyJobCompanyRef | null;
-    /**
-     * Fully Invoiced
-     */
-    fully_invoiced: boolean;
-    /**
-     * Has Quote In Xero
-     */
-    has_quote_in_xero: boolean;
-    /**
-     * Is Fixed Price
-     */
-    is_fixed_price: boolean;
-    /**
-     * Job Id
-     */
-    job_id: string;
-    /**
-     * Job Number
-     */
-    job_number: number;
-    /**
-     * Max People
-     */
-    max_people: number;
-    /**
-     * Min People
-     */
-    min_people: number;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Paid
-     */
-    paid: boolean;
-    /**
-     * Pricing Methodology
-     */
-    pricing_methodology: string | null;
-    /**
-     * Quote Acceptance Date
-     */
-    quote_acceptance_date: string | null;
-    /**
-     * Rejected Flag
-     */
-    rejected_flag: boolean;
-    /**
-     * Speed Quality Tradeoff
-     */
-    speed_quality_tradeoff: string;
-    /**
-     * Status
-     */
-    status: string;
-};
-
-/**
- * CompanyJobsResponse
- *
- * Wire contract for CompanyJobsResponse.
- */
-export type CompanyJobsResponse = {
-    /**
-     * Results
-     */
-    results: Array<CompanyJobHeader>;
-};
-
-/**
  * CompanyLinkWriteRequest
  *
  * Wire contract for CompanyLinkWriteRequest.
@@ -2329,6 +2252,91 @@ export type CostSetSummaryOut = {
      * Rev
      */
     rev: number;
+};
+
+/**
+ * CrmJobRow
+ *
+ * One job as the company and person job lists both return it (KAN-372).
+ */
+export type CrmJobRow = {
+    company: CompanyJobCompanyRef | null;
+    /**
+     * Fully Invoiced
+     */
+    fully_invoiced: boolean;
+    /**
+     * Has Quote In Xero
+     */
+    has_quote_in_xero: boolean;
+    /**
+     * Invoiced Total Excl Tax
+     */
+    invoiced_total_excl_tax: number;
+    /**
+     * Invoices
+     */
+    invoices: Array<JobInvoiceRef>;
+    /**
+     * Is Fixed Price
+     */
+    is_fixed_price: boolean;
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Job Number
+     */
+    job_number: number;
+    /**
+     * Max People
+     */
+    max_people: number;
+    /**
+     * Min People
+     */
+    min_people: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Paid
+     */
+    paid: boolean;
+    /**
+     * Pricing Methodology
+     */
+    pricing_methodology: string | null;
+    /**
+     * Quote Acceptance Date
+     */
+    quote_acceptance_date: string | null;
+    /**
+     * Rejected Flag
+     */
+    rejected_flag: boolean;
+    /**
+     * Speed Quality Tradeoff
+     */
+    speed_quality_tradeoff: string;
+    /**
+     * Status
+     */
+    status: string;
+};
+
+/**
+ * CrmJobRowsResponse
+ *
+ * Wire contract for CrmJobRowsResponse.
+ */
+export type CrmJobRowsResponse = {
+    /**
+     * Results
+     */
+    results: Array<CrmJobRow>;
 };
 
 /**
@@ -4840,6 +4848,38 @@ export type JobInvoiceOut = {
      * Xero Id
      */
     xero_id: string;
+};
+
+/**
+ * JobInvoiceRef
+ *
+ * One sales invoice on a job header row (KAN-372).
+ */
+export type JobInvoiceRef = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Number
+     */
+    number: string;
+    /**
+     * Online Url
+     */
+    online_url: string | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Total Excl Tax
+     */
+    total_excl_tax: number;
 };
 
 /**
@@ -7755,6 +7795,10 @@ export type PersonDetail = {
      */
     is_active: boolean;
     /**
+     * Last Invoice Date
+     */
+    last_invoice_date: string | null;
+    /**
      * Name
      */
     name: string;
@@ -7762,6 +7806,10 @@ export type PersonDetail = {
      * Primary Phone
      */
     primary_phone: string;
+    /**
+     * Total Spend
+     */
+    total_spend: number;
     /**
      * Updated At
      */
@@ -7811,6 +7859,10 @@ export type PersonSummary = {
      */
     is_active: boolean;
     /**
+     * Last Invoice Date
+     */
+    last_invoice_date: string | null;
+    /**
      * Name
      */
     name: string;
@@ -7818,6 +7870,10 @@ export type PersonSummary = {
      * Primary Phone
      */
     primary_phone: string;
+    /**
+     * Total Spend
+     */
+    total_spend: number;
 };
 
 /**
@@ -15087,7 +15143,7 @@ export type CompaniesJobsRetrieveResponses = {
     /**
      * OK
      */
-    200: CompanyJobsResponse;
+    200: CrmJobRowsResponse;
 };
 
 export type CompaniesJobsRetrieveResponse = CompaniesJobsRetrieveResponses[keyof CompaniesJobsRetrieveResponses];
@@ -17686,6 +17742,27 @@ export type PeopleContactMethodsPartialUpdateResponses = {
 };
 
 export type PeopleContactMethodsPartialUpdateResponse = PeopleContactMethodsPartialUpdateResponses[keyof PeopleContactMethodsPartialUpdateResponses];
+
+export type PeopleJobsRetrieveData = {
+    body?: never;
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/api/people/{person_id}/jobs/';
+};
+
+export type PeopleJobsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: CrmJobRowsResponse;
+};
+
+export type PeopleJobsRetrieveResponse = PeopleJobsRetrieveResponses[keyof PeopleJobsRetrieveResponses];
 
 export type ProcessCategoriesRetrieveData = {
     body?: never;

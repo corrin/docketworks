@@ -517,38 +517,6 @@ export const zCompanyJobCompanyRef = z.object({
 });
 
 /**
- * CompanyJobHeader
- *
- * Wire contract for CompanyJobHeader.
- */
-export const zCompanyJobHeader = z.object({
-    company: zCompanyJobCompanyRef.nullable(),
-    fully_invoiced: z.boolean(),
-    has_quote_in_xero: z.boolean(),
-    is_fixed_price: z.boolean(),
-    job_id: z.uuid(),
-    job_number: z.int(),
-    max_people: z.int(),
-    min_people: z.int(),
-    name: z.string(),
-    paid: z.boolean(),
-    pricing_methodology: z.string().nullable(),
-    quote_acceptance_date: z.iso.datetime().nullable(),
-    rejected_flag: z.boolean(),
-    speed_quality_tradeoff: z.string(),
-    status: z.string()
-});
-
-/**
- * CompanyJobsResponse
- *
- * Wire contract for CompanyJobsResponse.
- */
-export const zCompanyJobsResponse = z.object({
-    results: z.array(zCompanyJobHeader)
-});
-
-/**
  * CompanyLinkWriteRequest
  *
  * Wire contract for CompanyLinkWriteRequest.
@@ -1970,6 +1938,54 @@ export const zJobInvoiceOut = z.object({
 });
 
 /**
+ * JobInvoiceRef
+ *
+ * One sales invoice on a job header row (KAN-372).
+ */
+export const zJobInvoiceRef = z.object({
+    date: z.iso.date(),
+    id: z.uuid(),
+    number: z.string(),
+    online_url: z.string().nullable(),
+    status: z.string(),
+    total_excl_tax: z.number()
+});
+
+/**
+ * CrmJobRow
+ *
+ * One job as the company and person job lists both return it (KAN-372).
+ */
+export const zCrmJobRow = z.object({
+    company: zCompanyJobCompanyRef.nullable(),
+    fully_invoiced: z.boolean(),
+    has_quote_in_xero: z.boolean(),
+    invoiced_total_excl_tax: z.number(),
+    invoices: z.array(zJobInvoiceRef),
+    is_fixed_price: z.boolean(),
+    job_id: z.uuid(),
+    job_number: z.int(),
+    max_people: z.int(),
+    min_people: z.int(),
+    name: z.string(),
+    paid: z.boolean(),
+    pricing_methodology: z.string().nullable(),
+    quote_acceptance_date: z.iso.datetime().nullable(),
+    rejected_flag: z.boolean(),
+    speed_quality_tradeoff: z.string(),
+    status: z.string()
+});
+
+/**
+ * CrmJobRowsResponse
+ *
+ * Wire contract for CrmJobRowsResponse.
+ */
+export const zCrmJobRowsResponse = z.object({
+    results: z.array(zCrmJobRow)
+});
+
+/**
  * JobInvoicesResponse
  *
  * Wire contract for the job invoices list.
@@ -3324,8 +3340,10 @@ export const zPersonDetail = z.object({
     email: z.string().nullable(),
     id: z.uuid(),
     is_active: z.boolean(),
+    last_invoice_date: z.iso.date().nullable(),
     name: z.string(),
     primary_phone: z.string(),
+    total_spend: z.number(),
     updated_at: z.iso.datetime()
 });
 
@@ -3353,8 +3371,10 @@ export const zPersonSummary = z.object({
     email: z.string().nullable(),
     id: z.uuid(),
     is_active: z.boolean(),
+    last_invoice_date: z.iso.date().nullable(),
     name: z.string(),
-    primary_phone: z.string()
+    primary_phone: z.string(),
+    total_spend: z.number()
 });
 
 /**
@@ -6914,7 +6934,7 @@ export const zCompaniesJobsRetrievePath = z.object({
 /**
  * OK
  */
-export const zCompaniesJobsRetrieveResponse = zCompanyJobsResponse;
+export const zCompaniesJobsRetrieveResponse = zCrmJobRowsResponse;
 
 export const zCompaniesPeopleListPath = z.object({
     company_id: z.uuid()
@@ -7998,6 +8018,15 @@ export const zPeopleContactMethodsPartialUpdatePath = z.object({
  * OK
  */
 export const zPeopleContactMethodsPartialUpdateResponse = zContactMethodOut;
+
+export const zPeopleJobsRetrievePath = z.object({
+    person_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zPeopleJobsRetrieveResponse = zCrmJobRowsResponse;
 
 /**
  * OK

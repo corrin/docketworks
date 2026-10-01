@@ -1748,91 +1748,6 @@ components:
       - name
       title: CompanyJobCompanyRef
       type: object
-    CompanyJobHeader:
-      description: Wire contract for CompanyJobHeader.
-      properties:
-        company:
-          anyOf:
-          - $ref: '#/components/schemas/CompanyJobCompanyRef'
-          - type: 'null'
-        fully_invoiced:
-          title: Fully Invoiced
-          type: boolean
-        has_quote_in_xero:
-          title: Has Quote In Xero
-          type: boolean
-        is_fixed_price:
-          title: Is Fixed Price
-          type: boolean
-        job_id:
-          format: uuid
-          title: Job Id
-          type: string
-        job_number:
-          title: Job Number
-          type: integer
-        max_people:
-          title: Max People
-          type: integer
-        min_people:
-          title: Min People
-          type: integer
-        name:
-          title: Name
-          type: string
-        paid:
-          title: Paid
-          type: boolean
-        pricing_methodology:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Pricing Methodology
-        quote_acceptance_date:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Quote Acceptance Date
-        rejected_flag:
-          title: Rejected Flag
-          type: boolean
-        speed_quality_tradeoff:
-          title: Speed Quality Tradeoff
-          type: string
-        status:
-          title: Status
-          type: string
-      required:
-      - job_id
-      - job_number
-      - name
-      - company
-      - status
-      - pricing_methodology
-      - speed_quality_tradeoff
-      - fully_invoiced
-      - has_quote_in_xero
-      - is_fixed_price
-      - quote_acceptance_date
-      - paid
-      - rejected_flag
-      - min_people
-      - max_people
-      title: CompanyJobHeader
-      type: object
-    CompanyJobsResponse:
-      description: Wire contract for CompanyJobsResponse.
-      properties:
-        results:
-          items:
-            $ref: '#/components/schemas/CompanyJobHeader'
-          title: Results
-          type: array
-      required:
-      - results
-      title: CompanyJobsResponse
-      type: object
     CompanyLinkWriteRequest:
       description: Wire contract for CompanyLinkWriteRequest.
       properties:
@@ -2663,6 +2578,101 @@ components:
       - hours
       - profitMargin
       title: CostSetSummaryOut
+      type: object
+    CrmJobRow:
+      description: One job as the company and person job lists both return it (KAN-372).
+      properties:
+        company:
+          anyOf:
+          - $ref: '#/components/schemas/CompanyJobCompanyRef'
+          - type: 'null'
+        fully_invoiced:
+          title: Fully Invoiced
+          type: boolean
+        has_quote_in_xero:
+          title: Has Quote In Xero
+          type: boolean
+        invoiced_total_excl_tax:
+          title: Invoiced Total Excl Tax
+          type: number
+        invoices:
+          items:
+            $ref: '#/components/schemas/JobInvoiceRef'
+          title: Invoices
+          type: array
+        is_fixed_price:
+          title: Is Fixed Price
+          type: boolean
+        job_id:
+          format: uuid
+          title: Job Id
+          type: string
+        job_number:
+          title: Job Number
+          type: integer
+        max_people:
+          title: Max People
+          type: integer
+        min_people:
+          title: Min People
+          type: integer
+        name:
+          title: Name
+          type: string
+        paid:
+          title: Paid
+          type: boolean
+        pricing_methodology:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pricing Methodology
+        quote_acceptance_date:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Quote Acceptance Date
+        rejected_flag:
+          title: Rejected Flag
+          type: boolean
+        speed_quality_tradeoff:
+          title: Speed Quality Tradeoff
+          type: string
+        status:
+          title: Status
+          type: string
+      required:
+      - job_id
+      - job_number
+      - name
+      - company
+      - status
+      - pricing_methodology
+      - speed_quality_tradeoff
+      - fully_invoiced
+      - has_quote_in_xero
+      - is_fixed_price
+      - quote_acceptance_date
+      - paid
+      - rejected_flag
+      - min_people
+      - max_people
+      - invoices
+      - invoiced_total_excl_tax
+      title: CrmJobRow
+      type: object
+    CrmJobRowsResponse:
+      description: Wire contract for CrmJobRowsResponse.
+      properties:
+        results:
+          items:
+            $ref: '#/components/schemas/CrmJobRow'
+          title: Results
+          type: array
+      required:
+      - results
+      title: CrmJobRowsResponse
       type: object
     DailyTimesheetSummaryOut:
       description: 'Daily timesheet summary returned by the API.
@@ -5533,6 +5543,40 @@ components:
       - total_incl_tax
       - xero_id
       title: JobInvoiceOut
+      type: object
+    JobInvoiceRef:
+      description: One sales invoice on a job header row (KAN-372).
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        number:
+          title: Number
+          type: string
+        online_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Online Url
+        status:
+          title: Status
+          type: string
+        total_excl_tax:
+          title: Total Excl Tax
+          type: number
+      required:
+      - id
+      - number
+      - date
+      - status
+      - total_excl_tax
+      - online_url
+      title: JobInvoiceRef
       type: object
     JobInvoicesResponse:
       description: Wire contract for the job invoices list.
@@ -8650,12 +8694,21 @@ components:
         is_active:
           title: Is Active
           type: boolean
+        last_invoice_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Last Invoice Date
         name:
           title: Name
           type: string
         primary_phone:
           title: Primary Phone
           type: string
+        total_spend:
+          title: Total Spend
+          type: number
         updated_at:
           format: date-time
           title: Updated At
@@ -8669,6 +8722,8 @@ components:
       - updated_at
       - primary_phone
       - companies
+      - last_invoice_date
+      - total_spend
       - company_links
       title: PersonDetail
       type: object
@@ -8713,12 +8768,21 @@ components:
         is_active:
           title: Is Active
           type: boolean
+        last_invoice_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Last Invoice Date
         name:
           title: Name
           type: string
         primary_phone:
           title: Primary Phone
           type: string
+        total_spend:
+          title: Total Spend
+          type: number
       required:
       - id
       - name
@@ -8726,6 +8790,8 @@ components:
       - is_active
       - primary_phone
       - companies
+      - last_invoice_date
+      - total_spend
       title: PersonSummary
       type: object
     PhoneCallJobLinkIn:
@@ -17232,7 +17298,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CompanyJobsResponse'
+                $ref: '#/components/schemas/CrmJobRowsResponse'
           description: OK
       security:
       - CookieJWTAuth: []
@@ -20533,6 +20599,30 @@ paths:
       security:
       - OfficeStaffCookieJWTAuth: []
       summary: People Contact Methods Partial Update
+      tags:
+      - people
+  /api/people/{person_id}/jobs/:
+    get:
+      description: Every job whose contact is this person, with its invoices, newest first (KAN-372).
+      operationId: people_jobs_retrieve
+      parameters:
+      - in: path
+        name: person_id
+        required: true
+        schema:
+          format: uuid
+          title: Person Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CrmJobRowsResponse'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Get the jobs a person is the contact for
       tags:
       - people
   /api/process/categories/:

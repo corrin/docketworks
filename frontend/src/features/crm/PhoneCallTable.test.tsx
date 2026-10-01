@@ -5,11 +5,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   crmPhoneCallsListOptions,
-  type CompanyJobHeader,
   type PhoneCallRecordOut,
   type PhoneCallRecordingOut,
 } from '@/api'
 import { allAutoIds, autoId, queryAutoId } from '@/test/auto-id'
+import { crmJobRow } from '@/test/crmJobRow'
 import { server } from '@/test/msw'
 import { renderWithProviders } from '@/test/render'
 
@@ -91,26 +91,7 @@ const linkedCall = call({
 
 const unmatchedCall = call({ id: 'call-2', company: null, company_name: '', person_name: '' })
 
-function companyJob(overrides: Partial<CompanyJobHeader> = {}): CompanyJobHeader {
-  return {
-    company: { id: 'company-1', name: 'Alpha Engineering' },
-    fully_invoiced: false,
-    has_quote_in_xero: false,
-    is_fixed_price: false,
-    job_id: 'job-1',
-    job_number: 101,
-    max_people: 1,
-    min_people: 1,
-    name: 'Fabricate frame',
-    paid: false,
-    pricing_methodology: 'time_materials',
-    quote_acceptance_date: null,
-    rejected_flag: false,
-    speed_quality_tradeoff: 'balanced',
-    status: 'in_progress',
-    ...overrides,
-  }
-}
+const companyJob = crmJobRow
 
 /** The status vocabulary JobPicker reads on mount; not what any test here asserts. */
 function serveStatusChoices(): void {

@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw'
 import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
+import { crmJobRow } from '@/test/crmJobRow'
 import { renderWithProviders } from '@/test/render'
 import { server } from '@/test/msw'
 import { CompanyDetailPage } from './CompanyDetailPage'
@@ -31,5 +32,25 @@ describe('CompanyDetailPage', () => {
     const spend = container.querySelector('[data-automation-id="CompanyDetail-total-spend"]')
     expect(spend).toHaveTextContent('$1,234.50')
     expect(screen.getByText('No invoices')).toBeVisible()
+  })
+
+  it('lists the company jobs behind the Jobs tab', async () => {
+    server.use(
+      http.get('*/api/companies/c-1/', () => HttpResponse.json(company)),
+      http.get('*/api/companies/c-1/jobs/', () =>
+        HttpResponse.json({
+          results: [crmJobRow({ job_id: 'job-1', job_number: 101, name: 'Fabricate frame' })],
+        }),
+      ),
+    )
+    const { user } = renderWithProviders(<CompanyDetailPage companyId="c-1" />)
+    await screen.findByRole('heading', { name: 'Alpha Engineering' })
+
+    await user.click(screen.getByRole('tab', { name: 'Jobs' }))
+
+    expect(await screen.findByRole('link', { name: '#101 Fabricate frame' })).toHaveAttribute(
+      'href',
+      '/jobs/job-1',
+    )
   })
 })
