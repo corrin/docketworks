@@ -10,7 +10,3 @@ Duplicate companies are merged in Xero; DocketWorks mirrors the merge and keeps 
 - `allow_jobs` follows Xero archive **transitions** only: archiving a contact disables jobs, un-archiving restores them, and a steady-state sync never touches the flag — so an operator's manual block on an active company survives routine syncs. Exception: un-archiving a merged tombstone never re-enables jobs, because its jobs belong to the winner. To durably block a company, archive it in Xero.
 - Sync paths skip merged companies rather than re-importing data (phone numbers, addresses) the winner now owns.
 - Person records are linked to the winner, not merged: `CompanyPersonLink` rows move, deduplicated against the winner's existing links (ADR 0030). Tombstones must be filtered wherever companies are listed or picked.
-
-## Do not
-
-- **The legacy `merge_companies` management command** (exact-name matching, pre-dating this decision) — it has no remaining remit; deleting it after a feature-parity inventory is tracked on KAN-325.
