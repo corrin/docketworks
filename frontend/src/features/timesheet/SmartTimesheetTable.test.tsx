@@ -120,6 +120,7 @@ function makeLine(overrides: Partial<TimesheetCostLineOut> = {}): TimesheetCostL
 async function renderTable(props: Partial<SmartTimesheetTableProps> = {}) {
   const handles = {
     patchLine: vi.fn(),
+    moveLine: vi.fn(),
     createLine: vi.fn(),
     deleteLine: vi.fn(),
     approveLine: vi.fn(),
@@ -173,9 +174,8 @@ describe('rows and the phantom invariant', () => {
     expect(autoId('SmartTimesheetTable-hours-0')).toHaveValue('3h 30m')
   })
 
-  it('locks the picker and money cells for server rows', async () => {
+  it('renders the money cells read-only on server rows', async () => {
     await renderTable({ entries: [makeLine()] })
-    expect(autoId('SmartTimesheetTable-jobPicker-0-trigger')).toBeDisabled()
     expect(autoId('SmartTimesheetTable-wage-0')).toHaveTextContent('$168.00')
     expect(autoId('SmartTimesheetTable-bill-0')).toHaveTextContent('$420.00')
   })
@@ -183,6 +183,30 @@ describe('rows and the phantom invariant', () => {
   it('resolves the hidden pay-item span from the pay-items list', async () => {
     await renderTable({ entries: [makeLine({ xero_pay_item: 'pay-double' })] })
     expect(autoId('SmartTimesheetTable-payItem-0')).toHaveTextContent('Double Time')
+  })
+})
+
+describe('moving a saved entry', () => {
+  // The picker on a saved row is live (KAN-370): a different job moves the
+  // entry through moveLine; the same job is a no-op, not a PATCH.
+  it('picking another job on a server row calls moveLine with that job', async () => {
+    const user = userEvent.setup()
+    const handles = await renderTable({ entries: [makeLine()] })
+    expect(autoId('SmartTimesheetTable-jobPicker-0-trigger')).toBeEnabled()
+
+    await pickJob(user, 0, 202)
+
+    expect(handles.moveLine).toHaveBeenCalledWith('line-1', urgentJob)
+    expect(handles.patchLine).not.toHaveBeenCalled()
+  })
+
+  it("re-picking the row's own job moves nothing", async () => {
+    const user = userEvent.setup()
+    const handles = await renderTable({ entries: [makeLine()] })
+
+    await pickJob(user, 0, 101)
+
+    expect(handles.moveLine).not.toHaveBeenCalled()
   })
 })
 

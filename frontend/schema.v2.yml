@@ -14380,6 +14380,50 @@ components:
       - scheduled_hours
       title: TimesheetEntriesSummaryOut
       type: object
+    TimesheetEventOut:
+      description: One audit event on a staff member's day, for the entry page's history dialog.
+      properties:
+        after:
+          anyOf:
+          - $ref: '#/components/schemas/TimesheetLineSnapshotOut'
+          - type: 'null'
+        before:
+          anyOf:
+          - $ref: '#/components/schemas/TimesheetLineSnapshotOut'
+          - type: 'null'
+        changes:
+          items:
+            $ref: '#/components/schemas/FieldChangeOut'
+          title: Changes
+          type: array
+        description:
+          title: Description
+          type: string
+        event_type:
+          title: Event Type
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        staff_name:
+          title: Staff Name
+          type: string
+        timestamp:
+          format: date-time
+          title: Timestamp
+          type: string
+      required:
+      - after
+      - before
+      - changes
+      - description
+      - event_type
+      - id
+      - staff_name
+      - timestamp
+      title: TimesheetEventOut
+      type: object
     TimesheetJobOut:
       description: Wire contract for TimesheetJobOut.
       properties:
@@ -14445,6 +14489,71 @@ components:
       - shop_job
       - is_urgent
       title: TimesheetJobOut
+      type: object
+    TimesheetLineSnapshotOut:
+      description: One timesheet entry as an event recorded it (``TimesheetLineSnapshot``).
+      properties:
+        approved:
+          title: Approved
+          type: boolean
+        billable:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Billable
+        charge_out_rate:
+          title: Charge Out Rate
+          type: string
+        date:
+          format: date
+          title: Date
+          type: string
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        hours:
+          title: Hours
+          type: string
+        invoice_multiplier:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Invoice Multiplier
+        job:
+          title: Job
+          type: string
+        labour_type:
+          title: Labour Type
+          type: string
+        pay_item:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pay Item
+        wage_multiplier:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Wage Multiplier
+        wage_rate:
+          title: Wage Rate
+          type: string
+      required:
+      - approved
+      - billable
+      - charge_out_rate
+      - date
+      - description
+      - hours
+      - invoice_multiplier
+      - job
+      - labour_type
+      - pay_item
+      - wage_multiplier
+      - wage_rate
+      title: TimesheetLineSnapshotOut
       type: object
     TimesheetStaffOut:
       description: Wire contract for TimesheetStaffOut.
@@ -20252,6 +20361,46 @@ paths:
       security:
       - SuperuserCookieJWTAuth: []
       summary: Any staff member's time lines for a date, with the day summary
+      tags:
+      - timesheets
+  /api/job/timesheet/entries/history/:
+    get:
+      description: 'Serve the entry grid''s history dialog for one staff/day.
+
+
+        Keyed on the worker and the day, not a line, so a deleted entry''s events
+
+        are still reachable from the screen they were made on. Management auth
+
+        because the snapshots carry wage data, like the entries read.'
+      operationId: job_timesheet_entries_history_retrieve
+      parameters:
+      - in: query
+        name: staff_id
+        required: true
+        schema:
+          format: uuid
+          title: Staff Id
+          type: string
+      - in: query
+        name: date
+        required: true
+        schema:
+          title: Date
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/TimesheetEventOut'
+                title: Response
+                type: array
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Every timesheet event on one staff member's date, newest first
       tags:
       - timesheets
   /api/job/workshop/timesheets/:

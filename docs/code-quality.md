@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 119,321 (v1 172,577, -31%) |
-| tests | 81,402 (v1 50,869, +60%) |
-| generated | 51,540 (v1 20,359, +153%) |
+| code | 119,517 (v1 172,577, -31%) |
+| tests | 81,589 (v1 50,869, +60%) |
+| generated | 51,738 (v1 20,359, +154%) |
 
 ## Suppressions
 
@@ -115,8 +115,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 237 |
-| non-test functions | 2958 |
+| functions returning `X \| None` | 239 |
+| non-test functions | 2961 |
 
 ## Broad type annotations
 
@@ -133,10 +133,10 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 315 |
-| response properties | 2029 |
+| response schemas | 317 |
+| response properties | 2049 |
 | optional (pinned at zero) | 0 |
-| nullable | 448 |
+| nullable | 455 |
 
 ## Automation ids (frontend)
 
@@ -144,7 +144,7 @@ Interactive elements under `frontend/src` with no `data-automation-id`, the sele
 
 | metric | count |
 |---|---:|
-| without data-automation-id | 130 of 391 (33%) |
+| without data-automation-id | 130 of 392 (33%) |
 | without id: <a> | 4 |
 | without id: <button> | 34 |
 | without id: <input> | 27 |

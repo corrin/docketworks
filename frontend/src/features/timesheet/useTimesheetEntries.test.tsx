@@ -196,6 +196,52 @@ describe('useTimesheetEntries', () => {
     expect(cachedLines(hook)[0]!.job_number).toBe(101)
   })
 
+  it('moveLine shows the picked job at once and keeps it through the repriced echo', async () => {
+    const hook = setup([makeLine()])
+    await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
+    const { job_id: _j, job_number: _n, job_name: _jn, company_name: _c, ...bareLine } = makeLine()
+    let sentBody: unknown = null
+    server.use(
+      http.patch('*/api/job/cost_lines/line-1/', async ({ request }) => {
+        sentBody = await request.json()
+        hook.serverLines[0] = makeLine({
+          job_id: job.id,
+          job_number: job.job_number,
+          job_name: job.name,
+          unit_rev: '200.00',
+          total_rev: 400,
+        })
+        return HttpResponse.json({ ...bareLine, unit_rev: '200.00', total_rev: 400 })
+      }),
+    )
+    hook.result.current.moveLine('line-1', job)
+    // Optimistic: the row already reads as the destination's.
+    expect(cachedLines(hook)[0]!.job_number).toBe(202)
+    // Echo merge: the destination's price lands and the job identity survives
+    // an echo that carries none.
+    await waitFor(() => expect(cachedLines(hook)[0]!.total_rev).toBe(400))
+    expect(cachedLines(hook)[0]!.job_number).toBe(202)
+    expect(cachedLines(hook)[0]!.job_name).toBe('Emergency gate')
+    expect(sentBody).toEqual({ job_id: 'job-2' })
+  })
+
+  it('a refused move puts the row back on its old job', async () => {
+    const hook = setup([makeLine()])
+    await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
+    server.use(
+      http.patch('*/api/job/cost_lines/line-1/', () =>
+        HttpResponse.json(
+          { detail: 'Job has no labour rate for subtype Workshop.' },
+          { status: 400 },
+        ),
+      ),
+    )
+    hook.result.current.moveLine('line-1', job)
+    expect(cachedLines(hook)[0]!.job_number).toBe(202)
+    await waitFor(() => expect(cachedLines(hook)[0]!.job_number).toBe(101))
+    expect(cachedLines(hook)[0]!.job_name).toBe('Fabricate frame')
+  })
+
   it('a failed patch rolls back only its own fields and toasts', async () => {
     const hook = setup([makeLine()])
     await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))

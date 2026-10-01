@@ -13,8 +13,10 @@ from ninja import Schema
 from pydantic import Field
 
 from apps.accounting.types import PayrollPostingMode
-from apps.core.schemas import Quantity, ResponseSchema, omittable
+from apps.core.schemas import AuditEventOut, Quantity, ResponseSchema, omittable
 from apps.job.schemas import CostLineOut, JobLabourRateOut
+from apps.timesheet.models import TimesheetEvent
+from apps.timesheet.services.timesheet_events import TimesheetLineSnapshot
 
 # These bounds keep workshop inputs representable by their decimal columns and
 # stop negative hours or multipliers before they affect costing totals.
@@ -335,6 +337,40 @@ class TimesheetEntriesOut(Schema):
     staff: TimesheetEntriesStaffOut
     date: date
     summary: TimesheetEntriesSummaryOut
+
+
+class TimesheetLineSnapshotOut(ResponseSchema):
+    """One timesheet entry as an event recorded it (``TimesheetLineSnapshot``)."""
+
+    job: str
+    date: date
+    hours: str
+    description: str | None
+    labour_type: str
+    wage_multiplier: float | None
+    invoice_multiplier: float | None
+    billable: bool | None
+    wage_rate: str
+    charge_out_rate: str
+    pay_item: str | None
+    approved: bool
+
+
+class TimesheetEventOut(AuditEventOut):
+    """One audit event on a staff member's day, for the entry page's history dialog."""
+
+    before: TimesheetLineSnapshotOut | None
+    after: TimesheetLineSnapshotOut | None
+
+    @staticmethod
+    def resolve_before(obj: TimesheetEvent) -> TimesheetLineSnapshot | None:
+        """Read the entry before the write; None on a creation."""
+        return obj.delta_before
+
+    @staticmethod
+    def resolve_after(obj: TimesheetEvent) -> TimesheetLineSnapshot | None:
+        """Read the entry after the write; None on a deletion."""
+        return obj.delta_after
 
 
 class WorkshopTimesheetEntryRequest(Schema):

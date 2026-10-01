@@ -67,6 +67,7 @@ export interface SmartTimesheetTableProps {
   /** How the staff member is paid; salaried rows do not offer rate editing. */
   payBasis: string | null
   patchLine: (lineId: string, body: CostLineUpdateRequest) => void
+  moveLine: (lineId: string, job: TimesheetJobOut) => void
   createLine: (job: TimesheetJobOut, body: TimesheetCreateBody, cb: CreateEntryCallbacks) => void
   deleteLine: (lineId: string) => void
   approveLine: (lineId: string) => void
@@ -78,6 +79,7 @@ interface TimesheetCellContext {
   staffWageRate: number
   payBasis: string | null
   patchLine: SmartTimesheetTableProps['patchLine']
+  moveLine: SmartTimesheetTableProps['moveLine']
   deleteLine: SmartTimesheetTableProps['deleteLine']
   approveLine: SmartTimesheetTableProps['approveLine']
   updateDraft: (localId: string, patch: Partial<TimesheetDraft>) => void
@@ -199,13 +201,16 @@ function JobPickerCell({ row, table }: CellProps) {
   const gridRow = row.original
   const selected = jobForRow(context, gridRow)
   const isDraft = gridRow.type === 'draft'
-  // A saved line's job lives on its cost set — retargeting is delete-and-
-  // recreate, so the picker locks. The NEXT phantom also locks while a
-  // create is in flight (the keyboard spec asserts the disabled state).
+  // A saved row's picker is live: picking another job moves the entry in one
+  // PATCH (the server retargets and reprices it). The grid used to lock it
+  // and have the office delete and re-key the entry; that was the only path
+  // before the cost-line PATCH took a job_id (KAN-370). A draft locks while
+  // its create is in flight, and the NEXT phantom locks alongside it (the
+  // keyboard spec asserts the disabled state).
   const disabled =
-    !isDraft ||
-    context.isPersisting(gridRow.localId) ||
-    (context.anyPersisting && context.isPhantom(gridRow.localId))
+    isDraft &&
+    (context.isPersisting(gridRow.localId) ||
+      (context.anyPersisting && context.isPhantom(gridRow.localId)))
 
   if (gridRow.type === 'server' && selected === null) {
     // The job left the active list (e.g. archived): show its stored identity.
@@ -258,8 +263,11 @@ function JobPickerCell({ row, table }: CellProps) {
       searchOptions={timesheetJobSearchOptions}
       entrySeq={gridRow.type === 'server' ? gridRow.line.entry_seq : null}
       onSelect={(job) => {
-        if (gridRow.type !== 'draft') return
-        context.updateDraft(gridRow.localId, applyJobPick(gridRow.draft, job))
+        if (gridRow.type === 'draft') {
+          context.updateDraft(gridRow.localId, applyJobPick(gridRow.draft, job))
+        } else if (job.id !== gridRow.line.job_id) {
+          context.moveLine(gridRow.line.id, job)
+        }
         focusAutomationId(`SmartTimesheetTable-hours-${row.index}`)
       }}
     />
@@ -708,6 +716,7 @@ export function SmartTimesheetTable({
   staffWageRate,
   payBasis,
   patchLine,
+  moveLine,
   createLine,
   deleteLine,
   approveLine,
@@ -768,6 +777,7 @@ export function SmartTimesheetTable({
     staffWageRate,
     payBasis,
     patchLine,
+    moveLine,
     deleteLine,
     approveLine,
     updateDraft: draftRows.updateDraft,

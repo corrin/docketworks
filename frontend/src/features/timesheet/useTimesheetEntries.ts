@@ -7,6 +7,7 @@ import {
   jobCostLinesDeleteDestroyMutation,
   jobCostLinesPartialUpdateMutation,
   jobJobsCostSetsActualCostLinesCreateMutation,
+  jobTimesheetEntriesHistoryRetrieveQueryKey,
   jobTimesheetEntriesRetrieveOptions,
   jobTimesheetEntriesRetrieveQueryKey,
 } from '@/api'
@@ -56,6 +57,7 @@ export function useTimesheetEntries(staffId: string, date: string) {
   const queryClient = useQueryClient()
   const query = { staff_id: staffId, date }
   const queryKey = jobTimesheetEntriesRetrieveQueryKey({ query })
+  const historyKey = jobTimesheetEntriesHistoryRetrieveQueryKey({ query })
   const entriesQuery = useQuery(jobTimesheetEntriesRetrieveOptions({ query }))
 
   const patchMutation = useMutation(jobCostLinesPartialUpdateMutation())
@@ -63,7 +65,12 @@ export function useTimesheetEntries(staffId: string, date: string) {
   const deleteMutation = useMutation(jobCostLinesDeleteDestroyMutation())
   const approveMutation = useMutation(approveCostLineMutation())
 
-  const invalidate = () => void queryClient.invalidateQueries({ queryKey })
+  // Every write also records a TimesheetEvent, so the day's history is stale
+  // after any of them.
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey })
+    void queryClient.invalidateQueries({ queryKey: historyKey })
+  }
   // An in-flight background refetch resolving AFTER an optimistic write
   // would clobber it with pre-write data; cancellation closes that window.
   const cancelInFlight = () => void queryClient.cancelQueries({ queryKey })
@@ -104,6 +111,41 @@ export function useTimesheetEntries(staffId: string, date: string) {
             )
           }
           toast.error(apiErrorMessage(error, 'Failed to save the timesheet entry'))
+        },
+        onSettled: invalidate,
+      },
+    )
+  }
+
+  /**
+   * Move a saved entry to another job. The same PATCH as patchLine, but the
+   * echo (a job-router line) carries no job identity, so the picked job
+   * supplies it on the optimistic row and again on the merged echo.
+   */
+  const moveLine = (lineId: string, job: TimesheetJobOut) => {
+    cancelInFlight()
+    const snapshot = queryClient.getQueryData<TimesheetEntriesOut>(queryKey)
+    const snapshotLine = snapshot?.cost_lines.find((line) => line.id === lineId)
+    setLines((lines) => lines.map((line) => (line.id === lineId ? enrichWithJob(line, job) : line)))
+    patchMutation.mutate(
+      { path: { cost_line_id: lineId }, body: { job_id: job.id } },
+      {
+        onSuccess: (updated) => {
+          setLines((lines) =>
+            lines.map((line) =>
+              line.id === lineId ? enrichWithJob(mergeTimesheetEcho(line, updated), job) : line,
+            ),
+          )
+        },
+        onError: (error) => {
+          if (snapshotLine) {
+            setLines((lines) =>
+              lines.map((line) =>
+                line.id === lineId ? withJobIdentity(line, snapshotLine) : line,
+              ),
+            )
+          }
+          toast.error(apiErrorMessage(error, 'Failed to move the timesheet entry'))
         },
         onSettled: invalidate,
       },
@@ -177,7 +219,7 @@ export function useTimesheetEntries(staffId: string, date: string) {
     )
   }
 
-  return { entriesQuery, patchLine, createLine, deleteLine, approveLine }
+  return { entriesQuery, patchLine, moveLine, createLine, deleteLine, approveLine }
 }
 
 function enrichWithJob(line: CostLineOut, job: TimesheetJobOut): TimesheetCostLineOut {
@@ -187,6 +229,20 @@ function enrichWithJob(line: CostLineOut, job: TimesheetJobOut): TimesheetCostLi
     job_number: job.job_number,
     job_name: job.name,
     company_name: job.company_name ?? null,
+  }
+}
+
+/** The rejected move's rollback: the row takes its pre-move job back. */
+function withJobIdentity(
+  line: TimesheetCostLineOut,
+  from: TimesheetCostLineOut,
+): TimesheetCostLineOut {
+  return {
+    ...line,
+    job_id: from.job_id,
+    job_number: from.job_number,
+    job_name: from.job_name,
+    company_name: from.company_name,
   }
 }
 

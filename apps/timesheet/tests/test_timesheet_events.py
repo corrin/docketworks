@@ -5,10 +5,10 @@ services; workshop staff edit their own through the self-service PATCH. Each
 test names the write site whose record call a plausible edit would drop.
 """
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from unittest import mock
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from django.test import Client
@@ -217,3 +217,60 @@ class TestOfficePath:
         line = job_service.create_cost_line(job, "actual", data, office_staff)
 
         assert _events(line.id) == []
+
+
+HISTORY_URL = "/api/job/timesheet/entries/history/"
+
+
+def _history_url(staff: Staff, day: date = ENTRY_DATE) -> str:
+    return f"{HISTORY_URL}?staff_id={staff.id}&date={day.isoformat()}"
+
+
+class TestHistoryEndpoint:
+    """``job_timesheet_entries_history_retrieve``: one worker-day, newest first, deletes too."""
+
+    def test_lists_the_days_events_newest_first_including_a_deleted_entry(
+        self, worker_client: Client, manage_client: Client, job: Job, worker: Staff
+    ) -> None:
+        kept = _workshop_create(worker_client, job)
+        gone = _workshop_create(worker_client, job, hours="1.00")
+        assert worker_client.delete(f"{URL}?entry_id={gone}").status_code == 204
+
+        response = manage_client.get(_history_url(worker))
+
+        assert response.status_code == 200, response.content
+        body = response.json()
+        assert [event["event_type"] for event in body] == [
+            "entry_deleted",
+            "entry_created",
+            "entry_created",
+        ]
+        deleted = body[0]
+        assert deleted["before"]["hours"] == "1.000"
+        assert deleted["after"] is None
+        assert deleted["description"] == "Entry deleted"
+        assert deleted["staff_name"] == worker.get_display_full_name()
+        assert body[2]["after"]["job"] == f"#{job.job_number}"
+        assert sum(1 for event in body if event["after"] is not None) == 2
+        assert TimesheetEvent.objects.filter(cost_line_id=kept).count() == 1
+
+    def test_another_day_is_not_listed(
+        self, worker_client: Client, manage_client: Client, job: Job, worker: Staff
+    ) -> None:
+        _workshop_create(worker_client, job)
+
+        response = manage_client.get(_history_url(worker, ENTRY_DATE + timedelta(days=1)))
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_management_auth_like_the_entries_read(
+        self, worker_client: Client, worker: Staff
+    ) -> None:
+        # The snapshots carry the wage rate; the entries read gates on the same rule.
+        assert worker_client.get(_history_url(worker)).status_code == 403
+        assert Client().get(_history_url(worker)).status_code == 401
+
+    def test_unknown_staff_is_404(self, manage_client: Client) -> None:
+        response = manage_client.get(f"{HISTORY_URL}?staff_id={uuid4()}&date={ENTRY_DATE}")
+        assert response.status_code == 404

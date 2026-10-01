@@ -5791,6 +5791,42 @@ export const zJobsListResponse = z.object({
 });
 
 /**
+ * TimesheetLineSnapshotOut
+ *
+ * One timesheet entry as an event recorded it (``TimesheetLineSnapshot``).
+ */
+export const zTimesheetLineSnapshotOut = z.object({
+    approved: z.boolean(),
+    billable: z.boolean().nullable(),
+    charge_out_rate: z.string(),
+    date: z.iso.date(),
+    description: z.string().nullable(),
+    hours: z.string(),
+    invoice_multiplier: z.number().nullable(),
+    job: z.string(),
+    labour_type: z.string(),
+    pay_item: z.string().nullable(),
+    wage_multiplier: z.number().nullable(),
+    wage_rate: z.string()
+});
+
+/**
+ * TimesheetEventOut
+ *
+ * One audit event on a staff member's day, for the entry page's history dialog.
+ */
+export const zTimesheetEventOut = z.object({
+    after: zTimesheetLineSnapshotOut.nullable(),
+    before: zTimesheetLineSnapshotOut.nullable(),
+    changes: z.array(zFieldChangeOut),
+    description: z.string(),
+    event_type: z.string(),
+    id: z.uuid(),
+    staff_name: z.string(),
+    timestamp: z.iso.datetime()
+});
+
+/**
  * TimesheetStaffOut
  *
  * Wire contract for TimesheetStaffOut.
@@ -7880,6 +7916,18 @@ export const zJobTimesheetEntriesRetrieveQuery = z.object({
  * OK
  */
 export const zJobTimesheetEntriesRetrieveResponse = zTimesheetEntriesOut;
+
+export const zJobTimesheetEntriesHistoryRetrieveQuery = z.object({
+    staff_id: z.uuid(),
+    date: z.string()
+});
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zJobTimesheetEntriesHistoryRetrieveResponse = z.array(zTimesheetEventOut);
 
 export const zJobWorkshopTimesheetsDestroyQuery = z.object({
     entry_id: z.uuid()
