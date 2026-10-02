@@ -12806,6 +12806,10 @@ export type TimesheetLineSnapshotOut = {
      */
     description: string | null;
     /**
+     * End Time
+     */
+    end_time: string | null;
+    /**
      * Hours
      */
     hours: string;
@@ -12825,6 +12829,10 @@ export type TimesheetLineSnapshotOut = {
      * Pay Item
      */
     pay_item: string | null;
+    /**
+     * Start Time
+     */
+    start_time: string | null;
     /**
      * Wage Multiplier
      */

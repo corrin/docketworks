@@ -5801,11 +5801,13 @@ export const zTimesheetLineSnapshotOut = z.object({
     charge_out_rate: z.string(),
     date: z.iso.date(),
     description: z.string().nullable(),
+    end_time: z.string().nullable(),
     hours: z.string(),
     invoice_multiplier: z.number().nullable(),
     job: z.string(),
     labour_type: z.string(),
     pay_item: z.string().nullable(),
+    start_time: z.string().nullable(),
     wage_multiplier: z.number().nullable(),
     wage_rate: z.string()
 });

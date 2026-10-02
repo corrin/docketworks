@@ -204,28 +204,20 @@ function JobPickerCell({ row, table }: CellProps) {
   // A saved row's picker is live: picking another job moves the entry in one
   // PATCH (the server retargets and reprices it). The grid used to lock it
   // and have the office delete and re-key the entry; that was the only path
-  // before the cost-line PATCH took a job_id (KAN-370). A draft locks while
-  // its create is in flight, and the NEXT phantom locks alongside it (the
-  // keyboard spec asserts the disabled state).
+  // before the cost-line PATCH took a job_id (KAN-370). A saved row never
+  // locks for a pending move either: the day's writes are serialized by the
+  // shared runner, so a second pick simply queues behind the first. A draft
+  // locks while its create is in flight, and the NEXT phantom locks
+  // alongside it (the keyboard spec asserts the disabled state).
   const disabled =
     isDraft &&
     (context.isPersisting(gridRow.localId) ||
       (context.anyPersisting && context.isPhantom(gridRow.localId)))
-
-  if (gridRow.type === 'server' && selected === null) {
-    // The job left the active list (e.g. archived): show its stored identity.
-    return (
-      <button
-        type="button"
-        disabled
-        className="block w-full max-w-[10ch] truncate px-2 py-1 text-left text-sm opacity-50"
-        data-automation-id={`SmartTimesheetTable-jobPicker-${row.index}-trigger`}
-        data-entry-seq={gridRow.line.entry_seq ?? undefined}
-      >
-        #{gridRow.line.job_number}
-      </button>
-    )
-  }
+  // A saved row whose job left the active list (archived) still shows its
+  // stored number and still moves: the picker renders this label when it has
+  // no selection. A disabled label here was rejected because the entry most
+  // worth moving is exactly the one sitting on a job nobody can book any more.
+  const storedLabel = gridRow.type === 'server' ? `#${gridRow.line.job_number}` : ''
 
   return (
     <JobPicker
@@ -236,7 +228,7 @@ function JobPickerCell({ row, table }: CellProps) {
       disabled={disabled}
       loading={false}
       placeholder="Select job…"
-      triggerLabel={(job) => (job === null ? '' : `#${job.job_number}`)}
+      triggerLabel={(job) => (job === null ? storedLabel : `#${job.job_number}`)}
       renderTriggerBadge={(job) =>
         job.is_urgent ? (
           <span className="ml-1 inline-block rounded bg-red-50 px-1 text-[10px] font-bold text-red-600">

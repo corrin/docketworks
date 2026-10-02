@@ -14513,6 +14513,11 @@ components:
           - type: string
           - type: 'null'
           title: Description
+        end_time:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: End Time
         hours:
           title: Hours
           type: string
@@ -14532,6 +14537,11 @@ components:
           - type: string
           - type: 'null'
           title: Pay Item
+        start_time:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Start Time
         wage_multiplier:
           anyOf:
           - type: number
@@ -14546,11 +14556,13 @@ components:
       - charge_out_rate
       - date
       - description
+      - end_time
       - hours
       - invoice_multiplier
       - job
       - labour_type
       - pay_item
+      - start_time
       - wage_multiplier
       - wage_rate
       title: TimesheetLineSnapshotOut

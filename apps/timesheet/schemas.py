@@ -344,6 +344,8 @@ class TimesheetLineSnapshotOut(ResponseSchema):
 
     job: str
     date: date
+    start_time: str | None
+    end_time: str | None
     hours: str
     description: str | None
     labour_type: str

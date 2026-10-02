@@ -103,6 +103,30 @@ class TestWorkshopPath:
         ]
         assert updated.description == "Hours changed from '4.000' to '6.000'"
 
+    def test_editing_only_the_times_records_the_change(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        """The snapshot carries start and end: a time-only edit is not a blank "Entry updated"."""
+        line_id = _workshop_create(
+            worker_client, job, start_time="08:00:00", end_time="12:00:00", hours="4.00"
+        )
+
+        response = worker_client.patch(
+            URL,
+            data={"entry_id": line_id, "start_time": "09:00:00", "end_time": "13:00:00"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200, response.content
+        *_, updated = _events(line_id)
+        assert updated.detail["changes"] == [
+            {"field_name": "Start", "old_value": "08:00:00", "new_value": "09:00:00"},
+            {"field_name": "End", "old_value": "12:00:00", "new_value": "13:00:00"},
+        ]
+        assert updated.description == (
+            "Start changed from '08:00:00' to '09:00:00'. End changed from '12:00:00' to '13:00:00'"
+        )
+
     def test_moving_records_entry_moved_naming_both_jobs(
         self, worker_client: Client, job: Job, company: Company, superuser: Staff
     ) -> None:

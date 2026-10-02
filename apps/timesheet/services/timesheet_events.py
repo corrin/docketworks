@@ -22,6 +22,8 @@ class TimesheetLineSnapshot(TypedDict):
 
     job: str
     date: str
+    start_time: str | None
+    end_time: str | None
     hours: str
     description: str | None
     labour_type: str
@@ -43,6 +45,8 @@ MONEY = Decimal("0.01")
 SNAPSHOT_LABELS: dict[str, str] = {
     "job": "Job",
     "date": "Date",
+    "start_time": "Start",
+    "end_time": "End",
     "hours": "Hours",
     "description": "Description",
     "labour_type": "Labour type",
@@ -74,6 +78,16 @@ def is_timesheet_entry(line: CostLine) -> bool:
     )
 
 
+def _stored_time(line: CostLine, key: str) -> str | None:
+    """Read a start or end time as the workshop drawer stored it (ISO); None where unset."""
+    value = line.meta.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TypeError(f"Timesheet line {line.id} has a non-string {key}.")
+    return value
+
+
 def _multiplier(line: CostLine, key: str) -> float | None:
     rate = rate_from_meta(line.meta, key)
     return None if rate is None else float(rate)
@@ -92,6 +106,8 @@ def line_snapshot(line: CostLine) -> TimesheetLineSnapshot:
     return {
         "job": f"#{job.job_number}",
         "date": line.accounting_date.isoformat(),
+        "start_time": _stored_time(line, "start_time"),
+        "end_time": _stored_time(line, "end_time"),
         "hours": str(json_safe(line.quantity.quantize(HOURS))),
         "description": line.desc,
         "labour_type": subtype.name,
