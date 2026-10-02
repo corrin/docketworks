@@ -6,13 +6,7 @@ import { timesheetsWeeklyRetrieveOptions, timesheetsWeeklyRetrieveQueryKey } fro
 import type { WeeklyStaffDataOut, WeeklyTimesheetDataOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { QueryState } from '@/features/shared/QueryState'
-import {
-  formatCurrency,
-  formatDate,
-  formatPercentage,
-  formatWeekday,
-  localIsoDate,
-} from '@/lib/format'
+import { formatCurrency, formatDate, formatPercentage, localIsoDate } from '@/lib/format'
 import { isIsoDateString, mondayOf, shiftDate } from '@/lib/dates'
 
 import { PayrollPanel } from './PayrollPanel'
@@ -174,12 +168,11 @@ function WeekTable({
               <th key={day} className="w-24 px-2 py-2">
                 <button
                   type="button"
-                  className="flex cursor-pointer flex-col text-left hover:underline"
+                  className="cursor-pointer text-left hover:underline"
                   data-automation-id={`WeeklyOverview-dayHeader-${day}`}
                   onClick={() => onOpenDay(day)}
                 >
-                  <span>{formatWeekday(day)}</span>
-                  <span className="font-normal">{formatDate(day)}</span>
+                  {formatDate(day)}
                 </button>
               </th>
             ))}

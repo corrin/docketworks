@@ -5,6 +5,19 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
+## 2026-10-03 — KAN-369 weekday context belongs on single-day timesheets
+
+Owner clarified PR #189: the staff time-entry and daily overview date labels must
+name the weekday; the weekly overview already covers a whole week and needs no
+weekday labels. Removed the weekly addition and its test expectations, including
+its unused formatter and incorrect cross-page string-equality rationale. The daily
+pages retain `formatDateLong`. The behaviour ledger records the deliberate weekly
+display difference from v1. Type checking and 161 timesheet/shared-library unit
+tests passed. The two affected browser specs passed all 17 enabled tests against
+real Xero, and teardown restored the database. The existing audit gate required
+updating the transitive development dependency devalue from 5.9.2 to 5.9.4;
+no application dependency declarations changed.
+
 ## 2026-10-01 — KPI calendar ported; report filters live in the URL
 
 Owner rulings while porting the KPI calendar (the largest of the remaining reports). The

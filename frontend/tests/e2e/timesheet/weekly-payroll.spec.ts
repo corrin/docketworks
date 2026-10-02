@@ -78,7 +78,6 @@ test.describe('weekly timesheets', () => {
     const firstHeader = page.locator('[data-automation-id^="WeeklyOverview-dayHeader-"]').first()
     const headerId = await firstHeader.getAttribute('data-automation-id')
     const day = headerId!.replace('WeeklyOverview-dayHeader-', '')
-    await expect(firstHeader).toContainText('Mon')
     await firstHeader.click()
     await page.waitForURL(`**/timesheets/daily**date=${day}**`)
     await expect(autoId(page, 'DailyOverview-date')).toHaveText(formatDateLong(day))
