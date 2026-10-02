@@ -2240,7 +2240,9 @@ def _bills_its_time(job: Job) -> bool:
     return not job.shop_job and job.status != "special"
 
 
-def move_time_line(line: CostLine, destination: Job, meta: dict[str, object]) -> CostSet:
+def move_time_line(
+    line: CostLine, destination: Job, meta: dict[str, object], *, billing_explicit: bool
+) -> CostSet:
     """Point a timesheet entry at ``destination``'s actual cost set; the one move (ADR 0039).
 
     Both the office cost-line PATCH and the workshop self-service PATCH call
@@ -2265,9 +2267,10 @@ def move_time_line(line: CostLine, destination: Job, meta: dict[str, object]) ->
     if not _bills_its_time(destination):
         meta["is_billable"] = False
         meta["bill_rate_multiplier"] = 0.0
-    elif not _bills_its_time(source):
+    elif not _bills_its_time(source) and not billing_explicit:
         # The stored zero was the source's rule, not the entry's: dropping the
         # multiplier lets the rate pipeline re-derive it from the wage multiplier.
+        # A request that set its own billing keeps it (``billing_explicit``).
         meta["is_billable"] = True
         meta.pop("bill_rate_multiplier", None)
     return cost_set
@@ -2345,6 +2348,7 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
 
     kind = data.get("kind") or line.kind
     patch_meta = data.get("meta") or {}
+    billing_explicit = "is_billable" in patch_meta or "bill_rate_multiplier" in patch_meta
     instance_meta = line.meta if isinstance(line.meta, dict) else {}
     # A subtype change must reprice the line even when the patch doesn't resend
     # meta (the timesheet UI patches labour_subtype alone), so pull the stored
@@ -2363,7 +2367,9 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
         # The move settles billability on the meta the line will store, so the
         # stored meta is the base and the patch's own meta (if any) sits on top.
         patch_meta = {**instance_meta, **patch_meta}
-        moved_cost_set = move_time_line(line, destination, patch_meta)
+        moved_cost_set = move_time_line(
+            line, destination, patch_meta, billing_explicit=billing_explicit
+        )
         data["meta"] = patch_meta
     if kind == "time" and patch_meta.get("created_from_timesheet"):
         _reprice_timesheet_line(line, data, patch_meta)

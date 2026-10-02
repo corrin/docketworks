@@ -487,7 +487,12 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
             job = Job.objects.select_related("company", "default_xero_pay_item").get(
                 id=data["job_id"]
             )
-            moved_cost_set = move_time_line(line, job, meta)
+            moved_cost_set = move_time_line(
+                line,
+                job,
+                meta,
+                billing_explicit="is_billable" in data or "bill_rate_multiplier" in data,
+            )
             changed = True
             reprice = True
 
