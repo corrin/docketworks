@@ -2004,3 +2004,9 @@ both lockfiles re-locked, one PR whose body is the report. The PR is a prompt fo
 the gates; CI on the bot's own push is a bonus the owner does not require, since E2E runs once
 per release anyway. Dependabot keeps only the github-actions ecosystem. `docs/dependency-sweep.md`
 holds the loop for a red run; ADR 0033 names the mechanism.
+
+## 2026-10-03 — Backend CI checks generated files before running pytest
+
+Moved code-quality metrics, status-table and exported-schema checks immediately after
+dependency installation, with metrics first and pytest last. Stale generated files now
+fail before the full coverage run. All existing checks and commands are retained.
