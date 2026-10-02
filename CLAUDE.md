@@ -1,13 +1,10 @@
 # CLAUDE.md — Docketworks
 
-This codebase is exhibited as an example of how the architecture should be done, and it
-replaced a system that already worked, so "working but structurally compromised" delivers
-nothing: scope bends, the standard does not. Colliding with a rule — an ADR, a
-linter, a type error, a layer contract — means the approach is wrong, not that a rule is in
-the way. Stop, name the belief the tool contradicted, and check it (query the data, read the
-writers, read the ADR in full) before editing; never search for the smallest edit that gets
-past it. A rule enters this file as one line naming its authority; the argument stays in the
-ADR, and nothing here is said twice.
+Architecture is an acceptance requirement for this replacement of an existing system.
+Adjust scope to meet it. When a gate or contract contradicts an assumption, check the
+relevant data, writers and ADR before changing the implementation.
+Keep each rule here as a summary linked to its authority; detailed reasoning belongs in
+the ADR.
 
 ## Where things are
 
@@ -35,9 +32,8 @@ ADR, and nothing here is said twice.
 
 The frontend loop check is `npm run type-check`, not `npm run build`. `uv run mypy` is strict
 at a zero baseline over `apps config manage.py scripts`. CI runs the commit tier plus the unit
-suites, never integration or E2E; a CI check missing from the commit tier is a bug in the
-tier, never a saving, and slowness argues for a faster check, never for moving it. Never
-weaken a gate, never baseline one.
+suites. Integration and E2E run separately. Every CI check belongs in the commit tier;
+improve a slow check within that tier. Gate weakening and new baselines are prohibited.
 
 ## Never
 
@@ -51,7 +47,7 @@ weaken a gate, never baseline one.
 - Done means the E2E spec passes. Report progress as specs green, never as endpoints or
   components written. Nothing releases without the suite green. UAT verification and PVT are
   `scripts/server/verify-instance.sh --e2e` green on the instance (ADR 0064).
-- Assume the owner has walked away. Commit each verified slice as soon as it is complete,
+- Commit each verified slice as soon as it is complete,
   staging explicit paths; push every commit; open a draft PR at the first push and mark it ready
   when the work is. A green unit run is a commit boundary. A generated artifact carrying another
   workstream's changes is partial-staged, or the overlap is reported before committing.
@@ -61,7 +57,7 @@ weaken a gate, never baseline one.
   new-instance seed, restore/scrub behaviour, live verification and its setup doc, through the
   existing configuration service (ADR 0053, 0027). Keys are write-only and a settings GET
   never probes a vendor. Setup is tested through the UI, including failed saves and key
-  rotation; a terminal or database workaround proves nothing. An unverified acceptance step
+  rotation. An unverified acceptance step
   is recorded in the PR and in `docs/rewrite-status.md`.
 
 ## Layout
@@ -103,8 +99,9 @@ weaken a gate, never baseline one.
   `docs/dependency-sweep.md`.
 - A unit test names the Docketworks block whose plausible edit trips it; no such block, no test
   (ADR 0025).
-- Comments record the rejected alternative and the fact that rejected it (ADR 0043). AI-authored
-  rationale carries its model prefix (`Opus:`, `GPT:`) until ratified (ADR 0051).
+- Comments explain business meaning, decisions and constraints a reader cannot obtain from
+  the surrounding code (ADR 0043). AI-authored rationale carries its model prefix (`Opus:`,
+  `GPT:`) until ratified (ADR 0051).
 
 ## Porting
 

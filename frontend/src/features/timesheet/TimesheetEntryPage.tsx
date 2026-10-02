@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select'
 import { companyDefaultsQueryOptions } from '@/features/shell'
 import { QueryState } from '@/features/shared/QueryState'
-import { formatCurrency, formatDate, formatHoursDisplay, localIsoDate } from '@/lib/format'
+import { formatCurrency, formatDateLong, formatHoursDisplay, localIsoDate } from '@/lib/format'
 import { nextWeekday, weekdayAdjusted } from '@/lib/dates'
 import { lineIsBillable } from './lineMeta'
 import { SmartTimesheetTable } from './SmartTimesheetTable'
@@ -205,7 +205,12 @@ function EntryWorkspace({
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <span className="text-sm font-medium text-slate-800">{formatDate(date)}</span>
+        <span
+          className="text-sm font-medium text-slate-800"
+          data-automation-id="TimesheetEntry-date"
+        >
+          {formatDateLong(date)}
+        </span>
         <Button
           variant="outline"
           size="sm"
