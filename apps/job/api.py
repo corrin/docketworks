@@ -132,11 +132,7 @@ from apps.job.services.workshop_pdf_service import create_workshop_pdf
 from apps.job.tasks import create_job_file_thumbnail_task
 from apps.purchasing.models import Stock
 from apps.purchasing.services.stock_service import consume_stock
-from apps.timesheet.services.timesheet_events import (
-    is_timesheet_entry,
-    line_snapshot,
-    record_timesheet_event,
-)
+from apps.timesheet.services.timesheet_events import record_timesheet_write, snapshot_if_entry
 
 logger = logging.getLogger(__name__)
 
@@ -982,17 +978,15 @@ def approve_cost_line(request: HttpRequest, cost_line_id: UUID) -> dict[str, obj
         raise HttpError(400, "Line is already approved")
 
     if line.kind != "material":
-        before = line_snapshot(line) if is_timesheet_entry(line) else None
+        before = snapshot_if_entry(line)
         line.approved = True
         line.save(update_fields=["approved", "updated_at"])
-        if before is not None:
-            record_timesheet_event(
-                staff=authenticated_staff(request),
-                event_type="entry_approved",
-                line=line,
-                before=before,
-                after=line_snapshot(line),
-            )
+        record_timesheet_write(
+            staff=authenticated_staff(request),
+            event_type="entry_approved",
+            line=line,
+            before=before,
+        )
         return {
             "success": True,
             "message": "Line approved successfully",

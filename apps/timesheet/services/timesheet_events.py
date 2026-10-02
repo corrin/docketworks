@@ -67,15 +67,17 @@ EDIT_EVENT_TYPES = frozenset({"entry_updated", "entry_moved"})
 def is_timesheet_entry(line: CostLine) -> bool:
     """Whether a cost line is a timesheet entry the trail records.
 
-    Leave-managed lines are written in batches by a leave request, whose row
-    carries its own author; material and adjustment lines are not timesheet
-    entries at all.
+    A line the Leave screen created is an ordinary entry once it exists
+    (owner ruling, 2026-10-03); material and adjustment lines are not entries.
     """
-    return (
-        line.kind == "time"
-        and bool(line.meta.get("created_from_timesheet"))
-        and line.managed_by is None
-    )
+    return line.kind == "time" and bool(line.meta.get("created_from_timesheet"))
+
+
+def snapshot_if_entry(line: CostLine) -> TimesheetLineSnapshot | None:
+    """Take the entry's state before a write; None for a line the trail does not record."""
+    if not is_timesheet_entry(line):
+        return None
+    return line_snapshot(line)
 
 
 def _stored_time(line: CostLine, key: str) -> str | None:
@@ -125,15 +127,20 @@ def _labelled(changes: list[FieldChange]) -> list[FieldChange]:
     return [{**change, "field_name": SNAPSHOT_LABELS[change["field_name"]]} for change in changes]
 
 
-def record_timesheet_event(
+def record_timesheet_write(
     *,
     staff: Staff,
     event_type: str,
     line: CostLine,
     before: TimesheetLineSnapshot | None,
-    after: TimesheetLineSnapshot | None,
-) -> TimesheetEvent:
-    """Write one audit event for ``line``; call it inside the write's transaction.
+) -> TimesheetEvent | None:
+    """Record one write to ``line``; the one place that decides whether a line is recorded.
+
+    Call it inside the write's transaction, after the write for a create,
+    edit, move or approval and before the row goes for a delete (Django clears
+    the pk on the instance it deleted, and the event names the line by that
+    id). ``before`` is ``snapshot_if_entry`` taken before the write; a
+    creation has none. Returns None for a line that is not a timesheet entry.
 
     ``detail.changes`` is the labelled diff of the two snapshots for an edit or
     a move, so the event renders as what changed. A creation, deletion or
@@ -141,8 +148,11 @@ def record_timesheet_event(
     still carry the entry's state, which is why approval records both sides
     rather than diffing them into "Approved changed from 'False' to 'True'".
     """
+    if not is_timesheet_entry(line):
+        return None
     if line.staff_id is None:
         raise ValueError(f"Timesheet line {line.id} has no staff member.")
+    after = None if event_type == "entry_deleted" else line_snapshot(line)
     diffed = event_type in EDIT_EVENT_TYPES
     changes = _labelled(snapshot_changes(before, after)) if diffed else []
     return TimesheetEvent.objects.create(

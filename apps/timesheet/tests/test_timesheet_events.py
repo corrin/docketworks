@@ -231,16 +231,18 @@ class TestOfficePath:
 
         assert _events(line.id) == []
 
-    def test_a_leave_managed_line_records_nothing(
+    def test_a_leave_created_line_is_audited_like_any_entry(
         self, job: Job, worker: Staff, office_staff: Staff
     ) -> None:
-        """Leave lines are written in batches by a leave request, which names its author."""
+        """A line the Leave screen created is an ordinary entry once it exists (owner ruling)."""
         data = _office_data(worker)
         data["managed_by"] = "leave"
 
         line = job_service.create_cost_line(job, "actual", data, office_staff)
 
-        assert _events(line.id) == []
+        (event,) = _events(line.id)
+        assert event.event_type == "entry_created"
+        assert event.worker == worker
 
 
 HISTORY_URL = "/api/job/timesheet/entries/history/"

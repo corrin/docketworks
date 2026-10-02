@@ -38,7 +38,7 @@ from apps.job.services.time_entry_rates import (
     rate_from_meta,
 )
 from apps.timesheet.services import hour_categories
-from apps.timesheet.services.timesheet_events import line_snapshot, record_timesheet_event
+from apps.timesheet.services.timesheet_events import record_timesheet_write, snapshot_if_entry
 
 logger = logging.getLogger(__name__)
 
@@ -393,13 +393,7 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
         )
         line.save()
         update_latest_actual(job, cost_set.rev, cost_set.id, staff)
-        record_timesheet_event(
-            staff=staff,
-            event_type="entry_created",
-            line=line,
-            before=None,
-            after=line_snapshot(line),
-        )
+        record_timesheet_write(staff=staff, event_type="entry_created", line=line, before=None)
 
     return entry_data(line)
 
@@ -479,7 +473,7 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
         line = _owned_line(staff, data["entry_id"])
         if line.cost_set.job_id not in job_ids:
             raise ConflictError("This entry moved to another job. Reload before editing it.")
-        before = line_snapshot(line)
+        before = snapshot_if_entry(line)
         meta = dict(line.meta)
         changed = _apply_scalar_changes(line, meta, data)
         reprice = _apply_billing_changes(meta, data)
@@ -518,12 +512,11 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
         line.save()
         if moved_cost_set is not None:
             update_latest_actual(job, moved_cost_set.rev, moved_cost_set.id, staff)
-        record_timesheet_event(
+        record_timesheet_write(
             staff=staff,
             event_type="entry_moved" if moved_cost_set is not None else "entry_updated",
             line=line,
             before=before,
-            after=line_snapshot(line),
         )
 
     return entry_data(line)
@@ -543,12 +536,8 @@ def delete_entry(staff: Staff, entry_id: UUID) -> None:
     refuse_workflow_managed(line, "cancel")
     # Recorded before the delete: Django clears the pk on the instance it
     # deleted, and the event names the line by that id.
-    record_timesheet_event(
-        staff=staff,
-        event_type="entry_deleted",
-        line=line,
-        before=line_snapshot(line),
-        after=None,
+    record_timesheet_write(
+        staff=staff, event_type="entry_deleted", line=line, before=snapshot_if_entry(line)
     )
     line.delete()
     logger.info("Deleted workshop timesheet entry %s for staff %s", entry_id, staff.id)
