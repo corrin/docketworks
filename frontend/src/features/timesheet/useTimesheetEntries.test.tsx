@@ -225,6 +225,34 @@ describe('useTimesheetEntries', () => {
     expect(sentBody).toEqual({ job_id: 'job-2' })
   })
 
+  it('two moves on one row reach the server in order and the row ends on the second', async () => {
+    const hook = setup([makeLine()])
+    await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
+    const { job_id: _j, job_number: _n, job_name: _jn, company_name: _c, ...bareLine } = makeLine()
+    const sent: string[] = []
+    server.use(
+      http.patch('*/api/job/cost_lines/line-1/', async ({ request }) => {
+        const body: unknown = await request.json()
+        const jobId =
+          typeof body === 'object' && body !== null && 'job_id' in body ? String(body.job_id) : ''
+        sent.push(jobId)
+        // The first move is slow; serialization means the second still waits for it.
+        if (jobId === 'job-2') await new Promise((resolve) => setTimeout(resolve, 80))
+        hook.serverLines[0] = makeLine({
+          job_id: jobId,
+          job_number: jobId === 'job-2' ? 202 : 303,
+        })
+        return HttpResponse.json(bareLine)
+      }),
+    )
+    const third: TimesheetJobOut = { ...job, id: 'job-3', job_number: 303, name: 'Third' }
+    hook.result.current.moveLine('line-1', job)
+    hook.result.current.moveLine('line-1', third)
+    await waitFor(() => expect(sent).toEqual(['job-2', 'job-3']))
+    await waitFor(() => expect(cachedLines(hook)[0]!.job_number).toBe(303))
+    expect(hook.serverLines[0]!.job_id).toBe('job-3')
+  })
+
   it('a refused move puts the row back on its old job', async () => {
     const hook = setup([makeLine()])
     await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
