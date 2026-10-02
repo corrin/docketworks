@@ -1458,3 +1458,10 @@
     The all-zero placeholder is refused by name, because Xero never issues it and
     it is therefore sent in the header instead of raising the configuration error
     an unset value raises. Enabling sync still requires a bound organisation.
+
+- operation: (weekly timesheet display)
+  change: "Weekly column headers show dates without weekday labels"
+  reason: >
+    Owner ruling on KAN-369 / PR #189, 2026-10-03: weekday context belongs
+    on the staff time-entry and daily overview pages. The weekly overview
+    covers the whole week and does not need v1's repeated weekday labels.
