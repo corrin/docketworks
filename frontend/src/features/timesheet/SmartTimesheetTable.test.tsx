@@ -200,6 +200,20 @@ describe('moving a saved entry', () => {
     expect(handles.patchLine).not.toHaveBeenCalled()
   })
 
+  it('a row on a job outside the active list does not open its search on focus', async () => {
+    await renderTable({
+      entries: [makeLine({ job_id: 'job-gone', job_number: 999, job_name: 'Archived' })],
+    })
+    const trigger = autoId('SmartTimesheetTable-jobPicker-0-trigger')
+
+    act(() => trigger.focus())
+
+    expect(trigger).toHaveFocus()
+    expect(
+      document.querySelector('[data-automation-id="SmartTimesheetTable-jobPicker-0-search"]'),
+    ).toBeNull()
+  })
+
   it("re-picking the row's own job moves nothing", async () => {
     const user = userEvent.setup()
     const handles = await renderTable({ entries: [makeLine()] })
