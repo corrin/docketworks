@@ -132,7 +132,7 @@ from apps.job.services.workshop_pdf_service import create_workshop_pdf
 from apps.job.tasks import create_job_file_thumbnail_task
 from apps.purchasing.models import Stock
 from apps.purchasing.services.stock_service import consume_stock
-from apps.timesheet.services.timesheet_events import record_timesheet_write, snapshot_if_entry
+from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
 
 logger = logging.getLogger(__name__)
 
@@ -987,7 +987,7 @@ def approve_cost_line(request: HttpRequest, cost_line_id: UUID) -> dict[str, obj
         before = snapshot_if_entry(line)
         line.approved = True
         line.save(update_fields=["approved", "updated_at"])
-        record_timesheet_write(
+        record_timesheet_event(
             staff=authenticated_staff(request),
             event_type="entry_approved",
             line=line,

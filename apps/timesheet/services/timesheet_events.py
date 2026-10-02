@@ -127,7 +127,7 @@ def _labelled(changes: list[FieldChange]) -> list[FieldChange]:
     return [{**change, "field_name": SNAPSHOT_LABELS[change["field_name"]]} for change in changes]
 
 
-def record_timesheet_write(
+def record_timesheet_event(
     *,
     staff: Staff,
     event_type: str,

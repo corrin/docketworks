@@ -292,11 +292,12 @@ class TestEveryWrittenEventTypeRenders:
             source = path.read_text()
             if "JobEvent" not in source and "_handle_boolean_change" not in source:
                 continue
-            # A sibling trail's recorder (record_timesheet_write and kin) takes
-            # the same keyword in the same files; its literals are that
-            # subtype's, rendered by its own labels and asserted in its own
-            # tests, so every record_*( call is cut before the scan.
-            source = re.sub(r"\brecord_\w+\((?:[^()]|\([^()]*\))*\)", "", source)
+            # Every trail's recorder is named record_<subject>_event: the
+            # process entry, form and timesheet recorders all are. They take
+            # the same keyword in the same files, and their literals are their
+            # own subtype's, rendered by its labels and asserted in its tests,
+            # so those calls are cut before the scan.
+            source = re.sub(r"\brecord_\w+_event\((?:[^()]|\([^()]*\))*\)", "", source)
             written.update(re.findall(r"event_type\s*=\s*[\"']([a-z_]+)[\"']", source))
             for pair in re.findall(
                 r"_handle_boolean_change\(\s*[\"']([a-z_]+)[\"'],\s*[\"']([a-z_]+)[\"']", source

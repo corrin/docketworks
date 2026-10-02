@@ -62,7 +62,7 @@ from apps.job.services.delta_checksum import compute_job_delta_checksum, normali
 from apps.job.services.time_entry_rates import pay_item_by_id, price_time_entry
 from apps.timesheet.services.timesheet_events import (
     is_timesheet_entry,
-    record_timesheet_write,
+    record_timesheet_event,
     snapshot_if_entry,
 )
 
@@ -2302,7 +2302,7 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
         # CostLine.save() runs full_clean, assigns entry_seq and refreshes
         # the CostSet summary; do not duplicate those model responsibilities here.
         line.save()
-        record_timesheet_write(staff=staff, event_type="entry_created", line=line, before=None)
+        record_timesheet_event(staff=staff, event_type="entry_created", line=line, before=None)
     return line
 
 
@@ -2381,7 +2381,7 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
         line.save()
         if moved_cost_set is not None:
             update_latest_actual(line.cost_set.job, moved_cost_set.rev, moved_cost_set.id, staff)
-        record_timesheet_write(
+        record_timesheet_event(
             staff=staff,
             event_type="entry_moved" if moved_cost_set is not None else "entry_updated",
             line=line,
@@ -2407,7 +2407,7 @@ def delete_cost_line(line: CostLine, staff: Staff) -> None:
     with transaction.atomic():
         # Recorded before the delete: Django clears the pk on the instance it
         # deleted, and the event names the line by that id.
-        record_timesheet_write(
+        record_timesheet_event(
             staff=staff, event_type="entry_deleted", line=line, before=snapshot_if_entry(line)
         )
         line.delete()
