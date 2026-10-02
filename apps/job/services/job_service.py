@@ -33,7 +33,13 @@ from django.utils import timezone
 
 from apps.accounting.models import Invoice, Quote
 from apps.accounts.models import Staff
-from apps.core.errors import AppErrorContext, ConflictError, InvalidInputError, persist_app_error
+from apps.core.errors import (
+    AccessDeniedError,
+    AppErrorContext,
+    ConflictError,
+    InvalidInputError,
+    persist_app_error,
+)
 from apps.core.etag import (
     PreconditionFailedError,
     generate_updated_at_etag,
@@ -2314,11 +2320,16 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
     """Edit unowned costs; issuing material belongs to purchasing.
 
     A ``job_id`` that differs from the line's job moves a timesheet entry to
-    that job (``move_time_line``) and reprices it there.
+    that job (``move_time_line``) and reprices it there. Office staff move
+    any entry; anyone else moves only their own (owner ruling, 2026-10-03),
+    the workshop path's rule, refused here before any lock is taken.
     """
     job_ids = {line.cost_set.job_id}
     if "job_id" in data:
         job_ids.add(data["job_id"])
+        moving = data["job_id"] != line.cost_set.job_id
+        if moving and not staff.is_office_staff and line.meta.get("staff_id") != str(staff.id):
+            raise AccessDeniedError("Only office staff move another person's time.")
     lock_costing_jobs(job_ids)
     # The lock is on the line alone (``of``): the joins for the snapshot's
     # subtype and pay item are nullable, and Postgres refuses FOR UPDATE on the

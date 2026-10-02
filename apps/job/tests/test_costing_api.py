@@ -457,6 +457,45 @@ class TestCostLineUpdate:
             f"Moved from #{job.job_number} to #{destination.job_number}"
         )
 
+    def test_a_worker_moves_their_own_entry(
+        self, job: Job, company: Company, workshop_staff: Staff
+    ) -> None:
+        """update_cost_line's move gate lets a non-office caller move a line they own."""
+        destination = make_job(company, workshop_staff, name="Destination")
+        worker_client = _workshop_client(workshop_staff)
+        line_id = self._create_timesheet_line(worker_client, job, workshop_staff)
+
+        response = worker_client.patch(
+            f"/api/job/cost_lines/{line_id}/",
+            data={"job_id": str(destination.id)},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200, response.content
+        assert CostLine.objects.get(id=line_id).cost_set.job_id == destination.id
+
+    def test_a_worker_cannot_move_another_persons_entry(
+        self, job: Job, company: Company, workshop_staff: Staff, timesheet_worker: Staff
+    ) -> None:
+        """The gate refuses a non-office caller moving a colleague's line, before any lock."""
+        destination = make_job(company, workshop_staff, name="Destination")
+        line_id = self._create_timesheet_line(
+            _workshop_client(timesheet_worker), job, timesheet_worker
+        )
+
+        response = _workshop_client(workshop_staff).patch(
+            f"/api/job/cost_lines/{line_id}/",
+            data={"job_id": str(destination.id)},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 403, response.content
+        assert "Only office staff move another person's time" in response.json()["detail"]
+        assert CostLine.objects.get(id=line_id).cost_set.job_id == job.id
+        assert not TimesheetEvent.objects.filter(
+            cost_line_id=line_id, event_type="entry_moved"
+        ).exists()
+
     def test_patch_job_id_onto_a_shop_job_makes_the_entry_unbillable(
         self, client: Client, job: Job, office_staff: Staff, timesheet_worker: Staff
     ) -> None:
