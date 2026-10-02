@@ -5,6 +5,23 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
+## 2026-10-03 — Who moves a timesheet entry; a leave-created line is an ordinary entry
+
+Two owner rulings from the review of KAN-370. **A non-office caller moves only their own
+entry.** Office staff move any entry through the cost-line PATCH; anyone else may move only a
+line whose `meta.staff_id` is their own, the workshop path's rule, refused in
+`update_cost_line` before any lock is taken. The rest of that PATCH stays plain authenticated;
+`rewrite-status.md` open decision 1 still covers it.
+
+**A line the Leave screen created is an ordinary time entry once it exists.** The Leave screen
+is a convenience for creating a batch of entries, not an owner of them. The audit trail
+records writes to such lines like any other. Three places still treat them as special and are
+the leave slice's to change, with one ruling it needs first: `refuse_workflow_managed` refuses
+edit, delete and approve on `managed_by="leave"`; `LeaveDay` holds a PROTECT link to the line
+and its own copy of the hours; the upcoming-leave summary and "away today" read `LeaveDay`,
+not the line, so an edited line would drift from what the Leave screen reports. The ruling the
+slice needs is what `LeaveDay` means once its line has been edited.
+
 ## 2026-10-02 — Saved-row grids share one write pattern: serialized per grid
 
 Owner ruling during KAN-370's review. Every grid of saved rows — job cost lines, timesheet
