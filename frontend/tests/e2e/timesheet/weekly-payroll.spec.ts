@@ -10,6 +10,7 @@ import { test, expect } from '../fixtures/auth'
 // The app's own date helpers, not a spec-local reimplementation: the fourth
 // sibling copy of Monday arithmetic is how the three job pickers happened.
 import { mondayOf, shiftDate } from '../../../src/lib/dates'
+import { formatDateLong } from '../../../src/lib/format'
 import { autoId } from '../helpers'
 import { getLatestWeekdayDate, seedLabourForWeek } from './support'
 
@@ -77,8 +78,10 @@ test.describe('weekly timesheets', () => {
     const firstHeader = page.locator('[data-automation-id^="WeeklyOverview-dayHeader-"]').first()
     const headerId = await firstHeader.getAttribute('data-automation-id')
     const day = headerId!.replace('WeeklyOverview-dayHeader-', '')
+    await expect(firstHeader).toContainText('Mon')
     await firstHeader.click()
     await page.waitForURL(`**/timesheets/daily**date=${day}**`)
+    await expect(autoId(page, 'DailyOverview-date')).toHaveText(formatDateLong(day))
 
     await openWeek(page, week)
     const firstCell = page.locator('[data-automation-id^="WeeklyOverview-cell-"]').first()
