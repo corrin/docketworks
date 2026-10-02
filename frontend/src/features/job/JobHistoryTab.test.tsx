@@ -282,7 +282,8 @@ describe('JobHistoryTab — the timeline', () => {
     const { user } = renderWithProviders(<JobHistoryTab jobId={JOB_ID} />)
 
     expect(await screen.findByText('Failed to load the job timeline.')).toBeInTheDocument()
-    // An unreadable timeline must never masquerade as a job with no history.
+    // GPT: The empty state means a successful read found no events; a failed
+    // read leaves that question unanswered and offers Retry instead.
     expect(queryAutoId('JobHistoryTab-empty')).toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Retry' }))

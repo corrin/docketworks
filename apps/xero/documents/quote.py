@@ -267,7 +267,7 @@ class XeroQuoteManager(XeroDocumentManager):
         result: "DocumentResult",
         raw: dict[str, object],
     ) -> XeroDocumentResponse:
-        """Discriminate the two unique constraints by state, never by guess.
+        """Distinguish a sync-mirrored quote from a concurrent push using persisted state.
 
         Same xero_id already present → the sync/webhook mirrored OUR quote
         between the Xero create and this insert (the mirror transform never

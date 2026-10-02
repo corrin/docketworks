@@ -90,7 +90,7 @@ def test_live_probe_is_explicit_and_uses_the_saved_row(superuser_api: Client) ->
 
 @pytest.mark.parametrize("field", ["name", "model_name", "api_key"])
 def test_blank_values_are_rejected(superuser_api: Client, field: str) -> None:
-    """Whitespace is invalid input, never a stored credential or silently selected model."""
+    """Whitespace-only provider names, model names and API keys are rejected."""
     provider_id = create(superuser_api)
     response = superuser_api.patch(
         f"{URL}{provider_id}/", {field: "  "}, content_type="application/json"

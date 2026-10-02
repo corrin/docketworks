@@ -18,7 +18,7 @@ class FakeXeroRequestError(ValueError):
 
 
 class FakeXeroUnhandledRouteError(NotImplementedError):
-    """A call, a parameter or a filter the fake has no answer for: never a guess, always this."""
+    """The fake does not implement the requested call, parameter or filter."""
 
 
 @dataclass(frozen=True)

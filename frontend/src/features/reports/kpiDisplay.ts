@@ -9,7 +9,7 @@ import {
 /** The day's grade, straight off the wire: three rungs plus the ungraded weekend. */
 export type DayCategory = KpiDayDataOut['color_hours']
 
-/** The month's grade: a month is never a weekend. */
+/** Monthly performance grade; the ungraded weekend category is specific to daily cells. */
 export type DayColor = KpiMonthlyTotalsOut['color_hours']
 
 /** Which ladder tints the calendar. Hours is the default (owner ruling

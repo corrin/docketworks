@@ -87,7 +87,7 @@ const STREAM_RECONCILE_DEBOUNCE_MS = 300
  */
 const STREAM_DISCONNECTED_MESSAGE = 'Live updates disconnected — falling back to periodic refresh'
 
-/** The opaque server versions this loop tracks. Never parsed, never synthesised. */
+/** Opaque version tokens supplied by the server for each tracked dataset. */
 interface KanbanCursor {
   kanban: string
   kanbanRelated: string

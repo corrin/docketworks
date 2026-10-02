@@ -1,8 +1,7 @@
 """Job aging report: per-job financial totals, timing, and last activity.
 
-Malformed data persists an AppError with the job named and fails the request;
-the report never degrades or silently reorders corrupt rows (ADR 0015). The
-2026-08 production restore contained no such rows.
+Malformed data persists an AppError with the job named and fails the request
+(ADR 0015). The 2026-08 production restore contained no such rows.
 """
 
 import datetime

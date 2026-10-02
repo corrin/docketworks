@@ -332,8 +332,8 @@ class KPIMonthlyTotalsOut(Schema):
     labour_revenue_share: float | None
     month_target: float
     month_target_achievement: float | None
-    # The month is always graded, so these are the three-rung ladder rather
-    # than the day's four categories — a month is never "weekend".
+    # Monthly totals use the three performance grades. The ungraded weekend
+    # category applies only to individual days.
     color_hours: DayColor
     color_gp: DayColor
     color_shop: DayColor

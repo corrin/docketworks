@@ -27,10 +27,10 @@ a test guards; this one decides **whether the assertion can see it**.
   put the meaning in the assertion message
   (`assert xero_writes == [], "a locally-knowable refusal spent Xero calls to reach"`). The same
   holds for queries, retries and writes.
-- **Never assert a definition.** `timesheet + leave_api + xero_computed == total` cannot fail
-  while `timesheet` is computed as `total - leave_api - xero_computed`; it tests subtraction and
-  survives every rewrite for the wrong reason. Two values meant to agree must come from two
-  independent paths — the split the report shows against the split actually posted, line for line.
+- **Compare independent paths.** Compare the split the report shows with the split actually
+  posted, line for line. Obtain expected values independently of the calculation under test.
+  GPT: Shared derivation can reproduce the same defect on both sides of an assertion; an
+  independent observation makes a disagreement detectable.
 - **Reach the code through the door the product uses.** Test setup that uses `.update(...)`,
   `bulk_create`, raw SQL or a hand-built object skips `save`, `clean`, signals and the service
   owning the write, so it never crosses the code under test — and it will keep passing through a

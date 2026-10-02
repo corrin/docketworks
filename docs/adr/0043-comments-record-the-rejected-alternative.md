@@ -1,16 +1,18 @@
-# 0043 — Comments record the rejected alternative
+# 0043 — Comments explain decisions and constraints
 
-A comment answers: which obvious alternative did the author reject, and what *checked* fact rejected it?
+A comment explains the decision, constraint or failure mode a reader needs to understand,
+and the checked fact behind it.
 
 ## Rules
 
-- Every comment tells the reader something the code cannot: the choice made, the obvious alternative rejected, and the fact that rejected it. The shape, from `apps/core/errors.py`: "The marker is metadata *about* the exception, deliberately not a wrapper type — wrapping would destroy the type the HTTP boundary needs to choose a status code."
+- Every comment tells the reader something the code cannot: why the choice fits the constraints, what depends on it, or which plausible alternative the evidence ruled out. The shape, from `apps/core/errors.py`: "The marker is metadata *about* the exception, deliberately not a wrapper type — wrapping would destroy the type the HTTP boundary needs to choose a status code."
 - **The fact has to be one.** A rationale asserting something checkable — that no other implementation exists, that a call site is gated, that a value cannot be null, that a library would not fit, that a framework behaves a certain way — names the check that established it, or says plainly that it was not checked. The check is almost always a grep, a query, a test or a single run, and it is cheaper than the claim is durable. Two shapes, both acceptable: "the only other blob download is `open-blob.ts`, which defers its revoke" (checked, and the reader can repeat it), or "suspected rather than reproduced: the suite is chromium-only, and Chromium is the browser that wins this race" (unchecked, and saying so).
 - An unchecked claim is more dangerous than a missing comment. A gap invites the next session to look; a confident sentence tells it not to bother, and the codebase then carries a belief that everything downstream is built on.
 - The same test governs docstring sentences beyond the contract summary. (Test docstrings have their own required shape — ADR 0025.)
 - AI-authored rationale carries its model-family attribution until the owner ratifies it (ADR 0051); attribution records who supplied the judgement, not permission to ignore a rule.
 - Sessions are this codebase's authors, and a rejected alternative that goes unrecorded is an alternative the next session will re-attempt — that is how v1's duplication began.
-- A comment that fails the test is deleted, not reworded.
+- Treat the reader as a competent engineer. Discuss an alternative only when they might reasonably consider it. State the useful constraint directly when no such comparison is needed; preserve the reasoning and evidence when removing a straw-man contrast.
+- Rewrite comments that contain useful reasoning to make that reasoning clear. Delete a comment when it adds no information beyond the code.
 
 ## Do not
 

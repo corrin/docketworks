@@ -5,6 +5,15 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
+## 2026-10-03 — Remove straw-man alternatives from guidance
+
+Reviewed the repository's “never” clauses against the owner's no-straw-men criterion:
+retain a rejected alternative only when a competent engineer might consider it.
+Rewrote comments and guidance to state the constraint and its implications directly,
+preserving decision evidence and meaningful alternatives. ADR 0043 now makes that
+standard explicit. Domain constraints, historical statements and TypeScript types
+remain; executable code and test assertions are unchanged.
+
 ## 2026-10-02 — Saved-row grids share one write pattern: serialized per grid
 
 Owner ruling during KAN-370's review. Every grid of saved rows — job cost lines, timesheet

@@ -5,9 +5,8 @@ replaced a system that already worked, so "working but structurally compromised"
 nothing: scope bends, the standard does not. Colliding with a rule — an ADR, a
 linter, a type error, a layer contract — means the approach is wrong, not that a rule is in
 the way. Stop, name the belief the tool contradicted, and check it (query the data, read the
-writers, read the ADR in full) before editing; never search for the smallest edit that gets
-past it. A rule enters this file as one line naming its authority; the argument stays in the
-ADR, and nothing here is said twice.
+writers, read the ADR in full) before editing. A rule enters this file as one line naming
+its authority; the argument stays in the ADR, and nothing here is said twice.
 
 ## Where things are
 
@@ -37,7 +36,7 @@ The frontend loop check is `npm run type-check`, not `npm run build`. `uv run my
 at a zero baseline over `apps config manage.py scripts`. CI runs the commit tier plus the unit
 suites, never integration or E2E; a CI check missing from the commit tier is a bug in the
 tier, never a saving, and slowness argues for a faster check, never for moving it. Never
-weaken a gate, never baseline one.
+baseline a gate.
 
 ## Never
 
@@ -48,8 +47,8 @@ weaken a gate, never baseline one.
 
 ## Done
 
-- Done means the E2E spec passes. Report progress as specs green, never as endpoints or
-  components written. Nothing releases without the suite green. UAT verification and PVT are
+- Done means the E2E spec passes. Report progress as specs green. Nothing releases without
+  the suite green. UAT verification and PVT are
   `scripts/server/verify-instance.sh --e2e` green on the instance (ADR 0064).
 - Assume the owner has walked away. Commit each verified slice as soon as it is complete,
   staging explicit paths; push every commit; open a draft PR at the first push and mark it ready
@@ -68,7 +67,7 @@ weaken a gate, never baseline one.
 
 - Backend: the import-linter contract in `pyproject.toml` gates — `config` on top, `core`,
   `ai` and `platform` at the bottom. ADR 0055 is the target taxonomy and
-  `config/architecture.py` the list of migrated contexts; never name one absent from it.
+  `config/architecture.py` the list of migrated contexts.
 - Frontend: `routes/` (thin) → `features/<domain>/` → the generated client (ADR 0021, never
   hand-edited) and `lib/`. Server state lives in TanStack Query; no hand-written service layer.
 - `docs/code-quality.md` is generated, never hand-edited; only `passthrough` is pinned at zero.
@@ -103,7 +102,7 @@ weaken a gate, never baseline one.
   `docs/dependency-sweep.md`.
 - A unit test names the Docketworks block whose plausible edit trips it; no such block, no test
   (ADR 0025).
-- Comments record the rejected alternative and the fact that rejected it (ADR 0043). AI-authored
+- Comments explain decisions and constraints with checked evidence (ADR 0043). AI-authored
   rationale carries its model prefix (`Opus:`, `GPT:`) until ratified (ADR 0051).
 
 ## Porting

@@ -58,7 +58,7 @@ CostLine.objects.create(
 ## Important rules
 
 1. **Always use a script with dry-run pattern** for creating/modifying data. Write the script to `scripts/`, run dry first, show the user what will happen, then run live after confirmation.
-2. **Never run data changes directly** — always use transaction.atomic() with rollback for dry runs.
+2. Wrap data changes in `transaction.atomic()` and roll back dry runs.
 3. **Check for duplicates** before adding — if a material line with the same description already exists on the cost set, warn the user and ask if they want to update it instead.
 4. **Validate the Stock record exists and is active** before using it.
 

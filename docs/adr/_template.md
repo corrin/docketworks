@@ -10,4 +10,4 @@ Imperative rules in clear, complete prose, written for the reader — usually an
 
 - **The tempting shortcut** — the one-line fact that makes it wrong here.
 
-Include this section only when a real temptation exists; omit it otherwise. Never write essays defending alternatives — a deliberation record hands a future session its rationalization. Git history holds the deliberation.
+Include this section only when a real temptation exists; omit it otherwise. Git history holds the deliberation.

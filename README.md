@@ -78,7 +78,7 @@ uv run pytest
 ```
 
 Frontend: `npm run lint` (oxlint), `npm run format:check`, `npm run type-check`,
-`npm run test:unit`, `npm run build`. See [`CLAUDE.md`](CLAUDE.md) — never weaken or baseline a gate.
+`npm run test:unit`, `npm run build`. See [`CLAUDE.md`](CLAUDE.md) for the gate policy.
 
 ## Documentation
 

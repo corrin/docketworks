@@ -296,8 +296,8 @@ function StaffForm({
     }
     if (staff === null && drafts.password === '') return 'A password is required.'
     if (drafts.password !== drafts.password_confirm) return 'The passwords do not match.'
-    // An emptied number box must be an error, never a silent 0 — zeroing
-    // base_wage_rate is a payroll change nobody asked for.
+    // GPT: Number('') is 0, so numeric validation alone cannot distinguish
+    // a cleared required field from an explicitly entered zero wage.
     if (drafts.base_wage_rate === '' || Number.isNaN(Number(drafts.base_wage_rate))) {
       return 'A base wage rate is required.'
     }

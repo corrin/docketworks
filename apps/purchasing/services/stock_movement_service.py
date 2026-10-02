@@ -102,7 +102,7 @@ def move_stock(stock: Stock, change: Decimal, context: MovementContext) -> Stock
 
 
 def inventory_difference(stock: Stock) -> Decimal:
-    """Read-only reconciliation; never repair an unexplained difference."""
+    """Read-only reconciliation: return stock quantity minus its ledger balance."""
     return stock.quantity - inventory_balances().get(pk=stock.pk).ledger_quantity
 
 
@@ -208,7 +208,7 @@ _LEDGER_AUDITS = {
 
 
 def inventory_audit_findings() -> dict[str, list[str]]:
-    """Read discrepancies across the ledger; never manufacture missing evidence.
+    """Report discrepancies across the ledger without modifying it.
 
     Receipt totals with explicit pending opening candidates become auditable
     after the cutover. All already-posted movement and cost evidence is checked

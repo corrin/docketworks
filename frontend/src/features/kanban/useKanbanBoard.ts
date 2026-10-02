@@ -44,7 +44,7 @@ export interface KanbanColumnView {
   id: OfficeColumnId
   label: string
   tooltip: string
-  /** Render order, already filtered — never re-sort this. */
+  /** Jobs in board render order, after filtering. */
   jobs: KanbanJobOut[]
   /** v1's jobCountDisplay: "N", or "X of Y" when filtered or truncated. */
   countDisplay: string

@@ -243,8 +243,8 @@ class ScraperBrowserError(RuntimeError):
 class ScraperPageError(RuntimeError):
     """A product page did not contain what the scraper's selectors expect.
 
-    Raised — never swallowed — because a supplier redesign shows up as exactly
-    this, on every page, and the operator's only signal is the failure count on
+    Raised because a supplier redesign shows up as exactly this, on every page,
+    and the operator's only signal is the failure count on
     the ``ScrapeJob`` plus the ``AppError`` rows ``_visit`` writes.
     """
 

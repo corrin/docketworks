@@ -52,8 +52,7 @@ export function PayrollPanel({ weekStart, payroll, onSelectWeek }: PayrollPanelP
   // Fable: Advisory, not authoritative: it reads the mirror, which can be an
   // hour stale, so it informs rather than disables. The POST enforces the same
   // rule on a mirror it refreshes itself, so the worst a stale banner can cost
-  // is a clear refusal naming the right week — never a wrong posting, and
-  // never a truly-postable week locked behind stale data with no recovery.
+  // is a clear refusal naming the right week.
   const offPostableWeek =
     !payroll.isLoading && postableWeekStart !== null && postableWeekStart !== weekStart
   const busy = isPosting || payroll.isLoading

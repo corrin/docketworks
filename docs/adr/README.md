@@ -10,7 +10,7 @@ Decisions that shape this codebase, written for the reader about to do work here
 - **Forward-looking bar.** An ADR is a rule future PRs should follow, read again and again by the session writing them. A decision read once — a migration that has run, a provisioning layout, a release procedure, the story of a bug — goes to the runbook that runs it, the code comment that carries it, or `docs/rewrite-history.md`. Whether today's code complies is not the test: a gap is a code slice, never a reason to retire the rule.
 - **Substance bar.** An ADR captures a non-obvious decision a careful reader of the code couldn't reconstruct.
 - **Every sentence is load-bearing:** a rule, or the forcing fact that makes a rule stick. No narrative problem statements, no essays defending alternatives, no consequences sections restating the decision — deliberation history lives in git. Rationale is a clause attached to its rule.
-- **Clear prose, not fragments.** Brevity comes from cutting sentences that don't change behaviour, never from telegraphic writing — compressed fragments are harder to follow than plain sentences.
+- **Clear prose, not fragments.** Cut sentences that don't change behaviour.
 - **Tempting wrong turns** go under `## Do not` as a prohibition plus a one-line reality, only when the temptation is real.
 - **An ADR lands in its own commit.** An ADR written in the same commit as the code it authorises has not been decided, only justified, and the code was never weighed against a rule that existed before it.
 - **An ADR an AI drafted is unratified until the owner says otherwise** (ADR 0051), and an unratified ADR is not authority for changing behaviour. Mark it, then ask.
@@ -47,7 +47,7 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0039](0039-one-implementation-per-concept.md) | One implementation per concept |
 | [0040](0040-nullable-text-write-contract.md) | Unset is NULL, and the request schema says so |
 | [0041](0041-one-llm-gateway.md) | One LLM gateway, and it lives in apps/ai |
-| [0043](0043-comments-record-the-rejected-alternative.md) | Comments record the rejected alternative |
+| [0043](0043-comments-record-the-rejected-alternative.md) | Comments explain decisions and constraints |
 | [0046](0046-numbers-on-the-wire.md) | Numbers on the wire; the frontend owns all formatting |
 | [0047](0047-asgi-serving-and-sse-push.md) | The application is served over ASGI, and data versions are pushed over SSE |
 | [0048](0048-own-what-you-wipe-database-safety.md) | A role wipes only what it owns; production wipes need an explicit assertion and are always recoverable |

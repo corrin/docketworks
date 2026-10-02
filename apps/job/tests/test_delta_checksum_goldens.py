@@ -2,7 +2,7 @@
 
 If this test fails, the canonicalisation changed — that silently rejects every
 in-flight frontend save. Regenerate goldens ONLY for an intentional, versioned
-protocol change, never to make a refactor pass.
+protocol change.
 """
 
 import json

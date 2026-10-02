@@ -157,7 +157,6 @@ movement to the responsible job/scrap destination, not a deleted remainder.
 - Correct an erroneously recorded receipt by an explicit linked reversal, bounded
   by the original receipt's unreversed quantity. Preserve onward job issues and
   their cost effects; the correction may leave negative SOH for later reconciliation.
-  Never erase onward movements to make a correction balance.
 - Record a real return to the supplier separately from correcting a mistaken entry.
   GPT proposal: keep the original delivery history and record the return; the
   operator explicitly states whether a replacement is due. Do not infer supplier
@@ -337,8 +336,7 @@ Add the receipt entry section to PoDetailPage using EntryGridSection/DataTable,
 existing numeric controls and JobPicker. Full delivery defaults come from the
 backend, not client arithmetic. Add/edit job demand in PO entry before receipt;
 where no demand was supplied, show the existing whole-line job intent explicitly
-and let the operator adjust it. Never infer a half-sheet need from the job name or
-free-text description. Multiple jobs use an expandable allocation editor; the
+and let the operator adjust it. Multiple jobs use an expandable allocation editor; the
 normal single-job/SOH split stays inline.
 
 Use the existing StockPage as the SOH home with paged search, totals, a lot's movement
@@ -479,7 +477,7 @@ For each slice: focused tests red → green → mutation proof → commit tier �
 `uv run pytest`, then real integration via `scripts/ops/run_integration_tests.sh`,
 focused Playwright and the managed full `scripts/ops/run_e2e.sh`, plus the push-tier
 migration check. No XERO_READONLY, fake vendor round trip or quota waiver. Record
-exact results and every blocked case; never remove a promotion hold based on mocks.
+exact results and every blocked case.
 
 Ready to implement means the owner questions and proposed policy changes are resolved,
 the catalogue/lot and movement/cost contracts are reviewed, target data has a viable

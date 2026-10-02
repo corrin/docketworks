@@ -7,9 +7,8 @@ so explaining something never grows the file a session reads to find its next jo
 Constraints that would otherwise be re-broken are the one exception, and they sit at
 the bottom.
 
-A task gets as many lines as a session needs to pick it up cold — no more. It never
-restates the code, re-derives a measurement, or narrates how it was found; where a fact
-must survive it belongs in an ADR or a seam comment, and the task links there.
+A task gets as many lines as a session needs to pick it up cold — no more. Durable
+facts belong in an ADR or a seam comment, and the task links there.
 
 **Every KAN ticket raised from 2026-09-02 gets a line here, in the same sitting.** One
 or two lines, enough for a session to pick it up cold, linking to the ticket rather than

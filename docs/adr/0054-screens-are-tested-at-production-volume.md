@@ -29,9 +29,7 @@ never drove past one page.
   suite goes green on a corpus that shrank.
 - **Volume is necessary and not sufficient.** A defect ships on a database holding hundreds of
   the rows in question when nothing looks at the pane. Data makes a defect *reachable*; only an
-  assertion makes it *caught*. Never argue that a
-  representative corpus removes the need for the assertion, or that the assertion removes the
-  need for the corpus.
+  assertion makes it *caught*.
 - **A thin table is reported, never baselined.** The gap check prints; it does not gate. A
   threshold that admits today's shortfalls is a baseline, and this repository does not keep
   baselines — the number is there to move. What gates is the spec: a spec asserting a

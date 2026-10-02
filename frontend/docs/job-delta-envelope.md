@@ -53,8 +53,7 @@ call these.** Bit-identical parity is enforced by shared golden vectors in
 `<repoRoot>/tests/delta-checksum-goldens.json`, executed by
 `apps/job/tests/test_delta_checksum_goldens.py` and
 `src/lib/delta/__tests__/checksum.golden.test.ts` (ADR 0004). Regenerate
-goldens only for an intentional, versioned contract change — never to make a
-failing implementation pass.
+goldens only for an intentional, versioned contract change.
 
 ## Frontend flow
 

@@ -30,7 +30,7 @@ def now_utc() -> datetime:
 
 
 def new_id() -> str:
-    """Mint an id Xero has never issued and never will: uniqueness is the point."""
+    """Generate a random UUID for a fake Xero record."""
     return str(uuid4())
 
 

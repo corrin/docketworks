@@ -419,7 +419,7 @@ class TestUpdate:
         provider.update_contact.assert_called_once()
 
     def test_xero_synced_update_blocked_without_provider_token(self, client: Client) -> None:
-        """No provider auth means no local write either — never diverge silently."""
+        """Missing provider authentication prevents the local write."""
         company = make_company("Synced Co", xero_contact_id="X-123")
         provider = MagicMock()
         provider.get_valid_token.return_value = None

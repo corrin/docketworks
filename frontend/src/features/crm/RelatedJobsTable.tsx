@@ -174,8 +174,8 @@ function JobRow({
           <ul className="space-y-0.5">
             {job.invoices.map((invoice) => (
               <li key={invoice.id} data-automation-id={`${automationId}-invoice-${invoice.id}`}>
-                {/* A Xero deep link where the sync has one; the number as text
-                    where it has not, never an anchor with nowhere to go. */}
+                {/* GPT: The invoice number remains useful when the synced
+                    record has no online URL. Only navigation depends on it. */}
                 {invoice.online_url === null ? (
                   <span className="font-medium">{invoice.number}</span>
                 ) : (

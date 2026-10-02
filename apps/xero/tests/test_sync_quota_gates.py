@@ -1,9 +1,8 @@
 """The day-quota floor gates in the sync engine, and the sync cursors.
 
 Business case: when quota is reserved for office users, automated sync must
-abort as an operational abort — never report success after doing no work, and
-never burn the reserved calls page by page. The cursor tests pin the engine's
-high-water-mark contract: a suppressed page still advances the cursor, and a
+stop with an operational-abort result at the quota floor. The cursor tests pin
+the engine's high-water-mark contract: a suppressed page still advances the cursor, and a
 fresh install falls back to the database's own high-water mark.
 """
 

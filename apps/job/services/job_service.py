@@ -2870,7 +2870,7 @@ def _check_labour_subtype_update_guards(
                 "reassign them before deactivating it."
             )
 
-    # Guard: never empty the active Workshop (or non-workshop) pool.
+    # Both subtype pools need an active default.
     # default_workshop()/default_non_workshop() raise when their pool is empty,
     # which breaks job creation, Xero sync, and quote import company-wide. This
     # covers both deactivation (is_active=False) and flipping is_workshop.
@@ -2961,8 +2961,8 @@ def update_job_labour_rates(
     if unknown:
         raise ValueError(f"No rate row on this job for: {', '.join(unknown)}.")
 
-    # Atomic so a failure mid-loop never leaves a half-applied update without
-    # a matching JobEvent.
+    # GPT: The rate changes and their pricing_changed event are one audit unit;
+    # commit or roll back the whole batch together.
     with transaction.atomic():
         changes: list[dict[str, str]] = []
         for entry in entries:

@@ -251,10 +251,10 @@ function SchemaField({ field, draft, onChange, disabled, staffOptions, automatio
 }
 
 /**
- * The ONE schema-driven entry component: the entries page's add-entry card,
- * a row's edit dialog, the forms-list Fill dialog, and FormDialog's disabled
- * preview all render this — one implementation of "render a form from
- * FormFieldSchema[]" (ADR 0039), never a per-surface sibling.
+ * Shared renderer for FormFieldSchema[] (ADR 0039), used by the entries
+ * page's add-entry card, a row's edit dialog, the forms-list Fill dialog and
+ * FormDialog's disabled preview. Schema-rendering changes belong here so
+ * all four surfaces use the same controls.
  */
 export function EntryForm({
   schema,

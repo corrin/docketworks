@@ -104,7 +104,7 @@ def test_archive_refuses_a_malformed_answer(fake_api: type[_FakeAccountingApi]) 
 def test_listing_refuses_a_contact_status_xero_does_not_document(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A status outside ACTIVE/ARCHIVED (GDPRREQUEST) is refused, never silently skipped."""
+    """A status outside ACTIVE/ARCHIVED (GDPRREQUEST) is refused."""
 
     class _Contact:
         name = "[TEST] Erased"

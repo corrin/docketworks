@@ -76,7 +76,7 @@ export async function runEventStream<TEvent>({
           return
         }
         // Anything else is the ~20s keep-alive frame, or a frame a future
-        // server adds: unknown events are ignored, never guessed at.
+        // server adds; both are ignored.
         if (event.event !== eventName) return
         if (!isEvent(event.data)) return
         onEvent(event.data)
