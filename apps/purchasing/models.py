@@ -6,7 +6,6 @@ and the Stock inventory model.
 
 import logging
 import uuid
-from collections.abc import Callable
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -661,10 +660,6 @@ class PurchaseOrderEvent(AuditEvent):
         on_delete=models.CASCADE,
         related_name="events",
     )
-
-    DESCRIPTION_BUILDERS: ClassVar[dict[str, Callable[[dict[str, Any]], str]]] = {
-        "manual_note": AuditEvent.manual_note_description,
-    }
 
     class Meta(AuditEvent.Meta):
         indexes: ClassVar = [

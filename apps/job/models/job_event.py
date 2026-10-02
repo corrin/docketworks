@@ -3,16 +3,44 @@
 import hashlib
 from collections.abc import Callable
 from datetime import timedelta
-from typing import Any, ClassVar
+from typing import Any, ClassVar, TypedDict
 
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.timezone import now
 
-from apps.core.audit import AuditEvent, truncate_change
+from apps.core.audit import AuditDetail, AuditEvent, JsonScalar, truncate_change
 
 
-def _truthy(value: object) -> bool:
+class PositionDetail(TypedDict, total=False):
+    """A priority or status move's rank facts, as ``detail.position`` records them."""
+
+    old_position: int
+    new_position: int
+    old_status: str
+    new_status: str
+    old_total: int
+    new_total: int
+
+
+class JobEventDetail(AuditDetail, total=False):
+    """Every key a job event's builders read from ``detail``."""
+
+    job_name: str
+    company_name: str
+    person_name: str
+    initial_status: str
+    pricing_methodology: str
+    position: PositionDetail
+    xero_invoice_number: str
+    old_total_excl_tax: str
+    new_total_excl_tax: str
+    xero_quote_number: str
+    filename: str
+    jsa_title: str
+
+
+def _truthy(value: JsonScalar) -> bool:
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
@@ -39,7 +67,7 @@ def _format_status(slug: str | None) -> str:
 
 def _completion_confirmation_descriptor(
     confirmed: str, withdrawn: str
-) -> Callable[[object, object], str]:
+) -> Callable[[JsonScalar, JsonScalar], str]:
     """Descriptor factory for front-desk checklist items.
 
     Both wordings are given explicitly rather than built from one subject: an
@@ -47,7 +75,7 @@ def _completion_confirmation_descriptor(
     reads properly instead of a negated one that does not.
     """
 
-    def descriptor(old: object, new: object) -> str:  # noqa: ARG001 -- (old, new) callback protocol
+    def descriptor(old: JsonScalar, new: JsonScalar) -> str:  # noqa: ARG001 -- (old, new) callback protocol
         if _truthy(new):
             return confirmed
         return withdrawn
@@ -55,7 +83,7 @@ def _completion_confirmation_descriptor(
     return descriptor
 
 
-def _quote_acceptance_descriptor(old: object, new: object) -> str:
+def _quote_acceptance_descriptor(old: JsonScalar, new: JsonScalar) -> str:
     if new and not old:
         return f"Quote accepted on {new}"
     if old and not new:
@@ -65,7 +93,7 @@ def _quote_acceptance_descriptor(old: object, new: object) -> str:
 
 # Per-field descriptor: field_name (as it appears in detail.changes[].field_name)
 # → callable(old, new) → str. Fields not listed here use the base's default sentence.
-_FIELD_DESCRIPTORS: dict[str, Callable[[object, object], str]] = {
+_FIELD_DESCRIPTORS: dict[str, Callable[[JsonScalar, JsonScalar], str]] = {
     "Rejected": lambda old, new: (  # noqa: ARG005 -- (old, new) callback protocol
         "Job marked as rejected" if _truthy(new) else "Rejection cleared"
     ),
@@ -217,14 +245,24 @@ class JobEvent(AuditEvent):
                     "Please wait before adding another."
                 )
 
+    def build_description(self) -> str:
+        """Render a registered builder's own kind of detail, else what the base renders."""
+        detail: JobEventDetail = self.detail
+        builder = self.DESCRIPTION_BUILDERS.get(self.event_type)
+        if builder:
+            built = builder(detail)
+            if built:
+                return built
+        return super().build_description()
+
     @staticmethod
-    def _build_changes_description(detail: dict[str, Any]) -> str:
+    def _build_changes_description(detail: JobEventDetail) -> str:
         # Bound at call time so the base's renderer sees JobEvent's descriptors;
         # a bare name in the class body does not resolve to the inherited classmethod.
         return JobEvent.build_changes_description(detail)
 
     @staticmethod
-    def _build_priority_changed_description(detail: dict[str, Any]) -> str:  # noqa: PLR0911 -- Each event detail shape has an explicit rendering branch.
+    def _build_priority_changed_description(detail: JobEventDetail) -> str:  # noqa: PLR0911 -- Each event detail shape has an explicit rendering branch.
         """Friendly priority change description.
 
         With detail.position present (modern events): describe the rank move.
@@ -253,7 +291,7 @@ class JobEvent(AuditEvent):
                 # time (Job._record_change_event). Render nothing if one slips
                 # through — falls through to the sentinel.
                 return ""
-            if not isinstance(old_pos, int) or not isinstance(new_pos, int):
+            if old_pos is None or new_pos is None:
                 # Corrupt position payloads are invalid rather than silently repairable.
                 raise TypeError("priority position missing from event detail")
             status_label = _format_status(new_status or old_status)
@@ -270,8 +308,8 @@ class JobEvent(AuditEvent):
         if changes:
             change = changes[0]
             try:
-                old = float(change.get("old_value"))
-                new = float(change.get("new_value"))
+                old = float(str(change.get("old_value")))
+                new = float(str(change.get("new_value")))
             # deliberate-swallow: this builds one human-readable line of the job
             # timeline from a legacy event whose priority was free text. Raising
             # would take out the entire timeline view over a single old row, so
@@ -284,7 +322,7 @@ class JobEvent(AuditEvent):
         return ""
 
     @staticmethod
-    def _build_status_changed_description(detail: dict[str, Any]) -> str:
+    def _build_status_changed_description(detail: JobEventDetail) -> str:
         position = detail.get("position") or {}
         if position:
             old_pos = position.get("old_position")
@@ -305,7 +343,7 @@ class JobEvent(AuditEvent):
         return JobEvent._build_changes_description(detail)
 
     @staticmethod
-    def _build_job_created_description(detail: dict[str, Any]) -> str:
+    def _build_job_created_description(detail: JobEventDetail) -> str:
         # Fallback for creations written before 2026-04-22, the last date a job
         # event was recorded without these fields; every creation since carries
         # all five. A job's initial status and pricing methodology cannot be
@@ -338,19 +376,19 @@ class JobEvent(AuditEvent):
         return ". ".join(sentences) + "."
 
     @staticmethod
-    def _build_invoice_created_description(detail: dict[str, Any]) -> str:
+    def _build_invoice_created_description(detail: JobEventDetail) -> str:
         number = detail.get("xero_invoice_number", "Unknown")
         return f"Invoice {number} created in Xero"
 
     @staticmethod
-    def _build_invoice_deleted_description(detail: dict[str, Any]) -> str:
+    def _build_invoice_deleted_description(detail: JobEventDetail) -> str:
         number = detail.get("xero_invoice_number")
         if number:
             return f"Invoice {number} deleted from Xero"
         return "Invoice deleted from Xero"
 
     @staticmethod
-    def _build_invoice_amount_changed_description(detail: dict[str, Any]) -> str:
+    def _build_invoice_amount_changed_description(detail: JobEventDetail) -> str:
         number = detail.get("xero_invoice_number")
         old_total = detail.get("old_total_excl_tax")
         new_total = detail.get("new_total_excl_tax")
@@ -358,31 +396,31 @@ class JobEvent(AuditEvent):
         return f"{subject} changed from ${old_total} to ${new_total} excluding tax"
 
     @staticmethod
-    def _build_invoice_voided_description(detail: dict[str, Any]) -> str:
+    def _build_invoice_voided_description(detail: JobEventDetail) -> str:
         number = detail.get("xero_invoice_number")
         return f"Invoice {number} voided in Xero" if number else "Invoice voided in Xero"
 
     @staticmethod
-    def _build_quote_created_description(detail: dict[str, Any]) -> str:
+    def _build_quote_created_description(detail: JobEventDetail) -> str:
         number = detail.get("xero_quote_number")
         if number:
             return f"Quote {number} created in Xero"
         return "Quote created in Xero"
 
     @staticmethod
-    def _build_quote_deleted_description(detail: dict[str, Any]) -> str:
+    def _build_quote_deleted_description(detail: JobEventDetail) -> str:
         number = detail.get("xero_quote_number")
         if number:
             return f"Quote {number} deleted from Xero"
         return "Quote deleted from Xero"
 
     @staticmethod
-    def _build_delivery_docket_description(detail: dict[str, Any]) -> str:
+    def _build_delivery_docket_description(detail: JobEventDetail) -> str:
         filename = detail.get("filename", "Unknown")
         return f"Delivery docket generated: {filename}"
 
     @staticmethod
-    def _build_jsa_description(detail: dict[str, Any]) -> str:
+    def _build_jsa_description(detail: JobEventDetail) -> str:
         title = detail.get("jsa_title", "Unknown")
         return f"JSA generated: {title}"
 
@@ -391,7 +429,7 @@ class JobEvent(AuditEvent):
     # Every event type a writer records is registered here: the sentinel the
     # base falls through to is for a type nobody writes
     # (test_no_written_event_type_falls_through_to_the_sentinel).
-    DESCRIPTION_BUILDERS: ClassVar[dict[str, Callable[[dict[str, Any]], str]]] = {
+    DESCRIPTION_BUILDERS: ClassVar[dict[str, Callable[[JobEventDetail], str]]] = {
         "job_created": _build_job_created_description,
         "status_changed": _build_status_changed_description,
         "job_updated": _build_changes_description,

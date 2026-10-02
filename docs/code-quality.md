@@ -14,7 +14,7 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 119,314 (v1 172,577, -31%) |
+| code | 119,335 (v1 172,577, -31%) |
 | tests | 81,824 (v1 50,869, +61%) |
 | generated | 51,748 (v1 20,359, +154%) |
 
@@ -82,7 +82,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 228 |
+| in comments | 227 |
 | in docstrings | 382 |
 
 ## Exception handling
@@ -115,7 +115,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 240 |
+| functions returning `X \| None` | 239 |
 | non-test functions | 2962 |
 
 ## Broad type annotations
@@ -124,8 +124,8 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 
 | metric | count |
 |---|---:|
-| Any annotations | 257 |
-| object annotations | 702 |
+| Any annotations | 239 |
+| object annotations | 681 |
 
 ## Wire contract (response side)
 

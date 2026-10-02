@@ -46,7 +46,7 @@ from pydantic import (
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema
 
-from apps.core.audit import AuditEvent
+from apps.core.audit import AuditDetail, AuditEvent
 
 
 class DecimalNumberSchema:
@@ -221,14 +221,15 @@ class AuditEventOut(ResponseSchema):
         # with no field changes (e.g. a creation), not corrupt data. The
         # per-field str() casts are what keep this typed rather than
         # JSONField's Any.
-        raw_changes = obj.detail.get("changes", [])
+        detail: AuditDetail = obj.detail
+        changes = detail.get("changes", [])
         return [
             FieldChangeOut(
-                field_name=str(change["field_name"]),
-                old_value=str(change["old_value"]),
-                new_value=str(change["new_value"]),
+                field_name=change["field_name"],
+                old_value=str(change["old_value"]) if "old_value" in change else "",
+                new_value=str(change["new_value"]) if "new_value" in change else "",
             )
-            for change in raw_changes
+            for change in changes
         ]
 
 

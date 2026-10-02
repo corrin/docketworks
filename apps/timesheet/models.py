@@ -15,7 +15,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 
-from apps.core.audit import AuditEvent
+from apps.core.audit import AuditEvent, JsonScalar
 
 
 class PostingSurface(StrEnum):
@@ -232,7 +232,7 @@ class LeaveDay(models.Model):
             raise ValidationError({"staff": "Leave day staff must match its request."})
 
 
-def _moved(old: object, new: object) -> str:
+def _moved(old: JsonScalar, new: JsonScalar) -> str:
     return f"Moved from {old} to {new}"
 
 
@@ -258,7 +258,9 @@ class TimesheetEvent(AuditEvent):
         "entry_deleted": "Entry deleted",
         "entry_approved": "Entry approved",
     }
-    FIELD_DESCRIPTORS: ClassVar[dict[str, Callable[[object, object], str]]] = {"Job": _moved}
+    FIELD_DESCRIPTORS: ClassVar[dict[str, Callable[[JsonScalar, JsonScalar], str]]] = {
+        "Job": _moved
+    }
 
     class Meta(AuditEvent.Meta):
         indexes: ClassVar[list[models.Index]] = [

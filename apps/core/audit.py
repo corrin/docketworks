@@ -19,24 +19,44 @@ import uuid
 from collections.abc import Callable, Mapping
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, ClassVar, TypedDict
+from typing import ClassVar, NotRequired, TypedDict
 
 from django.db import models
 from django.utils.timezone import now
 
+#: What a JSON column holds at a leaf.
+JsonScalar = str | int | float | bool | None
+
 
 class FieldChange(TypedDict):
-    """One field's before/after values, rendered into an event's description."""
+    """One field's before/after values, rendered into an event's description.
+
+    The values are not required because job events written before 2026-04-22
+    recorded only the field name; every writer since records both.
+    """
 
     field_name: str
-    old_value: str
-    new_value: str
+    old_value: NotRequired[JsonScalar]
+    new_value: NotRequired[JsonScalar]
 
 
-def json_safe(value: object) -> str | int | float | bool | None:
-    """Convert a field value to a JSON-serializable form for delta_before/after."""
+class AuditDetail(TypedDict, total=False):
+    """What every trail may store in ``detail``; a subtype extends it with its own keys."""
+
+    changes: list[FieldChange]
+    note_text: str
+
+
+def json_safe(value: object) -> JsonScalar:
+    """Convert a field value to a JSON-serializable form for delta_before/after.
+
+    ``value`` is ``object`` because it arrives from JSON columns and model
+    fields alike; the isinstance chain is the boundary validation.
+    """
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
+    if isinstance(value, uuid.UUID):
+        return str(value)
     if isinstance(value, (date, datetime)):
         return value.isoformat()
     if isinstance(value, Decimal):
@@ -72,7 +92,7 @@ def snapshot_changes(
     return changes
 
 
-def truncate(text: object, max_chars: int = 60) -> str:
+def truncate(text: JsonScalar, max_chars: int = 60) -> str:
     """Shorten a value for a one-line description."""
     if text is None or text == "":
         return ""
@@ -82,12 +102,12 @@ def truncate(text: object, max_chars: int = 60) -> str:
     return text_str[: max_chars - 1].rstrip() + "…"
 
 
-def truncate_change(label: str, old: object, new: object) -> str:
+def truncate_change(label: str, old: JsonScalar, new: JsonScalar) -> str:
     """Describe a change to a long text field without quoting all of it."""
     return f"{label} changed from '{truncate(old)}' to '{truncate(new)}'"
 
 
-def default_descriptor(field_name: str, old: object, new: object) -> str:
+def default_descriptor(field_name: str, old: JsonScalar, new: JsonScalar) -> str:
     """Render a field change with no registered descriptor."""
     return f"{field_name} changed from '{old}' to '{new}'"
 
@@ -95,10 +115,10 @@ def default_descriptor(field_name: str, old: object, new: object) -> str:
 class AuditEvent(models.Model):
     """One append-only audit event; every domain trail subclasses this.
 
-    A subtype registers how its events read through three class tables:
+    A subtype shapes how its events read through two class tables, and may
+    override ``build_description`` for event kinds whose detail is its own
+    (JobEvent's invoices, quotes and priority moves):
 
-    - ``DESCRIPTION_BUILDERS``: ``event_type`` → ``detail`` → sentence, for
-      events whose detail is not a list of field changes.
     - ``FIELD_DESCRIPTORS``: field name → ``(old, new)`` → sentence, for the
       fields in ``detail.changes`` that read badly as "X changed from A to B".
     - ``EVENT_LABELS``: ``event_type`` → fixed sentence, for events that carry
@@ -113,8 +133,7 @@ class AuditEvent(models.Model):
     delta_after = models.JSONField(null=True, blank=True)
     detail = models.JSONField(default=dict, blank=True)
 
-    DESCRIPTION_BUILDERS: ClassVar[dict[str, Callable[[dict[str, Any]], str]]] = {}
-    FIELD_DESCRIPTORS: ClassVar[dict[str, Callable[[object, object], str]]] = {}
+    FIELD_DESCRIPTORS: ClassVar[dict[str, Callable[[JsonScalar, JsonScalar], str]]] = {}
     EVENT_LABELS: ClassVar[dict[str, str]] = {}
 
     class Meta:
@@ -122,9 +141,9 @@ class AuditEvent(models.Model):
         ordering: ClassVar[list[str]] = ["-timestamp"]
 
     @classmethod
-    def render_change(cls, change: Mapping[str, Any]) -> str:
+    def render_change(cls, change: FieldChange) -> str:
         """Render one ``detail.changes`` entry through the subtype's descriptors."""
-        field = str(change.get("field_name", ""))
+        field = change["field_name"]
         # Fallback for events written before 2026-04-22, the last date a job event
         # was recorded without structured values. Those rows name the field that
         # moved but not what it moved between, because the writer of the day stored
@@ -146,7 +165,7 @@ class AuditEvent(models.Model):
         return default_descriptor(field, old, new)
 
     @classmethod
-    def build_changes_description(cls, detail: dict[str, Any]) -> str:
+    def build_changes_description(cls, detail: AuditDetail) -> str:
         """Join every rendered change into one sentence; empty when there are none."""
         changes = detail.get("changes", [])
         if not changes:
@@ -155,30 +174,24 @@ class AuditEvent(models.Model):
         return ". ".join(part for part in parts if part)
 
     @staticmethod
-    def manual_note_description(detail: dict[str, Any]) -> str:
-        """Render a typed note as its own text."""
-        note_text = detail.get("note_text", "")
-        # Non-str payloads (e.g. explicit null) render as "" — falsy either
-        # way, so build_description falls through to its generic rendering.
-        return note_text if isinstance(note_text, str) else ""
+    def manual_note_description(detail: AuditDetail) -> str:
+        """Render a typed note as its own text; empty when the detail holds none."""
+        return detail.get("note_text", "")
 
     def build_description(self) -> str:
         """Generate the human-readable sentence from ``event_type`` and ``detail``.
 
-        A registered builder wins; then the generic rendering of
-        ``detail.changes``; then the subtype's fixed label; then a
-        ``f"({event_type})"`` sentinel that a registered builder or label
-        makes unreachable.
+        The recorded changes render first; then a typed note; then the
+        subtype's fixed label; then a ``f"({event_type})"`` sentinel that a
+        label or a subtype's override makes unreachable.
         """
-        detail = self.detail or {}
-        builder = self.DESCRIPTION_BUILDERS.get(self.event_type)
-        if builder:
-            built = builder(detail)
-            if built:
-                return built
+        detail: AuditDetail = self.detail
         rendered = self.build_changes_description(detail)
         if rendered:
             return rendered
+        note = self.manual_note_description(detail)
+        if note:
+            return note
         label = self.EVENT_LABELS.get(self.event_type)
         if label:
             return label
