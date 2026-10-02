@@ -89,22 +89,6 @@ export function formatDateLong(isoDate: string): string {
   return NZ_DATE_LONG.format(new Date(isoDate))
 }
 
-const NZ_WEEKDAY = new Intl.DateTimeFormat('en-NZ', {
-  weekday: 'short',
-  // Same date-only rule as NZ_DATE: the input parses as UTC midnight.
-  timeZone: 'UTC',
-})
-
-/**
- * The weekday on its own ('Thu'), for a column header that sits beside a
- * formatDate cell. Not a third date formatter: a 'Thu 01 Oct' composite was
- * rejected because the date next to it must still string-equal the same date
- * on the entry and daily pages, which is the reason formatDate is the one.
- */
-export function formatWeekday(isoDate: string): string {
-  return NZ_WEEKDAY.format(new Date(isoDate))
-}
-
 /** Today as YYYY-MM-DD in the browser's timezone (UTC slicing shifts NZ dates). */
 export function localIsoDate(): string {
   const now = new Date()

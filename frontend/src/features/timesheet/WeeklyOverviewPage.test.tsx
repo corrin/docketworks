@@ -151,16 +151,6 @@ function renderPage(overrides: Partial<Parameters<typeof WeeklyOverviewPage>[0]>
 }
 
 describe('WeeklyOverviewPage', () => {
-  it('names the weekday over each day header', async () => {
-    mockWeek()
-    renderPage()
-
-    await waitFor(() => el(`WeeklyOverview-dayHeader-${MONDAY}`))
-    // Trips if the weekday line is dropped and the header is the bare formatDate again.
-    expect(el(`WeeklyOverview-dayHeader-${MONDAY}`)).toHaveTextContent('Mon')
-    expect(el(`WeeklyOverview-dayHeader-${MONDAY}`)).toHaveTextContent('03 Aug 2026')
-  })
-
   it('renders a row per staff member with the week total', async () => {
     mockWeek()
     renderPage()
