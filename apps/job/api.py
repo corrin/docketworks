@@ -972,7 +972,13 @@ def approve_cost_line(request: HttpRequest, cost_line_id: UUID) -> dict[str, obj
     """
     line = get_object_or_404(CostLine.objects.select_related("cost_set__job"), id=cost_line_id)
     lock_costing_jobs([line.cost_set.job_id])
-    line = CostLine.objects.select_for_update().get(pk=line.pk)
+    # Locked on the line alone: the snapshot's joins are nullable, which
+    # Postgres refuses under FOR UPDATE.
+    line = (
+        CostLine.objects.select_for_update(of=("self",))
+        .select_related("cost_set__job", "labour_subtype", "xero_pay_item")
+        .get(pk=line.pk)
+    )
     job_service.refuse_workflow_managed(line, "approve")
     if line.approved:
         raise HttpError(400, "Line is already approved")

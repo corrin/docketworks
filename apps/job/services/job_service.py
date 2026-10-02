@@ -2320,7 +2320,14 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
     if "job_id" in data:
         job_ids.add(data["job_id"])
     lock_costing_jobs(job_ids)
-    line = CostLine.objects.select_for_update().get(pk=line.pk)
+    # The lock is on the line alone (``of``): the joins for the snapshot's
+    # subtype and pay item are nullable, and Postgres refuses FOR UPDATE on the
+    # outer side of a join.
+    line = (
+        CostLine.objects.select_for_update(of=("self",))
+        .select_related("cost_set__job", "labour_subtype", "xero_pay_item")
+        .get(pk=line.pk)
+    )
     refuse_workflow_managed(line, "edit")
     _validate_costline_write(data)
     before = snapshot_if_entry(line)
@@ -2371,7 +2378,14 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
 def delete_cost_line(line: CostLine, staff: Staff) -> None:
     """Delete an unowned cost; unissued drafts have no inventory effect."""
     lock_costing_jobs([line.cost_set.job_id])
-    line = CostLine.objects.select_for_update().get(pk=line.pk)
+    # The lock is on the line alone (``of``): the joins for the snapshot's
+    # subtype and pay item are nullable, and Postgres refuses FOR UPDATE on the
+    # outer side of a join.
+    line = (
+        CostLine.objects.select_for_update(of=("self",))
+        .select_related("cost_set__job", "labour_subtype", "xero_pay_item")
+        .get(pk=line.pk)
+    )
     refuse_workflow_managed(line, "cancel")
     with transaction.atomic():
         # Recorded before the delete: Django clears the pk on the instance it

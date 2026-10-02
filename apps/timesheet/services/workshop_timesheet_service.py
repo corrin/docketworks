@@ -401,7 +401,10 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
 def _owned_line(staff: Staff, entry_id: UUID) -> CostLine:
     """Fetch a time line and assert the staff member owns it."""
     line = CostLine.objects.select_related(
-        "cost_set__job__company", "cost_set__job__default_xero_pay_item"
+        "cost_set__job__company",
+        "cost_set__job__default_xero_pay_item",
+        "labour_subtype",
+        "xero_pay_item",
     ).get(id=entry_id, kind="time")
     if line.meta.get("staff_id") != str(staff.id):
         raise EntryOwnershipError("You can only update your own timesheet entries.")
@@ -528,7 +531,13 @@ def delete_entry(staff: Staff, entry_id: UUID) -> None:
     line = CostLine.objects.get(id=entry_id, kind="time")
     job_id = line.cost_set.job_id
     lock_costing_jobs([job_id])
-    line = CostLine.objects.select_for_update().get(pk=line.pk)
+    # Locked on the line alone: the snapshot's joins are nullable, which
+    # Postgres refuses under FOR UPDATE.
+    line = (
+        CostLine.objects.select_for_update(of=("self",))
+        .select_related("cost_set__job", "labour_subtype", "xero_pay_item")
+        .get(pk=line.pk)
+    )
     if line.cost_set.job_id != job_id:
         raise ConflictError("This entry moved to another job. Reload before deleting it.")
     if line.meta.get("staff_id") != str(staff.id):
