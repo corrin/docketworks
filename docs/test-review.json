@@ -1,0 +1,258 @@
+{
+  "baseline_commit": "1f87fd1",
+  "criterion": "Would a plausible rewrite of application code make this assertion catch a mistake? A surviving mutation alone does not justify deletion.",
+  "decisions": {
+    "apps/ai/tests/test_agent_gateway_integration.py::test_streaming_tools_record_each_vendor_round_trip": {
+      "verdict": "keep",
+      "behaviour": "streaming tools record each vendor round trip",
+      "rewrite_risk": "Dropping agent recording hooks or streaming usage options loses metered round trips; misconfigured adapters fail the real tool exchange.",
+      "evidence": "Implementation and assertions reviewed; live integration execution pending."
+    },
+    "apps/ai/tests/test_llm_client.py::TestResolveTarget::test_a_named_provider_type_is_selected_and_prefixed_for_litellm": {
+      "verdict": "keep",
+      "behaviour": "a named provider type is selected and prefixed for litellm",
+      "rewrite_risk": "Changing provider filtering or prefix composition can select the wrong model, credentials or provider name.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_llm_client.py::TestResolveTarget::test_with_no_type_asked_for_the_default_provider_wins": {
+      "verdict": "keep",
+      "behaviour": "with no type asked for the default provider wins",
+      "rewrite_risk": "Replacing explicit default selection with first-row selection returns the non-default fixture.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_llm_client.py::TestResolveTarget::test_two_default_rows_are_rejected_by_the_database": {
+      "verdict": "keep",
+      "behaviour": "two default rows are rejected by the database",
+      "rewrite_risk": "Removing the conditional uniqueness constraint permits two application defaults.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_llm_client.py::TestResolveTarget::test_with_no_default_configured_the_config_is_the_fault": {
+      "verdict": "keep",
+      "behaviour": "with no default configured the config is the fault",
+      "rewrite_risk": "Falling back to an arbitrary row bypasses the required default-selection refusal.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_llm_client.py::TestResolveTarget::test_every_supported_vendor_is_a_config_row_not_a_client": {
+      "verdict": "keep",
+      "behaviour": "every supported vendor is a config row not a client",
+      "rewrite_risk": "A prefix-map or resolver rewrite can construct a vendor-invalid model name; independent expected names cover each vendor.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_llm_client.py::TestResolveTarget::test_the_prefix_table_covers_every_provider_type_the_enum_offers": {
+      "verdict": "keep",
+      "behaviour": "the prefix table covers every provider type the enum offers",
+      "rewrite_risk": "Adding a provider enum member without registering its model prefix leaves an offered configuration unusable.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_llm_client.py::TestResolveTarget::test_an_empty_database_names_the_missing_configuration": {
+      "verdict": "keep",
+      "behaviour": "an empty database names the missing configuration",
+      "rewrite_risk": "Dereferencing an absent row or guessing a provider loses the actionable configuration error.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_llm_client.py::TestResolveTarget::test_asking_for_a_type_nobody_configured_names_that_type": {
+      "verdict": "keep",
+      "behaviour": "asking for a type nobody configured names that type",
+      "rewrite_risk": "Falling back to another vendor when an explicit type is requested silently calls the wrong provider.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_llm_client.py::TestResolveTarget::test_a_provider_with_no_api_key_names_the_provider": {
+      "verdict": "keep",
+      "behaviour": "a provider with no api key names the provider",
+      "rewrite_risk": "Removing explicit-row credential validation sends an unusable provider downstream.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_llm_client.py::TestResolveTarget::test_a_provider_with_no_model_name_names_the_provider": {
+      "verdict": "keep",
+      "behaviour": "a provider with no model name names the provider",
+      "rewrite_risk": "Removing explicit-row model validation constructs an invalid model identifier.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_llm_client.py::TestResolveTarget::test_a_provider_type_litellm_has_no_prefix_for_lists_the_known_ones": {
+      "verdict": "keep",
+      "behaviour": "a provider type litellm has no prefix for lists the known ones",
+      "rewrite_risk": "Treating an unknown vendor as an unprefixed model bypasses the configuration refusal.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_llm_client.py::TestChatCompletion::test_the_prompt_is_sent_as_one_user_message_with_the_configured_key": {
+      "verdict": "keep",
+      "behaviour": "the prompt is sent as one user message with the configured key",
+      "rewrite_risk": "A gateway rewrite can substitute the wrong key, model or message role/content.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_llm_client.py::TestChatCompletion::test_every_completion_is_bounded_by_an_explicit_timeout": {
+      "verdict": "keep",
+      "behaviour": "every completion is bounded by an explicit timeout",
+      "rewrite_risk": "Omitting the timeout delegates to an excessive vendor default; increasing the application limit beyond the bound also fails.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_llm_client.py::TestChatCompletion::test_a_completion_with_no_content_is_an_error_not_an_empty_string": {
+      "verdict": "keep",
+      "behaviour": "a completion with no content is an error not an empty string",
+      "rewrite_risk": "Returning an empty string or classifying empty content as configuration failure changes caller handling.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_llm_client.py::TestChatCompletion::test_configuration_is_resolved_before_any_vendor_call_is_made": {
+      "verdict": "keep",
+      "behaviour": "configuration is resolved before any vendor call is made",
+      "rewrite_risk": "Moving configuration validation after dispatch spends a vendor call before a locally knowable refusal.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_llm_client.py::TestChatCompletion::test_the_parser_pins_gemini_the_way_v1_did": {
+      "verdict": "delete",
+      "behaviour": "the parser pins gemini the way v1 did",
+      "rewrite_risk": "Comparing two constants never exercises parser selection. TestPrompt.test_the_prompt_the_model_receives_is_the_rendered_one already checks provider_type on the actual gateway call.",
+      "evidence": "Deleted; affected suite passed."
+    },
+    "apps/ai/tests/test_llm_recording.py::test_records_tokens_cost_and_wall_time": {
+      "verdict": "strengthen",
+      "behaviour": "records tokens cost and wall time",
+      "rewrite_risk": "Replace the live price-table expectation with controlled input/output costs; retaining only input cost must fail.",
+      "evidence": "Mutation dropping output cost failed at the cost assertion (0.00012 versus 0.00046); application restored."
+    },
+    "apps/ai/tests/test_llm_recording.py::test_an_unpriced_model_still_records_the_call": {
+      "verdict": "keep",
+      "behaviour": "an unpriced model still records the call",
+      "rewrite_risk": "Letting price lookup failure abort recording loses the tokens and diagnostic row.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_notebook_lm_menu.py::test_requires_authentication": {
+      "verdict": "keep",
+      "behaviour": "requires authentication",
+      "rewrite_risk": "Dropping the router authentication gate serves links to the anonymous client.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_notebook_lm_menu.py::test_disabled_links_are_never_returned": {
+      "verdict": "keep",
+      "behaviour": "disabled links are never returned",
+      "rewrite_risk": "Dropping enabled=True leaks the disabled fixture into the menu.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_notebook_lm_menu.py::test_restricted_links_are_withheld_from_ordinary_staff": {
+      "verdict": "keep",
+      "behaviour": "restricted links are withheld from ordinary staff",
+      "rewrite_risk": "Removing the non-superuser restriction filter returns the restricted link and URL.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_notebook_lm_menu.py::test_superusers_see_restricted_links": {
+      "verdict": "keep",
+      "behaviour": "superusers see restricted links",
+      "rewrite_risk": "Applying the ordinary-staff exclusion to everyone hides the superuser fixture.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_notebook_lm_menu.py::test_menu_order_is_respected": {
+      "verdict": "strengthen",
+      "behaviour": "menu order is respected",
+      "rewrite_risk": "Use a requested order opposing insertion and name order; an alphabetical rewrite must fail.",
+      "evidence": "Mutation ordering by name failed at the ordered list assertion; application restored."
+    },
+    "apps/ai/tests/test_provider_bootstrap.py::test_fresh_openai_only_setup_is_repeatable_and_preserves_edits": {
+      "verdict": "keep",
+      "behaviour": "fresh openai only setup is repeatable and preserves edits",
+      "rewrite_risk": "Re-rendering JSON without escaping breaks credentials; replacing rather than preserving configured rows overwrites administrator edits.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_provider_bootstrap.py::test_existing_other_vendor_does_not_block_openai": {
+      "verdict": "keep",
+      "behaviour": "existing other vendor does not block openai",
+      "rewrite_risk": "A global already-configured shortcut suppresses the new vendor; unconditional default assignment replaces the existing choice.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_provider_bootstrap.py::test_exact_empty_seed_is_refilled_but_ambiguous_entries_are_refused": {
+      "verdict": "keep",
+      "behaviour": "exact empty seed is refilled but ambiguous entries are refused",
+      "rewrite_risk": "Broadening bootstrap matching can overwrite a different incomplete model instead of refusing ambiguity.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_provider_bootstrap.py::test_partial_credentials_fail_without_partial_writes": {
+      "verdict": "keep",
+      "behaviour": "partial credentials fail without partial writes",
+      "rewrite_risk": "Validating after writes leaves a partially configured provider; reflecting input leaks a secret.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_provider_bootstrap.py::test_scrubbed_database_can_be_reseeded": {
+      "verdict": "keep",
+      "behaviour": "scrubbed database can be reseeded",
+      "rewrite_risk": "Remembering a prior seed outside the actual database prevents recovery after credential scrubbing.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_provider_configuration.py::test_catalogue_requires_superuser": {
+      "verdict": "keep",
+      "behaviour": "catalogue requires superuser",
+      "rewrite_risk": "Changing router auth exposes credential management to anonymous or ordinary staff.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_provider_configuration.py::test_key_lifecycle_is_write_only": {
+      "verdict": "keep",
+      "behaviour": "key lifecycle is write only",
+      "rewrite_risk": "A PATCH rewrite can clear omitted keys, retain explicitly cleared keys, or serialize secret values.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_provider_configuration.py::test_default_and_explicit_selection_are_independent": {
+      "verdict": "keep",
+      "behaviour": "default and explicit selection are independent",
+      "rewrite_risk": "Default switching can leave multiple defaults, override an explicit provider, or silently choose another row after deletion.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_provider_configuration.py::test_live_probe_is_explicit_and_uses_the_saved_row": {
+      "verdict": "keep",
+      "behaviour": "live probe is explicit and uses the saved row",
+      "rewrite_risk": "A catalogue GET could acquire a probing side effect; a test action could use the default instead of the selected saved provider.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_provider_configuration.py::test_blank_values_are_rejected": {
+      "verdict": "keep",
+      "behaviour": "blank values are rejected",
+      "rewrite_risk": "Weakening field validation persists blank provider metadata/credentials instead of refusing the update.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_provider_configuration.py::test_vendor_filter_skips_unconfigured_rows": {
+      "verdict": "keep",
+      "behaviour": "vendor filter skips unconfigured rows",
+      "rewrite_risk": "Dropping the non-null credential/model filter lets an older cleared row shadow a usable provider.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_provider_configuration.py::test_invalid_key_is_never_echoed": {
+      "verdict": "keep",
+      "behaviour": "invalid key is never echoed",
+      "rewrite_risk": "Changing validation error serialization can reflect secret input in the response.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_provider_configuration_integration.py::test_admin_probe_verifies_saved_openai_credentials": {
+      "verdict": "keep",
+      "behaviour": "admin probe verifies saved openai credentials",
+      "rewrite_risk": "Admin verification can diverge from stored provider selection or lose gateway metering.",
+      "evidence": "Implementation and assertions reviewed; live integration execution pending."
+    },
+    "apps/ai/tests/test_provider_migration.py::test_default_migration_preserves_credentials_and_clears_only_ambiguity": {
+      "verdict": "keep",
+      "behaviour": "default migration preserves credentials and clears only ambiguity",
+      "rewrite_risk": "Clearing every default, guessing one of several, or overwriting credentials corrupts restored configuration.",
+      "evidence": "Implementation and assertions reviewed; unit baseline passed."
+    },
+    "apps/ai/tests/test_vendor_call_integration.py::test_a_real_completion_records_the_tokens_the_vendor_counted": {
+      "verdict": "keep",
+      "behaviour": "a real completion records the tokens the vendor counted",
+      "rewrite_risk": "A gateway/recording rewrite can return text while dropping actual vendor usage and cost records.",
+      "evidence": "Implementation and assertions reviewed; live integration execution pending."
+    },
+    "apps/quoting/tests/test_price_extraction.py::TestTheSeamIsLoud::test_the_note_says_what_is_missing_and_how_to_pick_it_up": {
+      "verdict": "delete",
+      "behaviour": "the note says what is missing and how to pick it up",
+      "rewrite_risk": "Documentation headings have no bearing on the behaviour of extraction or any caller.",
+      "evidence": "Deleted; affected suite passed."
+    },
+    "apps/quoting/tests/test_models.py::TestUpdateXeroStatus::test_a_mapping_with_no_item_code_is_simply_not_in_xero": {
+      "verdict": "strengthen",
+      "behaviour": "a mapping with no item code is simply not in xero",
+      "rewrite_risk": "Start with a previously confirmed status so dropping the reset on absent item code leaves an observable stale True.",
+      "evidence": "Mutation removing the absent-code reset failed at True is False; application restored."
+    },
+    "apps/quoting/tests/test_scrapers.py::TestRun::test_products_are_saved_in_batches_during_a_long_run": {
+      "verdict": "strengthen",
+      "behaviour": "products are saved in batches during a long run",
+      "rewrite_risk": "Observe persisted rows before each later page and after completion, including the partial final batch.",
+      "evidence": "Mutation deferring all saves until completion failed: [0,0,0,0,0,5] versus [0,0,2,2,4,5]; application restored."
+    }
+  }
+}

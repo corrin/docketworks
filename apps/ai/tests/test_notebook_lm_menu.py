@@ -18,11 +18,11 @@ URL = "/api/ai/notebook-lm-links/menu/"
 
 @pytest.fixture
 def links() -> None:
-    NotebookLmLink.objects.create(name="Everyone", url="https://x/1", order=1)
+    NotebookLmLink.objects.create(name="Everyone", url="https://x/1", order=2)
     NotebookLmLink.objects.create(
         name="Superuser only",
         url="https://x/2",
-        order=2,
+        order=1,
         restriction=NotebookLmRestriction.SUPERUSER,
     )
     NotebookLmLink.objects.create(name="Disabled", url="https://x/3", order=3, enabled=False)
@@ -62,7 +62,7 @@ def test_superusers_see_restricted_links(superuser_api: Client) -> None:
 
 @pytest.mark.usefixtures("links")
 def test_menu_order_is_respected(superuser_api: Client) -> None:
-    """The navbar renders in response order; Meta.ordering is the contract."""
+    """GPT: menu order must win over both insertion order and alphabetical name order."""
     names = [row["name"] for row in superuser_api.get(URL).json()]
 
-    assert names == ["Everyone", "Superuser only"]
+    assert names == ["Superuser only", "Everyone"]

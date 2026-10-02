@@ -546,19 +546,29 @@ class TestRun:
     def test_products_are_saved_in_batches_during_a_long_run(
         self, scraper: ScriptedScraper, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A full scrape is thousands of variants; nothing waits for the end."""
+        """GPT: deferring saves until the end must fail even if no products are lost."""
         monkeypatch.setattr("apps.quoting.scrapers.base.SAVE_BATCH_SIZE", 2)
         urls = [f"https://example.test/p{index}" for index in range(5)]
         scraper.published = urls
         scraper.pages = {
             url: [scraped(url, item_no=f"SHS-{index}")] for index, url in enumerate(urls)
         }
+        persisted_counts: list[int] = []
+        read_page = scraper.scrape_product
+
+        def observe_persisted_products(url: str) -> Sequence[ScrapedProduct]:
+            persisted_counts.append(
+                SupplierProduct.objects.filter(supplier=scraper.supplier).count()
+            )
+            return read_page(url)
+
+        monkeypatch.setattr(scraper, "scrape_product", observe_persisted_products)
 
         with patch(LLM_BOUNDARY, return_value=llm_reply({"item_code": "SHS-50"})):
-            job = scraper.run()
+            scraper.run()
 
-        assert job.products_scraped == 5
-        assert SupplierProduct.objects.count() == 5
+        persisted_counts.append(SupplierProduct.objects.filter(supplier=scraper.supplier).count())
+        assert persisted_counts == [0, 0, 2, 2, 4, 5]
 
     def test_a_failing_end_of_run_llm_fill_does_not_fail_the_run(
         self, scraper: ScriptedScraper

@@ -45,15 +45,6 @@ class TestTheSeamIsLoud:
     ) -> None:
         assert issubclass(PriceExtractionNotPortedError, NotImplementedError)
 
-    def test_the_note_says_what_is_missing_and_how_to_pick_it_up(self) -> None:
-        """The module docstring IS the deferral record; an empty one is a hole."""
-        docstring = inspect.getdoc(price_extraction)
-
-        assert docstring is not None
-        assert "WHAT IS MISSING" in docstring
-        assert "WHY IT WAS DEFERRED" in docstring
-        assert "TO PICK IT UP" in docstring
-
 
 class TestTheSeamPullsInNoVendorSdk:
     def test_the_module_imports_no_model_vendors_sdk(self) -> None:

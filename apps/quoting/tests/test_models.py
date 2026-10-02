@@ -198,7 +198,10 @@ class TestUpdateXeroStatus:
         assert mapping.mapped_item_code is None
 
     def test_a_mapping_with_no_item_code_is_simply_not_in_xero(self) -> None:
-        mapping = ProductParsingMapping.objects.create(input_hash="c" * 64, input_data={})
+        """GPT: clearing a code must also clear a previously confirmed Xero status."""
+        mapping = ProductParsingMapping.objects.create(
+            input_hash="c" * 64, input_data={}, item_code_is_in_xero=True
+        )
 
         mapping.update_xero_status()
 
