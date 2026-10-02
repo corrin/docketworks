@@ -11,7 +11,7 @@ Decisions that shape this codebase, written for the reader about to do work here
 - **Substance bar.** An ADR captures a non-obvious decision a careful reader of the code couldn't reconstruct.
 - **Every sentence is load-bearing:** a rule, or the forcing fact that makes a rule stick. No narrative problem statements, no essays defending alternatives, no consequences sections restating the decision — deliberation history lives in git. Rationale is a clause attached to its rule.
 - **Clear prose, not fragments.** Brevity comes from cutting sentences that don't change behaviour, never from telegraphic writing — compressed fragments are harder to follow than plain sentences.
-- **Tempting wrong turns** go under `## Do not` as a prohibition plus a one-line reality, only when the temptation is real.
+- **Alternatives** belong in the decision when a competent engineer might consider them and the comparison explains a constraint (ADR 0043). A `## Do not` section is optional.
 - **An ADR lands in its own commit.** An ADR written in the same commit as the code it authorises has not been decided, only justified, and the code was never weighed against a rule that existed before it.
 - **An ADR an AI drafted is unratified until the owner says otherwise** (ADR 0051), and an unratified ADR is not authority for changing behaviour. Mark it, then ask.
 
@@ -47,7 +47,7 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0039](0039-one-implementation-per-concept.md) | One implementation per concept |
 | [0040](0040-nullable-text-write-contract.md) | Unset is NULL, and the request schema says so |
 | [0041](0041-one-llm-gateway.md) | One LLM gateway, and it lives in apps/ai |
-| [0043](0043-comments-record-the-rejected-alternative.md) | Comments record the rejected alternative |
+| [0043](0043-comments-record-the-rejected-alternative.md) | Comments explain decisions and constraints |
 | [0046](0046-numbers-on-the-wire.md) | Numbers on the wire; the frontend owns all formatting |
 | [0047](0047-asgi-serving-and-sse-push.md) | The application is served over ASGI, and data versions are pushed over SSE |
 | [0048](0048-own-what-you-wipe-database-safety.md) | A role wipes only what it owns; production wipes need an explicit assertion and are always recoverable |
