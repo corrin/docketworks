@@ -92,5 +92,28 @@ test.describe('job history', () => {
       // No page.reload(): the undo invalidates the job detail the header reads.
       await expect(nameEditor).toContainText(originalName)
     })
+
+    await test.step('a status edit records only the status change', async () => {
+      await page.reload()
+      const entries = autoId(page, 'JobHistoryTab-timeline').locator(
+        '[data-automation-id^="JobHistoryTab-entry-"]',
+      )
+      await expect(entries.first()).toBeVisible()
+      const beforeCount = await entries.count()
+      await autoId(page, 'JobView-status-display').click()
+      await autoId(page, 'JobView-status-select').selectOption('approved')
+      const saved = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === `/api/job/jobs/${jobId}/` &&
+          response.request().method() === 'PATCH',
+      )
+      await autoId(page, 'JobView-status-confirm').click()
+      expect((await saved).status()).toBe(200)
+      await page.reload()
+      await expect(entries).toHaveCount(beforeCount + 1)
+      await expect(entries.first()).toContainText('Status Changed')
+      await expect(entries.first()).toContainText('Approved')
+      await expect(entries.first()).not.toContainText('Priority')
+    })
   })
 })

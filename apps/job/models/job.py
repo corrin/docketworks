@@ -610,7 +610,11 @@ class Job(models.Model):
                 changes_after,
                 detail_changes,
                 event_types,
-            ) = self._detect_field_changes(original_job, update_fields=update_fields)
+            ) = self._detect_field_changes(
+                original_job,
+                update_fields=update_fields,
+                track_priority="priority_position" in enrichment,
+            )
 
             if changes_before:
                 side_effect_fields = self._apply_change_side_effects(changes_before, changes_after)
@@ -815,7 +819,11 @@ class Job(models.Model):
     # Any tracked field without a handler gets a generic "X changed" event.
 
     def _detect_field_changes(
-        self, original_job: "Job", update_fields: Iterable[str] | None = None
+        self,
+        original_job: "Job",
+        update_fields: Iterable[str] | None = None,
+        *,
+        track_priority: bool = False,
     ) -> tuple[
         dict[str, JsonScalar],
         dict[str, JsonScalar],
@@ -826,7 +834,8 @@ class Job(models.Model):
 
         When update_fields is passed to save(), only those fields are considered —
         in-memory mutations on other fields weren't persisted, so emitting events
-        for them would misrepresent what changed on the row.
+        for them would misrepresent what changed on the row. Priority is tracked
+        only for an explicit reorder, not automatic placement or renumbering.
         """
         changes_before: dict[str, JsonScalar] = {}
         changes_after: dict[str, JsonScalar] = {}
@@ -844,6 +853,10 @@ class Job(models.Model):
                 continue
             attr = field.attname
             if attr in self.UNTRACKED_FIELDS:
+                continue
+            # GPT: Only a deliberate kanban drag supplies priority_position.
+            # Status placement and rank renumbering are bookkeeping, not user actions.
+            if attr == "priority" and not track_priority:
                 continue
             if restricted is not None and not (attr in restricted or field.name in restricted):
                 continue

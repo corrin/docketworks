@@ -5,6 +5,18 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
+## 2026-10-03 — Only deliberate job reordering creates priority events
+
+Owner ruling while testing PR #190: automatic priority adjustments are not job
+events. Status placement and column rebalancing must not create priority entries
+or add internal priority numbers to another event. A deliberate kanban drag still
+records its rank change. Job.save now includes priority in its audit diff only
+when the reorder service supplies priority_position; other changed fields retain
+their ordinary events. The three regression checks failed before the fix; all
+69 job service, kanban and event-tracking tests passed afterward. The browser
+regression is in job-history.spec.ts; its managed run could not start because the
+dev ngrok endpoint was already online, so it awaits the running backend's restart.
+
 ## 2026-10-03 — KAN-369 weekday context belongs on single-day timesheets
 
 Owner clarified PR #189: the staff time-entry and daily overview date labels must
