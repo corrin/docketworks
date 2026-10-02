@@ -7,17 +7,17 @@ that names it, a procedure lives in the runbook that runs it.
 
 ## 2026-10-02 — Saved-row grids share one write pattern: serialized per grid
 
-Owner ruling during KAN-370's review. The three grids of saved rows (job cost lines, timesheet
-entries, purchase-order lines) wrote three ways: the PO hook serialized every write on the
-order through a TanStack mutation scope and rolled back with the shared `restoreRejectedPatch`;
-the two cost-line hooks ran PATCHes in parallel with field-scoped echo merges and two bespoke
-copies of a weaker per-field rollback. Now all three run through `useOptimisticRows`
-(`frontend/src/features/shared/optimistic.ts`), extracted from the PO hook's shape: writes on
-one grid reach the server in order, the cache is display-only until the settle refetch, an echo
-replaces the optimistic row where the endpoint gives one, and a refusal restores only the fields
-still showing the rejected value. Field-scoped interleaving was rejected: a move is a one-field
-write that could only flicker until settle, and the design cost three copies of the lifecycle.
-A saved row therefore never locks for a pending write; only a draft locks during its create.
+Owner ruling during KAN-370's review. Every grid of saved rows — job cost lines, timesheet
+entries, purchase-order lines — writes through `useOptimisticRows`
+(`frontend/src/features/shared/optimistic.ts`). Writes on one grid carry one TanStack mutation
+scope, so they reach the server in order and their echoes land in order; the cache is
+display-only until the settle refetch; where an endpoint echoes the row, the echo replaces the
+optimistic row; a refusal restores only the fields still showing the rejected value, so a later
+edit on the same row survives; a refused delete puts its row back at its own index. A saved row
+never locks for a pending write; only a draft locks during its create. Field-scoped
+interleaving (parallel PATCHes whose echoes and rollbacks touch only the fields each sent) was
+rejected: a move is a one-field write, so two moves on a row could only flicker until settle,
+and the design needs a per-grid copy of the lifecycle.
 
 ## 2026-10-02 — One audit event shape; timesheet entries move from the grid and are audited (KAN-370)
 

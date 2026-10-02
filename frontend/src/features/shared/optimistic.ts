@@ -9,19 +9,18 @@ import { apiErrorMessage } from '@/api'
  *
  * Writes on one grid are serialized: every mutation the grid owns carries
  * the same TanStack mutation scope, so they reach the server in order and
- * their echoes land in order. Field-scoped interleaving — the former
- * useCostLines design, where parallel PATCHes merged only the fields each
- * had sent — was rejected (owner ruling, 2026-10-02): a move is a one-field
- * write, so two moves on a row could only flicker until settle, and three
- * hooks carried three copies of the lifecycle to make it work.
+ * their echoes land in order. The cache is display-only between a write and
+ * its settle: the optimistic row shows what the user typed, an echo (where
+ * the endpoint gives one) replaces it with canonical values, and the
+ * settle-time invalidation delivers server-owned totals and ordering
+ * (ADR 0046). A rejected write restores only the fields still showing its
+ * rejected value, so a later edit on the same row survives; a rejected
+ * delete puts its row back at its own index and nothing else.
  *
- * The cache is display-only between a write and its settle: the optimistic
- * row shows what the user typed, an echo (where the endpoint gives one)
- * replaces it with canonical values, and the settle-time invalidation is
- * what delivers server-owned totals and ordering (ADR 0046). A rejected
- * write restores only the fields still showing its rejected value, so a
- * later edit on the same row survives; a rejected delete puts its row back
- * at its own index and nothing else.
+ * Field-scoped interleaving — parallel writes whose echoes and rollbacks
+ * touch only the fields each sent — was rejected (owner ruling, 2026-10-02):
+ * a move is a one-field write, so two moves on a row could only flicker until
+ * settle, and the design needs a per-grid copy of the lifecycle.
  */
 
 /** Put a failed delete's row back at its snapshot index, touching nothing else. */

@@ -202,21 +202,19 @@ function JobPickerCell({ row, table }: CellProps) {
   const selected = jobForRow(context, gridRow)
   const isDraft = gridRow.type === 'draft'
   // A saved row's picker is live: picking another job moves the entry in one
-  // PATCH (the server retargets and reprices it). The grid used to lock it
-  // and have the office delete and re-key the entry; that was the only path
-  // before the cost-line PATCH took a job_id (KAN-370). A saved row never
-  // locks for a pending move either: the day's writes are serialized by the
-  // shared runner, so a second pick simply queues behind the first. A draft
-  // locks while its create is in flight, and the NEXT phantom locks
-  // alongside it (the keyboard spec asserts the disabled state).
+  // PATCH, which the server retargets and reprices (KAN-370). A saved row
+  // never locks for a pending move: the day's writes are serialized by the
+  // shared runner, so a second pick queues behind the first. A draft locks
+  // while its create is in flight, and the NEXT phantom locks alongside it
+  // (the keyboard spec asserts the disabled state).
   const disabled =
     isDraft &&
     (context.isPersisting(gridRow.localId) ||
       (context.anyPersisting && context.isPhantom(gridRow.localId)))
-  // A saved row whose job left the active list (archived) still shows its
-  // stored number and still moves: the picker renders this label when it has
-  // no selection. A disabled label here was rejected because the entry most
-  // worth moving is exactly the one sitting on a job nobody can book any more.
+  // A saved row whose job is not in the active list (archived) shows its
+  // stored number as the picker's label and still moves. A read-only label
+  // for that case was rejected: the entry most worth moving is exactly the
+  // one sitting on a job nobody can book any more.
   const storedLabel = gridRow.type === 'server' ? `#${gridRow.line.job_number}` : ''
 
   return (
