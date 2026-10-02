@@ -1,19 +1,36 @@
-# 0043 — Comments record the rejected alternative
+# 0043 — Comments explain decisions and constraints
 
-A comment answers: which obvious alternative did the author reject, and what *checked* fact rejected it?
+Write for an engineer fluent in the stack who needs to understand Docketworks.
+Comments and documentation carry business meaning, decisions, constraints and dependencies
+that experience or the surrounding code would not supply.
 
 ## Rules
 
-- Every comment tells the reader something the code cannot: the choice made, the obvious alternative rejected, and the fact that rejected it. The shape, from `apps/core/errors.py`: "The marker is metadata *about* the exception, deliberately not a wrapper type — wrapping would destroy the type the HTTP boundary needs to choose a status code."
-- **The fact has to be one.** A rationale asserting something checkable — that no other implementation exists, that a call site is gated, that a value cannot be null, that a library would not fit, that a framework behaves a certain way — names the check that established it, or says plainly that it was not checked. The check is almost always a grep, a query, a test or a single run, and it is cheaper than the claim is durable. Two shapes, both acceptable: "the only other blob download is `open-blob.ts`, which defers its revoke" (checked, and the reader can repeat it), or "suspected rather than reproduced: the suite is chromium-only, and Chromium is the browser that wins this race" (unchecked, and saying so).
-- An unchecked claim is more dangerous than a missing comment. A gap invites the next session to look; a confident sentence tells it not to bother, and the codebase then carries a belief that everything downstream is built on.
-- The same test governs docstring sentences beyond the contract summary. (Test docstrings have their own required shape — ADR 0025.)
-- AI-authored rationale carries its model-family attribution until the owner ratifies it (ADR 0051); attribution records who supplied the judgement, not permission to ignore a rule.
-- Sessions are this codebase's authors, and a rejected alternative that goes unrecorded is an alternative the next session will re-attempt — that is how v1's duplication began.
-- A comment that fails the test is deleted, not reworded.
-
-## Do not
-
-- **Code-to-English narration** (`# Create estimate cost set` above code that creates the estimate cost set) — regenerable from the code; it carries nothing and goes stale the first time the code moves.
-- **A belief in the grammar of a fact** — "the pair is unique", "this is the only implementation", "the framework batches this" written flat, with nothing behind them. The reader cannot separate an assertion that was verified from one that was assumed, so the assumed one is believed. Check it, or mark it unchecked; the sentence costs the same either way.
-- **Review-feedback echoes** ("use bulk_create per review") — if the feedback identified a real constraint, record the constraint; the conversation is not a reason.
+- Explain what the reader needs to maintain the behaviour: a business invariant, a dependency
+  outside the local code, a deliberate tradeoff, an unusual framework interaction or the
+  intended recovery from a failure. Contract summaries remain useful when they define the
+  caller's obligations or the meaning of a result.
+- Discuss an alternative only when a competent engineer might reasonably consider it and the
+  comparison explains the choice. For example, `apps/core/errors.py` keeps the persistence
+  marker on the original exception because the HTTP boundary uses its type to choose a status.
+  A comment does not need a rejected alternative to justify its existence.
+- Check factual claims against the relevant writers, callers, tests, data or authoritative
+  decision. Name the evidence where the claim would otherwise be hard to verify. Distinguish
+  observed behaviour from an untested hypothesis, and flag a disagreement between the code
+  and its documented contract for resolution.
+- State project requirements directly. Explain why Docketworks needs a strict contract or a
+  particular recovery path when that choice depends on its business or operating model.
+  Existing code and old data are evidence to investigate, not sufficient reasons to preserve
+  a design (ADR 0015).
+- Preserve useful reasoning when removing lectures, straw-man comparisons or accounts of
+  previous arguments with coding tools. Historical incidents and measurements belong beside
+  the code when they explain a current constraint; otherwise retain the mechanism and its
+  authoritative reference.
+- Delete generic programming advice, narration of visible code and repeated instructions
+  that add no information. Replacing them with a positive imperative does not add value.
+  Comment-count reduction is not a goal; retain the knowledge a future maintainer needs.
+- Apply the same standard to docstrings and documentation. Test docstrings state the business
+  risk or guarantee (ADR 0025). Operational instructions retain concrete prerequisites,
+  commands and recovery procedures.
+- AI-originated rationale carries its model-family attribution until ratified (ADR 0051).
+  Attribution records provenance; a policy change needs its own authority.

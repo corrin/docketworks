@@ -8,6 +8,8 @@ Imperative rules in clear, complete prose, written for the reader — usually an
 
 ## Do not
 
-- **The tempting shortcut** — the one-line fact that makes it wrong here.
+- **A plausible alternative** — the constraint or tradeoff that led to this decision.
 
-Include this section only when a real temptation exists; omit it otherwise. Never write essays defending alternatives — a deliberation record hands a future session its rationalization. Git history holds the deliberation.
+Include this section only when a competent engineer might reasonably consider the alternative
+and the comparison helps explain the decision (ADR 0043). Otherwise omit it. Preserve useful
+reasoning alongside the rule; extended deliberation remains in git history.
