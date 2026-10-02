@@ -3,7 +3,8 @@
 Its one event kind was a typed note held in a bespoke ``description`` column.
 JobEvent already stores a typed note as ``event_type="manual_note"`` with the
 text in ``detail.note_text`` and renders it from there, so every existing row
-takes that shape and the column goes. The reverse copies the note text back.
+takes that shape and the column goes. The reverse re-adds the column and copies
+the note text back.
 """
 
 from django.db import migrations, models
@@ -54,6 +55,14 @@ class Migration(migrations.Migration):
             preserve_default=False,
         ),
         migrations.RunPython(notes_into_detail, notes_back_into_description),
+        # Reversal re-adds the column from this state: with a default, Postgres
+        # accepts it on a populated table, and the reverse data step then fills
+        # it. Without one the reverse stops at "column contains null values".
+        migrations.AlterField(
+            model_name="purchaseorderevent",
+            name="description",
+            field=models.TextField(default=""),
+        ),
         migrations.RemoveField(
             model_name="purchaseorderevent",
             name="description",
