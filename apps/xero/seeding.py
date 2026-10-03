@@ -1260,10 +1260,13 @@ def run_seed(entities: set[str], *, dry_run: bool, report: Callable[[str], None]
         _documents_phase(INVOICES, tenant_id, dry_run=dry_run, report=report)
     if "quotes" in entities:
         _documents_phase(QUOTES, tenant_id, dry_run=dry_run, report=report)
-    if "purchase_orders" in entities:
-        _documents_phase(PURCHASE_ORDERS, tenant_id, dry_run=dry_run, report=report)
     if "stock" in entities:
         _stock_phase(dry_run=dry_run, report=report)
+    # After stock: an order line may name an item code, and Xero refuses a
+    # code the organisation's items do not include. The stock phase is what
+    # puts those items there.
+    if "purchase_orders" in entities:
+        _documents_phase(PURCHASE_ORDERS, tenant_id, dry_run=dry_run, report=report)
 
     convergence = seed_convergence(tenant_id)
     # A converged --only run opens the gate, which a phase-counting design

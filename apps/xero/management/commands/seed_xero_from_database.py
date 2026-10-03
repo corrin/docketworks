@@ -33,8 +33,8 @@ VALID_ENTITIES = (
     "employees",
     "invoices",
     "quotes",
-    "purchase_orders",
     "stock",
+    "purchase_orders",
 )
 # Named so the operator gets the reason, not "invalid entity".
 DEFERRED_ENTITIES = {
