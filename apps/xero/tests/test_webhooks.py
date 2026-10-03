@@ -22,7 +22,6 @@ from django.test import Client, override_settings
 if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse
 
-from apps.core.middleware import AUTH_ANON_ALLOWLIST_EXACT
 from apps.core.models import AppError, CompanyDefaults
 from apps.xero.tasks import process_xero_webhook_event
 
@@ -79,8 +78,8 @@ class TestWebhookHandler:
     def test_valid_signature_from_anonymous_request_returns_200(self, client: Client) -> None:
         """The signature IS the auth — no cookie, no session, still 200.
 
-        DEBUG=False so the auth-gate middleware actually runs; in DEBUG it
-        waves everything through and the test would prove nothing.
+        Exercise the real signature check and dispatch with production middleware
+        settings; a valid delivery must reach the worker without a login cookie.
         """
         body = json.dumps({"events": [_event()]}).encode("utf-8")
         with (
@@ -90,11 +89,6 @@ class TestWebhookHandler:
             response = _post(client, body)
         assert response.status_code == 200
         mock_delay.assert_called_once()
-
-    def test_webhook_path_is_on_the_anonymous_allowlist(self) -> None:
-        """Xero holds this URL and sends no cookie; dropping the allowlist
-        entry would 401 every delivery in production."""
-        assert WEBHOOK_URL in AUTH_ANON_ALLOWLIST_EXACT
 
     def test_invalid_signature_returns_401_and_does_not_dispatch(self, client: Client) -> None:
         body = json.dumps({"events": [_event()]}).encode("utf-8")

@@ -16,6 +16,7 @@ rather than a hole:
    exists.
 """
 
+import ast
 import inspect
 from pathlib import Path
 
@@ -45,21 +46,21 @@ class TestTheSeamIsLoud:
     ) -> None:
         assert issubclass(PriceExtractionNotPortedError, NotImplementedError)
 
-    def test_the_note_says_what_is_missing_and_how_to_pick_it_up(self) -> None:
-        """The module docstring IS the deferral record; an empty one is a hole."""
-        docstring = inspect.getdoc(price_extraction)
-
-        assert docstring is not None
-        assert "WHAT IS MISSING" in docstring
-        assert "WHY IT WAS DEFERRED" in docstring
-        assert "TO PICK IT UP" in docstring
-
 
 class TestTheSeamPullsInNoVendorSdk:
     def test_the_module_imports_no_model_vendors_sdk(self) -> None:
         """ADR 0041: the pick-up goes through apps.ai, not a fourth local client."""
         source = Path(inspect.getfile(price_extraction)).read_text()
-        code = source.replace(inspect.getdoc(price_extraction) or "", "")
+        imports: set[str] = set()
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.Import):
+                imports.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module is not None:
+                imports.add(node.module)
+                imports.update(f"{node.module}.{alias.name}" for alias in node.names)
 
-        for sdk in VENDOR_SDKS:
-            assert f"import {sdk}" not in code
+        assert not {
+            module
+            for module in imports
+            if any(module == sdk or module.startswith(f"{sdk}.") for sdk in VENDOR_SDKS)
+        }

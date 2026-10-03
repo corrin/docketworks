@@ -50,3 +50,6 @@ htmlcov/
 celerybeat-schedule
 celerybeat-schedule.*
 celerybeat.pid
+
+# GPT: Keep the full audit locally; the concise review report is versioned.
+/docs/test-review.json

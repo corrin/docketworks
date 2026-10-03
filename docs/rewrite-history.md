@@ -5,6 +5,18 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
+## 2026-10-03 — PR 190 queued edits preserve the latest choice
+
+The shared grid replays pending edits over confirmed responses and defers reads
+until its queue drains. A wage change from 1.5 to 2 followed by a billing edit no
+longer saves the stale 1.5 multiplier. Refusals remove only the failed operation;
+consecutive failures restore confirmed values. Creates, deletes and PO header
+writes use the same queue, retaining the PO's concurrency refusal and callbacks.
+The four affected frontend suites pass (29 tests), including the incoming main
+branch's cost-line regressions adapted to the shared runner; type checking passes.
+The prior real E2E attempt stopped before startup at 79 calls against its 150
+minimum. No further live calls are authorised for these grid/permission fixes.
+
 ## 2026-10-03 — PR 190 move authorization uses the locked entry
 
 The review reproduced a stale-owner move: an office reassignment between the API
@@ -2148,3 +2160,69 @@ both lockfiles re-locked, one PR whose body is the report. The PR is a prompt fo
 the gates; CI on the bot's own push is a bonus the owner does not require, since E2E runs once
 per release anyway. Dependabot keeps only the github-actions ecosystem. `docs/dependency-sweep.md`
 holds the loop for a red run; ADR 0033 names the mechanism.
+
+## 2026-10-03 — Backend CI checks generated files before running pytest
+
+Moved code-quality metrics, status-table and exported-schema checks immediately after
+dependency installation, with metrics first and pytest last. Stale generated files now
+fail before the full coverage run. All existing checks and commands are retained.
+
+## 2026-10-03 — Systematic test review
+
+GPT: Reviewed all 3,902 baseline Python/TypeScript test definitions and 140 shell
+assertion sites, then the two additional weekday-header tests merged from main.
+Deleted eight non-behavioral or unreachable-state checks and strengthened 38 definitions
+with distinguishing fixtures/assertions and targeted mutation verification. Two more
+purchase-order integration scenarios now use valid ownership fixtures and independent
+vendor readbacks; both passed live. The recordings integration fixture now loads the
+real credentials/tenant; its full vendor comparison is deferred at the daily quota
+floor. The full backend run passed 3,393 cases at 90.10%
+coverage. The [review report](test-review.md) records scope, evidence and gate
+limitations. The full per-test ledger is retained locally, untracked and gitignored. Production behavior and coverage thresholds are unchanged.
+The owner elected to preserve their running stack and leave PR #193 draft rather
+than run the managed E2E database reset/restore alongside it.
+
+### Payroll preflight defect
+
+Confirmed against `1f87fd1` using the real `sync_staff` application service and the existing in-memory `FakeProvider`; no external services were called. Production code was not changed, and the temporary regression probe was removed after execution.
+
+`apps/timesheet/services/payroll_employee_sync.py:527` renames matched employees at the provider and persists their local employee/tenant links before line 532 validates the company address for unmatched employees. In a mixed batch with a missing company city, the service raises `StaffNotPayrollReadyError` after those writes have happened. A caller seeing the validation refusal cannot assume the batch made no changes.
+
+The existing unmatched-only test has been renamed from `test_a_missing_company_address_refuses_before_any_write` to `test_a_missing_company_address_prevents_unmatched_employee_creation`. Its assertions are unchanged. It correctly covers creation refusal, but does not cover mixed-batch preflight; the reproduction below records this uncovered defect.
+
+To reproduce, temporarily append the following test to `apps/timesheet/tests/test_payroll_employee_sync.py`, where the referenced fixtures and helpers already exist. Run only this test with `PYTEST_XDIST_AUTO_NUM_WORKERS=2 ./.venv/bin/python -m pytest --reuse-db apps/timesheet/tests/test_payroll_employee_sync.py::test_review_probe_mixed_batch_checks_address_before_any_write`, then remove the temporary test. This is a deliberately failing regression demonstration, not a proposed permanent failing test.
+
+```python
+@pytest.mark.usefixtures("company", "employer_address")
+def test_review_probe_mixed_batch_checks_address_before_any_write() -> None:
+    matched = make_staff(
+        "matched-probe@example.com",
+        first_name="Ana",
+        last_name="Silva",
+        xero_user_id="prod-probe",
+    )
+    unmatched = make_staff(
+        "new-probe@example.com",
+        first_name="Bo",
+        last_name="Kim",
+        xero_user_id="prod-new-probe",
+    )
+    provider = FakeProvider([ref("demo-probe", job_title=f"Workshop Worker [{matched.id}]")])
+    defaults = CompanyDefaults.get_solo()
+    defaults.city = None
+    defaults.save(update_fields=["city"])
+
+    with pytest.raises(sync.StaffNotPayrollReadyError, match=r"CompanyDefaults\.city"):
+        run_sync(provider, [matched, unmatched], allow_create=True)
+
+    matched.refresh_from_db()
+    assert provider.renamed == [] and matched.xero_user_id == "prod-probe", (
+        provider.renamed,
+        matched.xero_user_id,
+        matched.xero_tenant_id,
+    )
+```
+
+Observed assertion evidence: `([('demo-probe', 'Ana', 'Silva')], 'demo-probe', 'tenant-under-test')`. The provider recorded a rename and the local employee ID changed despite the address validation failure. The temporary probe failed at the assertion shown above; the application code was restored and the probe was removed.
+
+A future fix should validate the creation prerequisites for the entire batch before applying matched-employee writes, and promote this reproduction into a passing mixed-batch regression test. That application change is outside this test-only cleanup.

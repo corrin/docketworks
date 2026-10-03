@@ -31,7 +31,6 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
   const queryClient = useQueryClient()
   const path = { job_id: jobId, kind }
   const queryKey = jobJobsCostSetsRetrieveQueryKey({ path })
-  const costSetQuery = useQuery(jobJobsCostSetsRetrieveOptions({ path }))
 
   const grid = useOptimisticRows<CostSetOut, CostLineOut>({
     queryKey,
@@ -57,6 +56,10 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
     },
   })
 
+  const costSetQuery = useQuery({
+    ...jobJobsCostSetsRetrieveOptions({ path }),
+    enabled: grid.canRefetch,
+  })
   const patchMutation = useMutation(grid.serialized(jobCostLinesPartialUpdateMutation()))
   const createMutation = useMutation(grid.serialized(jobJobsCostSetsCostLinesCreateMutation()))
   const deleteMutation = useMutation(grid.serialized(jobCostLinesDeleteDestroyMutation()))

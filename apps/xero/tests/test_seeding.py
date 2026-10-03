@@ -247,9 +247,10 @@ class TestInvoiceLineUnitAmount:
         ) == Decimal("33.3333")
 
     def test_rounds_half_up(self) -> None:
+        """A half-even rewrite must not round a seeded unit price down at the tie."""
         assert invoice_line_unit_amount(
-            quantity=Decimal("8"), line_amount_excl_tax=Decimal("1.00"), unit_price=None
-        ) == Decimal("0.1250")
+            quantity=Decimal("32"), line_amount_excl_tax=Decimal("1.00"), unit_price=None
+        ) == Decimal("0.0313")
 
     def test_falls_back_to_unit_price_without_a_line_total(self) -> None:
         assert invoice_line_unit_amount(
@@ -769,6 +770,9 @@ class TestSeedFinale:
     """The seed's whole point is that sync can be turned back on afterwards."""
 
     def test_company_defaults_can_enable_sync(self) -> None:
+        """Dropping the gate writer's save must leave a visibly disabled gate."""
+        CompanyDefaults.objects.filter(pk=1).update(enable_xero_sync=False)
+
         CompanyDefaults.set_xero_sync_enabled(enabled=True)
 
         assert CompanyDefaults.get_solo().enable_xero_sync is True

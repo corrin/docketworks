@@ -1,9 +1,7 @@
 import { useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
 
 import {
-  apiErrorMessage,
   purchasingPurchaseOrdersPartialUpdate,
   retrievePurchaseOrderOptions,
   retrievePurchaseOrderQueryKey,
@@ -47,7 +45,6 @@ export function usePoLines(poId: string) {
   const queryClient = useQueryClient()
   const path = { po_id: poId }
   const queryKey = retrievePurchaseOrderQueryKey({ path })
-  const poQuery = useQuery(retrievePurchaseOrderOptions({ path }))
   const mutationKey = ['purchase-order-write', poId]
   const blocked = useRef<ConcurrencyError | null>(null)
   const createdCallbacks = useRef<(() => void)[]>([])
@@ -61,8 +58,8 @@ export function usePoLines(poId: string) {
     // Reconcile after the entire PO queue; retain created drafts until their
     // server IDs arrive.
     invalidate: async () => {
-      if (queryClient.isMutating({ mutationKey }) !== 0) return
       await queryClient.invalidateQueries({ queryKey })
+      if (!grid.canRefetch()) return
       for (const callback of createdCallbacks.current.splice(0)) callback()
     },
     beforeWrite: () => {
@@ -72,6 +69,7 @@ export function usePoLines(poId: string) {
     shouldToast: (error) => !isConcurrencyError(error),
   })
 
+  const poQuery = useQuery({ ...retrievePurchaseOrderOptions({ path }), enabled: grid.canRefetch })
   const patchMutation = useMutation({
     ...grid.serialized({ mutationKey }),
     mutationFn: async (options: Parameters<typeof purchasingPurchaseOrdersPartialUpdate>[0]) => {
@@ -112,21 +110,16 @@ export function usePoLines(poId: string) {
     )
 
   const createLine = (draft: PoLineDraft, { onCreated, onFailed }: CreateLineCallbacks) => {
-    grid.beforeWrite()
-    void patchMutation
-      .mutateAsync({ path, body: { lines: [draftCreateBody(draft)] } })
-      .then(
-        () => {
+    grid.createRow(
+      () => patchMutation.mutateAsync({ path, body: { lines: [draftCreateBody(draft)] } }),
+      {
+        onCreated: () => {
           createdCallbacks.current.push(onCreated)
         },
-        (error: unknown) => {
-          if (!isConcurrencyError(error)) {
-            toast.error(apiErrorMessage(error, 'Failed to add the purchase order line.'))
-          }
-          onFailed()
-        },
-      )
-      .then(grid.invalidate)
+        onFailed,
+      },
+      'Failed to add the purchase order line.',
+    )
   }
 
   const deleteLine = (lineId: string) =>

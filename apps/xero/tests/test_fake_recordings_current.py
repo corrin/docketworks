@@ -26,6 +26,12 @@ RECORDINGS_DIR = Path(__file__).resolve().parent.parent / "fake" / "recordings"
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 
 
+@pytest.fixture(autouse=True)
+def xero_tenant_id(integration_credentials: None) -> str:  # noqa: ARG001 -- fixture loads real credentials
+    """Load the live credentials and replace the unit suite's fake tenant fixture."""
+    return get_tenant_id()
+
+
 def shape_of(value: Json) -> Json:
     """Reduce a body to the shape the fake and the SDK depend on.
 

@@ -1,10 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
 
-import type { TimesheetCostLineOut, TimesheetEntriesOut, TimesheetJobOut } from '@/api'
+import type {
+  CostLineUpdateRequest,
+  TimesheetCostLineOut,
+  TimesheetEntriesOut,
+  TimesheetJobOut,
+} from '@/api'
 import { jobTimesheetEntriesRetrieveQueryKey } from '@/api'
 import { server } from '@/test/msw'
 import { useTimesheetEntries, type TimesheetCreateBody } from './useTimesheetEntries'
@@ -134,6 +139,57 @@ const createBody: TimesheetCreateBody = {
 }
 
 describe('useTimesheetEntries', () => {
+  it('keeps the latest wage choice when billing changes during queued saves', async () => {
+    const hook = setup([makeLine()])
+    await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
+    let releaseFirst!: () => void
+    let releaseSecond!: () => void
+    const first = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    const second = new Promise<void>((resolve) => {
+      releaseSecond = resolve
+    })
+    const requests: CostLineUpdateRequest[] = []
+    server.use(
+      http.patch<Record<string, string>, CostLineUpdateRequest>(
+        '*/api/job/cost_lines/line-1/',
+        async ({ request }) => {
+          const body = await request.json()
+          requests.push(body)
+          if (requests.length === 1) await first
+          if (requests.length === 2) await second
+          const saved = makeLine({ meta: body.meta })
+          hook.serverLines[0] = saved
+          return HttpResponse.json(saved)
+        },
+      ),
+    )
+    try {
+      hook.result.current.patchLine('line-1', {
+        meta: { ...makeLine().meta, wage_rate_multiplier: 1.5 },
+      })
+      hook.result.current.patchLine('line-1', {
+        meta: { ...makeLine().meta, wage_rate_multiplier: 2 },
+      })
+      await act(async () => releaseFirst())
+      await waitFor(() => expect(requests).toHaveLength(2))
+      expect(cachedLines(hook)[0]!.meta.wage_rate_multiplier).toBe(2)
+      hook.result.current.patchLine('line-1', {
+        meta: { ...cachedLines(hook)[0]!.meta, bill_rate_multiplier: 1.5 },
+      })
+      await act(async () => releaseSecond())
+      await waitFor(() => expect(hook.queryClient.isMutating()).toBe(0))
+      expect(requests).toHaveLength(3)
+      expect(hook.serverLines[0]!.meta.wage_rate_multiplier).toBe(2)
+      expect(hook.serverLines[0]!.meta.bill_rate_multiplier).toBe(1.5)
+      expect(cachedLines(hook)[0]!.meta.wage_rate_multiplier).toBe(2)
+    } finally {
+      releaseFirst()
+      releaseSecond()
+    }
+  })
+
   it('loads the day envelope', async () => {
     const hook = setup([makeLine()])
     await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))

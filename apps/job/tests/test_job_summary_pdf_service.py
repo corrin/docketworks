@@ -7,6 +7,7 @@ requeue chaining restored in 3b-3.
 """
 
 from collections.abc import Iterator
+from datetime import timedelta
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
@@ -15,6 +16,7 @@ from uuid import UUID
 import pytest
 from django.core.cache import caches
 from django.test import override_settings
+from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
@@ -93,6 +95,17 @@ class TestRefreshService:
             print_on_jobsheet=False,
             status="active",
         )
+        stale_file = JobFile.objects.create(
+            job=stale,
+            filename=JOB_SUMMARY_PDF_FILENAME,
+            file_path=f"Job-{stale.job_number}/JobSummary.pdf",
+            mime_type="application/pdf",
+            print_on_jobsheet=False,
+            status="active",
+        )
+        JobFile.objects.filter(pk=stale_file.pk).update(
+            uploaded_at=timezone.now() - timedelta(days=1)
+        )
         refreshed: list[UUID] = []
 
         with patch.object(JobSummaryPdfService, "refresh", side_effect=refreshed.append):
@@ -100,10 +113,11 @@ class TestRefreshService:
 
         assert refreshed_count == 1
         assert remaining is True
+        assert len(refreshed) == 1
         assert set(refreshed).issubset({stale.id, missing.id})
 
     def test_refresh_upsert_reuses_existing_row(
-        self, company: Company, office_staff: Staff
+        self, company: Company, office_staff: Staff, _workflow_folder: Path
     ) -> None:
         job = make_job(company, office_staff, name="Upsert Job")
 
@@ -112,13 +126,16 @@ class TestRefreshService:
             return_value=BytesIO(b"%PDF one"),
         ):
             JobSummaryPdfService.refresh(job.id)
+        original = JobFile.objects.get(job=job, filename=JOB_SUMMARY_PDF_FILENAME)
         with patch(
             "apps.job.services.job_summary_pdf_service.create_workshop_pdf",
             return_value=BytesIO(b"%PDF two"),
         ):
             JobSummaryPdfService.refresh(job.id)
 
-        assert JobFile.objects.filter(job=job, filename=JOB_SUMMARY_PDF_FILENAME).count() == 1
+        current = JobFile.objects.get(job=job, filename=JOB_SUMMARY_PDF_FILENAME)
+        assert current.id == original.id
+        assert (_workflow_folder / current.file_path).read_bytes() == b"%PDF two"
 
 
 class TestRefreshTaskBody:

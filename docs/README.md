@@ -36,6 +36,7 @@ Follow these in order:
 | [instance-setup-production.md](instance-setup-production.md) | Production-variant instance creation: validate-never-create, finalisation contract, handover |
 | [cost-summary-maintenance.md](cost-summary-maintenance.md) | How `CostSet.summary` stays consistent with the cost lines that are its source of truth |
 | [quoting-chat.md](quoting-chat.md) | The job quoting chat: what ChatKit supplies, who can use it, how it is configured |
+| [test-review.md](test-review.md) | Systematic test audit, per-test decisions, mutation evidence and verification limits |
 | [frontend-testing-plan.md](frontend-testing-plan.md) | Field-integrity testing plan for the React SPA, written 2026-08-04 and partly done |
 | [adr/](adr/README.md) | Architectural decision records |
 | [accepted-api-differences.yml](accepted-api-differences.yml) | v2 behaviour that deliberately differs from v1; a behaviour ledger, nothing gates on it |

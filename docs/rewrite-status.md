@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **60 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 268 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3492 collected |
+| Unit tests | 3488 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 138 recorded deviations |
@@ -51,12 +51,8 @@ does not have.
 written measures typing, not delivery. Every slice below authors its own E2E spec and
 is done only when that spec is green.
 
-PR #190 job-history acceptance remains pending: rerun `job/job-history.spec.ts`
-against real Xero after its daily quota recovers. Current notes edits and Undo pass
-the API regressions; both notes and delivery-date migration suites pass. The browser
-environment still returns 404, and real Xero has 80 calls against the 150-call gate.
-The supported fake run also stopped
-before the browser: restored PO `51483b64-1404-4d95-a3c1-f0db024ee407` has no raw_json.
+PR #190 browser acceptance: run `job/job-history.spec.ts` and
+`timesheet/move-entry.spec.ts` after fixing the launcher and local fake seed setup.
 
 **Record every rename by hand as you port an operation.** 17 `workflow_*` operations
 are still to come, and `scripts/v1-frontend-operations.yml` is where a rename is
@@ -637,13 +633,6 @@ never a second stream.
 - Unify invalid-state handling across document managers: the invoice manager raises
   `ValueError` for "job already paid" (a 500 via the envelope) where the quote sibling
   refuses with readable 400 values. Include the provider.
-- **Rewrite the known-weak tests** rather than leaving green-but-meaningless assertions
-  (ADR 0052): `test_price_extraction.py:48,:59` assert docstring headings and the
-  no-vendor-SDK grep misses `from mistralai import` — AST it or use an import-linter
-  contract; `test_llm_client.py:195` is constant == constant;
-  `test_stock_metadata_tasks.py:102-155` mocks the unit under test;
-  `test_products_are_saved_in_batches_during_a_long_run` is vacuous; and
-  `test_a_mapping_with_no_item_code_is_simply_not_in_xero` is tautological.
 - Untested paths worth a net: the per-row savepoint in `save_products`, `_save_mapping`'s
   concurrent-parse branch, `scheduled_task_service.py`'s malformed-entry guards, and
   `MAX_FAILURE_RATIO`'s 50% boundary.

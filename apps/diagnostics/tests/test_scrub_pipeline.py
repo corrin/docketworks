@@ -9,7 +9,9 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from django.core.management.base import CommandError
@@ -143,8 +145,21 @@ class TestResetScrubSchema:
 
 
 class TestRun:
-    def test_runs_the_argv(self) -> None:
-        scrub_pipeline.run([_tool("true")], env={})
+    def test_runs_the_argv(self, tmp_path: Path) -> None:
+        output = tmp_path / "command output.txt"
+        scrub_pipeline.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import os, sys; from pathlib import Path; "
+                    "Path(sys.argv[1]).write_text(os.environ['SCRUB_TEST_VALUE'])"
+                ),
+                str(output),
+            ],
+            env={"SCRUB_TEST_VALUE": "scrubbed dump"},
+        )
+        assert output.read_text() == "scrubbed dump"
 
     def test_a_nonzero_exit_raises(self) -> None:
         with pytest.raises(subprocess.CalledProcessError):
@@ -157,10 +172,28 @@ class TestRunPipe:
         # The shell needs PATH to resolve commands; nothing else leaks in.
         return {"PATH": os.environ["PATH"]}
 
-    def test_pipes_producer_output_into_the_consumer(self) -> None:
-        sh = _tool("sh")
-        consumer = [sh, "-c", "while IFS= read -r _; do :; done"]
-        scrub_pipeline.run_pipe([sh, "-c", "echo data"], consumer, env=self._env)
+    def test_pipes_producer_output_into_the_consumer(self, tmp_path: Path) -> None:
+        output = tmp_path / "piped output.bin"
+        producer = [
+            sys.executable,
+            "-c",
+            (
+                "import os, sys; sys.stdout.buffer.write("
+                "b'dump\\x00' + os.environ['SCRUB_TEST_VALUE'].encode())"
+            ),
+        ]
+        consumer = [
+            sys.executable,
+            "-c",
+            (
+                "import os, sys; from pathlib import Path; "
+                "Path(sys.argv[1]).write_bytes(sys.stdin.buffer.read() + "
+                "b'|' + os.environ['SCRUB_TEST_VALUE'].encode())"
+            ),
+            str(output),
+        ]
+        scrub_pipeline.run_pipe(producer, consumer, env={"SCRUB_TEST_VALUE": "payload"})
+        assert output.read_bytes() == b"dump\x00payload|payload"
 
     def test_a_failing_producer_raises_with_its_argv_and_code(self) -> None:
         sh = _tool("sh")
@@ -189,8 +222,24 @@ class TestRunPipe:
             scrub_pipeline.run_pipe([sh, "-c", "exit 3"], [sh, "-c", "exit 5"], env=self._env)
 
     def test_a_consumer_that_cannot_spawn_propagates_and_kills_the_producer(self) -> None:
-        sh = _tool("sh")
-        with pytest.raises(FileNotFoundError):
-            scrub_pipeline.run_pipe(
-                [sh, "-c", "sleep 30"], ["/nonexistent-pg-restore"], env=self._env
-            )
+        producer = [sys.executable, "-c", "import time; time.sleep(30)"]
+        proc = subprocess.Popen(producer, stdout=subprocess.PIPE, env={})  # noqa: S603 -- fixed Python child, no external input
+        try:
+            with (
+                patch(
+                    "apps.diagnostics.services.scrub_pipeline.subprocess.Popen",
+                    side_effect=[proc, FileNotFoundError("missing consumer")],
+                ),
+                pytest.raises(FileNotFoundError, match="missing consumer"),
+            ):
+                scrub_pipeline.run_pipe(producer, ["/nonexistent-pg-restore"], env={})
+            # GPT: returncode is populated by the helper's wait, not a test-side poll
+            # that could itself reap an abandoned child and hide the regression.
+            assert proc.returncode is not None
+            assert proc.returncode < 0
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait()
+            if proc.stdout is not None:
+                proc.stdout.close()

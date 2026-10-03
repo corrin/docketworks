@@ -65,8 +65,19 @@ def unparsed_stock(stock_holding_job: Job) -> Stock:
 
 
 class TestEligibility:
-    def test_incomplete_detects_any_missing_metadata_field(self, stock_holding_job: Job) -> None:
-        incomplete = make_stock(stock_holding_job, description=ALUMINIUM_SHEET)
+    @pytest.mark.parametrize("missing_field", ["metal_type", "alloy", "specifics"])
+    def test_incomplete_detects_any_missing_metadata_field(
+        self, stock_holding_job: Job, missing_field: str
+    ) -> None:
+        """Requiring all fields to be absent would strand partially described stock."""
+        incomplete = make_stock(
+            stock_holding_job,
+            description=ALUMINIUM_SHEET,
+            alloy="5005",
+            metal_type="aluminium",
+            specifics="H32 sheet",
+        )
+        setattr(incomplete, missing_field, None)
         complete = make_stock(
             stock_holding_job,
             description=ALUMINIUM_SHEET,
@@ -176,8 +187,7 @@ class TestCatchUpBatch:
     def test_queues_only_incomplete_never_attempted_rows_up_to_the_limit(
         self, stock_holding_job: Job
     ) -> None:
-        first = make_stock(stock_holding_job, description=ALUMINIUM_SHEET, item_code="FIRST")
-        second = make_stock(stock_holding_job, description=ALUMINIUM_SHEET, item_code="SECOND")
+        """Ineligible older rows must not consume the batch's limited places."""
         make_stock(
             stock_holding_job,
             description=ALUMINIUM_SHEET,
@@ -198,6 +208,20 @@ class TestCatchUpBatch:
             item_code="ATTEMPTED",
             parser_attempted_at=timezone.now(),
         )
+        make_stock(
+            stock_holding_job,
+            description=ALUMINIUM_SHEET,
+            item_code="INACTIVE",
+            is_active=False,
+        )
+        first = make_stock(
+            stock_holding_job,
+            description=ALUMINIUM_SHEET,
+            item_code="FIRST",
+            alloy="5005",
+            metal_type="aluminium",
+        )
+        second = make_stock(stock_holding_job, description=ALUMINIUM_SHEET, item_code="SECOND")
 
         with patch("apps.purchasing.tasks.parse_stock_item_task.delay") as delay:
             parse_unparsed_stock_items_task(limit=1)
@@ -516,7 +540,12 @@ class TestStockWriteSitesQueueTheParser:
 
             delay.assert_called_once()
 
-    def test_the_eligibility_guard_is_one_implementation(self, stock_holding_job: Job) -> None:
+    def test_the_eligibility_guard_is_one_implementation(
+        self,
+        stock_holding_job: Job,
+        django_capture_on_commit_callbacks: DjangoCaptureOnCommitCallbacks,
+    ) -> None:
+        """The queue helper must enqueue the eligible row, not only return True."""
         complete = make_stock(
             stock_holding_job,
             description=ALUMINIUM_SHEET,
@@ -526,5 +555,11 @@ class TestStockWriteSitesQueueTheParser:
         )
         incomplete = make_stock(stock_holding_job, description=ALUMINIUM_SHEET)
 
-        assert queue_metadata_parse_if_eligible(complete) is False
-        assert queue_metadata_parse_if_eligible(incomplete) is True
+        with (
+            patch("apps.purchasing.tasks.parse_stock_item_task.delay") as delay,
+            django_capture_on_commit_callbacks(execute=True),
+        ):
+            assert queue_metadata_parse_if_eligible(complete) is False
+            assert queue_metadata_parse_if_eligible(incomplete) is True
+
+        delay.assert_called_once_with(str(incomplete.id), force=False)

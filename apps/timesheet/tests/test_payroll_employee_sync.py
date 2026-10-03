@@ -420,11 +420,12 @@ class TestSyncStaff:
         assert (staff.xero_user_id, staff.xero_tenant_id) == ("prod-5", None)
 
     def test_an_empty_batch_never_reaches_the_provider(self) -> None:
-        provider = FakeProvider()
-
-        result = run_sync(provider, [])
+        """An empty result must not conceal an unnecessary employee-list request."""
+        with patch.object(sync, "get_provider") as provider:
+            result = sync.sync_staff([], tenant_id=TENANT)
 
         assert result == sync.SyncStaffResult()
+        provider.assert_not_called()
 
 
 @pytest.mark.usefixtures("company")
@@ -478,7 +479,7 @@ class TestPreflightRefusals:
         assert provider.renamed == []
 
     @pytest.mark.usefixtures("employer_address")
-    def test_a_missing_company_address_refuses_before_any_write(self) -> None:
+    def test_a_missing_company_address_prevents_unmatched_employee_creation(self) -> None:
         staff = make_staff("noaddress@example.com", xero_user_id="p9")
         defaults = CompanyDefaults.get_solo()
         defaults.city = None

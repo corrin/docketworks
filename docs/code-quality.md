@@ -14,8 +14,8 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 119,392 (v1 172,577, -31%) |
-| tests | 82,570 (v1 50,869, +62%) |
+| code | 119,363 (v1 172,577, -31%) |
+| tests | 82,956 (v1 50,869, +63%) |
 | generated | 51,920 (v1 20,359, +155%) |
 
 ## Suppressions
@@ -31,16 +31,16 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 771 |
+| TOTAL suppressions | 773 |
 | noqa: DJ001 | 196 |
 | noqa: PLC0415 | 152 |
 | noqa: E402 | 106 |
 | noqa: PLR0913 | 55 |
 | noqa: ARG002 | 38 |
 | noqa: BLE001 | 35 |
-| noqa: ARG001 | 22 |
+| noqa: ARG001 | 23 |
 | noqa: C901 | 18 |
-| noqa: S603 | 17 |
+| noqa: S603 | 18 |
 | noqa: TRY300 | 9 |
 | noqa: TRY004 | 8 |
 | noqa: DJ008 | 7 |
@@ -82,7 +82,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 227 |
+| in comments | 225 |
 | in docstrings | 382 |
 
 ## Exception handling
@@ -91,7 +91,7 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 439 |
+| try statements | 440 |
 | except handlers | 467 |
 | re-raises or converts | 299 |
 | returns instead | 98 |

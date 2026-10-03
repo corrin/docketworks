@@ -186,11 +186,12 @@ class TestReorderPriority:
         self, company: Company, office_staff: Staff
     ) -> None:
         mover = _make_status_job(company, office_staff, "Mover", status="in_progress")
+        _make_status_job(company, office_staff, "Existing draft", status="draft")
 
         KanbanService.reorder_job(job_id=mover.pk, new_status="draft", staff=office_staff)
 
         assert self._ordered_names("in_progress") == []
-        assert "Mover" in self._ordered_names("draft")
+        assert self._ordered_names("draft") == ["Mover", "Existing draft"]
 
     def test_rejects_self_anchor(self, company: Company, office_staff: Staff) -> None:
         mover = _make_status_job(company, office_staff, "Mover")

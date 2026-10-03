@@ -14,6 +14,7 @@ pytestmark = pytest.mark.django_db
 
 
 def test_records_tokens_cost_and_wall_time() -> None:
+    """GPT: recording must preserve fractional spend when either token cost changes."""
     target = LLMTarget(model="openai/gpt-4o", api_key="k", provider_name="OpenAI")
     response = litellm.ModelResponse(
         model=target.model,
@@ -23,6 +24,7 @@ def test_records_tokens_cost_and_wall_time() -> None:
     with (
         patch("apps.ai.services.llm_client.resolve_target", return_value=target),
         patch("litellm.completion", return_value=response),
+        patch("litellm.cost_per_token", return_value=(0.00012, 0.00034)),
         patch("apps.ai.services.llm_client.time.perf_counter", side_effect=[10.0, 11.25]),
     ):
         assert chat_completion("hello") == "answer"
@@ -32,7 +34,7 @@ def test_records_tokens_cost_and_wall_time() -> None:
     assert row.tokens_in == 120
     assert row.tokens_out == 34
     assert row.model_name == target.model
-    assert row.estimated_cost_usd == Decimal("0.00064")
+    assert row.estimated_cost_usd == Decimal("0.00046")
     assert row.duration_ms == 1250
     assert row.day_remaining is None
 

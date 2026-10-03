@@ -57,7 +57,6 @@ export function useTimesheetEntries(staffId: string, date: string) {
   const query = { staff_id: staffId, date }
   const queryKey = jobTimesheetEntriesRetrieveQueryKey({ query })
   const historyKey = jobTimesheetEntriesHistoryRetrieveQueryKey({ query })
-  const entriesQuery = useQuery(jobTimesheetEntriesRetrieveOptions({ query }))
 
   const grid = useOptimisticRows<TimesheetEntriesOut, TimesheetCostLineOut>({
     queryKey,
@@ -72,6 +71,10 @@ export function useTimesheetEntries(staffId: string, date: string) {
     },
   })
 
+  const entriesQuery = useQuery({
+    ...jobTimesheetEntriesRetrieveOptions({ query }),
+    enabled: grid.canRefetch,
+  })
   const patchMutation = useMutation(grid.serialized(jobCostLinesPartialUpdateMutation()))
   const createMutation = useMutation(
     grid.serialized(jobJobsCostSetsActualCostLinesCreateMutation()),

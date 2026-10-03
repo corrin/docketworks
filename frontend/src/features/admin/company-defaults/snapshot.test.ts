@@ -118,8 +118,11 @@ describe('snapshotSection', () => {
     expect(snap).toEqual({ mon_start: '07:00' })
   })
   it('represents image fields by their url companion, read-only', () => {
-    const snap = snapshotSection(defaults, [field('logo', { type: 'image' })])
-    expect(snap).toEqual({ logo: null })
+    // GPT: reading the editable key instead of its URL companion must not hide the logo.
+    const snap = snapshotSection({ ...defaults, logo_url: '/media/company/logo.png' }, [
+      field('logo', { type: 'image' }),
+    ])
+    expect(snap).toEqual({ logo: '/media/company/logo.png' })
   })
   it('normalises datetime values to the minute the input can express', () => {
     const snap = snapshotSection(defaults, [field('last_xero_sync', { type: 'datetime' })])

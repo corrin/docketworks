@@ -37,9 +37,16 @@ class TestApiClientSingleton:
     """auth.api_client is a stable proxy backed by a lazy singleton."""
 
     def test_proxy_is_stable(self) -> None:
-        # The proxy itself never changes — `from auth import api_client`
-        # captures it once and stays valid across resets.
-        assert auth.api_client is auth.api_client
+        """An imported proxy must pick up rebuilt credentials after an app reset."""
+        make_xero_app(client_id="a1", is_active=True, access_token="t", refresh_token="r")
+        imported_client = auth.api_client
+        first_configuration = imported_client.configuration
+
+        auth._reset_api_client()
+        rebuilt_client = auth.get_api_client()
+
+        assert imported_client.configuration is rebuilt_client.configuration
+        assert imported_client.configuration is not first_configuration
 
     def test_lazy_build_on_attribute_access(self) -> None:
         make_xero_app(client_id="a1", is_active=True, access_token="t", refresh_token="r")

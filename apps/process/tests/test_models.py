@@ -2,13 +2,17 @@
 
 Category is stored and exclusive (one home per document); entries link to a
 parent entry (a meeting's actions and attendance sign-offs point back at the
-minutes entry); simple-history is gone because ProcessEvent is the one audit
-implementation.
+minutes entry); actual entry edits advance their freshness timestamp.
 """
 
 import pytest
+from django.utils import timezone
+from freezegun import freeze_time
 
+from apps.accounts.models import Staff
 from apps.process.models import Form, FormEntry, Procedure
+from apps.process.schemas import EntryUpdateIn
+from apps.process.services.entries_service import update_form_entry
 
 pytestmark = pytest.mark.django_db
 
@@ -53,12 +57,22 @@ class TestFormEntryLinks:
         )
         assert list(minutes.child_entries.all()) == [action]
 
-    def test_entries_carry_updated_at(self) -> None:
-        entry = FormEntry.objects.create(form=make_form(), entry_date="2026-08-25", data={})
-        assert entry.updated_at is not None
+    def test_entries_carry_updated_at(self, office_staff: Staff) -> None:
+        # GPT: A create-only timestamp check misses edits that leave freshness stale.
+        with freeze_time("2026-08-25T08:00:00Z"):
+            form = make_form(
+                form_schema={"fields": [{"key": "area", "label": "Area", "type": "text"}]}
+            )
+            entry = FormEntry.objects.create(
+                form=form, entry_date="2026-08-25", data={"area": "Bay 1"}
+            )
+            created_at = entry.updated_at
 
-
-class TestSimpleHistoryIsGone:
-    def test_no_history_manager_on_any_process_model(self) -> None:
-        for model in (Form, FormEntry, Procedure):
-            assert not hasattr(model, "history")
+        with freeze_time("2026-08-25T09:00:00Z"):
+            update_form_entry(
+                staff=office_staff, entry=entry, payload=EntryUpdateIn(data={"area": "Bay 2"})
+            )
+            entry.refresh_from_db()
+            assert entry.data == {"area": "Bay 2"}
+            assert entry.updated_at == timezone.now()
+            assert entry.updated_at > created_at
