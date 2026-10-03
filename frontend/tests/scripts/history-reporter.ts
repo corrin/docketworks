@@ -1,3 +1,4 @@
+import { recordedXeroMode, xeroMode as selectedXeroMode } from './xero-mode'
 /**
  * Playwright reporter appending per-test wall durations, per-action trace
  * timings and semantic step timings to frontend/test-history/ (gitignored),
@@ -45,19 +46,13 @@ function readRunId(): string {
   return Math.random().toString(36).substring(2, 10)
 }
 
-/**
- * Which Xero the run talked to (lock file line 4, written by global-setup):
- * "fake" under --use-fake-xero, otherwise "real". Every history row carries
- * it, because a fake run's timings and outcomes are not the gate's (ADR 0060)
- * and the analysers leave them out unless asked. Read in onBegin beside the
- * run id: global teardown deletes the lock before onEnd fires, and reading it
- * there labelled every run "real", fake ones included.
- */
+/** Read before teardown removes the lock; preserve the actual transport in history. */
 function readXeroMode(): 'fake' | 'real' {
   if (fs.existsSync(LOCK_FILE)) {
-    return fs.readFileSync(LOCK_FILE, 'utf8').split('\n')[3]?.trim() === 'fake' ? 'fake' : 'real'
+    const contents = fs.readFileSync(LOCK_FILE, 'utf8')
+    if (contents.split('\n').length >= 4) return recordedXeroMode(contents)
   }
-  return 'real'
+  return selectedXeroMode()
 }
 
 type CompletedStatus = 'passed' | 'failed' | 'timedOut' | 'interrupted' | 'perf-fail'

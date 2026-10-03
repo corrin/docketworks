@@ -23843,7 +23843,15 @@ paths:
         \ a 500 with an ``error_id``, never a quiet\n``connected: false``: the E2E preflight and the header\
         \ badge must not\nmistake an operational failure for a clean not-connected install."
       operationId: xero_ping_retrieve
-      parameters: []
+      parameters:
+      - in: query
+        name: expected_fake
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Expected Fake
       responses:
         '200':
           content:

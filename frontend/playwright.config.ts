@@ -1,3 +1,4 @@
+import { configureXeroMode } from './tests/scripts/xero-mode.js'
 import { defineConfig, devices } from '@playwright/test'
 import dotenv from 'dotenv'
 import fs from 'node:fs'
@@ -22,6 +23,7 @@ if (fs.existsSync(testEnvPath)) {
   dotenv.config({ path: testEnvPath })
 }
 dotenv.config({ path: path.join(configDir, '.env') })
+configureXeroMode()
 
 // The operator launches the stack; browser tests use its public origin, including ngrok.
 const baseURL = process.env.E2E_BASE_URL ?? getApplicationUrl()
@@ -36,6 +38,9 @@ const baseURL = process.env.E2E_BASE_URL ?? getApplicationUrl()
 // test_payroll_integration.py, which drives it against the same real Xero
 // (ADR 0050's named exception).
 const runsXeroPayrollWrites = process.env.E2E_XERO_PAYROLL === '1'
+if (runsXeroPayrollWrites && process.env.E2E_XERO_MODE !== 'real') {
+  throw new Error('Payroll-write specs require E2E_XERO_MODE=real and a matching live stack.')
+}
 
 export default defineConfig({
   globalSetup: path.join(configDir, 'tests/scripts/global-setup.ts'),

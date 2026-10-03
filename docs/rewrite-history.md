@@ -5,6 +5,27 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
+## 2026-10-03 — E2E defaults to fake Xero; live testing is deliberate
+
+The launcher selects fake Xero by default and forces the selected mode through
+reset, managed services, Playwright and teardown. `--use-real-xero` retains live
+quota checks and OAuth recovery; conflicting flags refuse before subprocesses.
+A ping mode mismatch returns 409 before token access. Fake failures never start
+live OAuth. Missing or conflicting teardown metadata refuses vendor cleanup.
+Original fake-run credentials are saved privately before setup and restored after
+managed writers stop, including failures; failed restoration keeps the recovery
+file. Standalone reset and Playwright use the same custody helpers.
+
+ADR 0050/0060 record the owner's rule: live Xero is regular, often daily testing
+when work could expose a discrepancy in the fake, not an automatic spend for
+unrelated changes. Ordinary fake runs avoid both live quota probes (two calls).
+Validation: 11 stubbed launcher tests, 10 backend ping tests and 32 frontend
+harness tests passed. The managed fake attempt for job history and timesheet moves
+stopped before services at PO `51483b64-1404-4d95-a3c1-f0db024ee407`, whose mirror
+has no `raw_json`. The exit trap restored the active credentials successfully.
+No live Xero calls were made to validate this launcher change; those browser
+specs remain unverified against the current fixes until the local seed is repaired.
+
 ## 2026-10-03 — PR 190 queued edits preserve the latest choice
 
 The shared grid replays pending edits over confirmed responses and defers reads

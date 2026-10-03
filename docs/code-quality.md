@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 119,363 (v1 172,577, -31%) |
-| tests | 82,956 (v1 50,869, +63%) |
-| generated | 51,920 (v1 20,359, +155%) |
+| code | 119,409 (v1 172,577, -31%) |
+| tests | 83,433 (v1 50,869, +64%) |
+| generated | 51,928 (v1 20,359, +155%) |
 
 ## Suppressions
 
@@ -31,7 +31,7 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 773 |
+| TOTAL suppressions | 774 |
 | noqa: DJ001 | 196 |
 | noqa: PLC0415 | 152 |
 | noqa: E402 | 106 |
@@ -39,8 +39,8 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: ARG002 | 38 |
 | noqa: BLE001 | 35 |
 | noqa: ARG001 | 23 |
+| noqa: S603 | 19 |
 | noqa: C901 | 18 |
-| noqa: S603 | 18 |
 | noqa: TRY300 | 9 |
 | noqa: TRY004 | 8 |
 | noqa: DJ008 | 7 |

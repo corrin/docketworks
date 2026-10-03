@@ -17,7 +17,8 @@ This file owns the branch topology and the release-notes convention.
   --production`, after the deploy. It runs the suite on a copy of the database with the fake
   Xero and fences users out for the run (about 35 minutes), so
   it is a declared window; uptime monitors will alert. Neither run is merge evidence: the
-  gate before merge is `./scripts/ops/run_e2e.sh` on a workstation against real Xero.
+  gate before merge is `./scripts/ops/run_e2e.sh` on a workstation, using fake Xero by default and explicit live Xero when the work
+  could expose an inaccurate fake (ADR 0050/0060).
 - **A two-browser live-update smoke follows PVT.** Sign in to the kanban board in two
   browsers, move a card in one, and confirm it appears in the other without a reload. That
   exercises the whole push path (signal, commit hook, Redis fan-out, stream, client
@@ -52,10 +53,12 @@ This file owns the branch topology and the release-notes convention.
   has removed, and a positional copy into the older shape fails at the first row. A data
   migration that refuses runs with the units stopped, so rehearse it against a restore
   first.
-- **The integration tier is the merge gate for anything that touches Xero, the AI
+- **The integration tier gates relevant changes to Xero, the AI
   gateway, Maps, the phone provider or mail** (ADR 0050). It is human-run because CI
   has no sandbox credentials: `./scripts/ops/run_integration_tests.sh` before the
-  release PR merges, and the PR states any change to the number of vendor calls a user
+  release PR merges for the affected integrations. Live Xero is regular, often daily
+  work when a change could expose a discrepancy in the fake; unrelated changes do not
+  require live Xero calls. The PR states any change to the number of vendor calls a user
   action or a test run makes.
 
 ## Every genuine production deploy gets a GitHub Release

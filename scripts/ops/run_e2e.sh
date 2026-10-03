@@ -9,26 +9,38 @@
 # draft only a human can clear in the Xero UI, and an unattended gate must not
 # accumulate that. Run them on purpose instead:
 #
-#   npm --prefix frontend run test:e2e:payroll
+#   E2E_XERO_MODE=real npm --prefix frontend run test:e2e:payroll
 #
 set -Eeuo pipefail
 
-# --use-fake-xero: an iteration run (ADR 0060). Every process below is
-# started with XERO_FAKE=true, the store is seeded from the mirror before the
-# pre-run dump so the restore resets it, and the run is never the gate. The
-# flag is peeled off here so Playwright still receives the rest of "$@".
-USE_FAKE_XERO=false
+# GPT: The caller chooses live Xero deliberately; inherited app settings do not.
+selected_mode=''
 PLAYWRIGHT_ARGS=()
 for arg in "$@"; do
-  if [[ "$arg" == "--use-fake-xero" ]]; then USE_FAKE_XERO=true; else PLAYWRIGHT_ARGS+=("$arg"); fi
+  case "$arg" in
+    --use-fake-xero|--use-real-xero)
+      mode=fake
+      if [[ "$arg" == --use-real-xero ]]; then mode=real; fi
+      if [[ -n "$selected_mode" && "$selected_mode" != "$mode" ]]; then
+        echo "Conflicting Xero flags: choose fake or real, not both." >&2
+        exit 2
+      fi
+      selected_mode=$mode ;;
+    *) PLAYWRIGHT_ARGS+=("$arg") ;;
+  esac
 done
+export E2E_XERO_MODE=${selected_mode:-fake}
+USE_FAKE_XERO=true
+if [[ "$E2E_XERO_MODE" == real ]]; then USE_FAKE_XERO=false; fi
+export XERO_FAKE=$USE_FAKE_XERO
+if [[ "$USE_FAKE_XERO" == true && -n "${E2E_XERO_PAYROLL:-}" ]]; then
+  echo "Payroll-write specs require an explicit --use-real-xero run; the fake does not route them." >&2
+  exit 1
+fi
 if [[ "$USE_FAKE_XERO" == true ]]; then
-  if [[ -n "${E2E_XERO_PAYROLL:-}" ]]; then
-    echo "Refusing to start: the payroll-write specs post to the real tenant and the fake does not route them (ADR 0060)." >&2
-    exit 1
-  fi
-  export XERO_FAKE=true
-  echo "FAKE XERO: every Xero call is answered locally. This run is not a merge gate."
+  echo "FAKE XERO: all Xero calls are answered locally."
+else
+  echo "REAL XERO: explicitly selected; this run spends live API calls."
 fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -36,6 +48,8 @@ FRONTEND="$ROOT/frontend"
 LOG_DIR="$ROOT/logs/e2e"
 PIDS=()
 NAMES=()
+TOKEN_DIR=''
+TOKEN_SNAPSHOT=''
 
 cleanup() {
   local status=$?
@@ -50,8 +64,23 @@ cleanup() {
   done
   for pid in "${PIDS[@]}"; do kill -KILL -- "-$pid" 2>/dev/null; done
   for pid in "${PIDS[@]}"; do wait "$pid" 2>/dev/null; done
-  if (( status == 0 )) && [[ "$USE_FAKE_XERO" == true ]]; then echo "E2E PASSED AGAINST FAKE XERO — not a merge gate; all managed services stopped.";
-  elif (( status == 0 )); then echo "E2E PASSED — all managed services stopped."; else echo "E2E FAILED (exit $status) — logs: $LOG_DIR" >&2; fi
+  # Restore only after every managed writer has stopped, including failed startup.
+  if [[ -n "$TOKEN_SNAPSHOT" && -s "$TOKEN_SNAPSHOT" ]]; then
+    if "$FRONTEND/node_modules/.bin/tsx" "$FRONTEND/tests/scripts/xero-token-custody.ts" restore "$TOKEN_SNAPSHOT"; then
+      rm -f "$TOKEN_SNAPSHOT"
+      rmdir "$TOKEN_DIR"
+    else
+      status=1
+      echo "Credential restore failed; recovery file retained: $TOKEN_SNAPSHOT" >&2
+    fi
+  elif [[ -n "$TOKEN_DIR" ]]; then
+    rmdir "$TOKEN_DIR"
+  fi
+  if (( status == 0 )); then
+    echo "E2E PASSED (Xero: $E2E_XERO_MODE) — all managed services stopped."
+  else
+    echo "E2E FAILED (Xero: $E2E_XERO_MODE, exit $status) — logs: $LOG_DIR" >&2
+  fi
   exit "$status"
 }
 trap cleanup EXIT
@@ -82,6 +111,13 @@ for port in 4173 8000 4040; do
 done
 
 cd "$ROOT"
+if [[ "$USE_FAKE_XERO" == true ]]; then
+  mkdir -p "$ROOT/restore/e2e"
+  TOKEN_DIR=$(mktemp -d "$ROOT/restore/e2e/fake-xero-XXXXXX")
+  TOKEN_SNAPSHOT="$TOKEN_DIR/token.json"
+  export E2E_XERO_TOKEN_SNAPSHOT="$TOKEN_SNAPSHOT"
+  "$FRONTEND/node_modules/.bin/tsx" "$FRONTEND/tests/scripts/xero-token-custody.ts" save "$TOKEN_SNAPSHOT"
+fi
 # Codex: Cleanup imports the current models, so the database must reach the
 # current schema before cleanup queries any renamed or newly added column.
 # Opus: cleanup has to run before Playwright starts, so this necessarily lands
@@ -110,8 +146,9 @@ if [[ "$USE_FAKE_XERO" == true ]]; then
   # global-setup takes, so the teardown's restore puts the seed back and the
   # next run seeds afresh. --replace: last run's store is not this run's.
   "$ROOT/.venv/bin/python" manage.py fake_xero_seed --replace
+else
+  "$ROOT/.venv/bin/python" -m scripts.ops.assert_xero_quota --min 150
 fi
-"$ROOT/.venv/bin/python" -m scripts.ops.assert_xero_quota --min 150
 npm --prefix "$FRONTEND" run test:e2e:reset -- --confirm
 rm -rf "$FRONTEND/test-results" "$FRONTEND/playwright-report" "$LOG_DIR"
 mkdir -p "$LOG_DIR"

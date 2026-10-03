@@ -20209,7 +20209,12 @@ export type XeroPayItemsListResponse = XeroPayItemsListResponses[keyof XeroPayIt
 export type XeroPingRetrieveData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Expected Fake
+         */
+        expected_fake?: boolean | null;
+    };
     url: '/api/xero/ping/';
 };
 

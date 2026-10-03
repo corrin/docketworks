@@ -27,8 +27,8 @@ the ADR.
 | commit | automatic; `pre-commit run --all-files` | ~64s | `.pre-commit-config.yaml` is the list |
 | push | automatic; `pre-commit run --all-files --hook-stage pre-push` | ~5s | what CI does not run, and the registry of custom checks: search it before writing one |
 | unit | `uv run pytest` | ~152s | scope with `uv run pytest apps/job` or `--lf`; `-n auto --dist loadscope` is in `addopts`: never add it, never run serially |
-| integration | `./scripts/ops/run_integration_tests.sh`, `scripts/ops/outbound_links_probe.py`, `scripts/checks/route_reachability.py` | ~1min | human-run merge gate for anything that touches an external system; CI has no credentials (ADR 0050) |
-| e2e | `./scripts/ops/run_e2e.sh` | ~25min | bare `npm run test:e2e` only against an environment already running; `--use-fake-xero` is labelled everywhere and never the gate (ADR 0060) |
+| integration | `./scripts/ops/run_integration_tests.sh`, `scripts/ops/outbound_links_probe.py`, `scripts/checks/route_reachability.py` | ~1min | human-run evidence for relevant integration changes; live Xero when work could expose a fake discrepancy; CI has no credentials (ADR 0050) |
+| e2e | `./scripts/ops/run_e2e.sh` | ~25min | fake Xero by default; `--use-real-xero` for work that could expose a fake discrepancy; bare Playwright requires a matching running stack (ADR 0060) |
 
 The frontend loop check is `npm run type-check`, not `npm run build`. `uv run mypy` is strict
 at a zero baseline over `apps config manage.py scripts`. CI runs the commit tier plus the unit

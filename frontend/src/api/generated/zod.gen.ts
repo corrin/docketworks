@@ -8998,6 +8998,10 @@ export const zXeroDisconnectCreateResponse = zXeroPingOut;
  */
 export const zXeroPayItemsListResponse = z.array(zXeroPayItemOut);
 
+export const zXeroPingRetrieveQuery = z.object({
+    expected_fake: z.boolean().nullish()
+});
+
 /**
  * OK
  */

@@ -1,3 +1,5 @@
+import { beginFakeTokenSnapshot, finishFakeTokenSnapshot } from './global-teardown'
+import { configureXeroMode, xeroMode } from './xero-mode'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -94,14 +96,21 @@ export interface XeroStatus {
   xeroFake: boolean | null
 }
 
-async function checkXeroStatus(): Promise<XeroStatus> {
+export async function checkXeroStatus(): Promise<XeroStatus> {
   const cookieValue = await getAuthCookie()
 
   // Generous: ping may perform a real token refresh against Xero.
-  const response = await fetch(`${getApplicationUrl()}/api/xero/ping/`, {
-    headers: { Cookie: cookieValue },
-    signal: AbortSignal.timeout(60_000),
-  })
+  const response = await fetch(
+    `${getApplicationUrl()}/api/xero/ping/?expected_fake=${harnessExpectsFake()}`,
+    {
+      headers: { Cookie: cookieValue },
+      signal: AbortSignal.timeout(60_000),
+    },
+  )
+  if (response.status === 409)
+    throw new Error(
+      'Backend Xero mode disagrees with this E2E run; refusing connection or OAuth calls.',
+    )
   if (!response.ok) {
     // Opus: Not connected, and the body is logged rather than raised (v1 did the
     // same). The commonest non-ok here is a refresh against a consumed token,
@@ -129,23 +138,26 @@ async function checkXeroStatus(): Promise<XeroStatus> {
   }
 }
 
-/** The mode this harness was started for: run_e2e.sh exports XERO_FAKE to it. */
+/** The harness defaults to fake independently of the application environment. */
 export function harnessExpectsFake(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.XERO_FAKE === 'true'
+  return xeroMode(env) === 'fake'
 }
 
 /**
  * Turn a ping result into blocking issues; exported so the guard itself is testable.
  *
- * `expectFake` is what the harness was told (run_e2e.sh --use-fake-xero exports
- * XERO_FAKE to it); the backend's own flag is the truth, and a disagreement
+ * `expectFake` is the selected E2E_XERO_MODE; the backend's own flag is the truth, and a disagreement
  * means the stack was started one way and the run asked for the other — a run
  * that would then be labelled wrong, which ADR 0060 does not allow.
  */
 export function xeroPreflightIssues(xeroStatus: XeroStatus, expectFake: boolean): string[] {
   const issues: string[] = []
   if (!xeroStatus.connected) {
-    issues.push('Xero is not connected. Complete the OAuth flow (/api/xero/authenticate/) first.')
+    issues.push(
+      expectFake
+        ? 'Fake Xero is not connected. Fix the local fake seed/connection; no live OAuth will be attempted.'
+        : 'Xero is not connected. Complete the OAuth flow (/api/xero/authenticate/) first.',
+    )
     return issues
   }
   console.log('[xero] Xero is connected.')
@@ -156,16 +168,10 @@ export function xeroPreflightIssues(xeroStatus: XeroStatus, expectFake: boolean)
     )
   } else if (xeroStatus.xeroFake !== expectFake) {
     issues.push(
-      xeroStatus.xeroFake
-        ? 'Backend is running the fake Xero (XERO_FAKE=true) but this run was not started with ' +
-            '--use-fake-xero. Restart the stack without the flag, or run the fake gate on purpose.'
-        : 'This run was started with --use-fake-xero but the backend is answering from real Xero. ' +
-            'Start the stack through run_e2e.sh --use-fake-xero so every process carries XERO_FAKE=true.',
+      'Backend Xero mode disagrees with E2E_XERO_MODE. Restart the stack in the selected mode.',
     )
   } else if (xeroStatus.xeroFake) {
-    console.log(
-      '[xero] FAKE XERO: the backend answers every Xero call locally. This run is not a merge gate.',
-    )
+    console.log('[xero] FAKE XERO: the backend answers every Xero call locally.')
   }
   if (xeroStatus.productionClient === null) {
     issues.push(
@@ -232,16 +238,19 @@ export function acquireE2ELock(lockFile: string, pid: number): void {
 }
 
 export default async function globalSetup(): Promise<void> {
+  configureXeroMode()
   acquireE2ELock(LOCK_FILE, process.pid)
 
   // Playwright skips globalTeardown when globalSetup throws, so any failure
   // past this point must clean up the lock (and any partial dump) here —
   // otherwise the next run refuses to start for a dead PID.
   let backupFile: string | null = null
+  let tokenSnapshot: string | null = null
   try {
+    tokenSnapshot = beginFakeTokenSnapshot()
     console.log('[xero] Checking Xero connection...')
     let xeroStatus = await checkXeroStatus()
-    if (!xeroStatus.connected) {
+    if (!xeroStatus.connected && !harnessExpectsFake()) {
       xeroStatus = await reconnectXero()
     }
     const expectFake = harnessExpectsFake()
@@ -301,7 +310,7 @@ export default async function globalSetup(): Promise<void> {
     // lines positionally.
     fs.appendFileSync(
       LOCK_FILE,
-      `\n${backupFile}\n${runId}\n${expectFake ? 'fake' : 'real'}`,
+      `\n${backupFile}\n${runId}\n${expectFake ? 'fake' : 'real'}\n${tokenSnapshot ?? ''}`,
       'utf8',
     )
 
@@ -314,6 +323,7 @@ export default async function globalSetup(): Promise<void> {
       // never find such a backup, so keeping it only accumulates orphans.
       fs.rmSync(backupFile, { force: true })
     }
+    finishFakeTokenSnapshot(tokenSnapshot)
     throw error
   }
 }
