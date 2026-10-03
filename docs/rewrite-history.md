@@ -5,6 +5,14 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
+## 2026-10-03 — PR 190 move authorization uses the locked entry
+
+The review reproduced a stale-owner move: an office reassignment between the API
+read and the service lock let the former owner move somebody else's time. The
+service now authorizes against the locked row and refuses a source-job change
+before acquiring further owner locks. Regressions cover both interleavings and
+assert that refusals preserve the current entry, cost summaries and audit events.
+
 ## 2026-10-03 — New notes edits have one undoable event; historical cleanup is secondary
 
 Owner prioritised new edits over historical repair. The current update path already
