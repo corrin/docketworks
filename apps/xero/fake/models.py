@@ -688,9 +688,14 @@ class FakeQuote(Document):
     class Meta(Document.Meta):
         db_table = "xero_fake_quote"
         constraints: ClassVar[list[models.BaseConstraint]] = [
+            # Live quotes only. Xero reissues a deleted quote's number: the
+            # Demo Company holds three DELETED quotes all numbered QU-0013,
+            # and a pass on 2026-10-04 gave a new quote QU-0016 straight after
+            # answering a deleted one under that number. A purchase order is
+            # the opposite case, and its constraint says so.
             models.UniqueConstraint(
                 fields=["tenant_id", "number"],
-                condition=models.Q(number__isnull=False),
+                condition=models.Q(number__isnull=False) & ~models.Q(status="DELETED"),
                 name="quote_number_unique_per_tenant",
             ),
         ]
