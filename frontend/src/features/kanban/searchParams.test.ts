@@ -32,13 +32,6 @@ describe('normaliseKanbanQuery', () => {
     },
   )
 
-  it('writes a job number to the URL as JSON, which is why the raw read was wrong', () => {
-    // Pins the router behaviour this fix exists to absorb: if a future router
-    // version stops quoting, this test says so rather than the board breaking.
-    expect(defaultStringifySearch({ q: '97537' })).toBe('?q=%2297537%22')
-    expect(new URLSearchParams('?q=%2297537%22').get('q')).toBe('"97537"')
-  })
-
   it('coerces a hand-typed or shared ?q=97537, which parses as a number', () => {
     expect(parsedQuery('?q=97537')).toBe(97537)
     expect(normaliseKanbanQuery(parsedQuery('?q=97537'))).toBe('97537')

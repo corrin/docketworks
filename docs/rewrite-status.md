@@ -631,9 +631,7 @@ never a second stream.
   `ValueError` for "job already paid" (a 500 via the envelope) where the quote sibling
   refuses with readable 400 values. Include the provider.
 - **Rewrite the known-weak tests** rather than leaving green-but-meaningless assertions
-  (ADR 0052): `test_price_extraction.py`'s no-vendor-SDK grep misses
-  `from mistralai import` — AST it or use an import-linter contract;
-  `test_stock_metadata_tasks.py:102-155` mocks the unit under test.
+  (ADR 0052): `test_stock_metadata_tasks.py:102-155` mocks the unit under test.
 - Untested paths worth a net: the per-row savepoint in `save_products`, `_save_mapping`'s
   concurrent-parse branch, `scheduled_task_service.py`'s malformed-entry guards, and
   `MAX_FAILURE_RATIO`'s 50% boundary.

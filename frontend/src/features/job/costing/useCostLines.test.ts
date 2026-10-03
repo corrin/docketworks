@@ -49,18 +49,16 @@ describe('mergeEchoFields', () => {
 
 describe('restoreDeletedLine', () => {
   it('re-inserts only the deleted line at its index, not the whole snapshot', () => {
-    const lineX = line({ id: 'x', unit_rev: 'rejected-optimistic' })
+    // GPT: the delete snapshot predates another row's successful edit. Restoring
+    // the entire snapshot must fail the assertion on that newer price.
     const snapshotX = line({ id: 'x', unit_rev: '12.00' })
     const lineY = line({ id: 'y' })
-    // The current cache has X already rolled back by its own PATCH failure.
-    const current = [line({ id: 'x', unit_rev: '12.00' })]
+    const current = [line({ id: 'x', unit_rev: '18.00' })]
     const snapshot = [snapshotX, lineY]
-    void lineX
 
     const restored = restoreDeletedLine(current, snapshot, 'y')
 
     expect(restored.map((entry) => entry.id)).toEqual(['x', 'y'])
-    // X keeps its current (rolled-back) value, not the snapshot's state.
-    expect(restored[0]!.unit_rev).toBe('12.00')
+    expect(restored[0]!.unit_rev).toBe('18.00')
   })
 })

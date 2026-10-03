@@ -131,11 +131,17 @@ describe('LeaveSettingsPage', () => {
   })
 
   it('submits only the rows that changed', async () => {
+    // GPT: posting every loaded row would overwrite another mapping even though
+    // the operator only edited annual leave. Keep an unchanged row in the form.
+    const unchanged = leaveType({ code: 'sick_leave', display_name: 'Sick Leave' })
     const bodies: unknown[] = []
     server.use(
+      http.get(SETTINGS, () => HttpResponse.json(settings([leaveType(), unchanged]))),
       http.patch(SETTINGS, async ({ request }) => {
         bodies.push(await request.json())
-        return HttpResponse.json(settings([leaveType({ display_name: 'Holiday Leave' })]))
+        return HttpResponse.json(
+          settings([leaveType({ display_name: 'Holiday Leave' }), unchanged]),
+        )
       }),
     )
     const { user } = await renderPage()

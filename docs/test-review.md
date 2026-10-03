@@ -41,3 +41,38 @@ implementation then passed all 88 tests in the four modules containing strengthe
 
 The timestamp-offset and password-whitespace tests from the calibration discussion
 remain: they catch plausible mistakes in application parsing and normalisation.
+
+## Second batch
+
+Pagination now checks the requested rows, duplicate API-key refusal checks the
+unchanged secret and absence of redisplay, and creation checks a single display.
+The registered normalization migration now runs against its historical model and
+transforms a legacy row; importing the helper is no longer enough. The deferred
+price extractor's architecture check parses both import forms rather than grepping
+one spelling.
+
+Deliberate wrong-page slicing, key rotation on refusal, a no-op migration wrapper,
+and a forbidden `from mistralai import Mistral` each failed the intended assertion.
+A separate output mutation made both repeated creation display and duplicate-key
+redisplay fail. All application mutations were restored. The four affected modules
+passed 18 tests after the first experiment.
+
+The ledger now covers every baseline AI, core, accounts and quoting definition
+(527 source definitions, including parameterized tests). Kept tests identify
+concrete application mistakes, including model/schema configuration and library
+adapters that enforce application contracts. Remaining domains are still under review.
+
+## Frontend review
+
+All 849 baseline TypeScript test definitions are reviewed, including browser and
+harness tests. Removed a router-library-only serialization test and a constant
+copy comparison already covered by rendered phone-call tabs. Strengthened the
+leave form with an unchanged second row, logo snapshotting with a non-null URL,
+and delete rollback with different snapshot/current prices. Each repair rejected
+its intended application mutation. Removed obsolete SortableJS and unused body
+class absence assertions from drag tests while retaining real drag/highlight checks.
+
+The five affected unit files passed 47 tests. The full frontend coverage suite
+passed 695 tests in 98 files with two workers; all four coverage percentages were
+unchanged from baseline. Type checking passed. Playwright discovery found 175 tests
+in 59 files; discovery is not browser execution, which is still pending.
