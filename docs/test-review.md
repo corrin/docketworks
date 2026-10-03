@@ -16,12 +16,12 @@ Generated reports are refreshed with the test changes.
 
 ## Scope and decisions
 
-The [per-test ledger](test-review.json) reconciles exactly with the baseline inventory:
+The review reconciled exactly with the baseline inventory:
 3,053 Python definitions and 849 TypeScript definitions, including browser tests and
 18 frontend harness definitions. Two additional TypeScript definitions arrived on
 `main` through `ed1b69a` during the review and were also reviewed: **3,904 definitions
-in total**. They assert literal weekday headers on the two single-day timesheet pages. Separately, it records 140 shell assertion sites
-in three scripts. Parameterized definitions and shell loops count once here; executed
+in total**. They assert literal weekday headers on the two single-day timesheet pages.
+The review also covered 140 shell assertion sites in three scripts. Parameterized definitions and shell loops count once here; executed
 case counts below therefore differ from the inventory.
 
 | Source definitions | Keep | Strengthen | Delete |
@@ -40,12 +40,10 @@ vendor comparison remains unverified after the quota floor was reached.
 All temporary application mutations were removed. No application behavior or coverage
 threshold changed in this cleanup.
 
-Ledger identifiers retain baseline names and source lines so deletions and renames
-remain traceable. Assertion excerpts are explicitly baseline excerpts. Local `/tmp`
-log paths identify experiments; their important outcomes are summarized in the ledger
-because those files are not durable repository artifacts. Raw URLs in quoted test
-assertions are omitted so fixture examples are not advertised as application links;
-the test identifiers locate their original source.
+The detailed per-test ledger is retained locally at `docs/test-review.json`,
+untracked and gitignored. It is not part of the PR or available in a fresh clone.
+This report retains the decisions, representative mutation evidence and validation
+results needed to review the change.
 
 ## Deletions
 
@@ -149,5 +147,5 @@ records a reproducible mixed-batch failure. Application fixes remain outside thi
 The purchase-order inbound-deletion unit test exercises the transform directly;
 `sync_entities` skips deleted rows before that transform. It does not prove end-to-end
 inbound deletion. More generally, a reviewed test suite and coverage percentage do
-not establish complete application coverage. The ledger records the guarantees each
-test actually provides and the browser/integration gates remain visibly incomplete.
+not establish complete application coverage. The browser/integration gates remain
+visibly incomplete.

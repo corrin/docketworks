@@ -2034,9 +2034,8 @@ purchase-order integration scenarios now use valid ownership fixtures and indepe
 vendor readbacks; both passed live. The recordings integration fixture now loads the
 real credentials/tenant; its full vendor comparison is deferred at the daily quota
 floor. The full backend run passed 3,393 cases at 90.10%
-coverage. The
-[review report](test-review.md) and [per-test ledger](test-review.json) record scope,
-evidence and gate limitations. Production behavior and coverage thresholds are unchanged.
+coverage. The [review report](test-review.md) records scope, evidence and gate
+limitations. The full per-test ledger is retained locally, untracked and gitignored. Production behavior and coverage thresholds are unchanged.
 The owner elected to preserve their running stack and leave PR #193 draft rather
 than run the managed E2E database reset/restore alongside it.
 
@@ -2046,7 +2045,7 @@ Confirmed against `1f87fd1` using the real `sync_staff` application service and 
 
 `apps/timesheet/services/payroll_employee_sync.py:527` renames matched employees at the provider and persists their local employee/tenant links before line 532 validates the company address for unmatched employees. In a mixed batch with a missing company city, the service raises `StaffNotPayrollReadyError` after those writes have happened. A caller seeing the validation refusal cannot assume the batch made no changes.
 
-The existing unmatched-only test has been renamed from `test_a_missing_company_address_refuses_before_any_write` to `test_a_missing_company_address_prevents_unmatched_employee_creation`. Its assertions are unchanged. It correctly covers creation refusal, but does not cover mixed-batch preflight; the audit ledger explicitly records this uncovered defect.
+The existing unmatched-only test has been renamed from `test_a_missing_company_address_refuses_before_any_write` to `test_a_missing_company_address_prevents_unmatched_employee_creation`. Its assertions are unchanged. It correctly covers creation refusal, but does not cover mixed-batch preflight; the reproduction below records this uncovered defect.
 
 To reproduce, temporarily append the following test to `apps/timesheet/tests/test_payroll_employee_sync.py`, where the referenced fixtures and helpers already exist. Run only this test with `PYTEST_XDIST_AUTO_NUM_WORKERS=2 ./.venv/bin/python -m pytest --reuse-db apps/timesheet/tests/test_payroll_employee_sync.py::test_review_probe_mixed_batch_checks_address_before_any_write`, then remove the temporary test. This is a deliberately failing regression demonstration, not a proposed permanent failing test.
 
