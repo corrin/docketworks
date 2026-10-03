@@ -2065,9 +2065,7 @@ def test_review_probe_mixed_batch_checks_address_before_any_write() -> None:
         last_name="Kim",
         xero_user_id="prod-new-probe",
     )
-    provider = FakeProvider([
-        ref("demo-probe", job_title=f"Workshop Worker [{matched.id}]")
-    ])
+    provider = FakeProvider([ref("demo-probe", job_title=f"Workshop Worker [{matched.id}]")])
     defaults = CompanyDefaults.get_solo()
     defaults.city = None
     defaults.save(update_fields=["city"])
