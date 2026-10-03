@@ -4,7 +4,8 @@
   "inventory": {
     "python_definitions": 3053,
     "typescript_definitions": 849,
-    "shell_assertion_sites": 140
+    "shell_assertion_sites": 140,
+    "additional_typescript_definitions_from_main": 2
   },
   "evidence_notes": "Identifiers refer to the baseline, including removed or renamed tests and original source lines. Baseline assertion excerpts are not descriptions of repaired assertions. Keep decisions are static contract reviews unless explicit mutation evidence is recorded; shared file-level risks are not bespoke mutation proof. Temporary log paths identify local experiments and are not portable artifacts; their outcomes are summarized here. Live gate outcomes are recorded in docs/test-review.md. Raw URLs inside assertion evidence are omitted: these are fixture examples, not navigable application links. The baseline test identifier locates their exact source.",
   "decisions": {
@@ -36516,6 +36517,12 @@
       "evidence": "Reviewed baseline test setup and assertions; expect(onOpenEntry).toHaveBeenCalledWith('staff-1', FRIDAY)",
       "review": "static application-contract review; mutation evidence recorded separately for changed tests"
     },
+    "frontend/src/features/timesheet/DailyOverviewPage.test.tsx:87::'DailyOverviewPage' > 'names the weekday in the date header'": {
+      "verdict": "keep",
+      "behaviour": "The selected date header includes the weekday on the single-day timesheet page.",
+      "rewrite_risk": "Changing the component to formatDate, omitting the weekday, or displaying the wrong selected date fails the literal rendered expectation Friday, 7 August 2026.",
+      "evidence": "Reviewed the component and assertion added on main through ed1b69a. Static application-contract review, not a new mutation experiment. Existing browser assertions cover selected-date propagation/formatter wiring; literal unit expectations independently constrain the output."
+    },
     "frontend/src/features/timesheet/DailyOverviewPage.test.tsx:95::'DailyOverviewPage' > 'next-day navigation is a plain +1 day (no weekend skip on this page)'": {
       "verdict": "keep",
       "behaviour": "next-day navigation is a plain +1 day (no weekend skip on this page)",
@@ -36683,6 +36690,12 @@
       "rewrite_risk": "Timesheet page rewrite can silently accept unknown staff, leave loading state after data, or ignore weekend policy/date navigation.",
       "evidence": "Reviewed baseline test setup and assertions; expect(document.body.textContent).toContain(",
       "review": "static application-contract review; mutation evidence recorded separately for changed tests"
+    },
+    "frontend/src/features/timesheet/TimesheetEntryPage.test.tsx:126::'TimesheetEntryPage' > 'names the weekday in the date header'": {
+      "verdict": "keep",
+      "behaviour": "The selected date header includes the weekday on the single-day timesheet page.",
+      "rewrite_risk": "Changing the component to formatDate, omitting the weekday, or displaying the wrong selected date fails the literal rendered expectation Friday, 7 August 2026.",
+      "evidence": "Reviewed the component and assertion added on main through ed1b69a. Static application-contract review, not a new mutation experiment. Existing browser assertions cover selected-date propagation/formatter wiring; literal unit expectations independently constrain the output."
     },
     "frontend/src/features/timesheet/TimesheetEntryPage.test.tsx:135::'TimesheetEntryPage' > 'skips the weekend on next-day navigation when weekend timesheets are disabled'": {
       "verdict": "keep",
@@ -41618,5 +41631,6 @@
       },
       "verdict": "keep"
     }
-  }
+  },
+  "additional_review_commit": "ed1b69a"
 }

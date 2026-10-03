@@ -44,7 +44,7 @@ does not have.
 | Unit tests | 3426 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
-| Behaviour ledger | 137 recorded deviations |
+| Behaviour ledger | 138 recorded deviations |
 | ADRs | 42 (v1's 20 carried forward + 0038–0041, 0043, 0046–0060, 0063–0064 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints

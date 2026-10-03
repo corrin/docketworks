@@ -1,4 +1,7 @@
 import { test, expect } from '../fixtures/auth'
+// The app's own formatter, so the assertion is the contract and not a second
+// spelling of the date that drifts when the formatter changes.
+import { formatDateLong } from '../../../src/lib/format'
 import {
   autoId,
   createTestJob,
@@ -48,6 +51,7 @@ test.describe.serial('timesheet entry operations', () => {
 
   test('add a timesheet entry against the job', async ({ authenticatedPage: page }) => {
     await openEntryViaDaily(page, date)
+    await expect(autoId(page, 'TimesheetEntry-date')).toHaveText(formatDateLong(date))
     const rowIndex = await getPhantomRowIndex(page)
     await selectJobByNumber(page, rowIndex, jobNumber)
 

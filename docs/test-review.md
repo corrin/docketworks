@@ -11,20 +11,22 @@ is not a reason to delete it.
 Metrics now run immediately after dependency installation, followed by status-table
 and schema checks; pytest runs last. No check was removed. The first branch run
 ([37074896919](https://github.com/corrin/docketworks/actions/runs/37074896919))
-hit stale metrics and stopped the backend job in 54 seconds, with pytest skipped.
+failed at metrics and stopped the backend job in 54 seconds, with pytest skipped.
 Generated reports are refreshed with the test changes.
 
 ## Scope and decisions
 
 The [per-test ledger](test-review.json) reconciles exactly with the baseline inventory:
 3,053 Python definitions and 849 TypeScript definitions, including browser tests and
-18 frontend harness definitions. Separately, it records 140 shell assertion sites
+18 frontend harness definitions. Two additional TypeScript definitions arrived on
+`main` through `ed1b69a` during the review and were also reviewed: **3,904 definitions
+in total**. They assert literal weekday headers on the two single-day timesheet pages. Separately, it records 140 shell assertion sites
 in three scripts. Parameterized definitions and shell loops count once here; executed
 case counts below therefore differ from the inventory.
 
 | Source definitions | Keep | Strengthen | Delete |
 | --- | ---: | ---: | ---: |
-| Python and TypeScript | 3,853 | 41 | 8 |
+| Python and TypeScript | 3,855 | 41 | 8 |
 | Shell assertion sites | 140 | 0 | 0 |
 
 Each decision records behavior, a plausible application mistake, and review evidence.
@@ -93,9 +95,11 @@ were restored before final verification; production code is unchanged in the bra
 - Backend baseline: 3,397 passed; 90.10% coverage, 743.45 seconds.
 - Combined final backend: 3,393 passed; 90.10% coverage, 1,351.06 seconds.
   Six Python test deletions and two additional parameter cases explain the net reduction
-  of four executed unit cases.
-- Frontend baseline: 697 passed. Final: 695 passed across 98 files. Coverage unchanged:
-  60.51% statements, 53.12% branches, 55.90% functions and 61.46% lines.
+  of four executed unit cases. The final mock-target typing correction additionally
+  passed all 18 tests in the diagnostics subprocess module.
+- Frontend baseline: 697 passed. Cleanup before merging main: 695 passed. Final after
+  merging the two weekday-header tests: 697 passed across 98 files, 178.66 seconds.
+  Coverage unchanged: 60.51% statements, 53.12% branches, 55.90% functions and 61.46% lines.
 - Initial frontend runs at default concurrency timed out under host load. The baseline
   passed with four workers and final coverage with two, without changing test timeouts.
 - Domain runs passed before integration: job/purchasing/timesheet 1,041 cases,
