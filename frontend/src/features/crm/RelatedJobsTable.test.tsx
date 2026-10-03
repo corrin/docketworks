@@ -62,7 +62,10 @@ describe('RelatedJobsTable', () => {
     const firstInvoice = autoId('PersonDetail-jobs-invoice-inv-1')
     expect(firstInvoice).toHaveTextContent('INV-0001')
     expect(firstInvoice).toHaveTextContent('20 Feb 2026')
-    expect(firstInvoice.querySelector('a')).toHaveAttribute('href', 'https://in.xero.com/inv-1')
+    expect(firstInvoice.querySelector('a')).toHaveAttribute(
+      'href',
+      'https://invoices.example/inv-1',
+    )
     // No Xero link yet: the number is text, not a dead anchor.
     expect(autoId('PersonDetail-jobs-invoice-inv-2').querySelector('a')).toBeNull()
     expect(autoId('PersonDetail-jobs-cell-job-1-invoiced')).toHaveTextContent('$125.50')

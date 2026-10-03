@@ -91,6 +91,7 @@ class TestPurchaseOrderList:
     def test_lists_newest_first_with_distinct_jobs(
         self, api: Client, supplier: Company, job: Job, office_staff: Staff
     ) -> None:
+        older = make_purchase_order(supplier=supplier, created_by=office_staff)
         po = make_purchase_order(supplier=supplier, created_by=office_staff)
         make_po_line(po, job=job, description="First")
         make_po_line(po, job=job, description="Second")
@@ -98,7 +99,7 @@ class TestPurchaseOrderList:
         body = api.get(PO_LIST_URL).json()
         rows = body["results"]
 
-        assert len(rows) == 1
+        assert [row["po_number"] for row in rows] == [po.po_number, older.po_number]
         assert rows[0]["po_number"] == po.po_number
         assert rows[0]["supplier"] == supplier.name
         assert rows[0]["created_by_name"] == office_staff.get_display_full_name()

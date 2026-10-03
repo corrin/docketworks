@@ -24,7 +24,7 @@ from apps.accounts.models import Staff
 from apps.accounts.tests.helpers import authenticate
 from apps.company.models import Company
 from apps.core.models import CompanyDefaults
-from apps.job.models import Job, JobDeltaRejection
+from apps.job.models import Job, JobDeltaRejection, JobEvent
 from apps.job.services.delta_checksum import compute_job_delta_checksum
 from apps.job.tests._pdf_golden_fixtures import _seed_company_defaults
 
@@ -349,10 +349,19 @@ class TestUndoChange:
 
 
 class TestTimelineAndBasicInfo:
-    def test_timeline_lists_events(self, client: Client, job: Job) -> None:
+    def test_timeline_lists_events(self, client: Client, job: Job, office_staff: Staff) -> None:
+        """An empty timeline envelope must not conceal lost event serialization."""
+        event = JobEvent.objects.create(
+            job=job,
+            staff=office_staff,
+            event_type="manual_note",
+            detail={"note_text": "Customer called"},
+        )
         response = client.get(f"/api/job/jobs/{job.id}/timeline/")
         assert response.status_code == 200
-        assert "timeline" in response.json()
+        entry = next(row for row in response.json()["timeline"] if row["id"] == str(event.id))
+        assert entry["description"] == "Customer called"
+        assert entry["entry_type"] == "event"
 
     def test_basic_info_shape(self, client: Client, job: Job) -> None:
         response = client.get(f"/api/job/jobs/{job.id}/basic-info/")
@@ -502,8 +511,10 @@ class TestDeltaRejectionEndpoints:
         assert JobDeltaRejection.objects.filter(resolved=True).count() == 2
 
     def test_unresolve_cascades(self, client: Client) -> None:
-        for _ in range(2):
+        rejections = [
             JobDeltaRejection.objects.create(reason="conflict", envelope={}, resolved=True)
+            for _ in range(2)
+        ]
 
         response = client.post(
             "/api/job/jobs/delta-rejections/grouped/mark_unresolved/",
@@ -513,6 +524,9 @@ class TestDeltaRejectionEndpoints:
 
         assert response.status_code == 200
         assert response.json() == {"updated": 2}
+        for rejection in rejections:
+            rejection.refresh_from_db()
+            assert rejection.resolved is False
 
     def test_per_job_listing_filters_to_that_job(self, client: Client, job: Job) -> None:
         JobDeltaRejection.objects.create(job=job, reason="mine", envelope={})

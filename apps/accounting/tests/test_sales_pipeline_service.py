@@ -564,9 +564,7 @@ class TestTrend:
     pytestmark = pytest.mark.usefixtures("eight_hour_target")
 
     def test_rolling_average_derived_from_weekly_series(self, acme: Company, staff: Staff) -> None:
-        """Build approvals across three weeks; verify the rolling average for the
-        last week equals the mean of the underlying weekly series.
-        """
+        """Dropping approvals must fail even when the rolling average stays consistent."""
         end_date = date(2026, 3, 22)  # Sunday — last week ends here
 
         # Three approvals, one per week, at 6h, 12h, 18h
@@ -597,10 +595,8 @@ class TestTrend:
         assert len(rolling) == 3
 
         approved_series = [w["approved_hours"] for w in weeks]
-        # Last rolling avg should equal the mean of the full window (3 weeks).
-        assert rolling[-1]["rolling_avg_approved_hours"] == pytest.approx(
-            sum(approved_series) / 3.0
-        )
+        assert approved_series == [6.0, 12.0, 18.0]
+        assert rolling[-1]["rolling_avg_approved_hours"] == pytest.approx(12.0)
 
     def test_working_days_match_existing_logic(self) -> None:
         # 2026-03-02 (Mon) to 2026-03-06 (Fri) = 5 weekdays, no NZ holidays

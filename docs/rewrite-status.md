@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **59 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 267 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3428 collected |
+| Unit tests | 3426 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 137 recorded deviations |
@@ -630,8 +630,6 @@ never a second stream.
 - Unify invalid-state handling across document managers: the invoice manager raises
   `ValueError` for "job already paid" (a 500 via the envelope) where the quote sibling
   refuses with readable 400 values. Include the provider.
-- **Rewrite the known-weak tests** rather than leaving green-but-meaningless assertions
-  (ADR 0052): `test_stock_metadata_tasks.py:102-155` mocks the unit under test.
 - Untested paths worth a net: the per-row savepoint in `save_products`, `_save_mapping`'s
   concurrent-parse branch, `scheduled_task_service.py`'s malformed-entry guards, and
   `MAX_FAILURE_RATIO`'s 50% boundary.

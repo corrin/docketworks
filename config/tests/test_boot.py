@@ -1,7 +1,8 @@
 """Smoke tests: the project boots, the API mounts, the gates are on."""
 
 import importlib
-from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 from django.conf import settings
@@ -9,7 +10,7 @@ from django.test import Client
 
 import config.settings
 from apps.core.environment import validate_scrub_db_name
-from config.settings import REQUIRED_ENV_VARS, validate_required_settings
+from config.settings import validate_required_settings
 
 
 def test_openapi_document_served() -> None:
@@ -28,9 +29,16 @@ def test_test_settings_supply_every_required_variable() -> None:
     backend job dies at its first step with an internal plugin error naming
     nothing about the variable. Hence a test rather than trust.
     """
-    source = (Path(settings.BASE_DIR) / "config" / "settings_test.py").read_text()
-    unsupplied = [name for name in REQUIRED_ENV_VARS if f'"{name}"' not in source]
-    assert unsupplied == []
+    result = subprocess.run(
+        [sys.executable, "-c", "import config.settings_test"],
+        cwd=settings.BASE_DIR,
+        env={"PYTHON_DOTENV_DISABLED": "1"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_jwt_signing_key_is_explicit_and_separate_from_django_secret() -> None:

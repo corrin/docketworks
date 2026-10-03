@@ -1,5 +1,6 @@
 """API tests for the Stock surface: CRUD, soft delete, consume, and search."""
 
+from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -328,7 +329,7 @@ class TestStockSearch:
         assert body["page"] == 2
         assert body["page_size"] == 2
         assert body["total_pages"] == 3
-        assert len(body["results"]) == 2
+        assert [row["description"] for row in body["results"]] == ["Item 2", "Item 3"]
 
     def test_sorting_honours_the_allowed_fields(self, api: Client, stock_holding_job: Job) -> None:
         make_stock(stock_holding_job, description="B item", quantity="1.00")
@@ -405,7 +406,9 @@ class TestStockWriteFields:
         assert stock.source == "manual"
         assert stock.is_active is True
         assert stock.unit_revenue == Decimal("44.00")
-        assert response.json()["date"].startswith("2026-03-0")
+        assert datetime.fromisoformat(response.json()["date"]) == datetime.fromisoformat(
+            "2026-03-04T00:00:00+13:00"
+        )
         assert stock.item_code == "RB12"
         assert stock.location == "Bay 3"
         assert stock.metal_type == "steel"
@@ -433,13 +436,11 @@ class TestStockWriteFields:
         )
 
         assert response.status_code == 201
-        # Asserted on the wire value: date is a DateTimeField, so local midnight
-        # is stored as the previous day in UTC. What matters is that the sent
-        # date was carried at all rather than replaced with "now".
-        assert response.json()["date"].startswith("2026-0")
+        # Compare instants: local midnight may be serialized in UTC.
+        expected = datetime.fromisoformat("2026-02-01T00:00:00+13:00")
+        assert datetime.fromisoformat(response.json()["date"]) == expected
         stock = Stock.objects.get(description="Backdated bar")
-        assert stock.date is not None
-        assert stock.date.year == 2026
+        assert stock.date == expected
 
 
 class TestSearchQueryCaps:
