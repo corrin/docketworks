@@ -155,6 +155,7 @@ _ACCOUNTING_ROUTES: dict[str, Callable[[AccountingApi], BaseModel]] = {
     "purchase_order_delete_keeping_number": lambda api: api.get_purchase_orders(TENANT),
     "purchase_order_number_held_by_deleted": lambda api: api.get_purchase_orders(TENANT),
     "purchase_order_delete_billed": lambda api: api.get_purchase_orders(TENANT),
+    "purchase_order_create_batch": lambda api: api.get_purchase_orders(TENANT),
     "item_create": lambda api: api.get_items(TENANT),
     "item_update": lambda api: api.get_items(TENANT),
 }

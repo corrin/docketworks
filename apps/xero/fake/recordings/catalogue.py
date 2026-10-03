@@ -566,6 +566,31 @@ def _capture_purchase_order_writes(  # noqa: PLR0913, PLR0917 -- the pass's shar
         "purchase_order_delete_billed",
         lambda: upsert(_deletion("PurchaseOrderID", billed_id, contact_id, today)),
     )
+    # Several orders in one call, as the restore seed sends them: the answer
+    # has to name each order's number beside its id, because that pairing is
+    # all the seed has to map an element back to the row it was built from.
+    batch_numbers = [f"{number}-M1", f"{number}-M2"]
+    batch = _record(
+        tap,
+        "purchase_order_create_batch",
+        lambda: accounting.update_or_create_purchase_orders(
+            tenant_id,
+            {"PurchaseOrders": [order_body(each, "SUBMITTED") for each in batch_numbers]},
+            summarize_errors=False,
+        ),
+    )
+    # Voided before the capture is handed on: a pass asked for this recording
+    # alone stops at the yield, and would leave both orders live.
+    for element in _elements(batch, "PurchaseOrders"):
+        upsert(
+            {
+                **_deletion(
+                    "PurchaseOrderID", _text(element, "PurchaseOrderID"), contact_id, today
+                ),
+                "PurchaseOrderNumber": f"{_text(element, 'PurchaseOrderNumber')}-VOID-{stamp}",
+            }
+        )
+    yield batch
 
 
 def _capture_item_writes(
@@ -756,13 +781,20 @@ def _truncate_lists(body: Json) -> tuple[Json, bool]:
 
 
 def _element(capture: Capture, key: str) -> dict[str, Json]:
+    return _elements(capture, key)[0]
+
+
+def _elements(capture: Capture, key: str) -> list[dict[str, Json]]:
     body = capture.body
     if not isinstance(body, dict) or not isinstance(body.get(key), list):
         raise TypeError(f"{capture.name}: no {key} list in the response")
     items = body[key]
-    if not isinstance(items, list) or not items or not isinstance(items[0], dict):
+    if not isinstance(items, list) or not items:
         raise ValueError(f"{capture.name}: {key} is empty; the tenant holds nothing to record")
-    return items[0]
+    elements = [item for item in items if isinstance(item, dict)]
+    if len(elements) != len(items):
+        raise TypeError(f"{capture.name}: {key} holds something other than objects")
+    return elements
 
 
 def _text(element: Mapping[str, Json], key: str) -> str:
