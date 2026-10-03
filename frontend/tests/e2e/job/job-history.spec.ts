@@ -12,6 +12,60 @@ import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
  * spec left on its timeline.
  */
 test.describe('job history', () => {
+  test('a delivery-date change has one event and restores its previous date on undo', async ({
+    authenticatedPage: page,
+  }) => {
+    const jobUrl = await createTestJob(page, 'Delivery Date History')
+    const jobId = getJobIdFromUrl(jobUrl)
+    await autoId(page, 'JobViewTabs-history').click()
+    const entries = autoId(page, 'JobHistoryTab-timeline').locator(
+      '[data-automation-id^="JobHistoryTab-entry-"]',
+    )
+    await expect(entries.first()).toBeVisible()
+    const initialCount = await entries.count()
+
+    for (const [index, value] of ['2030-10-03', '2030-10-04'].entries()) {
+      await autoId(page, 'JobViewTabs-jobSettings').click()
+      const dateInput = autoId(page, 'JobSettingsTab-delivery-date')
+      const saved = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === `/api/job/jobs/${jobId}/` &&
+          response.request().method() === 'PATCH',
+      )
+      await dateInput.fill(value)
+      await dateInput.blur()
+      expect((await saved).status()).toBe(200)
+      await autoId(page, 'JobViewTabs-history').click()
+      await expect(entries).toHaveCount(initialCount + index + 1)
+      await expect(entries.first()).toContainText('Delivery Date Changed')
+      await expect(
+        entries.first().locator('[data-automation-id^="JobHistoryTab-undo-toggle-"]'),
+      ).toHaveCount(1)
+    }
+
+    const latest = entries.first()
+    await latest.locator('[data-automation-id^="JobHistoryTab-undo-toggle-"]').click()
+    await expect(
+      latest.locator('[data-automation-id^="JobHistoryTab-undo-before-"]'),
+    ).toContainText('2030-10-03')
+    await expect(latest.locator('[data-automation-id^="JobHistoryTab-undo-after-"]')).toContainText(
+      '2030-10-04',
+    )
+    const undone = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/job/jobs/${jobId}/undo-change/` &&
+        response.request().method() === 'POST',
+    )
+    await latest.locator('[data-automation-id^="JobHistoryTab-undo-confirm-"]').click()
+    expect((await undone).status()).toBe(200)
+    await expect(entries).toHaveCount(initialCount + 3)
+    await expect(entries.first()).toContainText('Delivery Date Changed')
+    await autoId(page, 'JobViewTabs-jobSettings').click()
+    await expect(autoId(page, 'JobSettingsTab-delivery-date')).toHaveValue('2030-10-03')
+    await page.reload()
+    await expect(autoId(page, 'JobSettingsTab-delivery-date')).toHaveValue('2030-10-03')
+  })
+
   test('an event is added and a header change is undone', async ({ authenticatedPage: page }) => {
     // The suffix is all createTestJob needs: it builds `[TEST] Job History
     // <ts>` itself, and passing jobName as well would make the suffix dead.

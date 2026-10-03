@@ -5,6 +5,26 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
+## 2026-10-03 — Delivery-date history owns its undo action
+
+Owner requested fixing duplicate events one case at a time, starting with delivery
+dates. The historical backfill left a specific delivery-date entry beside a generic
+entry holding the undo envelope. Migration 0015 retains the original envelope row,
+names it delivery_date_changed, and removes only an unambiguous counterpart with the
+same job, actor, date-only before/after values and detail within one second. Additional
+fields, conflicting values, incomplete records and competing matches are preserved.
+No undo identity, checksum, timestamp or values are reconstructed or replaced.
+
+The three setting/changing/clearing regressions failed before cleanup; all 64 migration,
+job-service and event-tracking tests passed afterward. A concurrent development restore
+applied the pending migration, so rehearsal replayed the 619 original exported pairs
+in an isolated restored database. Dry-run rollback, committed cleanup and a second run
+verified all 619 pairs, unchanged undo payloads and job dates, and 79,939 untouched rows.
+The current writer already emits one delivery-date event. Browser verification is
+pending: the existing environment returned 404 at login; the managed real-Xero run
+refused 81 remaining calls against its 150-call minimum; fake-Xero setup then refused
+a restored purchase order with no raw_json. Neither managed run reached the browser.
+
 ## 2026-10-03 — Only deliberate job reordering creates priority events
 
 Owner ruling while testing PR #190: automatic priority adjustments are not job
