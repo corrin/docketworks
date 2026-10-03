@@ -35,7 +35,7 @@ from apps.accounting.services.invoice_calculation import (
 from apps.accounts.auth import authenticated_staff
 from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
-from apps.core.errors import persist_app_error
+from apps.core.errors import ConflictError, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.core.schemas import NonBlankText, ResponseSchema, omittable
 from apps.job.models import Job
@@ -156,7 +156,9 @@ def _xero_ping_payload(*, connected: bool) -> XeroPingOut:
     summary="Check the Xero connection",
     tags=["xero"],
 )
-def xero_ping_retrieve(request: HttpRequest) -> Status[XeroPingOut | XeroPingErrorOut]:
+def xero_ping_retrieve(
+    request: HttpRequest, expected_fake: bool | None = None
+) -> Status[XeroPingOut | XeroPingErrorOut]:
     """Liveness check: ``connected`` means get_valid_token() produced a token.
 
     Not inert — a near-expiry token triggers a real refresh. A refresh that
@@ -164,6 +166,8 @@ def xero_ping_retrieve(request: HttpRequest) -> Status[XeroPingOut | XeroPingErr
     ``connected: false``: the E2E preflight and the header badge must not
     mistake an operational failure for a clean not-connected install.
     """
+    if expected_fake is not None and expected_fake != settings.XERO_FAKE:
+        raise ConflictError("Backend Xero mode disagrees with the requested mode.")
     try:
         token = get_valid_token()
     except Exception as exc:  # noqa: BLE001 -- persisted; the contract is a 500 payload with error_id, not a raise

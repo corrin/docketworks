@@ -1,3 +1,4 @@
+import { recordedXeroMode, xeroMode as selectedXeroMode } from './xero-mode'
 import { spawnSync } from 'child_process'
 import * as fs from 'fs'
 import os from 'os'
@@ -5,6 +6,7 @@ import path from 'path'
 import {
   checkSafeToTest,
   getDbConfig,
+  getBackupsDir,
   runIntegrityCheck,
   runPsql,
   syncSequences,
@@ -60,7 +62,7 @@ interface SavedXeroToken {
  * console warning nobody reads, and repaired only by driving OAuth by hand.
  * Losing the restore is recoverable from the dump; losing the token is not.
  */
-function saveActiveXeroToken(dbConfig: DbConfig, tokenFile: string): string {
+export function saveActiveXeroToken(dbConfig: DbConfig, tokenFile: string): string {
   console.log('[db] Saving current active Xero app token...')
   const row = runPsql(
     dbConfig,
@@ -123,7 +125,7 @@ export function parseSavedXeroToken(raw: string): SavedXeroToken {
  * consent, so a swallowed failure here trades a loud stop for a silently dead
  * connection.
  */
-function reinjectXeroToken(dbConfig: DbConfig, xeroAppTokenRow: string): void {
+export function reinjectXeroToken(dbConfig: DbConfig, xeroAppTokenRow: string): void {
   const token = parseSavedXeroToken(xeroAppTokenRow)
   const updated = runPsql(
     dbConfig,
@@ -143,6 +145,34 @@ function reinjectXeroToken(dbConfig: DbConfig, xeroAppTokenRow: string): void {
     )
   }
   console.log('[db] Active Xero app token restored.')
+}
+
+/** Preserve before any fake refresh; managed runs keep custody until their writers stop. */
+export function beginFakeTokenSnapshot(): string | null {
+  if (selectedXeroMode() !== 'fake') return null
+  const managed = process.env.E2E_XERO_TOKEN_SNAPSHOT
+  if (managed) {
+    parseSavedXeroToken(fs.readFileSync(managed, 'utf8'))
+    return managed
+  }
+  fs.mkdirSync(getBackupsDir(), { recursive: true })
+  const dir = fs.mkdtempSync(path.join(getBackupsDir(), 'fake-xero-'))
+  fs.chmodSync(dir, 0o700)
+  const file = path.join(dir, 'token.json')
+  saveActiveXeroToken(getDbConfig(), file)
+  return file
+}
+
+export function finishFakeTokenSnapshot(file: string | null): void {
+  if (file === null || file === process.env.E2E_XERO_TOKEN_SNAPSHOT) return
+  try {
+    reinjectXeroToken(getDbConfig(), fs.readFileSync(file, 'utf8'))
+  } catch (error) {
+    console.error(`[xero] Credential restore failed; recovery file retained: ${file}`)
+    throw error
+  }
+  fs.unlinkSync(file)
+  fs.rmdirSync(path.dirname(file))
 }
 
 function printXeroCleanupFailureBanner(reason: string): void {
@@ -211,13 +241,14 @@ export function requireBackupFile(
   return backupFile
 }
 
-function restoreDatabase(lockContents: string): void {
+export function restoreDatabase(lockContents: string): void {
   console.log('\n[db] Restoring database after tests...')
   const dbConfig = getDbConfig()
-  // Lock file line 4, written by global-setup: "fake" when the run was
-  // started with --use-fake-xero. Absent (a lock from an older harness)
-  // means real, the mode every run had before the fake existed.
-  const xeroMode = lockContents.split('\n')[3]?.trim() === 'fake' ? 'fake' : 'real'
+  const xeroMode = recordedXeroMode(lockContents)
+  const fakeSnapshot = xeroMode === 'fake' ? lockContents.split('\n')[4]?.trim() : null
+  if (xeroMode === 'fake' && !fakeSnapshot)
+    throw new Error('Fake run has no original-token snapshot.')
+  if (fakeSnapshot) parseSavedXeroToken(fs.readFileSync(fakeSnapshot, 'utf8'))
 
   let backupFile: string
   try {
@@ -271,15 +302,10 @@ function restoreDatabase(lockContents: string): void {
   // on a consumed token. The cleanup is the likelier of the two — it makes a
   // real Xero call per document.
   //
-  // Under the fake Xero nothing rotated: the fake's token refresh hands the
-  // stored refresh token straight back (ADR 0060), so the backup's copy is
-  // still live and re-injecting the run's copy would put a fake access token
-  // onto the restored row.
+  // Fake refreshes can overwrite access tokens before the database backup exists.
+  // The original snapshot belongs to setup, or to the launcher until its writers stop.
   const xeroTokenFile = `${backupFile}.xero-app-token.json`
   const xeroAppTokenRow = xeroMode === 'fake' ? null : saveActiveXeroToken(dbConfig, xeroTokenFile)
-  if (xeroMode === 'fake') {
-    console.log('[db] Fake Xero run: the real token was never rotated; no token to re-inject.')
-  }
 
   // Atomic restore: -v ON_ERROR_STOP=1 bails psql at the first SQL error
   // and --single-transaction wraps the whole dump replay in one BEGIN/COMMIT.
@@ -361,6 +387,7 @@ function restoreDatabase(lockContents: string): void {
   // Backup + token side-file have served their purpose. Delete only after
   // the full pipeline succeeded — restore + integrity check + token
   // reinjection + sequences + E2E safety check.
+  finishFakeTokenSnapshot(fakeSnapshot ?? null)
   fs.unlinkSync(backupFile)
   fs.rmSync(xeroTokenFile, { force: true })
 
@@ -422,6 +449,7 @@ export default function globalTeardown(): void {
     return
   }
 
+  recordedXeroMode(lockContents)
   try {
     restoreDatabase(lockContents)
   } finally {

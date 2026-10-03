@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
 
@@ -22,6 +23,7 @@ import { formatCurrency, formatDateLong, formatHoursDisplay, localIsoDate } from
 import { nextWeekday, weekdayAdjusted } from '@/lib/dates'
 import { lineIsBillable } from './lineMeta'
 import { SmartTimesheetTable } from './SmartTimesheetTable'
+import { TimesheetHistoryDialog } from './TimesheetHistoryDialog'
 import { useTimesheetEntries } from './useTimesheetEntries'
 
 export interface TimesheetEntrySearch {
@@ -132,10 +134,9 @@ function EntryWorkspace({
   onOpenDaily,
 }: EntryWorkspaceProps) {
   const queryClient = useQueryClient()
-  const { entriesQuery, patchLine, createLine, deleteLine, approveLine } = useTimesheetEntries(
-    staff.id,
-    date,
-  )
+  const { entriesQuery, patchLine, moveLine, createLine, deleteLine, approveLine } =
+    useTimesheetEntries(staff.id, date)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const staffIndex = staffList.findIndex((member) => member.id === staff.id)
   const entries = entriesQuery.data?.cost_lines ?? []
@@ -255,6 +256,14 @@ function EntryWorkspace({
         <Button variant="outline" size="sm" onClick={() => onOpenDaily(date)}>
           Daily Overview
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          data-automation-id="TimesheetEntry-history"
+          onClick={() => setHistoryOpen(true)}
+        >
+          History
+        </Button>
       </div>
 
       <QueryState
@@ -280,6 +289,7 @@ function EntryWorkspace({
           staffWageRate={Number(staff.wageRate)}
           payBasis={staff.pay_basis}
           patchLine={patchLine}
+          moveLine={moveLine}
           createLine={createLine}
           deleteLine={deleteLine}
           approveLine={approveLine}
@@ -295,6 +305,13 @@ function EntryWorkspace({
         <BreakdownTile label="Billable" value={String(billableCount)} />
         <BreakdownTile label="Non-Billable" value={String(nonBillableCount)} />
       </div>
+
+      <TimesheetHistoryDialog
+        staffId={staff.id}
+        date={date}
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+      />
     </div>
   )
 }

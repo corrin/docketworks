@@ -41,6 +41,7 @@ from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
+from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.schemas import (
     DailyTimesheetSummaryOut,
     JobsListResponse,
@@ -51,6 +52,7 @@ from apps.timesheet.schemas import (
     StaffDailyDataOut,
     StaffListResponse,
     TimesheetEntriesOut,
+    TimesheetEventOut,
     WeeklyTimesheetDataOut,
     WeekPostingStatusResponse,
     WorkshopTimesheetEntryOut,
@@ -202,6 +204,33 @@ def job_timesheet_entries_retrieve(
     except Staff.DoesNotExist as exc:
         raise HttpError(404, f"Staff member {staff_id} not found") from exc
     return workshop_timesheet_service.management_day_data(staff, entry_date)
+
+
+@router.get(
+    "/job/timesheet/entries/history/",
+    auth=manage_auth,
+    operation_id="job_timesheet_entries_history_retrieve",
+    response=list[TimesheetEventOut],
+    summary="Every timesheet event on one staff member's date, newest first",
+    tags=["timesheets"],
+)
+def job_timesheet_entries_history_retrieve(
+    request: HttpRequest, staff_id: UUID, date: str
+) -> list[TimesheetEvent]:
+    """Serve the entry grid's history dialog for one staff/day.
+
+    Keyed on the worker and the day, not a line, so a deleted entry's events
+    are still reachable from the screen they were made on. Management auth
+    because the snapshots carry wage data, like the entries read.
+    """
+    entry_date = _parse_date(date)
+    if not Staff.objects.filter(id=staff_id).exists():
+        raise HttpError(404, f"Staff member {staff_id} not found")
+    return list(
+        TimesheetEvent.objects.filter(
+            worker_id=staff_id, accounting_date=entry_date
+        ).select_related("staff")
+    )
 
 
 @router.get(

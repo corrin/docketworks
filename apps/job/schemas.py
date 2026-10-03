@@ -589,6 +589,8 @@ class CostLineUpdateRequest(Schema):
     xero_pay_item: UUID | None = None
     staff: UUID | None = None
     labour_subtype: UUID | None = None
+    #: A different job moves a timesheet entry there and reprices it (KAN-370).
+    job_id: UUID = omittable(UUID(int=0))
 
 
 class QuoteRevisionRequest(Schema):

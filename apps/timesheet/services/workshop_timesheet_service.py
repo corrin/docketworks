@@ -27,7 +27,9 @@ from apps.job.services.job_service import (
     CostLineData,
     cost_line_data,
     get_or_create_cost_set,
+    move_time_line,
     refuse_workflow_managed,
+    update_latest_actual,
 )
 from apps.job.services.time_entry_rates import (
     ZERO_MULTIPLIER,
@@ -36,6 +38,7 @@ from apps.job.services.time_entry_rates import (
     rate_from_meta,
 )
 from apps.timesheet.services import hour_categories
+from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
 
 logger = logging.getLogger(__name__)
 
@@ -346,13 +349,6 @@ def pricing_meta(
     return meta
 
 
-def update_latest_actual(job: Job, cost_set_rev: int, cost_set_id: UUID, staff: Staff) -> None:
-    """Point the job at its newest actual cost set."""
-    if job.latest_actual is None or cost_set_rev >= job.latest_actual.rev:
-        job.latest_actual_id = cost_set_id
-        job.save(staff=staff, update_fields=["latest_actual", "updated_at"])
-
-
 def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryData:
     """Create a time line for the authenticated staff member."""
     job = Job.objects.select_related("company", "default_xero_pay_item").get(id=data["job_id"])
@@ -397,6 +393,7 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
         )
         line.save()
         update_latest_actual(job, cost_set.rev, cost_set.id, staff)
+        record_timesheet_event(staff=staff, event_type="entry_created", line=line, before=None)
 
     return entry_data(line)
 
@@ -404,7 +401,10 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
 def _owned_line(staff: Staff, entry_id: UUID) -> CostLine:
     """Fetch a time line and assert the staff member owns it."""
     line = CostLine.objects.select_related(
-        "cost_set__job__company", "cost_set__job__default_xero_pay_item"
+        "cost_set__job__company",
+        "cost_set__job__default_xero_pay_item",
+        "labour_subtype",
+        "xero_pay_item",
     ).get(id=entry_id, kind="time")
     if line.meta.get("staff_id") != str(staff.id):
         raise EntryOwnershipError("You can only update your own timesheet entries.")
@@ -476,6 +476,7 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
         line = _owned_line(staff, data["entry_id"])
         if line.cost_set.job_id not in job_ids:
             raise ConflictError("This entry moved to another job. Reload before editing it.")
+        before = snapshot_if_entry(line)
         meta = dict(line.meta)
         changed = _apply_scalar_changes(line, meta, data)
         reprice = _apply_billing_changes(meta, data)
@@ -486,8 +487,12 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
             job = Job.objects.select_related("company", "default_xero_pay_item").get(
                 id=data["job_id"]
             )
-            moved_cost_set = get_or_create_cost_set(job, "actual")
-            line.cost_set = moved_cost_set
+            moved_cost_set = move_time_line(
+                line,
+                job,
+                meta,
+                billing_explicit="is_billable" in data or "bill_rate_multiplier" in data,
+            )
             changed = True
             reprice = True
 
@@ -515,6 +520,12 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
         line.save()
         if moved_cost_set is not None:
             update_latest_actual(job, moved_cost_set.rev, moved_cost_set.id, staff)
+        record_timesheet_event(
+            staff=staff,
+            event_type="entry_moved" if moved_cost_set is not None else "entry_updated",
+            line=line,
+            before=before,
+        )
 
     return entry_data(line)
 
@@ -525,11 +536,22 @@ def delete_entry(staff: Staff, entry_id: UUID) -> None:
     line = CostLine.objects.get(id=entry_id, kind="time")
     job_id = line.cost_set.job_id
     lock_costing_jobs([job_id])
-    line = CostLine.objects.select_for_update().get(pk=line.pk)
+    # Locked on the line alone: the snapshot's joins are nullable, which
+    # Postgres refuses under FOR UPDATE.
+    line = (
+        CostLine.objects.select_for_update(of=("self",))
+        .select_related("cost_set__job", "labour_subtype", "xero_pay_item")
+        .get(pk=line.pk)
+    )
     if line.cost_set.job_id != job_id:
         raise ConflictError("This entry moved to another job. Reload before deleting it.")
     if line.meta.get("staff_id") != str(staff.id):
         raise EntryOwnershipError("You can only delete your own timesheet entries.")
     refuse_workflow_managed(line, "cancel")
+    # Recorded before the delete: Django clears the pk on the instance it
+    # deleted, and the event names the line by that id.
+    record_timesheet_event(
+        staff=staff, event_type="entry_deleted", line=line, before=snapshot_if_entry(line)
+    )
     line.delete()
     logger.info("Deleted workshop timesheet entry %s for staff %s", entry_id, staff.id)

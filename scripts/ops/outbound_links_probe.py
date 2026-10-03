@@ -477,6 +477,9 @@ NOT_A_LINK_FIELDS: dict[str, str] = {
     "job.JobDeltaRejection.change_id": "delta-checksum change id",
     "job.JobQuoteChat.message_id": "chat message id, ours",
     "timesheet.LeaveRequest.batch_id": "our batch id",
+    "timesheet.TimesheetEvent.cost_line_id": (
+        "our own row id, held loosely: the event outlives the line"
+    ),
     "purchasing.Stock.active_source_purchase_order_line_id": "our own row id",
     "xero.XeroApp.client_id": "OAuth client id: a credential, not a link",
     "xero.XeroError.job_id": "our own row id",

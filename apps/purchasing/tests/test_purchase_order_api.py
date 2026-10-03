@@ -947,7 +947,7 @@ class TestPurchaseOrderEvents:
         assert created.json()["event"]["description"] == "Chased the supplier"
         events = listed.json()["events"]
         assert len(events) == 1
-        assert events[0]["staff"] == office_staff.get_display_full_name()
+        assert events[0]["staff_name"] == office_staff.get_display_full_name()
 
     def test_events_come_back_newest_first(self, api: Client) -> None:
         po = make_purchase_order()

@@ -73,28 +73,17 @@ describe('eventTitle', () => {
 
 describe('jobChangeFields', () => {
   it('is empty when the job did not change', () => {
-    expect(jobChangeFields(makeEntry(), 'j1', false)).toEqual({})
+    expect(jobChangeFields(makeEntry(), 'j1')).toEqual({})
   })
 
-  it('moving to a normal job re-bills the entry', () => {
-    expect(jobChangeFields(makeEntry({ is_billable: false }), 'j2', false)).toEqual({
-      job_id: 'j2',
-      is_billable: true,
-    })
-  })
-
-  it('moving to a shop job books it non-billable', () => {
-    expect(jobChangeFields(makeEntry(), 'j2', true)).toEqual({
-      job_id: 'j2',
-      is_billable: false,
-    })
+  it("a move sends the job alone; billability is the server's rule", () => {
+    expect(jobChangeFields(makeEntry({ is_billable: false }), 'j2')).toEqual({ job_id: 'j2' })
   })
 })
 
 describe('entryUpdateBody', () => {
   const form = {
     jobId: 'j1',
-    shopJob: false,
     start: '08:00',
     end: '09:30',
     hours: 1.5,
@@ -120,11 +109,11 @@ describe('entryUpdateBody', () => {
     })
   })
 
-  it('folds in the job-change fields when the job moved', () => {
-    const body = entryUpdateBody(makeEntry(), { ...form, jobId: 'j2', shopJob: true })
+  it('folds in the job when it moved', () => {
+    const body = entryUpdateBody(makeEntry(), { ...form, jobId: 'j2' })
 
     expect(body.job_id).toBe('j2')
-    expect(body.is_billable).toBe(false)
+    expect(body).not.toHaveProperty('is_billable')
   })
 
   it('sends null to clear a blank description', () => {

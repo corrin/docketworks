@@ -10,9 +10,9 @@ import {
 } from '@/api'
 import { Button } from '@/components/ui/button'
 import { INPUT_CLASS } from '@/components/ui/field'
+import { AuditEventList } from '@/features/shared/AuditEventList'
 import { EntryGridSection } from '@/features/shared/EntryGridSection'
 import { QueryState } from '@/features/shared/QueryState'
-import { formatDateTime } from '@/lib/format'
 
 interface PoHistorySectionProps {
   poId: string
@@ -103,24 +103,13 @@ export function PoHistorySection({ poId }: PoHistorySectionProps) {
         errorLabel="Could not load notes."
         onRetry={() => void history.refetch()}
       >
-        {history.data &&
-          (history.data.events.length === 0 ? (
-            <p className="py-4 text-sm text-slate-500">No notes yet.</p>
-          ) : (
-            <ol className="divide-y divide-slate-200">
-              {history.data.events.map((entry) => (
-                <li key={entry.id} className="py-4">
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
-                    <span className="font-medium text-gray-700">{entry.staff}</span>
-                    <time dateTime={entry.timestamp}>{formatDateTime(entry.timestamp)}</time>
-                  </div>
-                  <p className="mt-2 text-sm whitespace-pre-wrap break-words text-gray-900">
-                    {entry.description}
-                  </p>
-                </li>
-              ))}
-            </ol>
-          ))}
+        {history.data && (
+          <AuditEventList
+            events={history.data.events}
+            automationIdPrefix="PoHistorySection"
+            emptyLabel="No notes yet."
+          />
+        )}
       </QueryState>
     </EntryGridSection>
   )

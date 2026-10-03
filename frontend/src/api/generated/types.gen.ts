@@ -2159,6 +2159,10 @@ export type CostLineUpdateRequest = {
         [key: string]: unknown;
     };
     /**
+     * Job Id
+     */
+    job_id?: string;
+    /**
      * Kind
      */
     kind?: string;
@@ -2937,9 +2941,7 @@ export type EntryEventOut = {
     /**
      * Changes
      */
-    changes: Array<{
-        [key: string]: string;
-    }>;
+    changes: Array<FieldChangeOut>;
     /**
      * Description
      */
@@ -3189,6 +3191,26 @@ export type FetchStatusValuesResponse = {
     tooltips: {
         [key: string]: string;
     };
+};
+
+/**
+ * FieldChangeOut
+ *
+ * One field's before/after values on an audit event.
+ */
+export type FieldChangeOut = {
+    /**
+     * Field Name
+     */
+    field_name: string;
+    /**
+     * New Value
+     */
+    new_value: string;
+    /**
+     * Old Value
+     */
+    old_value: string;
 };
 
 /**
@@ -9387,21 +9409,29 @@ export type PurchaseOrderEventCreateResponse = {
 /**
  * PurchaseOrderEventOut
  *
- * Wire contract for PurchaseOrderEventOut.
+ * One note on a purchase order, for its Notes & History section.
  */
 export type PurchaseOrderEventOut = {
+    /**
+     * Changes
+     */
+    changes: Array<FieldChangeOut>;
     /**
      * Description
      */
     description: string;
     /**
+     * Event Type
+     */
+    event_type: string;
+    /**
      * Id
      */
     id: string;
     /**
-     * Staff
+     * Staff Name
      */
-    staff: string;
+    staff_name: string;
     /**
      * Timestamp
      */
@@ -12660,6 +12690,40 @@ export type TimesheetEntriesSummaryOut = {
 };
 
 /**
+ * TimesheetEventOut
+ *
+ * One audit event on a staff member's day, for the entry page's history dialog.
+ */
+export type TimesheetEventOut = {
+    after: TimesheetLineSnapshotOut | null;
+    before: TimesheetLineSnapshotOut | null;
+    /**
+     * Changes
+     */
+    changes: Array<FieldChangeOut>;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Event Type
+     */
+    event_type: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+};
+
+/**
  * TimesheetJobOut
  *
  * Wire contract for TimesheetJobOut.
@@ -12713,6 +12777,70 @@ export type TimesheetJobOut = {
      * Status
      */
     status: string;
+};
+
+/**
+ * TimesheetLineSnapshotOut
+ *
+ * One timesheet entry as an event recorded it (``TimesheetLineSnapshot``).
+ */
+export type TimesheetLineSnapshotOut = {
+    /**
+     * Approved
+     */
+    approved: boolean;
+    /**
+     * Billable
+     */
+    billable: boolean | null;
+    /**
+     * Charge Out Rate
+     */
+    charge_out_rate: string;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * End Time
+     */
+    end_time: string | null;
+    /**
+     * Hours
+     */
+    hours: string;
+    /**
+     * Invoice Multiplier
+     */
+    invoice_multiplier: number | null;
+    /**
+     * Job
+     */
+    job: string;
+    /**
+     * Labour Type
+     */
+    labour_type: string;
+    /**
+     * Pay Item
+     */
+    pay_item: string | null;
+    /**
+     * Start Time
+     */
+    start_time: string | null;
+    /**
+     * Wage Multiplier
+     */
+    wage_multiplier: number | null;
+    /**
+     * Wage Rate
+     */
+    wage_rate: string;
 };
 
 /**
@@ -17421,6 +17549,33 @@ export type JobTimesheetEntriesRetrieveResponses = {
 
 export type JobTimesheetEntriesRetrieveResponse = JobTimesheetEntriesRetrieveResponses[keyof JobTimesheetEntriesRetrieveResponses];
 
+export type JobTimesheetEntriesHistoryRetrieveData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Staff Id
+         */
+        staff_id: string;
+        /**
+         * Date
+         */
+        date: string;
+    };
+    url: '/api/job/timesheet/entries/history/';
+};
+
+export type JobTimesheetEntriesHistoryRetrieveResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<TimesheetEventOut>;
+};
+
+export type JobTimesheetEntriesHistoryRetrieveResponse = JobTimesheetEntriesHistoryRetrieveResponses[keyof JobTimesheetEntriesHistoryRetrieveResponses];
+
 export type JobWorkshopTimesheetsDestroyData = {
     body?: never;
     path?: never;
@@ -20054,7 +20209,12 @@ export type XeroPayItemsListResponse = XeroPayItemsListResponses[keyof XeroPayIt
 export type XeroPingRetrieveData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Expected Fake
+         */
+        expected_fake?: boolean | null;
+    };
     url: '/api/xero/ping/';
 };
 

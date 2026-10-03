@@ -61,3 +61,19 @@ class TestRecordEntryEvent:
         record_entry_event(entry=entry, staff=make_staff(), event_type="entry_created", changes=[])
         entry.delete()
         assert ProcessEvent.objects.count() == 0
+
+
+class TestDescriptionOrder:
+    """``AuditEvent.build_description``: recorded changes, then the label, then the sentinel."""
+
+    def test_recorded_changes_outrank_the_fixed_label(self) -> None:
+        # Swapping the order would hide what an "Entry created" actually recorded.
+        event = ProcessEvent(
+            event_type="entry_created",
+            detail={"changes": [{"field_name": "Area", "old_value": "", "new_value": "Bay 1"}]},
+        )
+        assert event.description == "Area changed from '' to 'Bay 1'"
+
+    def test_a_label_outranks_the_sentinel(self) -> None:
+        assert ProcessEvent(event_type="entry_archived", detail={}).description == "Entry archived"
+        assert ProcessEvent(event_type="never_written", detail={}).description == "(never_written)"

@@ -635,6 +635,11 @@ introduced:
 # could start over a live one. ADR 0047's contract needs a GET whose schema is
 # what generates the frontend types; the SSE stream pushes this same document.
 - timesheets_payroll_runs_retrieve
+# KAN-370: a timesheet entry's audit trail, which v1 never had. v1's job
+# timeline was rebuilt from each line's own timestamps, so a deleted entry
+# vanished and an edit showed only that something changed. Read per worker-day
+# rather than per line so a deleted entry's events stay reachable.
+- job_timesheet_entries_history_retrieve
 # Admin-created leave is a new v2 workflow; v1 only had raw timesheet lines.
 - timesheets_leave_balance_retrieve
 - timesheets_leave_office_closure_create

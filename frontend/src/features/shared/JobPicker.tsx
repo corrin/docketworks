@@ -321,9 +321,12 @@ export function JobPicker<T extends JobPickerOption>({
               suppressReopenRef.current = false
               return
             }
-            // An empty enabled control opens straight into search — the create
-            // flow's focus handoff lands here and must not need a click.
-            if (!disabled && !selected) setOpen(true)
+            // An UNBOUND enabled control opens straight into search — the create
+            // flow's focus handoff lands here and must not need a click. Unbound
+            // is the label's verdict, not `selected === null`: a saved row on a
+            // job the list no longer offers shows its stored number and must
+            // not pop its search under keyboard navigation.
+            if (!disabled && bound === '') setOpen(true)
           }}
         >
           {label}

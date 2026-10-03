@@ -6,6 +6,7 @@ line so a range can be managed as one request.
 """
 
 import uuid
+from collections.abc import Callable
 from decimal import Decimal
 from enum import StrEnum
 from typing import ClassVar
@@ -13,6 +14,8 @@ from typing import ClassVar
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
+
+from apps.core.audit import AuditEvent, JsonScalar
 
 
 class PostingSurface(StrEnum):
@@ -227,3 +230,45 @@ class LeaveDay(models.Model):
         """Keep the denormalised staff key aligned with its parent request."""
         if self.request_id and self.staff_id != self.request.staff_id:
             raise ValidationError({"staff": "Leave day staff must match its request."})
+
+
+def _moved(old: JsonScalar, new: JsonScalar) -> str:
+    return f"Moved from {old} to {new}"
+
+
+class TimesheetEvent(AuditEvent):
+    """The timesheet domain's audit trail: one event per entry write, office or workshop.
+
+    Keyed on the entry's worker and day rather than its row: a deletion is
+    itself an event, and the trail of a deleted entry must survive it. A
+    foreign key would either erase the evidence (CASCADE) or refuse the
+    delete (PROTECT), so the line is named by a plain id.
+    """
+
+    worker = models.ForeignKey(
+        "accounts.Staff", on_delete=models.PROTECT, related_name="timesheet_history"
+    )
+    accounting_date = models.DateField()
+    cost_line_id = models.UUIDField(db_index=True)
+
+    EVENT_LABELS: ClassVar[dict[str, str]] = {
+        "entry_created": "Entry created",
+        "entry_updated": "Entry updated",
+        "entry_moved": "Entry moved",
+        "entry_deleted": "Entry deleted",
+        "entry_approved": "Entry approved",
+    }
+    FIELD_DESCRIPTORS: ClassVar[dict[str, Callable[[JsonScalar, JsonScalar], str]]] = {
+        "Job": _moved
+    }
+
+    class Meta(AuditEvent.Meta):
+        indexes: ClassVar[list[models.Index]] = [
+            models.Index(
+                fields=["worker", "accounting_date", "-timestamp"],
+                name="tsevent_worker_day_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.event_type} at {self.timestamp:%Y-%m-%d %H:%M}"

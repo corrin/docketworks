@@ -5,6 +5,102 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
+## 2026-10-03 — E2E defaults to fake Xero; live testing is deliberate
+
+The launcher selects fake Xero by default and forces the selected mode through
+reset, managed services, Playwright and teardown. `--use-real-xero` retains live
+quota checks and OAuth recovery; conflicting flags refuse before subprocesses.
+A ping mode mismatch returns 409 before token access. Fake failures never start
+live OAuth. Missing or conflicting teardown metadata refuses vendor cleanup.
+Original fake-run credentials are saved privately before setup and restored after
+managed writers stop, including failures; failed restoration keeps the recovery
+file. Standalone reset and Playwright use the same custody helpers.
+
+ADR 0050/0060 record the owner's rule: live Xero is regular, often daily testing
+when work could expose a discrepancy in the fake, not an automatic spend for
+unrelated changes. Ordinary fake runs avoid both live quota probes (two calls).
+Validation: 11 stubbed launcher tests, 10 backend ping tests and 32 frontend
+harness tests passed. The managed fake attempt for job history and timesheet moves
+stopped before services at PO `51483b64-1404-4d95-a3c1-f0db024ee407`, whose mirror
+has no `raw_json`. The exit trap restored the active credentials successfully.
+No live Xero calls were made to validate this launcher change; those browser
+specs remain unverified against the current fixes until the local seed is repaired.
+
+## 2026-10-03 — PR 190 queued edits preserve the latest choice
+
+The shared grid replays pending edits over confirmed responses and defers reads
+until its queue drains. A wage change from 1.5 to 2 followed by a billing edit no
+longer saves the stale 1.5 multiplier. Refusals remove only the failed operation;
+consecutive failures restore confirmed values. Creates, deletes and PO header
+writes use the same queue, retaining the PO's concurrency refusal and callbacks.
+The four affected frontend suites pass (29 tests), including the incoming main
+branch's cost-line regressions adapted to the shared runner; type checking passes.
+The prior real E2E attempt stopped before startup at 79 calls against its 150
+minimum. No further live calls are authorised for these grid/permission fixes.
+
+## 2026-10-03 — PR 190 move authorization uses the locked entry
+
+The review reproduced a stale-owner move: an office reassignment between the API
+read and the service lock let the former owner move somebody else's time. The
+service now authorizes against the locked row and refuses a source-job change
+before acquiring further owner locks. Regressions cover both interleavings and
+assert that refusals preserve the current entry, cost summaries and audit events.
+
+## 2026-10-03 — New notes edits have one undoable event; historical cleanup is secondary
+
+Owner prioritised new edits over historical repair. The current update path already
+creates one notes_updated event with the full delta and undo identity; it does not
+also create a generic notification. Added API regressions for adding, changing and
+clearing notes, complete HTML preservation, a no-op save emitting nothing, timeline
+undo eligibility and one reversal restoring the original content. These passed with
+the current writer unchanged. A browser regression exercises the editor, history,
+Undo and reload; it remains unrun because the dev URL returns 404 and the real-Xero
+preflight still refuses 80 remaining daily calls against its 150-call minimum.
+
+The optional migration 0016 consolidates notes-only pairs with identical raw deltas,
+the same actor/job and an unambiguous match within one second. It retains the generic
+row's complete display values, HTML and undo metadata, labels it notes_updated, and
+removes the truncated specific counterpart. Incomplete or conflicting content and
+separate edits survive. The four historical regressions fail against migration 0015;
+the notes migration and current API/event suites pass. Rehearsal on a restored copy
+consolidated 4,321 pairs, preserved 71,916 other events and every job's current notes,
+and verified all retained rows changed only their event type. Dry-run rollback and
+idempotence passed. Applied to development after rehearsal, removing the same 4,321
+duplicates with every job's current notes unchanged; the backup and removed-row
+audit remain outside Git.
+
+## 2026-10-03 — Delivery-date history owns its undo action
+
+Owner requested fixing duplicate events one case at a time, starting with delivery
+dates. The historical backfill left a specific delivery-date entry beside a generic
+entry holding the undo envelope. Migration 0015 retains the original envelope row,
+names it delivery_date_changed, and removes only an unambiguous counterpart with the
+same job, actor, date-only before/after values and detail within one second. Additional
+fields, conflicting values, incomplete records and competing matches are preserved.
+No undo identity, checksum, timestamp or values are reconstructed or replaced.
+
+The three setting/changing/clearing regressions failed before cleanup; all 64 migration,
+job-service and event-tracking tests passed afterward. A concurrent development restore
+applied the pending migration, so rehearsal replayed the 619 original exported pairs
+in an isolated restored database. Dry-run rollback, committed cleanup and a second run
+verified all 619 pairs, unchanged undo payloads and job dates, and 79,939 untouched rows.
+The current writer already emits one delivery-date event. Browser verification is
+pending: the existing environment returned 404 at login; the managed real-Xero run
+refused 81 remaining calls against its 150-call minimum; fake-Xero setup then refused
+a restored purchase order with no raw_json. Neither managed run reached the browser.
+
+## 2026-10-03 — Only deliberate job reordering creates priority events
+
+Owner ruling while testing PR #190: automatic priority adjustments are not job
+events. Status placement and column rebalancing must not create priority entries
+or add internal priority numbers to another event. A deliberate kanban drag still
+records its rank change. Job.save now includes priority in its audit diff only
+when the reorder service supplies priority_position; other changed fields retain
+their ordinary events. The three regression checks failed before the fix; all
+69 job service, kanban and event-tracking tests passed afterward. The browser
+regression is in job-history.spec.ts; its managed run could not start because the
+dev ngrok endpoint was already online, so it awaits the running backend's restart.
+
 ## 2026-10-03 — KAN-369 weekday context belongs on single-day timesheets
 
 Owner clarified PR #189: the staff time-entry and daily overview date labels must
@@ -17,6 +113,74 @@ tests passed. The two affected browser specs passed all 17 enabled tests against
 real Xero, and teardown restored the database. The existing audit gate required
 updating the transitive development dependency devalue from 5.9.2 to 5.9.4;
 no application dependency declarations changed.
+
+## 2026-10-03 — Who moves a timesheet entry; a leave-created line is an ordinary entry
+
+Two owner rulings from the review of KAN-370. **A non-office caller moves only their own
+entry.** Office staff move any entry through the cost-line PATCH; anyone else may move only a
+line whose `meta.staff_id` is their own, the workshop path's rule, refused in
+`update_cost_line` before any lock is taken. The rest of that PATCH stays plain authenticated;
+`rewrite-status.md` open decision 1 still covers it.
+
+**A line the Leave screen created is an ordinary time entry once it exists.** The Leave screen
+is a convenience for creating a batch of entries, not an owner of them. The audit trail
+records writes to such lines like any other. Three places still treat them as special and are
+the leave slice's to change, with one ruling it needs first: `refuse_workflow_managed` refuses
+edit, delete and approve on `managed_by="leave"`; `LeaveDay` holds a PROTECT link to the line
+and its own copy of the hours; the upcoming-leave summary and "away today" read `LeaveDay`,
+not the line, so an edited line would drift from what the Leave screen reports. The ruling the
+slice needs is what `LeaveDay` means once its line has been edited.
+
+## 2026-10-02 — Saved-row grids share one write pattern: serialized per grid
+
+Owner ruling during KAN-370's review. Every grid of saved rows — job cost lines, timesheet
+entries, purchase-order lines — writes through `useOptimisticRows`
+(`frontend/src/features/shared/optimistic.ts`). Writes on one grid carry one TanStack mutation
+scope, so they reach the server in order and their echoes land in order; the cache is
+display-only until the settle refetch; where an endpoint echoes the row, the echo replaces the
+optimistic row; a refusal restores only the fields still showing the rejected value, so a later
+edit on the same row survives; a refused delete puts its row back at its own index. A saved row
+never locks for a pending write; only a draft locks during its create. Field-scoped
+interleaving (parallel PATCHes whose echoes and rollbacks touch only the fields each sent) was
+rejected: a move is a one-field write, so two moves on a row could only flicker until settle,
+and the design needs a per-grid copy of the lifecycle.
+
+## 2026-10-02 — One audit event shape; timesheet entries move from the grid and are audited (KAN-370)
+
+Owner rulings while delivering KAN-370, slice 1 of KAN-298. **One parent type for every
+audit trail:** `JobEvent`, `ProcessEvent`, `PurchaseOrderEvent` and the new `TimesheetEvent`
+subclass an abstract `AuditEvent` in `apps/core/audit.py` — actor, timestamp, event type,
+before/after deltas, detail, and one description rendering (builder, then recorded changes
+through the subtype's field descriptors, then the subtype's label, then the sentinel). This
+closes the hoist the process design doc of 2026-08-25 left as open work. Abstract rather than
+multi-table: a concrete parent would join every job-history read and migrate 80,673 JobEvent
+rows for a cross-domain query nothing asks for. JobEvent keeps its envelope columns (change
+id, checksum, dedup) because no other writer fills them (ADR 0028). PurchaseOrderEvent's note
+column became a `manual_note` event with the text in `detail.note_text`, JobEvent's shape for
+a typed note; three production rows migrated. `AuditEventOut` and `AuditEventList` are the
+shared wire shape and history list.
+
+**Timesheet entries are audited, and the trail starts at deploy.** Every write on the office
+cost-line path and the workshop self-service path — create, edit, move, delete, approve —
+records a `TimesheetEvent` in the write's transaction, with before/after snapshots of the
+entry quantized to the columns. The event is keyed on the worker and the day with the line
+named by a plain id, so a deletion's event outlives the row; the history is read per
+worker-day from a History button on the entry page for the same reason. No backfill: the
+job timeline was rebuilt from line timestamps and holds nothing to backfill from. Leave-managed
+lines record nothing (the leave request names its author) and neither do the repair commands
+(a command run has no actor); widening either is a separate decision. No JobEvent on a move.
+
+**A move keeps the entry's multipliers.** `move_time_line` is the one retarget-and-reprice,
+shared by the workshop PATCH (which could already move) and the office cost-line PATCH (which
+gained `job_id`). Only a destination that cannot bill — shop work or a `special` job — makes
+the entry unbillable, and only a source that could not bill lets a stored zero be re-derived
+from the wage multiplier. Re-applying the pick-time defaults (1.5x on urgent) was rejected: a
+saved line cannot say whether its multiplier was a default or a choice. In the grid the move
+is an inline edit with no confirmation; KAN-298's preview stays with the Job Actual tab move
+it still owns. The workshop client stopped sending `is_billable` on a move: the server owns
+the rule, and the client line also discarded an explicit unbillable choice on a
+normal-to-normal move. Open decision 1 in `rewrite-status.md` (cost-line writes are plain
+authenticated) is unchanged and now reaches one field further.
 
 ## 2026-10-01 — KPI calendar ported; report filters live in the URL
 

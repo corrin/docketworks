@@ -16,6 +16,7 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
+from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.timesheet.tests.conftest import (
@@ -369,6 +370,26 @@ class TestUpdate:
         body = response.json()
         assert body["hours"] == 6.5
         assert body["description"] == "Welding"
+
+    def test_an_explicit_unbillable_choice_survives_a_move_off_a_shop_job(
+        self, worker_client: Client, job: Job, superuser: Staff
+    ) -> None:
+        """move_time_line's source rule yields to billing the same request set."""
+        shop_company = CompanyDefaults.get_solo().shop_company
+        assert shop_company is not None
+        shop = make_job(shop_company, superuser, name="Shop work", status="special")
+        entry = _create(worker_client, shop, is_billable=False)
+
+        response = worker_client.patch(
+            URL,
+            data={"entry_id": entry["id"], "job_id": str(job.id), "is_billable": False},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200, response.content
+        body = response.json()
+        assert body["is_billable"] is False
+        assert CostLine.objects.get(id=_entry_id(entry)).unit_rev == Decimal("0.00")
 
     def test_moving_the_entry_to_another_job_reprices_it(
         self, worker_client: Client, job: Job, company: Company, superuser: Staff

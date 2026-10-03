@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 118,988 (v1 172,577, -31%) |
-| tests | 81,175 (v1 50,869, +60%) |
-| generated | 51,378 (v1 20,359, +152%) |
+| code | 119,409 (v1 172,577, -31%) |
+| tests | 83,433 (v1 50,869, +64%) |
+| generated | 51,928 (v1 20,359, +155%) |
 
 ## Suppressions
 
@@ -31,7 +31,7 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 773 |
+| TOTAL suppressions | 774 |
 | noqa: DJ001 | 196 |
 | noqa: PLC0415 | 152 |
 | noqa: E402 | 106 |
@@ -39,8 +39,8 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: ARG002 | 38 |
 | noqa: BLE001 | 35 |
 | noqa: ARG001 | 23 |
+| noqa: S603 | 19 |
 | noqa: C901 | 18 |
-| noqa: S603 | 18 |
 | noqa: TRY300 | 9 |
 | noqa: TRY004 | 8 |
 | noqa: DJ008 | 7 |
@@ -82,7 +82,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 226 |
+| in comments | 225 |
 | in docstrings | 382 |
 
 ## Exception handling
@@ -91,9 +91,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 439 |
-| except handlers | 466 |
-| re-raises or converts | 298 |
+| try statements | 440 |
+| except handlers | 467 |
+| re-raises or converts | 299 |
 | returns instead | 98 |
 | falls through | 55 |
 | continue/break in a loop | 14 |
@@ -115,8 +115,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 236 |
-| non-test functions | 2951 |
+| functions returning `X \| None` | 241 |
+| non-test functions | 2963 |
 
 ## Broad type annotations
 
@@ -124,8 +124,8 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 
 | metric | count |
 |---|---:|
-| Any annotations | 254 |
-| object annotations | 694 |
+| Any annotations | 239 |
+| object annotations | 681 |
 
 ## Wire contract (response side)
 
@@ -133,10 +133,10 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 314 |
-| response properties | 2024 |
+| response schemas | 317 |
+| response properties | 2051 |
 | optional (pinned at zero) | 0 |
-| nullable | 448 |
+| nullable | 457 |
 
 ## Automation ids (frontend)
 

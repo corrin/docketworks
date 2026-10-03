@@ -15,11 +15,11 @@ from apps.accounting.registry import get_provider
 from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.job.models.costing import CostLine
-from apps.job.services.job_service import CostLineWriteData, create_cost_line
+from apps.job.services.job_service import CostLineWriteData, create_cost_line, update_latest_actual
 from apps.timesheet.models import LeaveDay, LeaveRequest, LeaveType, PostingSurface
 from apps.timesheet.services.hour_categories import scheduled_hours
 from apps.timesheet.services.leave_settings import configured_leave_type
-from apps.timesheet.services.workshop_timesheet_service import pricing_meta, update_latest_actual
+from apps.timesheet.services.workshop_timesheet_service import pricing_meta
 
 
 class RequestedDay(TypedDict):

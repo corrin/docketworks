@@ -828,6 +828,7 @@ export const zCostLineUpdateRequest = z.object({
     accounting_date: z.iso.date().optional(),
     desc: z.string().nullish(),
     ext_refs: z.record(z.string(), z.unknown()).optional(),
+    job_id: z.uuid().optional(),
     kind: z.string().optional(),
     labour_subtype: z.uuid().nullish(),
     meta: z.record(z.string(), z.unknown()).optional(),
@@ -1150,20 +1151,6 @@ export const zEntryCreateIn = z.object({
 });
 
 /**
- * EntryEventOut
- *
- * One audit event on a form entry, for the entry's history panel.
- */
-export const zEntryEventOut = z.object({
-    changes: z.array(z.record(z.string(), z.string())),
-    description: z.string(),
-    event_type: z.string(),
-    id: z.uuid(),
-    staff_name: z.string(),
-    timestamp: z.iso.datetime()
-});
-
-/**
  * EntryOut
  *
  * One form entry — the entry list row and the entry detail alike.
@@ -1231,6 +1218,31 @@ export const zFetchStatusValuesResponse = z.object({
     statuses: z.record(z.string(), z.string()),
     success: z.boolean().default(true),
     tooltips: z.record(z.string(), z.string())
+});
+
+/**
+ * FieldChangeOut
+ *
+ * One field's before/after values on an audit event.
+ */
+export const zFieldChangeOut = z.object({
+    field_name: z.string(),
+    new_value: z.string(),
+    old_value: z.string()
+});
+
+/**
+ * EntryEventOut
+ *
+ * One audit event on a form entry, for the entry's history panel.
+ */
+export const zEntryEventOut = z.object({
+    changes: z.array(zFieldChangeOut),
+    description: z.string(),
+    event_type: z.string(),
+    id: z.uuid(),
+    staff_name: z.string(),
+    timestamp: z.iso.datetime()
 });
 
 /**
@@ -4104,12 +4116,14 @@ export const zPurchaseOrderEventCreateRequest = z.object({
 /**
  * PurchaseOrderEventOut
  *
- * Wire contract for PurchaseOrderEventOut.
+ * One note on a purchase order, for its Notes & History section.
  */
 export const zPurchaseOrderEventOut = z.object({
+    changes: z.array(zFieldChangeOut),
     description: z.string(),
+    event_type: z.string(),
     id: z.uuid(),
-    staff: z.string(),
+    staff_name: z.string(),
     timestamp: z.iso.datetime()
 });
 
@@ -5774,6 +5788,44 @@ export const zTimesheetJobOut = z.object({
 export const zJobsListResponse = z.object({
     jobs: z.array(zTimesheetJobOut),
     total_count: z.int()
+});
+
+/**
+ * TimesheetLineSnapshotOut
+ *
+ * One timesheet entry as an event recorded it (``TimesheetLineSnapshot``).
+ */
+export const zTimesheetLineSnapshotOut = z.object({
+    approved: z.boolean(),
+    billable: z.boolean().nullable(),
+    charge_out_rate: z.string(),
+    date: z.iso.date(),
+    description: z.string().nullable(),
+    end_time: z.string().nullable(),
+    hours: z.string(),
+    invoice_multiplier: z.number().nullable(),
+    job: z.string(),
+    labour_type: z.string(),
+    pay_item: z.string().nullable(),
+    start_time: z.string().nullable(),
+    wage_multiplier: z.number().nullable(),
+    wage_rate: z.string()
+});
+
+/**
+ * TimesheetEventOut
+ *
+ * One audit event on a staff member's day, for the entry page's history dialog.
+ */
+export const zTimesheetEventOut = z.object({
+    after: zTimesheetLineSnapshotOut.nullable(),
+    before: zTimesheetLineSnapshotOut.nullable(),
+    changes: z.array(zFieldChangeOut),
+    description: z.string(),
+    event_type: z.string(),
+    id: z.uuid(),
+    staff_name: z.string(),
+    timestamp: z.iso.datetime()
 });
 
 /**
@@ -7867,6 +7919,18 @@ export const zJobTimesheetEntriesRetrieveQuery = z.object({
  */
 export const zJobTimesheetEntriesRetrieveResponse = zTimesheetEntriesOut;
 
+export const zJobTimesheetEntriesHistoryRetrieveQuery = z.object({
+    staff_id: z.uuid(),
+    date: z.string()
+});
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zJobTimesheetEntriesHistoryRetrieveResponse = z.array(zTimesheetEventOut);
+
 export const zJobWorkshopTimesheetsDestroyQuery = z.object({
     entry_id: z.uuid()
 });
@@ -8933,6 +8997,10 @@ export const zXeroDisconnectCreateResponse = zXeroPingOut;
  * OK
  */
 export const zXeroPayItemsListResponse = z.array(zXeroPayItemOut);
+
+export const zXeroPingRetrieveQuery = z.object({
+    expected_fake: z.boolean().nullish()
+});
 
 /**
  * OK

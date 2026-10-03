@@ -2476,6 +2476,10 @@ components:
           additionalProperties: true
           title: Ext Refs
           type: object
+        job_id:
+          format: uuid
+          title: Job Id
+          type: string
         kind:
           title: Kind
           type: string
@@ -3333,9 +3337,7 @@ components:
       properties:
         changes:
           items:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/components/schemas/FieldChangeOut'
           title: Changes
           type: array
         description:
@@ -3356,12 +3358,12 @@ components:
           title: Timestamp
           type: string
       required:
-      - id
-      - timestamp
-      - event_type
-      - staff_name
-      - description
       - changes
+      - description
+      - event_type
+      - id
+      - staff_name
+      - timestamp
       title: EntryEventOut
       type: object
     EntryOut:
@@ -3616,6 +3618,24 @@ components:
       - success
       - tooltips
       title: FetchStatusValuesResponse
+      type: object
+    FieldChangeOut:
+      description: One field's before/after values on an audit event.
+      properties:
+        field_name:
+          title: Field Name
+          type: string
+        new_value:
+          title: New Value
+          type: string
+        old_value:
+          title: Old Value
+          type: string
+      required:
+      - field_name
+      - new_value
+      - old_value
+      title: FieldChangeOut
       type: object
     FinishJobSummaryOut:
       description: 'The authoritative customer balance shown in the Finish Job workspace.
@@ -10608,27 +10628,37 @@ components:
       title: PurchaseOrderEventCreateResponse
       type: object
     PurchaseOrderEventOut:
-      description: Wire contract for PurchaseOrderEventOut.
+      description: One note on a purchase order, for its Notes & History section.
       properties:
+        changes:
+          items:
+            $ref: '#/components/schemas/FieldChangeOut'
+          title: Changes
+          type: array
         description:
           title: Description
+          type: string
+        event_type:
+          title: Event Type
           type: string
         id:
           format: uuid
           title: Id
           type: string
-        staff:
-          title: Staff
+        staff_name:
+          title: Staff Name
           type: string
         timestamp:
           format: date-time
           title: Timestamp
           type: string
       required:
-      - id
+      - changes
       - description
+      - event_type
+      - id
+      - staff_name
       - timestamp
-      - staff
       title: PurchaseOrderEventOut
       type: object
     PurchaseOrderEventsResponse:
@@ -14350,6 +14380,50 @@ components:
       - scheduled_hours
       title: TimesheetEntriesSummaryOut
       type: object
+    TimesheetEventOut:
+      description: One audit event on a staff member's day, for the entry page's history dialog.
+      properties:
+        after:
+          anyOf:
+          - $ref: '#/components/schemas/TimesheetLineSnapshotOut'
+          - type: 'null'
+        before:
+          anyOf:
+          - $ref: '#/components/schemas/TimesheetLineSnapshotOut'
+          - type: 'null'
+        changes:
+          items:
+            $ref: '#/components/schemas/FieldChangeOut'
+          title: Changes
+          type: array
+        description:
+          title: Description
+          type: string
+        event_type:
+          title: Event Type
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        staff_name:
+          title: Staff Name
+          type: string
+        timestamp:
+          format: date-time
+          title: Timestamp
+          type: string
+      required:
+      - after
+      - before
+      - changes
+      - description
+      - event_type
+      - id
+      - staff_name
+      - timestamp
+      title: TimesheetEventOut
+      type: object
     TimesheetJobOut:
       description: Wire contract for TimesheetJobOut.
       properties:
@@ -14415,6 +14489,83 @@ components:
       - shop_job
       - is_urgent
       title: TimesheetJobOut
+      type: object
+    TimesheetLineSnapshotOut:
+      description: One timesheet entry as an event recorded it (``TimesheetLineSnapshot``).
+      properties:
+        approved:
+          title: Approved
+          type: boolean
+        billable:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Billable
+        charge_out_rate:
+          title: Charge Out Rate
+          type: string
+        date:
+          format: date
+          title: Date
+          type: string
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        end_time:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: End Time
+        hours:
+          title: Hours
+          type: string
+        invoice_multiplier:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Invoice Multiplier
+        job:
+          title: Job
+          type: string
+        labour_type:
+          title: Labour Type
+          type: string
+        pay_item:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pay Item
+        start_time:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Start Time
+        wage_multiplier:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Wage Multiplier
+        wage_rate:
+          title: Wage Rate
+          type: string
+      required:
+      - approved
+      - billable
+      - charge_out_rate
+      - date
+      - description
+      - end_time
+      - hours
+      - invoice_multiplier
+      - job
+      - labour_type
+      - pay_item
+      - start_time
+      - wage_multiplier
+      - wage_rate
+      title: TimesheetLineSnapshotOut
       type: object
     TimesheetStaffOut:
       description: Wire contract for TimesheetStaffOut.
@@ -20224,6 +20375,46 @@ paths:
       summary: Any staff member's time lines for a date, with the day summary
       tags:
       - timesheets
+  /api/job/timesheet/entries/history/:
+    get:
+      description: 'Serve the entry grid''s history dialog for one staff/day.
+
+
+        Keyed on the worker and the day, not a line, so a deleted entry''s events
+
+        are still reachable from the screen they were made on. Management auth
+
+        because the snapshots carry wage data, like the entries read.'
+      operationId: job_timesheet_entries_history_retrieve
+      parameters:
+      - in: query
+        name: staff_id
+        required: true
+        schema:
+          format: uuid
+          title: Staff Id
+          type: string
+      - in: query
+        name: date
+        required: true
+        schema:
+          title: Date
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/TimesheetEventOut'
+                title: Response
+                type: array
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Every timesheet event on one staff member's date, newest first
+      tags:
+      - timesheets
   /api/job/workshop/timesheets/:
     delete:
       description: Delete one of the authenticated staff member's own entries.
@@ -23652,7 +23843,15 @@ paths:
         \ a 500 with an ``error_id``, never a quiet\n``connected: false``: the E2E preflight and the header\
         \ badge must not\nmistake an operational failure for a clean not-connected install."
       operationId: xero_ping_retrieve
-      parameters: []
+      parameters:
+      - in: query
+        name: expected_fake
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Expected Fake
       responses:
         '200':
           content:

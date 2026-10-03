@@ -180,7 +180,7 @@ test.describe('PO workspace', () => {
     const event = (await response.json()).event
     await page.reload()
     const entry = page.getByRole('listitem').filter({ hasText: note })
-    await expect(entry).toContainText(event.staff)
+    await expect(entry).toContainText(event.staff_name)
     await expect(entry.locator('time')).toHaveAttribute('datetime', event.timestamp)
     await entry.scrollIntoViewIfNeeded()
     await page.screenshot({ path: test.info().outputPath('po-notes-history.png') })

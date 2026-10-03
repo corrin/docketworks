@@ -166,9 +166,7 @@ function WorkshopEntryForm({
           is_billable: !shopJob,
         })
       } else {
-        saved = await onUpdate(
-          entryUpdateBody(entry, { jobId, shopJob, start, end, hours, description }),
-        )
+        saved = await onUpdate(entryUpdateBody(entry, { jobId, start, end, hours, description }))
       }
     } finally {
       inFlightRef.current = false

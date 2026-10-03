@@ -19,6 +19,7 @@ from django.db.models.functions import Cast, Substr
 from django.utils import timezone
 from solo.models import SingletonModel
 
+from apps.core.audit import AuditEvent
 from apps.core.models import CompanyDefaults
 from apps.job.enums import MetalType
 
@@ -651,28 +652,16 @@ class Stock(models.Model):
         return cls._stock_holding_job
 
 
-class PurchaseOrderEvent(models.Model):
-    """A manual note/comment on a purchase order.
+class PurchaseOrderEvent(AuditEvent):
+    """A manual note on a purchase order: the one event type this trail records."""
 
-    Simpler than JobEvent - no delta tracking or undo support needed.
-    API exposure is defined by the ninja schemas for purchasing.
-    """
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     purchase_order = models.ForeignKey(
         PurchaseOrder,
         on_delete=models.CASCADE,
         related_name="events",
     )
-    timestamp = models.DateTimeField(default=timezone.now)
-    staff = models.ForeignKey(
-        "accounts.Staff",
-        on_delete=models.PROTECT,
-    )
-    description = models.TextField()
 
-    class Meta:
-        ordering: ClassVar = ["-timestamp"]
+    class Meta(AuditEvent.Meta):
         indexes: ClassVar = [
             models.Index(
                 fields=["purchase_order", "-timestamp"],

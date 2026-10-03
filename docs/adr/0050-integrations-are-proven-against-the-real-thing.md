@@ -23,9 +23,11 @@ A path that touches an external system is not done until a durable test has exec
   the real services (`frontend/docs/e2e-testing-strategy.md`) and a spec may not substitute,
   skip or defer the external call it exists to cover. Where a vendor constraint makes a
   write awkward, it shapes the spec (post the next postable week, reuse the draft), and a
-  comment records the constraint rather than excusing the gap. An iteration run may point
-  the unmodified suite at a simulation built from recordings (ADR 0060); the run before
-  merge is real.
+  comment records the constraint rather than excusing the gap. Xero E2E defaults to the simulation built from recordings (ADR 0060). Select a live
+  Xero run explicitly when the work could expose a discrepancy with that simulation;
+  unrelated changes do not need a live Xero run to merge. Live Xero integration and
+  conformance tests remain regular, often daily, work. Other vendors retain the real-service
+  requirement.
 - **One exception: a write the vendor gives no way to undo may be opt-in.** It qualifies only
   when the vendor exposes no API to remove or finalise what the test creates, so an unattended
   run accumulates external state that a human must clear by hand — and only with a compensating
@@ -40,8 +42,8 @@ A path that touches an external system is not done until a durable test has exec
   flag.
 - Integration tests carry the `integration` pytest marker and are deselected from the
   default suite (`addopts = -m "not integration"`). Run them with
-  `./scripts/ops/run_integration_tests.sh`. They are a **merge gate**, not an optional
-  extra, and they are deliberately not in CI — CI has no sandbox credentials and must stay
+  `./scripts/ops/run_integration_tests.sh`. They gate the relevant integration changes; the Xero selection rule above avoids
+  spending live calls on unrelated changes. They are deliberately not in CI — CI has no sandbox credentials and must stay
   hermetic.
 - **They refuse; they never skip.** A missing credential, an unconnected tenant or a
   misconfigured provider fails the test loudly. A skip is indistinguishable from a pass in

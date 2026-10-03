@@ -7,13 +7,13 @@ fidelity choices, isolation model, where it runs and when. Day-to-day mechanics
 
 ## Fidelity choices
 
-The suite hits real services rather than mocks. The cost (API credits, external
-traffic) is accepted because mocked integrations have repeatedly hidden
-real-world breakage.
+The suite uses the recorded Xero fake by default. Live Xero tests are selected when
+the work could expose a discrepancy in that fake. This is regular, often daily
+integration work; unrelated changes should not spend live calls. Other integrations
+retain their real-service requirements.
 
-- **Xero** — real Xero **demo company** for the gate; an iteration run may point
-  the same unmodified stack at the recorded fake instead (`--use-fake-xero`,
-  below). Tests create/delete invoices, quotes, POs against the demo org. DocketWorks sends the configured Xero quote terms in
+- **Xero** — the recorded fake for ordinary runs; explicitly select the real Xero
+  **demo company** with `--use-real-xero` for relevant integration evidence. Tests create/delete invoices, quotes, POs against the demo org. DocketWorks sends the configured Xero quote terms in
   the quote API payload. In the demo company only, those terms must contain the
   exact text `Terms of trade can be found`; the quote E2E
   (`tests/e2e/job/job-xero-quote.spec.ts`) requires the native Xero PDF to
@@ -105,7 +105,7 @@ tests tagged `@xero-payroll-write`. Those post a real week to Xero payroll and
 are run deliberately:
 
 ```shell
-npm --prefix frontend run test:e2e:payroll
+E2E_XERO_MODE=real npm --prefix frontend run test:e2e:payroll
 ```
 
 The reason is not cost. Xero Payroll NZ publishes `createPayRun` and no
@@ -141,7 +141,7 @@ comparing `grep -c RateLimitException logs/e2e/django.log` with the ERROR
 count in the same log; when they match, nothing in the run failed for any
 other reason.
 
-`scripts/ops/run_e2e.sh` reads the quota before its first Xero-spending step
+`scripts/ops/run_e2e.sh --use-real-xero` reads the quota before its first Xero-spending step
 and refuses to start at or below 150 remaining, so a run that would fail on
 its first refused call is refused up front instead of half an hour in. The
 threshold is the automated floor of 100 (below it celery beat's syncs stop
@@ -157,9 +157,9 @@ the database before spending another run. And a live Xero read belongs behind
 an explicit trigger rather than a page load — which is why the weekly grid's
 reconciliation waits for "Check against Xero" instead of fetching on mount.
 
-## Iterating against the fake Xero
+## Selecting Xero mode
 
-`./scripts/ops/run_e2e.sh --use-fake-xero` runs the whole default gate with the
+`./scripts/ops/run_e2e.sh` (also `--use-fake-xero`) runs the default gate with the
 backend, worker and beat started under `XERO_FAKE=true`. Nothing in the suite
 changes: the SDK's transport is replaced below it by `apps/xero/fake`, a
 simulation of the tenant. Its answer shapes are bodies recorded off the real
@@ -169,8 +169,23 @@ resets it) and updated by every write; ids are minted fresh, timestamps stamped
 at the write, numbers and totals computed, and a route nobody recorded is a
 refusal. The organisation
 the run reports carries `(FAKE XERO)` in its name, the run's `test-runs.csv`
-rows carry `xero=fake`, and the runner's last line says the run was not a gate.
-ADR 0060 is the rule; the run before merge is the same command without the switch.
+rows carry `xero=fake`, and the runner's last line identifies the selected mode.
+Use `./scripts/ops/run_e2e.sh --use-real-xero <spec>` when the work could expose
+a difference between the fake and Xero. Both modes forward all spec and filter arguments.
+ADR 0060 is the rule; fake runs are valid acceptance evidence for unrelated work.
+
+The launcher overrides inherited `XERO_FAKE` and `E2E_XERO_MODE` values from its
+explicit option. Bare Playwright and reset commands default to fake; to use an
+already-running live stack, set `E2E_XERO_MODE=real` explicitly. The preflight sends
+its expected mode to the backend, which refuses a mismatch before looking up or
+refreshing tokens. Fake failures never fall back to live OAuth. Missing or
+conflicting teardown mode metadata refuses Xero cleanup.
+
+Fake runs make zero live quota probes (live runs retain two probes). Before fake
+setup/reset can refresh credentials, the harness preserves the original token in
+a private file under `restore/e2e/`, outside cleared logs. Managed runs restore it
+after stopping their services; standalone setup/reset and teardown restore their
+own snapshot. A failed restoration retains the recovery file and fails the run.
 
 Two things the fake is weaker at, on purpose. The quote-PDF spec passes against
 a locally rendered PDF that carries the terms the app sent, so it proves the
