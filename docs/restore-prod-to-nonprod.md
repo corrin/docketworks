@@ -348,15 +348,16 @@ NULL 0, rows failing validation 0` and exits zero. Any other totals print
 `Fix the DATA, not the reader (ADR 0015).` and exit 1 — the sweep names the
 model, the count and an example primary key for each failure.
 
-## The E2E user and the test company
+## The E2E users and the test company
 
 ```bash
 uv run python manage.py e2e_ensure_fixtures
 ```
 
-Playwright signs in as the user named in `frontend/.env.test`, and **no
-production dump carries that user**; the command reads `E2E_TEST_USERNAME` and
-`E2E_TEST_PASSWORD` from the environment (load `frontend/.env.test` into the
+Playwright signs in as the users named in `frontend/.env.test`, and **no
+production dump carries them**; the command reads `E2E_TEST_USERNAME` and
+`E2E_TEST_PASSWORD`, and `E2E_WORKSHOP_USERNAME` and `E2E_WORKSHOP_PASSWORD` for
+the workshop login the phone specs use, from the environment (load `frontend/.env.test` into the
 shell first, e.g. `set -a; source frontend/.env.test; set +a`), creates the user
 on a first refresh and re-aligns the password afterwards, when
 `setup_dev_logins.py` has just reset every password to the staff default. It

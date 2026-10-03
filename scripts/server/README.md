@@ -263,7 +263,7 @@ Shows each instance's name, status (running/stopped/no service), current release
 
 ```
 config/<name>.credentials.env (root-owned operator input: Xero + AI + Maps + phone keys, backup GCP)
-config/<name>.e2e.env         (root-owned: E2E_TEST_USERNAME / E2E_TEST_PASSWORD for verify-instance.sh --e2e)
+config/<name>.e2e.env         (root-owned: E2E_TEST_* and E2E_WORKSHOP_* USERNAME / PASSWORD for verify-instance.sh --e2e)
         ↓
 instance.sh reads + validates
         ↓

@@ -24,12 +24,25 @@ import { browserDebugGlob, installBrowserDebugForwarder } from './debug-forwarde
 
 export const LOGIN_TOKEN_PATH = '/api/accounts/token/'
 
-export function e2eCredentials(): { username: string; password: string } {
-  const username = process.env.E2E_TEST_USERNAME
-  const password = process.env.E2E_TEST_PASSWORD
+/**
+ * Who a test signs in as. `office` is the superuser every desktop spec uses;
+ * `workshop` is shop-floor staff (neither office nor superuser), the login the
+ * phone specs exist to prove. Both rows come from `manage.py e2e_ensure_fixtures`.
+ */
+export type LoginRole = 'office' | 'workshop'
+
+const CREDENTIAL_KEYS: Record<LoginRole, { username: string; password: string }> = {
+  office: { username: 'E2E_TEST_USERNAME', password: 'E2E_TEST_PASSWORD' },
+  workshop: { username: 'E2E_WORKSHOP_USERNAME', password: 'E2E_WORKSHOP_PASSWORD' },
+}
+
+export function e2eCredentials(role: LoginRole = 'office'): { username: string; password: string } {
+  const keys = CREDENTIAL_KEYS[role]
+  const username = process.env[keys.username]
+  const password = process.env[keys.password]
 
   if (!username || !password) {
-    throw new Error('E2E_TEST_USERNAME and E2E_TEST_PASSWORD must be set in .env')
+    throw new Error(`${keys.username} and ${keys.password} must be set in .env.test`)
   }
 
   return { username, password }
@@ -125,6 +138,8 @@ export async function authenticateViaLoginPage(
 type AuthFixtures = {
   sessionCheckConsoleAllowance: ReturnType<typeof createLoginSessionCheckConsoleAllowance>
   authenticatedPage: Page
+  /** Who `authenticatedPage` signs in as. Set via `test.use({ loginRole: 'workshop' })`. */
+  loginRole: LoginRole
   /**
    * Patterns for console errors a test deliberately triggers (string = substring,
    * RegExp = test). Set via `test.use({ expectedConsoleErrors: [...] })`. Any
@@ -158,6 +173,7 @@ type WorkerFixtures = {
 }
 
 export const test = base.extend<AuthFixtures, WorkerFixtures>({
+  loginRole: ['office', { option: true }],
   expectedConsoleErrors: [[], { option: true }],
   largeResponseAllowlist: [[], { option: true }],
   // Playwright's fixture API passes dependencies as the first parameter; this
@@ -235,11 +251,11 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
   },
 
   authenticatedPage: async (
-    { page, sessionCheckConsoleAllowance, largeResponseAllowlist },
+    { page, sessionCheckConsoleAllowance, largeResponseAllowlist, loginRole },
     use,
     testInfo,
   ) => {
-    const { username, password } = e2eCredentials()
+    const { username, password } = e2eCredentials(loginRole)
 
     const finishNetworkLogging = enableNetworkLogging(page, testInfo.title, {
       allowLargeResponses: largeResponseAllowlist,

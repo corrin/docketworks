@@ -416,9 +416,9 @@ curl -s https://<name>.docketworks.site/api/build-id/
 ### The E2E suite on the instance (UAT verification, PVT)
 
 ```bash
-# Once per instance: the E2E user's credentials, root-owned like the rest of config/
+# Once per instance: the E2E users' credentials, root-owned like the rest of config/
 sudo install -m 600 -o root -g root /dev/null /opt/docketworks/config/<name>.e2e.env
-sudoedit /opt/docketworks/config/<name>.e2e.env   # E2E_TEST_USERNAME= / E2E_TEST_PASSWORD=
+sudoedit /opt/docketworks/config/<name>.e2e.env   # E2E_TEST_USERNAME= / E2E_TEST_PASSWORD= / E2E_WORKSHOP_USERNAME= / E2E_WORKSHOP_PASSWORD=
 
 sudo scripts/server/verify-instance.sh <client> <env> --e2e                # uat
 sudo scripts/server/verify-instance.sh <client> prod --e2e --production   # PVT
@@ -487,7 +487,7 @@ suite signs in as, which `e2e_ensure_fixtures` creates.
 sudo scripts/server/instance.sh prepare-config rehearsal uat --seed
 sudoedit /opt/docketworks/config/rehearsal-uat.credentials.env
 sudo install -m 600 -o root -g root /dev/null /opt/docketworks/config/rehearsal-uat.e2e.env
-sudoedit /opt/docketworks/config/rehearsal-uat.e2e.env   # E2E_TEST_USERNAME= / E2E_TEST_PASSWORD=
+sudoedit /opt/docketworks/config/rehearsal-uat.e2e.env   # E2E_TEST_USERNAME= / E2E_TEST_PASSWORD= / E2E_WORKSHOP_USERNAME= / E2E_WORKSHOP_PASSWORD=
 ```
 
 Then, from the dev box, after each merge:
