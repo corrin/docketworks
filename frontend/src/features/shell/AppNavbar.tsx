@@ -95,11 +95,14 @@ export function AppNavbar() {
           <NavMenuLink to="/timesheets/my-time" automationId="AppNavbar-my-time">
             My time
           </NavMenuLink>
-          <NavMenuLink to="/timesheets/daily" automationId="AppNavbar-daily-timesheets">
-            Daily
-          </NavMenuLink>
+          {/* Superuser only: Daily, Weekly and Leave all read endpoints behind
+              SuperuserCookieJWTAuth, so any other login reaches a page whose
+              every query answers 403. */}
           {user.is_superuser && (
             <>
+              <NavMenuLink to="/timesheets/daily" automationId="AppNavbar-daily-timesheets">
+                Daily
+              </NavMenuLink>
               <NavMenuLink to="/timesheets/weekly" automationId="AppNavbar-weekly-timesheets">
                 Weekly
               </NavMenuLink>
