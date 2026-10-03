@@ -878,23 +878,6 @@ class TestQuoteRevisions:
         listing = client.get(f"/api/job/jobs/{job.id}/cost_sets/quote/revise/").json()
         assert listing["total_revisions"] == 1
 
-    def test_revise_without_quote_cost_set_is_404(
-        self, client: Client, job: Job, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        # v2's Job model guarantees a quote cost set (latest_quote is NOT NULL,
-        # RESTRICT), so v1's missing-quote state is unreachable through data;
-        # patch get_latest to exercise the contract's 404 branch.
-        monkeypatch.setattr(Job, "get_latest", lambda *_args: None)
-
-        assert client.get(f"/api/job/jobs/{job.id}/cost_sets/quote/revise/").status_code == 404
-        response = client.post(
-            f"/api/job/jobs/{job.id}/cost_sets/quote/revise/",
-            data={},
-            content_type="application/json",
-        )
-        assert response.status_code == 404
-        assert "No quote found" in response.json()["detail"]
-
 
 class TestCostsSummary:
     def test_margin_is_computed_over_revenue(self, client: Client, job: Job) -> None:

@@ -8,7 +8,7 @@ export function jobInvoiceRef(overrides: Partial<JobInvoiceRef> = {}): JobInvoic
     date: '2026-02-20',
     status: 'PAID',
     total_excl_tax: 100,
-    online_url: 'https://in.xero.com/inv-1',
+    online_url: 'https://invoices.example/inv-1',
     ...overrides,
   }
 }

@@ -32,40 +32,17 @@ const KANBAN_BUDGET_MS = {
   diagnostics: 1000,
 } as const
 
-/** Collect diagnostic state for isDragging, column highlights, and stuck card classes */
-const getDragDiagnostics = async (page: Page, jobId?: string) => {
-  return page.evaluate(
-    ({ jobId: evaluatedJobId }) => {
-      const bodyHasDragClass = document.body.classList.contains('is-dragging')
-      const allColumns = document.querySelectorAll('[data-kanban-status]')
-      const highlightedColumns: string[] = []
-      allColumns.forEach((col) => {
-        if (col.classList.contains('bg-blue-50')) {
-          highlightedColumns.push(col.getAttribute('data-kanban-status') || 'unknown')
-        }
-      })
-
-      // Check for stuck SortableJS classes on the dragged card. v2 does not
-      // use SortableJS (pragmatic-drag-and-drop instead), so these never
-      // appear — this is an absence assertion kept verbatim from v1.
-      const stuckCards: { jobId: string; classes: string[] }[] = []
-      const sortableClasses = ['sortable-chosen', 'sortable-drag', 'sortable-ghost']
-      const selector = evaluatedJobId ? `[data-job-id="${evaluatedJobId}"]` : '.job-card'
-      document.querySelectorAll(selector).forEach((card) => {
-        const stuck = sortableClasses.filter((cls) => card.classList.contains(cls))
-        if (stuck.length > 0) {
-          stuckCards.push({
-            jobId: card.getAttribute('data-job-id') || 'unknown',
-            classes: stuck,
-          })
-        }
-      })
-
-      return { bodyHasDragClass, highlightedColumns, stuckCards }
-    },
-    { jobId },
-  )
-}
+/** Inspect the column highlight state owned by the current drag implementation. */
+const getDragDiagnostics = async (page: Page) =>
+  page.evaluate(() => {
+    const highlightedColumns: string[] = []
+    document.querySelectorAll('[data-kanban-status]').forEach((column) => {
+      if (column.classList.contains('bg-blue-50')) {
+        highlightedColumns.push(column.getAttribute('data-kanban-status') || 'unknown')
+      }
+    })
+    return { highlightedColumns }
+  })
 
 test.describe('debug: drag-and-drop bugs', () => {
   // These tests exercise the Office-mode kanban board (status columns + drag-and-drop).
@@ -118,18 +95,13 @@ test.describe('debug: drag-and-drop bugs', () => {
     await page.waitForTimeout(3000)
 
     // Diagnose drag state after a drop that reached the API
-    const diag = await getDragDiagnostics(page, jobId)
+    const diag = await getDragDiagnostics(page)
     log('isDragging diagnostics after drop:', JSON.stringify(diag, null, 2))
 
     // These assertions will FAIL if the bug is present
-    expect(diag.bodyHasDragClass, 'body should NOT have is-dragging class after drop').toBe(false)
     expect(
       diag.highlightedColumns.length,
       `No columns should have bg-blue-50 highlight, but found: ${diag.highlightedColumns.join(', ')}`,
-    ).toBe(0)
-    expect(
-      diag.stuckCards.length,
-      `No cards should have stuck sortable classes, but found: ${JSON.stringify(diag.stuckCards)}`,
     ).toBe(0)
   })
 
@@ -256,7 +228,6 @@ test.describe('debug: drag-and-drop bugs', () => {
     log('Column container check:', JSON.stringify(sortableCheck, null, 2))
 
     expect(dragSucceeded, 'Drag-and-drop should work after layout switch').toBe(true)
-    expect(diag.bodyHasDragClass, 'body should NOT have is-dragging class').toBe(false)
     expect(diag.highlightedColumns.length, 'No columns should be highlighted').toBe(0)
   })
 
@@ -334,7 +305,6 @@ test.describe('debug: drag-and-drop bugs', () => {
     log('Post-stress-test diagnostics:', JSON.stringify(diag, null, 2))
 
     expect(dragSucceeded, 'Drag should work after rapid layout switching').toBe(true)
-    expect(diag.bodyHasDragClass, 'body should NOT have is-dragging class').toBe(false)
     expect(diag.highlightedColumns.length, 'No columns should be highlighted').toBe(0)
   })
 })

@@ -6,10 +6,10 @@ a draft, changed and pushed again so the update path runs against a real
 database does not, so independent tests would each lie about their starting
 state.
 
-Every assertion reads the state back **from Xero** rather than trusting the
-push's return value, and it reads it through the application's own inbound sync
-— the same code production uses. That is what a fake provider cannot do: it
-returns whatever the author assumed, so it can only confirm the belief.
+Vendor-state assertions read back from Xero through inbound sync or a direct
+vendor read. Direct reads are essential when local ownership prevents importing
+lines, or deleted documents are skipped by sync. A local status set by the push
+cannot prove the vendor accepted it.
 
 Re-runnable by construction: the supplier and the order are new each run, so a
 document stranded by an aborted run is inert rather than in the way.
@@ -30,16 +30,19 @@ from decimal import Decimal
 import pytest
 from django.utils import timezone
 from pytest_django import Settings
+from xero_python.accounting import AccountingApi
+from xero_python.accounting import PurchaseOrder as XeroPurchaseOrder
 
 from apps.accounting.registry import get_provider
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.services.company_rest_service import CompanyRestService
+from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.tests.factories import receive_po_line
-from apps.xero.auth import get_tenant_id
+from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.documents.po import XeroPurchaseOrderManager
 from apps.xero.models import XeroAccount
 from apps.xero.operator_guards import assert_not_production_target, assert_xero_writes_enabled
@@ -146,13 +149,32 @@ def _sync(entity: str) -> None:
         raise RuntimeError(f"Xero {entity} sync did not run: " + "; ".join(refusals))
 
 
-def _pushed_order(supplier: Company, staff: Staff) -> PurchaseOrder:
+def _local_order_number() -> str:
+    # GPT: Preserve the ownership contract while avoiding numbers left in the demo
+    # tenant by earlier runs against disposable local databases.
+    return f"{CompanyDefaults.get_solo().po_prefix}{uuid.uuid4().int % 10**18}"
+
+
+def _vendor_order(external_id: str) -> XeroPurchaseOrder:
+    orders = (
+        AccountingApi(get_api_client())
+        .get_purchase_order(get_tenant_id(), external_id)
+        .purchase_orders
+    )
+    assert orders is not None and len(orders) == 1
+    assert str(orders[0].purchase_order_id) == external_id
+    return orders[0]
+
+
+def _pushed_order(
+    supplier: Company, staff: Staff, *, locally_raised: bool = False
+) -> PurchaseOrder:
     """A purchase order that exists in Xero with nothing outstanding to send."""
     po = PurchaseOrder.objects.create(
         supplier=supplier,
         created_by=staff,
         status="submitted",
-        po_number=f"TEST-{uuid.uuid4().hex[:10]}",
+        po_number=_local_order_number() if locally_raised else f"TEST-{uuid.uuid4().hex[:10]}",
         reference=f"[TEST] sync {uuid.uuid4().hex[:8]}",
     )
     PurchaseOrderLine.objects.create(
@@ -204,7 +226,7 @@ def test_a_purchase_order_is_created_updated_and_voided_in_xero(
         supplier=xero_supplier,
         created_by=pushing_staff,
         status="draft",
-        po_number=f"TEST-{uuid.uuid4().hex[:10]}",
+        po_number=_local_order_number(),
         reference=f"[TEST] integration {uuid.uuid4().hex[:8]}",
     )
     line = PurchaseOrderLine.objects.create(
@@ -228,8 +250,8 @@ def test_a_purchase_order_is_created_updated_and_voided_in_xero(
     line.refresh_from_db()
     line.quantity = Decimal("7.00")
     line.save(update_fields=["quantity"])
-    # The order carries the outstanding-edit signal, and the service bumps it
-    # after every line write; a line saved on its own does not.
+    # GPT: Match the service's parent timestamp update after writing a line.
+    # Ownership, rather than this timestamp, protects our local edit.
     po.save(update_fields=["updated_at"])
 
     _pull_back(po)
@@ -253,21 +275,23 @@ def test_a_purchase_order_is_created_updated_and_voided_in_xero(
     updated = XeroPurchaseOrderManager(purchase_order=po, staff=pushing_staff).sync_to_xero()
     assert updated["success"], updated
 
-    # The push itself is the evidence Xero took it: update_or_create keys on the
-    # stored xero_id, so a second document would surface as a different id.
+    # GPT: The identity must survive the update, and a separate vendor read must
+    # confirm the changed quantity actually reached that document.
     assert updated["xero_id"] == str(first_xero_id), "the update created a second Xero order"
     assert po.po_lines.count() == 1
+    vendor = _vendor_order(str(first_xero_id))
+    assert vendor.line_items is not None and len(vendor.line_items) == 1
+    assert Decimal(str(vendor.line_items[0].quantity)) == Decimal("4.00")
 
     voided = XeroPurchaseOrderManager(purchase_order=po, staff=pushing_staff).delete_document()
     assert voided["success"], voided
     po.refresh_from_db()
     assert po.xero_id is None, "the void left the order pointing at a Xero document"
 
-    # The void cleared xero_id, so the pull re-links by po_number and brings
-    # back whatever Xero now says — which is what proves the void reached the
-    # vendor rather than only the local row.
-    _pull_back(po)
-    assert po.status == "deleted", "Xero still reports this order as live"
+    assert po.status == "deleted"
+    # GPT: Inbound sync skips DELETED documents, and the manager already changed
+    # our local status. Only a vendor read can prove the void reached Xero.
+    assert _vendor_order(str(first_xero_id)).status == "DELETED"
 
 
 @pytest.mark.usefixtures("synced_accounts")
@@ -296,41 +320,35 @@ def test_an_edit_made_in_xero_comes_back(xero_supplier: Company, pushing_staff: 
 
 
 @pytest.mark.usefixtures("synced_accounts")
-def test_a_collision_publishes_ours_rather_than_dropping_either(
+def test_a_local_order_keeps_our_edit_until_an_explicit_push(
     xero_supplier: Company, pushing_staff: Staff
 ) -> None:
-    """Both sides changed. Neither is silently dropped.
-
-    Xero holds one edit, we hold another that never reached it, and the older
-    copy must not win. Ours is published instead, so the two agree afterwards —
-    which is what makes this a sync rather than a race.
-    """
-    po = _pushed_order(xero_supplier, pushing_staff)
+    """Inbound sync preserves our order; only an explicit push publishes it."""
+    po = _pushed_order(xero_supplier, pushing_staff, locally_raised=True)
     line = po.po_lines.get()
+    external_id = str(po.xero_id)
 
     _edit_in_xero(po, pushing_staff, description="Edited by someone in Xero")
-    # Ours, made after the last successful send and never pushed.
     line.description = "What the office confirmed"
     line.save(update_fields=["description"])
-    # update_purchase_order saves the order after writing its lines, which is
-    # what marks the edit outstanding; this stands in for that.
     po.save(update_fields=["updated_at"])
 
-    # CELERY_TASK_ALWAYS_EAGER, so the push the collision queues runs here.
     _sync("purchase_orders")
 
     line.refresh_from_db()
     assert line.description == "What the office confirmed", "Xero's older copy won"
+    vendor = _vendor_order(external_id)
+    assert vendor.line_items is not None and len(vendor.line_items) == 1
+    assert vendor.line_items[0].description == "Edited by someone in Xero", (
+        "inbound sync unexpectedly published our unsubmitted edit"
+    )
 
-    # And Xero agrees now, which is the half that makes it a sync: re-read as
-    # an order Xero raised, so the next pull mirrors its header and lines.
-    # Ownership is the number's prefix (accounting_mirror.is_locally_raised),
-    # so the order is renumbered the way Xero numbers its own; a null creator
-    # never meant "Xero raised it" and the column no longer admits one.
-    PurchaseOrder.objects.filter(id=po.id).update(po_number=f"XPO-{po.po_number[3:]}")
-    _sync("purchase_orders")
-    assert po.po_lines.filter(description="What the office confirmed").exists(), (
-        "our edit never reached Xero"
+    result = XeroPurchaseOrderManager(purchase_order=po, staff=pushing_staff).sync_to_xero()
+    assert result["success"], result
+    vendor = _vendor_order(external_id)
+    assert vendor.line_items is not None and len(vendor.line_items) == 1
+    assert vendor.line_items[0].description == "What the office confirmed", (
+        "our explicit push never reached Xero"
     )
 
 

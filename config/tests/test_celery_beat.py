@@ -36,23 +36,12 @@ def test_every_beat_entry_carries_its_own_name_as_a_header() -> None:
         )
 
 
-def test_every_beat_entry_names_an_importable_task() -> None:
-    """A typo'd task path fails at runtime with no execution recorded at all."""
-    for name, entry in app.conf.beat_schedule.items():
-        module_path, _, attribute = entry["task"].rpartition(".")
-        module = importlib.import_module(module_path)
-        assert hasattr(module, attribute), (
-            f"beat entry {name!r} points at a task that does not exist"
-        )
-
-
 def test_every_beat_entry_is_registered_under_its_scheduled_name() -> None:
     """The schedule dispatches by REGISTERED name, not by import path.
 
-    hasattr alone cannot catch a task whose ``@shared_task(name=...)``
-    diverges from its module path (apps.xero re-exports its worker task
-    under apps.xero.tasks); an unregistered name schedules nothing, silently
-    — the exact eight-months-dark failure this file's docstring cites.
+    An importable function can still have a different ``@shared_task(name=...)``.
+    An unregistered scheduled name dispatches no work, even when that Python
+    attribute exists.
     """
     for module in (
         "apps.xero.tasks",

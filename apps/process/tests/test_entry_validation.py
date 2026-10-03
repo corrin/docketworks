@@ -115,6 +115,13 @@ class TestValidateEntryData:
         with pytest.raises(HttpError):
             validate_entry_data(maintenance, {"asset": str(other_entry.id)})
 
+        # GPT: Correct form ownership alone must not admit an archived source entry.
+        asset.is_active = False
+        asset.save(update_fields=["is_active"])
+        with pytest.raises(HttpError) as caught:
+            validate_entry_data(maintenance, {"asset": str(asset.id)})
+        assert caught.value.status_code == 400
+
 
 class TestParseSchema:
     def test_a_corrupted_stored_schema_is_a_500_and_persists_an_app_error(self) -> None:
@@ -131,9 +138,34 @@ class TestParseSchema:
 class TestDisplayData:
     def test_staff_and_entry_ref_values_resolve_to_names(self) -> None:
         staff = make_staff()
-        form = make_form()
-        resolved = display_data(form, {"area": "Bay 1", "injured": str(staff.id)})
-        assert resolved == {"injured": staff.get_display_full_name()}
+        register = make_form(
+            schema={"fields": [{"key": "name", "label": "Name", "type": "text"}]},
+            category=Form.Category.REGISTER,
+            document_type="register",
+            title="Asset register",
+        )
+        asset = FormEntry.objects.create(
+            form=register, entry_date="2026-08-25", data={"name": "Press brake"}
+        )
+        # GPT: Exercise both reference types; staff resolution cannot prove entry labels.
+        form = make_form(
+            schema={
+                "fields": [
+                    *SCHEMA["fields"],
+                    {
+                        "key": "asset",
+                        "label": "Asset",
+                        "type": "entry_ref",
+                        "source_form": str(register.id),
+                        "display_key": "name",
+                    },
+                ]
+            }
+        )
+        resolved = display_data(
+            form, {"area": "Bay 1", "injured": str(staff.id), "asset": str(asset.id)}
+        )
+        assert resolved == {"injured": staff.get_display_full_name(), "asset": "Press brake"}
 
     def test_dangling_staff_uuid_renders_the_raw_id(self) -> None:
         form = make_form()

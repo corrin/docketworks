@@ -21,7 +21,6 @@ from apps.ai.models import AIProvider
 from apps.ai.services.llm_client import (
     COMPLETION_TIMEOUT_SECONDS,
     LITELLM_PROVIDER_PREFIXES,
-    PARSING_PROVIDER_TYPE,
     LLMConfigurationError,
     LLMEmptyResponseError,
     chat_completion,
@@ -198,7 +197,3 @@ class TestChatCompletion:
             chat_completion("Parse this")
 
         completion.assert_not_called()
-
-    def test_the_parser_pins_gemini_the_way_v1_did(self) -> None:
-        """Cheap and fast, and enough to turn a description into inventory fields."""
-        assert PARSING_PROVIDER_TYPE == AIProviderTypes.GOOGLE
