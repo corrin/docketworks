@@ -354,6 +354,10 @@ model, the count and an example primary key for each failure.
 uv run python manage.py e2e_ensure_fixtures
 ```
 
+On a workstation the workshop login is `e2e-workshop@docketworks.local` /
+`Default-workshop-password`: shop-floor staff, neither office nor superuser, so
+it is also the login for trying the app by hand as workshop staff see it.
+
 Playwright signs in as the users named in `frontend/.env.test`, and **no
 production dump carries them**; the command reads `E2E_TEST_USERNAME` and
 `E2E_TEST_PASSWORD`, and `E2E_WORKSHOP_USERNAME` and `E2E_WORKSHOP_PASSWORD` for
