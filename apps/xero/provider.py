@@ -445,14 +445,18 @@ class XeroAccountingProvider:
 
     # --- Purchase orders ---
 
-    def _create_or_update_purchase_order(self, payload: POPayload) -> DocumentResult:
-        """Shared implementation for PO create and update (both are one upsert call)."""
-        api, tenant_id = self._get_api()
+    @classmethod
+    def purchase_order_body(cls, payload: POPayload) -> dict[str, Any]:
+        """One purchase order as Xero's upsert route takes it.
 
+        Public because the restore seed sends the same body fifty to a call
+        (apps/xero/seeding.py); a second builder there would be free to drift
+        from what a push sends for the same order.
+        """
         po_kwargs: dict[str, Any] = {
             "purchase_order_number": payload.po_number,
             "contact": Contact(contact_id=payload.supplier_external_id, name=payload.supplier_name),
-            "line_items": self._build_line_items(payload.line_items),
+            "line_items": cls._build_line_items(payload.line_items),
             "date": payload.date.isoformat(),
             "status": payload.status,
         }
@@ -462,11 +466,16 @@ class XeroAccountingProvider:
             po_kwargs["delivery_date"] = payload.delivery_date.isoformat()
         if payload.reference:
             po_kwargs["reference"] = payload.reference
+        body: dict[str, Any] = cls._to_xero_payload(PurchaseOrder(**po_kwargs))
+        return body
 
-        xero_po = PurchaseOrder(**po_kwargs)
+    def _create_or_update_purchase_order(self, payload: POPayload) -> DocumentResult:
+        """Shared implementation for PO create and update (both are one upsert call)."""
+        api, tenant_id = self._get_api()
+
         response = api.update_or_create_purchase_orders(
             tenant_id,
-            purchase_orders={"PurchaseOrders": [self._to_xero_payload(xero_po)]},
+            purchase_orders={"PurchaseOrders": [self.purchase_order_body(payload)]},
             summarize_errors=False,
         )
         if not response.purchase_orders:
