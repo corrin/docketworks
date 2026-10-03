@@ -1,4 +1,7 @@
-import type { PurchaseOrderDetail } from '../../../src/api/generated/types.gen'
+import type {
+  PurchaseOrderDetail,
+  PurchaseOrderListResponse,
+} from '../../../src/api/generated/types.gen'
 import { expect, test } from '../fixtures/auth'
 import { autoId, createTestPurchaseOrder, waitForPoAutosave } from '../helpers'
 
@@ -74,4 +77,72 @@ test('a fully received order keeps its receipt when Xero answers AUTHORISED', as
   await page.goto('/purchasing/po')
   await autoId(page, 'PurchaseOrderView-search').fill(received.po_number)
   await expect(autoId(page, `PurchaseOrderView-row-${received.id}`)).toContainText('Fully Received')
+})
+
+// Opus: every other purchase-order spec raises its own order, so the only push
+// they exercise is a create. An office receipts orders that were sent weeks
+// ago, and for those Xero already holds the document: the push is an update of
+// it. That only replays faithfully when the fake holds the order too, which is
+// what the restore seed's purchase-order phase provides. Without it the fake
+// has never heard of the order's Xero id and refuses the update.
+test('receiving an order Xero already held updates it in place', async ({
+  authenticatedPage: page,
+}) => {
+  const listResponse = await page.request.get(
+    '/api/purchasing/purchase-orders/?status=submitted&page_size=50',
+  )
+  expect(listResponse.ok(), await listResponse.text()).toBe(true)
+  const listed: PurchaseOrderListResponse = await listResponse.json()
+
+  // Ours (the instance prefix and digits only), not a [TEST] order another
+  // spec raised and not one Xero raised: those Docketworks does not push.
+  let held: PurchaseOrderDetail | null = null
+  for (const row of listed.results.filter((each) => /^JO-\d{4}$/.test(each.po_number))) {
+    const response = await page.request.get(`/api/purchasing/purchase-orders/${row.id}/`)
+    expect(response.ok(), await response.text()).toBe(true)
+    const detail: PurchaseOrderDetail = await response.json()
+    // Every line costed: the receipt prices the stock it creates, and refuses
+    // a line with no cost. That refusal is the application's own and has its
+    // own tests; this one is about what reaches Xero.
+    const receivable = detail.lines.every((line) => Number(line.unit_cost) > 0)
+    if (detail.xero_id !== null && receivable) {
+      held = detail
+      break
+    }
+  }
+  // Fail early: no such order means the restore seed left the orders out of
+  // Xero, which is the defect this test exists to catch.
+  if (held === null) {
+    throw new Error('No submitted, costed order of ours carries a Xero id; run the restore seed')
+  }
+  const before: PurchaseOrderDetail = held
+  test.info().annotations.push({ type: 'order', description: before.po_number })
+  console.log(`[po-receipt-sync] receiving restored order ${before.po_number}`)
+  const detailPath = `/api/purchasing/purchase-orders/${before.id}/`
+
+  await page.goto(`/purchasing/po/${before.id}`)
+  await autoId(page, 'PoSummaryCard-status-trigger').click()
+  const receiptSaved = waitForPoAutosave(page)
+  await autoId(page, 'PoSummaryCard-status-fully_received').click()
+  await receiptSaved
+  await expect(autoId(page, 'PoSummaryCard-status-trigger')).toHaveText('Fully Received')
+
+  let pushed: PurchaseOrderDetail | null = null
+  await expect
+    .poll(
+      async () => {
+        const response = await page.request.get(detailPath)
+        expect(response.ok(), await response.text()).toBe(true)
+        pushed = await response.json()
+        return pushed?.xero_status
+      },
+      { timeout: 90_000, intervals: [1000] },
+    )
+    .toBe('AUTHORISED')
+
+  // The same document, moved on: a second id would be a duplicate order in
+  // Xero for a supplier's bill to match against.
+  const echoed = pushed as PurchaseOrderDetail | null
+  expect(echoed?.xero_id).toBe(before.xero_id)
+  expect(echoed?.status).toBe('fully_received')
 })
