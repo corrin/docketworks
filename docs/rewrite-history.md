@@ -5,6 +5,29 @@ once v2 has every feature v1 had. Use it to see what was learned along the way. 
 durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
 that names it, a procedure lives in the runbook that runs it.
 
+## 2026-10-03 — New notes edits have one undoable event; historical cleanup is secondary
+
+Owner prioritised new edits over historical repair. The current update path already
+creates one notes_updated event with the full delta and undo identity; it does not
+also create a generic notification. Added API regressions for adding, changing and
+clearing notes, complete HTML preservation, a no-op save emitting nothing, timeline
+undo eligibility and one reversal restoring the original content. These passed with
+the current writer unchanged. A browser regression exercises the editor, history,
+Undo and reload; it remains unrun because the dev URL returns 404 and the real-Xero
+preflight still refuses 80 remaining daily calls against its 150-call minimum.
+
+The optional migration 0016 consolidates notes-only pairs with identical raw deltas,
+the same actor/job and an unambiguous match within one second. It retains the generic
+row's complete display values, HTML and undo metadata, labels it notes_updated, and
+removes the truncated specific counterpart. Incomplete or conflicting content and
+separate edits survive. The four historical regressions fail against migration 0015;
+the notes migration and current API/event suites pass. Rehearsal on a restored copy
+consolidated 4,321 pairs, preserved 71,916 other events and every job's current notes,
+and verified all retained rows changed only their event type. Dry-run rollback and
+idempotence passed. Applied to development after rehearsal, removing the same 4,321
+duplicates with every job's current notes unchanged; the backup and removed-row
+audit remain outside Git.
+
 ## 2026-10-03 — Delivery-date history owns its undo action
 
 Owner requested fixing duplicate events one case at a time, starting with delivery

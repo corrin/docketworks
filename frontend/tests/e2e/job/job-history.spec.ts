@@ -12,6 +12,63 @@ import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
  * spec left on its timeline.
  */
 test.describe('job history', () => {
+  test('a notes edit has one undoable event and restores the original notes', async ({
+    authenticatedPage: page,
+  }) => {
+    const jobUrl = await createTestJob(page, 'Notes History')
+    const jobId = getJobIdFromUrl(jobUrl)
+    const originalNotes = 'Original notes — keep all of this text, including the final sentence.'
+    const updatedNotes = 'Revised notes for the workshop.'
+    await autoId(page, 'JobViewTabs-history').click()
+    const entries = autoId(page, 'JobHistoryTab-timeline').locator(
+      '[data-automation-id^="JobHistoryTab-entry-"]',
+    )
+    await expect(entries.first()).toBeVisible()
+    const initialCount = await entries.count()
+
+    for (const [index, value] of [originalNotes, updatedNotes].entries()) {
+      await autoId(page, 'JobViewTabs-jobSettings').click()
+      const editor = autoId(page, 'JobSettingsTab-internal-notes').locator('.ql-editor')
+      const saved = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === `/api/job/jobs/${jobId}/` &&
+          response.request().method() === 'PATCH',
+      )
+      await editor.fill(value)
+      await editor.blur()
+      expect((await saved).status()).toBe(200)
+      await autoId(page, 'JobViewTabs-history').click()
+      await expect(entries).toHaveCount(initialCount + index + 1)
+      await expect(entries.first()).toContainText('Notes Updated')
+      await expect(
+        entries.first().locator('[data-automation-id^="JobHistoryTab-undo-toggle-"]'),
+      ).toHaveCount(1)
+    }
+
+    const latest = entries.first()
+    await latest.locator('[data-automation-id^="JobHistoryTab-undo-toggle-"]').click()
+    await expect(
+      latest.locator('[data-automation-id^="JobHistoryTab-undo-before-"]'),
+    ).toContainText(originalNotes)
+    await expect(latest.locator('[data-automation-id^="JobHistoryTab-undo-after-"]')).toContainText(
+      updatedNotes,
+    )
+    const undone = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/job/jobs/${jobId}/undo-change/` &&
+        response.request().method() === 'POST',
+    )
+    await latest.locator('[data-automation-id^="JobHistoryTab-undo-confirm-"]').click()
+    expect((await undone).status()).toBe(200)
+    await expect(entries).toHaveCount(initialCount + 3)
+    await expect(entries.first()).toContainText('Notes Updated')
+    await autoId(page, 'JobViewTabs-jobSettings').click()
+    const editor = autoId(page, 'JobSettingsTab-internal-notes').locator('.ql-editor')
+    await expect(editor).toHaveText(originalNotes)
+    await page.reload()
+    await expect(editor).toHaveText(originalNotes)
+  })
+
   test('a delivery-date change has one event and restores its previous date on undo', async ({
     authenticatedPage: page,
   }) => {

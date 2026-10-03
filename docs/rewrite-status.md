@@ -41,7 +41,7 @@ does not have.
 | E2E specs ported | **60 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
 | API operations v2 exposes | 268 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3473 collected |
+| Unit tests | 3490 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 138 recorded deviations |
@@ -52,9 +52,10 @@ written measures typing, not delivery. Every slice below authors its own E2E spe
 is done only when that spec is green.
 
 PR #190 job-history acceptance remains pending: rerun `job/job-history.spec.ts`
-against real Xero after its daily quota recovers. The delivery-date migration and
-64 backend regressions pass; the browser did not start because real Xero had 81
-calls remaining against the 150-call gate. The supported fake run also stopped
+against real Xero after its daily quota recovers. Current notes edits and Undo pass
+the API regressions; both notes and delivery-date migration suites pass. The browser
+environment still returns 404, and real Xero has 80 calls against the 150-call gate.
+The supported fake run also stopped
 before the browser: restored PO `51483b64-1404-4d95-a3c1-f0db024ee407` has no raw_json.
 
 **Record every rename by hand as you port an operation.** 17 `workflow_*` operations
