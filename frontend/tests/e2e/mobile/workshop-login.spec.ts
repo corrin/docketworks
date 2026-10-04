@@ -79,6 +79,9 @@ test.describe('workshop login on a phone', () => {
     test('signs out and the app is gated again', async ({ authenticatedPage: page }) => {
       await autoId(page, 'AppNavbar-logout').tap()
       await expect(page).toHaveURL(/\/login/)
+      // Let the app's own move to the login screen finish before navigating
+      // again: on WebKit a goto issued while it was still loading failed.
+      await expect(autoId(page, 'LoginView-username')).toBeVisible()
 
       await page.goto('/')
       await expect(page).toHaveURL(/\/login/)

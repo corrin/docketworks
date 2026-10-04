@@ -41,6 +41,9 @@ interface TestJob {
 interface OfficeSetup {
   jobA: TestJob
   jobB: TestJob
+  /** An archived job the drawer's job list does not hold: only the picker's
+      whole-table search reaches it. */
+  searchOnlyJob: TestJob
   /** An entry the office user booked for themselves on the spec's date. */
   officeEntryId: string
 }
@@ -81,6 +84,23 @@ async function officeSetup(chromium: BrowserType, baseURL: string): Promise<Offi
     const jobA = await createJob('A')
     const jobB = await createJob('B')
 
+    const listed = z
+      .object({ jobs: z.array(z.object({ id: z.string() })) })
+      .parse(await (await page.request.get('/api/timesheets/jobs/')).json())
+    const archived = z
+      .object({ jobs: z.array(z.object({ id: z.string(), job_number: z.number() })) })
+      .parse(
+        await (
+          await page.request.get('/api/job/jobs/fetch-by-column/archived/?max_jobs=50')
+        ).json(),
+      )
+    const listedIds = new Set(listed.jobs.map((job) => job.id))
+    const unlisted = archived.jobs.find((job) => !listedIds.has(job.id))
+    if (unlisted === undefined) {
+      throw new Error('Every archived job is in the timesheet job list; nothing is search-only.')
+    }
+    const searchOnlyJob = { id: unlisted.id, number: unlisted.job_number }
+
     const response = await page.request.post(TIMESHEETS_PATH, {
       data: {
         job_id: jobA.id,
@@ -94,7 +114,12 @@ async function officeSetup(chromium: BrowserType, baseURL: string): Promise<Offi
     if (!response.ok()) {
       throw new Error(`Office entry seed failed: ${response.status()} ${await response.text()}`)
     }
-    return { jobA, jobB, officeEntryId: entrySchema.parse(await response.json()).id }
+    return {
+      jobA,
+      jobB,
+      searchOnlyJob,
+      officeEntryId: entrySchema.parse(await response.json()).id,
+    }
   } finally {
     await browser.close()
   }
@@ -109,7 +134,9 @@ function timesheetWrite(page: Page, method: 'POST' | 'PATCH' | 'DELETE') {
 }
 
 async function savedEntry(response: APIResponse | Awaited<ReturnType<typeof timesheetWrite>>) {
-  expect(response.ok(), `entry write answered ${response.status()}`).toBe(true)
+  if (!response.ok()) {
+    throw new Error(`entry write answered ${response.status()}: ${await response.text()}`)
+  }
   return entrySchema.parse(await response.json())
 }
 
@@ -332,6 +359,31 @@ test.describe.serial('workshop time entry on a phone', () => {
     await expect(page.locator(calendarEvent(firstEntryId))).toHaveCount(0)
     await expect(autoId(page, 'WorkshopTimesheetSummaryCard-total-hours')).toHaveText('0h')
     await expect(autoId(page, 'WorkshopMyTimePage-empty-hint')).toBeVisible()
+  })
+
+  test("books against a job found only through the picker's search", async ({
+    authenticatedPage: page,
+  }) => {
+    // An archived job is not in the list the drawer loads; typing its number
+    // reaches it through the picker's whole-table search.
+    await openMyTime(page)
+    await autoId(page, 'WorkshopTimesheetSummaryCard-add').tap()
+    await expect(page.getByRole('heading', { name: 'Add entry' })).toBeVisible()
+
+    await pickJob(page, setup.searchOnlyJob)
+    const submit = autoId(page, `${DRAWER}-submit`)
+    await expect(submit).toBeEnabled()
+    const create = timesheetWrite(page, 'POST')
+    await submit.tap()
+    const entry = await savedEntry(await create)
+    expect(entry.job_id).toBe(setup.searchOnlyJob.id)
+    await expect(page.locator(calendarEvent(entry.id))).toContainText(
+      `#${setup.searchOnlyJob.number}`,
+    )
+
+    // The later tests start from an empty day.
+    const removed = await page.request.delete(`${TIMESHEETS_PATH}?entry_id=${entry.id}`)
+    expect(removed.ok()).toBe(true)
   })
 
   // ---- Rate and billable, defaults, quick-adjust chips, untimed entries. ----

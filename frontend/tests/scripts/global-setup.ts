@@ -9,7 +9,6 @@ import {
   getApplicationUrl,
   getBackupsDir,
   getDbConfig,
-  runManagePy,
   runPgDump,
   syncSequences,
 } from './db-backup-utils'
@@ -53,42 +52,6 @@ async function integrationSettingsIssues(): Promise<string[]> {
       'No Google Maps API key on IntegrationSettings. Load one with ' +
         '`uv run python manage.py load_integration_settings apps/core/fixtures/integration_settings.json` ' +
         '(copy the .example) or enter it on Admin > Integrations.',
-    ]
-  }
-  return []
-}
-
-/**
- * The password-reset spec reads a real mailbox through the Workspace
- * delegation. Asked here, once, so a missing key, grant or mailbox owner is a
- * preflight line naming the fix rather than a spec polling an inbox for
- * ninety seconds.
- */
-function gmailReadIssues(): string[] {
-  const owner = process.env.E2E_RESET_MAILBOX_OWNER
-  const workshop = process.env.E2E_WORKSHOP_USERNAME
-  if (!owner || !workshop) {
-    return [
-      'E2E_RESET_MAILBOX_OWNER and E2E_WORKSHOP_USERNAME must be set (frontend/.env.test, or the ' +
-        "instance's e2e.env): the password-reset spec emails the workshop login and reads the " +
-        'mailbox that address lands in.',
-    ]
-  }
-  try {
-    runManagePy([
-      'e2e_read_reset_link',
-      `--to=${workshop}`,
-      `--mailbox=${owner}`,
-      `--since=${new Date().toISOString()}`,
-    ])
-  } catch (error) {
-    // deliberate-swallow: the failure is reported as a preflight issue with
-    // the fix beside it, which is what the operator needs to read.
-    return [
-      `The reset mailbox ${owner} could not be read: ${error instanceof Error ? error.message : String(error)}\n` +
-        "    Check GCP_CREDENTIALS, that the Workspace's domain-wide delegation grants " +
-        'https://www.googleapis.com/auth/gmail.readonly, and that the mailbox owner is a user ' +
-        'in that Workspace.',
     ]
   }
   return []
@@ -301,13 +264,6 @@ export default async function globalSetup(): Promise<void> {
     const integrationIssues = await integrationSettingsIssues()
     if (integrationIssues.length > 0) {
       const issueList = integrationIssues.map((i) => `  - ${i}`).join('\n')
-      throw new Error(`E2E integration pre-flight checks failed:\n${issueList}`)
-    }
-
-    console.log('[integrations] Checking the reset mailbox can be read...')
-    const gmailIssues = gmailReadIssues()
-    if (gmailIssues.length > 0) {
-      const issueList = gmailIssues.map((i) => `  - ${i}`).join('\n')
       throw new Error(`E2E integration pre-flight checks failed:\n${issueList}`)
     }
 

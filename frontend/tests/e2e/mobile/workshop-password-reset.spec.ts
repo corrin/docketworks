@@ -68,6 +68,25 @@ test.describe('workshop password reset on a phone', () => {
   // parsed by Playwright as a [value, options] tuple.
   test.use({ expectedConsoleErrors: [/the server responded with a status of (400|401)/] })
 
+  // Asked once, before any email is sent, so a missing key file, grant or
+  // mailbox owner is named with its fix instead of a test polling an inbox
+  // for ninety seconds. Here and not in the suite's preflight: only this
+  // spec reads mail, so only a run that includes it depends on the mailbox.
+  test.beforeAll(() => {
+    const { username } = e2eCredentials('workshop')
+    try {
+      latestResetLink(username, new Date().toISOString())
+    } catch (error) {
+      throw new Error(
+        `The reset mailbox ${mailboxOwner()} could not be read. Check GCP_CREDENTIALS, that the ` +
+          "Workspace's domain-wide delegation grants " +
+          'https://www.googleapis.com/auth/gmail.readonly, and that E2E_RESET_MAILBOX_OWNER is a ' +
+          'user in that Workspace whose mailbox receives E2E_WORKSHOP_USERNAME.',
+        { cause: error },
+      )
+    }
+  })
+
   // The reset changes the workshop login's password, and every later phone
   // test signs in with the configured one. The fixtures command re-sets it.
   test.afterEach(() => {
