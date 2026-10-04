@@ -7,6 +7,7 @@ from io import StringIO
 import pytest
 from django.core.management import CommandError, call_command
 
+from apps.accounts.tasks import RESET_EMAIL_SUBJECT
 from apps.diagnostics.management.commands import e2e_read_reset_link
 from apps.diagnostics.management.commands.e2e_read_reset_link import reset_link_in
 
@@ -36,7 +37,8 @@ def _run(monkeypatch: pytest.MonkeyPatch, body: str | None, *, since: str) -> st
         f"--since={since}",
         stdout=out,
     )
-    assert asked["subject"] == "Reset your DocketWorks password"
+    # The subject the email is sent under, not a second copy of it.
+    assert asked["subject"] == RESET_EMAIL_SUBJECT
     return out.getvalue()
 
 

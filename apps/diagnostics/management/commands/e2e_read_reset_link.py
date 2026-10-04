@@ -14,11 +14,10 @@ from datetime import datetime
 
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 
+from apps.accounts.tasks import RESET_EMAIL_SUBJECT
 from apps.core.environment import ProductionDatabaseError, assert_not_production_database
 from apps.platform.integrations.google.gmail import latest_message_body
 
-#: The subject apps/accounts/tasks.py sends the reset email under.
-RESET_SUBJECT = "Reset your DocketWorks password"
 _RESET_LINK = re.compile(r"https?://\S+/reset-password\?uid=\S+&token=\S+")
 
 
@@ -68,6 +67,6 @@ class Command(BaseCommand):
         if not isinstance(since, datetime) or since.tzinfo is None:
             raise CommandError("--since must be an ISO timestamp with an offset")
 
-        body = latest_message_body(mailbox=mailbox, to=to, subject=RESET_SUBJECT, since=since)
+        body = latest_message_body(mailbox=mailbox, to=to, subject=RESET_EMAIL_SUBJECT, since=since)
         link = None if body is None else reset_link_in(body)
         self.stdout.write(json.dumps({"link": link}))
