@@ -36,6 +36,7 @@ from apps.purchasing.models import (
     PurchaseOrder,
     PurchaseOrderEvent,
     PurchaseOrderLine,
+    Stock,
 )
 from apps.purchasing.schemas import PurchaseOrderStatus
 from apps.purchasing.services.accounting_mirror import send_state_change
@@ -347,6 +348,24 @@ def _require_a_real_delivery_date(expected_delivery: date | None) -> None:
     )
 
 
+def _require_a_stock_item_code(line_data: PurchaseOrderLineWriteData) -> None:
+    """Refuse an item code no stock item carries.
+
+    Owner ruling, 2026-10-04: a line is an item code the stock list knows, or
+    a description with no code. The accounting system refuses an order holding
+    any other code, and ``purchasing.0021`` blanked the five production lines
+    that did. Any stock row counts, active or not, which is the test that
+    migration applied; the match is exact, as the code is stored.
+    """
+    item_code = line_data.get("item_code")
+    if item_code is None or Stock.objects.filter(item_code=item_code).exists():
+        return
+    raise InvalidInputError(
+        f"Item code '{item_code}' is not a stock item. Pick a stock item, or leave the "
+        "code off and describe the line."
+    )
+
+
 def _apply_line_fields(line: PurchaseOrderLine, line_data: PurchaseOrderLineWriteData) -> None:
     """Write the supplied line fields onto ``line`` per the PATCH contract.
 
@@ -362,6 +381,7 @@ def _apply_line_fields(line: PurchaseOrderLine, line_data: PurchaseOrderLineWrit
     unit cost" (the field's own help_text). Ticking TBC explicitly discards the
     price; unticking alone does not invent or restore one.
     """
+    _require_a_stock_item_code(line_data)
     apply_patch_fields(line, dict(line_data), fields=_LINE_WRITABLE_FIELDS)
     if "price_tbc" in line_data:
         line.price_tbc = bool(line_data["price_tbc"])

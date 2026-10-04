@@ -31,6 +31,7 @@ from apps.purchasing.tests.factories import (
     make_legacy_supplierless_order,
     make_po_line,
     make_purchase_order,
+    make_stock,
 )
 
 #: The one seam to Gmail; the real API is exercised by the integration suite.
@@ -565,6 +566,47 @@ class TestPurchaseOrderUpdate:
         assert edited.status_code == 400, edited.content
         po.refresh_from_db()
         assert po.expected_delivery is None or po.expected_delivery.year >= 2000
+
+    def test_a_line_carries_a_stock_item_code_or_none(
+        self, api: Client, supplier: Company, stock_holding_job: Job
+    ) -> None:
+        # A line is an item code the stock list knows, or free text with no
+        # code. Xero refuses an order holding any other code, and five
+        # production lines had one, so the writer refuses it on a new line and
+        # on an edit, and says what the two choices are.
+        make_stock(stock_holding_job, item_code="SHEET-16")
+
+        lines = {
+            "unknown": {"description": "Sheet", "quantity": "1", "item_code": "P0035743 16EGS"},
+            "known": {"description": "Sheet", "quantity": "1", "item_code": "SHEET-16"},
+            "free_text": {"description": "Freight", "quantity": "1"},
+        }
+        answers = {
+            name: api.post(
+                PO_LIST_URL,
+                data={"supplier_id": str(supplier.id), "lines": [line]},
+                content_type="application/json",
+            )
+            for name, line in lines.items()
+        }
+        unknown, known, free_text = answers["unknown"], answers["known"], answers["free_text"]
+
+        assert unknown.status_code == 400, unknown.content
+        assert "is not a stock item" in unknown.json()["detail"]
+        assert known.status_code == 201, known.content
+        assert free_text.status_code == 201, free_text.content
+
+        po = PurchaseOrder.objects.get(id=known.json()["id"])
+        line = po.po_lines.get()
+        edited = api.patch(
+            _detail_url(po),
+            data={"lines": [{"id": str(line.id), "item_code": "NOT-STOCK"}]},
+            content_type="application/json",
+            headers={"If-Match": _current_etag(api, po)},
+        )
+        assert edited.status_code == 400, edited.content
+        line.refresh_from_db()
+        assert line.item_code == "SHEET-16"
 
     def test_updates_lines_creates_new_ones_and_deletes_requested_ones(self, api: Client) -> None:
         po = make_purchase_order()
