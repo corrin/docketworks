@@ -5,11 +5,11 @@
  * billable tick, adjust times with the chips, move the entry to another job,
  * and delete it.
  *
- * The jobs are created through an office login in a desktop-sized context,
- * because Create Job is an office control; everything else is the workshop
- * user's own session.
+ * The jobs are created through an office login in a desktop Chromium the
+ * spec launches itself, because Create Job is an office control; everything
+ * in the phone browser is the workshop user's own session.
  */
-import type { APIResponse, Browser, Page, TestInfo } from '@playwright/test'
+import type { APIResponse, BrowserType, Page, TestInfo } from '@playwright/test'
 import { z } from 'zod'
 
 import { shiftDate } from '../../../src/lib/dates'
@@ -59,15 +59,15 @@ function projectDate(projectName: string): string {
   return shiftDate(getLatestWeekdayDate(), -7 * weeksBack)
 }
 
-async function officeSetup(browser: Browser): Promise<OfficeSetup> {
-  // Desktop-sized whatever the project: the create-job screen is an office
-  // screen and is not what this spec is testing.
-  const context = await browser.newContext({
-    viewport: { width: 1280, height: 720 },
-    isMobile: false,
-    hasTouch: false,
-  })
+/**
+ * The office user's part, in a desktop Chromium the spec launches itself for
+ * both phone projects: creating a job is an office screen on an office
+ * machine, so the phone browser only ever carries the workshop user's session.
+ */
+async function officeSetup(chromium: BrowserType, baseURL: string): Promise<OfficeSetup> {
+  const browser = await chromium.launch()
   try {
+    const context = await browser.newContext({ baseURL, viewport: { width: 1280, height: 720 } })
     const page = await context.newPage()
     const { username, password } = e2eCredentials('office')
     await authenticateViaLoginPage(page, username, password, () => () => undefined)
@@ -77,8 +77,7 @@ async function officeSetup(browser: Browser): Promise<OfficeSetup> {
       return { id: getJobIdFromUrl(url), number: await readJobNumber(page) }
     }
     // The second job starts from the first job's page: the navbar's Create
-    // Job link is on every office page, and a goto here raced the new job
-    // page's own redirect on WebKit.
+    // Job link is on every office page.
     const jobA = await createJob('A')
     const jobB = await createJob('B')
 
@@ -97,7 +96,7 @@ async function officeSetup(browser: Browser): Promise<OfficeSetup> {
     }
     return { jobA, jobB, officeEntryId: entrySchema.parse(await response.json()).id }
   } finally {
-    await context.close()
+    await browser.close()
   }
 }
 
@@ -115,6 +114,12 @@ async function savedEntry(response: APIResponse | Awaited<ReturnType<typeof time
 }
 
 async function openMyTime(page: Page): Promise<void> {
+  // Signing in ends with the app's own move to the board. Let that land
+  // first: on WebKit a goto issued while it was still in flight was cut
+  // across by it.
+  if (new URL(page.url()).pathname.startsWith('/kanban')) {
+    await expect(autoId(page, 'kanban-page')).toBeVisible()
+  }
   await page.goto(`/timesheets/my-time?date=${date}`)
   await expect(autoId(page, 'WorkshopTimesheetCalendar')).toBeVisible()
 }
@@ -171,9 +176,11 @@ test.describe.serial('workshop time entry on a phone', () => {
   let firstEntryId = ''
   let secondEntryId = ''
 
-  test.beforeAll(async ({ browser }, testInfo) => {
+  test.beforeAll(async ({ playwright }, testInfo) => {
     date = projectDate(testInfo.project.name)
-    setup = await officeSetup(browser)
+    const baseURL = testInfo.project.use.baseURL
+    if (!baseURL) throw new Error('The phone projects need a baseURL for the office setup.')
+    setup = await officeSetup(playwright.chromium, baseURL)
   })
 
   // ---- The essential path: add, edit, move, delete; totals; unapproved. ----
