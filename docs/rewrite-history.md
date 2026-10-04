@@ -2439,3 +2439,30 @@ November 2026 at $0.00 against $0.00, and it opened to nothing. A month is now
 listed only when its detail has something to show: an invoice, or a job with
 non-zero revenue in that month. Amounts are unchanged; only which months
 appear.
+
+## 2026-10-05 — The sync records the organisation on every document it stores (KAN-375)
+
+The sync engine passes each entity's persist function the tenant the run
+fetched from. Five `ENTITY_CONFIGS` entries dropped it, so invoices, bills,
+credit notes, quotes and purchase orders were stored with a Xero id and no
+tenant; `sync_single_invoice` did the same for a webhook's invoice or bill.
+Measured on the dev database after the 2026-10-04 sync: 47 invoices, 45 bills,
+5 credit notes and 9 quotes carried an id and no tenant. Staff, pay items, pay
+runs, pay slips, accounts, companies, and every push from the application
+already stored both.
+
+The document transforms now take the tenant from their caller, as
+`transform_pay_run` does, and `_persist_documents` in `apps/xero/sync.py` is
+the one place that hands it to them.
+
+Owner instruction, 2026-10-05: no CHECK for this; the writers are fixed.
+Left as it is:
+
+- Rows already stored without a tenant are not backfilled. Each is completed
+  when the sync next sees that document. Production was not examined.
+- The seed's foreign-organisation test reads `Company` and `XeroPayItem` only,
+  so a tenant-less document never triggered a clear. The seed's pending count
+  does read a tenant-less invoice, quote or order as unclaimed.
+- A purchase order linked by number alone now records the tenant. That states
+  which organisation the id came from, not that the match found the same order.
+- `Stock` and `Job.xero_project_id` have no tenant column.
