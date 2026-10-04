@@ -2509,3 +2509,26 @@ Left for the owner:
   from its wage multiplier. Not changed.
 - The invoice and quote payload builders and the sync transforms' payload
   parameters are still annotated `Any`; they were before this branch.
+
+## 2026-10-05 — Second review of the fixes (KAN-375)
+
+`company.0002` as first corrected would have aborted on production. It read
+the tenants the stamped companies carry with `Company`'s default ordering, and
+Django adds the ordering column to a DISTINCT select, so the answer was one row
+per stamped company name: 321 "organisations" where there is one. The ordering
+is cleared. The tests had a single stamped company and could not see it.
+Rehearsed on the dev database reshaped to the owner's census (321 stamped with
+one tenant, 2,250 unstamped, 5,813 rows) inside a rolled-back transaction: the
+earlier version refuses for "321 different organisations", the corrected one
+stamps all 2,250 and the row count does not move. Dev's data in production's
+shape, not production's rows.
+
+Also from that pass: the order date is refused with a two-digit year, as the
+expected delivery is; the purchase order body is built key by key under its
+type, with the request unchanged; the "Docketworks raised this order" pattern
+has one home serving the row test and the queryset filter; and the seed
+reports every problem in an answered call together.
+
+The item-code refusal reads the local stock list. A stock item not yet pushed
+to Xero passes it, and Xero may still refuse the order line; the rule as the
+owner stated it is about what the stock list knows.
