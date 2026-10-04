@@ -28,16 +28,23 @@ async function fontSizePx(page: Page, automationId: string): Promise<number> {
   )
 }
 
+/** `animations: 'disabled'` fast-forwards the entrance animations, so the
+    picture is the settled screen rather than a frame from the middle of one. */
 async function attachScreenshot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
-  await testInfo.attach(name, { body: await page.screenshot(), contentType: 'image/png' })
+  await testInfo.attach(name, {
+    body: await page.screenshot({ animations: 'disabled' }),
+    contentType: 'image/png',
+  })
 }
 
 test.use({ loginRole: 'workshop' })
 
 test.describe('workshop login on a phone', () => {
-  test.describe('before signing in', () => {
-    // The pre-auth GET /me 401 and the bad-credentials token 401 are the
-    // point of these tests, not a bug (see login.spec.ts).
+  test.describe('signed out', () => {
+    // These tests reach the app signed out outside the fixture's login
+    // window: the pre-auth GET /me 401, the bad-credentials token 401 and the
+    // session probes after signing out are the point of them, not a bug (see
+    // login.spec.ts).
     test.use({ expectedConsoleErrors: [UNAUTHENTICATED_SESSION_CHECK_CONSOLE_ERROR] })
 
     test('the login form fits the phone and asks for an email', async ({ page }, testInfo) => {
@@ -46,12 +53,14 @@ test.describe('workshop login on a phone', () => {
       await expect(username).toBeVisible()
 
       await expect(username).toHaveAttribute('type', 'email')
-      expect(await fontSizePx(page, 'LoginView-username')).toBeGreaterThanOrEqual(
-        IOS_NO_ZOOM_FONT_PX,
-      )
-      expect(await fontSizePx(page, 'LoginView-password')).toBeGreaterThanOrEqual(
-        IOS_NO_ZOOM_FONT_PX,
-      )
+      const usernameFontPx = await fontSizePx(page, 'LoginView-username')
+      const passwordFontPx = await fontSizePx(page, 'LoginView-password')
+      testInfo.annotations.push({
+        type: 'login input font size',
+        description: `username ${usernameFontPx}px, password ${passwordFontPx}px`,
+      })
+      expect(usernameFontPx).toBeGreaterThanOrEqual(IOS_NO_ZOOM_FONT_PX)
+      expect(passwordFontPx).toBeGreaterThanOrEqual(IOS_NO_ZOOM_FONT_PX)
       await expectNoHorizontalOverflow(page)
       await attachScreenshot(page, testInfo, 'login')
     })
@@ -66,15 +75,35 @@ test.describe('workshop login on a phone', () => {
       await expect(autoId(page, 'LoginView-error')).toBeVisible()
       await expect(page).toHaveURL(/\/login/)
     })
+
+    test('signs out and the app is gated again', async ({ authenticatedPage: page }) => {
+      await autoId(page, 'AppNavbar-logout').tap()
+      await expect(page).toHaveURL(/\/login/)
+
+      await page.goto('/')
+      await expect(page).toHaveURL(/\/login/)
+      await expect(autoId(page, 'LoginView-username')).toBeVisible()
+    })
   })
 
-  test('signs in, reaches My time from the navbar and signs out', async ({
+  // No console-error allowance here: a 401 or 403 while signed in is the
+  // workshop login reaching something it may not, which is what this proves
+  // does not happen.
+  test('signs in and reaches My time from the navbar', async ({
     authenticatedPage: page,
   }, testInfo) => {
     await test.step('lands on the board without the office controls', async () => {
       await expect(page).toHaveURL(/\/kanban/)
       await expect(autoId(page, 'kanban-page')).toBeVisible()
       await expect(autoId(page, 'AppNavbar-create-job')).toHaveCount(0)
+      const headerHeightPx = await page
+        .locator('header')
+        .first()
+        .evaluate((header) => Math.round(header.getBoundingClientRect().height))
+      testInfo.annotations.push({
+        type: 'header height',
+        description: `${headerHeightPx}px of a ${page.viewportSize()?.height}px viewport`,
+      })
       await attachScreenshot(page, testInfo, 'kanban')
       await expectNoHorizontalOverflow(page)
     })
@@ -91,18 +120,13 @@ test.describe('workshop login on a phone', () => {
     await test.step('My time opens', async () => {
       await autoId(page, 'AppNavbar-my-time').tap()
       await expect(page).toHaveURL(/\/timesheets\/my-time/)
+      // The panel fades out before it leaves the page; the picture below is
+      // of the page it was covering, so wait for it to go.
+      await expect(autoId(page, 'AppNavbar-timesheets-menu-content')).toHaveCount(0)
       await expect(page.getByRole('heading', { name: 'Workshop timesheets' })).toBeVisible()
+      await expect(autoId(page, 'WorkshopTimesheetCalendar')).toBeVisible()
       await attachScreenshot(page, testInfo, 'my-time')
       await expectNoHorizontalOverflow(page)
-    })
-
-    await test.step('signs out, and the app is gated again', async () => {
-      await autoId(page, 'AppNavbar-logout').tap()
-      await expect(page).toHaveURL(/\/login/)
-
-      await page.goto('/')
-      await expect(page).toHaveURL(/\/login/)
-      await expect(autoId(page, 'LoginView-username')).toBeVisible()
     })
   })
 })
