@@ -37,7 +37,6 @@ to a call instead of one.
 """
 
 import logging
-import re
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
@@ -59,6 +58,7 @@ from apps.company.models import Company
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
+from apps.purchasing.services.accounting_mirror import locally_raised
 from apps.timesheet.services import payroll_employee_sync
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.constants import XERO_BATCH_SIZE, XERO_CONTACT_STATUSES, ZERO_UUID
@@ -680,14 +680,10 @@ def purchase_orders_xero_holds() -> QuerySet[PurchaseOrder]:
     usable_line = PurchaseOrderLine.objects.filter(
         purchase_order=OuterRef("pk"), unit_cost__isnull=False
     ).exclude(description="")
-    # The number says who raised an order: ours are the instance prefix and
-    # digits, the pattern ``is_locally_raised`` and ``generate_po_number`` read.
-    prefix = CompanyDefaults.get_solo().po_prefix
-    our_drafts = Q(po_number__regex=rf"^{re.escape(prefix)}\d+$", status="draft")
     return (
         PurchaseOrder.objects.filter(Exists(usable_line), supplier__isnull=False)
         .exclude(status="deleted")
-        .exclude(our_drafts)
+        .exclude(locally_raised() & Q(status="draft"))
     )
 
 

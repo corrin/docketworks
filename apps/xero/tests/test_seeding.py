@@ -25,6 +25,7 @@ from apps.company.tests.job_fixtures import make_invoice, make_job, make_quote
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder, Stock
+from apps.purchasing.services.accounting_mirror import is_locally_raised, locally_raised
 from apps.purchasing.tests.factories import make_po_line, make_purchase_order
 from apps.xero.constants import ZERO_UUID
 from apps.xero.models import XeroAccount, XeroPayItem, XeroSyncCursor
@@ -816,6 +817,22 @@ class TestPurchaseOrdersXeroHolds:
         assert sent in held
         for order in (our_draft, deleted, lineless, uncosted):
             assert order not in held
+
+    @pytest.mark.parametrize(
+        "number",
+        ["PO-0042", "PO-256916885935035200", "PO-0840-VOID-31316fd7", "XPO-0042", "PO-", "TEST-1"],
+    )
+    def test_the_queryset_and_the_row_test_agree_on_who_raised_an_order(self, number: str) -> None:
+        # The seed selects with the filter and the push decides with the row
+        # test; disagreeing, the seed would send an order the push treats as
+        # Xero's, or leave out one the push would send.
+        order = make_purchase_order(status="submitted")
+        PurchaseOrder.objects.filter(id=order.id).update(po_number=number)
+        order.refresh_from_db()
+
+        by_filter = PurchaseOrder.objects.filter(locally_raised(), id=order.id).exists()
+
+        assert by_filter == is_locally_raised(order)
 
     def test_a_draft_raised_in_xero_is_included(self) -> None:
         # Xero is where it was raised, so Xero holds it in every state.
