@@ -50,6 +50,9 @@ def sync_single_contact(tenant_id: str, contact_id: str) -> None:
     company, created = Company.objects.update_or_create(
         xero_contact_id=contact.contact_id,
         defaults={
+            # With the id, in one write: the schema refuses a contact id that
+            # names no organisation (company_xero_contact_id_has_tenant).
+            "xero_tenant_id": tenant_id,
             "raw_json": raw_json,
             "xero_last_modified": timezone.now(),
             "xero_merged_into_id": getattr(contact, "merged_to_contact_id", None),

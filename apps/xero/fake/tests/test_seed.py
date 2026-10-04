@@ -59,18 +59,21 @@ def test_the_seed_renders_mirrored_and_pushed_companies_and_mirrored_documents(
     Company.objects.create(
         name="[TEST] Mirrored Co",
         xero_contact_id=mirrored_id,
+        xero_tenant_id="test-tenant",
         xero_last_modified=timezone.now(),
         raw_json=make_contact_raw_json(mirrored_id, "[TEST] Mirrored Co"),
     )
     pushed = Company.objects.create(
         name="[TEST] Pushed Co",
         xero_contact_id=str(uuid.uuid4()),
+        xero_tenant_id="test-tenant",
         xero_last_modified=timezone.now(),
     )
     Company.objects.create(name="[TEST] Local Only", xero_last_modified=timezone.now())
     empty = Company.objects.create(
         name="[TEST] Empty Body Co",
         xero_contact_id=str(uuid.uuid4()),
+        xero_tenant_id="test-tenant",
         xero_last_modified=timezone.now(),
         raw_json={},
     )
@@ -115,6 +118,7 @@ def test_the_seed_renders_a_mirrored_purchase_order_with_its_lines_and_supplier(
     supplier = Company.objects.create(
         name="[TEST] Supplier Co",
         xero_contact_id=str(fetched.contact.contact_id),
+        xero_tenant_id=TENANT,
         xero_last_modified=timezone.now(),
     )
     order = PurchaseOrder.objects.create(
@@ -155,6 +159,7 @@ def test_the_seed_renders_deleted_quotes_that_share_a_number(tenant: str) -> Non
     company = Company.objects.create(
         name="[TEST] Quoted Co",
         xero_contact_id=str(deleted.contact.contact_id),
+        xero_tenant_id="test-tenant",
         xero_last_modified=timezone.now(),
     )
     for _ in range(2):
@@ -173,7 +178,10 @@ def test_the_seed_renders_deleted_quotes_that_share_a_number(tenant: str) -> Non
 
 def test_a_readonly_stub_row_is_refused_not_rendered(tenant: str) -> None:
     company = Company.objects.create(
-        name="[TEST] Stub Co", xero_contact_id=str(uuid.uuid4()), xero_last_modified=timezone.now()
+        name="[TEST] Stub Co",
+        xero_contact_id=str(uuid.uuid4()),
+        xero_tenant_id=TENANT,
+        xero_last_modified=timezone.now(),
     )
     Invoice.objects.create(
         xero_id=uuid.uuid4(),

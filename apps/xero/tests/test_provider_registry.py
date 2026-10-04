@@ -19,6 +19,7 @@ from apps.core.models import AppError
 from apps.xero.contacts import contact_from_company
 from apps.xero.provider import XeroAccountingProvider
 from apps.xero.readonly_provider import XeroReadOnlyProvider
+from apps.xero.tests.conftest import TEST_TENANT_ID
 
 _API_FORBIDDEN = AssertionError("XERO_READONLY provider must not touch the Xero API for writes")
 
@@ -75,12 +76,15 @@ class TestXeroReadOnlyProviderContacts:
         # Must be a well-formed UUID: the frontend Xero badge keys off it
         assert company.xero_contact_id is not None
         uuid.UUID(company.xero_contact_id)
+        # Stored with the id: the schema refuses a contact id naming no organisation.
+        assert company.xero_tenant_id == TEST_TENANT_ID
         assert result.name == company.name
         assert AppError.objects.count() == 0
 
     def test_update_contact_succeeds_without_api(self, company: Company) -> None:
         company.xero_contact_id = str(uuid.uuid4())
-        company.save(update_fields=["xero_contact_id"])
+        company.xero_tenant_id = "test-tenant"
+        company.save(update_fields=["xero_contact_id", "xero_tenant_id"])
 
         result = XeroReadOnlyProvider().update_contact(company)
 
@@ -130,6 +134,7 @@ class TestContactFromCompany:
             address="1 Test Street",
             is_account_customer=True,
             xero_contact_id="existing-xero-id",
+            xero_tenant_id="test-tenant",
             xero_last_modified=timezone.now(),
         )
         ContactMethod.objects.create(

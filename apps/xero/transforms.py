@@ -1003,6 +1003,10 @@ def sync_companies(
 ) -> list[Company]:
     """Sync Xero contacts to the Company model (name-link, archive, merge rules)."""
     companies: list[Company] = []
+    # Stored in the same write as the contact id, on every branch below: a
+    # contact id with no tenant cannot be attributed to an organisation, and
+    # the schema refuses one (company_xero_contact_id_has_tenant).
+    tenant_id = get_tenant_id()
 
     for contact in xero_contacts:
         raw_json = process_xero_data(contact)
@@ -1036,6 +1040,7 @@ def sync_companies(
                         # Safe to link - no existing Xero ID. As above,
                         # xero_archived is left to set_company_fields.
                         matching_company.xero_contact_id = contact.contact_id
+                        matching_company.xero_tenant_id = tenant_id
                         matching_company.raw_json = raw_json
                         matching_company.xero_last_modified = timezone.now()
                         matching_company.xero_merged_into_id = getattr(
@@ -1064,6 +1069,7 @@ def sync_companies(
                         )
                         company = Company.objects.create(
                             xero_contact_id=contact.contact_id,
+                            xero_tenant_id=tenant_id,
                             raw_json=raw_json,
                             xero_last_modified=timezone.now(),
                             xero_archived=True,
@@ -1081,6 +1087,7 @@ def sync_companies(
                     # No existing company with this name - safe to create new one
                     company = Company.objects.create(
                         xero_contact_id=contact.contact_id,
+                        xero_tenant_id=tenant_id,
                         raw_json=raw_json,
                         xero_last_modified=timezone.now(),
                         xero_archived=contact.contact_status == "ARCHIVED",
@@ -1091,6 +1098,7 @@ def sync_companies(
                 # No name in contact - create anyway
                 company = Company.objects.create(
                     xero_contact_id=contact.contact_id,
+                    xero_tenant_id=tenant_id,
                     raw_json=raw_json,
                     xero_last_modified=timezone.now(),
                     xero_archived=contact.contact_status == "ARCHIVED",

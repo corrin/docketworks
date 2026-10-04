@@ -61,6 +61,7 @@ class TestSyncSingleContact:
             name="Webhook Unarchive Ltd",
             xero_last_modified=timezone.now(),
             xero_contact_id="wh-contact-2",
+            xero_tenant_id="test-tenant",
             xero_archived=True,
             allow_jobs=False,
         )
@@ -121,6 +122,7 @@ class TestSyncSingleInvoiceRouting:
             name="Webhook Doc Co",
             xero_last_modified=timezone.now(),
             xero_contact_id="wh-doc-contact",
+            xero_tenant_id="test-tenant",
         )
 
     def _run(self, doc_type: str, xero_id: str, company: Company) -> None:

@@ -194,6 +194,7 @@ class TestPurchaseOrderDetail:
         self, api: Client, supplier: Company, job: Job
     ) -> None:
         supplier.xero_contact_id = "11111111-1111-1111-1111-111111111111"
+        supplier.xero_tenant_id = "test-tenant"
         supplier.save()
         po = make_purchase_order(supplier=supplier)
         used = make_po_line(po, item_code="ABC-123", job=job)

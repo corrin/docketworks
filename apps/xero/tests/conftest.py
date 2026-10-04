@@ -29,6 +29,8 @@ _TENANT_ID_BINDINGS = (
     "apps.xero.documents.po.get_tenant_id",
     "apps.xero.documents.quote.get_tenant_id",
     "apps.xero.raw_fields.get_tenant_id",
+    "apps.xero.readonly_provider.get_tenant_id",
+    "apps.xero.transforms.get_tenant_id",
 )
 
 

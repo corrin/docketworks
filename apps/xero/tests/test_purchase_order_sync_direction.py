@@ -42,6 +42,7 @@ def supplier() -> Company:
     return Company.objects.create(
         name="Ownership Supplier",
         xero_contact_id=str(uuid4()),
+        xero_tenant_id="test-tenant",
         xero_last_modified=timezone.now(),
     )
 

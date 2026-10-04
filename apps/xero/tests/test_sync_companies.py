@@ -16,6 +16,7 @@ from apps.company.models import Company
 from apps.xero.raw_fields import set_company_fields
 from apps.xero.transforms import sync_companies
 
+from .conftest import TEST_TENANT_ID
 from .xero_fixtures import make_contact_raw_json, make_xero_contact
 
 
@@ -36,6 +37,7 @@ class TestSyncCompaniesLinking:
         assert result[0].id == existing.id
         existing.refresh_from_db()
         assert existing.xero_contact_id == "contact-link-1"
+        assert existing.xero_tenant_id == TEST_TENANT_ID
         assert Company.objects.filter(name="Steel Supplies Ltd").count() == 1
 
     def test_creates_company_when_name_unknown(self) -> None:
@@ -45,8 +47,23 @@ class TestSyncCompaniesLinking:
         company = result[0]
         assert company.name == "Brand New Co"
         assert company.xero_contact_id == "contact-new-9"
+        assert company.xero_tenant_id == TEST_TENANT_ID
         assert not company.xero_archived
         assert company.allow_jobs
+
+    def test_a_contact_the_field_mapping_refuses_still_names_its_organisation(self) -> None:
+        # The row is created, then set_company_fields maps the payload onto it
+        # and may raise (a contact Xero sent with no name does). The tenant
+        # used to arrive in that second step, so a refusal left a contact id
+        # naming no organisation, which the restore seed reads as a mirror
+        # linked to somebody else's Xero and clears.
+        nameless = make_xero_contact("contact-nameless-1", "")
+
+        with pytest.raises(ValueError, match="no name"):
+            sync_companies([nameless])
+
+        stranded = Company.objects.get(xero_contact_id="contact-nameless-1")
+        assert stranded.xero_tenant_id == TEST_TENANT_ID
 
     def test_already_linked_contact_updates_in_place(self) -> None:
         # The contact was archived in Xero since the last sync: same DB row,
@@ -54,6 +71,7 @@ class TestSyncCompaniesLinking:
         existing = Company.objects.create(
             name="Linked Ltd",
             xero_contact_id="contact-linked-1",
+            xero_tenant_id="test-tenant",
             xero_last_modified=timezone.now(),
         )
 
@@ -83,6 +101,7 @@ class TestArchivedNameCollisions:
         self.existing_client = Company.objects.create(
             name=self.COMPANY_NAME,
             xero_contact_id=self.ACTIVE_XERO_ID,
+            xero_tenant_id="test-tenant",
             xero_last_modified=timezone.now(),
         )
 
@@ -130,6 +149,7 @@ class TestMergeResolution:
         winner = Company.objects.create(
             name="Merge Winner Ltd",
             xero_contact_id="contact-winner-1",
+            xero_tenant_id="test-tenant",
             xero_last_modified=timezone.now(),
         )
         loser_contact = make_xero_contact(
@@ -178,6 +198,7 @@ class TestMergeResolution:
         winner = Company.objects.create(
             name="Deferred Winner Ltd",
             xero_contact_id="contact-winner-2",
+            xero_tenant_id="test-tenant",
             xero_last_modified=timezone.now(),
         )
 
@@ -231,6 +252,7 @@ class TestAllowJobsTransitions:
             name="Batch Unarchive Ltd",
             xero_last_modified=timezone.now(),
             xero_contact_id="contact-batch-1",
+            xero_tenant_id="test-tenant",
             xero_archived=True,
             allow_jobs=False,
             raw_json=make_contact_raw_json("contact-batch-1", "Batch Unarchive Ltd"),

@@ -31,6 +31,7 @@ def company() -> Company:
     return Company.objects.create(
         name="Existing Company",
         xero_contact_id="contact-123",
+        xero_tenant_id="test-tenant",
         xero_last_modified=django_timezone.now(),
     )
 
