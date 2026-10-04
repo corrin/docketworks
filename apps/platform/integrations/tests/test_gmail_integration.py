@@ -1,13 +1,15 @@
-"""The delegated Gmail send and draft against the real API (ADR 0050).
+"""The delegated Gmail send, read-back and draft against the real API (ADR 0050).
 
-One real message and one real draft, both addressed to the delegated subject
+Real messages and one real draft, all addressed to the delegated subject
 itself so the probe stays inside the instance's own mailbox. On a dev box the dev database's
 ``company_email`` is a demo placeholder, so this needs ``GCP_CREDENTIALS``
 and ``GCP_DELEGATED_SUBJECT`` in the environment — the builders fail loud
 naming exactly what is missing.
 """
 
+import time
 from base64 import urlsafe_b64decode
+from datetime import UTC, datetime, timedelta
 from email import message_from_bytes
 from email.policy import default as default_policy
 from io import BytesIO
@@ -21,6 +23,7 @@ from apps.platform.integrations.google.gmail import (
     Attachment,
     _build_gmail,
     create_draft,
+    latest_message_body,
     send_company_email,
 )
 
@@ -42,6 +45,32 @@ class TestGmailSend:
         )
 
         assert message_id != ""
+
+
+class TestGmailReadBack:
+    """A sent message can be read back from the mailbox it lands in.
+
+    This is the gmail.readonly grant, which the product never uses for a user:
+    it exists so the E2E reset spec can follow the emailed link. Delivery is
+    Gmail's clock, so the read is polled.
+    """
+
+    def test_a_sent_message_is_read_back_from_its_mailbox(self, company_email: str | None) -> None:
+        mailbox = delegated_subject(company_email)
+        marker = f"read-back {datetime.now(tz=UTC).isoformat()}"
+        subject = "DocketWorks integration test — read back, please ignore"
+        # Gmail's `after:` is whole seconds; step back so the send is inside it.
+        since = datetime.now(tz=UTC) - timedelta(seconds=5)
+        send_company_email(company_email=company_email, to=mailbox, subject=subject, body=marker)
+
+        deadline = time.monotonic() + 60
+        body = latest_message_body(mailbox=mailbox, to=mailbox, subject=subject, since=since)
+        while body is None and time.monotonic() < deadline:
+            time.sleep(3)
+            body = latest_message_body(mailbox=mailbox, to=mailbox, subject=subject, since=since)
+
+        assert body is not None, f"the message did not reach {mailbox} within 60s"
+        assert marker in body
 
 
 class TestGmailDraft:
