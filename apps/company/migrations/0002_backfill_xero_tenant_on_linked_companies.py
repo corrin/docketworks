@@ -41,8 +41,12 @@ def stamp_tenant_on_linked_companies(
     if count == 0:
         return
 
+    # order_by() first: Company orders by name by default, and Django adds an
+    # ordering column to a DISTINCT select, which would make this one row per
+    # stamped company name instead of one per organisation.
     stamped_tenants = sorted(
         linked.filter(xero_tenant_id__isnull=False)
+        .order_by()
         .values_list("xero_tenant_id", flat=True)
         .distinct()
     )

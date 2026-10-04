@@ -50,9 +50,17 @@ def backfill() -> None:
 
 @pytest.mark.usefixtures("before_the_guard")
 def test_backfill_gives_unstamped_links_the_organisation_the_stamped_ones_name() -> None:
-    CompanyDefaults.objects.update(xero_tenant_id="our-tenant")
+    # Several stamped companies, one organisation: production's shape (321
+    # stamped). Read with the model's default ordering, a DISTINCT over the
+    # tenant returns it once per company name, and the migration then refused
+    # to run for "321 different organisations". The configured tenant differs
+    # on purpose, so taking it instead is also caught.
+    CompanyDefaults.objects.update(xero_tenant_id="configured-tenant")
+    Company.objects.filter(xero_contact_id__isnull=False).delete()
     unstamped = make_company("Old Customer Ltd", xero_contact_id="c-old", xero_tenant_id=None)
     stamped = make_company("Recent Ltd", xero_contact_id="c-new", xero_tenant_id="our-tenant")
+    make_company("Also Recent Ltd", xero_contact_id="c-new-2", xero_tenant_id="our-tenant")
+    make_company("Third Recent Ltd", xero_contact_id="c-new-3", xero_tenant_id="our-tenant")
     prospect = make_company("Prospect Ltd")
     companies_before = Company.objects.count()
 
