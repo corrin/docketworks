@@ -89,6 +89,37 @@ export const RATE_OPTIONS = [
   { label: '2.0', multiplier: 2 },
 ] as const
 
+type RateOption = { label: string; multiplier: number }
+
+/**
+ * The rates the select offers for an entry: the three standard ones, plus the
+ * entry's stored rate when it is none of them (set from the office grid), so
+ * the stored rate stays selectable for as long as the drawer is open.
+ */
+export function rateOptionsFor(storedMultiplier: number | null): readonly RateOption[] {
+  if (
+    storedMultiplier === null ||
+    RATE_OPTIONS.some((option) => option.multiplier === storedMultiplier)
+  ) {
+    return RATE_OPTIONS
+  }
+  return [...RATE_OPTIONS, { label: rateLabel(storedMultiplier), multiplier: storedMultiplier }]
+}
+
+/**
+ * The job the drawer is booking against. The job the picker handed over is
+ * used as it is: a job found through the picker's whole-table search is not
+ * in the loaded list, and looking it up there would lose it.
+ */
+export function resolveSelectedJob<T extends { id: string }>(
+  picked: T | null,
+  listed: readonly T[],
+  jobId: string | null,
+): T | null {
+  if (picked !== null && picked.id === jobId) return picked
+  return listed.find((job) => job.id === jobId) ?? null
+}
+
 /** What the drawer's rate select and billable tick hold. */
 export interface EntryBillingValues {
   /** The tick as the user set it; null while they have not touched it. */
@@ -203,9 +234,22 @@ function requireMinutes(value: string): number {
   return minutes
 }
 
+/**
+ * A range that is always at least a minute long and inside the day. An end
+ * past midnight stops at 23:59; when that leaves nothing after the start (a
+ * 23:59 start), the start is pulled back a minute instead — a zero-length
+ * entry cannot be saved, and no chip could then mend it.
+ */
+function bookableRange(startMinutes: number, endMinutes: number): TimeRange {
+  const end = Math.min(endMinutes, LAST_MINUTE_OF_DAY)
+  const start = Math.min(startMinutes, end - 1)
+  return { start: timeOfDay(start), end: timeOfDay(end) }
+}
+
 /** One default slot starting at `start`. */
 export function slotFrom(start: string): TimeRange {
-  return { start, end: timeOfDay(requireMinutes(start) + DEFAULT_SLOT_MINUTES) }
+  const startMinutes = requireMinutes(start)
+  return bookableRange(startMinutes, startMinutes + DEFAULT_SLOT_MINUTES)
 }
 
 /**
@@ -246,7 +290,7 @@ export function slotFromNow(now: Date): TimeRange {
 export function adjustEnd(range: TimeRange, deltaMinutes: number): TimeRange {
   const start = requireMinutes(range.start)
   const moved = requireMinutes(range.end) + deltaMinutes
-  return { start: range.start, end: timeOfDay(moved > start ? moved : start + 1) }
+  return bookableRange(start, moved > start ? moved : start + 1)
 }
 
 /**
@@ -258,10 +302,10 @@ export function fillGapToNextEntry(start: string, entries: WorkshopTimesheetEntr
   const laterStarts = splitDayEntries(entries)
     .timed.map((entry) => requireMinutes(entry.start_time))
     .filter((minutes) => minutes > from)
-  return {
-    start,
-    end: timeOfDay(laterStarts.length === 0 ? LAST_MINUTE_OF_DAY : Math.min(...laterStarts)),
-  }
+  return bookableRange(
+    from,
+    laterStarts.length === 0 ? LAST_MINUTE_OF_DAY : Math.min(...laterStarts),
+  )
 }
 
 /** What the drawer's form holds when the user submits an edit. */

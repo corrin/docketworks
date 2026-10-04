@@ -16,6 +16,8 @@ import {
   jobChangeFields,
   lastUsedJobId,
   rateLabel,
+  rateOptionsFor,
+  resolveSelectedJob,
   shownBillable,
   slotFrom,
   slotFromNow,
@@ -205,9 +207,58 @@ describe('rateLabel', () => {
   })
 })
 
+describe('resolveSelectedJob', () => {
+  const listed = [{ id: 'j1' }, { id: 'j2' }]
+
+  it('is the job the picker handed over, also when the list does not hold it', () => {
+    // A job found through the whole-table search (an archived one) is not in
+    // the loaded list; looking it up there left a new entry unbookable.
+    const searched = { id: 'archived', shop_job: false, status: 'archived' }
+
+    expect(resolveSelectedJob(searched, listed, 'archived')).toBe(searched)
+  })
+
+  it('is looked up in the list when nothing was picked, or the pick is stale', () => {
+    expect(resolveSelectedJob(null, listed, 'j2')).toBe(listed[1])
+    expect(resolveSelectedJob({ id: 'archived' }, listed, 'j1')).toBe(listed[0])
+    expect(resolveSelectedJob(null, listed, 'gone')).toBeNull()
+  })
+
+  it("a searched shop job's own flags decide billability", () => {
+    const searchedShop = { id: 'shop-archived', shop_job: true, status: 'archived' }
+
+    expect(
+      shownBillable({
+        entry: null,
+        sourceJob: null,
+        selectedJob: resolveSelectedJob(searchedShop, [], 'shop-archived'),
+        billableChoice: null,
+      }),
+    ).toBe(false)
+  })
+})
+
+describe('rateOptionsFor', () => {
+  it('offers the three standard rates', () => {
+    expect(rateOptionsFor(null).map((option) => option.label)).toEqual(['Ord', '1.5', '2.0'])
+    expect(rateOptionsFor(1.5)).toHaveLength(3)
+  })
+
+  it("keeps an entry's non-standard stored rate on offer whatever is selected now", () => {
+    // Built from the stored rate, not the select's current value: otherwise
+    // the option vanished the moment the user tried another rate.
+    expect(rateOptionsFor(1.25).map((option) => option.multiplier)).toEqual([1, 1.5, 2, 1.25])
+    expect(rateOptionsFor(1.25).at(-1)?.label).toBe('1.25x')
+  })
+})
+
 describe('slotFrom', () => {
   it('opens a half-hour slot', () => {
     expect(slotFrom('08:00')).toEqual({ start: '08:00', end: '08:30' })
+  })
+
+  it('pulls a 23:59 start back so the slot is still a minute long', () => {
+    expect(slotFrom('23:59')).toEqual({ start: '23:58', end: '23:59' })
   })
 
   it('stops at the last minute of the day', () => {
@@ -235,6 +286,15 @@ describe('defaultNewEntryRange', () => {
 
   it('starts at the working-day start on an empty day', () => {
     expect(defaultNewEntryRange([], '07:30', null)).toEqual({ start: '07:30', end: '08:00' })
+  })
+
+  it('still opens a bookable range after an entry that runs to the end of the day', () => {
+    const toMidnight = makeEntry({ id: 'c', start_time: '22:00:00', end_time: '23:59:00' })
+
+    expect(defaultNewEntryRange([toMidnight], '07:30', null)).toEqual({
+      start: '23:58',
+      end: '23:59',
+    })
   })
 
   it('ignores untimed entries, which have no finish', () => {
@@ -288,6 +348,10 @@ describe('adjustEnd', () => {
       end: '23:59',
     })
   })
+
+  it('mends a zero-length range at the end of the day', () => {
+    expect(adjustEnd({ start: '23:59', end: '23:59' }, 5)).toEqual({ start: '23:58', end: '23:59' })
+  })
 })
 
 describe('fillGapToNextEntry', () => {
@@ -300,6 +364,10 @@ describe('fillGapToNextEntry', () => {
       start: '09:00',
       end: '13:00',
     })
+  })
+
+  it('is still a minute long from a 23:59 start', () => {
+    expect(fillGapToNextEntry('23:59', [morning])).toEqual({ start: '23:58', end: '23:59' })
   })
 
   it('runs to the end of the day when nothing follows', () => {

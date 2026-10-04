@@ -31,8 +31,8 @@ import {
   entryUpdateBody,
   fillGapToNextEntry,
   lastUsedJobId,
-  RATE_OPTIONS,
-  rateLabel,
+  rateOptionsFor,
+  resolveSelectedJob,
   shownBillable,
   slotFrom,
   slotFromNow,
@@ -171,15 +171,14 @@ function WorkshopEntryForm({
 
   const jobsQuery = useQuery(timesheetsJobsRetrieveOptions())
   const jobs = useMemo<TimesheetJobOut[]>(() => jobsQuery.data?.jobs ?? [], [jobsQuery.data])
-  const selected = jobs.find((job) => job.id === jobId) ?? null
+  // The job as the picker handed it over: one found through its whole-table
+  // search is not in `jobs`.
+  const [pickedJob, setPickedJob] = useState<TimesheetJobOut | null>(null)
+  const selected = resolveSelectedJob(pickedJob, jobs, jobId)
   const sourceJob = entry === null ? null : (jobs.find((job) => job.id === entry.job_id) ?? null)
   const canBill = selected === null || billsItsTime(selected)
   const billable = shownBillable({ entry, sourceJob, selectedJob: selected, billableChoice })
-  // A stored rate outside the three offered (set from the office grid) stays
-  // selectable, so opening the entry does not silently change it.
-  const rateOptions = RATE_OPTIONS.some((option) => option.multiplier === rateMultiplier)
-    ? RATE_OPTIONS
-    : [...RATE_OPTIONS, { label: rateLabel(rateMultiplier), multiplier: rateMultiplier }]
+  const rateOptions = rateOptionsFor(entry === null ? null : entry.wage_rate_multiplier)
   const otherEntries = dayEntries.filter((other) => other.id !== entry?.id)
 
   const hours = deriveHoursFromTimes(start, end)
@@ -192,8 +191,9 @@ function WorkshopEntryForm({
     entry.end_time === null &&
     start === '' &&
     end === ''
-  // A new entry needs a job the list offers: the defaulted last-used job may
-  // have been archived since, and its billability is not known until it loads.
+  // A new entry needs a job the drawer actually holds: the defaulted last-used
+  // job may have been archived since, and its billability is not known until
+  // the list loads. A job the user picked is always held.
   const jobChosen = entry === null ? selected !== null : jobId !== null
   const canSubmit = jobChosen && !saving && (hours !== null || untimedEdit)
 
@@ -273,7 +273,10 @@ function WorkshopEntryForm({
               typedSearchLimit={null}
               commitOnTab={false}
               searchOptions={timesheetJobSearchOptions}
-              onSelect={(job) => setJobId(job.id)}
+              onSelect={(job) => {
+                setJobId(job.id)
+                setPickedJob(job)
+              }}
             />
           </div>
         </div>
