@@ -25,9 +25,17 @@ const IOS_NO_ZOOM_FONT_PX = 16
 
 const readerOutput = z.object({ link: z.string().nullable() })
 
+/** Everything the spec needs before it can read the reset email, in one place
+    so every way of failing to read it names the same fix. */
+const MAILBOX_REQUIREMENTS =
+  "Set E2E_RESET_MAILBOX_OWNER in frontend/.env.test (or the instance's e2e.env) to the " +
+  'Workspace user whose mailbox receives E2E_WORKSHOP_USERNAME; check GCP_CREDENTIALS; and ' +
+  "check that the Workspace's domain-wide delegation grants " +
+  'https://www.googleapis.com/auth/gmail.readonly.'
+
 function mailboxOwner(): string {
   const owner = process.env.E2E_RESET_MAILBOX_OWNER
-  if (!owner) throw new Error('E2E_RESET_MAILBOX_OWNER must be set in .env.test')
+  if (!owner) throw new Error(`E2E_RESET_MAILBOX_OWNER is not set. ${MAILBOX_REQUIREMENTS}`)
   return owner
 }
 
@@ -74,16 +82,15 @@ test.describe('workshop password reset on a phone', () => {
   // spec reads mail, so only a run that includes it depends on the mailbox.
   test.beforeAll(() => {
     const { username } = e2eCredentials('workshop')
+    // Resolved outside the try: an unset owner already says everything, and
+    // inside it the catch would have nothing to name.
+    const owner = mailboxOwner()
     try {
       latestResetLink(username, new Date().toISOString())
     } catch (error) {
-      throw new Error(
-        `The reset mailbox ${mailboxOwner()} could not be read. Check GCP_CREDENTIALS, that the ` +
-          "Workspace's domain-wide delegation grants " +
-          'https://www.googleapis.com/auth/gmail.readonly, and that E2E_RESET_MAILBOX_OWNER is a ' +
-          'user in that Workspace whose mailbox receives E2E_WORKSHOP_USERNAME.',
-        { cause: error },
-      )
+      throw new Error(`The reset mailbox ${owner} could not be read. ${MAILBOX_REQUIREMENTS}`, {
+        cause: error,
+      })
     }
   })
 
