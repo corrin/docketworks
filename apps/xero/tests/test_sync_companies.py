@@ -31,7 +31,9 @@ class TestSyncCompaniesLinking:
             name="Steel Supplies Ltd", xero_last_modified=timezone.now()
         )
 
-        result = sync_companies([make_xero_contact("contact-link-1", "Steel Supplies Ltd")])
+        result = sync_companies(
+            [make_xero_contact("contact-link-1", "Steel Supplies Ltd")], tenant_id=TEST_TENANT_ID
+        )
 
         assert len(result) == 1
         assert result[0].id == existing.id
@@ -41,7 +43,9 @@ class TestSyncCompaniesLinking:
         assert Company.objects.filter(name="Steel Supplies Ltd").count() == 1
 
     def test_creates_company_when_name_unknown(self) -> None:
-        result = sync_companies([make_xero_contact("contact-new-9", "Brand New Co")])
+        result = sync_companies(
+            [make_xero_contact("contact-new-9", "Brand New Co")], tenant_id=TEST_TENANT_ID
+        )
 
         assert len(result) == 1
         company = result[0]
@@ -60,7 +64,7 @@ class TestSyncCompaniesLinking:
         nameless = make_xero_contact("contact-nameless-1", "")
 
         with pytest.raises(ValueError, match="no name"):
-            sync_companies([nameless])
+            sync_companies([nameless], tenant_id=TEST_TENANT_ID)
 
         stranded = Company.objects.get(xero_contact_id="contact-nameless-1")
         assert stranded.xero_tenant_id == TEST_TENANT_ID
@@ -76,7 +80,8 @@ class TestSyncCompaniesLinking:
         )
 
         result = sync_companies(
-            [make_xero_contact("contact-linked-1", "Linked Ltd", status="ARCHIVED")]
+            [make_xero_contact("contact-linked-1", "Linked Ltd", status="ARCHIVED")],
+            tenant_id=TEST_TENANT_ID,
         )
 
         assert len(result) == 1
@@ -113,7 +118,7 @@ class TestArchivedNameCollisions:
             merged_to=self.ACTIVE_XERO_ID,
         )
 
-        result = sync_companies([archived_contact])
+        result = sync_companies([archived_contact], tenant_id=TEST_TENANT_ID)
 
         assert len(result) == 1
         new_client = result[0]
@@ -135,7 +140,7 @@ class TestArchivedNameCollisions:
         )
 
         with pytest.raises(ValueError, match=self.ACTIVE_XERO_ID):
-            sync_companies([conflicting])
+            sync_companies([conflicting], tenant_id=TEST_TENANT_ID)
 
 
 @pytest.mark.django_db
@@ -162,7 +167,7 @@ class TestMergeResolution:
         with patch(
             "apps.company.services.company_merge_service.reassign_company_fk_records"
         ) as reassign:
-            result = sync_companies([loser_contact])
+            result = sync_companies([loser_contact], tenant_id=TEST_TENANT_ID)
 
         loser = result[0]
         loser.refresh_from_db()
@@ -185,7 +190,7 @@ class TestMergeResolution:
         with patch(
             "apps.company.services.company_merge_service.reassign_company_fk_records"
         ) as reassign:
-            result = sync_companies([loser_contact])
+            result = sync_companies([loser_contact], tenant_id=TEST_TENANT_ID)
 
         # Winner not synced yet: the merge is deferred, not dropped — the
         # xero_merged_into_id marker stays so the next sync can resolve it.
@@ -205,7 +210,7 @@ class TestMergeResolution:
         with patch(
             "apps.company.services.company_merge_service.reassign_company_fk_records"
         ) as reassign:
-            sync_companies([loser_contact])
+            sync_companies([loser_contact], tenant_id=TEST_TENANT_ID)
 
         loser.refresh_from_db()
         assert loser.merged_into_id == winner.id
@@ -228,14 +233,14 @@ class TestAllowJobsTransitions:
             ),
         )
 
-        set_company_fields(company)
+        set_company_fields(company, tenant_id=TEST_TENANT_ID)
         assert company.xero_archived
         assert not company.allow_jobs
 
         company.raw_json = make_contact_raw_json(
             "contact-t1", "Archive Roundtrip Ltd", status="ACTIVE"
         )
-        set_company_fields(company)
+        set_company_fields(company, tenant_id=TEST_TENANT_ID)
 
         assert not company.xero_archived
         assert company.allow_jobs
@@ -258,7 +263,9 @@ class TestAllowJobsTransitions:
             raw_json=make_contact_raw_json("contact-batch-1", "Batch Unarchive Ltd"),
         )
 
-        sync_companies([make_xero_contact("contact-batch-1", "Batch Unarchive Ltd")])
+        sync_companies(
+            [make_xero_contact("contact-batch-1", "Batch Unarchive Ltd")], tenant_id=TEST_TENANT_ID
+        )
 
         company.refresh_from_db()
         assert not company.xero_archived
@@ -275,7 +282,7 @@ class TestAllowJobsTransitions:
             raw_json=make_contact_raw_json("contact-t2", "Blocked But Active Ltd"),
         )
 
-        set_company_fields(company)
+        set_company_fields(company, tenant_id=TEST_TENANT_ID)
 
         assert not company.xero_archived
         assert not company.allow_jobs
@@ -293,7 +300,7 @@ class TestAllowJobsTransitions:
             raw_json=make_contact_raw_json("contact-t3", "Tombstone Loser", status="ACTIVE"),
         )
 
-        set_company_fields(loser)
+        set_company_fields(loser, tenant_id=TEST_TENANT_ID)
 
         assert not loser.xero_archived
         assert not loser.allow_jobs

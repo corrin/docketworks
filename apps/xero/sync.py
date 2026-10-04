@@ -411,7 +411,7 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "contacts",
         Company,
         "get_contacts",
-        lambda items, _tenant_id: sync_companies(items),
+        lambda items, tenant_id: sync_companies(items, tenant_id=tenant_id),
         {"include_archived": True},
         "page",
     ),

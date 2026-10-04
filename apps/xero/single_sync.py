@@ -59,7 +59,7 @@ def sync_single_contact(tenant_id: str, contact_id: str) -> None:
         },
     )
 
-    set_company_fields(company, new_from_xero=created)
+    set_company_fields(company, new_from_xero=created, tenant_id=tenant_id)
 
     # Merge resolution shares the batch path's implementation (ADR 0039).
     resolve_pending_merge(company, logger_prefix="[webhook] ")

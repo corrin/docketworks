@@ -19,17 +19,6 @@ from apps.xero.transforms import transform_pay_run
 pytestmark = pytest.mark.django_db
 
 
-@pytest.fixture(autouse=True)
-def _tenant(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Stamp a tenant without a Xero token.
-
-    Opus: Patched where the transform BOUND the name, not where it is defined:
-    ``get_tenant_id`` resolves a live token before it reads CompanyDefaults, and
-    this test has no business holding one.
-    """
-    monkeypatch.setattr("apps.xero.transforms.get_tenant_id", lambda: "sync-status-tenant")
-
-
 #: Opus: Fixed, so two calls differ only where a test means them to.
 CALENDAR_ID = uuid.UUID("55555555-5555-5555-5555-555555555555")
 

@@ -176,7 +176,6 @@ class TestPaySlipsCarryTheRunsTenant:
         )
         slip_id = uuid.uuid4()
 
-        with patch("apps.xero.transforms.get_tenant_id", return_value=FOREIGN):
-            _run_entity("pay_slips", [_xero_pay_slip(slip_id, pay_run_id)], tenant_id=OURS)
+        _run_entity("pay_slips", [_xero_pay_slip(slip_id, pay_run_id)], tenant_id=OURS)
 
         assert XeroPaySlip.objects.get(xero_id=slip_id).xero_tenant_id == OURS

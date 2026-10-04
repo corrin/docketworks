@@ -32,7 +32,7 @@ from apps.purchasing.services.accounting_mirror import is_locally_raised
 from apps.purchasing.services.allocation_service import recompute_purchase_order_status
 from apps.purchasing.services.purchase_order_service import validate_ordered_quantity
 from apps.purchasing.tasks import enqueue_stock_metadata_parse, stock_metadata_parse_eligible
-from apps.xero.auth import get_api_client, get_tenant_id
+from apps.xero.auth import get_api_client
 from apps.xero.constants import SLEEP_TIME
 from apps.xero.models import XeroAccount, XeroError, XeroPayRun, XeroPaySlip
 from apps.xero.raw_fields import set_company_fields, set_invoice_or_bill_fields
@@ -150,28 +150,32 @@ def process_xero_data(xero_obj: Any) -> Any:
     return clean_json(serialize_xero_object(xero_obj))
 
 
-def get_or_fetch_company(contact_id: str, reference: str | None = None) -> Company:
+def get_or_fetch_company(
+    contact_id: str, reference: str | None = None, *, tenant_id: str
+) -> Company:
     """Get company by Xero contact_id, fetching from the API if needed."""
     company = Company.objects.filter(xero_contact_id=contact_id).first()
     if company:
         return company.get_final_company()
 
     response = AccountingApi(get_api_client()).get_contacts(
-        get_tenant_id(), i_ds=[contact_id], include_archived=True
+        tenant_id, i_ds=[contact_id], include_archived=True
     )
     time.sleep(SLEEP_TIME)
 
     if not response.contacts:
         raise ValueError(f"Company not found for {reference or contact_id}")
 
-    synced = sync_companies([response.contacts[0]])
+    synced = sync_companies([response.contacts[0]], tenant_id=tenant_id)
     if not synced:
         raise ValueError(f"Failed to sync company for {reference or contact_id}")
 
     return synced[0].get_final_company()
 
 
-def sync_company_from_xero_contact(contact: Any, reference: str | None = None) -> Company:
+def sync_company_from_xero_contact(
+    contact: Any, reference: str | None = None, *, tenant_id: str
+) -> Company:
     """Resolve a local company from embedded Xero contact data.
 
     Use embedded contact payloads from parent Xero documents first. Only the
@@ -186,14 +190,16 @@ def sync_company_from_xero_contact(contact: Any, reference: str | None = None) -
     if company:
         return company.get_final_company()
 
-    synced = sync_companies([contact])
+    synced = sync_companies([contact], tenant_id=tenant_id)
     if not synced:
         raise ValueError(f"Failed to sync company for {reference or contact_id}")
 
     return synced[0].get_final_company()
 
 
-def resolve_company_from_xero_contact(contact: Any, reference: str | None = None) -> Company:
+def resolve_company_from_xero_contact(
+    contact: Any, reference: str | None = None, *, tenant_id: str
+) -> Company:
     """Resolve a company from embedded contact data, GET only if it is absent."""
     if contact is None:
         raise ValueError(f"Company not found for {reference or 'missing contact'}")
@@ -206,9 +212,9 @@ def resolve_company_from_xero_contact(contact: Any, reference: str | None = None
     # anything richer is worth syncing from directly, saving the GET.
     contact_attrs = getattr(contact, "__dict__", None) or {}
     if len(contact_attrs) > 1:
-        return sync_company_from_xero_contact(contact, reference)
+        return sync_company_from_xero_contact(contact, reference, tenant_id=tenant_id)
 
-    return get_or_fetch_company(contact_id, reference)
+    return get_or_fetch_company(contact_id, reference, tenant_id=tenant_id)
 
 
 class XeroTransform(Protocol):
@@ -314,7 +320,9 @@ def _extract_required_fields_xero(
     gives.
     """
     number = _resolve_document_number(doc_type, xero_obj)
-    company = resolve_company_from_xero_contact(getattr(xero_obj, "contact", None), number)
+    company = resolve_company_from_xero_contact(
+        getattr(xero_obj, "contact", None), number, tenant_id=tenant_id
+    )
     doc_date = getattr(xero_obj, "date", None)
     total_excl_tax = getattr(xero_obj, "sub_total", None)
     tax = getattr(xero_obj, "total_tax", None)
@@ -575,7 +583,7 @@ def transform_stock(  # noqa: C901, PLR0912 -- ported v1 shape; each branch is o
 def transform_quote(xero_quote: Any, xero_id: UUID | str, *, tenant_id: str) -> tuple[Quote, str]:
     """Convert a Xero quote into a Quote instance."""
     company = resolve_company_from_xero_contact(
-        getattr(xero_quote, "contact", None), f"quote {xero_id}"
+        getattr(xero_quote, "contact", None), f"quote {xero_id}", tenant_id=tenant_id
     )
     raw_json = process_xero_data(xero_quote)
 
@@ -732,7 +740,7 @@ def transform_purchase_order(
     map_status = _map_po_status
 
     supplier = resolve_company_from_xero_contact(
-        getattr(xero_po, "contact", None), xero_po.purchase_order_number
+        getattr(xero_po, "contact", None), xero_po.purchase_order_number, tenant_id=tenant_id
     )
 
     po_number = getattr(xero_po, "purchase_order_number", None)
@@ -1021,15 +1029,16 @@ def resolve_pending_merge(company: Company, logger_prefix: str) -> None:
         )
 
 
-def sync_companies(
-    xero_contacts: Iterable[Any],
-) -> list[Company]:
-    """Sync Xero contacts to the Company model (name-link, archive, merge rules)."""
+def sync_companies(xero_contacts: Iterable[Any], *, tenant_id: str) -> list[Company]:
+    """Sync Xero contacts to the Company model (name-link, archive, merge rules).
+
+    ``tenant_id`` is the organisation the contacts were fetched from, the
+    caller's, for the reason ``transform_pay_run`` gives. It is stored in the
+    same write as the contact id on every branch below: a contact id with no
+    tenant cannot be attributed to an organisation, and the schema refuses one
+    (company_xero_contact_id_has_tenant).
+    """
     companies: list[Company] = []
-    # Stored in the same write as the contact id, on every branch below: a
-    # contact id with no tenant cannot be attributed to an organisation, and
-    # the schema refuses one (company_xero_contact_id_has_tenant).
-    tenant_id = get_tenant_id()
 
     for contact in xero_contacts:
         raw_json = process_xero_data(contact)
@@ -1129,7 +1138,7 @@ def sync_companies(
                 )
                 created = True
 
-        set_company_fields(company, new_from_xero=created)
+        set_company_fields(company, new_from_xero=created, tenant_id=tenant_id)
         companies.append(company)
 
     # Resolve merges and move stranded FK records onto the terminal company.
