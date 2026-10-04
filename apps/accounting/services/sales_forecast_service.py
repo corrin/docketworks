@@ -11,7 +11,7 @@ from datetime import date
 from decimal import Decimal
 from typing import TypedDict
 
-from django.db.models import Q, Sum
+from django.db.models import Q, QuerySet, Sum
 
 from apps.accounting.models import Invoice
 from apps.job.models import Job
@@ -122,15 +122,33 @@ def _xero_sales_by_month() -> dict[str, Decimal]:
     return dict(sales)
 
 
+def _job_revenue_by_month(lines: QuerySet[CostLine]) -> dict[str, dict[str, Decimal]]:
+    """Each month's actual revenue per job, keeping only jobs whose month is non-zero.
+
+    The one statement of what the report counts as job revenue in a month. The
+    month list and the month detail both read it, so a month is listed exactly
+    when its detail has a job to show. They used to filter separately: the
+    list took any month holding an actual line, the detail dropped jobs that
+    summed to zero, and a month of nothing but zero-revenue time (leave booked
+    ahead on the Annual Leave job) was listed at $0.00 and opened empty.
+    """
+    revenue: dict[str, dict[str, Decimal]] = defaultdict(lambda: defaultdict(lambda: Decimal("0")))
+    for line in lines.select_related("cost_set__job"):
+        month_key = line.accounting_date.strftime("%Y-%m")
+        revenue[month_key][str(line.cost_set.job.id)] += line.total_rev
+    months = {
+        month_key: {job_id: total for job_id, total in by_job.items() if total != 0}
+        for month_key, by_job in revenue.items()
+    }
+    return {month_key: by_job for month_key, by_job in months.items() if by_job}
+
+
 def _jm_sales_by_month() -> dict[str, Decimal]:
-    lines = CostLine.objects.filter(
-        cost_set__kind="actual",
-        accounting_date__isnull=False,
-    )
-    sales: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
-    for line in lines:
-        sales[line.accounting_date.strftime("%Y-%m")] += line.total_rev
-    return dict(sales)
+    lines = CostLine.objects.filter(cost_set__kind="actual", accounting_date__isnull=False)
+    return {
+        month_key: sum(by_job.values(), Decimal("0"))
+        for month_key, by_job in _job_revenue_by_month(lines).items()
+    }
 
 
 def _jobs_with_revenue(year: int, month: int) -> dict[str, Decimal]:
@@ -139,11 +157,8 @@ def _jobs_with_revenue(year: int, month: int) -> dict[str, Decimal]:
         cost_set__kind="actual",
         accounting_date__year=year,
         accounting_date__month=month,
-    ).select_related("cost_set__job")
-    revenue: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
-    for line in lines:
-        revenue[str(line.cost_set.job.id)] += line.total_rev
-    return {job_id: total for job_id, total in revenue.items() if total != 0}
+    )
+    return _job_revenue_by_month(lines).get(f"{year:04d}-{month:02d}", {})
 
 
 def _total_invoiced_for_job(job: Job) -> float:
