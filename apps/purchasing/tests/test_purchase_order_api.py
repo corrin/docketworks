@@ -542,7 +542,7 @@ class TestPurchaseOrderConcurrency:
 
 
 class TestPurchaseOrderUpdate:
-    def test_a_two_digit_year_in_expected_delivery_is_refused(
+    def test_a_two_digit_year_in_an_order_s_dates_is_refused(
         self, api: Client, supplier: Company
     ) -> None:
         # "25" typed for the year is stored as the year 0025. Five production
@@ -561,9 +561,18 @@ class TestPurchaseOrderUpdate:
             headers={"If-Match": _current_etag(api, po)},
         )
 
+        ordered = api.post(
+            PO_LIST_URL,
+            data={"supplier_id": str(supplier.id), "order_date": "0025-08-14"},
+            content_type="application/json",
+        )
+
         assert created.status_code == 400, created.content
-        assert "four digits" in created.json()["detail"]
+        assert "Expected delivery 0025-08-20" in created.json()["detail"]
         assert edited.status_code == 400, edited.content
+        # The order date becomes Xero's Date and is refused for the same reason.
+        assert ordered.status_code == 400, ordered.content
+        assert "Order date 0025-08-14" in ordered.json()["detail"]
         po.refresh_from_db()
         assert po.expected_delivery is None or po.expected_delivery.year >= 2000
 
