@@ -6,7 +6,7 @@ from datetime import date
 from decimal import Decimal
 from operator import itemgetter
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NotRequired, TypedDict
 from uuid import UUID, uuid4
 
 from xero_python.accounting import (
@@ -78,6 +78,44 @@ def _slip_name(slip: "PaySlip") -> str | None:
     """Xero's denormalised name for the slip's employee, or None if it holds neither part."""
     parts = [part for part in (slip.first_name, slip.last_name) if part]
     return " ".join(parts) if parts else None
+
+
+class PurchaseOrderContactBody(TypedDict):
+    """The supplier as a purchase order names it on the wire."""
+
+    ContactID: str
+    Name: str
+    HasAttachments: bool
+    HasValidationErrors: bool
+
+
+class PurchaseOrderLineBody(TypedDict):
+    """One purchase order line on the wire; a free-text line carries no ItemCode."""
+
+    Description: str
+    Quantity: float
+    UnitAmount: float
+    AccountCode: str
+    ItemCode: NotRequired[str]
+
+
+class PurchaseOrderBody(TypedDict):
+    """One purchase order as Xero's upsert route takes it.
+
+    The keys the SDK model serialises to once None values are stripped, read
+    off the request the restore seed sent on 2026-10-04. PurchaseOrderID is
+    present for an update and absent for a create.
+    """
+
+    PurchaseOrderNumber: str
+    Contact: PurchaseOrderContactBody
+    LineItems: list[PurchaseOrderLineBody]
+    Date: str
+    Status: str
+    HasAttachments: bool
+    PurchaseOrderID: NotRequired[str]
+    DeliveryDate: NotRequired[str]
+    Reference: NotRequired[str]
 
 
 class XeroAccountingProvider:
@@ -446,7 +484,7 @@ class XeroAccountingProvider:
     # --- Purchase orders ---
 
     @classmethod
-    def purchase_order_body(cls, payload: POPayload) -> dict[str, Any]:
+    def purchase_order_body(cls, payload: POPayload) -> PurchaseOrderBody:
         """One purchase order as Xero's upsert route takes it.
 
         Public because the restore seed sends the same body fifty to a call
@@ -466,7 +504,7 @@ class XeroAccountingProvider:
             po_kwargs["delivery_date"] = payload.delivery_date.isoformat()
         if payload.reference:
             po_kwargs["reference"] = payload.reference
-        body: dict[str, Any] = cls._to_xero_payload(PurchaseOrder(**po_kwargs))
+        body: PurchaseOrderBody = cls._to_xero_payload(PurchaseOrder(**po_kwargs))
         return body
 
     def _create_or_update_purchase_order(self, payload: POPayload) -> DocumentResult:

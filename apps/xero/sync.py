@@ -358,18 +358,18 @@ def _sync_employee_items(
     sync_employees(snapshots, detail_refresh_tenant_id=_tenant_id if refresh_details else None)
 
 
-class _TenantTransform(Protocol):
+class _TenantTransform[TPayload](Protocol):
     """A document transform: the payload, its Xero id, and the organisation it came from."""
 
     def __call__(
-        self, xero_obj: Any, xero_id: UUID | str, /, *, tenant_id: str
+        self, xero_obj: TPayload, xero_id: UUID | str, /, *, tenant_id: str
     ) -> tuple[models.Model, str] | None:
         """Return the persisted instance and its sync status, or None to skip."""
         ...
 
 
-def _persist_documents(
-    model: type[models.Model], xero_id_attr: str, transform: _TenantTransform
+def _persist_documents[TPayload](
+    model: type[models.Model], xero_id_attr: str, transform: _TenantTransform[TPayload]
 ) -> EntityPersist:
     """Persist one entity's documents, each recorded against the run's tenant.
 
@@ -378,8 +378,8 @@ def _persist_documents(
     and purchase orders with a Xero id and no organisation.
     """
 
-    def persist(items: list[Any], tenant_id: str) -> int:
-        def bound(xero_obj: Any, xero_id: UUID | str, /) -> tuple[models.Model, str] | None:
+    def persist(items: list[TPayload], tenant_id: str) -> int:
+        def bound(xero_obj: TPayload, xero_id: UUID | str, /) -> tuple[models.Model, str] | None:
             return transform(xero_obj, xero_id, tenant_id=tenant_id)
 
         return sync_entities(items, model, xero_id_attr, bound)

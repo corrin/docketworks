@@ -14,7 +14,7 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 120,296 (v1 172,577, -30%) |
+| code | 120,326 (v1 172,577, -30%) |
 | tests | 85,340 (v1 50,869, +68%) |
 | generated | 52,063 (v1 20,359, +156%) |
 
@@ -124,7 +124,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 
 | metric | count |
 |---|---:|
-| Any annotations | 254 |
+| Any annotations | 240 |
 | object annotations | 685 |
 
 ## Wire contract (response side)

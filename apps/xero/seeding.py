@@ -49,6 +49,7 @@ from django.db.models import Exists, OuterRef, Q, QuerySet
 from xero_python.accounting import AccountingApi, LineItem
 from xero_python.accounting import Contact as XeroContact
 from xero_python.accounting import Invoice as XeroInvoice
+from xero_python.accounting import PurchaseOrder as XeroPurchaseOrder
 from xero_python.accounting import Quote as XeroQuote
 
 from apps.accounting.models import Invoice, Quote
@@ -68,7 +69,7 @@ from apps.xero.models import XeroAccount, XeroPayItem, XeroSyncCursor
 from apps.xero.operator_guards import assert_not_production_target, assert_xero_writes_enabled
 from apps.xero.payroll_employees import ensure_employee_leave_types, missing_employee_leave_types
 from apps.xero.payroll_sync import pay_items_needing_relink, sync_xero_pay_items
-from apps.xero.provider import XeroAccountingProvider
+from apps.xero.provider import PurchaseOrderBody, XeroAccountingProvider
 from apps.xero.stock_sync import stock_pending_sync, sync_all_local_stock_to_xero
 from apps.xero.sync import iter_xero_entities
 from apps.xero.transforms import process_xero_data
@@ -463,8 +464,8 @@ def _job_description(job: Job) -> str:
     return description
 
 
-def _numbered_documents[TDocument: (Invoice, Quote, PurchaseOrder)](
-    kind: "_DocumentKind[TDocument]",
+def _numbered_documents[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote](
+    kind: "_DocumentKind[TDocument, TPayload, TRemote]",
     documents: Sequence[TDocument],
 ) -> list[tuple[str, TDocument]]:
     """Pair each document with its number, refusing any that lack one.
@@ -586,7 +587,7 @@ def _quote_payloads(quotes: Sequence[Quote]) -> list[dict[str, Any]]:
     return [_build_quote_payload(quote, account_code) for quote in quotes]
 
 
-def _purchase_order_payloads(orders: Sequence[PurchaseOrder]) -> list[dict[str, Any]]:
+def _purchase_order_payloads(orders: Sequence[PurchaseOrder]) -> list[PurchaseOrderBody]:
     """Build the body a push would send for each order, in its current status."""
     staff = Staff.get_automation_user()
     return [
@@ -612,8 +613,8 @@ def _create_quotes_in_xero(
 
 
 def _create_purchase_orders_in_xero(
-    accounting_api: AccountingApi, tenant_id: str, payloads: list[dict[str, Any]]
-) -> list[Any] | None:
+    accounting_api: AccountingApi, tenant_id: str, payloads: list[PurchaseOrderBody]
+) -> list[XeroPurchaseOrder] | None:
     """Send one purchase order batch; return the orders Xero echoed back.
 
     Sent as a push sends one order, ``summarize_errors=False``, which is the
@@ -685,7 +686,7 @@ def _supplier(order: PurchaseOrder) -> Company:
     return order.supplier
 
 
-def _claimable_purchase_order_number(order: Any) -> str | None:
+def _claimable_purchase_order_number(order: XeroPurchaseOrder) -> str | None:
     """Return a Xero order's number, unless the order is deleted.
 
     A deleted order keeps its number for good, and Xero lists it. Linking a
@@ -695,12 +696,11 @@ def _claimable_purchase_order_number(order: Any) -> str | None:
     """
     if order.status == "DELETED":
         return None
-    number: str | None = order.purchase_order_number
-    return number
+    return order.purchase_order_number
 
 
 @dataclass(frozen=True)
-class _DocumentKind[TDocument: (Invoice, Quote, PurchaseOrder)]:
+class _DocumentKind[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote]:
     """Everything seeding invoices, quotes and purchase orders genuinely disagree on.
 
     The control flow is one implementation (``seed_documents``). It was two
@@ -709,15 +709,15 @@ class _DocumentKind[TDocument: (Invoice, Quote, PurchaseOrder)]:
     this shape removes. A boolean "is this quotes?" inside one function was
     rejected: it re-creates the two bodies inside the merged one.
 
-    ``Any`` is the SDK seam, as in ``fetch_xero_entity_lookup``: the response
-    model differs per entity and each callback immediately narrows to the one
-    field it reads.
+    ``TPayload`` is the body one document is sent as and ``TRemote`` the SDK
+    model Xero answers with; both differ per entity, so each kind names its
+    own and the shared flow only passes them between the kind's callbacks.
     """
 
     model: type[TDocument]
     entity: str
-    remote_number: Callable[[Any], str | None]
-    remote_id: Callable[[Any], str | None]
+    remote_number: Callable[[TRemote], str | None]
+    remote_id: Callable[[TRemote], str | None]
     number: Callable[[TDocument], str | None]
     #: The company the document is addressed to: the Xero contact it needs.
     contact: Callable[[TDocument], Company]
@@ -725,8 +725,8 @@ class _DocumentKind[TDocument: (Invoice, Quote, PurchaseOrder)]:
     pending: Callable[[str], list[TDocument]]
     #: Restored remnants the phase deletes instead of seeding.
     orphans: Callable[[], QuerySet[TDocument]]
-    build_payloads: Callable[[Sequence[TDocument]], list[dict[str, Any]]]
-    create: Callable[[AccountingApi, str, list[dict[str, Any]]], list[Any] | None]
+    build_payloads: Callable[[Sequence[TDocument]], list[TPayload]]
+    create: Callable[[AccountingApi, str, list[TPayload]], list[TRemote] | None]
 
     @property
     def label(self) -> str:
@@ -806,8 +806,8 @@ PURCHASE_ORDERS = _DocumentKind(
 )
 
 
-def seed_documents[TDocument: (Invoice, Quote, PurchaseOrder)](
-    kind: _DocumentKind[TDocument],
+def seed_documents[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote](
+    kind: _DocumentKind[TDocument, TPayload, TRemote],
 ) -> SeedDocumentsResult:
     """Delete orphaned documents, then link or re-create the pending ones."""
     orphans_deleted, _ = kind.orphans().delete()
@@ -862,8 +862,10 @@ def seed_documents[TDocument: (Invoice, Quote, PurchaseOrder)](
     )
 
 
-def _batch_create[TDocument: (Invoice, Quote, PurchaseOrder)](
-    kind: _DocumentKind[TDocument], documents: list[tuple[str, TDocument]], tenant_id: str
+def _batch_create[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote](
+    kind: _DocumentKind[TDocument, TPayload, TRemote],
+    documents: list[tuple[str, TDocument]],
+    tenant_id: str,
 ) -> int:
     """Create documents in Xero in batches; map the response back by number."""
     if not documents:
@@ -1191,8 +1193,8 @@ def _employees_phase(tenant_id: str, *, dry_run: bool, report: Callable[[str], N
         report(f"  employee leave eligibility: {repaired} repaired, {len(linked_staff)} ready")
 
 
-def _documents_phase[TDocument: (Invoice, Quote, PurchaseOrder)](
-    kind: _DocumentKind[TDocument],
+def _documents_phase[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote](
+    kind: _DocumentKind[TDocument, TPayload, TRemote],
     tenant_id: str,
     *,
     dry_run: bool,
