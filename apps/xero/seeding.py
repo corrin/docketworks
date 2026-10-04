@@ -37,6 +37,7 @@ to a call instead of one.
 """
 
 import logging
+import re
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
@@ -58,7 +59,6 @@ from apps.company.models import Company
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
-from apps.purchasing.services.accounting_mirror import is_locally_raised
 from apps.timesheet.services import payroll_employee_sync
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.constants import XERO_BATCH_SIZE, XERO_CONTACT_STATUSES, ZERO_UUID
@@ -172,9 +172,9 @@ def companies_needing_contacts() -> list[Company]:
     # never reaches it; left out, its orders are skipped for want of a contact
     # id on every run and the seed cannot converge.
     company_ids.update(
-        order.supplier.id
-        for order in purchase_orders_xero_holds()
-        if order.supplier is not None and not order.supplier.xero_contact_id
+        purchase_orders_xero_holds()
+        .filter(supplier__xero_contact_id__isnull=True)
+        .values_list("supplier_id", flat=True)
     )
     if not test_company.xero_contact_id:
         company_ids.add(test_company.id)
@@ -643,16 +643,16 @@ def _create_purchase_orders_in_xero(
 
 def _job_linked_unclaimed[TJobDocument: (Invoice, Quote)](
     model: type[TJobDocument], tenant_id: str
-) -> list[TJobDocument]:
+) -> QuerySet[TJobDocument]:
     """Job-linked documents the connected org has not claimed yet."""
-    return list(
+    return (
         model.objects.filter(job__isnull=False)
         .exclude(xero_tenant_id=tenant_id)
         .select_related("job", "company")
     )
 
 
-def purchase_orders_xero_holds() -> list[PurchaseOrder]:
+def purchase_orders_xero_holds() -> QuerySet[PurchaseOrder]:
     """Return the restored purchase orders production's Xero organisation holds.
 
     Owner ruling, 2026-10-04: the seed makes the connected organisation hold
@@ -669,15 +669,25 @@ def purchase_orders_xero_holds() -> list[PurchaseOrder]:
     usable_line = PurchaseOrderLine.objects.filter(
         purchase_order=OuterRef("pk"), unit_cost__isnull=False
     ).exclude(description="")
-    candidates = (
+    # The number says who raised an order: ours are the instance prefix and
+    # digits, the pattern ``is_locally_raised`` and ``generate_po_number`` read.
+    prefix = CompanyDefaults.get_solo().po_prefix
+    our_drafts = Q(po_number__regex=rf"^{re.escape(prefix)}\d+$", status="draft")
+    return (
         PurchaseOrder.objects.filter(Exists(usable_line), supplier__isnull=False)
         .exclude(status="deleted")
+        .exclude(our_drafts)
+    )
+
+
+def _purchase_orders_unclaimed(tenant_id: str) -> QuerySet[PurchaseOrder]:
+    """Orders Xero should hold that the connected org has not claimed yet."""
+    return (
+        purchase_orders_xero_holds()
+        .exclude(xero_tenant_id=tenant_id)
         .select_related("supplier")
         .prefetch_related("po_lines")
     )
-    return [
-        order for order in candidates if not (is_locally_raised(order) and order.status == "draft")
-    ]
 
 
 def _supplier(order: PurchaseOrder) -> Company:
@@ -722,7 +732,8 @@ class _DocumentKind[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemot
     #: The company the document is addressed to: the Xero contact it needs.
     contact: Callable[[TDocument], Company]
     #: Documents the connected org (the tenant id given) has not claimed yet.
-    pending: Callable[[str], list[TDocument]]
+    #: A queryset, so a caller wanting only the number counts in the database.
+    pending: Callable[[str], QuerySet[TDocument]]
     #: Restored remnants the phase deletes instead of seeding.
     orphans: Callable[[], QuerySet[TDocument]]
     build_payloads: Callable[[Sequence[TDocument]], list[TPayload]]
@@ -795,9 +806,7 @@ PURCHASE_ORDERS = _DocumentKind(
     remote_id=lambda order: order.purchase_order_id,
     number=lambda order: order.po_number,
     contact=_supplier,
-    pending=lambda tenant_id: [
-        order for order in purchase_orders_xero_holds() if order.xero_tenant_id != tenant_id
-    ],
+    pending=_purchase_orders_unclaimed,
     # None, ever: an order needs no job, and one the seed does not send (a
     # draft, a deleted order) is still the business's record of it.
     orphans=PurchaseOrder.objects.none,
@@ -815,7 +824,7 @@ def seed_documents[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote
         logger.info("Deleted %d orphaned %s (no job link)", orphans_deleted, kind.entity)
 
     tenant_id = get_tenant_id()
-    pending = kind.pending(tenant_id)
+    pending = list(kind.pending(tenant_id))
     if not pending:
         return SeedDocumentsResult(
             created=0, linked=0, orphans_deleted=orphans_deleted, skipped_no_contact=0
@@ -1056,9 +1065,9 @@ def seed_convergence(tenant_id: str) -> SeedConvergence:
         companies_without_contacts=len(companies_needing_contacts()),
         # Orphans count as pending: the invoice phase deletes them, so a run
         # that left them has not finished even though nothing is unlinked.
-        invoices_pending=len(INVOICES.pending(tenant_id)) + INVOICES.orphans().count(),
-        quotes_pending=len(QUOTES.pending(tenant_id)) + QUOTES.orphans().count(),
-        purchase_orders_pending=len(PURCHASE_ORDERS.pending(tenant_id)),
+        invoices_pending=INVOICES.pending(tenant_id).count() + INVOICES.orphans().count(),
+        quotes_pending=QUOTES.pending(tenant_id).count() + QUOTES.orphans().count(),
+        purchase_orders_pending=PURCHASE_ORDERS.pending(tenant_id).count(),
         stock_pending=stock_pending_sync().count(),
         pay_items_pending=pay_items_needing_relink(tenant_id).count(),
         # Staff carrying an employee id stamped with another organisation, or
@@ -1203,7 +1212,7 @@ def _documents_phase[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemo
     report(f"Syncing {kind.label}...")
     if dry_run:
         report(f"  would delete {kind.orphans().count()} orphaned {kind.label}")
-        report(f"  would link or create {len(kind.pending(tenant_id))} {kind.label}")
+        report(f"  would link or create {kind.pending(tenant_id).count()} {kind.label}")
         return
     result = seed_documents(kind)
     report(
