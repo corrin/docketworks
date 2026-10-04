@@ -2417,3 +2417,25 @@ Found and left for the owner:
 - Salaried staff: `time_entry_rates.py` writes `salary_term_id` and
   `pay_basis` into a time line's meta, and `TIME_META_SCHEMA` allows neither.
   Read from the code, not reproduced.
+
+## 2026-10-05 — Two failures the first full fake-Xero run on restored data found (KAN-375)
+
+**A listed pay run carries no `paySlips`.** Real Xero's `GET /PayRuns` omits the
+key (`recordings/pay_runs.json`), so the mirror stores the SDK's `None` for it.
+The fake rendered every valueless Payroll attribute as an explicit null, and
+the SDK iterates a list-typed attribute on the way in, so a null there fails
+the whole response. Nothing showed it until the fake first held pay runs: the
+restore and the first sync against the dev organisation on 2026-10-04 gave it
+twenty, and every `get_pay_runs` call then raised. The fake now omits a
+valueless Payroll list and keeps the explicit null for scalars, and the wire
+round trip refuses a rendered null on a list-typed key the recording lacks.
+The one null list Xero does send, `invalidFields` in the past-the-end refusal,
+is written by hand and not rendered.
+
+**The sales forecast's list and detail read one rule.** The month list took
+any month holding an actual cost line; the month detail dropped jobs whose
+revenue summed to zero. Leave booked ahead on the Annual Leave job listed
+November 2026 at $0.00 against $0.00, and it opened to nothing. A month is now
+listed only when its detail has something to show: an invoice, or a job with
+non-zero revenue in that month. Amounts are unchanged; only which months
+appear.
