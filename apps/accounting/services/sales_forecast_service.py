@@ -11,7 +11,8 @@ from datetime import date
 from decimal import Decimal
 from typing import TypedDict
 
-from django.db.models import Q, QuerySet, Sum
+from django.db.models import DecimalField, F, Q, QuerySet, Sum
+from django.db.models.functions import TruncMonth
 
 from apps.accounting.models import Invoice
 from apps.job.models import Job
@@ -132,15 +133,26 @@ def _job_revenue_by_month(lines: QuerySet[CostLine]) -> dict[str, dict[str, Deci
     summed to zero, and a month of nothing but zero-revenue time (leave booked
     ahead on the Annual Leave job) was listed at $0.00 and opened empty.
     """
-    revenue: dict[str, dict[str, Decimal]] = defaultdict(lambda: defaultdict(lambda: Decimal("0")))
-    for line in lines.select_related("cost_set__job"):
-        month_key = line.accounting_date.strftime("%Y-%m")
-        revenue[month_key][str(line.cost_set.job.id)] += line.total_rev
-    months = {
-        month_key: {job_id: total for job_id, total in by_job.items() if total != 0}
-        for month_key, by_job in revenue.items()
-    }
-    return {month_key: by_job for month_key, by_job in months.items() if by_job}
+    # Summed in the database, one row per month and job: this report reads
+    # every dated actual line there is, and loading each one (with its job)
+    # to add it up in Python grows with the whole ledger. quantity x unit_rev
+    # is CostLine.total_rev.
+    totals = (
+        lines.annotate(month=TruncMonth("accounting_date"))
+        .values("month", "cost_set__job_id")
+        .annotate(
+            total=Sum(
+                F("quantity") * F("unit_rev"),
+                output_field=DecimalField(max_digits=20, decimal_places=5),
+            )
+        )
+        .order_by()
+    )
+    revenue: dict[str, dict[str, Decimal]] = defaultdict(dict)
+    for row in totals:
+        if row["total"] != 0:
+            revenue[row["month"].strftime("%Y-%m")][str(row["cost_set__job_id"])] = row["total"]
+    return dict(revenue)
 
 
 def _jm_sales_by_month() -> dict[str, Decimal]:
