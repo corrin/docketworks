@@ -162,6 +162,15 @@ class Company(models.Model):
                 condition=~models.Q(xero_tenant_id=""),
                 name="company_company_xero_tenant_id_not_blank",
             ),
+            # A contact id says which contact; only the tenant says in which
+            # organisation. Production held 3,920 companies with the first and
+            # not the second for months, and a restore seed reads one such row
+            # as a mirror linked to another organisation and clears it all.
+            models.CheckConstraint(
+                condition=models.Q(xero_contact_id__isnull=True)
+                | models.Q(xero_tenant_id__isnull=False),
+                name="company_xero_contact_id_has_tenant",
+            ),
         ]
 
     def __str__(self) -> str:
