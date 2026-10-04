@@ -727,10 +727,13 @@ same terms.
 - **A purchase order Xero refuses stops the phase, naming the order.** Xero
   answers 200 for the call and puts the refusal on the order: its validation
   messages, or a zero id when a deleted order in the organisation still holds
-  the number. The other orders in that call were created and are linked by the
-  re-run. Xero will not rename an order once it is deleted, so a number a
-  deleted order holds is spent in that organisation: the local order needs a
-  different number.
+  the number. The orders Xero did store in that call are linked before the
+  phase stops, so the re-run creates only the remainder. A number a deleted
+  order holds is the exception to "fix and re-run": Xero will not reuse it and
+  will not rename a deleted order, so the seed is refused on that order at
+  every run. What to do with it (renumber the local order, leave it out, or
+  seed into a different organisation) is the owner's decision and is not
+  implemented; `docs/rewrite-history.md`, 2026-10-05.
 - **The clear and the pay-item re-link are derived from the mirror, not
   requested.** The clear runs when a cleared-column link carries a tenant other
   than the connected one, and the re-link runs when a pay item a job or cost

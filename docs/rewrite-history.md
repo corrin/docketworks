@@ -2466,3 +2466,46 @@ Left as it is:
 - A purchase order linked by number alone now records the tenant. That states
   which organisation the id came from, not that the match found the same order.
 - `Stock` and `Job.xero_project_id` have no tenant column.
+
+## 2026-10-05 — Code review of the purchase order seed and tenant work (KAN-375)
+
+Fixed from the review, each in its own commit: `Any` in new annotations; the
+contact sync taking the tenant from its caller; the sales forecast summing in
+the database (2.9s to 0.06s on the restored dev database, one query both ways,
+identical totals); the seed's purchase order scope as a queryset; orders Xero
+stored being claimed before a refusal stops the phase; a delivery date with a
+two-digit year, and an item code that is not a stock item's, refused by the
+purchase order service (the E2E fixture that invented codes changed with it).
+
+The tenant backfill (`company.0002`) now takes the organisation from the
+companies already stamped and uses `CompanyDefaults.xero_tenant_id` only when
+none is. On production the two agree. They disagree on a restored copy that
+has been bound to its own demo organisation and not re-seeded, where the
+contact ids are still the source's: stamping them with the bound tenant would
+make the seed read the mirror as already linked and skip its clear. Chosen in
+the owner's absence.
+
+Left for the owner:
+
+- **A purchase order whose number a deleted Xero order holds cannot be seeded.**
+  Xero returns the zero id, will not reuse the number and will not rename a
+  deleted order, so the seed stops on it at every run and the sync gate stays
+  closed. No order in scope is in that state on the 2026-10-04 restore (the
+  dev organisation's JO-0826, JO-0829 and JO-0833 are local drafts, which the
+  seed does not send). The choices when one is: renumber the local order;
+  leave that order out of what the seed sends; or re-seed into an organisation
+  that does not hold the deleted order. None is implemented.
+- **`purchasing.0021` keeps a code that matches any stock row, active or not,**
+  while the seed's stock phase sends only active stock. A line whose code is
+  only on an inactive item would be refused by a freshly seeded organisation.
+  None exists on the 2026-10-04 restore (4 inactive stock rows carry a code; no
+  order line uses one). The migration was left as it is: production's Xero
+  holds those items, and blanking the code there to suit a dev seed would
+  damage a correct row.
+- **A wage-only change to a workshop time entry replaces its bill multiplier.**
+  An entry at wage 1.0 and bill 1.5, patched to wage 2.0, becomes bill 2.0, and
+  the 1.5 is gone. v1 did the same and `accepted-api-differences.yml` records
+  the rule; no document addresses an entry whose bill multiplier was set apart
+  from its wage multiplier. Not changed.
+- The invoice and quote payload builders and the sync transforms' payload
+  parameters are still annotated `Any`; they were before this branch.
