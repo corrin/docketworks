@@ -643,8 +643,8 @@ def _purchase_order_refusal(order: XeroPurchaseOrder) -> str | None:
         return (
             f"{order.purchase_order_number}: a deleted purchase order in this Xero "
             f"organisation still holds that number ({messages}). Xero will not reuse the "
-            f"number or rename a deleted order, so this order cannot be created here under "
-            f"it; re-running will be refused again. The choices are the owner's: see "
+            f"number or rename a deleted order, so no re-run can create this order here "
+            f"under it. What to do with it is the owner's decision: see "
             f"docs/restore-prod-to-nonprod.md, 'What the seed commands refuse'"
         )
     if order.validation_errors:
@@ -891,6 +891,31 @@ def seed_documents[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote
     )
 
 
+def _raise_for_batch_problems(
+    entity: str, label: str, unmapped: list[str], refused: list[str]
+) -> None:
+    """Stop the phase on anything one answered call got wrong, naming all of it."""
+    problems: list[str] = []
+    if unmapped:
+        # Not a warning: the local document stays unlinked, and the next sync
+        # then creates a duplicate — the corruption this command exists to
+        # prevent.
+        problems.append(
+            f"Xero returned {entity} numbered {', '.join(unmapped)}, which could not be "
+            f"mapped back to a local record. Xero renumbered a submitted document. "
+            f"Re-running as-is renumbers it again: delete the renumbered document in Xero "
+            f"and fix the clashing local number (Xero renumbers a number it already holds)."
+        )
+    if refused:
+        problems.append(f"Xero refused {len(refused)} {label} - {'; '.join(refused)}.")
+    if problems:
+        raise ValueError(
+            f"{' '.join(problems)} Everything else in the same call was created and is "
+            f"linked. Re-run the seed once each of these is dealt with; it links what "
+            f"exists and creates only the remainder."
+        )
+
+
 def _batch_create[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote](
     kind: _DocumentKind[TDocument, TPayload, TRemote],
     documents: list[tuple[str, TDocument]],
@@ -914,8 +939,10 @@ def _batch_create[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote]
 
         # Every order Xero stored is claimed before a refusal stops the phase:
         # those orders exist in Xero now, and leaving them unlinked made the
-        # re-run depend on finding them again by number.
+        # re-run depend on finding them again by number. Both kinds of problem
+        # are collected for the same reason, and reported together.
         refused: list[str] = []
+        unmapped: list[str] = []
         for remote in remote_documents:
             reason = kind.refusal(remote)
             if reason is not None:
@@ -926,19 +953,8 @@ def _batch_create[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote]
             number = kind.remote_number(remote) or ""
             local = by_number.get(number)
             if local is None:
-                # Not a warning: the local document stays unlinked, and the
-                # next sync then creates a duplicate — the corruption this
-                # command exists to prevent.
-                raise ValueError(
-                    f"Xero returned {kind.entity} numbered "
-                    f"{kind.remote_number(remote)!r}, which could not be mapped back to a "
-                    f"local record. Xero renumbered a submitted document, so the "
-                    f"{kind.entity} already created in this batch are linked and the rest "
-                    f"are not. Re-running as-is renumbers it again: delete the renumbered "
-                    f"document in Xero and fix the clashing local number (Xero renumbers a "
-                    f"number it already holds), then re-run the seed; it links what exists "
-                    f"and creates only the remainder."
-                )
+                unmapped.append(repr(kind.remote_number(remote)))
+                continue
             remote_id = kind.remote_id(remote)
             if not remote_id:
                 raise ValueError(f"Xero response missing the {kind.entity} id for {number}")
@@ -946,12 +962,7 @@ def _batch_create[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote]
             created += 1
             logger.info("Seeded %s %s (%s)", kind.entity, number, kind.contact(local).name)
 
-        if refused:
-            raise ValueError(
-                f"Xero refused {len(refused)} {kind.label} - {'; '.join(refused)}. Everything "
-                f"else in the same call was created and is linked. Fix what was refused and "
-                f"re-run the seed, which creates the remainder."
-            )
+        _raise_for_batch_problems(kind.entity, kind.label, unmapped, refused)
 
     return created
 

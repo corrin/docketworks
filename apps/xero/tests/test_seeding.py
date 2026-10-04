@@ -710,7 +710,7 @@ class TestSeedPurchaseOrders:
         # Names the order and says a re-run cannot help: nothing in Xero frees
         # a number a deleted order holds.
         with pytest.raises(
-            ValueError, match=f"{order.po_number}: a deleted purchase order.*refused again"
+            ValueError, match=f"{order.po_number}: a deleted purchase order.*no re-run can create"
         ):
             seed_documents(PURCHASE_ORDERS)
 
@@ -747,6 +747,41 @@ class TestSeedPurchaseOrders:
         assert (str(stored.xero_id), stored.xero_tenant_id) == (stored_id, TENANT)
         # Xero answered with an id for the refused order and did not store it.
         assert refused.xero_id is None
+
+    def test_a_renumbered_answer_does_not_hide_the_rest_of_the_call(
+        self, xero_api: MagicMock
+    ) -> None:
+        # One call can go wrong three ways at once. Stopping at the first
+        # unmappable number used to leave the order after it unclaimed and the
+        # refusal unreported.
+        stored = _sent_order()
+        refused = _sent_order()
+        renumbered = _sent_order()
+        stored_id = str(uuid.uuid4())
+        xero_api.get_purchase_orders.return_value = MagicMock(purchase_orders=[])
+        xero_api.update_or_create_purchase_orders.return_value = MagicMock(
+            purchase_orders=[
+                _xero_order("PO-RENUMBERED", str(uuid.uuid4())),
+                MagicMock(
+                    purchase_order_number=refused.po_number,
+                    purchase_order_id=str(uuid.uuid4()),
+                    status="SUBMITTED",
+                    validation_errors=[MagicMock(message="The date 8/20/0025 is not valid")],
+                ),
+                _xero_order(stored.po_number, stored_id),
+            ]
+        )
+
+        with pytest.raises(ValueError) as raised:
+            seed_documents(PURCHASE_ORDERS)
+
+        message = str(raised.value)
+        assert "'PO-RENUMBERED'" in message
+        assert f"{refused.po_number}: The date" in message
+        stored.refresh_from_db()
+        renumbered.refresh_from_db()
+        assert str(stored.xero_id) == stored_id
+        assert renumbered.xero_id is None
 
     def test_an_order_without_a_job_is_not_deleted(self, xero_api: MagicMock) -> None:
         # Invoices and quotes with no job are restore remnants and the phase
