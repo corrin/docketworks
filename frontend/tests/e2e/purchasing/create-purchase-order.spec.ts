@@ -28,7 +28,8 @@ async function createWorkspaceOrder(page: Page, lineCount: number): Promise<stri
         description: `Stainless steel sheet 304, 1.2 mm, 2400 × 1200 — line ${index + 1}`,
         quantity: index + 1,
         unit_cost: '18.50',
-        item_code: `SS-304-${index + 1}`,
+        // Free-text lines: an item code has to be a real stock item, and none
+        // of the workspace tests reads the code.
       })),
     },
   })
