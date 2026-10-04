@@ -340,10 +340,9 @@ def seed_payroll(tenant_id: str, calendar_id: str) -> dict[str, int]:
 
     counts["pay_items"] = _seed_pay_items(tenant_id)
     counts["leave_balances"] = _seed_leave_balances(tenant_id)
-    # Seeds nothing on a restored copy: the mirror's pay runs carry the
-    # production tenant id, so the fake holds no pay runs and its calendar
-    # wears the recording's period. That is PR B's ground, named in
-    # tests/test_every_call_is_routed.py, not a filter to widen.
+    # Seeds nothing on a freshly restored copy: the mirror's pay runs carry
+    # the production tenant id until the first sync against this organisation
+    # replaces them with its own. From then on the fake holds those.
     for pay_run in XeroPayRun.objects.filter(xero_tenant_id=tenant_id).iterator():
         run_id = str(pay_run.xero_id)
         run = FakePayRun.from_wire(

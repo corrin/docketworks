@@ -16,6 +16,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from xero_python import payrollnz as payroll_sdk
 from xero_python.accounting import AccountingApi
 from xero_python.models import BaseModel
 from xero_python.payrollnz import PayrollNzApi
@@ -47,6 +48,16 @@ _SDK_INVENTED: dict[str, bool] = {
     "HasValidationErrors": False,
 }
 
+#: Every wire key some Payroll model types as a list. The SDK iterates these
+#: on the way in, so unlike a scalar it cannot read a null in their place.
+_PAYROLL_LIST_KEYS = frozenset(
+    model.attribute_map[attribute]
+    for model in vars(payroll_sdk).values()
+    if isinstance(model, type) and issubclass(model, BaseModel)
+    for attribute, type_name in model.openapi_types.items()
+    if type_name.startswith("list[")
+)
+
 
 def _assert_subset(rendered: Json, recorded: Json, path: str) -> None:
     """Every key the renderer emits is in the recording with the same value."""
@@ -55,11 +66,13 @@ def _assert_subset(rendered: Json, recorded: Json, path: str) -> None:
         for key, value in rendered.items():
             if key not in recorded and key in _SDK_INVENTED and value == _SDK_INVENTED[key]:
                 continue
-            if key not in recorded and value is None:
+            if key not in recorded and value is None and key not in _PAYROLL_LIST_KEYS:
                 # Payroll nulls some absent fields and omits others (an
                 # employee's title is omitted, otherGivenNames is null); the
                 # SDK reads both as None, so the renderer's null is exact
                 # enough and the recording cannot say which Xero would pick.
+                # Not so for a list: the SDK iterates it, so a null the
+                # recording does not have is a response the SDK cannot read.
                 continue
             assert key in recorded, f"{path}.{key}: rendered but not recorded"
             _assert_subset(value, recorded[key], f"{path}.{key}")

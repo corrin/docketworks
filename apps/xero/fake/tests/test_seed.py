@@ -6,7 +6,9 @@ from decimal import Decimal
 import pytest
 from django.core.management import CommandError, call_command
 from django.utils import timezone
+from xero_python import payrollnz as sdk_payroll
 from xero_python.accounting import AccountingApi
+from xero_python.payrollnz import PayrollNzApi
 
 from apps.accounting.models import Invoice
 from apps.accounts.models import Staff
@@ -19,11 +21,13 @@ from apps.xero.fake.models import (
     FakeContact,
     FakeInvoice,
     FakeOrganisation,
+    FakePayRun,
     FakePurchaseOrder,
     FakeQuote,
 )
 from apps.xero.fake.seed import SeedError, recorded_body, seed_accounting
 from apps.xero.fake.tests.conftest import TENANT, sdk_client_answering
+from apps.xero.fake.wire import to_wire
 from apps.xero.models import XeroAccount
 from apps.xero.tests.xero_fixtures import make_contact_raw_json
 from apps.xero.transforms import process_xero_data
@@ -174,6 +178,28 @@ def test_the_seed_renders_deleted_quotes_that_share_a_number(tenant: str) -> Non
 
     assert counts["quotes"] == 2
     assert FakeQuote.objects.filter(tenant_id=tenant, status="DELETED").count() == 2
+
+
+def test_a_mirrored_pay_run_is_listed_in_a_form_the_sdk_can_read(
+    tenant: str, payroll: PayrollNzApi
+) -> None:
+    # Xero lists a pay run with no paySlips key, so the mirror stores the
+    # SDK's None for it. Rendered back as an explicit null, the SDK failed on
+    # the whole listing ('NoneType' object is not iterable) the first time the
+    # fake held a pay run at all, and every payroll screen answered 500.
+    recorded = recorded_body("pay_runs")
+    listed = PayrollNzApi(sdk_client_answering(recorded)).get_pay_runs(TENANT).pay_runs
+    assert listed
+    mirrored = process_xero_data(listed[0])
+
+    FakePayRun.from_wire(
+        tenant, to_wire(sdk_payroll.PayRun, mirrored), updated_date_utc=timezone.now()
+    )
+
+    read_back = payroll.get_pay_runs(tenant).pay_runs
+    assert read_back is not None
+    assert [str(run.pay_run_id) for run in read_back] == [str(listed[0].pay_run_id)]
+    assert read_back[0].pay_slips is None
 
 
 def test_a_readonly_stub_row_is_refused_not_rendered(tenant: str) -> None:
