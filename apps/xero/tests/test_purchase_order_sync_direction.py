@@ -15,6 +15,7 @@ that goods arrived, whichever way the data flows.
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from functools import partial
 from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import UUID, uuid4
@@ -30,7 +31,7 @@ from apps.job.models.costing import CostLine
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.tests.factories import make_purchase_order, receive_po_line
 from apps.xero.models import XeroError
-from apps.xero.tests.conftest import make_po_manager, make_po_provider
+from apps.xero.tests.conftest import TEST_TENANT_ID, make_po_manager, make_po_provider
 from apps.xero.transforms import sync_entities, transform_purchase_order
 from apps.xero.validation import XeroValidationError
 
@@ -102,7 +103,9 @@ class TestXerosDirection:
         xero_id = uuid4()
         po = _sent_order(supplier, xero_id=xero_id)
 
-        transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
+        transform_purchase_order(
+            _incoming(supplier, po.po_number, "SUBMITTED"), xero_id, tenant_id=TEST_TENANT_ID
+        )
 
         line = po.po_lines.get(description="Xero's idea of the line")
         assert line.quantity == Decimal("99")
@@ -111,7 +114,9 @@ class TestXerosDirection:
         xero_id = uuid4()
         po = _sent_order(supplier, xero_id=xero_id, status="draft")
 
-        transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
+        transform_purchase_order(
+            _incoming(supplier, po.po_number, "SUBMITTED"), xero_id, tenant_id=TEST_TENANT_ID
+        )
 
         po.refresh_from_db()
         assert po.status == "submitted"
@@ -126,7 +131,9 @@ class TestXerosDirection:
         xero_id = uuid4()
         po = _sent_order(supplier, xero_id=xero_id)
 
-        transform_purchase_order(_incoming(supplier, po.po_number, "DELETED"), xero_id)
+        transform_purchase_order(
+            _incoming(supplier, po.po_number, "DELETED"), xero_id, tenant_id=TEST_TENANT_ID
+        )
 
         po.refresh_from_db()
         assert po.status == "deleted"
@@ -141,7 +148,9 @@ class TestAnOrderWeRaised:
         xero_id = uuid4()
         po = _sent_order(supplier, xero_id=xero_id, dw_raised=True)
 
-        transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
+        transform_purchase_order(
+            _incoming(supplier, po.po_number, "SUBMITTED"), xero_id, tenant_id=TEST_TENANT_ID
+        )
 
         line = po.po_lines.get()
         assert (line.description, line.quantity) == ("What we ordered", Decimal("4.00"))
@@ -150,7 +159,9 @@ class TestAnOrderWeRaised:
         xero_id = uuid4()
         po = _sent_order(supplier, xero_id=xero_id, status="draft", dw_raised=True)
 
-        transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
+        transform_purchase_order(
+            _incoming(supplier, po.po_number, "SUBMITTED"), xero_id, tenant_id=TEST_TENANT_ID
+        )
 
         po.refresh_from_db()
         assert po.status == "draft"
@@ -169,7 +180,9 @@ class TestAnOrderWeRaised:
         po = _sent_order(supplier, xero_id=xero_id, dw_raised=True)
         assert po.created_by == Staff.get_automation_user(), "a creator is always recorded"
 
-        transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
+        transform_purchase_order(
+            _incoming(supplier, po.po_number, "SUBMITTED"), xero_id, tenant_id=TEST_TENANT_ID
+        )
 
         assert po.po_lines.get().quantity == Decimal("4.00")
 
@@ -186,8 +199,8 @@ class TestAnOrderWeRaised:
         incoming = _incoming(supplier, po.po_number, "SUBMITTED")
 
         with patch("apps.accounting.registry.get_provider") as provider:
-            transform_purchase_order(incoming, xero_id)
-            transform_purchase_order(incoming, xero_id)
+            transform_purchase_order(incoming, xero_id, tenant_id=TEST_TENANT_ID)
+            transform_purchase_order(incoming, xero_id, tenant_id=TEST_TENANT_ID)
 
         provider.assert_not_called()
 
@@ -201,7 +214,9 @@ class TestAnOrderWeRaised:
         po = _sent_order(supplier, xero_id=xero_id, dw_raised=True)
         before = po.updated_at
 
-        transform_purchase_order(_incoming(supplier, po.po_number, "SUBMITTED"), xero_id)
+        transform_purchase_order(
+            _incoming(supplier, po.po_number, "SUBMITTED"), xero_id, tenant_id=TEST_TENANT_ID
+        )
 
         po.refresh_from_db()
         assert po.updated_at > before, "the row changed but its version did not"
@@ -214,7 +229,9 @@ class TestBilledIsNotReceived:
         xero_id = uuid4()
         po = _sent_order(supplier, xero_id=xero_id)
 
-        transform_purchase_order(_incoming(supplier, po.po_number, "BILLED"), xero_id)
+        transform_purchase_order(
+            _incoming(supplier, po.po_number, "BILLED"), xero_id, tenant_id=TEST_TENANT_ID
+        )
 
         po.refresh_from_db()
         assert po.xero_status == "BILLED"
@@ -257,7 +274,7 @@ class TestReceiptSurvivesXero:
         incoming.line_items[0].description = line.xero_description
         incoming.line_items[0].unit_amount = line.unit_cost
 
-        transform_purchase_order(incoming, str(po.xero_id))
+        transform_purchase_order(incoming, str(po.xero_id), tenant_id=TEST_TENANT_ID)
 
         po.refresh_from_db()
         line.refresh_from_db()
@@ -287,10 +304,15 @@ def test_xero_quantity_amendments_preserve_posted_receipts(
     incoming.line_items[0].unit_amount = Decimal("30")
     if ordered < 2:
         with pytest.raises(XeroValidationError, match="net received"):
-            transform_purchase_order(incoming, str(po.xero_id))
+            transform_purchase_order(incoming, str(po.xero_id), tenant_id=TEST_TENANT_ID)
         incoming.purchase_order_id = str(po.xero_id)
         assert (
-            sync_entities([incoming], PurchaseOrder, "purchase_order_id", transform_purchase_order)
+            sync_entities(
+                [incoming],
+                PurchaseOrder,
+                "purchase_order_id",
+                partial(transform_purchase_order, tenant_id=TEST_TENANT_ID),
+            )
             == 0
         )
         assert "net received" in XeroError.objects.get(reference_id=str(po.xero_id)).message
@@ -299,7 +321,7 @@ def test_xero_quantity_amendments_preserve_posted_receipts(
         assert line.quantity == 4
         assert line.unit_cost == Decimal("12.50")
     else:
-        transform_purchase_order(incoming, str(po.xero_id))
+        transform_purchase_order(incoming, str(po.xero_id), tenant_id=TEST_TENANT_ID)
         po.refresh_from_db()
         line.refresh_from_db()
         assert (line.quantity, line.unit_cost, line.received_quantity) == (

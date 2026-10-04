@@ -304,9 +304,15 @@ def _resolve_document_number(doc_type: str, xero_obj: Any) -> str | None:
 
 
 def _extract_required_fields_xero(
-    doc_type: str, xero_obj: Any, xero_id: UUID | str
+    doc_type: str, xero_obj: Any, xero_id: UUID | str, *, tenant_id: str
 ) -> dict[str, Any]:
-    """Gather required values from a Xero document, validated non-None."""
+    """Gather required values from a Xero document, validated non-None.
+
+    The tenant is one of them: the row's Xero id says which document, and only
+    the tenant says in which organisation. It is the caller's, the organisation
+    the document was just fetched from, for the reason ``transform_pay_run``
+    gives.
+    """
     number = _resolve_document_number(doc_type, xero_obj)
     company = resolve_company_from_xero_contact(getattr(xero_obj, "contact", None), number)
     doc_date = getattr(xero_obj, "date", None)
@@ -330,6 +336,7 @@ def _extract_required_fields_xero(
         "total_incl_tax": total_incl_tax,
         "amount_due": amount_due,
         "xero_last_modified": xero_last_modified,
+        "xero_tenant_id": tenant_id,
         "raw_json": raw_json,
     }
     validate_required_fields(required_fields, doc_type, str(xero_id))
@@ -386,9 +393,11 @@ def _log_invoice_sync_events(
             )
 
 
-def transform_invoice(xero_invoice: Any, xero_id: UUID | str) -> tuple[Invoice, str] | None:
+def transform_invoice(
+    xero_invoice: Any, xero_id: UUID | str, *, tenant_id: str
+) -> tuple[Invoice, str] | None:
     """Convert a Xero invoice into an Invoice instance."""
-    fields = _extract_required_fields_xero("invoice", xero_invoice, xero_id)
+    fields = _extract_required_fields_xero("invoice", xero_invoice, xero_id, tenant_id=tenant_id)
     invoice, created = Invoice.objects.get_or_create(xero_id=xero_id, defaults=fields)
 
     old_total_excl_tax = invoice.total_excl_tax if not created else None
@@ -420,7 +429,9 @@ def transform_invoice(xero_invoice: Any, xero_id: UUID | str) -> tuple[Invoice, 
     return invoice, _build_sync_status(created, changed_fields)
 
 
-def transform_bill(xero_bill: Any, xero_id: UUID | str) -> tuple[Bill, str] | None:
+def transform_bill(
+    xero_bill: Any, xero_id: UUID | str, *, tenant_id: str
+) -> tuple[Bill, str] | None:
     """Convert a Xero bill into a Bill instance."""
     # Skip bills without invoice numbers - data entry issue in Xero
     invoice_number = getattr(xero_bill, "invoice_number", None)
@@ -436,7 +447,7 @@ def transform_bill(xero_bill: Any, xero_id: UUID | str) -> tuple[Bill, str] | No
             kind="missing_invoice_number",
         )
         return None
-    fields = _extract_required_fields_xero("bill", xero_bill, xero_id)
+    fields = _extract_required_fields_xero("bill", xero_bill, xero_id, tenant_id=tenant_id)
     bill, created = Bill.objects.get_or_create(xero_id=xero_id, defaults=fields)
     changed_fields = _track_and_apply_changes(bill, fields) if not created else []
     if changed_fields:
@@ -447,9 +458,11 @@ def transform_bill(xero_bill: Any, xero_id: UUID | str) -> tuple[Bill, str] | No
     return bill, _build_sync_status(created, changed_fields)
 
 
-def transform_credit_note(xero_note: Any, xero_id: UUID | str) -> tuple[CreditNote, str] | None:
+def transform_credit_note(
+    xero_note: Any, xero_id: UUID | str, *, tenant_id: str
+) -> tuple[CreditNote, str] | None:
     """Convert a Xero credit note into a CreditNote instance."""
-    fields = _extract_required_fields_xero("credit_note", xero_note, xero_id)
+    fields = _extract_required_fields_xero("credit_note", xero_note, xero_id, tenant_id=tenant_id)
     note, created = CreditNote.objects.get_or_create(xero_id=xero_id, defaults=fields)
     changed_fields = _track_and_apply_changes(note, fields) if not created else []
     if changed_fields:
@@ -559,7 +572,7 @@ def transform_stock(  # noqa: C901, PLR0912 -- ported v1 shape; each branch is o
     return stock, _build_sync_status(created, changed_fields)
 
 
-def transform_quote(xero_quote: Any, xero_id: UUID | str) -> tuple[Quote, str]:
+def transform_quote(xero_quote: Any, xero_id: UUID | str, *, tenant_id: str) -> tuple[Quote, str]:
     """Convert a Xero quote into a Quote instance."""
     company = resolve_company_from_xero_contact(
         getattr(xero_quote, "contact", None), f"quote {xero_id}"
@@ -579,6 +592,7 @@ def transform_quote(xero_quote: Any, xero_id: UUID | str) -> tuple[Quote, str]:
     )
 
     defaults: dict[str, Any] = {
+        "xero_tenant_id": tenant_id,
         "company": company,
         "date": raw_json.get("_date"),
         "number": getattr(xero_quote, "quote_number", None),
@@ -674,10 +688,11 @@ def _purchase_order_sync_values(
     """Return the fields this sync writes.
 
     Both systems raise purchase orders. One we raised is mastered here and
-    takes nothing back except the four fields Xero genuinely owns: when it last
-    changed there, when we last looked, Xero's own word for its state, and the
-    raw document. One Xero raised has no other source, so Xero keeps its header
-    current. ``is_locally_raised`` reads the number to tell them apart.
+    takes nothing back except what Xero genuinely owns: which organisation
+    holds it, when it last changed there, when we last looked, Xero's own word
+    for its state, and the raw document. One Xero raised has no other source,
+    so Xero keeps its header current. ``is_locally_raised`` reads the number
+    to tell them apart.
 
     Opus: the rejected alternative was resolving edits from both sides by
     comparing timestamps. It needs a column recording when the two copies last
@@ -686,6 +701,10 @@ def _purchase_order_sync_values(
     collision that never happens.
     """
     values: dict[str, Any] = {
+        # Written with the id on every path, a row found by its number
+        # included. It records where the id came from; it is not evidence
+        # that a number-only match found the same order.
+        "xero_tenant_id": header["xero_tenant_id"],
         "xero_last_modified": header["xero_last_modified"],
         "xero_last_synced": timezone.now(),
         "xero_status": status,
@@ -706,7 +725,9 @@ def _purchase_order_sync_values(
     return values | {"status": _map_po_status(status)}
 
 
-def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[PurchaseOrder, str]:
+def transform_purchase_order(
+    xero_po: Any, xero_id: UUID | str, *, tenant_id: str
+) -> tuple[PurchaseOrder, str]:
     """Convert a Xero purchase order into a PurchaseOrder instance."""
     map_status = _map_po_status
 
@@ -750,6 +771,7 @@ def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[Purchas
         if not po:
             po = PurchaseOrder.objects.create(
                 xero_id=xero_id,
+                xero_tenant_id=tenant_id,
                 supplier=supplier,
                 # Xero raised it, so no person here did; System Automation is the
                 # row the codebase names wherever no human is on the call stack.
@@ -768,6 +790,7 @@ def transform_purchase_order(xero_po: Any, xero_id: UUID | str) -> tuple[Purchas
                 "po_number": po_number,
                 "order_date": order_date,
                 "delivery_date": getattr(xero_po, "delivery_date", None),
+                "xero_tenant_id": tenant_id,
                 "xero_last_modified": xero_last_modified,
                 "raw_json": raw_json,
             },

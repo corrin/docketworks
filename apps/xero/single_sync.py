@@ -87,6 +87,7 @@ def sync_single_invoice(tenant_id: str, invoice_id: str) -> None:
         bill, created = Bill.objects.update_or_create(
             xero_id=xero_invoice.invoice_id,
             defaults={
+                "xero_tenant_id": tenant_id,
                 "raw_json": raw_json,
                 "xero_last_modified": xero_invoice.updated_date_utc,
                 "xero_last_synced": timezone.now(),
@@ -99,6 +100,7 @@ def sync_single_invoice(tenant_id: str, invoice_id: str) -> None:
         invoice, created = Invoice.objects.update_or_create(
             xero_id=xero_invoice.invoice_id,
             defaults={
+                "xero_tenant_id": tenant_id,
                 "raw_json": raw_json,
                 "xero_last_modified": xero_invoice.updated_date_utc,
                 "xero_last_synced": timezone.now(),

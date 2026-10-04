@@ -160,6 +160,8 @@ class TestSyncSingleInvoiceRouting:
         assert invoice.company == company
         # The webhook refreshed the row from the new payload.
         assert invoice.status == "AUTHORISED"
+        # And recorded the organisation the webhook named, with the id.
+        assert invoice.xero_tenant_id == TENANT
         assert not Bill.objects.filter(xero_id=xero_id).exists()
 
     def test_accpay_routes_to_bill(self, company: Company) -> None:
@@ -170,6 +172,7 @@ class TestSyncSingleInvoiceRouting:
         bill = Bill.objects.get(xero_id=xero_id)
         assert bill.company == company
         assert bill.status == "AUTHORISED"
+        assert bill.xero_tenant_id == TENANT
         assert not Invoice.objects.filter(xero_id=xero_id).exists()
 
     def test_unknown_type_raises(self, company: Company) -> None:

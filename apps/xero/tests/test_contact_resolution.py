@@ -16,6 +16,7 @@ from django.utils import timezone as django_timezone
 from apps.accounting.models import Quote
 from apps.company.models import Company
 from apps.purchasing.models import PurchaseOrder
+from apps.xero.tests.conftest import TEST_TENANT_ID
 from apps.xero.transforms import (
     _extract_required_fields_xero,
     resolve_company_from_xero_contact,
@@ -112,7 +113,9 @@ class TestTransformsUseEmbeddedContact:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr("apps.xero.transforms.get_or_fetch_company", _fail_if_called)
-            fields = _extract_required_fields_xero("invoice", invoice, "inv-xero-id")
+            fields = _extract_required_fields_xero(
+                "invoice", invoice, "inv-xero-id", tenant_id=TEST_TENANT_ID
+            )
 
         resolved = fields["company"]
         assert isinstance(resolved, Company)
@@ -134,7 +137,7 @@ class TestTransformsUseEmbeddedContact:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr("apps.xero.transforms.get_or_fetch_company", _fail_if_called)
-            quote, status = transform_quote(xero_quote, xero_id)
+            quote, status = transform_quote(xero_quote, xero_id, tenant_id=TEST_TENANT_ID)
 
         assert status == "created"
         assert Quote.objects.get(xero_id=xero_id).company_id == company.id
@@ -154,7 +157,7 @@ class TestTransformsUseEmbeddedContact:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr("apps.xero.transforms.get_or_fetch_company", _fail_if_called)
-            po, status = transform_purchase_order(xero_po, xero_id)
+            po, status = transform_purchase_order(xero_po, xero_id, tenant_id=TEST_TENANT_ID)
 
         assert status == "created"
         assert PurchaseOrder.objects.get(po_number="PO-9001").supplier_id == company.id
