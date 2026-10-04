@@ -176,6 +176,10 @@ class TestPaySlipsCarryTheRunsTenant:
         )
         slip_id = uuid.uuid4()
 
-        _run_entity("pay_slips", [_xero_pay_slip(slip_id, pay_run_id)], tenant_id=OURS)
+        # A competing answer for any re-read: create=True because the module
+        # no longer imports the name at all, and a change that brought the
+        # per-slip read back would bring the import back with it.
+        with patch("apps.xero.transforms.get_tenant_id", return_value=FOREIGN, create=True):
+            _run_entity("pay_slips", [_xero_pay_slip(slip_id, pay_run_id)], tenant_id=OURS)
 
         assert XeroPaySlip.objects.get(xero_id=slip_id).xero_tenant_id == OURS

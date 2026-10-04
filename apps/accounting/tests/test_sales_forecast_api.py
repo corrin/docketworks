@@ -111,6 +111,31 @@ class TestSalesForecastList:
         assert JUNE_KEY in months
         assert "2026-07" not in months
 
+    def test_a_job_s_revenue_is_summed_per_month_across_its_lines(
+        self, authenticated_client: Client, staff: Staff
+    ) -> None:
+        # The sum is taken in the database, grouped by month and job. Two
+        # lines of one job in one month are one figure (a grouping that let
+        # the lines' own ordering in would return them separately and the
+        # second would replace the first); the same job in another month is
+        # that month's figure alone; and a second job adds to the month.
+        company = make_company("Summed Co")
+        job = make_job(company, staff)
+        other = make_job(company, staff)
+        add_actual_line(job, on=date(2026, 6, 2), rev="100.00")
+        add_actual_line(job, on=date(2026, 6, 28), rev="50.00")
+        add_actual_line(other, on=date(2026, 6, 15), rev="7.00")
+        add_actual_line(job, on=date(2026, 7, 1), rev="30.00")
+
+        months = {
+            m["month"]: m["jm_sales"] for m in authenticated_client.get(LIST_URL).json()["months"]
+        }
+
+        assert months[JUNE_KEY] == 157.0
+        assert months["2026-07"] == 30.0
+        june = authenticated_client.get(f"{LIST_URL}{JUNE_KEY}/").json()["rows"]
+        assert sorted(row["job_revenue"] for row in june) == [7.0, 150.0]
+
     def test_every_listed_month_opens_to_something(
         self, authenticated_client: Client, staff: Staff
     ) -> None:

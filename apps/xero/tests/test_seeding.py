@@ -818,6 +818,24 @@ class TestPurchaseOrdersXeroHolds:
         for order in (our_draft, deleted, lineless, uncosted):
             assert order not in held
 
+    def test_pending_is_every_held_order_this_organisation_has_not_claimed(self) -> None:
+        # Counted in the database now. An order with no tenant at all (the
+        # shape the inbound sync used to leave) and one claimed by another
+        # organisation are both still to do; only this organisation's claim
+        # takes an order off the list.
+        unclaimed = _sent_order()
+        elsewhere = _sent_order()
+        ours = _sent_order()
+        PurchaseOrder.objects.filter(id=elsewhere.id).update(
+            xero_id=uuid.uuid4(), xero_tenant_id="prod-tenant"
+        )
+        PurchaseOrder.objects.filter(id=ours.id).update(xero_id=uuid.uuid4(), xero_tenant_id=TENANT)
+
+        pending = PURCHASE_ORDERS.pending(TENANT)
+
+        assert set(pending) == {unclaimed, elsewhere}
+        assert pending.count() == 2
+
     @pytest.mark.parametrize(
         "number",
         ["PO-0042", "PO-256916885935035200", "PO-0840-VOID-31316fd7", "XPO-0042", "PO-", "TEST-1"],
