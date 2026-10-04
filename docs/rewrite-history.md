@@ -2329,3 +2329,73 @@ order is the opposite case (`purchase_order_number_held_by_deleted.json`) and
 its constraint is unchanged. `next_number` in `apps/xero/fake/minting.py` still
 says a deleted document keeps its number; for quotes that is not what Xero
 does, and the fake's quote sequence has not been changed to match.
+
+## 2026-10-05 — Workshop staff on a phone: login and time entry (KAN-375)
+
+Workshop staff use the app from their phones, and nothing in the E2E suite
+signed in on one or as a non-office user. Two Playwright projects now do:
+`android` (Pixel 7, 412px) and `iphone` (iPhone 14 on WebKit, 390px), running
+only `tests/e2e/mobile` as a seeded workshop login that is neither office staff
+nor superuser.
+
+Rulings (owner, 2026-10-04, unless marked):
+
+- Phones are a mix of iPhone and Android, so both get a project.
+- Workshop staff enter whatever they like on their own time, rate and billable
+  included; office approval of the timesheet is the control.
+- Everything v1's My time offered is ported. The over-hours badge and red
+  over-estimate blocks stay out: that drop was already recorded.
+- No mobile menu. The header hides the welcome text below `sm` instead.
+- 44px tap areas are a deliberate override of the design language's 36px, for
+  the controls workshop staff work by thumb, through one shared class
+  (`components/ui/touch.ts`).
+- Shared plain inputs are 16px below `md` (`INPUT_CLASS`), so iOS Safari does
+  not zoom the page on focus. That changes the forgot-password and reset
+  screens and five dialogs at phone width as well as the time-entry drawer.
+
+What the phone runs measured:
+
+- Login inputs 16px on both projects; the time-entry drawer's inputs at least
+  16px on both. No horizontal overflow on login, the board or My time.
+- Header after the change: three rows on both; 163px of a 664px viewport at
+  390px (it was 163px in four rows) and 161px of 839px at 412px (it was about
+  125px). The tap areas took back the row the welcome text gave up.
+- The job picker popover spans 17px to 377px in both the 390px and 412px
+  viewports, listing 197 to 199 jobs from the production-shaped dev database.
+- A workshop login draws no 401 or 403 on the board or on My time.
+
+What the code and the runs established:
+
+- The billable tick is sent on an edit only when the user set it, and then
+  even when it equals the stored value. The server reads its presence as an
+  explicit choice on a job move (`move_time_line`), so "send when it differs"
+  would have lost a deliberate unbillable choice on a move off a shop job. The
+  tick shows what the save will produce, which on an untouched move off a job
+  that cannot bill is billable.
+- A new entry defaults to the job of the entry booked most recently, not to
+  the last in list order as v1 did.
+- v1's My time calendar also opened at midnight: neither its component nor the
+  library it used scrolled to the working day. Nothing was ported for it.
+- Timesheets > Daily was offered to every login while both of its endpoints
+  are superuser-only; it is now offered to superusers alone.
+- A closing Radix panel stays in the DOM for the length of its exit animation.
+  A screenshot taken inside that window, with animations disabled, shows it at
+  full opacity; one such picture was misread as a menu that never closed. A
+  probe showed the menu and the entry drawer both leave the DOM on WebKit.
+- FullCalendar draws a column layer over its slot lanes and takes the tap
+  itself, so a Playwright tap on a slot has to be forced at the lane.
+- `scripts/checks/code_quality.py` counts tracked files as they are on disk. A
+  doc generated with uncommitted work in the tree does not match the commit,
+  and a commit of frontend files alone does not regenerate it.
+
+Found and left for the owner:
+
+- The login form's fields take over a second to appear (entrance animation).
+- A workshop login sees the office board and its Quick assign strip, and the
+  assignment endpoints and `POST .../cost_sets/actual/cost_lines/` accept any
+  signed-in staff member, as v1's did.
+- `run_e2e.sh` does not run `e2e_ensure_fixtures`, and its reset runs before
+  the backup, so its deletion of local `[TEST]` rows is permanent.
+- Salaried staff: `time_entry_rates.py` writes `salary_term_id` and
+  `pay_basis` into a time line's meta, and `TIME_META_SCHEMA` allows neither.
+  Read from the code, not reproduced.
