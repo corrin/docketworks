@@ -331,6 +331,22 @@ def validate_ordered_quantity(line: PurchaseOrderLine, quantity: Decimal) -> Non
         )
 
 
+#: No order is expected before this. A year typed with two digits is stored as
+#: the year 25, which the accounting system refuses outright, so an order
+#: carrying one cannot be sent to it.
+_EARLIEST_DELIVERY_YEAR = 2000
+
+
+def _require_a_real_delivery_date(expected_delivery: date | None) -> None:
+    """Refuse an expected delivery whose year can only be a typing slip."""
+    if expected_delivery is None or expected_delivery.year >= _EARLIEST_DELIVERY_YEAR:
+        return
+    raise InvalidInputError(
+        f"Expected delivery {expected_delivery.isoformat()} is in the year "
+        f"{expected_delivery.year}. Enter the year with four digits."
+    )
+
+
 def _apply_line_fields(line: PurchaseOrderLine, line_data: PurchaseOrderLineWriteData) -> None:
     """Write the supplied line fields onto ``line`` per the PATCH contract.
 
@@ -407,6 +423,7 @@ def create_purchase_order(data: PurchaseOrderCreateData, *, created_by: Staff) -
     Docketworks raised. An order that arrives FROM the accounting system is
     created by the inbound sync instead, and is never pushed back.
     """
+    _require_a_real_delivery_date(data.get("expected_delivery"))
     supplier = _resolve_supplier(data["supplier_id"])
 
     pickup_address: SupplierPickupAddress | None
@@ -442,7 +459,8 @@ def _apply_purchase_order_fields(po: PurchaseOrder, data: PurchaseOrderUpdateDat
     if "reference" in data:
         po.reference = data["reference"]
     if "expected_delivery" in data:
-        po.expected_delivery = data.get("expected_delivery")
+        _require_a_real_delivery_date(data["expected_delivery"])
+        po.expected_delivery = data["expected_delivery"]
     if "status" not in data:
         return
 
