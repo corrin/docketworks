@@ -2315,7 +2315,21 @@ organisation, so the next seed cleared 2520 contact ids, 703 stock ids and the
 sync cursors, and had to be run to convergence again. Three writers save
 `xero_contact_id` without the tenant: that branch and its two siblings,
 `apps/xero/single_sync.py` (the webhook path) and
-`create_company_contact_in_xero` in `apps/xero/contacts.py`. Not changed here.
+`create_company_contact_in_xero` in `apps/xero/contacts.py`.
+
+Fixed the same week. Every writer now stores the tenant in the same write as
+the contact id, and `Company` carries
+`CHECK (xero_contact_id IS NULL OR xero_tenant_id IS NOT NULL)`. Production held
+3,920 linked companies with no tenant against 321 with one, all 321 naming the
+organisation in `CompanyDefaults` (owner's read-only census, 2026-10-04): the
+column arrived after most companies were linked, and the incremental sync only
+stamps a contact Xero reports a change to. `company.0002` stamps them with the
+configured organisation and deletes nothing; it refuses on an instance that has
+linked companies and no configured organisation. The seed's rule that one
+foreign row clears the mirror is unchanged: with the constraint, no writer can
+produce such a row.
+
+The item codes and the year-0025 dates are repaired by `purchasing.0021`.
 
 ## 2026-10-04 — A deleted quote does not hold its number in Xero (KAN-375)
 
