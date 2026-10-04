@@ -7,7 +7,7 @@ dependencies = [
     "django==6.1.1",
     "django-ninja==1.7.1",
     "psycopg[binary]==3.3.6",
-    "python-dotenv==1.2.3",
+    "python-dotenv==1.2.4",
     "pydantic==2.13.5",
     "celery==5.6.3",
     "django-celery-results==2.6.0",
@@ -24,7 +24,7 @@ dependencies = [
     "pypdf==6.19.0",
     "beautifulsoup4==4.15.0",
     "pdf2image==1.17.0",
-    "litellm==1.103.1",
+    "litellm==1.104.0",
     "selenium==4.50.0",
     "holidays==0.105",
     "xero-python==15.2.0",
@@ -57,14 +57,14 @@ dependencies = [
     # requires openai>=3 and no litellm release accepts openai 3, so taking it
     # means replacing LiteLLM as the gateway (ADR 0041) — not a sweep-sized change.
     "openai-agents[litellm]==0.20.0",
-    "mcp==2.2.0",
+    "mcp==2.3.0",
     "asgiref==3.12.1",
     "pydantic-core==2.46.5",
 ]
 
 [dependency-groups]
 dev = [
-    "ruff==0.16.9",
+    "ruff==0.16.10",
     "mypy==2.3.1",
     "django-stubs[compatible-mypy]==6.1.1",
     "pytest==9.1.1",
