@@ -88,9 +88,16 @@ test('tall form entries page scrolls to saved entries', async ({ authenticatedPa
     })
     expect(overflows).toBe(true)
 
+    // Wheel down the way a user would, a screen at a time, until the entries
+    // come into view. The page's height is not this test's business (it grew
+    // when phone-width inputs went to 16px); that the wheel reaches the
+    // entries is.
+    const entriesHeading = autoId(page, 'FormEntries-entries-count')
     await page.mouse.move(200, 300)
-    await page.mouse.wheel(0, 1400)
-    await expect(autoId(page, 'FormEntries-entries-count')).toBeInViewport()
+    await expect(async () => {
+      await page.mouse.wheel(0, 600)
+      await expect(entriesHeading).toBeInViewport({ timeout: 1000 })
+    }).toPass({ timeout: 15000 })
     await expect(autoId(page, 'FormEntries-entries-count')).toHaveText('Entries (1)')
   })
 })

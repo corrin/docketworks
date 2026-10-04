@@ -2364,8 +2364,12 @@ Rulings (owner, 2026-10-04, unless marked):
   the controls workshop staff work by thumb, through one shared class
   (`components/ui/touch.ts`).
 - Shared plain inputs are 16px below `md` (`INPUT_CLASS`), so iOS Safari does
-  not zoom the page on focus. That changes the forgot-password and reset
-  screens and five dialogs at phone width as well as the time-entry drawer.
+  not zoom the page on focus. The class is imported by 27 files across admin,
+  auth, CRM, job, process forms, purchasing, reports, the shared address
+  field and timesheets: every one of those inputs is 16px below 768px and
+  unchanged from there up. The first full run showed one phone-width spec
+  moved by it: the form-entries page grew past the fixed distance its scroll
+  test wheeled.
 
 What the phone runs measured:
 
