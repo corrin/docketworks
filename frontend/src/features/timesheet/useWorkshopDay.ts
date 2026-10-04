@@ -49,6 +49,7 @@ export function useWorkshopDay(date: string) {
       report(error, 'The entry could not be saved.')
       return false
     }
+    toast.success('Time saved.')
     invalidateDays()
     return true
   }
@@ -60,6 +61,7 @@ export function useWorkshopDay(date: string) {
       report(error, 'The entry could not be updated.')
       return false
     }
+    toast.success('Time saved.')
     invalidateDays()
     return true
   }
@@ -71,6 +73,7 @@ export function useWorkshopDay(date: string) {
       report(error, 'The entry could not be deleted.')
       return false
     }
+    toast.success('Entry deleted.')
     invalidateDays()
     return true
   }

@@ -5,6 +5,7 @@ import { jobJobsStatusChoicesRetrieveOptions } from '@/api'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { MIN_SEARCH_TERM_LENGTH, SEARCH_DEBOUNCE_MS, useDebouncedValue } from './useDebouncedValue'
+import { cn } from '@/lib/utils'
 
 const NO_BACKGROUND_JOBS: readonly never[] = []
 
@@ -76,6 +77,9 @@ export interface JobPickerProps<T extends JobPickerOption> {
   commitOnTab: boolean
   /** data-entry-seq on the trigger; the keyboard-nav spec binds rows by it. */
   entrySeq?: number | null
+  /** Extra classes for the trigger, for a screen that sizes it differently
+      (the workshop drawer's phone tap area). */
+  triggerClassName?: string
   /** The screen's background search for a term, run in parallel with the
       local filter. Omit it where there is nothing beyond the local list to
       reach (leave settings holds every special job already). Its results are
@@ -158,6 +162,7 @@ export function JobPicker<T extends JobPickerOption>({
   typedSearchLimit,
   commitOnTab,
   entrySeq = null,
+  triggerClassName,
   searchOptions,
   onSelect,
 }: JobPickerProps<T>) {
@@ -307,7 +312,11 @@ export function JobPicker<T extends JobPickerOption>({
           disabled={disabled}
           title={label}
           aria-label={ariaLabel}
-          className={`block w-full truncate rounded border border-transparent px-2 py-1 text-left text-sm hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-50 ${bound === '' ? 'text-slate-400' : ''}`}
+          className={cn(
+            'block w-full truncate rounded border border-transparent px-2 py-1 text-left text-sm hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-50',
+            bound === '' && 'text-slate-400',
+            triggerClassName,
+          )}
           data-automation-id={`${automationIdPrefix}-trigger`}
           data-entry-seq={entrySeq ?? undefined}
           onPointerDown={() => {
@@ -329,7 +338,9 @@ export function JobPicker<T extends JobPickerOption>({
             if (!disabled && bound === '') setOpen(true)
           }}
         >
-          {label}
+          {/* Its own box, so the label still truncates when a screen makes
+              the trigger a flex row. */}
+          <span className="min-w-0 truncate">{label}</span>
           {selected === null ? null : renderTriggerBadge?.(selected)}
         </button>
       </PopoverTrigger>

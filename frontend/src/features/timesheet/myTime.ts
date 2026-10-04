@@ -7,7 +7,12 @@
  * field for the user to contradict.
  */
 
-import type { WorkshopTimesheetEntryOut, WorkshopTimesheetEntryUpdateRequest } from '@/api'
+import type {
+  CompanyDefaultsOut,
+  TimesheetJobOut,
+  WorkshopTimesheetEntryOut,
+  WorkshopTimesheetEntryUpdateRequest,
+} from '@/api'
 
 import { formatHoursDisplay } from '@/lib/format'
 
@@ -86,27 +91,93 @@ export const RATE_OPTIONS = [
 
 /** What the drawer's rate select and billable tick hold. */
 export interface EntryBillingValues {
-  isBillable: boolean
+  /** The tick as the user set it; null while they have not touched it. */
+  billableChoice: boolean | null
   rateMultiplier: number
 }
 
 /**
- * The PATCH fields the rate select and billable tick contribute: each is sent
- * only when it differs from the stored entry. The server reads the presence
- * of `is_billable` as an explicit choice (move_time_line), so resending the
- * stored value on every save would turn a job move off a shop job into a
- * request to stay unbillable.
+ * The PATCH fields the rate select and billable tick contribute. The server
+ * reads the presence of `is_billable` as an explicit choice (move_time_line):
+ * it is sent whenever the user set the tick, even to the stored value, so a
+ * choice survives a job move — and never otherwise, so a move off a shop job
+ * with the tick untouched is still the server's to re-bill.
  */
 export function billingChangeFields(
   entry: WorkshopTimesheetEntryOut,
   form: EntryBillingValues,
 ): { is_billable?: boolean; wage_rate_multiplier?: number } {
   return {
-    ...(form.isBillable === entry.is_billable ? {} : { is_billable: form.isBillable }),
+    ...(form.billableChoice === null ? {} : { is_billable: form.billableChoice }),
     ...(form.rateMultiplier === entry.wage_rate_multiplier
       ? {}
       : { wage_rate_multiplier: form.rateMultiplier }),
   }
+}
+
+type BillingJob = Pick<TimesheetJobOut, 'id' | 'shop_job' | 'status'>
+
+/** Whether time on the job can be invoiced: shop work and special jobs cannot
+    (the server's rule, job_service._bills_its_time). */
+export function billsItsTime(job: BillingJob): boolean {
+  return !job.shop_job && job.status !== 'special'
+}
+
+/**
+ * What the billable tick shows, which is what the save will produce. A job
+ * that cannot bill shows unticked whatever was chosen. Untouched, a new entry
+ * is billable, and an entry moved off a job that could not bill becomes
+ * billable — the server's rule, mirrored here so the tick does not show one
+ * thing and the save do another.
+ */
+export function shownBillable(form: {
+  entry: WorkshopTimesheetEntryOut | null
+  /** The entry's current job, when the job list still offers it. */
+  sourceJob: BillingJob | null
+  selectedJob: BillingJob | null
+  billableChoice: boolean | null
+}): boolean {
+  const { entry, sourceJob, selectedJob, billableChoice } = form
+  if (selectedJob !== null && !billsItsTime(selectedJob)) return false
+  if (billableChoice !== null) return billableChoice
+  if (entry === null) return true
+  const movedOffUnbillableJob =
+    sourceJob !== null &&
+    !billsItsTime(sourceJob) &&
+    selectedJob !== null &&
+    selectedJob.id !== entry.job_id
+  return movedOffUnbillableJob ? true : entry.is_billable
+}
+
+const WEEKDAY_START_KEYS = [
+  'mon_start',
+  'tue_start',
+  'wed_start',
+  'thu_start',
+  'fri_start',
+] as const
+
+/** The company configures no weekend hours; a weekend entry opens here. */
+const WEEKEND_DAY_START = '08:00'
+
+/** When the working day starts on `isoDate`, as an "HH:mm" time-input value. */
+export function workingDayStart(
+  isoDate: string,
+  defaults: Pick<CompanyDefaultsOut, (typeof WEEKDAY_START_KEYS)[number]>,
+): string {
+  const weekday = new Date(`${isoDate}T00:00:00`).getDay()
+  const key = WEEKDAY_START_KEYS[weekday - 1]
+  return key === undefined ? WEEKEND_DAY_START : defaults[key].slice(0, 5)
+}
+
+/** How many different jobs the day's entries are booked to. */
+export function distinctJobCount(entries: WorkshopTimesheetEntryOut[]): number {
+  return new Set(entries.map((entry) => entry.job_id)).size
+}
+
+/** A rate multiplier as the workshop reads it: "Ord", "1.5x", "2x". */
+export function rateLabel(multiplier: number): string {
+  return multiplier === 1 ? 'Ord' : `${multiplier}x`
 }
 
 /** A start/end pair of "HH:mm" time-input values. */
