@@ -143,9 +143,9 @@ function LoginPage() {
                   data-automation-id="LoginView-username"
                   value={username}
                   onChange={(event) => setUsername(event.target.value)}
-                  type="text"
+                  type="email"
                   className={`w-full rounded-xl border bg-white/50 px-4 py-3 placeholder-gray-400 transition-all duration-200 focus:border-transparent focus:ring-2 ${inputStateClasses(username)}`}
-                  placeholder="Enter your username"
+                  placeholder="Enter your email"
                   required
                   autoComplete="username"
                 />

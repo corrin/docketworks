@@ -77,6 +77,122 @@ export function jobChangeFields(
   return { job_id: jobId }
 }
 
+/** The pay rates a workshop entry can be booked at; `Ord` is ordinary time. */
+export const RATE_OPTIONS = [
+  { label: 'Ord', multiplier: 1 },
+  { label: '1.5', multiplier: 1.5 },
+  { label: '2.0', multiplier: 2 },
+] as const
+
+/** What the drawer's rate select and billable tick hold. */
+export interface EntryBillingValues {
+  isBillable: boolean
+  rateMultiplier: number
+}
+
+/**
+ * The PATCH fields the rate select and billable tick contribute: each is sent
+ * only when it differs from the stored entry. The server reads the presence
+ * of `is_billable` as an explicit choice (move_time_line), so resending the
+ * stored value on every save would turn a job move off a shop job into a
+ * request to stay unbillable.
+ */
+export function billingChangeFields(
+  entry: WorkshopTimesheetEntryOut,
+  form: EntryBillingValues,
+): { is_billable?: boolean; wage_rate_multiplier?: number } {
+  return {
+    ...(form.isBillable === entry.is_billable ? {} : { is_billable: form.isBillable }),
+    ...(form.rateMultiplier === entry.wage_rate_multiplier
+      ? {}
+      : { wage_rate_multiplier: form.rateMultiplier }),
+  }
+}
+
+/** A start/end pair of "HH:mm" time-input values. */
+export interface TimeRange {
+  start: string
+  end: string
+}
+
+/** The length a new entry opens at, and the calendar's slot size. */
+const DEFAULT_SLOT_MINUTES = 30
+/** A day's entry cannot run past its own date. */
+const LAST_MINUTE_OF_DAY = 24 * 60 - 1
+
+function timeOfDay(minutes: number): string {
+  const clamped = Math.min(Math.max(minutes, 0), LAST_MINUTE_OF_DAY)
+  const hours = Math.floor(clamped / 60)
+  return `${String(hours).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`
+}
+
+function requireMinutes(value: string): number {
+  const minutes = minutesOfDay(value)
+  if (minutes === null) throw new Error(`Not a time of day: "${value}"`)
+  return minutes
+}
+
+/** One default slot starting at `start`. */
+export function slotFrom(start: string): TimeRange {
+  return { start, end: timeOfDay(requireMinutes(start) + DEFAULT_SLOT_MINUTES) }
+}
+
+/**
+ * Where a new entry opens: at the tapped slot, else straight after the day's
+ * latest finish (the next job usually starts when the last one stopped), else
+ * at the start of the working day.
+ */
+export function defaultNewEntryRange(
+  entries: WorkshopTimesheetEntryOut[],
+  dayStart: string,
+  tappedStart: string | null,
+): TimeRange {
+  if (tappedStart !== null) return slotFrom(tappedStart)
+  const finishes = splitDayEntries(entries).timed.map((entry) => requireMinutes(entry.end_time))
+  if (finishes.length === 0) return slotFrom(dayStart)
+  return slotFrom(timeOfDay(Math.max(...finishes)))
+}
+
+/** The job of the entry booked most recently, which a new entry defaults to. */
+export function lastUsedJobId(entries: WorkshopTimesheetEntryOut[]): string | null {
+  let latest: WorkshopTimesheetEntryOut | null = null
+  for (const entry of entries) {
+    if (latest === null || entry.created_at > latest.created_at) latest = entry
+  }
+  return latest === null ? null : latest.job_id
+}
+
+/** "Now": one default slot starting at the wall-clock minute. */
+export function slotFromNow(now: Date): TimeRange {
+  return slotFrom(timeOfDay(now.getHours() * 60 + now.getMinutes()))
+}
+
+/**
+ * Move the end by `deltaMinutes`, keeping the start. The end never crosses the
+ * start: pulling it back that far leaves a one-minute entry, the shortest the
+ * server accepts.
+ */
+export function adjustEnd(range: TimeRange, deltaMinutes: number): TimeRange {
+  const start = requireMinutes(range.start)
+  const moved = requireMinutes(range.end) + deltaMinutes
+  return { start: range.start, end: timeOfDay(moved > start ? moved : start + 1) }
+}
+
+/**
+ * "Fill gap": run the entry up to the day's next start, or to the end of the
+ * day when nothing follows it.
+ */
+export function fillGapToNextEntry(start: string, entries: WorkshopTimesheetEntryOut[]): TimeRange {
+  const from = requireMinutes(start)
+  const laterStarts = splitDayEntries(entries)
+    .timed.map((entry) => requireMinutes(entry.start_time))
+    .filter((minutes) => minutes > from)
+  return {
+    start,
+    end: timeOfDay(laterStarts.length === 0 ? LAST_MINUTE_OF_DAY : Math.min(...laterStarts)),
+  }
+}
+
 /** What the drawer's form holds when the user submits an edit. */
 export interface EntryFormValues {
   jobId: string

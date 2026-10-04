@@ -2247,3 +2247,85 @@ def test_review_probe_mixed_batch_checks_address_before_any_write() -> None:
 Observed assertion evidence: `([('demo-probe', 'Ana', 'Silva')], 'demo-probe', 'tenant-under-test')`. The provider recorded a rename and the local employee ID changed despite the address validation failure. The temporary probe failed at the assertion shown above; the application code was restored and the probe was removed.
 
 A future fix should validate the creation prerequisites for the entire batch before applying matched-employee writes, and promote this reproduction into a passing mixed-batch regression test. That application change is outside this test-only cleanup.
+
+## 2026-10-04 — The Xero re-seed puts purchase orders in the organisation (KAN-375)
+
+The fake Xero is built from the mirror, and after a restore the mirror held no
+purchase order the organisation knew: the seed cleared every order's Xero id
+and no phase recreated them. Nothing recorded that as a decision, and the
+2026-09-12 ruling ("an order that is not in Xero is a bug rather than a state")
+says the opposite.
+
+Owner rulings, 2026-10-04:
+
+- The seed sends what production's Xero holds: orders Docketworks raised once
+  they have left draft, and orders raised in Xero in any state but deleted.
+- A restored order is linked to a live Xero order by number alone, as invoices
+  and quotes are. A supplier-and-total comparison was the alternative; supplier
+  names differ between scrub runs, so it would have stopped legitimate re-seeds.
+- The cost is accepted: on a Demo Company, restored `PO-0001`..`PO-0007` link
+  to the Demo Company's own orders of those numbers and the sync overwrites
+  those local rows. It happened on the 2026-10-04 restore and the rows were
+  left as they were.
+
+Measured, real dev tenant, 2026-10-04 (`purchase_order_create_batch.json`):
+several purchase orders in one upsert call with `summarizeErrors=false` answer
+200 with one element per order, each carrying its number and its id.
+
+Findings left as they are:
+
+- `transform_purchase_order` (`apps/xero/transforms.py`) links an incoming Xero
+  order to a local row by `po_number` when no row carries its id, with no check
+  that it is the same order, and never writes `xero_tenant_id`. The seed's own
+  claim stamps the tenant, so the seed converges; the match-by-number remains.
+- A seed re-run after the sync counts the jobless invoices and quotes the sync
+  pulled from the organisation as remaining work, and its invoice and quote
+  phases would delete them. On the 2026-10-04 restore that was 50 invoices and
+  15 quotes, so the purchase order phase was run with `--only`.
+
+Measured on the first run of the phase, real dev tenant, 2026-10-04 (784
+orders in scope, 776 created or linked, the rest E2E residue):
+
+- Xero refuses an order whose line names an item code the organisation's items
+  do not include (`Item code '…' is not valid`). Owner ruling: a line is an
+  item code Xero knows or a description with no code, so such a line is
+  malformed data. Five restored lines carried one (JO-0262 twice, JO-0279,
+  JO-0440, JO-0658); their codes were blanked on the dev database. Production
+  holds the same rows. The phase runs after stock for the same reason.
+- Xero refuses a delivery date in the year 0025 (`The date 8/20/0025 is not
+  valid`). Five restored orders carried one (JO-0146, JO-0157, JO-0187,
+  JO-0192, JO-0195), corrected to 2025 on the dev database. Production holds
+  the same rows.
+- One order (JO-0282) was refused with `Please select a valid Inventory Item`
+  in a call made seconds after the stock phase had rewritten the
+  organisation's items, while another order naming the same item was accepted
+  in the same run. It was created unchanged on the re-run. Cause not
+  established.
+- A refusal answers with an order id that Xero did not store (JO-0282's id
+  answered 404), so the element's validation errors are the refusal, not the
+  zero id alone.
+
+The clear phase fired a second time on the same day's database. The hourly
+sync had created a Company for a Xero contact with no name
+(`apps/xero/transforms.py`, the "create anyway" branch), which saves the
+contact id before `set_company_fields` stamps the tenant, and that call raised
+on the contact's missing status. One Company with a contact id and no tenant is
+what `mirror_points_at_foreign_org` reads as a mirror linked to another
+organisation, so the next seed cleared 2520 contact ids, 703 stock ids and the
+sync cursors, and had to be run to convergence again. Three writers save
+`xero_contact_id` without the tenant: that branch and its two siblings,
+`apps/xero/single_sync.py` (the webhook path) and
+`create_company_contact_in_xero` in `apps/xero/contacts.py`. Not changed here.
+
+## 2026-10-04 — A deleted quote does not hold its number in Xero (KAN-375)
+
+The fake held quote numbers unique per tenant across deleted quotes, refused
+the mirror of the dev organisation at `fake_xero_seed`, and no fake E2E run
+could start. Xero reissues a deleted quote's number: the Demo Company holds
+three DELETED quotes numbered QU-0013, and a recording pass on 2026-10-04 was
+given QU-0016 for a new quote straight after a deleted quote was answered under
+that number. The fake's constraint now covers live quotes only. A purchase
+order is the opposite case (`purchase_order_number_held_by_deleted.json`) and
+its constraint is unchanged. `next_number` in `apps/xero/fake/minting.py` still
+says a deleted document keeps its number; for quotes that is not what Xero
+does, and the fake's quote sequence has not been changed to match.

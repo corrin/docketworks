@@ -27,7 +27,15 @@ from apps.xero.seeding import SeedRunOutcome, run_seed
 
 logger = logging.getLogger(__name__)
 
-VALID_ENTITIES = ("accounts", "contacts", "employees", "invoices", "quotes", "stock")
+VALID_ENTITIES = (
+    "accounts",
+    "contacts",
+    "employees",
+    "invoices",
+    "quotes",
+    "stock",
+    "purchase_orders",
+)
 # Named so the operator gets the reason, not "invalid entity".
 DEFERRED_ENTITIES = {
     "projects": "Xero Projects is not ported (Phase 4); jobs carry no project id in v2.",

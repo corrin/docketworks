@@ -16,13 +16,14 @@ async function openMenu(user: UserEvent, automationId: string): Promise<void> {
   await user.click(autoId(automationId))
 }
 
-describe('AppNavbar — the weekly timesheets link', () => {
-  it('offers weekly, leave and the first admin entry to a superuser', async () => {
+describe('AppNavbar — the timesheet management links', () => {
+  it('offers daily, weekly, leave and the first admin entry to a superuser', async () => {
     mockUser({ is_superuser: true })
     const { user } = renderWithProviders(<AppNavbar />)
 
     await openMenu(user, 'AppNavbar-timesheets-menu')
     await waitFor(() => {
+      expect(queryAutoId('AppNavbar-daily-timesheets')).not.toBeNull()
       expect(queryAutoId('AppNavbar-weekly-timesheets')).not.toBeNull()
       expect(queryAutoId('AppNavbar-leave')).not.toBeNull()
     })
@@ -55,7 +56,7 @@ describe('AppNavbar — the weekly timesheets link', () => {
     await waitFor(() => expect(queryAutoId('AppNavbar-leave')).toBeNull())
   })
 
-  it('offers my time to every staff member', async () => {
+  it('offers my time, and only my time, to workshop staff', async () => {
     // The workshop my-time page is the one timesheet surface open to
     // ordinary workshop staff, so its link carries no role gate.
     mockUser({ is_office_staff: false, is_superuser: false })
@@ -63,11 +64,12 @@ describe('AppNavbar — the weekly timesheets link', () => {
 
     await openMenu(user, 'AppNavbar-timesheets-menu')
     await waitFor(() => expect(queryAutoId('AppNavbar-my-time')).not.toBeNull())
+    expect(queryAutoId('AppNavbar-daily-timesheets')).toBeNull()
   })
 
-  it('is withheld from office staff who are not superusers', async () => {
-    // Opus: The page and every payroll endpoint behind it use SuperuserCookieJWTAuth,
-    // so offering this link to office staff sent them to a 403 — a link that
+  it('are withheld from office staff who are not superusers', async () => {
+    // Opus: The pages and every endpoint behind them use SuperuserCookieJWTAuth,
+    // so offering these links to office staff sent them to a 403 — a link that
     // only ever fails is worse than no link.
     mockUser({ is_office_staff: true, is_superuser: false })
     const { user } = renderWithProviders(<AppNavbar />)
@@ -76,8 +78,9 @@ describe('AppNavbar — the weekly timesheets link', () => {
     // Opened, not merely unrendered: the superuser-only entries must be absent
     // from a menu the user has actually pulled down.
     await openMenu(user, 'AppNavbar-timesheets-menu')
-    await waitFor(() => expect(queryAutoId('AppNavbar-daily-timesheets')).not.toBeNull())
+    await waitFor(() => expect(queryAutoId('AppNavbar-my-time')).not.toBeNull())
 
+    expect(queryAutoId('AppNavbar-daily-timesheets')).toBeNull()
     expect(queryAutoId('AppNavbar-weekly-timesheets')).toBeNull()
     expect(queryAutoId('AppNavbar-leave')).toBeNull()
     expect(queryAutoId('AppNavbar-admin-menu')).toBeNull()
@@ -125,7 +128,7 @@ describe('AppNavbar — the Reports menu', () => {
     expect(queryAutoId('AppNavbar-reports-menu')).toBeNull()
 
     await openMenu(user, 'AppNavbar-timesheets-menu')
-    await waitFor(() => expect(queryAutoId('AppNavbar-daily-timesheets')).not.toBeNull())
+    await waitFor(() => expect(queryAutoId('AppNavbar-my-time')).not.toBeNull())
     expect(queryAutoId('AppNavbar-sales-forecast')).toBeNull()
   })
 })
