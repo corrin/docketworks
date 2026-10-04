@@ -707,11 +707,46 @@ class TestSeedPurchaseOrders:
             ]
         )
 
-        with pytest.raises(ValueError, match=f"{order.po_number}: Deleted PurchaseOrders"):
+        # Names the order and says a re-run cannot help: nothing in Xero frees
+        # a number a deleted order holds.
+        with pytest.raises(
+            ValueError, match=f"{order.po_number}: a deleted purchase order.*refused again"
+        ):
             seed_documents(PURCHASE_ORDERS)
 
         order.refresh_from_db()
         assert order.xero_id is None
+
+    def test_orders_xero_stored_are_claimed_before_a_refusal_stops_the_phase(
+        self, xero_api: MagicMock
+    ) -> None:
+        # Xero answers 200 for the call and refuses one order inside it; the
+        # other is in Xero now. Raising before claiming it left a document in
+        # Xero that only a number lookup on the next run could find again.
+        stored = _sent_order()
+        refused = _sent_order()
+        stored_id = str(uuid.uuid4())
+        xero_api.get_purchase_orders.return_value = MagicMock(purchase_orders=[])
+        xero_api.update_or_create_purchase_orders.return_value = MagicMock(
+            purchase_orders=[
+                MagicMock(
+                    purchase_order_number=refused.po_number,
+                    purchase_order_id=str(uuid.uuid4()),
+                    status="SUBMITTED",
+                    validation_errors=[MagicMock(message="The date 8/20/0025 is not valid")],
+                ),
+                _xero_order(stored.po_number, stored_id),
+            ]
+        )
+
+        with pytest.raises(ValueError, match=f"{refused.po_number}: The date"):
+            seed_documents(PURCHASE_ORDERS)
+
+        stored.refresh_from_db()
+        refused.refresh_from_db()
+        assert (str(stored.xero_id), stored.xero_tenant_id) == (stored_id, TENANT)
+        # Xero answered with an id for the refused order and did not store it.
+        assert refused.xero_id is None
 
     def test_an_order_without_a_job_is_not_deleted(self, xero_api: MagicMock) -> None:
         # Invoices and quotes with no job are restore remnants and the phase

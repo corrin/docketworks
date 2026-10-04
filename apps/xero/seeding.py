@@ -623,22 +623,33 @@ def _create_purchase_orders_in_xero(
     off the element: its validation errors, or the zero UUID Xero returns for
     a number a deleted order still holds.
     """
-    orders = accounting_api.update_or_create_purchase_orders(
+    return accounting_api.update_or_create_purchase_orders(
         tenant_id, purchase_orders={"PurchaseOrders": payloads}, summarize_errors=False
     ).purchase_orders
-    refused = [
-        f"{order.purchase_order_number}: "
-        + " | ".join(str(error.message) for error in order.validation_errors or [])
-        for order in orders or []
-        if order.validation_errors or str(order.purchase_order_id) == ZERO_UUID
-    ]
-    if refused:
-        raise ValueError(
-            f"Xero refused {len(refused)} purchase order(s) - {'; '.join(refused)}. The other "
-            f"orders in the same call were created and are not linked yet; fix the refused "
-            f"ones and re-run the seed, which links what exists and creates the remainder."
+
+
+def _purchase_order_refusal(order: XeroPurchaseOrder) -> str | None:
+    """Why Xero refused this order, or None when it stored it.
+
+    The zero UUID is one refusal in particular (recordings/
+    purchase_order_number_held_by_deleted.json): a DELETED order in the
+    organisation still holds the number. Xero neither reuses the number nor
+    lets a deleted order be renamed, so no re-run can succeed and nothing in
+    Xero can be changed to make it; the message says so instead of the
+    "fix and re-run" every other refusal gets.
+    """
+    messages = " | ".join(str(error.message) for error in order.validation_errors or [])
+    if str(order.purchase_order_id) == ZERO_UUID:
+        return (
+            f"{order.purchase_order_number}: a deleted purchase order in this Xero "
+            f"organisation still holds that number ({messages}). Xero will not reuse the "
+            f"number or rename a deleted order, so this order cannot be created here under "
+            f"it; re-running will be refused again. The choices are the owner's: see "
+            f"docs/restore-prod-to-nonprod.md, 'What the seed commands refuse'"
         )
-    return orders
+    if order.validation_errors:
+        return f"{order.purchase_order_number}: {messages}"
+    return None
 
 
 def _job_linked_unclaimed[TJobDocument: (Invoice, Quote)](
@@ -728,6 +739,8 @@ class _DocumentKind[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemot
     entity: str
     remote_number: Callable[[TRemote], str | None]
     remote_id: Callable[[TRemote], str | None]
+    #: Why Xero refused one element of an answered call, or None if it stored it.
+    refusal: Callable[[TRemote], str | None]
     number: Callable[[TDocument], str | None]
     #: The company the document is addressed to: the Xero contact it needs.
     contact: Callable[[TDocument], Company]
@@ -777,6 +790,9 @@ INVOICES = _DocumentKind(
     entity="invoices",
     remote_number=lambda invoice: invoice.invoice_number,
     remote_id=lambda invoice: invoice.invoice_id,
+    # A refused invoice or quote fails the whole call (summarised errors), so
+    # no element of an answered call is ever a refusal.
+    refusal=lambda _remote: None,
     number=lambda invoice: invoice.number,
     contact=lambda invoice: invoice.company,
     pending=lambda tenant_id: _job_linked_unclaimed(Invoice, tenant_id),
@@ -791,6 +807,9 @@ QUOTES = _DocumentKind(
     entity="quotes",
     remote_number=lambda quote: quote.quote_number,
     remote_id=lambda quote: quote.quote_id,
+    # A refused invoice or quote fails the whole call (summarised errors), so
+    # no element of an answered call is ever a refusal.
+    refusal=lambda _remote: None,
     number=lambda quote: quote.number,
     contact=lambda quote: quote.company,
     pending=lambda tenant_id: _job_linked_unclaimed(Quote, tenant_id),
@@ -804,6 +823,7 @@ PURCHASE_ORDERS = _DocumentKind(
     entity="purchase_orders",
     remote_number=_claimable_purchase_order_number,
     remote_id=lambda order: order.purchase_order_id,
+    refusal=_purchase_order_refusal,
     number=lambda order: order.po_number,
     contact=_supplier,
     pending=_purchase_orders_unclaimed,
@@ -892,7 +912,15 @@ def _batch_create[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote]
         if not remote_documents:
             raise ValueError(f"Empty response from Xero for {kind.entity} batch {batch_number}")
 
+        # Every order Xero stored is claimed before a refusal stops the phase:
+        # those orders exist in Xero now, and leaving them unlinked made the
+        # re-run depend on finding them again by number.
+        refused: list[str] = []
         for remote in remote_documents:
+            reason = kind.refusal(remote)
+            if reason is not None:
+                refused.append(reason)
+                continue
             # A response with no number at all is the same failure as an
             # unrecognised one: nothing to map it back to.
             number = kind.remote_number(remote) or ""
@@ -917,6 +945,13 @@ def _batch_create[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote]
             kind.claim(local, remote_id, tenant_id)
             created += 1
             logger.info("Seeded %s %s (%s)", kind.entity, number, kind.contact(local).name)
+
+        if refused:
+            raise ValueError(
+                f"Xero refused {len(refused)} {kind.label} - {'; '.join(refused)}. Everything "
+                f"else in the same call was created and is linked. Fix what was refused and "
+                f"re-run the seed, which creates the remainder."
+            )
 
     return created
 
