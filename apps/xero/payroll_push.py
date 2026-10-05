@@ -174,14 +174,19 @@ def require_dispatched_tenant(connection_id: str) -> None:
 
 
 def _week_time_lines(week: _WeekWindow, staff_ids: Sequence[UUID] | None = None) -> list[CostLine]:
-    """Every actual time line in the week, optionally narrowed to some staff.
+    """Every approved actual time line in the week, optionally narrowed to some staff.
 
     Opus: Only actual lines are worked time — an estimate or quote line describes
     hypothetical hours and must never reach payroll.
+
+    Staff are paid for approved time only (owner, 2026-10-06, KAN-376). Time
+    the office has not approved is held back from validation, the post and the
+    week's status alike; the weekly screen reports it from its own query.
     """
     lines = CostLine.objects.filter(
         cost_set__kind="actual",
         kind="time",
+        approved=True,
         accounting_date__gte=week.start,
         accounting_date__lte=week.end,
     ).select_related("xero_pay_item", "cost_set__job")

@@ -2294,8 +2294,13 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
     with transaction.atomic():
         lock_costing_jobs([job.id])
         cost_set = get_or_create_cost_set(job, kind)
-        # Workshop-created lines await office approval.
-        line = CostLine(cost_set=cost_set, approved=staff.is_office_staff)
+        # Workshop-created lines await office approval. Leave never does: the
+        # leave request is the approval, the approve endpoint refuses a managed
+        # line, and payroll reads unapproved leave as no leave.
+        line = CostLine(
+            cost_set=cost_set,
+            approved=staff.is_office_staff or data.get("managed_by") == "leave",
+        )
         if is_timesheet_line and data.get("kind") == "time":
             _reprice_timesheet_line(line, data, dict(meta))
         _apply_costline_fields(line, data)

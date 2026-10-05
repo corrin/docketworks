@@ -181,6 +181,7 @@ def make_time_line(  # noqa: PLR0913 -- a factory: every field is an axis a test
     unit_cost: str = "48.00",
     unit_rev: str = "120.00",
     cost_set: CostSet | None = None,
+    approved: bool = True,
     **meta: object,
 ) -> CostLine:
     """Create an actual time line for a staff member (the shape the UI produces).
@@ -219,6 +220,7 @@ def make_time_line(  # noqa: PLR0913 -- a factory: every field is an axis a test
         accounting_date=accounting_date,
         staff=staff,
         xero_pay_item=pay_item,
+        approved=approved,
         meta={
             "staff_id": str(staff.id),
             "created_from_timesheet": True,
