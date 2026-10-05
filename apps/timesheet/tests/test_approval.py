@@ -1,7 +1,7 @@
 """Office approval of worked time: a person's day at once, and what the screen is told."""
 
 from collections.abc import Iterator
-from datetime import timedelta
+from datetime import time, timedelta
 
 import pytest
 from django.test import Client
@@ -11,7 +11,7 @@ from apps.company.models import Company
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.timesheet.models import TimesheetEvent
-from apps.timesheet.services import approval
+from apps.timesheet.services import approval, attendance
 from apps.timesheet.tests.conftest import (
     WEEK_START,
     authenticated_client,
@@ -157,6 +157,29 @@ class TestApprovalsRead:
             1.0: True,
             2.0: True,
         }
+
+    def test_each_row_says_whether_the_person_was_here_apart_from_approval(
+        self, office_staff: Staff, job: Job, worker: Staff, other_worker: Staff
+    ) -> None:
+        """Clocked out with nothing entered, and time waiting without a clock-in, are both days."""
+        attendance.set_clock_times(worker, DAY, time(6, 30), time(15, 0), worker)
+        make_time_line(job, other_worker, accounting_date=DAY, approved=False)
+
+        body = (
+            authenticated_client(office_staff).get(f"{APPROVALS_URL}?date={DAY.isoformat()}").json()
+        )
+
+        rows = {row["staff_id"]: row for row in body["staff"]}
+        assert rows[str(worker.id)]["state"] == "nothing_entered"
+        assert rows[str(worker.id)]["clock"] == {
+            "state": "clocked_out",
+            "clock_in": "06:30:00",
+            "clock_out": "15:00:00",
+            "here_hours": 8.5,
+            "sent_late": False,
+        }
+        assert rows[str(other_worker.id)]["state"] == "waiting"
+        assert rows[str(other_worker.id)]["clock"]["state"] == "not_clocked_in"
 
     def test_approvals_payload_carries_no_money(
         self, office_staff: Staff, job: Job, worker: Staff

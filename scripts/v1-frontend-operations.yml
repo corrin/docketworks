@@ -656,6 +656,10 @@ introduced:
 # no screen for approving and nothing that paid by it.
 - timesheets_approvals_retrieve
 - timesheets_approvals_approve_day
+# Clocking in and out, new with KAN-376: v1 recorded hours and never when a
+# person was at work.
+- timesheets_my_day_clock
+- timesheets_my_day_times
 # One narrow job list for the admin screens that map a fixed kind of job. v1 had
 # no such screen, and its pickers were fed by whichever domain list the page
 # already loaded — which is how v2 briefly grew a third job-option schema.

@@ -390,6 +390,34 @@ export type AssignJobResponse = {
 };
 
 /**
+ * AttendanceOut
+ *
+ * A person's day as they clocked it. ``here_hours`` is worked out by the server.
+ */
+export type AttendanceOut = {
+    /**
+     * Clock In
+     */
+    clock_in: string | null;
+    /**
+     * Clock Out
+     */
+    clock_out: string | null;
+    /**
+     * Here Hours
+     */
+    here_hours: number | null;
+    /**
+     * Sent Late
+     */
+    sent_late: boolean;
+    /**
+     * State
+     */
+    state: 'not_clocked_in' | 'at_work' | 'clocked_out' | 'sent';
+};
+
+/**
  * AuthErrorOut
  *
  * Expected authentication refusal, distinct from domain-level 401s.
@@ -519,6 +547,44 @@ export type ChunkOut = {
      * Sequence
      */
     sequence: number;
+};
+
+/**
+ * ClockRequest
+ *
+ * A tap on Clock in or Clock out; the server supplies the time.
+ */
+export type ClockRequest = {
+    /**
+     * Action
+     */
+    action: 'in' | 'out';
+};
+
+/**
+ * ClockTimesRequest
+ *
+ * Clock times set by hand. No ``clock_out`` means the person is at work again.
+ *
+ * ``staff_id`` is for office staff correcting another person's day.
+ */
+export type ClockTimesRequest = {
+    /**
+     * Clock In
+     */
+    clock_in: string;
+    /**
+     * Clock Out
+     */
+    clock_out?: string | null;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
 };
 
 /**
@@ -10688,6 +10754,7 @@ export type SettingsSectionOut = {
  * One person's day on the Approve time screen. No pay figures (KAN-376).
  */
 export type StaffApprovalOut = {
+    clock: AttendanceOut;
     /**
      * Entered Hours
      */
@@ -13653,10 +13720,15 @@ export type WorkshopTimesheetListResponse = {
      * Date
      */
     date: string;
+    day: AttendanceOut;
     /**
      * Entries
      */
     entries: Array<WorkshopTimesheetEntryOut>;
+    /**
+     * Pending Date
+     */
+    pending_date: string | null;
     summary: WorkshopTimesheetSummaryOut;
     week: WorkshopTimesheetWeekOut;
 };
@@ -19800,6 +19872,38 @@ export type TimesheetsLeaveRequestsUpdateResponses = {
 };
 
 export type TimesheetsLeaveRequestsUpdateResponse = TimesheetsLeaveRequestsUpdateResponses[keyof TimesheetsLeaveRequestsUpdateResponses];
+
+export type TimesheetsMyDayClockData = {
+    body: ClockRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/clock/';
+};
+
+export type TimesheetsMyDayClockResponses = {
+    /**
+     * OK
+     */
+    200: AttendanceOut;
+};
+
+export type TimesheetsMyDayClockResponse = TimesheetsMyDayClockResponses[keyof TimesheetsMyDayClockResponses];
+
+export type TimesheetsMyDayTimesData = {
+    body: ClockTimesRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/times/';
+};
+
+export type TimesheetsMyDayTimesResponses = {
+    /**
+     * OK
+     */
+    200: AttendanceOut;
+};
+
+export type TimesheetsMyDayTimesResponse = TimesheetsMyDayTimesResponses[keyof TimesheetsMyDayTimesResponses];
 
 export type TimesheetsPayrollPayRunsRetrieveData = {
     body?: never;

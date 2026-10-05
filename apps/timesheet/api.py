@@ -47,6 +47,9 @@ from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.schemas import (
     ApprovalsDayOut,
     ApproveDayOut,
+    AttendanceOut,
+    ClockRequest,
+    ClockTimesRequest,
     DailyTimesheetSummaryOut,
     EntryLocationIn,
     JobsListResponse,
@@ -67,6 +70,7 @@ from apps.timesheet.schemas import (
 )
 from apps.timesheet.services import (
     approval,
+    attendance,
     daily_timesheet_service,
     payroll_service,
     timesheet_entry_options,
@@ -518,6 +522,47 @@ def job_workshop_timesheets_destroy(request: HttpRequest, entry_id: UUID) -> Sta
         # A leave-managed line: the leave workflow owns it (ADR 0038).
         raise HttpError(400, str(exc)) from exc
     return Status(204, None)
+
+
+# ── Clocking in and out ─────────────────────────────────────────────────
+
+
+@router.post(
+    "/timesheets/my-day/clock/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_clock",
+    response=AttendanceOut,
+    summary="Clock the caller in or out, now",
+    tags=["timesheets"],
+)
+def timesheets_my_day_clock(
+    request: HttpRequest, payload: ClockRequest
+) -> attendance.AttendanceData:
+    """Stamp the caller's own day with the server's local time, to the minute."""
+    worker = authenticated_staff(request)
+    now = timezone.localtime()
+    if payload.action == "in":
+        return attendance.clock_in(worker, now)
+    return attendance.clock_out(worker, now)
+
+
+@router.put(
+    "/timesheets/my-day/times/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_times",
+    response=AttendanceOut,
+    summary="Set a day's clock times by hand",
+    tags=["timesheets"],
+)
+def timesheets_my_day_times(
+    request: HttpRequest, payload: ClockTimesRequest
+) -> attendance.AttendanceData:
+    """Set the caller's clock times for a day, or for office staff anyone's."""
+    actor = authenticated_staff(request)
+    owner = actor if payload.staff_id is None else get_object_or_404(Staff, id=payload.staff_id)
+    return attendance.set_clock_times(
+        owner, payload.date, payload.clock_in, payload.clock_out, actor
+    )
 
 
 # ── Approve time ────────────────────────────────────────────────────────

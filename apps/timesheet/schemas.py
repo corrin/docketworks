@@ -4,6 +4,7 @@ Timesheet services build matching TypedDict data, and error responses use the
 standard envelope from ADR 0038.
 """
 
+import datetime as datetime_module
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Annotated, Literal
@@ -297,6 +298,34 @@ class WorkshopTimesheetWeekOut(Schema):
     waiting_hours: float
 
 
+class AttendanceOut(Schema):
+    """A person's day as they clocked it. ``here_hours`` is worked out by the server."""
+
+    state: Literal["not_clocked_in", "at_work", "clocked_out", "sent"]
+    clock_in: time | None
+    clock_out: time | None
+    here_hours: float | None
+    sent_late: bool
+
+
+class ClockRequest(Schema):
+    """A tap on Clock in or Clock out; the server supplies the time."""
+
+    action: Literal["in", "out"]
+
+
+class ClockTimesRequest(Schema):
+    """Clock times set by hand. No ``clock_out`` means the person is at work again.
+
+    ``staff_id`` is for office staff correcting another person's day.
+    """
+
+    date: date
+    clock_in: time
+    clock_out: time | None = None
+    staff_id: UUID | None = None
+
+
 class WorkshopTimesheetListResponse(Schema):
     """Wire contract for WorkshopTimesheetListResponse."""
 
@@ -304,6 +333,8 @@ class WorkshopTimesheetListResponse(Schema):
     entries: list[WorkshopTimesheetEntryOut]
     summary: WorkshopTimesheetSummaryOut
     week: WorkshopTimesheetWeekOut
+    day: AttendanceOut
+    pending_date: datetime_module.date | None
 
 
 class StaffApprovalOut(Schema):
@@ -316,6 +347,7 @@ class StaffApprovalOut(Schema):
     waiting_hours: float
     entered_late: bool
     remote_entry: bool
+    clock: AttendanceOut
     entries: list[WorkshopTimesheetEntryOut]
 
 

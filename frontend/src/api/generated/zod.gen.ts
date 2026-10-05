@@ -176,6 +176,24 @@ export const zAssignJobResponse = z.object({
 });
 
 /**
+ * AttendanceOut
+ *
+ * A person's day as they clocked it. ``here_hours`` is worked out by the server.
+ */
+export const zAttendanceOut = z.object({
+    clock_in: z.iso.time().nullable(),
+    clock_out: z.iso.time().nullable(),
+    here_hours: z.number().nullable(),
+    sent_late: z.boolean(),
+    state: z.enum([
+        'not_clocked_in',
+        'at_work',
+        'clocked_out',
+        'sent'
+    ])
+});
+
+/**
  * AuthErrorOut
  *
  * Expected authentication refusal, distinct from domain-level 401s.
@@ -242,6 +260,29 @@ export const zChunkOut = z.object({
     id: z.uuid(),
     recording_id: z.uuid(),
     sequence: z.int()
+});
+
+/**
+ * ClockRequest
+ *
+ * A tap on Clock in or Clock out; the server supplies the time.
+ */
+export const zClockRequest = z.object({
+    action: z.enum(['in', 'out'])
+});
+
+/**
+ * ClockTimesRequest
+ *
+ * Clock times set by hand. No ``clock_out`` means the person is at work again.
+ *
+ * ``staff_id`` is for office staff correcting another person's day.
+ */
+export const zClockTimesRequest = z.object({
+    clock_in: z.iso.time(),
+    clock_out: z.iso.time().nullish(),
+    date: z.iso.date(),
+    staff_id: z.uuid().nullish()
 });
 
 /**
@@ -6113,6 +6154,7 @@ export const zWorkshopTimesheetEntryOut = z.object({
  * One person's day on the Approve time screen. No pay figures (KAN-376).
  */
 export const zStaffApprovalOut = z.object({
+    clock: zAttendanceOut,
     entered_hours: z.number(),
     entered_late: z.boolean(),
     entries: z.array(zWorkshopTimesheetEntryOut),
@@ -6227,7 +6269,9 @@ export const zWorkshopTimesheetWeekOut = z.object({
  */
 export const zWorkshopTimesheetListResponse = z.object({
     date: z.iso.date(),
+    day: zAttendanceOut,
     entries: z.array(zWorkshopTimesheetEntryOut),
+    pending_date: z.iso.date().nullable(),
     summary: zWorkshopTimesheetSummaryOut,
     week: zWorkshopTimesheetWeekOut
 });
@@ -8900,6 +8944,20 @@ export const zTimesheetsLeaveRequestsUpdatePath = z.object({
  * OK
  */
 export const zTimesheetsLeaveRequestsUpdateResponse = zLeaveSaveOut;
+
+export const zTimesheetsMyDayClockBody = zClockRequest;
+
+/**
+ * OK
+ */
+export const zTimesheetsMyDayClockResponse = zAttendanceOut;
+
+export const zTimesheetsMyDayTimesBody = zClockTimesRequest;
+
+/**
+ * OK
+ */
+export const zTimesheetsMyDayTimesResponse = zAttendanceOut;
 
 /**
  * OK

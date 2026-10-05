@@ -15,6 +15,8 @@ from typing import Literal, TypedDict
 from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.job.models.costing import CostLine, lock_costing_jobs
+from apps.timesheet.models import AttendanceDay
+from apps.timesheet.services.attendance import AttendanceData, attendance_data
 from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
 from apps.timesheet.services.workshop_timesheet_service import (
     WorkshopEntryData,
@@ -42,6 +44,9 @@ class StaffApprovalData(TypedDict):
     #: Any waiting entry was made after its day, or away from the workshop.
     entered_late: bool
     remote_entry: bool
+    #: Whether the person was here, a separate question from whether their
+    #: time is approved: every pairing of the two is an ordinary day.
+    clock: AttendanceData
     entries: list[WorkshopEntryData]
 
 
@@ -93,7 +98,9 @@ def approve_day(worker: Staff, day: date, actor: Staff) -> int:
     return len(locked)
 
 
-def _staff_day(person: Staff, lines: list[CostLine]) -> StaffApprovalData:
+def _staff_day(
+    person: Staff, lines: list[CostLine], attendance: AttendanceDay | None
+) -> StaffApprovalData:
     waiting = [line for line in lines if not line.approved]
     state: ApprovalState
     if waiting:
@@ -110,6 +117,7 @@ def _staff_day(person: Staff, lines: list[CostLine]) -> StaffApprovalData:
         "waiting_hours": float(sum(line.quantity for line in waiting)),
         "entered_late": any(entered_late(line) for line in waiting),
         "remote_entry": any(line.remote_entry for line in waiting),
+        "clock": attendance_data(attendance),
         "entries": [entry_data(line) for line in lines],
     }
 
@@ -126,8 +134,9 @@ def day_approvals(day: date) -> ApprovalsDayData:
     ).select_related("cost_set__job__company")
     for line in lines:
         by_staff.setdefault(str(line.staff_id), []).append(line)
+    clocked = {row.staff_id: row for row in AttendanceDay.objects.filter(date=day)}
     rows = [
-        _staff_day(person, by_staff.get(str(person.id), []))
+        _staff_day(person, by_staff.get(str(person.id), []), clocked.get(person.id))
         for person in get_displayable_staff(target_date=day)
     ]
     rows.sort(key=lambda row: (_STATE_ORDER[row["state"]], row["staff_name"]))

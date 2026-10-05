@@ -44,7 +44,8 @@ from apps.job.services.time_entry_rates import (
     price_time_entry,
     rate_from_meta,
 )
-from apps.timesheet.services import hour_categories
+from apps.timesheet.services import attendance, hour_categories
+from apps.timesheet.services.attendance import AttendanceData
 from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
 from apps.timesheet.services.weekly_timesheet_service import PAYROLL_WEEK_DAYS, payroll_week_start
 
@@ -158,6 +159,9 @@ class WorkshopDayData(TypedDict):
     entries: list[WorkshopEntryData]
     summary: WorkshopSummaryData
     week: WorkshopWeekData
+    day: AttendanceData
+    #: An earlier day the person is still clocked in on, to be finished by hand.
+    pending_date: date | None
 
 
 def resolve_entry_date(date_param: str | None) -> date:
@@ -376,6 +380,8 @@ def list_entries(staff: Staff, entry_date: date) -> WorkshopDayData:
         "entries": [entry_data(line) for line in entries],
         "summary": _summary(entries),
         "week": _week_hours(staff, entry_date),
+        "day": attendance.day_attendance(staff, entry_date),
+        "pending_date": attendance.pending_date(staff, timezone.localdate()),
     }
 
 

@@ -421,6 +421,45 @@ components:
       - success
       title: AssignJobResponse
       type: object
+    AttendanceOut:
+      description: A person's day as they clocked it. ``here_hours`` is worked out by the server.
+      properties:
+        clock_in:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          title: Clock In
+        clock_out:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          title: Clock Out
+        here_hours:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Here Hours
+        sent_late:
+          title: Sent Late
+          type: boolean
+        state:
+          enum:
+          - not_clocked_in
+          - at_work
+          - clocked_out
+          - sent
+          title: State
+          type: string
+      required:
+      - state
+      - clock_in
+      - clock_out
+      - here_hours
+      - sent_late
+      title: AttendanceOut
+      type: object
     AuthErrorOut:
       description: Expected authentication refusal, distinct from domain-level 401s.
       properties:
@@ -557,6 +596,50 @@ components:
       - recording_id
       - sequence
       title: ChunkOut
+      type: object
+    ClockRequest:
+      description: A tap on Clock in or Clock out; the server supplies the time.
+      properties:
+        action:
+          enum:
+          - in
+          - out
+          title: Action
+          type: string
+      required:
+      - action
+      title: ClockRequest
+      type: object
+    ClockTimesRequest:
+      description: 'Clock times set by hand. No ``clock_out`` means the person is at work again.
+
+
+        ``staff_id`` is for office staff correcting another person''s day.'
+      properties:
+        clock_in:
+          format: time
+          title: Clock In
+          type: string
+        clock_out:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          title: Clock Out
+        date:
+          format: date
+          title: Date
+          type: string
+        staff_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff Id
+      required:
+      - date
+      - clock_in
+      title: ClockTimesRequest
       type: object
     CompanyCreateRequest:
       description: Wire contract for CompanyCreateRequest.
@@ -12085,6 +12168,8 @@ components:
     StaffApprovalOut:
       description: One person's day on the Approve time screen. No pay figures (KAN-376).
       properties:
+        clock:
+          $ref: '#/components/schemas/AttendanceOut'
         entered_hours:
           title: Entered Hours
           type: number
@@ -12124,6 +12209,7 @@ components:
       - waiting_hours
       - entered_late
       - remote_entry
+      - clock
       - entries
       title: StaffApprovalOut
       type: object
@@ -15461,11 +15547,19 @@ components:
           format: date
           title: Date
           type: string
+        day:
+          $ref: '#/components/schemas/AttendanceOut'
         entries:
           items:
             $ref: '#/components/schemas/WorkshopTimesheetEntryOut'
           title: Entries
           type: array
+        pending_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Pending Date
         summary:
           $ref: '#/components/schemas/WorkshopTimesheetSummaryOut'
         week:
@@ -15475,6 +15569,8 @@ components:
       - entries
       - summary
       - week
+      - day
+      - pending_date
       title: WorkshopTimesheetListResponse
       type: object
     WorkshopTimesheetSummaryOut:
@@ -23321,6 +23417,52 @@ paths:
       summary: Update Request
       tags:
       - leave
+  /api/timesheets/my-day/clock/:
+    post:
+      description: Stamp the caller's own day with the server's local time, to the minute.
+      operationId: timesheets_my_day_clock
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClockRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceOut'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Clock the caller in or out, now
+      tags:
+      - timesheets
+  /api/timesheets/my-day/times/:
+    put:
+      description: Set the caller's clock times for a day, or for office staff anyone's.
+      operationId: timesheets_my_day_times
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClockTimesRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceOut'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Set a day's clock times by hand
+      tags:
+      - timesheets
   /api/timesheets/payroll/pay-runs/:
     get:
       description: All pay runs for the configured payroll calendar (local mirror).

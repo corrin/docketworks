@@ -232,6 +232,47 @@ class LeaveDay(models.Model):
             raise ValidationError({"staff": "Leave day staff must match its request."})
 
 
+class AttendanceDay(models.Model):
+    """When one person was at work on one day, as they clocked it (KAN-376).
+
+    Clocking helps the worker and the office see the day; it binds nothing and
+    pays nothing. The times are times of day, so a shift past midnight cannot
+    be stored: the office sets the finish to 23:59 and enters the hours as
+    time (owner ruling, 2026-10-06). A day reopened is this same row with its
+    finish cleared. The day's state is derived from the row, never stored.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    staff = models.ForeignKey(
+        "accounts.Staff", on_delete=models.PROTECT, related_name="attendance_days"
+    )
+    date = models.DateField()
+    clock_in = models.TimeField()
+    # NULL while the person is still at work.
+    clock_out = models.TimeField(null=True, blank=True)
+    # NULL until the day is sent to the office.
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["date"]
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.UniqueConstraint(fields=["staff", "date"], name="unique_staff_attendance_day"),
+            models.CheckConstraint(
+                condition=Q(clock_out__isnull=True) | Q(clock_out__gt=models.F("clock_in")),
+                name="timesheet_attendance_finish_after_start",
+            ),
+            models.CheckConstraint(
+                condition=Q(submitted_at__isnull=True) | Q(clock_out__isnull=False),
+                name="timesheet_attendance_sent_only_when_clocked_out",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.staff.get_display_name()} on {self.date}"
+
+
 def _moved(old: JsonScalar, new: JsonScalar) -> str:
     return f"Moved from {old} to {new}"
 
