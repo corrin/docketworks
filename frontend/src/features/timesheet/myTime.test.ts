@@ -7,6 +7,7 @@ import {
   billingChangeFields,
   billsItsTime,
   calendarEvent,
+  clockWords,
   defaultNewEntryRange,
   deriveHoursFromTimes,
   distinctJobCount,
@@ -466,5 +467,31 @@ describe('entryLockedFor', () => {
     expect(entryLockedFor(approved, { is_office_staff: false })).toBe(true)
     expect(entryLockedFor(approved, { is_office_staff: true })).toBe(false)
     expect(entryLockedFor(makeEntry({ approved: false }), { is_office_staff: false })).toBe(false)
+  })
+})
+
+describe('clockWords', () => {
+  const day = {
+    state: 'not_clocked_in',
+    clock_in: null,
+    clock_out: null,
+    here_hours: null,
+    sent_late: false,
+  } as const
+
+  it('says where the day stands, with the hours the server worked out', () => {
+    expect(clockWords(day)).toBe('Not clocked in')
+    expect(clockWords({ ...day, state: 'at_work', clock_in: '06:30:00' })).toBe(
+      'At work since 06:30',
+    )
+    expect(
+      clockWords({
+        ...day,
+        state: 'clocked_out',
+        clock_in: '06:30:00',
+        clock_out: '15:00:00',
+        here_hours: 8.5,
+      }),
+    ).toBe('Clocked out. 06:30 to 15:00, here 8h 30m')
   })
 })

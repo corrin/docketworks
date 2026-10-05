@@ -383,9 +383,13 @@ export {
   timesheetsApprovalsApproveDayMutation,
   timesheetsApprovalsRetrieveOptions,
   timesheetsApprovalsRetrieveQueryKey,
+  timesheetsMyDayClockMutation,
+  timesheetsMyDayTimesMutation,
 } from './generated/@tanstack/react-query.gen'
 export type {
   EntryLocationIn,
+  AttendanceOut,
+  ClockTimesRequest,
   StaffApprovalOut,
   WorkshopTimesheetEntryOut,
   WorkshopTimesheetEntryRequest,

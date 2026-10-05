@@ -153,12 +153,9 @@ async function savedEntry(response: APIResponse | Awaited<ReturnType<typeof time
 }
 
 async function openMyTime(page: Page): Promise<void> {
-  // Signing in ends with the app's own move to the board. Let that land
-  // first: on WebKit a goto issued while it was still in flight was cut
-  // across by it.
-  if (new URL(page.url()).pathname.startsWith('/kanban')) {
-    await expect(autoId(page, 'kanban-page')).toBeVisible()
-  }
+  // Signing in ends with the app's own move to My time. Let that land first:
+  // on WebKit a goto issued while it was still in flight was cut across by it.
+  await expect(autoId(page, 'WorkshopTimesheetCalendar')).toBeVisible()
   await page.goto(`/timesheets/my-time?date=${date}`)
   await expect(autoId(page, 'WorkshopTimesheetCalendar')).toBeVisible()
 }

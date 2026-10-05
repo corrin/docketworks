@@ -21,7 +21,8 @@ import {
   splitDayEntries,
   workingDayStart,
 } from './myTime'
-import { useWorkshopDay } from './useWorkshopDay'
+import { DayCard } from './DayCard'
+import { useClocking, useWorkshopDay } from './useWorkshopDay'
 import { WorkshopTimesheetCalendar } from './WorkshopTimesheetCalendar'
 import { WorkshopTimesheetEntryDrawer, type EntryDrawerState } from './WorkshopTimesheetEntryDrawer'
 
@@ -52,6 +53,8 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
   const [drawer, setDrawer] = useState<EntryDrawerState>({ mode: 'closed' })
 
   const entries = day.dayQuery.data?.entries ?? []
+  const dayData = day.dayQuery.data
+  const clocking = useClocking()
   const summary = day.dayQuery.data?.summary
   const week = day.dayQuery.data?.week
   const { timed, untimed } = splitDayEntries(entries)
@@ -95,6 +98,24 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
           </Button>
         </div>
       </div>
+
+      {dayData !== undefined && (
+        <DayCard
+          // A fresh card per day: an open times form belongs to the day it was opened on.
+          key={date}
+          date={date}
+          isToday={date === localIsoDate()}
+          day={dayData.day}
+          pendingDate={dayData.pending_date}
+          dayStart={workingDayStart(date, companyDefaults)}
+          clocking={clocking.clocking}
+          onClock={clocking.clock}
+          onSetTimes={(clockIn, clockOut) =>
+            clocking.setTimes({ date, clock_in: clockIn, clock_out: clockOut })
+          }
+          onOpenDay={onDateChange}
+        />
+      )}
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

@@ -167,8 +167,8 @@ test.describe('workshop password reset on a phone', () => {
 
     await test.step('the new password signs in', async () => {
       await signIn(page, username, NEW_PASSWORD)
-      await expect(page).toHaveURL(/\/kanban/)
-      await expect(autoId(page, 'kanban-page')).toBeVisible()
+      await expect(page).toHaveURL(/\/timesheets\/my-time/)
+      await expect(autoId(page, 'WorkshopTimesheetCalendar')).toBeVisible()
       await autoId(page, 'AppNavbar-logout').tap()
       await expect(page).toHaveURL(/\/login/)
     })

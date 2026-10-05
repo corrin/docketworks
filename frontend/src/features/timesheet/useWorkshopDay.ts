@@ -9,8 +9,11 @@ import {
   jobWorkshopTimesheetsRetrieveOptions,
   jobWorkshopTimesheetsRetrieveQueryKey,
   timesheetsApprovalsRetrieveQueryKey,
+  timesheetsMyDayClockMutation,
+  timesheetsMyDayTimesMutation,
 } from '@/api'
 import type {
+  ClockTimesRequest,
   EntryLocationIn,
   WorkshopTimesheetEntryRequest,
   WorkshopTimesheetEntryUpdateRequest,
@@ -118,6 +121,50 @@ export function useWorkshopEntryWrites(sendLocation: boolean, ownerId?: string) 
     deleteEntry,
     saving: createMutation.isPending || updateMutation.isPending || deleteMutation.isPending,
   }
+}
+
+/**
+ * Clock taps and hand-set clock times, for the caller's own day or, on
+ * Approve time, the person the office is correcting (`ownerId`). True on
+ * success; a refusal toasts the server's own words.
+ */
+export function useClocking(ownerId?: string) {
+  const queryClient = useQueryClient()
+  const clockMutation = useMutation(timesheetsMyDayClockMutation())
+  const timesMutation = useMutation(timesheetsMyDayTimesMutation())
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
+    void queryClient.invalidateQueries({ queryKey: timesheetsApprovalsRetrieveQueryKey() })
+  }
+
+  const clock = async (action: 'in' | 'out'): Promise<boolean> => {
+    try {
+      await clockMutation.mutateAsync({ body: { action } })
+    } catch (error) {
+      report(error, action === 'in' ? 'Clocking in failed.' : 'Clocking out failed.')
+      return false
+    }
+    toast.success(action === 'in' ? 'Clocked in.' : 'Clocked out.')
+    refresh()
+    return true
+  }
+
+  const setTimes = async (body: Omit<ClockTimesRequest, 'staff_id'>): Promise<boolean> => {
+    try {
+      await timesMutation.mutateAsync({
+        body: { ...body, ...(ownerId === undefined ? {} : { staff_id: ownerId }) },
+      })
+    } catch (error) {
+      report(error, 'The clock times could not be saved.')
+      return false
+    }
+    toast.success('Clock times saved.')
+    refresh()
+    return true
+  }
+
+  return { clock, setTimes, clocking: clockMutation.isPending || timesMutation.isPending }
 }
 
 /**

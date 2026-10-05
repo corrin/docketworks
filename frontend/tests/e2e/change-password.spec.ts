@@ -98,7 +98,9 @@ test.describe.serial('weak password path', () => {
       await autoId(page, 'AppNavbar-logout').click()
       await expect(page).toHaveURL(/\/login/)
       await loginAs(page, email, STRONG_PASSWORD)
-      await expect(page).toHaveURL(/\/kanban/)
+      // This login is not office staff, and nothing asked for a page this
+      // time, so it lands where workshop staff land.
+      await expect(page).toHaveURL(/\/timesheets\/my-time/)
       await expect(autoId(page, 'AppNavbar-logout')).toBeVisible()
     })
   })

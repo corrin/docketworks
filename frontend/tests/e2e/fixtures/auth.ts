@@ -131,7 +131,8 @@ export async function authenticateViaLoginPage(
       )
     }
 
-    await waitForCurrentUrl(page, /\/kanban\/?(?:[?#].*)?$/)
+    // Office staff land on the board, everyone else on My time.
+    await waitForCurrentUrl(page, /\/(kanban|timesheets\/my-time)\/?(?:[?#].*)?$/)
   } finally {
     stopSessionCheckConsoleAllowance()
   }

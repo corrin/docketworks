@@ -7,7 +7,7 @@ import { ChangePasswordPage } from '@/features/auth/ChangePasswordPage'
 // flagged sessions here, so nesting under it would loop the guard against
 // itself. The redirect param preserves the deep link that started the
 // session: login and the layout both pass it through, and success returns
-// there rather than flattening every forced arrival onto /kanban.
+// there rather than flattening every forced arrival onto the default page.
 export const Route = createFileRoute('/change-password')({
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
     redirect: safeInternalRedirect(search.redirect),

@@ -8,6 +8,7 @@
  */
 
 import type {
+  AttendanceOut,
   CompanyDefaultsOut,
   TimesheetJobOut,
   WorkshopTimesheetEntryOut,
@@ -52,11 +53,34 @@ export function entryMarks(entry: WorkshopTimesheetEntryOut): string[] {
  * The marks that ask for a second look, on an entry or on a person's day:
  * the same words in both places.
  */
-export function cautionMarks(flags: { entered_late: boolean; remote_entry: boolean }): string[] {
+export function cautionMarks(flags: {
+  entered_late: boolean
+  remote_entry: boolean
+  /** A person's day only: an entry is not sent, a day is. */
+  sent_late?: boolean
+}): string[] {
   const marks: string[] = []
   if (flags.entered_late) marks.push('Entered late')
   if (flags.remote_entry) marks.push('Suspicious remote entry')
+  if (flags.sent_late) marks.push('Sent late')
   return marks
+}
+
+/** "HH:mm" from the server's "HH:mm:ss". */
+function clockFace(value: string): string {
+  return value.slice(0, 5)
+}
+
+/**
+ * A person's clocked day in words, for their own card and the office's row.
+ * The hours they were here come from the server: no screen works them out.
+ */
+export function clockWords(day: AttendanceOut): string {
+  if (day.clock_in === null) return 'Not clocked in'
+  if (day.clock_out === null) return `At work since ${clockFace(day.clock_in)}`
+  const span = `${clockFace(day.clock_in)} to ${clockFace(day.clock_out)}`
+  const here = day.here_hours === null ? '' : `, here ${formatHoursDisplay(day.here_hours)}`
+  return day.state === 'sent' ? `Sent. ${span}${here}` : `Clocked out. ${span}${here}`
 }
 
 /**

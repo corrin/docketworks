@@ -11,7 +11,7 @@
 import type { Browser } from '@playwright/test'
 import { z } from 'zod'
 
-import { mondayOf } from '../../../src/lib/dates'
+import { mondayOf, shiftDate } from '../../../src/lib/dates'
 import { formatHoursDisplay } from '../../../src/lib/format'
 import { authenticateViaLoginPage, e2eCredentials, expect, test } from '../fixtures/auth'
 import { autoId } from '../helpers'
@@ -94,4 +94,56 @@ test('office staff correct a waiting entry and approve the day, and see no pay',
     await expect(autoId(page, `ApproveTimePage-approve-${staffId}`)).toHaveCount(0)
     await expect(autoId(page, `ApproveTimePage-entry-${waitingEntryId}`)).toContainText('Approved')
   })
+})
+
+test("office staff correct a person's clock times, and the screen holds at three widths", async ({
+  authenticatedPage: page,
+}, testInfo) => {
+  // A past weekday clear of the days the other specs clock and book on.
+  const day = shiftDate(getLatestWeekdayDate(), -28)
+  const listed = z
+    .object({ staff: z.array(z.object({ staff_id: z.string() })) })
+    .parse(await (await page.request.get(`/api/timesheets/approvals/?date=${day}`)).json())
+  const staffId = listed.staff[0]?.staff_id
+  if (staffId === undefined) throw new Error(`Nobody is on the timesheet for ${day}.`)
+  const clock = autoId(page, `ApproveTimePage-clock-${staffId}`)
+  const setClock = async (start: string, finish: string) => {
+    await autoId(page, `ApproveTimePage-clock-edit-${staffId}`).click()
+    await autoId(page, `ApproveTimePage-clock-${staffId}-start`).fill(start)
+    await autoId(page, `ApproveTimePage-clock-${staffId}-finish`).fill(finish)
+    await autoId(page, `ApproveTimePage-clock-${staffId}-times-save`).click()
+    await expect(page.getByText('Clock times saved.').last()).toBeVisible()
+  }
+
+  await page.goto(`/timesheets/approve?date=${day}`)
+  await expect(clock).toHaveText('Not clocked in')
+  await autoId(page, `ApproveTimePage-open-${staffId}`).click()
+
+  await test.step('the office sets the times a person did not clock', async () => {
+    await setClock('06:30', '15:00')
+    await expect(clock).toHaveText('Clocked out. 06:30 to 15:00, here 8h 30m')
+  })
+
+  await test.step('and corrects them', async () => {
+    await setClock('06:30', '15:30')
+    await expect(clock).toHaveText('Clocked out. 06:30 to 15:30, here 9h')
+  })
+
+  // docs/design-language.md: a new screen is looked at on a desktop, a tablet
+  // and a phone. The table scrolls inside its own container; the page does not.
+  for (const width of [1366, 1024, 390]) {
+    await test.step(`holds at ${width}px`, async () => {
+      await page.setViewportSize({ width, height: 900 })
+      await expect(clock).toBeVisible()
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
+      expect(overflow, `the page must not scroll sideways at ${width}px`).toBeLessThanOrEqual(0)
+      await page.screenshot({
+        path: testInfo.outputPath(`approve-time-${width}.png`),
+        animations: 'disabled',
+        fullPage: true,
+      })
+    })
+  }
 })

@@ -16,8 +16,9 @@ import { companyDefaultsQueryOptions } from '@/features/shell'
 import { shiftDate } from '@/lib/dates'
 import { formatDateLong, formatHoursDisplay } from '@/lib/format'
 
-import { cautionMarks, entryMarks, workingDayStart } from './myTime'
-import { useWorkshopEntryWrites } from './useWorkshopDay'
+import { ClockTimesForm } from './DayCard'
+import { cautionMarks, clockWords, entryMarks, workingDayStart } from './myTime'
+import { useClocking, useWorkshopEntryWrites } from './useWorkshopDay'
 import { WorkshopTimesheetEntryDrawer, type EntryDrawerState } from './WorkshopTimesheetEntryDrawer'
 
 export interface ApproveTimeSearch {
@@ -61,6 +62,9 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
   // Office staff are never asked where they are: the remote mark is about a
   // worker's own save.
   const writes = useWorkshopEntryWrites(false, correction?.staffId)
+  // Whose clock times the office has open for correction, if anyone's.
+  const [clockStaffId, setClockStaffId] = useState<string | null>(null)
+  const clocking = useClocking(clockStaffId ?? undefined)
 
   const people = approvalsQuery.data?.staff
   const correcting = people?.find((person) => person.staff_id === correction?.staffId)
@@ -127,6 +131,7 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
         head={
           <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-600">
             <th className="px-2 py-2">Staff member</th>
+            <th className="px-2 py-2">Clock</th>
             <th className="w-24 px-2 py-2">Entered</th>
             <th className="w-24 px-2 py-2">Waiting</th>
             <th className="px-2 py-2">State</th>
@@ -157,6 +162,12 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                   {person.staff_name}
                 </button>
               </td>
+              <td
+                className="px-2 py-2 text-slate-700"
+                data-automation-id={`ApproveTimePage-clock-${person.staff_id}`}
+              >
+                {clockWords(person.clock)}
+              </td>
               <td className="px-2 py-2">{formatHoursDisplay(person.entered_hours)}</td>
               <td
                 className="px-2 py-2"
@@ -171,7 +182,7 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                 <span className={person.state === 'waiting' ? 'font-semibold' : 'text-slate-600'}>
                   {STATE_WORDS[person.state]}
                 </span>
-                {cautionMarks(person).map((mark) => (
+                {cautionMarks({ ...person, sent_late: person.clock.sent_late }).map((mark) => (
                   <span key={mark} className="ml-2 font-semibold text-amber-800">
                     {mark}
                   </span>
@@ -192,7 +203,28 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
             </tr>
             {openStaffId === person.staff_id && (
               <tr className="border-b border-slate-100 bg-slate-50/60">
-                <td colSpan={5} className="px-2 py-2 pl-8">
+                <td colSpan={6} className="space-y-3 px-2 py-2 pl-8">
+                  {clockStaffId === person.staff_id ? (
+                    <ClockTimesForm
+                      automationId={`ApproveTimePage-clock-${person.staff_id}`}
+                      day={person.clock}
+                      defaultStart={workingDayStart(date, companyDefaults)}
+                      saving={clocking.clocking}
+                      onSave={(clockIn, clockOut) =>
+                        clocking.setTimes({ date, clock_in: clockIn, clock_out: clockOut })
+                      }
+                      onCancel={() => setClockStaffId(null)}
+                    />
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      data-automation-id={`ApproveTimePage-clock-edit-${person.staff_id}`}
+                      onClick={() => setClockStaffId(person.staff_id)}
+                    >
+                      <Pencil className="h-4 w-4" /> Correct clock times
+                    </Button>
+                  )}
                   <PersonEntries
                     person={person}
                     onEdit={(entry) =>

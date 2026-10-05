@@ -22,7 +22,7 @@ export const Route = createFileRoute('/login')({
     if (session.state === 'unavailable') {
       throw redirect({ to: '/session-check', search: { redirect: search.redirect } })
     }
-    throw redirect({ href: search.redirect ?? '/kanban' })
+    throw redirect({ href: search.redirect ?? '/' })
   },
   component: LoginPage,
 })
@@ -90,7 +90,7 @@ function LoginPage() {
         await router.navigate({ to: '/change-password', search: { redirect: search.redirect } })
         return
       }
-      await router.navigate({ href: search.redirect ?? '/kanban' })
+      await router.navigate({ href: search.redirect ?? '/' })
     } catch (err) {
       setHasError(true)
       setError(loginErrorMessage(err))
