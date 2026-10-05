@@ -356,12 +356,15 @@ uv run python manage.py e2e_ensure_fixtures
 
 On a workstation the workshop login is the `E2E_WORKSHOP_USERNAME` in
 `frontend/.env.test`, with the password `Default-workshop-password`: shop-floor staff, neither office nor superuser, so
-it is also the login for trying the app by hand as workshop staff see it.
+it is also the login for trying the app by hand as workshop staff see it. The
+office staff login is `e2e-office@docketworks.local` / `Default-office-password`:
+office staff who are not a superuser, as most of the office is.
 
 Playwright signs in as the users named in `frontend/.env.test`, and **no
 production dump carries them**; the command reads `E2E_TEST_USERNAME` and
-`E2E_TEST_PASSWORD`, and `E2E_WORKSHOP_USERNAME` and `E2E_WORKSHOP_PASSWORD` for
-the workshop login the phone specs use, from the environment (load `frontend/.env.test` into the
+`E2E_TEST_PASSWORD`, `E2E_WORKSHOP_USERNAME` and `E2E_WORKSHOP_PASSWORD` for
+the workshop login the phone specs use, and `E2E_OFFICE_STAFF_USERNAME` and
+`E2E_OFFICE_STAFF_PASSWORD` for the office login that is not a superuser, from the environment (load `frontend/.env.test` into the
 shell first, e.g. `set -a; source frontend/.env.test; set +a`), creates the user
 on a first refresh and re-aligns the password afterwards, when
 `setup_dev_logins.py` has just reset every password to the staff default. It

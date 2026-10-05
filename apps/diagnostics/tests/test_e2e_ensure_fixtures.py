@@ -15,6 +15,7 @@ pytestmark = pytest.mark.django_db
 
 E2E_EMAIL = "e2e@example.test"
 WORKSHOP_EMAIL = "e2e-workshop@example.test"
+OFFICE_STAFF_EMAIL = "e2e-office@example.test"
 
 
 def _run() -> str:
@@ -29,6 +30,8 @@ def credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("E2E_TEST_PASSWORD", "first-password")
     monkeypatch.setenv("E2E_WORKSHOP_USERNAME", WORKSHOP_EMAIL)
     monkeypatch.setenv("E2E_WORKSHOP_PASSWORD", "workshop-password")
+    monkeypatch.setenv("E2E_OFFICE_STAFF_USERNAME", OFFICE_STAFF_EMAIL)
+    monkeypatch.setenv("E2E_OFFICE_STAFF_PASSWORD", "office-password")
 
 
 @pytest.mark.usefixtures("credentials")
@@ -103,6 +106,24 @@ def test_a_second_run_takes_office_access_back_off_the_workshop_user() -> None:
     assert not user.is_office_staff and not user.is_superuser
     assert user.check_password("workshop-password")
     assert Staff.objects.filter(office_email__iexact=WORKSHOP_EMAIL).count() == 1
+
+
+@pytest.mark.usefixtures("credentials")
+def test_the_office_staff_user_is_office_staff_and_never_a_superuser() -> None:
+    """Approve time is proven by a login that is office staff and nothing more."""
+    _run()
+    user = Staff.objects.get(office_email=OFFICE_STAFF_EMAIL)
+    assert user.is_office_staff and not user.is_superuser
+    assert user.check_password("office-password")
+    user.is_superuser = True
+    user.is_office_staff = False
+    user.save()
+
+    _run()
+
+    user.refresh_from_db()
+    assert user.is_office_staff and not user.is_superuser
+    assert Staff.objects.filter(office_email__iexact=OFFICE_STAFF_EMAIL).count() == 1
 
 
 @pytest.mark.usefixtures("credentials")
