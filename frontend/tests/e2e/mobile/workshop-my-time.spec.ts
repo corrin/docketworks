@@ -13,6 +13,7 @@ import type { APIResponse, BrowserType, Page, TestInfo } from '@playwright/test'
 import { z } from 'zod'
 
 import { shiftDate } from '../../../src/lib/dates'
+import { formatHoursDisplay, localIsoDate } from '../../../src/lib/format'
 
 import { authenticateViaLoginPage, e2eCredentials, expect, test } from '../fixtures/auth'
 import { getCompanyDefaults } from '../fixtures/api'
@@ -67,14 +68,25 @@ function projectDate(projectName: string): string {
  * both phone projects: creating a job is an office screen on an office
  * machine, so the phone browser only ever carries the workshop user's session.
  */
-async function officeSetup(chromium: BrowserType, baseURL: string): Promise<OfficeSetup> {
+async function asOffice<T>(
+  chromium: BrowserType,
+  baseURL: string,
+  work: (page: Page) => Promise<T>,
+): Promise<T> {
   const browser = await chromium.launch()
   try {
     const context = await browser.newContext({ baseURL, viewport: { width: 1280, height: 720 } })
     const page = await context.newPage()
     const { username, password } = e2eCredentials('office')
     await authenticateViaLoginPage(page, username, password, () => () => undefined)
+    return await work(page)
+  } finally {
+    await browser.close()
+  }
+}
 
+async function officeSetup(chromium: BrowserType, baseURL: string): Promise<OfficeSetup> {
+  return asOffice(chromium, baseURL, async (page) => {
     const createJob = async (label: string): Promise<TestJob> => {
       const url = await createTestJob(page, `Phone My Time ${label}`)
       return { id: getJobIdFromUrl(url), number: await readJobNumber(page) }
@@ -120,9 +132,7 @@ async function officeSetup(chromium: BrowserType, baseURL: string): Promise<Offi
       searchOnlyJob,
       officeEntryId: entrySchema.parse(await response.json()).id,
     }
-  } finally {
-    await browser.close()
-  }
+  })
 }
 
 function timesheetWrite(page: Page, method: 'POST' | 'PATCH' | 'DELETE') {
@@ -531,5 +541,78 @@ test.describe.serial('workshop time entry on a phone', () => {
     expect((await destroy).ok()).toBe(true)
     await expect(page.getByText('Entry deleted.')).toBeVisible()
     await expect(row).toHaveCount(0)
+  })
+
+  // ---- Approval: what the worker sees before and after the office approves. ----
+
+  test('an entry reads Waiting, then Approved and read-only once the office approves it', async ({
+    authenticatedPage: page,
+    playwright,
+  }, testInfo) => {
+    const weekHours = async () =>
+      z
+        .object({ week: z.object({ approved_hours: z.number(), waiting_hours: z.number() }) })
+        .parse(await (await page.request.get(`${TIMESHEETS_PATH}?date=${date}`)).json()).week
+    const before = await weekHours()
+    const booked = await savedEntry(
+      await page.request.post(TIMESHEETS_PATH, {
+        data: {
+          job_id: setup.jobA.id,
+          accounting_date: date,
+          hours: 1.5,
+          start_time: '13:00:00',
+          end_time: '14:30:00',
+          description: 'Waiting for the office',
+        },
+      }),
+    )
+    // An entry booked today for an earlier day is late; the android project
+    // books on the latest weekday, which is today on a weekday.
+    const late = date < localIsoDate()
+    const block = page.locator(calendarEvent(booked.id))
+    const weekWaiting = autoId(page, 'WorkshopTimesheetSummaryCard-week-waiting-hours')
+    const weekApproved = autoId(page, 'WorkshopTimesheetSummaryCard-week-approved-hours')
+
+    await openMyTime(page)
+    await expect(block).toContainText(late ? 'Waiting · Entered late' : 'Waiting')
+    if (!late) await expect(block).not.toContainText('Entered late')
+    await expect(weekWaiting).toHaveText(formatHoursDisplay(before.waiting_hours + 1.5))
+    await expect(weekApproved).toHaveText(formatHoursDisplay(before.approved_hours))
+    await attachScreenshot(page, testInfo, 'my-time-waiting')
+
+    const baseURL = z.string().parse(testInfo.project.use.baseURL)
+    await asOffice(playwright.chromium, baseURL, async (office) => {
+      const approval = await office.request.post(`/api/job/cost_lines/${booked.id}/approve/`)
+      if (!approval.ok()) {
+        throw new Error(`Approval answered ${approval.status()}: ${await approval.text()}`)
+      }
+    })
+
+    await autoId(page, 'WorkshopTimesheetSummaryCard-refresh').tap()
+    await expect(block).toContainText('Approved')
+    await expect(weekWaiting).toHaveText(formatHoursDisplay(before.waiting_hours))
+    await expect(weekApproved).toHaveText(formatHoursDisplay(before.approved_hours + 1.5))
+
+    await test.step('the approved entry opens read-only', async () => {
+      await block.tap()
+      await expect(page.getByRole('heading', { name: 'Approved entry' })).toBeVisible()
+      await expect(autoId(page, `${DRAWER}-locked`)).toBeVisible()
+      await expect(autoId(page, `${DRAWER}-start-time`)).toBeDisabled()
+      await expect(autoId(page, `${DRAWER}-description`)).toBeDisabled()
+      await expect(autoId(page, `${DRAWER}-submit`)).toHaveCount(0)
+      await expect(autoId(page, `${DRAWER}-delete`)).toHaveCount(0)
+      await expectNoHorizontalOverflow(page)
+      await attachScreenshot(page, testInfo, 'drawer-approved')
+      await autoId(page, `${DRAWER}-cancel`).tap()
+    })
+
+    await test.step('and the server refuses a change to it', async () => {
+      const patch = await page.request.patch(TIMESHEETS_PATH, {
+        data: { entry_id: booked.id, description: 'changed after approval' },
+      })
+      expect(patch.status()).toBe(409)
+      const destroy = await page.request.delete(`${TIMESHEETS_PATH}?entry_id=${booked.id}`)
+      expect(destroy.status()).toBe(409)
+    })
   })
 })
