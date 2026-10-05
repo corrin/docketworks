@@ -9,7 +9,7 @@ import {
   timesheetsApprovalsRetrieveOptions,
   timesheetsApprovalsRetrieveQueryKey,
 } from '@/api'
-import type { StaffApprovalOut, WorkshopTimesheetEntryOut } from '@/api'
+import type { DaySummaryOut, StaffApprovalOut, WorkshopTimesheetEntryOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { ListTable } from '@/features/shared/ListTable'
 import { companyDefaultsQueryOptions } from '@/features/shell'
@@ -37,6 +37,17 @@ const STATE_WORDS: Record<StaffApprovalOut['state'], string> = {
   waiting: 'Waiting for approval',
   nothing_entered: 'Nothing entered',
   nothing_waiting: 'Approved',
+  not_rostered: 'Not rostered',
+}
+
+/**
+ * How the whole day stands, from the server's count of the people expected
+ * on it. Every day is finished on the day, so this is the screen's headline.
+ */
+function dayStandingWords(summary: DaySummaryOut): string {
+  if (summary.standing === 'nobody_rostered') return 'Nobody rostered'
+  if (summary.standing === 'complete') return 'Day complete'
+  return `${summary.approved} of ${summary.expected} approved`
 }
 
 /** Who the entry drawer is open for; the drawer itself only knows the entry. */
@@ -122,6 +133,14 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
       <p className="text-sm text-slate-600">
         {formatDateLong(date)}. Staff are paid for approved time only.
       </p>
+      {approvalsQuery.data !== undefined && (
+        <p
+          className="text-lg font-semibold text-gray-900"
+          data-automation-id="ApproveTimePage-standing"
+        >
+          {dayStandingWords(approvalsQuery.data.summary)}
+        </p>
+      )}
 
       <ListTable
         isPending={approvalsQuery.isPending}

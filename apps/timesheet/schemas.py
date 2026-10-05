@@ -425,7 +425,7 @@ class StaffApprovalOut(Schema):
 
     staff_id: UUID
     staff_name: str
-    state: Literal["waiting", "nothing_entered", "nothing_waiting"]
+    state: Literal["waiting", "nothing_entered", "nothing_waiting", "not_rostered"]
     entered_hours: float
     waiting_hours: float
     entered_late: bool
@@ -435,10 +435,19 @@ class StaffApprovalOut(Schema):
     entries: list[WorkshopTimesheetEntryOut]
 
 
+class DaySummaryOut(Schema):
+    """How the day stands across the people expected on it."""
+
+    expected: int
+    approved: int
+    standing: Literal["in_progress", "complete", "nobody_rostered"]
+
+
 class ApprovalsDayOut(Schema):
     """Everyone's day for the office to approve."""
 
     date: date
+    summary: DaySummaryOut
     staff: list[StaffApprovalOut]
 
 

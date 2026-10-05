@@ -165,3 +165,25 @@ test("office staff correct a person's clock times, and the screen holds at three
     })
   }
 })
+
+test('approving the last person waiting turns the day to complete', async ({
+  authenticatedPage: page,
+  browser,
+  baseURL,
+}) => {
+  const origin = z.string().parse(baseURL)
+  const seeded = await seedAsSuperuser(browser, origin)
+  // A Saturday: nobody is rostered, so the one person with time on it is the
+  // only one expected, and approving them is the whole day.
+  const saturday = shiftDate(mondayOf(getLatestWeekdayDate()), -2)
+  await bookAsWorkshopUser(browser, origin, { ...seeded, date: saturday })
+  const standing = autoId(page, 'ApproveTimePage-standing')
+
+  await page.goto(`/timesheets/approve?date=${saturday}`)
+  await expect(standing).toHaveText('0 of 1 approved')
+  await expect(autoId(page, 'ApproveTimePage-table')).toContainText('Not rostered')
+
+  await autoId(page, `ApproveTimePage-approve-${seeded.staff.id}`).click()
+
+  await expect(standing).toHaveText('Day complete')
+})

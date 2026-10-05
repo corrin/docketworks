@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 123,278 (v1 172,577, -29%) |
-| tests | 87,825 (v1 50,869, +73%) |
-| generated | 53,458 (v1 20,359, +163%) |
+| code | 123,347 (v1 172,577, -29%) |
+| tests | 87,873 (v1 50,869, +73%) |
+| generated | 53,494 (v1 20,359, +163%) |
 
 ## Suppressions
 
@@ -116,7 +116,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 252 |
-| non-test functions | 3050 |
+| non-test functions | 3051 |
 
 ## Broad type annotations
 
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 239 |
-| object annotations | 693 |
+| object annotations | 695 |
 
 ## Wire contract (response side)
 
@@ -133,8 +133,8 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 326 |
-| response properties | 2099 |
+| response schemas | 327 |
+| response properties | 2103 |
 | optional (pinned at zero) | 0 |
 | nullable | 462 |
 

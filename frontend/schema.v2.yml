@@ -373,8 +373,11 @@ components:
             $ref: '#/components/schemas/StaffApprovalOut'
           title: Staff
           type: array
+        summary:
+          $ref: '#/components/schemas/DaySummaryOut'
       required:
       - date
+      - summary
       - staff
       title: ApprovalsDayOut
       type: object
@@ -3059,6 +3062,28 @@ components:
       - kanban_related
       - crm_calls
       title: DataVersions
+      type: object
+    DaySummaryOut:
+      description: How the day stands across the people expected on it.
+      properties:
+        approved:
+          title: Approved
+          type: integer
+        expected:
+          title: Expected
+          type: integer
+        standing:
+          enum:
+          - in_progress
+          - complete
+          - nobody_rostered
+          title: Standing
+          type: string
+      required:
+      - expected
+      - approved
+      - standing
+      title: DaySummaryOut
       type: object
     DeliveryReceiptAllocationRequest:
       description: Wire contract for DeliveryReceiptAllocationRequest.
@@ -12449,6 +12474,7 @@ components:
           - waiting
           - nothing_entered
           - nothing_waiting
+          - not_rostered
           title: State
           type: string
         waiting_hours:

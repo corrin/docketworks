@@ -1,7 +1,7 @@
 """Office approval of worked time: a person's day at once, and what the screen is told."""
 
 from collections.abc import Iterator
-from datetime import time, timedelta
+from datetime import date, time, timedelta
 
 import pytest
 from django.test import Client
@@ -156,6 +156,40 @@ class TestApprovalsRead:
         assert {entry["hours"]: entry["remote_entry"] for entry in row["entries"]} == {
             1.0: True,
             2.0: True,
+        }
+
+    def test_day_summary_counts_people_by_state(
+        self, office_staff: Staff, job: Job, worker: Staff, other_worker: Staff
+    ) -> None:
+        """Only people expected count, so a day can read complete without everyone on it."""
+        saturday = DAY + timedelta(days=5)
+        client = authenticated_client(office_staff)
+
+        def read(day: date) -> dict[str, object]:
+            body: dict[str, object] = client.get(f"{APPROVALS_URL}?date={day.isoformat()}").json()
+            return body
+
+        # A weekday: both are rostered. One done, one with nothing in.
+        make_time_line(job, worker, accounting_date=DAY)
+        assert read(DAY)["summary"] == {"expected": 2, "approved": 1, "standing": "in_progress"}
+        # The other puts time in, the office approves it: the day is complete.
+        make_time_line(job, other_worker, accounting_date=DAY, approved=False)
+        assert read(DAY)["summary"] == {"expected": 2, "approved": 1, "standing": "in_progress"}
+        approval.approve_day(other_worker, DAY, office_staff)
+        assert read(DAY)["summary"] == {"expected": 2, "approved": 2, "standing": "complete"}
+
+        # A Saturday: nobody is rostered, so nobody is expected and nothing is owed.
+        weekend = read(saturday)
+        assert weekend["summary"] == {"expected": 0, "approved": 0, "standing": "nobody_rostered"}
+        assert {row["state"] for row in approval.day_approvals(saturday)["staff"]} == {
+            "not_rostered"
+        }
+        # Someone who worked it is expected; the others still are not.
+        make_time_line(job, worker, accounting_date=saturday, approved=False)
+        assert read(saturday)["summary"] == {
+            "expected": 1,
+            "approved": 0,
+            "standing": "in_progress",
         }
 
     def test_each_row_says_whether_the_person_was_here_apart_from_approval(

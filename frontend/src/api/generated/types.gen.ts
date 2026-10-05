@@ -343,6 +343,7 @@ export type ApprovalsDayOut = {
      * Staff
      */
     staff: Array<StaffApprovalOut>;
+    summary: DaySummaryOut;
 };
 
 /**
@@ -2692,6 +2693,26 @@ export type DataVersions = {
      * Stock
      */
     stock: string;
+};
+
+/**
+ * DaySummaryOut
+ *
+ * How the day stands across the people expected on it.
+ */
+export type DaySummaryOut = {
+    /**
+     * Approved
+     */
+    approved: number;
+    /**
+     * Expected
+     */
+    expected: number;
+    /**
+     * Standing
+     */
+    standing: 'in_progress' | 'complete' | 'nobody_rostered';
 };
 
 /**
@@ -11014,7 +11035,7 @@ export type StaffApprovalOut = {
     /**
      * State
      */
-    state: 'waiting' | 'nothing_entered' | 'nothing_waiting';
+    state: 'waiting' | 'nothing_entered' | 'nothing_waiting' | 'not_rostered';
     /**
      * Waiting Hours
      */

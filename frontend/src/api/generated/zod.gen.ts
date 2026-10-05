@@ -1016,6 +1016,21 @@ export const zDataVersions = z.object({
 });
 
 /**
+ * DaySummaryOut
+ *
+ * How the day stands across the people expected on it.
+ */
+export const zDaySummaryOut = z.object({
+    approved: z.int(),
+    expected: z.int(),
+    standing: z.enum([
+        'in_progress',
+        'complete',
+        'nobody_rostered'
+    ])
+});
+
+/**
  * DeliveryReceiptAllocationRequest
  *
  * Wire contract for DeliveryReceiptAllocationRequest.
@@ -6280,7 +6295,8 @@ export const zStaffApprovalOut = z.object({
     state: z.enum([
         'waiting',
         'nothing_entered',
-        'nothing_waiting'
+        'nothing_waiting',
+        'not_rostered'
     ]),
     waiting_hours: z.number()
 });
@@ -6292,7 +6308,8 @@ export const zStaffApprovalOut = z.object({
  */
 export const zApprovalsDayOut = z.object({
     date: z.iso.date(),
-    staff: z.array(zStaffApprovalOut)
+    staff: z.array(zStaffApprovalOut),
+    summary: zDaySummaryOut
 });
 
 /**

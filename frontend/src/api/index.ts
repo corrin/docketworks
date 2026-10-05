@@ -396,6 +396,7 @@ export type {
   ClockTimesRequest,
   BreakOut,
   CalendarBoundsOut,
+  DaySummaryOut,
   FillOut,
   FillRowIn,
   PendingDayOut,
