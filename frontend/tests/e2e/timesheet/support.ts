@@ -1,5 +1,5 @@
 /** Shared setup for the timesheet-entry cluster (one implementation per concept). */
-import type { Page } from '@playwright/test'
+import type { Browser, Page } from '@playwright/test'
 import { shiftDate } from '../../../src/lib/dates'
 import {
   getJobLabourRates,
@@ -9,7 +9,7 @@ import {
   seedTimesheetLabour,
   type TimesheetStaff,
 } from '../fixtures/api'
-import { expect } from '../fixtures/auth'
+import { authenticateViaLoginPage, e2eCredentials, expect } from '../fixtures/auth'
 import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
 
 /**
@@ -191,4 +191,36 @@ export async function openPostableWeek(page: Page): Promise<string> {
       'Read the button title: it names which precondition is unmet.',
   ).toBeEnabled({ timeout: 120000 })
   return week
+}
+
+/** Hours no other seed uses, so a waiting figure can only be this line. */
+export const WORKER_HOURS = 1.25
+
+/**
+ * Book time as the workshop login would, in its own browser context: who
+ * wrote a line decides whether it starts approved, and a worker's does not.
+ * It is booked to a staff member the timesheet screens list, since the
+ * workshop E2E login has no Xero employee and appears on none of them.
+ */
+export async function bookAsWorkshopUser(
+  browser: Browser,
+  baseURL: string,
+  seeded: SeededLabour,
+): Promise<string> {
+  const context = await browser.newContext({ baseURL })
+  try {
+    const page = await context.newPage()
+    const { username, password } = e2eCredentials('workshop')
+    await authenticateViaLoginPage(page, username, password, () => () => undefined)
+    return await seedTimesheetLabour(page, {
+      jobId: seeded.jobId,
+      staffId: seeded.staff.id,
+      labourSubtype: seeded.labourSubtype,
+      date: seeded.date,
+      hours: WORKER_HOURS,
+      description: '[TEST] waiting for approval',
+    })
+  } finally {
+    await context.close()
+  }
 }

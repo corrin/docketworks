@@ -8,6 +8,7 @@ import {
   jobWorkshopTimesheetsPartialUpdateMutation,
   jobWorkshopTimesheetsRetrieveOptions,
   jobWorkshopTimesheetsRetrieveQueryKey,
+  timesheetsApprovalsRetrieveQueryKey,
 } from '@/api'
 import type {
   EntryLocationIn,
@@ -42,8 +43,8 @@ function report(error: unknown, fallback: string): void {
 }
 
 /**
- * One staff member's own day on the workshop calendar: the day query plus the
- * three self-service writes. Server state lives in the TanStack cache only.
+ * The three entry writes behind the entry drawer, for the caller's own time
+ * or, on Approve time, for the person the office is correcting.
  *
  * Fable: Writes settle before the UI moves on (the drawer stays open on
  * failure), so these are plain await-then-invalidate — the optimistic layer
@@ -53,28 +54,30 @@ function report(error: unknown, fallback: string): void {
  *
  * `sendLocation` is whether a save carries the phone's location: only for
  * workshop staff of a company whose address is set, so nobody else is asked.
+ * `ownerId` is whose time a new entry is, when it is not the caller's own.
  */
-export function useWorkshopDay(date: string, sendLocation: boolean) {
+export function useWorkshopEntryWrites(sendLocation: boolean, ownerId?: string) {
   const queryClient = useQueryClient()
-  const query = { date }
-  const queryKey = jobWorkshopTimesheetsRetrieveQueryKey({ query })
-  const dayQuery = useQuery(jobWorkshopTimesheetsRetrieveOptions({ query }))
-
   const createMutation = useMutation(jobWorkshopTimesheetsCreateMutation())
   const updateMutation = useMutation(jobWorkshopTimesheetsPartialUpdateMutation())
   const deleteMutation = useMutation(jobWorkshopTimesheetsDestroyMutation())
 
   // Fable: Entries carry an accounting_date, so a write can move one off this
   // day — every settle invalidates the whole surface (the optionless key
-  // partially matches every date's key) rather than only this day's.
-  const invalidateDays = () =>
+  // partially matches every date's key) rather than only this day's. Approve
+  // time reads the same entries, so it is refreshed with them.
+  const invalidateDays = () => {
     void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
+    void queryClient.invalidateQueries({ queryKey: timesheetsApprovalsRetrieveQueryKey() })
+  }
 
   /** True on success; the caller closes the drawer only then. */
   const createEntry = async (body: WorkshopTimesheetEntryRequest): Promise<boolean> => {
     try {
       const location = sendLocation ? await phoneLocation() : null
-      await createMutation.mutateAsync({ body: { ...body, location } })
+      await createMutation.mutateAsync({
+        body: { ...body, location, ...(ownerId === undefined ? {} : { staff_id: ownerId }) },
+      })
     } catch (error) {
       report(error, 'The entry could not be saved.')
       return false
@@ -110,12 +113,27 @@ export function useWorkshopDay(date: string, sendLocation: boolean) {
   }
 
   return {
-    dayQuery,
-    refetch: () => void dayQuery.refetch(),
     createEntry,
     updateEntry,
     deleteEntry,
     saving: createMutation.isPending || updateMutation.isPending || deleteMutation.isPending,
+  }
+}
+
+/**
+ * One staff member's own day on the workshop calendar: the day query plus the
+ * three self-service writes. Server state lives in the TanStack cache only.
+ */
+export function useWorkshopDay(date: string, sendLocation: boolean) {
+  const query = { date }
+  const queryKey = jobWorkshopTimesheetsRetrieveQueryKey({ query })
+  const dayQuery = useQuery(jobWorkshopTimesheetsRetrieveOptions({ query }))
+  const writes = useWorkshopEntryWrites(sendLocation)
+
+  return {
+    dayQuery,
+    refetch: () => void dayQuery.refetch(),
+    ...writes,
     queryKey,
   }
 }

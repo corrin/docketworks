@@ -30,6 +30,7 @@ import { Route as AuthedReportsKpiRouteImport } from './routes/_authed/reports/k
 import { Route as AuthedReportsPayrollReconciliationRouteImport } from './routes/_authed/reports/payroll-reconciliation'
 import { Route as AuthedReportsSalesForecastRouteImport } from './routes/_authed/reports/sales-forecast'
 import { Route as AuthedReportsWipRouteImport } from './routes/_authed/reports/wip'
+import { Route as AuthedTimesheetsApproveRouteImport } from './routes/_authed/timesheets/approve'
 import { Route as AuthedTimesheetsDailyRouteImport } from './routes/_authed/timesheets/daily'
 import { Route as AuthedTimesheetsEntryRouteImport } from './routes/_authed/timesheets/entry'
 import { Route as AuthedTimesheetsLeaveRouteImport } from './routes/_authed/timesheets/leave'
@@ -158,6 +159,11 @@ const AuthedReportsWipRoute = AuthedReportsWipRouteImport.update({
   path: '/reports/wip',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedTimesheetsApproveRoute = AuthedTimesheetsApproveRouteImport.update({
+  id: '/timesheets/approve',
+  path: '/timesheets/approve',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedTimesheetsDailyRoute = AuthedTimesheetsDailyRouteImport.update({
   id: '/timesheets/daily',
   path: '/timesheets/daily',
@@ -283,6 +289,7 @@ export interface FileRoutesByFullPath {
   '/reports/payroll-reconciliation': typeof AuthedReportsPayrollReconciliationRoute
   '/reports/sales-forecast': typeof AuthedReportsSalesForecastRoute
   '/reports/wip': typeof AuthedReportsWipRoute
+  '/timesheets/approve': typeof AuthedTimesheetsApproveRoute
   '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
   '/timesheets/leave': typeof AuthedTimesheetsLeaveRoute
@@ -324,6 +331,7 @@ export interface FileRoutesByTo {
   '/reports/payroll-reconciliation': typeof AuthedReportsPayrollReconciliationRoute
   '/reports/sales-forecast': typeof AuthedReportsSalesForecastRoute
   '/reports/wip': typeof AuthedReportsWipRoute
+  '/timesheets/approve': typeof AuthedTimesheetsApproveRoute
   '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
   '/timesheets/leave': typeof AuthedTimesheetsLeaveRoute
@@ -367,6 +375,7 @@ export interface FileRoutesById {
   '/_authed/reports/payroll-reconciliation': typeof AuthedReportsPayrollReconciliationRoute
   '/_authed/reports/sales-forecast': typeof AuthedReportsSalesForecastRoute
   '/_authed/reports/wip': typeof AuthedReportsWipRoute
+  '/_authed/timesheets/approve': typeof AuthedTimesheetsApproveRoute
   '/_authed/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/_authed/timesheets/entry': typeof AuthedTimesheetsEntryRoute
   '/_authed/timesheets/leave': typeof AuthedTimesheetsLeaveRoute
@@ -410,6 +419,7 @@ export interface FileRouteTypes {
     | '/reports/payroll-reconciliation'
     | '/reports/sales-forecast'
     | '/reports/wip'
+    | '/timesheets/approve'
     | '/timesheets/daily'
     | '/timesheets/entry'
     | '/timesheets/leave'
@@ -451,6 +461,7 @@ export interface FileRouteTypes {
     | '/reports/payroll-reconciliation'
     | '/reports/sales-forecast'
     | '/reports/wip'
+    | '/timesheets/approve'
     | '/timesheets/daily'
     | '/timesheets/entry'
     | '/timesheets/leave'
@@ -493,6 +504,7 @@ export interface FileRouteTypes {
     | '/_authed/reports/payroll-reconciliation'
     | '/_authed/reports/sales-forecast'
     | '/_authed/reports/wip'
+    | '/_authed/timesheets/approve'
     | '/_authed/timesheets/daily'
     | '/_authed/timesheets/entry'
     | '/_authed/timesheets/leave'
@@ -673,6 +685,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedReportsWipRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/timesheets/approve': {
+      id: '/_authed/timesheets/approve'
+      path: '/timesheets/approve'
+      fullPath: '/timesheets/approve'
+      preLoaderRoute: typeof AuthedTimesheetsApproveRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/timesheets/daily': {
       id: '/_authed/timesheets/daily'
       path: '/timesheets/daily'
@@ -824,6 +843,7 @@ interface AuthedRouteChildren {
   AuthedReportsPayrollReconciliationRoute: typeof AuthedReportsPayrollReconciliationRoute
   AuthedReportsSalesForecastRoute: typeof AuthedReportsSalesForecastRoute
   AuthedReportsWipRoute: typeof AuthedReportsWipRoute
+  AuthedTimesheetsApproveRoute: typeof AuthedTimesheetsApproveRoute
   AuthedTimesheetsDailyRoute: typeof AuthedTimesheetsDailyRoute
   AuthedTimesheetsEntryRoute: typeof AuthedTimesheetsEntryRoute
   AuthedTimesheetsLeaveRoute: typeof AuthedTimesheetsLeaveRoute
@@ -861,6 +881,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
     AuthedReportsPayrollReconciliationRoute,
   AuthedReportsSalesForecastRoute: AuthedReportsSalesForecastRoute,
   AuthedReportsWipRoute: AuthedReportsWipRoute,
+  AuthedTimesheetsApproveRoute: AuthedTimesheetsApproveRoute,
   AuthedTimesheetsDailyRoute: AuthedTimesheetsDailyRoute,
   AuthedTimesheetsEntryRoute: AuthedTimesheetsEntryRoute,
   AuthedTimesheetsLeaveRoute: AuthedTimesheetsLeaveRoute,

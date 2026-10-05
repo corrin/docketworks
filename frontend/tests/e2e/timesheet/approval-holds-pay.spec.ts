@@ -8,48 +8,21 @@
  * approved. It is booked to a staff member payroll knows, since the workshop
  * E2E login has no Xero employee and nothing of its own is ever posted.
  */
-import type { Browser } from '@playwright/test'
 import { z } from 'zod'
 
-import { getWeekPostingStatus, seedTimesheetLabour } from '../fixtures/api'
-import { authenticateViaLoginPage, e2eCredentials, expect, test } from '../fixtures/auth'
+import { getWeekPostingStatus } from '../fixtures/api'
+import { expect, test } from '../fixtures/auth'
 import { mondayOf } from '../../../src/lib/dates'
 import { autoId } from '../helpers'
 import {
+  WORKER_HOURS,
+  bookAsWorkshopUser,
   getLatestWeekdayDate,
   openPostableWeek,
   openWeek,
   postWeek,
   seedLabourForWeek,
-  type SeededLabour,
 } from './support'
-
-/** Hours no other seed uses, so the held-back figure can only be this line. */
-const WORKER_HOURS = 1.25
-
-/** Book time as the workshop login would: it arrives unapproved. */
-async function bookAsWorkshopUser(
-  browser: Browser,
-  baseURL: string,
-  seeded: SeededLabour,
-): Promise<string> {
-  const context = await browser.newContext({ baseURL })
-  try {
-    const page = await context.newPage()
-    const { username, password } = e2eCredentials('workshop')
-    await authenticateViaLoginPage(page, username, password, () => () => undefined)
-    return await seedTimesheetLabour(page, {
-      jobId: seeded.jobId,
-      staffId: seeded.staff.id,
-      labourSubtype: seeded.labourSubtype,
-      date: seeded.date,
-      hours: WORKER_HOURS,
-      description: '[TEST] waiting for approval',
-    })
-  } finally {
-    await context.close()
-  }
-}
 
 test.describe('approval holds pay', () => {
   test('the weekly screen names unapproved hours until the office approves them', async ({

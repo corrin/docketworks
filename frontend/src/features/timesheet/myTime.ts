@@ -45,9 +45,17 @@ export interface MyTimeCalendarEvent {
  * the calendar block, the untimed list and the drawer cannot disagree.
  */
 export function entryMarks(entry: WorkshopTimesheetEntryOut): string[] {
-  const marks = [entry.approved ? 'Approved' : 'Waiting']
-  if (entry.entered_late) marks.push('Entered late')
-  if (entry.remote_entry) marks.push('Suspicious remote entry')
+  return [entry.approved ? 'Approved' : 'Waiting', ...cautionMarks(entry)]
+}
+
+/**
+ * The marks that ask for a second look, on an entry or on a person's day:
+ * the same words in both places.
+ */
+export function cautionMarks(flags: { entered_late: boolean; remote_entry: boolean }): string[] {
+  const marks: string[] = []
+  if (flags.entered_late) marks.push('Entered late')
+  if (flags.remote_entry) marks.push('Suspicious remote entry')
   return marks
 }
 

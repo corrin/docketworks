@@ -380,9 +380,13 @@ export {
   jobWorkshopTimesheetsPartialUpdateMutation,
   jobWorkshopTimesheetsRetrieveOptions,
   jobWorkshopTimesheetsRetrieveQueryKey,
+  timesheetsApprovalsApproveDayMutation,
+  timesheetsApprovalsRetrieveOptions,
+  timesheetsApprovalsRetrieveQueryKey,
 } from './generated/@tanstack/react-query.gen'
 export type {
   EntryLocationIn,
+  StaffApprovalOut,
   WorkshopTimesheetEntryOut,
   WorkshopTimesheetEntryRequest,
   WorkshopTimesheetEntryUpdateRequest,
