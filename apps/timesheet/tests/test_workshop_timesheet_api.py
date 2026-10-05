@@ -19,10 +19,12 @@ from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
+from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.tests.conftest import (
     WEEK_START,
     authenticated_client,
     make_leave_job,
+    make_staff,
     make_time_line,
 )
 
@@ -85,8 +87,6 @@ class TestList:
             "total_hours": 8.0,
             "billable_hours": 5.0,
             "non_billable_hours": 3.0,
-            "total_cost": 8 * 48.0,
-            "total_revenue": 8 * 120.0,
         }
 
     def test_only_the_callers_own_entries_are_listed(
@@ -756,3 +756,101 @@ class TestRemoteEntry:
         assert edit("from the workshop", location=ACROSS_THE_YARD) is False
         assert edit("from home") is True
         assert edit("back at the workshop", location=ACROSS_THE_YARD) is True
+
+
+class TestOfficeActsForAWorker:
+    """The office corrects a worker's entry; it does not send it back (KAN-376)."""
+
+    def test_workshop_user_cannot_read_another_persons_day(
+        self, worker_client: Client, job: Job, other_worker: Staff
+    ) -> None:
+        make_time_line(job, other_worker, accounting_date=ENTRY_DATE)
+
+        response = worker_client.get(
+            f"{URL}?date={ENTRY_DATE.isoformat()}&staff_id={other_worker.id}"
+        )
+
+        assert response.status_code == 403
+        assert "office staff" in response.json()["detail"]
+
+    def test_office_reads_the_day_of_the_person_it_names(
+        self, office_staff: Staff, job: Job, worker: Staff
+    ) -> None:
+        theirs = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="2.000")
+        make_time_line(job, office_staff, accounting_date=ENTRY_DATE, hours="7.000")
+
+        body = (
+            authenticated_client(office_staff)
+            .get(f"{URL}?date={ENTRY_DATE.isoformat()}&staff_id={worker.id}")
+            .json()
+        )
+
+        assert [entry["id"] for entry in body["entries"]] == [str(theirs.id)]
+        assert body["summary"]["total_hours"] == 2.0
+
+    def test_office_correction_prices_at_the_workers_rate(self, job: Job, worker: Staff) -> None:
+        """The entry stays the worker's: their wage, not the office user's, prices it."""
+        cheaper_office = make_staff(
+            "timesheet-cheap-office@example.com",
+            is_office_staff=True,
+            base_wage_rate=Decimal("10.00"),
+            xero_user_id="",
+        )
+        line = make_time_line(job, worker, accounting_date=ENTRY_DATE, approved=False)
+
+        response = authenticated_client(cheaper_office).patch(
+            URL,
+            data={"entry_id": str(line.id), "wage_rate_multiplier": "1.5"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200, response.content
+        line.refresh_from_db()
+        assert line.unit_cost == Decimal("72.00")  # the worker's 48.00 at time and a half
+        assert line.staff_id == worker.id
+        assert line.approved is False, "correcting an entry is not approving it"
+        [event] = TimesheetEvent.objects.filter(cost_line_id=line.id, event_type="entry_updated")
+        assert event.staff_id == cheaper_office.id
+
+    def test_office_corrects_an_approved_entry_and_it_stays_approved(
+        self, office_staff: Staff, job: Job, worker: Staff
+    ) -> None:
+        line = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="4.000")
+
+        response = authenticated_client(office_staff).patch(
+            URL, data={"entry_id": str(line.id), "hours": "3.00"}, content_type="application/json"
+        )
+
+        assert response.status_code == 200, response.content
+        line.refresh_from_db()
+        assert line.quantity == Decimal("3.000")
+        assert line.approved is True
+
+    def test_time_the_office_enters_for_a_worker_is_theirs_and_approved(
+        self, office_staff: Staff, job: Job, worker: Staff
+    ) -> None:
+        entry = _create(authenticated_client(office_staff), job, staff_id=str(worker.id))
+
+        line = CostLine.objects.get(id=_entry_id(entry))
+        assert line.staff_id == worker.id
+        assert line.meta["staff_id"] == str(worker.id)
+        assert line.unit_cost == Decimal("48.00")
+        assert line.approved is True
+        assert line.remote_entry is False
+
+    def test_a_worker_cannot_enter_time_for_someone_else(
+        self, worker_client: Client, job: Job, other_worker: Staff
+    ) -> None:
+        response = worker_client.post(
+            URL,
+            data={
+                "job_id": str(job.id),
+                "accounting_date": ENTRY_DATE.isoformat(),
+                "hours": "1.00",
+                "staff_id": str(other_worker.id),
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 403
+        assert not CostLine.objects.filter(staff=other_worker).exists()

@@ -288,8 +288,6 @@ class WorkshopTimesheetSummaryOut(Schema):
     total_hours: float
     billable_hours: float
     non_billable_hours: float
-    total_cost: float
-    total_revenue: float
 
 
 class WorkshopTimesheetWeekOut(Schema):
@@ -306,6 +304,32 @@ class WorkshopTimesheetListResponse(Schema):
     entries: list[WorkshopTimesheetEntryOut]
     summary: WorkshopTimesheetSummaryOut
     week: WorkshopTimesheetWeekOut
+
+
+class StaffApprovalOut(Schema):
+    """One person's day on the Approve time screen. No pay figures (KAN-376)."""
+
+    staff_id: UUID
+    staff_name: str
+    state: Literal["waiting", "nothing_entered", "nothing_waiting"]
+    entered_hours: float
+    waiting_hours: float
+    entered_late: bool
+    remote_entry: bool
+    entries: list[WorkshopTimesheetEntryOut]
+
+
+class ApprovalsDayOut(Schema):
+    """Everyone's day for the office to approve."""
+
+    date: date
+    staff: list[StaffApprovalOut]
+
+
+class ApproveDayOut(Schema):
+    """How many of the person's waiting entries the approval covered."""
+
+    approved_count: int
 
 
 class TimesheetCostLineOut(CostLineOut):
@@ -412,6 +436,9 @@ class WorkshopTimesheetEntryRequest(Schema):
     is_billable: bool = True
     wage_rate_multiplier: Decimal = Field(Decimal("1.00"), ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
     bill_rate_multiplier: Decimal | None = Field(None, ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
+    # Whose time it is, when office staff enter it for someone else; None is
+    # the caller's own.
+    staff_id: UUID | None = None
     # None when the phone gave no location: refused, unavailable, or not asked.
     location: EntryLocationIn | None = None
 

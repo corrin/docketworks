@@ -147,6 +147,15 @@ export const zAllocationReversalResponse = z.object({
 });
 
 /**
+ * ApproveDayOut
+ *
+ * How many of the person's waiting entries the approval covered.
+ */
+export const zApproveDayOut = z.object({
+    approved_count: z.int()
+});
+
+/**
  * AssignJobRequest
  *
  * Wire contract for AssignJobRequest.
@@ -6099,6 +6108,36 @@ export const zWorkshopTimesheetEntryOut = z.object({
 });
 
 /**
+ * StaffApprovalOut
+ *
+ * One person's day on the Approve time screen. No pay figures (KAN-376).
+ */
+export const zStaffApprovalOut = z.object({
+    entered_hours: z.number(),
+    entered_late: z.boolean(),
+    entries: z.array(zWorkshopTimesheetEntryOut),
+    remote_entry: z.boolean(),
+    staff_id: z.uuid(),
+    staff_name: z.string(),
+    state: z.enum([
+        'waiting',
+        'nothing_entered',
+        'nothing_waiting'
+    ]),
+    waiting_hours: z.number()
+});
+
+/**
+ * ApprovalsDayOut
+ *
+ * Everyone's day for the office to approve.
+ */
+export const zApprovalsDayOut = z.object({
+    date: z.iso.date(),
+    staff: z.array(zStaffApprovalOut)
+});
+
+/**
  * WorkshopTimesheetEntryRequest
  *
  * Workshop timesheet-entry creation payload.
@@ -6122,6 +6161,7 @@ export const zWorkshopTimesheetEntryRequest = z.object({
     is_billable: z.boolean().optional().default(true),
     job_id: z.uuid(),
     location: zEntryLocationIn.nullish(),
+    staff_id: z.uuid().nullish(),
     start_time: z.iso.time().nullish(),
     wage_rate_multiplier: z.union([
         z.number().gte(0).lt(100),
@@ -6167,9 +6207,7 @@ export const zWorkshopTimesheetEntryUpdateRequest = z.object({
 export const zWorkshopTimesheetSummaryOut = z.object({
     billable_hours: z.number(),
     non_billable_hours: z.number(),
-    total_cost: z.number(),
-    total_hours: z.number(),
-    total_revenue: z.number()
+    total_hours: z.number()
 });
 
 /**
@@ -7969,7 +8007,8 @@ export const zJobWorkshopTimesheetsDestroyQuery = z.object({
 export const zJobWorkshopTimesheetsDestroyResponse = z.void();
 
 export const zJobWorkshopTimesheetsRetrieveQuery = z.object({
-    date: z.string().nullish()
+    date: z.string().nullish(),
+    staff_id: z.uuid().nullish()
 });
 
 /**
@@ -8744,6 +8783,25 @@ export const zSessionReplayRecordingEventsRetrievePath = z.object({
  * OK
  */
 export const zSessionReplayRecordingEventsRetrieveResponse = zRecordingEventsOut;
+
+export const zTimesheetsApprovalsRetrieveQuery = z.object({
+    date: z.string().nullish()
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsApprovalsRetrieveResponse = zApprovalsDayOut;
+
+export const zTimesheetsApprovalsApproveDayPath = z.object({
+    staff_id: z.uuid(),
+    target_date: z.string()
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsApprovalsApproveDayResponse = zApproveDayOut;
 
 export const zGetDailyTimesheetSummaryByDatePath = z.object({
     target_date: z.string()

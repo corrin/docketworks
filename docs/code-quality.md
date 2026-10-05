@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 120,800 (v1 172,577, -30%) |
-| tests | 86,429 (v1 50,869, +70%) |
-| generated | 52,214 (v1 20,359, +156%) |
+| code | 121,002 (v1 172,577, -30%) |
+| tests | 86,653 (v1 50,869, +70%) |
+| generated | 52,442 (v1 20,359, +158%) |
 
 ## Suppressions
 
@@ -82,7 +82,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 225 |
+| in comments | 224 |
 | in docstrings | 382 |
 
 ## Exception handling
@@ -91,9 +91,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 441 |
-| except handlers | 468 |
-| re-raises or converts | 300 |
+| try statements | 443 |
+| except handlers | 470 |
+| re-raises or converts | 302 |
 | returns instead | 98 |
 | falls through | 55 |
 | continue/break in a loop | 14 |
@@ -106,7 +106,7 @@ The narrow subset of the above: functions whose ENTIRE body is one single-statem
 | metric | count |
 |---|---:|
 | passthrough | 0 |
-| rethrow | 18 |
+| rethrow | 19 |
 | fallback | 3 |
 
 ## Optional returns
@@ -116,7 +116,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 248 |
-| non-test functions | 2996 |
+| non-test functions | 3006 |
 
 ## Broad type annotations
 
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 239 |
-| object annotations | 686 |
+| object annotations | 688 |
 
 ## Wire contract (response side)
 
@@ -133,8 +133,8 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 318 |
-| response properties | 2059 |
+| response schemas | 321 |
+| response properties | 2068 |
 | optional (pinned at zero) | 0 |
 | nullable | 457 |
 

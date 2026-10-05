@@ -330,6 +330,34 @@ export type AllocationReversalResponse = {
 };
 
 /**
+ * ApprovalsDayOut
+ *
+ * Everyone's day for the office to approve.
+ */
+export type ApprovalsDayOut = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Staff
+     */
+    staff: Array<StaffApprovalOut>;
+};
+
+/**
+ * ApproveDayOut
+ *
+ * How many of the person's waiting entries the approval covered.
+ */
+export type ApproveDayOut = {
+    /**
+     * Approved Count
+     */
+    approved_count: number;
+};
+
+/**
  * AssignJobRequest
  *
  * Wire contract for AssignJobRequest.
@@ -10655,6 +10683,46 @@ export type SettingsSectionOut = {
 };
 
 /**
+ * StaffApprovalOut
+ *
+ * One person's day on the Approve time screen. No pay figures (KAN-376).
+ */
+export type StaffApprovalOut = {
+    /**
+     * Entered Hours
+     */
+    entered_hours: number;
+    /**
+     * Entered Late
+     */
+    entered_late: boolean;
+    /**
+     * Entries
+     */
+    entries: Array<WorkshopTimesheetEntryOut>;
+    /**
+     * Remote Entry
+     */
+    remote_entry: boolean;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+    /**
+     * State
+     */
+    state: 'waiting' | 'nothing_entered' | 'nothing_waiting';
+    /**
+     * Waiting Hours
+     */
+    waiting_hours: number;
+};
+
+/**
  * StaffCreateIn
  *
  * Create body for POST /api/accounts/staff/.
@@ -13511,6 +13579,10 @@ export type WorkshopTimesheetEntryRequest = {
     job_id: string;
     location?: EntryLocationIn | null;
     /**
+     * Staff Id
+     */
+    staff_id?: string | null;
+    /**
      * Start Time
      */
     start_time?: string | null;
@@ -13604,17 +13676,9 @@ export type WorkshopTimesheetSummaryOut = {
      */
     non_billable_hours: number;
     /**
-     * Total Cost
-     */
-    total_cost: number;
-    /**
      * Total Hours
      */
     total_hours: number;
-    /**
-     * Total Revenue
-     */
-    total_revenue: number;
 };
 
 /**
@@ -17660,6 +17724,10 @@ export type JobWorkshopTimesheetsRetrieveData = {
          * Date
          */
         date?: string | null;
+        /**
+         * Staff Id
+         */
+        staff_id?: string | null;
     };
     url: '/api/job/workshop/timesheets/';
 };
@@ -19456,6 +19524,52 @@ export type SessionReplayRecordingEventsRetrieveResponses = {
 };
 
 export type SessionReplayRecordingEventsRetrieveResponse = SessionReplayRecordingEventsRetrieveResponses[keyof SessionReplayRecordingEventsRetrieveResponses];
+
+export type TimesheetsApprovalsRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Date
+         */
+        date?: string | null;
+    };
+    url: '/api/timesheets/approvals/';
+};
+
+export type TimesheetsApprovalsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: ApprovalsDayOut;
+};
+
+export type TimesheetsApprovalsRetrieveResponse = TimesheetsApprovalsRetrieveResponses[keyof TimesheetsApprovalsRetrieveResponses];
+
+export type TimesheetsApprovalsApproveDayData = {
+    body?: never;
+    path: {
+        /**
+         * Staff Id
+         */
+        staff_id: string;
+        /**
+         * Target Date
+         */
+        target_date: string;
+    };
+    query?: never;
+    url: '/api/timesheets/approvals/{staff_id}/{target_date}/approve/';
+};
+
+export type TimesheetsApprovalsApproveDayResponses = {
+    /**
+     * OK
+     */
+    200: ApproveDayOut;
+};
+
+export type TimesheetsApprovalsApproveDayResponse = TimesheetsApprovalsApproveDayResponses[keyof TimesheetsApprovalsApproveDayResponses];
 
 export type GetDailyTimesheetSummaryByDateData = {
     body?: never;

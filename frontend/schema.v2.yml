@@ -361,6 +361,33 @@ components:
       - updated_received_quantity
       title: AllocationReversalResponse
       type: object
+    ApprovalsDayOut:
+      description: Everyone's day for the office to approve.
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        staff:
+          items:
+            $ref: '#/components/schemas/StaffApprovalOut'
+          title: Staff
+          type: array
+      required:
+      - date
+      - staff
+      title: ApprovalsDayOut
+      type: object
+    ApproveDayOut:
+      description: How many of the person's waiting entries the approval covered.
+      properties:
+        approved_count:
+          title: Approved Count
+          type: integer
+      required:
+      - approved_count
+      title: ApproveDayOut
+      type: object
     AssignJobRequest:
       description: Wire contract for AssignJobRequest.
       properties:
@@ -12055,6 +12082,51 @@ components:
       - title
       title: SettingsSectionOut
       type: object
+    StaffApprovalOut:
+      description: One person's day on the Approve time screen. No pay figures (KAN-376).
+      properties:
+        entered_hours:
+          title: Entered Hours
+          type: number
+        entered_late:
+          title: Entered Late
+          type: boolean
+        entries:
+          items:
+            $ref: '#/components/schemas/WorkshopTimesheetEntryOut'
+          title: Entries
+          type: array
+        remote_entry:
+          title: Remote Entry
+          type: boolean
+        staff_id:
+          format: uuid
+          title: Staff Id
+          type: string
+        staff_name:
+          title: Staff Name
+          type: string
+        state:
+          enum:
+          - waiting
+          - nothing_entered
+          - nothing_waiting
+          title: State
+          type: string
+        waiting_hours:
+          title: Waiting Hours
+          type: number
+      required:
+      - staff_id
+      - staff_name
+      - state
+      - entered_hours
+      - waiting_hours
+      - entered_late
+      - remote_entry
+      - entries
+      title: StaffApprovalOut
+      type: object
     StaffCreateIn:
       additionalProperties: false
       description: "Create body for POST /api/accounts/staff/.\n\nUnknown keys are rejected rather than\
@@ -15284,6 +15356,12 @@ components:
           anyOf:
           - $ref: '#/components/schemas/EntryLocationIn'
           - type: 'null'
+        staff_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff Id
         start_time:
           anyOf:
           - format: time
@@ -15408,21 +15486,13 @@ components:
         non_billable_hours:
           title: Non Billable Hours
           type: number
-        total_cost:
-          title: Total Cost
-          type: number
         total_hours:
           title: Total Hours
-          type: number
-        total_revenue:
-          title: Total Revenue
           type: number
       required:
       - total_hours
       - billable_hours
       - non_billable_hours
-      - total_cost
-      - total_revenue
       title: WorkshopTimesheetSummaryOut
       type: object
     WorkshopTimesheetWeekOut:
@@ -20499,7 +20569,10 @@ paths:
       tags:
       - job
     get:
-      description: Return the staff member's own entries for a date (defaults to today).
+      description: 'Return a day''s entries (defaults to today).
+
+
+        The caller''s own, or for office staff the person ``staff_id`` names.'
       operationId: job_workshop_timesheets_retrieve
       parameters:
       - in: query
@@ -20510,6 +20583,15 @@ paths:
           - type: string
           - type: 'null'
           title: Date
+      - in: query
+        name: staff_id
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff Id
       responses:
         '200':
           content:
@@ -22891,6 +22973,61 @@ paths:
       summary: Retrieve a recording's events for playback
       tags:
       - session-replays
+  /api/timesheets/approvals/:
+    get:
+      description: Each person's entered and waiting hours for a date (defaults to today).
+      operationId: timesheets_approvals_retrieve
+      parameters:
+      - in: query
+        name: date
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Date
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalsDayOut'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Everyone's day for the office to approve
+      tags:
+      - timesheets
+  /api/timesheets/approvals/{staff_id}/{target_date}/approve/:
+    post:
+      description: Approve a person's day; zero is an ordinary answer when nothing was waiting.
+      operationId: timesheets_approvals_approve_day
+      parameters:
+      - in: path
+        name: staff_id
+        required: true
+        schema:
+          format: uuid
+          title: Staff Id
+          type: string
+      - in: path
+        name: target_date
+        required: true
+        schema:
+          title: Target Date
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApproveDayOut'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Approve every waiting entry of one person's day
+      tags:
+      - timesheets
   /api/timesheets/daily/{target_date}/:
     get:
       description: Daily timesheet summary for every displayable staff member.

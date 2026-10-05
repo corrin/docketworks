@@ -1,7 +1,9 @@
 """Workshop "my time" self-service for a staff member's own entries.
 
-Any authenticated staff member may read and write ONLY their own entries;
-every write enforces ownership by comparing ``meta.staff_id``.
+A staff member reads and writes their own entries; office staff may also read
+and correct another person's (KAN-376: the office corrects an entry and phones
+the worker, it does not send it back). Every write names two people: the
+``actor`` who is saving and the ``owner`` whose time it is.
 
 Rate resolution goes through the one pipeline in
 ``apps.job.services.time_entry_rates`` (ADR 0039). Resolving a pay item from the
@@ -51,6 +53,28 @@ logger = logging.getLogger(__name__)
 
 class EntryOwnershipError(AccessDeniedError):
     """A staff member touched an entry that is not theirs (403 at the boundary)."""
+
+
+def entry_owner(actor: Staff, staff_id: UUID | None) -> Staff:
+    """Whose day the actor is asking for: their own unless office staff name another."""
+    if staff_id is None or staff_id == actor.id:
+        return actor
+    if not actor.is_office_staff:
+        raise EntryOwnershipError("Only office staff see or enter another person's time.")
+    return Staff.objects.get(id=staff_id)
+
+
+def _refuse_another_persons_entry(line: CostLine, actor: Staff, verb: str) -> None:
+    """Refuse a change to someone else's entry by anyone but the office."""
+    if line.meta.get("staff_id") != str(actor.id) and not actor.is_office_staff:
+        raise EntryOwnershipError(f"You can only {verb} your own timesheet entries.")
+
+
+def _owner_of(line: CostLine) -> Staff:
+    """Return the person whose time the line records; their wage prices it."""
+    if line.staff is None:
+        raise ValueError(f"Time line {line.id} has no staff member")
+    return line.staff
 
 
 class WorkshopEntryCreateData(TypedDict, total=False):
@@ -118,8 +142,6 @@ class WorkshopSummaryData(TypedDict):
     total_hours: float
     billable_hours: float
     non_billable_hours: float
-    total_cost: float
-    total_revenue: float
 
 
 class WorkshopWeekData(TypedDict):
@@ -302,8 +324,6 @@ def _summary(entries: list[CostLine]) -> WorkshopSummaryData:
         "total_hours": float(total_hours),
         "billable_hours": float(billable_hours),
         "non_billable_hours": float(total_hours - billable_hours),
-        "total_cost": float(sum((line.total_cost for line in entries), Decimal("0"))),
-        "total_revenue": float(sum((line.total_rev for line in entries), Decimal("0"))),
     }
 
 
@@ -349,7 +369,7 @@ def _week_hours(staff: Staff, entry_date: date) -> WorkshopWeekData:
 
 
 def list_entries(staff: Staff, entry_date: date) -> WorkshopDayData:
-    """List the staff member's own entries for a date, with the day's summary."""
+    """List one person's entries for a date, with the day's summary."""
     entries = day_time_lines(staff, entry_date)
     return {
         "date": entry_date,
@@ -373,6 +393,10 @@ class ManagementSummaryData(WorkshopSummaryData):
 
     entry_count: int
     scheduled_hours: float
+    # Money stays on the superuser's screen: the self-service summary, which a
+    # worker's phone and the office's Approve time read, carries none.
+    total_cost: float
+    total_revenue: float
 
 
 class TimesheetCostLineData(CostLineData):
@@ -429,6 +453,8 @@ def management_day_data(staff: Staff, entry_date: date) -> ManagementDayData:
             "scheduled_hours": float(
                 hour_categories.scheduled_hours(staff, entry_date, weekend_enabled=True)
             ),
+            "total_cost": float(sum((line.total_cost for line in lines), Decimal("0"))),
+            "total_revenue": float(sum((line.total_rev for line in lines), Decimal("0"))),
         },
     }
 
@@ -455,11 +481,17 @@ def pricing_meta(
 
 
 def create_entry(
-    staff: Staff, data: WorkshopEntryCreateData, location: EntryLocation | None = None
+    actor: Staff,
+    owner: Staff,
+    data: WorkshopEntryCreateData,
+    location: EntryLocation | None = None,
 ) -> WorkshopEntryData:
-    """Create a time line for the authenticated staff member.
+    """Create a time line for ``owner``, saved by ``actor``.
 
-    ``location`` is where their phone says it is; None when it gave none.
+    The two are the same person when someone books their own time. The owner's
+    wage prices the line; who saved it decides whether it starts approved and
+    whether it is marked as saved away from the workshop. ``location`` is
+    where the actor's phone says it is; None when it gave none.
     """
     job = Job.objects.select_related("company", "default_xero_pay_item").get(id=data["job_id"])
     wage_rate_multiplier = data.get("wage_rate_multiplier", Decimal("1.0"))
@@ -469,7 +501,7 @@ def create_entry(
         lock_costing_jobs([job.id])
         cost_set = get_or_create_cost_set(job, "actual")
         meta = pricing_meta(
-            staff=staff,
+            staff=owner,
             accounting_date=data["accounting_date"],
             wage_rate_multiplier=wage_rate_multiplier,
             bill_rate_multiplier=data.get("bill_rate_multiplier"),
@@ -482,7 +514,7 @@ def create_entry(
         if end_time is not None:
             meta["end_time"] = _format_time(end_time)
 
-        pricing = price_time_entry(job=job, staff=staff, meta=meta)
+        pricing = price_time_entry(job=job, staff=owner, meta=meta)
         meta.update(pricing.meta_updates())
 
         line = CostLine(
@@ -493,32 +525,33 @@ def create_entry(
             unit_cost=pricing.unit_cost,
             unit_rev=pricing.unit_rev,
             accounting_date=data["accounting_date"],
-            staff=staff,
+            staff=owner,
             xero_pay_item_id=pricing.pay_item_id,
             labour_subtype=pricing.labour_subtype,
             ext_refs={},
             meta=meta,
-            # v1: lines booked by workshop staff await office approval.
-            approved=staff.is_office_staff,
-            remote_entry=saved_remotely(staff, location),
+            # Time the office enters is approved as it is saved, whoever it is
+            # for; a worker's own waits for the office.
+            approved=actor.is_office_staff,
+            remote_entry=saved_remotely(actor, location),
         )
         line.save()
-        update_latest_actual(job, cost_set.rev, cost_set.id, staff)
-        record_timesheet_event(staff=staff, event_type="entry_created", line=line, before=None)
+        update_latest_actual(job, cost_set.rev, cost_set.id, actor)
+        record_timesheet_event(staff=actor, event_type="entry_created", line=line, before=None)
 
     return entry_data(line)
 
 
-def _owned_line(staff: Staff, entry_id: UUID) -> CostLine:
-    """Fetch a time line and assert the staff member owns it."""
+def _editable_line(actor: Staff, entry_id: UUID) -> CostLine:
+    """Fetch a time line the actor may edit: their own, or anyone's for the office."""
     line = CostLine.objects.select_related(
         "cost_set__job__company",
         "cost_set__job__default_xero_pay_item",
         "labour_subtype",
         "xero_pay_item",
+        "staff",
     ).get(id=entry_id, kind="time")
-    if line.meta.get("staff_id") != str(staff.id):
-        raise EntryOwnershipError("You can only update your own timesheet entries.")
+    _refuse_another_persons_entry(line, actor, "update")
     refuse_workflow_managed(line, "edit")
     return line
 
@@ -576,23 +609,24 @@ def _apply_scalar_changes(
 
 
 def update_entry(
-    staff: Staff, data: WorkshopEntryUpdateData, location: EntryLocation | None = None
+    actor: Staff, data: WorkshopEntryUpdateData, location: EntryLocation | None = None
 ) -> WorkshopEntryData:
-    """Update one of the staff member's own entries.
+    """Update an entry: the actor's own, or anyone's when the actor is office staff.
 
-    ``location`` is where their phone says it is; None when it gave none.
+    The entry stays its owner's and is priced at the owner's wage. ``location``
+    is where the actor's phone says it is; None when it gave none.
     """
-    line = _owned_line(staff, data["entry_id"])
+    line = _editable_line(actor, data["entry_id"])
 
     with transaction.atomic():
         job_ids = {line.cost_set.job_id}
         if "job_id" in data:
             job_ids.add(data["job_id"])
         lock_costing_jobs(job_ids)
-        line = _owned_line(staff, data["entry_id"])
+        line = _editable_line(actor, data["entry_id"])
         if line.cost_set.job_id not in job_ids:
             raise ConflictError("This entry moved to another job. Reload before editing it.")
-        refuse_worker_change_to_approved(line, staff)
+        refuse_worker_change_to_approved(line, actor)
         before = snapshot_if_entry(line)
         meta = dict(line.meta)
         changed = _apply_scalar_changes(line, meta, data)
@@ -615,7 +649,7 @@ def update_entry(
 
         if reprice:
             pricing = price_time_entry(
-                job=job, staff=staff, meta=meta, labour_subtype=line.labour_subtype
+                job=job, staff=_owner_of(line), meta=meta, labour_subtype=line.labour_subtype
             )
             meta.update(pricing.meta_updates())
             line.unit_cost = pricing.unit_cost
@@ -636,13 +670,13 @@ def update_entry(
         line.meta = meta
         # Only ever set here: an edit made at the workshop does not vouch for
         # an entry first made somewhere else.
-        if saved_remotely(staff, location):
+        if saved_remotely(actor, location):
             line.remote_entry = True
         line.save()
         if moved_cost_set is not None:
-            update_latest_actual(job, moved_cost_set.rev, moved_cost_set.id, staff)
+            update_latest_actual(job, moved_cost_set.rev, moved_cost_set.id, actor)
         record_timesheet_event(
-            staff=staff,
+            staff=actor,
             event_type="entry_moved" if moved_cost_set is not None else "entry_updated",
             line=line,
             before=before,
@@ -652,8 +686,8 @@ def update_entry(
 
 
 @transaction.atomic
-def delete_entry(staff: Staff, entry_id: UUID) -> None:
-    """Delete one of the staff member's own entries."""
+def delete_entry(actor: Staff, entry_id: UUID) -> None:
+    """Delete an entry: the actor's own, or anyone's when the actor is office staff."""
     line = CostLine.objects.get(id=entry_id, kind="time")
     job_id = line.cost_set.job_id
     lock_costing_jobs([job_id])
@@ -666,14 +700,13 @@ def delete_entry(staff: Staff, entry_id: UUID) -> None:
     )
     if line.cost_set.job_id != job_id:
         raise ConflictError("This entry moved to another job. Reload before deleting it.")
-    if line.meta.get("staff_id") != str(staff.id):
-        raise EntryOwnershipError("You can only delete your own timesheet entries.")
+    _refuse_another_persons_entry(line, actor, "delete")
     refuse_workflow_managed(line, "cancel")
-    refuse_worker_change_to_approved(line, staff)
+    refuse_worker_change_to_approved(line, actor)
     # Recorded before the delete: Django clears the pk on the instance it
     # deleted, and the event names the line by that id.
     record_timesheet_event(
-        staff=staff, event_type="entry_deleted", line=line, before=snapshot_if_entry(line)
+        staff=actor, event_type="entry_deleted", line=line, before=snapshot_if_entry(line)
     )
     line.delete()
-    logger.info("Deleted workshop timesheet entry %s for staff %s", entry_id, staff.id)
+    logger.info("Deleted workshop timesheet entry %s by staff %s", entry_id, actor.id)

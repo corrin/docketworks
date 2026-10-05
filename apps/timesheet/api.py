@@ -30,7 +30,9 @@ from datetime import date, datetime
 from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.http import HttpRequest
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from ninja import Router
 from ninja.errors import HttpError
@@ -38,11 +40,13 @@ from ninja.responses import Status
 
 from apps.accounts.auth import authenticated_staff
 from apps.accounts.models import Staff
-from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
+from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth, SuperuserCookieJWTAuth
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.schemas import (
+    ApprovalsDayOut,
+    ApproveDayOut,
     DailyTimesheetSummaryOut,
     EntryLocationIn,
     JobsListResponse,
@@ -62,6 +66,7 @@ from apps.timesheet.schemas import (
     WorkshopTimesheetListResponse,
 )
 from apps.timesheet.services import (
+    approval,
     daily_timesheet_service,
     payroll_service,
     timesheet_entry_options,
@@ -82,6 +87,8 @@ router = Router()
 manage_auth = SuperuserCookieJWTAuth()
 # The self-service surface is available to any authenticated staff member.
 self_service_auth = CookieJWTAuth()
+# Approving time is any office staff member's job, superuser or not (KAN-376).
+office_auth = OfficeStaffCookieJWTAuth()
 
 DATE_FORMAT_ERROR = "Invalid date format. Use YYYY-MM-DD"
 
@@ -360,14 +367,26 @@ def timesheets_payroll_runs_retrieve(request: HttpRequest) -> PayrollRunsOut:
     tags=["job"],
 )
 def job_workshop_timesheets_retrieve(
-    request: HttpRequest, date: str | None = None
+    request: HttpRequest, date: str | None = None, staff_id: UUID | None = None
 ) -> workshop_timesheet_service.WorkshopDayData:
-    """Return the staff member's own entries for a date (defaults to today)."""
+    """Return a day's entries (defaults to today).
+
+    The caller's own, or for office staff the person ``staff_id`` names.
+    """
     try:
         entry_date = workshop_timesheet_service.resolve_entry_date(date)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
-    return workshop_timesheet_service.list_entries(authenticated_staff(request), entry_date)
+    owner = _entry_owner(request, staff_id)
+    return workshop_timesheet_service.list_entries(owner, entry_date)
+
+
+def _entry_owner(request: HttpRequest, staff_id: UUID | None) -> Staff:
+    """Whose time the request is about; 404 for a person who does not exist."""
+    try:
+        return workshop_timesheet_service.entry_owner(authenticated_staff(request), staff_id)
+    except Staff.DoesNotExist as exc:
+        raise HttpError(404, "Staff member not found.") from exc
 
 
 def _location(location: EntryLocationIn | None) -> EntryLocation | None:
@@ -408,9 +427,13 @@ def job_workshop_timesheets_create(
     request: HttpRequest, payload: WorkshopTimesheetEntryRequest
 ) -> Status[workshop_timesheet_service.WorkshopEntryData]:
     """Create a time entry owned by the authenticated staff member."""
+    owner = _entry_owner(request, payload.staff_id)
     try:
         entry = workshop_timesheet_service.create_entry(
-            authenticated_staff(request), _create_payload(payload), _location(payload.location)
+            authenticated_staff(request),
+            owner,
+            _create_payload(payload),
+            _location(payload.location),
         )
     except Job.DoesNotExist as exc:
         raise HttpError(404, "Job not found.") from exc
@@ -495,3 +518,43 @@ def job_workshop_timesheets_destroy(request: HttpRequest, entry_id: UUID) -> Sta
         # A leave-managed line: the leave workflow owns it (ADR 0038).
         raise HttpError(400, str(exc)) from exc
     return Status(204, None)
+
+
+# ── Approve time ────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/timesheets/approvals/",
+    auth=office_auth,
+    operation_id="timesheets_approvals_retrieve",
+    response=ApprovalsDayOut,
+    summary="Everyone's day for the office to approve",
+    tags=["timesheets"],
+)
+def timesheets_approvals_retrieve(
+    request: HttpRequest, date: str | None = None
+) -> approval.ApprovalsDayData:
+    """Each person's entered and waiting hours for a date (defaults to today)."""
+    try:
+        day = workshop_timesheet_service.resolve_entry_date(date)
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
+    return approval.day_approvals(day)
+
+
+@router.post(
+    "/timesheets/approvals/{uuid:staff_id}/{target_date}/approve/",
+    auth=office_auth,
+    operation_id="timesheets_approvals_approve_day",
+    response=ApproveDayOut,
+    summary="Approve every waiting entry of one person's day",
+    tags=["timesheets"],
+)
+@transaction.atomic
+def timesheets_approvals_approve_day(
+    request: HttpRequest, staff_id: UUID, target_date: str
+) -> dict[str, int]:
+    """Approve a person's day; zero is an ordinary answer when nothing was waiting."""
+    worker = get_object_or_404(Staff, id=staff_id)
+    approved = approval.approve_day(worker, _parse_date(target_date), authenticated_staff(request))
+    return {"approved_count": approved}

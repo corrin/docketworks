@@ -699,7 +699,7 @@ def test_imported_rate_prices_new_time_without_repricing_existing_lines(
         "accounting_date": date(2026, 9, 9),
         "hours": Decimal("1"),
     }
-    old = create_entry(staff, payload)
+    old = create_entry(staff, staff, payload)
     assert CostLine.objects.get(pk=old["id"]).unit_cost == Decimal("37.50")
     pay = employee_api.get_employee_salary_and_wages.return_value.salary_and_wages[0]
     pay.rate_per_unit = 40
@@ -710,7 +710,7 @@ def test_imported_rate_prices_new_time_without_repricing_existing_lines(
     )
     sync_employees(fetched.employees)
     staff.refresh_from_db()
-    new = create_entry(staff, payload)
+    new = create_entry(staff, staff, payload)
 
     assert CostLine.objects.get(pk=new["id"]).unit_cost == Decimal("48")
     assert CostLine.objects.get(pk=old["id"]).unit_cost == Decimal("37.50")
