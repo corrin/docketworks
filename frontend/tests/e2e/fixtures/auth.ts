@@ -27,13 +27,15 @@ export const LOGIN_TOKEN_PATH = '/api/accounts/token/'
 /**
  * Who a test signs in as. `office` is the superuser every desktop spec uses;
  * `workshop` is shop-floor staff (neither office nor superuser), the login the
- * phone specs exist to prove. Both rows come from `manage.py e2e_ensure_fixtures`.
+ * phone specs exist to prove; `officeStaff` is office staff who are not a
+ * superuser. All three rows come from `manage.py e2e_ensure_fixtures`.
  */
-export type LoginRole = 'office' | 'workshop'
+export type LoginRole = 'office' | 'workshop' | 'officeStaff'
 
 const CREDENTIAL_KEYS: Record<LoginRole, { username: string; password: string }> = {
   office: { username: 'E2E_TEST_USERNAME', password: 'E2E_TEST_PASSWORD' },
   workshop: { username: 'E2E_WORKSHOP_USERNAME', password: 'E2E_WORKSHOP_PASSWORD' },
+  officeStaff: { username: 'E2E_OFFICE_STAFF_USERNAME', password: 'E2E_OFFICE_STAFF_PASSWORD' },
 }
 
 export function e2eCredentials(role: LoginRole = 'office'): { username: string; password: string } {
@@ -129,7 +131,8 @@ export async function authenticateViaLoginPage(
       )
     }
 
-    await waitForCurrentUrl(page, /\/kanban\/?(?:[?#].*)?$/)
+    // Office staff land on the board, everyone else on My time.
+    await waitForCurrentUrl(page, /\/(kanban|timesheets\/my-time)\/?(?:[?#].*)?$/)
   } finally {
     stopSessionCheckConsoleAllowance()
   }

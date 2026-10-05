@@ -47,6 +47,9 @@ export type EntryDrawerState =
 
 interface WorkshopTimesheetEntryDrawerProps {
   state: EntryDrawerState
+  /** The entry is approved and this person may not change it: it is shown,
+      not edited. */
+  locked: boolean
   /** The day new entries book to, YYYY-MM-DD. */
   date: string
   /** Every entry already on that day: a new entry defaults its job and start
@@ -85,6 +88,7 @@ function inputTime(value: string | null): string {
  */
 export function WorkshopTimesheetEntryDrawer({
   state,
+  locked,
   date,
   dayEntries,
   dayStart,
@@ -111,7 +115,7 @@ export function WorkshopTimesheetEntryDrawer({
       <DrawerContent className="max-h-[90vh]" data-automation-id="WorkshopTimesheetEntryDrawer">
         <div className="mx-auto w-full max-w-md overflow-y-auto">
           <DrawerHeader>
-            <DrawerTitle>{entry === null ? 'Add entry' : 'Edit entry'}</DrawerTitle>
+            <DrawerTitle>{drawerTitle(entry, locked)}</DrawerTitle>
             <DrawerDescription>
               {entry === null
                 ? `Book your own time for ${formatDateLong(date)}.`
@@ -120,6 +124,7 @@ export function WorkshopTimesheetEntryDrawer({
           </DrawerHeader>
           <WorkshopEntryForm
             entry={entry}
+            locked={locked}
             initialStart={initialStart}
             date={date}
             dayEntries={dayEntries}
@@ -136,8 +141,15 @@ export function WorkshopTimesheetEntryDrawer({
   )
 }
 
+function drawerTitle(entry: WorkshopTimesheetEntryOut | null, locked: boolean): string {
+  if (entry === null) return 'Add entry'
+  if (locked) return 'Approved entry'
+  return 'Edit entry'
+}
+
 function WorkshopEntryForm({
   entry,
+  locked,
   initialStart,
   date,
   dayEntries,
@@ -248,7 +260,17 @@ function WorkshopEntryForm({
 
   return (
     <>
-      <div className="space-y-4 px-4 pb-2">
+      {locked && (
+        <p
+          className="mx-4 mb-2 rounded bg-slate-100 p-2 text-sm text-slate-700"
+          data-automation-id="WorkshopTimesheetEntryDrawer-locked"
+        >
+          The office has approved this entry. Ask the office to change it.
+        </p>
+      )}
+      {/* A disabled fieldset disables every control inside it, so an approved
+          entry reads exactly as it was saved and nothing can be typed. */}
+      <fieldset disabled={locked} className="space-y-4 px-4 pb-2">
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Job</label>
           <div className="rounded border border-slate-200">
@@ -258,7 +280,7 @@ function WorkshopEntryForm({
               ariaLabel="Job"
               jobs={jobs}
               selected={selected}
-              disabled={saving}
+              disabled={saving || locked}
               loading={jobsQuery.isPending}
               placeholder="Select a job"
               triggerLabel={(job) => {
@@ -409,18 +431,20 @@ function WorkshopEntryForm({
             onChange={(event) => setDescription(event.target.value)}
           />
         </div>
-      </div>
+      </fieldset>
 
       <DrawerFooter>
         <div className="flex items-center gap-2">
-          <Button
-            className={`flex-1 ${TOUCH_TARGET_CLASS}`}
-            disabled={!canSubmit}
-            data-automation-id="WorkshopTimesheetEntryDrawer-submit"
-            onClick={() => void submit()}
-          >
-            {entry === null ? 'Add entry' : 'Save changes'}
-          </Button>
+          {!locked && (
+            <Button
+              className={`flex-1 ${TOUCH_TARGET_CLASS}`}
+              disabled={!canSubmit}
+              data-automation-id="WorkshopTimesheetEntryDrawer-submit"
+              onClick={() => void submit()}
+            >
+              {entry === null ? 'Add entry' : 'Save changes'}
+            </Button>
+          )}
           <Button
             variant="outline"
             className={TOUCH_TARGET_CLASS}
@@ -428,9 +452,9 @@ function WorkshopEntryForm({
             data-automation-id="WorkshopTimesheetEntryDrawer-cancel"
             onClick={onClose}
           >
-            Cancel
+            {locked ? 'Close' : 'Cancel'}
           </Button>
-          {entry !== null && (
+          {entry !== null && !locked && (
             <Button
               variant="destructive"
               className={TOUCH_TARGET_CLASS}

@@ -59,6 +59,15 @@ export function meQueryOptions(): ReturnType<typeof accountsMeRetrieveOptions> {
   }
 }
 
+/**
+ * Where a person lands after signing in when nothing else was asked for.
+ * Workshop staff come to enter their time, so they land on My time; anyone
+ * who is office staff lands on the board, including someone who is both.
+ */
+export function defaultLandingPath(user: { is_office_staff: boolean }) {
+  return user.is_office_staff ? '/kanban' : '/timesheets/my-time'
+}
+
 /** Resolve the session without collapsing an outage into "logged out". */
 export async function resolveSession(queryClient: QueryClient): Promise<SessionResolution> {
   try {

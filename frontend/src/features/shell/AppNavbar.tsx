@@ -96,6 +96,12 @@ export function AppNavbar() {
           <NavMenuLink to="/timesheets/my-time" automationId="AppNavbar-my-time">
             My time
           </NavMenuLink>
+          {/* Any office staff member approves time; the screen shows no pay. */}
+          {user.is_office_staff && (
+            <NavMenuLink to="/timesheets/approve" automationId="AppNavbar-approve-time">
+              Approve time
+            </NavMenuLink>
+          )}
           {/* Superuser only: Daily, Weekly and Leave all read endpoints behind
               SuperuserCookieJWTAuth, so any other login reaches a page whose
               every query answers 403. */}

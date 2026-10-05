@@ -361,6 +361,36 @@ components:
       - updated_received_quantity
       title: AllocationReversalResponse
       type: object
+    ApprovalsDayOut:
+      description: Everyone's day for the office to approve.
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        staff:
+          items:
+            $ref: '#/components/schemas/StaffApprovalOut'
+          title: Staff
+          type: array
+        summary:
+          $ref: '#/components/schemas/DaySummaryOut'
+      required:
+      - date
+      - summary
+      - staff
+      title: ApprovalsDayOut
+      type: object
+    ApproveDayOut:
+      description: How many of the person's waiting entries the approval covered.
+      properties:
+        approved_count:
+          title: Approved Count
+          type: integer
+      required:
+      - approved_count
+      title: ApproveDayOut
+      type: object
     AssignJobRequest:
       description: Wire contract for AssignJobRequest.
       properties:
@@ -394,6 +424,45 @@ components:
       - success
       title: AssignJobResponse
       type: object
+    AttendanceOut:
+      description: A person's day as they clocked it. ``here_hours`` is worked out by the server.
+      properties:
+        clock_in:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          title: Clock In
+        clock_out:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          title: Clock Out
+        here_hours:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Here Hours
+        sent_late:
+          title: Sent Late
+          type: boolean
+        state:
+          enum:
+          - not_clocked_in
+          - at_work
+          - clocked_out
+          - sent
+          title: State
+          type: string
+      required:
+      - state
+      - clock_in
+      - clock_out
+      - here_hours
+      - sent_late
+      title: AttendanceOut
+      type: object
     AuthErrorOut:
       description: Expected authentication refusal, distinct from domain-level 401s.
       properties:
@@ -415,6 +484,78 @@ components:
       - error_id
       title: AuthErrorOut
       type: object
+    BreakCreateRequest:
+      description: A break added to a day. ``staff_id`` is for office staff correcting another's day.
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        end:
+          format: time
+          title: End
+          type: string
+        paid:
+          title: Paid
+          type: boolean
+        staff_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff Id
+        start:
+          format: time
+          title: Start
+          type: string
+      required:
+      - date
+      - start
+      - end
+      - paid
+      title: BreakCreateRequest
+      type: object
+    BreakOut:
+      description: One break in a person's day. Breaks are in no hours, cost or pay figure.
+      properties:
+        end:
+          format: time
+          title: End
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        paid:
+          title: Paid
+          type: boolean
+        start:
+          format: time
+          title: Start
+          type: string
+      required:
+      - id
+      - start
+      - end
+      - paid
+      title: BreakOut
+      type: object
+    BreakUpdateRequest:
+      description: A break moved or resized.
+      properties:
+        end:
+          format: time
+          title: End
+          type: string
+        start:
+          format: time
+          title: Start
+          type: string
+      required:
+      - start
+      - end
+      title: BreakUpdateRequest
+      type: object
     BuildId:
       description: 'Response body for /api/build-id/: the deployed backend''s git SHA.'
       properties:
@@ -424,6 +565,22 @@ components:
       required:
       - build_id
       title: BuildId
+      type: object
+    CalendarBoundsOut:
+      description: The stretch of the day the worker's calendar opens on.
+      properties:
+        end:
+          format: time
+          title: End
+          type: string
+        start:
+          format: time
+          title: Start
+          type: string
+      required:
+      - start
+      - end
+      title: CalendarBoundsOut
       type: object
     CategoriesOut:
       description: The category pickers for forms/registers and procedures.
@@ -530,6 +687,50 @@ components:
       - recording_id
       - sequence
       title: ChunkOut
+      type: object
+    ClockRequest:
+      description: A tap on Clock in or Clock out; the server supplies the time.
+      properties:
+        action:
+          enum:
+          - in
+          - out
+          title: Action
+          type: string
+      required:
+      - action
+      title: ClockRequest
+      type: object
+    ClockTimesRequest:
+      description: 'Clock times set by hand. No ``clock_out`` means the person is at work again.
+
+
+        ``staff_id`` is for office staff correcting another person''s day.'
+      properties:
+        clock_in:
+          format: time
+          title: Clock In
+          type: string
+        clock_out:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          title: Clock Out
+        date:
+          format: date
+          title: Date
+          type: string
+        staff_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff Id
+      required:
+      - date
+      - clock_in
+      title: ClockTimesRequest
       type: object
     CompanyCreateRequest:
       description: Wire contract for CompanyCreateRequest.
@@ -641,6 +842,15 @@ components:
           - type: 'null'
           description: Raw JSON data from Google Places for the address above
           title: Address Raw Json
+        afternoon_break_minutes:
+          description: 'Length of the paid afternoon break in minutes: 5 to 120, or 0 for none.'
+          title: Afternoon Break Minutes
+          type: integer
+        afternoon_break_start:
+          description: When the workshop's paid afternoon break starts.
+          format: time
+          title: Afternoon Break Start
+          type: string
         city:
           anyOf:
           - maxLength: 100
@@ -857,6 +1067,15 @@ components:
             type: string
           - type: 'null'
           title: Longitude
+        lunch_minutes:
+          description: 'Length of the unpaid lunch break in minutes: 5 to 120, or 0 for none.'
+          title: Lunch Minutes
+          type: integer
+        lunch_start:
+          description: When the workshop's unpaid lunch break starts.
+          format: time
+          title: Lunch Start
+          type: string
         master_quote_template_id:
           anyOf:
           - maxLength: 100
@@ -881,6 +1100,15 @@ components:
         mon_start:
           format: time
           title: Mon Start
+          type: string
+        morning_break_minutes:
+          description: 'Length of the paid morning break in minutes: 5 to 120, or 0 for none.'
+          title: Morning Break Minutes
+          type: integer
+        morning_break_start:
+          description: When the workshop's paid morning break starts.
+          format: time
+          title: Morning Break Start
           type: string
         po_prefix:
           description: Prefix for purchase order numbers (e.g., PO-, JO-)
@@ -1052,6 +1280,8 @@ components:
       - address_line1
       - address_line2
       - address_raw_json
+      - afternoon_break_minutes
+      - afternoon_break_start
       - city
       - company_acronym
       - company_email
@@ -1089,11 +1319,15 @@ components:
       - logo_url
       - logo_wide_url
       - longitude
+      - lunch_minutes
+      - lunch_start
       - master_quote_template_id
       - master_quote_template_url
       - materials_markup
       - mon_end
       - mon_start
+      - morning_break_minutes
+      - morning_break_start
       - po_prefix
       - post_code
       - quote_expiry_days
@@ -1156,6 +1390,19 @@ components:
           - type: 'null'
           description: Raw JSON data from Google Places for the address above
           title: Address Raw Json
+        afternoon_break_minutes:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Length of the paid afternoon break in minutes: 5 to 120, or 0 for none.'
+          title: Afternoon Break Minutes
+        afternoon_break_start:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          description: When the workshop's paid afternoon break starts.
+          title: Afternoon Break Start
         city:
           anyOf:
           - maxLength: 100
@@ -1399,6 +1646,19 @@ components:
             type: string
           - type: 'null'
           title: Longitude
+        lunch_minutes:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Length of the unpaid lunch break in minutes: 5 to 120, or 0 for none.'
+          title: Lunch Minutes
+        lunch_start:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          description: When the workshop's unpaid lunch break starts.
+          title: Lunch Start
         master_quote_template_id:
           anyOf:
           - maxLength: 100
@@ -1431,6 +1691,19 @@ components:
             type: string
           - type: 'null'
           title: Mon Start
+        morning_break_minutes:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Length of the paid morning break in minutes: 5 to 120, or 0 for none.'
+          title: Morning Break Minutes
+        morning_break_start:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          description: When the workshop's paid morning break starts.
+          title: Morning Break Start
         po_prefix:
           anyOf:
           - maxLength: 10
@@ -2790,6 +3063,28 @@ components:
       - crm_calls
       title: DataVersions
       type: object
+    DaySummaryOut:
+      description: How the day stands across the people expected on it.
+      properties:
+        approved:
+          title: Approved
+          type: integer
+        expected:
+          title: Expected
+          type: integer
+        standing:
+          enum:
+          - in_progress
+          - complete
+          - nobody_rostered
+          title: Standing
+          type: string
+      required:
+      - expected
+      - approved
+      - standing
+      title: DaySummaryOut
+      type: object
     DeliveryReceiptAllocationRequest:
       description: Wire contract for DeliveryReceiptAllocationRequest.
       properties:
@@ -3366,6 +3661,24 @@ components:
       - timestamp
       title: EntryEventOut
       type: object
+    EntryLocationIn:
+      description: Where the phone says it is as it saves an entry.
+      properties:
+        latitude:
+          maximum: 90
+          minimum: -90
+          title: Latitude
+          type: number
+        longitude:
+          maximum: 180
+          minimum: -180
+          title: Longitude
+          type: number
+      required:
+      - latitude
+      - longitude
+      title: EntryLocationIn
+      type: object
     EntryOut:
       description: "One form entry \u2014 the entry list row and the entry detail alike.\n\n``display_data``\
         \ carries server-resolved labels for staff/entry_ref values\n(e.g. a staff UUID's display name,\
@@ -3636,6 +3949,57 @@ components:
       - new_value
       - old_value
       title: FieldChangeOut
+      type: object
+    FillOut:
+      description: 'Hours to fill, entered and to go for a clocked day, all worked out by the server.
+
+
+        ``to_go_hours`` is negative when more is entered than the person was here for.'
+      properties:
+        entered_hours:
+          title: Entered Hours
+          type: number
+        to_fill_hours:
+          title: To Fill Hours
+          type: number
+        to_go_hours:
+          title: To Go Hours
+          type: number
+      required:
+      - to_fill_hours
+      - entered_hours
+      - to_go_hours
+      title: FillOut
+      type: object
+    FillRowIn:
+      description: 'One row of the fill sheet: a job and how long, in quarter hours.'
+      properties:
+        description:
+          anyOf:
+          - maxLength: 255
+            type: string
+          - type: 'null'
+          title: Description
+        hours:
+          anyOf:
+          - exclusiveMaximum: 100000.0
+            minimum: 0.01
+            type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          title: Hours
+        job_id:
+          format: uuid
+          title: Job Id
+          type: string
+        time_and_a_half:
+          default: false
+          title: Time And A Half
+          type: boolean
+      required:
+      - job_id
+      - hours
+      title: FillRowIn
       type: object
     FinishJobSummaryOut:
       description: 'The authoritative customer balance shown in the Finish Job workspace.
@@ -5861,12 +6225,27 @@ components:
       title: JobUndoRequest
       type: object
     JobsListResponse:
-      description: Wire contract for JobsListResponse.
+      description: 'Wire contract for JobsListResponse.
+
+
+        The two id lists order the fill sheet''s job buttons; every id is in ``jobs``.'
       properties:
         jobs:
           items:
             $ref: '#/components/schemas/TimesheetJobOut'
           title: Jobs
+          type: array
+        pinned_job_ids:
+          items:
+            format: uuid
+            type: string
+          title: Pinned Job Ids
+          type: array
+        recent_job_ids:
+          items:
+            format: uuid
+            type: string
+          title: Recent Job Ids
           type: array
         total_count:
           title: Total Count
@@ -5874,6 +6253,8 @@ components:
       required:
       - jobs
       - total_count
+      - pinned_job_ids
+      - recent_job_ids
       title: JobsListResponse
       type: object
     JsonValue:
@@ -8652,6 +9033,26 @@ components:
       - live_run
       - no_pay_run
       type: string
+    PendingDayOut:
+      description: An earlier day the person clocked and has not sent.
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        state:
+          enum:
+          - not_clocked_in
+          - at_work
+          - clocked_out
+          - sent
+          title: State
+          type: string
+      required:
+      - date
+      - state
+      title: PendingDayOut
+      type: object
     PeriodSummaryOut:
       description: Wire contract for PeriodSummaryOut.
       properties:
@@ -12037,6 +12438,61 @@ components:
       - title
       title: SettingsSectionOut
       type: object
+    StaffApprovalOut:
+      description: One person's day on the Approve time screen. No pay figures (KAN-376).
+      properties:
+        breaks:
+          items:
+            $ref: '#/components/schemas/BreakOut'
+          title: Breaks
+          type: array
+        clock:
+          $ref: '#/components/schemas/AttendanceOut'
+        entered_hours:
+          title: Entered Hours
+          type: number
+        entered_late:
+          title: Entered Late
+          type: boolean
+        entries:
+          items:
+            $ref: '#/components/schemas/WorkshopTimesheetEntryOut'
+          title: Entries
+          type: array
+        remote_entry:
+          title: Remote Entry
+          type: boolean
+        staff_id:
+          format: uuid
+          title: Staff Id
+          type: string
+        staff_name:
+          title: Staff Name
+          type: string
+        state:
+          enum:
+          - waiting
+          - nothing_entered
+          - nothing_waiting
+          - not_rostered
+          title: State
+          type: string
+        waiting_hours:
+          title: Waiting Hours
+          type: number
+      required:
+      - staff_id
+      - staff_name
+      - state
+      - entered_hours
+      - waiting_hours
+      - entered_late
+      - remote_entry
+      - clock
+      - breaks
+      - entries
+      title: StaffApprovalOut
+      type: object
     StaffCreateIn:
       additionalProperties: false
       description: "Create body for POST /api/accounts/staff/.\n\nUnknown keys are rejected rather than\
@@ -13556,6 +14012,27 @@ components:
       - posted_at
       title: StocktakeSummary
       type: object
+    SubmitDayRequest:
+      description: Send a day to the office, with any rows still to be saved as entries.
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
+        rows:
+          items:
+            $ref: '#/components/schemas/FillRowIn'
+          title: Rows
+          type: array
+      required:
+      - date
+      - rows
+      title: SubmitDayRequest
+      type: object
     SummaryStatsOut:
       description: Wire contract for SummaryStatsOut.
       properties:
@@ -14888,6 +15365,9 @@ components:
         total_annual_leave_hours:
           title: Total Annual Leave Hours
           type: number
+        total_approved_hours:
+          title: Total Approved Hours
+          type: number
         total_bereavement_leave_hours:
           title: Total Bereavement Leave Hours
           type: number
@@ -14917,6 +15397,9 @@ components:
           type: number
         total_sick_leave_hours:
           title: Total Sick Leave Hours
+          type: number
+        total_unapproved_hours:
+          title: Total Unapproved Hours
           type: number
         total_unbilled_hours:
           title: Total Unbilled Hours
@@ -14949,6 +15432,8 @@ components:
       - week_status
       - total_billed_hours
       - total_unbilled_hours
+      - total_approved_hours
+      - total_unapproved_hours
       - total_overtime_hours
       - total_overtime_1_5x_hours
       - total_overtime_2x_hours
@@ -15121,6 +15606,9 @@ components:
           format: date
           title: Accounting Date
           type: string
+        approved:
+          title: Approved
+          type: boolean
         bill_rate_multiplier:
           title: Bill Rate Multiplier
           type: number
@@ -15140,6 +15628,9 @@ components:
             type: string
           - type: 'null'
           title: End Time
+        entered_late:
+          title: Entered Late
+          type: boolean
         hours:
           title: Hours
           type: number
@@ -15160,6 +15651,9 @@ components:
         job_number:
           title: Job Number
           type: integer
+        remote_entry:
+          title: Remote Entry
+          type: boolean
         start_time:
           anyOf:
           - format: time
@@ -15187,6 +15681,9 @@ components:
       - is_billable
       - wage_rate_multiplier
       - bill_rate_multiplier
+      - approved
+      - entered_late
+      - remote_entry
       - created_at
       - updated_at
       title: WorkshopTimesheetEntryOut
@@ -15242,6 +15739,16 @@ components:
           format: uuid
           title: Job Id
           type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
+        staff_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff Id
         start_time:
           anyOf:
           - format: time
@@ -15312,6 +15819,10 @@ components:
           format: uuid
           title: Job Id
           type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
         start_time:
           anyOf:
           - format: time
@@ -15333,21 +15844,46 @@ components:
     WorkshopTimesheetListResponse:
       description: Wire contract for WorkshopTimesheetListResponse.
       properties:
+        breaks:
+          items:
+            $ref: '#/components/schemas/BreakOut'
+          title: Breaks
+          type: array
+        calendar:
+          $ref: '#/components/schemas/CalendarBoundsOut'
         date:
           format: date
           title: Date
           type: string
+        day:
+          $ref: '#/components/schemas/AttendanceOut'
         entries:
           items:
             $ref: '#/components/schemas/WorkshopTimesheetEntryOut'
           title: Entries
           type: array
+        fill:
+          anyOf:
+          - $ref: '#/components/schemas/FillOut'
+          - type: 'null'
+        pending:
+          anyOf:
+          - $ref: '#/components/schemas/PendingDayOut'
+          - type: 'null'
         summary:
           $ref: '#/components/schemas/WorkshopTimesheetSummaryOut'
+        week:
+          $ref: '#/components/schemas/WorkshopTimesheetWeekOut'
       required:
       - date
       - entries
       - summary
+      - week
+      - day
+      - breaks
+      - fill
+      - calendar
+      - pending
       title: WorkshopTimesheetListResponse
       type: object
     WorkshopTimesheetSummaryOut:
@@ -15359,22 +15895,28 @@ components:
         non_billable_hours:
           title: Non Billable Hours
           type: number
-        total_cost:
-          title: Total Cost
-          type: number
         total_hours:
           title: Total Hours
-          type: number
-        total_revenue:
-          title: Total Revenue
           type: number
       required:
       - total_hours
       - billable_hours
       - non_billable_hours
-      - total_cost
-      - total_revenue
       title: WorkshopTimesheetSummaryOut
+      type: object
+    WorkshopTimesheetWeekOut:
+      description: 'The payroll week the day falls in: hours payroll will pay, and hours held back.'
+      properties:
+        approved_hours:
+          title: Approved Hours
+          type: number
+        waiting_hours:
+          title: Waiting Hours
+          type: number
+      required:
+      - approved_hours
+      - waiting_hours
+      title: WorkshopTimesheetWeekOut
       type: object
     XeroAppActivateOut:
       description: 'Activation result: the app row plus the worker-restart notice.'
@@ -20436,7 +20978,10 @@ paths:
       tags:
       - job
     get:
-      description: Return the staff member's own entries for a date (defaults to today).
+      description: 'Return a day''s entries (defaults to today).
+
+
+        The caller''s own, or for office staff the person ``staff_id`` names.'
       operationId: job_workshop_timesheets_retrieve
       parameters:
       - in: query
@@ -20447,6 +20992,15 @@ paths:
           - type: string
           - type: 'null'
           title: Date
+      - in: query
+        name: staff_id
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff Id
       responses:
         '200':
           content:
@@ -22828,6 +23382,61 @@ paths:
       summary: Retrieve a recording's events for playback
       tags:
       - session-replays
+  /api/timesheets/approvals/:
+    get:
+      description: Each person's entered and waiting hours for a date (defaults to today).
+      operationId: timesheets_approvals_retrieve
+      parameters:
+      - in: query
+        name: date
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Date
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalsDayOut'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Everyone's day for the office to approve
+      tags:
+      - timesheets
+  /api/timesheets/approvals/{staff_id}/{target_date}/approve/:
+    post:
+      description: Approve a person's day; zero is an ordinary answer when nothing was waiting.
+      operationId: timesheets_approvals_approve_day
+      parameters:
+      - in: path
+        name: staff_id
+        required: true
+        schema:
+          format: uuid
+          title: Staff Id
+          type: string
+      - in: path
+        name: target_date
+        required: true
+        schema:
+          title: Target Date
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApproveDayOut'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Approve every waiting entry of one person's day
+      tags:
+      - timesheets
   /api/timesheets/daily/{target_date}/:
     get:
       description: Daily timesheet summary for every displayable staff member.
@@ -23121,6 +23730,139 @@ paths:
       summary: Update Request
       tags:
       - leave
+  /api/timesheets/my-day/breaks/:
+    post:
+      description: Add a break to the caller's day, or for office staff to anyone's.
+      operationId: timesheets_my_day_breaks_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BreakCreateRequest'
+        required: true
+      responses:
+        '204':
+          description: No Content
+      security:
+      - CookieJWTAuth: []
+      summary: Add a break to a day
+      tags:
+      - timesheets
+  /api/timesheets/my-day/breaks/{break_id}/:
+    delete:
+      description: Remove a break from the caller's day, or for office staff from anyone's.
+      operationId: timesheets_my_day_breaks_delete
+      parameters:
+      - in: path
+        name: break_id
+        required: true
+        schema:
+          format: uuid
+          title: Break Id
+          type: string
+      responses:
+        '204':
+          description: No Content
+      security:
+      - CookieJWTAuth: []
+      summary: Take a break off a day
+      tags:
+      - timesheets
+    put:
+      description: Move or resize a break on the caller's day, or for office staff on anyone's.
+      operationId: timesheets_my_day_breaks_update
+      parameters:
+      - in: path
+        name: break_id
+        required: true
+        schema:
+          format: uuid
+          title: Break Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BreakUpdateRequest'
+        required: true
+      responses:
+        '204':
+          description: No Content
+      security:
+      - CookieJWTAuth: []
+      summary: Move or resize a break
+      tags:
+      - timesheets
+  /api/timesheets/my-day/clock/:
+    post:
+      description: Stamp the caller's own day with the server's local time, to the minute.
+      operationId: timesheets_my_day_clock
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClockRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceOut'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Clock the caller in or out, now
+      tags:
+      - timesheets
+  /api/timesheets/my-day/submit/:
+    post:
+      description: Lay the caller's rows out as entries and mark their day sent, all or nothing.
+      operationId: timesheets_my_day_submit
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitDayRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkshopTimesheetListResponse'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Save the fill sheet's rows and send the day to the office
+      tags:
+      - timesheets
+  /api/timesheets/my-day/times/:
+    put:
+      description: Set the caller's clock times for a day, or for office staff anyone's.
+      operationId: timesheets_my_day_times
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClockTimesRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceOut'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Set a day's clock times by hand
+      tags:
+      - timesheets
   /api/timesheets/payroll/pay-runs/:
     get:
       description: All pay runs for the configured payroll calendar (local mirror).

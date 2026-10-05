@@ -330,6 +330,35 @@ export type AllocationReversalResponse = {
 };
 
 /**
+ * ApprovalsDayOut
+ *
+ * Everyone's day for the office to approve.
+ */
+export type ApprovalsDayOut = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Staff
+     */
+    staff: Array<StaffApprovalOut>;
+    summary: DaySummaryOut;
+};
+
+/**
+ * ApproveDayOut
+ *
+ * How many of the person's waiting entries the approval covered.
+ */
+export type ApproveDayOut = {
+    /**
+     * Approved Count
+     */
+    approved_count: number;
+};
+
+/**
  * AssignJobRequest
  *
  * Wire contract for AssignJobRequest.
@@ -362,6 +391,34 @@ export type AssignJobResponse = {
 };
 
 /**
+ * AttendanceOut
+ *
+ * A person's day as they clocked it. ``here_hours`` is worked out by the server.
+ */
+export type AttendanceOut = {
+    /**
+     * Clock In
+     */
+    clock_in: string | null;
+    /**
+     * Clock Out
+     */
+    clock_out: string | null;
+    /**
+     * Here Hours
+     */
+    here_hours: number | null;
+    /**
+     * Sent Late
+     */
+    sent_late: boolean;
+    /**
+     * State
+     */
+    state: 'not_clocked_in' | 'at_work' | 'clocked_out' | 'sent';
+};
+
+/**
  * AuthErrorOut
  *
  * Expected authentication refusal, distinct from domain-level 401s.
@@ -382,6 +439,74 @@ export type AuthErrorOut = {
 };
 
 /**
+ * BreakCreateRequest
+ *
+ * A break added to a day. ``staff_id`` is for office staff correcting another's day.
+ */
+export type BreakCreateRequest = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Paid
+     */
+    paid: boolean;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
+    /**
+     * Start
+     */
+    start: string;
+};
+
+/**
+ * BreakOut
+ *
+ * One break in a person's day. Breaks are in no hours, cost or pay figure.
+ */
+export type BreakOut = {
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Paid
+     */
+    paid: boolean;
+    /**
+     * Start
+     */
+    start: string;
+};
+
+/**
+ * BreakUpdateRequest
+ *
+ * A break moved or resized.
+ */
+export type BreakUpdateRequest = {
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Start
+     */
+    start: string;
+};
+
+/**
  * BuildId
  *
  * Response body for /api/build-id/: the deployed backend's git SHA.
@@ -391,6 +516,22 @@ export type BuildId = {
      * Build Id
      */
     build_id: string;
+};
+
+/**
+ * CalendarBoundsOut
+ *
+ * The stretch of the day the worker's calendar opens on.
+ */
+export type CalendarBoundsOut = {
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Start
+     */
+    start: string;
 };
 
 /**
@@ -491,6 +632,44 @@ export type ChunkOut = {
      * Sequence
      */
     sequence: number;
+};
+
+/**
+ * ClockRequest
+ *
+ * A tap on Clock in or Clock out; the server supplies the time.
+ */
+export type ClockRequest = {
+    /**
+     * Action
+     */
+    action: 'in' | 'out';
+};
+
+/**
+ * ClockTimesRequest
+ *
+ * Clock times set by hand. No ``clock_out`` means the person is at work again.
+ *
+ * ``staff_id`` is for office staff correcting another person's day.
+ */
+export type ClockTimesRequest = {
+    /**
+     * Clock In
+     */
+    clock_in: string;
+    /**
+     * Clock Out
+     */
+    clock_out?: string | null;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
 };
 
 /**
@@ -602,6 +781,18 @@ export type CompanyDefaultsOut = {
     address_raw_json: {
         [key: string]: unknown;
     } | null;
+    /**
+     * Afternoon Break Minutes
+     *
+     * Length of the paid afternoon break in minutes: 5 to 120, or 0 for none.
+     */
+    afternoon_break_minutes: number;
+    /**
+     * Afternoon Break Start
+     *
+     * When the workshop's paid afternoon break starts.
+     */
+    afternoon_break_start: string;
     /**
      * City
      *
@@ -805,6 +996,18 @@ export type CompanyDefaultsOut = {
      */
     longitude: string | null;
     /**
+     * Lunch Minutes
+     *
+     * Length of the unpaid lunch break in minutes: 5 to 120, or 0 for none.
+     */
+    lunch_minutes: number;
+    /**
+     * Lunch Start
+     *
+     * When the workshop's unpaid lunch break starts.
+     */
+    lunch_start: string;
+    /**
      * Master Quote Template Id
      *
      * Google Sheets ID for the quote template
@@ -828,6 +1031,18 @@ export type CompanyDefaultsOut = {
      * Mon Start
      */
     mon_start: string;
+    /**
+     * Morning Break Minutes
+     *
+     * Length of the paid morning break in minutes: 5 to 120, or 0 for none.
+     */
+    morning_break_minutes: number;
+    /**
+     * Morning Break Start
+     *
+     * When the workshop's paid morning break starts.
+     */
+    morning_break_start: string;
     /**
      * Po Prefix
      *
@@ -1025,6 +1240,18 @@ export type CompanyDefaultsPatchIn = {
         [key: string]: unknown;
     } | null;
     /**
+     * Afternoon Break Minutes
+     *
+     * Length of the paid afternoon break in minutes: 5 to 120, or 0 for none.
+     */
+    afternoon_break_minutes?: number | null;
+    /**
+     * Afternoon Break Start
+     *
+     * When the workshop's paid afternoon break starts.
+     */
+    afternoon_break_start?: string | null;
+    /**
      * City
      *
      * City
@@ -1211,6 +1438,18 @@ export type CompanyDefaultsPatchIn = {
      */
     longitude?: number | string | null;
     /**
+     * Lunch Minutes
+     *
+     * Length of the unpaid lunch break in minutes: 5 to 120, or 0 for none.
+     */
+    lunch_minutes?: number | null;
+    /**
+     * Lunch Start
+     *
+     * When the workshop's unpaid lunch break starts.
+     */
+    lunch_start?: string | null;
+    /**
      * Master Quote Template Id
      *
      * Google Sheets ID for the quote template
@@ -1234,6 +1473,18 @@ export type CompanyDefaultsPatchIn = {
      * Mon Start
      */
     mon_start?: string | null;
+    /**
+     * Morning Break Minutes
+     *
+     * Length of the paid morning break in minutes: 5 to 120, or 0 for none.
+     */
+    morning_break_minutes?: number | null;
+    /**
+     * Morning Break Start
+     *
+     * When the workshop's paid morning break starts.
+     */
+    morning_break_start?: string | null;
     /**
      * Po Prefix
      *
@@ -2445,6 +2696,26 @@ export type DataVersions = {
 };
 
 /**
+ * DaySummaryOut
+ *
+ * How the day stands across the people expected on it.
+ */
+export type DaySummaryOut = {
+    /**
+     * Approved
+     */
+    approved: number;
+    /**
+     * Expected
+     */
+    expected: number;
+    /**
+     * Standing
+     */
+    standing: 'in_progress' | 'complete' | 'nobody_rostered';
+};
+
+/**
  * DeliveryReceiptAllocationRequest
  *
  * Wire contract for DeliveryReceiptAllocationRequest.
@@ -2965,6 +3236,22 @@ export type EntryEventOut = {
 };
 
 /**
+ * EntryLocationIn
+ *
+ * Where the phone says it is as it saves an entry.
+ */
+export type EntryLocationIn = {
+    /**
+     * Latitude
+     */
+    latitude: number;
+    /**
+     * Longitude
+     */
+    longitude: number;
+};
+
+/**
  * EntryOut
  *
  * One form entry — the entry list row and the entry detail alike.
@@ -3211,6 +3498,52 @@ export type FieldChangeOut = {
      * Old Value
      */
     old_value: string;
+};
+
+/**
+ * FillOut
+ *
+ * Hours to fill, entered and to go for a clocked day, all worked out by the server.
+ *
+ * ``to_go_hours`` is negative when more is entered than the person was here for.
+ */
+export type FillOut = {
+    /**
+     * Entered Hours
+     */
+    entered_hours: number;
+    /**
+     * To Fill Hours
+     */
+    to_fill_hours: number;
+    /**
+     * To Go Hours
+     */
+    to_go_hours: number;
+};
+
+/**
+ * FillRowIn
+ *
+ * One row of the fill sheet: a job and how long, in quarter hours.
+ */
+export type FillRowIn = {
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Hours
+     */
+    hours: number | string;
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Time And A Half
+     */
+    time_and_a_half?: boolean;
 };
 
 /**
@@ -5152,12 +5485,22 @@ export type JobUndoRequest = {
  * JobsListResponse
  *
  * Wire contract for JobsListResponse.
+ *
+ * The two id lists order the fill sheet's job buttons; every id is in ``jobs``.
  */
 export type JobsListResponse = {
     /**
      * Jobs
      */
     jobs: Array<TimesheetJobOut>;
+    /**
+     * Pinned Job Ids
+     */
+    pinned_job_ids: Array<string>;
+    /**
+     * Recent Job Ids
+     */
+    recent_job_ids: Array<string>;
     /**
      * Total Count
      */
@@ -7722,6 +8065,22 @@ export type PayrollWeekTotalsOut = {
 };
 
 export type PayrollXeroSource = 'live_run' | 'no_pay_run';
+
+/**
+ * PendingDayOut
+ *
+ * An earlier day the person clocked and has not sent.
+ */
+export type PendingDayOut = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * State
+     */
+    state: 'not_clocked_in' | 'at_work' | 'clocked_out' | 'sent';
+};
 
 /**
  * PeriodSummaryOut
@@ -10639,6 +10998,51 @@ export type SettingsSectionOut = {
 };
 
 /**
+ * StaffApprovalOut
+ *
+ * One person's day on the Approve time screen. No pay figures (KAN-376).
+ */
+export type StaffApprovalOut = {
+    /**
+     * Breaks
+     */
+    breaks: Array<BreakOut>;
+    clock: AttendanceOut;
+    /**
+     * Entered Hours
+     */
+    entered_hours: number;
+    /**
+     * Entered Late
+     */
+    entered_late: boolean;
+    /**
+     * Entries
+     */
+    entries: Array<WorkshopTimesheetEntryOut>;
+    /**
+     * Remote Entry
+     */
+    remote_entry: boolean;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+    /**
+     * State
+     */
+    state: 'waiting' | 'nothing_entered' | 'nothing_waiting' | 'not_rostered';
+    /**
+     * Waiting Hours
+     */
+    waiting_hours: number;
+};
+
+/**
  * StaffCreateIn
  *
  * Create body for POST /api/accounts/staff/.
@@ -11978,6 +12382,23 @@ export type StocktakeSummary = {
 };
 
 /**
+ * SubmitDayRequest
+ *
+ * Send a day to the office, with any rows still to be saved as entries.
+ */
+export type SubmitDayRequest = {
+    /**
+     * Date
+     */
+    date: string;
+    location?: EntryLocationIn | null;
+    /**
+     * Rows
+     */
+    rows: Array<FillRowIn>;
+};
+
+/**
  * SummaryStatsOut
  *
  * Wire contract for SummaryStatsOut.
@@ -13165,6 +13586,10 @@ export type WeeklyStaffDataOut = {
      */
     total_annual_leave_hours: number;
     /**
+     * Total Approved Hours
+     */
+    total_approved_hours: number;
+    /**
      * Total Bereavement Leave Hours
      */
     total_bereavement_leave_hours: number;
@@ -13204,6 +13629,10 @@ export type WeeklyStaffDataOut = {
      * Total Sick Leave Hours
      */
     total_sick_leave_hours: number;
+    /**
+     * Total Unapproved Hours
+     */
+    total_unapproved_hours: number;
     /**
      * Total Unbilled Hours
      */
@@ -13378,6 +13807,10 @@ export type WorkshopTimesheetEntryOut = {
      */
     accounting_date: string;
     /**
+     * Approved
+     */
+    approved: boolean;
+    /**
      * Bill Rate Multiplier
      */
     bill_rate_multiplier: number;
@@ -13397,6 +13830,10 @@ export type WorkshopTimesheetEntryOut = {
      * End Time
      */
     end_time: string | null;
+    /**
+     * Entered Late
+     */
+    entered_late: boolean;
     /**
      * Hours
      */
@@ -13421,6 +13858,10 @@ export type WorkshopTimesheetEntryOut = {
      * Job Number
      */
     job_number: number;
+    /**
+     * Remote Entry
+     */
+    remote_entry: boolean;
     /**
      * Start Time
      */
@@ -13473,6 +13914,11 @@ export type WorkshopTimesheetEntryRequest = {
      * Job Id
      */
     job_id: string;
+    location?: EntryLocationIn | null;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
     /**
      * Start Time
      */
@@ -13523,6 +13969,7 @@ export type WorkshopTimesheetEntryUpdateRequest = {
      * Job Id
      */
     job_id?: string;
+    location?: EntryLocationIn | null;
     /**
      * Start Time
      */
@@ -13540,14 +13987,23 @@ export type WorkshopTimesheetEntryUpdateRequest = {
  */
 export type WorkshopTimesheetListResponse = {
     /**
+     * Breaks
+     */
+    breaks: Array<BreakOut>;
+    calendar: CalendarBoundsOut;
+    /**
      * Date
      */
     date: string;
+    day: AttendanceOut;
     /**
      * Entries
      */
     entries: Array<WorkshopTimesheetEntryOut>;
+    fill: FillOut | null;
+    pending: PendingDayOut | null;
     summary: WorkshopTimesheetSummaryOut;
+    week: WorkshopTimesheetWeekOut;
 };
 
 /**
@@ -13565,17 +14021,25 @@ export type WorkshopTimesheetSummaryOut = {
      */
     non_billable_hours: number;
     /**
-     * Total Cost
-     */
-    total_cost: number;
-    /**
      * Total Hours
      */
     total_hours: number;
+};
+
+/**
+ * WorkshopTimesheetWeekOut
+ *
+ * The payroll week the day falls in: hours payroll will pay, and hours held back.
+ */
+export type WorkshopTimesheetWeekOut = {
     /**
-     * Total Revenue
+     * Approved Hours
      */
-    total_revenue: number;
+    approved_hours: number;
+    /**
+     * Waiting Hours
+     */
+    waiting_hours: number;
 };
 
 /**
@@ -17605,6 +18069,10 @@ export type JobWorkshopTimesheetsRetrieveData = {
          * Date
          */
         date?: string | null;
+        /**
+         * Staff Id
+         */
+        staff_id?: string | null;
     };
     url: '/api/job/workshop/timesheets/';
 };
@@ -19402,6 +19870,52 @@ export type SessionReplayRecordingEventsRetrieveResponses = {
 
 export type SessionReplayRecordingEventsRetrieveResponse = SessionReplayRecordingEventsRetrieveResponses[keyof SessionReplayRecordingEventsRetrieveResponses];
 
+export type TimesheetsApprovalsRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Date
+         */
+        date?: string | null;
+    };
+    url: '/api/timesheets/approvals/';
+};
+
+export type TimesheetsApprovalsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: ApprovalsDayOut;
+};
+
+export type TimesheetsApprovalsRetrieveResponse = TimesheetsApprovalsRetrieveResponses[keyof TimesheetsApprovalsRetrieveResponses];
+
+export type TimesheetsApprovalsApproveDayData = {
+    body?: never;
+    path: {
+        /**
+         * Staff Id
+         */
+        staff_id: string;
+        /**
+         * Target Date
+         */
+        target_date: string;
+    };
+    query?: never;
+    url: '/api/timesheets/approvals/{staff_id}/{target_date}/approve/';
+};
+
+export type TimesheetsApprovalsApproveDayResponses = {
+    /**
+     * OK
+     */
+    200: ApproveDayOut;
+};
+
+export type TimesheetsApprovalsApproveDayResponse = TimesheetsApprovalsApproveDayResponses[keyof TimesheetsApprovalsApproveDayResponses];
+
 export type GetDailyTimesheetSummaryByDateData = {
     body?: never;
     path: {
@@ -19631,6 +20145,112 @@ export type TimesheetsLeaveRequestsUpdateResponses = {
 };
 
 export type TimesheetsLeaveRequestsUpdateResponse = TimesheetsLeaveRequestsUpdateResponses[keyof TimesheetsLeaveRequestsUpdateResponses];
+
+export type TimesheetsMyDayBreaksCreateData = {
+    body: BreakCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/breaks/';
+};
+
+export type TimesheetsMyDayBreaksCreateResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type TimesheetsMyDayBreaksCreateResponse = TimesheetsMyDayBreaksCreateResponses[keyof TimesheetsMyDayBreaksCreateResponses];
+
+export type TimesheetsMyDayBreaksDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Break Id
+         */
+        break_id: string;
+    };
+    query?: never;
+    url: '/api/timesheets/my-day/breaks/{break_id}/';
+};
+
+export type TimesheetsMyDayBreaksDeleteResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type TimesheetsMyDayBreaksDeleteResponse = TimesheetsMyDayBreaksDeleteResponses[keyof TimesheetsMyDayBreaksDeleteResponses];
+
+export type TimesheetsMyDayBreaksUpdateData = {
+    body: BreakUpdateRequest;
+    path: {
+        /**
+         * Break Id
+         */
+        break_id: string;
+    };
+    query?: never;
+    url: '/api/timesheets/my-day/breaks/{break_id}/';
+};
+
+export type TimesheetsMyDayBreaksUpdateResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type TimesheetsMyDayBreaksUpdateResponse = TimesheetsMyDayBreaksUpdateResponses[keyof TimesheetsMyDayBreaksUpdateResponses];
+
+export type TimesheetsMyDayClockData = {
+    body: ClockRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/clock/';
+};
+
+export type TimesheetsMyDayClockResponses = {
+    /**
+     * OK
+     */
+    200: AttendanceOut;
+};
+
+export type TimesheetsMyDayClockResponse = TimesheetsMyDayClockResponses[keyof TimesheetsMyDayClockResponses];
+
+export type TimesheetsMyDaySubmitData = {
+    body: SubmitDayRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/submit/';
+};
+
+export type TimesheetsMyDaySubmitResponses = {
+    /**
+     * OK
+     */
+    200: WorkshopTimesheetListResponse;
+};
+
+export type TimesheetsMyDaySubmitResponse = TimesheetsMyDaySubmitResponses[keyof TimesheetsMyDaySubmitResponses];
+
+export type TimesheetsMyDayTimesData = {
+    body: ClockTimesRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/times/';
+};
+
+export type TimesheetsMyDayTimesResponses = {
+    /**
+     * OK
+     */
+    200: AttendanceOut;
+};
+
+export type TimesheetsMyDayTimesResponse = TimesheetsMyDayTimesResponses[keyof TimesheetsMyDayTimesResponses];
 
 export type TimesheetsPayrollPayRunsRetrieveData = {
     body?: never;

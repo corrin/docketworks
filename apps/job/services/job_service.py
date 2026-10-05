@@ -2235,7 +2235,7 @@ def update_latest_actual(job: Job, cost_set_rev: int, cost_set_id: UUID, staff: 
         job.save(staff=staff, update_fields=["latest_actual", "updated_at"])
 
 
-def _bills_its_time(job: Job) -> bool:
+def bills_its_time(job: Job) -> bool:
     """Whether time on this job can be invoiced: shop work and special jobs cannot."""
     return not job.shop_job and job.status != "special"
 
@@ -2264,10 +2264,10 @@ def move_time_line(
     source = line.cost_set.job
     cost_set = get_or_create_cost_set(destination, "actual")
     line.cost_set = cost_set
-    if not _bills_its_time(destination):
+    if not bills_its_time(destination):
         meta["is_billable"] = False
         meta["bill_rate_multiplier"] = 0.0
-    elif not _bills_its_time(source) and not billing_explicit:
+    elif not bills_its_time(source) and not billing_explicit:
         # The stored zero was the source's rule, not the entry's: dropping the
         # multiplier lets the rate pipeline re-derive it from the wage multiplier.
         # A request that set its own billing keeps it (``billing_explicit``).
@@ -2294,8 +2294,13 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
     with transaction.atomic():
         lock_costing_jobs([job.id])
         cost_set = get_or_create_cost_set(job, kind)
-        # Workshop-created lines await office approval.
-        line = CostLine(cost_set=cost_set, approved=staff.is_office_staff)
+        # Workshop-created lines await office approval. Leave never does: the
+        # leave request is the approval, the approve endpoint refuses a managed
+        # line, and payroll reads unapproved leave as no leave.
+        line = CostLine(
+            cost_set=cost_set,
+            approved=staff.is_office_staff or data.get("managed_by") == "leave",
+        )
         if is_timesheet_line and data.get("kind") == "time":
             _reprice_timesheet_line(line, data, dict(meta))
         _apply_costline_fields(line, data)
@@ -2316,6 +2321,28 @@ def refuse_workflow_managed(line: CostLine, remedy: str) -> None:
         raise InvalidInputError(
             f"This line belongs to a leave request; {remedy} it from Timesheets → Leave."
         )
+
+
+class ApprovedEntryLockedError(ConflictError):
+    """A worker tried to change time the office has already approved."""
+
+
+def refuse_worker_change_to_approved(line: CostLine, actor: Staff) -> None:
+    """Refuse a non-office change to approved worked time.
+
+    Approved time is what payroll pays (KAN-376), so once the office has
+    approved an entry only the office changes it. Called by every path a
+    worker can reach a time line through, under the lock that approval takes.
+    Material lines are not covered: their approval is a stock issue, with its
+    own rules in purchasing.
+    """
+    if (
+        not actor.is_office_staff
+        and line.approved
+        and line.kind == "time"
+        and line.cost_set.kind == "actual"
+    ):
+        raise ApprovedEntryLockedError("This entry has been approved. Ask the office to change it.")
 
 
 @transaction.atomic
@@ -2350,6 +2377,7 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
     ):
         raise AccessDeniedError("Only office staff move another person's time.")
     refuse_workflow_managed(line, "edit")
+    refuse_worker_change_to_approved(line, staff)
     _validate_costline_write(data)
     before = snapshot_if_entry(line)
 
@@ -2411,6 +2439,7 @@ def delete_cost_line(line: CostLine, staff: Staff) -> None:
         .get(pk=line.pk)
     )
     refuse_workflow_managed(line, "cancel")
+    refuse_worker_change_to_approved(line, staff)
     with transaction.atomic():
         # Recorded before the delete: Django clears the pk on the instance it
         # deleted, and the event names the line by that id.

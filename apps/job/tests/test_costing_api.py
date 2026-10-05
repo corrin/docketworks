@@ -31,6 +31,7 @@ from apps.job.models.costing import CostLine, CostSet
 from apps.job.services.job_service import update_cost_line
 from apps.purchasing.models import Stock
 from apps.timesheet.models import TimesheetEvent
+from apps.timesheet.tests.conftest import make_time_line
 
 pytestmark = [
     pytest.mark.django_db,
@@ -862,6 +863,56 @@ class TestCostLineDelete:
 
     def test_unknown_line_is_404(self, client: Client) -> None:
         assert client.delete(f"/api/job/cost_lines/{uuid4()}/delete/").status_code == 404
+
+
+class TestApprovedTimeIsLockedForWorkers:
+    """The cost-line endpoints are a second door to a worker's time entries (KAN-376)."""
+
+    def test_worker_cannot_change_an_approved_entry_through_the_cost_line_api(
+        self, job: Job, workshop_staff: Staff
+    ) -> None:
+        line = make_time_line(job, workshop_staff, accounting_date=ACCOUNTING_DATE, hours="4.000")
+        worker = _workshop_client(workshop_staff)
+
+        edit = worker.patch(
+            f"/api/job/cost_lines/{line.id}/",
+            data={"quantity": "9.000"},
+            content_type="application/json",
+        )
+        delete = worker.delete(f"/api/job/cost_lines/{line.id}/delete/")
+
+        assert edit.status_code == 409
+        assert "approved" in edit.json()["detail"]
+        assert delete.status_code == 409
+        line.refresh_from_db()
+        assert line.quantity == Decimal("4.000")
+
+    def test_office_changes_an_approved_entry(
+        self, client: Client, job: Job, workshop_staff: Staff
+    ) -> None:
+        line = make_time_line(job, workshop_staff, accounting_date=ACCOUNTING_DATE, hours="4.000")
+
+        response = client.patch(
+            f"/api/job/cost_lines/{line.id}/",
+            data={"quantity": "5.000"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        assert response.json()["approved"] is True
+
+    def test_the_lock_leaves_approved_material_alone(self, job: Job, workshop_staff: Staff) -> None:
+        """Material approval is a stock matter with its own rules; the lock is about pay."""
+        line = _make_line(job.cost_sets.get(kind="actual"))
+        assert line.approved
+
+        response = _workshop_client(workshop_staff).patch(
+            f"/api/job/cost_lines/{line.id}/",
+            data={"quantity": "2.000"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
 
 
 class TestCopyEstimateToQuote:

@@ -7,12 +7,17 @@ import {
   billingChangeFields,
   billsItsTime,
   calendarEvent,
+  clockWords,
   defaultNewEntryRange,
   deriveHoursFromTimes,
   distinctJobCount,
+  entryLockedFor,
+  entryMarks,
   entryUpdateBody,
   eventTitle,
+  fillAfterRows,
   fillGapToNextEntry,
+  fillWords,
   jobChangeFields,
   lastUsedJobId,
   rateLabel,
@@ -40,6 +45,9 @@ function makeEntry(overrides: Partial<WorkshopTimesheetEntryOut> = {}): Workshop
     is_billable: true,
     wage_rate_multiplier: 1,
     bill_rate_multiplier: 1,
+    approved: false,
+    entered_late: false,
+    remote_entry: false,
     created_at: '2026-08-26T08:00:00Z',
     updated_at: '2026-08-26T08:00:00Z',
     ...overrides,
@@ -429,6 +437,88 @@ describe('calendarEvent', () => {
       title: '#42 Handrail (2h 30m)',
       start: '2026-08-26T08:00:00',
       end: '2026-08-26T10:30:00',
+      marks: ['Waiting'],
     })
+  })
+})
+
+describe('entryMarks', () => {
+  it('says Waiting until the office approves, then Approved', () => {
+    expect(entryMarks(makeEntry({ approved: false }))).toEqual(['Waiting'])
+    expect(entryMarks(makeEntry({ approved: true }))).toEqual(['Approved'])
+  })
+
+  it('adds Entered late beside either state', () => {
+    expect(entryMarks(makeEntry({ approved: false, entered_late: true }))).toEqual([
+      'Waiting',
+      'Entered late',
+    ])
+  })
+
+  it('adds Suspicious remote entry when the server marked the save', () => {
+    expect(entryMarks(makeEntry({ approved: true, remote_entry: true }))).toEqual([
+      'Approved',
+      'Suspicious remote entry',
+    ])
+  })
+})
+
+describe('entryLockedFor', () => {
+  it('locks an approved entry for a worker and leaves it open to the office', () => {
+    const approved = makeEntry({ approved: true })
+    expect(entryLockedFor(approved, { is_office_staff: false })).toBe(true)
+    expect(entryLockedFor(approved, { is_office_staff: true })).toBe(false)
+    expect(entryLockedFor(makeEntry({ approved: false }), { is_office_staff: false })).toBe(false)
+  })
+})
+
+describe('clockWords', () => {
+  const day = {
+    state: 'not_clocked_in',
+    clock_in: null,
+    clock_out: null,
+    here_hours: null,
+    sent_late: false,
+  } as const
+
+  it('says where the day stands, with the hours the server worked out', () => {
+    expect(clockWords(day)).toBe('Not clocked in')
+    expect(clockWords({ ...day, state: 'at_work', clock_in: '06:30:00' })).toBe(
+      'At work since 06:30',
+    )
+    expect(
+      clockWords({
+        ...day,
+        state: 'clocked_out',
+        clock_in: '06:30:00',
+        clock_out: '15:00:00',
+        here_hours: 8.5,
+      }),
+    ).toBe('Clocked out. 06:30 to 15:00, here 8h 30m')
+  })
+})
+
+describe('fillWords', () => {
+  const fill = { to_fill_hours: 8, entered_hours: 3, to_go_hours: 5 }
+
+  it('says what is left, that it is all filled, or that he is over, without scolding', () => {
+    expect(fillWords(fill)).toBe('8h to fill, 3h entered, 5h to go')
+    expect(fillWords({ ...fill, entered_hours: 8, to_go_hours: 0 })).toBe(
+      '8h to fill, 8h entered. All filled',
+    )
+    expect(fillWords({ ...fill, entered_hours: 9, to_go_hours: -1 })).toBe(
+      '8h to fill, 9h entered: 1h over the time you were here',
+    )
+  })
+})
+
+describe('fillAfterRows', () => {
+  it("takes the sheet's own rows off what is left, ignoring a row with no hours yet", () => {
+    expect(
+      fillAfterRows({ to_fill_hours: 8, entered_hours: 1, to_go_hours: 7 }, [
+        { hours: 3 },
+        { hours: null },
+      ]),
+    ).toEqual({ to_fill_hours: 8, entered_hours: 4, to_go_hours: 4 })
   })
 })

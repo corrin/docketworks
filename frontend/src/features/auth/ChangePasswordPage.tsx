@@ -51,7 +51,7 @@ export function ChangePasswordPage({ redirect }: Props) {
       await changePassword.mutateAsync({
         body: { current_password: currentPassword, new_password: newPassword },
       })
-      await router.navigate({ href: redirect ?? '/kanban' })
+      await router.navigate({ href: redirect ?? '/' })
     } catch (err) {
       // The 400 detail carries the validator's reason ("too common", "too
       // similar to…") — exactly what the user needs to pick a better one.

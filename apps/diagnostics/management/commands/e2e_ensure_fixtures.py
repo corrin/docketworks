@@ -6,8 +6,9 @@ UI-seeded spec searches for the second. Idempotent, so a restore runbook and
 ``verify-instance.sh --e2e`` (ADR 0064) both run it unconditionally.
 
 The users' credentials come from the environment — the same
-``E2E_TEST_USERNAME`` / ``E2E_TEST_PASSWORD`` and ``E2E_WORKSHOP_USERNAME`` /
-``E2E_WORKSHOP_PASSWORD`` Playwright reads — so a password is never on a
+``E2E_TEST_USERNAME`` / ``E2E_TEST_PASSWORD``, ``E2E_WORKSHOP_USERNAME`` /
+``E2E_WORKSHOP_PASSWORD`` and ``E2E_OFFICE_STAFF_USERNAME`` /
+``E2E_OFFICE_STAFF_PASSWORD`` Playwright reads — so a password is never on a
 command line. Three properties of the office user gate whole
 clusters of specs: office staff (the navbar's Create Job), superuser (the
 timesheet management surface), and a costing wage of exactly 45.00, which
@@ -19,6 +20,10 @@ The workshop user is who the phone specs sign in as: shop-floor staff, so
 neither office nor superuser. Those two flags are the point of the row — a
 workshop login that reaches an office-only endpoint is the defect the phone
 specs exist to catch — and are re-aligned on every run for that reason.
+
+The office staff user is office staff and nothing more: not a superuser. The
+approve-time spec signs in as it, because a screen any office staff member
+may use is only proven by a login that is not also allowed everything.
 """
 
 import os
@@ -80,16 +85,27 @@ class Command(BaseCommand):
         workshop_username, workshop_password = _credentials(
             "E2E_WORKSHOP_USERNAME", "E2E_WORKSHOP_PASSWORD"
         )
-        # Users are found case-insensitively, so these would be one Staff row
-        # and the workshop pass would take the office user's access off it.
-        if username.casefold() == workshop_username.casefold():
+        office_username, office_password = _credentials(
+            "E2E_OFFICE_STAFF_USERNAME", "E2E_OFFICE_STAFF_PASSWORD"
+        )
+        # Users are found case-insensitively, so two of these naming one
+        # address would be one Staff row, and a later pass would take off it
+        # the access an earlier pass gave.
+        named = {
+            "E2E_TEST_USERNAME": username,
+            "E2E_WORKSHOP_USERNAME": workshop_username,
+            "E2E_OFFICE_STAFF_USERNAME": office_username,
+        }
+        addresses = [address.casefold() for address in named.values()]
+        if len(set(addresses)) != len(addresses):
             raise CommandError(
-                "E2E_TEST_USERNAME and E2E_WORKSHOP_USERNAME name the same address "
-                f"({username}); the office and workshop E2E users must be two accounts."
+                f"{', '.join(named)} must name three accounts, and two name the same address "
+                f"({', '.join(named.values())})."
             )
         with transaction.atomic():
             user = self._ensure_user(username, password)
             workshop_user = self._ensure_workshop_user(workshop_username, workshop_password)
+            office_user = self._ensure_office_staff_user(office_username, office_password)
             company = self._ensure_test_company()
         self.stdout.write(
             f"E2E user {user.office_email}: office staff, superuser, wage {user.wage_rate}"
@@ -97,6 +113,9 @@ class Command(BaseCommand):
         self.stdout.write(
             f"E2E workshop user {workshop_user.office_email}: workshop staff, "
             f"wage {workshop_user.wage_rate}"
+        )
+        self.stdout.write(
+            f"E2E office staff user {office_user.office_email}: office staff, not superuser"
         )
         self.stdout.write(f"Test company: {company.name} (ID: {company.id})")
 
@@ -144,6 +163,24 @@ class Command(BaseCommand):
         user.is_workshop_staff = True
         user.is_superuser = False
         user.base_wage_rate = E2E_WORKSHOP_BASE_WAGE_RATE
+        user.save()
+        return user
+
+    def _ensure_office_staff_user(self, username: str, password: str) -> Staff:
+        user = Staff.objects.filter(office_email__iexact=username).first()
+        if user is None:
+            return Staff.objects.create_user(
+                office_email=username,
+                password=password,
+                first_name="E2E",
+                last_name="Office",
+                is_office_staff=True,
+                is_superuser=False,
+                base_wage_rate=E2E_WORKSHOP_BASE_WAGE_RATE,
+            )
+        user.set_password(password)
+        user.is_office_staff = True
+        user.is_superuser = False
         user.save()
         return user
 

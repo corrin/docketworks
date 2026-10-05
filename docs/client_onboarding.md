@@ -320,6 +320,12 @@ Verify `CompanyDefaults` carries what Phase 1 collected (most of it arrives from
 `company-defaults.json` at create time):
 
 - Company name, acronym, address, email, website
+  - Pick the address from the address search on the settings screen, not typed by hand:
+    the pick is what stores its coordinates. Workshop staff's own time entries are
+    compared against them. An entry saved from a phone that gives no location, or one
+    more than 300 m away, reads "Suspicious remote entry" to the worker and the office.
+    Tell staff to allow location for the site on their phone. With no address picked,
+    nobody is asked for location and nothing is marked.
 - Charge-out rate, wage rate, markups, labour cost loading
 - Working hours
 - Shop company (must be the Xero contact created in Phase 2a — `shop_company` is NOT NULL)

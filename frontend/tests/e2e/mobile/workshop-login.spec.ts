@@ -92,12 +92,13 @@ test.describe('workshop login on a phone', () => {
   // No console-error allowance here: a 401 or 403 while signed in is the
   // workshop login reaching something it may not, which is what this proves
   // does not happen.
-  test('signs in and reaches My time from the navbar', async ({
+  test('signs in on My time, and can still open the board', async ({
     authenticatedPage: page,
   }, testInfo) => {
-    await test.step('lands on the board without the office controls', async () => {
-      await expect(page).toHaveURL(/\/kanban/)
-      await expect(autoId(page, 'kanban-page')).toBeVisible()
+    await test.step('lands on My time without the office controls', async () => {
+      await expect(page).toHaveURL(/\/timesheets\/my-time/)
+      await expect(autoId(page, 'WorkshopTimesheetCalendar')).toBeVisible()
+      await expect(autoId(page, 'DayCard')).toBeVisible()
       await expect(autoId(page, 'AppNavbar-create-job')).toHaveCount(0)
       const headerHeightPx = await page
         .locator('header')
@@ -107,6 +108,14 @@ test.describe('workshop login on a phone', () => {
         type: 'header height',
         description: `${headerHeightPx}px of a ${page.viewportSize()?.height}px viewport`,
       })
+      await attachScreenshot(page, testInfo, 'landing')
+      await expectNoHorizontalOverflow(page)
+    })
+
+    await test.step('the board still opens, from the navbar', async () => {
+      await page.getByRole('link', { name: 'DocketWorks' }).tap()
+      await expect(page).toHaveURL(/\/kanban/)
+      await expect(autoId(page, 'kanban-page')).toBeVisible()
       await attachScreenshot(page, testInfo, 'kanban')
       await expectNoHorizontalOverflow(page)
     })

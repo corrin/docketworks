@@ -44,7 +44,7 @@ Playwright runs against the compiled production build. One-off: create the E2E c
 
 ```bash
 cd frontend
-cp .env.test.example .env.test    # set E2E_TEST_* and E2E_WORKSHOP_* USERNAME / PASSWORD
+cp .env.test.example .env.test    # set E2E_TEST_*, E2E_WORKSHOP_* and E2E_OFFICE_STAFF_* USERNAME / PASSWORD
 ```
 
 Then:

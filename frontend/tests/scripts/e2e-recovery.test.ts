@@ -4,7 +4,13 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { acquireE2ELock } from './global-setup'
-import { parseSavedXeroToken, requireBackupFile } from './global-teardown'
+import {
+  afterCeleryStops,
+  managedCelery,
+  parseSavedXeroToken,
+  requireBackupFile,
+  type ProcessControl,
+} from './global-teardown'
 
 const tempDirectories: string[] = []
 
@@ -33,6 +39,64 @@ describe('E2E recovery invariants', () => {
       'Backup file not found: /missing.sql',
     )
     expect(requireBackupFile('101\n/present.sql\nrun', () => true)).toBe('/present.sql')
+  })
+})
+
+/** Processes that exit a given number of polls after being asked to, or never. */
+function control(exitsAfterPolls: number | null): ProcessControl & { events: string[] } {
+  const events: string[] = []
+  const asked = new Set<number>()
+  let polls = 0
+  return {
+    events,
+    terminate: (sessionId) => {
+      asked.add(sessionId)
+      events.push(`terminate ${sessionId}`)
+    },
+    running: (sessionId) =>
+      !(asked.has(sessionId) && exitsAfterPolls !== null && polls >= exitsAfterPolls),
+    sleep: () => {
+      polls += 1
+    },
+  }
+}
+
+describe("the database is rewritten only once the run's Celery has stopped", () => {
+  const managed = [
+    { name: 'Celery worker', sessionId: 11 },
+    { name: 'Celery beat', sessionId: 12 },
+  ]
+
+  it('stops the worker and beat, waits for them, then rewrites', () => {
+    const processes = control(3)
+    afterCeleryStops(managed, () => processes.events.push('rewrite'), processes, 10_000)
+
+    expect(processes.events).toEqual(['terminate 11', 'terminate 12', 'rewrite'])
+  })
+
+  it('never rewrites under a worker that will not stop, and says which', () => {
+    const processes = control(null)
+    const rewrite = () => processes.events.push('rewrite')
+
+    expect(() => afterCeleryStops(managed, rewrite, processes, 2_000)).toThrow(
+      'Celery worker and Celery beat still running 2s after being asked to stop',
+    )
+    expect(processes.events).not.toContain('rewrite')
+  })
+
+  it('leaves a stack this run did not start alone', () => {
+    const processes = control(null)
+    afterCeleryStops(null, () => processes.events.push('rewrite'), processes)
+
+    expect(processes.events).toEqual(['rewrite'])
+  })
+
+  it("reads the launcher's two process ids, and none from a bare run", () => {
+    expect(managedCelery({})).toBeNull()
+    expect(managedCelery({ E2E_CELERY_WORKER_PID: '11', E2E_CELERY_BEAT_PID: '12' })).toEqual(
+      managed,
+    )
+    expect(() => managedCelery({ E2E_CELERY_WORKER_PID: '11' })).toThrow('but not the other')
   })
 })
 

@@ -5,6 +5,7 @@ import { useState } from 'react'
 import type { WorkshopTimesheetEntryOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
+import { meQueryOptions } from '@/features/auth'
 import { QueryState } from '@/features/shared/QueryState'
 import { SummaryCard } from '@/features/shared/SummaryCard'
 import { companyDefaultsQueryOptions } from '@/features/shell'
@@ -14,11 +15,16 @@ import { shiftDate } from '@/lib/dates'
 import {
   calendarEvent,
   distinctJobCount,
+  entryLockedFor,
+  entryMarks,
   rateLabel,
   splitDayEntries,
   workingDayStart,
 } from './myTime'
-import { useWorkshopDay } from './useWorkshopDay'
+import { BreakSheet, type BreakSheetState } from './BreakSheet'
+import { DayCard } from './DayCard'
+import { FillDaySheet } from './FillDaySheet'
+import { useBreaks, useClocking, useSubmitDay, useWorkshopDay } from './useWorkshopDay'
 import { WorkshopTimesheetCalendar } from './WorkshopTimesheetCalendar'
 import { WorkshopTimesheetEntryDrawer, type EntryDrawerState } from './WorkshopTimesheetEntryDrawer'
 
@@ -41,14 +47,23 @@ interface WorkshopMyTimePageProps {
  */
 export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageProps) {
   const date = search.date ?? localIsoDate()
-  const day = useWorkshopDay(date)
   // Already in the cache: the shell loads the company defaults before any
   // authed route renders.
   const { data: companyDefaults } = useSuspenseQuery(companyDefaultsQueryOptions())
+  const { data: user } = useSuspenseQuery(meQueryOptions())
+  const day = useWorkshopDay(date, companyDefaults.latitude !== null && !user.is_office_staff)
   const [drawer, setDrawer] = useState<EntryDrawerState>({ mode: 'closed' })
 
   const entries = day.dayQuery.data?.entries ?? []
+  const dayData = day.dayQuery.data
+  const clocking = useClocking()
+  const sendLocation = companyDefaults.latitude !== null && !user.is_office_staff
+  const submission = useSubmitDay(sendLocation)
+  const [fillOpen, setFillOpen] = useState(false)
+  const breaks = useBreaks()
+  const [breakSheet, setBreakSheet] = useState<BreakSheetState>({ mode: 'closed' })
   const summary = day.dayQuery.data?.summary
+  const week = day.dayQuery.data?.week
   const { timed, untimed } = splitDayEntries(entries)
   const jobCount = distinctJobCount(entries)
 
@@ -91,6 +106,32 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
         </div>
       </div>
 
+      {dayData !== undefined && (
+        <DayCard
+          // A fresh card per day: an open times form belongs to the day it was opened on.
+          key={date}
+          date={date}
+          isToday={date === localIsoDate()}
+          day={dayData.day}
+          fill={dayData.fill}
+          pending={dayData.pending}
+          dayStart={workingDayStart(date, companyDefaults)}
+          clocking={clocking.clocking}
+          // Clocking out is the moment to say what the day was: the sheet opens on it.
+          onClock={async (action) => {
+            const done = await clocking.clock(action)
+            if (done && action === 'out') setFillOpen(true)
+            return done
+          }}
+          onFill={() => setFillOpen(true)}
+          onAddBreak={() => setBreakSheet({ mode: 'add' })}
+          onSetTimes={(clockIn, clockOut) =>
+            clocking.setTimes({ date, clock_in: clockIn, clock_out: clockOut })
+          }
+          onOpenDay={onDateChange}
+        />
+      )}
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <SummaryCard label="Total" valueAutomationId="WorkshopTimesheetSummaryCard-total-hours">
@@ -107,6 +148,20 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
             valueAutomationId="WorkshopTimesheetSummaryCard-non-billable-hours"
           >
             {formatHoursDisplay(summary?.non_billable_hours)}
+          </SummaryCard>
+          {/* The week payroll pays by: approved hours are paid, waiting hours
+              are not until the office approves them. */}
+          <SummaryCard
+            label="Approved this week"
+            valueAutomationId="WorkshopTimesheetSummaryCard-week-approved-hours"
+          >
+            {formatHoursDisplay(week?.approved_hours)}
+          </SummaryCard>
+          <SummaryCard
+            label="Waiting this week"
+            valueAutomationId="WorkshopTimesheetSummaryCard-week-waiting-hours"
+          >
+            {formatHoursDisplay(week?.waiting_hours)}
           </SummaryCard>
         </div>
         <div className="flex items-center gap-2">
@@ -153,6 +208,9 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
         )}
         <WorkshopTimesheetCalendar
           date={date}
+          bounds={dayData?.calendar ?? null}
+          breaks={dayData?.breaks ?? []}
+          onBreakClick={(each) => setBreakSheet({ mode: 'edit', break: each })}
           events={timed.map(calendarEvent)}
           onEventClick={openEdit}
           onSlotClick={(start) => setDrawer({ mode: 'create', start })}
@@ -160,6 +218,7 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
         {untimed.length > 0 && (
           <UntimedEntries
             entries={untimed}
+            isLocked={(entry) => entryLockedFor(entry, user)}
             deleting={day.saving}
             onEdit={openEdit}
             onDelete={(entryId) => void day.deleteEntry(entryId)}
@@ -167,8 +226,29 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
         )}
       </QueryState>
 
+      {dayData !== undefined && dayData.fill !== null && (
+        <FillDaySheet
+          open={fillOpen}
+          date={date}
+          fill={dayData.fill}
+          sending={submission.submitting}
+          onSend={(rows) => submission.submitDay(date, rows)}
+          onClose={() => setFillOpen(false)}
+        />
+      )}
+
+      <BreakSheet
+        state={breakSheet}
+        saving={breaks.savingBreak}
+        onAdd={(start, end, paid) => breaks.addBreak(date, start, end, paid)}
+        onChange={breaks.changeBreak}
+        onRemove={breaks.removeBreak}
+        onClose={() => setBreakSheet({ mode: 'closed' })}
+      />
+
       <WorkshopTimesheetEntryDrawer
         state={drawer}
+        locked={drawer.mode === 'edit' && entryLockedFor(drawer.entry, user)}
         date={date}
         dayEntries={entries}
         dayStart={workingDayStart(date, companyDefaults)}
@@ -189,11 +269,13 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
  */
 function UntimedEntries({
   entries,
+  isLocked,
   deleting,
   onEdit,
   onDelete,
 }: {
   entries: WorkshopTimesheetEntryOut[]
+  isLocked: (entry: WorkshopTimesheetEntryOut) => boolean
   deleting: boolean
   onEdit: (entryId: string) => void
   onDelete: (entryId: string) => void
@@ -230,6 +312,15 @@ function UntimedEntries({
                 >
                   {entry.is_billable ? 'Billable' : 'Non-billable'}
                 </span>
+                {entryMarks(entry).map((mark) => (
+                  <span
+                    key={mark}
+                    className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-700"
+                    data-automation-id={`WorkshopMyTimePage-untimed-mark-${entry.id}`}
+                  >
+                    {mark}
+                  </span>
+                ))}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -249,7 +340,7 @@ function UntimedEntries({
                 size="icon"
                 className={TOUCH_TARGET_CLASS}
                 aria-label="Delete entry"
-                disabled={deleting}
+                disabled={deleting || isLocked(entry)}
                 data-automation-id={`WorkshopMyTimePage-untimed-delete-${entry.id}`}
                 onClick={() => onDelete(entry.id)}
               >

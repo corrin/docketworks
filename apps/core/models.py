@@ -17,7 +17,7 @@ from typing import ClassVar, Protocol, cast
 
 from django.apps import apps as django_apps
 from django.contrib.auth.base_user import AbstractBaseUser
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import models
 from django.db.models.base import ModelBase
 from django.utils import timezone
@@ -26,6 +26,18 @@ from solo.models import SingletonModel
 # Starting point for an installation that has not had its terms written yet.
 # Real wording is seeded per client by the fixtures and edited in Company Settings.
 DEFAULT_XERO_QUOTE_TERMS = "Terms of trade can be found on our website."
+
+
+BREAK_MINUTES_MIN = 5
+BREAK_MINUTES_MAX = 120
+
+
+def validate_break_minutes(value: int) -> None:
+    """Accept a break of 5 to 120 minutes, or 0 for no such break."""
+    if value != 0 and not BREAK_MINUTES_MIN <= value <= BREAK_MINUTES_MAX:
+        raise ValidationError(
+            f"A break is {BREAK_MINUTES_MIN} to {BREAK_MINUTES_MAX} minutes long, or 0 for none."
+        )
 
 
 class AppError(models.Model):  # noqa: DJ008  # callers use explicit error fields
@@ -416,6 +428,39 @@ class CompanyDefaults(SingletonModel):
     thu_end = models.TimeField(default="15:00")
     fri_start = models.TimeField(default="07:00")
     fri_end = models.TimeField(default="15:00")
+    # The standard breaks a worker's day is drawn with (KAN-376; owner,
+    # 2026-10-06: two 15 minute paid breaks and a 30 minute unpaid lunch).
+    # Each is put on his day when he was there for the whole of it, for him to
+    # move or remove. Lunch comes off his hours to fill; the paid breaks are
+    # only markers, since that time is paid and billed with the job in hand.
+    # A length of 0 means the workshop has no such break.
+    morning_break_start = models.TimeField(
+        default="08:30",
+        help_text="When the workshop's paid morning break starts.",
+    )
+    morning_break_minutes = models.PositiveSmallIntegerField(
+        default=15,
+        validators=[validate_break_minutes],
+        help_text="Length of the paid morning break in minutes: 5 to 120, or 0 for none.",
+    )
+    lunch_start = models.TimeField(
+        default="11:30",
+        help_text="When the workshop's unpaid lunch break starts.",
+    )
+    lunch_minutes = models.PositiveSmallIntegerField(
+        default=30,
+        validators=[validate_break_minutes],
+        help_text="Length of the unpaid lunch break in minutes: 5 to 120, or 0 for none.",
+    )
+    afternoon_break_start = models.TimeField(
+        default="13:30",
+        help_text="When the workshop's paid afternoon break starts.",
+    )
+    afternoon_break_minutes = models.PositiveSmallIntegerField(
+        default=15,
+        validators=[validate_break_minutes],
+        help_text="Length of the paid afternoon break in minutes: 5 to 120, or 0 for none.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_xero_sync = models.DateTimeField(

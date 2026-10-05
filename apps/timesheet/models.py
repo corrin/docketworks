@@ -232,6 +232,85 @@ class LeaveDay(models.Model):
             raise ValidationError({"staff": "Leave day staff must match its request."})
 
 
+class AttendanceDay(models.Model):
+    """When one person was at work on one day, as they clocked it (KAN-376).
+
+    Clocking helps the worker and the office see the day; it binds nothing and
+    pays nothing. The times are times of day, so a shift past midnight cannot
+    be stored: the office sets the finish to 23:59 and enters the hours as
+    time (owner ruling, 2026-10-06). A day reopened is this same row with its
+    finish cleared. The day's state is derived from the row, never stored.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    staff = models.ForeignKey(
+        "accounts.Staff", on_delete=models.PROTECT, related_name="attendance_days"
+    )
+    date = models.DateField()
+    clock_in = models.TimeField()
+    # NULL while the person is still at work.
+    clock_out = models.TimeField(null=True, blank=True)
+    # NULL until the day is sent to the office.
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    # The workshop's usual breaks are put on a day once, the first time it has
+    # both clock times. After that they are the worker's: nothing puts back one
+    # he removed or moved.
+    breaks_generated = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["date"]
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.UniqueConstraint(fields=["staff", "date"], name="unique_staff_attendance_day"),
+            models.CheckConstraint(
+                condition=Q(clock_out__isnull=True) | Q(clock_out__gt=models.F("clock_in")),
+                name="timesheet_attendance_finish_after_start",
+            ),
+            models.CheckConstraint(
+                condition=Q(submitted_at__isnull=True) | Q(clock_out__isnull=False),
+                name="timesheet_attendance_sent_only_when_clocked_out",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.staff.get_display_name()} on {self.date}"
+
+
+class AttendanceBreak(models.Model):
+    """A break in one person's day: when it was, and whether it was paid.
+
+    A day is shown to the worker as a timeline to remember it by: started,
+    a paid break, an unpaid break, finished. Breaks belong to the day and not
+    to job costing, so no time, cost or pay figure ever reads this table. An
+    unpaid break comes off the hours the worker has to fill; a paid one is a
+    marker only, because that time is paid and billed with the job in hand.
+    Breaks are his to move, remove or add; they may overlap anything.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    attendance_day = models.ForeignKey(
+        AttendanceDay, on_delete=models.CASCADE, related_name="breaks"
+    )
+    start = models.TimeField()
+    end = models.TimeField()
+    paid = models.BooleanField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["start", "created_at", "id"]
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.CheckConstraint(
+                condition=Q(end__gt=models.F("start")),
+                name="timesheet_attendance_break_end_after_start",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        kind = "Paid" if self.paid else "Unpaid"
+        return f"{kind} break {self.start:%H:%M} to {self.end:%H:%M}"
+
+
 def _moved(old: JsonScalar, new: JsonScalar) -> str:
     return f"Moved from {old} to {new}"
 

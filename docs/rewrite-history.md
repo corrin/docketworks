@@ -2532,3 +2532,111 @@ reports every problem in an answered call together.
 The item-code refusal reads the local stock list. A stock item not yet pushed
 to Xero passes it, and Xero may still refuse the order line; the rule as the
 owner stated it is about what the stock list knows.
+
+## 2026-10-05 — The remote-entry mark on workshop time (KAN-376)
+
+Owner rulings. Docketworks is reachable from anywhere, and the office wants to
+tell time a worker entered in the workshop from time entered somewhere else.
+It is a mark, never a refusal, and a wrong mark costs a moment's confusion.
+A worker's own save is marked unless the phone gives a location within 300 m
+of the company address; refusing location is marked the same as being
+elsewhere. Office staff are never marked, a company with no picked address
+marks nothing, and the mark is not cleared by a later edit. Only the verdict
+is stored, not where the phone was.
+
+Rejected: comparing the caller's internet address with the workshop's. Fifteen
+days of production access logs show the workshop's connection changing address
+every day or two (the owner confirmed the new connection is not fixed), so
+there is nothing to compare against without a fixed address from the ISP.
+
+Found on the way. Production Django receives no client address: all 136
+`job_jobdeltarejection.request_ip` rows are NULL. Gunicorn binds a unix socket,
+uvicorn's proxy-header handling trusts no peer on one, and nginx's
+`X-Forwarded-For` is ignored. Nothing depends on it today. The sites answer on
+IPv4 only and nothing sits in front of nginx.
+
+The company address is not picked on UAT (no coordinates); production was not
+checked. The mark does nothing on an instance until it is.
+
+The distance is the haversine formula written out in
+`workshop_timesheet_service`, eight lines, rather than a geodesy dependency
+(ADR 0032's small-need exception).
+
+A fake-location app defeats the check. It deters; it does not prove.
+
+## 2026-10-06 — Workshop staff enter their own time; the office approves it (KAN-376)
+
+Owner rulings. Staff clock in and out, send their day, and the office approves
+it; staff are paid for approved time only. Approved time is locked for the
+worker; any office staff member approves. The office does not send an entry
+back: it corrects it and phones the worker. Late entry is flagged, not
+blocked. Every day is finished on the day across all staff; an older day is
+looked at only for a correction, so nothing is built for catching up. Six
+people: no reminders, notifications, queues or un-approve.
+
+What the times are for (owner, verbatim): "the start and end time is almost
+purely for visual aesthetics and helping workers catch their own errors. In
+the future we will likely add 'start work on task' using the mobile app too."
+The fill sheet lays a day's entries end to end from clock-in. Those times are a
+picture of the day for the worker, not measurements, and nothing reads them
+for pay or billing. That is why moving a break moves no entry and there are no
+overlap checks. Nothing marks a laid-out time apart from a measured one; if
+"start work on a task" comes, it writes real times into the same fields and
+telling them apart is a decision for then.
+
+Breaks belong to the day, not to job costing. The plan first stored lunch as a
+zero-hour time line on a "Lunch (unpaid)" job, so that summing hours would
+leave it out. Reading every reader of time lines showed it would not hold: the
+line could not be saved (no pay item; zero hours against a real time pair),
+the leave classifier raised on it and took the day, daily and weekly reads and
+payroll validation with it, about eight readers needed an exemption, and the
+readers that count lines or jobs still saw it (daily entry count and job
+breakdown, "N jobs", jobs per person, the next entry defaulting to Lunch). The
+owner's answer: "Exceptions imply a design issue. The idea is that we're
+mostly showing the full day as a friendly helper to the staff member."
+Breaks are rows on the attendance day. The standard breaks (owner): two 15
+minute paid breaks and a 30 minute unpaid lunch, set in company settings beside
+the working hours. An unpaid break comes off the hours to fill; a paid break is
+a marker only, because that time is paid and billed with the job in hand. Each
+standard break is put on a day once, the first time it has both clock times.
+Accepted cost: a day first clocked short and corrected later gets none by
+itself. The owner later remarked that he would have used a job for breaks; the
+reasons above were put to him and the attendance rows stand unless he rules
+otherwise.
+
+Clock times are times of day, so a shift past midnight cannot be stored. The
+worker is refused in words and told to ask the office, which sets the finish to
+23:59 and enters the hours as time. A tap clocks today only; a day left open is
+finished by hand, never stamped on a later date.
+
+Measured. A three-job day through the fill sheet is 8 taps and no keystrokes
+on both phone projects, counted by `mobile/workshop-fill-day.spec.ts`; the
+screen before needed about 31 taps and 15 keystrokes.
+
+Findings.
+- Payroll posting ignored the approved flag: `_week_time_lines` took every
+  actual time line. Fixed first. Leave is now approved when made, whoever makes
+  it: unapproved leave would read as no leave and the post would take real
+  leave out of Xero.
+- Approved-only posting is proven by unit tests, not end to end. Every test
+  that posts a week is tagged `@xero-payroll-write`, is outside the gate and
+  cannot run on the fake Xero.
+- The generic cost-line endpoints let any signed-in worker create time for
+  another person and delete another's unapproved line. Not fixed.
+- The weekly dependency sweep (#196) merged with no CI run and left main red:
+  msw 3.0.2 past a dated deferral for 3.0.1. The pin is restored here.
+- A short E2E run deadlocked its own database restore against its Celery
+  worker, which was still writing JobSummary.pdf rows. Teardown now stops the
+  run's worker and beat before it restores. On a dev database restored from
+  production about 1,000 of 2,500 job summaries are stale, the refresh task
+  re-queues itself until none are, and each restore puts the backlog back.
+- The company settings form sends number fields as the text typed.
+- A filled row on a shop job was sent as billable and refused; the first phone
+  run of the fill sheet found it. A row now takes its job's own billing rule.
+
+Job buttons on the dev database when built (September's data is thin, three to
+five lines a day, so this shows the rule working, not a real week). Pinned:
+Bench - busy work, Asbestos Shutdown, MSM - supervison, Office Admin. Recent:
+twelve jobs from 11, 14 and 15 September. "The last three working days that
+have any time" returned nothing, because the latest days held only leave; the
+rule is the last three days with time on a job that is not special.

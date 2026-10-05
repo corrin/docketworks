@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 120,466 (v1 172,577, -30%) |
-| tests | 85,642 (v1 50,869, +68%) |
-| generated | 52,091 (v1 20,359, +156%) |
+| code | 123,347 (v1 172,577, -29%) |
+| tests | 87,873 (v1 50,869, +73%) |
+| generated | 53,494 (v1 20,359, +163%) |
 
 ## Suppressions
 
@@ -31,11 +31,11 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 778 |
+| TOTAL suppressions | 779 |
 | noqa: DJ001 | 196 |
 | noqa: PLC0415 | 152 |
 | noqa: E402 | 106 |
-| noqa: PLR0913 | 56 |
+| noqa: PLR0913 | 57 |
 | noqa: ARG002 | 38 |
 | noqa: BLE001 | 35 |
 | noqa: ARG001 | 23 |
@@ -82,7 +82,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 225 |
+| in comments | 224 |
 | in docstrings | 382 |
 
 ## Exception handling
@@ -91,9 +91,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 441 |
-| except handlers | 468 |
-| re-raises or converts | 300 |
+| try statements | 446 |
+| except handlers | 475 |
+| re-raises or converts | 307 |
 | returns instead | 98 |
 | falls through | 55 |
 | continue/break in a loop | 14 |
@@ -106,7 +106,7 @@ The narrow subset of the above: functions whose ENTIRE body is one single-statem
 | metric | count |
 |---|---:|
 | passthrough | 0 |
-| rethrow | 18 |
+| rethrow | 19 |
 | fallback | 3 |
 
 ## Optional returns
@@ -115,8 +115,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 247 |
-| non-test functions | 2989 |
+| functions returning `X \| None` | 252 |
+| non-test functions | 3051 |
 
 ## Broad type annotations
 
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 239 |
-| object annotations | 685 |
+| object annotations | 695 |
 
 ## Wire contract (response side)
 
@@ -133,10 +133,10 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 317 |
-| response properties | 2051 |
+| response schemas | 327 |
+| response properties | 2103 |
 | optional (pinned at zero) | 0 |
-| nullable | 457 |
+| nullable | 462 |
 
 ## Automation ids (frontend)
 
@@ -144,10 +144,10 @@ Interactive elements under `frontend/src` with no `data-automation-id`, the sele
 
 | metric | count |
 |---|---:|
-| without data-automation-id | 129 of 395 (33%) |
+| without data-automation-id | 130 of 428 (30%) |
 | without id: <a> | 4 |
 | without id: <button> | 33 |
 | without id: <input> | 27 |
 | without id: <select> | 6 |
 | without id: <textarea> | 5 |
-| without id: <Button> | 54 |
+| without id: <Button> | 55 |

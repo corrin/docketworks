@@ -1,13 +1,15 @@
 /** Shared setup for the timesheet-entry cluster (one implementation per concept). */
-import type { Page } from '@playwright/test'
+import type { Browser, Page } from '@playwright/test'
 import { shiftDate } from '../../../src/lib/dates'
 import {
   getJobLabourRates,
+  getPostableWeek,
   getTimesheetStaff,
+  refreshPayrollMirror,
   seedTimesheetLabour,
   type TimesheetStaff,
 } from '../fixtures/api'
-import { expect } from '../fixtures/auth'
+import { authenticateViaLoginPage, e2eCredentials, expect } from '../fixtures/auth'
 import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
 
 /**
@@ -74,6 +76,15 @@ export async function enterHours(page: Page, rowIndex: number, hours: string): P
   await page.keyboard.press('Enter')
 }
 
+/** What `seedLabourForWeek` booked, with enough to book more beside it. */
+export interface SeededLabour {
+  staff: TimesheetStaff
+  hours: number
+  jobId: string
+  labourSubtype: string
+  date: string
+}
+
 /**
  * Hours on a [TEST] job for one linked staff member inside a payroll week.
  *
@@ -83,15 +94,14 @@ export async function enterHours(page: Page, rowIndex: number, hours: string): P
  * twice. The postable week moves forward with every posted run, so a week
  * with restored time cannot be relied on; the spec seeds its own.
  */
-export async function seedLabourForWeek(
-  page: Page,
-  week: string,
-): Promise<{ staff: TimesheetStaff; hours: number }> {
-  // Opus: Whoever the app lists for that day, NOT the E2E login user: payroll
-  // requires a linked Xero employee, and `get_displayable_staff` drops
-  // anyone without a UUID-shaped xero_user_id — which the E2E account has
-  // none of. Hours seeded against it are hours nothing posts and the week
-  // status never reports, so the assertions would be measuring an absence.
+export async function seedLabourForWeek(page: Page, week: string): Promise<SeededLabour> {
+  // Opus: Whoever the app lists for that day, NOT assumed to be the E2E
+  // login user: payroll requires a linked Xero employee, and
+  // `get_displayable_staff` drops anyone without a UUID-shaped xero_user_id.
+  // Whether the E2E account has one depends on the database (it does on the
+  // current dev restore, where it is listed; e2e_ensure_fixtures gives it none).
+  // Hours seeded against a login that is not listed are hours nothing posts
+  // and the week status never reports, so the first listed person is used.
   // Tuesday: inside the week whichever way the week is configured.
   const seedDate = shiftDate(week, 1)
   const candidates = await getTimesheetStaff(page, seedDate)
@@ -130,5 +140,89 @@ export async function seedLabourForWeek(
     hours,
     description: '[TEST] payroll posting',
   })
-  return { staff, hours }
+  return { staff, hours, jobId, labourSubtype: labourRate.labour_subtype, date: seedDate }
+}
+
+/** Open the weekly screen on a week; the table is the readiness signal. */
+export async function openWeek(page: Page, week: string): Promise<void> {
+  await page.goto(`/timesheets/weekly?week=${week}`)
+  // No networkidle: the page holds the payroll runs SSE stream open for its
+  // whole life, so networkidle never fires — the same fact the kanban specs
+  // record for the board's stream.
+  await autoId(page, 'WeeklyOverview-table').waitFor({ timeout: 30000 })
+}
+
+/**
+ * Open the week and post it, then wait for the SSE run to finish reporting.
+ *
+ * Opus: Navigates first rather than assuming the caller is still on the grid: job
+ * creation and entry both leave the page, and clicking a button that is not on
+ * screen simply waits — this test once burned its whole 15-minute budget doing
+ * exactly that, with nothing in the log but a timeout.
+ */
+export async function postWeek(page: Page, week: string): Promise<void> {
+  await openWeek(page, week)
+  await expect(
+    autoId(page, 'PayrollPanel-postAll'),
+    `Post is not available on ${week}; its title names the unmet precondition.`,
+  ).toBeEnabled({ timeout: 120000 })
+  await autoId(page, 'PayrollPanel-postAll').click()
+  // Opus: The results list is driven by the SSE stream, so its arrival proves the
+  // Celery task ran and reported per staff member — which neither half's unit
+  // tests can show.
+  await expect(autoId(page, 'PayrollPanel-results')).toBeVisible({ timeout: 870000 })
+  await expect(autoId(page, 'PayrollPanel-postAll')).toBeEnabled({ timeout: 120000 })
+}
+
+/**
+ * Put the page in the state an operator posts from, and return the week.
+ *
+ * Fable: The week must be read AFTER a mirror refresh: teardown restores the
+ * database out from under Xero, so the mirror's postable answer can name a
+ * week Xero has moved past. Refreshing is a step of posting now — not a
+ * button — so the fixture reaches it through the posting preflight's own
+ * refusal contract.
+ */
+export async function openPostableWeek(page: Page): Promise<string> {
+  await refreshPayrollMirror(page)
+  const week = await getPostableWeek(page)
+  await openWeek(page, week)
+  await expect(
+    autoId(page, 'PayrollPanel-postAll'),
+    `Post stayed disabled on ${week}, the week the server calls postable. ` +
+      'Read the button title: it names which precondition is unmet.',
+  ).toBeEnabled({ timeout: 120000 })
+  return week
+}
+
+/** Hours no other seed uses, so a waiting figure can only be this line. */
+export const WORKER_HOURS = 1.25
+
+/**
+ * Book time as the workshop login would, in its own browser context: who
+ * wrote a line decides whether it starts approved, and a worker's does not.
+ * It is booked to a staff member the timesheet screens list, since the
+ * workshop E2E login has no Xero employee and appears on none of them.
+ */
+export async function bookAsWorkshopUser(
+  browser: Browser,
+  baseURL: string,
+  seeded: SeededLabour,
+): Promise<string> {
+  const context = await browser.newContext({ baseURL })
+  try {
+    const page = await context.newPage()
+    const { username, password } = e2eCredentials('workshop')
+    await authenticateViaLoginPage(page, username, password, () => () => undefined)
+    return await seedTimesheetLabour(page, {
+      jobId: seeded.jobId,
+      staffId: seeded.staff.id,
+      labourSubtype: seeded.labourSubtype,
+      date: seeded.date,
+      hours: WORKER_HOURS,
+      description: '[TEST] waiting for approval',
+    })
+  } finally {
+    await context.close()
+  }
 }

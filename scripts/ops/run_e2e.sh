@@ -157,6 +157,11 @@ start() { local name=$1; shift; setsid "$@" >"$LOG_DIR/$name.log" 2>&1 & NAMES+=
 start frontend npm --prefix "$FRONTEND" run preview:e2e
 start django "$ROOT/.venv/bin/python" -m uvicorn config.asgi:application --port 8000
 start worker "$ROOT/.venv/bin/celery" -A config worker --concurrency=4 --loglevel=info
+# Teardown stops this run's Celery before it restores the database: a worker
+# still writing while the dump is replayed deadlocked the restore. Only this
+# launcher knows which processes are the run's own, so it names them; a bare
+# Playwright run against a stack someone else started leaves them unset.
+export E2E_CELERY_WORKER_PID="${PIDS[-1]}"
 # Fable: a run-scoped schedule file. Beat persists last-run times in
 # celerybeat-schedule and replays a missed tick at start-up: against the
 # repo-root file the hourly sync fired 3s after the stack came up, held the
@@ -164,6 +169,7 @@ start worker "$ROOT/.venv/bin/celery" -A config worker --concurrency=4 --logleve
 # detail refresh), and the detail-refresh spec waited out its budget against
 # it. A file the run creates holds no missed ticks; the crontab still fires.
 start beat "$ROOT/.venv/bin/celery" -A config beat --loglevel=info --schedule "$LOG_DIR/celerybeat-schedule"
+export E2E_CELERY_BEAT_PID="${PIDS[-1]}"
 start ngrok "$ROOT/scripts/ops/start_ngrok_when_ready.sh" "$NGROK"
 
 wait_for() {

@@ -8,7 +8,10 @@
  */
 
 import type {
+  AttendanceOut,
+  BreakOut,
   CompanyDefaultsOut,
+  FillOut,
   TimesheetJobOut,
   WorkshopTimesheetEntryOut,
   WorkshopTimesheetEntryUpdateRequest,
@@ -35,6 +38,65 @@ export interface MyTimeCalendarEvent {
   title: string
   start: string
   end: string
+  /** Where the entry stands, as words to print on the block. */
+  marks: string[]
+}
+
+/**
+ * Where an entry stands, as the words the worker reads on it. Each mark is a
+ * boolean the server computed; this is the one place they become labels, so
+ * the calendar block, the untimed list and the drawer cannot disagree.
+ */
+export function entryMarks(entry: WorkshopTimesheetEntryOut): string[] {
+  return [entry.approved ? 'Approved' : 'Waiting', ...cautionMarks(entry)]
+}
+
+/**
+ * The marks that ask for a second look, on an entry or on a person's day:
+ * the same words in both places.
+ */
+export function cautionMarks(flags: {
+  entered_late: boolean
+  remote_entry: boolean
+  /** A person's day only: an entry is not sent, a day is. */
+  sent_late?: boolean
+}): string[] {
+  const marks: string[] = []
+  if (flags.entered_late) marks.push('Entered late')
+  if (flags.remote_entry) marks.push('Suspicious remote entry')
+  if (flags.sent_late) marks.push('Sent late')
+  return marks
+}
+
+/** "HH:mm" from the server's "HH:mm:ss". */
+function clockFace(value: string): string {
+  return value.slice(0, 5)
+}
+
+/**
+ * A person's clocked day in words, for their own card and the office's row.
+ * The hours they were here come from the server: no screen works them out.
+ */
+export function clockWords(day: AttendanceOut): string {
+  if (day.clock_in === null) return 'Not clocked in'
+  if (day.clock_out === null) return `At work since ${clockFace(day.clock_in)}`
+  const span = `${clockFace(day.clock_in)} to ${clockFace(day.clock_out)}`
+  const here = day.here_hours === null ? '' : `, here ${formatHoursDisplay(day.here_hours)}`
+  return day.state === 'sent'
+    ? `Sent, waiting for approval. ${span}${here}`
+    : `Clocked out. ${span}${here}`
+}
+
+/**
+ * Whether this person may no longer change the entry. Approved time is what
+ * payroll pays, so only the office changes it; the server refuses the write
+ * either way, and this keeps the drawer from offering one it will refuse.
+ */
+export function entryLockedFor(
+  entry: WorkshopTimesheetEntryOut,
+  user: { is_office_staff: boolean },
+): boolean {
+  return entry.approved && !user.is_office_staff
 }
 
 const TIME_PATTERN = /^(\d{2}):(\d{2})/
@@ -149,7 +211,7 @@ export function billingChangeFields(
 type BillingJob = Pick<TimesheetJobOut, 'id' | 'shop_job' | 'status'>
 
 /** Whether time on the job can be invoiced: shop work and special jobs cannot
-    (the server's rule, job_service._bills_its_time). */
+    (the server's rule, job_service.bills_its_time). */
 export function billsItsTime(job: BillingJob): boolean {
   return !job.shop_job && job.status !== 'special'
 }
@@ -354,5 +416,60 @@ export function calendarEvent(entry: TimedEntry): MyTimeCalendarEvent {
     title: eventTitle(entry),
     start: `${entry.accounting_date}T${entry.start_time}`,
     end: `${entry.accounting_date}T${entry.end_time}`,
+    marks: entryMarks(entry),
   }
+}
+
+/** One row of the fill sheet as the worker builds it. */
+export interface FillSheetRow {
+  key: number
+  job: TimesheetJobOut
+  /** Null until he picks how long. */
+  hours: number | null
+  timeAndAHalf: boolean
+  description: string
+}
+
+/**
+ * Where the day stands against the time he was here, in one sentence. The
+ * three figures are the server's; this only chooses the words. More entered
+ * than he was here for is stated, not scolded: clocking binds nothing.
+ */
+export function fillWords(fill: FillOut): string {
+  const toFill = `${formatHoursDisplay(fill.to_fill_hours)} to fill`
+  const entered = `${formatHoursDisplay(fill.entered_hours)} entered`
+  if (fill.to_go_hours > 0)
+    return `${toFill}, ${entered}, ${formatHoursDisplay(fill.to_go_hours)} to go`
+  if (fill.to_go_hours === 0) return `${toFill}, ${entered}. All filled`
+  return `${toFill}, ${entered}: ${formatHoursDisplay(-fill.to_go_hours)} over the time you were here`
+}
+
+/**
+ * What is left once the sheet's own rows are counted: what "the rest" offers
+ * and what the sheet's running sentence shows before anything is saved. The
+ * server's figures only know saved entries, so the rows on the sheet are
+ * taken off here; it is the one sum the screen does, in quarter hours.
+ */
+export function fillAfterRows(fill: FillOut, rows: { hours: number | null }[]): FillOut {
+  const onSheet = rows.reduce((total, row) => total + (row.hours ?? 0), 0)
+  return {
+    to_fill_hours: fill.to_fill_hours,
+    entered_hours: fill.entered_hours + onSheet,
+    to_go_hours: fill.to_go_hours - onSheet,
+  }
+}
+
+/** The jobs behind an ordered list of ids, skipping any the list does not hold. */
+export function jobsInOrder(ids: string[], jobs: TimesheetJobOut[]): TimesheetJobOut[] {
+  const byId = new Map(jobs.map((job) => [job.id, job]))
+  return ids.flatMap((id) => {
+    const job = byId.get(id)
+    return job === undefined ? [] : [job]
+  })
+}
+
+/** A break in words, for the calendar block and the office's row. */
+export function breakWords(each: BreakOut): string {
+  const kind = each.paid ? 'Paid break' : 'Unpaid break'
+  return `${kind} ${each.start.slice(0, 5)} to ${each.end.slice(0, 5)}`
 }
