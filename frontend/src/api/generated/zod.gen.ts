@@ -214,6 +214,16 @@ export const zBuildId = z.object({
 });
 
 /**
+ * CalendarBoundsOut
+ *
+ * The stretch of the day the worker's calendar opens on.
+ */
+export const zCalendarBoundsOut = z.object({
+    end: z.iso.time(),
+    start: z.iso.time()
+});
+
+/**
  * CategoryOut
  *
  * One selectable category (key/label pair) for a document picker.
@@ -365,6 +375,8 @@ export const zCompanyDefaultsOut = z.object({
     logo_url: z.string().nullable(),
     logo_wide_url: z.string().nullable(),
     longitude: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
+    lunch_minutes: z.int(),
+    lunch_start: z.iso.time(),
     master_quote_template_id: z.string().max(100).nullable(),
     master_quote_template_url: z.string().nullable(),
     materials_markup: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
@@ -481,6 +493,8 @@ export const zCompanyDefaultsPatchIn = z.object({
         z.number(),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
     ]).nullish(),
+    lunch_minutes: z.int().nullish(),
+    lunch_start: z.iso.time().nullish(),
     master_quote_template_id: z.string().max(100).nullish(),
     master_quote_template_url: z.string().nullish(),
     materials_markup: z.union([
@@ -1303,6 +1317,34 @@ export const zEntryEventOut = z.object({
     id: z.uuid(),
     staff_name: z.string(),
     timestamp: z.iso.datetime()
+});
+
+/**
+ * FillOut
+ *
+ * Hours to fill, entered and to go for a clocked day, all worked out by the server.
+ *
+ * ``to_go_hours`` is negative when more is entered than the person was here for.
+ */
+export const zFillOut = z.object({
+    entered_hours: z.number(),
+    to_fill_hours: z.number(),
+    to_go_hours: z.number()
+});
+
+/**
+ * FillRowIn
+ *
+ * One row of the fill sheet: a job and how long, in quarter hours.
+ */
+export const zFillRowIn = z.object({
+    description: z.string().max(255).nullish(),
+    hours: z.union([
+        z.number().gte(0.01).lt(100000),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]),
+    job_id: z.uuid(),
+    time_and_a_half: z.boolean().optional().default(false)
 });
 
 /**
@@ -3356,6 +3398,21 @@ export const zPayrollWeekReconciliationResponse = z.object({
     unposted_count: z.int(),
     week: zPayrollWeekOut,
     xero_source: zPayrollXeroSource
+});
+
+/**
+ * PendingDayOut
+ *
+ * An earlier day the person clocked and has not sent.
+ */
+export const zPendingDayOut = z.object({
+    date: z.iso.date(),
+    state: z.enum([
+        'not_clocked_in',
+        'at_work',
+        'clocked_out',
+        'sent'
+    ])
 });
 
 /**
@@ -5472,6 +5529,17 @@ export const zStocktakeList = z.object({
 });
 
 /**
+ * SubmitDayRequest
+ *
+ * Send a day to the office, with any rows still to be saved as entries.
+ */
+export const zSubmitDayRequest = z.object({
+    date: z.iso.date(),
+    location: zEntryLocationIn.nullish(),
+    rows: z.array(zFillRowIn)
+});
+
+/**
  * SummaryStatsOut
  *
  * Wire contract for SummaryStatsOut.
@@ -5844,9 +5912,13 @@ export const zTimesheetJobOut = z.object({
  * JobsListResponse
  *
  * Wire contract for JobsListResponse.
+ *
+ * The two id lists order the fill sheet's job buttons; every id is in ``jobs``.
  */
 export const zJobsListResponse = z.object({
     jobs: z.array(zTimesheetJobOut),
+    pinned_job_ids: z.array(z.uuid()),
+    recent_job_ids: z.array(z.uuid()),
     total_count: z.int()
 });
 
@@ -6268,10 +6340,12 @@ export const zWorkshopTimesheetWeekOut = z.object({
  * Wire contract for WorkshopTimesheetListResponse.
  */
 export const zWorkshopTimesheetListResponse = z.object({
+    calendar: zCalendarBoundsOut,
     date: z.iso.date(),
     day: zAttendanceOut,
     entries: z.array(zWorkshopTimesheetEntryOut),
-    pending_date: z.iso.date().nullable(),
+    fill: zFillOut.nullable(),
+    pending: zPendingDayOut.nullable(),
     summary: zWorkshopTimesheetSummaryOut,
     week: zWorkshopTimesheetWeekOut
 });
@@ -8951,6 +9025,13 @@ export const zTimesheetsMyDayClockBody = zClockRequest;
  * OK
  */
 export const zTimesheetsMyDayClockResponse = zAttendanceOut;
+
+export const zTimesheetsMyDaySubmitBody = zSubmitDayRequest;
+
+/**
+ * OK
+ */
+export const zTimesheetsMyDaySubmitResponse = zWorkshopTimesheetListResponse;
 
 export const zTimesheetsMyDayTimesBody = zClockTimesRequest;
 

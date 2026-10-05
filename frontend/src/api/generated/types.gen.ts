@@ -450,6 +450,22 @@ export type BuildId = {
 };
 
 /**
+ * CalendarBoundsOut
+ *
+ * The stretch of the day the worker's calendar opens on.
+ */
+export type CalendarBoundsOut = {
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Start
+     */
+    start: string;
+};
+
+/**
  * CategoriesOut
  *
  * The category pickers for forms/registers and procedures.
@@ -899,6 +915,18 @@ export type CompanyDefaultsOut = {
      */
     longitude: string | null;
     /**
+     * Lunch Minutes
+     *
+     * Length of the unpaid lunch break in minutes, between 5 and 120.
+     */
+    lunch_minutes: number;
+    /**
+     * Lunch Start
+     *
+     * When the workshop's unpaid lunch break starts.
+     */
+    lunch_start: string;
+    /**
      * Master Quote Template Id
      *
      * Google Sheets ID for the quote template
@@ -1304,6 +1332,18 @@ export type CompanyDefaultsPatchIn = {
      * Longitude
      */
     longitude?: number | string | null;
+    /**
+     * Lunch Minutes
+     *
+     * Length of the unpaid lunch break in minutes, between 5 and 120.
+     */
+    lunch_minutes?: number | null;
+    /**
+     * Lunch Start
+     *
+     * When the workshop's unpaid lunch break starts.
+     */
+    lunch_start?: string | null;
     /**
      * Master Quote Template Id
      *
@@ -3324,6 +3364,52 @@ export type FieldChangeOut = {
 };
 
 /**
+ * FillOut
+ *
+ * Hours to fill, entered and to go for a clocked day, all worked out by the server.
+ *
+ * ``to_go_hours`` is negative when more is entered than the person was here for.
+ */
+export type FillOut = {
+    /**
+     * Entered Hours
+     */
+    entered_hours: number;
+    /**
+     * To Fill Hours
+     */
+    to_fill_hours: number;
+    /**
+     * To Go Hours
+     */
+    to_go_hours: number;
+};
+
+/**
+ * FillRowIn
+ *
+ * One row of the fill sheet: a job and how long, in quarter hours.
+ */
+export type FillRowIn = {
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Hours
+     */
+    hours: number | string;
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Time And A Half
+     */
+    time_and_a_half?: boolean;
+};
+
+/**
  * FinishJobSummaryOut
  *
  * The authoritative customer balance shown in the Finish Job workspace.
@@ -5262,12 +5348,22 @@ export type JobUndoRequest = {
  * JobsListResponse
  *
  * Wire contract for JobsListResponse.
+ *
+ * The two id lists order the fill sheet's job buttons; every id is in ``jobs``.
  */
 export type JobsListResponse = {
     /**
      * Jobs
      */
     jobs: Array<TimesheetJobOut>;
+    /**
+     * Pinned Job Ids
+     */
+    pinned_job_ids: Array<string>;
+    /**
+     * Recent Job Ids
+     */
+    recent_job_ids: Array<string>;
     /**
      * Total Count
      */
@@ -7832,6 +7928,22 @@ export type PayrollWeekTotalsOut = {
 };
 
 export type PayrollXeroSource = 'live_run' | 'no_pay_run';
+
+/**
+ * PendingDayOut
+ *
+ * An earlier day the person clocked and has not sent.
+ */
+export type PendingDayOut = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * State
+     */
+    state: 'not_clocked_in' | 'at_work' | 'clocked_out' | 'sent';
+};
 
 /**
  * PeriodSummaryOut
@@ -12129,6 +12241,23 @@ export type StocktakeSummary = {
 };
 
 /**
+ * SubmitDayRequest
+ *
+ * Send a day to the office, with any rows still to be saved as entries.
+ */
+export type SubmitDayRequest = {
+    /**
+     * Date
+     */
+    date: string;
+    location?: EntryLocationIn | null;
+    /**
+     * Rows
+     */
+    rows: Array<FillRowIn>;
+};
+
+/**
  * SummaryStatsOut
  *
  * Wire contract for SummaryStatsOut.
@@ -13716,6 +13845,7 @@ export type WorkshopTimesheetEntryUpdateRequest = {
  * Wire contract for WorkshopTimesheetListResponse.
  */
 export type WorkshopTimesheetListResponse = {
+    calendar: CalendarBoundsOut;
     /**
      * Date
      */
@@ -13725,10 +13855,8 @@ export type WorkshopTimesheetListResponse = {
      * Entries
      */
     entries: Array<WorkshopTimesheetEntryOut>;
-    /**
-     * Pending Date
-     */
-    pending_date: string | null;
+    fill: FillOut | null;
+    pending: PendingDayOut | null;
     summary: WorkshopTimesheetSummaryOut;
     week: WorkshopTimesheetWeekOut;
 };
@@ -19888,6 +20016,22 @@ export type TimesheetsMyDayClockResponses = {
 };
 
 export type TimesheetsMyDayClockResponse = TimesheetsMyDayClockResponses[keyof TimesheetsMyDayClockResponses];
+
+export type TimesheetsMyDaySubmitData = {
+    body: SubmitDayRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/submit/';
+};
+
+export type TimesheetsMyDaySubmitResponses = {
+    /**
+     * OK
+     */
+    200: WorkshopTimesheetListResponse;
+};
+
+export type TimesheetsMyDaySubmitResponse = TimesheetsMyDaySubmitResponses[keyof TimesheetsMyDaySubmitResponses];
 
 export type TimesheetsMyDayTimesData = {
     body: ClockTimesRequest;

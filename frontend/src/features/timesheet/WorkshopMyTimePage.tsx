@@ -106,7 +106,7 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
           date={date}
           isToday={date === localIsoDate()}
           day={dayData.day}
-          pendingDate={dayData.pending_date}
+          pending={dayData.pending}
           dayStart={workingDayStart(date, companyDefaults)}
           clocking={clocking.clocking}
           onClock={clocking.clock}

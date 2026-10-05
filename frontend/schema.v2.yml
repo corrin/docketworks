@@ -491,6 +491,22 @@ components:
       - build_id
       title: BuildId
       type: object
+    CalendarBoundsOut:
+      description: The stretch of the day the worker's calendar opens on.
+      properties:
+        end:
+          format: time
+          title: End
+          type: string
+        start:
+          format: time
+          title: Start
+          type: string
+      required:
+      - start
+      - end
+      title: CalendarBoundsOut
+      type: object
     CategoriesOut:
       description: The category pickers for forms/registers and procedures.
       properties:
@@ -967,6 +983,15 @@ components:
             type: string
           - type: 'null'
           title: Longitude
+        lunch_minutes:
+          description: Length of the unpaid lunch break in minutes, between 5 and 120.
+          title: Lunch Minutes
+          type: integer
+        lunch_start:
+          description: When the workshop's unpaid lunch break starts.
+          format: time
+          title: Lunch Start
+          type: string
         master_quote_template_id:
           anyOf:
           - maxLength: 100
@@ -1199,6 +1224,8 @@ components:
       - logo_url
       - logo_wide_url
       - longitude
+      - lunch_minutes
+      - lunch_start
       - master_quote_template_id
       - master_quote_template_url
       - materials_markup
@@ -1509,6 +1536,19 @@ components:
             type: string
           - type: 'null'
           title: Longitude
+        lunch_minutes:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Length of the unpaid lunch break in minutes, between 5 and 120.
+          title: Lunch Minutes
+        lunch_start:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          description: When the workshop's unpaid lunch break starts.
+          title: Lunch Start
         master_quote_template_id:
           anyOf:
           - maxLength: 100
@@ -3765,6 +3805,57 @@ components:
       - old_value
       title: FieldChangeOut
       type: object
+    FillOut:
+      description: 'Hours to fill, entered and to go for a clocked day, all worked out by the server.
+
+
+        ``to_go_hours`` is negative when more is entered than the person was here for.'
+      properties:
+        entered_hours:
+          title: Entered Hours
+          type: number
+        to_fill_hours:
+          title: To Fill Hours
+          type: number
+        to_go_hours:
+          title: To Go Hours
+          type: number
+      required:
+      - to_fill_hours
+      - entered_hours
+      - to_go_hours
+      title: FillOut
+      type: object
+    FillRowIn:
+      description: 'One row of the fill sheet: a job and how long, in quarter hours.'
+      properties:
+        description:
+          anyOf:
+          - maxLength: 255
+            type: string
+          - type: 'null'
+          title: Description
+        hours:
+          anyOf:
+          - exclusiveMaximum: 100000.0
+            minimum: 0.01
+            type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          title: Hours
+        job_id:
+          format: uuid
+          title: Job Id
+          type: string
+        time_and_a_half:
+          default: false
+          title: Time And A Half
+          type: boolean
+      required:
+      - job_id
+      - hours
+      title: FillRowIn
+      type: object
     FinishJobSummaryOut:
       description: 'The authoritative customer balance shown in the Finish Job workspace.
 
@@ -5989,12 +6080,27 @@ components:
       title: JobUndoRequest
       type: object
     JobsListResponse:
-      description: Wire contract for JobsListResponse.
+      description: 'Wire contract for JobsListResponse.
+
+
+        The two id lists order the fill sheet''s job buttons; every id is in ``jobs``.'
       properties:
         jobs:
           items:
             $ref: '#/components/schemas/TimesheetJobOut'
           title: Jobs
+          type: array
+        pinned_job_ids:
+          items:
+            format: uuid
+            type: string
+          title: Pinned Job Ids
+          type: array
+        recent_job_ids:
+          items:
+            format: uuid
+            type: string
+          title: Recent Job Ids
           type: array
         total_count:
           title: Total Count
@@ -6002,6 +6108,8 @@ components:
       required:
       - jobs
       - total_count
+      - pinned_job_ids
+      - recent_job_ids
       title: JobsListResponse
       type: object
     JsonValue:
@@ -8780,6 +8888,26 @@ components:
       - live_run
       - no_pay_run
       type: string
+    PendingDayOut:
+      description: An earlier day the person clocked and has not sent.
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        state:
+          enum:
+          - not_clocked_in
+          - at_work
+          - clocked_out
+          - sent
+          title: State
+          type: string
+      required:
+      - date
+      - state
+      title: PendingDayOut
+      type: object
     PeriodSummaryOut:
       description: Wire contract for PeriodSummaryOut.
       properties:
@@ -13732,6 +13860,27 @@ components:
       - posted_at
       title: StocktakeSummary
       type: object
+    SubmitDayRequest:
+      description: Send a day to the office, with any rows still to be saved as entries.
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
+        rows:
+          items:
+            $ref: '#/components/schemas/FillRowIn'
+          title: Rows
+          type: array
+      required:
+      - date
+      - rows
+      title: SubmitDayRequest
+      type: object
     SummaryStatsOut:
       description: Wire contract for SummaryStatsOut.
       properties:
@@ -15543,6 +15692,8 @@ components:
     WorkshopTimesheetListResponse:
       description: Wire contract for WorkshopTimesheetListResponse.
       properties:
+        calendar:
+          $ref: '#/components/schemas/CalendarBoundsOut'
         date:
           format: date
           title: Date
@@ -15554,12 +15705,14 @@ components:
             $ref: '#/components/schemas/WorkshopTimesheetEntryOut'
           title: Entries
           type: array
-        pending_date:
+        fill:
           anyOf:
-          - format: date
-            type: string
+          - $ref: '#/components/schemas/FillOut'
           - type: 'null'
-          title: Pending Date
+        pending:
+          anyOf:
+          - $ref: '#/components/schemas/PendingDayOut'
+          - type: 'null'
         summary:
           $ref: '#/components/schemas/WorkshopTimesheetSummaryOut'
         week:
@@ -15570,7 +15723,9 @@ components:
       - summary
       - week
       - day
-      - pending_date
+      - fill
+      - calendar
+      - pending
       title: WorkshopTimesheetListResponse
       type: object
     WorkshopTimesheetSummaryOut:
@@ -23438,6 +23593,29 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Clock the caller in or out, now
+      tags:
+      - timesheets
+  /api/timesheets/my-day/submit/:
+    post:
+      description: Lay the caller's rows out as entries and mark their day sent, all or nothing.
+      operationId: timesheets_my_day_submit
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitDayRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkshopTimesheetListResponse'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Save the fill sheet's rows and send the day to the office
       tags:
       - timesheets
   /api/timesheets/my-day/times/:

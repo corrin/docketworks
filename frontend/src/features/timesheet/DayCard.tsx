@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import type { AttendanceOut } from '@/api'
+import type { AttendanceOut, PendingDayOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { INPUT_CLASS } from '@/components/ui/field'
 import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
@@ -94,8 +94,8 @@ interface DayCardProps {
   /** Whether that day is today: only today is clocked by a tap. */
   isToday: boolean
   day: AttendanceOut
-  /** An earlier day still clocked in, to be finished by hand. */
-  pendingDate: string | null
+  /** An earlier day he clocked and has not sent, and how far it got. */
+  pending: PendingDayOut | null
   dayStart: string
   clocking: boolean
   onClock: (action: 'in' | 'out') => Promise<boolean>
@@ -112,7 +112,7 @@ export function DayCard({
   date,
   isToday,
   day,
-  pendingDate,
+  pending,
   dayStart,
   clocking,
   onClock,
@@ -127,19 +127,20 @@ export function DayCard({
       className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
       data-automation-id="DayCard"
     >
-      {pendingDate !== null && pendingDate !== date && (
+      {pending !== null && pending.date !== date && (
         <p
           className="rounded bg-amber-50 p-2 text-sm text-amber-900"
           data-automation-id="DayCard-pending"
         >
-          {formatDateLong(pendingDate)} is still clocked in.{' '}
+          {formatDateLong(pending.date)}{' '}
+          {pending.state === 'at_work' ? 'is still clocked in.' : 'has not been sent.'}{' '}
           <button
             type="button"
             className="font-medium underline underline-offset-2"
             data-automation-id="DayCard-pending-open"
-            onClick={() => onOpenDay(pendingDate)}
+            onClick={() => onOpenDay(pending.date)}
           >
-            Set the finish time
+            {pending.state === 'at_work' ? 'Set the finish time' : 'Finish it'}
           </button>
         </p>
       )}

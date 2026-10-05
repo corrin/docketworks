@@ -135,6 +135,8 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, RegistrySectionKey] = {
     "thu_end": "working_hours",
     "fri_start": "working_hours",
     "fri_end": "working_hours",
+    "lunch_start": "working_hours",
+    "lunch_minutes": "working_hours",
     "weekend_timesheets_enabled": "working_hours",
     "workshop_efficiency_factor": "working_hours",
     "time_markup": "finances",

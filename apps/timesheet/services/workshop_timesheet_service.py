@@ -44,8 +44,14 @@ from apps.job.services.time_entry_rates import (
     price_time_entry,
     rate_from_meta,
 )
+from apps.timesheet.models import AttendanceDay
 from apps.timesheet.services import attendance, hour_categories
-from apps.timesheet.services.attendance import AttendanceData
+from apps.timesheet.services.attendance import (
+    AttendanceData,
+    CalendarBounds,
+    FillData,
+    PendingDay,
+)
 from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
 from apps.timesheet.services.weekly_timesheet_service import PAYROLL_WEEK_DAYS, payroll_week_start
 
@@ -160,8 +166,11 @@ class WorkshopDayData(TypedDict):
     summary: WorkshopSummaryData
     week: WorkshopWeekData
     day: AttendanceData
-    #: An earlier day the person is still clocked in on, to be finished by hand.
-    pending_date: date | None
+    #: Hours to fill, entered and to go; None until both clock times are known.
+    fill: FillData | None
+    calendar: CalendarBounds
+    #: An earlier day the person clocked and has not sent.
+    pending: PendingDay | None
 
 
 def resolve_entry_date(date_param: str | None) -> date:
@@ -375,14 +384,50 @@ def _week_hours(staff: Staff, entry_date: date) -> WorkshopWeekData:
 def list_entries(staff: Staff, entry_date: date) -> WorkshopDayData:
     """List one person's entries for a date, with the day's summary."""
     entries = day_time_lines(staff, entry_date)
+    row = AttendanceDay.objects.filter(staff=staff, date=entry_date).first()
     return {
         "date": entry_date,
         "entries": [entry_data(line) for line in entries],
         "summary": _summary(entries),
         "week": _week_hours(staff, entry_date),
-        "day": attendance.day_attendance(staff, entry_date),
-        "pending_date": attendance.pending_date(staff, timezone.localdate()),
+        "day": attendance.attendance_data(row),
+        "fill": attendance.fill_figures(
+            row, attendance.lunch_window(row), sum((line.quantity for line in entries), Decimal(0))
+        ),
+        "calendar": attendance.calendar_bounds(
+            row,
+            working_day(entry_date),
+            [span for line in entries if (span := timed_span(line))],
+        ),
+        "pending": attendance.pending_day(staff, timezone.localdate()),
     }
+
+
+def timed_span(line: CostLine) -> tuple[time, time] | None:
+    """Return the entry's start and end when it has both, else None."""
+    start = _meta_time(line.meta, "start_time")
+    end = _meta_time(line.meta, "end_time")
+    if start is None or end is None:
+        return None
+    return start, end
+
+
+#: The working day on a weekend, when the company keeps no hours for it.
+_WEEKEND_WORKING_DAY = (time(7, 0), time(15, 0))
+
+
+def working_day(day: date) -> tuple[time, time]:
+    """Return the company's working hours for the weekday, as the settings hold them."""
+    company = CompanyDefaults.get_solo()
+    by_weekday = (
+        (company.mon_start, company.mon_end),
+        (company.tue_start, company.tue_end),
+        (company.wed_start, company.wed_end),
+        (company.thu_start, company.thu_end),
+        (company.fri_start, company.fri_end),
+    )
+    weekday = day.weekday()
+    return by_weekday[weekday] if weekday < len(by_weekday) else _WEEKEND_WORKING_DAY
 
 
 class ManagementStaffData(TypedDict):

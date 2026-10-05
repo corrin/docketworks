@@ -4,7 +4,6 @@ Timesheet services build matching TypedDict data, and error responses use the
 standard envelope from ADR 0038.
 """
 
-import datetime as datetime_module
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Annotated, Literal
@@ -251,10 +250,15 @@ class TimesheetJobOut(Schema):
 
 
 class JobsListResponse(Schema):
-    """Wire contract for JobsListResponse."""
+    """Wire contract for JobsListResponse.
+
+    The two id lists order the fill sheet's job buttons; every id is in ``jobs``.
+    """
 
     jobs: list[TimesheetJobOut]
     total_count: int
+    pinned_job_ids: list[UUID]
+    recent_job_ids: list[UUID]
 
 
 # ── Workshop "my time" self-service ──────────────────────────────────────
@@ -308,6 +312,56 @@ class AttendanceOut(Schema):
     sent_late: bool
 
 
+class EntryLocationIn(Schema):
+    """Where the phone says it is as it saves an entry."""
+
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class FillOut(Schema):
+    """Hours to fill, entered and to go for a clocked day, all worked out by the server.
+
+    ``to_go_hours`` is negative when more is entered than the person was here for.
+    """
+
+    to_fill_hours: float
+    entered_hours: float
+    to_go_hours: float
+
+
+class CalendarBoundsOut(Schema):
+    """The stretch of the day the worker's calendar opens on."""
+
+    start: time
+    end: time
+
+
+class PendingDayOut(Schema):
+    """An earlier day the person clocked and has not sent."""
+
+    date: date
+    state: Literal["not_clocked_in", "at_work", "clocked_out", "sent"]
+
+
+class FillRowIn(Schema):
+    """One row of the fill sheet: a job and how long, in quarter hours."""
+
+    job_id: UUID
+    hours: Decimal = Field(ge=HOURS_MIN, lt=HOURS_LIMIT)
+    description: str | None = Field(None, max_length=DESCRIPTION_MAX_LENGTH)
+    time_and_a_half: bool = False
+
+
+class SubmitDayRequest(Schema):
+    """Send a day to the office, with any rows still to be saved as entries."""
+
+    date: date
+    rows: list[FillRowIn]
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
+
+
 class ClockRequest(Schema):
     """A tap on Clock in or Clock out; the server supplies the time."""
 
@@ -334,7 +388,9 @@ class WorkshopTimesheetListResponse(Schema):
     summary: WorkshopTimesheetSummaryOut
     week: WorkshopTimesheetWeekOut
     day: AttendanceOut
-    pending_date: datetime_module.date | None
+    fill: FillOut | None
+    calendar: CalendarBoundsOut
+    pending: PendingDayOut | None
 
 
 class StaffApprovalOut(Schema):
@@ -442,13 +498,6 @@ class TimesheetEventOut(AuditEventOut):
     def resolve_after(obj: TimesheetEvent) -> TimesheetLineSnapshot | None:
         """Read the entry after the write; None on a deletion."""
         return obj.delta_after
-
-
-class EntryLocationIn(Schema):
-    """Where the phone says it is as it saves an entry."""
-
-    latitude: float = Field(ge=-90, le=90)
-    longitude: float = Field(ge=-180, le=180)
 
 
 class WorkshopTimesheetEntryRequest(Schema):

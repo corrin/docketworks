@@ -59,6 +59,7 @@ from apps.timesheet.schemas import (
     PostWeekToXeroStartResponse,
     StaffDailyDataOut,
     StaffListResponse,
+    SubmitDayRequest,
     TimesheetEntriesOut,
     TimesheetEventOut,
     WeeklyTimesheetDataOut,
@@ -72,6 +73,7 @@ from apps.timesheet.services import (
     approval,
     attendance,
     daily_timesheet_service,
+    day_submission,
     payroll_service,
     timesheet_entry_options,
     weekly_timesheet_service,
@@ -264,7 +266,7 @@ def timesheets_jobs_retrieve(
 
     With `q`, searches the whole table so a picker can reach an archived job.
     """
-    return timesheet_entry_options.get_jobs_for_entry(q)
+    return timesheet_entry_options.get_jobs_for_entry(authenticated_staff(request), q)
 
 
 # ── Xero Payroll pay runs ────────────────────────────────────────────────
@@ -563,6 +565,43 @@ def timesheets_my_day_times(
     return attendance.set_clock_times(
         owner, payload.date, payload.clock_in, payload.clock_out, actor
     )
+
+
+@router.post(
+    "/timesheets/my-day/submit/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_submit",
+    response=WorkshopTimesheetListResponse,
+    summary="Save the fill sheet's rows and send the day to the office",
+    tags=["timesheets"],
+)
+def timesheets_my_day_submit(
+    request: HttpRequest, payload: SubmitDayRequest
+) -> workshop_timesheet_service.WorkshopDayData:
+    """Lay the caller's rows out as entries and mark their day sent, all or nothing."""
+    rows: list[day_submission.FillRow] = [
+        {
+            "job_id": row.job_id,
+            "hours": row.hours,
+            "description": row.description,
+            "time_and_a_half": row.time_and_a_half,
+        }
+        for row in payload.rows
+    ]
+    try:
+        return day_submission.submit_day(
+            authenticated_staff(request),
+            payload.date,
+            rows,
+            _location(payload.location),
+            timezone.now(),
+        )
+    except Job.DoesNotExist as exc:
+        raise HttpError(404, "Job not found.") from exc
+    except DjangoValidationError as exc:
+        raise HttpError(400, _validation_message(exc)) from exc
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
 
 
 # ── Approve time ────────────────────────────────────────────────────────

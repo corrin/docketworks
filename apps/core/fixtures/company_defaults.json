@@ -67,6 +67,8 @@
       "thu_end": "15:00:00",
       "fri_start": "07:00:00",
       "fri_end": "15:00:00",
+      "lunch_start": "11:30:00",
+      "lunch_minutes": 30,
       "address_line1": "1 Molesworth Street",
       "address_line2": null,
       "suburb": "Pipitea",

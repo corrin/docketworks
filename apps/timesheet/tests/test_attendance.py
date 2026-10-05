@@ -66,8 +66,11 @@ class TestClockTaps:
             attendance.clock_out(worker, _at(1, 0, 20))
 
         assert AttendanceDay.objects.get(staff=worker, date=DAY).clock_out is None
-        assert attendance.pending_date(worker, DAY + timedelta(days=1)) == DAY
-        assert attendance.pending_date(worker, DAY) is None
+        assert attendance.pending_day(worker, DAY + timedelta(days=1)) == {
+            "date": DAY,
+            "state": "at_work",
+        }
+        assert attendance.pending_day(worker, DAY) is None
 
     def test_a_finish_past_midnight_is_refused_in_words(self, worker: Staff) -> None:
         """Times of day cannot hold it, so the worker is told to ask the office."""
@@ -154,7 +157,7 @@ class TestDayState:
         body = worker_client.get(f"{DAY_URL}?date={today.isoformat()}").json()
 
         assert body["day"]["state"] == "not_clocked_in"
-        assert body["pending_date"] == yesterday.isoformat()
+        assert body["pending"] == {"date": yesterday.isoformat(), "state": "at_work"}
 
     def test_the_clock_tap_endpoint_uses_the_servers_time(self, worker_client: Client) -> None:
         started = worker_client.post(

@@ -18,6 +18,7 @@ from typing import ClassVar, Protocol, cast
 from django.apps import apps as django_apps
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.core.exceptions import ImproperlyConfigured
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models.base import ModelBase
 from django.utils import timezone
@@ -416,6 +417,18 @@ class CompanyDefaults(SingletonModel):
     thu_end = models.TimeField(default="15:00")
     fri_start = models.TimeField(default="07:00")
     fri_end = models.TimeField(default="15:00")
+    # The workshop's unpaid lunch break (KAN-376). A worker's hours to fill
+    # are the time they were clocked in less this window, when they were there
+    # for the whole of it.
+    lunch_start = models.TimeField(
+        default="11:30",
+        help_text="When the workshop's unpaid lunch break starts.",
+    )
+    lunch_minutes = models.PositiveSmallIntegerField(
+        default=30,
+        validators=[MinValueValidator(5), MaxValueValidator(120)],
+        help_text="Length of the unpaid lunch break in minutes, between 5 and 120.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_xero_sync = models.DateTimeField(

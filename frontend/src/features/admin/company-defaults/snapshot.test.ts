@@ -47,6 +47,8 @@ const defaults: CompanyDefaultsOut = {
   enable_xero_sync: false,
   financial_year_start_month: 7,
   fri_end: '15:30:00',
+  lunch_start: '11:30:00',
+  lunch_minutes: 30,
   fri_start: '07:00:00',
   gdrive_how_we_work_folder_id: null,
   gdrive_quotes_folder_id: null,

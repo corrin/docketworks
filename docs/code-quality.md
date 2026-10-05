@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 121,959 (v1 172,577, -29%) |
-| tests | 87,132 (v1 50,869, +71%) |
-| generated | 52,746 (v1 20,359, +159%) |
+| code | 122,358 (v1 172,577, -29%) |
+| tests | 87,373 (v1 50,869, +72%) |
+| generated | 53,022 (v1 20,359, +160%) |
 
 ## Suppressions
 
@@ -91,9 +91,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 443 |
-| except handlers | 470 |
-| re-raises or converts | 302 |
+| try statements | 444 |
+| except handlers | 473 |
+| re-raises or converts | 305 |
 | returns instead | 98 |
 | falls through | 55 |
 | continue/break in a loop | 14 |
@@ -115,8 +115,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 250 |
-| non-test functions | 3020 |
+| functions returning `X \| None` | 253 |
+| non-test functions | 3035 |
 
 ## Broad type annotations
 
@@ -133,10 +133,10 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 322 |
-| response properties | 2076 |
+| response schemas | 325 |
+| response properties | 2089 |
 | optional (pinned at zero) | 0 |
-| nullable | 461 |
+| nullable | 462 |
 
 ## Automation ids (frontend)
 

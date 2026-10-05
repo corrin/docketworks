@@ -10,7 +10,8 @@ message.
 """
 
 from datetime import date, datetime, time
-from typing import Literal, TypedDict
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Literal, NamedTuple, TypedDict
 
 from django.db import transaction
 from django.utils import timezone
@@ -64,6 +65,106 @@ def _here_hours(row: AttendanceDay) -> float | None:
     return round(minutes / 60, 2)
 
 
+class LunchWindow(NamedTuple):
+    """The unpaid break inside a clocked day."""
+
+    start: time
+    end: time
+
+
+def lunch_window(row: AttendanceDay | None) -> LunchWindow | None:
+    """Return the day's unpaid lunch break, or None when the day has none.
+
+    The one source of a day's lunch: the hours to fill, the layout of filled
+    rows, the day read and the calendar all ask here and nowhere else.
+
+    Fable: How lunch is stored is with the owner (KAN-376, 2026-10-06), so
+    until that is ruled no day has one. The settings that say when lunch is
+    (``CompanyDefaults.lunch_start`` / ``lunch_minutes``) are already in.
+    """
+    del row
+    return None
+
+
+def _minutes(moment: time) -> int:
+    return moment.hour * 60 + moment.minute
+
+
+QUARTER_HOUR_MINUTES = 15
+
+
+class FillData(TypedDict):
+    """How much of the day there is to account for, and how far the entries go.
+
+    All three are worked out here so no screen does arithmetic: the worker is
+    told "8 hours to fill, 3 entered, 5 to go", never asked to subtract.
+    ``to_go_hours`` is negative when more is entered than he was here for;
+    that is stated, not refused, because attendance binds nothing.
+    """
+
+    to_fill_hours: float
+    entered_hours: float
+    to_go_hours: float
+
+
+def paid_span_hours(start: time, finish: time, lunch: LunchWindow | None) -> Decimal:
+    """Hours between two clock times less lunch, to the nearest quarter hour.
+
+    Entries are in quarter hours and a real clock is not (06:28 to 15:04), so
+    the span is rounded once here and nothing downstream shows "0.1 to go".
+    """
+    minutes = _minutes(finish) - _minutes(start)
+    if lunch is not None:
+        minutes -= _minutes(lunch.end) - _minutes(lunch.start)
+    quarters = (Decimal(minutes) / QUARTER_HOUR_MINUTES).quantize(Decimal("1"), ROUND_HALF_UP)
+    return quarters * QUARTER_HOUR_MINUTES / Decimal(60)
+
+
+def fill_figures(
+    row: AttendanceDay | None, lunch: LunchWindow | None, entered: Decimal
+) -> FillData | None:
+    """Return the day's fill figures, or None until both clock times are known."""
+    if row is None or row.clock_out is None:
+        return None
+    to_fill = paid_span_hours(row.clock_in, row.clock_out, lunch)
+    return {
+        "to_fill_hours": float(to_fill),
+        "entered_hours": float(entered),
+        "to_go_hours": float(to_fill - entered),
+    }
+
+
+class CalendarBounds(TypedDict):
+    """The stretch of the day the worker's calendar opens on."""
+
+    start: time
+    end: time
+
+
+_CALENDAR_MARGIN_MINUTES = 60
+
+
+def calendar_bounds(
+    row: AttendanceDay | None,
+    working_day: tuple[time, time],
+    entry_times: list[tuple[time, time]],
+) -> CalendarBounds:
+    """Bound the calendar to the day as it happened, with an hour either side.
+
+    The clocked span when there is one (an open day runs to the working day's
+    end), else the company's working day; widened to hold any entry outside.
+    """
+    start, finish = working_day
+    if row is not None:
+        start = row.clock_in
+        finish = max(finish, row.clock_in) if row.clock_out is None else row.clock_out
+    first = min([_minutes(start), *(_minutes(begin) for begin, _ in entry_times)])
+    last = max([_minutes(finish), *(_minutes(end) for _, end in entry_times)])
+    first = max(first - _CALENDAR_MARGIN_MINUTES, 0) // 60 * 60
+    last = min(last + _CALENDAR_MARGIN_MINUTES, 24 * 60 - 1)
+    return {"start": time(first // 60, first % 60), "end": time(last // 60, last % 60)}
+
+
 def attendance_data(row: AttendanceDay | None) -> AttendanceData:
     """Shape a day's attendance, or its absence, for the wire."""
     if row is None:
@@ -89,18 +190,29 @@ def day_attendance(staff: Staff, day: date) -> AttendanceData:
     return attendance_data(AttendanceDay.objects.filter(staff=staff, date=day).first())
 
 
-def pending_date(staff: Staff, today: date) -> date | None:
-    """Return the earliest earlier day this person is still clocked in on, if any.
+class PendingDay(TypedDict):
+    """An earlier day the person has not finished, and how far it got."""
 
-    A day left open cannot be closed by a tap on a later date: the finish time
-    is not known, so it is asked for.
+    date: date
+    state: DayState
+
+
+def pending_day(staff: Staff, today: date) -> PendingDay | None:
+    """Return the earliest earlier day this person clocked and has not sent, if any.
+
+    A day left clocked in cannot be closed by a tap on a later date: the finish
+    time is not known, so it is asked for. A day clocked out and not sent is
+    one he has not finished. A day he never clocked has no row and is never
+    named: nothing is asked about a day nobody recorded.
     """
-    return (
-        AttendanceDay.objects.filter(staff=staff, date__lt=today, clock_out__isnull=True)
+    row = (
+        AttendanceDay.objects.filter(staff=staff, date__lt=today, submitted_at__isnull=True)
         .order_by("date")
-        .values_list("date", flat=True)
         .first()
     )
+    if row is None:
+        return None
+    return {"date": row.date, "state": day_state(row)}
 
 
 def clock_in(worker: Staff, now: datetime) -> AttendanceData:
@@ -126,6 +238,9 @@ def clock_out(worker: Staff, now: datetime) -> AttendanceData:
     if row.clock_out is not None:
         raise ClockingRefusedError("You have already clocked out today.")
     finish = _to_the_minute(now)
+    if finish == row.clock_in:
+        # Its own words: the midnight wording below would make no sense here.
+        raise ClockingRefusedError("You clocked in a moment ago. Wait a minute to clock out.")
     _require_finish_after_start(row.clock_in, finish)
     row.clock_out = finish
     row.save(update_fields=["clock_out", "updated_at"])

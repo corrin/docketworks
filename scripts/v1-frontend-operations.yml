@@ -660,6 +660,7 @@ introduced:
 # person was at work.
 - timesheets_my_day_clock
 - timesheets_my_day_times
+- timesheets_my_day_submit
 # One narrow job list for the admin screens that map a fixed kind of job. v1 had
 # no such screen, and its pickers were fed by whichever domain list the page
 # already loaded — which is how v2 briefly grew a third job-option schema.
