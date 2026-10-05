@@ -128,20 +128,30 @@ test.describe('company defaults', () => {
     }
   })
 
-  test.describe('the lunch break', () => {
+  test.describe('the standard breaks', () => {
     // The 400 is the refused save this test is about.
     test.use({ expectedConsoleErrors: [/the server responded with a status of 400/] })
 
-    test('saves, and a length outside its bounds is refused with the reason', async ({
+    test('save, and a length outside the bounds is refused with the reason', async ({
       authenticatedPage: page,
     }) => {
       const openWorkingHours = async () => {
         await page.goto('/admin/company-defaults/company')
         await autoId(page, 'CompanyDefaultsPage-root').waitFor({ timeout: 30000 })
         await autoId(page, 'CompanyDefaultsPage-section-link-working_hours').click()
-        await expect(
-          autoId(page, 'CompanyDefaultsPage-working_hours-field-lunch_start'),
-        ).toBeVisible()
+        // The three standard breaks, each a start and a length, beside the working hours.
+        for (const field of [
+          'morning_break_start',
+          'morning_break_minutes',
+          'lunch_start',
+          'lunch_minutes',
+          'afternoon_break_start',
+          'afternoon_break_minutes',
+        ]) {
+          await expect(
+            autoId(page, `CompanyDefaultsPage-working_hours-field-${field}`),
+          ).toBeVisible()
+        }
       }
       const minutes = autoId(page, 'CompanyDefaultsPage-working_hours-field-lunch_minutes')
       const save = autoId(page, 'CompanyDefaultsPage-save-button')
@@ -170,13 +180,13 @@ test.describe('company defaults', () => {
           await expect(minutes).toHaveValue('45')
         })
 
-        await test.step('a length of nothing is refused, and what was typed stays', async () => {
-          await minutes.fill('0')
+        await test.step('a length under five minutes is refused, and what was typed stays', async () => {
+          await minutes.fill('3')
           const refused = patched()
           await save.click()
           expect((await refused).status()).toBe(400)
-          await expect(page.getByText(/greater than or equal to 5/)).toBeVisible()
-          await expect(minutes).toHaveValue('0')
+          await expect(page.getByText(/5 to 120 minutes/)).toBeVisible()
+          await expect(minutes).toHaveValue('3')
           await expect(save).toBeEnabled()
         })
       } finally {

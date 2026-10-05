@@ -9,6 +9,7 @@
 
 import type {
   AttendanceOut,
+  BreakOut,
   CompanyDefaultsOut,
   FillOut,
   TimesheetJobOut,
@@ -210,7 +211,7 @@ export function billingChangeFields(
 type BillingJob = Pick<TimesheetJobOut, 'id' | 'shop_job' | 'status'>
 
 /** Whether time on the job can be invoiced: shop work and special jobs cannot
-    (the server's rule, job_service._bills_its_time). */
+    (the server's rule, job_service.bills_its_time). */
 export function billsItsTime(job: BillingJob): boolean {
   return !job.shop_job && job.status !== 'special'
 }
@@ -465,4 +466,10 @@ export function jobsInOrder(ids: string[], jobs: TimesheetJobOut[]): TimesheetJo
     const job = byId.get(id)
     return job === undefined ? [] : [job]
   })
+}
+
+/** A break in words, for the calendar block and the office's row. */
+export function breakWords(each: BreakOut): string {
+  const kind = each.paid ? 'Paid break' : 'Unpaid break'
+  return `${kind} ${each.start.slice(0, 5)} to ${each.end.slice(0, 5)}`
 }

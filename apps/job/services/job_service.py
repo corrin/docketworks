@@ -2235,7 +2235,7 @@ def update_latest_actual(job: Job, cost_set_rev: int, cost_set_id: UUID, staff: 
         job.save(staff=staff, update_fields=["latest_actual", "updated_at"])
 
 
-def _bills_its_time(job: Job) -> bool:
+def bills_its_time(job: Job) -> bool:
     """Whether time on this job can be invoiced: shop work and special jobs cannot."""
     return not job.shop_job and job.status != "special"
 
@@ -2264,10 +2264,10 @@ def move_time_line(
     source = line.cost_set.job
     cost_set = get_or_create_cost_set(destination, "actual")
     line.cost_set = cost_set
-    if not _bills_its_time(destination):
+    if not bills_its_time(destination):
         meta["is_billable"] = False
         meta["bill_rate_multiplier"] = 0.0
-    elif not _bills_its_time(source) and not billing_explicit:
+    elif not bills_its_time(source) and not billing_explicit:
         # The stored zero was the source's rule, not the entry's: dropping the
         # multiplier lets the rate pipeline re-derive it from the wage multiplier.
         # A request that set its own billing keeps it (``billing_explicit``).

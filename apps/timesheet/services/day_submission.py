@@ -15,6 +15,8 @@ from django.db import transaction
 
 from apps.accounts.models import Staff
 from apps.core.errors import ConflictError, InvalidInputError
+from apps.job.models import Job
+from apps.job.services.job_service import bills_its_time
 from apps.timesheet.models import AttendanceDay
 from apps.timesheet.services import attendance
 from apps.timesheet.services.workshop_timesheet_service import (
@@ -127,7 +129,11 @@ def submit_day(
     # Unpaid breaks only: rows go round them. A paid break is not passed, so
     # rows run through it, as the time in it is the job's.
     taken.extend((window.start, window.end) for window in attendance.unpaid_windows(row))
+    jobs = Job.objects.in_bulk({each["job_id"] for each in rows})
     for line in lay_out_rows(row.clock_in, rows, taken):
+        job = jobs.get(line["job_id"])
+        if job is None:
+            raise Job.DoesNotExist(f"Job {line['job_id']} does not exist.")
         data: WorkshopEntryCreateData = {
             "job_id": line["job_id"],
             "accounting_date": day,
@@ -135,6 +141,9 @@ def submit_day(
             "start_time": line["start"],
             "end_time": line["end"],
             "wage_rate_multiplier": TIME_AND_A_HALF if line["time_and_a_half"] else ORDINARY_TIME,
+            # The sheet has no billable tick: a row bills when its job can.
+            # Shop and special jobs cannot, and are refused if sent as billable.
+            "is_billable": bills_its_time(job),
         }
         if line["description"]:
             data["description"] = line["description"]

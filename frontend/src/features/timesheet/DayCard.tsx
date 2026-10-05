@@ -11,29 +11,33 @@ import { clockWords, fillWords } from './myTime'
 interface ClockTimesFormProps {
   /** Prefix for the form's automation ids: the card's or the office row's. */
   automationId: string
-  day: AttendanceOut
-  /** What the start field offers when the day has no clock-in yet, "HH:mm". */
-  defaultStart: string
+  /** What the two fields open on, "HH:mm"; a blank finish is "not yet". */
+  initialStart: string
+  initialFinish: string
+  /** A break always has a finish; a day at work does not yet. */
+  finishRequired?: boolean
   saving: boolean
   onSave: (clockIn: string, clockOut: string | null) => Promise<boolean>
   onCancel: () => void
 }
 
 /**
- * Clock times set by hand: a forgotten tap, a correction, or the office
- * putting a day right. A blank finish means the person is still at work.
- * Shared by the worker's card and Approve time, so there is one such form.
+ * A start and a finish set by hand: a day's clock times (a forgotten tap, a
+ * correction, the office putting a day right) or a break's. For a day a blank
+ * finish means the person is still at work. Shared by the worker's card, the
+ * break sheet and Approve time, so there is one such form.
  */
 export function ClockTimesForm({
   automationId,
-  day,
-  defaultStart,
+  initialStart,
+  initialFinish,
+  finishRequired = false,
   saving,
   onSave,
   onCancel,
 }: ClockTimesFormProps) {
-  const [start, setStart] = useState(day.clock_in?.slice(0, 5) ?? defaultStart)
-  const [finish, setFinish] = useState(day.clock_out?.slice(0, 5) ?? '')
+  const [start, setStart] = useState(initialStart)
+  const [finish, setFinish] = useState(initialFinish)
 
   return (
     <form
@@ -61,6 +65,7 @@ export function ClockTimesForm({
         Finished
         <input
           type="time"
+          required={finishRequired}
           value={finish}
           className={`mt-1 block ${INPUT_CLASS}`}
           data-automation-id={`${automationId}-finish`}
@@ -105,6 +110,7 @@ interface DayCardProps {
   onSetTimes: (clockIn: string, clockOut: string | null) => Promise<boolean>
   onOpenDay: (date: string) => void
   onFill: () => void
+  onAddBreak: () => void
 }
 
 /** What stands in for the fill figures on a day that has none yet. */
@@ -131,6 +137,7 @@ export function DayCard({
   onSetTimes,
   onOpenDay,
   onFill,
+  onAddBreak,
 }: DayCardProps) {
   const [editingTimes, setEditingTimes] = useState(false)
   const clockIn = day.clock_in
@@ -166,8 +173,8 @@ export function DayCard({
       {editingTimes ? (
         <ClockTimesForm
           automationId="DayCard"
-          day={day}
-          defaultStart={dayStart}
+          initialStart={day.clock_in?.slice(0, 5) ?? dayStart}
+          initialFinish={day.clock_out?.slice(0, 5) ?? ''}
           saving={clocking}
           onSave={onSetTimes}
           onCancel={() => setEditingTimes(false)}
@@ -225,6 +232,18 @@ export function DayCard({
           >
             {day.state === 'not_clocked_in' ? 'Set times' : 'Change times'}
           </Button>
+          {/* A break belongs to a day that has clock times. */}
+          {day.state !== 'not_clocked_in' && (
+            <Button
+              variant="outline"
+              className={TOUCH_TARGET_CLASS}
+              disabled={clocking}
+              data-automation-id="DayCard-add-break"
+              onClick={onAddBreak}
+            >
+              Add a break
+            </Button>
+          )}
         </div>
       )}
     </div>

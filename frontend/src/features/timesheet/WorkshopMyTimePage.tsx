@@ -21,9 +21,10 @@ import {
   splitDayEntries,
   workingDayStart,
 } from './myTime'
+import { BreakSheet, type BreakSheetState } from './BreakSheet'
 import { DayCard } from './DayCard'
 import { FillDaySheet } from './FillDaySheet'
-import { useClocking, useSubmitDay, useWorkshopDay } from './useWorkshopDay'
+import { useBreaks, useClocking, useSubmitDay, useWorkshopDay } from './useWorkshopDay'
 import { WorkshopTimesheetCalendar } from './WorkshopTimesheetCalendar'
 import { WorkshopTimesheetEntryDrawer, type EntryDrawerState } from './WorkshopTimesheetEntryDrawer'
 
@@ -59,6 +60,8 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
   const sendLocation = companyDefaults.latitude !== null && !user.is_office_staff
   const submission = useSubmitDay(sendLocation)
   const [fillOpen, setFillOpen] = useState(false)
+  const breaks = useBreaks()
+  const [breakSheet, setBreakSheet] = useState<BreakSheetState>({ mode: 'closed' })
   const summary = day.dayQuery.data?.summary
   const week = day.dayQuery.data?.week
   const { timed, untimed } = splitDayEntries(entries)
@@ -121,6 +124,7 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
             return done
           }}
           onFill={() => setFillOpen(true)}
+          onAddBreak={() => setBreakSheet({ mode: 'add' })}
           onSetTimes={(clockIn, clockOut) =>
             clocking.setTimes({ date, clock_in: clockIn, clock_out: clockOut })
           }
@@ -205,6 +209,8 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
         <WorkshopTimesheetCalendar
           date={date}
           bounds={dayData?.calendar ?? null}
+          breaks={dayData?.breaks ?? []}
+          onBreakClick={(each) => setBreakSheet({ mode: 'edit', break: each })}
           events={timed.map(calendarEvent)}
           onEventClick={openEdit}
           onSlotClick={(start) => setDrawer({ mode: 'create', start })}
@@ -230,6 +236,15 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
           onClose={() => setFillOpen(false)}
         />
       )}
+
+      <BreakSheet
+        state={breakSheet}
+        saving={breaks.savingBreak}
+        onAdd={(start, end, paid) => breaks.addBreak(date, start, end, paid)}
+        onChange={breaks.changeBreak}
+        onRemove={breaks.removeBreak}
+        onClose={() => setBreakSheet({ mode: 'closed' })}
+      />
 
       <WorkshopTimesheetEntryDrawer
         state={drawer}

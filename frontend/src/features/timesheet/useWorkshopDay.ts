@@ -9,6 +9,9 @@ import {
   jobWorkshopTimesheetsRetrieveOptions,
   jobWorkshopTimesheetsRetrieveQueryKey,
   timesheetsApprovalsRetrieveQueryKey,
+  timesheetsMyDayBreaksCreateMutation,
+  timesheetsMyDayBreaksDeleteMutation,
+  timesheetsMyDayBreaksUpdateMutation,
   timesheetsMyDayClockMutation,
   timesheetsMyDaySubmitMutation,
   timesheetsMyDayTimesMutation,
@@ -167,6 +170,54 @@ export function useClocking(ownerId?: string) {
   }
 
   return { clock, setTimes, clocking: clockMutation.isPending || timesMutation.isPending }
+}
+
+/**
+ * Adding, moving and removing a break, on the caller's own day or, on Approve
+ * time, the day of the person the office is correcting (`ownerId`).
+ */
+export function useBreaks(ownerId?: string) {
+  const queryClient = useQueryClient()
+  const createMutation = useMutation(timesheetsMyDayBreaksCreateMutation())
+  const updateMutation = useMutation(timesheetsMyDayBreaksUpdateMutation())
+  const deleteMutation = useMutation(timesheetsMyDayBreaksDeleteMutation())
+
+  const settle = async (write: Promise<unknown>, done: string, failed: string) => {
+    try {
+      await write
+    } catch (error) {
+      report(error, failed)
+      return false
+    }
+    toast.success(done)
+    void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
+    void queryClient.invalidateQueries({ queryKey: timesheetsApprovalsRetrieveQueryKey() })
+    return true
+  }
+
+  return {
+    addBreak: (date: string, start: string, end: string, paid: boolean) =>
+      settle(
+        createMutation.mutateAsync({
+          body: { date, start, end, paid, ...(ownerId === undefined ? {} : { staff_id: ownerId }) },
+        }),
+        'Break added.',
+        'The break could not be added.',
+      ),
+    changeBreak: (breakId: string, start: string, end: string) =>
+      settle(
+        updateMutation.mutateAsync({ path: { break_id: breakId }, body: { start, end } }),
+        'Break saved.',
+        'The break could not be saved.',
+      ),
+    removeBreak: (breakId: string) =>
+      settle(
+        deleteMutation.mutateAsync({ path: { break_id: breakId } }),
+        'Break removed.',
+        'The break could not be removed.',
+      ),
+    savingBreak: createMutation.isPending || updateMutation.isPending || deleteMutation.isPending,
+  }
 }
 
 /**

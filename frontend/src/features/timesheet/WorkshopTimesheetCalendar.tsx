@@ -11,14 +11,27 @@ import '@fullcalendar/react/themes/classic/palette.css'
 import '@fullcalendar/react/themes/classic/theme.css'
 import timeGridPlugin from '@fullcalendar/react/timegrid'
 
-import type { CalendarBoundsOut } from '@/api'
+import type { BreakOut, CalendarBoundsOut } from '@/api'
 
-import type { MyTimeCalendarEvent } from './myTime'
+import { breakWords, type MyTimeCalendarEvent } from './myTime'
+
+/** Calendar ids of break blocks, so a tap on one is not taken for an entry. */
+const BREAK_EVENT_PREFIX = 'break-'
 
 /** The block's own text: time, job, then where the entry stands, in words
     so the state does not rest on colour. */
 function eventContent(marksById: Map<string, string[]>) {
   return function renderEventContent(arg: EventDisplayInfo) {
+    if (arg.event.id.startsWith(BREAK_EVENT_PREFIX)) {
+      return (
+        <div
+          className="overflow-hidden px-1 text-xs font-medium"
+          data-break-id={arg.event.id.slice(BREAK_EVENT_PREFIX.length)}
+        >
+          {arg.event.title}
+        </div>
+      )
+    }
     const marks = marksById.get(arg.event.id) ?? []
     return (
       <div className="overflow-hidden px-1 text-xs" data-event-id={arg.event.id}>
@@ -39,7 +52,10 @@ interface WorkshopTimesheetCalendarProps {
       clocked span with an hour either side. Null while the day loads. */
   bounds: CalendarBoundsOut | null
   events: MyTimeCalendarEvent[]
+  /** His breaks, drawn as their own blocks: part of the day's picture, not entries. */
+  breaks: BreakOut[]
   onEventClick: (entryId: string) => void
+  onBreakClick: (each: BreakOut) => void
   /** A click on an empty slot, as the slot's "HH:mm" start. */
   onSlotClick: (start: string) => void
 }
@@ -56,7 +72,9 @@ export function WorkshopTimesheetCalendar({
   date,
   bounds,
   events,
+  breaks,
   onEventClick,
+  onBreakClick,
   onSlotClick,
 }: WorkshopTimesheetCalendarProps) {
   const marksById = new Map(events.map((event) => [event.id, event.marks]))
@@ -82,8 +100,25 @@ export function WorkshopTimesheetCalendar({
         // 24h faces, matching every other timesheet surface.
         slotHeaderFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
         eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
-        events={events.map(({ id, title, start, end }) => ({ id, title, start, end }))}
-        eventClick={(info) => onEventClick(info.event.id)}
+        events={[
+          ...events.map(({ id, title, start, end }) => ({ id, title, start, end })),
+          ...breaks.map((each) => ({
+            id: `${BREAK_EVENT_PREFIX}${each.id}`,
+            title: breakWords(each),
+            start: `${date}T${each.start}`,
+            end: `${date}T${each.end}`,
+            // Grey, and dashed for the one that comes off his hours: told
+            // apart from an entry at a glance, and from each other in words.
+            backgroundColor: '#e2e8f0',
+            borderColor: '#64748b',
+            textColor: '#0f172a',
+          })),
+        ]}
+        eventClick={(info) => {
+          const clicked = breaks.find((each) => `${BREAK_EVENT_PREFIX}${each.id}` === info.event.id)
+          if (clicked === undefined) onEventClick(info.event.id)
+          else onBreakClick(clicked)
+        }}
         dateClick={(info) => {
           const [, time] = info.dateStr.split('T')
           if (time) onSlotClick(time.slice(0, 5))

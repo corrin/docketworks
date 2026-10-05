@@ -14,8 +14,8 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 122,988 (v1 172,577, -29%) |
-| tests | 87,642 (v1 50,869, +72%) |
+| code | 123,278 (v1 172,577, -29%) |
+| tests | 87,825 (v1 50,869, +73%) |
 | generated | 53,458 (v1 20,359, +163%) |
 
 ## Suppressions
@@ -144,7 +144,7 @@ Interactive elements under `frontend/src` with no `data-automation-id`, the sele
 
 | metric | count |
 |---|---:|
-| without data-automation-id | 130 of 423 (31%) |
+| without data-automation-id | 130 of 428 (30%) |
 | without id: <a> | 4 |
 | without id: <button> | 33 |
 | without id: <input> | 27 |

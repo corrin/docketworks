@@ -320,6 +320,19 @@ class TestSubmitDay:
         assert all(not entry["approved"] for entry in day["entries"])
         assert day["fill"] == {"to_fill_hours": 8.0, "entered_hours": 5.0, "to_go_hours": 3.0}
 
+    def test_a_row_on_a_shop_job_is_saved_unbillable(
+        self, company: Company, superuser: Staff, worker: Staff, job: Job
+    ) -> None:
+        """The sheet has no billable tick: bench time must not be refused as billable."""
+        bench = make_job(company, superuser, name="Bench", status="special")
+        _clocked(worker)
+
+        day = day_submission.submit_day(
+            worker, DAY, [_row(bench, "3"), _row(job, "2")], None, timezone.now()
+        )
+
+        assert [entry["is_billable"] for entry in day["entries"]] == [False, True]
+
     def test_submit_requires_clock_out(self, worker: Staff, job: Job) -> None:
         attendance.set_clock_times(worker, DAY, time(6, 30), None, worker)
 

@@ -124,6 +124,19 @@ test("office staff correct a person's clock times, and the screen holds at three
     await expect(clock).toHaveText('Clocked out. 06:30 to 15:00, here 8h 30m')
   })
 
+  await test.step("the day's breaks are listed, and one is corrected", async () => {
+    const breaks = autoId(page, `ApproveTimePage-breaks-${staffId}`)
+    await expect(breaks).toContainText('Paid break 08:30 to 08:45')
+    await expect(breaks).toContainText('Unpaid break 11:30 to 12:00')
+    await expect(breaks).toContainText('Paid break 13:30 to 13:45')
+
+    await breaks.getByRole('button', { name: 'Unpaid break 11:30 to 12:00' }).click()
+    await autoId(page, 'BreakSheet-start').fill('12:00')
+    await autoId(page, 'BreakSheet-finish').fill('12:30')
+    await autoId(page, 'BreakSheet-times-save').click()
+    await expect(breaks).toContainText('Unpaid break 12:00 to 12:30')
+  })
+
   await test.step('and corrects them', async () => {
     await setClock('06:30', '15:30')
     await expect(clock).toHaveText('Clocked out. 06:30 to 15:30, here 9h')

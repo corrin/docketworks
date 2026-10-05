@@ -16,9 +16,10 @@ import { companyDefaultsQueryOptions } from '@/features/shell'
 import { shiftDate } from '@/lib/dates'
 import { formatDateLong, formatHoursDisplay } from '@/lib/format'
 
+import { BreakSheet, type BreakSheetState } from './BreakSheet'
 import { ClockTimesForm } from './DayCard'
-import { cautionMarks, clockWords, entryMarks, workingDayStart } from './myTime'
-import { useClocking, useWorkshopEntryWrites } from './useWorkshopDay'
+import { breakWords, cautionMarks, clockWords, entryMarks, workingDayStart } from './myTime'
+import { useBreaks, useClocking, useWorkshopEntryWrites } from './useWorkshopDay'
 import { WorkshopTimesheetEntryDrawer, type EntryDrawerState } from './WorkshopTimesheetEntryDrawer'
 
 export interface ApproveTimeSearch {
@@ -65,6 +66,9 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
   // Whose clock times the office has open for correction, if anyone's.
   const [clockStaffId, setClockStaffId] = useState<string | null>(null)
   const clocking = useClocking(clockStaffId ?? undefined)
+  // Whose break the office has open, with the break itself.
+  const [breakFor, setBreakFor] = useState<{ staffId: string; sheet: BreakSheetState } | null>(null)
+  const breaks = useBreaks(breakFor?.staffId)
 
   const people = approvalsQuery.data?.staff
   const correcting = people?.find((person) => person.staff_id === correction?.staffId)
@@ -215,8 +219,10 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                   {clockStaffId === person.staff_id ? (
                     <ClockTimesForm
                       automationId={`ApproveTimePage-clock-${person.staff_id}`}
-                      day={person.clock}
-                      defaultStart={workingDayStart(date, companyDefaults)}
+                      initialStart={
+                        person.clock.clock_in?.slice(0, 5) ?? workingDayStart(date, companyDefaults)
+                      }
+                      initialFinish={person.clock.clock_out?.slice(0, 5) ?? ''}
                       saving={clocking.clocking}
                       onSave={(clockIn, clockOut) =>
                         clocking.setTimes({ date, clock_in: clockIn, clock_out: clockOut })
@@ -233,6 +239,40 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                       <Pencil className="h-4 w-4" /> Correct clock times
                     </Button>
                   )}
+                  <div
+                    className="flex flex-wrap items-center gap-2 text-sm text-slate-700"
+                    data-automation-id={`ApproveTimePage-breaks-${person.staff_id}`}
+                  >
+                    {person.breaks.length === 0 && <span>No breaks.</span>}
+                    {person.breaks.map((each) => (
+                      <Button
+                        key={each.id}
+                        variant="outline"
+                        size="sm"
+                        data-automation-id={`ApproveTimePage-break-${each.id}`}
+                        onClick={() =>
+                          setBreakFor({
+                            staffId: person.staff_id,
+                            sheet: { mode: 'edit', break: each },
+                          })
+                        }
+                      >
+                        {breakWords(each)}
+                      </Button>
+                    ))}
+                    {person.clock.state !== 'not_clocked_in' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        data-automation-id={`ApproveTimePage-break-add-${person.staff_id}`}
+                        onClick={() =>
+                          setBreakFor({ staffId: person.staff_id, sheet: { mode: 'add' } })
+                        }
+                      >
+                        <Plus className="h-4 w-4" /> Add a break
+                      </Button>
+                    )}
+                  </div>
                   <PersonEntries
                     person={person}
                     onEdit={(entry) =>
@@ -250,6 +290,15 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
             )}
           </Fragment>
         )}
+      />
+
+      <BreakSheet
+        state={breakFor?.sheet ?? { mode: 'closed' }}
+        saving={breaks.savingBreak}
+        onAdd={(start, end, paid) => breaks.addBreak(date, start, end, paid)}
+        onChange={breaks.changeBreak}
+        onRemove={breaks.removeBreak}
+        onClose={() => setBreakFor(null)}
       />
 
       <WorkshopTimesheetEntryDrawer
