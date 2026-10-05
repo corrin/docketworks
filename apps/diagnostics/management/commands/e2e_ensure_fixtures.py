@@ -80,6 +80,15 @@ class Command(BaseCommand):
         workshop_username, workshop_password = _credentials(
             "E2E_WORKSHOP_USERNAME", "E2E_WORKSHOP_PASSWORD"
         )
+        # Both ensure passes look the user up with iexact, so two usernames
+        # differing only by case select one Staff row — and the workshop pass
+        # would strip that row's office and superuser access and replace its
+        # password, then report success. Refuse before either user is touched.
+        if username.casefold() == workshop_username.casefold():
+            raise CommandError(
+                "E2E_TEST_USERNAME and E2E_WORKSHOP_USERNAME name the same address "
+                f"({username}); the office and workshop E2E users must be two accounts."
+            )
         with transaction.atomic():
             user = self._ensure_user(username, password)
             workshop_user = self._ensure_workshop_user(workshop_username, workshop_password)

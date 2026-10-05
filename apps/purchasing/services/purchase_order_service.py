@@ -340,11 +340,11 @@ _EARLIEST_ORDER_YEAR = 2000
 
 def _require_a_real_date(label: str, value: date | None) -> None:
     """Refuse an order or delivery date whose year can only be a typing slip."""
-    if value is None or value.year >= _EARLIEST_ORDER_YEAR:
-        return
-    raise InvalidInputError(
-        f"{label} {value.isoformat()} is in the year {value.year}. Enter the year with four digits."
-    )
+    if value is not None and value.year < _EARLIEST_ORDER_YEAR:
+        raise InvalidInputError(
+            f"{label} {value.isoformat()} is in the year {value.year}. "
+            "Enter the year with four digits."
+        )
 
 
 def _require_a_stock_item_code(line_data: PurchaseOrderLineWriteData) -> None:
@@ -357,12 +357,11 @@ def _require_a_stock_item_code(line_data: PurchaseOrderLineWriteData) -> None:
     migration applied; the match is exact, as the code is stored.
     """
     item_code = line_data.get("item_code")
-    if item_code is None or Stock.objects.filter(item_code=item_code).exists():
-        return
-    raise InvalidInputError(
-        f"Item code '{item_code}' is not a stock item. Pick a stock item, or leave the "
-        "code off and describe the line."
-    )
+    if item_code is not None and not Stock.objects.filter(item_code=item_code).exists():
+        raise InvalidInputError(
+            f"Item code '{item_code}' is not a stock item. Pick a stock item, or leave the "
+            "code off and describe the line."
+        )
 
 
 def _apply_line_fields(line: PurchaseOrderLine, line_data: PurchaseOrderLineWriteData) -> None:

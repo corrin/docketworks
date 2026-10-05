@@ -176,10 +176,12 @@ class FakeReadMessages:
         self,
         userId: str,  # noqa: N803 - Google's casing
         q: str,
+        labelIds: list[str],  # noqa: N803 - Google's casing
         maxResults: int,  # noqa: N803 - Google's casing
     ) -> FakeExecute[dict[str, list[dict[str, str]]]]:
         self._calls["list_user"] = userId
         self._calls["query"] = q
+        self._calls["label_ids"] = ",".join(labelIds)
         ids = [{"id": message_id} for message_id in self._stored][:maxResults]
         return FakeExecute({"messages": ids} if ids else {})
 
@@ -257,6 +259,10 @@ class TestLatestMessageBody:
         assert calls["query"] == (
             'to:person+e2e@example.com subject:"Reset your password" after:1791162000'
         )
+        # The INBOX bound is what keeps the mailbox's own SENT copy out: the
+        # sender and the mailbox are one Workspace user, so a sent copy would
+        # match every other term and prove the send rather than the arrival.
+        assert calls["label_ids"] == "INBOX"
 
     def test_is_none_until_a_message_arrives(self, monkeypatch: pytest.MonkeyPatch) -> None:
         body, _calls, _built = self._read(monkeypatch, {})

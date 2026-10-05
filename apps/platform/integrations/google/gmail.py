@@ -82,19 +82,31 @@ def send_company_email(to: str, subject: str, body: str, *, company_email: str |
 def latest_message_body(*, mailbox: str, to: str, subject: str, since: datetime) -> str | None:
     """Return the plain-text body of the newest matching message in ``mailbox``, or None.
 
-    A match is addressed to ``to``, carries ``subject`` and arrived at or
-    after ``since``. ``mailbox`` is the Workspace user whose mail is read:
-    a plus-addressed recipient (``name+tag@``) lands in ``name@``'s mailbox,
-    so the two differ. None means nothing has arrived yet; the caller polls.
+    A match is addressed to ``to``, carries ``subject``, arrived at or after
+    ``since`` and sits in the mailbox's INBOX. ``mailbox`` is the Workspace user
+    whose mail is read: a plus-addressed recipient (``name+tag@``) lands in
+    ``name@``'s mailbox, so the two differ. None means nothing has arrived yet;
+    the caller polls.
 
     The time bound matters because the mailbox outlives every database
     restore: without it an earlier run's message, whose link is long dead,
     is the newest match.
+
+    The INBOX bound matters because the sender and the mailbox can be the same
+    Workspace user — the E2E workshop address is a plus-address of it — and
+    Gmail then stores a SENT copy beside the delivered one. Reading that copy
+    would prove the send, not the arrival, which is the only thing worth
+    proving here.
     """
     gmail = _build_gmail([GMAIL_READONLY_SCOPE], mailbox)
     query = f'to:{to} subject:"{subject}" after:{int(since.timestamp())}'
     # Gmail lists newest first.
-    listed = gmail.users().messages().list(userId="me", q=query, maxResults=1).execute()
+    listed = (
+        gmail.users()
+        .messages()
+        .list(userId="me", q=query, labelIds=["INBOX"], maxResults=1)
+        .execute()
+    )
     matches = listed.get("messages", [])
     if not matches:
         return None
