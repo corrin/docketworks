@@ -44,11 +44,11 @@ interface WorkshopMyTimePageProps {
  */
 export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageProps) {
   const date = search.date ?? localIsoDate()
-  const day = useWorkshopDay(date)
   // Already in the cache: the shell loads the company defaults before any
   // authed route renders.
   const { data: companyDefaults } = useSuspenseQuery(companyDefaultsQueryOptions())
   const { data: user } = useSuspenseQuery(meQueryOptions())
+  const day = useWorkshopDay(date, companyDefaults.latitude !== null && !user.is_office_staff)
   const [drawer, setDrawer] = useState<EntryDrawerState>({ mode: 'closed' })
 
   const entries = day.dayQuery.data?.entries ?? []

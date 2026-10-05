@@ -1151,6 +1151,16 @@ export const zEntryCreateIn = z.object({
 });
 
 /**
+ * EntryLocationIn
+ *
+ * Where the phone says it is as it saves an entry.
+ */
+export const zEntryLocationIn = z.object({
+    latitude: z.number().gte(-90).lte(90),
+    longitude: z.number().gte(-180).lte(180)
+});
+
+/**
  * EntryOut
  *
  * One form entry — the entry list row and the entry detail alike.
@@ -6082,6 +6092,7 @@ export const zWorkshopTimesheetEntryOut = z.object({
     job_id: z.uuid(),
     job_name: z.string(),
     job_number: z.int(),
+    remote_entry: z.boolean(),
     start_time: z.iso.time().nullable(),
     updated_at: z.iso.datetime(),
     wage_rate_multiplier: z.number()
@@ -6110,6 +6121,7 @@ export const zWorkshopTimesheetEntryRequest = z.object({
     ]),
     is_billable: z.boolean().optional().default(true),
     job_id: z.uuid(),
+    location: zEntryLocationIn.nullish(),
     start_time: z.iso.time().nullish(),
     wage_rate_multiplier: z.union([
         z.number().gte(0).lt(100),
@@ -6139,6 +6151,7 @@ export const zWorkshopTimesheetEntryUpdateRequest = z.object({
     ]).optional(),
     is_billable: z.boolean().optional(),
     job_id: z.uuid().optional(),
+    location: zEntryLocationIn.nullish(),
     start_time: z.iso.time().nullish(),
     wage_rate_multiplier: z.union([
         z.number().gte(0).lt(100),

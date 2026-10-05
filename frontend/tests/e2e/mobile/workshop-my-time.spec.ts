@@ -21,6 +21,8 @@ import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
 import { getLatestWeekdayDate, readJobNumber } from '../timesheet/support'
 
 const TIMESHEETS_PATH = '/api/job/workshop/timesheets/'
+// A real street address Google knows; the company address for the remote-entry test.
+const COMPANY_PLACE_ID = 'ChIJCTlhFsxIDW0RYNfpF_7ReVA'
 const DRAWER = 'WorkshopTimesheetEntryDrawer'
 const calendarEvent = (entryId: string) =>
   `[data-automation-id="WorkshopTimesheetCalendar"] [data-event-id="${entryId}"]`
@@ -614,5 +616,81 @@ test.describe.serial('workshop time entry on a phone', () => {
       const destroy = await page.request.delete(`${TIMESHEETS_PATH}?entry_id=${booked.id}`)
       expect(destroy.status()).toBe(409)
     })
+  })
+
+  // ---- Remote entry: a save is marked unless the phone is at the company address. ----
+
+  test('a save reads Suspicious remote entry unless the phone is at the company address', async ({
+    authenticatedPage: page,
+    context,
+    playwright,
+  }, testInfo) => {
+    const baseURL = z.string().parse(testInfo.project.use.baseURL)
+    // The coordinates are decimal columns and travel as text.
+    const addressSchema = z.object({
+      google_place_id: z.string().nullable(),
+      latitude: z.string().nullable(),
+      longitude: z.string().nullable(),
+    })
+    /** Pick the company address as the settings screen does: by place id,
+        which the server re-reads from Google for the coordinates. */
+    const setCompanyAddress = (placeId: string | null) =>
+      asOffice(playwright.chromium, baseURL, async (office) => {
+        const response = await office.request.patch('/api/company-defaults/', {
+          data: { google_place_id: placeId },
+        })
+        if (!response.ok()) {
+          throw new Error(`Company address save answered ${response.status()}`)
+        }
+        return addressSchema.parse(await response.json())
+      })
+    const addFromThePhone = async (description: string) => {
+      await autoId(page, 'WorkshopTimesheetSummaryCard-add').tap()
+      await expect(page.getByRole('heading', { name: 'Add entry' })).toBeVisible()
+      await pickJob(page, setup.jobA)
+      await autoId(page, `${DRAWER}-description`).fill(description)
+      const create = timesheetWrite(page, 'POST')
+      await autoId(page, `${DRAWER}-submit`).tap()
+      const entry = await savedEntry(await create)
+      await expect(page.getByRole('heading', { name: 'Add entry' })).toBeHidden()
+      return page.locator(`[data-event-id="${entry.id}"]`)
+    }
+
+    const before = addressSchema.parse(await getCompanyDefaults(page))
+    try {
+      const address = await setCompanyAddress(COMPANY_PLACE_ID)
+      if (address.latitude === null || address.longitude === null) {
+        throw new Error('The picked company address came back without coordinates.')
+      }
+      const atTheWorkshop = {
+        latitude: Number(address.latitude),
+        longitude: Number(address.longitude),
+      }
+      // Half a degree of latitude is about 55 km.
+      const elsewhere = { ...atTheWorkshop, latitude: atTheWorkshop.latitude + 0.5 }
+
+      await context.grantPermissions(['geolocation'])
+      await context.setGeolocation(atTheWorkshop)
+      // Loaded after the address is set: the page asks for location only when
+      // the company has one.
+      await openMyTime(page)
+      const onSite = await addFromThePhone('Entered at the workshop')
+      await expect(onSite).toContainText('Waiting')
+      await expect(onSite).not.toContainText('Suspicious remote entry')
+
+      await context.setGeolocation(elsewhere)
+      const offSite = await addFromThePhone('Entered somewhere else')
+      await expect(offSite).toContainText('Suspicious remote entry')
+
+      await context.clearPermissions()
+      const refused = await addFromThePhone('Entered with location refused')
+      await expect(refused).toContainText('Suspicious remote entry')
+
+      await expect(onSite).not.toContainText('Suspicious remote entry')
+      await expectNoHorizontalOverflow(page)
+      await attachScreenshot(page, testInfo, 'my-time-remote-entry')
+    } finally {
+      await setCompanyAddress(before.google_place_id)
+    }
   })
 })

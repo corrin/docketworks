@@ -12,6 +12,7 @@ item and a zero bill rate.
 import logging
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from math import asin, cos, radians, sin, sqrt
 from typing import TypedDict
 from uuid import UUID
 
@@ -23,6 +24,7 @@ from django.utils.dateparse import parse_date
 
 from apps.accounts.models import Staff
 from apps.core.errors import AccessDeniedError, ConflictError
+from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.job_service import (
@@ -80,6 +82,13 @@ class WorkshopEntryUpdateData(TypedDict, total=False):
     bill_rate_multiplier: Decimal
 
 
+class EntryLocation(TypedDict):
+    """Where the worker's phone says it is as it saves an entry."""
+
+    latitude: float
+    longitude: float
+
+
 class WorkshopEntryData(TypedDict):
     """Data contract for WorkshopEntryData."""
 
@@ -98,6 +107,7 @@ class WorkshopEntryData(TypedDict):
     bill_rate_multiplier: float
     approved: bool
     entered_late: bool
+    remote_entry: bool
     created_at: datetime
     updated_at: datetime
 
@@ -205,6 +215,46 @@ def entered_late(line: CostLine) -> bool:
     return timezone.localdate(line.created_at) > line.accounting_date
 
 
+# Fable: One generous distance and nothing finer. A phone inside a steel shed
+# can be a street out, and a wrong mark costs the office a moment's confusion,
+# so the circle is drawn to forgive a poor fix rather than to catch a near miss.
+WORKSHOP_RADIUS_M = 300
+_EARTH_RADIUS_M = 6_371_000
+
+
+def _metres_between(lat_a: float, lng_a: float, lat_b: float, lng_b: float) -> float:
+    """Great-circle distance between two points, by the haversine formula."""
+    d_lat = radians(lat_b - lat_a)
+    d_lng = radians(lng_b - lng_a)
+    chord = sin(d_lat / 2) ** 2 + cos(radians(lat_a)) * cos(radians(lat_b)) * sin(d_lng / 2) ** 2
+    return 2 * _EARTH_RADIUS_M * asin(sqrt(chord))
+
+
+def saved_remotely(staff: Staff, location: EntryLocation | None) -> bool:
+    """Whether a worker's own save lacks a location at the company address.
+
+    The mark is how the office tells time entered in the workshop from time
+    entered somewhere else. A phone that gives no location (refused, or no
+    fix) is marked the same as one that is elsewhere. Office staff are not
+    marked: they book from desks whose browsers guess their position. A
+    company with no address has nowhere to compare against, so marks nothing.
+    """
+    if staff.is_office_staff:
+        return False
+    company = CompanyDefaults.get_solo()
+    if company.latitude is None or company.longitude is None:
+        return False
+    if location is None:
+        return True
+    distance = _metres_between(
+        float(company.latitude),
+        float(company.longitude),
+        location["latitude"],
+        location["longitude"],
+    )
+    return distance > WORKSHOP_RADIUS_M
+
+
 def entry_data(line: CostLine) -> WorkshopEntryData:
     """Shape one CostLine as a workshop timesheet entry."""
     job = line.cost_set.job
@@ -234,6 +284,7 @@ def entry_data(line: CostLine) -> WorkshopEntryData:
         "bill_rate_multiplier": float(bill_multiplier),
         "approved": line.approved,
         "entered_late": entered_late(line),
+        "remote_entry": line.remote_entry,
         "created_at": line.created_at,
         "updated_at": line.updated_at,
     }
@@ -403,8 +454,13 @@ def pricing_meta(
     return meta
 
 
-def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryData:
-    """Create a time line for the authenticated staff member."""
+def create_entry(
+    staff: Staff, data: WorkshopEntryCreateData, location: EntryLocation | None = None
+) -> WorkshopEntryData:
+    """Create a time line for the authenticated staff member.
+
+    ``location`` is where their phone says it is; None when it gave none.
+    """
     job = Job.objects.select_related("company", "default_xero_pay_item").get(id=data["job_id"])
     wage_rate_multiplier = data.get("wage_rate_multiplier", Decimal("1.0"))
     _validate_time_consistency(data.get("start_time"), data.get("end_time"), data["hours"])
@@ -444,6 +500,7 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
             meta=meta,
             # v1: lines booked by workshop staff await office approval.
             approved=staff.is_office_staff,
+            remote_entry=saved_remotely(staff, location),
         )
         line.save()
         update_latest_actual(job, cost_set.rev, cost_set.id, staff)
@@ -518,8 +575,13 @@ def _apply_scalar_changes(
     return changed
 
 
-def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryData:
-    """Update one of the staff member's own entries."""
+def update_entry(
+    staff: Staff, data: WorkshopEntryUpdateData, location: EntryLocation | None = None
+) -> WorkshopEntryData:
+    """Update one of the staff member's own entries.
+
+    ``location`` is where their phone says it is; None when it gave none.
+    """
     line = _owned_line(staff, data["entry_id"])
 
     with transaction.atomic():
@@ -572,6 +634,10 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
         )
 
         line.meta = meta
+        # Only ever set here: an edit made at the workshop does not vouch for
+        # an entry first made somewhere else.
+        if saved_remotely(staff, location):
+            line.remote_entry = True
         line.save()
         if moved_cost_set is not None:
             update_latest_actual(job, moved_cost_set.rev, moved_cost_set.id, staff)

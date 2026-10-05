@@ -47,6 +47,7 @@ export interface MyTimeCalendarEvent {
 export function entryMarks(entry: WorkshopTimesheetEntryOut): string[] {
   const marks = [entry.approved ? 'Approved' : 'Waiting']
   if (entry.entered_late) marks.push('Entered late')
+  if (entry.remote_entry) marks.push('Suspicious remote entry')
   return marks
 }
 

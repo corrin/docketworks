@@ -44,6 +44,7 @@ function makeEntry(overrides: Partial<WorkshopTimesheetEntryOut> = {}): Workshop
     bill_rate_multiplier: 1,
     approved: false,
     entered_late: false,
+    remote_entry: false,
     created_at: '2026-08-26T08:00:00Z',
     updated_at: '2026-08-26T08:00:00Z',
     ...overrides,
@@ -448,6 +449,13 @@ describe('entryMarks', () => {
     expect(entryMarks(makeEntry({ approved: false, entered_late: true }))).toEqual([
       'Waiting',
       'Entered late',
+    ])
+  })
+
+  it('adds Suspicious remote entry when the server marked the save', () => {
+    expect(entryMarks(makeEntry({ approved: true, remote_entry: true }))).toEqual([
+      'Approved',
+      'Suspicious remote entry',
     ])
   })
 })

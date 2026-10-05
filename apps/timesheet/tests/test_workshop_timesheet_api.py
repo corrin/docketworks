@@ -685,3 +685,74 @@ class TestApprovalStatus:
         body = worker_client.get(f"{URL}?date={midweek.isoformat()}").json()
 
         assert body["week"] == {"approved_hours": 8.0, "waiting_hours": 3.0}
+
+
+WORKSHOP_LATITUDE = Decimal("-36.9220862")
+WORKSHOP_LONGITUDE = Decimal("174.8000000")
+# About 220 m north of the workshop: inside the 300 m circle.
+ACROSS_THE_YARD = {"latitude": -36.9200862, "longitude": 174.8}
+# About 1.1 km north: outside it.
+DOWN_THE_ROAD = {"latitude": -36.9120862, "longitude": 174.8}
+
+
+@pytest.fixture
+def company_address() -> None:
+    """Give the company the geocoded address the remote mark compares against."""
+    defaults = CompanyDefaults.get_solo()
+    defaults.latitude = WORKSHOP_LATITUDE
+    defaults.longitude = WORKSHOP_LONGITUDE
+    defaults.save(update_fields=["latitude", "longitude"])
+
+
+class TestRemoteEntry:
+    """`saved_remotely`: a worker's own save is marked unless it is placed at the workshop."""
+
+    @pytest.mark.usefixtures("company_address")
+    def test_a_save_is_marked_unless_the_phone_is_at_the_company_address(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        at_the_bench = _create(worker_client, job, location=ACROSS_THE_YARD)
+        elsewhere = _create(worker_client, job, location=DOWN_THE_ROAD)
+        no_location = _create(worker_client, job)
+
+        assert at_the_bench["remote_entry"] is False
+        assert elsewhere["remote_entry"] is True
+        assert no_location["remote_entry"] is True
+
+    @pytest.mark.usefixtures("company_address")
+    def test_office_staff_are_not_marked(self, office_staff: Staff, job: Job) -> None:
+        entry = _create(authenticated_client(office_staff), job)
+
+        assert entry["remote_entry"] is False
+
+    def test_a_company_without_an_address_marks_nothing(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        defaults = CompanyDefaults.get_solo()
+        defaults.latitude = None
+        defaults.longitude = None
+        defaults.save(update_fields=["latitude", "longitude"])
+
+        entry = _create(worker_client, job)
+
+        assert entry["remote_entry"] is False
+
+    @pytest.mark.usefixtures("company_address")
+    def test_an_edit_can_set_the_mark_but_never_clears_it(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        entry_id = _entry_id(_create(worker_client, job, location=ACROSS_THE_YARD))
+
+        def edit(description: str, **location: object) -> bool:
+            response = worker_client.patch(
+                URL,
+                data={"entry_id": entry_id, "description": description, **location},
+                content_type="application/json",
+            )
+            assert response.status_code == 200, response.content
+            marked: bool = response.json()["remote_entry"]
+            return marked
+
+        assert edit("from the workshop", location=ACROSS_THE_YARD) is False
+        assert edit("from home") is True
+        assert edit("back at the workshop", location=ACROSS_THE_YARD) is True

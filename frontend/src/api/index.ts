@@ -382,6 +382,7 @@ export {
   jobWorkshopTimesheetsRetrieveQueryKey,
 } from './generated/@tanstack/react-query.gen'
 export type {
+  EntryLocationIn,
   WorkshopTimesheetEntryOut,
   WorkshopTimesheetEntryRequest,
   WorkshopTimesheetEntryUpdateRequest,

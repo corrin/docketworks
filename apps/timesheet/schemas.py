@@ -277,6 +277,7 @@ class WorkshopTimesheetEntryOut(Schema):
     bill_rate_multiplier: float
     approved: bool
     entered_late: bool
+    remote_entry: bool
     created_at: datetime
     updated_at: datetime
 
@@ -387,6 +388,13 @@ class TimesheetEventOut(AuditEventOut):
         return obj.delta_after
 
 
+class EntryLocationIn(Schema):
+    """Where the phone says it is as it saves an entry."""
+
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
 class WorkshopTimesheetEntryRequest(Schema):
     """Workshop timesheet-entry creation payload.
 
@@ -404,6 +412,8 @@ class WorkshopTimesheetEntryRequest(Schema):
     is_billable: bool = True
     wage_rate_multiplier: Decimal = Field(Decimal("1.00"), ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
     bill_rate_multiplier: Decimal | None = Field(None, ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
 
 
 class WorkshopTimesheetEntryUpdateRequest(Schema):
@@ -426,6 +436,9 @@ class WorkshopTimesheetEntryUpdateRequest(Schema):
     bill_rate_multiplier: Annotated[Decimal, Field(ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)] = (
         omittable(MULTIPLIER_MIN)
     )
+    # Where the save came from, not a change to the entry: it never counts as
+    # the "one field besides entry_id" an update needs.
+    location: EntryLocationIn | None = None
 
 
 # ── Xero Payroll pay runs ────────────────────────────────────────────────

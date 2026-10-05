@@ -2532,3 +2532,34 @@ reports every problem in an answered call together.
 The item-code refusal reads the local stock list. A stock item not yet pushed
 to Xero passes it, and Xero may still refuse the order line; the rule as the
 owner stated it is about what the stock list knows.
+
+## 2026-10-05 — The remote-entry mark on workshop time (KAN-376)
+
+Owner rulings. Docketworks is reachable from anywhere, and the office wants to
+tell time a worker entered in the workshop from time entered somewhere else.
+It is a mark, never a refusal, and a wrong mark costs a moment's confusion.
+A worker's own save is marked unless the phone gives a location within 300 m
+of the company address; refusing location is marked the same as being
+elsewhere. Office staff are never marked, a company with no picked address
+marks nothing, and the mark is not cleared by a later edit. Only the verdict
+is stored, not where the phone was.
+
+Rejected: comparing the caller's internet address with the workshop's. Fifteen
+days of production access logs show the workshop's connection changing address
+every day or two (the owner confirmed the new connection is not fixed), so
+there is nothing to compare against without a fixed address from the ISP.
+
+Found on the way. Production Django receives no client address: all 136
+`job_jobdeltarejection.request_ip` rows are NULL. Gunicorn binds a unix socket,
+uvicorn's proxy-header handling trusts no peer on one, and nginx's
+`X-Forwarded-For` is ignored. Nothing depends on it today. The sites answer on
+IPv4 only and nothing sits in front of nginx.
+
+The company address is not picked on UAT (no coordinates); production was not
+checked. The mark does nothing on an instance until it is.
+
+The distance is the haversine formula written out in
+`workshop_timesheet_service`, eight lines, rather than a geodesy dependency
+(ADR 0032's small-need exception).
+
+A fake-location app defeats the check. It deters; it does not prove.

@@ -2965,6 +2965,22 @@ export type EntryEventOut = {
 };
 
 /**
+ * EntryLocationIn
+ *
+ * Where the phone says it is as it saves an entry.
+ */
+export type EntryLocationIn = {
+    /**
+     * Latitude
+     */
+    latitude: number;
+    /**
+     * Longitude
+     */
+    longitude: number;
+};
+
+/**
  * EntryOut
  *
  * One form entry — the entry list row and the entry detail alike.
@@ -13438,6 +13454,10 @@ export type WorkshopTimesheetEntryOut = {
      */
     job_number: number;
     /**
+     * Remote Entry
+     */
+    remote_entry: boolean;
+    /**
      * Start Time
      */
     start_time: string | null;
@@ -13489,6 +13509,7 @@ export type WorkshopTimesheetEntryRequest = {
      * Job Id
      */
     job_id: string;
+    location?: EntryLocationIn | null;
     /**
      * Start Time
      */
@@ -13539,6 +13560,7 @@ export type WorkshopTimesheetEntryUpdateRequest = {
      * Job Id
      */
     job_id?: string;
+    location?: EntryLocationIn | null;
     /**
      * Start Time
      */

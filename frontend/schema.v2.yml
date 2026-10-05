@@ -3366,6 +3366,24 @@ components:
       - timestamp
       title: EntryEventOut
       type: object
+    EntryLocationIn:
+      description: Where the phone says it is as it saves an entry.
+      properties:
+        latitude:
+          maximum: 90
+          minimum: -90
+          title: Latitude
+          type: number
+        longitude:
+          maximum: 180
+          minimum: -180
+          title: Longitude
+          type: number
+      required:
+      - latitude
+      - longitude
+      title: EntryLocationIn
+      type: object
     EntryOut:
       description: "One form entry \u2014 the entry list row and the entry detail alike.\n\n``display_data``\
         \ carries server-resolved labels for staff/entry_ref values\n(e.g. a staff UUID's display name,\
@@ -15174,6 +15192,9 @@ components:
         job_number:
           title: Job Number
           type: integer
+        remote_entry:
+          title: Remote Entry
+          type: boolean
         start_time:
           anyOf:
           - format: time
@@ -15203,6 +15224,7 @@ components:
       - bill_rate_multiplier
       - approved
       - entered_late
+      - remote_entry
       - created_at
       - updated_at
       title: WorkshopTimesheetEntryOut
@@ -15258,6 +15280,10 @@ components:
           format: uuid
           title: Job Id
           type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
         start_time:
           anyOf:
           - format: time
@@ -15328,6 +15354,10 @@ components:
           format: uuid
           title: Job Id
           type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
         start_time:
           anyOf:
           - format: time

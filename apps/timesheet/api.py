@@ -44,6 +44,7 @@ from apps.job.models.costing import CostLine
 from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.schemas import (
     DailyTimesheetSummaryOut,
+    EntryLocationIn,
     JobsListResponse,
     PayrollRunsOut,
     PayRunListResponse,
@@ -68,6 +69,7 @@ from apps.timesheet.services import (
     workshop_timesheet_service,
 )
 from apps.timesheet.services.workshop_timesheet_service import (
+    EntryLocation,
     WorkshopEntryCreateData,
     WorkshopEntryUpdateData,
 )
@@ -368,6 +370,13 @@ def job_workshop_timesheets_retrieve(
     return workshop_timesheet_service.list_entries(authenticated_staff(request), entry_date)
 
 
+def _location(location: EntryLocationIn | None) -> EntryLocation | None:
+    """Translate the phone's reported position into the service's shape."""
+    if location is None:
+        return None
+    return {"latitude": location.latitude, "longitude": location.longitude}
+
+
 def _create_payload(payload: WorkshopTimesheetEntryRequest) -> WorkshopEntryCreateData:
     """Translate the validated create request into the service's payload."""
     data: WorkshopEntryCreateData = {
@@ -401,7 +410,7 @@ def job_workshop_timesheets_create(
     """Create a time entry owned by the authenticated staff member."""
     try:
         entry = workshop_timesheet_service.create_entry(
-            authenticated_staff(request), _create_payload(payload)
+            authenticated_staff(request), _create_payload(payload), _location(payload.location)
         )
     except Job.DoesNotExist as exc:
         raise HttpError(404, "Job not found.") from exc
@@ -455,7 +464,9 @@ def job_workshop_timesheets_partial_update(
     if len(data) <= 1:
         raise HttpError(400, "At least one field besides entry_id must be provided.")
     try:
-        return workshop_timesheet_service.update_entry(authenticated_staff(request), data)
+        return workshop_timesheet_service.update_entry(
+            authenticated_staff(request), data, _location(payload.location)
+        )
     except CostLine.DoesNotExist as exc:
         raise HttpError(404, "Timesheet entry not found.") from exc
     except Job.DoesNotExist as exc:
