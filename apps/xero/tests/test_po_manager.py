@@ -34,6 +34,7 @@ def supplier() -> Company:
     return Company.objects.create(
         name="Test Supplier",
         xero_contact_id="00000000-0000-0000-0000-000000000001",
+        xero_tenant_id="test-tenant",
         xero_last_modified=timezone.now(),
     )
 

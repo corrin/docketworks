@@ -68,9 +68,8 @@ def create_company_contact_in_xero(company: "Company") -> str:
 
     contact_data = contact_from_company(company)
     accounting_api = AccountingApi(get_api_client())
-    response = accounting_api.create_contacts(
-        get_tenant_id(), contacts={"contacts": [contact_data]}
-    )
+    tenant_id = get_tenant_id()
+    response = accounting_api.create_contacts(tenant_id, contacts={"contacts": [contact_data]})
     time.sleep(SLEEP_TIME)
 
     if not response.contacts:
@@ -82,7 +81,9 @@ def create_company_contact_in_xero(company: "Company") -> str:
     if not created_contact_id:
         raise ValueError(f"Xero created a contact for company {company.id} without a contact id")
     company.xero_contact_id = created_contact_id
-    company.save(update_fields=["xero_contact_id"])
+    # The organisation the contact was just created in, stored with its id.
+    company.xero_tenant_id = tenant_id
+    company.save(update_fields=["xero_contact_id", "xero_tenant_id"])
     logger.info("Created company %s in Xero with ID %s", company.name, company.xero_contact_id)
     return company.xero_contact_id
 

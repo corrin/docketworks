@@ -13,6 +13,8 @@ class PayRun(BaseModel):
     payment_date: date | None
     pay_run_status: str | None
     pay_run_type: str | None
+    # Absent from the PayRuns listing; the SDK leaves it None there.
+    pay_slips: list[PaySlip] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
 class PayRuns(BaseModel):

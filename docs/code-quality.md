@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 119,409 (v1 172,577, -31%) |
-| tests | 83,433 (v1 50,869, +64%) |
-| generated | 51,928 (v1 20,359, +155%) |
+| code | 120,466 (v1 172,577, -30%) |
+| tests | 85,642 (v1 50,869, +68%) |
+| generated | 52,091 (v1 20,359, +156%) |
 
 ## Suppressions
 
@@ -31,11 +31,11 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 774 |
+| TOTAL suppressions | 778 |
 | noqa: DJ001 | 196 |
 | noqa: PLC0415 | 152 |
 | noqa: E402 | 106 |
-| noqa: PLR0913 | 55 |
+| noqa: PLR0913 | 56 |
 | noqa: ARG002 | 38 |
 | noqa: BLE001 | 35 |
 | noqa: ARG001 | 23 |
@@ -47,6 +47,7 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: F405 | 6 |
 | noqa: PLR0911 | 6 |
 | noqa: RUF001 | 6 |
+| noqa: N803 | 5 |
 | noqa: S105 | 5 |
 | noqa: N815 | 4 |
 | noqa: N818 | 4 |
@@ -59,7 +60,6 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: D107 | 2 |
 | noqa: DTZ001 | 2 |
 | noqa: F401 | 2 |
-| noqa: N803 | 2 |
 | noqa: PIE804 | 2 |
 | noqa: S108 | 2 |
 | noqa: ARG004 | 1 |
@@ -91,9 +91,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 440 |
-| except handlers | 467 |
-| re-raises or converts | 299 |
+| try statements | 441 |
+| except handlers | 468 |
+| re-raises or converts | 300 |
 | returns instead | 98 |
 | falls through | 55 |
 | continue/break in a loop | 14 |
@@ -115,8 +115,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 241 |
-| non-test functions | 2963 |
+| functions returning `X \| None` | 247 |
+| non-test functions | 2989 |
 
 ## Broad type annotations
 
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 239 |
-| object annotations | 681 |
+| object annotations | 685 |
 
 ## Wire contract (response side)
 
@@ -144,9 +144,9 @@ Interactive elements under `frontend/src` with no `data-automation-id`, the sele
 
 | metric | count |
 |---|---:|
-| without data-automation-id | 130 of 391 (33%) |
+| without data-automation-id | 129 of 395 (33%) |
 | without id: <a> | 4 |
-| without id: <button> | 34 |
+| without id: <button> | 33 |
 | without id: <input> | 27 |
 | without id: <select> | 6 |
 | without id: <textarea> | 5 |

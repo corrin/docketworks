@@ -25,17 +25,21 @@ from apps.company.tests.job_fixtures import make_invoice, make_job, make_quote
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder, Stock
-from apps.purchasing.tests.factories import make_purchase_order
+from apps.purchasing.services.accounting_mirror import is_locally_raised, locally_raised
+from apps.purchasing.tests.factories import make_po_line, make_purchase_order
+from apps.xero.constants import ZERO_UUID
 from apps.xero.models import XeroAccount, XeroPayItem, XeroSyncCursor
 from apps.xero.operator_guards import assert_not_production_target
 from apps.xero.seeding import (
     INVOICES,
+    PURCHASE_ORDERS,
     QUOTES,
     clear_production_xero_ids,
     companies_needing_contacts,
     fetch_xero_entity_lookup,
     invoice_line_unit_amount,
     mirror_points_at_foreign_org,
+    purchase_orders_xero_holds,
     run_seed,
     sales_account_code,
     seed_accounts_from_xero,
@@ -583,6 +587,276 @@ class TestSeedQuotes:
         assert quote.xero_last_synced is not None
 
 
+def _sent_order(status: str = "submitted", *, xero_raised: bool = False) -> PurchaseOrder:
+    """An order with the supplier contact and the usable line Xero requires."""
+    order = make_purchase_order(status=status, xero_raised=xero_raised)
+    make_po_line(order)
+    return order
+
+
+def _xero_order(number: str, order_id: str, status: str = "SUBMITTED") -> MagicMock:
+    # validation_errors is named because a bare MagicMock attribute is truthy,
+    # and the phase reads a truthy one as Xero refusing the order.
+    return MagicMock(
+        purchase_order_number=number,
+        purchase_order_id=order_id,
+        status=status,
+        validation_errors=None,
+    )
+
+
+@pytest.fixture
+def purchases_account() -> XeroAccount:
+    """The 'Purchases' account every purchase order line is coded against."""
+    return XeroAccount.objects.create(
+        xero_id=uuid.uuid4(),
+        account_name="Purchases",
+        account_code="300",
+        xero_last_modified=timezone.now(),
+        raw_json={},
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("purchases_account")
+class TestSeedPurchaseOrders:
+    """Restored orders are linked by number where Xero holds them live, else created."""
+
+    def test_links_a_live_order_by_number_and_stamps_the_tenant(self, xero_api: MagicMock) -> None:
+        order = _sent_order()
+        existing_id = str(uuid.uuid4())
+        xero_api.get_purchase_orders.return_value = MagicMock(
+            purchase_orders=[_xero_order(order.po_number, existing_id)]
+        )
+
+        result = seed_documents(PURCHASE_ORDERS)
+
+        assert (result.linked, result.created) == (1, 0)
+        order.refresh_from_db()
+        assert str(order.xero_id) == existing_id
+        # The inbound sync links by number without recording whose order it
+        # is; the tenant stamp is what lets the seed measure itself finished.
+        assert order.xero_tenant_id == TENANT
+        xero_api.update_or_create_purchase_orders.assert_not_called()
+
+    def test_does_not_link_a_deleted_remote_order(self, xero_api: MagicMock) -> None:
+        # A deleted order keeps its number and Xero still lists it. Adopting
+        # it would point a live order at a voided document.
+        order = _sent_order()
+        created_id = str(uuid.uuid4())
+        xero_api.get_purchase_orders.return_value = MagicMock(
+            purchase_orders=[_xero_order(order.po_number, str(uuid.uuid4()), status="DELETED")]
+        )
+        xero_api.update_or_create_purchase_orders.return_value = MagicMock(
+            purchase_orders=[_xero_order(order.po_number, created_id)]
+        )
+
+        result = seed_documents(PURCHASE_ORDERS)
+
+        assert (result.linked, result.created) == (0, 1)
+        order.refresh_from_db()
+        assert str(order.xero_id) == created_id
+
+    def test_creates_and_maps_back_by_number(self, xero_api: MagicMock) -> None:
+        received = _sent_order("fully_received")
+        submitted = _sent_order("submitted")
+        ids = {received.po_number: str(uuid.uuid4()), submitted.po_number: str(uuid.uuid4())}
+        xero_api.get_purchase_orders.return_value = MagicMock(purchase_orders=[])
+        # Answered in the other order: the mapping is by number, not position.
+        xero_api.update_or_create_purchase_orders.return_value = MagicMock(
+            purchase_orders=[
+                _xero_order(submitted.po_number, ids[submitted.po_number]),
+                _xero_order(received.po_number, ids[received.po_number]),
+            ]
+        )
+
+        result = seed_documents(PURCHASE_ORDERS)
+
+        assert (result.created, result.linked) == (2, 0)
+        for order in (received, submitted):
+            order.refresh_from_db()
+            assert str(order.xero_id) == ids[order.po_number]
+            assert order.xero_tenant_id == TENANT
+        call = xero_api.update_or_create_purchase_orders.call_args
+        # The form the recording covers; summarised errors would answer 400
+        # for the whole call and name no order.
+        assert call.kwargs["summarize_errors"] is False
+        sent = {
+            body["PurchaseOrderNumber"]: body
+            for body in call.kwargs["purchase_orders"]["PurchaseOrders"]
+        }
+        # In the state Xero would hold it: a received order is AUTHORISED.
+        assert sent[received.po_number]["Status"] == "AUTHORISED"
+        assert sent[submitted.po_number]["Status"] == "SUBMITTED"
+        assert sent[submitted.po_number]["LineItems"][0]["AccountCode"] == "300"
+
+    def test_a_zero_uuid_answer_raises_naming_the_order(self, xero_api: MagicMock) -> None:
+        # Xero's answer for a number a deleted order still holds: 200, the
+        # zero UUID and the reason on the element. Claiming it would store the
+        # zero UUID as the order's Xero id.
+        order = _sent_order()
+        refusal = MagicMock(message="Deleted PurchaseOrders cannot be updated")
+        xero_api.get_purchase_orders.return_value = MagicMock(purchase_orders=[])
+        xero_api.update_or_create_purchase_orders.return_value = MagicMock(
+            purchase_orders=[
+                MagicMock(
+                    purchase_order_number=order.po_number,
+                    purchase_order_id=ZERO_UUID,
+                    status="SUBMITTED",
+                    validation_errors=[refusal],
+                )
+            ]
+        )
+
+        # Names the order and says a re-run cannot help: nothing in Xero frees
+        # a number a deleted order holds.
+        with pytest.raises(
+            ValueError, match=f"{order.po_number}: a deleted purchase order.*no re-run can create"
+        ):
+            seed_documents(PURCHASE_ORDERS)
+
+        order.refresh_from_db()
+        assert order.xero_id is None
+
+    def test_orders_xero_stored_are_claimed_before_a_refusal_stops_the_phase(
+        self, xero_api: MagicMock
+    ) -> None:
+        # Xero answers 200 for the call and refuses one order inside it; the
+        # other is in Xero now. Raising before claiming it left a document in
+        # Xero that only a number lookup on the next run could find again.
+        stored = _sent_order()
+        refused = _sent_order()
+        stored_id = str(uuid.uuid4())
+        xero_api.get_purchase_orders.return_value = MagicMock(purchase_orders=[])
+        xero_api.update_or_create_purchase_orders.return_value = MagicMock(
+            purchase_orders=[
+                MagicMock(
+                    purchase_order_number=refused.po_number,
+                    purchase_order_id=str(uuid.uuid4()),
+                    status="SUBMITTED",
+                    validation_errors=[MagicMock(message="The date 8/20/0025 is not valid")],
+                ),
+                _xero_order(stored.po_number, stored_id),
+            ]
+        )
+
+        with pytest.raises(ValueError, match=f"{refused.po_number}: The date"):
+            seed_documents(PURCHASE_ORDERS)
+
+        stored.refresh_from_db()
+        refused.refresh_from_db()
+        assert (str(stored.xero_id), stored.xero_tenant_id) == (stored_id, TENANT)
+        # Xero answered with an id for the refused order and did not store it.
+        assert refused.xero_id is None
+
+    def test_a_renumbered_answer_does_not_hide_the_rest_of_the_call(
+        self, xero_api: MagicMock
+    ) -> None:
+        # One call can go wrong three ways at once. Stopping at the first
+        # unmappable number used to leave the order after it unclaimed and the
+        # refusal unreported.
+        stored = _sent_order()
+        refused = _sent_order()
+        renumbered = _sent_order()
+        stored_id = str(uuid.uuid4())
+        xero_api.get_purchase_orders.return_value = MagicMock(purchase_orders=[])
+        xero_api.update_or_create_purchase_orders.return_value = MagicMock(
+            purchase_orders=[
+                _xero_order("PO-RENUMBERED", str(uuid.uuid4())),
+                MagicMock(
+                    purchase_order_number=refused.po_number,
+                    purchase_order_id=str(uuid.uuid4()),
+                    status="SUBMITTED",
+                    validation_errors=[MagicMock(message="The date 8/20/0025 is not valid")],
+                ),
+                _xero_order(stored.po_number, stored_id),
+            ]
+        )
+
+        with pytest.raises(ValueError) as raised:
+            seed_documents(PURCHASE_ORDERS)
+
+        message = str(raised.value)
+        assert "'PO-RENUMBERED'" in message
+        assert f"{refused.po_number}: The date" in message
+        stored.refresh_from_db()
+        renumbered.refresh_from_db()
+        assert str(stored.xero_id) == stored_id
+        assert renumbered.xero_id is None
+
+    def test_an_order_without_a_job_is_not_deleted(self, xero_api: MagicMock) -> None:
+        # Invoices and quotes with no job are restore remnants and the phase
+        # deletes them. A purchase order needs no job, and a draft the seed
+        # does not send is still the business's record.
+        draft = make_purchase_order(status="draft")
+        sent = _sent_order()
+        xero_api.get_purchase_orders.return_value = MagicMock(
+            purchase_orders=[_xero_order(sent.po_number, str(uuid.uuid4()))]
+        )
+
+        result = seed_documents(PURCHASE_ORDERS)
+
+        assert result.orphans_deleted == 0
+        assert PurchaseOrder.objects.filter(id__in=[draft.id, sent.id]).count() == 2
+
+
+@pytest.mark.django_db
+class TestPurchaseOrdersXeroHolds:
+    """The seed sends what production's Xero holds, and nothing it does not."""
+
+    def test_our_draft_a_deleted_order_and_a_lineless_order_are_left_out(self) -> None:
+        our_draft = _sent_order("draft")
+        deleted = _sent_order("deleted")
+        lineless = make_purchase_order(status="submitted")
+        uncosted = make_purchase_order(status="submitted")
+        make_po_line(uncosted, unit_cost=None)
+        sent = _sent_order("partially_received")
+
+        held = purchase_orders_xero_holds()
+
+        assert sent in held
+        for order in (our_draft, deleted, lineless, uncosted):
+            assert order not in held
+
+    def test_pending_is_every_held_order_this_organisation_has_not_claimed(self) -> None:
+        # Counted in the database now. An order with no tenant at all (the
+        # shape the inbound sync used to leave) and one claimed by another
+        # organisation are both still to do; only this organisation's claim
+        # takes an order off the list.
+        unclaimed = _sent_order()
+        elsewhere = _sent_order()
+        ours = _sent_order()
+        PurchaseOrder.objects.filter(id=elsewhere.id).update(
+            xero_id=uuid.uuid4(), xero_tenant_id="prod-tenant"
+        )
+        PurchaseOrder.objects.filter(id=ours.id).update(xero_id=uuid.uuid4(), xero_tenant_id=TENANT)
+
+        pending = PURCHASE_ORDERS.pending(TENANT)
+
+        assert set(pending) == {unclaimed, elsewhere}
+        assert pending.count() == 2
+
+    @pytest.mark.parametrize(
+        "number",
+        ["PO-0042", "PO-256916885935035200", "PO-0840-VOID-31316fd7", "XPO-0042", "PO-", "TEST-1"],
+    )
+    def test_the_queryset_and_the_row_test_agree_on_who_raised_an_order(self, number: str) -> None:
+        # The seed selects with the filter and the push decides with the row
+        # test; disagreeing, the seed would send an order the push treats as
+        # Xero's, or leave out one the push would send.
+        order = make_purchase_order(status="submitted")
+        PurchaseOrder.objects.filter(id=order.id).update(po_number=number)
+        order.refresh_from_db()
+
+        by_filter = PurchaseOrder.objects.filter(locally_raised(), id=order.id).exists()
+
+        assert by_filter == is_locally_raised(order)
+
+    def test_a_draft_raised_in_xero_is_included(self) -> None:
+        # Xero is where it was raised, so Xero holds it in every state.
+        assert _sent_order("draft", xero_raised=True) in purchase_orders_xero_holds()
+
+
 @pytest.mark.django_db
 class TestSeedAccountsFromXero:
     """The chart of accounts is re-pointed BY NAME: the target org's ids differ."""
@@ -837,6 +1111,14 @@ class TestCompaniesNeedingContacts:
 
         assert billed in companies_needing_contacts()
 
+    def test_includes_the_supplier_of_an_order_the_seed_sends(self) -> None:
+        # A supplier holds no jobs, invoices or quotes. Left out here, its
+        # orders are skipped for want of a contact id on every run.
+        supplier = make_company("Steel Supplies Ltd", is_supplier=True)
+        make_po_line(make_purchase_order(supplier=supplier, status="submitted"))
+
+        assert supplier in companies_needing_contacts()
+
     def test_excludes_a_company_with_no_jobs_or_documents(self) -> None:
         bystander = make_company("Bystander Ltd")
 
@@ -884,6 +1166,16 @@ class TestSeedConvergence:
         make_quote(company, job=make_job(company, staff), number="QU-1")
 
         assert seed_convergence(TENANT).remaining == {"quotes": 1, "employees": 1}
+
+    def test_counts_purchase_orders_this_organisation_has_not_claimed(self) -> None:
+        order = _sent_order()
+        # Linked the way the inbound sync links: an id and no tenant.
+        PurchaseOrder.objects.filter(id=order.id).update(xero_id=uuid.uuid4())
+
+        assert seed_convergence(TENANT).remaining == {"purchase orders": 1}
+
+        PurchaseOrder.objects.filter(id=order.id).update(xero_tenant_id=TENANT)
+        assert seed_convergence(TENANT).purchase_orders_pending == 0
 
     def test_counts_active_stock_with_no_xero_id(self) -> None:
         Stock.objects.create(

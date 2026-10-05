@@ -17,10 +17,27 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer'
+import { INPUT_CLASS } from '@/components/ui/field'
+import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
 import { JobPicker } from '@/features/shared/JobPicker'
 
-import { formatHoursDisplay } from '@/lib/format'
-import { deriveHoursFromTimes, entryUpdateBody } from './myTime'
+import { formatDateLong, formatHoursDisplay } from '@/lib/format'
+import {
+  adjustEnd,
+  billingChangeFields,
+  billsItsTime,
+  defaultNewEntryRange,
+  deriveHoursFromTimes,
+  entryUpdateBody,
+  fillGapToNextEntry,
+  lastUsedJobId,
+  rateOptionsFor,
+  resolveSelectedJob,
+  shownBillable,
+  slotFrom,
+  slotFromNow,
+  type TimeRange,
+} from './myTime'
 import { timesheetJobSearchOptions } from './timesheetJobSearch'
 
 export type EntryDrawerState =
@@ -32,6 +49,11 @@ interface WorkshopTimesheetEntryDrawerProps {
   state: EntryDrawerState
   /** The day new entries book to, YYYY-MM-DD. */
   date: string
+  /** Every entry already on that day: a new entry defaults its job and start
+      from them, and "Fill gap" runs up to the next one. */
+  dayEntries: WorkshopTimesheetEntryOut[]
+  /** When the working day starts on that date, "HH:mm". */
+  dayStart: string
   saving: boolean
   onCreate: (body: WorkshopTimesheetEntryRequest) => Promise<boolean>
   onUpdate: (body: WorkshopTimesheetEntryUpdateRequest) => Promise<boolean>
@@ -45,13 +67,17 @@ function inputTime(value: string | null): string {
 }
 
 /**
- * Add/edit drawer for one workshop entry: job, start/end time, description.
+ * Add/edit drawer for one workshop entry: job, start/end time, rate,
+ * billable, description.
  *
  * Fable: Hours are always derived from the time pair (the server refuses a
  * trio that disagrees), so the drawer shows the duration instead of asking
- * for it. Billability follows the job type on create and on any job move —
- * billable shop time is refused at the model. An entry with no stored times
- * may be edited without imposing a pair; its hours then stay untouched.
+ * for it. Workshop staff choose the rate and whether the time is billable;
+ * office approval of the timesheet is the control on both. A job that cannot
+ * bill its time (shop work, special jobs) shows the tick off and locked, and
+ * on a job move billability is the server's rule unless the user set the
+ * tick (see billingChangeFields). An entry with no stored times may be edited
+ * without imposing a pair; its hours then stay untouched.
  *
  * The form's state lives in WorkshopEntryForm, which DrawerContent unmounts
  * when the drawer closes — so each open seeds from the entry being edited
@@ -60,6 +86,8 @@ function inputTime(value: string | null): string {
 export function WorkshopTimesheetEntryDrawer({
   state,
   date,
+  dayEntries,
+  dayStart,
   saving,
   onCreate,
   onUpdate,
@@ -86,14 +114,16 @@ export function WorkshopTimesheetEntryDrawer({
             <DrawerTitle>{entry === null ? 'Add entry' : 'Edit entry'}</DrawerTitle>
             <DrawerDescription>
               {entry === null
-                ? 'Book your own time against a job.'
-                : `#${entry.job_number} ${entry.job_name}`}
+                ? `Book your own time for ${formatDateLong(date)}.`
+                : `#${entry.job_number} ${entry.job_name} on ${formatDateLong(date)}`}
             </DrawerDescription>
           </DrawerHeader>
           <WorkshopEntryForm
             entry={entry}
             initialStart={initialStart}
             date={date}
+            dayEntries={dayEntries}
+            dayStart={dayStart}
             saving={saving}
             onCreate={onCreate}
             onUpdate={onUpdate}
@@ -110,6 +140,8 @@ function WorkshopEntryForm({
   entry,
   initialStart,
   date,
+  dayEntries,
+  dayStart,
   saving,
   onCreate,
   onUpdate,
@@ -120,17 +152,34 @@ function WorkshopEntryForm({
   /** The tapped calendar slot a new entry starts from, "HH:mm" or null. */
   initialStart: string | null
 }) {
-  const [jobId, setJobId] = useState<string | null>(entry?.job_id ?? null)
-  const [shopJob, setShopJob] = useState(false)
-  const [start, setStart] = useState(
-    entry === null ? (initialStart ?? '') : inputTime(entry.start_time),
+  // A new entry opens on the job last booked and straight after the day's
+  // latest finish: the next job usually starts when the last one stopped.
+  const [jobId, setJobId] = useState<string | null>(
+    () => entry?.job_id ?? lastUsedJobId(dayEntries),
   )
-  const [end, setEnd] = useState(entry === null ? '' : inputTime(entry.end_time))
+  const [range, setRange] = useState<TimeRange>(() =>
+    entry === null
+      ? defaultNewEntryRange(dayEntries, dayStart, initialStart)
+      : { start: inputTime(entry.start_time), end: inputTime(entry.end_time) },
+  )
+  const { start, end } = range
+  const [rateMultiplier, setRateMultiplier] = useState(entry?.wage_rate_multiplier ?? 1)
+  // null until the user touches the tick: only a choice they made is sent on
+  // an edit (billingChangeFields).
+  const [billableChoice, setBillableChoice] = useState<boolean | null>(null)
   const [description, setDescription] = useState(entry?.description ?? '')
 
   const jobsQuery = useQuery(timesheetsJobsRetrieveOptions())
   const jobs = useMemo<TimesheetJobOut[]>(() => jobsQuery.data?.jobs ?? [], [jobsQuery.data])
-  const selected = jobs.find((job) => job.id === jobId) ?? null
+  // The job as the picker handed it over: one found through its whole-table
+  // search is not in `jobs`.
+  const [pickedJob, setPickedJob] = useState<TimesheetJobOut | null>(null)
+  const selected = resolveSelectedJob(pickedJob, jobs, jobId)
+  const sourceJob = entry === null ? null : (jobs.find((job) => job.id === entry.job_id) ?? null)
+  const canBill = selected === null || billsItsTime(selected)
+  const billable = shownBillable({ entry, sourceJob, selectedJob: selected, billableChoice })
+  const rateOptions = rateOptionsFor(entry === null ? null : entry.wage_rate_multiplier)
+  const otherEntries = dayEntries.filter((other) => other.id !== entry?.id)
 
   const hours = deriveHoursFromTimes(start, end)
   // An entry that has no stored times may be saved without a pair — that is
@@ -142,7 +191,11 @@ function WorkshopEntryForm({
     entry.end_time === null &&
     start === '' &&
     end === ''
-  const canSubmit = jobId !== null && !saving && (hours !== null || untimedEdit)
+  // A new entry needs a job the drawer actually holds: the defaulted last-used
+  // job may have been archived since, and its billability is not known until
+  // the list loads. A job the user picked is always held.
+  const jobChosen = entry === null ? selected !== null : jobId !== null
+  const canSubmit = jobChosen && !saving && (hours !== null || untimedEdit)
 
   // A ref, not mutation isPending: the disabled state lands on the next
   // render, so a double-click could otherwise book the entry twice.
@@ -163,10 +216,17 @@ function WorkshopEntryForm({
           start_time: `${start}:00`,
           end_time: `${end}:00`,
           description: description.trim() === '' ? null : description.trim(),
-          is_billable: !shopJob,
+          is_billable: billable,
+          wage_rate_multiplier: rateMultiplier,
         })
       } else {
-        saved = await onUpdate(entryUpdateBody(entry, { jobId, start, end, hours, description }))
+        saved = await onUpdate({
+          ...entryUpdateBody(entry, { jobId, start, end, hours, description }),
+          ...billingChangeFields(entry, {
+            billableChoice: canBill ? billableChoice : null,
+            rateMultiplier,
+          }),
+        })
       }
     } finally {
       inFlightRef.current = false
@@ -193,6 +253,7 @@ function WorkshopEntryForm({
           <label className="mb-1 block text-sm font-medium text-gray-700">Job</label>
           <div className="rounded border border-slate-200">
             <JobPicker
+              triggerClassName={TOUCH_TARGET_CLASS}
               automationIdPrefix="WorkshopTimesheetEntryDrawer-job-picker"
               ariaLabel="Job"
               jobs={jobs}
@@ -214,7 +275,7 @@ function WorkshopEntryForm({
               searchOptions={timesheetJobSearchOptions}
               onSelect={(job) => {
                 setJobId(job.id)
-                setShopJob(job.shop_job)
+                setPickedJob(job)
               }}
             />
           </div>
@@ -232,9 +293,9 @@ function WorkshopEntryForm({
               id="workshop-entry-start"
               type="time"
               value={start}
-              className="h-9 w-full rounded border border-slate-200 px-2 text-sm"
+              className={`${INPUT_CLASS} ${TOUCH_TARGET_CLASS}`}
               data-automation-id="WorkshopTimesheetEntryDrawer-start-time"
-              onChange={(event) => setStart(event.target.value)}
+              onChange={(event) => setRange({ start: event.target.value, end })}
             />
           </div>
           <div>
@@ -248,9 +309,9 @@ function WorkshopEntryForm({
               id="workshop-entry-end"
               type="time"
               value={end}
-              className="h-9 w-full rounded border border-slate-200 px-2 text-sm"
+              className={`${INPUT_CLASS} ${TOUCH_TARGET_CLASS}`}
               data-automation-id="WorkshopTimesheetEntryDrawer-end-time"
-              onChange={(event) => setEnd(event.target.value)}
+              onChange={(event) => setRange({ start, end: event.target.value })}
             />
           </div>
         </div>
@@ -266,6 +327,70 @@ function WorkshopEntryForm({
               : 'Pick a start and an end time.')}
         </p>
 
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Adjust times">
+          <TimeChip id="now" onClick={() => setRange(slotFromNow(new Date()))}>
+            Now
+          </TimeChip>
+          {[-5, 5, 15, 30].map((minutes) => (
+            <TimeChip
+              key={minutes}
+              id={minutes < 0 ? `minus-${-minutes}` : `plus-${minutes}`}
+              disabled={start === '' || end === ''}
+              onClick={() => setRange(adjustEnd(range, minutes))}
+            >
+              {minutes < 0 ? `${minutes}m` : `+${minutes}m`}
+            </TimeChip>
+          ))}
+          <TimeChip
+            id="fill-gap"
+            disabled={start === ''}
+            onClick={() => setRange(fillGapToNextEntry(start, otherEntries))}
+          >
+            Fill gap
+          </TimeChip>
+          <TimeChip id="reset" onClick={() => setRange(slotFrom(dayStart))}>
+            Reset
+          </TimeChip>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label
+              className="mb-1 block text-sm font-medium text-gray-700"
+              htmlFor="workshop-entry-rate"
+            >
+              Rate
+            </label>
+            <select
+              id="workshop-entry-rate"
+              value={rateMultiplier}
+              className={`${INPUT_CLASS} ${TOUCH_TARGET_CLASS}`}
+              data-automation-id="WorkshopTimesheetEntryDrawer-rate"
+              onChange={(event) => setRateMultiplier(Number(event.target.value))}
+            >
+              {rateOptions.map((option) => (
+                <option key={option.multiplier} value={option.multiplier}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <span className="mb-1 block text-sm font-medium text-gray-700">Billing</span>
+            <label className={`${TOUCH_TARGET_CLASS} flex items-center gap-2 text-sm`}>
+              <input
+                type="checkbox"
+                className="size-5"
+                checked={billable}
+                disabled={!canBill}
+                data-automation-id="WorkshopTimesheetEntryDrawer-billable"
+                onChange={(event) => setBillableChoice(event.target.checked)}
+              />
+              Billable
+            </label>
+          </div>
+        </div>
+
         <div>
           <label
             className="mb-1 block text-sm font-medium text-gray-700"
@@ -278,7 +403,8 @@ function WorkshopEntryForm({
             value={description}
             rows={3}
             maxLength={255}
-            className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
+            placeholder="What was done"
+            className={INPUT_CLASS}
             data-automation-id="WorkshopTimesheetEntryDrawer-description"
             onChange={(event) => setDescription(event.target.value)}
           />
@@ -288,7 +414,7 @@ function WorkshopEntryForm({
       <DrawerFooter>
         <div className="flex items-center gap-2">
           <Button
-            className="flex-1"
+            className={`flex-1 ${TOUCH_TARGET_CLASS}`}
             disabled={!canSubmit}
             data-automation-id="WorkshopTimesheetEntryDrawer-submit"
             onClick={() => void submit()}
@@ -297,6 +423,7 @@ function WorkshopEntryForm({
           </Button>
           <Button
             variant="outline"
+            className={TOUCH_TARGET_CLASS}
             disabled={saving}
             data-automation-id="WorkshopTimesheetEntryDrawer-cancel"
             onClick={onClose}
@@ -306,6 +433,7 @@ function WorkshopEntryForm({
           {entry !== null && (
             <Button
               variant="destructive"
+              className={TOUCH_TARGET_CLASS}
               disabled={saving}
               data-automation-id="WorkshopTimesheetEntryDrawer-delete"
               onClick={() => void remove()}
@@ -316,5 +444,31 @@ function WorkshopEntryForm({
         </div>
       </DrawerFooter>
     </>
+  )
+}
+
+/** One quick-adjust chip: a single tap moves the times instead of the time
+    pickers being opened again. */
+function TimeChip({
+  id,
+  disabled = false,
+  onClick,
+  children,
+}: {
+  id: string
+  disabled?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      className={`${TOUCH_TARGET_CLASS} justify-center rounded-full border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50 disabled:opacity-50`}
+      data-automation-id={`WorkshopTimesheetEntryDrawer-chip-${id}`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   )
 }

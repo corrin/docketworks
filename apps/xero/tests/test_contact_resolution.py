@@ -16,6 +16,7 @@ from django.utils import timezone as django_timezone
 from apps.accounting.models import Quote
 from apps.company.models import Company
 from apps.purchasing.models import PurchaseOrder
+from apps.xero.tests.conftest import TEST_TENANT_ID
 from apps.xero.transforms import (
     _extract_required_fields_xero,
     resolve_company_from_xero_contact,
@@ -31,6 +32,7 @@ def company() -> Company:
     return Company.objects.create(
         name="Existing Company",
         xero_contact_id="contact-123",
+        xero_tenant_id="test-tenant",
         xero_last_modified=django_timezone.now(),
     )
 
@@ -50,7 +52,9 @@ class TestResolveCompanyFromXeroContact:
                 "apps.xero.transforms.get_or_fetch_company",
                 _fail_if_called,
             )
-            resolved = resolve_company_from_xero_contact(_rich_contact(), "INV-001")
+            resolved = resolve_company_from_xero_contact(
+                _rich_contact(), "INV-001", tenant_id=TEST_TENANT_ID
+            )
 
         assert resolved.id == company.id
 
@@ -61,34 +65,38 @@ class TestResolveCompanyFromXeroContact:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr("apps.xero.transforms.get_or_fetch_company", _fail_if_called)
-            resolved = resolve_company_from_xero_contact(contact, "INV-002")
+            resolved = resolve_company_from_xero_contact(
+                contact, "INV-002", tenant_id=TEST_TENANT_ID
+            )
 
         assert resolved.xero_contact_id == "contact-embed-9"
         assert resolved.name == "Embedded New Co"
 
     def test_bare_contact_id_falls_back_to_get(self, company: Company) -> None:
-        calls: list[tuple[str, str | None]] = []
+        calls: list[tuple[str, str | None, str]] = []
 
-        def _fake_get(contact_id: str, reference: str | None = None) -> Company:
-            calls.append((contact_id, reference))
+        def _fake_get(contact_id: str, reference: str | None = None, *, tenant_id: str) -> Company:
+            calls.append((contact_id, reference, tenant_id))
             return company
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr("apps.xero.transforms.get_or_fetch_company", _fake_get)
             resolved = resolve_company_from_xero_contact(
-                SimpleNamespace(contact_id="contact-123"), "INV-001"
+                SimpleNamespace(contact_id="contact-123"), "INV-001", tenant_id=TEST_TENANT_ID
             )
 
         assert resolved.id == company.id
-        assert calls == [("contact-123", "INV-001")]
+        assert calls == [("contact-123", "INV-001", TEST_TENANT_ID)]
 
     def test_missing_contact_raises(self) -> None:
         with pytest.raises(ValueError, match="INV-001"):
-            resolve_company_from_xero_contact(None, "INV-001")
+            resolve_company_from_xero_contact(None, "INV-001", tenant_id=TEST_TENANT_ID)
 
     def test_contact_without_id_raises(self) -> None:
         with pytest.raises(ValueError, match="INV-001"):
-            resolve_company_from_xero_contact(SimpleNamespace(name="No Id Co"), "INV-001")
+            resolve_company_from_xero_contact(
+                SimpleNamespace(name="No Id Co"), "INV-001", tenant_id=TEST_TENANT_ID
+            )
 
 
 @pytest.mark.django_db
@@ -111,7 +119,9 @@ class TestTransformsUseEmbeddedContact:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr("apps.xero.transforms.get_or_fetch_company", _fail_if_called)
-            fields = _extract_required_fields_xero("invoice", invoice, "inv-xero-id")
+            fields = _extract_required_fields_xero(
+                "invoice", invoice, "inv-xero-id", tenant_id=TEST_TENANT_ID
+            )
 
         resolved = fields["company"]
         assert isinstance(resolved, Company)
@@ -133,7 +143,7 @@ class TestTransformsUseEmbeddedContact:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr("apps.xero.transforms.get_or_fetch_company", _fail_if_called)
-            quote, status = transform_quote(xero_quote, xero_id)
+            quote, status = transform_quote(xero_quote, xero_id, tenant_id=TEST_TENANT_ID)
 
         assert status == "created"
         assert Quote.objects.get(xero_id=xero_id).company_id == company.id
@@ -153,7 +163,7 @@ class TestTransformsUseEmbeddedContact:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr("apps.xero.transforms.get_or_fetch_company", _fail_if_called)
-            po, status = transform_purchase_order(xero_po, xero_id)
+            po, status = transform_purchase_order(xero_po, xero_id, tenant_id=TEST_TENANT_ID)
 
         assert status == "created"
         assert PurchaseOrder.objects.get(po_number="PO-9001").supplier_id == company.id

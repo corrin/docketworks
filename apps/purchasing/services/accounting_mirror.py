@@ -19,6 +19,7 @@ import logging
 import re
 
 from django.db import transaction
+from django.db.models import Q
 
 from apps.accounting.registry import get_provider
 from apps.accounts.models import Staff
@@ -46,8 +47,26 @@ def is_locally_raised(po: PurchaseOrder) -> bool:
     every order raised under the old one as Xero's, which is the same defect the
     paragraph above describes, reached by an admin edit instead of a null column.
     """
+    return re.search(_locally_raised_pattern(), po.po_number) is not None
+
+
+def _locally_raised_pattern() -> str:
+    """Return the pattern of a number Docketworks raised: the instance prefix, then digits.
+
+    One pattern for the row test above and the queryset filter below, written
+    in the subset Python and Postgres read alike.
+    """
     prefix = CompanyDefaults.get_solo().po_prefix
-    return re.fullmatch(rf"{re.escape(prefix)}\d+", po.po_number) is not None
+    return rf"^{re.escape(prefix)}[0-9]+$"
+
+
+def locally_raised() -> Q:
+    """``is_locally_raised`` as a queryset filter over ``PurchaseOrder``.
+
+    Beside it so the two cannot drift: a set selected by one rule and pushed
+    by another would have the seed sending orders the push treats as Xero's.
+    """
+    return Q(po_number__regex=_locally_raised_pattern())
 
 
 def mirror_purchase_order(po: PurchaseOrder, staff: Staff) -> None:

@@ -50,13 +50,16 @@ def sync_single_contact(tenant_id: str, contact_id: str) -> None:
     company, created = Company.objects.update_or_create(
         xero_contact_id=contact.contact_id,
         defaults={
+            # With the id, in one write: the schema refuses a contact id that
+            # names no organisation (company_xero_contact_id_has_tenant).
+            "xero_tenant_id": tenant_id,
             "raw_json": raw_json,
             "xero_last_modified": timezone.now(),
             "xero_merged_into_id": getattr(contact, "merged_to_contact_id", None),
         },
     )
 
-    set_company_fields(company, new_from_xero=created)
+    set_company_fields(company, new_from_xero=created, tenant_id=tenant_id)
 
     # Merge resolution shares the batch path's implementation (ADR 0039).
     resolve_pending_merge(company, logger_prefix="[webhook] ")
@@ -84,6 +87,7 @@ def sync_single_invoice(tenant_id: str, invoice_id: str) -> None:
         bill, created = Bill.objects.update_or_create(
             xero_id=xero_invoice.invoice_id,
             defaults={
+                "xero_tenant_id": tenant_id,
                 "raw_json": raw_json,
                 "xero_last_modified": xero_invoice.updated_date_utc,
                 "xero_last_synced": timezone.now(),
@@ -96,6 +100,7 @@ def sync_single_invoice(tenant_id: str, invoice_id: str) -> None:
         invoice, created = Invoice.objects.update_or_create(
             xero_id=xero_invoice.invoice_id,
             defaults={
+                "xero_tenant_id": tenant_id,
                 "raw_json": raw_json,
                 "xero_last_modified": xero_invoice.updated_date_utc,
                 "xero_last_synced": timezone.now(),

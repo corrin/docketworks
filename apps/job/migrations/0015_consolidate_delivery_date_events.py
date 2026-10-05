@@ -75,4 +75,11 @@ def consolidate_delivery_dates(apps: StateApps, schema_editor: BaseDatabaseSchem
 class Migration(migrations.Migration):
     dependencies = [("job", "0014_job_created_by_not_null")]
 
-    operations = [migrations.RunPython(consolidate_delivery_dates)]
+    operations = [
+        migrations.RunPython(
+            consolidate_delivery_dates,
+            # One-way: the duplicate entry is deleted, so there is nothing to
+            # put back. Reversing leaves the consolidated history in place.
+            reverse_code=migrations.RunPython.noop,
+        )
+    ]

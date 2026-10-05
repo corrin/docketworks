@@ -5,13 +5,20 @@ send only, used today by the password-reset flow; a general email feature is a
 future slice and extends this module rather than growing a sibling. Delivery
 proven by the delegation probe of 2026-08-31 (gmail.send scope, service
 account impersonating the Workspace user).
+
+It also reads one message back, for the E2E proof that a sent email arrives
+with a link that works (``latest_message_body``). Nothing the product does for
+a user reads mail.
 """
 
 import base64
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
+from email import message_from_bytes
 from email.message import EmailMessage
+from email.policy import default as default_policy
 from typing import TYPE_CHECKING
 
 from googleapiclient.discovery import build
@@ -26,6 +33,9 @@ logger = logging.getLogger(__name__)
 GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
 #: drafts.create needs more than send: gmail.send is send-only by design.
 GMAIL_COMPOSE_SCOPE = "https://www.googleapis.com/auth/gmail.compose"
+#: Reading a mailbox back. Delegation matches scope strings literally, so the
+#: Workspace grant has to name this one as well as the two above.
+GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 
 
 def _build_gmail(scopes: list[str], subject: str) -> "GmailResource":
@@ -67,6 +77,34 @@ def send_company_email(to: str, subject: str, body: str, *, company_email: str |
     message_id: str = result["id"]
     logger.info("EMAIL SENT - to=%s subject=%s gmail_id=%s", to, subject, message_id)
     return message_id
+
+
+def latest_message_body(*, mailbox: str, to: str, subject: str, since: datetime) -> str | None:
+    """Return the plain-text body of the newest matching message in ``mailbox``, or None.
+
+    A match is addressed to ``to``, carries ``subject`` and arrived at or
+    after ``since``. ``mailbox`` is the Workspace user whose mail is read:
+    a plus-addressed recipient (``name+tag@``) lands in ``name@``'s mailbox,
+    so the two differ. None means nothing has arrived yet; the caller polls.
+
+    The time bound matters because the mailbox outlives every database
+    restore: without it an earlier run's message, whose link is long dead,
+    is the newest match.
+    """
+    gmail = _build_gmail([GMAIL_READONLY_SCOPE], mailbox)
+    query = f'to:{to} subject:"{subject}" after:{int(since.timestamp())}'
+    # Gmail lists newest first.
+    listed = gmail.users().messages().list(userId="me", q=query, maxResults=1).execute()
+    matches = listed.get("messages", [])
+    if not matches:
+        return None
+    fetched = gmail.users().messages().get(userId="me", id=matches[0]["id"], format="raw").execute()
+    message = message_from_bytes(base64.urlsafe_b64decode(fetched["raw"]), policy=default_policy)
+    body = message.get_body(preferencelist=("plain",))
+    if body is None:
+        raise ValueError(f"Message {matches[0]['id']} to {to} has no plain-text body")
+    content: str = body.get_content()
+    return content
 
 
 @dataclass(frozen=True, slots=True)

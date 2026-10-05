@@ -13,13 +13,14 @@ setup_django()
 from apps.accounts.models import Staff  # noqa: E402 -- Django must be configured first
 from apps.company.models import Company  # noqa: E402
 from apps.job.models import Job  # noqa: E402
-from apps.purchasing.models import Stock  # noqa: E402
+from apps.purchasing.models import PurchaseOrder, Stock  # noqa: E402
 
 
 def main() -> None:
     companies_with_xero = Company.objects.filter(xero_contact_id__isnull=False).count()
     jobs_with_xero = Job.objects.filter(xero_project_id__isnull=False).count()
     stock_with_xero = Stock.objects.filter(xero_id__isnull=False, is_active=True).count()
+    orders_with_xero = PurchaseOrder.objects.filter(xero_id__isnull=False).count()
     staff_with_xero = Staff.objects.filter(
         xero_user_id__isnull=False, date_left__isnull=True
     ).count()
@@ -31,6 +32,7 @@ def main() -> None:
     # deleted because the line becomes meaningful the day that phase lands.
     print(f"Jobs linked to Xero Projects (unported, expect 0): {jobs_with_xero}")
     print(f"Stock items synced to Xero: {stock_with_xero}")
+    print(f"Purchase orders linked to Xero: {orders_with_xero}")
     # Deliberately says nothing about WHICH organisation those ids belong to,
     # and asks Xero nothing: this script runs before the reconnect, where
     # get_tenant_id() raises for want of a token. A restored dump carries a

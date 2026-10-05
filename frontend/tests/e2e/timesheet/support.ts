@@ -118,7 +118,9 @@ export async function seedLabourForWeek(
   // transmits nothing — while every assertion still passes, on the strength
   // of a previous run's work. A test of a payroll write that goes green while
   // writing nothing is worse than no test.
-  const hours = 2 + (Math.floor(Date.now() / 1000) % 60) / 100
+  // Whole hundredths divided once: 2 + 0.57 is 2.5700000000000003 in floating
+  // point, sixteen digits, and the server refuses a quantity over ten.
+  const hours = (200 + (Math.floor(Date.now() / 1000) % 60)) / 100
 
   await seedTimesheetLabour(page, {
     jobId,

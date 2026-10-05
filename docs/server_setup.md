@@ -416,9 +416,16 @@ curl -s https://<name>.docketworks.site/api/build-id/
 ### The E2E suite on the instance (UAT verification, PVT)
 
 ```bash
-# Once per instance: the E2E user's credentials, root-owned like the rest of config/
+# Once per instance: the E2E users' credentials, root-owned like the rest of config/
 sudo install -m 600 -o root -g root /dev/null /opt/docketworks/config/<name>.e2e.env
-sudoedit /opt/docketworks/config/<name>.e2e.env   # E2E_TEST_USERNAME= / E2E_TEST_PASSWORD=
+sudoedit /opt/docketworks/config/<name>.e2e.env   # E2E_TEST_USERNAME= / E2E_TEST_PASSWORD= / E2E_WORKSHOP_USERNAME= / E2E_WORKSHOP_PASSWORD= / E2E_RESET_MAILBOX_OWNER=
+# E2E_WORKSHOP_USERNAME is a plus-address of a real mailbox in this instance's Google
+# Workspace, tagged with the environment: name+e2e-uat@ on UAT, name+e2e-prod@ on
+# production. E2E_RESET_MAILBOX_OWNER is that mailbox's Workspace user (name@). The
+# password-reset spec emails the first and reads the second, so the Workspace's delegation
+# must grant both gmail.send and gmail.readonly (docs/client_onboarding.md). Without
+# gmail.readonly the spec refuses before it sends anything; without gmail.send no email
+# arrives, the spec times out waiting for the link, and the failed send is an AppError row.
 
 sudo scripts/server/verify-instance.sh <client> <env> --e2e                # uat
 sudo scripts/server/verify-instance.sh <client> prod --e2e --production   # PVT
@@ -487,7 +494,7 @@ suite signs in as, which `e2e_ensure_fixtures` creates.
 sudo scripts/server/instance.sh prepare-config rehearsal uat --seed
 sudoedit /opt/docketworks/config/rehearsal-uat.credentials.env
 sudo install -m 600 -o root -g root /dev/null /opt/docketworks/config/rehearsal-uat.e2e.env
-sudoedit /opt/docketworks/config/rehearsal-uat.e2e.env   # E2E_TEST_USERNAME= / E2E_TEST_PASSWORD=
+sudoedit /opt/docketworks/config/rehearsal-uat.e2e.env   # E2E_TEST_USERNAME= / E2E_TEST_PASSWORD= / E2E_WORKSHOP_USERNAME= / E2E_WORKSHOP_PASSWORD= / E2E_RESET_MAILBOX_OWNER=
 ```
 
 Then, from the dev box, after each merge:

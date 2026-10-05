@@ -20,6 +20,7 @@ from apps.purchasing.services.delivery_receipt_service import (
     ReceiptLineRequest,
     process_delivery_receipt,
 )
+from apps.xero.tests.conftest import TEST_TENANT_ID
 from apps.xero.transforms import transform_purchase_order
 
 pytestmark = pytest.mark.committed_db
@@ -54,7 +55,9 @@ def test_sync_waits_for_receipt_and_preserves_its_committed_status(
     )
 
     def sync() -> str:
-        result, _status = transform_purchase_order(incoming, str(po.xero_id))
+        result, _status = transform_purchase_order(
+            incoming, str(po.xero_id), tenant_id=TEST_TENANT_ID
+        )
         return result.status
 
     with ThreadPoolExecutor(max_workers=1) as pool:

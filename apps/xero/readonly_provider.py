@@ -34,6 +34,7 @@ from apps.accounting.types import (
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
 from apps.xero import payroll_push
+from apps.xero.auth import get_tenant_id
 from apps.xero.payroll_leave import require_pay_item
 from apps.xero.provider import XeroAccountingProvider
 
@@ -81,7 +82,8 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
         # Mirror contacts.create_company_contact_in_xero's side effect: callers
         # (and the frontend Xero badge) read company.xero_contact_id.
         company.xero_contact_id = _fake_id()
-        company.save(update_fields=["xero_contact_id"])
+        company.xero_tenant_id = get_tenant_id()
+        company.save(update_fields=["xero_contact_id", "xero_tenant_id"])
         _log_suppressed("create_contact", f"company {company.id} ({company.name})")
         return ContactResult(success=True, external_id=company.xero_contact_id, name=company.name)
 

@@ -41,6 +41,7 @@ def company() -> Company:
     return Company.objects.create(
         name="Document API Co",
         xero_contact_id=str(uuid.uuid4()),
+        xero_tenant_id="test-tenant",
         xero_last_modified=timezone.now(),
     )
 

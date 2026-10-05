@@ -2247,3 +2247,288 @@ def test_review_probe_mixed_batch_checks_address_before_any_write() -> None:
 Observed assertion evidence: `([('demo-probe', 'Ana', 'Silva')], 'demo-probe', 'tenant-under-test')`. The provider recorded a rename and the local employee ID changed despite the address validation failure. The temporary probe failed at the assertion shown above; the application code was restored and the probe was removed.
 
 A future fix should validate the creation prerequisites for the entire batch before applying matched-employee writes, and promote this reproduction into a passing mixed-batch regression test. That application change is outside this test-only cleanup.
+
+## 2026-10-04 — The Xero re-seed puts purchase orders in the organisation (KAN-375)
+
+The fake Xero is built from the mirror, and after a restore the mirror held no
+purchase order the organisation knew: the seed cleared every order's Xero id
+and no phase recreated them. Nothing recorded that as a decision, and the
+2026-09-12 ruling ("an order that is not in Xero is a bug rather than a state")
+says the opposite.
+
+Owner rulings, 2026-10-04:
+
+- The seed sends what production's Xero holds: orders Docketworks raised once
+  they have left draft, and orders raised in Xero in any state but deleted.
+- A restored order is linked to a live Xero order by number alone, as invoices
+  and quotes are. A supplier-and-total comparison was the alternative; supplier
+  names differ between scrub runs, so it would have stopped legitimate re-seeds.
+- The cost is accepted: on a Demo Company, restored `PO-0001`..`PO-0007` link
+  to the Demo Company's own orders of those numbers and the sync overwrites
+  those local rows. It happened on the 2026-10-04 restore and the rows were
+  left as they were.
+
+Measured, real dev tenant, 2026-10-04 (`purchase_order_create_batch.json`):
+several purchase orders in one upsert call with `summarizeErrors=false` answer
+200 with one element per order, each carrying its number and its id.
+
+Findings left as they are:
+
+- `transform_purchase_order` (`apps/xero/transforms.py`) links an incoming Xero
+  order to a local row by `po_number` when no row carries its id, with no check
+  that it is the same order, and never writes `xero_tenant_id`. The seed's own
+  claim stamps the tenant, so the seed converges; the match-by-number remains.
+- A seed re-run after the sync counts the jobless invoices and quotes the sync
+  pulled from the organisation as remaining work, and its invoice and quote
+  phases would delete them. On the 2026-10-04 restore that was 50 invoices and
+  15 quotes, so the purchase order phase was run with `--only`.
+
+Measured on the first run of the phase, real dev tenant, 2026-10-04 (784
+orders in scope, 776 created or linked, the rest E2E residue):
+
+- Xero refuses an order whose line names an item code the organisation's items
+  do not include (`Item code '…' is not valid`). Owner ruling: a line is an
+  item code Xero knows or a description with no code, so such a line is
+  malformed data. Five restored lines carried one (JO-0262 twice, JO-0279,
+  JO-0440, JO-0658); their codes were blanked on the dev database. Production
+  holds the same rows. The phase runs after stock for the same reason.
+- Xero refuses a delivery date in the year 0025 (`The date 8/20/0025 is not
+  valid`). Five restored orders carried one (JO-0146, JO-0157, JO-0187,
+  JO-0192, JO-0195), corrected to 2025 on the dev database. Production holds
+  the same rows.
+- One order (JO-0282) was refused with `Please select a valid Inventory Item`
+  in a call made seconds after the stock phase had rewritten the
+  organisation's items, while another order naming the same item was accepted
+  in the same run. It was created unchanged on the re-run. Cause not
+  established.
+- A refusal answers with an order id that Xero did not store (JO-0282's id
+  answered 404), so the element's validation errors are the refusal, not the
+  zero id alone.
+
+The clear phase fired a second time on the same day's database. The hourly
+sync had created a Company for a Xero contact with no name
+(`apps/xero/transforms.py`, the "create anyway" branch), which saves the
+contact id before `set_company_fields` stamps the tenant, and that call raised
+on the contact's missing status. One Company with a contact id and no tenant is
+what `mirror_points_at_foreign_org` reads as a mirror linked to another
+organisation, so the next seed cleared 2520 contact ids, 703 stock ids and the
+sync cursors, and had to be run to convergence again. Three writers save
+`xero_contact_id` without the tenant: that branch and its two siblings,
+`apps/xero/single_sync.py` (the webhook path) and
+`create_company_contact_in_xero` in `apps/xero/contacts.py`.
+
+Fixed the same week. Every writer now stores the tenant in the same write as
+the contact id, and `Company` carries
+`CHECK (xero_contact_id IS NULL OR xero_tenant_id IS NOT NULL)`. Production held
+3,920 linked companies with no tenant against 321 with one, all 321 naming the
+organisation in `CompanyDefaults` (owner's read-only census, 2026-10-04): the
+column arrived after most companies were linked, and the incremental sync only
+stamps a contact Xero reports a change to. `company.0002` stamps them with the
+configured organisation and deletes nothing; it refuses on an instance that has
+linked companies and no configured organisation. The seed's rule that one
+foreign row clears the mirror is unchanged: with the constraint, no writer can
+produce such a row.
+
+The item codes and the year-0025 dates are repaired by `purchasing.0021`.
+
+## 2026-10-04 — A deleted quote does not hold its number in Xero (KAN-375)
+
+The fake held quote numbers unique per tenant across deleted quotes, refused
+the mirror of the dev organisation at `fake_xero_seed`, and no fake E2E run
+could start. Xero reissues a deleted quote's number: the Demo Company holds
+three DELETED quotes numbered QU-0013, and a recording pass on 2026-10-04 was
+given QU-0016 for a new quote straight after a deleted quote was answered under
+that number. The fake's constraint now covers live quotes only. A purchase
+order is the opposite case (`purchase_order_number_held_by_deleted.json`) and
+its constraint is unchanged. `next_number` in `apps/xero/fake/minting.py` still
+says a deleted document keeps its number; for quotes that is not what Xero
+does, and the fake's quote sequence has not been changed to match.
+
+## 2026-10-05 — Workshop staff on a phone: login and time entry (KAN-375)
+
+Workshop staff use the app from their phones, and nothing in the E2E suite
+signed in on one or as a non-office user. Two Playwright projects now do:
+`android` (Pixel 7, 412px) and `iphone` (iPhone 14 on WebKit, 390px), running
+only `tests/e2e/mobile` as a seeded workshop login that is neither office staff
+nor superuser.
+
+Rulings (owner, 2026-10-04, unless marked):
+
+- Phones are a mix of iPhone and Android, so both get a project.
+- Workshop staff enter whatever they like on their own time, rate and billable
+  included; office approval of the timesheet is the control.
+- Everything v1's My time offered is ported. The over-hours badge and red
+  over-estimate blocks stay out: that drop was already recorded.
+- No mobile menu. The header hides the welcome text below `sm` instead.
+- 44px tap areas are a deliberate override of the design language's 36px, for
+  the controls workshop staff work by thumb, through one shared class
+  (`components/ui/touch.ts`).
+- Shared plain inputs are 16px below `md` (`INPUT_CLASS`), so iOS Safari does
+  not zoom the page on focus. The class is imported by 27 files across admin,
+  auth, CRM, job, process forms, purchasing, reports, the shared address
+  field and timesheets: every one of those inputs is 16px below 768px and
+  unchanged from there up. The first full run showed one phone-width spec
+  moved by it: the form-entries page grew past the fixed distance its scroll
+  test wheeled.
+
+What the phone runs measured:
+
+- Login inputs 16px on both projects; the time-entry drawer's inputs at least
+  16px on both. No horizontal overflow on login, the board or My time.
+- Header after the change: three rows on both; 163px of a 664px viewport at
+  390px (it was 163px in four rows) and 161px of 839px at 412px (it was about
+  125px). The tap areas took back the row the welcome text gave up.
+- The job picker popover spans 17px to 377px in both the 390px and 412px
+  viewports, listing 197 to 199 jobs from the production-shaped dev database.
+- A workshop login draws no 401 or 403 on the board or on My time.
+
+What the code and the runs established:
+
+- The billable tick is sent on an edit only when the user set it, and then
+  even when it equals the stored value. The server reads its presence as an
+  explicit choice on a job move (`move_time_line`), so "send when it differs"
+  would have lost a deliberate unbillable choice on a move off a shop job. The
+  tick shows what the save will produce, which on an untouched move off a job
+  that cannot bill is billable.
+- A new entry defaults to the job of the entry booked most recently, not to
+  the last in list order as v1 did.
+- v1's My time calendar also opened at midnight: neither its component nor the
+  library it used scrolled to the working day. Nothing was ported for it.
+- Timesheets > Daily was offered to every login while both of its endpoints
+  are superuser-only; it is now offered to superusers alone.
+- A closing Radix panel stays in the DOM for the length of its exit animation.
+  A screenshot taken inside that window, with animations disabled, shows it at
+  full opacity; one such picture was misread as a menu that never closed. A
+  probe showed the menu and the entry drawer both leave the DOM on WebKit.
+- FullCalendar draws a column layer over its slot lanes and takes the tap
+  itself, so a Playwright tap on a slot has to be forced at the lane.
+- `scripts/checks/code_quality.py` counts tracked files as they are on disk. A
+  doc generated with uncommitted work in the tree does not match the commit,
+  and a commit of frontend files alone does not regenerate it.
+
+Found and left for the owner:
+
+- The login form's fields take over a second to appear (entrance animation).
+- A workshop login sees the office board and its Quick assign strip, and the
+  assignment endpoints and `POST .../cost_sets/actual/cost_lines/` accept any
+  signed-in staff member, as v1's did.
+- `run_e2e.sh` does not run `e2e_ensure_fixtures`, and its reset runs before
+  the backup, so its deletion of local `[TEST]` rows is permanent.
+- Salaried staff: `time_entry_rates.py` writes `salary_term_id` and
+  `pay_basis` into a time line's meta, and `TIME_META_SCHEMA` allows neither.
+  Read from the code, not reproduced.
+
+## 2026-10-05 — Two failures the first full fake-Xero run on restored data found (KAN-375)
+
+**A listed pay run carries no `paySlips`.** Real Xero's `GET /PayRuns` omits the
+key (`recordings/pay_runs.json`), so the mirror stores the SDK's `None` for it.
+The fake rendered every valueless Payroll attribute as an explicit null, and
+the SDK iterates a list-typed attribute on the way in, so a null there fails
+the whole response. Nothing showed it until the fake first held pay runs: the
+restore and the first sync against the dev organisation on 2026-10-04 gave it
+twenty, and every `get_pay_runs` call then raised. The fake now omits a
+valueless Payroll list and keeps the explicit null for scalars, and the wire
+round trip refuses a rendered null on a list-typed key the recording lacks.
+The one null list Xero does send, `invalidFields` in the past-the-end refusal,
+is written by hand and not rendered.
+
+**The sales forecast's list and detail read one rule.** The month list took
+any month holding an actual cost line; the month detail dropped jobs whose
+revenue summed to zero. Leave booked ahead on the Annual Leave job listed
+November 2026 at $0.00 against $0.00, and it opened to nothing. A month is now
+listed only when its detail has something to show: an invoice, or a job with
+non-zero revenue in that month. Amounts are unchanged; only which months
+appear.
+
+## 2026-10-05 — The sync records the organisation on every document it stores (KAN-375)
+
+The sync engine passes each entity's persist function the tenant the run
+fetched from. Five `ENTITY_CONFIGS` entries dropped it, so invoices, bills,
+credit notes, quotes and purchase orders were stored with a Xero id and no
+tenant; `sync_single_invoice` did the same for a webhook's invoice or bill.
+Measured on the dev database after the 2026-10-04 sync: 47 invoices, 45 bills,
+5 credit notes and 9 quotes carried an id and no tenant. Staff, pay items, pay
+runs, pay slips, accounts, companies, and every push from the application
+already stored both.
+
+The document transforms now take the tenant from their caller, as
+`transform_pay_run` does, and `_persist_documents` in `apps/xero/sync.py` is
+the one place that hands it to them.
+
+Owner instruction, 2026-10-05: no CHECK for this; the writers are fixed.
+Left as it is:
+
+- Rows already stored without a tenant are not backfilled. Each is completed
+  when the sync next sees that document. Production was not examined.
+- The seed's foreign-organisation test reads `Company` and `XeroPayItem` only,
+  so a tenant-less document never triggered a clear. The seed's pending count
+  does read a tenant-less invoice, quote or order as unclaimed.
+- A purchase order linked by number alone now records the tenant. That states
+  which organisation the id came from, not that the match found the same order.
+- `Stock` and `Job.xero_project_id` have no tenant column.
+
+## 2026-10-05 — Code review of the purchase order seed and tenant work (KAN-375)
+
+Fixed from the review, each in its own commit: `Any` in new annotations; the
+contact sync taking the tenant from its caller; the sales forecast summing in
+the database (2.9s to 0.06s on the restored dev database, one query both ways,
+identical totals); the seed's purchase order scope as a queryset; orders Xero
+stored being claimed before a refusal stops the phase; a delivery date with a
+two-digit year, and an item code that is not a stock item's, refused by the
+purchase order service (the E2E fixture that invented codes changed with it).
+
+The tenant backfill (`company.0002`) now takes the organisation from the
+companies already stamped and uses `CompanyDefaults.xero_tenant_id` only when
+none is. On production the two agree. They disagree on a restored copy that
+has been bound to its own demo organisation and not re-seeded, where the
+contact ids are still the source's: stamping them with the bound tenant would
+make the seed read the mirror as already linked and skip its clear. Chosen in
+the owner's absence.
+
+Left for the owner:
+
+- **A purchase order whose number a deleted Xero order holds cannot be seeded.**
+  Xero returns the zero id, will not reuse the number and will not rename a
+  deleted order, so the seed stops on it at every run and the sync gate stays
+  closed. No order in scope is in that state on the 2026-10-04 restore (the
+  dev organisation's JO-0826, JO-0829 and JO-0833 are local drafts, which the
+  seed does not send). The choices when one is: renumber the local order;
+  leave that order out of what the seed sends; or re-seed into an organisation
+  that does not hold the deleted order. None is implemented.
+- **`purchasing.0021` keeps a code that matches any stock row, active or not,**
+  while the seed's stock phase sends only active stock. A line whose code is
+  only on an inactive item would be refused by a freshly seeded organisation.
+  None exists on the 2026-10-04 restore (4 inactive stock rows carry a code; no
+  order line uses one). The migration was left as it is: production's Xero
+  holds those items, and blanking the code there to suit a dev seed would
+  damage a correct row.
+- **A wage-only change to a workshop time entry replaces its bill multiplier.**
+  An entry at wage 1.0 and bill 1.5, patched to wage 2.0, becomes bill 2.0, and
+  the 1.5 is gone. v1 did the same and `accepted-api-differences.yml` records
+  the rule; no document addresses an entry whose bill multiplier was set apart
+  from its wage multiplier. Not changed.
+- The invoice and quote payload builders and the sync transforms' payload
+  parameters are still annotated `Any`; they were before this branch.
+
+## 2026-10-05 — Second review of the fixes (KAN-375)
+
+`company.0002` as first corrected would have aborted on production. It read
+the tenants the stamped companies carry with `Company`'s default ordering, and
+Django adds the ordering column to a DISTINCT select, so the answer was one row
+per stamped company name: 321 "organisations" where there is one. The ordering
+is cleared. The tests had a single stamped company and could not see it.
+Rehearsed on the dev database reshaped to the owner's census (321 stamped with
+one tenant, 2,250 unstamped, 5,813 rows) inside a rolled-back transaction: the
+earlier version refuses for "321 different organisations", the corrected one
+stamps all 2,250 and the row count does not move. Dev's data in production's
+shape, not production's rows.
+
+Also from that pass: the order date is refused with a two-digit year, as the
+expected delivery is; the purchase order body is built key by key under its
+type, with the request unchanged; the "Docketworks raised this order" pattern
+has one home serving the row test and the queryset filter; and the seed
+reports every problem in an answered call together.
+
+The item-code refusal reads the local stock list. A stock item not yet pushed
+to Xero passes it, and Xero may still refuse the order line; the rule as the
+owner stated it is about what the stock list knows.

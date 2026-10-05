@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
 import { meQueryOptions, useLogout } from '@/features/auth'
 
 import { KanbanSearchInput } from './KanbanSearchInput'
@@ -95,11 +96,14 @@ export function AppNavbar() {
           <NavMenuLink to="/timesheets/my-time" automationId="AppNavbar-my-time">
             My time
           </NavMenuLink>
-          <NavMenuLink to="/timesheets/daily" automationId="AppNavbar-daily-timesheets">
-            Daily
-          </NavMenuLink>
+          {/* Superuser only: Daily, Weekly and Leave all read endpoints behind
+              SuperuserCookieJWTAuth, so any other login reaches a page whose
+              every query answers 403. */}
           {user.is_superuser && (
             <>
+              <NavMenuLink to="/timesheets/daily" automationId="AppNavbar-daily-timesheets">
+                Daily
+              </NavMenuLink>
               <NavMenuLink to="/timesheets/weekly" automationId="AppNavbar-weekly-timesheets">
                 Weekly
               </NavMenuLink>
@@ -215,11 +219,12 @@ export function AppNavbar() {
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-4">
         <KanbanSearchInput />
-        <span className="text-sm text-gray-700">Welcome, {user.fullName}!</span>
+        {/* Hidden on a phone: there it cost the header a fourth row. */}
+        <span className="hidden text-sm text-gray-700 sm:inline">Welcome, {user.fullName}!</span>
         <Link
           to="/change-password"
           data-automation-id="AppNavbar-change-password"
-          className="text-sm text-gray-700 hover:text-gray-900 hover:underline"
+          className={`${TOUCH_TARGET_CLASS} text-sm text-gray-700 hover:text-gray-900 hover:underline`}
         >
           Change password
         </Link>
@@ -270,7 +275,7 @@ function NavMenu({
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger
         data-automation-id={automationId}
-        className="cursor-pointer text-sm text-gray-700 outline-hidden hover:text-gray-900"
+        className={`${TOUCH_TARGET_CLASS} cursor-pointer text-sm text-gray-700 outline-hidden hover:text-gray-900 max-sm:gap-1`}
       >
         {label} <span aria-hidden="true">▾</span>
       </DropdownMenuTrigger>

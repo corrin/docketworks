@@ -57,6 +57,58 @@ def _invoice_payload() -> InvoicePayload:
     )
 
 
+class TestPurchaseOrderBody:
+    """The wire body the push and the restore seed both send."""
+
+    def test_a_create_carries_what_the_order_has_and_nothing_it_lacks(self) -> None:
+        payload = POPayload(
+            supplier_external_id="contact-1",
+            supplier_name="Steel Supplies Ltd",
+            po_number="JO-0001",
+            line_items=[
+                DocumentLineItem("Sheet", Decimal("5.00"), Decimal("48.53"), "300", "SHEET-16"),
+                DocumentLineItem("Freight", Decimal("1"), Decimal("20")),
+            ],
+            date=date(2026, 8, 9),
+            status="SUBMITTED",
+        )
+
+        assert XeroAccountingProvider.purchase_order_body(payload) == {
+            "PurchaseOrderNumber": "JO-0001",
+            "Contact": {
+                "ContactID": "contact-1",
+                "Name": "Steel Supplies Ltd",
+                "HasAttachments": False,
+                "HasValidationErrors": False,
+            },
+            "LineItems": [
+                {
+                    "Description": "Sheet",
+                    "Quantity": 5.0,
+                    "UnitAmount": 48.53,
+                    "AccountCode": "300",
+                    "ItemCode": "SHEET-16",
+                },
+                # A free-text line: no item code key at all, which Xero reads
+                # differently from a null one.
+                {"Description": "Freight", "Quantity": 1.0, "UnitAmount": 20.0},
+            ],
+            "Date": "2026-08-09",
+            "Status": "SUBMITTED",
+            "HasAttachments": False,
+        }
+
+    def test_an_update_names_the_order_and_its_optional_fields(self) -> None:
+        payload = _po_payload(external_id="11111111-1111-1111-1111-111111111111")
+        payload.delivery_date = date(2026, 8, 16)
+        payload.reference = "Quote 42"
+
+        body = XeroAccountingProvider.purchase_order_body(payload)
+
+        assert body["PurchaseOrderID"] == "11111111-1111-1111-1111-111111111111"
+        assert (body["DeliveryDate"], body["Reference"]) == ("2026-08-16", "Quote 42")
+
+
 def _po_payload(external_id: str | None = None) -> POPayload:
     return POPayload(
         supplier_external_id=str(uuid.uuid4()),

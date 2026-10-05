@@ -155,6 +155,11 @@ Allows the service account to act on behalf of users in the client's domain.
   - `https://www.googleapis.com/auth/drive`
   - `https://www.googleapis.com/auth/documents`
   - `https://www.googleapis.com/auth/spreadsheets`
+  - `https://www.googleapis.com/auth/gmail.send` (password-reset email)
+  - `https://www.googleapis.com/auth/gmail.compose` (purchase-order drafts)
+  - `https://www.googleapis.com/auth/gmail.readonly`, only for a Workspace an
+    instance runs the E2E suite against: the password-reset spec reads the
+    test mailbox back. The product itself never reads mail.
 
 **The client's Workspace admin does:**
 1. Google Admin Console (admin.google.com)

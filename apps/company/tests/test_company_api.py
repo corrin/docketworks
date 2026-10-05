@@ -444,7 +444,8 @@ class TestCreate:
 
         def _link(company: Company) -> ContactResult:
             company.xero_contact_id = "X-NEW"
-            company.save(update_fields=["xero_contact_id"])
+            company.xero_tenant_id = "test-tenant"
+            company.save(update_fields=["xero_contact_id", "xero_tenant_id"])
             return ContactResult(success=True, external_id="X-NEW", name=company.name)
 
         provider.create_contact.side_effect = _link

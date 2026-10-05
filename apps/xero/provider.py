@@ -6,7 +6,7 @@ from datetime import date
 from decimal import Decimal
 from operator import itemgetter
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NotRequired, TypedDict
 from uuid import UUID, uuid4
 
 from xero_python.accounting import (
@@ -78,6 +78,44 @@ def _slip_name(slip: "PaySlip") -> str | None:
     """Xero's denormalised name for the slip's employee, or None if it holds neither part."""
     parts = [part for part in (slip.first_name, slip.last_name) if part]
     return " ".join(parts) if parts else None
+
+
+class PurchaseOrderContactBody(TypedDict):
+    """The supplier as a purchase order names it on the wire."""
+
+    ContactID: str
+    Name: str
+    HasAttachments: bool
+    HasValidationErrors: bool
+
+
+class PurchaseOrderLineBody(TypedDict):
+    """One purchase order line on the wire; a free-text line carries no ItemCode."""
+
+    Description: str
+    Quantity: float
+    UnitAmount: float
+    AccountCode: NotRequired[str]
+    ItemCode: NotRequired[str]
+
+
+class PurchaseOrderBody(TypedDict):
+    """One purchase order as Xero's upsert route takes it.
+
+    The keys the SDK model serialised to once None values were stripped, read
+    off the request the restore seed sent on 2026-10-04. PurchaseOrderID is
+    present for an update and absent for a create.
+    """
+
+    PurchaseOrderNumber: str
+    Contact: PurchaseOrderContactBody
+    LineItems: list[PurchaseOrderLineBody]
+    Date: str
+    Status: str
+    HasAttachments: bool
+    PurchaseOrderID: NotRequired[str]
+    DeliveryDate: NotRequired[str]
+    Reference: NotRequired[str]
 
 
 class XeroAccountingProvider:
@@ -445,28 +483,62 @@ class XeroAccountingProvider:
 
     # --- Purchase orders ---
 
+    @staticmethod
+    def purchase_order_body(payload: POPayload) -> PurchaseOrderBody:
+        """One purchase order as Xero's upsert route takes it.
+
+        Public because the restore seed sends the same body fifty to a call
+        (apps/xero/seeding.py); a second builder there would be free to drift
+        from what a push sends for the same order.
+
+        Built key by key rather than serialised from the SDK model: that route
+        goes through helpers typed ``Any``, so the declared shape was never
+        checked against what was sent. The two False flags are what the SDK
+        model added to every body, kept so the request is unchanged.
+        """
+        lines: list[PurchaseOrderLineBody] = []
+        for item in payload.line_items:
+            # float, not Decimal: the wire format is a JSON number either way,
+            # as in _build_line_items.
+            line: PurchaseOrderLineBody = {
+                "Description": item.description,
+                "Quantity": float(item.quantity),
+                "UnitAmount": float(item.unit_amount),
+            }
+            if item.account_code is not None:
+                line["AccountCode"] = item.account_code
+            if item.item_code is not None:
+                line["ItemCode"] = item.item_code
+            lines.append(line)
+
+        body: PurchaseOrderBody = {
+            "PurchaseOrderNumber": payload.po_number,
+            "Contact": {
+                "ContactID": payload.supplier_external_id,
+                "Name": payload.supplier_name,
+                "HasAttachments": False,
+                "HasValidationErrors": False,
+            },
+            "LineItems": lines,
+            "Date": payload.date.isoformat(),
+            "Status": payload.status,
+            "HasAttachments": False,
+        }
+        if payload.external_id:
+            body["PurchaseOrderID"] = payload.external_id
+        if payload.delivery_date:
+            body["DeliveryDate"] = payload.delivery_date.isoformat()
+        if payload.reference:
+            body["Reference"] = payload.reference
+        return body
+
     def _create_or_update_purchase_order(self, payload: POPayload) -> DocumentResult:
         """Shared implementation for PO create and update (both are one upsert call)."""
         api, tenant_id = self._get_api()
 
-        po_kwargs: dict[str, Any] = {
-            "purchase_order_number": payload.po_number,
-            "contact": Contact(contact_id=payload.supplier_external_id, name=payload.supplier_name),
-            "line_items": self._build_line_items(payload.line_items),
-            "date": payload.date.isoformat(),
-            "status": payload.status,
-        }
-        if payload.external_id:
-            po_kwargs["purchase_order_id"] = payload.external_id
-        if payload.delivery_date:
-            po_kwargs["delivery_date"] = payload.delivery_date.isoformat()
-        if payload.reference:
-            po_kwargs["reference"] = payload.reference
-
-        xero_po = PurchaseOrder(**po_kwargs)
         response = api.update_or_create_purchase_orders(
             tenant_id,
-            purchase_orders={"PurchaseOrders": [self._to_xero_payload(xero_po)]},
+            purchase_orders={"PurchaseOrders": [self.purchase_order_body(payload)]},
             summarize_errors=False,
         )
         if not response.purchase_orders:

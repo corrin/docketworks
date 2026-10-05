@@ -205,14 +205,15 @@ if [[ "$E2E" == "true" ]]; then
         echo "127.0.0.1 $FQDN # verify-instance.sh --e2e" >> /etc/hosts
     fi
 
-    # Playwright and its browser. The release's node_modules were removed
-    # after its build (release-utils.sh); the browser lives beside the
-    # releases, shared and readable by every instance user.
+    # Playwright and its browsers: Chromium for the desktop and Android
+    # projects, WebKit for the iPhone one. The release's node_modules were
+    # removed after its build (release-utils.sh); the browsers live beside
+    # the releases, shared and readable by every instance user.
     if [[ ! -d "$RELEASE_DIR/frontend/node_modules" ]]; then
         echo "E2E: installing the release's frontend dev dependencies..."
         sudo -u docketworks npm ci --prefix "$RELEASE_DIR/frontend" --include=dev --cache "$BASE_DIR/.npm-cache"
     fi
-    "$RELEASE_DIR/frontend/node_modules/.bin/playwright" install --with-deps chromium
+    "$RELEASE_DIR/frontend/node_modules/.bin/playwright" install --with-deps chromium webkit
     chmod -R a+rX "$PLAYWRIGHT_BROWSERS_PATH"
 
     # The window env: the instance's own, then the lines that win over it in

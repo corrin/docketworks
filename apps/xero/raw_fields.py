@@ -24,7 +24,6 @@ from apps.accounting.models import (
 )
 from apps.company.models import Company, ContactMethod, SupplierPickupAddress
 from apps.core.errors import AppErrorContext, persist_app_error
-from apps.xero.auth import get_tenant_id
 from apps.xero.constants import XERO_CONTACT_STATUSES
 from apps.xero.models import XeroAccount
 
@@ -249,9 +248,14 @@ def set_invoice_or_bill_fields(  # noqa: C901, PLR0912, PLR0915 -- ported v1 sha
 
 
 def set_company_fields(  # noqa: C901, PLR0912, PLR0915 -- ported v1 shape; each branch is one Xero payload quirk
-    company: Company, new_from_xero: bool = False
+    company: Company, new_from_xero: bool = False, *, tenant_id: str
 ) -> None:
-    """Set company fields from raw_json (name, email, address, archive state, phones)."""
+    """Set company fields from raw_json (name, email, address, archive state, phones).
+
+    ``tenant_id`` is the organisation the payload was fetched from: the
+    caller's, not a fresh read here, so a contact and the documents synced in
+    the same run cannot disagree about where they came from.
+    """
     raw_json = company.raw_json
     if not raw_json:
         # v1 carried a self-confessed "BUG BUG BUG" fallback block here that
@@ -288,7 +292,7 @@ def set_company_fields(  # noqa: C901, PLR0912, PLR0915 -- ported v1 shape; each
         # tenant cannot be attributed to an org, so "is this link ours?" stops
         # being answerable from the row. company.save() below is a full save,
         # so no update_fields list needs the extra name.
-        company.xero_tenant_id = get_tenant_id()
+        company.xero_tenant_id = tenant_id
 
     # xero_archived mirrors Xero in both directions. allow_jobs follows only
     # on the transitions — archiving disables it, un-archiving restores it —

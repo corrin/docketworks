@@ -35,6 +35,7 @@ def test_the_cleanup_deletes_the_document_and_archives_the_contact(
     company = Company.objects.create(
         name="[TEST] Residue Co",
         xero_contact_id=str(uuid.uuid4()),
+        xero_tenant_id="test-tenant",
         xero_last_modified=timezone.now(),
     )
     seed_contacts(fake_xero)
