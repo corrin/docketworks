@@ -125,7 +125,18 @@ export function WeeklyOverviewPage({
         </Button>
       </div>
 
-      <PayrollPanel weekStart={weekStart} payroll={payroll} onSelectWeek={onWeekChange} />
+      <PayrollPanel
+        weekStart={weekStart}
+        payroll={payroll}
+        heldBack={(weekQuery.data?.staff_data ?? [])
+          .filter((staff) => staff.total_unapproved_hours > 0)
+          .map((staff) => ({
+            staffId: staff.staff_id,
+            name: staff.staff_name,
+            hours: staff.total_unapproved_hours,
+          }))}
+        onSelectWeek={onWeekChange}
+      />
 
       <QueryState
         isPending={weekQuery.isPending}
@@ -177,6 +188,8 @@ function WeekTable({
               </th>
             ))}
             <th className="w-24 px-2 py-2">Total</th>
+            {/* Hours the office has not approved: payroll does not post them. */}
+            <th className="w-24 px-2 py-2">Held back</th>
             <th className="w-24 px-2 py-2">Billable</th>
             <th className="w-28 px-2 py-2">Cost</th>
           </tr>
@@ -195,6 +208,7 @@ function WeekTable({
             <td className="px-2 py-2" data-automation-id="WeeklyOverview-totalHours">
               {week.weekly_summary.total_hours}h
             </td>
+            <td className="px-2 py-2" />
             <td className="px-2 py-2">
               {formatPercentage(week.weekly_summary.billable_percentage ?? 0)}
             </td>
@@ -279,6 +293,12 @@ function StaffWeekRow({
         <td className="px-2 py-2" data-automation-id={`WeeklyOverview-total-${staff.staff_id}`}>
           {staff.total_hours}h
         </td>
+        <td
+          className={`px-2 py-2 ${staff.total_unapproved_hours > 0 ? 'font-semibold text-amber-800' : 'text-slate-400'}`}
+          data-automation-id={`WeeklyOverview-heldBack-${staff.staff_id}`}
+        >
+          {staff.total_unapproved_hours > 0 ? `${staff.total_unapproved_hours}h` : '—'}
+        </td>
         <td className="px-2 py-2">{formatPercentage(staff.billable_percentage)}</td>
         <td className="px-2 py-2">{formatCurrency(staff.weekly_cost)}</td>
       </tr>
@@ -319,6 +339,7 @@ function PayrollBreakdownRows({ staff }: { staff: WeeklyStaffDataOut }) {
             </td>
           ))}
           <td className="px-2 py-1">{staff[row.total]}h</td>
+          <td className="px-2 py-1" />
           <td className="px-2 py-1" />
           <td className="px-2 py-1" />
         </tr>

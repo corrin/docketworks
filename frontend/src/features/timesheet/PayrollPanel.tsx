@@ -26,6 +26,9 @@ import type { UsePayrollWeekResult } from './usePayrollWeek'
 export interface PayrollPanelProps {
   weekStart: string
   payroll: UsePayrollWeekResult
+  /** Staff with hours the office has not approved this week. Posting pays
+      approved time only, so these are named before the button is pressed. */
+  heldBack: { staffId: string; name: string; hours: number }[]
   /** Navigate the page to another week (the banner's "Go to that week"). */
   onSelectWeek: (week: string) => void
 }
@@ -36,7 +39,7 @@ const PAY_RUN_WORDING = {
   missing: 'Pay run not created yet',
 } as const
 
-export function PayrollPanel({ weekStart, payroll, onSelectWeek }: PayrollPanelProps) {
+export function PayrollPanel({ weekStart, payroll, heldBack, onSelectWeek }: PayrollPanelProps) {
   if (payroll.loadFailed) {
     // Opus: A failed read must not render as "no pay run exists" — the wording
     // below would then misdescribe a week that may already have one.
@@ -100,6 +103,17 @@ export function PayrollPanel({ weekStart, payroll, onSelectWeek }: PayrollPanelP
           >
             Go to that week
           </button>
+        </p>
+      )}
+
+      {heldBack.length > 0 && (
+        <p
+          className="rounded bg-amber-50 p-2 text-xs text-amber-900"
+          data-automation-id="PayrollPanel-heldBack"
+        >
+          Not approved, so not paid by this post:{' '}
+          {heldBack.map((row) => `${row.name} ${row.hours}h`).join(', ')}. Approve the entries first
+          to pay them this week.
         </p>
       )}
 

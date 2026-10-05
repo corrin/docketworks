@@ -13,12 +13,20 @@ import timeGridPlugin from '@fullcalendar/react/timegrid'
 
 import type { MyTimeCalendarEvent } from './myTime'
 
-function renderEventContent(arg: EventDisplayInfo) {
-  return (
-    <div className="overflow-hidden px-1 text-xs" data-event-id={arg.event.id}>
-      <span className="font-medium">{arg.timeText}</span> {arg.event.title}
-    </div>
-  )
+/** The block's own text: time, job, then where the entry stands, in words
+    so the state does not rest on colour. */
+function eventContent(marksById: Map<string, string[]>) {
+  return function renderEventContent(arg: EventDisplayInfo) {
+    const marks = marksById.get(arg.event.id) ?? []
+    return (
+      <div className="overflow-hidden px-1 text-xs" data-event-id={arg.event.id}>
+        <span className="font-medium">{arg.timeText}</span> {arg.event.title}
+        <span className="ml-1 font-semibold" data-automation-id="WorkshopTimesheetCalendar-marks">
+          {marks.join(' · ')}
+        </span>
+      </div>
+    )
+  }
 }
 
 interface WorkshopTimesheetCalendarProps {
@@ -45,6 +53,7 @@ export function WorkshopTimesheetCalendar({
   onEventClick,
   onSlotClick,
 }: WorkshopTimesheetCalendarProps) {
+  const marksById = new Map(events.map((event) => [event.id, event.marks]))
   return (
     <div
       className="rounded-lg border border-gray-200 bg-white p-2 shadow-sm"
@@ -66,13 +75,13 @@ export function WorkshopTimesheetCalendar({
         // 24h faces, matching every other timesheet surface.
         slotHeaderFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
         eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
-        events={events}
+        events={events.map(({ id, title, start, end }) => ({ id, title, start, end }))}
         eventClick={(info) => onEventClick(info.event.id)}
         dateClick={(info) => {
           const [, time] = info.dateStr.split('T')
           if (time) onSlotClick(time.slice(0, 5))
         }}
-        eventContent={renderEventContent}
+        eventContent={eventContent(marksById)}
       />
     </div>
   )

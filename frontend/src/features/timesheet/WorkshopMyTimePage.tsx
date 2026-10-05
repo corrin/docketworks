@@ -5,6 +5,7 @@ import { useState } from 'react'
 import type { WorkshopTimesheetEntryOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
+import { meQueryOptions } from '@/features/auth'
 import { QueryState } from '@/features/shared/QueryState'
 import { SummaryCard } from '@/features/shared/SummaryCard'
 import { companyDefaultsQueryOptions } from '@/features/shell'
@@ -14,6 +15,8 @@ import { shiftDate } from '@/lib/dates'
 import {
   calendarEvent,
   distinctJobCount,
+  entryLockedFor,
+  entryMarks,
   rateLabel,
   splitDayEntries,
   workingDayStart,
@@ -45,10 +48,12 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
   // Already in the cache: the shell loads the company defaults before any
   // authed route renders.
   const { data: companyDefaults } = useSuspenseQuery(companyDefaultsQueryOptions())
+  const { data: user } = useSuspenseQuery(meQueryOptions())
   const [drawer, setDrawer] = useState<EntryDrawerState>({ mode: 'closed' })
 
   const entries = day.dayQuery.data?.entries ?? []
   const summary = day.dayQuery.data?.summary
+  const week = day.dayQuery.data?.week
   const { timed, untimed } = splitDayEntries(entries)
   const jobCount = distinctJobCount(entries)
 
@@ -108,6 +113,20 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
           >
             {formatHoursDisplay(summary?.non_billable_hours)}
           </SummaryCard>
+          {/* The week payroll pays by: approved hours are paid, waiting hours
+              are not until the office approves them. */}
+          <SummaryCard
+            label="Approved this week"
+            valueAutomationId="WorkshopTimesheetSummaryCard-week-approved-hours"
+          >
+            {formatHoursDisplay(week?.approved_hours)}
+          </SummaryCard>
+          <SummaryCard
+            label="Waiting this week"
+            valueAutomationId="WorkshopTimesheetSummaryCard-week-waiting-hours"
+          >
+            {formatHoursDisplay(week?.waiting_hours)}
+          </SummaryCard>
         </div>
         <div className="flex items-center gap-2">
           <span
@@ -160,6 +179,7 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
         {untimed.length > 0 && (
           <UntimedEntries
             entries={untimed}
+            isLocked={(entry) => entryLockedFor(entry, user)}
             deleting={day.saving}
             onEdit={openEdit}
             onDelete={(entryId) => void day.deleteEntry(entryId)}
@@ -169,6 +189,7 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
 
       <WorkshopTimesheetEntryDrawer
         state={drawer}
+        locked={drawer.mode === 'edit' && entryLockedFor(drawer.entry, user)}
         date={date}
         dayEntries={entries}
         dayStart={workingDayStart(date, companyDefaults)}
@@ -189,11 +210,13 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
  */
 function UntimedEntries({
   entries,
+  isLocked,
   deleting,
   onEdit,
   onDelete,
 }: {
   entries: WorkshopTimesheetEntryOut[]
+  isLocked: (entry: WorkshopTimesheetEntryOut) => boolean
   deleting: boolean
   onEdit: (entryId: string) => void
   onDelete: (entryId: string) => void
@@ -230,6 +253,15 @@ function UntimedEntries({
                 >
                   {entry.is_billable ? 'Billable' : 'Non-billable'}
                 </span>
+                {entryMarks(entry).map((mark) => (
+                  <span
+                    key={mark}
+                    className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-700"
+                    data-automation-id={`WorkshopMyTimePage-untimed-mark-${entry.id}`}
+                  >
+                    {mark}
+                  </span>
+                ))}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -249,7 +281,7 @@ function UntimedEntries({
                 size="icon"
                 className={TOUCH_TARGET_CLASS}
                 aria-label="Delete entry"
-                disabled={deleting}
+                disabled={deleting || isLocked(entry)}
                 data-automation-id={`WorkshopMyTimePage-untimed-delete-${entry.id}`}
                 onClick={() => onDelete(entry.id)}
               >

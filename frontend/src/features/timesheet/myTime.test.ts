@@ -10,6 +10,8 @@ import {
   defaultNewEntryRange,
   deriveHoursFromTimes,
   distinctJobCount,
+  entryLockedFor,
+  entryMarks,
   entryUpdateBody,
   eventTitle,
   fillGapToNextEntry,
@@ -431,6 +433,30 @@ describe('calendarEvent', () => {
       title: '#42 Handrail (2h 30m)',
       start: '2026-08-26T08:00:00',
       end: '2026-08-26T10:30:00',
+      marks: ['Waiting'],
     })
+  })
+})
+
+describe('entryMarks', () => {
+  it('says Waiting until the office approves, then Approved', () => {
+    expect(entryMarks(makeEntry({ approved: false }))).toEqual(['Waiting'])
+    expect(entryMarks(makeEntry({ approved: true }))).toEqual(['Approved'])
+  })
+
+  it('adds Entered late beside either state', () => {
+    expect(entryMarks(makeEntry({ approved: false, entered_late: true }))).toEqual([
+      'Waiting',
+      'Entered late',
+    ])
+  })
+})
+
+describe('entryLockedFor', () => {
+  it('locks an approved entry for a worker and leaves it open to the office', () => {
+    const approved = makeEntry({ approved: true })
+    expect(entryLockedFor(approved, { is_office_staff: false })).toBe(true)
+    expect(entryLockedFor(approved, { is_office_staff: true })).toBe(false)
+    expect(entryLockedFor(makeEntry({ approved: false }), { is_office_staff: false })).toBe(false)
   })
 })

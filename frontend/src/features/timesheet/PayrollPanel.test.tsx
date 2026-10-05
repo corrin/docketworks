@@ -43,7 +43,12 @@ function renderPanel(
   return {
     onSelectWeek,
     ...renderWithProviders(
-      <PayrollPanel weekStart={weekStart} payroll={payroll} onSelectWeek={onSelectWeek} />,
+      <PayrollPanel
+        weekStart={weekStart}
+        payroll={payroll}
+        heldBack={[]}
+        onSelectWeek={onSelectWeek}
+      />,
     ),
   }
 }

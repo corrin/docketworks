@@ -35,6 +35,31 @@ export interface MyTimeCalendarEvent {
   title: string
   start: string
   end: string
+  /** Where the entry stands, as words to print on the block. */
+  marks: string[]
+}
+
+/**
+ * Where an entry stands, as the words the worker reads on it. Each mark is a
+ * boolean the server computed; this is the one place they become labels, so
+ * the calendar block, the untimed list and the drawer cannot disagree.
+ */
+export function entryMarks(entry: WorkshopTimesheetEntryOut): string[] {
+  const marks = [entry.approved ? 'Approved' : 'Waiting']
+  if (entry.entered_late) marks.push('Entered late')
+  return marks
+}
+
+/**
+ * Whether this person may no longer change the entry. Approved time is what
+ * payroll pays, so only the office changes it; the server refuses the write
+ * either way, and this keeps the drawer from offering one it will refuse.
+ */
+export function entryLockedFor(
+  entry: WorkshopTimesheetEntryOut,
+  user: { is_office_staff: boolean },
+): boolean {
+  return entry.approved && !user.is_office_staff
 }
 
 const TIME_PATTERN = /^(\d{2}):(\d{2})/
@@ -354,5 +379,6 @@ export function calendarEvent(entry: TimedEntry): MyTimeCalendarEvent {
     title: eventTitle(entry),
     start: `${entry.accounting_date}T${entry.start_time}`,
     end: `${entry.accounting_date}T${entry.end_time}`,
+    marks: entryMarks(entry),
   }
 }
