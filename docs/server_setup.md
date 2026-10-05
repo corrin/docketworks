@@ -423,7 +423,9 @@ sudoedit /opt/docketworks/config/<name>.e2e.env   # E2E_TEST_USERNAME= / E2E_TES
 # Workspace, tagged with the environment: name+e2e-uat@ on UAT, name+e2e-prod@ on
 # production. E2E_RESET_MAILBOX_OWNER is that mailbox's Workspace user (name@). The
 # password-reset spec emails the first and reads the second, so the Workspace's delegation
-# must grant gmail.readonly (docs/client_onboarding.md); without it the run refuses at preflight.
+# must grant both gmail.send and gmail.readonly (docs/client_onboarding.md). Without
+# gmail.readonly the spec refuses before it sends anything; without gmail.send no email
+# arrives, the spec times out waiting for the link, and the failed send is an AppError row.
 
 sudo scripts/server/verify-instance.sh <client> <env> --e2e                # uat
 sudo scripts/server/verify-instance.sh <client> prod --e2e --production   # PVT

@@ -112,6 +112,22 @@ def test_refuses_without_the_workshop_credentials(monkeypatch: pytest.MonkeyPatc
         _run()
 
 
+@pytest.mark.usefixtures("credentials")
+def test_refuses_when_the_two_usernames_are_one_address(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Both passes look the user up case-insensitively, so one address is one row.
+
+    Left alone the workshop pass would take the office user's access off it and
+    replace its password, then report both users created.
+    """
+    monkeypatch.setenv("E2E_TEST_USERNAME", E2E_EMAIL)
+    monkeypatch.setenv("E2E_WORKSHOP_USERNAME", E2E_EMAIL.upper())
+
+    with pytest.raises(CommandError, match="name the same address"):
+        _run()
+
+    assert not Staff.objects.filter(office_email__iexact=E2E_EMAIL).exists()
+
+
 def test_refuses_without_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("E2E_TEST_USERNAME", raising=False)
     monkeypatch.delenv("E2E_TEST_PASSWORD", raising=False)
