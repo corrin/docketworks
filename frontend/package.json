@@ -72,7 +72,7 @@
     "debug": "4.4.3",
     "dotenv": "18.0.5",
     "jsdom": "30.1.2",
-    "msw": "3.0.2",
+    "msw": "2.15.0",
     "oxlint": "1.86.0",
     "oxlint-tsgolint": "7.0.2003",
     "prettier": "3.9.9",
@@ -85,7 +85,7 @@
   },
   "//": [
     "overrides.js-yaml: @hey-api/json-schema-ref-parser pins js-yaml exactly at 4.2.0, which is vulnerable (GHSA-52cp-r559-cp3m, GHSA-5p4m-2wfm-xmqj, GHSA-2883-xcg3-v3hh); the override forces 4.3.2, the newest patched 4.x that still satisfies @apidevtools/json-schema-ref-parser's ^4.2.0. A transitive package, not a deferral (ADR 0033).",
-    "ADR 0033 — deliberately deferring msw 3.0.1 (2026-10-01): the kanban push-channel fixture (src/features/kanban/useKanbanReconciliation.stream.test.tsx) serves an SSE body through http.get and drops the socket with controller.error(); under 3.0.1 the client sees neither that error nor the unmount abort, so three tests go red with every other package at latest. msw 3 adds an sse() handler built around EventSource while the generated client reads the stream over fetch, so moving the fixture is a rewrite, not a rename. Retry next sweep."
+    "ADR 0033 — deliberately deferring msw 3.0.2 (2026-10-05): the kanban push-channel fixture (src/features/kanban/useKanbanReconciliation.stream.test.tsx) serves an SSE body through http.get and drops the socket with controller.error(); under 3.0.2, as under 3.0.1, the client sees neither that error nor the unmount abort, so three tests go red with msw alone at latest and are green with it alone restored. msw 3 also renames onUnhandledRequest to onUnhandledFrame, which src/test/setup.ts would need. msw 3 adds an sse() handler built around EventSource while the generated client reads the stream over fetch, so moving the fixture is a rewrite, not a rename. Retry next sweep."
   ],
   "overrides": {
     "js-yaml": "4.3.2"
