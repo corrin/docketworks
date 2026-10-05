@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 122,751 (v1 172,577, -29%) |
-| tests | 87,469 (v1 50,869, +72%) |
-| generated | 53,022 (v1 20,359, +160%) |
+| code | 122,988 (v1 172,577, -29%) |
+| tests | 87,642 (v1 50,869, +72%) |
+| generated | 53,458 (v1 20,359, +163%) |
 
 ## Suppressions
 
@@ -31,11 +31,11 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 778 |
+| TOTAL suppressions | 779 |
 | noqa: DJ001 | 196 |
 | noqa: PLC0415 | 152 |
 | noqa: E402 | 106 |
-| noqa: PLR0913 | 56 |
+| noqa: PLR0913 | 57 |
 | noqa: ARG002 | 38 |
 | noqa: BLE001 | 35 |
 | noqa: ARG001 | 23 |
@@ -91,9 +91,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 444 |
-| except handlers | 473 |
-| re-raises or converts | 305 |
+| try statements | 446 |
+| except handlers | 475 |
+| re-raises or converts | 307 |
 | returns instead | 98 |
 | falls through | 55 |
 | continue/break in a loop | 14 |
@@ -115,8 +115,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 253 |
-| non-test functions | 3035 |
+| functions returning `X \| None` | 252 |
+| non-test functions | 3050 |
 
 ## Broad type annotations
 
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 239 |
-| object annotations | 688 |
+| object annotations | 693 |
 
 ## Wire contract (response side)
 
@@ -133,8 +133,8 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 325 |
-| response properties | 2089 |
+| response schemas | 326 |
+| response properties | 2099 |
 | optional (pinned at zero) | 0 |
 | nullable | 462 |
 

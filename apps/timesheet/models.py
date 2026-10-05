@@ -252,6 +252,10 @@ class AttendanceDay(models.Model):
     clock_out = models.TimeField(null=True, blank=True)
     # NULL until the day is sent to the office.
     submitted_at = models.DateTimeField(null=True, blank=True)
+    # The workshop's usual breaks are put on a day once, the first time it has
+    # both clock times. After that they are the worker's: nothing puts back one
+    # he removed or moved.
+    breaks_generated = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -271,6 +275,40 @@ class AttendanceDay(models.Model):
 
     def __str__(self) -> str:
         return f"{self.staff.get_display_name()} on {self.date}"
+
+
+class AttendanceBreak(models.Model):
+    """A break in one person's day: when it was, and whether it was paid.
+
+    A day is shown to the worker as a timeline to remember it by: started,
+    a paid break, an unpaid break, finished. Breaks belong to the day and not
+    to job costing, so no time, cost or pay figure ever reads this table. An
+    unpaid break comes off the hours the worker has to fill; a paid one is a
+    marker only, because that time is paid and billed with the job in hand.
+    Breaks are his to move, remove or add; they may overlap anything.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    attendance_day = models.ForeignKey(
+        AttendanceDay, on_delete=models.CASCADE, related_name="breaks"
+    )
+    start = models.TimeField()
+    end = models.TimeField()
+    paid = models.BooleanField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["start", "created_at", "id"]
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.CheckConstraint(
+                condition=Q(end__gt=models.F("start")),
+                name="timesheet_attendance_break_end_after_start",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        kind = "Paid" if self.paid else "Unpaid"
+        return f"{kind} break {self.start:%H:%M} to {self.end:%H:%M}"
 
 
 def _moved(old: JsonScalar, new: JsonScalar) -> str:

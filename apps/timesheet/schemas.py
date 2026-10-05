@@ -319,6 +319,32 @@ class EntryLocationIn(Schema):
     longitude: float = Field(ge=-180, le=180)
 
 
+class BreakOut(Schema):
+    """One break in a person's day. Breaks are in no hours, cost or pay figure."""
+
+    id: UUID
+    start: time
+    end: time
+    paid: bool
+
+
+class BreakCreateRequest(Schema):
+    """A break added to a day. ``staff_id`` is for office staff correcting another's day."""
+
+    date: date
+    start: time
+    end: time
+    paid: bool
+    staff_id: UUID | None = None
+
+
+class BreakUpdateRequest(Schema):
+    """A break moved or resized."""
+
+    start: time
+    end: time
+
+
 class FillOut(Schema):
     """Hours to fill, entered and to go for a clocked day, all worked out by the server.
 
@@ -388,6 +414,7 @@ class WorkshopTimesheetListResponse(Schema):
     summary: WorkshopTimesheetSummaryOut
     week: WorkshopTimesheetWeekOut
     day: AttendanceOut
+    breaks: list[BreakOut]
     fill: FillOut | None
     calendar: CalendarBoundsOut
     pending: PendingDayOut | None
@@ -404,6 +431,7 @@ class StaffApprovalOut(Schema):
     entered_late: bool
     remote_entry: bool
     clock: AttendanceOut
+    breaks: list[BreakOut]
     entries: list[WorkshopTimesheetEntryOut]
 
 

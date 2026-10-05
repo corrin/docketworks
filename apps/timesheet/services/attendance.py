@@ -12,13 +12,15 @@ message.
 from datetime import date, datetime, time
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal, NamedTuple, TypedDict
+from uuid import UUID
 
 from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.core.errors import AccessDeniedError, ConflictError, InvalidInputError
-from apps.timesheet.models import AttendanceDay
+from apps.core.models import CompanyDefaults
+from apps.timesheet.models import AttendanceBreak, AttendanceDay
 
 #: Where a person's day stands, from their attendance row alone.
 DayState = Literal["not_clocked_in", "at_work", "clocked_out", "sent"]
@@ -65,25 +67,46 @@ def _here_hours(row: AttendanceDay) -> float | None:
     return round(minutes / 60, 2)
 
 
-class LunchWindow(NamedTuple):
-    """The unpaid break inside a clocked day."""
+class Window(NamedTuple):
+    """A stretch of a day."""
 
     start: time
     end: time
 
 
-def lunch_window(row: AttendanceDay | None) -> LunchWindow | None:
-    """Return the day's unpaid lunch break, or None when the day has none.
+class BreakData(TypedDict):
+    """One break in a person's day, for the calendar and the office's row."""
 
-    The one source of a day's lunch: the hours to fill, the layout of filled
-    rows, the day read and the calendar all ask here and nowhere else.
+    id: str
+    start: time
+    end: time
+    paid: bool
 
-    Fable: How lunch is stored is with the owner (KAN-376, 2026-10-06), so
-    until that is ruled no day has one. The settings that say when lunch is
-    (``CompanyDefaults.lunch_start`` / ``lunch_minutes``) are already in.
+
+def day_breaks(row: AttendanceDay | None) -> list[AttendanceBreak]:
+    """Return the day's breaks in the order they happened.
+
+    With ``unpaid_windows`` this is the only reader of the breaks table: the
+    day read and the calendar ask here, the arithmetic and the layout ask
+    there, and no time, cost or pay figure asks at all.
     """
-    del row
-    return None
+    if row is None:
+        return []
+    return list(row.breaks.all())
+
+
+def unpaid_windows(row: AttendanceDay | None) -> list[Window]:
+    """Return the day's unpaid breaks: what comes off the hours to fill.
+
+    A paid break is not here because it changes nothing: that time is paid
+    and billed with the job in hand, so entries run through it.
+    """
+    return [Window(each.start, each.end) for each in day_breaks(row) if not each.paid]
+
+
+def break_data(each: AttendanceBreak) -> BreakData:
+    """Shape one break for the wire."""
+    return {"id": str(each.id), "start": each.start, "end": each.end, "paid": each.paid}
 
 
 def _minutes(moment: time) -> int:
@@ -107,26 +130,28 @@ class FillData(TypedDict):
     to_go_hours: float
 
 
-def paid_span_hours(start: time, finish: time, lunch: LunchWindow | None) -> Decimal:
-    """Hours between two clock times less lunch, to the nearest quarter hour.
+def paid_span_hours(start: time, finish: time, unpaid: list[Window]) -> Decimal:
+    """Hours between two clock times less unpaid breaks, to the nearest quarter hour.
 
+    Only the part of a break inside the clocked span comes off: one he moved
+    to before he started or after he finished does not shrink his day.
     Entries are in quarter hours and a real clock is not (06:28 to 15:04), so
     the span is rounded once here and nothing downstream shows "0.1 to go".
     """
-    minutes = _minutes(finish) - _minutes(start)
-    if lunch is not None:
-        minutes -= _minutes(lunch.end) - _minutes(lunch.start)
+    first, last = _minutes(start), _minutes(finish)
+    minutes = last - first
+    for window in unpaid:
+        inside = min(last, _minutes(window.end)) - max(first, _minutes(window.start))
+        minutes -= max(inside, 0)
     quarters = (Decimal(minutes) / QUARTER_HOUR_MINUTES).quantize(Decimal("1"), ROUND_HALF_UP)
     return quarters * QUARTER_HOUR_MINUTES / Decimal(60)
 
 
-def fill_figures(
-    row: AttendanceDay | None, lunch: LunchWindow | None, entered: Decimal
-) -> FillData | None:
+def fill_figures(row: AttendanceDay | None, entered: Decimal) -> FillData | None:
     """Return the day's fill figures, or None until both clock times are known."""
     if row is None or row.clock_out is None:
         return None
-    to_fill = paid_span_hours(row.clock_in, row.clock_out, lunch)
+    to_fill = paid_span_hours(row.clock_in, row.clock_out, unpaid_windows(row))
     return {
         "to_fill_hours": float(to_fill),
         "entered_hours": float(entered),
@@ -246,6 +271,7 @@ def clock_out(worker: Staff, now: datetime) -> AttendanceData:
     _require_finish_after_start(row.clock_in, finish)
     row.clock_out = finish
     row.save(update_fields=["clock_out", "updated_at"])
+    generate_default_breaks(row)
     return attendance_data(row)
 
 
@@ -279,4 +305,91 @@ def set_clock_times(
     row.clock_out = None if finish is None else finish.replace(second=0, microsecond=0)
     row.submitted_at = None
     row.save()
+    generate_default_breaks(row)
     return attendance_data(row)
+
+
+def _default_breaks() -> list[tuple[time, int, bool]]:
+    """Return the workshop's standard breaks as (start, minutes, paid), from company settings.
+
+    The one place the three settings pairs become breaks; the generator and
+    its callers never name one.
+    """
+    company = CompanyDefaults.get_solo()
+    return [
+        (company.morning_break_start, company.morning_break_minutes, True),
+        (company.lunch_start, company.lunch_minutes, False),
+        (company.afternoon_break_start, company.afternoon_break_minutes, True),
+    ]
+
+
+def generate_default_breaks(row: AttendanceDay) -> None:
+    """Put the workshop's usual breaks on a day, once, when it first has both times.
+
+    A break is put in when he was there for the whole of it; a length of 0 in
+    the settings means the workshop has no such break. Done once per day and
+    never again: the breaks are then his, and a later correction of the clock
+    times does not put back one he removed or moved. The cost, accepted by the
+    owner: a day first clocked short and later corrected to a full day gets no
+    breaks by itself; he or the office adds them.
+    """
+    if row.breaks_generated or row.clock_out is None:
+        return
+    for start, minutes, paid in _default_breaks():
+        end_minutes = _minutes(start) + minutes
+        if minutes == 0 or end_minutes > _minutes(row.clock_out) or start < row.clock_in:
+            continue
+        AttendanceBreak.objects.create(
+            attendance_day=row,
+            start=start,
+            end=time(end_minutes // 60, end_minutes % 60),
+            paid=paid,
+        )
+    row.breaks_generated = True
+    row.save(update_fields=["breaks_generated", "updated_at"])
+
+
+def _refuse_another_persons_day(owner_id: object, actor: Staff) -> None:
+    if actor.id != owner_id and not actor.is_office_staff:
+        raise AccessDeniedError("Only office staff change another person's breaks.")
+
+
+def _require_break_times(start: time, end: time) -> None:
+    if end <= start:
+        raise InvalidInputError("A break finishes after it starts.")
+
+
+@transaction.atomic
+def add_break(  # noqa: PLR0913 -- a break is its day, its two times, its kind and who adds it
+    owner: Staff, day: date, start: time, end: time, *, paid: bool, actor: Staff
+) -> None:
+    """Add a break to a day that has clock times.
+
+    The worker's own day, or anyone's for office staff.
+    """
+    _refuse_another_persons_day(owner.id, actor)
+    _require_break_times(start, end)
+    row = AttendanceDay.objects.filter(staff=owner, date=day).first()
+    if row is None:
+        raise ConflictError("Set the day's clock times before adding a break.")
+    AttendanceBreak.objects.create(attendance_day=row, start=start, end=end, paid=paid)
+
+
+def _break_for(break_id: UUID, actor: Staff) -> AttendanceBreak:
+    each = AttendanceBreak.objects.select_related("attendance_day").get(id=break_id)
+    _refuse_another_persons_day(each.attendance_day.staff_id, actor)
+    return each
+
+
+def change_break(break_id: UUID, start: time, end: time, actor: Staff) -> None:
+    """Move or resize a break. Nothing else moves, and a sent day stays sent."""
+    each = _break_for(break_id, actor)
+    _require_break_times(start, end)
+    each.start = start
+    each.end = end
+    each.save(update_fields=["start", "end"])
+
+
+def remove_break(break_id: UUID, actor: Staff) -> None:
+    """Take a break off the day: he worked through it, or it did not happen."""
+    _break_for(break_id, actor).delete()

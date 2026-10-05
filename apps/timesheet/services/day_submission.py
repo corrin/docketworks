@@ -2,7 +2,7 @@
 
 A worker says what he did as rows of a job and hours, and the day is laid out
 for him: the rows become entries placed end to end from when he clocked in,
-around lunch and around anything already on his calendar. He never works out
+around his unpaid break and around anything already on his calendar. He never works out
 a start or an end time, and never adds the day up.
 """
 
@@ -67,7 +67,7 @@ def lay_out_rows(
 ) -> list[LaidLine]:
     """Place rows end to end from clock-in, around the stretches already taken.
 
-    ``taken`` is lunch and every entry that already has times. A row that
+    ``taken`` is his unpaid breaks and every entry that already has times. A row that
     meets one is split into two lines on the same job, either side of it.
     Rows may run past when he clocked out: more hours than he was here for is
     allowed, and the office sees it.
@@ -124,9 +124,9 @@ def submit_day(
     if row is None or row.clock_out is None:
         raise ConflictError("Clock out before you send the day.")
     taken = [span for line in day_time_lines(worker, day) if (span := timed_span(line))]
-    lunch = attendance.lunch_window(row)
-    if lunch is not None:
-        taken.append((lunch.start, lunch.end))
+    # Unpaid breaks only: rows go round them. A paid break is not passed, so
+    # rows run through it, as the time in it is the job's.
+    taken.extend((window.start, window.end) for window in attendance.unpaid_windows(row))
     for line in lay_out_rows(row.clock_in, rows, taken):
         data: WorkshopEntryCreateData = {
             "job_id": line["job_id"],

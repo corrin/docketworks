@@ -43,11 +43,13 @@ from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth, SuperuserCookieJWTAuth
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.timesheet.models import TimesheetEvent
+from apps.timesheet.models import AttendanceBreak, TimesheetEvent
 from apps.timesheet.schemas import (
     ApprovalsDayOut,
     ApproveDayOut,
     AttendanceOut,
+    BreakCreateRequest,
+    BreakUpdateRequest,
     ClockRequest,
     ClockTimesRequest,
     DailyTimesheetSummaryOut,
@@ -565,6 +567,62 @@ def timesheets_my_day_times(
     return attendance.set_clock_times(
         owner, payload.date, payload.clock_in, payload.clock_out, actor
     )
+
+
+@router.post(
+    "/timesheets/my-day/breaks/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_breaks_create",
+    response={204: None},
+    summary="Add a break to a day",
+    tags=["timesheets"],
+)
+def timesheets_my_day_breaks_create(
+    request: HttpRequest, payload: BreakCreateRequest
+) -> Status[None]:
+    """Add a break to the caller's day, or for office staff to anyone's."""
+    actor = authenticated_staff(request)
+    owner = actor if payload.staff_id is None else get_object_or_404(Staff, id=payload.staff_id)
+    attendance.add_break(
+        owner, payload.date, payload.start, payload.end, paid=payload.paid, actor=actor
+    )
+    return Status(204, None)
+
+
+@router.put(
+    "/timesheets/my-day/breaks/{uuid:break_id}/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_breaks_update",
+    response={204: None},
+    summary="Move or resize a break",
+    tags=["timesheets"],
+)
+def timesheets_my_day_breaks_update(
+    request: HttpRequest, break_id: UUID, payload: BreakUpdateRequest
+) -> Status[None]:
+    """Move or resize a break on the caller's day, or for office staff on anyone's."""
+    try:
+        attendance.change_break(break_id, payload.start, payload.end, authenticated_staff(request))
+    except AttendanceBreak.DoesNotExist as exc:
+        raise HttpError(404, "Break not found.") from exc
+    return Status(204, None)
+
+
+@router.delete(
+    "/timesheets/my-day/breaks/{uuid:break_id}/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_breaks_delete",
+    response={204: None},
+    summary="Take a break off a day",
+    tags=["timesheets"],
+)
+def timesheets_my_day_breaks_delete(request: HttpRequest, break_id: UUID) -> Status[None]:
+    """Remove a break from the caller's day, or for office staff from anyone's."""
+    try:
+        attendance.remove_break(break_id, authenticated_staff(request))
+    except AttendanceBreak.DoesNotExist as exc:
+        raise HttpError(404, "Break not found.") from exc
+    return Status(204, None)
 
 
 @router.post(

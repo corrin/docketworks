@@ -16,7 +16,13 @@ from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.timesheet.models import AttendanceDay
-from apps.timesheet.services.attendance import AttendanceData, attendance_data
+from apps.timesheet.services.attendance import (
+    AttendanceData,
+    BreakData,
+    attendance_data,
+    break_data,
+    day_breaks,
+)
 from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
 from apps.timesheet.services.workshop_timesheet_service import (
     WorkshopEntryData,
@@ -47,6 +53,7 @@ class StaffApprovalData(TypedDict):
     #: Whether the person was here, a separate question from whether their
     #: time is approved: every pairing of the two is an ordinary day.
     clock: AttendanceData
+    breaks: list[BreakData]
     entries: list[WorkshopEntryData]
 
 
@@ -118,6 +125,7 @@ def _staff_day(
         "entered_late": any(entered_late(line) for line in waiting),
         "remote_entry": any(line.remote_entry for line in waiting),
         "clock": attendance_data(attendance),
+        "breaks": [break_data(each) for each in day_breaks(attendance)],
         "entries": [entry_data(line) for line in lines],
     }
 
@@ -134,7 +142,10 @@ def day_approvals(day: date) -> ApprovalsDayData:
     ).select_related("cost_set__job__company")
     for line in lines:
         by_staff.setdefault(str(line.staff_id), []).append(line)
-    clocked = {row.staff_id: row for row in AttendanceDay.objects.filter(date=day)}
+    clocked = {
+        row.staff_id: row
+        for row in AttendanceDay.objects.filter(date=day).prefetch_related("breaks")
+    }
     rows = [
         _staff_day(person, by_staff.get(str(person.id), []), clocked.get(person.id))
         for person in get_displayable_staff(target_date=day)

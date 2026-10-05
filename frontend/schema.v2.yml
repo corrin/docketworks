@@ -481,6 +481,78 @@ components:
       - error_id
       title: AuthErrorOut
       type: object
+    BreakCreateRequest:
+      description: A break added to a day. ``staff_id`` is for office staff correcting another's day.
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        end:
+          format: time
+          title: End
+          type: string
+        paid:
+          title: Paid
+          type: boolean
+        staff_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff Id
+        start:
+          format: time
+          title: Start
+          type: string
+      required:
+      - date
+      - start
+      - end
+      - paid
+      title: BreakCreateRequest
+      type: object
+    BreakOut:
+      description: One break in a person's day. Breaks are in no hours, cost or pay figure.
+      properties:
+        end:
+          format: time
+          title: End
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        paid:
+          title: Paid
+          type: boolean
+        start:
+          format: time
+          title: Start
+          type: string
+      required:
+      - id
+      - start
+      - end
+      - paid
+      title: BreakOut
+      type: object
+    BreakUpdateRequest:
+      description: A break moved or resized.
+      properties:
+        end:
+          format: time
+          title: End
+          type: string
+        start:
+          format: time
+          title: Start
+          type: string
+      required:
+      - start
+      - end
+      title: BreakUpdateRequest
+      type: object
     BuildId:
       description: 'Response body for /api/build-id/: the deployed backend''s git SHA.'
       properties:
@@ -767,6 +839,15 @@ components:
           - type: 'null'
           description: Raw JSON data from Google Places for the address above
           title: Address Raw Json
+        afternoon_break_minutes:
+          description: 'Length of the paid afternoon break in minutes: 5 to 120, or 0 for none.'
+          title: Afternoon Break Minutes
+          type: integer
+        afternoon_break_start:
+          description: When the workshop's paid afternoon break starts.
+          format: time
+          title: Afternoon Break Start
+          type: string
         city:
           anyOf:
           - maxLength: 100
@@ -984,7 +1065,7 @@ components:
           - type: 'null'
           title: Longitude
         lunch_minutes:
-          description: Length of the unpaid lunch break in minutes, between 5 and 120.
+          description: 'Length of the unpaid lunch break in minutes: 5 to 120, or 0 for none.'
           title: Lunch Minutes
           type: integer
         lunch_start:
@@ -1016,6 +1097,15 @@ components:
         mon_start:
           format: time
           title: Mon Start
+          type: string
+        morning_break_minutes:
+          description: 'Length of the paid morning break in minutes: 5 to 120, or 0 for none.'
+          title: Morning Break Minutes
+          type: integer
+        morning_break_start:
+          description: When the workshop's paid morning break starts.
+          format: time
+          title: Morning Break Start
           type: string
         po_prefix:
           description: Prefix for purchase order numbers (e.g., PO-, JO-)
@@ -1187,6 +1277,8 @@ components:
       - address_line1
       - address_line2
       - address_raw_json
+      - afternoon_break_minutes
+      - afternoon_break_start
       - city
       - company_acronym
       - company_email
@@ -1231,6 +1323,8 @@ components:
       - materials_markup
       - mon_end
       - mon_start
+      - morning_break_minutes
+      - morning_break_start
       - po_prefix
       - post_code
       - quote_expiry_days
@@ -1293,6 +1387,19 @@ components:
           - type: 'null'
           description: Raw JSON data from Google Places for the address above
           title: Address Raw Json
+        afternoon_break_minutes:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Length of the paid afternoon break in minutes: 5 to 120, or 0 for none.'
+          title: Afternoon Break Minutes
+        afternoon_break_start:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          description: When the workshop's paid afternoon break starts.
+          title: Afternoon Break Start
         city:
           anyOf:
           - maxLength: 100
@@ -1540,7 +1647,7 @@ components:
           anyOf:
           - type: integer
           - type: 'null'
-          description: Length of the unpaid lunch break in minutes, between 5 and 120.
+          description: 'Length of the unpaid lunch break in minutes: 5 to 120, or 0 for none.'
           title: Lunch Minutes
         lunch_start:
           anyOf:
@@ -1581,6 +1688,19 @@ components:
             type: string
           - type: 'null'
           title: Mon Start
+        morning_break_minutes:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Length of the paid morning break in minutes: 5 to 120, or 0 for none.'
+          title: Morning Break Minutes
+        morning_break_start:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          description: When the workshop's paid morning break starts.
+          title: Morning Break Start
         po_prefix:
           anyOf:
           - maxLength: 10
@@ -12296,6 +12416,11 @@ components:
     StaffApprovalOut:
       description: One person's day on the Approve time screen. No pay figures (KAN-376).
       properties:
+        breaks:
+          items:
+            $ref: '#/components/schemas/BreakOut'
+          title: Breaks
+          type: array
         clock:
           $ref: '#/components/schemas/AttendanceOut'
         entered_hours:
@@ -12338,6 +12463,7 @@ components:
       - entered_late
       - remote_entry
       - clock
+      - breaks
       - entries
       title: StaffApprovalOut
       type: object
@@ -15692,6 +15818,11 @@ components:
     WorkshopTimesheetListResponse:
       description: Wire contract for WorkshopTimesheetListResponse.
       properties:
+        breaks:
+          items:
+            $ref: '#/components/schemas/BreakOut'
+          title: Breaks
+          type: array
         calendar:
           $ref: '#/components/schemas/CalendarBoundsOut'
         date:
@@ -15723,6 +15854,7 @@ components:
       - summary
       - week
       - day
+      - breaks
       - fill
       - calendar
       - pending
@@ -23572,6 +23704,70 @@ paths:
       summary: Update Request
       tags:
       - leave
+  /api/timesheets/my-day/breaks/:
+    post:
+      description: Add a break to the caller's day, or for office staff to anyone's.
+      operationId: timesheets_my_day_breaks_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BreakCreateRequest'
+        required: true
+      responses:
+        '204':
+          description: No Content
+      security:
+      - CookieJWTAuth: []
+      summary: Add a break to a day
+      tags:
+      - timesheets
+  /api/timesheets/my-day/breaks/{break_id}/:
+    delete:
+      description: Remove a break from the caller's day, or for office staff from anyone's.
+      operationId: timesheets_my_day_breaks_delete
+      parameters:
+      - in: path
+        name: break_id
+        required: true
+        schema:
+          format: uuid
+          title: Break Id
+          type: string
+      responses:
+        '204':
+          description: No Content
+      security:
+      - CookieJWTAuth: []
+      summary: Take a break off a day
+      tags:
+      - timesheets
+    put:
+      description: Move or resize a break on the caller's day, or for office staff on anyone's.
+      operationId: timesheets_my_day_breaks_update
+      parameters:
+      - in: path
+        name: break_id
+        required: true
+        schema:
+          format: uuid
+          title: Break Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BreakUpdateRequest'
+        required: true
+      responses:
+        '204':
+          description: No Content
+      security:
+      - CookieJWTAuth: []
+      summary: Move or resize a break
+      tags:
+      - timesheets
   /api/timesheets/my-day/clock/:
     post:
       description: Stamp the caller's own day with the server's local time, to the minute.

@@ -661,6 +661,9 @@ introduced:
 - timesheets_my_day_clock
 - timesheets_my_day_times
 - timesheets_my_day_submit
+- timesheets_my_day_breaks_create
+- timesheets_my_day_breaks_update
+- timesheets_my_day_breaks_delete
 # One narrow job list for the admin screens that map a fixed kind of job. v1 had
 # no such screen, and its pickers were fed by whichever domain list the page
 # already loaded — which is how v2 briefly grew a third job-option schema.

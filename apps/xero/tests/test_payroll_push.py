@@ -8,7 +8,7 @@ are the E2E spec's job against the demo company.
 
 import uuid
 from collections.abc import Callable
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -24,8 +24,8 @@ from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.timesheet.models import LeaveType
-from apps.timesheet.services import hour_categories, leave_service
+from apps.timesheet.models import AttendanceBreak, LeaveType
+from apps.timesheet.services import attendance, hour_categories, leave_service
 from apps.timesheet.tests.conftest import (
     WEEK_START,
     make_leave_job,
@@ -321,6 +321,22 @@ class TestApprovalControlsPay:
 
         assert status.recorded_timesheet_hours == Decimal("5.000")
         assert status.matches
+
+    def test_breaks_never_appear_in_the_weeks_posted_lines(self, worker: Staff, job: Job) -> None:
+        """Breaks belong to the day, not to job costing: what is posted does not move."""
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        week = payroll_push._WeekWindow.of(WEEK_START)
+
+        def posted() -> list[tuple[object, Decimal]]:
+            lines = payroll_push._lines_by_staff(week, [worker.id])[worker.id]
+            return [(line.id, line.quantity) for line in lines]
+
+        without_breaks = posted()
+        attendance.set_clock_times(worker, WEEK_START, time(6, 30), time(15, 0), worker)
+        assert AttendanceBreak.objects.filter(attendance_day__staff=worker).count() == 3
+
+        assert posted() == without_breaks
+        payroll_push.validate_pay_items_for_week([worker.id], WEEK_START)
 
     def test_leave_entered_by_a_superuser_outside_the_office_still_reaches_payroll(
         self, company: Company, payroll_superuser: Staff, worker: Staff

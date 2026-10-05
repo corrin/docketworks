@@ -438,6 +438,74 @@ export type AuthErrorOut = {
 };
 
 /**
+ * BreakCreateRequest
+ *
+ * A break added to a day. ``staff_id`` is for office staff correcting another's day.
+ */
+export type BreakCreateRequest = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Paid
+     */
+    paid: boolean;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
+    /**
+     * Start
+     */
+    start: string;
+};
+
+/**
+ * BreakOut
+ *
+ * One break in a person's day. Breaks are in no hours, cost or pay figure.
+ */
+export type BreakOut = {
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Paid
+     */
+    paid: boolean;
+    /**
+     * Start
+     */
+    start: string;
+};
+
+/**
+ * BreakUpdateRequest
+ *
+ * A break moved or resized.
+ */
+export type BreakUpdateRequest = {
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Start
+     */
+    start: string;
+};
+
+/**
  * BuildId
  *
  * Response body for /api/build-id/: the deployed backend's git SHA.
@@ -713,6 +781,18 @@ export type CompanyDefaultsOut = {
         [key: string]: unknown;
     } | null;
     /**
+     * Afternoon Break Minutes
+     *
+     * Length of the paid afternoon break in minutes: 5 to 120, or 0 for none.
+     */
+    afternoon_break_minutes: number;
+    /**
+     * Afternoon Break Start
+     *
+     * When the workshop's paid afternoon break starts.
+     */
+    afternoon_break_start: string;
+    /**
      * City
      *
      * City
@@ -917,7 +997,7 @@ export type CompanyDefaultsOut = {
     /**
      * Lunch Minutes
      *
-     * Length of the unpaid lunch break in minutes, between 5 and 120.
+     * Length of the unpaid lunch break in minutes: 5 to 120, or 0 for none.
      */
     lunch_minutes: number;
     /**
@@ -950,6 +1030,18 @@ export type CompanyDefaultsOut = {
      * Mon Start
      */
     mon_start: string;
+    /**
+     * Morning Break Minutes
+     *
+     * Length of the paid morning break in minutes: 5 to 120, or 0 for none.
+     */
+    morning_break_minutes: number;
+    /**
+     * Morning Break Start
+     *
+     * When the workshop's paid morning break starts.
+     */
+    morning_break_start: string;
     /**
      * Po Prefix
      *
@@ -1147,6 +1239,18 @@ export type CompanyDefaultsPatchIn = {
         [key: string]: unknown;
     } | null;
     /**
+     * Afternoon Break Minutes
+     *
+     * Length of the paid afternoon break in minutes: 5 to 120, or 0 for none.
+     */
+    afternoon_break_minutes?: number | null;
+    /**
+     * Afternoon Break Start
+     *
+     * When the workshop's paid afternoon break starts.
+     */
+    afternoon_break_start?: string | null;
+    /**
      * City
      *
      * City
@@ -1335,7 +1439,7 @@ export type CompanyDefaultsPatchIn = {
     /**
      * Lunch Minutes
      *
-     * Length of the unpaid lunch break in minutes, between 5 and 120.
+     * Length of the unpaid lunch break in minutes: 5 to 120, or 0 for none.
      */
     lunch_minutes?: number | null;
     /**
@@ -1368,6 +1472,18 @@ export type CompanyDefaultsPatchIn = {
      * Mon Start
      */
     mon_start?: string | null;
+    /**
+     * Morning Break Minutes
+     *
+     * Length of the paid morning break in minutes: 5 to 120, or 0 for none.
+     */
+    morning_break_minutes?: number | null;
+    /**
+     * Morning Break Start
+     *
+     * When the workshop's paid morning break starts.
+     */
+    morning_break_start?: string | null;
     /**
      * Po Prefix
      *
@@ -10866,6 +10982,10 @@ export type SettingsSectionOut = {
  * One person's day on the Approve time screen. No pay figures (KAN-376).
  */
 export type StaffApprovalOut = {
+    /**
+     * Breaks
+     */
+    breaks: Array<BreakOut>;
     clock: AttendanceOut;
     /**
      * Entered Hours
@@ -13845,6 +13965,10 @@ export type WorkshopTimesheetEntryUpdateRequest = {
  * Wire contract for WorkshopTimesheetListResponse.
  */
 export type WorkshopTimesheetListResponse = {
+    /**
+     * Breaks
+     */
+    breaks: Array<BreakOut>;
     calendar: CalendarBoundsOut;
     /**
      * Date
@@ -20000,6 +20124,64 @@ export type TimesheetsLeaveRequestsUpdateResponses = {
 };
 
 export type TimesheetsLeaveRequestsUpdateResponse = TimesheetsLeaveRequestsUpdateResponses[keyof TimesheetsLeaveRequestsUpdateResponses];
+
+export type TimesheetsMyDayBreaksCreateData = {
+    body: BreakCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/breaks/';
+};
+
+export type TimesheetsMyDayBreaksCreateResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type TimesheetsMyDayBreaksCreateResponse = TimesheetsMyDayBreaksCreateResponses[keyof TimesheetsMyDayBreaksCreateResponses];
+
+export type TimesheetsMyDayBreaksDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Break Id
+         */
+        break_id: string;
+    };
+    query?: never;
+    url: '/api/timesheets/my-day/breaks/{break_id}/';
+};
+
+export type TimesheetsMyDayBreaksDeleteResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type TimesheetsMyDayBreaksDeleteResponse = TimesheetsMyDayBreaksDeleteResponses[keyof TimesheetsMyDayBreaksDeleteResponses];
+
+export type TimesheetsMyDayBreaksUpdateData = {
+    body: BreakUpdateRequest;
+    path: {
+        /**
+         * Break Id
+         */
+        break_id: string;
+    };
+    query?: never;
+    url: '/api/timesheets/my-day/breaks/{break_id}/';
+};
+
+export type TimesheetsMyDayBreaksUpdateResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type TimesheetsMyDayBreaksUpdateResponse = TimesheetsMyDayBreaksUpdateResponses[keyof TimesheetsMyDayBreaksUpdateResponses];
 
 export type TimesheetsMyDayClockData = {
     body: ClockRequest;

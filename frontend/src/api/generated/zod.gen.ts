@@ -205,6 +205,41 @@ export const zAuthErrorOut = z.object({
 });
 
 /**
+ * BreakCreateRequest
+ *
+ * A break added to a day. ``staff_id`` is for office staff correcting another's day.
+ */
+export const zBreakCreateRequest = z.object({
+    date: z.iso.date(),
+    end: z.iso.time(),
+    paid: z.boolean(),
+    staff_id: z.uuid().nullish(),
+    start: z.iso.time()
+});
+
+/**
+ * BreakOut
+ *
+ * One break in a person's day. Breaks are in no hours, cost or pay figure.
+ */
+export const zBreakOut = z.object({
+    end: z.iso.time(),
+    id: z.uuid(),
+    paid: z.boolean(),
+    start: z.iso.time()
+});
+
+/**
+ * BreakUpdateRequest
+ *
+ * A break moved or resized.
+ */
+export const zBreakUpdateRequest = z.object({
+    end: z.iso.time(),
+    start: z.iso.time()
+});
+
+/**
  * BuildId
  *
  * Response body for /api/build-id/: the deployed backend's git SHA.
@@ -338,6 +373,8 @@ export const zCompanyDefaultsOut = z.object({
     address_line1: z.string().max(255).nullable(),
     address_line2: z.string().max(255).nullable(),
     address_raw_json: z.record(z.string(), z.unknown()).nullable(),
+    afternoon_break_minutes: z.int(),
+    afternoon_break_start: z.iso.time(),
     city: z.string().max(100).nullable(),
     company_acronym: z.string().max(10).nullable(),
     company_email: z.string().max(254).nullable(),
@@ -382,6 +419,8 @@ export const zCompanyDefaultsOut = z.object({
     materials_markup: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     mon_end: z.iso.time(),
     mon_start: z.iso.time(),
+    morning_break_minutes: z.int(),
+    morning_break_start: z.iso.time(),
     po_prefix: z.string().max(10),
     post_code: z.string().max(20).nullable(),
     quote_expiry_days: z.int(),
@@ -424,6 +463,8 @@ export const zCompanyDefaultsPatchIn = z.object({
     address_line1: z.string().max(255).nullish(),
     address_line2: z.string().max(255).nullish(),
     address_raw_json: z.record(z.string(), z.unknown()).nullish(),
+    afternoon_break_minutes: z.int().nullish(),
+    afternoon_break_start: z.iso.time().nullish(),
     city: z.string().max(100).nullish(),
     company_acronym: z.string().max(10).nullish(),
     company_email: z.string().max(254).nullish(),
@@ -503,6 +544,8 @@ export const zCompanyDefaultsPatchIn = z.object({
     ]).nullish(),
     mon_end: z.iso.time().nullish(),
     mon_start: z.iso.time().nullish(),
+    morning_break_minutes: z.int().nullish(),
+    morning_break_start: z.iso.time().nullish(),
     po_prefix: z.string().max(10).nullish(),
     post_code: z.string().max(20).nullish(),
     quote_expiry_days: z.int().nullish(),
@@ -6226,6 +6269,7 @@ export const zWorkshopTimesheetEntryOut = z.object({
  * One person's day on the Approve time screen. No pay figures (KAN-376).
  */
 export const zStaffApprovalOut = z.object({
+    breaks: z.array(zBreakOut),
     clock: zAttendanceOut,
     entered_hours: z.number(),
     entered_late: z.boolean(),
@@ -6340,6 +6384,7 @@ export const zWorkshopTimesheetWeekOut = z.object({
  * Wire contract for WorkshopTimesheetListResponse.
  */
 export const zWorkshopTimesheetListResponse = z.object({
+    breaks: z.array(zBreakOut),
     calendar: zCalendarBoundsOut,
     date: z.iso.date(),
     day: zAttendanceOut,
@@ -9018,6 +9063,33 @@ export const zTimesheetsLeaveRequestsUpdatePath = z.object({
  * OK
  */
 export const zTimesheetsLeaveRequestsUpdateResponse = zLeaveSaveOut;
+
+export const zTimesheetsMyDayBreaksCreateBody = zBreakCreateRequest;
+
+/**
+ * No Content
+ */
+export const zTimesheetsMyDayBreaksCreateResponse = z.void();
+
+export const zTimesheetsMyDayBreaksDeletePath = z.object({
+    break_id: z.uuid()
+});
+
+/**
+ * No Content
+ */
+export const zTimesheetsMyDayBreaksDeleteResponse = z.void();
+
+export const zTimesheetsMyDayBreaksUpdateBody = zBreakUpdateRequest;
+
+export const zTimesheetsMyDayBreaksUpdatePath = z.object({
+    break_id: z.uuid()
+});
+
+/**
+ * No Content
+ */
+export const zTimesheetsMyDayBreaksUpdateResponse = z.void();
 
 export const zTimesheetsMyDayClockBody = zClockRequest;
 

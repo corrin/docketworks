@@ -48,6 +48,7 @@ from apps.timesheet.models import AttendanceDay
 from apps.timesheet.services import attendance, hour_categories
 from apps.timesheet.services.attendance import (
     AttendanceData,
+    BreakData,
     CalendarBounds,
     FillData,
     PendingDay,
@@ -166,6 +167,8 @@ class WorkshopDayData(TypedDict):
     summary: WorkshopSummaryData
     week: WorkshopWeekData
     day: AttendanceData
+    #: His breaks, drawn on the calendar; in no hours figure.
+    breaks: list[BreakData]
     #: Hours to fill, entered and to go; None until both clock times are known.
     fill: FillData | None
     calendar: CalendarBounds
@@ -385,19 +388,20 @@ def list_entries(staff: Staff, entry_date: date) -> WorkshopDayData:
     """List one person's entries for a date, with the day's summary."""
     entries = day_time_lines(staff, entry_date)
     row = AttendanceDay.objects.filter(staff=staff, date=entry_date).first()
+    breaks = attendance.day_breaks(row)
     return {
         "date": entry_date,
         "entries": [entry_data(line) for line in entries],
         "summary": _summary(entries),
         "week": _week_hours(staff, entry_date),
         "day": attendance.attendance_data(row),
-        "fill": attendance.fill_figures(
-            row, attendance.lunch_window(row), sum((line.quantity for line in entries), Decimal(0))
-        ),
+        "breaks": [attendance.break_data(each) for each in breaks],
+        "fill": attendance.fill_figures(row, sum((line.quantity for line in entries), Decimal(0))),
         "calendar": attendance.calendar_bounds(
             row,
             working_day(entry_date),
-            [span for line in entries if (span := timed_span(line))],
+            [span for line in entries if (span := timed_span(line))]
+            + [(each.start, each.end) for each in breaks],
         ),
         "pending": attendance.pending_day(staff, timezone.localdate()),
     }
