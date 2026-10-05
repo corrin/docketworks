@@ -40,6 +40,8 @@ function makeEntry(overrides: Partial<WorkshopTimesheetEntryOut> = {}): Workshop
     is_billable: true,
     wage_rate_multiplier: 1,
     bill_rate_multiplier: 1,
+    approved: false,
+    entered_late: false,
     created_at: '2026-08-26T08:00:00Z',
     updated_at: '2026-08-26T08:00:00Z',
     ...overrides,

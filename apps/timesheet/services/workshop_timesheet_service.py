@@ -10,12 +10,14 @@ item and a zero bill rate.
 """
 
 import logging
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import TypedDict
 from uuid import UUID
 
 from django.db import transaction
+from django.db.models import Q, Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
@@ -28,6 +30,7 @@ from apps.job.services.job_service import (
     cost_line_data,
     get_or_create_cost_set,
     move_time_line,
+    refuse_worker_change_to_approved,
     refuse_workflow_managed,
     update_latest_actual,
 )
@@ -39,6 +42,7 @@ from apps.job.services.time_entry_rates import (
 )
 from apps.timesheet.services import hour_categories
 from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
+from apps.timesheet.services.weekly_timesheet_service import PAYROLL_WEEK_DAYS, payroll_week_start
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +96,8 @@ class WorkshopEntryData(TypedDict):
     is_billable: bool
     wage_rate_multiplier: float
     bill_rate_multiplier: float
+    approved: bool
+    entered_late: bool
     created_at: datetime
     updated_at: datetime
 
@@ -106,12 +112,20 @@ class WorkshopSummaryData(TypedDict):
     total_revenue: float
 
 
+class WorkshopWeekData(TypedDict):
+    """The payroll week's hours: what payroll will pay, and what is held back."""
+
+    approved_hours: float
+    waiting_hours: float
+
+
 class WorkshopDayData(TypedDict):
     """Data contract for WorkshopDayData."""
 
     date: date
     entries: list[WorkshopEntryData]
     summary: WorkshopSummaryData
+    week: WorkshopWeekData
 
 
 def resolve_entry_date(date_param: str | None) -> date:
@@ -177,6 +191,20 @@ def _meta_multiplier(meta: dict[str, object], key: str, default: Decimal) -> Dec
     return normalize_multiplier(raw)
 
 
+def entered_late(line: CostLine) -> bool:
+    """Whether the entry was made on a later day than the day it is for.
+
+    Entering time on the day is the rule, because nobody remembers
+    yesterday's tasks (owner, 2026-10-06). Late entry is flagged, not blocked,
+    whoever typed it. The comparison is in local dates: an entry made at 23:30
+    for that day is on time. A line a workflow owns is never late: leave is
+    routinely entered the day after.
+    """
+    if line.managed_by is not None:
+        return False
+    return timezone.localdate(line.created_at) > line.accounting_date
+
+
 def entry_data(line: CostLine) -> WorkshopEntryData:
     """Shape one CostLine as a workshop timesheet entry."""
     job = line.cost_set.job
@@ -204,6 +232,8 @@ def entry_data(line: CostLine) -> WorkshopEntryData:
         "is_billable": is_billable,
         "wage_rate_multiplier": float(wage_multiplier),
         "bill_rate_multiplier": float(bill_multiplier),
+        "approved": line.approved,
+        "entered_late": entered_late(line),
         "created_at": line.created_at,
         "updated_at": line.updated_at,
     }
@@ -244,6 +274,29 @@ def day_time_lines(staff: Staff, entry_date: date) -> list[CostLine]:
     )
 
 
+def _week_hours(staff: Staff, entry_date: date) -> WorkshopWeekData:
+    """Approved and waiting hours for the payroll week the date falls in.
+
+    The same week and the same lines the weekly payroll screen reports as held
+    back, so the worker's "waiting" and the office's figure are one number.
+    """
+    week_start = payroll_week_start(entry_date)
+    totals = CostLine.objects.filter(
+        cost_set__kind="actual",
+        kind="time",
+        staff=staff,
+        accounting_date__gte=week_start,
+        accounting_date__lte=week_start + timedelta(days=PAYROLL_WEEK_DAYS - 1),
+    ).aggregate(
+        approved_hours=Coalesce(Sum("quantity", filter=Q(approved=True)), Decimal("0")),
+        waiting_hours=Coalesce(Sum("quantity", filter=Q(approved=False)), Decimal("0")),
+    )
+    return {
+        "approved_hours": float(totals["approved_hours"]),
+        "waiting_hours": float(totals["waiting_hours"]),
+    }
+
+
 def list_entries(staff: Staff, entry_date: date) -> WorkshopDayData:
     """List the staff member's own entries for a date, with the day's summary."""
     entries = day_time_lines(staff, entry_date)
@@ -251,6 +304,7 @@ def list_entries(staff: Staff, entry_date: date) -> WorkshopDayData:
         "date": entry_date,
         "entries": [entry_data(line) for line in entries],
         "summary": _summary(entries),
+        "week": _week_hours(staff, entry_date),
     }
 
 
@@ -476,6 +530,7 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
         line = _owned_line(staff, data["entry_id"])
         if line.cost_set.job_id not in job_ids:
             raise ConflictError("This entry moved to another job. Reload before editing it.")
+        refuse_worker_change_to_approved(line, staff)
         before = snapshot_if_entry(line)
         meta = dict(line.meta)
         changed = _apply_scalar_changes(line, meta, data)
@@ -548,6 +603,7 @@ def delete_entry(staff: Staff, entry_id: UUID) -> None:
     if line.meta.get("staff_id") != str(staff.id):
         raise EntryOwnershipError("You can only delete your own timesheet entries.")
     refuse_workflow_managed(line, "cancel")
+    refuse_worker_change_to_approved(line, staff)
     # Recorded before the delete: Django clears the pk on the instance it
     # deleted, and the event names the line by that id.
     record_timesheet_event(

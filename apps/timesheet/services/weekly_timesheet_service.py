@@ -71,6 +71,8 @@ class WeeklyStaffData(TypedDict):
     week_status: str
     total_billed_hours: Decimal
     total_unbilled_hours: Decimal
+    total_approved_hours: Decimal
+    total_unapproved_hours: Decimal
     total_overtime_hours: Decimal
     total_overtime_1_5x_hours: Decimal
     total_overtime_2x_hours: Decimal
@@ -299,6 +301,10 @@ def _staff_week(  # noqa: PLR0913 -- Opus: one argument per input the row needs;
         (total_billable_hours / total_hours * 100) if total_hours > 0 else Decimal("0")
     )
     expected_hours = _total(row["scheduled_hours"] for row in daily_rows)
+    # Payroll posts approved time only (KAN-376); the rest is held back, and
+    # this screen is where the office sees how much before posting.
+    week_lines = [line for day in days for line in grouped.get((staff_id, day), [])]
+    unapproved_hours = _total(line.quantity for line in week_lines if not line.approved)
 
     return {
         "staff_id": staff_id,
@@ -311,6 +317,8 @@ def _staff_week(  # noqa: PLR0913 -- Opus: one argument per input the row needs;
         "week_status": _week_status(total_hours),
         "total_billed_hours": _total(row["billed_hours"] for row in daily_rows),
         "total_unbilled_hours": _total(row["unbilled_hours"] for row in daily_rows),
+        "total_approved_hours": total_hours - unapproved_hours,
+        "total_unapproved_hours": unapproved_hours,
         "total_overtime_hours": overtime_1_5x + overtime_2x,
         "total_overtime_1_5x_hours": overtime_1_5x,
         "total_overtime_2x_hours": overtime_2x,
@@ -388,10 +396,14 @@ def _job_metrics(start_date: date, end_date: date) -> JobMetricsData:
     }
 
 
+def payroll_week_start(day: date) -> date:
+    """Return the Monday of the payroll week a day falls in."""
+    return day - timedelta(days=day.weekday())
+
+
 def _is_current_week(start_date: date) -> bool:
     """Whether the given Monday is this week's Monday."""
-    today = timezone.localdate()
-    return start_date == today - timedelta(days=today.weekday())
+    return start_date == payroll_week_start(timezone.localdate())
 
 
 def get_weekly_overview(start_date: date) -> WeeklyTimesheetData:

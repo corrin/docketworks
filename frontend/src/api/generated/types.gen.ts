@@ -13165,6 +13165,10 @@ export type WeeklyStaffDataOut = {
      */
     total_annual_leave_hours: number;
     /**
+     * Total Approved Hours
+     */
+    total_approved_hours: number;
+    /**
      * Total Bereavement Leave Hours
      */
     total_bereavement_leave_hours: number;
@@ -13204,6 +13208,10 @@ export type WeeklyStaffDataOut = {
      * Total Sick Leave Hours
      */
     total_sick_leave_hours: number;
+    /**
+     * Total Unapproved Hours
+     */
+    total_unapproved_hours: number;
     /**
      * Total Unbilled Hours
      */
@@ -13378,6 +13386,10 @@ export type WorkshopTimesheetEntryOut = {
      */
     accounting_date: string;
     /**
+     * Approved
+     */
+    approved: boolean;
+    /**
      * Bill Rate Multiplier
      */
     bill_rate_multiplier: number;
@@ -13397,6 +13409,10 @@ export type WorkshopTimesheetEntryOut = {
      * End Time
      */
     end_time: string | null;
+    /**
+     * Entered Late
+     */
+    entered_late: boolean;
     /**
      * Hours
      */
@@ -13548,6 +13564,7 @@ export type WorkshopTimesheetListResponse = {
      */
     entries: Array<WorkshopTimesheetEntryOut>;
     summary: WorkshopTimesheetSummaryOut;
+    week: WorkshopTimesheetWeekOut;
 };
 
 /**
@@ -13576,6 +13593,22 @@ export type WorkshopTimesheetSummaryOut = {
      * Total Revenue
      */
     total_revenue: number;
+};
+
+/**
+ * WorkshopTimesheetWeekOut
+ *
+ * The payroll week the day falls in: hours payroll will pay, and hours held back.
+ */
+export type WorkshopTimesheetWeekOut = {
+    /**
+     * Approved Hours
+     */
+    approved_hours: number;
+    /**
+     * Waiting Hours
+     */
+    waiting_hours: number;
 };
 
 /**

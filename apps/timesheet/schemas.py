@@ -152,6 +152,8 @@ class WeeklyStaffDataOut(Schema):
     week_status: str
     total_billed_hours: Quantity
     total_unbilled_hours: Quantity
+    total_approved_hours: Quantity
+    total_unapproved_hours: Quantity
     total_overtime_hours: Quantity
     total_overtime_1_5x_hours: Quantity
     total_overtime_2x_hours: Quantity
@@ -273,6 +275,8 @@ class WorkshopTimesheetEntryOut(Schema):
     is_billable: bool
     wage_rate_multiplier: float
     bill_rate_multiplier: float
+    approved: bool
+    entered_late: bool
     created_at: datetime
     updated_at: datetime
 
@@ -287,12 +291,20 @@ class WorkshopTimesheetSummaryOut(Schema):
     total_revenue: float
 
 
+class WorkshopTimesheetWeekOut(Schema):
+    """The payroll week the day falls in: hours payroll will pay, and hours held back."""
+
+    approved_hours: float
+    waiting_hours: float
+
+
 class WorkshopTimesheetListResponse(Schema):
     """Wire contract for WorkshopTimesheetListResponse."""
 
     date: date
     entries: list[WorkshopTimesheetEntryOut]
     summary: WorkshopTimesheetSummaryOut
+    week: WorkshopTimesheetWeekOut
 
 
 class TimesheetCostLineOut(CostLineOut):

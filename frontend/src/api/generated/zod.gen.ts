@@ -6011,6 +6011,7 @@ export const zWeeklyStaffDataOut = z.object({
     staff_id: z.uuid(),
     staff_name: z.string(),
     total_annual_leave_hours: z.number(),
+    total_approved_hours: z.number(),
     total_bereavement_leave_hours: z.number(),
     total_billable_hours: z.number(),
     total_billed_hours: z.number(),
@@ -6021,6 +6022,7 @@ export const zWeeklyStaffDataOut = z.object({
     total_overtime_hours: z.number(),
     total_scheduled_hours: z.number(),
     total_sick_leave_hours: z.number(),
+    total_unapproved_hours: z.number(),
     total_unbilled_hours: z.number(),
     variance_hours: z.number(),
     week_status: z.string(),
@@ -6067,11 +6069,13 @@ export const zWeeklyTimesheetDataOut = z.object({
  */
 export const zWorkshopTimesheetEntryOut = z.object({
     accounting_date: z.iso.date(),
+    approved: z.boolean(),
     bill_rate_multiplier: z.number(),
     company_name: z.string(),
     created_at: z.iso.datetime(),
     description: z.string(),
     end_time: z.iso.time().nullable(),
+    entered_late: z.boolean(),
     hours: z.number(),
     id: z.uuid(),
     is_billable: z.boolean(),
@@ -6156,6 +6160,16 @@ export const zWorkshopTimesheetSummaryOut = z.object({
 });
 
 /**
+ * WorkshopTimesheetWeekOut
+ *
+ * The payroll week the day falls in: hours payroll will pay, and hours held back.
+ */
+export const zWorkshopTimesheetWeekOut = z.object({
+    approved_hours: z.number(),
+    waiting_hours: z.number()
+});
+
+/**
  * WorkshopTimesheetListResponse
  *
  * Wire contract for WorkshopTimesheetListResponse.
@@ -6163,7 +6177,8 @@ export const zWorkshopTimesheetSummaryOut = z.object({
 export const zWorkshopTimesheetListResponse = z.object({
     date: z.iso.date(),
     entries: z.array(zWorkshopTimesheetEntryOut),
-    summary: zWorkshopTimesheetSummaryOut
+    summary: zWorkshopTimesheetSummaryOut,
+    week: zWorkshopTimesheetWeekOut
 });
 
 /**

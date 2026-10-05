@@ -14888,6 +14888,9 @@ components:
         total_annual_leave_hours:
           title: Total Annual Leave Hours
           type: number
+        total_approved_hours:
+          title: Total Approved Hours
+          type: number
         total_bereavement_leave_hours:
           title: Total Bereavement Leave Hours
           type: number
@@ -14917,6 +14920,9 @@ components:
           type: number
         total_sick_leave_hours:
           title: Total Sick Leave Hours
+          type: number
+        total_unapproved_hours:
+          title: Total Unapproved Hours
           type: number
         total_unbilled_hours:
           title: Total Unbilled Hours
@@ -14949,6 +14955,8 @@ components:
       - week_status
       - total_billed_hours
       - total_unbilled_hours
+      - total_approved_hours
+      - total_unapproved_hours
       - total_overtime_hours
       - total_overtime_1_5x_hours
       - total_overtime_2x_hours
@@ -15121,6 +15129,9 @@ components:
           format: date
           title: Accounting Date
           type: string
+        approved:
+          title: Approved
+          type: boolean
         bill_rate_multiplier:
           title: Bill Rate Multiplier
           type: number
@@ -15140,6 +15151,9 @@ components:
             type: string
           - type: 'null'
           title: End Time
+        entered_late:
+          title: Entered Late
+          type: boolean
         hours:
           title: Hours
           type: number
@@ -15187,6 +15201,8 @@ components:
       - is_billable
       - wage_rate_multiplier
       - bill_rate_multiplier
+      - approved
+      - entered_late
       - created_at
       - updated_at
       title: WorkshopTimesheetEntryOut
@@ -15344,10 +15360,13 @@ components:
           type: array
         summary:
           $ref: '#/components/schemas/WorkshopTimesheetSummaryOut'
+        week:
+          $ref: '#/components/schemas/WorkshopTimesheetWeekOut'
       required:
       - date
       - entries
       - summary
+      - week
       title: WorkshopTimesheetListResponse
       type: object
     WorkshopTimesheetSummaryOut:
@@ -15375,6 +15394,20 @@ components:
       - total_cost
       - total_revenue
       title: WorkshopTimesheetSummaryOut
+      type: object
+    WorkshopTimesheetWeekOut:
+      description: 'The payroll week the day falls in: hours payroll will pay, and hours held back.'
+      properties:
+        approved_hours:
+          title: Approved Hours
+          type: number
+        waiting_hours:
+          title: Waiting Hours
+          type: number
+      required:
+      - approved_hours
+      - waiting_hours
+      title: WorkshopTimesheetWeekOut
       type: object
     XeroAppActivateOut:
       description: 'Activation result: the app row plus the worker-restart notice.'

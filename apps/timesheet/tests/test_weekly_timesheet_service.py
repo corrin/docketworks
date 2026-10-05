@@ -126,6 +126,18 @@ class TestWeeklyCosts:
         assert row["weekly_base_cost"] == 1520.00  # 5 * 8 * 38
         assert row["weekly_cost"] == 1824.00  # + 20%
 
+    def test_weekly_overview_reports_held_back_hours(self, job: Job, worker: Staff) -> None:
+        """Unapproved time is not paid; the office sees how much before posting."""
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="2.500", approved=False)
+
+        overview = weekly_timesheet_service.get_weekly_overview(WEEK_START)
+        [row] = overview["staff_data"]
+
+        assert row["total_hours"] == Decimal("10.500")
+        assert row["total_approved_hours"] == Decimal("8.000")
+        assert row["total_unapproved_hours"] == Decimal("2.500")
+
     def test_loading_is_applied_to_the_rounded_base_cost(self, job: Job, worker: Staff) -> None:
         """v1 rounds the base to cents FIRST, so base * loading reconciles for operators.
 

@@ -2323,6 +2323,28 @@ def refuse_workflow_managed(line: CostLine, remedy: str) -> None:
         )
 
 
+class ApprovedEntryLockedError(ConflictError):
+    """A worker tried to change time the office has already approved."""
+
+
+def refuse_worker_change_to_approved(line: CostLine, actor: Staff) -> None:
+    """Refuse a non-office change to approved worked time.
+
+    Approved time is what payroll pays (KAN-376), so once the office has
+    approved an entry only the office changes it. Called by every path a
+    worker can reach a time line through, under the lock that approval takes.
+    Material lines are not covered: their approval is a stock issue, with its
+    own rules in purchasing.
+    """
+    if (
+        not actor.is_office_staff
+        and line.approved
+        and line.kind == "time"
+        and line.cost_set.kind == "actual"
+    ):
+        raise ApprovedEntryLockedError("This entry has been approved. Ask the office to change it.")
+
+
 @transaction.atomic
 def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> CostLine:
     """Edit unowned costs; issuing material belongs to purchasing.
@@ -2355,6 +2377,7 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
     ):
         raise AccessDeniedError("Only office staff move another person's time.")
     refuse_workflow_managed(line, "edit")
+    refuse_worker_change_to_approved(line, staff)
     _validate_costline_write(data)
     before = snapshot_if_entry(line)
 
@@ -2416,6 +2439,7 @@ def delete_cost_line(line: CostLine, staff: Staff) -> None:
         .get(pk=line.pk)
     )
     refuse_workflow_managed(line, "cancel")
+    refuse_worker_change_to_approved(line, staff)
     with transaction.atomic():
         # Recorded before the delete: Django clears the pk on the instance it
         # deleted, and the event names the line by that id.

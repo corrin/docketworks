@@ -26,7 +26,7 @@ below carry their own prefixes.
 """
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -151,8 +151,7 @@ def timesheets_weekly_retrieve(
     if start_date:
         week_start = _parse_date(start_date)
     else:
-        today = timezone.localdate()
-        week_start = today - timedelta(days=today.weekday())
+        week_start = weekly_timesheet_service.payroll_week_start(timezone.localdate())
     return weekly_timesheet_service.get_weekly_overview(week_start)
 
 
