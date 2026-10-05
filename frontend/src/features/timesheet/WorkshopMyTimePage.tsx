@@ -22,7 +22,8 @@ import {
   workingDayStart,
 } from './myTime'
 import { DayCard } from './DayCard'
-import { useClocking, useWorkshopDay } from './useWorkshopDay'
+import { FillDaySheet } from './FillDaySheet'
+import { useClocking, useSubmitDay, useWorkshopDay } from './useWorkshopDay'
 import { WorkshopTimesheetCalendar } from './WorkshopTimesheetCalendar'
 import { WorkshopTimesheetEntryDrawer, type EntryDrawerState } from './WorkshopTimesheetEntryDrawer'
 
@@ -55,6 +56,9 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
   const entries = day.dayQuery.data?.entries ?? []
   const dayData = day.dayQuery.data
   const clocking = useClocking()
+  const sendLocation = companyDefaults.latitude !== null && !user.is_office_staff
+  const submission = useSubmitDay(sendLocation)
+  const [fillOpen, setFillOpen] = useState(false)
   const summary = day.dayQuery.data?.summary
   const week = day.dayQuery.data?.week
   const { timed, untimed } = splitDayEntries(entries)
@@ -106,10 +110,17 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
           date={date}
           isToday={date === localIsoDate()}
           day={dayData.day}
+          fill={dayData.fill}
           pending={dayData.pending}
           dayStart={workingDayStart(date, companyDefaults)}
           clocking={clocking.clocking}
-          onClock={clocking.clock}
+          // Clocking out is the moment to say what the day was: the sheet opens on it.
+          onClock={async (action) => {
+            const done = await clocking.clock(action)
+            if (done && action === 'out') setFillOpen(true)
+            return done
+          }}
+          onFill={() => setFillOpen(true)}
           onSetTimes={(clockIn, clockOut) =>
             clocking.setTimes({ date, clock_in: clockIn, clock_out: clockOut })
           }
@@ -193,6 +204,7 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
         )}
         <WorkshopTimesheetCalendar
           date={date}
+          bounds={dayData?.calendar ?? null}
           events={timed.map(calendarEvent)}
           onEventClick={openEdit}
           onSlotClick={(start) => setDrawer({ mode: 'create', start })}
@@ -207,6 +219,17 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
           />
         )}
       </QueryState>
+
+      {dayData !== undefined && dayData.fill !== null && (
+        <FillDaySheet
+          open={fillOpen}
+          date={date}
+          fill={dayData.fill}
+          sending={submission.submitting}
+          onSend={(rows) => submission.submitDay(date, rows)}
+          onClose={() => setFillOpen(false)}
+        />
+      )}
 
       <WorkshopTimesheetEntryDrawer
         state={drawer}

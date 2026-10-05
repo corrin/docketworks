@@ -11,6 +11,8 @@ import '@fullcalendar/react/themes/classic/palette.css'
 import '@fullcalendar/react/themes/classic/theme.css'
 import timeGridPlugin from '@fullcalendar/react/timegrid'
 
+import type { CalendarBoundsOut } from '@/api'
+
 import type { MyTimeCalendarEvent } from './myTime'
 
 /** The block's own text: time, job, then where the entry stands, in words
@@ -33,6 +35,9 @@ interface WorkshopTimesheetCalendarProps {
   /** The day shown, YYYY-MM-DD; the page owns navigation, so the calendar's
       own toolbar stays off. */
   date: string
+  /** The stretch of the day to open on, from the server ("HH:mm:ss"): the
+      clocked span with an hour either side. Null while the day loads. */
+  bounds: CalendarBoundsOut | null
   events: MyTimeCalendarEvent[]
   onEventClick: (entryId: string) => void
   /** A click on an empty slot, as the slot's "HH:mm" start. */
@@ -49,6 +54,7 @@ interface WorkshopTimesheetCalendarProps {
  */
 export function WorkshopTimesheetCalendar({
   date,
+  bounds,
   events,
   onEventClick,
   onSlotClick,
@@ -72,6 +78,7 @@ export function WorkshopTimesheetCalendar({
         nowIndicator
         height="auto"
         slotDuration="00:30:00"
+        {...(bounds === null ? {} : { slotMinTime: bounds.start, slotMaxTime: bounds.end })}
         // 24h faces, matching every other timesheet surface.
         slotHeaderFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
         eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}

@@ -15,7 +15,9 @@ import {
   entryMarks,
   entryUpdateBody,
   eventTitle,
+  fillAfterRows,
   fillGapToNextEntry,
+  fillWords,
   jobChangeFields,
   lastUsedJobId,
   rateLabel,
@@ -493,5 +495,30 @@ describe('clockWords', () => {
         here_hours: 8.5,
       }),
     ).toBe('Clocked out. 06:30 to 15:00, here 8h 30m')
+  })
+})
+
+describe('fillWords', () => {
+  const fill = { to_fill_hours: 8, entered_hours: 3, to_go_hours: 5 }
+
+  it('says what is left, that it is all filled, or that he is over, without scolding', () => {
+    expect(fillWords(fill)).toBe('8h to fill, 3h entered, 5h to go')
+    expect(fillWords({ ...fill, entered_hours: 8, to_go_hours: 0 })).toBe(
+      '8h to fill, 8h entered. All filled',
+    )
+    expect(fillWords({ ...fill, entered_hours: 9, to_go_hours: -1 })).toBe(
+      '8h to fill, 9h entered: 1h over the time you were here',
+    )
+  })
+})
+
+describe('fillAfterRows', () => {
+  it("takes the sheet's own rows off what is left, ignoring a row with no hours yet", () => {
+    expect(
+      fillAfterRows({ to_fill_hours: 8, entered_hours: 1, to_go_hours: 7 }, [
+        { hours: 3 },
+        { hours: null },
+      ]),
+    ).toEqual({ to_fill_hours: 8, entered_hours: 4, to_go_hours: 4 })
   })
 })

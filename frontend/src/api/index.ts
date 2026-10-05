@@ -391,6 +391,7 @@ export type {
   EntryLocationIn,
   AttendanceOut,
   ClockTimesRequest,
+  CalendarBoundsOut,
   FillOut,
   FillRowIn,
   PendingDayOut,

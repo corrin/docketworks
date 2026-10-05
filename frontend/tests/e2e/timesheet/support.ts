@@ -95,11 +95,13 @@ export interface SeededLabour {
  * with restored time cannot be relied on; the spec seeds its own.
  */
 export async function seedLabourForWeek(page: Page, week: string): Promise<SeededLabour> {
-  // Opus: Whoever the app lists for that day, NOT the E2E login user: payroll
-  // requires a linked Xero employee, and `get_displayable_staff` drops
-  // anyone without a UUID-shaped xero_user_id — which the E2E account has
-  // none of. Hours seeded against it are hours nothing posts and the week
-  // status never reports, so the assertions would be measuring an absence.
+  // Opus: Whoever the app lists for that day, NOT assumed to be the E2E
+  // login user: payroll requires a linked Xero employee, and
+  // `get_displayable_staff` drops anyone without a UUID-shaped xero_user_id.
+  // Whether the E2E account has one depends on the database (it does on the
+  // current dev restore, where it is listed; e2e_ensure_fixtures gives it none).
+  // Hours seeded against a login that is not listed are hours nothing posts
+  // and the week status never reports, so the first listed person is used.
   // Tuesday: inside the week whichever way the week is configured.
   const seedDate = shiftDate(week, 1)
   const candidates = await getTimesheetStaff(page, seedDate)

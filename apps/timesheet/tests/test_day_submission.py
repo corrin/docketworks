@@ -216,17 +216,26 @@ class TestPendingDay:
 
 
 class TestCalendarBounds:
-    def test_the_calendar_opens_on_the_clocked_span_with_an_hour_either_side(
+    def test_the_calendar_opens_on_the_working_day_stretched_to_the_clocked_span(
         self, worker: Staff
     ) -> None:
-        _clocked(worker)
+        _clocked(worker, time(6, 30), time(17, 10))
         row = AttendanceDay.objects.get(staff=worker, date=DAY)
 
         bounds = attendance.calendar_bounds(row, (time(7, 0), time(15, 0)), [])
 
-        assert bounds == {"start": time(5, 0), "end": time(16, 0)}
+        assert bounds == {"start": time(5, 0), "end": time(18, 10)}
 
-    def test_it_falls_back_to_the_working_day_and_widens_for_entries(self) -> None:
+    def test_a_short_clocking_does_not_hide_the_working_day(self, worker: Staff) -> None:
+        """Clocked 07:30 to 08:00 by mistake: the hours he would book are still there."""
+        _clocked(worker, time(7, 30), time(8, 0))
+        row = AttendanceDay.objects.get(staff=worker, date=DAY)
+
+        bounds = attendance.calendar_bounds(row, (time(7, 0), time(15, 0)), [])
+
+        assert bounds == {"start": time(6, 0), "end": time(16, 0)}
+
+    def test_it_widens_for_an_entry_outside_the_day(self) -> None:
         bounds = attendance.calendar_bounds(
             None, (time(7, 0), time(15, 0)), [(time(17, 0), time(18, 30))]
         )

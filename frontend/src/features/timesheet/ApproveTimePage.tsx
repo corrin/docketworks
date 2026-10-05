@@ -131,7 +131,7 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
         head={
           <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-600">
             <th className="px-2 py-2">Staff member</th>
-            <th className="px-2 py-2">Clock</th>
+            <th className="hidden px-2 py-2 sm:table-cell">Clock</th>
             <th className="w-24 px-2 py-2">Entered</th>
             <th className="w-24 px-2 py-2">Waiting</th>
             <th className="px-2 py-2">State</th>
@@ -161,9 +161,17 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                   )}
                   {person.staff_name}
                 </button>
+                <div
+                  className="pl-5 text-xs text-slate-600 sm:hidden"
+                  data-automation-id={`ApproveTimePage-clock-narrow-${person.staff_id}`}
+                >
+                  {clockWords(person.clock)}
+                </div>
               </td>
+              {/* On a phone the clock words sit under the name (below), so the
+                  state and the Approve day button stay in view without a swipe. */}
               <td
-                className="px-2 py-2 text-slate-700"
+                className="hidden px-2 py-2 text-slate-700 sm:table-cell"
                 data-automation-id={`ApproveTimePage-clock-${person.staff_id}`}
               >
                 {clockWords(person.clock)}

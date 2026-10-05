@@ -1,12 +1,12 @@
 import { useState } from 'react'
 
-import type { AttendanceOut, PendingDayOut } from '@/api'
+import type { AttendanceOut, FillOut, PendingDayOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { INPUT_CLASS } from '@/components/ui/field'
 import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
 import { formatDateLong } from '@/lib/format'
 
-import { clockWords } from './myTime'
+import { clockWords, fillWords } from './myTime'
 
 interface ClockTimesFormProps {
   /** Prefix for the form's automation ids: the card's or the office row's. */
@@ -94,6 +94,9 @@ interface DayCardProps {
   /** Whether that day is today: only today is clocked by a tap. */
   isToday: boolean
   day: AttendanceOut
+  /** Hours to fill, entered and to go, from the server; null until the day
+      has both clock times. */
+  fill: FillOut | null
   /** An earlier day he clocked and has not sent, and how far it got. */
   pending: PendingDayOut | null
   dayStart: string
@@ -101,6 +104,14 @@ interface DayCardProps {
   onClock: (action: 'in' | 'out') => Promise<boolean>
   onSetTimes: (clockIn: string, clockOut: string | null) => Promise<boolean>
   onOpenDay: (date: string) => void
+  onFill: () => void
+}
+
+/** What stands in for the fill figures on a day that has none yet. */
+function noFillWords(day: AttendanceOut): string {
+  return day.state === 'not_clocked_in'
+    ? 'Clock times not set.'
+    : 'Clock out to see what is left to fill.'
 }
 
 /**
@@ -112,12 +123,14 @@ export function DayCard({
   date,
   isToday,
   day,
+  fill,
   pending,
   dayStart,
   clocking,
   onClock,
   onSetTimes,
   onOpenDay,
+  onFill,
 }: DayCardProps) {
   const [editingTimes, setEditingTimes] = useState(false)
   const clockIn = day.clock_in
@@ -146,6 +159,9 @@ export function DayCard({
       )}
       <p className="text-lg font-semibold text-gray-900" data-automation-id="DayCard-state">
         {clockWords(day)}
+      </p>
+      <p className="text-sm text-gray-700" data-automation-id="DayCard-fill">
+        {fill === null ? noFillWords(day) : fillWords(fill)}
       </p>
       {editingTimes ? (
         <ClockTimesForm
@@ -176,6 +192,16 @@ export function DayCard({
               onClick={() => void onClock('out')}
             >
               Clock out
+            </Button>
+          )}
+          {day.state === 'clocked_out' && (
+            <Button
+              className={TOUCH_TARGET_CLASS}
+              disabled={clocking}
+              data-automation-id="DayCard-fill-and-send"
+              onClick={onFill}
+            >
+              Fill and send
             </Button>
           )}
           {/* Reopening is its own control: a stray tap on Clock in never does it. */}

@@ -134,7 +134,12 @@ test("office staff correct a person's clock times, and the screen holds at three
   for (const width of [1366, 1024, 390]) {
     await test.step(`holds at ${width}px`, async () => {
       await page.setViewportSize({ width, height: 900 })
-      await expect(clock).toBeVisible()
+      // On a phone the clock words move under the name, so the state and the
+      // row's action are in view without swiping the table.
+      const clockWords =
+        width < 640 ? autoId(page, `ApproveTimePage-clock-narrow-${staffId}`) : clock
+      await expect(clockWords).toHaveText('Clocked out. 06:30 to 15:30, here 9h')
+      await expect(autoId(page, `ApproveTimePage-state-${staffId}`)).toBeInViewport({ ratio: 1 })
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       )

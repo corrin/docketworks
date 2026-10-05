@@ -10,11 +10,13 @@ import {
   jobWorkshopTimesheetsRetrieveQueryKey,
   timesheetsApprovalsRetrieveQueryKey,
   timesheetsMyDayClockMutation,
+  timesheetsMyDaySubmitMutation,
   timesheetsMyDayTimesMutation,
 } from '@/api'
 import type {
   ClockTimesRequest,
   EntryLocationIn,
+  FillRowIn,
   WorkshopTimesheetEntryRequest,
   WorkshopTimesheetEntryUpdateRequest,
 } from '@/api'
@@ -165,6 +167,31 @@ export function useClocking(ownerId?: string) {
   }
 
   return { clock, setTimes, clocking: clockMutation.isPending || timesMutation.isPending }
+}
+
+/**
+ * Send a day to the office with the fill sheet's rows. The phone's position
+ * goes with it for the same reason it goes with a single save: every entry
+ * the rows become is judged by where it was sent from.
+ */
+export function useSubmitDay(sendLocation: boolean) {
+  const queryClient = useQueryClient()
+  const submitMutation = useMutation(timesheetsMyDaySubmitMutation())
+
+  const submitDay = async (date: string, rows: FillRowIn[]): Promise<boolean> => {
+    try {
+      const location = sendLocation ? await phoneLocation() : null
+      await submitMutation.mutateAsync({ body: { date, rows, location } })
+    } catch (error) {
+      report(error, 'The day could not be sent.')
+      return false
+    }
+    toast.success('Day sent to the office.')
+    void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
+    return true
+  }
+
+  return { submitDay, submitting: submitMutation.isPending }
 }
 
 /**

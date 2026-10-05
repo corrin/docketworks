@@ -149,15 +149,17 @@ def calendar_bounds(
     working_day: tuple[time, time],
     entry_times: list[tuple[time, time]],
 ) -> CalendarBounds:
-    """Bound the calendar to the day as it happened, with an hour either side.
+    """Bound the calendar to the day, with an hour either side.
 
-    The clocked span when there is one (an open day runs to the working day's
-    end), else the company's working day; widened to hold any entry outside.
+    The company's working day, stretched to the clocked span when he was
+    there outside it, and to any entry outside both. The working day stays in
+    view whatever he clocked: a short or odd clocking must not hide the hours
+    he would tap to book.
     """
     start, finish = working_day
     if row is not None:
-        start = row.clock_in
-        finish = max(finish, row.clock_in) if row.clock_out is None else row.clock_out
+        start = min(start, row.clock_in)
+        finish = max(finish, row.clock_in if row.clock_out is None else row.clock_out)
     first = min([_minutes(start), *(_minutes(begin) for begin, _ in entry_times)])
     last = max([_minutes(finish), *(_minutes(end) for _, end in entry_times)])
     first = max(first - _CALENDAR_MARGIN_MINUTES, 0) // 60 * 60

@@ -10,6 +10,7 @@
 import type {
   AttendanceOut,
   CompanyDefaultsOut,
+  FillOut,
   TimesheetJobOut,
   WorkshopTimesheetEntryOut,
   WorkshopTimesheetEntryUpdateRequest,
@@ -80,7 +81,9 @@ export function clockWords(day: AttendanceOut): string {
   if (day.clock_out === null) return `At work since ${clockFace(day.clock_in)}`
   const span = `${clockFace(day.clock_in)} to ${clockFace(day.clock_out)}`
   const here = day.here_hours === null ? '' : `, here ${formatHoursDisplay(day.here_hours)}`
-  return day.state === 'sent' ? `Sent. ${span}${here}` : `Clocked out. ${span}${here}`
+  return day.state === 'sent'
+    ? `Sent, waiting for approval. ${span}${here}`
+    : `Clocked out. ${span}${here}`
 }
 
 /**
@@ -414,4 +417,52 @@ export function calendarEvent(entry: TimedEntry): MyTimeCalendarEvent {
     end: `${entry.accounting_date}T${entry.end_time}`,
     marks: entryMarks(entry),
   }
+}
+
+/** One row of the fill sheet as the worker builds it. */
+export interface FillSheetRow {
+  key: number
+  job: TimesheetJobOut
+  /** Null until he picks how long. */
+  hours: number | null
+  timeAndAHalf: boolean
+  description: string
+}
+
+/**
+ * Where the day stands against the time he was here, in one sentence. The
+ * three figures are the server's; this only chooses the words. More entered
+ * than he was here for is stated, not scolded: clocking binds nothing.
+ */
+export function fillWords(fill: FillOut): string {
+  const toFill = `${formatHoursDisplay(fill.to_fill_hours)} to fill`
+  const entered = `${formatHoursDisplay(fill.entered_hours)} entered`
+  if (fill.to_go_hours > 0)
+    return `${toFill}, ${entered}, ${formatHoursDisplay(fill.to_go_hours)} to go`
+  if (fill.to_go_hours === 0) return `${toFill}, ${entered}. All filled`
+  return `${toFill}, ${entered}: ${formatHoursDisplay(-fill.to_go_hours)} over the time you were here`
+}
+
+/**
+ * What is left once the sheet's own rows are counted: what "the rest" offers
+ * and what the sheet's running sentence shows before anything is saved. The
+ * server's figures only know saved entries, so the rows on the sheet are
+ * taken off here; it is the one sum the screen does, in quarter hours.
+ */
+export function fillAfterRows(fill: FillOut, rows: { hours: number | null }[]): FillOut {
+  const onSheet = rows.reduce((total, row) => total + (row.hours ?? 0), 0)
+  return {
+    to_fill_hours: fill.to_fill_hours,
+    entered_hours: fill.entered_hours + onSheet,
+    to_go_hours: fill.to_go_hours - onSheet,
+  }
+}
+
+/** The jobs behind an ordered list of ids, skipping any the list does not hold. */
+export function jobsInOrder(ids: string[], jobs: TimesheetJobOut[]): TimesheetJobOut[] {
+  const byId = new Map(jobs.map((job) => [job.id, job]))
+  return ids.flatMap((id) => {
+    const job = byId.get(id)
+    return job === undefined ? [] : [job]
+  })
 }
