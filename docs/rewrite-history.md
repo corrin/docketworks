@@ -2701,3 +2701,11 @@ Findings.
   office." The dev database was also missing the Travel shop job.
 - Break rows from the earlier design are dropped, not converted: they existed
   on dev and UAT only.
+- Every My time write carries the phone's position, judged by one rule
+  (`services/location.py`), and every timesheet event records `trusted`.
+  Events from before were never checked and read trusted, which is what
+  trusted means with no company address: not checked. A fix up to a minute
+  old is reused, as ruled; the browser's own cache could not serve that rule.
+  Asked for a fix up to a minute old, it answered with where the phone had
+  just been, so a tap made on arriving at the workshop read as away. My time
+  now watches the position while it is open and reuses only that.
