@@ -26,7 +26,9 @@ below carry their own prefixes.
 """
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, time
+from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -34,7 +36,7 @@ from django.db import transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from ninja import Router
+from ninja import Field, Router
 from ninja.errors import HttpError
 from ninja.responses import Status
 
@@ -43,8 +45,10 @@ from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth, SuperuserCookieJWTAuth
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.timesheet.models import AttendanceBreak, TimesheetEvent
+from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.schemas import (
+    HOURS_LIMIT,
+    HOURS_MIN,
     ApprovalsDayOut,
     ApproveDayOut,
     AttendanceOut,
@@ -57,10 +61,12 @@ from apps.timesheet.schemas import (
     JobsListResponse,
     PayrollRunsOut,
     PayRunListResponse,
+    PlacementOut,
     PostWeekToXeroRequest,
     PostWeekToXeroStartResponse,
     StaffDailyDataOut,
     StaffListResponse,
+    StandardHoursRequest,
     SubmitDayRequest,
     TimesheetEntriesOut,
     TimesheetEventOut,
@@ -81,8 +87,8 @@ from apps.timesheet.services import (
     weekly_timesheet_service,
     workshop_timesheet_service,
 )
+from apps.timesheet.services.location import EntryLocation
 from apps.timesheet.services.workshop_timesheet_service import (
-    EntryLocation,
     WorkshopEntryCreateData,
     WorkshopEntryUpdateData,
 )
@@ -404,6 +410,17 @@ def _location(location: EntryLocationIn | None) -> EntryLocation | None:
     return {"latitude": location.latitude, "longitude": location.longitude}
 
 
+def _query_location(latitude: float | None, longitude: float | None) -> EntryLocation | None:
+    """Read a DELETE's position from its query: both coordinates, or neither."""
+    if latitude is None and longitude is None:
+        return None
+    if latitude is None or longitude is None:
+        raise HttpError(400, "Send both latitude and longitude, or neither.")
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        raise HttpError(400, "That is not a position on Earth.")
+    return {"latitude": latitude, "longitude": longitude}
+
+
 def _create_payload(payload: WorkshopTimesheetEntryRequest) -> WorkshopEntryCreateData:
     """Translate the validated create request into the service's payload."""
     data: WorkshopEntryCreateData = {
@@ -516,10 +533,21 @@ def job_workshop_timesheets_partial_update(
     summary="Delete a timesheet entry belonging to the staff member",
     tags=["job"],
 )
-def job_workshop_timesheets_destroy(request: HttpRequest, entry_id: UUID) -> Status[None]:
-    """Delete one of the authenticated staff member's own entries."""
+def job_workshop_timesheets_destroy(
+    request: HttpRequest,
+    entry_id: UUID,
+    latitude: float | None = None,
+    longitude: float | None = None,
+) -> Status[None]:
+    """Delete one of the authenticated staff member's own entries.
+
+    A DELETE carries no body, so the phone's position travels as two query
+    parameters, both or neither.
+    """
     try:
-        workshop_timesheet_service.delete_entry(authenticated_staff(request), entry_id)
+        workshop_timesheet_service.delete_entry(
+            authenticated_staff(request), entry_id, _query_location(latitude, longitude)
+        )
     except CostLine.DoesNotExist as exc:
         raise HttpError(404, "Timesheet entry not found.") from exc
     except ValueError as exc:
@@ -545,9 +573,27 @@ def timesheets_my_day_clock(
     """Stamp the caller's own day with the server's local time, to the minute."""
     worker = authenticated_staff(request)
     now = timezone.localtime()
+    location = _location(payload.location)
     if payload.action == "in":
-        return attendance.clock_in(worker, now)
-    return attendance.clock_out(worker, now)
+        return attendance.clock_in(worker, now, location)
+    return attendance.clock_out(worker, now, location)
+
+
+@router.post(
+    "/timesheets/my-day/standard-hours/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_standard_hours",
+    response=AttendanceOut,
+    summary="Record the company's standard hours on a day nobody clocked",
+    tags=["timesheets"],
+)
+def timesheets_my_day_standard_hours(
+    request: HttpRequest, payload: StandardHoursRequest
+) -> attendance.AttendanceData:
+    """Use the standard hours for the caller's unclocked day, or for office staff anyone's."""
+    actor = authenticated_staff(request)
+    owner = actor if payload.staff_id is None else get_object_or_404(Staff, id=payload.staff_id)
+    return attendance.use_standard_hours(owner, payload.date, actor, _location(payload.location))
 
 
 @router.put(
@@ -565,8 +611,56 @@ def timesheets_my_day_times(
     actor = authenticated_staff(request)
     owner = actor if payload.staff_id is None else get_object_or_404(Staff, id=payload.staff_id)
     return attendance.set_clock_times(
-        owner, payload.date, payload.clock_in, payload.clock_out, actor
+        owner,
+        payload.date,
+        payload.clock_in,
+        payload.clock_out,
+        actor,
+        location=_location(payload.location),
     )
+
+
+@router.get(
+    "/timesheets/my-day/placement/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_placement",
+    response=PlacementOut,
+    summary="Work out an entry's finish from its hours, or its hours from its finish",
+    tags=["timesheets"],
+)
+def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: the day, whose it is, and two of the three values
+    request: HttpRequest,
+    date: str,
+    start: time,
+    # The same bounds as an entry's hours: zero, negative or too many is
+    # refused as the entry endpoints refuse them, before any arithmetic.
+    hours: Annotated[Decimal, Field(ge=HOURS_MIN, lt=HOURS_LIMIT)] | None = None,
+    finish: time | None = None,
+    staff_id: UUID | None = None,
+) -> dict[str, object]:
+    """Answer the entry drawer as he types: the one placement rule, nothing written.
+
+    Given hours, the finish steps over the day's breaks; given a finish, the
+    hours are the span less the breaks inside it.
+    """
+    owner = _entry_owner(request, staff_id)
+    day = _parse_date(date)
+    if (hours is None) == (finish is None):
+        raise HttpError(400, "Give the hours or the finish, one of them.")
+    breaks = workshop_timesheet_service.day_break_windows(owner, day)
+    if hours is not None:
+        return {
+            "start": start,
+            "finish": attendance.finish_in_the_day(start, hours, breaks),
+            "hours": float(hours),
+        }
+    if finish is None:  # narrowed for the type checker; refused above
+        raise HttpError(400, "Give the hours or the finish, one of them.")
+    return {
+        "start": start,
+        "finish": finish,
+        "hours": float(attendance.hours_for(start, finish, breaks)),
+    }
 
 
 @router.post(
@@ -584,7 +678,13 @@ def timesheets_my_day_breaks_create(
     actor = authenticated_staff(request)
     owner = actor if payload.staff_id is None else get_object_or_404(Staff, id=payload.staff_id)
     attendance.add_break(
-        owner, payload.date, payload.start, payload.end, paid=payload.paid, actor=actor
+        owner,
+        payload.date,
+        payload.start,
+        payload.end,
+        paid=payload.paid,
+        actor=actor,
+        location=_location(payload.location),
     )
     return Status(204, None)
 
@@ -602,8 +702,14 @@ def timesheets_my_day_breaks_update(
 ) -> Status[None]:
     """Move or resize a break on the caller's day, or for office staff on anyone's."""
     try:
-        attendance.change_break(break_id, payload.start, payload.end, authenticated_staff(request))
-    except AttendanceBreak.DoesNotExist as exc:
+        attendance.change_break(
+            break_id,
+            payload.start,
+            payload.end,
+            authenticated_staff(request),
+            _location(payload.location),
+        )
+    except attendance.BreakNotFoundError as exc:
         raise HttpError(404, "Break not found.") from exc
     return Status(204, None)
 
@@ -616,11 +722,22 @@ def timesheets_my_day_breaks_update(
     summary="Take a break off a day",
     tags=["timesheets"],
 )
-def timesheets_my_day_breaks_delete(request: HttpRequest, break_id: UUID) -> Status[None]:
-    """Remove a break from the caller's day, or for office staff from anyone's."""
+def timesheets_my_day_breaks_delete(
+    request: HttpRequest,
+    break_id: UUID,
+    latitude: float | None = None,
+    longitude: float | None = None,
+) -> Status[None]:
+    """Remove a break from the caller's day, or for office staff from anyone's.
+
+    A DELETE carries no body, so the phone's position travels as two query
+    parameters, both or neither.
+    """
     try:
-        attendance.remove_break(break_id, authenticated_staff(request))
-    except AttendanceBreak.DoesNotExist as exc:
+        attendance.remove_break(
+            break_id, authenticated_staff(request), _query_location(latitude, longitude)
+        )
+    except attendance.BreakNotFoundError as exc:
         raise HttpError(404, "Break not found.") from exc
     return Status(204, None)
 

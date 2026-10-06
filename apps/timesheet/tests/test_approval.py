@@ -15,12 +15,13 @@ from apps.timesheet.services import approval, attendance
 from apps.timesheet.tests.conftest import (
     WEEK_START,
     authenticated_client,
+    make_break_line,
     make_leave_job,
     make_staff,
     make_time_line,
 )
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("break_job")]
 
 DAY = WEEK_START
 APPROVALS_URL = "/api/timesheets/approvals/"
@@ -103,6 +104,49 @@ class TestApproveDay:
 
 
 class TestApprovalsRead:
+    def test_a_waiting_lunch_alone_neither_holds_a_row_nor_hides_one(
+        self, office_staff: Staff, job: Job, worker: Staff, other_worker: Staff, break_job: Job
+    ) -> None:
+        """Lunch is logged, not hours: state and figures agree that it is neither."""
+        make_time_line(job, worker, accounting_date=DAY, hours="7.500", approved=True)
+        make_break_line(break_job, worker, DAY, hours="0.500", unpaid=True)
+        make_break_line(break_job, other_worker, DAY, hours="0.500", unpaid=True)
+
+        body = (
+            authenticated_client(office_staff).get(f"{APPROVALS_URL}?date={DAY.isoformat()}").json()
+        )
+
+        rows = {row["staff_id"]: (row["state"], row["waiting_hours"]) for row in body["staff"]}
+        # His job time is approved and only lunch waits: nothing is left for the office.
+        assert rows[str(worker.id)] == ("nothing_waiting", 0.0)
+        # Only a lunch on the day: expected and no job in, the person the office phones.
+        assert rows[str(other_worker.id)] == ("nothing_entered", 0.0)
+
+    def test_the_office_adds_after_the_persons_own_time(
+        self, office_staff: Staff, job: Job, worker: Staff, other_worker: Staff
+    ) -> None:
+        """Each row opens the drawer where that person's day is up to, not on top of it."""
+        attendance.set_clock_times(worker, DAY, time(7, 0), None, worker)
+        make_time_line(
+            job,
+            worker,
+            accounting_date=DAY,
+            approved=False,
+            start_time="07:00:00",
+            end_time="12:00:00",
+        )
+        attendance.set_clock_times(other_worker, DAY, time(6, 30), None, other_worker)
+
+        body = (
+            authenticated_client(office_staff).get(f"{APPROVALS_URL}?date={DAY.isoformat()}").json()
+        )
+
+        rows = {row["staff_id"]: row["default_entry_start"] for row in body["staff"]}
+        assert rows[str(worker.id)] == "12:00:00"
+        # Nothing entered yet: from when that person clocked in.
+        assert rows[str(other_worker.id)] == "06:30:00"
+        assert "default_entry_start" not in body
+
     def test_people_with_time_waiting_come_first_then_nothing_entered(
         self, office_staff: Staff, job: Job, worker: Staff, other_worker: Staff
     ) -> None:
@@ -211,6 +255,7 @@ class TestApprovalsRead:
             "clock_out": "15:00:00",
             "here_hours": 8.5,
             "sent_late": False,
+            "cautions": ["Did not clock in", "Did not clock out"],
         }
         assert rows[str(other_worker.id)]["state"] == "waiting"
         assert rows[str(other_worker.id)]["clock"]["state"] == "not_clocked_in"

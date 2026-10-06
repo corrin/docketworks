@@ -32,6 +32,7 @@ from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.core.xero_registry import xero_model_manager
 from apps.job.models.costing import CostLine
+from apps.job.services.time_entry_rates import UNPAID_TIME
 from apps.timesheet.services.xero_hours import build_staff_lookup
 
 ZERO = Decimal("0")
@@ -636,12 +637,17 @@ def _line_base_pay(line: CostLine, staff: Staff) -> Decimal:
 
 def _get_jm_week_data(week_start: date, week_end: date) -> dict[str, _JMStaffWeek]:
     """JM CostLine time data for one week, keyed by the Xero employee id."""
-    lines = CostLine.objects.filter(
-        kind="time",
-        cost_set__kind="actual",
-        accounting_date__gte=week_start,
-        accounting_date__lte=week_end,
-    ).select_related("staff")
+    # Unpaid time is never posted, so it is on neither side of the comparison.
+    lines = (
+        CostLine.objects.filter(
+            kind="time",
+            cost_set__kind="actual",
+            accounting_date__gte=week_start,
+            accounting_date__lte=week_end,
+        )
+        .exclude(UNPAID_TIME)
+        .select_related("staff")
+    )
 
     hours: defaultdict[str, Decimal] = defaultdict(lambda: ZERO)
     cost: defaultdict[str, Decimal] = defaultdict(lambda: ZERO)

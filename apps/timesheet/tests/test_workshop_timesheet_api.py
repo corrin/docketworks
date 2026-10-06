@@ -323,9 +323,10 @@ class TestTimeConsistency:
         line = CostLine.objects.get(id=_entry_id(entry))
         assert line.meta["end_time"] == "12:00:00"
 
-    def test_patching_hours_away_from_the_stored_times_is_rejected(
+    def test_new_hours_redraw_the_finish_rather_than_being_refused_by_it(
         self, worker_client: Client, job: Job
     ) -> None:
+        """Hours are what he is paid; the times are their picture, stepped over the breaks."""
         entry = _create(
             worker_client, job, hours="4.00", start_time="08:00:00", end_time="12:00:00"
         )
@@ -336,8 +337,11 @@ class TestTimeConsistency:
             content_type="application/json",
         )
 
-        assert response.status_code == 400, response.content
-        assert CostLine.objects.get(id=_entry_id(entry)).quantity == Decimal("4.000")
+        assert response.status_code == 200, response.content
+        line = CostLine.objects.get(id=_entry_id(entry))
+        assert line.quantity == Decimal("6.000")
+        # Six hours from eight, over the day's three planned breaks.
+        assert (line.meta["start_time"], line.meta["end_time"]) == ("08:00:00", "15:00:00")
 
     def test_clearing_a_time_lifts_the_agreement_requirement(
         self, worker_client: Client, job: Job

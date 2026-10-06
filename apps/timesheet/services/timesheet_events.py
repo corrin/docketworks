@@ -7,6 +7,7 @@ commit or roll back together. The before/after snapshots are the entry as a
 reader sees it: job number, hours, rates, multipliers, pay item, approval.
 """
 
+from datetime import date
 from decimal import Decimal
 from typing import TypedDict
 
@@ -133,8 +134,13 @@ def record_timesheet_event(
     event_type: str,
     line: CostLine,
     before: TimesheetLineSnapshot | None,
+    trusted: bool,
 ) -> TimesheetEvent | None:
     """Record one write to ``line``; the one place that decides whether a line is recorded.
+
+    ``trusted`` is whether the write was made at the workshop, by the one rule
+    in ``location.saved_remotely``; the caller passes its answer so a write
+    and its evidence are judged on the same position.
 
     Call it inside the write's transaction, after the write for a create,
     edit, move or approval and before the row goes for a delete (Django clears
@@ -164,4 +170,49 @@ def record_timesheet_event(
         delta_before=before,
         delta_after=after,
         detail={"changes": changes},
+        trusted=trusted,
+    )
+
+
+class DaySnapshot(TypedDict):
+    """A person's clock times as a day event records them, "HH:MM" or None."""
+
+    clock_in: str | None
+    clock_out: str | None
+
+
+#: How each day snapshot key reads in ``detail.changes`` and the history panel.
+DAY_LABELS: dict[str, str] = {"clock_in": "Clock in", "clock_out": "Clock out"}
+
+
+def record_day_event(  # noqa: PLR0913 -- keyword-only: who, whose day, which day, what, the two sides, and where
+    *,
+    staff: Staff,
+    worker: Staff,
+    day: date,
+    event_type: str,
+    before: DaySnapshot | None,
+    after: DaySnapshot | None,
+    trusted: bool,
+) -> TimesheetEvent:
+    """Record an event of the day itself: a clock tap, times set, standard hours, the day sent.
+
+    The sibling of ``record_timesheet_event`` for what has no entry. The two
+    snapshots are the day's clock times; the diff of them is what the panel
+    reads, so a tap reads "Clock in 07:02" and a correction "Clock in moved
+    from 07:02 to 07:00". An event that moves no time (the day sent) reads
+    as its label.
+    """
+    changes = [
+        {**change, "field_name": DAY_LABELS[change["field_name"]]}
+        for change in snapshot_changes(before, after)
+    ]
+    return TimesheetEvent.objects.create(
+        staff=staff,
+        worker=worker,
+        accounting_date=day,
+        cost_line_id=None,
+        event_type=event_type,
+        detail={"changes": changes},
+        trusted=trusted,
     )

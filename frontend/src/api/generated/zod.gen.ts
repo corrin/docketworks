@@ -181,6 +181,7 @@ export const zAssignJobResponse = z.object({
  * A person's day as they clocked it. ``here_hours`` is worked out by the server.
  */
 export const zAttendanceOut = z.object({
+    cautions: z.array(z.string()),
     clock_in: z.iso.time().nullable(),
     clock_out: z.iso.time().nullable(),
     here_hours: z.number().nullable(),
@@ -205,37 +206,21 @@ export const zAuthErrorOut = z.object({
 });
 
 /**
- * BreakCreateRequest
- *
- * A break added to a day. ``staff_id`` is for office staff correcting another's day.
- */
-export const zBreakCreateRequest = z.object({
-    date: z.iso.date(),
-    end: z.iso.time(),
-    paid: z.boolean(),
-    staff_id: z.uuid().nullish(),
-    start: z.iso.time()
-});
-
-/**
  * BreakOut
  *
- * One break in a person's day. Breaks are in no hours, cost or pay figure.
+ * One break in a person's day.
+ *
+ * Every break is his time line on the Break job and ``id`` is that line's:
+ * a paid break is paid time, lunch is logged and in no hours figure. A
+ * planned break is the company's standard one, not yet his: it has no id.
  */
 export const zBreakOut = z.object({
+    approved: z.boolean().nullable(),
     end: z.iso.time(),
-    id: z.uuid(),
+    id: z.uuid().nullable(),
+    name: z.string(),
     paid: z.boolean(),
-    start: z.iso.time()
-});
-
-/**
- * BreakUpdateRequest
- *
- * A break moved or resized.
- */
-export const zBreakUpdateRequest = z.object({
-    end: z.iso.time(),
+    planned: z.boolean(),
     start: z.iso.time()
 });
 
@@ -308,29 +293,6 @@ export const zChunkOut = z.object({
 });
 
 /**
- * ClockRequest
- *
- * A tap on Clock in or Clock out; the server supplies the time.
- */
-export const zClockRequest = z.object({
-    action: z.enum(['in', 'out'])
-});
-
-/**
- * ClockTimesRequest
- *
- * Clock times set by hand. No ``clock_out`` means the person is at work again.
- *
- * ``staff_id`` is for office staff correcting another person's day.
- */
-export const zClockTimesRequest = z.object({
-    clock_in: z.iso.time(),
-    clock_out: z.iso.time().nullish(),
-    date: z.iso.date(),
-    staff_id: z.uuid().nullish()
-});
-
-/**
  * CompanyCreateRequest
  *
  * Wire contract for CompanyCreateRequest.
@@ -375,6 +337,7 @@ export const zCompanyDefaultsOut = z.object({
     address_raw_json: z.record(z.string(), z.unknown()).nullable(),
     afternoon_break_minutes: z.int(),
     afternoon_break_start: z.iso.time(),
+    break_job: z.uuid().nullable(),
     city: z.string().max(100).nullable(),
     company_acronym: z.string().max(10).nullable(),
     company_email: z.string().max(254).nullable(),
@@ -465,6 +428,7 @@ export const zCompanyDefaultsPatchIn = z.object({
     address_raw_json: z.record(z.string(), z.unknown()).nullish(),
     afternoon_break_minutes: z.int().nullish(),
     afternoon_break_start: z.iso.time().nullish(),
+    break_job_id: z.uuid().nullish(),
     city: z.string().max(100).nullish(),
     company_acronym: z.string().max(10).nullish(),
     company_email: z.string().max(254).nullish(),
@@ -1283,6 +1247,56 @@ export const zEntryLocationIn = z.object({
 });
 
 /**
+ * BreakCreateRequest
+ *
+ * A break added to a day. ``staff_id`` is for office staff correcting another's day.
+ */
+export const zBreakCreateRequest = z.object({
+    date: z.iso.date(),
+    end: z.iso.time(),
+    location: zEntryLocationIn.nullish(),
+    paid: z.boolean(),
+    staff_id: z.uuid().nullish(),
+    start: z.iso.time()
+});
+
+/**
+ * BreakUpdateRequest
+ *
+ * A break moved or resized.
+ */
+export const zBreakUpdateRequest = z.object({
+    end: z.iso.time(),
+    location: zEntryLocationIn.nullish(),
+    start: z.iso.time()
+});
+
+/**
+ * ClockRequest
+ *
+ * A tap on Clock in or Clock out; the server supplies the time.
+ */
+export const zClockRequest = z.object({
+    action: z.enum(['in', 'out']),
+    location: zEntryLocationIn.nullish()
+});
+
+/**
+ * ClockTimesRequest
+ *
+ * Clock times set by hand. No ``clock_out`` means the person is at work again.
+ *
+ * ``staff_id`` is for office staff correcting another person's day.
+ */
+export const zClockTimesRequest = z.object({
+    clock_in: z.iso.time(),
+    clock_out: z.iso.time().nullish(),
+    date: z.iso.date(),
+    location: zEntryLocationIn.nullish(),
+    staff_id: z.uuid().nullish()
+});
+
+/**
  * EntryOut
  *
  * One form entry — the entry list row and the entry detail alike.
@@ -1385,6 +1399,7 @@ export const zEntryEventOut = z.object({
  * ``to_go_hours`` is negative when more is entered than the person was here for.
  */
 export const zFillOut = z.object({
+    break_hours: z.number(),
     entered_hours: z.number(),
     to_fill_hours: z.number(),
     to_go_hours: z.number()
@@ -4073,6 +4088,17 @@ export const zPipelineWarningOut = z.object({
 });
 
 /**
+ * PlacementOut
+ *
+ * Where an entry sits in the day: its hours and its times, each from the other.
+ */
+export const zPlacementOut = z.object({
+    finish: z.iso.time().nullable(),
+    hours: z.number(),
+    start: z.iso.time()
+});
+
+/**
  * PostWeekToXeroRequest
  *
  * Wire contract for PostWeekToXeroRequest.
@@ -5290,6 +5316,27 @@ export const zStaffWeekPostingOut = z.object({
 });
 
 /**
+ * StandardDayOut
+ *
+ * The company's standard start and finish for a weekday.
+ */
+export const zStandardDayOut = z.object({
+    end: z.iso.time(),
+    start: z.iso.time()
+});
+
+/**
+ * StandardHoursRequest
+ *
+ * Record the standard hours on a day nobody clocked. ``staff_id`` is for the office.
+ */
+export const zStandardHoursRequest = z.object({
+    date: z.iso.date(),
+    location: zEntryLocationIn.nullish(),
+    staff_id: z.uuid().nullish()
+});
+
+/**
  * StockConsumeRequest
  *
  * Wire contract for StockConsumeRequest.
@@ -6006,6 +6053,10 @@ export const zTimesheetLineSnapshotOut = z.object({
  * TimesheetEventOut
  *
  * One audit event on a staff member's day, for the entry page's history dialog.
+ *
+ * ``trusted`` is whether it was made at the workshop (services/location.py).
+ * An event of the day itself (a clock tap, times set, the day sent) has no
+ * entry snapshots.
  */
 export const zTimesheetEventOut = z.object({
     after: zTimesheetLineSnapshotOut.nullable(),
@@ -6015,7 +6066,8 @@ export const zTimesheetEventOut = z.object({
     event_type: z.string(),
     id: z.uuid(),
     staff_name: z.string(),
-    timestamp: z.iso.datetime()
+    timestamp: z.iso.datetime(),
+    trusted: z.boolean()
 });
 
 /**
@@ -6286,6 +6338,7 @@ export const zWorkshopTimesheetEntryOut = z.object({
 export const zStaffApprovalOut = z.object({
     breaks: z.array(zBreakOut),
     clock: zAttendanceOut,
+    default_entry_start: z.iso.time(),
     entered_hours: z.number(),
     entered_late: z.boolean(),
     entries: z.array(zWorkshopTimesheetEntryOut),
@@ -6309,6 +6362,7 @@ export const zStaffApprovalOut = z.object({
 export const zApprovalsDayOut = z.object({
     date: z.iso.date(),
     staff: z.array(zStaffApprovalOut),
+    standard: zStandardDayOut.nullable(),
     summary: zDaySummaryOut
 });
 
@@ -6405,9 +6459,12 @@ export const zWorkshopTimesheetListResponse = z.object({
     calendar: zCalendarBoundsOut,
     date: z.iso.date(),
     day: zAttendanceOut,
+    default_entry_start: z.iso.time(),
     entries: z.array(zWorkshopTimesheetEntryOut),
     fill: zFillOut.nullable(),
+    missed_clock_out_finish: z.iso.time().nullable(),
     pending: zPendingDayOut.nullable(),
+    standard: zStandardDayOut.nullable(),
     summary: zWorkshopTimesheetSummaryOut,
     week: zWorkshopTimesheetWeekOut
 });
@@ -8178,7 +8235,9 @@ export const zJobTimesheetEntriesHistoryRetrieveQuery = z.object({
 export const zJobTimesheetEntriesHistoryRetrieveResponse = z.array(zTimesheetEventOut);
 
 export const zJobWorkshopTimesheetsDestroyQuery = z.object({
-    entry_id: z.uuid()
+    entry_id: z.uuid(),
+    latitude: z.number().nullish(),
+    longitude: z.number().nullish()
 });
 
 /**
@@ -9092,6 +9151,11 @@ export const zTimesheetsMyDayBreaksDeletePath = z.object({
     break_id: z.uuid()
 });
 
+export const zTimesheetsMyDayBreaksDeleteQuery = z.object({
+    latitude: z.number().nullish(),
+    longitude: z.number().nullish()
+});
+
 /**
  * No Content
  */
@@ -9114,6 +9178,29 @@ export const zTimesheetsMyDayClockBody = zClockRequest;
  * OK
  */
 export const zTimesheetsMyDayClockResponse = zAttendanceOut;
+
+export const zTimesheetsMyDayPlacementQuery = z.object({
+    date: z.string(),
+    start: z.iso.time(),
+    hours: z.union([
+        z.number().gte(0.01).lt(100000),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    finish: z.iso.time().nullish(),
+    staff_id: z.uuid().nullish()
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsMyDayPlacementResponse = zPlacementOut;
+
+export const zTimesheetsMyDayStandardHoursBody = zStandardHoursRequest;
+
+/**
+ * OK
+ */
+export const zTimesheetsMyDayStandardHoursResponse = zAttendanceOut;
 
 export const zTimesheetsMyDaySubmitBody = zSubmitDayRequest;
 

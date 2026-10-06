@@ -13,10 +13,15 @@ import timeGridPlugin from '@fullcalendar/react/timegrid'
 
 import type { BreakOut, CalendarBoundsOut } from '@/api'
 
-import { breakWords, type MyTimeCalendarEvent } from './myTime'
+import { breakWords, isRealBreak, type MyTimeCalendarEvent, type RealBreak } from './myTime'
 
 /** Calendar ids of break blocks, so a tap on one is not taken for an entry. */
 const BREAK_EVENT_PREFIX = 'break-'
+
+/** A planned break has no id yet; its place in the list stands for it. */
+function breakEventId(each: BreakOut): string {
+  return `${BREAK_EVENT_PREFIX}${each.id ?? `planned-${each.start}`}`
+}
 
 /** The block's own text: time, job, then where the entry stands, in words
     so the state does not rest on colour. */
@@ -55,7 +60,8 @@ interface WorkshopTimesheetCalendarProps {
   /** His breaks, drawn as their own blocks: part of the day's picture, not entries. */
   breaks: BreakOut[]
   onEventClick: (entryId: string) => void
-  onBreakClick: (each: BreakOut) => void
+  /** A break that is written down; a planned one has nothing to open. */
+  onBreakClick: (each: RealBreak) => void
   /** A click on an empty slot, as the slot's "HH:mm" start. */
   onSlotClick: (start: string) => void
 }
@@ -103,7 +109,7 @@ export function WorkshopTimesheetCalendar({
         events={[
           ...events.map(({ id, title, start, end }) => ({ id, title, start, end })),
           ...breaks.map((each) => ({
-            id: `${BREAK_EVENT_PREFIX}${each.id}`,
+            id: breakEventId(each),
             title: breakWords(each),
             start: `${date}T${each.start}`,
             end: `${date}T${each.end}`,
@@ -115,9 +121,9 @@ export function WorkshopTimesheetCalendar({
           })),
         ]}
         eventClick={(info) => {
-          const clicked = breaks.find((each) => `${BREAK_EVENT_PREFIX}${each.id}` === info.event.id)
+          const clicked = breaks.find((each) => breakEventId(each) === info.event.id)
           if (clicked === undefined) onEventClick(info.event.id)
-          else onBreakClick(clicked)
+          else if (isRealBreak(clicked)) onBreakClick(clicked)
         }}
         dateClick={(info) => {
           const [, time] = info.dateStr.split('T')

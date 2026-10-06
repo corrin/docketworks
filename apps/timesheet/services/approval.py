@@ -9,25 +9,33 @@ The Approve time screen is for office staff who are not shown pay, so nothing
 this module returns carries a rate, a cost or a revenue figure.
 """
 
-from datetime import date
+from datetime import date, time
+from decimal import Decimal
 from typing import Literal, TypedDict
 
 from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine, lock_costing_jobs
+from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.models import AttendanceDay
 from apps.timesheet.services import hour_categories
 from apps.timesheet.services.attendance import (
     AttendanceData,
     BreakData,
     attendance_data,
-    break_data,
     day_breaks,
+    duration_words,
+    fill_figures,
+    split_breaks,
+    standard_day,
 )
+from apps.timesheet.services.location import saved_remotely
 from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
 from apps.timesheet.services.workshop_timesheet_service import (
+    StandardDayData,
     WorkshopEntryData,
+    default_entry_start,
     entered_late,
     entry_data,
 )
@@ -66,6 +74,10 @@ class StaffApprovalData(TypedDict):
     clock: AttendanceData
     breaks: list[BreakData]
     entries: list[WorkshopEntryData]
+    #: Where an entry the office adds for this person starts: after their
+    #: latest, else their clock-in, else the standard start; the rule their
+    #: own day read uses.
+    default_entry_start: time
 
 
 class DaySummaryData(TypedDict):
@@ -85,6 +97,8 @@ class ApprovalsDayData(TypedDict):
     """Everyone's day, for the Approve time screen."""
 
     date: date
+    #: The company's standard hours for the date; None on a weekend.
+    standard: StandardDayData | None
     summary: DaySummaryData
     staff: list[StaffApprovalData]
 
@@ -98,7 +112,13 @@ def approve_line(line: CostLine, actor: Staff) -> None:
     before = snapshot_if_entry(line)
     line.approved = True
     line.save(update_fields=["approved", "updated_at"])
-    record_timesheet_event(staff=actor, event_type="entry_approved", line=line, before=before)
+    record_timesheet_event(
+        staff=actor,
+        event_type="entry_approved",
+        line=line,
+        before=before,
+        trusted=not saved_remotely(actor, None),
+    )
 
 
 def approve_day(worker: Staff, day: date, actor: Staff) -> int:
@@ -131,31 +151,55 @@ def approve_day(worker: Staff, day: date, actor: Staff) -> int:
 
 
 def _staff_day(
-    person: Staff, lines: list[CostLine], attendance: AttendanceDay | None, *, rostered: bool
+    person: Staff,
+    day: date,
+    lines: list[CostLine],
+    attendance: AttendanceDay | None,
+    *,
+    rostered: bool,
 ) -> StaffApprovalData:
-    waiting = [line for line in lines if not line.approved]
+    # Lunch is logged, not hours: it is in no figure and does not by itself
+    # hold a row waiting. Approving the day approves it with the rest.
+    hours = [line for line in lines if not is_unpaid_time(line)]
+    waiting = [line for line in hours if not line.approved]
+    entries, break_lines = split_breaks(lines)
+    clock = attendance_data(attendance)
+    fill = fill_figures(
+        attendance, sum((line.quantity for line in entries), Decimal(0)), break_lines
+    )
+    if fill is not None and fill["to_go_hours"] < 0:
+        # More entered than he was here for. The usual cause: he clocked, so
+        # his paid breaks were entered, and a full day of jobs was typed too.
+        over = duration_words(Decimal(str(-fill["to_go_hours"])))
+        clock = {**clock, "cautions": [*clock["cautions"], f"Over by {over}"]}
     state: ApprovalState
-    if waiting:
+    if not entries and (rostered or attendance is not None):
+        # Expected and no job in: the person the office phones. His paid
+        # breaks, entered when he clocked out, do not make a day entered.
+        state = "nothing_entered"
+    elif not entries:
+        state = "not_rostered"
+    elif waiting:
         state = "waiting"
-    elif lines:
+    else:
         # Leave is here too: its line is approved when it is made.
         state = "nothing_waiting"
-    elif rostered or attendance is not None:
-        # Expected and nothing in: the person the office phones.
-        state = "nothing_entered"
-    else:
-        state = "not_rostered"
     return {
         "staff_id": str(person.id),
         "staff_name": person.get_display_full_name(),
         "state": state,
-        "entered_hours": float(sum(line.quantity for line in lines)),
+        "entered_hours": float(sum(line.quantity for line in hours)),
         "waiting_hours": float(sum(line.quantity for line in waiting)),
         "entered_late": any(entered_late(line) for line in waiting),
         "remote_entry": any(line.remote_entry for line in waiting),
-        "clock": attendance_data(attendance),
-        "breaks": [break_data(each) for each in day_breaks(attendance)],
-        "entries": [entry_data(line) for line in lines],
+        "clock": clock,
+        "breaks": day_breaks(attendance.date, attendance, break_lines)
+        if attendance is not None
+        else [],
+        # His paid breaks travel as breaks, with lunch: nobody reading a day
+        # is shown that the two kinds are stored differently.
+        "entries": [entry_data(line) for line in entries],
+        "default_entry_start": default_entry_start(day, attendance, entries, break_lines),
     }
 
 
@@ -168,17 +212,15 @@ def day_approvals(day: date) -> ApprovalsDayData:
     by_staff: dict[str, list[CostLine]] = {}
     lines = CostLine.objects.filter(
         cost_set__kind="actual", kind="time", accounting_date=day
-    ).select_related("cost_set__job__company")
+    ).select_related("cost_set__job__company", "xero_pay_item")
     for line in lines:
         by_staff.setdefault(str(line.staff_id), []).append(line)
-    clocked = {
-        row.staff_id: row
-        for row in AttendanceDay.objects.filter(date=day).prefetch_related("breaks")
-    }
+    clocked = {row.staff_id: row for row in AttendanceDay.objects.filter(date=day)}
     weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
     rows = [
         _staff_day(
             person,
+            day,
             by_staff.get(str(person.id), []),
             clocked.get(person.id),
             # The roster rule the daily and weekly screens use.
@@ -188,7 +230,13 @@ def day_approvals(day: date) -> ApprovalsDayData:
         for person in get_displayable_staff(target_date=day)
     ]
     rows.sort(key=lambda row: (_STATE_ORDER[row["state"]], row["staff_name"]))
-    return {"date": day, "summary": day_summary(rows), "staff": rows}
+    standard = standard_day(day)
+    return {
+        "date": day,
+        "standard": None if standard is None else {"start": standard.start, "end": standard.end},
+        "summary": day_summary(rows),
+        "staff": rows,
+    }
 
 
 def day_summary(rows: list[StaffApprovalData]) -> DaySummaryData:

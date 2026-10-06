@@ -98,9 +98,13 @@ test.describe.serial('workshop my time view', () => {
         `#${jobNumber}`,
       )
 
-      await autoId(page, 'WorkshopTimesheetEntryDrawer-start-time').fill('08:00')
-      await autoId(page, 'WorkshopTimesheetEntryDrawer-end-time').fill('09:00')
-      await expect(autoId(page, 'WorkshopTimesheetEntryDrawer-duration')).toContainText('1h')
+      // Typed times give the hours: clear of the standard breaks, the whole span.
+      await autoId(page, 'WorkshopTimesheetEntryDrawer-start-time').fill('09:00')
+      await autoId(page, 'WorkshopTimesheetEntryDrawer-end-time').fill('10:00')
+      await expect(autoId(page, 'WorkshopTimesheetEntryDrawer-duration')).toContainText(
+        '1h from 09:00 to 10:00',
+      )
+      await expect(autoId(page, 'WorkshopTimesheetEntryDrawer-hours')).toHaveValue('1')
       await autoId(page, 'WorkshopTimesheetEntryDrawer-description').fill('Workshop test entry')
 
       const submit = autoId(page, 'WorkshopTimesheetEntryDrawer-submit')
@@ -133,7 +137,7 @@ test.describe.serial('workshop my time view', () => {
         timeout: 10000,
       })
 
-      await autoId(page, 'WorkshopTimesheetEntryDrawer-end-time').fill('10:00')
+      await autoId(page, 'WorkshopTimesheetEntryDrawer-end-time').fill('11:00')
       await autoId(page, 'WorkshopTimesheetEntryDrawer-description').fill(
         'Workshop test entry updated',
       )
@@ -152,7 +156,7 @@ test.describe.serial('workshop my time view', () => {
       await expect(autoId(page, 'WorkshopTimesheetEntryDrawer-description')).toHaveValue(
         'Workshop test entry updated',
       )
-      await expect(autoId(page, 'WorkshopTimesheetEntryDrawer-end-time')).toHaveValue('10:00')
+      await expect(autoId(page, 'WorkshopTimesheetEntryDrawer-end-time')).toHaveValue('11:00')
       await autoId(page, 'WorkshopTimesheetEntryDrawer-cancel').click()
       await expect(page.getByRole('heading', { name: 'Edit entry' })).toBeHidden({
         timeout: 10000,

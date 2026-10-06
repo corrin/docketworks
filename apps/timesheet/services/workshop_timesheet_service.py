@@ -14,7 +14,6 @@ item and a zero bill rate.
 import logging
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
-from math import asin, cos, radians, sin, sqrt
 from typing import TypedDict
 from uuid import UUID
 
@@ -26,7 +25,6 @@ from django.utils.dateparse import parse_date
 
 from apps.accounts.models import Staff
 from apps.core.errors import AccessDeniedError, ConflictError
-from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, lock_costing_jobs
 from apps.job.services.job_service import (
@@ -39,12 +37,18 @@ from apps.job.services.job_service import (
     update_latest_actual,
 )
 from apps.job.services.time_entry_rates import (
+    UNPAID_TIME,
     ZERO_MULTIPLIER,
     normalize_multiplier,
     price_time_entry,
     rate_from_meta,
 )
-from apps.timesheet.models import AttendanceDay
+from apps.timesheet.models import (
+    EDITED_STANDARD_BREAK,
+    UNTOUCHED_STANDARD_BREAK,
+    AttendanceDay,
+    mark_break_edited,
+)
 from apps.timesheet.services import attendance, hour_categories
 from apps.timesheet.services.attendance import (
     AttendanceData,
@@ -53,6 +57,7 @@ from apps.timesheet.services.attendance import (
     FillData,
     PendingDay,
 )
+from apps.timesheet.services.location import EntryLocation, saved_remotely
 from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
 from apps.timesheet.services.weekly_timesheet_service import PAYROLL_WEEK_DAYS, payroll_week_start
 
@@ -114,13 +119,6 @@ class WorkshopEntryUpdateData(TypedDict, total=False):
     bill_rate_multiplier: Decimal
 
 
-class EntryLocation(TypedDict):
-    """Where the worker's phone says it is as it saves an entry."""
-
-    latitude: float
-    longitude: float
-
-
 class WorkshopEntryData(TypedDict):
     """Data contract for WorkshopEntryData."""
 
@@ -159,6 +157,13 @@ class WorkshopWeekData(TypedDict):
     waiting_hours: float
 
 
+class StandardDayData(TypedDict):
+    """The company's standard start and finish for a weekday."""
+
+    start: time
+    end: time
+
+
 class WorkshopDayData(TypedDict):
     """Data contract for WorkshopDayData."""
 
@@ -171,6 +176,12 @@ class WorkshopDayData(TypedDict):
     breaks: list[BreakData]
     #: Hours to fill, entered and to go; None until both clock times are known.
     fill: FillData | None
+    #: The company's standard hours for the date; None on a weekend.
+    standard: StandardDayData | None
+    #: The standard finish to offer for an earlier day left clocked in.
+    missed_clock_out_finish: time | None
+    #: Where a new entry opens when nothing on the day precedes it.
+    default_entry_start: time
     calendar: CalendarBounds
     #: An earlier day the person clocked and has not sent.
     pending: PendingDay | None
@@ -207,11 +218,13 @@ _TIME_AGREEMENT_TOLERANCE = Decimal("0.01")
 
 
 def _validate_time_consistency(start: time | None, end: time | None, hours: Decimal) -> None:
-    """Refuse a start/end pair that disagrees with itself or with ``hours``.
+    """Refuse a start/end pair that is backwards or too short to hold ``hours``.
 
-    The wire carries all three fields, so without this a caller can book
-    "08:00-09:00, 8 hours" and payroll cost silently disagrees with the
-    calendar block. A single missing time carries no duration and is exempt.
+    An entry's hours are what is paid and billed; its times are a picture of
+    where the work sat in the day. Breaks are outside job time, so an entry
+    spanning one has a span longer than its hours, and that is ordinary. What
+    cannot be is more hours than the span. A single missing time carries no
+    span and is exempt.
     """
     if start is None or end is None:
         return
@@ -219,9 +232,9 @@ def _validate_time_consistency(start: time | None, end: time | None, hours: Deci
         raise ValueError("end_time must be after start_time.")
     elapsed = datetime.combine(date.min, end) - datetime.combine(date.min, start)
     duration = Decimal(elapsed.total_seconds()) / Decimal(3600)
-    if abs(duration - hours) > _TIME_AGREEMENT_TOLERANCE:
+    if hours - duration > _TIME_AGREEMENT_TOLERANCE:
         raise ValueError(
-            f"hours ({hours}) must match the start_time-end_time duration "
+            f"hours ({hours}) cannot be more than the start_time-end_time span "
             f"({duration.quantize(Decimal('0.01'))})."
         )
 
@@ -239,6 +252,10 @@ def _meta_multiplier(meta: dict[str, object], key: str, default: Decimal) -> Dec
     return normalize_multiplier(raw)
 
 
+#: Lines nobody typed, never marked entered late.
+_GENERATED_SOURCES = frozenset({UNTOUCHED_STANDARD_BREAK, EDITED_STANDARD_BREAK})
+
+
 def entered_late(line: CostLine) -> bool:
     """Whether the entry was made on a later day than the day it is for.
 
@@ -248,49 +265,9 @@ def entered_late(line: CostLine) -> bool:
     for that day is on time. A line a workflow owns is never late: leave is
     routinely entered the day after.
     """
-    if line.managed_by is not None:
+    if line.managed_by is not None or line.meta.get("source") in _GENERATED_SOURCES:
         return False
     return timezone.localdate(line.created_at) > line.accounting_date
-
-
-# Fable: One generous distance and nothing finer. A phone inside a steel shed
-# can be a street out, and a wrong mark costs the office a moment's confusion,
-# so the circle is drawn to forgive a poor fix rather than to catch a near miss.
-WORKSHOP_RADIUS_M = 300
-_EARTH_RADIUS_M = 6_371_000
-
-
-def _metres_between(lat_a: float, lng_a: float, lat_b: float, lng_b: float) -> float:
-    """Great-circle distance between two points, by the haversine formula."""
-    d_lat = radians(lat_b - lat_a)
-    d_lng = radians(lng_b - lng_a)
-    chord = sin(d_lat / 2) ** 2 + cos(radians(lat_a)) * cos(radians(lat_b)) * sin(d_lng / 2) ** 2
-    return 2 * _EARTH_RADIUS_M * asin(sqrt(chord))
-
-
-def saved_remotely(staff: Staff, location: EntryLocation | None) -> bool:
-    """Whether a worker's own save lacks a location at the company address.
-
-    The mark is how the office tells time entered in the workshop from time
-    entered somewhere else. A phone that gives no location (refused, or no
-    fix) is marked the same as one that is elsewhere. Office staff are not
-    marked: they book from desks whose browsers guess their position. A
-    company with no address has nowhere to compare against, so marks nothing.
-    """
-    if staff.is_office_staff:
-        return False
-    company = CompanyDefaults.get_solo()
-    if company.latitude is None or company.longitude is None:
-        return False
-    if location is None:
-        return True
-    distance = _metres_between(
-        float(company.latitude),
-        float(company.longitude),
-        location["latitude"],
-        location["longitude"],
-    )
-    return distance > WORKSHOP_RADIUS_M
 
 
 def entry_data(line: CostLine) -> WorkshopEntryData:
@@ -357,7 +334,7 @@ def day_time_lines(staff: Staff, entry_date: date) -> list[CostLine]:
             kind="time",
             staff=staff,
             accounting_date=entry_date,
-        ).select_related("cost_set__job__company")
+        ).select_related("cost_set__job__company", "xero_pay_item")
     )
 
 
@@ -368,15 +345,20 @@ def _week_hours(staff: Staff, entry_date: date) -> WorkshopWeekData:
     back, so the worker's "waiting" and the office's figure are one number.
     """
     week_start = payroll_week_start(entry_date)
-    totals = CostLine.objects.filter(
-        cost_set__kind="actual",
-        kind="time",
-        staff=staff,
-        accounting_date__gte=week_start,
-        accounting_date__lte=week_start + timedelta(days=PAYROLL_WEEK_DAYS - 1),
-    ).aggregate(
-        approved_hours=Coalesce(Sum("quantity", filter=Q(approved=True)), Decimal("0")),
-        waiting_hours=Coalesce(Sum("quantity", filter=Q(approved=False)), Decimal("0")),
+    # Lunch is logged, not hours.
+    totals = (
+        CostLine.objects.filter(
+            cost_set__kind="actual",
+            kind="time",
+            staff=staff,
+            accounting_date__gte=week_start,
+            accounting_date__lte=week_start + timedelta(days=PAYROLL_WEEK_DAYS - 1),
+        )
+        .exclude(UNPAID_TIME)
+        .aggregate(
+            approved_hours=Coalesce(Sum("quantity", filter=Q(approved=True)), Decimal("0")),
+            waiting_hours=Coalesce(Sum("quantity", filter=Q(approved=False)), Decimal("0")),
+        )
     )
     return {
         "approved_hours": float(totals["approved_hours"]),
@@ -385,26 +367,65 @@ def _week_hours(staff: Staff, entry_date: date) -> WorkshopWeekData:
 
 
 def list_entries(staff: Staff, entry_date: date) -> WorkshopDayData:
-    """List one person's entries for a date, with the day's summary."""
-    entries = day_time_lines(staff, entry_date)
+    """List one person's entries for a date, with the day's summary.
+
+    His breaks travel in ``breaks`` and not in ``entries``: nothing that reads
+    the day's jobs (the last job used, the count of jobs, the job blocks) then
+    has to know which job a break is booked to. His paid breaks are hours and
+    in every total; lunch is logged, not hours, and in none.
+    """
+    lines = day_time_lines(staff, entry_date)
+    entries, break_lines = attendance.split_breaks(lines)
     row = AttendanceDay.objects.filter(staff=staff, date=entry_date).first()
-    breaks = attendance.day_breaks(row)
+    breaks = attendance.day_breaks(entry_date, row, break_lines)
+    standard = attendance.standard_day(entry_date)
+    today = timezone.localdate()
     return {
         "date": entry_date,
         "entries": [entry_data(line) for line in entries],
-        "summary": _summary(entries),
+        "summary": _summary(lines),
         "week": _week_hours(staff, entry_date),
         "day": attendance.attendance_data(row),
-        "breaks": [attendance.break_data(each) for each in breaks],
-        "fill": attendance.fill_figures(row, sum((line.quantity for line in entries), Decimal(0))),
+        "breaks": breaks,
+        "fill": attendance.fill_figures(
+            row, sum((line.quantity for line in entries), Decimal(0)), break_lines
+        ),
+        "standard": None if standard is None else {"start": standard.start, "end": standard.end},
+        "missed_clock_out_finish": attendance.missed_clock_out_finish(row, today),
+        "default_entry_start": default_entry_start(entry_date, row, entries, break_lines),
         "calendar": attendance.calendar_bounds(
             row,
-            working_day(entry_date),
+            standard,
             [span for line in entries if (span := timed_span(line))]
-            + [(each.start, each.end) for each in breaks],
+            + [(each["start"], each["end"]) for each in breaks],
         ),
-        "pending": attendance.pending_day(staff, timezone.localdate()),
+        "pending": attendance.pending_day(staff, today),
     }
+
+
+def default_entry_start(
+    day: date, row: AttendanceDay | None, entries: list[CostLine], break_lines: list[CostLine]
+) -> time:
+    """Return where his next entry starts: after his latest, else when he clocked in.
+
+    Failing both, the standard start. A start that lands inside a break moves
+    to the end of it, since breaks are outside job time.
+    """
+    finishes = [span[1] for line in entries if (span := timed_span(line))]
+    if finishes:
+        start = max(finishes)
+    elif row is not None:
+        start = row.clock_in
+    else:
+        start = attendance.standard_entry_start(day)
+    return attendance.start_after_breaks(start, attendance.break_windows(day, row, break_lines))
+
+
+def day_break_windows(staff: Staff, day: date) -> list[attendance.Window]:
+    """Return the day's breaks as the stretches an entry is placed around."""
+    row = AttendanceDay.objects.filter(staff=staff, date=day).first()
+    _, break_lines = attendance.split_breaks(day_time_lines(staff, day))
+    return attendance.break_windows(day, row, break_lines)
 
 
 def timed_span(line: CostLine) -> tuple[time, time] | None:
@@ -414,24 +435,6 @@ def timed_span(line: CostLine) -> tuple[time, time] | None:
     if start is None or end is None:
         return None
     return start, end
-
-
-#: The working day on a weekend, when the company keeps no hours for it.
-_WEEKEND_WORKING_DAY = (time(7, 0), time(15, 0))
-
-
-def working_day(day: date) -> tuple[time, time]:
-    """Return the company's working hours for the weekday, as the settings hold them."""
-    company = CompanyDefaults.get_solo()
-    by_weekday = (
-        (company.mon_start, company.mon_end),
-        (company.tue_start, company.tue_end),
-        (company.wed_start, company.wed_end),
-        (company.thu_start, company.thu_end),
-        (company.fri_start, company.fri_end),
-    )
-    weekday = day.weekday()
-    return by_weekday[weekday] if weekday < len(by_weekday) else _WEEKEND_WORKING_DAY
 
 
 class ManagementStaffData(TypedDict):
@@ -535,11 +538,37 @@ def pricing_meta(
     return meta
 
 
+class _Placement(TypedDict, total=False):
+    start_time: time
+    end_time: time
+
+
+def _placed(owner: Staff, day: date, hours: Decimal) -> _Placement:
+    """Place hours given without times after his latest entry, stepping over the breaks.
+
+    Hours are all he has to say; the times are the picture that lets the day
+    draw. Hours that would run past midnight from there keep no picture: the
+    entry is saved without times, as it always could be, rather than refused
+    or drawn shorter than the hours it holds.
+    """
+    row = AttendanceDay.objects.filter(staff=owner, date=day).first()
+    entries, break_lines = attendance.split_breaks(day_time_lines(owner, day))
+    start = default_entry_start(day, row, entries, break_lines)
+    finish = attendance.finish_in_the_day(
+        start, hours, attendance.break_windows(day, row, break_lines)
+    )
+    if finish is None:
+        return {}
+    return {"start_time": start, "end_time": finish}
+
+
 def create_entry(
     actor: Staff,
     owner: Staff,
     data: WorkshopEntryCreateData,
     location: EntryLocation | None = None,
+    *,
+    generated: bool = False,
 ) -> WorkshopEntryData:
     """Create a time line for ``owner``, saved by ``actor``.
 
@@ -547,12 +576,20 @@ def create_entry(
     wage prices the line; who saved it decides whether it starts approved and
     whether it is marked as saved away from the workshop. ``location`` is
     where the actor's phone says it is; None when it gave none.
+
+    ``generated`` is a line nobody typed (the breaks put on a day when it is
+    closed): never marked late or remote, since there was no entry to judge.
     """
     job = Job.objects.select_related("company", "default_xero_pay_item").get(id=data["job_id"])
     wage_rate_multiplier = data.get("wage_rate_multiplier", Decimal("1.0"))
-    _validate_time_consistency(data.get("start_time"), data.get("end_time"), data["hours"])
 
     with transaction.atomic():
+        # His day is read and placed on under a lock on him, so two entries
+        # saved at once are placed one after the other, not on one slot.
+        Staff.objects.select_for_update().filter(pk=owner.pk).first()
+        if data.get("start_time") is None and data.get("end_time") is None:
+            data = {**data, **_placed(owner, data["accounting_date"], data["hours"])}
+        _validate_time_consistency(data.get("start_time"), data.get("end_time"), data["hours"])
         lock_costing_jobs([job.id])
         cost_set = get_or_create_cost_set(job, "actual")
         meta = pricing_meta(
@@ -562,6 +599,8 @@ def create_entry(
             bill_rate_multiplier=data.get("bill_rate_multiplier"),
             is_billable=data.get("is_billable", True),
         )
+        if generated:
+            meta["source"] = UNTOUCHED_STANDARD_BREAK
         start_time = data.get("start_time")
         end_time = data.get("end_time")
         if start_time is not None:
@@ -588,11 +627,17 @@ def create_entry(
             # Time the office enters is approved as it is saved, whoever it is
             # for; a worker's own waits for the office.
             approved=actor.is_office_staff,
-            remote_entry=saved_remotely(actor, location),
+            remote_entry=not generated and saved_remotely(actor, location),
         )
         line.save()
         update_latest_actual(job, cost_set.rev, cost_set.id, actor)
-        record_timesheet_event(staff=actor, event_type="entry_created", line=line, before=None)
+        record_timesheet_event(
+            staff=actor,
+            event_type="entry_created",
+            line=line,
+            before=None,
+            trusted=not line.remote_entry,
+        )
 
     return entry_data(line)
 
@@ -663,6 +708,28 @@ def _apply_scalar_changes(
     return changed
 
 
+_MOVES_THE_FINISH = frozenset({"hours", "start_time", "accounting_date"})
+
+
+def _redraw_finish(line: CostLine, meta: dict[str, object], data: WorkshopEntryUpdateData) -> None:
+    """Redraw an edited entry's finish from its hours, unless a finish was given.
+
+    Hours are the truth and the times their picture: new hours, a new start or
+    a new day redraw the finish rather than being refused by it. Past midnight
+    from the start, the hours stand and keep no picture.
+    """
+    start = _meta_time(meta, "start_time")
+    if start is None or "end_time" in data or not data.keys() & _MOVES_THE_FINISH:
+        return
+    windows = day_break_windows(_owner_of(line), line.accounting_date)
+    finish = attendance.finish_in_the_day(start, line.quantity, windows)
+    if finish is None:
+        meta["start_time"] = None
+        meta["end_time"] = None
+    else:
+        meta["end_time"] = _format_time(finish)
+
+
 def update_entry(
     actor: Staff, data: WorkshopEntryUpdateData, location: EntryLocation | None = None
 ) -> WorkshopEntryData:
@@ -716,16 +783,21 @@ def update_entry(
         if not changed:
             raise ValueError("No changes supplied.")
 
+        _redraw_finish(line, meta, data)
+
         # Validated on the merged entry, not the patch alone: a PATCH that moves
-        # one time (or hours) can break agreement with the stored other half.
+        # one time can break agreement with the stored other half.
         _validate_time_consistency(
             _meta_time(meta, "start_time"), _meta_time(meta, "end_time"), line.quantity
         )
 
+        # Changed by someone: no longer the default the finish may take away.
+        mark_break_edited(meta)
         line.meta = meta
         # Only ever set here: an edit made at the workshop does not vouch for
         # an entry first made somewhere else.
-        if saved_remotely(actor, location):
+        remote = saved_remotely(actor, location)
+        if remote:
             line.remote_entry = True
         line.save()
         if moved_cost_set is not None:
@@ -735,13 +807,14 @@ def update_entry(
             event_type="entry_moved" if moved_cost_set is not None else "entry_updated",
             line=line,
             before=before,
+            trusted=not remote,
         )
 
     return entry_data(line)
 
 
 @transaction.atomic
-def delete_entry(actor: Staff, entry_id: UUID) -> None:
+def delete_entry(actor: Staff, entry_id: UUID, location: EntryLocation | None = None) -> None:
     """Delete an entry: the actor's own, or anyone's when the actor is office staff."""
     line = CostLine.objects.get(id=entry_id, kind="time")
     job_id = line.cost_set.job_id
@@ -761,7 +834,11 @@ def delete_entry(actor: Staff, entry_id: UUID) -> None:
     # Recorded before the delete: Django clears the pk on the instance it
     # deleted, and the event names the line by that id.
     record_timesheet_event(
-        staff=actor, event_type="entry_deleted", line=line, before=snapshot_if_entry(line)
+        staff=actor,
+        event_type="entry_deleted",
+        line=line,
+        before=snapshot_if_entry(line),
+        trusted=not saved_remotely(actor, location),
     )
     line.delete()
     logger.info("Deleted workshop timesheet entry %s by staff %s", entry_id, actor.id)

@@ -60,6 +60,8 @@ from apps.job.models import (
 from apps.job.models.costing import CostLine, CostSet, lock_costing_jobs
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
 from apps.job.services.time_entry_rates import pay_item_by_id, price_time_entry
+from apps.timesheet.models import mark_break_edited
+from apps.timesheet.services.location import saved_remotely
 from apps.timesheet.services.timesheet_events import (
     is_timesheet_entry,
     record_timesheet_event,
@@ -2307,7 +2309,13 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
         # CostLine.save() runs full_clean, assigns entry_seq and refreshes
         # the CostSet summary; do not duplicate those model responsibilities here.
         line.save()
-        record_timesheet_event(staff=staff, event_type="entry_created", line=line, before=None)
+        record_timesheet_event(
+            staff=staff,
+            event_type="entry_created",
+            line=line,
+            before=None,
+            trusted=not saved_remotely(staff, None),
+        )
     return line
 
 
@@ -2411,6 +2419,8 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
 
     with transaction.atomic():
         _apply_costline_fields(line, data)
+        # A standard break changed from the grid is his, as from his phone.
+        mark_break_edited(line.meta)
         if line.cost_set.kind == "actual" and line.approved and "stock_id" in line.ext_refs:
             raise ValueError("Issue material through purchasing so its stock movement is recorded.")
         line.save()
@@ -2421,6 +2431,7 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
             event_type="entry_moved" if moved_cost_set is not None else "entry_updated",
             line=line,
             before=before,
+            trusted=not saved_remotely(staff, None),
         )
 
     return line
@@ -2444,7 +2455,11 @@ def delete_cost_line(line: CostLine, staff: Staff) -> None:
         # Recorded before the delete: Django clears the pk on the instance it
         # deleted, and the event names the line by that id.
         record_timesheet_event(
-            staff=staff, event_type="entry_deleted", line=line, before=snapshot_if_entry(line)
+            staff=staff,
+            event_type="entry_deleted",
+            line=line,
+            before=snapshot_if_entry(line),
+            trusted=not saved_remotely(staff, None),
         )
         line.delete()
     logger.info("Deleted cost line %s", line.id)

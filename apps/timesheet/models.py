@@ -232,6 +232,34 @@ class LeaveDay(models.Model):
             raise ValidationError({"staff": "Leave day staff must match its request."})
 
 
+#: ``CostLine.meta["source"]`` of a standard break put on a day and not
+#: touched since: the day's finish takes it away if he was not there for it.
+UNTOUCHED_STANDARD_BREAK = "standard_breaks"
+#: The same break once he or the office has moved or changed it: his, kept.
+EDITED_STANDARD_BREAK = "standard_breaks_edited"
+
+
+def mark_break_edited(meta: dict[str, object]) -> None:
+    """Record on a line's meta that an untouched standard break has been changed."""
+    if meta.get("source") == UNTOUCHED_STANDARD_BREAK:
+        meta["source"] = EDITED_STANDARD_BREAK
+
+
+class ClockHow(models.TextChoices):
+    """How a day's start or finish came to be recorded (KAN-376).
+
+    A live tap is the record that the person was here at that time; a time
+    typed afterwards, or the company's standard hours, is not. The office is
+    warned about a worker who did not clock, so a time the office itself set
+    or corrected is told apart: nobody is chased over the office's own entry.
+    """
+
+    CLOCKED = "clocked", "Clocked"
+    CLOCKED_REMOTELY = "clocked_remotely", "Clocked away from the workshop"
+    NOT_CLOCKED = "not_clocked", "Not clocked"
+    SET_BY_OFFICE = "set_by_office", "Set by the office"
+
+
 class AttendanceDay(models.Model):
     """When one person was at work on one day, as they clocked it (KAN-376).
 
@@ -248,8 +276,13 @@ class AttendanceDay(models.Model):
     )
     date = models.DateField()
     clock_in = models.TimeField()
+    clock_in_how = models.CharField(max_length=20, choices=ClockHow.choices)
     # NULL while the person is still at work.
     clock_out = models.TimeField(null=True, blank=True)
+    # NULL exactly when there is no finish yet.
+    clock_out_how = models.CharField(  # noqa: DJ001 -- NULL is "no finish yet", as clock_out is
+        max_length=20, choices=ClockHow.choices, null=True, blank=True
+    )
     # NULL until the day is sent to the office.
     submitted_at = models.DateTimeField(null=True, blank=True)
     # The workshop's usual breaks are put on a day once, the first time it has
@@ -271,48 +304,32 @@ class AttendanceDay(models.Model):
                 condition=Q(submitted_at__isnull=True) | Q(clock_out__isnull=False),
                 name="timesheet_attendance_sent_only_when_clocked_out",
             ),
+            models.CheckConstraint(
+                condition=Q(clock_out__isnull=True, clock_out_how__isnull=True)
+                | Q(clock_out__isnull=False, clock_out_how__isnull=False),
+                name="timesheet_attendance_finish_says_how",
+            ),
         ]
 
     def __str__(self) -> str:
         return f"{self.staff.get_display_name()} on {self.date}"
 
 
-class AttendanceBreak(models.Model):
-    """A break in one person's day: when it was, and whether it was paid.
-
-    A day is shown to the worker as a timeline to remember it by: started,
-    a paid break, an unpaid break, finished. Breaks belong to the day and not
-    to job costing, so no time, cost or pay figure ever reads this table. An
-    unpaid break comes off the hours the worker has to fill; a paid one is a
-    marker only, because that time is paid and billed with the job in hand.
-    Breaks are his to move, remove or add; they may overlap anything.
-    """
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    attendance_day = models.ForeignKey(
-        AttendanceDay, on_delete=models.CASCADE, related_name="breaks"
-    )
-    start = models.TimeField()
-    end = models.TimeField()
-    paid = models.BooleanField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering: ClassVar[list[str]] = ["start", "created_at", "id"]
-        constraints: ClassVar[list[models.BaseConstraint]] = [
-            models.CheckConstraint(
-                condition=Q(end__gt=models.F("start")),
-                name="timesheet_attendance_break_end_after_start",
-            ),
-        ]
-
-    def __str__(self) -> str:
-        kind = "Paid" if self.paid else "Unpaid"
-        return f"{kind} break {self.start:%H:%M} to {self.end:%H:%M}"
-
-
 def _moved(old: JsonScalar, new: JsonScalar) -> str:
     return f"Moved from {old} to {new}"
+
+
+def _clock_time(label: str) -> Callable[[JsonScalar, JsonScalar], str]:
+    """Describe a clock time: set ("Clock in 07:02"), moved, or cleared."""
+
+    def describe(old: JsonScalar, new: JsonScalar) -> str:
+        if old in ("", None):
+            return f"{label} {new}"
+        if new in ("", None):
+            return f"{label} {old} cleared"
+        return f"{label} moved from {old} to {new}"
+
+    return describe
 
 
 class TimesheetEvent(AuditEvent):
@@ -328,7 +345,15 @@ class TimesheetEvent(AuditEvent):
         "accounts.Staff", on_delete=models.PROTECT, related_name="timesheet_history"
     )
     accounting_date = models.DateField()
-    cost_line_id = models.UUIDField(db_index=True)
+    # None on an event of the day itself (a clock tap, times set, the day sent).
+    cost_line_id = models.UUIDField(db_index=True, null=True, blank=True)
+    # Whether the action was made at the workshop, by the one rule in
+    # services/location.py: office staff always; anyone else only when their
+    # phone put them at the company address, so a write that carries no
+    # location (the cost-line grid, the leave screen) is untrusted for anyone
+    # but the office. With no company address nothing is checked and every
+    # event is true: "trusted" then means "not checked".
+    trusted = models.BooleanField()
 
     EVENT_LABELS: ClassVar[dict[str, str]] = {
         "entry_created": "Entry created",
@@ -336,9 +361,16 @@ class TimesheetEvent(AuditEvent):
         "entry_moved": "Entry moved",
         "entry_deleted": "Entry deleted",
         "entry_approved": "Entry approved",
+        "clocked_in": "Clocked in",
+        "clocked_out": "Clocked out",
+        "clock_times_set": "Clock times set",
+        "standard_hours_used": "Standard hours used",
+        "day_sent": "Day sent",
     }
     FIELD_DESCRIPTORS: ClassVar[dict[str, Callable[[JsonScalar, JsonScalar], str]]] = {
-        "Job": _moved
+        "Job": _moved,
+        "Clock in": _clock_time("Clock in"),
+        "Clock out": _clock_time("Clock out"),
     }
 
     class Meta(AuditEvent.Meta):

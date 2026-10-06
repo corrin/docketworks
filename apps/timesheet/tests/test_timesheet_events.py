@@ -16,6 +16,7 @@ from django.test import Client
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
+from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.job.services import job_service
@@ -86,7 +87,9 @@ class TestWorkshopPath:
         assert event.delta_after["job"] == f"#{job.job_number}"
         assert event.description == "Entry created"
 
-    def test_editing_hours_records_the_one_change(self, worker_client: Client, job: Job) -> None:
+    def test_editing_hours_records_the_hours_and_the_finish_they_move(
+        self, worker_client: Client, job: Job
+    ) -> None:
         line_id = _workshop_create(worker_client, job)
 
         response = worker_client.patch(
@@ -98,10 +101,13 @@ class TestWorkshopPath:
         assert response.status_code == 200, response.content
         *_, updated = _events(line_id)
         assert updated.event_type == "entry_updated"
-        assert updated.detail["changes"] == [
-            {"field_name": "Hours", "old_value": "4.000", "new_value": "6.000"}
-        ]
-        assert updated.description == "Hours changed from '4.000' to '6.000'"
+        # The finish is the hours' picture, so it moves with them and is recorded too.
+        assert {
+            change["field_name"]: change["new_value"] for change in updated.detail["changes"]
+        } == {
+            "Hours": "6.000",
+            "End": "14:00:00",
+        }
 
     def test_editing_only_the_times_records_the_change(
         self, worker_client: Client, job: Job
@@ -213,6 +219,21 @@ class TestOfficePath:
         *_, deleted = _events(line.id)
         assert deleted.event_type == "entry_deleted"
         assert deleted.delta_after is None
+
+    def test_a_write_that_carries_no_location_is_untrusted_unless_the_office_made_it(
+        self, job: Job, worker: Staff, office_staff: Staff
+    ) -> None:
+        """The grid sends no position: a worker reaching it from home must not read as here."""
+        company = CompanyDefaults.get_solo()
+        company.latitude = Decimal("-36.850000")
+        company.longitude = Decimal("174.760000")
+        company.save(update_fields=["latitude", "longitude"])
+        theirs = job_service.create_cost_line(job, "actual", _office_data(worker), worker)
+        job_service.update_cost_line(theirs, {"quantity": Decimal("3.000")}, worker)
+        office = job_service.create_cost_line(job, "actual", _office_data(worker), office_staff)
+
+        assert [event.trusted for event in _events(theirs.id)] == [False, False]
+        assert [event.trusted for event in _events(office.id)] == [True]
 
     def test_a_material_line_records_nothing(self, job: Job, office_staff: Staff) -> None:
         data: CostLineWriteData = {

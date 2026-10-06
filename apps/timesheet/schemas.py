@@ -310,6 +310,7 @@ class AttendanceOut(Schema):
     clock_out: time | None
     here_hours: float | None
     sent_late: bool
+    cautions: list[str]
 
 
 class EntryLocationIn(Schema):
@@ -320,12 +321,29 @@ class EntryLocationIn(Schema):
 
 
 class BreakOut(Schema):
-    """One break in a person's day. Breaks are in no hours, cost or pay figure."""
+    """One break in a person's day.
 
-    id: UUID
+    Every break is his time line on the Break job and ``id`` is that line's:
+    a paid break is paid time, lunch is logged and in no hours figure. A
+    planned break is the company's standard one, not yet his: it has no id.
+    """
+
+    id: UUID | None
+    name: str
     start: time
     end: time
     paid: bool
+    planned: bool
+    approved: bool | None
+
+
+class PlacementOut(Schema):
+    """Where an entry sits in the day: its hours and its times, each from the other."""
+
+    start: time
+    #: None when the hours would run past midnight: they save without times.
+    finish: time | None
+    hours: float
 
 
 class BreakCreateRequest(Schema):
@@ -336,6 +354,8 @@ class BreakCreateRequest(Schema):
     end: time
     paid: bool
     staff_id: UUID | None = None
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
 
 
 class BreakUpdateRequest(Schema):
@@ -343,6 +363,8 @@ class BreakUpdateRequest(Schema):
 
     start: time
     end: time
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
 
 
 class FillOut(Schema):
@@ -352,6 +374,7 @@ class FillOut(Schema):
     """
 
     to_fill_hours: float
+    break_hours: float
     entered_hours: float
     to_go_hours: float
 
@@ -388,10 +411,28 @@ class SubmitDayRequest(Schema):
     location: EntryLocationIn | None = None
 
 
+class StandardDayOut(Schema):
+    """The company's standard start and finish for a weekday."""
+
+    start: time
+    end: time
+
+
+class StandardHoursRequest(Schema):
+    """Record the standard hours on a day nobody clocked. ``staff_id`` is for the office."""
+
+    date: date
+    staff_id: UUID | None = None
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
+
+
 class ClockRequest(Schema):
     """A tap on Clock in or Clock out; the server supplies the time."""
 
     action: Literal["in", "out"]
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
 
 
 class ClockTimesRequest(Schema):
@@ -404,6 +445,8 @@ class ClockTimesRequest(Schema):
     clock_in: time
     clock_out: time | None = None
     staff_id: UUID | None = None
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
 
 
 class WorkshopTimesheetListResponse(Schema):
@@ -416,6 +459,9 @@ class WorkshopTimesheetListResponse(Schema):
     day: AttendanceOut
     breaks: list[BreakOut]
     fill: FillOut | None
+    standard: StandardDayOut | None
+    missed_clock_out_finish: time | None
+    default_entry_start: time
     calendar: CalendarBoundsOut
     pending: PendingDayOut | None
 
@@ -433,6 +479,7 @@ class StaffApprovalOut(Schema):
     clock: AttendanceOut
     breaks: list[BreakOut]
     entries: list[WorkshopTimesheetEntryOut]
+    default_entry_start: time
 
 
 class DaySummaryOut(Schema):
@@ -447,6 +494,7 @@ class ApprovalsDayOut(Schema):
     """Everyone's day for the office to approve."""
 
     date: date
+    standard: StandardDayOut | None
     summary: DaySummaryOut
     staff: list[StaffApprovalOut]
 
@@ -521,10 +569,16 @@ class TimesheetLineSnapshotOut(ResponseSchema):
 
 
 class TimesheetEventOut(AuditEventOut):
-    """One audit event on a staff member's day, for the entry page's history dialog."""
+    """One audit event on a staff member's day, for the entry page's history dialog.
+
+    ``trusted`` is whether it was made at the workshop (services/location.py).
+    An event of the day itself (a clock tap, times set, the day sent) has no
+    entry snapshots.
+    """
 
     before: TimesheetLineSnapshotOut | None
     after: TimesheetLineSnapshotOut | None
+    trusted: bool
 
     @staticmethod
     def resolve_before(obj: TimesheetEvent) -> TimesheetLineSnapshot | None:

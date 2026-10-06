@@ -324,6 +324,8 @@ for instance in "${TARGETS[@]}"; do
 done
 
 FAILED_INSTANCES=()
+# Instances that came up but whose shop jobs could not be ensured.
+SHOP_JOBS_FAILED=()
 for instance in "${TARGETS[@]}"; do
     TARGET_SHA="${TARGET_SHAS[$instance]}"
     TARGET_SHORT="$(short_release_sha "$TARGET_SHA")"
@@ -390,6 +392,19 @@ for instance in "${TARGETS[@]}"; do
         continue
     fi
 
+    # Rows the release's code needs that a migration does not make, because
+    # they are domain objects saved through the application (shop jobs and the
+    # Break job every break is booked to). It only creates what is missing, so
+    # an instance already holding them is not written to. A failure is loud
+    # but not an outage: the instance comes up, and only closing a day is
+    # refused until it is put right.
+    log "  Ensuring shop jobs..."
+    if ! "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py create_shop_jobs; then
+        log "  ERROR: create_shop_jobs failed for $instance — the instance still comes up,"
+        log "  ERROR: but clock-out is refused there until the shop jobs are fixed."
+        SHOP_JOBS_FAILED+=("$instance")
+    fi
+
     remove_legacy_scheduler_unit "$instance"
     render_runtime_units "$instance" "$inst_user"
     render_backup_timer "$instance" "$inst_user"
@@ -428,8 +443,16 @@ fi
 
 log "=========================================="
 log "Deploy complete"
+if [[ ${#SHOP_JOBS_FAILED[@]} -gt 0 ]]; then
+    log "  WARNING: shop jobs failed on: ${SHOP_JOBS_FAILED[*]}"
+    log "  WARNING: those instances are up, but clock-out is refused until it is fixed."
+    log "  WARNING: fix the cause shown above, then rerun deploy.sh for them."
+fi
 if [[ ${#FAILED_INSTANCES[@]} -gt 0 ]]; then
     log "  WARNING: Failed instances: ${FAILED_INSTANCES[*]}"
+    exit 1
+fi
+if [[ ${#SHOP_JOBS_FAILED[@]} -gt 0 ]]; then
     exit 1
 fi
 log "=========================================="

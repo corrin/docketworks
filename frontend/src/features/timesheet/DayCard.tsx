@@ -1,12 +1,12 @@
 import { useState } from 'react'
 
-import type { AttendanceOut, FillOut, PendingDayOut } from '@/api'
+import type { AttendanceOut, FillOut, PendingDayOut, StandardDayOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { INPUT_CLASS } from '@/components/ui/field'
 import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
 import { formatDateLong } from '@/lib/format'
 
-import { clockWords, fillWords } from './myTime'
+import { clockWords, fillWords, standardHoursWords } from './myTime'
 
 interface ClockTimesFormProps {
   /** Prefix for the form's automation ids: the card's or the office row's. */
@@ -104,20 +104,25 @@ interface DayCardProps {
   fill: FillOut | null
   /** An earlier day he clocked and has not sent, and how far it got. */
   pending: PendingDayOut | null
-  dayStart: string
+  /** The company's standard hours for the day; null on a weekend. */
+  standard: StandardDayOut | null
+  /** The standard finish to offer when this earlier day was left clocked in. */
+  missedClockOutFinish: string | null
   clocking: boolean
   onClock: (action: 'in' | 'out') => Promise<boolean>
   onSetTimes: (clockIn: string, clockOut: string | null) => Promise<boolean>
   onOpenDay: (date: string) => void
   onFill: () => void
+  /** Record the standard hours as the day's times, then fill it. */
+  onUseStandardHours: () => void
   onAddBreak: () => void
 }
 
 /** What stands in for the fill figures on a day that has none yet. */
-function noFillWords(day: AttendanceOut): string {
-  return day.state === 'not_clocked_in'
-    ? 'Clock times not set.'
-    : 'Clock out to see what is left to fill.'
+function noFillWords(day: AttendanceOut, standard: StandardDayOut | null): string {
+  // Nobody clocked: the standard day is what it falls back to.
+  if (day.state === 'not_clocked_in') return standardHoursWords(standard)
+  return 'Clock out to see what is left to fill.'
 }
 
 /**
@@ -131,12 +136,14 @@ export function DayCard({
   day,
   fill,
   pending,
-  dayStart,
+  standard,
+  missedClockOutFinish,
   clocking,
   onClock,
   onSetTimes,
   onOpenDay,
   onFill,
+  onUseStandardHours,
   onAddBreak,
 }: DayCardProps) {
   const [editingTimes, setEditingTimes] = useState(false)
@@ -168,13 +175,38 @@ export function DayCard({
         {clockWords(day)}
       </p>
       <p className="text-sm text-gray-700" data-automation-id="DayCard-fill">
-        {fill === null ? noFillWords(day) : fillWords(fill)}
+        {fill === null ? noFillWords(day, standard) : fillWords(fill)}
       </p>
+      {/* He is told what the office is told about how his day was clocked. */}
+      {day.cautions.length > 0 && (
+        <p className="text-sm font-medium text-amber-800" data-automation-id="DayCard-cautions">
+          {day.cautions.join(' · ')}
+        </p>
+      )}
+      {missedClockOutFinish !== null && clockIn !== null && !editingTimes && (
+        <p className="rounded bg-amber-50 p-2 text-sm text-amber-900">
+          No clock out.{' '}
+          <button
+            type="button"
+            className="font-medium underline underline-offset-2"
+            disabled={clocking}
+            data-automation-id="DayCard-use-standard-finish"
+            onClick={() => void onSetTimes(clockIn, missedClockOutFinish)}
+          >
+            Use {missedClockOutFinish.slice(0, 5)}?
+          </button>
+        </p>
+      )}
       {editingTimes ? (
         <ClockTimesForm
           automationId="DayCard"
-          initialStart={day.clock_in?.slice(0, 5) ?? dayStart}
-          initialFinish={day.clock_out?.slice(0, 5) ?? ''}
+          // A day nobody clocked opens on the standard hours, both of them;
+          // a day at work keeps its finish blank, since he is still there.
+          initialStart={day.clock_in?.slice(0, 5) ?? standard?.start.slice(0, 5) ?? ''}
+          initialFinish={
+            day.clock_out?.slice(0, 5) ??
+            (day.clock_in === null ? (standard?.end.slice(0, 5) ?? '') : '')
+          }
           saving={clocking}
           onSave={onSetTimes}
           onCancel={() => setEditingTimes(false)}
@@ -201,12 +233,16 @@ export function DayCard({
               Clock out
             </Button>
           )}
-          {day.state === 'clocked_out' && (
+          {/* Clocked out, or never clocked on a day with standard hours: on the
+              second, the tap records the standard hours first. */}
+          {(day.state === 'clocked_out' ||
+            (day.state === 'not_clocked_in' && standard !== null)) && (
             <Button
               className={TOUCH_TARGET_CLASS}
+              variant={isToday && day.state === 'not_clocked_in' ? 'outline' : 'default'}
               disabled={clocking}
               data-automation-id="DayCard-fill-and-send"
-              onClick={onFill}
+              onClick={day.state === 'clocked_out' ? onFill : onUseStandardHours}
             >
               Fill and send
             </Button>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { WorkshopTimesheetEntryOut } from '@/api'
+import type { AttendanceOut, WorkshopTimesheetEntryOut } from '@/api'
 
 import {
   adjustEnd,
@@ -8,8 +8,6 @@ import {
   billsItsTime,
   calendarEvent,
   clockWords,
-  defaultNewEntryRange,
-  deriveHoursFromTimes,
   distinctJobCount,
   entryLockedFor,
   entryMarks,
@@ -27,7 +25,6 @@ import {
   slotFrom,
   slotFromNow,
   splitDayEntries,
-  workingDayStart,
 } from './myTime'
 
 function makeEntry(overrides: Partial<WorkshopTimesheetEntryOut> = {}): WorkshopTimesheetEntryOut {
@@ -53,26 +50,6 @@ function makeEntry(overrides: Partial<WorkshopTimesheetEntryOut> = {}): Workshop
     ...overrides,
   }
 }
-
-describe('deriveHoursFromTimes', () => {
-  it('derives decimal hours from an HH:mm pair', () => {
-    expect(deriveHoursFromTimes('08:00', '09:30')).toBe(1.5)
-  })
-
-  it('rounds to two decimals so 20 minutes books as 0.33', () => {
-    expect(deriveHoursFromTimes('08:00', '08:20')).toBe(0.33)
-  })
-
-  it('returns null when either time is blank', () => {
-    expect(deriveHoursFromTimes('', '09:00')).toBeNull()
-    expect(deriveHoursFromTimes('08:00', '')).toBeNull()
-  })
-
-  it('returns null when the end is at or before the start', () => {
-    expect(deriveHoursFromTimes('09:00', '08:00')).toBeNull()
-    expect(deriveHoursFromTimes('09:00', '09:00')).toBeNull()
-  })
-})
 
 describe('splitDayEntries', () => {
   it('separates entries with a full time pair from the rest', () => {
@@ -175,26 +152,6 @@ describe('shownBillable', () => {
   })
 })
 
-describe('workingDayStart', () => {
-  const starts = {
-    mon_start: '07:00:00',
-    tue_start: '07:15:00',
-    wed_start: '07:30:00',
-    thu_start: '07:45:00',
-    fri_start: '06:30:00',
-  }
-
-  it("is the configured start for the date's weekday", () => {
-    expect(workingDayStart('2026-10-05', starts)).toBe('07:00') // Monday
-    expect(workingDayStart('2026-10-09', starts)).toBe('06:30') // Friday
-  })
-
-  it('is 08:00 on a weekend, which has no configured hours', () => {
-    expect(workingDayStart('2026-10-03', starts)).toBe('08:00') // Saturday
-    expect(workingDayStart('2026-10-04', starts)).toBe('08:00') // Sunday
-  })
-})
-
 describe('distinctJobCount', () => {
   it('counts each job once however many entries it has', () => {
     const entries = [
@@ -274,44 +231,6 @@ describe('slotFrom', () => {
   })
 })
 
-describe('defaultNewEntryRange', () => {
-  const morning = makeEntry({ id: 'a', start_time: '08:00:00', end_time: '10:30:00' })
-  const midday = makeEntry({ id: 'b', start_time: '11:00:00', end_time: '12:15:00' })
-
-  it('starts at the tapped slot when there is one', () => {
-    expect(defaultNewEntryRange([morning, midday], '07:30', '14:00')).toEqual({
-      start: '14:00',
-      end: '14:30',
-    })
-  })
-
-  it("starts where the day's latest entry finished, whatever the list order", () => {
-    expect(defaultNewEntryRange([midday, morning], '07:30', null)).toEqual({
-      start: '12:15',
-      end: '12:45',
-    })
-  })
-
-  it('starts at the working-day start on an empty day', () => {
-    expect(defaultNewEntryRange([], '07:30', null)).toEqual({ start: '07:30', end: '08:00' })
-  })
-
-  it('still opens a bookable range after an entry that runs to the end of the day', () => {
-    const toMidnight = makeEntry({ id: 'c', start_time: '22:00:00', end_time: '23:59:00' })
-
-    expect(defaultNewEntryRange([toMidnight], '07:30', null)).toEqual({
-      start: '23:58',
-      end: '23:59',
-    })
-  })
-
-  it('ignores untimed entries, which have no finish', () => {
-    const untimed = makeEntry({ start_time: null, end_time: null })
-
-    expect(defaultNewEntryRange([untimed], '07:30', null)).toEqual({ start: '07:30', end: '08:00' })
-  })
-})
-
 describe('lastUsedJobId', () => {
   it('is the job of the entry booked most recently', () => {
     const earlier = makeEntry({ id: 'a', job_id: 'j1', created_at: '2026-08-26T08:00:00Z' })
@@ -368,18 +287,25 @@ describe('fillGapToNextEntry', () => {
   const lateAfternoon = makeEntry({ id: 'c', start_time: '15:30:00', end_time: '16:00:00' })
 
   it("runs up to the day's next start", () => {
-    expect(fillGapToNextEntry('09:00', [lateAfternoon, afternoon, morning])).toEqual({
+    expect(fillGapToNextEntry('09:00', [lateAfternoon, afternoon, morning], '17:00')).toEqual({
       start: '09:00',
       end: '13:00',
     })
   })
 
-  it('is still a minute long from a 23:59 start', () => {
-    expect(fillGapToNextEntry('23:59', [morning])).toEqual({ start: '23:58', end: '23:59' })
+  it('never runs past the end of his day', () => {
+    expect(fillGapToNextEntry('15:00', [afternoon, morning], '15:30')).toEqual({
+      start: '15:00',
+      end: '15:30',
+    })
   })
 
-  it('runs to the end of the day when nothing follows', () => {
-    expect(fillGapToNextEntry('16:00', [afternoon, morning])).toEqual({
+  it('offers nothing once his day is over', () => {
+    expect(fillGapToNextEntry('15:30', [morning], '15:00')).toBeNull()
+  })
+
+  it('runs to the end of the day on a day with no end', () => {
+    expect(fillGapToNextEntry('16:00', [afternoon, morning], null)).toEqual({
       start: '16:00',
       end: '23:59',
     })
@@ -395,7 +321,7 @@ describe('entryUpdateBody', () => {
     description: 'Welding',
   }
 
-  it('carries the pair, derived hours, and description', () => {
+  it('carries the hours, the times and the description', () => {
     expect(entryUpdateBody(makeEntry(), form)).toEqual({
       entry_id: 'e1',
       hours: 1.5,
@@ -405,11 +331,16 @@ describe('entryUpdateBody', () => {
     })
   })
 
-  it('leaves times and hours alone on an untimed entry edited without them', () => {
-    const untimed = makeEntry({ start_time: null, end_time: null })
-
-    expect(entryUpdateBody(untimed, { ...form, start: '', end: '', hours: null })).toEqual({
+  it('sends only the times it has: a blank one is left as stored, never cleared or invented', () => {
+    expect(entryUpdateBody(makeEntry(), { ...form, start: '', end: '' })).toEqual({
       entry_id: 'e1',
+      hours: 1.5,
+      description: 'Welding',
+    })
+    expect(entryUpdateBody(makeEntry(), { ...form, end: '' })).toEqual({
+      entry_id: 'e1',
+      hours: 1.5,
+      start_time: '08:00:00',
       description: 'Welding',
     })
   })
@@ -473,13 +404,14 @@ describe('entryLockedFor', () => {
 })
 
 describe('clockWords', () => {
-  const day = {
+  const day: AttendanceOut = {
     state: 'not_clocked_in',
     clock_in: null,
     clock_out: null,
     here_hours: null,
     sent_late: false,
-  } as const
+    cautions: [],
+  }
 
   it('says where the day stands, with the hours the server worked out', () => {
     expect(clockWords(day)).toBe('Not clocked in')
@@ -499,15 +431,21 @@ describe('clockWords', () => {
 })
 
 describe('fillWords', () => {
-  const fill = { to_fill_hours: 8, entered_hours: 3, to_go_hours: 5 }
+  const fill = { to_fill_hours: 8, break_hours: 0.5, entered_hours: 3, to_go_hours: 4.5 }
 
   it('says what is left, that it is all filled, or that he is over, without scolding', () => {
-    expect(fillWords(fill)).toBe('8h to fill, 3h entered, 5h to go')
-    expect(fillWords({ ...fill, entered_hours: 8, to_go_hours: 0 })).toBe(
-      '8h to fill, 8h entered. All filled',
+    expect(fillWords(fill)).toBe('8h to fill, 30m breaks, 3h entered, 4h 30m to go')
+    expect(fillWords({ ...fill, entered_hours: 7.5, to_go_hours: 0 })).toBe(
+      '8h to fill, 30m breaks, 7h 30m entered. All filled',
     )
-    expect(fillWords({ ...fill, entered_hours: 9, to_go_hours: -1 })).toBe(
-      '8h to fill, 9h entered: 1h over the time you were here',
+    expect(fillWords({ ...fill, entered_hours: 8.5, to_go_hours: -1 })).toBe(
+      '8h to fill, 30m breaks, 8h 30m entered: 1h over the time you were here',
+    )
+  })
+
+  it('leaves the breaks out of the sentence on a day without any', () => {
+    expect(fillWords({ ...fill, break_hours: 0, to_go_hours: 5 })).toBe(
+      '8h to fill, 3h entered, 5h to go',
     )
   })
 })
@@ -515,10 +453,10 @@ describe('fillWords', () => {
 describe('fillAfterRows', () => {
   it("takes the sheet's own rows off what is left, ignoring a row with no hours yet", () => {
     expect(
-      fillAfterRows({ to_fill_hours: 8, entered_hours: 1, to_go_hours: 7 }, [
+      fillAfterRows({ to_fill_hours: 8, break_hours: 0.5, entered_hours: 1, to_go_hours: 6.5 }, [
         { hours: 3 },
         { hours: null },
       ]),
-    ).toEqual({ to_fill_hours: 8, entered_hours: 4, to_go_hours: 4 })
+    ).toEqual({ to_fill_hours: 8, break_hours: 0.5, entered_hours: 4, to_go_hours: 3.5 })
   })
 })

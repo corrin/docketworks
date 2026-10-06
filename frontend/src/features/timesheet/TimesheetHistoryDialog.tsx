@@ -36,7 +36,17 @@ function HistoryBody({ staffId, date }: { staffId: string; date: string }) {
   const historyQuery = useQuery(
     jobTimesheetEntriesHistoryRetrieveOptions({ query: { staff_id: staffId, date } }),
   )
-  const events = historyQuery.data ?? []
+  // An action made away from the workshop says so, in the words the office
+  // reads everywhere else; one at the workshop reads plain.
+  const events = (historyQuery.data ?? []).map((event) => ({
+    id: event.id,
+    timestamp: event.timestamp,
+    staff_name: event.staff_name,
+    changes: event.changes,
+    description: event.trusted
+      ? event.description
+      : `${event.description} · Away from the workshop`,
+  }))
 
   return (
     <DialogContent

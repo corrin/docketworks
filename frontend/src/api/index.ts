@@ -386,7 +386,9 @@ export {
   timesheetsMyDayBreaksCreateMutation,
   timesheetsMyDayBreaksDeleteMutation,
   timesheetsMyDayBreaksUpdateMutation,
+  timesheetsMyDayPlacementOptions,
   timesheetsMyDayClockMutation,
+  timesheetsMyDayStandardHoursMutation,
   timesheetsMyDaySubmitMutation,
   timesheetsMyDayTimesMutation,
 } from './generated/@tanstack/react-query.gen'
@@ -401,6 +403,7 @@ export type {
   FillRowIn,
   PendingDayOut,
   StaffApprovalOut,
+  StandardDayOut,
   WorkshopTimesheetEntryOut,
   WorkshopTimesheetEntryRequest,
   WorkshopTimesheetEntryUpdateRequest,

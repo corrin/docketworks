@@ -373,10 +373,15 @@ components:
             $ref: '#/components/schemas/StaffApprovalOut'
           title: Staff
           type: array
+        standard:
+          anyOf:
+          - $ref: '#/components/schemas/StandardDayOut'
+          - type: 'null'
         summary:
           $ref: '#/components/schemas/DaySummaryOut'
       required:
       - date
+      - standard
       - summary
       - staff
       title: ApprovalsDayOut
@@ -427,6 +432,11 @@ components:
     AttendanceOut:
       description: A person's day as they clocked it. ``here_hours`` is worked out by the server.
       properties:
+        cautions:
+          items:
+            type: string
+          title: Cautions
+          type: array
         clock_in:
           anyOf:
           - format: time
@@ -461,6 +471,7 @@ components:
       - clock_out
       - here_hours
       - sent_late
+      - cautions
       title: AttendanceOut
       type: object
     AuthErrorOut:
@@ -495,6 +506,10 @@ components:
           format: time
           title: End
           type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
         paid:
           title: Paid
           type: boolean
@@ -516,18 +531,38 @@ components:
       title: BreakCreateRequest
       type: object
     BreakOut:
-      description: One break in a person's day. Breaks are in no hours, cost or pay figure.
+      description: 'One break in a person''s day.
+
+
+        Every break is his time line on the Break job and ``id`` is that line''s:
+
+        a paid break is paid time, lunch is logged and in no hours figure. A
+
+        planned break is the company''s standard one, not yet his: it has no id.'
       properties:
+        approved:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Approved
         end:
           format: time
           title: End
           type: string
         id:
-          format: uuid
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
           title: Id
+        name:
+          title: Name
           type: string
         paid:
           title: Paid
+          type: boolean
+        planned:
+          title: Planned
           type: boolean
         start:
           format: time
@@ -535,9 +570,12 @@ components:
           type: string
       required:
       - id
+      - name
       - start
       - end
       - paid
+      - planned
+      - approved
       title: BreakOut
       type: object
     BreakUpdateRequest:
@@ -547,6 +585,10 @@ components:
           format: time
           title: End
           type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
         start:
           format: time
           title: Start
@@ -697,6 +739,10 @@ components:
           - out
           title: Action
           type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
       required:
       - action
       title: ClockRequest
@@ -721,6 +767,10 @@ components:
           format: date
           title: Date
           type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
         staff_id:
           anyOf:
           - format: uuid
@@ -851,6 +901,13 @@ components:
           format: time
           title: Afternoon Break Start
           type: string
+        break_job:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: 'Internal job every break is booked to: paid breaks and lunch.'
+          title: Break Job
         city:
           anyOf:
           - maxLength: 100
@@ -1282,6 +1339,7 @@ components:
       - address_raw_json
       - afternoon_break_minutes
       - afternoon_break_start
+      - break_job
       - city
       - company_acronym
       - company_email
@@ -1403,6 +1461,13 @@ components:
           - type: 'null'
           description: When the workshop's paid afternoon break starts.
           title: Afternoon Break Start
+        break_job_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: 'Internal job every break is booked to: paid breaks and lunch.'
+          title: Break Job
         city:
           anyOf:
           - maxLength: 100
@@ -3956,6 +4021,9 @@ components:
 
         ``to_go_hours`` is negative when more is entered than the person was here for.'
       properties:
+        break_hours:
+          title: Break Hours
+          type: number
         entered_hours:
           title: Entered Hours
           type: number
@@ -3967,6 +4035,7 @@ components:
           type: number
       required:
       - to_fill_hours
+      - break_hours
       - entered_hours
       - to_go_hours
       title: FillOut
@@ -10417,6 +10486,28 @@ components:
       - sample_jobs
       title: PipelineWarningOut
       type: object
+    PlacementOut:
+      description: 'Where an entry sits in the day: its hours and its times, each from the other.'
+      properties:
+        finish:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          title: Finish
+        hours:
+          title: Hours
+          type: number
+        start:
+          format: time
+          title: Start
+          type: string
+      required:
+      - start
+      - finish
+      - hours
+      title: PlacementOut
+      type: object
     PostWeekToXeroRequest:
       description: "Wire contract for PostWeekToXeroRequest.\n\nFable: The week alone. The staff are derived\
         \ server-side from the same\nfilter the weekly grid answers from, and the postable-week rule is\n\
@@ -12448,6 +12539,10 @@ components:
           type: array
         clock:
           $ref: '#/components/schemas/AttendanceOut'
+        default_entry_start:
+          format: time
+          title: Default Entry Start
+          type: string
         entered_hours:
           title: Entered Hours
           type: number
@@ -12491,6 +12586,7 @@ components:
       - clock
       - breaks
       - entries
+      - default_entry_start
       title: StaffApprovalOut
       type: object
     StaffCreateIn:
@@ -13219,6 +13315,43 @@ components:
       - pay_basis
       - matches
       title: StaffWeekPostingOut
+      type: object
+    StandardDayOut:
+      description: The company's standard start and finish for a weekday.
+      properties:
+        end:
+          format: time
+          title: End
+          type: string
+        start:
+          format: time
+          title: Start
+          type: string
+      required:
+      - start
+      - end
+      title: StandardDayOut
+      type: object
+    StandardHoursRequest:
+      description: Record the standard hours on a day nobody clocked. ``staff_id`` is for the office.
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
+        staff_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff Id
+      required:
+      - date
+      title: StandardHoursRequest
       type: object
     StockConsumeRequest:
       description: Wire contract for StockConsumeRequest.
@@ -14858,7 +14991,14 @@ components:
       title: TimesheetEntriesSummaryOut
       type: object
     TimesheetEventOut:
-      description: One audit event on a staff member's day, for the entry page's history dialog.
+      description: 'One audit event on a staff member''s day, for the entry page''s history dialog.
+
+
+        ``trusted`` is whether it was made at the workshop (services/location.py).
+
+        An event of the day itself (a clock tap, times set, the day sent) has no
+
+        entry snapshots.'
       properties:
         after:
           anyOf:
@@ -14890,6 +15030,9 @@ components:
           format: date-time
           title: Timestamp
           type: string
+        trusted:
+          title: Trusted
+          type: boolean
       required:
       - after
       - before
@@ -14899,6 +15042,7 @@ components:
       - id
       - staff_name
       - timestamp
+      - trusted
       title: TimesheetEventOut
       type: object
     TimesheetJobOut:
@@ -15857,6 +16001,10 @@ components:
           type: string
         day:
           $ref: '#/components/schemas/AttendanceOut'
+        default_entry_start:
+          format: time
+          title: Default Entry Start
+          type: string
         entries:
           items:
             $ref: '#/components/schemas/WorkshopTimesheetEntryOut'
@@ -15866,9 +16014,19 @@ components:
           anyOf:
           - $ref: '#/components/schemas/FillOut'
           - type: 'null'
+        missed_clock_out_finish:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          title: Missed Clock Out Finish
         pending:
           anyOf:
           - $ref: '#/components/schemas/PendingDayOut'
+          - type: 'null'
+        standard:
+          anyOf:
+          - $ref: '#/components/schemas/StandardDayOut'
           - type: 'null'
         summary:
           $ref: '#/components/schemas/WorkshopTimesheetSummaryOut'
@@ -15882,6 +16040,9 @@ components:
       - day
       - breaks
       - fill
+      - standard
+      - missed_clock_out_finish
+      - default_entry_start
       - calendar
       - pending
       title: WorkshopTimesheetListResponse
@@ -20959,7 +21120,12 @@ paths:
       - timesheets
   /api/job/workshop/timesheets/:
     delete:
-      description: Delete one of the authenticated staff member's own entries.
+      description: 'Delete one of the authenticated staff member''s own entries.
+
+
+        A DELETE carries no body, so the phone''s position travels as two query
+
+        parameters, both or neither.'
       operationId: job_workshop_timesheets_destroy
       parameters:
       - in: query
@@ -20969,6 +21135,22 @@ paths:
           format: uuid
           title: Entry Id
           type: string
+      - in: query
+        name: latitude
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Latitude
+      - in: query
+        name: longitude
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Longitude
       responses:
         '204':
           description: No Content
@@ -23751,7 +23933,12 @@ paths:
       - timesheets
   /api/timesheets/my-day/breaks/{break_id}/:
     delete:
-      description: Remove a break from the caller's day, or for office staff from anyone's.
+      description: 'Remove a break from the caller''s day, or for office staff from anyone''s.
+
+
+        A DELETE carries no body, so the phone''s position travels as two query
+
+        parameters, both or neither.'
       operationId: timesheets_my_day_breaks_delete
       parameters:
       - in: path
@@ -23761,6 +23948,22 @@ paths:
           format: uuid
           title: Break Id
           type: string
+      - in: query
+        name: latitude
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Latitude
+      - in: query
+        name: longitude
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Longitude
       responses:
         '204':
           description: No Content
@@ -23815,6 +24018,94 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Clock the caller in or out, now
+      tags:
+      - timesheets
+  /api/timesheets/my-day/placement/:
+    get:
+      description: 'Answer the entry drawer as he types: the one placement rule, nothing written.
+
+
+        Given hours, the finish steps over the day''s breaks; given a finish, the
+
+        hours are the span less the breaks inside it.'
+      operationId: timesheets_my_day_placement
+      parameters:
+      - in: query
+        name: date
+        required: true
+        schema:
+          title: Date
+          type: string
+      - in: query
+        name: start
+        required: true
+        schema:
+          format: time
+          title: Start
+          type: string
+      - in: query
+        name: hours
+        required: false
+        schema:
+          anyOf:
+          - exclusiveMaximum: 100000.0
+            minimum: 0.01
+            type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Hours
+      - in: query
+        name: finish
+        required: false
+        schema:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          title: Finish
+      - in: query
+        name: staff_id
+        required: false
+        schema:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff Id
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlacementOut'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Work out an entry's finish from its hours, or its hours from its finish
+      tags:
+      - timesheets
+  /api/timesheets/my-day/standard-hours/:
+    post:
+      description: Use the standard hours for the caller's unclocked day, or for office staff anyone's.
+      operationId: timesheets_my_day_standard_hours
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StandardHoursRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceOut'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Record the company's standard hours on a day nobody clocked
       tags:
       - timesheets
   /api/timesheets/my-day/submit/:

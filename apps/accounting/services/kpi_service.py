@@ -63,6 +63,7 @@ from apps.accounting.services.billable import is_billable_line
 from apps.accounts.staff_directory import get_payroll_excluded_staff_ids
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
+from apps.job.services.time_entry_rates import UNPAID_TIME
 
 
 class Thresholds(TypedDict):
@@ -220,6 +221,8 @@ def _aggregate_time_by_date(
             accounting_date__lte=end_date,
         )
         .exclude(staff_id__in=excluded_staff_ids)
+        # Unpaid time (lunch) is logged, not hours.
+        .exclude(UNPAID_TIME)
         .select_related("cost_set__job")
     )
 

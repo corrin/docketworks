@@ -306,6 +306,21 @@ tenant-specific server rebuild remains the root-owned
 `/opt/docketworks/config/<name>.company-defaults.json`; do not maintain a
 second long-lived instance copy of that file.
 
+## Shop jobs
+
+```bash
+uv run python manage.py create_shop_jobs
+```
+
+This makes any shop job a release needs and the dump predates (the Break job,
+for one) and points `CompanyDefaults` at the Break job, as every deploy does
+after migrate. It runs after every step that rewrites `CompanyDefaults`: the
+demo-defaults `loaddata` above writes the whole row with `break_job` empty,
+and a restore left that way refuses every clock-out with "Breaks are not set
+up". The fixture's shop company is the production shop company's own id, so
+the jobs land beside the ones the dump brought. It never rewrites a job that
+exists.
+
 ## Development logins
 
 ```bash

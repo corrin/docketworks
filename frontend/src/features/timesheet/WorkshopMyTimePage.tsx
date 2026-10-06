@@ -14,17 +14,23 @@ import { shiftDate } from '@/lib/dates'
 
 import {
   calendarEvent,
+  dayEndOf,
   distinctJobCount,
   entryLockedFor,
   entryMarks,
   rateLabel,
   splitDayEntries,
-  workingDayStart,
 } from './myTime'
 import { BreakSheet, type BreakSheetState } from './BreakSheet'
 import { DayCard } from './DayCard'
 import { FillDaySheet } from './FillDaySheet'
-import { useBreaks, useClocking, useSubmitDay, useWorkshopDay } from './useWorkshopDay'
+import {
+  useAskForLocation,
+  useBreaks,
+  useClocking,
+  useSubmitDay,
+  useWorkshopDay,
+} from './useWorkshopDay'
 import { WorkshopTimesheetCalendar } from './WorkshopTimesheetCalendar'
 import { WorkshopTimesheetEntryDrawer, type EntryDrawerState } from './WorkshopTimesheetEntryDrawer'
 
@@ -51,16 +57,19 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
   // authed route renders.
   const { data: companyDefaults } = useSuspenseQuery(companyDefaultsQueryOptions())
   const { data: user } = useSuspenseQuery(meQueryOptions())
-  const day = useWorkshopDay(date, companyDefaults.latitude !== null && !user.is_office_staff)
+  // A workshop worker's writes are judged by where his phone is, when the
+  // company has an address to judge against.
+  const sendLocation = companyDefaults.latitude !== null && !user.is_office_staff
+  useAskForLocation(sendLocation)
+  const day = useWorkshopDay(date, sendLocation)
   const [drawer, setDrawer] = useState<EntryDrawerState>({ mode: 'closed' })
 
   const entries = day.dayQuery.data?.entries ?? []
   const dayData = day.dayQuery.data
-  const clocking = useClocking()
-  const sendLocation = companyDefaults.latitude !== null && !user.is_office_staff
+  const clocking = useClocking(sendLocation)
   const submission = useSubmitDay(sendLocation)
   const [fillOpen, setFillOpen] = useState(false)
-  const breaks = useBreaks()
+  const breaks = useBreaks(sendLocation)
   const [breakSheet, setBreakSheet] = useState<BreakSheetState>({ mode: 'closed' })
   const summary = day.dayQuery.data?.summary
   const week = day.dayQuery.data?.week
@@ -115,7 +124,8 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
           day={dayData.day}
           fill={dayData.fill}
           pending={dayData.pending}
-          dayStart={workingDayStart(date, companyDefaults)}
+          standard={dayData.standard}
+          missedClockOutFinish={dayData.missed_clock_out_finish}
           clocking={clocking.clocking}
           // Clocking out is the moment to say what the day was: the sheet opens on it.
           onClock={async (action) => {
@@ -124,6 +134,11 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
             return done
           }}
           onFill={() => setFillOpen(true)}
+          onUseStandardHours={() =>
+            void clocking.recordStandardHours(date).then((recorded) => {
+              if (recorded) setFillOpen(true)
+            })
+          }
           onAddBreak={() => setBreakSheet({ mode: 'add' })}
           onSetTimes={(clockIn, clockOut) =>
             clocking.setTimes({ date, clock_in: clockIn, clock_out: clockOut })
@@ -251,7 +266,8 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
         locked={drawer.mode === 'edit' && entryLockedFor(drawer.entry, user)}
         date={date}
         dayEntries={entries}
-        dayStart={workingDayStart(date, companyDefaults)}
+        dayStart={dayData?.default_entry_start.slice(0, 5) ?? ''}
+        dayEnd={dayData === undefined ? null : dayEndOf(dayData.day.clock_out, dayData.standard)}
         saving={day.saving}
         onCreate={day.createEntry}
         onUpdate={day.updateEntry}

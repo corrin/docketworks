@@ -122,19 +122,24 @@ test("office staff correct a person's clock times, and the screen holds at three
   await test.step('the office sets the times a person did not clock', async () => {
     await setClock('06:30', '15:00')
     await expect(clock).toHaveText('Clocked out. 06:30 to 15:00, here 8h 30m')
+    // Times the office itself set raise no warning: nobody is chased over
+    // the office's own entry.
+    await expect(autoId(page, `ApproveTimePage-row-${staffId}`)).not.toContainText('Did not clock')
   })
 
   await test.step("the day's breaks are listed, and one is corrected", async () => {
     const breaks = autoId(page, `ApproveTimePage-breaks-${staffId}`)
-    await expect(breaks).toContainText('Paid break 08:30 to 08:45')
-    await expect(breaks).toContainText('Unpaid break 11:30 to 12:00')
-    await expect(breaks).toContainText('Paid break 13:30 to 13:45')
+    // All three are one kind of thing on the screen; the office set the day,
+    // so the breaks it put on start approved.
+    await expect(breaks).toContainText('Paid break 08:30 to 08:45 · Approved')
+    await expect(breaks).toContainText('Lunch 11:30 to 12:00 · Approved')
+    await expect(breaks).toContainText('Paid break 13:30 to 13:45 · Approved')
 
-    await breaks.getByRole('button', { name: 'Unpaid break 11:30 to 12:00' }).click()
+    await breaks.getByRole('button', { name: 'Lunch 11:30 to 12:00' }).click()
     await autoId(page, 'BreakSheet-start').fill('12:00')
     await autoId(page, 'BreakSheet-finish').fill('12:30')
     await autoId(page, 'BreakSheet-times-save').click()
-    await expect(breaks).toContainText('Unpaid break 12:00 to 12:30')
+    await expect(breaks).toContainText('Lunch 12:00 to 12:30')
   })
 
   await test.step('and corrects them', async () => {

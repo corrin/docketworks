@@ -92,6 +92,7 @@
       "last_xero_sync": null,
       "last_xero_deep_sync": null,
       "shop_company": "00000000-0000-0000-0000-000000000001",
+      "break_job": null,
       "test_company_name": "ABC Carpet Cleaning TEST IGNORE",
       "kpi_daily_billable_hours_green": "45.00",
       "kpi_daily_billable_hours_amber": "35.00",

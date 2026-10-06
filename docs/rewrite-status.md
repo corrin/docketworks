@@ -40,8 +40,8 @@ does not have.
 |---|---|
 | E2E specs ported | **67 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
-| API operations v2 exposes | 276 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3645 collected |
+| API operations v2 exposes | 278 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 3691 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 138 recorded deviations |
@@ -648,13 +648,10 @@ never a second stream.
   `pyproject.toml`, where import-linter 2.13's `LayersContract` appears to ignore it — the
   gate currently refuses even TYPE_CHECKING-only imports across layers (stricter than
   configured, so no hole, but the config line claims a behaviour the gate does not deliver).
-- **The time-pair/hours agreement holds per write path, not per row.** The workshop
-  endpoints refuse an inconsistent trio and `CostLine.meta` now refuses non-clock time
-  strings, but the cost-line grid endpoints can still change `quantity` on a line whose meta
-  carries a start/end pair — the my-time calendar then draws a block whose size and title
-  disagree. The fix is the same validation in `CostLine.clean` for time lines, plus a
-  decision about what the office grid (which has no time fields) should do to a timed line's
-  pair when it edits hours.
+- **Hours longer than an entry's time span are refused per write path, not per row.** The
+  workshop endpoints refuse them; the cost-line grid can still raise `quantity` past the span.
+  The fix is the same check in `CostLine.clean` for time lines, plus what the office grid
+  (no time fields) does to a timed line's finish when it edits hours.
 - `to_optional_decimal` has a sibling `_decimal_or_none`
   (`crm/services/phone_call_service.py:1078`) with no `is_finite()` check, writing
   `Decimal("NaN")` into the call `charge` money column.

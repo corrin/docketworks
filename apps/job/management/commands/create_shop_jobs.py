@@ -1,4 +1,4 @@
-"""Create (or refresh) the eleven internal shop jobs.
+"""Create whichever of the twelve internal shop jobs the shop company lacks.
 
 The E2E timesheet specs and ``finalize_instance_onboarding`` both find these
 jobs by exact name, so the names are a contract — "Annual Leave" in
@@ -20,6 +20,11 @@ class _ShopJobSpec(TypedDict):
     name: str
     description: str
 
+
+#: The one shop job the code needs to find again: every break is booked to
+#: it. It is found through ``CompanyDefaults.break_job``, which this command
+#: sets; the name is only how the command recognises its own job.
+BREAK_JOB_NAME = "Break"
 
 SHOP_JOBS: tuple[_ShopJobSpec, ...] = (
     {
@@ -54,6 +59,10 @@ SHOP_JOBS: tuple[_ShopJobSpec, ...] = (
         "name": "Statutory holiday",
         "description": "Paid statutory holidays and office closure days",
     },
+    {
+        "name": BREAK_JOB_NAME,
+        "description": "Breaks: paid breaks and lunch, which no customer is billed for",
+    },
     {"name": "Travel", "description": "Travel for work purposes"},
     {
         "name": "Training",
@@ -63,17 +72,22 @@ SHOP_JOBS: tuple[_ShopJobSpec, ...] = (
 
 
 class Command(BaseCommand):
-    """Create or update the eleven shop jobs on the shop company."""
+    """Create or update the shop jobs on the shop company."""
 
     help = "Create shop jobs for internal purposes"
 
     def handle(self, *_args: object, **_options: object) -> None:
-        """Upsert each shop job by (name, shop company); refuse on ambiguity."""
+        """Create each shop job the shop company lacks; refuse on ambiguity.
+
+        Every deploy runs this after migrate (scripts/server/deploy.sh), so it
+        never rewrites a job that exists: one the office archived, renamed the
+        description of or otherwise changed is the office's. A deploy to an
+        instance that has them all writes nothing.
+        """
         company_defaults = CompanyDefaults.get_solo()
         shop_company = company_defaults.shop_company
 
         created = 0
-        updated = 0
         automation_user = Staff.get_automation_user()
         for job_details in SHOP_JOBS:
             matches = Job.objects.filter(
@@ -86,16 +100,30 @@ class Command(BaseCommand):
                 )
             job = matches.first()
             if job is None:
-                job = Job(name=job_details["name"], company=shop_company)
+                job = Job(
+                    name=job_details["name"],
+                    company=shop_company,
+                    description=job_details["description"],
+                    status="special",
+                    job_is_valid=True,
+                    paid=False,
+                )
+                job.save(staff=automation_user)
                 created += 1
-            else:
-                updated += 1
-            job.description = job_details["description"]
-            job.status = "special"
-            job.job_is_valid = True
-            job.paid = False
-            job.save(staff=automation_user)
+            self._name_break_job(company_defaults, job)
 
         self.stdout.write(
-            self.style.SUCCESS(f"Shop jobs ready: {created} created, {updated} updated.")
+            self.style.SUCCESS(
+                f"Shop jobs ready: {created} created, {len(SHOP_JOBS) - created} already there."
+            )
         )
+
+    @staticmethod
+    def _name_break_job(company_defaults: CompanyDefaults, job: Job) -> None:
+        """Point the company at the Break job, writing only when it does not already."""
+        if job.name != BREAK_JOB_NAME:
+            return
+        if company_defaults.break_job_id == job.id:
+            return
+        company_defaults.break_job = job
+        company_defaults.save(update_fields=["break_job"])

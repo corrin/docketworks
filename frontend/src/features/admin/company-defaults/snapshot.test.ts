@@ -51,6 +51,7 @@ const defaults: CompanyDefaultsOut = {
   morning_break_minutes: 15,
   lunch_start: '11:30:00',
   lunch_minutes: 30,
+  break_job: null,
   afternoon_break_start: '13:30:00',
   afternoon_break_minutes: 15,
   fri_start: '07:00:00',

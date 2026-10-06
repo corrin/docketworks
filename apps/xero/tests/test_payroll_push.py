@@ -24,10 +24,11 @@ from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.timesheet.models import AttendanceBreak, LeaveType
+from apps.timesheet.models import LeaveType
 from apps.timesheet.services import attendance, hour_categories, leave_service
 from apps.timesheet.tests.conftest import (
     WEEK_START,
+    make_break_job,
     make_leave_job,
     make_pay_run,
     make_public_holiday_job,
@@ -291,9 +292,13 @@ class TestApprovalControlsPay:
     def test_week_status_records_approved_hours_only(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job
     ) -> None:
-        """The week agrees with Xero when Xero holds the approved hours."""
+        """The week agrees with Xero when Xero holds the approved hours.
+
+        Unpaid time is never posted, so it is on neither side either.
+        """
         make_time_line(job, worker, accounting_date=WEEK_START, hours="5.000")
         make_time_line(job, worker, accounting_date=WEEK_START, hours="3.000", approved=False)
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="0.500", unpaid=True)
         employee_id = str(worker.xero_user_id)
         monkeypatch.setattr(
             payroll_push,
@@ -322,21 +327,47 @@ class TestApprovalControlsPay:
         assert status.recorded_timesheet_hours == Decimal("5.000")
         assert status.matches
 
-    def test_breaks_never_appear_in_the_weeks_posted_lines(self, worker: Staff, job: Job) -> None:
-        """Breaks belong to the day, not to job costing: what is posted does not move."""
-        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+    def test_lunch_is_never_posted_and_a_paid_break_is_posted_like_any_approved_time(
+        self, superuser: Staff, worker: Staff, job: Job
+    ) -> None:
+        """Lunch is on the day and pays nothing; a paid break is a quarter hour of his pay."""
+        breaks = make_break_job(superuser)
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="7.500")
         week = payroll_push._WeekWindow.of(WEEK_START)
 
         def posted() -> list[tuple[object, Decimal]]:
             lines = payroll_push._lines_by_staff(week, [worker.id])[worker.id]
-            return [(line.id, line.quantity) for line in lines]
+            return sorted((line.cost_set.job_id, line.quantity) for line in lines)
 
-        without_breaks = posted()
         attendance.set_clock_times(worker, WEEK_START, time(6, 30), time(15, 0), worker)
-        assert AttendanceBreak.objects.filter(attendance_day__staff=worker).count() == 3
+        assert CostLine.objects.filter(cost_set__job=breaks).count() == 3
+        # His breaks wait for the office like the rest of what he enters.
+        assert posted() == [(job.id, Decimal("7.500"))]
 
-        assert posted() == without_breaks
+        CostLine.objects.filter(cost_set__job=breaks).update(approved=True)
+
+        # Owner, 2026-10-06: lunch is "logged, but not hours and not sent to Xero".
+        assert posted() == sorted(
+            [
+                (job.id, Decimal("7.500")),
+                (breaks.id, Decimal("0.250")),
+                (breaks.id, Decimal("0.250")),
+            ]
+        )
         payroll_push.validate_pay_items_for_week([worker.id], WEEK_START)
+
+    def test_a_week_with_unpaid_lines_posts_as_one_without(self, worker: Staff, job: Job) -> None:
+        """Owner, 2026-10-06: unpaid time is logged, never sent to Xero."""
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="5.000")
+        week = payroll_push._WeekWindow.of(WEEK_START)
+
+        def posted() -> list[object]:
+            return [line.id for line in payroll_push._lines_by_staff(week, [worker.id])[worker.id]]
+
+        without = posted()
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="0.500", unpaid=True)
+
+        assert posted() == without
 
     def test_leave_entered_by_a_superuser_outside_the_office_still_reaches_payroll(
         self, company: Company, payroll_superuser: Staff, worker: Staff

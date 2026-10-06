@@ -19,6 +19,7 @@ from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
+from apps.job.services.time_entry_rates import UNPAID_TIME
 
 
 class JobBreakdown(TypedDict):
@@ -88,12 +89,17 @@ def get_staff_performance_data(
     start_date: date, end_date: date, staff_id: str | None = None
 ) -> StaffPerformanceData:
     """Per-staff metrics (staff with hours only) plus team averages."""
-    cost_lines = CostLine.objects.filter(
-        cost_set__kind="actual",
-        kind="time",
-        accounting_date__gte=start_date,
-        accounting_date__lte=end_date,
-    ).select_related("cost_set__job__company")
+    # Unpaid time (lunch) is logged, not hours.
+    cost_lines = (
+        CostLine.objects.filter(
+            cost_set__kind="actual",
+            kind="time",
+            accounting_date__gte=start_date,
+            accounting_date__lte=end_date,
+        )
+        .exclude(UNPAID_TIME)
+        .select_related("cost_set__job__company")
+    )
 
     all_staff = get_displayable_staff(date_range=(start_date, end_date))
     if staff_id:
@@ -103,7 +109,8 @@ def get_staff_performance_data(
         cost_lines = cost_lines.filter(staff_id=staff_id)
 
     include_job_breakdown = staff_id is not None
-    shop_company_id = CompanyDefaults.get_solo().shop_company_id
+    defaults = CompanyDefaults.get_solo()
+    shop_company_id = defaults.shop_company_id
 
     lines_by_staff_id: dict[str, list[CostLine]] = {}
     for line in cost_lines:
@@ -118,6 +125,7 @@ def get_staff_performance_data(
             lines_by_staff_id.get(str(staff.id), []),
             include_job_breakdown,
             shop_company_id,
+            defaults.break_job_id,
         )
         # Only staff with recorded hours in the period appear.
         if metrics["total_hours"] > 0:
@@ -142,6 +150,7 @@ def _staff_metrics(
     cost_lines: list[CostLine],
     include_job_breakdown: bool,
     shop_company_id: UUID | None,
+    break_job_id: UUID | None,
 ) -> StaffMetrics:
     total_hours = float(sum(line.quantity for line in cost_lines))
     billable_hours = float(
@@ -164,7 +173,11 @@ def _staff_metrics(
         profit=profit,
         revenue_per_hour=total_revenue / total_hours if total_hours > 0 else 0,
         profit_per_hour=profit / total_hours if total_hours > 0 else 0,
-        jobs_worked=len({line.cost_set.job.id for line in cost_lines}),
+        # A paid break is his time but not a job he worked on.
+        jobs_worked=len(
+            # His paid breaks are his time, on a job he did not work on.
+            {line.cost_set.job.id for line in cost_lines} - {break_job_id}
+        ),
     )
     if include_job_breakdown:
         metrics["job_breakdown"] = _job_breakdown(cost_lines, shop_company_id)

@@ -57,6 +57,7 @@ from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
+from apps.job.services.time_entry_rates import UNPAID_TIME
 from apps.timesheet.models import PostingSurface
 from apps.timesheet.services import hour_categories
 
@@ -182,14 +183,21 @@ def _week_time_lines(week: _WeekWindow, staff_ids: Sequence[UUID] | None = None)
     Staff are paid for approved time only (owner, 2026-10-06, KAN-376). Time
     the office has not approved is held back from validation, the post and the
     week's status alike; the weekly screen reports it from its own query.
+
+    Unpaid time (lunch, an office "Unpaid" line) is logged, never posted: it
+    is not hours, and Xero has nothing to pay for it (owner, 2026-10-06).
     """
-    lines = CostLine.objects.filter(
-        cost_set__kind="actual",
-        kind="time",
-        approved=True,
-        accounting_date__gte=week.start,
-        accounting_date__lte=week.end,
-    ).select_related("xero_pay_item", "cost_set__job")
+    lines = (
+        CostLine.objects.filter(
+            cost_set__kind="actual",
+            kind="time",
+            approved=True,
+            accounting_date__gte=week.start,
+            accounting_date__lte=week.end,
+        )
+        .exclude(UNPAID_TIME)
+        .select_related("xero_pay_item", "cost_set__job")
+    )
     if staff_ids is not None:
         lines = lines.filter(staff_id__in=list(staff_ids))
     return list(lines)

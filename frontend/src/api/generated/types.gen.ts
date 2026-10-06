@@ -343,6 +343,7 @@ export type ApprovalsDayOut = {
      * Staff
      */
     staff: Array<StaffApprovalOut>;
+    standard: StandardDayOut | null;
     summary: DaySummaryOut;
 };
 
@@ -396,6 +397,10 @@ export type AssignJobResponse = {
  * A person's day as they clocked it. ``here_hours`` is worked out by the server.
  */
 export type AttendanceOut = {
+    /**
+     * Cautions
+     */
+    cautions: Array<string>;
     /**
      * Clock In
      */
@@ -452,6 +457,7 @@ export type BreakCreateRequest = {
      * End
      */
     end: string;
+    location?: EntryLocationIn | null;
     /**
      * Paid
      */
@@ -469,9 +475,17 @@ export type BreakCreateRequest = {
 /**
  * BreakOut
  *
- * One break in a person's day. Breaks are in no hours, cost or pay figure.
+ * One break in a person's day.
+ *
+ * Every break is his time line on the Break job and ``id`` is that line's:
+ * a paid break is paid time, lunch is logged and in no hours figure. A
+ * planned break is the company's standard one, not yet his: it has no id.
  */
 export type BreakOut = {
+    /**
+     * Approved
+     */
+    approved: boolean | null;
     /**
      * End
      */
@@ -479,11 +493,19 @@ export type BreakOut = {
     /**
      * Id
      */
-    id: string;
+    id: string | null;
+    /**
+     * Name
+     */
+    name: string;
     /**
      * Paid
      */
     paid: boolean;
+    /**
+     * Planned
+     */
+    planned: boolean;
     /**
      * Start
      */
@@ -500,6 +522,7 @@ export type BreakUpdateRequest = {
      * End
      */
     end: string;
+    location?: EntryLocationIn | null;
     /**
      * Start
      */
@@ -644,6 +667,7 @@ export type ClockRequest = {
      * Action
      */
     action: 'in' | 'out';
+    location?: EntryLocationIn | null;
 };
 
 /**
@@ -666,6 +690,7 @@ export type ClockTimesRequest = {
      * Date
      */
     date: string;
+    location?: EntryLocationIn | null;
     /**
      * Staff Id
      */
@@ -793,6 +818,12 @@ export type CompanyDefaultsOut = {
      * When the workshop's paid afternoon break starts.
      */
     afternoon_break_start: string;
+    /**
+     * Break Job
+     *
+     * Internal job every break is booked to: paid breaks and lunch.
+     */
+    break_job: string | null;
     /**
      * City
      *
@@ -1251,6 +1282,12 @@ export type CompanyDefaultsPatchIn = {
      * When the workshop's paid afternoon break starts.
      */
     afternoon_break_start?: string | null;
+    /**
+     * Break Job
+     *
+     * Internal job every break is booked to: paid breaks and lunch.
+     */
+    break_job_id?: string | null;
     /**
      * City
      *
@@ -3508,6 +3545,10 @@ export type FieldChangeOut = {
  * ``to_go_hours`` is negative when more is entered than the person was here for.
  */
 export type FillOut = {
+    /**
+     * Break Hours
+     */
+    break_hours: number;
     /**
      * Entered Hours
      */
@@ -9248,6 +9289,26 @@ export type PipelineWarningOut = {
 };
 
 /**
+ * PlacementOut
+ *
+ * Where an entry sits in the day: its hours and its times, each from the other.
+ */
+export type PlacementOut = {
+    /**
+     * Finish
+     */
+    finish: string | null;
+    /**
+     * Hours
+     */
+    hours: number;
+    /**
+     * Start
+     */
+    start: string;
+};
+
+/**
  * PostWeekToXeroRequest
  *
  * Wire contract for PostWeekToXeroRequest.
@@ -11009,6 +11070,10 @@ export type StaffApprovalOut = {
     breaks: Array<BreakOut>;
     clock: AttendanceOut;
     /**
+     * Default Entry Start
+     */
+    default_entry_start: string;
+    /**
      * Entered Hours
      */
     entered_hours: number;
@@ -11722,6 +11787,39 @@ export type StaffWeekPostingOut = {
      * Timesheet Status
      */
     timesheet_status: string | null;
+};
+
+/**
+ * StandardDayOut
+ *
+ * The company's standard start and finish for a weekday.
+ */
+export type StandardDayOut = {
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Start
+     */
+    start: string;
+};
+
+/**
+ * StandardHoursRequest
+ *
+ * Record the standard hours on a day nobody clocked. ``staff_id`` is for the office.
+ */
+export type StandardHoursRequest = {
+    /**
+     * Date
+     */
+    date: string;
+    location?: EntryLocationIn | null;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
 };
 
 /**
@@ -13114,6 +13212,10 @@ export type TimesheetEntriesSummaryOut = {
  * TimesheetEventOut
  *
  * One audit event on a staff member's day, for the entry page's history dialog.
+ *
+ * ``trusted`` is whether it was made at the workshop (services/location.py).
+ * An event of the day itself (a clock tap, times set, the day sent) has no
+ * entry snapshots.
  */
 export type TimesheetEventOut = {
     after: TimesheetLineSnapshotOut | null;
@@ -13142,6 +13244,10 @@ export type TimesheetEventOut = {
      * Timestamp
      */
     timestamp: string;
+    /**
+     * Trusted
+     */
+    trusted: boolean;
 };
 
 /**
@@ -13997,11 +14103,20 @@ export type WorkshopTimesheetListResponse = {
     date: string;
     day: AttendanceOut;
     /**
+     * Default Entry Start
+     */
+    default_entry_start: string;
+    /**
      * Entries
      */
     entries: Array<WorkshopTimesheetEntryOut>;
     fill: FillOut | null;
+    /**
+     * Missed Clock Out Finish
+     */
+    missed_clock_out_finish: string | null;
     pending: PendingDayOut | null;
+    standard: StandardDayOut | null;
     summary: WorkshopTimesheetSummaryOut;
     week: WorkshopTimesheetWeekOut;
 };
@@ -18048,6 +18163,14 @@ export type JobWorkshopTimesheetsDestroyData = {
          * Entry Id
          */
         entry_id: string;
+        /**
+         * Latitude
+         */
+        latitude?: number | null;
+        /**
+         * Longitude
+         */
+        longitude?: number | null;
     };
     url: '/api/job/workshop/timesheets/';
 };
@@ -20170,7 +20293,16 @@ export type TimesheetsMyDayBreaksDeleteData = {
          */
         break_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Latitude
+         */
+        latitude?: number | null;
+        /**
+         * Longitude
+         */
+        longitude?: number | null;
+    };
     url: '/api/timesheets/my-day/breaks/{break_id}/';
 };
 
@@ -20219,6 +20351,59 @@ export type TimesheetsMyDayClockResponses = {
 };
 
 export type TimesheetsMyDayClockResponse = TimesheetsMyDayClockResponses[keyof TimesheetsMyDayClockResponses];
+
+export type TimesheetsMyDayPlacementData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Date
+         */
+        date: string;
+        /**
+         * Start
+         */
+        start: string;
+        /**
+         * Hours
+         */
+        hours?: number | string | null;
+        /**
+         * Finish
+         */
+        finish?: string | null;
+        /**
+         * Staff Id
+         */
+        staff_id?: string | null;
+    };
+    url: '/api/timesheets/my-day/placement/';
+};
+
+export type TimesheetsMyDayPlacementResponses = {
+    /**
+     * OK
+     */
+    200: PlacementOut;
+};
+
+export type TimesheetsMyDayPlacementResponse = TimesheetsMyDayPlacementResponses[keyof TimesheetsMyDayPlacementResponses];
+
+export type TimesheetsMyDayStandardHoursData = {
+    body: StandardHoursRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/standard-hours/';
+};
+
+export type TimesheetsMyDayStandardHoursResponses = {
+    /**
+     * OK
+     */
+    200: AttendanceOut;
+};
+
+export type TimesheetsMyDayStandardHoursResponse = TimesheetsMyDayStandardHoursResponses[keyof TimesheetsMyDayStandardHoursResponses];
 
 export type TimesheetsMyDaySubmitData = {
     body: SubmitDayRequest;
