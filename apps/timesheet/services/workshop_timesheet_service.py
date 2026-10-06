@@ -1,7 +1,9 @@
 """Workshop "my time" self-service for a staff member's own entries.
 
-Any authenticated staff member may read and write ONLY their own entries;
-every write enforces ownership by comparing ``meta.staff_id``.
+A staff member reads and writes their own entries; office staff may also read
+and correct another person's (KAN-376: the office corrects an entry and phones
+the worker, it does not send it back). Every write names two people: the
+``actor`` who is saving and the ``owner`` whose time it is.
 
 Rate resolution goes through the one pipeline in
 ``apps.job.services.time_entry_rates`` (ADR 0039). Resolving a pay item from the
@@ -10,12 +12,14 @@ item and a zero bill rate.
 """
 
 import logging
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import TypedDict
 from uuid import UUID
 
 from django.db import transaction
+from django.db.models import Q, Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
@@ -27,21 +31,63 @@ from apps.job.services.job_service import (
     CostLineData,
     cost_line_data,
     get_or_create_cost_set,
+    move_time_line,
+    refuse_worker_change_to_approved,
     refuse_workflow_managed,
+    update_latest_actual,
 )
 from apps.job.services.time_entry_rates import (
+    UNPAID_TIME,
     ZERO_MULTIPLIER,
     normalize_multiplier,
     price_time_entry,
     rate_from_meta,
 )
-from apps.timesheet.services import hour_categories
+from apps.timesheet.models import (
+    EDITED_STANDARD_BREAK,
+    UNTOUCHED_STANDARD_BREAK,
+    AttendanceDay,
+    mark_break_edited,
+)
+from apps.timesheet.services import attendance, hour_categories
+from apps.timesheet.services.attendance import (
+    AttendanceData,
+    BreakData,
+    CalendarBounds,
+    FillData,
+    PendingDay,
+)
+from apps.timesheet.services.location import EntryLocation, saved_remotely
+from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
+from apps.timesheet.services.weekly_timesheet_service import PAYROLL_WEEK_DAYS, payroll_week_start
 
 logger = logging.getLogger(__name__)
 
 
 class EntryOwnershipError(AccessDeniedError):
     """A staff member touched an entry that is not theirs (403 at the boundary)."""
+
+
+def entry_owner(actor: Staff, staff_id: UUID | None) -> Staff:
+    """Whose day the actor is asking for: their own unless office staff name another."""
+    if staff_id is None or staff_id == actor.id:
+        return actor
+    if not actor.is_office_staff:
+        raise EntryOwnershipError("Only office staff see or enter another person's time.")
+    return Staff.objects.get(id=staff_id)
+
+
+def _refuse_another_persons_entry(line: CostLine, actor: Staff, verb: str) -> None:
+    """Refuse a change to someone else's entry by anyone but the office."""
+    if line.meta.get("staff_id") != str(actor.id) and not actor.is_office_staff:
+        raise EntryOwnershipError(f"You can only {verb} your own timesheet entries.")
+
+
+def _owner_of(line: CostLine) -> Staff:
+    """Return the person whose time the line records; their wage prices it."""
+    if line.staff is None:
+        raise ValueError(f"Time line {line.id} has no staff member")
+    return line.staff
 
 
 class WorkshopEntryCreateData(TypedDict, total=False):
@@ -89,6 +135,9 @@ class WorkshopEntryData(TypedDict):
     is_billable: bool
     wage_rate_multiplier: float
     bill_rate_multiplier: float
+    approved: bool
+    entered_late: bool
+    remote_entry: bool
     created_at: datetime
     updated_at: datetime
 
@@ -99,8 +148,20 @@ class WorkshopSummaryData(TypedDict):
     total_hours: float
     billable_hours: float
     non_billable_hours: float
-    total_cost: float
-    total_revenue: float
+
+
+class WorkshopWeekData(TypedDict):
+    """The payroll week's hours: what payroll will pay, and what is held back."""
+
+    approved_hours: float
+    waiting_hours: float
+
+
+class StandardDayData(TypedDict):
+    """The company's standard start and finish for a weekday."""
+
+    start: time
+    end: time
 
 
 class WorkshopDayData(TypedDict):
@@ -109,6 +170,21 @@ class WorkshopDayData(TypedDict):
     date: date
     entries: list[WorkshopEntryData]
     summary: WorkshopSummaryData
+    week: WorkshopWeekData
+    day: AttendanceData
+    #: His breaks, drawn on the calendar; in no hours figure.
+    breaks: list[BreakData]
+    #: Hours to fill, entered and to go; None until both clock times are known.
+    fill: FillData | None
+    #: The company's standard hours for the date; None on a weekend.
+    standard: StandardDayData | None
+    #: The standard finish to offer for an earlier day left clocked in.
+    missed_clock_out_finish: time | None
+    #: Where a new entry opens when nothing on the day precedes it.
+    default_entry_start: time
+    calendar: CalendarBounds
+    #: An earlier day the person clocked and has not sent.
+    pending: PendingDay | None
 
 
 def resolve_entry_date(date_param: str | None) -> date:
@@ -142,11 +218,13 @@ _TIME_AGREEMENT_TOLERANCE = Decimal("0.01")
 
 
 def _validate_time_consistency(start: time | None, end: time | None, hours: Decimal) -> None:
-    """Refuse a start/end pair that disagrees with itself or with ``hours``.
+    """Refuse a start/end pair that is backwards or too short to hold ``hours``.
 
-    The wire carries all three fields, so without this a caller can book
-    "08:00-09:00, 8 hours" and payroll cost silently disagrees with the
-    calendar block. A single missing time carries no duration and is exempt.
+    An entry's hours are what is paid and billed; its times are a picture of
+    where the work sat in the day. Breaks are outside job time, so an entry
+    spanning one has a span longer than its hours, and that is ordinary. What
+    cannot be is more hours than the span. A single missing time carries no
+    span and is exempt.
     """
     if start is None or end is None:
         return
@@ -154,9 +232,9 @@ def _validate_time_consistency(start: time | None, end: time | None, hours: Deci
         raise ValueError("end_time must be after start_time.")
     elapsed = datetime.combine(date.min, end) - datetime.combine(date.min, start)
     duration = Decimal(elapsed.total_seconds()) / Decimal(3600)
-    if abs(duration - hours) > _TIME_AGREEMENT_TOLERANCE:
+    if hours - duration > _TIME_AGREEMENT_TOLERANCE:
         raise ValueError(
-            f"hours ({hours}) must match the start_time-end_time duration "
+            f"hours ({hours}) cannot be more than the start_time-end_time span "
             f"({duration.quantize(Decimal('0.01'))})."
         )
 
@@ -172,6 +250,24 @@ def _meta_multiplier(meta: dict[str, object], key: str, default: Decimal) -> Dec
     if raw is None:
         return default
     return normalize_multiplier(raw)
+
+
+#: Lines nobody typed, never marked entered late.
+_GENERATED_SOURCES = frozenset({UNTOUCHED_STANDARD_BREAK, EDITED_STANDARD_BREAK})
+
+
+def entered_late(line: CostLine) -> bool:
+    """Whether the entry was made on a later day than the day it is for.
+
+    Entering time on the day is the rule, because nobody remembers
+    yesterday's tasks (owner, 2026-10-06). Late entry is flagged, not blocked,
+    whoever typed it. The comparison is in local dates: an entry made at 23:30
+    for that day is on time. A line a workflow owns is never late: leave is
+    routinely entered the day after.
+    """
+    if line.managed_by is not None or line.meta.get("source") in _GENERATED_SOURCES:
+        return False
+    return timezone.localdate(line.created_at) > line.accounting_date
 
 
 def entry_data(line: CostLine) -> WorkshopEntryData:
@@ -201,6 +297,9 @@ def entry_data(line: CostLine) -> WorkshopEntryData:
         "is_billable": is_billable,
         "wage_rate_multiplier": float(wage_multiplier),
         "bill_rate_multiplier": float(bill_multiplier),
+        "approved": line.approved,
+        "entered_late": entered_late(line),
+        "remote_entry": line.remote_entry,
         "created_at": line.created_at,
         "updated_at": line.updated_at,
     }
@@ -218,8 +317,6 @@ def _summary(entries: list[CostLine]) -> WorkshopSummaryData:
         "total_hours": float(total_hours),
         "billable_hours": float(billable_hours),
         "non_billable_hours": float(total_hours - billable_hours),
-        "total_cost": float(sum((line.total_cost for line in entries), Decimal("0"))),
-        "total_revenue": float(sum((line.total_rev for line in entries), Decimal("0"))),
     }
 
 
@@ -237,18 +334,107 @@ def day_time_lines(staff: Staff, entry_date: date) -> list[CostLine]:
             kind="time",
             staff=staff,
             accounting_date=entry_date,
-        ).select_related("cost_set__job__company")
+        ).select_related("cost_set__job__company", "xero_pay_item")
     )
 
 
+def _week_hours(staff: Staff, entry_date: date) -> WorkshopWeekData:
+    """Approved and waiting hours for the payroll week the date falls in.
+
+    The same week and the same lines the weekly payroll screen reports as held
+    back, so the worker's "waiting" and the office's figure are one number.
+    """
+    week_start = payroll_week_start(entry_date)
+    # Lunch is logged, not hours.
+    totals = (
+        CostLine.objects.filter(
+            cost_set__kind="actual",
+            kind="time",
+            staff=staff,
+            accounting_date__gte=week_start,
+            accounting_date__lte=week_start + timedelta(days=PAYROLL_WEEK_DAYS - 1),
+        )
+        .exclude(UNPAID_TIME)
+        .aggregate(
+            approved_hours=Coalesce(Sum("quantity", filter=Q(approved=True)), Decimal("0")),
+            waiting_hours=Coalesce(Sum("quantity", filter=Q(approved=False)), Decimal("0")),
+        )
+    )
+    return {
+        "approved_hours": float(totals["approved_hours"]),
+        "waiting_hours": float(totals["waiting_hours"]),
+    }
+
+
 def list_entries(staff: Staff, entry_date: date) -> WorkshopDayData:
-    """List the staff member's own entries for a date, with the day's summary."""
-    entries = day_time_lines(staff, entry_date)
+    """List one person's entries for a date, with the day's summary.
+
+    His breaks travel in ``breaks`` and not in ``entries``: nothing that reads
+    the day's jobs (the last job used, the count of jobs, the job blocks) then
+    has to know which job a break is booked to. His paid breaks are hours and
+    in every total; lunch is logged, not hours, and in none.
+    """
+    lines = day_time_lines(staff, entry_date)
+    entries, break_lines = attendance.split_breaks(lines)
+    row = AttendanceDay.objects.filter(staff=staff, date=entry_date).first()
+    breaks = attendance.day_breaks(entry_date, row, break_lines)
+    standard = attendance.standard_day(entry_date)
+    today = timezone.localdate()
     return {
         "date": entry_date,
         "entries": [entry_data(line) for line in entries],
-        "summary": _summary(entries),
+        "summary": _summary(lines),
+        "week": _week_hours(staff, entry_date),
+        "day": attendance.attendance_data(row),
+        "breaks": breaks,
+        "fill": attendance.fill_figures(
+            row, sum((line.quantity for line in entries), Decimal(0)), break_lines
+        ),
+        "standard": None if standard is None else {"start": standard.start, "end": standard.end},
+        "missed_clock_out_finish": attendance.missed_clock_out_finish(row, today),
+        "default_entry_start": default_entry_start(entry_date, row, entries, break_lines),
+        "calendar": attendance.calendar_bounds(
+            row,
+            standard,
+            [span for line in entries if (span := timed_span(line))]
+            + [(each["start"], each["end"]) for each in breaks],
+        ),
+        "pending": attendance.pending_day(staff, today),
     }
+
+
+def default_entry_start(
+    day: date, row: AttendanceDay | None, entries: list[CostLine], break_lines: list[CostLine]
+) -> time:
+    """Return where his next entry starts: after his latest, else when he clocked in.
+
+    Failing both, the standard start. A start that lands inside a break moves
+    to the end of it, since breaks are outside job time.
+    """
+    finishes = [span[1] for line in entries if (span := timed_span(line))]
+    if finishes:
+        start = max(finishes)
+    elif row is not None:
+        start = row.clock_in
+    else:
+        start = attendance.standard_entry_start(day)
+    return attendance.start_after_breaks(start, attendance.break_windows(day, row, break_lines))
+
+
+def day_break_windows(staff: Staff, day: date) -> list[attendance.Window]:
+    """Return the day's breaks as the stretches an entry is placed around."""
+    row = AttendanceDay.objects.filter(staff=staff, date=day).first()
+    _, break_lines = attendance.split_breaks(day_time_lines(staff, day))
+    return attendance.break_windows(day, row, break_lines)
+
+
+def timed_span(line: CostLine) -> tuple[time, time] | None:
+    """Return the entry's start and end when it has both, else None."""
+    start = _meta_time(line.meta, "start_time")
+    end = _meta_time(line.meta, "end_time")
+    if start is None or end is None:
+        return None
+    return start, end
 
 
 class ManagementStaffData(TypedDict):
@@ -265,6 +451,10 @@ class ManagementSummaryData(WorkshopSummaryData):
 
     entry_count: int
     scheduled_hours: float
+    # Money stays on the superuser's screen: the self-service summary, which a
+    # worker's phone and the office's Approve time read, carries none.
+    total_cost: float
+    total_revenue: float
 
 
 class TimesheetCostLineData(CostLineData):
@@ -321,6 +511,8 @@ def management_day_data(staff: Staff, entry_date: date) -> ManagementDayData:
             "scheduled_hours": float(
                 hour_categories.scheduled_hours(staff, entry_date, weekend_enabled=True)
             ),
+            "total_cost": float(sum((line.total_cost for line in lines), Decimal("0"))),
+            "total_revenue": float(sum((line.total_rev for line in lines), Decimal("0"))),
         },
     }
 
@@ -346,29 +538,69 @@ def pricing_meta(
     return meta
 
 
-def update_latest_actual(job: Job, cost_set_rev: int, cost_set_id: UUID, staff: Staff) -> None:
-    """Point the job at its newest actual cost set."""
-    if job.latest_actual is None or cost_set_rev >= job.latest_actual.rev:
-        job.latest_actual_id = cost_set_id
-        job.save(staff=staff, update_fields=["latest_actual", "updated_at"])
+class _Placement(TypedDict, total=False):
+    start_time: time
+    end_time: time
 
 
-def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryData:
-    """Create a time line for the authenticated staff member."""
+def _placed(owner: Staff, day: date, hours: Decimal) -> _Placement:
+    """Place hours given without times after his latest entry, stepping over the breaks.
+
+    Hours are all he has to say; the times are the picture that lets the day
+    draw. Hours that would run past midnight from there keep no picture: the
+    entry is saved without times, as it always could be, rather than refused
+    or drawn shorter than the hours it holds.
+    """
+    row = AttendanceDay.objects.filter(staff=owner, date=day).first()
+    entries, break_lines = attendance.split_breaks(day_time_lines(owner, day))
+    start = default_entry_start(day, row, entries, break_lines)
+    finish = attendance.finish_in_the_day(
+        start, hours, attendance.break_windows(day, row, break_lines)
+    )
+    if finish is None:
+        return {}
+    return {"start_time": start, "end_time": finish}
+
+
+def create_entry(
+    actor: Staff,
+    owner: Staff,
+    data: WorkshopEntryCreateData,
+    location: EntryLocation | None = None,
+    *,
+    generated: bool = False,
+) -> WorkshopEntryData:
+    """Create a time line for ``owner``, saved by ``actor``.
+
+    The two are the same person when someone books their own time. The owner's
+    wage prices the line; who saved it decides whether it starts approved and
+    whether it is marked as saved away from the workshop. ``location`` is
+    where the actor's phone says it is; None when it gave none.
+
+    ``generated`` is a line nobody typed (the breaks put on a day when it is
+    closed): never marked late or remote, since there was no entry to judge.
+    """
     job = Job.objects.select_related("company", "default_xero_pay_item").get(id=data["job_id"])
     wage_rate_multiplier = data.get("wage_rate_multiplier", Decimal("1.0"))
-    _validate_time_consistency(data.get("start_time"), data.get("end_time"), data["hours"])
 
     with transaction.atomic():
+        # His day is read and placed on under a lock on him, so two entries
+        # saved at once are placed one after the other, not on one slot.
+        Staff.objects.select_for_update().filter(pk=owner.pk).first()
+        if data.get("start_time") is None and data.get("end_time") is None:
+            data = {**data, **_placed(owner, data["accounting_date"], data["hours"])}
+        _validate_time_consistency(data.get("start_time"), data.get("end_time"), data["hours"])
         lock_costing_jobs([job.id])
         cost_set = get_or_create_cost_set(job, "actual")
         meta = pricing_meta(
-            staff=staff,
+            staff=owner,
             accounting_date=data["accounting_date"],
             wage_rate_multiplier=wage_rate_multiplier,
             bill_rate_multiplier=data.get("bill_rate_multiplier"),
             is_billable=data.get("is_billable", True),
         )
+        if generated:
+            meta["source"] = UNTOUCHED_STANDARD_BREAK
         start_time = data.get("start_time")
         end_time = data.get("end_time")
         if start_time is not None:
@@ -376,7 +608,7 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
         if end_time is not None:
             meta["end_time"] = _format_time(end_time)
 
-        pricing = price_time_entry(job=job, staff=staff, meta=meta)
+        pricing = price_time_entry(job=job, staff=owner, meta=meta)
         meta.update(pricing.meta_updates())
 
         line = CostLine(
@@ -387,27 +619,39 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
             unit_cost=pricing.unit_cost,
             unit_rev=pricing.unit_rev,
             accounting_date=data["accounting_date"],
-            staff=staff,
+            staff=owner,
             xero_pay_item_id=pricing.pay_item_id,
             labour_subtype=pricing.labour_subtype,
             ext_refs={},
             meta=meta,
-            # v1: lines booked by workshop staff await office approval.
-            approved=staff.is_office_staff,
+            # Time the office enters is approved as it is saved, whoever it is
+            # for; a worker's own waits for the office.
+            approved=actor.is_office_staff,
+            remote_entry=not generated and saved_remotely(actor, location),
         )
         line.save()
-        update_latest_actual(job, cost_set.rev, cost_set.id, staff)
+        update_latest_actual(job, cost_set.rev, cost_set.id, actor)
+        record_timesheet_event(
+            staff=actor,
+            event_type="entry_created",
+            line=line,
+            before=None,
+            trusted=not line.remote_entry,
+        )
 
     return entry_data(line)
 
 
-def _owned_line(staff: Staff, entry_id: UUID) -> CostLine:
-    """Fetch a time line and assert the staff member owns it."""
+def _editable_line(actor: Staff, entry_id: UUID) -> CostLine:
+    """Fetch a time line the actor may edit: their own, or anyone's for the office."""
     line = CostLine.objects.select_related(
-        "cost_set__job__company", "cost_set__job__default_xero_pay_item"
+        "cost_set__job__company",
+        "cost_set__job__default_xero_pay_item",
+        "labour_subtype",
+        "xero_pay_item",
+        "staff",
     ).get(id=entry_id, kind="time")
-    if line.meta.get("staff_id") != str(staff.id):
-        raise EntryOwnershipError("You can only update your own timesheet entries.")
+    _refuse_another_persons_entry(line, actor, "update")
     refuse_workflow_managed(line, "edit")
     return line
 
@@ -464,18 +708,48 @@ def _apply_scalar_changes(
     return changed
 
 
-def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryData:
-    """Update one of the staff member's own entries."""
-    line = _owned_line(staff, data["entry_id"])
+_MOVES_THE_FINISH = frozenset({"hours", "start_time", "accounting_date"})
+
+
+def _redraw_finish(line: CostLine, meta: dict[str, object], data: WorkshopEntryUpdateData) -> None:
+    """Redraw an edited entry's finish from its hours, unless a finish was given.
+
+    Hours are the truth and the times their picture: new hours, a new start or
+    a new day redraw the finish rather than being refused by it. Past midnight
+    from the start, the hours stand and keep no picture.
+    """
+    start = _meta_time(meta, "start_time")
+    if start is None or "end_time" in data or not data.keys() & _MOVES_THE_FINISH:
+        return
+    windows = day_break_windows(_owner_of(line), line.accounting_date)
+    finish = attendance.finish_in_the_day(start, line.quantity, windows)
+    if finish is None:
+        meta["start_time"] = None
+        meta["end_time"] = None
+    else:
+        meta["end_time"] = _format_time(finish)
+
+
+def update_entry(
+    actor: Staff, data: WorkshopEntryUpdateData, location: EntryLocation | None = None
+) -> WorkshopEntryData:
+    """Update an entry: the actor's own, or anyone's when the actor is office staff.
+
+    The entry stays its owner's and is priced at the owner's wage. ``location``
+    is where the actor's phone says it is; None when it gave none.
+    """
+    line = _editable_line(actor, data["entry_id"])
 
     with transaction.atomic():
         job_ids = {line.cost_set.job_id}
         if "job_id" in data:
             job_ids.add(data["job_id"])
         lock_costing_jobs(job_ids)
-        line = _owned_line(staff, data["entry_id"])
+        line = _editable_line(actor, data["entry_id"])
         if line.cost_set.job_id not in job_ids:
             raise ConflictError("This entry moved to another job. Reload before editing it.")
+        refuse_worker_change_to_approved(line, actor)
+        before = snapshot_if_entry(line)
         meta = dict(line.meta)
         changed = _apply_scalar_changes(line, meta, data)
         reprice = _apply_billing_changes(meta, data)
@@ -486,14 +760,18 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
             job = Job.objects.select_related("company", "default_xero_pay_item").get(
                 id=data["job_id"]
             )
-            moved_cost_set = get_or_create_cost_set(job, "actual")
-            line.cost_set = moved_cost_set
+            moved_cost_set = move_time_line(
+                line,
+                job,
+                meta,
+                billing_explicit="is_billable" in data or "bill_rate_multiplier" in data,
+            )
             changed = True
             reprice = True
 
         if reprice:
             pricing = price_time_entry(
-                job=job, staff=staff, meta=meta, labour_subtype=line.labour_subtype
+                job=job, staff=_owner_of(line), meta=meta, labour_subtype=line.labour_subtype
             )
             meta.update(pricing.meta_updates())
             line.unit_cost = pricing.unit_cost
@@ -505,31 +783,62 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
         if not changed:
             raise ValueError("No changes supplied.")
 
+        _redraw_finish(line, meta, data)
+
         # Validated on the merged entry, not the patch alone: a PATCH that moves
-        # one time (or hours) can break agreement with the stored other half.
+        # one time can break agreement with the stored other half.
         _validate_time_consistency(
             _meta_time(meta, "start_time"), _meta_time(meta, "end_time"), line.quantity
         )
 
+        # Changed by someone: no longer the default the finish may take away.
+        mark_break_edited(meta)
         line.meta = meta
+        # Only ever set here: an edit made at the workshop does not vouch for
+        # an entry first made somewhere else.
+        remote = saved_remotely(actor, location)
+        if remote:
+            line.remote_entry = True
         line.save()
         if moved_cost_set is not None:
-            update_latest_actual(job, moved_cost_set.rev, moved_cost_set.id, staff)
+            update_latest_actual(job, moved_cost_set.rev, moved_cost_set.id, actor)
+        record_timesheet_event(
+            staff=actor,
+            event_type="entry_moved" if moved_cost_set is not None else "entry_updated",
+            line=line,
+            before=before,
+            trusted=not remote,
+        )
 
     return entry_data(line)
 
 
 @transaction.atomic
-def delete_entry(staff: Staff, entry_id: UUID) -> None:
-    """Delete one of the staff member's own entries."""
+def delete_entry(actor: Staff, entry_id: UUID, location: EntryLocation | None = None) -> None:
+    """Delete an entry: the actor's own, or anyone's when the actor is office staff."""
     line = CostLine.objects.get(id=entry_id, kind="time")
     job_id = line.cost_set.job_id
     lock_costing_jobs([job_id])
-    line = CostLine.objects.select_for_update().get(pk=line.pk)
+    # Locked on the line alone: the snapshot's joins are nullable, which
+    # Postgres refuses under FOR UPDATE.
+    line = (
+        CostLine.objects.select_for_update(of=("self",))
+        .select_related("cost_set__job", "labour_subtype", "xero_pay_item")
+        .get(pk=line.pk)
+    )
     if line.cost_set.job_id != job_id:
         raise ConflictError("This entry moved to another job. Reload before deleting it.")
-    if line.meta.get("staff_id") != str(staff.id):
-        raise EntryOwnershipError("You can only delete your own timesheet entries.")
+    _refuse_another_persons_entry(line, actor, "delete")
     refuse_workflow_managed(line, "cancel")
+    refuse_worker_change_to_approved(line, actor)
+    # Recorded before the delete: Django clears the pk on the instance it
+    # deleted, and the event names the line by that id.
+    record_timesheet_event(
+        staff=actor,
+        event_type="entry_deleted",
+        line=line,
+        before=snapshot_if_entry(line),
+        trusted=not saved_remotely(actor, location),
+    )
     line.delete()
-    logger.info("Deleted workshop timesheet entry %s for staff %s", entry_id, staff.id)
+    logger.info("Deleted workshop timesheet entry %s by staff %s", entry_id, actor.id)

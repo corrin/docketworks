@@ -33,7 +33,13 @@ from django.utils import timezone
 
 from apps.accounting.models import Invoice, Quote
 from apps.accounts.models import Staff
-from apps.core.errors import AppErrorContext, ConflictError, InvalidInputError, persist_app_error
+from apps.core.errors import (
+    AccessDeniedError,
+    AppErrorContext,
+    ConflictError,
+    InvalidInputError,
+    persist_app_error,
+)
 from apps.core.etag import (
     PreconditionFailedError,
     generate_updated_at_etag,
@@ -54,6 +60,13 @@ from apps.job.models import (
 from apps.job.models.costing import CostLine, CostSet, lock_costing_jobs
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
 from apps.job.services.time_entry_rates import pay_item_by_id, price_time_entry
+from apps.timesheet.models import mark_break_edited
+from apps.timesheet.services.location import saved_remotely
+from apps.timesheet.services.timesheet_events import (
+    is_timesheet_entry,
+    record_timesheet_event,
+    snapshot_if_entry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -2104,6 +2117,7 @@ class CostLineWriteData(TypedDict, total=False):
     staff: UUID | None
     labour_subtype: UUID | None
     managed_by: str | None
+    job_id: UUID
 
 
 def _apply_costline_values(line: CostLine, data: CostLineWriteData) -> None:
@@ -2216,6 +2230,54 @@ def get_or_create_cost_set(job: Job, kind: str) -> CostSet:
     return cost_set
 
 
+def update_latest_actual(job: Job, cost_set_rev: int, cost_set_id: UUID, staff: Staff) -> None:
+    """Point the job at its newest actual cost set."""
+    if job.latest_actual is None or cost_set_rev >= job.latest_actual.rev:
+        job.latest_actual_id = cost_set_id
+        job.save(staff=staff, update_fields=["latest_actual", "updated_at"])
+
+
+def bills_its_time(job: Job) -> bool:
+    """Whether time on this job can be invoiced: shop work and special jobs cannot."""
+    return not job.shop_job and job.status != "special"
+
+
+def move_time_line(
+    line: CostLine, destination: Job, meta: dict[str, object], *, billing_explicit: bool
+) -> CostSet:
+    """Point a timesheet entry at ``destination``'s actual cost set; the one move (ADR 0039).
+
+    Both the office cost-line PATCH and the workshop self-service PATCH call
+    this. ``meta`` is the metadata the caller is about to store on the line;
+    the caller then reprices it through ``price_time_entry`` against
+    ``line.cost_set.job``, so the destination's charge-out rate is what the
+    entry earns. ``CostLine.save()`` locks both owners and moves both
+    summaries; the caller holds ``lock_costing_jobs`` on both jobs already.
+
+    Billing on a move keeps the entry's multipliers (owner ruling, 2026-10-01).
+    Re-applying the pick-time defaults (1.5x on an urgent job, 1.0x otherwise)
+    was rejected: a saved line cannot say whether its multiplier was a default
+    or a choice, and the rule would silently discard the choice. Only a
+    destination that cannot bill overrides the entry, and only the fact that
+    the source could not bill lets the stored zero go.
+    """
+    if not is_timesheet_entry(line):
+        raise InvalidInputError("Only timesheet entries move to another job.")
+    source = line.cost_set.job
+    cost_set = get_or_create_cost_set(destination, "actual")
+    line.cost_set = cost_set
+    if not bills_its_time(destination):
+        meta["is_billable"] = False
+        meta["bill_rate_multiplier"] = 0.0
+    elif not bills_its_time(source) and not billing_explicit:
+        # The stored zero was the source's rule, not the entry's: dropping the
+        # multiplier lets the rate pipeline re-derive it from the wage multiplier.
+        # A request that set its own billing keeps it (``billing_explicit``).
+        meta["is_billable"] = True
+        meta.pop("bill_rate_multiplier", None)
+    return cost_set
+
+
 def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff) -> CostLine:
     """Create a cost line on the job's ``kind`` cost set."""
     if kind not in COST_SET_KINDS:
@@ -2234,14 +2296,26 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
     with transaction.atomic():
         lock_costing_jobs([job.id])
         cost_set = get_or_create_cost_set(job, kind)
-        # Workshop-created lines await office approval.
-        line = CostLine(cost_set=cost_set, approved=staff.is_office_staff)
+        # Workshop-created lines await office approval. Leave never does: the
+        # leave request is the approval, the approve endpoint refuses a managed
+        # line, and payroll reads unapproved leave as no leave.
+        line = CostLine(
+            cost_set=cost_set,
+            approved=staff.is_office_staff or data.get("managed_by") == "leave",
+        )
         if is_timesheet_line and data.get("kind") == "time":
             _reprice_timesheet_line(line, data, dict(meta))
         _apply_costline_fields(line, data)
         # CostLine.save() runs full_clean, assigns entry_seq and refreshes
         # the CostSet summary; do not duplicate those model responsibilities here.
         line.save()
+        record_timesheet_event(
+            staff=staff,
+            event_type="entry_created",
+            line=line,
+            before=None,
+            trusted=not saved_remotely(staff, None),
+        )
     return line
 
 
@@ -2257,16 +2331,67 @@ def refuse_workflow_managed(line: CostLine, remedy: str) -> None:
         )
 
 
+class ApprovedEntryLockedError(ConflictError):
+    """A worker tried to change time the office has already approved."""
+
+
+def refuse_worker_change_to_approved(line: CostLine, actor: Staff) -> None:
+    """Refuse a non-office change to approved worked time.
+
+    Approved time is what payroll pays (KAN-376), so once the office has
+    approved an entry only the office changes it. Called by every path a
+    worker can reach a time line through, under the lock that approval takes.
+    Material lines are not covered: their approval is a stock issue, with its
+    own rules in purchasing.
+    """
+    if (
+        not actor.is_office_staff
+        and line.approved
+        and line.kind == "time"
+        and line.cost_set.kind == "actual"
+    ):
+        raise ApprovedEntryLockedError("This entry has been approved. Ask the office to change it.")
+
+
 @transaction.atomic
-def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
-    """Edit unowned costs; issuing material belongs to purchasing."""
-    lock_costing_jobs([line.cost_set.job_id])
-    line = CostLine.objects.select_for_update().get(pk=line.pk)
+def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> CostLine:
+    """Edit unowned costs; issuing material belongs to purchasing.
+
+    A ``job_id`` that differs from the line's job moves a timesheet entry to
+    that job (``move_time_line``) and reprices it there. Office staff move
+    any entry; anyone else moves only their own (owner ruling, 2026-10-03),
+    the workshop path's rule, checked against the locked current entry.
+    """
+    source_job_id = line.cost_set.job_id
+    job_ids = {source_job_id}
+    if "job_id" in data:
+        job_ids.add(data["job_id"])
+    lock_costing_jobs(job_ids)
+    # The lock is on the line alone (``of``): the joins for the snapshot's
+    # subtype and pay item are nullable, and Postgres refuses FOR UPDATE on the
+    # outer side of a join.
+    line = (
+        CostLine.objects.select_for_update(of=("self",))
+        .select_related("cost_set__job", "labour_subtype", "xero_pay_item")
+        .get(pk=line.pk)
+    )
+    if line.cost_set.job_id != source_job_id:
+        raise ConflictError("This entry moved to another job. Reload before editing it.")
+    if (
+        "job_id" in data
+        and data["job_id"] != line.cost_set.job_id
+        and not staff.is_office_staff
+        and line.meta.get("staff_id") != str(staff.id)
+    ):
+        raise AccessDeniedError("Only office staff move another person's time.")
     refuse_workflow_managed(line, "edit")
+    refuse_worker_change_to_approved(line, staff)
     _validate_costline_write(data)
+    before = snapshot_if_entry(line)
 
     kind = data.get("kind") or line.kind
     patch_meta = data.get("meta") or {}
+    billing_explicit = "is_billable" in patch_meta or "bill_rate_multiplier" in patch_meta
     instance_meta = line.meta if isinstance(line.meta, dict) else {}
     # A subtype change must reprice the line even when the patch doesn't resend
     # meta (the timesheet UI patches labour_subtype alone), so pull the stored
@@ -2274,25 +2399,68 @@ def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
     if not patch_meta and "labour_subtype" in data and instance_meta.get("created_from_timesheet"):
         patch_meta = dict(instance_meta)
         data["meta"] = patch_meta
+    moved_cost_set: CostSet | None = None
+    if "job_id" in data and data["job_id"] != line.cost_set.job_id:
+        try:
+            destination = Job.objects.select_related("company", "default_xero_pay_item").get(
+                id=data["job_id"]
+            )
+        except Job.DoesNotExist as exc:
+            raise InvalidInputError(f"Job {data['job_id']} does not exist.") from exc
+        # The move settles billability on the meta the line will store, so the
+        # stored meta is the base and the patch's own meta (if any) sits on top.
+        patch_meta = {**instance_meta, **patch_meta}
+        moved_cost_set = move_time_line(
+            line, destination, patch_meta, billing_explicit=billing_explicit
+        )
+        data["meta"] = patch_meta
     if kind == "time" and patch_meta.get("created_from_timesheet"):
         _reprice_timesheet_line(line, data, patch_meta)
 
     with transaction.atomic():
         _apply_costline_fields(line, data)
+        # A standard break changed from the grid is his, as from his phone.
+        mark_break_edited(line.meta)
         if line.cost_set.kind == "actual" and line.approved and "stock_id" in line.ext_refs:
             raise ValueError("Issue material through purchasing so its stock movement is recorded.")
         line.save()
+        if moved_cost_set is not None:
+            update_latest_actual(line.cost_set.job, moved_cost_set.rev, moved_cost_set.id, staff)
+        record_timesheet_event(
+            staff=staff,
+            event_type="entry_moved" if moved_cost_set is not None else "entry_updated",
+            line=line,
+            before=before,
+            trusted=not saved_remotely(staff, None),
+        )
 
     return line
 
 
 @transaction.atomic
-def delete_cost_line(line: CostLine) -> None:
+def delete_cost_line(line: CostLine, staff: Staff) -> None:
     """Delete an unowned cost; unissued drafts have no inventory effect."""
     lock_costing_jobs([line.cost_set.job_id])
-    line = CostLine.objects.select_for_update().get(pk=line.pk)
+    # The lock is on the line alone (``of``): the joins for the snapshot's
+    # subtype and pay item are nullable, and Postgres refuses FOR UPDATE on the
+    # outer side of a join.
+    line = (
+        CostLine.objects.select_for_update(of=("self",))
+        .select_related("cost_set__job", "labour_subtype", "xero_pay_item")
+        .get(pk=line.pk)
+    )
     refuse_workflow_managed(line, "cancel")
+    refuse_worker_change_to_approved(line, staff)
     with transaction.atomic():
+        # Recorded before the delete: Django clears the pk on the instance it
+        # deleted, and the event names the line by that id.
+        record_timesheet_event(
+            staff=staff,
+            event_type="entry_deleted",
+            line=line,
+            before=snapshot_if_entry(line),
+            trusted=not saved_remotely(staff, None),
+        )
         line.delete()
     logger.info("Deleted cost line %s", line.id)
 
@@ -2840,7 +3008,7 @@ def update_job_labour_rates(
     """Apply per-subtype rate changes.
 
     Changed rates are recorded in one ``pricing_changed`` JobEvent whose
-    ``detail.changes`` entries render via ``_render_change``.
+    ``detail.changes`` entries render via ``AuditEvent.render_change``.
     """
     subtypes = LabourSubtype.objects.in_bulk([e["labour_subtype"] for e in entries])
     missing = [str(e["labour_subtype"]) for e in entries if e["labour_subtype"] not in subtypes]
@@ -2870,7 +3038,7 @@ def update_job_labour_rates(
             if rate.charge_out_rate == entry["charge_out_rate"]:
                 continue
             # Each change must be a dict {field_name, old_value, new_value} —
-            # JobEvent.build_description renders them via _render_change.
+            # JobEvent.build_description renders them via AuditEvent.render_change.
             changes.append(
                 {
                     "field_name": f"{rate.labour_subtype.name} charge-out rate",

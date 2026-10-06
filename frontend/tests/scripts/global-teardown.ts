@@ -1,3 +1,4 @@
+import { recordedXeroMode, xeroMode as selectedXeroMode } from './xero-mode'
 import { spawnSync } from 'child_process'
 import * as fs from 'fs'
 import os from 'os'
@@ -5,6 +6,7 @@ import path from 'path'
 import {
   checkSafeToTest,
   getDbConfig,
+  getBackupsDir,
   runIntegrityCheck,
   runPsql,
   syncSequences,
@@ -22,6 +24,99 @@ const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
 // [TEST] rows in the clean DB seconds after restore. Ported at v1's value even
 // though slice 1 has no async Xero work yet; slice 2's sync engine relies on it.
 const PRE_RESTORE_XERO_SETTLE_MS = 90_000
+
+// A summary-PDF batch is about three seconds and a warm shutdown lets one
+// finish; anything still running after this is not going to stop by itself.
+const CELERY_EXIT_WAIT_MS = 120_000
+const CELERY_EXIT_POLL_MS = 500
+
+/** One Celery process the launcher started for this run, by its session id. */
+export interface ManagedProcess {
+  name: string
+  sessionId: number
+}
+
+/**
+ * The run's own Celery worker and beat, as `run_e2e.sh` names them, or null
+ * when nothing did: a bare Playwright run against a stack someone else
+ * started (ADR 0060) owns no worker, and theirs is not this run's to stop.
+ */
+export function managedCelery(env: NodeJS.ProcessEnv): ManagedProcess[] | null {
+  const worker = env.E2E_CELERY_WORKER_PID
+  const beat = env.E2E_CELERY_BEAT_PID
+  if (!worker && !beat) return null
+  if (!worker || !beat) {
+    throw new Error('The launcher named one of the Celery worker and beat but not the other.')
+  }
+  return [
+    { name: 'Celery worker', sessionId: Number.parseInt(worker, 10) },
+    { name: 'Celery beat', sessionId: Number.parseInt(beat, 10) },
+  ]
+}
+
+/** The run's Celery would not stop, so the database was left as the tests made it. */
+export class CeleryStillRunningError extends Error {}
+
+export interface ProcessControl {
+  /** Ask the process to finish what it is doing and exit. */
+  terminate: (sessionId: number) => void
+  running: (sessionId: number) => boolean
+  sleep: (ms: number) => void
+}
+
+/** Any process in the session that has not exited; a zombie has. */
+function sessionRunning(sessionId: number): boolean {
+  const listed = spawnSync('ps', ['-o', 'stat=', '-s', String(sessionId)], { encoding: 'utf8' })
+  return listed.stdout.split('\n').some((state) => state.trim() !== '' && !state.startsWith('Z'))
+}
+
+const realProcessControl: ProcessControl = {
+  // SIGTERM to the main process is Celery's warm shutdown: the task in hand
+  // finishes and no new one starts. To the main process alone (the session's
+  // leader), not the group: signalled directly, a pool child dies mid-task.
+  terminate: (sessionId) => process.kill(sessionId, 'SIGTERM'),
+  running: sessionRunning,
+  sleep: sleepSync,
+}
+
+/**
+ * Run the steps that rewrite the database only once this run's Celery has
+ * stopped. A worker mid-task while the dump is replayed deadlocked the
+ * restore: the summary-PDF refresh re-queues itself until its backlog is
+ * clear, which on a restored database outlasts any fixed wait. If the worker
+ * will not stop, nothing is rewritten: restoring under a live writer is the
+ * defect, so the run fails with the database as the tests left it.
+ */
+export function afterCeleryStops(
+  managed: ManagedProcess[] | null,
+  rewrite: () => void,
+  control: ProcessControl = realProcessControl,
+  waitMs: number = CELERY_EXIT_WAIT_MS,
+): void {
+  if (managed === null) {
+    console.log('[db] This run did not start Celery, so its worker is left running.')
+    rewrite()
+    return
+  }
+  for (const each of managed) {
+    if (control.running(each.sessionId)) control.terminate(each.sessionId)
+  }
+  let waited = 0
+  let stillRunning = managed.filter((each) => control.running(each.sessionId))
+  while (stillRunning.length > 0 && waited < waitMs) {
+    control.sleep(CELERY_EXIT_POLL_MS)
+    waited += CELERY_EXIT_POLL_MS
+    stillRunning = managed.filter((each) => control.running(each.sessionId))
+  }
+  if (stillRunning.length > 0) {
+    throw new CeleryStillRunningError(
+      `${stillRunning.map((each) => each.name).join(' and ')} still running ${waitMs / 1000}s ` +
+        'after being asked to stop; the database was not restored under it.',
+    )
+  }
+  console.log("[db] This run's Celery worker and beat have stopped.")
+  rewrite()
+}
 
 function sleepSync(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
@@ -60,7 +155,7 @@ interface SavedXeroToken {
  * console warning nobody reads, and repaired only by driving OAuth by hand.
  * Losing the restore is recoverable from the dump; losing the token is not.
  */
-function saveActiveXeroToken(dbConfig: DbConfig, tokenFile: string): string {
+export function saveActiveXeroToken(dbConfig: DbConfig, tokenFile: string): string {
   console.log('[db] Saving current active Xero app token...')
   const row = runPsql(
     dbConfig,
@@ -123,7 +218,7 @@ export function parseSavedXeroToken(raw: string): SavedXeroToken {
  * consent, so a swallowed failure here trades a loud stop for a silently dead
  * connection.
  */
-function reinjectXeroToken(dbConfig: DbConfig, xeroAppTokenRow: string): void {
+export function reinjectXeroToken(dbConfig: DbConfig, xeroAppTokenRow: string): void {
   const token = parseSavedXeroToken(xeroAppTokenRow)
   const updated = runPsql(
     dbConfig,
@@ -143,6 +238,34 @@ function reinjectXeroToken(dbConfig: DbConfig, xeroAppTokenRow: string): void {
     )
   }
   console.log('[db] Active Xero app token restored.')
+}
+
+/** Preserve before any fake refresh; managed runs keep custody until their writers stop. */
+export function beginFakeTokenSnapshot(): string | null {
+  if (selectedXeroMode() !== 'fake') return null
+  const managed = process.env.E2E_XERO_TOKEN_SNAPSHOT
+  if (managed) {
+    parseSavedXeroToken(fs.readFileSync(managed, 'utf8'))
+    return managed
+  }
+  fs.mkdirSync(getBackupsDir(), { recursive: true })
+  const dir = fs.mkdtempSync(path.join(getBackupsDir(), 'fake-xero-'))
+  fs.chmodSync(dir, 0o700)
+  const file = path.join(dir, 'token.json')
+  saveActiveXeroToken(getDbConfig(), file)
+  return file
+}
+
+export function finishFakeTokenSnapshot(file: string | null): void {
+  if (file === null || file === process.env.E2E_XERO_TOKEN_SNAPSHOT) return
+  try {
+    reinjectXeroToken(getDbConfig(), fs.readFileSync(file, 'utf8'))
+  } catch (error) {
+    console.error(`[xero] Credential restore failed; recovery file retained: ${file}`)
+    throw error
+  }
+  fs.unlinkSync(file)
+  fs.rmdirSync(path.dirname(file))
 }
 
 function printXeroCleanupFailureBanner(reason: string): void {
@@ -211,13 +334,14 @@ export function requireBackupFile(
   return backupFile
 }
 
-function restoreDatabase(lockContents: string): void {
+export function restoreDatabase(lockContents: string): void {
   console.log('\n[db] Restoring database after tests...')
   const dbConfig = getDbConfig()
-  // Lock file line 4, written by global-setup: "fake" when the run was
-  // started with --use-fake-xero. Absent (a lock from an older harness)
-  // means real, the mode every run had before the fake existed.
-  const xeroMode = lockContents.split('\n')[3]?.trim() === 'fake' ? 'fake' : 'real'
+  const xeroMode = recordedXeroMode(lockContents)
+  const fakeSnapshot = xeroMode === 'fake' ? lockContents.split('\n')[4]?.trim() : null
+  if (xeroMode === 'fake' && !fakeSnapshot)
+    throw new Error('Fake run has no original-token snapshot.')
+  if (fakeSnapshot) parseSavedXeroToken(fs.readFileSync(fakeSnapshot, 'utf8'))
 
   let backupFile: string
   try {
@@ -249,6 +373,38 @@ function restoreDatabase(lockContents: string): void {
   )
   sleepSync(PRE_RESTORE_XERO_SETTLE_MS)
 
+  // Before the Xero cleanup, not just before the restore: the cleanup deletes
+  // the run's [TEST] jobs, and a job change queues the summary-PDF refresh, so
+  // a worker still up would start writing again right ahead of the restore.
+  try {
+    afterCeleryStops(managedCelery(process.env), () =>
+      rewriteDatabase({ dbConfig, xeroMode, backupFile, expectedMigrationCount, fakeSnapshot }),
+    )
+  } catch (error) {
+    // Everything past the stop prints its own banner; this one had no chance to.
+    if (error instanceof CeleryStillRunningError) {
+      printRestoreFailureBanner(backupFile, dbConfig, error.message)
+    }
+    throw error
+  }
+}
+
+interface RewriteInputs {
+  dbConfig: DbConfig
+  xeroMode: ReturnType<typeof recordedXeroMode>
+  backupFile: string
+  expectedMigrationCount: number | null
+  fakeSnapshot: string | null | undefined
+}
+
+/** Clean this run out of Xero, then replace the database with the pre-run dump. */
+function rewriteDatabase({
+  dbConfig,
+  xeroMode,
+  backupFile,
+  expectedMigrationCount,
+  fakeSnapshot,
+}: RewriteInputs): void {
   // Remove this run's writes from the Xero organisation. After the settle so
   // in-flight Celery work has finished creating them, and before the restore
   // because the restore erases the local rows that carry their Xero ids —
@@ -271,15 +427,10 @@ function restoreDatabase(lockContents: string): void {
   // on a consumed token. The cleanup is the likelier of the two — it makes a
   // real Xero call per document.
   //
-  // Under the fake Xero nothing rotated: the fake's token refresh hands the
-  // stored refresh token straight back (ADR 0060), so the backup's copy is
-  // still live and re-injecting the run's copy would put a fake access token
-  // onto the restored row.
+  // Fake refreshes can overwrite access tokens before the database backup exists.
+  // The original snapshot belongs to setup, or to the launcher until its writers stop.
   const xeroTokenFile = `${backupFile}.xero-app-token.json`
   const xeroAppTokenRow = xeroMode === 'fake' ? null : saveActiveXeroToken(dbConfig, xeroTokenFile)
-  if (xeroMode === 'fake') {
-    console.log('[db] Fake Xero run: the real token was never rotated; no token to re-inject.')
-  }
 
   // Atomic restore: -v ON_ERROR_STOP=1 bails psql at the first SQL error
   // and --single-transaction wraps the whole dump replay in one BEGIN/COMMIT.
@@ -361,6 +512,7 @@ function restoreDatabase(lockContents: string): void {
   // Backup + token side-file have served their purpose. Delete only after
   // the full pipeline succeeded — restore + integrity check + token
   // reinjection + sequences + E2E safety check.
+  finishFakeTokenSnapshot(fakeSnapshot ?? null)
   fs.unlinkSync(backupFile)
   fs.rmSync(xeroTokenFile, { force: true })
 
@@ -422,6 +574,7 @@ export default function globalTeardown(): void {
     return
   }
 
+  recordedXeroMode(lockContents)
   try {
     restoreDatabase(lockContents)
   } finally {

@@ -26,7 +26,8 @@ ARCHIVED_STATUS = "archived"
 # Invoice statuses that count as "real" invoices. DRAFT is included here (a
 # draft invoice already claims its WIP); the sales-forecast report makes the
 # opposite call and excludes DRAFT — a deliberate divergence between the
-# two reports, kept as-is (rewrite-history records it).
+# two reports, ported as-is; unifying them is an owner decision nobody has
+# asked for.
 VALID_INVOICE_STATUSES = ["DRAFT", "SUBMITTED", "AUTHORISED", "PAID"]
 
 

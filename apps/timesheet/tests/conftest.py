@@ -23,6 +23,7 @@ from apps.accounts.tests.helpers import authenticate
 from apps.company.models import Company
 from apps.company.tests.factories import make_company
 from apps.company.tests.job_fixtures import make_job
+from apps.core.models import CompanyDefaults
 from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine, CostSet
 from apps.timesheet.models import LeaveType, PostingSurface
@@ -181,6 +182,8 @@ def make_time_line(  # noqa: PLR0913 -- a factory: every field is an axis a test
     unit_cost: str = "48.00",
     unit_rev: str = "120.00",
     cost_set: CostSet | None = None,
+    approved: bool = True,
+    unpaid: bool = False,
     **meta: object,
 ) -> CostLine:
     """Create an actual time line for a staff member (the shape the UI produces).
@@ -208,6 +211,14 @@ def make_time_line(  # noqa: PLR0913 -- a factory: every field is an axis a test
     if category is None and pay_item is not None and pay_item.uses_leave_api:
         category = LeaveType.for_pay_item(pay_item.id)
     wage_multiplier = 0.0 if category is not None and not category.is_paid else 1.0
+    if unpaid:
+        # Logged unpaid time (lunch), as pricing writes it: the Unpaid earnings
+        # rate at 0x, costing nothing.
+        pay_item = django_apps.get_model("xero", "XeroPayItem")._default_manager.get(
+            name="Unpaid", uses_leave_api=False
+        )
+        wage_multiplier = 0.0
+        unit_cost = "0.00"
     line = CostLine(
         cost_set=cost_set if cost_set is not None else job.cost_sets.get(kind="actual"),
         kind="time",
@@ -219,6 +230,7 @@ def make_time_line(  # noqa: PLR0913 -- a factory: every field is an axis a test
         accounting_date=accounting_date,
         staff=staff,
         xero_pay_item=pay_item,
+        approved=approved,
         meta={
             "staff_id": str(staff.id),
             "created_from_timesheet": True,
@@ -421,3 +433,48 @@ def make_public_holiday_job(company: Company, superuser: Staff) -> Job:
     job = make_job(company, superuser, name="Statutory holiday", status="special")
     LeaveType.objects.update_or_create(code=LeaveType.Code.PUBLIC_HOLIDAY, defaults={"job": job})
     return job
+
+
+def make_break_job(superuser: Staff) -> Job:
+    """The internal job every break is booked to, as ``create_shop_jobs`` leaves it.
+
+    A special job on the shop company, named by ``CompanyDefaults.break_job``.
+    A day that gets its standard breaks needs it: without it the paid breaks
+    cannot be entered and the day is refused.
+    """
+    defaults = CompanyDefaults.get_solo()
+    job = make_job(defaults.shop_company, superuser, name="Break", status="special")
+    defaults.break_job = job
+    defaults.save(update_fields=["break_job"])
+    return job
+
+
+@pytest.fixture
+def break_job(superuser: Staff) -> Job:
+    return make_break_job(superuser)
+
+
+def make_standard_day(job: Job, break_job: Job, staff: Staff, day: date) -> None:
+    """A standard day as the workshop leaves it: 7.5h of work, two paid breaks and lunch.
+
+    Paid eight hours; lunch is logged and is not hours.
+    """
+    make_time_line(job, staff, accounting_date=day, hours="7.500")
+    for _ in range(2):
+        make_break_line(break_job, staff, day, hours="0.250")
+    make_break_line(break_job, staff, day, hours="0.500", unpaid=True)
+
+
+def make_break_line(
+    break_job: Job, staff: Staff, day: date, *, hours: str, unpaid: bool = False
+) -> CostLine:
+    """A break as the workshop writes it: on the Break job, billed to nobody."""
+    return make_time_line(
+        break_job,
+        staff,
+        accounting_date=day,
+        hours=hours,
+        unit_rev="0.00",
+        is_billable=False,
+        unpaid=unpaid,
+    )

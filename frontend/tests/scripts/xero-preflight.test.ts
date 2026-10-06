@@ -17,9 +17,9 @@ describe('xeroPreflightIssues under the fake Xero (ADR 0060)', () => {
 
   it('refuses a run whose flag disagrees with the backend, either way round', () => {
     const [notAsked] = xeroPreflightIssues({ ...connected, xeroFake: true }, false)
-    expect(notAsked).toContain('not started with --use-fake-xero')
+    expect(notAsked).toContain('mode disagrees')
     const [askedButReal] = xeroPreflightIssues(connected, true)
-    expect(askedButReal).toContain('answering from real Xero')
+    expect(askedButReal).toContain('mode disagrees')
   })
 
   it('fails closed when the backend does not say whether it is the fake', () => {
@@ -35,9 +35,10 @@ describe('xeroPreflightIssues under the fake Xero (ADR 0060)', () => {
     expect(issue).not.toContain('XERO_READONLY')
   })
 
-  it('reads the mode run_e2e.sh exports, and nothing else counts as fake', () => {
+  it('defaults to fake and requires an explicit live harness selection', () => {
     expect(harnessExpectsFake({ XERO_FAKE: 'true' })).toBe(true)
-    expect(harnessExpectsFake({ XERO_FAKE: 'false' })).toBe(false)
-    expect(harnessExpectsFake({})).toBe(false)
+    expect(harnessExpectsFake({ XERO_FAKE: 'false' })).toBe(true)
+    expect(harnessExpectsFake({})).toBe(true)
+    expect(harnessExpectsFake({ E2E_XERO_MODE: 'real', XERO_FAKE: 'true' })).toBe(false)
   })
 })

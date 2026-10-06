@@ -292,6 +292,12 @@ class TestEveryWrittenEventTypeRenders:
             source = path.read_text()
             if "JobEvent" not in source and "_handle_boolean_change" not in source:
                 continue
+            # Every trail's recorder is named record_<subject>_event: the
+            # process entry, form and timesheet recorders all are. They take
+            # the same keyword in the same files, and their literals are their
+            # own subtype's, rendered by its labels and asserted in its tests,
+            # so those calls are cut before the scan.
+            source = re.sub(r"\brecord_\w+_event\((?:[^()]|\([^()]*\))*\)", "", source)
             written.update(re.findall(r"event_type\s*=\s*[\"']([a-z_]+)[\"']", source))
             for pair in re.findall(
                 r"_handle_boolean_change\(\s*[\"']([a-z_]+)[\"'],\s*[\"']([a-z_]+)[\"']", source
@@ -300,7 +306,7 @@ class TestEveryWrittenEventTypeRenders:
         return written
 
     def test_no_written_event_type_falls_through_to_the_sentinel(self) -> None:
-        unregistered = self._written_event_types() - set(JobEvent._DESCRIPTION_BUILDERS)
+        unregistered = self._written_event_types() - set(JobEvent.DESCRIPTION_BUILDERS)
         assert not unregistered, (
             f"job history would show a raw sentinel for: {sorted(unregistered)}"
         )

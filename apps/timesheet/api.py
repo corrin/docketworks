@@ -26,31 +26,50 @@ below carry their own prefixes.
 """
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time
+from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.http import HttpRequest
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from ninja import Router
+from ninja import Field, Router
 from ninja.errors import HttpError
 from ninja.responses import Status
 
 from apps.accounts.auth import authenticated_staff
 from apps.accounts.models import Staff
-from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
+from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth, SuperuserCookieJWTAuth
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
+from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.schemas import (
+    HOURS_LIMIT,
+    HOURS_MIN,
+    ApprovalsDayOut,
+    ApproveDayOut,
+    AttendanceOut,
+    BreakCreateRequest,
+    BreakUpdateRequest,
+    ClockRequest,
+    ClockTimesRequest,
     DailyTimesheetSummaryOut,
+    EntryLocationIn,
     JobsListResponse,
     PayrollRunsOut,
     PayRunListResponse,
+    PlacementOut,
     PostWeekToXeroRequest,
     PostWeekToXeroStartResponse,
     StaffDailyDataOut,
     StaffListResponse,
+    StandardHoursRequest,
+    SubmitDayRequest,
     TimesheetEntriesOut,
+    TimesheetEventOut,
     WeeklyTimesheetDataOut,
     WeekPostingStatusResponse,
     WorkshopTimesheetEntryOut,
@@ -59,12 +78,16 @@ from apps.timesheet.schemas import (
     WorkshopTimesheetListResponse,
 )
 from apps.timesheet.services import (
+    approval,
+    attendance,
     daily_timesheet_service,
+    day_submission,
     payroll_service,
     timesheet_entry_options,
     weekly_timesheet_service,
     workshop_timesheet_service,
 )
+from apps.timesheet.services.location import EntryLocation
 from apps.timesheet.services.workshop_timesheet_service import (
     WorkshopEntryCreateData,
     WorkshopEntryUpdateData,
@@ -78,6 +101,8 @@ router = Router()
 manage_auth = SuperuserCookieJWTAuth()
 # The self-service surface is available to any authenticated staff member.
 self_service_auth = CookieJWTAuth()
+# Approving time is any office staff member's job, superuser or not (KAN-376).
+office_auth = OfficeStaffCookieJWTAuth()
 
 DATE_FORMAT_ERROR = "Invalid date format. Use YYYY-MM-DD"
 
@@ -149,8 +174,7 @@ def timesheets_weekly_retrieve(
     if start_date:
         week_start = _parse_date(start_date)
     else:
-        today = timezone.localdate()
-        week_start = today - timedelta(days=today.weekday())
+        week_start = weekly_timesheet_service.payroll_week_start(timezone.localdate())
     return weekly_timesheet_service.get_weekly_overview(week_start)
 
 
@@ -205,6 +229,33 @@ def job_timesheet_entries_retrieve(
 
 
 @router.get(
+    "/job/timesheet/entries/history/",
+    auth=manage_auth,
+    operation_id="job_timesheet_entries_history_retrieve",
+    response=list[TimesheetEventOut],
+    summary="Every timesheet event on one staff member's date, newest first",
+    tags=["timesheets"],
+)
+def job_timesheet_entries_history_retrieve(
+    request: HttpRequest, staff_id: UUID, date: str
+) -> list[TimesheetEvent]:
+    """Serve the entry grid's history dialog for one staff/day.
+
+    Keyed on the worker and the day, not a line, so a deleted entry's events
+    are still reachable from the screen they were made on. Management auth
+    because the snapshots carry wage data, like the entries read.
+    """
+    entry_date = _parse_date(date)
+    if not Staff.objects.filter(id=staff_id).exists():
+        raise HttpError(404, f"Staff member {staff_id} not found")
+    return list(
+        TimesheetEvent.objects.filter(
+            worker_id=staff_id, accounting_date=entry_date
+        ).select_related("staff")
+    )
+
+
+@router.get(
     "/timesheets/jobs/",
     # Fable: Self-service, not manage: this is the picker behind the workshop
     # "my time" page, so any staff member booking their own time reads it.
@@ -223,7 +274,7 @@ def timesheets_jobs_retrieve(
 
     With `q`, searches the whole table so a picker can reach an archived job.
     """
-    return timesheet_entry_options.get_jobs_for_entry(q)
+    return timesheet_entry_options.get_jobs_for_entry(authenticated_staff(request), q)
 
 
 # ── Xero Payroll pay runs ────────────────────────────────────────────────
@@ -330,14 +381,44 @@ def timesheets_payroll_runs_retrieve(request: HttpRequest) -> PayrollRunsOut:
     tags=["job"],
 )
 def job_workshop_timesheets_retrieve(
-    request: HttpRequest, date: str | None = None
+    request: HttpRequest, date: str | None = None, staff_id: UUID | None = None
 ) -> workshop_timesheet_service.WorkshopDayData:
-    """Return the staff member's own entries for a date (defaults to today)."""
+    """Return a day's entries (defaults to today).
+
+    The caller's own, or for office staff the person ``staff_id`` names.
+    """
     try:
         entry_date = workshop_timesheet_service.resolve_entry_date(date)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
-    return workshop_timesheet_service.list_entries(authenticated_staff(request), entry_date)
+    owner = _entry_owner(request, staff_id)
+    return workshop_timesheet_service.list_entries(owner, entry_date)
+
+
+def _entry_owner(request: HttpRequest, staff_id: UUID | None) -> Staff:
+    """Whose time the request is about; 404 for a person who does not exist."""
+    try:
+        return workshop_timesheet_service.entry_owner(authenticated_staff(request), staff_id)
+    except Staff.DoesNotExist as exc:
+        raise HttpError(404, "Staff member not found.") from exc
+
+
+def _location(location: EntryLocationIn | None) -> EntryLocation | None:
+    """Translate the phone's reported position into the service's shape."""
+    if location is None:
+        return None
+    return {"latitude": location.latitude, "longitude": location.longitude}
+
+
+def _query_location(latitude: float | None, longitude: float | None) -> EntryLocation | None:
+    """Read a DELETE's position from its query: both coordinates, or neither."""
+    if latitude is None and longitude is None:
+        return None
+    if latitude is None or longitude is None:
+        raise HttpError(400, "Send both latitude and longitude, or neither.")
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        raise HttpError(400, "That is not a position on Earth.")
+    return {"latitude": latitude, "longitude": longitude}
 
 
 def _create_payload(payload: WorkshopTimesheetEntryRequest) -> WorkshopEntryCreateData:
@@ -371,9 +452,13 @@ def job_workshop_timesheets_create(
     request: HttpRequest, payload: WorkshopTimesheetEntryRequest
 ) -> Status[workshop_timesheet_service.WorkshopEntryData]:
     """Create a time entry owned by the authenticated staff member."""
+    owner = _entry_owner(request, payload.staff_id)
     try:
         entry = workshop_timesheet_service.create_entry(
-            authenticated_staff(request), _create_payload(payload)
+            authenticated_staff(request),
+            owner,
+            _create_payload(payload),
+            _location(payload.location),
         )
     except Job.DoesNotExist as exc:
         raise HttpError(404, "Job not found.") from exc
@@ -427,7 +512,9 @@ def job_workshop_timesheets_partial_update(
     if len(data) <= 1:
         raise HttpError(400, "At least one field besides entry_id must be provided.")
     try:
-        return workshop_timesheet_service.update_entry(authenticated_staff(request), data)
+        return workshop_timesheet_service.update_entry(
+            authenticated_staff(request), data, _location(payload.location)
+        )
     except CostLine.DoesNotExist as exc:
         raise HttpError(404, "Timesheet entry not found.") from exc
     except Job.DoesNotExist as exc:
@@ -446,13 +533,287 @@ def job_workshop_timesheets_partial_update(
     summary="Delete a timesheet entry belonging to the staff member",
     tags=["job"],
 )
-def job_workshop_timesheets_destroy(request: HttpRequest, entry_id: UUID) -> Status[None]:
-    """Delete one of the authenticated staff member's own entries."""
+def job_workshop_timesheets_destroy(
+    request: HttpRequest,
+    entry_id: UUID,
+    latitude: float | None = None,
+    longitude: float | None = None,
+) -> Status[None]:
+    """Delete one of the authenticated staff member's own entries.
+
+    A DELETE carries no body, so the phone's position travels as two query
+    parameters, both or neither.
+    """
     try:
-        workshop_timesheet_service.delete_entry(authenticated_staff(request), entry_id)
+        workshop_timesheet_service.delete_entry(
+            authenticated_staff(request), entry_id, _query_location(latitude, longitude)
+        )
     except CostLine.DoesNotExist as exc:
         raise HttpError(404, "Timesheet entry not found.") from exc
     except ValueError as exc:
         # A leave-managed line: the leave workflow owns it (ADR 0038).
         raise HttpError(400, str(exc)) from exc
     return Status(204, None)
+
+
+# ── Clocking in and out ─────────────────────────────────────────────────
+
+
+@router.post(
+    "/timesheets/my-day/clock/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_clock",
+    response=AttendanceOut,
+    summary="Clock the caller in or out, now",
+    tags=["timesheets"],
+)
+def timesheets_my_day_clock(
+    request: HttpRequest, payload: ClockRequest
+) -> attendance.AttendanceData:
+    """Stamp the caller's own day with the server's local time, to the minute."""
+    worker = authenticated_staff(request)
+    now = timezone.localtime()
+    location = _location(payload.location)
+    if payload.action == "in":
+        return attendance.clock_in(worker, now, location)
+    return attendance.clock_out(worker, now, location)
+
+
+@router.post(
+    "/timesheets/my-day/standard-hours/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_standard_hours",
+    response=AttendanceOut,
+    summary="Record the company's standard hours on a day nobody clocked",
+    tags=["timesheets"],
+)
+def timesheets_my_day_standard_hours(
+    request: HttpRequest, payload: StandardHoursRequest
+) -> attendance.AttendanceData:
+    """Use the standard hours for the caller's unclocked day, or for office staff anyone's."""
+    actor = authenticated_staff(request)
+    owner = actor if payload.staff_id is None else get_object_or_404(Staff, id=payload.staff_id)
+    return attendance.use_standard_hours(owner, payload.date, actor, _location(payload.location))
+
+
+@router.put(
+    "/timesheets/my-day/times/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_times",
+    response=AttendanceOut,
+    summary="Set a day's clock times by hand",
+    tags=["timesheets"],
+)
+def timesheets_my_day_times(
+    request: HttpRequest, payload: ClockTimesRequest
+) -> attendance.AttendanceData:
+    """Set the caller's clock times for a day, or for office staff anyone's."""
+    actor = authenticated_staff(request)
+    owner = actor if payload.staff_id is None else get_object_or_404(Staff, id=payload.staff_id)
+    return attendance.set_clock_times(
+        owner,
+        payload.date,
+        payload.clock_in,
+        payload.clock_out,
+        actor,
+        location=_location(payload.location),
+    )
+
+
+@router.get(
+    "/timesheets/my-day/placement/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_placement",
+    response=PlacementOut,
+    summary="Work out an entry's finish from its hours, or its hours from its finish",
+    tags=["timesheets"],
+)
+def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: the day, whose it is, and two of the three values
+    request: HttpRequest,
+    date: str,
+    start: time,
+    # The same bounds as an entry's hours: zero, negative or too many is
+    # refused as the entry endpoints refuse them, before any arithmetic.
+    hours: Annotated[Decimal, Field(ge=HOURS_MIN, lt=HOURS_LIMIT)] | None = None,
+    finish: time | None = None,
+    staff_id: UUID | None = None,
+) -> dict[str, object]:
+    """Answer the entry drawer as he types: the one placement rule, nothing written.
+
+    Given hours, the finish steps over the day's breaks; given a finish, the
+    hours are the span less the breaks inside it.
+    """
+    owner = _entry_owner(request, staff_id)
+    day = _parse_date(date)
+    if (hours is None) == (finish is None):
+        raise HttpError(400, "Give the hours or the finish, one of them.")
+    breaks = workshop_timesheet_service.day_break_windows(owner, day)
+    if hours is not None:
+        return {
+            "start": start,
+            "finish": attendance.finish_in_the_day(start, hours, breaks),
+            "hours": float(hours),
+        }
+    if finish is None:  # narrowed for the type checker; refused above
+        raise HttpError(400, "Give the hours or the finish, one of them.")
+    return {
+        "start": start,
+        "finish": finish,
+        "hours": float(attendance.hours_for(start, finish, breaks)),
+    }
+
+
+@router.post(
+    "/timesheets/my-day/breaks/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_breaks_create",
+    response={204: None},
+    summary="Add a break to a day",
+    tags=["timesheets"],
+)
+def timesheets_my_day_breaks_create(
+    request: HttpRequest, payload: BreakCreateRequest
+) -> Status[None]:
+    """Add a break to the caller's day, or for office staff to anyone's."""
+    actor = authenticated_staff(request)
+    owner = actor if payload.staff_id is None else get_object_or_404(Staff, id=payload.staff_id)
+    attendance.add_break(
+        owner,
+        payload.date,
+        payload.start,
+        payload.end,
+        paid=payload.paid,
+        actor=actor,
+        location=_location(payload.location),
+    )
+    return Status(204, None)
+
+
+@router.put(
+    "/timesheets/my-day/breaks/{uuid:break_id}/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_breaks_update",
+    response={204: None},
+    summary="Move or resize a break",
+    tags=["timesheets"],
+)
+def timesheets_my_day_breaks_update(
+    request: HttpRequest, break_id: UUID, payload: BreakUpdateRequest
+) -> Status[None]:
+    """Move or resize a break on the caller's day, or for office staff on anyone's."""
+    try:
+        attendance.change_break(
+            break_id,
+            payload.start,
+            payload.end,
+            authenticated_staff(request),
+            _location(payload.location),
+        )
+    except attendance.BreakNotFoundError as exc:
+        raise HttpError(404, "Break not found.") from exc
+    return Status(204, None)
+
+
+@router.delete(
+    "/timesheets/my-day/breaks/{uuid:break_id}/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_breaks_delete",
+    response={204: None},
+    summary="Take a break off a day",
+    tags=["timesheets"],
+)
+def timesheets_my_day_breaks_delete(
+    request: HttpRequest,
+    break_id: UUID,
+    latitude: float | None = None,
+    longitude: float | None = None,
+) -> Status[None]:
+    """Remove a break from the caller's day, or for office staff from anyone's.
+
+    A DELETE carries no body, so the phone's position travels as two query
+    parameters, both or neither.
+    """
+    try:
+        attendance.remove_break(
+            break_id, authenticated_staff(request), _query_location(latitude, longitude)
+        )
+    except attendance.BreakNotFoundError as exc:
+        raise HttpError(404, "Break not found.") from exc
+    return Status(204, None)
+
+
+@router.post(
+    "/timesheets/my-day/submit/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_submit",
+    response=WorkshopTimesheetListResponse,
+    summary="Save the fill sheet's rows and send the day to the office",
+    tags=["timesheets"],
+)
+def timesheets_my_day_submit(
+    request: HttpRequest, payload: SubmitDayRequest
+) -> workshop_timesheet_service.WorkshopDayData:
+    """Lay the caller's rows out as entries and mark their day sent, all or nothing."""
+    rows: list[day_submission.FillRow] = [
+        {
+            "job_id": row.job_id,
+            "hours": row.hours,
+            "description": row.description,
+            "time_and_a_half": row.time_and_a_half,
+        }
+        for row in payload.rows
+    ]
+    try:
+        return day_submission.submit_day(
+            authenticated_staff(request),
+            payload.date,
+            rows,
+            _location(payload.location),
+            timezone.now(),
+        )
+    except Job.DoesNotExist as exc:
+        raise HttpError(404, "Job not found.") from exc
+    except DjangoValidationError as exc:
+        raise HttpError(400, _validation_message(exc)) from exc
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
+
+
+# ── Approve time ────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/timesheets/approvals/",
+    auth=office_auth,
+    operation_id="timesheets_approvals_retrieve",
+    response=ApprovalsDayOut,
+    summary="Everyone's day for the office to approve",
+    tags=["timesheets"],
+)
+def timesheets_approvals_retrieve(
+    request: HttpRequest, date: str | None = None
+) -> approval.ApprovalsDayData:
+    """Each person's entered and waiting hours for a date (defaults to today)."""
+    try:
+        day = workshop_timesheet_service.resolve_entry_date(date)
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
+    return approval.day_approvals(day)
+
+
+@router.post(
+    "/timesheets/approvals/{uuid:staff_id}/{target_date}/approve/",
+    auth=office_auth,
+    operation_id="timesheets_approvals_approve_day",
+    response=ApproveDayOut,
+    summary="Approve every waiting entry of one person's day",
+    tags=["timesheets"],
+)
+@transaction.atomic
+def timesheets_approvals_approve_day(
+    request: HttpRequest, staff_id: UUID, target_date: str
+) -> dict[str, int]:
+    """Approve a person's day; zero is an ordinary answer when nothing was waiting."""
+    worker = get_object_or_404(Staff, id=staff_id)
+    approved = approval.approve_day(worker, _parse_date(target_date), authenticated_staff(request))
+    return {"approved_count": approved}

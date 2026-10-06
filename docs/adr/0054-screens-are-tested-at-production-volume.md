@@ -36,10 +36,9 @@ never drove past one page.
   threshold that admits today's shortfalls is a baseline, and this repository does not keep
   baselines — the number is there to move. What gates is the spec: a spec asserting a
   volume-sensitive property on a thin table owns seeding it first.
-- **Re-capture the shape when the answer would change a decision**, with
-  `manage.py data_shape --instance <name>` against a production instance. Counts only ever
-  leave that instance, so the file stays reviewable and safe to commit. A stale shape is still
-  better than a local guess, and the `captured_at` field is what says how stale.
+- **Re-capture the shape when the answer would change a decision** (`manage.py data_shape
+  --instance <name>`; counts only ever leave the instance). A stale shape is still better than a
+  local guess, and `captured_at` says how stale.
 - **Some corpora are bounded by policy, not by growth.** Session replays live inside a retention
   window, so their production count is a moving ceiling rather than an ever-rising floor. Read
   what bounds a table before treating its production count as a target.

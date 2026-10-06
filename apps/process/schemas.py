@@ -13,8 +13,8 @@ from uuid import UUID
 from ninja import Schema
 from pydantic import ConfigDict, model_validator
 
-from apps.core.schemas import NonBlankText, NullableText, omittable
-from apps.process.models import Acknowledgement, Form, FormEntry, ProcessEvent
+from apps.core.schemas import AuditEventOut, NonBlankText, NullableText, omittable
+from apps.process.models import Acknowledgement, Form, FormEntry
 
 FieldType = Literal["text", "textarea", "date", "boolean", "number", "select", "staff", "entry_ref"]
 FormCategory = Literal["safety", "training", "incident", "meeting", "register"]
@@ -312,34 +312,5 @@ class AcknowledgementOut(Schema):
         return obj.staff.get_display_full_name()
 
 
-class EntryEventOut(Schema):
+class EntryEventOut(AuditEventOut):
     """One audit event on a form entry, for the entry's history panel."""
-
-    id: UUID
-    timestamp: datetime
-    event_type: str
-    staff_name: str
-    description: str
-    changes: list[dict[str, str]]
-
-    @staticmethod
-    def resolve_staff_name(obj: ProcessEvent) -> str:
-        """Resolve the acting staff member's display name."""
-        return obj.staff.get_display_full_name()
-
-    @staticmethod
-    def resolve_changes(obj: ProcessEvent) -> list[dict[str, str]]:
-        """Read the event's recorded field changes, empty if it made none."""
-        # detail defaults to {} at the model; absent "changes" means an event
-        # with no field changes (e.g. entry_created), not corrupt data. The
-        # per-field str() casts (not a dict.get fallback) are what keep this
-        # list[dict[str, str]] rather than JSONField's Any at the type level.
-        raw_changes = obj.detail.get("changes", [])
-        return [
-            {
-                "field_name": str(change["field_name"]),
-                "old_value": str(change["old_value"]),
-                "new_value": str(change["new_value"]),
-            }
-            for change in raw_changes
-        ]

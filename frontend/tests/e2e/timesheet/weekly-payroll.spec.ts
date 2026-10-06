@@ -1,17 +1,17 @@
-import type { Page } from '@playwright/test'
-
-import {
-  getPostableWeek,
-  getWeekPostingStatus,
-  refreshPayrollMirror,
-  type StaffWeekPosting,
-} from '../fixtures/api'
+import { getPostableWeek, getWeekPostingStatus, type StaffWeekPosting } from '../fixtures/api'
 import { test, expect } from '../fixtures/auth'
 // The app's own date helpers, not a spec-local reimplementation: the fourth
 // sibling copy of Monday arithmetic is how the three job pickers happened.
 import { mondayOf, shiftDate } from '../../../src/lib/dates'
+import { formatDateLong } from '../../../src/lib/format'
 import { autoId } from '../helpers'
-import { getLatestWeekdayDate, seedLabourForWeek } from './support'
+import {
+  getLatestWeekdayDate,
+  openPostableWeek,
+  openWeek,
+  postWeek,
+  seedLabourForWeek,
+} from './support'
 
 /**
  * The weekly overview and its payroll controls.
@@ -45,14 +45,6 @@ import { getLatestWeekdayDate, seedLabourForWeek } from './support'
  * unclear. Reuse of the standing draft is what lets them run more than once.
  */
 
-async function openWeek(page: Page, week: string): Promise<void> {
-  await page.goto(`/timesheets/weekly?week=${week}`)
-  // No networkidle: the page holds the payroll runs SSE stream open for its
-  // whole life, so networkidle never fires — the same fact the kanban specs
-  // record for the board's stream. The table is the readiness signal.
-  await autoId(page, 'WeeklyOverview-table').waitFor({ timeout: 30000 })
-}
-
 test.describe('weekly timesheets', () => {
   const week = mondayOf(getLatestWeekdayDate())
 
@@ -79,6 +71,7 @@ test.describe('weekly timesheets', () => {
     const day = headerId!.replace('WeeklyOverview-dayHeader-', '')
     await firstHeader.click()
     await page.waitForURL(`**/timesheets/daily**date=${day}**`)
+    await expect(autoId(page, 'DailyOverview-date')).toHaveText(formatDateLong(day))
 
     await openWeek(page, week)
     const firstCell = page.locator('[data-automation-id^="WeeklyOverview-cell-"]').first()
@@ -199,54 +192,11 @@ function recordedHours(row: StaffWeekPosting): number {
   return row.recorded_timesheet_hours + row.recorded_leave_hours
 }
 
-/**
- * Open the week and post it, then wait for the SSE run to finish reporting.
- *
- * Opus: Navigates first rather than assuming the caller is still on the grid: job
- * creation and entry both leave the page, and clicking a button that is not on
- * screen simply waits — this test once burned its whole 15-minute budget doing
- * exactly that, with nothing in the log but a timeout.
- */
-async function postWeek(page: Page, week: string): Promise<void> {
-  await openWeek(page, week)
-  await expect(
-    autoId(page, 'PayrollPanel-postAll'),
-    `Post is not available on ${week}; its title names the unmet precondition.`,
-  ).toBeEnabled({ timeout: 120000 })
-  await autoId(page, 'PayrollPanel-postAll').click()
-  // Opus: The results list is driven by the SSE stream, so its arrival proves the
-  // Celery task ran and reported per staff member — which neither half's unit
-  // tests can show.
-  await expect(autoId(page, 'PayrollPanel-results')).toBeVisible({ timeout: 870000 })
-  await expect(autoId(page, 'PayrollPanel-postAll')).toBeEnabled({ timeout: 120000 })
-}
-
 test.describe('posting a week to Xero @xero-payroll-write', () => {
   // Opus: The panel posts every staff member — there is no per-staff control — and
   // the service sleeps 3s four times per employee to survive Xero's rate
   // limits, so a full staff list runs for minutes.
   test.setTimeout(900000)
-
-  /**
-   * Put the page in the state an operator posts from, and return the week.
-   *
-   * Fable: The week must be read AFTER a mirror refresh: teardown restores the
-   * database out from under Xero, so the mirror's postable answer can name a
-   * week Xero has moved past. Refreshing is a step of posting now — not a
-   * button — so the fixture reaches it through the posting preflight's own
-   * refusal contract.
-   */
-  async function openPostableWeek(page: Page): Promise<string> {
-    await refreshPayrollMirror(page)
-    const week = await getPostableWeek(page)
-    await openWeek(page, week)
-    await expect(
-      autoId(page, 'PayrollPanel-postAll'),
-      `Post stayed disabled on ${week}, the week the server calls postable. ` +
-        'Read the button title: it names which precondition is unmet.',
-    ).toBeEnabled({ timeout: 120000 })
-    return week
-  }
 
   test('hours recorded for the week reach Xero, and Xero holds what was recorded', async ({
     authenticatedPage: page,

@@ -12,7 +12,7 @@ import time
 from collections.abc import Callable, Iterator, Sequence
 from datetime import timedelta
 from functools import partial
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, Protocol, TypedDict
 from uuid import UUID
 
 from django.conf import settings
@@ -358,6 +358,35 @@ def _sync_employee_items(
     sync_employees(snapshots, detail_refresh_tenant_id=_tenant_id if refresh_details else None)
 
 
+class _TenantTransform[TPayload](Protocol):
+    """A document transform: the payload, its Xero id, and the organisation it came from."""
+
+    def __call__(
+        self, xero_obj: TPayload, xero_id: UUID | str, /, *, tenant_id: str
+    ) -> tuple[models.Model, str] | None:
+        """Return the persisted instance and its sync status, or None to skip."""
+        ...
+
+
+def _persist_documents[TPayload](
+    model: type[models.Model], xero_id_attr: str, transform: _TenantTransform[TPayload]
+) -> EntityPersist:
+    """Persist one entity's documents, each recorded against the run's tenant.
+
+    One place hands the tenant to every document transform. The entries below
+    used to drop it, so the sync wrote invoices, bills, credit notes, quotes
+    and purchase orders with a Xero id and no organisation.
+    """
+
+    def persist(items: list[TPayload], tenant_id: str) -> int:
+        def bound(xero_obj: TPayload, xero_id: UUID | str, /) -> tuple[models.Model, str] | None:
+            return transform(xero_obj, xero_id, tenant_id=tenant_id)
+
+        return sync_entities(items, model, xero_id_attr, bound)
+
+    return persist
+
+
 def _persist_pay_slips(items: list[Any], tenant_id: str) -> int:
     """Persist pay slips, stamping the run's tenant rather than re-reading it."""
 
@@ -382,7 +411,7 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "contacts",
         Company,
         "get_contacts",
-        lambda items, _tenant_id: sync_companies(items),
+        lambda items, tenant_id: sync_companies(items, tenant_id=tenant_id),
         {"include_archived": True},
         "page",
     ),
@@ -400,7 +429,7 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "invoices",
         Invoice,
         "get_invoices",
-        lambda items, _tenant_id: sync_entities(items, Invoice, "invoice_id", transform_invoice),
+        _persist_documents(Invoice, "invoice_id", transform_invoice),
         {"where": 'Type=="ACCREC"'},
         "page",
     ),
@@ -409,7 +438,7 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "quotes",
         Quote,
         "get_quotes",
-        lambda items, _tenant_id: sync_entities(items, Quote, "quote_id", transform_quote),
+        _persist_documents(Quote, "quote_id", transform_quote),
         None,
         # Fable: "page", not "single" — get_quotes returns at most 100 rows per
         # call, so a single fetch silently dropped every quote past the first
@@ -424,9 +453,7 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "purchase_orders",
         PurchaseOrder,
         "get_purchase_orders",
-        lambda items, _tenant_id: sync_entities(
-            items, PurchaseOrder, "purchase_order_id", transform_purchase_order
-        ),
+        _persist_documents(PurchaseOrder, "purchase_order_id", transform_purchase_order),
         None,
         "page",
     ),
@@ -435,7 +462,7 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "bills",
         Bill,
         "get_invoices",
-        lambda items, _tenant_id: sync_entities(items, Bill, "invoice_id", transform_bill),
+        _persist_documents(Bill, "invoice_id", transform_bill),
         {"where": 'Type=="ACCPAY"'},
         "page",
     ),
@@ -453,9 +480,7 @@ ENTITY_CONFIGS: dict[str, EntityConfig] = {
         "credit_notes",
         CreditNote,
         "get_credit_notes",
-        lambda items, _tenant_id: sync_entities(
-            items, CreditNote, "credit_note_id", transform_credit_note
-        ),
+        _persist_documents(CreditNote, "credit_note_id", transform_credit_note),
         None,
         "page",
     ),

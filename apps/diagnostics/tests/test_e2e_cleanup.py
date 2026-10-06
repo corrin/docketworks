@@ -309,6 +309,7 @@ def test_confirm_removes_the_run_s_documents_and_contacts_from_xero(
     company = Company.objects.create(
         name="[TEST] Company",
         xero_contact_id="contact-1",
+        xero_tenant_id="test-tenant",
         xero_last_modified="2026-08-08T00:00Z",
     )
     job = make_job(company, office_staff, name="[TEST] Job")
@@ -333,6 +334,7 @@ def test_documents_are_removed_before_their_contact_is_archived(
     company = Company.objects.create(
         name="[TEST] Company",
         xero_contact_id="contact-1",
+        xero_tenant_id="test-tenant",
         xero_last_modified="2026-08-08T00:00Z",
     )
     job = make_job(company, office_staff, name="[TEST] Job")
@@ -350,6 +352,7 @@ def test_documents_on_the_standing_company_are_removed_but_it_is_not_archived(
     standing = Company.objects.create(
         name=TEST_COMPANY_NAME,
         xero_contact_id="contact-standing",
+        xero_tenant_id="test-tenant",
         xero_last_modified="2026-08-08T00:00Z",
     )
     job = make_job(standing, office_staff, name="[TEST] Job")
@@ -375,6 +378,7 @@ def test_an_ordinarily_named_job_on_the_standing_company_keeps_its_xero_document
     standing = Company.objects.create(
         name=TEST_COMPANY_NAME,
         xero_contact_id="contact-standing",
+        xero_tenant_id="test-tenant",
         xero_last_modified="2026-08-08T00:00Z",
     )
     mine = make_job(standing, office_staff, name="Quote for the Henderson roof")
@@ -442,6 +446,7 @@ def test_dry_run_does_not_touch_xero(office_staff: Staff, xero: RecordingOrganis
     company = Company.objects.create(
         name="[TEST] Company",
         xero_contact_id="contact-1",
+        xero_tenant_id="test-tenant",
         xero_last_modified="2026-08-08T00:00Z",
     )
     make_invoice(company, job=make_job(company, office_staff, name="[TEST] Job"))
@@ -461,6 +466,7 @@ def test_the_xero_guard_trips_before_any_local_row_is_deleted(
     company = Company.objects.create(
         name="[TEST] Company",
         xero_contact_id="contact-1",
+        xero_tenant_id="test-tenant",
         xero_last_modified="2026-08-08T00:00Z",
     )
 
@@ -494,12 +500,14 @@ def test_a_company_archived_in_xero_is_not_asked_to_archive_again(
     Company.objects.create(
         name="[TEST] Archived Supplier",
         xero_contact_id="contact-archived",
+        xero_tenant_id="test-tenant",
         xero_archived=True,
         xero_last_modified="2026-08-08T00:00Z",
     )
     Company.objects.create(
         name="[TEST] Active Supplier",
         xero_contact_id="contact-active",
+        xero_tenant_id="test-tenant",
         xero_last_modified="2026-08-08T00:00Z",
     )
 
@@ -513,6 +521,7 @@ def test_a_contact_refusal_is_reported_by_name(monkeypatch: pytest.MonkeyPatch) 
     Company.objects.create(
         name="[TEST] Stubborn Supplier",
         xero_contact_id="contact-stubborn",
+        xero_tenant_id="test-tenant",
         xero_last_modified="2026-08-08T00:00Z",
     )
 

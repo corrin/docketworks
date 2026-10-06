@@ -8,12 +8,13 @@ are the E2E spec's job against the demo company.
 
 import uuid
 from collections.abc import Callable
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from django.utils import timezone
 from xero_python.payrollnz import EmployeeLeave, LeavePeriod, TimesheetLine
 
 from apps.accounting.types import NotAPayrollWeekError
@@ -23,9 +24,11 @@ from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.timesheet.services import hour_categories
+from apps.timesheet.models import LeaveType
+from apps.timesheet.services import attendance, hour_categories, leave_service
 from apps.timesheet.tests.conftest import (
     WEEK_START,
+    make_break_job,
     make_leave_job,
     make_pay_run,
     make_public_holiday_job,
@@ -33,7 +36,7 @@ from apps.timesheet.tests.conftest import (
     make_time_line,
 )
 from apps.xero import payroll_leave, payroll_push, payroll_sdk
-from apps.xero.models import XeroPayRun
+from apps.xero.models import XeroPayItem, XeroPayRun
 
 #: Opus: The organisation a posting run is dispatched for. post_payroll_week refuses
 #: any other connected tenant (ADR 0024), so the tests that drive it patch
@@ -260,6 +263,145 @@ class TestRouting:
 
         assert payload.units == Decimal("0.900")
         assert str(payload.units) == "0.900"
+
+
+class TestApprovalControlsPay:
+    """Staff are paid for approved time only (owner, 2026-10-06, KAN-376)."""
+
+    def test_unapproved_lines_are_not_posted(self, worker: Staff, job: Job) -> None:
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="5.000")
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="3.000", approved=False)
+
+        posted = payroll_push._lines_by_staff(payroll_push._WeekWindow.of(WEEK_START), [worker.id])
+
+        assert [line.quantity for line in posted[worker.id]] == [Decimal("5.000")]
+
+    def test_unapproved_line_with_unlinked_pay_item_does_not_block_the_week(
+        self, worker: Staff, job: Job
+    ) -> None:
+        """A line that will not be sent cannot half-post the batch, so it is not checked."""
+        line = make_time_line(job, worker, accounting_date=WEEK_START, approved=False)
+        XeroPayItem.objects.filter(pk=job.default_xero_pay_item_id).update(xero_id=None)
+
+        payroll_push.validate_pay_items_for_week([worker.id], WEEK_START)
+
+        CostLine.objects.filter(pk=line.pk).update(approved=True)
+        with pytest.raises(ValueError, match="no xero_id"):
+            payroll_push.validate_pay_items_for_week([worker.id], WEEK_START)
+
+    def test_week_status_records_approved_hours_only(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job
+    ) -> None:
+        """The week agrees with Xero when Xero holds the approved hours.
+
+        Unpaid time is never posted, so it is on neither side either.
+        """
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="5.000")
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="3.000", approved=False)
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="0.500", unpaid=True)
+        employee_id = str(worker.xero_user_id)
+        monkeypatch.setattr(
+            payroll_push,
+            "existing_timesheets_for_week",
+            lambda _week, **_kwargs: {
+                employee_id: payroll_push.PostedTimesheet(
+                    timesheet_id="ts-1",
+                    employee_id=employee_id,
+                    status=payroll_push.STATUS_APPROVED,
+                )
+            },
+        )
+        monkeypatch.setattr(
+            payroll_push, "timesheet_lines", lambda _id, **_kwargs: [_payload("5.000")]
+        )
+        monkeypatch.setattr(
+            payroll_push, "posted_leave_hours", lambda _employee, _week, **_kwargs: Decimal("0")
+        )
+
+        [status] = [
+            row
+            for row in payroll_push.week_posting_status(WEEK_START, tenant_id="tenant")
+            if row.staff_id == str(worker.id)
+        ]
+
+        assert status.recorded_timesheet_hours == Decimal("5.000")
+        assert status.matches
+
+    def test_lunch_is_never_posted_and_a_paid_break_is_posted_like_any_approved_time(
+        self, superuser: Staff, worker: Staff, job: Job
+    ) -> None:
+        """Lunch is on the day and pays nothing; a paid break is a quarter hour of his pay."""
+        breaks = make_break_job(superuser)
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="7.500")
+        week = payroll_push._WeekWindow.of(WEEK_START)
+
+        def posted() -> list[tuple[object, Decimal]]:
+            lines = payroll_push._lines_by_staff(week, [worker.id])[worker.id]
+            return sorted((line.cost_set.job_id, line.quantity) for line in lines)
+
+        attendance.set_clock_times(worker, WEEK_START, time(6, 30), time(15, 0), worker)
+        assert CostLine.objects.filter(cost_set__job=breaks).count() == 3
+        # His breaks wait for the office like the rest of what he enters.
+        assert posted() == [(job.id, Decimal("7.500"))]
+
+        CostLine.objects.filter(cost_set__job=breaks).update(approved=True)
+
+        # Owner, 2026-10-06: lunch is "logged, but not hours and not sent to Xero".
+        assert posted() == sorted(
+            [
+                (job.id, Decimal("7.500")),
+                (breaks.id, Decimal("0.250")),
+                (breaks.id, Decimal("0.250")),
+            ]
+        )
+        payroll_push.validate_pay_items_for_week([worker.id], WEEK_START)
+
+    def test_a_week_with_unpaid_lines_posts_as_one_without(self, worker: Staff, job: Job) -> None:
+        """Owner, 2026-10-06: unpaid time is logged, never sent to Xero."""
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="5.000")
+        week = payroll_push._WeekWindow.of(WEEK_START)
+
+        def posted() -> list[object]:
+            return [line.id for line in payroll_push._lines_by_staff(week, [worker.id])[worker.id]]
+
+        without = posted()
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="0.500", unpaid=True)
+
+        assert posted() == without
+
+    def test_leave_entered_by_a_superuser_outside_the_office_still_reaches_payroll(
+        self, company: Company, payroll_superuser: Staff, worker: Staff
+    ) -> None:
+        """Unapproved leave would read as no leave, and the post would take it out of Xero.
+
+        The leave screen is superuser-only, not office-only, and nothing can
+        approve a leave line afterwards, so it is approved when it is made.
+        """
+        assert not payroll_superuser.is_office_staff
+        leave_job = make_leave_job(company, payroll_superuser, "Annual Leave")
+        # The category is bookable only once its pay item belongs to the
+        # connected organisation, which onboarding does and the seed does not.
+        XeroPayItem.objects.filter(pk=leave_job.default_xero_pay_item_id).update(
+            xero_tenant_id=CompanyDefaults.get_solo().xero_tenant_id
+        )
+        today = timezone.localdate()
+        monday = today + timedelta(days=(7 - today.weekday()) % 7 or 7)
+
+        leave_service.create_leave_request(
+            staff_id=worker.id,
+            leave_type_code=LeaveType.Code.ANNUAL,
+            start_date=monday,
+            end_date=monday,
+            note=None,
+            requested_days=[{"date": monday, "hours": Decimal("8")}],
+            actor=payroll_superuser,
+        )
+
+        week = payroll_push._WeekWindow.of(monday)
+        split = payroll_push._split_by_surface(
+            payroll_push._lines_by_staff(week, [worker.id])[worker.id], _catalogue()
+        )
+        assert [line.quantity for line in split.leave_api] == [Decimal("8")]
 
 
 class TestSalaryPosting:

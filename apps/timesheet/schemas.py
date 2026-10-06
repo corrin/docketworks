@@ -13,8 +13,10 @@ from ninja import Schema
 from pydantic import Field
 
 from apps.accounting.types import PayrollPostingMode
-from apps.core.schemas import Quantity, ResponseSchema, omittable
+from apps.core.schemas import AuditEventOut, Quantity, ResponseSchema, omittable
 from apps.job.schemas import CostLineOut, JobLabourRateOut
+from apps.timesheet.models import TimesheetEvent
+from apps.timesheet.services.timesheet_events import TimesheetLineSnapshot
 
 # These bounds keep workshop inputs representable by their decimal columns and
 # stop negative hours or multipliers before they affect costing totals.
@@ -150,6 +152,8 @@ class WeeklyStaffDataOut(Schema):
     week_status: str
     total_billed_hours: Quantity
     total_unbilled_hours: Quantity
+    total_approved_hours: Quantity
+    total_unapproved_hours: Quantity
     total_overtime_hours: Quantity
     total_overtime_1_5x_hours: Quantity
     total_overtime_2x_hours: Quantity
@@ -246,10 +250,15 @@ class TimesheetJobOut(Schema):
 
 
 class JobsListResponse(Schema):
-    """Wire contract for JobsListResponse."""
+    """Wire contract for JobsListResponse.
+
+    The two id lists order the fill sheet's job buttons; every id is in ``jobs``.
+    """
 
     jobs: list[TimesheetJobOut]
     total_count: int
+    pinned_job_ids: list[UUID]
+    recent_job_ids: list[UUID]
 
 
 # ── Workshop "my time" self-service ──────────────────────────────────────
@@ -271,6 +280,9 @@ class WorkshopTimesheetEntryOut(Schema):
     is_billable: bool
     wage_rate_multiplier: float
     bill_rate_multiplier: float
+    approved: bool
+    entered_late: bool
+    remote_entry: bool
     created_at: datetime
     updated_at: datetime
 
@@ -281,8 +293,160 @@ class WorkshopTimesheetSummaryOut(Schema):
     total_hours: float
     billable_hours: float
     non_billable_hours: float
-    total_cost: float
-    total_revenue: float
+
+
+class WorkshopTimesheetWeekOut(Schema):
+    """The payroll week the day falls in: hours payroll will pay, and hours held back."""
+
+    approved_hours: float
+    waiting_hours: float
+
+
+class AttendanceOut(Schema):
+    """A person's day as they clocked it. ``here_hours`` is worked out by the server."""
+
+    state: Literal["not_clocked_in", "at_work", "clocked_out", "sent"]
+    clock_in: time | None
+    clock_out: time | None
+    here_hours: float | None
+    sent_late: bool
+    cautions: list[str]
+
+
+class EntryLocationIn(Schema):
+    """Where the phone says it is as it saves an entry."""
+
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class BreakOut(Schema):
+    """One break in a person's day.
+
+    Every break is his time line on the Break job and ``id`` is that line's:
+    a paid break is paid time, lunch is logged and in no hours figure. A
+    planned break is the company's standard one, not yet his: it has no id.
+    """
+
+    id: UUID | None
+    name: str
+    start: time
+    end: time
+    paid: bool
+    planned: bool
+    approved: bool | None
+
+
+class PlacementOut(Schema):
+    """Where an entry sits in the day: its hours and its times, each from the other."""
+
+    start: time
+    #: None when the hours would run past midnight: they save without times.
+    finish: time | None
+    hours: float
+
+
+class BreakCreateRequest(Schema):
+    """A break added to a day. ``staff_id`` is for office staff correcting another's day."""
+
+    date: date
+    start: time
+    end: time
+    paid: bool
+    staff_id: UUID | None = None
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
+
+
+class BreakUpdateRequest(Schema):
+    """A break moved or resized."""
+
+    start: time
+    end: time
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
+
+
+class FillOut(Schema):
+    """Hours to fill, entered and to go for a clocked day, all worked out by the server.
+
+    ``to_go_hours`` is negative when more is entered than the person was here for.
+    """
+
+    to_fill_hours: float
+    break_hours: float
+    entered_hours: float
+    to_go_hours: float
+
+
+class CalendarBoundsOut(Schema):
+    """The stretch of the day the worker's calendar opens on."""
+
+    start: time
+    end: time
+
+
+class PendingDayOut(Schema):
+    """An earlier day the person clocked and has not sent."""
+
+    date: date
+    state: Literal["not_clocked_in", "at_work", "clocked_out", "sent"]
+
+
+class FillRowIn(Schema):
+    """One row of the fill sheet: a job and how long, in quarter hours."""
+
+    job_id: UUID
+    hours: Decimal = Field(ge=HOURS_MIN, lt=HOURS_LIMIT)
+    description: str | None = Field(None, max_length=DESCRIPTION_MAX_LENGTH)
+    time_and_a_half: bool = False
+
+
+class SubmitDayRequest(Schema):
+    """Send a day to the office, with any rows still to be saved as entries."""
+
+    date: date
+    rows: list[FillRowIn]
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
+
+
+class StandardDayOut(Schema):
+    """The company's standard start and finish for a weekday."""
+
+    start: time
+    end: time
+
+
+class StandardHoursRequest(Schema):
+    """Record the standard hours on a day nobody clocked. ``staff_id`` is for the office."""
+
+    date: date
+    staff_id: UUID | None = None
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
+
+
+class ClockRequest(Schema):
+    """A tap on Clock in or Clock out; the server supplies the time."""
+
+    action: Literal["in", "out"]
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
+
+
+class ClockTimesRequest(Schema):
+    """Clock times set by hand. No ``clock_out`` means the person is at work again.
+
+    ``staff_id`` is for office staff correcting another person's day.
+    """
+
+    date: date
+    clock_in: time
+    clock_out: time | None = None
+    staff_id: UUID | None = None
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
 
 
 class WorkshopTimesheetListResponse(Schema):
@@ -291,6 +455,54 @@ class WorkshopTimesheetListResponse(Schema):
     date: date
     entries: list[WorkshopTimesheetEntryOut]
     summary: WorkshopTimesheetSummaryOut
+    week: WorkshopTimesheetWeekOut
+    day: AttendanceOut
+    breaks: list[BreakOut]
+    fill: FillOut | None
+    standard: StandardDayOut | None
+    missed_clock_out_finish: time | None
+    default_entry_start: time
+    calendar: CalendarBoundsOut
+    pending: PendingDayOut | None
+
+
+class StaffApprovalOut(Schema):
+    """One person's day on the Approve time screen. No pay figures (KAN-376)."""
+
+    staff_id: UUID
+    staff_name: str
+    state: Literal["waiting", "nothing_entered", "nothing_waiting", "not_rostered"]
+    entered_hours: float
+    waiting_hours: float
+    entered_late: bool
+    remote_entry: bool
+    clock: AttendanceOut
+    breaks: list[BreakOut]
+    entries: list[WorkshopTimesheetEntryOut]
+    default_entry_start: time
+
+
+class DaySummaryOut(Schema):
+    """How the day stands across the people expected on it."""
+
+    expected: int
+    approved: int
+    standing: Literal["in_progress", "complete", "nobody_rostered"]
+
+
+class ApprovalsDayOut(Schema):
+    """Everyone's day for the office to approve."""
+
+    date: date
+    standard: StandardDayOut | None
+    summary: DaySummaryOut
+    staff: list[StaffApprovalOut]
+
+
+class ApproveDayOut(Schema):
+    """How many of the person's waiting entries the approval covered."""
+
+    approved_count: int
 
 
 class TimesheetCostLineOut(CostLineOut):
@@ -337,6 +549,48 @@ class TimesheetEntriesOut(Schema):
     summary: TimesheetEntriesSummaryOut
 
 
+class TimesheetLineSnapshotOut(ResponseSchema):
+    """One timesheet entry as an event recorded it (``TimesheetLineSnapshot``)."""
+
+    job: str
+    date: date
+    start_time: str | None
+    end_time: str | None
+    hours: str
+    description: str | None
+    labour_type: str
+    wage_multiplier: float | None
+    invoice_multiplier: float | None
+    billable: bool | None
+    wage_rate: str
+    charge_out_rate: str
+    pay_item: str | None
+    approved: bool
+
+
+class TimesheetEventOut(AuditEventOut):
+    """One audit event on a staff member's day, for the entry page's history dialog.
+
+    ``trusted`` is whether it was made at the workshop (services/location.py).
+    An event of the day itself (a clock tap, times set, the day sent) has no
+    entry snapshots.
+    """
+
+    before: TimesheetLineSnapshotOut | None
+    after: TimesheetLineSnapshotOut | None
+    trusted: bool
+
+    @staticmethod
+    def resolve_before(obj: TimesheetEvent) -> TimesheetLineSnapshot | None:
+        """Read the entry before the write; None on a creation."""
+        return obj.delta_before
+
+    @staticmethod
+    def resolve_after(obj: TimesheetEvent) -> TimesheetLineSnapshot | None:
+        """Read the entry after the write; None on a deletion."""
+        return obj.delta_after
+
+
 class WorkshopTimesheetEntryRequest(Schema):
     """Workshop timesheet-entry creation payload.
 
@@ -354,6 +608,11 @@ class WorkshopTimesheetEntryRequest(Schema):
     is_billable: bool = True
     wage_rate_multiplier: Decimal = Field(Decimal("1.00"), ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
     bill_rate_multiplier: Decimal | None = Field(None, ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
+    # Whose time it is, when office staff enter it for someone else; None is
+    # the caller's own.
+    staff_id: UUID | None = None
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
 
 
 class WorkshopTimesheetEntryUpdateRequest(Schema):
@@ -376,6 +635,9 @@ class WorkshopTimesheetEntryUpdateRequest(Schema):
     bill_rate_multiplier: Annotated[Decimal, Field(ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)] = (
         omittable(MULTIPLIER_MIN)
     )
+    # Where the save came from, not a change to the entry: it never counts as
+    # the "one field besides entry_id" an update needs.
+    location: EntryLocationIn | None = None
 
 
 # ── Xero Payroll pay runs ────────────────────────────────────────────────

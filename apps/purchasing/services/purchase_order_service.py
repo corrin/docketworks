@@ -36,6 +36,7 @@ from apps.purchasing.models import (
     PurchaseOrder,
     PurchaseOrderEvent,
     PurchaseOrderLine,
+    Stock,
 )
 from apps.purchasing.schemas import PurchaseOrderStatus
 from apps.purchasing.services.accounting_mirror import send_state_change
@@ -331,6 +332,38 @@ def validate_ordered_quantity(line: PurchaseOrderLine, quantity: Decimal) -> Non
         )
 
 
+#: No order is raised or expected before this. A year typed with two digits is
+#: stored as the year 25, which the accounting system refuses outright, so an
+#: order carrying one in either date cannot be sent to it.
+_EARLIEST_ORDER_YEAR = 2000
+
+
+def _require_a_real_date(label: str, value: date | None) -> None:
+    """Refuse an order or delivery date whose year can only be a typing slip."""
+    if value is not None and value.year < _EARLIEST_ORDER_YEAR:
+        raise InvalidInputError(
+            f"{label} {value.isoformat()} is in the year {value.year}. "
+            "Enter the year with four digits."
+        )
+
+
+def _require_a_stock_item_code(line_data: PurchaseOrderLineWriteData) -> None:
+    """Refuse an item code no stock item carries.
+
+    Owner ruling, 2026-10-04: a line is an item code the stock list knows, or
+    a description with no code. The accounting system refuses an order holding
+    any other code, and ``purchasing.0021`` blanked the five production lines
+    that did. Any stock row counts, active or not, which is the test that
+    migration applied; the match is exact, as the code is stored.
+    """
+    item_code = line_data.get("item_code")
+    if item_code is not None and not Stock.objects.filter(item_code=item_code).exists():
+        raise InvalidInputError(
+            f"Item code '{item_code}' is not a stock item. Pick a stock item, or leave the "
+            "code off and describe the line."
+        )
+
+
 def _apply_line_fields(line: PurchaseOrderLine, line_data: PurchaseOrderLineWriteData) -> None:
     """Write the supplied line fields onto ``line`` per the PATCH contract.
 
@@ -346,6 +379,7 @@ def _apply_line_fields(line: PurchaseOrderLine, line_data: PurchaseOrderLineWrit
     unit cost" (the field's own help_text). Ticking TBC explicitly discards the
     price; unticking alone does not invent or restore one.
     """
+    _require_a_stock_item_code(line_data)
     apply_patch_fields(line, dict(line_data), fields=_LINE_WRITABLE_FIELDS)
     if "price_tbc" in line_data:
         line.price_tbc = bool(line_data["price_tbc"])
@@ -407,6 +441,9 @@ def create_purchase_order(data: PurchaseOrderCreateData, *, created_by: Staff) -
     Docketworks raised. An order that arrives FROM the accounting system is
     created by the inbound sync instead, and is never pushed back.
     """
+    # The order date is written here only; no edit changes it afterwards.
+    _require_a_real_date("Order date", data.get("order_date"))
+    _require_a_real_date("Expected delivery", data.get("expected_delivery"))
     supplier = _resolve_supplier(data["supplier_id"])
 
     pickup_address: SupplierPickupAddress | None
@@ -442,7 +479,8 @@ def _apply_purchase_order_fields(po: PurchaseOrder, data: PurchaseOrderUpdateDat
     if "reference" in data:
         po.reference = data["reference"]
     if "expected_delivery" in data:
-        po.expected_delivery = data.get("expected_delivery")
+        _require_a_real_date("Expected delivery", data["expected_delivery"])
+        po.expected_delivery = data["expected_delivery"]
     if "status" not in data:
         return
 
@@ -535,34 +573,18 @@ def update_purchase_order(
 # ── Events ───────────────────────────────────────────────────────────────
 
 
-class PurchaseOrderEventData(TypedDict):
-    """Data contract for PurchaseOrderEventData."""
-
-    id: UUID
-    description: str
-    timestamp: object
-    staff: str
-
-
-def purchase_order_event_data(event: PurchaseOrderEvent) -> PurchaseOrderEventData:
-    """Serialise one PO event."""
-    return {
-        "id": event.id,
-        "description": event.description,
-        "timestamp": event.timestamp,
-        "staff": event.staff.get_display_full_name(),
-    }
-
-
-def list_purchase_order_events(po: PurchaseOrder) -> list[PurchaseOrderEventData]:
+def list_purchase_order_events(po: PurchaseOrder) -> list[PurchaseOrderEvent]:
     """List a PO's events, newest first (model default ordering)."""
-    return [purchase_order_event_data(event) for event in po.events.select_related("staff").all()]
+    return list(po.events.select_related("staff"))
 
 
 def create_purchase_order_event(
     po: PurchaseOrder, description: str, staff: Staff
 ) -> PurchaseOrderEvent:
-    """Record a manual note on a PO."""
+    """Record a manual note on a PO, in the shape JobEvent gives a typed note."""
     return PurchaseOrderEvent.objects.create(
-        purchase_order=po, staff=staff, description=description
+        purchase_order=po,
+        staff=staff,
+        event_type="manual_note",
+        detail={"note_text": description},
     )

@@ -37,7 +37,7 @@ proof. Re-validating them costs a query per row per constraint for no
 information (`validate_constraints=False` below is that decision).
 
 Exit status is 1 when any sweep finds something, so this can gate a
-cutover step rather than being read by eye.
+restore step rather than being read by eye.
 
 Usage:
     uv run python -m scripts.ops.validate_restored_data [--quiet]

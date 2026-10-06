@@ -95,6 +95,74 @@ class TestSalesForecastList:
         assert JUNE_KEY in months
         assert months == sorted(months, reverse=True)
 
+    def test_a_month_of_only_zero_revenue_work_is_not_listed(
+        self, authenticated_client: Client, staff: Staff
+    ) -> None:
+        # Leave booked ahead on the Annual Leave job is actual time that earns
+        # nothing. The list used to offer that month at $0.00 against $0.00,
+        # and opening it found nothing to show.
+        company = make_company("Leave Co")
+        job = make_job(company, staff)
+        add_actual_line(job, on=date(2026, 6, 15), rev="100.00")
+        add_actual_line(job, on=date(2026, 7, 15), rev="0.00")
+
+        months = [m["month"] for m in authenticated_client.get(LIST_URL).json()["months"]]
+
+        assert JUNE_KEY in months
+        assert "2026-07" not in months
+
+    def test_a_job_s_revenue_is_summed_per_month_across_its_lines(
+        self, authenticated_client: Client, staff: Staff
+    ) -> None:
+        # The sum is taken in the database, grouped by month and job. Two
+        # lines of one job in one month are one figure (a grouping that let
+        # the lines' own ordering in would return them separately and the
+        # second would replace the first); the same job in another month is
+        # that month's figure alone; and a second job adds to the month.
+        company = make_company("Summed Co")
+        job = make_job(company, staff)
+        other = make_job(company, staff)
+        add_actual_line(job, on=date(2026, 6, 2), rev="100.00")
+        add_actual_line(job, on=date(2026, 6, 28), rev="50.00")
+        add_actual_line(other, on=date(2026, 6, 15), rev="7.00")
+        add_actual_line(job, on=date(2026, 7, 1), rev="30.00")
+
+        months = {
+            m["month"]: m["jm_sales"] for m in authenticated_client.get(LIST_URL).json()["months"]
+        }
+
+        assert months[JUNE_KEY] == 157.0
+        assert months["2026-07"] == 30.0
+        june = authenticated_client.get(f"{LIST_URL}{JUNE_KEY}/").json()["rows"]
+        assert sorted(row["job_revenue"] for row in june) == [7.0, 150.0]
+
+    def test_every_listed_month_opens_to_something(
+        self, authenticated_client: Client, staff: Staff
+    ) -> None:
+        # One rule for both screens: revenue that cancels within a job is no
+        # revenue (August), revenue on one job beside nothing on another is
+        # (September), and an invoice alone lists its month (October).
+        company = make_company("Mixed Co")
+        cancelling = make_job(company, staff)
+        add_actual_line(cancelling, on=date(2026, 8, 3), rev="250.00")
+        add_actual_line(cancelling, on=date(2026, 8, 20), rev="-250.00")
+        earning = make_job(company, staff)
+        add_actual_line(earning, on=date(2026, 9, 3), rev="75.00")
+        add_actual_line(cancelling, on=date(2026, 9, 4), rev="0.00")
+        make_invoice(
+            company,
+            invoice_date=date(2026, 10, 2),
+            status="AUTHORISED",
+            total_excl_tax=Decimal("10.00"),
+        )
+
+        months = [m["month"] for m in authenticated_client.get(LIST_URL).json()["months"]]
+
+        assert months == ["2026-10", "2026-09"]
+        for month in months:
+            rows = authenticated_client.get(f"{LIST_URL}{month}/").json()["rows"]
+            assert rows, f"{month} is listed and opens empty"
+
 
 class TestSalesForecastMonthDetail:
     def detail(self, client: Client, month: str) -> "_MonkeyPatchedWSGIResponse":

@@ -59,6 +59,7 @@ def company(fake_xero: str) -> Company:
     created = Company.objects.create(
         name="[TEST] Managers Co",
         xero_contact_id=str(uuid.uuid4()),
+        xero_tenant_id="test-tenant",
         xero_last_modified=timezone.now(),
     )
     seed_contacts(fake_xero)

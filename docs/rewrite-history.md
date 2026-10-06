@@ -1,5 +1,226 @@
 # Rewrite history — what was decided, found and measured
 
+This is an ephemeral file: context for the rewrite of Docketworks from v1 to v2, deleted
+once v2 has every feature v1 had. Use it to see what was learned along the way. Nothing
+durable points here: a rule lives in an ADR, a gap the code still has lives beside the gate
+that names it, a procedure lives in the runbook that runs it.
+
+## 2026-10-03 — E2E defaults to fake Xero; live testing is deliberate
+
+The launcher selects fake Xero by default and forces the selected mode through
+reset, managed services, Playwright and teardown. `--use-real-xero` retains live
+quota checks and OAuth recovery; conflicting flags refuse before subprocesses.
+A ping mode mismatch returns 409 before token access. Fake failures never start
+live OAuth. Missing or conflicting teardown metadata refuses vendor cleanup.
+Original fake-run credentials are saved privately before setup and restored after
+managed writers stop, including failures; failed restoration keeps the recovery
+file. Standalone reset and Playwright use the same custody helpers.
+
+ADR 0050/0060 record the owner's rule: live Xero is regular, often daily testing
+when work could expose a discrepancy in the fake, not an automatic spend for
+unrelated changes. Ordinary fake runs avoid both live quota probes (two calls).
+Validation: 11 stubbed launcher tests, 10 backend ping tests and 32 frontend
+harness tests passed. The managed fake attempt for job history and timesheet moves
+stopped before services at PO `51483b64-1404-4d95-a3c1-f0db024ee407`, whose mirror
+has no `raw_json`. The exit trap restored the active credentials successfully.
+No live Xero calls were made to validate this launcher change; those browser
+specs remain unverified against the current fixes until the local seed is repaired.
+
+## 2026-10-03 — PR 190 queued edits preserve the latest choice
+
+The shared grid replays pending edits over confirmed responses and defers reads
+until its queue drains. A wage change from 1.5 to 2 followed by a billing edit no
+longer saves the stale 1.5 multiplier. Refusals remove only the failed operation;
+consecutive failures restore confirmed values. Creates, deletes and PO header
+writes use the same queue, retaining the PO's concurrency refusal and callbacks.
+The four affected frontend suites pass (29 tests), including the incoming main
+branch's cost-line regressions adapted to the shared runner; type checking passes.
+The prior real E2E attempt stopped before startup at 79 calls against its 150
+minimum. No further live calls are authorised for these grid/permission fixes.
+
+## 2026-10-03 — PR 190 move authorization uses the locked entry
+
+The review reproduced a stale-owner move: an office reassignment between the API
+read and the service lock let the former owner move somebody else's time. The
+service now authorizes against the locked row and refuses a source-job change
+before acquiring further owner locks. Regressions cover both interleavings and
+assert that refusals preserve the current entry, cost summaries and audit events.
+
+## 2026-10-03 — New notes edits have one undoable event; historical cleanup is secondary
+
+Owner prioritised new edits over historical repair. The current update path already
+creates one notes_updated event with the full delta and undo identity; it does not
+also create a generic notification. Added API regressions for adding, changing and
+clearing notes, complete HTML preservation, a no-op save emitting nothing, timeline
+undo eligibility and one reversal restoring the original content. These passed with
+the current writer unchanged. A browser regression exercises the editor, history,
+Undo and reload; it remains unrun because the dev URL returns 404 and the real-Xero
+preflight still refuses 80 remaining daily calls against its 150-call minimum.
+
+The optional migration 0016 consolidates notes-only pairs with identical raw deltas,
+the same actor/job and an unambiguous match within one second. It retains the generic
+row's complete display values, HTML and undo metadata, labels it notes_updated, and
+removes the truncated specific counterpart. Incomplete or conflicting content and
+separate edits survive. The four historical regressions fail against migration 0015;
+the notes migration and current API/event suites pass. Rehearsal on a restored copy
+consolidated 4,321 pairs, preserved 71,916 other events and every job's current notes,
+and verified all retained rows changed only their event type. Dry-run rollback and
+idempotence passed. Applied to development after rehearsal, removing the same 4,321
+duplicates with every job's current notes unchanged; the backup and removed-row
+audit remain outside Git.
+
+## 2026-10-03 — Delivery-date history owns its undo action
+
+Owner requested fixing duplicate events one case at a time, starting with delivery
+dates. The historical backfill left a specific delivery-date entry beside a generic
+entry holding the undo envelope. Migration 0015 retains the original envelope row,
+names it delivery_date_changed, and removes only an unambiguous counterpart with the
+same job, actor, date-only before/after values and detail within one second. Additional
+fields, conflicting values, incomplete records and competing matches are preserved.
+No undo identity, checksum, timestamp or values are reconstructed or replaced.
+
+The three setting/changing/clearing regressions failed before cleanup; all 64 migration,
+job-service and event-tracking tests passed afterward. A concurrent development restore
+applied the pending migration, so rehearsal replayed the 619 original exported pairs
+in an isolated restored database. Dry-run rollback, committed cleanup and a second run
+verified all 619 pairs, unchanged undo payloads and job dates, and 79,939 untouched rows.
+The current writer already emits one delivery-date event. Browser verification is
+pending: the existing environment returned 404 at login; the managed real-Xero run
+refused 81 remaining calls against its 150-call minimum; fake-Xero setup then refused
+a restored purchase order with no raw_json. Neither managed run reached the browser.
+
+## 2026-10-03 — Only deliberate job reordering creates priority events
+
+Owner ruling while testing PR #190: automatic priority adjustments are not job
+events. Status placement and column rebalancing must not create priority entries
+or add internal priority numbers to another event. A deliberate kanban drag still
+records its rank change. Job.save now includes priority in its audit diff only
+when the reorder service supplies priority_position; other changed fields retain
+their ordinary events. The three regression checks failed before the fix; all
+69 job service, kanban and event-tracking tests passed afterward. The browser
+regression is in job-history.spec.ts; its managed run could not start because the
+dev ngrok endpoint was already online, so it awaits the running backend's restart.
+
+## 2026-10-03 — KAN-369 weekday context belongs on single-day timesheets
+
+Owner clarified PR #189: the staff time-entry and daily overview date labels must
+name the weekday; the weekly overview already covers a whole week and needs no
+weekday labels. Removed the weekly addition and its test expectations, including
+its unused formatter and incorrect cross-page string-equality rationale. The daily
+pages retain `formatDateLong`. The behaviour ledger records the deliberate weekly
+display difference from v1. Type checking and 161 timesheet/shared-library unit
+tests passed. The two affected browser specs passed all 17 enabled tests against
+real Xero, and teardown restored the database. The existing audit gate required
+updating the transitive development dependency devalue from 5.9.2 to 5.9.4;
+no application dependency declarations changed.
+
+## 2026-10-03 — Who moves a timesheet entry; a leave-created line is an ordinary entry
+
+Two owner rulings from the review of KAN-370. **A non-office caller moves only their own
+entry.** Office staff move any entry through the cost-line PATCH; anyone else may move only a
+line whose `meta.staff_id` is their own, the workshop path's rule, refused in
+`update_cost_line` before any lock is taken. The rest of that PATCH stays plain authenticated;
+`rewrite-status.md` open decision 1 still covers it.
+
+**A line the Leave screen created is an ordinary time entry once it exists.** The Leave screen
+is a convenience for creating a batch of entries, not an owner of them. The audit trail
+records writes to such lines like any other. Three places still treat them as special and are
+the leave slice's to change, with one ruling it needs first: `refuse_workflow_managed` refuses
+edit, delete and approve on `managed_by="leave"`; `LeaveDay` holds a PROTECT link to the line
+and its own copy of the hours; the upcoming-leave summary and "away today" read `LeaveDay`,
+not the line, so an edited line would drift from what the Leave screen reports. The ruling the
+slice needs is what `LeaveDay` means once its line has been edited.
+
+## 2026-10-02 — Saved-row grids share one write pattern: serialized per grid
+
+Owner ruling during KAN-370's review. Every grid of saved rows — job cost lines, timesheet
+entries, purchase-order lines — writes through `useOptimisticRows`
+(`frontend/src/features/shared/optimistic.ts`). Writes on one grid carry one TanStack mutation
+scope, so they reach the server in order and their echoes land in order; the cache is
+display-only until the settle refetch; where an endpoint echoes the row, the echo replaces the
+optimistic row; a refusal restores only the fields still showing the rejected value, so a later
+edit on the same row survives; a refused delete puts its row back at its own index. A saved row
+never locks for a pending write; only a draft locks during its create. Field-scoped
+interleaving (parallel PATCHes whose echoes and rollbacks touch only the fields each sent) was
+rejected: a move is a one-field write, so two moves on a row could only flicker until settle,
+and the design needs a per-grid copy of the lifecycle.
+
+## 2026-10-02 — One audit event shape; timesheet entries move from the grid and are audited (KAN-370)
+
+Owner rulings while delivering KAN-370, slice 1 of KAN-298. **One parent type for every
+audit trail:** `JobEvent`, `ProcessEvent`, `PurchaseOrderEvent` and the new `TimesheetEvent`
+subclass an abstract `AuditEvent` in `apps/core/audit.py` — actor, timestamp, event type,
+before/after deltas, detail, and one description rendering (builder, then recorded changes
+through the subtype's field descriptors, then the subtype's label, then the sentinel). This
+closes the hoist the process design doc of 2026-08-25 left as open work. Abstract rather than
+multi-table: a concrete parent would join every job-history read and migrate 80,673 JobEvent
+rows for a cross-domain query nothing asks for. JobEvent keeps its envelope columns (change
+id, checksum, dedup) because no other writer fills them (ADR 0028). PurchaseOrderEvent's note
+column became a `manual_note` event with the text in `detail.note_text`, JobEvent's shape for
+a typed note; three production rows migrated. `AuditEventOut` and `AuditEventList` are the
+shared wire shape and history list.
+
+**Timesheet entries are audited, and the trail starts at deploy.** Every write on the office
+cost-line path and the workshop self-service path — create, edit, move, delete, approve —
+records a `TimesheetEvent` in the write's transaction, with before/after snapshots of the
+entry quantized to the columns. The event is keyed on the worker and the day with the line
+named by a plain id, so a deletion's event outlives the row; the history is read per
+worker-day from a History button on the entry page for the same reason. No backfill: the
+job timeline was rebuilt from line timestamps and holds nothing to backfill from. Leave-managed
+lines record nothing (the leave request names its author) and neither do the repair commands
+(a command run has no actor); widening either is a separate decision. No JobEvent on a move.
+
+**A move keeps the entry's multipliers.** `move_time_line` is the one retarget-and-reprice,
+shared by the workshop PATCH (which could already move) and the office cost-line PATCH (which
+gained `job_id`). Only a destination that cannot bill — shop work or a `special` job — makes
+the entry unbillable, and only a source that could not bill lets a stored zero be re-derived
+from the wage multiplier. Re-applying the pick-time defaults (1.5x on urgent) was rejected: a
+saved line cannot say whether its multiplier was a default or a choice. In the grid the move
+is an inline edit with no confirmation; KAN-298's preview stays with the Job Actual tab move
+it still owns. The workshop client stopped sending `is_billable` on a move: the server owns
+the rule, and the client line also discarded an explicit unbillable choice on a
+normal-to-normal move. Open decision 1 in `rewrite-status.md` (cost-line writes are plain
+authenticated) is unchanged and now reaches one field further.
+
+## 2026-10-01 — KPI calendar ported; report filters live in the URL
+
+Owner rulings while porting the KPI calendar (the largest of the remaining reports). The
+ratios the report shows — margins, average labour rate, labour revenue share, month target
+and achievement — are served on `monthly_totals`, one definition each, null where the
+denominator is absent; "really trivial" client arithmetic is allowed, drawn at a sum of two
+displayed server figures with no denominator and no rule. The calendar and staff-performance
+endpoints gain the office-staff gate the other four reports carry; v1 served all three on
+plain authentication. A requirement v1 never met: whatever a report filters on, defaults
+included — month, period, week, wage basis, grade ladder, money precision — is in the URL from
+the first paint, so a copied link reopens on what it showed; a bare route redirects to name
+its defaults (`beforeLoad`, `replace: true`, `lib/searchDefaults.ts`), and the rule is in
+`docs/design-language.md`. Applied to every dated route in the same slice: the KPI calendar,
+job movement, sales forecast's drill-down, payroll reconciliation, the daily overview and
+timesheet entry; the weekly overview already wrote its week on arrival.
+
+## 2026-10-01 — ADRs are forward-looking; three retired, four merged, the rest trimmed
+
+Owner ruling, reviewing ADR 0065 after GitHub #169 and #170 closed. The test an ADR must pass
+is whether future PRs should follow it and a session will read it again and again; whether
+today's code complies is a different question and no ground for retirement (the index
+conventions now say so). Retired: 0065 (per-instance Redis is provisioning; the design stays
+exactly as deployed, verified live on the shared host with `redis-msm-prod` and
+`redis-msm-uat` on 6381/6382), 0066 (the rehearsal is an operator procedure; Part E of
+`docs/server_setup.md` runs it), 0029 (branch topology; `docs/release-process.md` owns it).
+Kept against a compliance finding: 0031, because the `<domain>` namespace is the point and the
+code owes compliance (E2E narration through `debug`, the kanban console handler, `debug` as a
+runtime dependency — a code slice, not filed); 0002, because one gate with no per-endpoint
+repetition is the purpose. Merged, on the owner's one criterion of fewer lines and no rule
+lost: 0001→0019, 0026→0025, 0061→0039, 0062→0041. Ratified: 0063. Tombstone index rows go; a
+retirement rewords every citation of its number; numbers are never reused. Fable: two pending
+tasks left the ADRs without a new home and need the owner's word to enter `rewrite-status.md`:
+the physical rename of `crm_phoneprovidersettings` (was in 0053), and the two rulings the
+inventory ledger's `*_opening` kinds wait on — a lost-evidence gap correcting the order line's
+`received_quantity`, and an issue dated at the cutover standing as the movement that consumed
+stock the ledger never saw (was in 0059). 0004 and 0006 disagree with the code (optional
+envelope fields; `job_id` as a query filter) and were left as written, being compliance
+questions. 49 ADRs and 1536 lines became 42 and 1190.
+
 ## 2026-09-17 — Each instance owns its Redis server; the queue is named by the database
 
 Owner ruling, by approving the plan for GitHub #169 and #170 (KAN-365), ahead of msm-prod
@@ -9,7 +230,7 @@ allocator now on main (which refuses 0, 1 and 2, and which `verify-instance.sh` 
 the live remainder of #169 was confidentiality — one unauthenticated redis-server every local
 process could read — not the queue name; and #170's premise was stale against main, where
 PR #162 had already shipped `instance.sh --alias`, per-hostname nginx blocks and per-alias
-verification. The owner ruled for one redis-server per instance (ADR 0065) over ACL users on
+verification. The owner ruled for one redis-server per instance over ACL users on
 the shared server: the frozen v1 demo cannot authenticate and is not modified, so that server
 stays open and v2 leaves it. Fable: the same change removed a latent production defect in the
 ADR 0064 window, which drained tasks the live instance had queued before the fence into the
@@ -411,8 +632,8 @@ modes into one function, made the sync root 2770 with setgid, and gated the mode
 The owner chose consistency across POs, job costs and timesheets: oldest creation
 time first, with UUID as the tie-breaker inside the existing business groups.
 [ADR 0057](adr/0057-line-identity-and-creation-order.md) records the shared contract.
-PO lines retain their UUIDs and gain read-only creation timestamps; historical
-timestamps remain NULL rather than being reconstructed. Model ordering now serves
+PO lines retain their UUIDs and gain read-only creation timestamps (historical ones
+were later backfilled from the parent, per ADR 0057). Model ordering now serves
 the APIs, cost grids, timesheet day projections, PDF line lists and Xero payloads.
 Timesheet sequence metadata remains stored but does not determine display order.
 
@@ -447,7 +668,7 @@ PO-line references and orphan stock sources. Legacy receipt adjustments record
 the exact unexplained quantity separately from stock movements, with an existing
 PO note; they create no receipt, allocation or charge. Their immutable records
 protect PO-line deletion, and the audit still rejects additional discrepancies.
-The [repair runbook](inventory-legacy-repair.md) records preview, application and
+The repair runbook (`inventory-legacy-repair.md`, since deleted) recorded preview, application and
 restore ordering.
 
 A backed-up local clone and then the local database passed the same rehearsal:
@@ -489,7 +710,7 @@ bugs were. The consequence was a rule rather than another linter: speed is made 
 spec shipping with the slice. Carried in CLAUDE.md until 2026-09-13, when that file stopped
 holding stories.
 
-## Cutover
+## Costing, stock and purchasing slices (2026-09-06 to 2026-09-08)
 
 **2026-09-08 — Incremental cost summaries and explicit recovery.**
 Cost-line saves/deletes now apply exact persisted contributions to the existing
@@ -694,6 +915,11 @@ Xero's daily-limit 429; 46 tests did not run. Its database restore and managed
 service shutdown completed. These are verification results, not a green merge
 gate or a reason to broaden this PR into phone provisioning or Xero changes.
 
+## Cutover (planned 2026-08-14, ran 2026-08-29)
+
+The cutover ran on 29 August 2026 after the two deferrals below. The tiering these
+entries describe was the plan of 2026-08-14 and was retired with the release.
+
 **2026-08-14: the 15 August window was declined and cutover moved one week to
 22–23 August.** At decision time MUST-tier specs were still red — among them
 `/timesheets/weekly` (declared MUST that same day, unstarted),
@@ -703,7 +929,7 @@ the rehearsal items were open, so the functionality gate could not pass inside
 the window. Scope was frozen as tiered that day; deferral moves the date, never
 the definition of done.
 
-**2026-08-14 tiering.** Reports slip about a week past cutover. Process
+**2026-08-14 tiering, as planned that day.** Reports slip about a week past cutover. Process
 documents stay deferred except the four safety-AI operations.
 `/purchasing/mappings` slips about a week — the purchasing MUST is the ability
 to make purchase orders, which the green purchasing specs plus `pickup-address`
@@ -712,37 +938,18 @@ than a week: no scheduling algorithm exists in either repo's backend, so the
 slice is algorithm plus page plus fresh spec. The admin tail is SHOULD-plus —
 really painful to slip — and AI is SHOULD rather than MUST.
 
-**Every deferred screen ships spec-first (2026-08-14).** Most have no v1 spec to
-port, so the slice authors one and is done when it is green. The spec is written
-with the slice, not before cutover — an explicit choice not to spend pre-flip
-hours on specs for unbuilt screens.
+**Every deferred screen ships spec-first (ruled 2026-08-14).** Most have no v1 spec
+to port, so the slice authors one and is done when it is green. The spec is written
+with the slice; before the cutover this was an explicit choice not to spend pre-flip
+hours on specs for unbuilt screens, and it still holds.
 
 ## Rulings that closed a question
 
-**Purchase-order sync is bidirectional, and Xero's `BILLED` is not a receipt
-(2026-09-05).** Docketworks manages jobs; Xero manages the accounts — DW needs to
-know whether a job made money, Xero needs to know it is only paying bills that
-match a valid order. Neither side owns a purchase order, so an edit made in
-either flows to the other. The only exception is a genuine collision — we hold an
-edit Xero has not seen — and it is resolved by publishing ours, never by dropping
-either side. An earlier design here gave the order one owner and made it
-Docketworks (commits `4bf940f`, `0bce840`); it was wrong and was corrected in
-place (`f522bf8`) rather than rewritten out of history, because a sync that
-handles one direction and silently discards the other is not a sync. Separately:
-Xero's `BILLED` says a bill arrived, not that goods did, so mapping it to
-`fully_received` marked stock received that nobody had touched. Receiving stays a
-Docketworks fact.
-
-**`xero_last_synced` could not answer "has our edit reached Xero" (2026-09-05).**
-It had two writers — every inbound pull stamped it — so the reconcile sweep that
-used it to find unsent work found nothing. Split into `xero_agreed_at` — the
-moment the two copies were last known to match — alongside `xero_last_synced`
-("we looked"). The first attempt called it `xero_last_pushed`, which only the
-push could honestly write; absorbing an inbound edit then looked exactly like
-making a local one, and the sweep pushed the order straight back at Xero on
-every pull. `updated_at` cannot answer it either, being the row's ETag: it has
-to advance when the change came FROM Xero. One column, one meaning — and the
-meaning has to cover both ways of reaching agreement.
+**Xero's `BILLED` is not a receipt (2026-09-05).** `BILLED` says a bill arrived,
+not that goods did, so mapping it to `fully_received` marked stock received that
+nobody had touched. Receiving stays a Docketworks fact. (The bidirectional-sync
+ruling that stood beside this, and the `xero_agreed_at` column it led to, were
+reversed on 2026-09-12: the order has one master, above.)
 
 **Password tokens are fingerprint-bound with no grandfathering; the deploy
 carrying it logs every session out once (2026-08-31).** Every JWT now carries
@@ -838,7 +1045,8 @@ that loses the lock now waits for the holder instead of looking once and giving 
 
 v1's reports disagree with each other on definitions users can see side by side.
 Each was ported as-is, because silently unifying them would be a functional
-change. Unifying any of them is a user decision that has not been asked for.
+change. Unifying any of them is a user decision that has not been asked for; each
+service's docstring says so at the seam.
 
 - **Working days**: the KPI calendar counts public holidays as working days
   (`kpi_service.py`); the sales pipeline excludes them
@@ -1110,10 +1318,10 @@ dropped NULL-office-email rows from the identity scrub (SQL NULL
 semantics), and it never scrubbed `payroll_email` at all — it now excludes
 by pk and scrubs a set payroll address while preserving NULL shape.
 
-**The flip and its triage, 2026-08-29.** Production cuts over to v2 the
-night of 2026-08-29; v1 is never deployed again unless something goes very
-wrong, with `rollback-instance.sh` plus the preserved v1-final database as
-the escape hatch and Monday 07:00 as the decide-by point. Owner triage the
+**The flip and its triage, 2026-08-29.** Production cut over to v2 the
+night of 2026-08-29. v1 was never deployed again; the escape hatch,
+`rollback-instance.sh` plus the preserved v1-final database with Monday
+07:00 as the decide-by point, was not used. Owner triage the
 same day: the weak-password path, AccessLogging/DisallowedHost, the
 one-implementation gate expansion and the 500-line passes are DEFERRED —
 large refactors days before a flip add regression risk and remove none.
@@ -1855,3 +2063,650 @@ Production remediation is an operator action in Xero, not code: the 24–30 Aug 
 can stage a spanning application; the live integration suite carries the pair
 (`test_live_spanning_leave_carries_one_period_per_payroll_week`,
 `test_live_spanning_leave_is_refused_and_counted`).
+
+## 2026-09-17 — A company-defaults file is held to the model's field set
+
+Finding: `instance.sh create` on a new host failed at `loaddata` because the root-owned
+config file still carried `annual_leave_loading`, renamed to `labour_cost_loading` on
+2026-09-02 (KAN-351). The rename updated the shipped fixture and its symlinked template but
+no host's file, and nothing before `loaddata` compared the two; the failure landed after the
+OS user, database and migrations existed, so `create` then refused to run over its own
+partial state. Measured against the current models, the shipped fixture and prospect
+template were themselves eleven fields behind (`gst_rate`, `quote_expiry_days`, the two
+session-replay settings, the six geocode columns, `Company.merged_into`), each silently
+taking the model default at load.
+
+Ruling: no skip flag. The validator that runs before any state is mutated now requires each
+record's field set to equal the shipped fixture's, in both directions, and a Django test
+holds that fixture to the model; the sync-gate and tenant-id rules no longer carry their own
+presence checks. A release that renames or adds a `CompanyDefaults` field is followed by
+editing every host's config file, which `validate-config` now names. Two stale references
+went with it: the post-create check `check_company_defaults.py` told the operator to reload
+a `.fixtures` file that `create` deletes, and now names the PDF that needs the wide logo and
+the admin screen and config file that set it; the 2026-08-10 timesheet spec dropped its
+shipped "environmental prerequisites" list, which still named `annual_leave_loading`.
+
+## 2026-09-17 — The new-instance path is rehearsed after every merge
+
+Finding: `instance.sh create` is exercised only when a real client is set up, so it rots
+silently between those events; the company-defaults incident above is one instance. The
+owner ruled for a gate run from the dev box after each merge to `main`: a throwaway instance
+created from `origin/main` on the UAT host, checked, onboarded against the fake Xero the way
+a new client is onboarded, verified by the suite, destroyed. Data is what `create` produces
+plus real onboarding, never a copy of another database, so the run proves provisioning and
+not a restore.
+
+The run is red at its `connect` step until three pieces land, and the owner chose to land
+the gate first so the red is a record rather than a plan:
+
+- `manage.py fake_xero_connect`: binds a fresh installation as-if-connected under the fake by
+  putting a token on the active `XeroApp` row (`access_token`, `refresh_token`, `token_type`,
+  `expires_at`, `scope`, the columns `_payload_from_row` reads), minting a tenant id, seeding
+  the organisation and the connection row the next item answers from. It must not write
+  `CompanyDefaults.xero_tenant_id`: `xero --setup` discovers it from the connections list,
+  and that discovery is part of what the rehearsal proves. The fake's identity endpoint only
+  refreshes a token the database holds, and the consent exchange stays refused under the
+  fake because it would reach the real identity service; the binding is a data step, never
+  a faked consent flow.
+- PR C in `apps/xero/fake/tests/test_every_call_is_routed.py`: `GET api.xero.com/Connections`,
+  with the connection and token tables ADR 0060 names and `apps/xero/fake/models.py` lacks.
+- The onboarding subset of PR B in the same list: `POST EarningsRates`, `LeaveTypes` and
+  `PayRunCalendars` from `xero --setup --seed-xero`; `POST Employees` and the per-employee
+  `Employment`, `Tax`, `SalaryAndWages`, `PaymentMethods`, `Working-Patterns`, `LeaveSetup` and
+  `LeaveTypes` from `seed_xero_from_database --only employees`.
+
+Measured against a database holding only what `create` and onboarding produce, eleven spec
+files still assume restore data and will fail once the run reaches the suite: stock rows by
+name (`job/create-estimate-entry`, `job/job-cost-entry-data`, `purchasing/create-purchase-order`,
+`purchasing/stock-search`); a second job card or job history (`kanban/kanban-desktop`,
+`kanban/kanban-drag-vanishing`, `kanban/kanban-mobile`, `kanban/kanban-search`); invoice
+history or more than a page of companies or people (`crm/people`, `reports/companies`,
+`reports/sales-forecast`). Each is a spec that does not seed what it needs (ADR 0063) and is
+fixed one file at a time. Nothing was added to rewrite-status.md; KAN-359 is the line these
+hang off.
+
+Two decisions the design settled: a rehearsal instance renders `XERO_FAKE=True` for its
+whole life, because onboarding ends by enabling sync and a live beat on the real client
+would otherwise run with a fake token; and the prompt-free removal is reachable only through
+the rehearsal marker, never a flag, because a flag makes every instance destroyable from a
+script.
+
+## 2026-10-01 — Dependency sweep: everything to latest, two deferrals, one retired fixture model
+
+The five dependabot PRs (#178–#182) were red for a reason unrelated to them: `docs/code-quality.md`
+on main was two line-counts stale, so CI's "code quality metrics are current" step failed on
+every branch. The sweep that replaced them took every frontend and Python dependency to latest
+and froze what passed (ADR 0033, whose deferral rule was written down in full at the same time).
+
+Frontend: 22 packages moved, four of them majors (pragmatic-drag-and-drop 4, its hitbox 3, dotenv
+18, msw 3). Type-check, oxlint and vitest decided. oxlint 1.86 added `consistent-function-scoping`
+and three functions were hoisted to module scope for it, one on the kanban card (fewer closures per
+render, not more). msw 3.0.1 is deferred: the kanban push-channel fixture serves an SSE body through
+`http.get` and drops the socket with `controller.error()`; under 3.0.1 the client sees neither that
+error nor the unmount abort, and msw 3's new `sse()` handler is built around `EventSource` while
+the generated client reads the stream over fetch, so the fixture would be a rewrite. Everything
+else at latest with msw at 2.15.0 is green.
+
+Python: `uv lock --upgrade` moved 40 packages; 41 floors were raised to their locked versions and
+the `django<6.2` cap was removed (nobody had tried 6.2, so the cap claimed knowledge nobody had).
+openai-agents 0.22.3 is deferred: it requires openai>=3 and no litellm release accepts openai 3,
+so taking it means replacing LiteLLM as the gateway (ADR 0041). The resolver leaves openai,
+websockets, importlib-metadata, multidict and pydantic-core below latest for the same upstream
+pins; those get no comment in the file, which records what was tested, not why the resolver chose.
+
+One pytest failure predated the sweep: `test_streamed_usage_applies_cached_input_discount` priced
+`claude-sonnet-4-20250514`, which left LiteLLM's live pricing map after its June 2026 deprecation,
+and LiteLLM prices a retired model at zero rather than raising. The test was deleted, not
+re-pointed at a newer model: it guarded three field assignments in the recording hook whose
+output nothing in the application reads, and the number it asserted was LiteLLM's arithmetic over
+a vendor's price list — any model name in it is catch-up by construction. That a retired model
+records a zero cost silently is a fail-early candidate in `estimated_cost_usd`, noted here and
+not changed in a bump PR.
+
+E2E was not run for this PR: one release run covers it and the other small PRs of the week.
+
+## 2026-10-01 — The dependency sweep gets a mechanism: one script, one weekly PR, no per-package prompts
+
+The weekly `uv-lock-refresh.yml` had failed every run since 13 September: it opened its PR with
+`GITHUB_TOKEN`, which the repository setting "Allow GitHub Actions to create and approve pull
+requests" forbids, so the Python half of the cadence never ran and nothing retried a deferral
+but a hand-filed ticket (KAN-367, KAN-368). Dependabot covered the other half badly: one PR per
+package, five at a time, never the combination, never a transitive, never a Python version the
+declared range already admitted.
+
+Replaced by `scripts/ops/sweep_dependencies.sh`, run weekly by `dependency-sweep.yml` and by hand
+for an out-of-cycle sweep: every direct dependency in both ecosystems to latest, pinned exactly
+(`pyproject.toml` moves from floors to `==`, the same rule `package.json` already followed),
+both lockfiles re-locked, one PR whose body is the report. The PR is a prompt for a person to run
+the gates; CI on the bot's own push is a bonus the owner does not require, since E2E runs once
+per release anyway. Dependabot keeps only the github-actions ecosystem. `docs/dependency-sweep.md`
+holds the loop for a red run; ADR 0033 names the mechanism.
+
+## 2026-10-03 — Backend CI checks generated files before running pytest
+
+Moved code-quality metrics, status-table and exported-schema checks immediately after
+dependency installation, with metrics first and pytest last. Stale generated files now
+fail before the full coverage run. All existing checks and commands are retained.
+
+## 2026-10-03 — Systematic test review
+
+GPT: Reviewed all 3,902 baseline Python/TypeScript test definitions and 140 shell
+assertion sites, then the two additional weekday-header tests merged from main.
+Deleted eight non-behavioral or unreachable-state checks and strengthened 38 definitions
+with distinguishing fixtures/assertions and targeted mutation verification. Two more
+purchase-order integration scenarios now use valid ownership fixtures and independent
+vendor readbacks; both passed live. The recordings integration fixture now loads the
+real credentials/tenant; its full vendor comparison is deferred at the daily quota
+floor. The full backend run passed 3,393 cases at 90.10%
+coverage. The [review report](test-review.md) records scope, evidence and gate
+limitations. The full per-test ledger is retained locally, untracked and gitignored. Production behavior and coverage thresholds are unchanged.
+The owner elected to preserve their running stack and leave PR #193 draft rather
+than run the managed E2E database reset/restore alongside it.
+
+### Payroll preflight defect
+
+Confirmed against `1f87fd1` using the real `sync_staff` application service and the existing in-memory `FakeProvider`; no external services were called. Production code was not changed, and the temporary regression probe was removed after execution.
+
+`apps/timesheet/services/payroll_employee_sync.py:527` renames matched employees at the provider and persists their local employee/tenant links before line 532 validates the company address for unmatched employees. In a mixed batch with a missing company city, the service raises `StaffNotPayrollReadyError` after those writes have happened. A caller seeing the validation refusal cannot assume the batch made no changes.
+
+The existing unmatched-only test has been renamed from `test_a_missing_company_address_refuses_before_any_write` to `test_a_missing_company_address_prevents_unmatched_employee_creation`. Its assertions are unchanged. It correctly covers creation refusal, but does not cover mixed-batch preflight; the reproduction below records this uncovered defect.
+
+To reproduce, temporarily append the following test to `apps/timesheet/tests/test_payroll_employee_sync.py`, where the referenced fixtures and helpers already exist. Run only this test with `PYTEST_XDIST_AUTO_NUM_WORKERS=2 ./.venv/bin/python -m pytest --reuse-db apps/timesheet/tests/test_payroll_employee_sync.py::test_review_probe_mixed_batch_checks_address_before_any_write`, then remove the temporary test. This is a deliberately failing regression demonstration, not a proposed permanent failing test.
+
+```python
+@pytest.mark.usefixtures("company", "employer_address")
+def test_review_probe_mixed_batch_checks_address_before_any_write() -> None:
+    matched = make_staff(
+        "matched-probe@example.com",
+        first_name="Ana",
+        last_name="Silva",
+        xero_user_id="prod-probe",
+    )
+    unmatched = make_staff(
+        "new-probe@example.com",
+        first_name="Bo",
+        last_name="Kim",
+        xero_user_id="prod-new-probe",
+    )
+    provider = FakeProvider([ref("demo-probe", job_title=f"Workshop Worker [{matched.id}]")])
+    defaults = CompanyDefaults.get_solo()
+    defaults.city = None
+    defaults.save(update_fields=["city"])
+
+    with pytest.raises(sync.StaffNotPayrollReadyError, match=r"CompanyDefaults\.city"):
+        run_sync(provider, [matched, unmatched], allow_create=True)
+
+    matched.refresh_from_db()
+    assert provider.renamed == [] and matched.xero_user_id == "prod-probe", (
+        provider.renamed,
+        matched.xero_user_id,
+        matched.xero_tenant_id,
+    )
+```
+
+Observed assertion evidence: `([('demo-probe', 'Ana', 'Silva')], 'demo-probe', 'tenant-under-test')`. The provider recorded a rename and the local employee ID changed despite the address validation failure. The temporary probe failed at the assertion shown above; the application code was restored and the probe was removed.
+
+A future fix should validate the creation prerequisites for the entire batch before applying matched-employee writes, and promote this reproduction into a passing mixed-batch regression test. That application change is outside this test-only cleanup.
+
+## 2026-10-04 — The Xero re-seed puts purchase orders in the organisation (KAN-375)
+
+The fake Xero is built from the mirror, and after a restore the mirror held no
+purchase order the organisation knew: the seed cleared every order's Xero id
+and no phase recreated them. Nothing recorded that as a decision, and the
+2026-09-12 ruling ("an order that is not in Xero is a bug rather than a state")
+says the opposite.
+
+Owner rulings, 2026-10-04:
+
+- The seed sends what production's Xero holds: orders Docketworks raised once
+  they have left draft, and orders raised in Xero in any state but deleted.
+- A restored order is linked to a live Xero order by number alone, as invoices
+  and quotes are. A supplier-and-total comparison was the alternative; supplier
+  names differ between scrub runs, so it would have stopped legitimate re-seeds.
+- The cost is accepted: on a Demo Company, restored `PO-0001`..`PO-0007` link
+  to the Demo Company's own orders of those numbers and the sync overwrites
+  those local rows. It happened on the 2026-10-04 restore and the rows were
+  left as they were.
+
+Measured, real dev tenant, 2026-10-04 (`purchase_order_create_batch.json`):
+several purchase orders in one upsert call with `summarizeErrors=false` answer
+200 with one element per order, each carrying its number and its id.
+
+Findings left as they are:
+
+- `transform_purchase_order` (`apps/xero/transforms.py`) links an incoming Xero
+  order to a local row by `po_number` when no row carries its id, with no check
+  that it is the same order, and never writes `xero_tenant_id`. The seed's own
+  claim stamps the tenant, so the seed converges; the match-by-number remains.
+- A seed re-run after the sync counts the jobless invoices and quotes the sync
+  pulled from the organisation as remaining work, and its invoice and quote
+  phases would delete them. On the 2026-10-04 restore that was 50 invoices and
+  15 quotes, so the purchase order phase was run with `--only`.
+
+Measured on the first run of the phase, real dev tenant, 2026-10-04 (784
+orders in scope, 776 created or linked, the rest E2E residue):
+
+- Xero refuses an order whose line names an item code the organisation's items
+  do not include (`Item code '…' is not valid`). Owner ruling: a line is an
+  item code Xero knows or a description with no code, so such a line is
+  malformed data. Five restored lines carried one (JO-0262 twice, JO-0279,
+  JO-0440, JO-0658); their codes were blanked on the dev database. Production
+  holds the same rows. The phase runs after stock for the same reason.
+- Xero refuses a delivery date in the year 0025 (`The date 8/20/0025 is not
+  valid`). Five restored orders carried one (JO-0146, JO-0157, JO-0187,
+  JO-0192, JO-0195), corrected to 2025 on the dev database. Production holds
+  the same rows.
+- One order (JO-0282) was refused with `Please select a valid Inventory Item`
+  in a call made seconds after the stock phase had rewritten the
+  organisation's items, while another order naming the same item was accepted
+  in the same run. It was created unchanged on the re-run. Cause not
+  established.
+- A refusal answers with an order id that Xero did not store (JO-0282's id
+  answered 404), so the element's validation errors are the refusal, not the
+  zero id alone.
+
+The clear phase fired a second time on the same day's database. The hourly
+sync had created a Company for a Xero contact with no name
+(`apps/xero/transforms.py`, the "create anyway" branch), which saves the
+contact id before `set_company_fields` stamps the tenant, and that call raised
+on the contact's missing status. One Company with a contact id and no tenant is
+what `mirror_points_at_foreign_org` reads as a mirror linked to another
+organisation, so the next seed cleared 2520 contact ids, 703 stock ids and the
+sync cursors, and had to be run to convergence again. Three writers save
+`xero_contact_id` without the tenant: that branch and its two siblings,
+`apps/xero/single_sync.py` (the webhook path) and
+`create_company_contact_in_xero` in `apps/xero/contacts.py`.
+
+Fixed the same week. Every writer now stores the tenant in the same write as
+the contact id, and `Company` carries
+`CHECK (xero_contact_id IS NULL OR xero_tenant_id IS NOT NULL)`. Production held
+3,920 linked companies with no tenant against 321 with one, all 321 naming the
+organisation in `CompanyDefaults` (owner's read-only census, 2026-10-04): the
+column arrived after most companies were linked, and the incremental sync only
+stamps a contact Xero reports a change to. `company.0002` stamps them with the
+configured organisation and deletes nothing; it refuses on an instance that has
+linked companies and no configured organisation. The seed's rule that one
+foreign row clears the mirror is unchanged: with the constraint, no writer can
+produce such a row.
+
+The item codes and the year-0025 dates are repaired by `purchasing.0021`.
+
+## 2026-10-04 — A deleted quote does not hold its number in Xero (KAN-375)
+
+The fake held quote numbers unique per tenant across deleted quotes, refused
+the mirror of the dev organisation at `fake_xero_seed`, and no fake E2E run
+could start. Xero reissues a deleted quote's number: the Demo Company holds
+three DELETED quotes numbered QU-0013, and a recording pass on 2026-10-04 was
+given QU-0016 for a new quote straight after a deleted quote was answered under
+that number. The fake's constraint now covers live quotes only. A purchase
+order is the opposite case (`purchase_order_number_held_by_deleted.json`) and
+its constraint is unchanged. `next_number` in `apps/xero/fake/minting.py` still
+says a deleted document keeps its number; for quotes that is not what Xero
+does, and the fake's quote sequence has not been changed to match.
+
+## 2026-10-05 — Workshop staff on a phone: login and time entry (KAN-375)
+
+Workshop staff use the app from their phones, and nothing in the E2E suite
+signed in on one or as a non-office user. Two Playwright projects now do:
+`android` (Pixel 7, 412px) and `iphone` (iPhone 14 on WebKit, 390px), running
+only `tests/e2e/mobile` as a seeded workshop login that is neither office staff
+nor superuser.
+
+Rulings (owner, 2026-10-04, unless marked):
+
+- Phones are a mix of iPhone and Android, so both get a project.
+- Workshop staff enter whatever they like on their own time, rate and billable
+  included; office approval of the timesheet is the control.
+- Everything v1's My time offered is ported. The over-hours badge and red
+  over-estimate blocks stay out: that drop was already recorded.
+- No mobile menu. The header hides the welcome text below `sm` instead.
+- 44px tap areas are a deliberate override of the design language's 36px, for
+  the controls workshop staff work by thumb, through one shared class
+  (`components/ui/touch.ts`).
+- Shared plain inputs are 16px below `md` (`INPUT_CLASS`), so iOS Safari does
+  not zoom the page on focus. The class is imported by 27 files across admin,
+  auth, CRM, job, process forms, purchasing, reports, the shared address
+  field and timesheets: every one of those inputs is 16px below 768px and
+  unchanged from there up. The first full run showed one phone-width spec
+  moved by it: the form-entries page grew past the fixed distance its scroll
+  test wheeled.
+
+What the phone runs measured:
+
+- Login inputs 16px on both projects; the time-entry drawer's inputs at least
+  16px on both. No horizontal overflow on login, the board or My time.
+- Header after the change: three rows on both; 163px of a 664px viewport at
+  390px (it was 163px in four rows) and 161px of 839px at 412px (it was about
+  125px). The tap areas took back the row the welcome text gave up.
+- The job picker popover spans 17px to 377px in both the 390px and 412px
+  viewports, listing 197 to 199 jobs from the production-shaped dev database.
+- A workshop login draws no 401 or 403 on the board or on My time.
+
+What the code and the runs established:
+
+- The billable tick is sent on an edit only when the user set it, and then
+  even when it equals the stored value. The server reads its presence as an
+  explicit choice on a job move (`move_time_line`), so "send when it differs"
+  would have lost a deliberate unbillable choice on a move off a shop job. The
+  tick shows what the save will produce, which on an untouched move off a job
+  that cannot bill is billable.
+- A new entry defaults to the job of the entry booked most recently, not to
+  the last in list order as v1 did.
+- v1's My time calendar also opened at midnight: neither its component nor the
+  library it used scrolled to the working day. Nothing was ported for it.
+- Timesheets > Daily was offered to every login while both of its endpoints
+  are superuser-only; it is now offered to superusers alone.
+- A closing Radix panel stays in the DOM for the length of its exit animation.
+  A screenshot taken inside that window, with animations disabled, shows it at
+  full opacity; one such picture was misread as a menu that never closed. A
+  probe showed the menu and the entry drawer both leave the DOM on WebKit.
+- FullCalendar draws a column layer over its slot lanes and takes the tap
+  itself, so a Playwright tap on a slot has to be forced at the lane.
+- `scripts/checks/code_quality.py` counts tracked files as they are on disk. A
+  doc generated with uncommitted work in the tree does not match the commit,
+  and a commit of frontend files alone does not regenerate it.
+
+Found and left for the owner:
+
+- The login form's fields take over a second to appear (entrance animation).
+- A workshop login sees the office board and its Quick assign strip, and the
+  assignment endpoints and `POST .../cost_sets/actual/cost_lines/` accept any
+  signed-in staff member, as v1's did.
+- `run_e2e.sh` does not run `e2e_ensure_fixtures`, and its reset runs before
+  the backup, so its deletion of local `[TEST]` rows is permanent.
+- Salaried staff: `time_entry_rates.py` writes `salary_term_id` and
+  `pay_basis` into a time line's meta, and `TIME_META_SCHEMA` allows neither.
+  Read from the code, not reproduced.
+
+## 2026-10-05 — Two failures the first full fake-Xero run on restored data found (KAN-375)
+
+**A listed pay run carries no `paySlips`.** Real Xero's `GET /PayRuns` omits the
+key (`recordings/pay_runs.json`), so the mirror stores the SDK's `None` for it.
+The fake rendered every valueless Payroll attribute as an explicit null, and
+the SDK iterates a list-typed attribute on the way in, so a null there fails
+the whole response. Nothing showed it until the fake first held pay runs: the
+restore and the first sync against the dev organisation on 2026-10-04 gave it
+twenty, and every `get_pay_runs` call then raised. The fake now omits a
+valueless Payroll list and keeps the explicit null for scalars, and the wire
+round trip refuses a rendered null on a list-typed key the recording lacks.
+The one null list Xero does send, `invalidFields` in the past-the-end refusal,
+is written by hand and not rendered.
+
+**The sales forecast's list and detail read one rule.** The month list took
+any month holding an actual cost line; the month detail dropped jobs whose
+revenue summed to zero. Leave booked ahead on the Annual Leave job listed
+November 2026 at $0.00 against $0.00, and it opened to nothing. A month is now
+listed only when its detail has something to show: an invoice, or a job with
+non-zero revenue in that month. Amounts are unchanged; only which months
+appear.
+
+## 2026-10-05 — The sync records the organisation on every document it stores (KAN-375)
+
+The sync engine passes each entity's persist function the tenant the run
+fetched from. Five `ENTITY_CONFIGS` entries dropped it, so invoices, bills,
+credit notes, quotes and purchase orders were stored with a Xero id and no
+tenant; `sync_single_invoice` did the same for a webhook's invoice or bill.
+Measured on the dev database after the 2026-10-04 sync: 47 invoices, 45 bills,
+5 credit notes and 9 quotes carried an id and no tenant. Staff, pay items, pay
+runs, pay slips, accounts, companies, and every push from the application
+already stored both.
+
+The document transforms now take the tenant from their caller, as
+`transform_pay_run` does, and `_persist_documents` in `apps/xero/sync.py` is
+the one place that hands it to them.
+
+Owner instruction, 2026-10-05: no CHECK for this; the writers are fixed.
+Left as it is:
+
+- Rows already stored without a tenant are not backfilled. Each is completed
+  when the sync next sees that document. Production was not examined.
+- The seed's foreign-organisation test reads `Company` and `XeroPayItem` only,
+  so a tenant-less document never triggered a clear. The seed's pending count
+  does read a tenant-less invoice, quote or order as unclaimed.
+- A purchase order linked by number alone now records the tenant. That states
+  which organisation the id came from, not that the match found the same order.
+- `Stock` and `Job.xero_project_id` have no tenant column.
+
+## 2026-10-05 — Code review of the purchase order seed and tenant work (KAN-375)
+
+Fixed from the review, each in its own commit: `Any` in new annotations; the
+contact sync taking the tenant from its caller; the sales forecast summing in
+the database (2.9s to 0.06s on the restored dev database, one query both ways,
+identical totals); the seed's purchase order scope as a queryset; orders Xero
+stored being claimed before a refusal stops the phase; a delivery date with a
+two-digit year, and an item code that is not a stock item's, refused by the
+purchase order service (the E2E fixture that invented codes changed with it).
+
+The tenant backfill (`company.0002`) now takes the organisation from the
+companies already stamped and uses `CompanyDefaults.xero_tenant_id` only when
+none is. On production the two agree. They disagree on a restored copy that
+has been bound to its own demo organisation and not re-seeded, where the
+contact ids are still the source's: stamping them with the bound tenant would
+make the seed read the mirror as already linked and skip its clear. Chosen in
+the owner's absence.
+
+Left for the owner:
+
+- **A purchase order whose number a deleted Xero order holds cannot be seeded.**
+  Xero returns the zero id, will not reuse the number and will not rename a
+  deleted order, so the seed stops on it at every run and the sync gate stays
+  closed. No order in scope is in that state on the 2026-10-04 restore (the
+  dev organisation's JO-0826, JO-0829 and JO-0833 are local drafts, which the
+  seed does not send). The choices when one is: renumber the local order;
+  leave that order out of what the seed sends; or re-seed into an organisation
+  that does not hold the deleted order. None is implemented.
+- **`purchasing.0021` keeps a code that matches any stock row, active or not,**
+  while the seed's stock phase sends only active stock. A line whose code is
+  only on an inactive item would be refused by a freshly seeded organisation.
+  None exists on the 2026-10-04 restore (4 inactive stock rows carry a code; no
+  order line uses one). The migration was left as it is: production's Xero
+  holds those items, and blanking the code there to suit a dev seed would
+  damage a correct row.
+- **A wage-only change to a workshop time entry replaces its bill multiplier.**
+  An entry at wage 1.0 and bill 1.5, patched to wage 2.0, becomes bill 2.0, and
+  the 1.5 is gone. v1 did the same and `accepted-api-differences.yml` records
+  the rule; no document addresses an entry whose bill multiplier was set apart
+  from its wage multiplier. Not changed.
+- The invoice and quote payload builders and the sync transforms' payload
+  parameters are still annotated `Any`; they were before this branch.
+
+## 2026-10-05 — Second review of the fixes (KAN-375)
+
+`company.0002` as first corrected would have aborted on production. It read
+the tenants the stamped companies carry with `Company`'s default ordering, and
+Django adds the ordering column to a DISTINCT select, so the answer was one row
+per stamped company name: 321 "organisations" where there is one. The ordering
+is cleared. The tests had a single stamped company and could not see it.
+Rehearsed on the dev database reshaped to the owner's census (321 stamped with
+one tenant, 2,250 unstamped, 5,813 rows) inside a rolled-back transaction: the
+earlier version refuses for "321 different organisations", the corrected one
+stamps all 2,250 and the row count does not move. Dev's data in production's
+shape, not production's rows.
+
+Also from that pass: the order date is refused with a two-digit year, as the
+expected delivery is; the purchase order body is built key by key under its
+type, with the request unchanged; the "Docketworks raised this order" pattern
+has one home serving the row test and the queryset filter; and the seed
+reports every problem in an answered call together.
+
+The item-code refusal reads the local stock list. A stock item not yet pushed
+to Xero passes it, and Xero may still refuse the order line; the rule as the
+owner stated it is about what the stock list knows.
+
+## 2026-10-05 — The remote-entry mark on workshop time (KAN-376)
+
+Owner rulings. Docketworks is reachable from anywhere, and the office wants to
+tell time a worker entered in the workshop from time entered somewhere else.
+It is a mark, never a refusal, and a wrong mark costs a moment's confusion.
+A worker's own save is marked unless the phone gives a location within 300 m
+of the company address; refusing location is marked the same as being
+elsewhere. Office staff are never marked, a company with no picked address
+marks nothing, and the mark is not cleared by a later edit. Only the verdict
+is stored, not where the phone was.
+
+Rejected: comparing the caller's internet address with the workshop's. Fifteen
+days of production access logs show the workshop's connection changing address
+every day or two (the owner confirmed the new connection is not fixed), so
+there is nothing to compare against without a fixed address from the ISP.
+
+Found on the way. Production Django receives no client address: all 136
+`job_jobdeltarejection.request_ip` rows are NULL. Gunicorn binds a unix socket,
+uvicorn's proxy-header handling trusts no peer on one, and nginx's
+`X-Forwarded-For` is ignored. Nothing depends on it today. The sites answer on
+IPv4 only and nothing sits in front of nginx.
+
+The company address is not picked on UAT (no coordinates); production was not
+checked. The mark does nothing on an instance until it is.
+
+The distance is the haversine formula written out in
+`workshop_timesheet_service`, eight lines, rather than a geodesy dependency
+(ADR 0032's small-need exception).
+
+A fake-location app defeats the check. It deters; it does not prove.
+
+## 2026-10-06 — Workshop staff enter their own time; the office approves it (KAN-376)
+
+Owner rulings. Staff clock in and out, send their day, and the office approves
+it; staff are paid for approved time only. Approved time is locked for the
+worker; any office staff member approves. The office does not send an entry
+back: it corrects it and phones the worker. Late entry is flagged, not
+blocked. Every day is finished on the day across all staff; an older day is
+looked at only for a correction, so nothing is built for catching up. Six
+people: no reminders, notifications, queues or un-approve.
+
+What the times are for (owner, verbatim): "the start and end time is almost
+purely for visual aesthetics and helping workers catch their own errors. In
+the future we will likely add 'start work on task' using the mobile app too."
+The fill sheet lays a day's entries end to end from clock-in. Those times are a
+picture of the day for the worker, not measurements, and nothing reads them
+for pay or billing. That is why moving a break moves no entry and there are no
+overlap checks. Nothing marks a laid-out time apart from a measured one; if
+"start work on a task" comes, it writes real times into the same fields and
+telling them apart is a decision for then.
+
+Breaks belong to the day, not to job costing. The plan first stored lunch as a
+zero-hour time line on a "Lunch (unpaid)" job, so that summing hours would
+leave it out. Reading every reader of time lines showed it would not hold: the
+line could not be saved (no pay item; zero hours against a real time pair),
+the leave classifier raised on it and took the day, daily and weekly reads and
+payroll validation with it, about eight readers needed an exemption, and the
+readers that count lines or jobs still saw it (daily entry count and job
+breakdown, "N jobs", jobs per person, the next entry defaulting to Lunch). The
+owner's answer: "Exceptions imply a design issue. The idea is that we're
+mostly showing the full day as a friendly helper to the staff member."
+Breaks are rows on the attendance day. The standard breaks (owner): two 15
+minute paid breaks and a 30 minute unpaid lunch, set in company settings beside
+the working hours. An unpaid break comes off the hours to fill; a paid break is
+a marker only, because that time is paid and billed with the job in hand. Each
+standard break is put on a day once, the first time it has both clock times.
+Accepted cost: a day first clocked short and corrected later gets none by
+itself. The owner later remarked that he would have used a job for breaks; the
+reasons above were put to him and the attendance rows stand unless he rules
+otherwise.
+
+Clock times are times of day, so a shift past midnight cannot be stored. The
+worker is refused in words and told to ask the office, which sets the finish to
+23:59 and enters the hours as time. A tap clocks today only; a day left open is
+finished by hand, never stamped on a later date.
+
+Measured. A three-job day through the fill sheet is 8 taps and no keystrokes
+on both phone projects, counted by `mobile/workshop-fill-day.spec.ts`; the
+screen before needed about 31 taps and 15 keystrokes.
+
+Findings.
+- Payroll posting ignored the approved flag: `_week_time_lines` took every
+  actual time line. Fixed first. Leave is now approved when made, whoever makes
+  it: unapproved leave would read as no leave and the post would take real
+  leave out of Xero.
+- Approved-only posting is proven by unit tests, not end to end. Every test
+  that posts a week is tagged `@xero-payroll-write`, is outside the gate and
+  cannot run on the fake Xero.
+- The generic cost-line endpoints let any signed-in worker create time for
+  another person and delete another's unapproved line. Not fixed.
+- The weekly dependency sweep (#196) merged with no CI run and left main red:
+  msw 3.0.2 past a dated deferral for 3.0.1. The pin is restored here.
+- A short E2E run deadlocked its own database restore against its Celery
+  worker, which was still writing JobSummary.pdf rows. Teardown now stops the
+  run's worker and beat before it restores. On a dev database restored from
+  production about 1,000 of 2,500 job summaries are stale, the refresh task
+  re-queues itself until none are, and each restore puts the backlog back.
+- The company settings form sends number fields as the text typed.
+- A filled row on a shop job was sent as billable and refused; the first phone
+  run of the fill sheet found it. A row now takes its job's own billing rule.
+
+Job buttons on the dev database when built (September's data is thin, three to
+five lines a day, so this shows the rule working, not a real week). Pinned:
+Bench - busy work, Asbestos Shutdown, MSM - supervison, Office Admin. Recent:
+twelve jobs from 11, 14 and 15 September. "The last three working days that
+have any time" returned nothing, because the latest days held only leave; the
+rule is the last three days with time on a job that is not special.
+
+## 2026-10-06 — Clock trust, the standard day, and every break a line (KAN-376)
+
+Owner rulings, verbatim where quoted.
+
+Forgotten clocking: "You SHOULD warn an office worker that the worker forgot to
+clock in and/or out... the company defaults one should be used if they forgot."
+A day nobody clocked offers the company's standard hours; each clock time
+records how it got there (clocked, clocked remotely, not clocked, set by the
+office), and Approve time says "Did not clock in" and "Did not clock out".
+
+Entry times: "When entering worker time on a job it asks for the start and end
+time. These should be clearly shown on the UI as optional... I clock in at 7am.
+I work 6h at a job... the end of job time should be 2pm (7 + 6 + 0:15 + 0:30 +
+0:15)." An entry's hours are the truth and its times the picture; one rule
+places hours over the day's breaks (`attendance.finish_for`), and an entry is
+never split around a break.
+
+Breaks. This reverses the 2026-10-06 entry above, which kept breaks as rows on
+the attendance day. "Breaks are outside job time, and paid breaks are paid on
+their own." "If you put a paid 15 minute break onto a job, then you've
+essentially billed that customer for that break." "What if the entire job was
+only 15 minutes - you've just doubled the bill." Then, on lunch: "Lunch can be
+an autogenerated unpaid leave entry with a description of lunch. That way if a
+worker works through lunch, they can just delete it. Working through lunch is a
+break of employment conditions and shouldn't happen, but Docketworks's design
+ethos is 'log what happened, not what should have happened'." And: "or make a
+new job 'break' and have some entries paid and others unpaid. example, a worker
+takes an extra long lunch break." The coordinating session chose one Break job:
+a paid break is a line at ordinary time, lunch a line at the Unpaid earnings
+rate, both billed to nobody. A lengthened lunch is unpaid; a lengthened paid
+break is paid. Lunch as a leave type was weighed and lost: about ten readers
+would have learnt a new leave code, lunch would have read "Leave" on every day
+and blocked real leave, and the leave workflow would have refused the worker
+deleting it. Unpaid time was already a thing a line could be, through the
+tenant's Unpaid earnings rate.
+
+What unpaid time means (owner): "Logged, but not hours and not sent to Xero."
+One rule, `time_entry_rates.UNPAID_TIME` with its line form `is_unpaid_time`:
+a time line on a non-leave pay item at multiplier 0. No hours figure counts it
+(daily, weekly, KPI, staff performance, day status, the worker's week, Approve
+time's figures, the hours to fill), payroll never posts it, and it is on
+neither side of the payroll reconciliation or the week's posting status.
+Unpaid leave is not caught: its pay item is a Leave API type. It applies to a
+line the office grid marks "Unpaid" too, which used to post as Unpaid Work
+units. On the production-restored dev database every 0x time line (191, all
+Unpaid Leave) is leave; none is caught.
+
+Presentation (owner, relayed): paid breaks in the timesheet with lunch left out
+was "confusing and inconsistent". On My time and Approve time all three breaks
+are one kind of block, opened by one sheet. The superuser entry grid and the
+payroll and costing figures still show breaks as lines on the Break job,
+because one is paid and the other is not.
+
+Findings.
+- The deploy ran `check` and `migrate` and no seed command, so the Break job
+  would have waited for an operator, and closing a day been refused until
+  then. Every deploy now runs `create_shop_jobs` after migrate, which writes
+  nothing when the shop jobs are as specified; the restore runbook does the
+  same. The dev database was also missing the Travel shop job.
+- Break rows from the earlier design are dropped, not converted: they existed
+  on dev and UAT only.
+- Every My time write carries the phone's position, judged by one rule
+  (`services/location.py`), and every timesheet event records `trusted`.
+  Events from before were never checked and read trusted, which is what
+  trusted means with no company address: not checked. A fix up to a minute
+  old is reused, as ruled; the browser's own cache could not serve that rule.
+  Asked for a fix up to a minute old, it answered with where the phone had
+  just been, so a tap made on arriving at the workshop read as away. My time
+  now watches the position while it is open and reuses only that.

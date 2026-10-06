@@ -12,7 +12,12 @@ from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.timesheet.models import LeaveType
 from apps.timesheet.services import daily_timesheet_service, weekly_timesheet_service
-from apps.timesheet.tests.conftest import WEEK_START, make_leave_job, make_time_line
+from apps.timesheet.tests.conftest import (
+    WEEK_START,
+    make_leave_job,
+    make_standard_day,
+    make_time_line,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -126,6 +131,18 @@ class TestWeeklyCosts:
         assert row["weekly_base_cost"] == 1520.00  # 5 * 8 * 38
         assert row["weekly_cost"] == 1824.00  # + 20%
 
+    def test_weekly_overview_reports_held_back_hours(self, job: Job, worker: Staff) -> None:
+        """Unapproved time is not paid; the office sees how much before posting."""
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="2.500", approved=False)
+
+        overview = weekly_timesheet_service.get_weekly_overview(WEEK_START)
+        [row] = overview["staff_data"]
+
+        assert row["total_hours"] == Decimal("10.500")
+        assert row["total_approved_hours"] == Decimal("8.000")
+        assert row["total_unapproved_hours"] == Decimal("2.500")
+
     def test_loading_is_applied_to_the_rounded_base_cost(self, job: Job, worker: Staff) -> None:
         """v1 rounds the base to cents FIRST, so base * loading reconciles for operators.
 
@@ -163,16 +180,29 @@ class TestPayrollColumns:
         assert row["total_overtime_hours"] == 3.0
         assert row["total_billed_hours"] == 11.0
 
-    def test_unpaid_hours_are_posted_to_no_payroll_bucket(self, job: Job, worker: Staff) -> None:
+    def test_unpaid_time_is_logged_and_in_no_figure(self, job: Job, worker: Staff) -> None:
+        """Owner, 2026-10-06: unpaid time is "logged, but not hours"."""
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="4.000", unpaid=True)
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="1.000", approved=False)
         make_time_line(
-            job, worker, accounting_date=WEEK_START, hours="4.000", wage_rate_multiplier=0.0
+            job, worker, accounting_date=WEEK_START, hours="1.000", unpaid=True, approved=False
         )
 
         [row] = weekly_timesheet_service.get_weekly_overview(WEEK_START)["staff_data"]
 
-        assert row["total_hours"] == 4.0
-        assert row["total_billed_hours"] == 0.0
+        assert row["total_hours"] == 1.0
+        assert row["total_billed_hours"] == 1.0
         assert row["total_unbilled_hours"] == 0.0
+        assert row["total_unapproved_hours"] == 1.0
+
+    def test_a_standard_day_reads_eight_hours(
+        self, job: Job, worker: Staff, break_job: Job
+    ) -> None:
+        make_standard_day(job, break_job, worker, WEEK_START)
+
+        [row] = weekly_timesheet_service.get_weekly_overview(WEEK_START)["staff_data"]
+
+        assert row["total_hours"] == 8.0
 
     def test_non_billable_work_is_unbilled_not_billed(self, job: Job, worker: Staff) -> None:
         make_time_line(job, worker, accounting_date=WEEK_START, hours="6.000", is_billable=False)

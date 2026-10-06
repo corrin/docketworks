@@ -13,8 +13,8 @@
  * this hand-written wrapper. The operation would still not be callable through
  * the generated axios client (an endless response is not an axios response),
  * the schema shape for a text/event-stream body is exactly the corner of
- * openapi-ts this repo has never exercised, and a codegen surprise this close
- * to cutover costs more than the ~40 lines it would remove. The wrapper still
+ * openapi-ts this repo has never exercised, and a codegen surprise there
+ * costs more than the ~40 lines it would remove. The wrapper still
  * uses the generated `createSseClient` for the wire work — frame parsing,
  * Last-Event-ID, backoff — so nothing here re-implements SSE (ADR 0032), and
  * the open/drain/reopen loop lives once in `./event-stream` (ADR 0039).

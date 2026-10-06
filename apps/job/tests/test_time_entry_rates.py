@@ -182,6 +182,37 @@ class TestPriceTimeEntry:
         assert pricing.bill_rate_multiplier == Decimal("1.50")
         assert pricing.salary_term_id == str(term.id)
 
+    def test_unpaid_time_stays_unpaid_on_a_salary(self, job: Job, unpaid_staff: Staff) -> None:
+        """Salary time is repriced to ordinary; lunch is not an hour of the salary."""
+        unpaid_staff.pay_basis = "salary"
+        unpaid_staff.save(update_fields=["pay_basis", "updated_at"])
+        StaffPayrollTerm.objects.create(
+            staff=unpaid_staff,
+            effective_from=date(2026, 1, 1),
+            pay_basis="salary",
+            annual_salary=Decimal("104000.00"),
+            working_weeks=[
+                {
+                    "monday": 8,
+                    "tuesday": 8,
+                    "wednesday": 8,
+                    "thursday": 8,
+                    "friday": 8,
+                    "saturday": 0,
+                    "sunday": 0,
+                }
+            ],
+        )
+
+        pricing = price_time_entry(
+            job=job,
+            staff=unpaid_staff,
+            meta={"date": "2026-08-18", "wage_rate_multiplier": 0.0},
+        )
+
+        assert pricing.wage_rate_multiplier == Decimal("0.00")
+        assert pricing.unit_cost == Decimal("0.00")
+
     def test_subtype_defaults_from_the_worker(self, job: Job, timesheet_worker: Staff) -> None:
         pricing = price_time_entry(
             job=job, staff=timesheet_worker, meta={"wage_rate_multiplier": 1.0}

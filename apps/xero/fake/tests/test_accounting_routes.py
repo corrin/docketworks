@@ -358,6 +358,31 @@ class TestPurchaseOrders:
         assert reused[0].purchase_order_id == ZERO_UUID
         assert reused[0].validation_errors
 
+    def test_a_number_a_live_order_holds_updates_that_order_without_error(
+        self, accounting: AccountingApi
+    ) -> None:
+        """Measured 2026-09-12: the dangerous collision edits another supplier's order silently."""
+        supplier = _contact(accounting, "[TEST] Supplier")
+        other = _contact(accounting, "[TEST] Other Supplier")
+        created = accounting.update_or_create_purchase_orders(
+            TENANT,
+            purchase_orders={"PurchaseOrders": [self._payload(supplier, "PO-0011", "DRAFT")]},
+            summarize_errors=False,
+        ).purchase_orders
+        assert created is not None
+        po_id = created[0].purchase_order_id
+        reused = accounting.update_or_create_purchase_orders(
+            TENANT,
+            purchase_orders={"PurchaseOrders": [self._payload(other, "PO-0011", "SUBMITTED")]},
+            summarize_errors=False,
+        ).purchase_orders
+        assert reused is not None
+        assert reused[0].purchase_order_id == po_id
+        assert not reused[0].validation_errors
+        assert reused[0].status == "SUBMITTED"
+        assert reused[0].contact is not None
+        assert reused[0].contact.contact_id == other
+
     def test_a_billed_order_deletes_as_xero_deletes_it(self, accounting: AccountingApi) -> None:
         # recordings/purchase_order_delete_billed.json
         supplier = _contact(accounting, "[TEST] Supplier")

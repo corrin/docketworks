@@ -474,6 +474,15 @@ class TestSeedCommandPhases:
         assert Invoice.objects.filter(id=orphan.id).exists()
 
     @pytest.mark.usefixtures("_tenant")
+    def test_purchase_orders_is_a_phase_the_operator_can_name(self) -> None:
+        _converge_mirror()
+        output = StringIO()
+
+        call_command("seed_xero_from_database", "--only=purchase_orders", stdout=output)
+
+        assert "Syncing purchase orders..." in output.getvalue()
+
+    @pytest.mark.usefixtures("_tenant")
     def test_quota_floor_becomes_an_operator_instruction(self) -> None:
         _converge_mirror()
         with (

@@ -1,3 +1,4 @@
+import { configureXeroMode } from './tests/scripts/xero-mode.js'
 import { defineConfig, devices } from '@playwright/test'
 import dotenv from 'dotenv'
 import fs from 'node:fs'
@@ -22,6 +23,7 @@ if (fs.existsSync(testEnvPath)) {
   dotenv.config({ path: testEnvPath })
 }
 dotenv.config({ path: path.join(configDir, '.env') })
+configureXeroMode()
 
 // The operator launches the stack; browser tests use its public origin, including ngrok.
 const baseURL = process.env.E2E_BASE_URL ?? getApplicationUrl()
@@ -36,6 +38,11 @@ const baseURL = process.env.E2E_BASE_URL ?? getApplicationUrl()
 // test_payroll_integration.py, which drives it against the same real Xero
 // (ADR 0050's named exception).
 const runsXeroPayrollWrites = process.env.E2E_XERO_PAYROLL === '1'
+if (runsXeroPayrollWrites && process.env.E2E_XERO_MODE !== 'real') {
+  throw new Error('Payroll-write specs require E2E_XERO_MODE=real and a matching live stack.')
+}
+
+const MOBILE_SPECS = '**/mobile/**/*.spec.ts'
 
 export default defineConfig({
   globalSetup: path.join(configDir, 'tests/scripts/global-setup.ts'),
@@ -73,10 +80,25 @@ export default defineConfig({
   // is broken rather than slow.
   timeout: 120000,
 
+  // Workshop staff use the app from their phones, a mix of Android and iPhone.
+  // The phone projects run only tests/e2e/mobile, and the desktop project
+  // skips it, so a spec runs where its assertions mean something rather than
+  // the whole suite running three times.
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      testIgnore: MOBILE_SPECS,
+    },
+    {
+      name: 'android',
+      use: { ...devices['Pixel 7'] },
+      testMatch: MOBILE_SPECS,
+    },
+    {
+      name: 'iphone',
+      use: { ...devices['iPhone 14'] },
+      testMatch: MOBILE_SPECS,
     },
   ],
 

@@ -6,9 +6,9 @@
  * The staff member is [TEST]-named and left behind (no staff DELETE —
  * offboarding is date_left; the database restore sweeps the row, same as
  * create-staff). The forgot-password submit uses an address with NO account:
- * the server's fixed 200 sends nothing, so the spec needs no Gmail
- * configuration — the real send is the integration test's job
- * (apps/platform/integrations/tests/test_gmail_integration.py, ADR 0050).
+ * the server's fixed 200 sends nothing, so this spec needs no Gmail
+ * configuration. The emailed link is followed end to end by
+ * mobile/workshop-password-reset.spec.ts.
  */
 import { z } from 'zod'
 
@@ -98,7 +98,9 @@ test.describe.serial('weak password path', () => {
       await autoId(page, 'AppNavbar-logout').click()
       await expect(page).toHaveURL(/\/login/)
       await loginAs(page, email, STRONG_PASSWORD)
-      await expect(page).toHaveURL(/\/kanban/)
+      // This login is not office staff, and nothing asked for a page this
+      // time, so it lands where workshop staff land.
+      await expect(page).toHaveURL(/\/timesheets\/my-time/)
       await expect(autoId(page, 'AppNavbar-logout')).toBeVisible()
     })
   })

@@ -272,6 +272,7 @@ class CostLine(models.Model):
     COSTLINE_INTERNAL_FIELDS: ClassVar[list[str]] = [
         "cost_set",
         "managed_by",
+        "remote_entry",
     ]
 
     # All CostLine model fields (derived)
@@ -368,6 +369,15 @@ class CostLine(models.Model):
         null=True,
         blank=True,
         help_text="Workflow that owns this line; owned lines are changed through that workflow.",
+    )
+
+    # Fable: A mark for the office, never a refusal, and never cleared once
+    # set: a worker's own save puts it there when their phone did not place
+    # them at the company address (owner, 2026-10-05). Only the verdict is
+    # kept; where the phone was is not stored.
+    remote_entry = models.BooleanField(
+        default=False,
+        help_text="The worker saved this line without a location at the company address.",
     )
 
     class Meta:

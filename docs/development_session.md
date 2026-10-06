@@ -44,7 +44,7 @@ Playwright runs against the compiled production build. One-off: create the E2E c
 
 ```bash
 cd frontend
-cp .env.test.example .env.test    # set E2E_TEST_USERNAME / E2E_TEST_PASSWORD
+cp .env.test.example .env.test    # set E2E_TEST_*, E2E_WORKSHOP_* and E2E_OFFICE_STAFF_* USERNAME / PASSWORD
 ```
 
 Then:
@@ -117,6 +117,6 @@ uv run pytest && (cd frontend && npm run test:unit)
 - A Gemini API key lives in the local `AIProvider` row: DB only, not in the
   repo or env files. Anything needing the LLM path needs that row.
 - Steel & Tube login and page selectors are credential-blocked — never
-  exercised against the live portal (cutover checklist item).
+  exercised against the live portal (`rewrite-status.md`, Operations).
 - Demo-organisation expiry, tenant drift, and Xero token-material rules:
   see [xero_setup.md](xero_setup.md#demo-organisation-lifecycle).

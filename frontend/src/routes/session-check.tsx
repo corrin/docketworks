@@ -27,7 +27,7 @@ function SessionCheckPage() {
     queryClient.removeQueries({ queryKey: meQueryOptions().queryKey })
     const session = await resolveSession(queryClient)
     if (session.state === 'authenticated') {
-      await router.navigate({ href: search.redirect ?? '/kanban' })
+      await router.navigate({ href: search.redirect ?? '/' })
       return
     }
     if (session.state === 'unauthenticated') {

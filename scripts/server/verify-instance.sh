@@ -168,8 +168,8 @@ if [[ "$E2E" == "true" ]]; then
         echo "E2E: returning $INSTANCE to its live database..."
         systemctl stop "celery-worker-$INSTANCE" "gunicorn-$INSTANCE"
         # A task the last spec queued must not run against the live database
-        # with the real transport. The queue is named by the database (ADR
-        # 0065), so purging under the window env empties the copy's queue only;
+        # with the real transport. The queue is named by the database, so
+        # purging under the window env empties the copy's queue only;
         # work the live instance queued before the fence waits in its own.
         in_window celery -A config purge -f >/dev/null
         local unit
@@ -180,8 +180,8 @@ if [[ "$E2E" == "true" ]]; then
         systemctl daemon-reload
         # CompanyDefaults edits a spec made sit in the cache for
         # SOLO_CACHE_TIMEOUT (config/settings.py) and real users must never
-        # read them. The cache is database 2 of the instance's own Redis (ADR
-        # 0065), so it is flushed while nothing runs against it; it used to
+        # read them. The cache is database 2 of the instance's own Redis, so it
+        # is flushed while nothing runs against it; it used to
         # be waited out for 300s because the cache server was shared and a
         # flush would have emptied every instance's.
         echo "E2E: flushing the instance's cache..."
@@ -205,14 +205,15 @@ if [[ "$E2E" == "true" ]]; then
         echo "127.0.0.1 $FQDN # verify-instance.sh --e2e" >> /etc/hosts
     fi
 
-    # Playwright and its browser. The release's node_modules were removed
-    # after its build (release-utils.sh); the browser lives beside the
-    # releases, shared and readable by every instance user.
+    # Playwright and its browsers: Chromium for the desktop and Android
+    # projects, WebKit for the iPhone one. The release's node_modules were
+    # removed after its build (release-utils.sh); the browsers live beside
+    # the releases, shared and readable by every instance user.
     if [[ ! -d "$RELEASE_DIR/frontend/node_modules" ]]; then
         echo "E2E: installing the release's frontend dev dependencies..."
         sudo -u docketworks npm ci --prefix "$RELEASE_DIR/frontend" --include=dev --cache "$BASE_DIR/.npm-cache"
     fi
-    "$RELEASE_DIR/frontend/node_modules/.bin/playwright" install --with-deps chromium
+    "$RELEASE_DIR/frontend/node_modules/.bin/playwright" install --with-deps chromium webkit
     chmod -R a+rX "$PLAYWRIGHT_BROWSERS_PATH"
 
     # The window env: the instance's own, then the lines that win over it in
@@ -403,7 +404,7 @@ dropbox_root_group_accessible() {
 }
 check --verbose "dropbox sync root is group-accessible" dropbox_root_group_accessible
 
-# --- Redis: this instance's server is its alone (ADR 0065) ---
+# --- Redis: this instance's server is its alone ---
 # GitHub #169's acceptance, literally: the port is nobody else's, the server
 # refuses an unauthenticated client, answers this instance's password, and
 # every neighbour's server refuses that password. Replies are matched, not

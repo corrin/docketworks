@@ -196,7 +196,7 @@ sudo systemctl start backup-db-<instance>.service
 sudo journalctl -u backup-db-<instance>.service -n 100
 ```
 
-DB backups run as `dw_<instance>` and use `/opt/docketworks/config/rclone/<instance>.conf`, which points at the instance's copied `gcp-credentials.json`. Local dumps live in `/opt/docketworks/instances/<instance>/backups`; remote dumps live under `gdrive:dw_backups/`. Cleanup copies local dumps before pruning and purges only the same expired backup names remotely, so unrelated remote-only history is not mirrored away. Each DB dump has a sibling `<dump>.migrations.json` sidecar recording the database's migration state (the snapshot `migrate_to_snapshot.py` consumes); legacy `.sha` release-pointer sidecars are deleted by the next retention run.
+DB backups run as `dw_<instance>` and use `/opt/docketworks/config/rclone/<instance>.conf`, which points at the instance's copied `gcp-credentials.json`. Local dumps live in `/opt/docketworks/instances/<instance>/backups`; remote dumps live under `gdrive:dw_backups/`. Cleanup copies local dumps before pruning and purges only the same expired backup names remotely, so unrelated remote-only history is not mirrored away.
 
 Mutable instance file backups run separately via `backup-files-<instance>.timer`. They incrementally sync `phone-recordings`, `mediafiles`, and the currently unused `session-replays` reservation to `gdrive:dw_backups/files/current/`, with replaced/deleted remote files moved into `files/archive/<timestamp>/` for 30 days. Replay ingestion and playback are deferred; the directory is not evidence that the feature is active. `dropbox`, `adhoc`, `backups`, `app`, logs, sockets, env files, and credentials are not included.
 
@@ -206,7 +206,24 @@ Mutable instance file backups run separately via `backup-files-<instance>.timer`
 sudo ./scripts/server/instance.sh destroy mycompany uat
 ```
 
-Prompts for confirmation, then removes: systemd service, Nginx config, database + DB user, instance directory, OS user.
+Prompts for confirmation, then removes: systemd service, Nginx config, database + DB user, instance directory, OS user. The only prompt-free removal is the rehearsal's, below, and it reaches only the instance the rehearsal marker names.
+
+## Rehearsing the New-Instance Path
+
+```bash
+sudo ./scripts/server/instance.sh rehearse rehearsal [--ref <ref>]
+```
+
+What it proves, its rules, and running it from the dev box: `docs/server_setup.md`, Part E.
+
+## Stopping and Starting an Instance
+
+```bash
+sudo ./scripts/server/instance.sh stop mycompany uat
+sudo ./scripts/server/instance.sh start mycompany uat
+```
+
+A stopped instance keeps everything and runs nothing; deploys keep it current without starting it (docs/server_setup.md, "Stopped instances"). An idle instance costs a serving instance's memory, so stop a tenant that is doing no work.
 
 ## Listing Instances
 
@@ -246,7 +263,7 @@ Shows each instance's name, status (running/stopped/no service), current release
 
 ```
 config/<name>.credentials.env (root-owned operator input: Xero + AI + Maps + phone keys, backup GCP)
-config/<name>.e2e.env         (root-owned: E2E_TEST_USERNAME / E2E_TEST_PASSWORD for verify-instance.sh --e2e)
+config/<name>.e2e.env         (root-owned: E2E_TEST_*, E2E_WORKSHOP_* and E2E_OFFICE_STAFF_* USERNAME / PASSWORD, E2E_RESET_MAILBOX_OWNER, for verify-instance.sh --e2e)
         ↓
 instance.sh reads + validates
         ↓
@@ -275,7 +292,7 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `common.sh`                                         | Shared constants: domain, paths, directories                                                         |
 | `server-setup.sh`                                   | Host-level convergence (system packages, SSL, shared config). Runs every deploy — see "Server Setup". |
-| `instance.sh`                                       | Prepare config, create/reconfigure, destroy, or list instances                                       |
+| `instance.sh`                                       | Prepare config, create/reconfigure, stop/start, destroy, rehearse, or list instances                 |
 | `deploy.sh`                                         | Pull updates and redeploy one or all instances                                                       |
 | `release-utils.sh`                                  | Build, switch, and clean up immutable release directories                                            |
 | `dw-run.sh`                                         | Run a command in an instance's environment                                                           |
@@ -293,12 +310,11 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `templates/fail2ban-jail-docketworks.conf`          | Fail2ban jails: sshd + the two 401-only auth jails, banning via UFW                                  |
 | `templates/fail2ban-filter-docketworks-auth-login.conf` | 401-only filter for POST /api/accounts/token/                                                    |
 | `templates/fail2ban-filter-docketworks-auth-refresh.conf` | 401-only filter for POST /api/accounts/token/refresh/                                          |
-| `verify-instance.sh`                                | Full serving-path verification (units, build-id, auth gate, media, UFW, jails)                       |
 | `test_server_templates.sh`                          | The cheap-tier gate: shellcheck, rendered-template contracts, filter fixtures                        |
 | `templates/gunicorn-instance.service.template`      | Systemd unit template (web)                                                                          |
 | `templates/celery-worker-instance.service.template` | Systemd unit template (Celery worker)                                                                |
 | `templates/celery-beat-instance.service.template`   | Systemd unit template (Celery Beat — periodic task dispatcher)                                       |
-| `templates/redis-instance.service.template`         | Systemd unit template (the instance's own Redis server, ADR 0065)                                    |
+| `templates/redis-instance.service.template`         | Systemd unit template (the instance's own Redis server)                                    |
 | `templates/redis-instance.conf.template`            | redis.conf for that server: private port, password, instance-owned dump directory                    |
 | `templates/backup-db-instance.service.template`     | Systemd unit template (database backup)                                                              |
 | `templates/backup-db-instance.timer.template`       | Systemd timer template (nightly database backup)                                                     |

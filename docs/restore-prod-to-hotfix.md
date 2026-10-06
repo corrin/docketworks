@@ -101,9 +101,9 @@ Two of that runbook's steps change meaning against an unscrubbed dump:
    rows (`workflow_sessionreplayrecording` / `workflow_sessionreplaychunk`)
    and no setting names a disk root for them, so they arrive with the restore.
    The files are instance-user-owned on the server, so the remote rsync
-   escalates via `sudo -iu dw_msm_prod`. The v1 helper that automated this
-   (`pull_prod_files.sh`) is not ported — see
-   [`v1-disposition.md`](v1-disposition.md);
+   escalates via `sudo -iu dw_msm_prod`. `scripts/ops/pull_prod_files.sh`
+   automates this, taking host and instance-user as required arguments (see
+   [`v1-disposition.md`](v1-disposition.md));
    `scripts/ops/recreate_jobfiles.py` fabricates placeholders where real
    bytes are not needed.
 

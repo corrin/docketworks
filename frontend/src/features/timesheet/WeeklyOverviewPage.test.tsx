@@ -379,13 +379,13 @@ describe('WeeklyOverviewPage', () => {
   })
 })
 
-describe('WeeklyOverviewPage — what Xero holds', () => {
-  /** Click "Check against Xero" — the read is deliberately not automatic. */
-  async function checkXero() {
-    await waitFor(() => el('PayrollPanel-checkXero'))
-    await userEvent.click(el('PayrollPanel-checkXero'))
-  }
+/** Click "Check against Xero" — the read is deliberately not automatic. */
+async function checkXero() {
+  await waitFor(() => el('PayrollPanel-checkXero'))
+  await userEvent.click(el('PayrollPanel-checkXero'))
+}
 
+describe('WeeklyOverviewPage — what Xero holds', () => {
   it('does not ask Xero until told to', async () => {
     // Opus: The read costs one Xero API call per staff member, paced at one in
     // flight with a 1s gap. Spending that on every visit to the grid, to

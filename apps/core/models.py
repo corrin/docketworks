@@ -17,7 +17,7 @@ from typing import ClassVar, Protocol, cast
 
 from django.apps import apps as django_apps
 from django.contrib.auth.base_user import AbstractBaseUser
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import models
 from django.db.models.base import ModelBase
 from django.utils import timezone
@@ -26,6 +26,18 @@ from solo.models import SingletonModel
 # Starting point for an installation that has not had its terms written yet.
 # Real wording is seeded per client by the fixtures and edited in Company Settings.
 DEFAULT_XERO_QUOTE_TERMS = "Terms of trade can be found on our website."
+
+
+BREAK_MINUTES_MIN = 5
+BREAK_MINUTES_MAX = 120
+
+
+def validate_break_minutes(value: int) -> None:
+    """Accept a break of 5 to 120 minutes, or 0 for no such break."""
+    if value != 0 and not BREAK_MINUTES_MIN <= value <= BREAK_MINUTES_MAX:
+        raise ValidationError(
+            f"A break is {BREAK_MINUTES_MIN} to {BREAK_MINUTES_MAX} minutes long, or 0 for none."
+        )
 
 
 class AppError(models.Model):  # noqa: DJ008  # callers use explicit error fields
@@ -367,11 +379,15 @@ class CompanyDefaults(SingletonModel):
         help_text="Date Xero payroll went live — reconciliation ignores data before this",
     )
 
-    # Whether to show Sat/Sun columns in timesheet views (admin-togglable)
+    # Whether to show Sat/Sun columns in timesheet views and the KPI calendar
+    # (admin-togglable). Display only: weekend work counts in every money
+    # figure whatever this says.
     weekend_timesheets_enabled = models.BooleanField(
         default=False,
         help_text=(
-            "Show Saturday and Sunday in timesheet views (7-day week). Off = 5-day Mon-Fri."
+            "Show Saturday and Sunday in timesheet views and the KPI calendar (7-day week). "
+            "Off = 5-day Mon-Fri. Weekend work is counted either way; this only decides "
+            "whether the days are drawn."
         ),
     )
     job_delta_soft_fail = models.BooleanField(
@@ -412,6 +428,39 @@ class CompanyDefaults(SingletonModel):
     thu_end = models.TimeField(default="15:00")
     fri_start = models.TimeField(default="07:00")
     fri_end = models.TimeField(default="15:00")
+    # The standard breaks a worker's day is drawn with (KAN-376; owner,
+    # 2026-10-06: two 15 minute paid breaks and a 30 minute unpaid lunch).
+    # Each is put on his day when he was there for the whole of it, for him to
+    # move or remove. Lunch comes off his hours to fill; the paid breaks are
+    # only markers, since that time is paid and billed with the job in hand.
+    # A length of 0 means the workshop has no such break.
+    morning_break_start = models.TimeField(
+        default="08:30",
+        help_text="When the workshop's paid morning break starts.",
+    )
+    morning_break_minutes = models.PositiveSmallIntegerField(
+        default=15,
+        validators=[validate_break_minutes],
+        help_text="Length of the paid morning break in minutes: 5 to 120, or 0 for none.",
+    )
+    lunch_start = models.TimeField(
+        default="11:30",
+        help_text="When the workshop's unpaid lunch break starts.",
+    )
+    lunch_minutes = models.PositiveSmallIntegerField(
+        default=30,
+        validators=[validate_break_minutes],
+        help_text="Length of the unpaid lunch break in minutes: 5 to 120, or 0 for none.",
+    )
+    afternoon_break_start = models.TimeField(
+        default="13:30",
+        help_text="When the workshop's paid afternoon break starts.",
+    )
+    afternoon_break_minutes = models.PositiveSmallIntegerField(
+        default=15,
+        validators=[validate_break_minutes],
+        help_text="Length of the paid afternoon break in minutes: 5 to 120, or 0 for none.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_xero_sync = models.DateTimeField(
@@ -532,6 +581,19 @@ class CompanyDefaults(SingletonModel):
         help_text="Internal company used for tracking shop work.",
     )
 
+    # The internal job every break is booked to (KAN-376): paid breaks at
+    # ordinary time, lunch as unpaid time. A break is never minutes inside a
+    # customer's job, which would bill the customer for it. NULL until
+    # ``create_shop_jobs`` has made the job on this instance.
+    break_job = models.ForeignKey(
+        "job.Job",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+        help_text="Internal job every break is booked to: paid breaks and lunch.",
+    )
+
     # Test company configuration
     test_company_name = models.CharField(  # noqa: DJ001
         max_length=255,
@@ -563,7 +625,11 @@ class CompanyDefaults(SingletonModel):
         decimal_places=2,
         default=0,
         verbose_name="Daily gross profit target",
-        help_text="Daily gross profit target in dollars",
+        help_text=(
+            "Overhead per weekday in dollars: monthly operating expenses spread across the "
+            "month's weekdays. A day on the KPI calendar is green once its gross profit "
+            "covers this share; weekends are owed none of it."
+        ),
     )
     kpi_daily_shop_hours_percentage = models.DecimalField(
         max_digits=5,

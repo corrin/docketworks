@@ -29,6 +29,25 @@ jobs:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --frozen
+      - name: code quality metrics are current
+        # docs/code-quality.md is committed so a change that adds suppressions or
+        # shim-shaped handlers has to show that movement in its own diff. CI runs
+        # it because a pre-push hook can be skipped with --no-verify.
+        run: uv run python -m scripts.checks.code_quality --check
+      - name: status table matches the repo
+        # Unconditional here; the pre-commit hook runs it only when one of the
+        # table's inputs changes (it boots Django and collects the suite, ~10s
+        # a docs-only commit should not pay). The table drifted in two
+        # consecutive PRs and review caught it both times, which is the wrong
+        # place to catch arithmetic.
+        run: uv run python -m scripts.checks.status_table --check
+      - name: exported schema is current
+        # The frontend generates its typed client from frontend/schema.v2.yml.
+        # Without this, a backend change silently leaves the client describing
+        # an API that no longer exists — and the frontend job's "generated
+        # client is current" check would still pass, because it only compares
+        # the client against that stale input.
+        run: uv run python -m scripts.checks.export_openapi --check
       - name: ruff lint
         run: uv run ruff check .
       - name: ruff format
@@ -65,25 +84,6 @@ jobs:
         # -n auto distributes across the runner's cores; pytest-django gives
         # each worker its own test database.
         run: uv run pytest -n auto --cov=apps --cov=config --cov-report=term-missing:skip-covered
-      - name: exported schema is current
-        # The frontend generates its typed client from frontend/schema.v2.yml.
-        # Without this, a backend change silently leaves the client describing
-        # an API that no longer exists — and the frontend job's "generated
-        # client is current" check would still pass, because it only compares
-        # the client against that stale input.
-        run: uv run python -m scripts.checks.export_openapi --check
-      - name: status table matches the repo
-        # Unconditional here; the pre-commit hook runs it only when one of the
-        # table's inputs changes (it boots Django and collects the suite, ~10s
-        # a docs-only commit should not pay). The table drifted in two
-        # consecutive PRs and review caught it both times, which is the wrong
-        # place to catch arithmetic.
-        run: uv run python -m scripts.checks.status_table --check
-      - name: code quality metrics are current
-        # docs/code-quality.md is committed so a change that adds suppressions or
-        # shim-shaped handlers has to show that movement in its own diff. CI runs
-        # it because a pre-push hook can be skipped with --no-verify.
-        run: uv run python -m scripts.checks.code_quality --check
 
   frontend:
     runs-on: ubuntu-latest

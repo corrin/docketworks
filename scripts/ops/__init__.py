@@ -1,1 +1,1 @@
-"""Operational tooling for cutover and diagnosis; run by hand, never in CI."""
+"""Operational tooling run by hand, never in CI: restores, probes, harnesses."""

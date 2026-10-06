@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import { test, expect } from '../fixtures/auth'
 import { autoId } from '../helpers'
 
@@ -124,6 +126,78 @@ test.describe('company defaults', () => {
       expect((await restoreSaved).ok()).toBe(true)
       await expect(restored).toHaveValue(original)
     }
+  })
+
+  test.describe('the standard breaks', () => {
+    // The 400 is the refused save this test is about.
+    test.use({ expectedConsoleErrors: [/the server responded with a status of 400/] })
+
+    test('save, and a length outside the bounds is refused with the reason', async ({
+      authenticatedPage: page,
+    }) => {
+      const openWorkingHours = async () => {
+        await page.goto('/admin/company-defaults/company')
+        await autoId(page, 'CompanyDefaultsPage-root').waitFor({ timeout: 30000 })
+        await autoId(page, 'CompanyDefaultsPage-section-link-working_hours').click()
+        // The three standard breaks, each a start and a length, beside the working hours.
+        for (const field of [
+          'morning_break_start',
+          'morning_break_minutes',
+          'lunch_start',
+          'lunch_minutes',
+          'afternoon_break_start',
+          'afternoon_break_minutes',
+        ]) {
+          await expect(
+            autoId(page, `CompanyDefaultsPage-working_hours-field-${field}`),
+          ).toBeVisible()
+        }
+      }
+      const minutes = autoId(page, 'CompanyDefaultsPage-working_hours-field-lunch_minutes')
+      const save = autoId(page, 'CompanyDefaultsPage-save-button')
+      const patched = () =>
+        page.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === DEFAULTS_PATH &&
+            response.request().method() === 'PATCH',
+        )
+
+      await openWorkingHours()
+      const original = await minutes.inputValue()
+      try {
+        await test.step('a new length saves and survives a reload', async () => {
+          await minutes.fill('45')
+          const saved = patched()
+          await save.click()
+          const patch = await saved
+          expect(patch.ok()).toBe(true)
+          // Only the edited field goes on the wire. Its value is checked by the
+          // reload below: this form sends every number as the text it was typed.
+          const patchBody = z.record(z.string(), z.unknown()).parse(patch.request().postDataJSON())
+          expect(Object.keys(patchBody)).toEqual(['lunch_minutes'])
+          await expect(save).toBeDisabled()
+          await openWorkingHours()
+          await expect(minutes).toHaveValue('45')
+        })
+
+        await test.step('a length under five minutes is refused, and what was typed stays', async () => {
+          await minutes.fill('3')
+          const refused = patched()
+          await save.click()
+          expect((await refused).status()).toBe(400)
+          await expect(page.getByText(/5 to 120 minutes/)).toBeVisible()
+          await expect(minutes).toHaveValue('3')
+          await expect(save).toBeEnabled()
+        })
+      } finally {
+        page.once('dialog', (dialog) => dialog.accept())
+        await openWorkingHours()
+        await minutes.fill(original)
+        const restored = patched()
+        await save.click()
+        expect((await restored).ok()).toBe(true)
+      }
+    })
   })
 
   test('the quote-terms field links to the page Xero actually serves', async ({

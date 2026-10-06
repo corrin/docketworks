@@ -31,6 +31,7 @@ from apps.purchasing.tests.factories import (
     make_legacy_supplierless_order,
     make_po_line,
     make_purchase_order,
+    make_stock,
 )
 
 #: The one seam to Gmail; the real API is exercised by the integration suite.
@@ -91,6 +92,7 @@ class TestPurchaseOrderList:
     def test_lists_newest_first_with_distinct_jobs(
         self, api: Client, supplier: Company, job: Job, office_staff: Staff
     ) -> None:
+        older = make_purchase_order(supplier=supplier, created_by=office_staff)
         po = make_purchase_order(supplier=supplier, created_by=office_staff)
         make_po_line(po, job=job, description="First")
         make_po_line(po, job=job, description="Second")
@@ -98,7 +100,7 @@ class TestPurchaseOrderList:
         body = api.get(PO_LIST_URL).json()
         rows = body["results"]
 
-        assert len(rows) == 1
+        assert [row["po_number"] for row in rows] == [po.po_number, older.po_number]
         assert rows[0]["po_number"] == po.po_number
         assert rows[0]["supplier"] == supplier.name
         assert rows[0]["created_by_name"] == office_staff.get_display_full_name()
@@ -193,6 +195,7 @@ class TestPurchaseOrderDetail:
         self, api: Client, supplier: Company, job: Job
     ) -> None:
         supplier.xero_contact_id = "11111111-1111-1111-1111-111111111111"
+        supplier.xero_tenant_id = "test-tenant"
         supplier.save()
         po = make_purchase_order(supplier=supplier)
         used = make_po_line(po, item_code="ABC-123", job=job)
@@ -539,6 +542,81 @@ class TestPurchaseOrderConcurrency:
 
 
 class TestPurchaseOrderUpdate:
+    def test_a_two_digit_year_in_an_order_s_dates_is_refused(
+        self, api: Client, supplier: Company
+    ) -> None:
+        # "25" typed for the year is stored as the year 0025. Five production
+        # orders carried one, and Xero refuses an order with such a date, so it
+        # is refused where it is typed, on create and on a later edit alike.
+        created = api.post(
+            PO_LIST_URL,
+            data={"supplier_id": str(supplier.id), "expected_delivery": "0025-08-20"},
+            content_type="application/json",
+        )
+        po = make_purchase_order()
+        edited = api.patch(
+            _detail_url(po),
+            data={"expected_delivery": "0025-08-20"},
+            content_type="application/json",
+            headers={"If-Match": _current_etag(api, po)},
+        )
+
+        ordered = api.post(
+            PO_LIST_URL,
+            data={"supplier_id": str(supplier.id), "order_date": "0025-08-14"},
+            content_type="application/json",
+        )
+
+        assert created.status_code == 400, created.content
+        assert "Expected delivery 0025-08-20" in created.json()["detail"]
+        assert edited.status_code == 400, edited.content
+        # The order date becomes Xero's Date and is refused for the same reason.
+        assert ordered.status_code == 400, ordered.content
+        assert "Order date 0025-08-14" in ordered.json()["detail"]
+        po.refresh_from_db()
+        assert po.expected_delivery is None or po.expected_delivery.year >= 2000
+
+    def test_a_line_carries_a_stock_item_code_or_none(
+        self, api: Client, supplier: Company, stock_holding_job: Job
+    ) -> None:
+        # A line is an item code the stock list knows, or free text with no
+        # code. Xero refuses an order holding any other code, and five
+        # production lines had one, so the writer refuses it on a new line and
+        # on an edit, and says what the two choices are.
+        make_stock(stock_holding_job, item_code="SHEET-16")
+
+        lines = {
+            "unknown": {"description": "Sheet", "quantity": "1", "item_code": "P0035743 16EGS"},
+            "known": {"description": "Sheet", "quantity": "1", "item_code": "SHEET-16"},
+            "free_text": {"description": "Freight", "quantity": "1"},
+        }
+        answers = {
+            name: api.post(
+                PO_LIST_URL,
+                data={"supplier_id": str(supplier.id), "lines": [line]},
+                content_type="application/json",
+            )
+            for name, line in lines.items()
+        }
+        unknown, known, free_text = answers["unknown"], answers["known"], answers["free_text"]
+
+        assert unknown.status_code == 400, unknown.content
+        assert "is not a stock item" in unknown.json()["detail"]
+        assert known.status_code == 201, known.content
+        assert free_text.status_code == 201, free_text.content
+
+        po = PurchaseOrder.objects.get(id=known.json()["id"])
+        line = po.po_lines.get()
+        edited = api.patch(
+            _detail_url(po),
+            data={"lines": [{"id": str(line.id), "item_code": "NOT-STOCK"}]},
+            content_type="application/json",
+            headers={"If-Match": _current_etag(api, po)},
+        )
+        assert edited.status_code == 400, edited.content
+        line.refresh_from_db()
+        assert line.item_code == "SHEET-16"
+
     def test_updates_lines_creates_new_ones_and_deletes_requested_ones(self, api: Client) -> None:
         po = make_purchase_order()
         keep = make_po_line(po, description="Keep", quantity="1.00")
@@ -946,7 +1024,7 @@ class TestPurchaseOrderEvents:
         assert created.json()["event"]["description"] == "Chased the supplier"
         events = listed.json()["events"]
         assert len(events) == 1
-        assert events[0]["staff"] == office_staff.get_display_full_name()
+        assert events[0]["staff_name"] == office_staff.get_display_full_name()
 
     def test_events_come_back_newest_first(self, api: Client) -> None:
         po = make_purchase_order()

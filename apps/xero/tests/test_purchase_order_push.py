@@ -39,7 +39,10 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture
 def pushable_po(office_staff: Staff) -> PurchaseOrder:
     supplier = Company.objects.create(
-        name="Push supplier", xero_contact_id=str(uuid4()), xero_last_modified=timezone.now()
+        name="Push supplier",
+        xero_contact_id=str(uuid4()),
+        xero_tenant_id="test-tenant",
+        xero_last_modified=timezone.now(),
     )
     po = make_purchase_order(
         supplier=supplier, created_by=office_staff, status="submitted", reference="Original"

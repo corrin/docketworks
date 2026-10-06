@@ -147,6 +147,15 @@ export const zAllocationReversalResponse = z.object({
 });
 
 /**
+ * ApproveDayOut
+ *
+ * How many of the person's waiting entries the approval covered.
+ */
+export const zApproveDayOut = z.object({
+    approved_count: z.int()
+});
+
+/**
  * AssignJobRequest
  *
  * Wire contract for AssignJobRequest.
@@ -167,6 +176,25 @@ export const zAssignJobResponse = z.object({
 });
 
 /**
+ * AttendanceOut
+ *
+ * A person's day as they clocked it. ``here_hours`` is worked out by the server.
+ */
+export const zAttendanceOut = z.object({
+    cautions: z.array(z.string()),
+    clock_in: z.iso.time().nullable(),
+    clock_out: z.iso.time().nullable(),
+    here_hours: z.number().nullable(),
+    sent_late: z.boolean(),
+    state: z.enum([
+        'not_clocked_in',
+        'at_work',
+        'clocked_out',
+        'sent'
+    ])
+});
+
+/**
  * AuthErrorOut
  *
  * Expected authentication refusal, distinct from domain-level 401s.
@@ -178,12 +206,41 @@ export const zAuthErrorOut = z.object({
 });
 
 /**
+ * BreakOut
+ *
+ * One break in a person's day.
+ *
+ * Every break is his time line on the Break job and ``id`` is that line's:
+ * a paid break is paid time, lunch is logged and in no hours figure. A
+ * planned break is the company's standard one, not yet his: it has no id.
+ */
+export const zBreakOut = z.object({
+    approved: z.boolean().nullable(),
+    end: z.iso.time(),
+    id: z.uuid().nullable(),
+    name: z.string(),
+    paid: z.boolean(),
+    planned: z.boolean(),
+    start: z.iso.time()
+});
+
+/**
  * BuildId
  *
  * Response body for /api/build-id/: the deployed backend's git SHA.
  */
 export const zBuildId = z.object({
     build_id: z.string()
+});
+
+/**
+ * CalendarBoundsOut
+ *
+ * The stretch of the day the worker's calendar opens on.
+ */
+export const zCalendarBoundsOut = z.object({
+    end: z.iso.time(),
+    start: z.iso.time()
 });
 
 /**
@@ -278,6 +335,9 @@ export const zCompanyDefaultsOut = z.object({
     address_line1: z.string().max(255).nullable(),
     address_line2: z.string().max(255).nullable(),
     address_raw_json: z.record(z.string(), z.unknown()).nullable(),
+    afternoon_break_minutes: z.int(),
+    afternoon_break_start: z.iso.time(),
+    break_job: z.uuid().nullable(),
     city: z.string().max(100).nullable(),
     company_acronym: z.string().max(10).nullable(),
     company_email: z.string().max(254).nullable(),
@@ -315,11 +375,15 @@ export const zCompanyDefaultsOut = z.object({
     logo_url: z.string().nullable(),
     logo_wide_url: z.string().nullable(),
     longitude: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
+    lunch_minutes: z.int(),
+    lunch_start: z.iso.time(),
     master_quote_template_id: z.string().max(100).nullable(),
     master_quote_template_url: z.string().nullable(),
     materials_markup: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     mon_end: z.iso.time(),
     mon_start: z.iso.time(),
+    morning_break_minutes: z.int(),
+    morning_break_start: z.iso.time(),
     po_prefix: z.string().max(10),
     post_code: z.string().max(20).nullable(),
     quote_expiry_days: z.int(),
@@ -362,6 +426,9 @@ export const zCompanyDefaultsPatchIn = z.object({
     address_line1: z.string().max(255).nullish(),
     address_line2: z.string().max(255).nullish(),
     address_raw_json: z.record(z.string(), z.unknown()).nullish(),
+    afternoon_break_minutes: z.int().nullish(),
+    afternoon_break_start: z.iso.time().nullish(),
+    break_job_id: z.uuid().nullish(),
     city: z.string().max(100).nullish(),
     company_acronym: z.string().max(10).nullish(),
     company_email: z.string().max(254).nullish(),
@@ -431,6 +498,8 @@ export const zCompanyDefaultsPatchIn = z.object({
         z.number(),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
     ]).nullish(),
+    lunch_minutes: z.int().nullish(),
+    lunch_start: z.iso.time().nullish(),
     master_quote_template_id: z.string().max(100).nullish(),
     master_quote_template_url: z.string().nullish(),
     materials_markup: z.union([
@@ -439,6 +508,8 @@ export const zCompanyDefaultsPatchIn = z.object({
     ]).nullish(),
     mon_end: z.iso.time().nullish(),
     mon_start: z.iso.time().nullish(),
+    morning_break_minutes: z.int().nullish(),
+    morning_break_start: z.iso.time().nullish(),
     po_prefix: z.string().max(10).nullish(),
     post_code: z.string().max(20).nullish(),
     quote_expiry_days: z.int().nullish(),
@@ -514,38 +585,6 @@ export const zCompanyDetailResponse = z.object({
 export const zCompanyJobCompanyRef = z.object({
     id: z.string(),
     name: z.string()
-});
-
-/**
- * CompanyJobHeader
- *
- * Wire contract for CompanyJobHeader.
- */
-export const zCompanyJobHeader = z.object({
-    company: zCompanyJobCompanyRef.nullable(),
-    fully_invoiced: z.boolean(),
-    has_quote_in_xero: z.boolean(),
-    is_fixed_price: z.boolean(),
-    job_id: z.uuid(),
-    job_number: z.int(),
-    max_people: z.int(),
-    min_people: z.int(),
-    name: z.string(),
-    paid: z.boolean(),
-    pricing_methodology: z.string().nullable(),
-    quote_acceptance_date: z.iso.datetime().nullable(),
-    rejected_flag: z.boolean(),
-    speed_quality_tradeoff: z.string(),
-    status: z.string()
-});
-
-/**
- * CompanyJobsResponse
- *
- * Wire contract for CompanyJobsResponse.
- */
-export const zCompanyJobsResponse = z.object({
-    results: z.array(zCompanyJobHeader)
 });
 
 /**
@@ -860,6 +899,7 @@ export const zCostLineUpdateRequest = z.object({
     accounting_date: z.iso.date().optional(),
     desc: z.string().nullish(),
     ext_refs: z.record(z.string(), z.unknown()).optional(),
+    job_id: z.uuid().optional(),
     kind: z.string().optional(),
     labour_subtype: z.uuid().nullish(),
     meta: z.record(z.string(), z.unknown()).optional(),
@@ -937,6 +977,21 @@ export const zDataVersions = z.object({
     kanban: z.string(),
     kanban_related: z.string(),
     stock: z.string()
+});
+
+/**
+ * DaySummaryOut
+ *
+ * How the day stands across the people expected on it.
+ */
+export const zDaySummaryOut = z.object({
+    approved: z.int(),
+    expected: z.int(),
+    standing: z.enum([
+        'in_progress',
+        'complete',
+        'nobody_rostered'
+    ])
 });
 
 /**
@@ -1182,17 +1237,63 @@ export const zEntryCreateIn = z.object({
 });
 
 /**
- * EntryEventOut
+ * EntryLocationIn
  *
- * One audit event on a form entry, for the entry's history panel.
+ * Where the phone says it is as it saves an entry.
  */
-export const zEntryEventOut = z.object({
-    changes: z.array(z.record(z.string(), z.string())),
-    description: z.string(),
-    event_type: z.string(),
-    id: z.uuid(),
-    staff_name: z.string(),
-    timestamp: z.iso.datetime()
+export const zEntryLocationIn = z.object({
+    latitude: z.number().gte(-90).lte(90),
+    longitude: z.number().gte(-180).lte(180)
+});
+
+/**
+ * BreakCreateRequest
+ *
+ * A break added to a day. ``staff_id`` is for office staff correcting another's day.
+ */
+export const zBreakCreateRequest = z.object({
+    date: z.iso.date(),
+    end: z.iso.time(),
+    location: zEntryLocationIn.nullish(),
+    paid: z.boolean(),
+    staff_id: z.uuid().nullish(),
+    start: z.iso.time()
+});
+
+/**
+ * BreakUpdateRequest
+ *
+ * A break moved or resized.
+ */
+export const zBreakUpdateRequest = z.object({
+    end: z.iso.time(),
+    location: zEntryLocationIn.nullish(),
+    start: z.iso.time()
+});
+
+/**
+ * ClockRequest
+ *
+ * A tap on Clock in or Clock out; the server supplies the time.
+ */
+export const zClockRequest = z.object({
+    action: z.enum(['in', 'out']),
+    location: zEntryLocationIn.nullish()
+});
+
+/**
+ * ClockTimesRequest
+ *
+ * Clock times set by hand. No ``clock_out`` means the person is at work again.
+ *
+ * ``staff_id`` is for office staff correcting another person's day.
+ */
+export const zClockTimesRequest = z.object({
+    clock_in: z.iso.time(),
+    clock_out: z.iso.time().nullish(),
+    date: z.iso.date(),
+    location: zEntryLocationIn.nullish(),
+    staff_id: z.uuid().nullish()
 });
 
 /**
@@ -1263,6 +1364,60 @@ export const zFetchStatusValuesResponse = z.object({
     statuses: z.record(z.string(), z.string()),
     success: z.boolean().default(true),
     tooltips: z.record(z.string(), z.string())
+});
+
+/**
+ * FieldChangeOut
+ *
+ * One field's before/after values on an audit event.
+ */
+export const zFieldChangeOut = z.object({
+    field_name: z.string(),
+    new_value: z.string(),
+    old_value: z.string()
+});
+
+/**
+ * EntryEventOut
+ *
+ * One audit event on a form entry, for the entry's history panel.
+ */
+export const zEntryEventOut = z.object({
+    changes: z.array(zFieldChangeOut),
+    description: z.string(),
+    event_type: z.string(),
+    id: z.uuid(),
+    staff_name: z.string(),
+    timestamp: z.iso.datetime()
+});
+
+/**
+ * FillOut
+ *
+ * Hours to fill, entered and to go for a clocked day, all worked out by the server.
+ *
+ * ``to_go_hours`` is negative when more is entered than the person was here for.
+ */
+export const zFillOut = z.object({
+    break_hours: z.number(),
+    entered_hours: z.number(),
+    to_fill_hours: z.number(),
+    to_go_hours: z.number()
+});
+
+/**
+ * FillRowIn
+ *
+ * One row of the fill sheet: a job and how long, in quarter hours.
+ */
+export const zFillRowIn = z.object({
+    description: z.string().max(255).nullish(),
+    hours: z.union([
+        z.number().gte(0.01).lt(100000),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]),
+    job_id: z.uuid(),
+    time_and_a_half: z.boolean().optional().default(false)
 });
 
 /**
@@ -1970,6 +2125,54 @@ export const zJobInvoiceOut = z.object({
 });
 
 /**
+ * JobInvoiceRef
+ *
+ * One sales invoice on a job header row (KAN-372).
+ */
+export const zJobInvoiceRef = z.object({
+    date: z.iso.date(),
+    id: z.uuid(),
+    number: z.string(),
+    online_url: z.string().nullable(),
+    status: z.string(),
+    total_excl_tax: z.number()
+});
+
+/**
+ * CrmJobRow
+ *
+ * One job as the company and person job lists both return it (KAN-372).
+ */
+export const zCrmJobRow = z.object({
+    company: zCompanyJobCompanyRef.nullable(),
+    fully_invoiced: z.boolean(),
+    has_quote_in_xero: z.boolean(),
+    invoiced_total_excl_tax: z.number(),
+    invoices: z.array(zJobInvoiceRef),
+    is_fixed_price: z.boolean(),
+    job_id: z.uuid(),
+    job_number: z.int(),
+    max_people: z.int(),
+    min_people: z.int(),
+    name: z.string(),
+    paid: z.boolean(),
+    pricing_methodology: z.string().nullable(),
+    quote_acceptance_date: z.iso.datetime().nullable(),
+    rejected_flag: z.boolean(),
+    speed_quality_tradeoff: z.string(),
+    status: z.string()
+});
+
+/**
+ * CrmJobRowsResponse
+ *
+ * Wire contract for CrmJobRowsResponse.
+ */
+export const zCrmJobRowsResponse = z.object({
+    results: z.array(zCrmJobRow)
+});
+
+/**
  * JobInvoicesResponse
  *
  * Wire contract for the job invoices list.
@@ -2138,13 +2341,15 @@ export const zKpiJobBreakdownOut = z.object({
 export const zKpiMonthlyTotalsOut = z.object({
     active_days: z.int(),
     adjustment_cost: z.number(),
+    adjustment_margin: z.number().nullable(),
     adjustment_profit: z.number(),
     adjustment_revenue: z.number(),
-    avg_active_day_billable_hours: z.number(),
-    avg_active_day_gp: z.number(),
-    avg_weekday_gp: z.number(),
+    avg_active_day_billable_hours: z.number().nullable(),
+    avg_active_day_gp: z.number().nullable(),
+    avg_labour_rate: z.number().nullable(),
+    avg_weekday_gp: z.number().nullable(),
     billable_hours: z.number(),
-    billable_percentage: z.number(),
+    billable_percentage: z.number().nullable(),
     color_gp: z.enum([
         'green',
         'amber',
@@ -2166,14 +2371,21 @@ export const zKpiMonthlyTotalsOut = z.object({
     elapsed_target: z.number(),
     elapsed_weekdays: z.int(),
     elapsed_workdays: z.int(),
+    gross_margin: z.number().nullable(),
     gross_profit: z.number(),
     labour_amber_days: z.int(),
     labour_green_days: z.int(),
+    labour_margin: z.number().nullable(),
     labour_profit: z.number(),
     labour_red_days: z.int(),
+    labour_revenue_share: z.number().nullable(),
     material_cost: z.number(),
+    material_margin: z.number().nullable(),
     material_profit: z.number(),
     material_revenue: z.number(),
+    month_target: z.number(),
+    month_target_achievement: z.number().nullable(),
+    net_margin: z.number().nullable(),
     net_profit: z.number(),
     profit_amber_days: z.int(),
     profit_green_days: z.int(),
@@ -2181,7 +2393,7 @@ export const zKpiMonthlyTotalsOut = z.object({
     remaining_weekdays: z.int(),
     remaining_workdays: z.int(),
     shop_hours: z.number(),
-    shop_percentage: z.number(),
+    shop_percentage: z.number().nullable(),
     staff_cost: z.number(),
     time_revenue: z.number(),
     total_cost: z.number(),
@@ -2247,7 +2459,7 @@ export const zKpiDayDataOut = z.object({
     holiday: z.boolean(),
     holiday_name: z.string().nullable(),
     shop_hours: z.number(),
-    shop_percentage: z.number(),
+    shop_percentage: z.number().nullable(),
     total_hours: z.number()
 });
 
@@ -3262,6 +3474,21 @@ export const zPayrollWeekReconciliationResponse = z.object({
 });
 
 /**
+ * PendingDayOut
+ *
+ * An earlier day the person clocked and has not sent.
+ */
+export const zPendingDayOut = z.object({
+    date: z.iso.date(),
+    state: z.enum([
+        'not_clocked_in',
+        'at_work',
+        'clocked_out',
+        'sent'
+    ])
+});
+
+/**
  * PeriodSummaryOut
  *
  * Wire contract for PeriodSummaryOut.
@@ -3324,8 +3551,10 @@ export const zPersonDetail = z.object({
     email: z.string().nullable(),
     id: z.uuid(),
     is_active: z.boolean(),
+    last_invoice_date: z.iso.date().nullable(),
     name: z.string(),
     primary_phone: z.string(),
+    total_spend: z.number(),
     updated_at: z.iso.datetime()
 });
 
@@ -3353,8 +3582,10 @@ export const zPersonSummary = z.object({
     email: z.string().nullable(),
     id: z.uuid(),
     is_active: z.boolean(),
+    last_invoice_date: z.iso.date().nullable(),
     name: z.string(),
-    primary_phone: z.string()
+    primary_phone: z.string(),
+    total_spend: z.number()
 });
 
 /**
@@ -3857,6 +4088,17 @@ export const zPipelineWarningOut = z.object({
 });
 
 /**
+ * PlacementOut
+ *
+ * Where an entry sits in the day: its hours and its times, each from the other.
+ */
+export const zPlacementOut = z.object({
+    finish: z.iso.time().nullable(),
+    hours: z.number(),
+    start: z.iso.time()
+});
+
+/**
  * PostWeekToXeroRequest
  *
  * Wire contract for PostWeekToXeroRequest.
@@ -4075,12 +4317,14 @@ export const zPurchaseOrderEventCreateRequest = z.object({
 /**
  * PurchaseOrderEventOut
  *
- * Wire contract for PurchaseOrderEventOut.
+ * One note on a purchase order, for its Notes & History section.
  */
 export const zPurchaseOrderEventOut = z.object({
+    changes: z.array(zFieldChangeOut),
     description: z.string(),
+    event_type: z.string(),
     id: z.uuid(),
-    staff: z.string(),
+    staff_name: z.string(),
     timestamp: z.iso.datetime()
 });
 
@@ -5072,6 +5316,27 @@ export const zStaffWeekPostingOut = z.object({
 });
 
 /**
+ * StandardDayOut
+ *
+ * The company's standard start and finish for a weekday.
+ */
+export const zStandardDayOut = z.object({
+    end: z.iso.time(),
+    start: z.iso.time()
+});
+
+/**
+ * StandardHoursRequest
+ *
+ * Record the standard hours on a day nobody clocked. ``staff_id`` is for the office.
+ */
+export const zStandardHoursRequest = z.object({
+    date: z.iso.date(),
+    location: zEntryLocationIn.nullish(),
+    staff_id: z.uuid().nullish()
+});
+
+/**
  * StockConsumeRequest
  *
  * Wire contract for StockConsumeRequest.
@@ -5366,6 +5631,17 @@ export const zStocktakeList = z.object({
     page_size: z.int(),
     results: z.array(zStocktakeSummary),
     total_pages: z.int()
+});
+
+/**
+ * SubmitDayRequest
+ *
+ * Send a day to the office, with any rows still to be saved as entries.
+ */
+export const zSubmitDayRequest = z.object({
+    date: z.iso.date(),
+    location: zEntryLocationIn.nullish(),
+    rows: z.array(zFillRowIn)
 });
 
 /**
@@ -5741,10 +6017,57 @@ export const zTimesheetJobOut = z.object({
  * JobsListResponse
  *
  * Wire contract for JobsListResponse.
+ *
+ * The two id lists order the fill sheet's job buttons; every id is in ``jobs``.
  */
 export const zJobsListResponse = z.object({
     jobs: z.array(zTimesheetJobOut),
+    pinned_job_ids: z.array(z.uuid()),
+    recent_job_ids: z.array(z.uuid()),
     total_count: z.int()
+});
+
+/**
+ * TimesheetLineSnapshotOut
+ *
+ * One timesheet entry as an event recorded it (``TimesheetLineSnapshot``).
+ */
+export const zTimesheetLineSnapshotOut = z.object({
+    approved: z.boolean(),
+    billable: z.boolean().nullable(),
+    charge_out_rate: z.string(),
+    date: z.iso.date(),
+    description: z.string().nullable(),
+    end_time: z.string().nullable(),
+    hours: z.string(),
+    invoice_multiplier: z.number().nullable(),
+    job: z.string(),
+    labour_type: z.string(),
+    pay_item: z.string().nullable(),
+    start_time: z.string().nullable(),
+    wage_multiplier: z.number().nullable(),
+    wage_rate: z.string()
+});
+
+/**
+ * TimesheetEventOut
+ *
+ * One audit event on a staff member's day, for the entry page's history dialog.
+ *
+ * ``trusted`` is whether it was made at the workshop (services/location.py).
+ * An event of the day itself (a clock tap, times set, the day sent) has no
+ * entry snapshots.
+ */
+export const zTimesheetEventOut = z.object({
+    after: zTimesheetLineSnapshotOut.nullable(),
+    before: zTimesheetLineSnapshotOut.nullable(),
+    changes: z.array(zFieldChangeOut),
+    description: z.string(),
+    event_type: z.string(),
+    id: z.uuid(),
+    staff_name: z.string(),
+    timestamp: z.iso.datetime(),
+    trusted: z.boolean()
 });
 
 /**
@@ -5930,6 +6253,7 @@ export const zWeeklyStaffDataOut = z.object({
     staff_id: z.uuid(),
     staff_name: z.string(),
     total_annual_leave_hours: z.number(),
+    total_approved_hours: z.number(),
     total_bereavement_leave_hours: z.number(),
     total_billable_hours: z.number(),
     total_billed_hours: z.number(),
@@ -5940,6 +6264,7 @@ export const zWeeklyStaffDataOut = z.object({
     total_overtime_hours: z.number(),
     total_scheduled_hours: z.number(),
     total_sick_leave_hours: z.number(),
+    total_unapproved_hours: z.number(),
     total_unbilled_hours: z.number(),
     variance_hours: z.number(),
     week_status: z.string(),
@@ -5986,20 +6311,59 @@ export const zWeeklyTimesheetDataOut = z.object({
  */
 export const zWorkshopTimesheetEntryOut = z.object({
     accounting_date: z.iso.date(),
+    approved: z.boolean(),
     bill_rate_multiplier: z.number(),
     company_name: z.string(),
     created_at: z.iso.datetime(),
     description: z.string(),
     end_time: z.iso.time().nullable(),
+    entered_late: z.boolean(),
     hours: z.number(),
     id: z.uuid(),
     is_billable: z.boolean(),
     job_id: z.uuid(),
     job_name: z.string(),
     job_number: z.int(),
+    remote_entry: z.boolean(),
     start_time: z.iso.time().nullable(),
     updated_at: z.iso.datetime(),
     wage_rate_multiplier: z.number()
+});
+
+/**
+ * StaffApprovalOut
+ *
+ * One person's day on the Approve time screen. No pay figures (KAN-376).
+ */
+export const zStaffApprovalOut = z.object({
+    breaks: z.array(zBreakOut),
+    clock: zAttendanceOut,
+    default_entry_start: z.iso.time(),
+    entered_hours: z.number(),
+    entered_late: z.boolean(),
+    entries: z.array(zWorkshopTimesheetEntryOut),
+    remote_entry: z.boolean(),
+    staff_id: z.uuid(),
+    staff_name: z.string(),
+    state: z.enum([
+        'waiting',
+        'nothing_entered',
+        'nothing_waiting',
+        'not_rostered'
+    ]),
+    waiting_hours: z.number()
+});
+
+/**
+ * ApprovalsDayOut
+ *
+ * Everyone's day for the office to approve.
+ */
+export const zApprovalsDayOut = z.object({
+    date: z.iso.date(),
+    staff: z.array(zStaffApprovalOut),
+    standard: zStandardDayOut.nullable(),
+    summary: zDaySummaryOut
 });
 
 /**
@@ -6025,6 +6389,8 @@ export const zWorkshopTimesheetEntryRequest = z.object({
     ]),
     is_billable: z.boolean().optional().default(true),
     job_id: z.uuid(),
+    location: zEntryLocationIn.nullish(),
+    staff_id: z.uuid().nullish(),
     start_time: z.iso.time().nullish(),
     wage_rate_multiplier: z.union([
         z.number().gte(0).lt(100),
@@ -6054,6 +6420,7 @@ export const zWorkshopTimesheetEntryUpdateRequest = z.object({
     ]).optional(),
     is_billable: z.boolean().optional(),
     job_id: z.uuid().optional(),
+    location: zEntryLocationIn.nullish(),
     start_time: z.iso.time().nullish(),
     wage_rate_multiplier: z.union([
         z.number().gte(0).lt(100),
@@ -6069,9 +6436,17 @@ export const zWorkshopTimesheetEntryUpdateRequest = z.object({
 export const zWorkshopTimesheetSummaryOut = z.object({
     billable_hours: z.number(),
     non_billable_hours: z.number(),
-    total_cost: z.number(),
-    total_hours: z.number(),
-    total_revenue: z.number()
+    total_hours: z.number()
+});
+
+/**
+ * WorkshopTimesheetWeekOut
+ *
+ * The payroll week the day falls in: hours payroll will pay, and hours held back.
+ */
+export const zWorkshopTimesheetWeekOut = z.object({
+    approved_hours: z.number(),
+    waiting_hours: z.number()
 });
 
 /**
@@ -6080,9 +6455,18 @@ export const zWorkshopTimesheetSummaryOut = z.object({
  * Wire contract for WorkshopTimesheetListResponse.
  */
 export const zWorkshopTimesheetListResponse = z.object({
+    breaks: z.array(zBreakOut),
+    calendar: zCalendarBoundsOut,
     date: z.iso.date(),
+    day: zAttendanceOut,
+    default_entry_start: z.iso.time(),
     entries: z.array(zWorkshopTimesheetEntryOut),
-    summary: zWorkshopTimesheetSummaryOut
+    fill: zFillOut.nullable(),
+    missed_clock_out_finish: z.iso.time().nullable(),
+    pending: zPendingDayOut.nullable(),
+    standard: zStandardDayOut.nullable(),
+    summary: zWorkshopTimesheetSummaryOut,
+    week: zWorkshopTimesheetWeekOut
 });
 
 /**
@@ -6914,7 +7298,7 @@ export const zCompaniesJobsRetrievePath = z.object({
 /**
  * OK
  */
-export const zCompaniesJobsRetrieveResponse = zCompanyJobsResponse;
+export const zCompaniesJobsRetrieveResponse = zCrmJobRowsResponse;
 
 export const zCompaniesPeopleListPath = z.object({
     company_id: z.uuid()
@@ -7838,8 +8222,22 @@ export const zJobTimesheetEntriesRetrieveQuery = z.object({
  */
 export const zJobTimesheetEntriesRetrieveResponse = zTimesheetEntriesOut;
 
+export const zJobTimesheetEntriesHistoryRetrieveQuery = z.object({
+    staff_id: z.uuid(),
+    date: z.string()
+});
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zJobTimesheetEntriesHistoryRetrieveResponse = z.array(zTimesheetEventOut);
+
 export const zJobWorkshopTimesheetsDestroyQuery = z.object({
-    entry_id: z.uuid()
+    entry_id: z.uuid(),
+    latitude: z.number().nullish(),
+    longitude: z.number().nullish()
 });
 
 /**
@@ -7848,7 +8246,8 @@ export const zJobWorkshopTimesheetsDestroyQuery = z.object({
 export const zJobWorkshopTimesheetsDestroyResponse = z.void();
 
 export const zJobWorkshopTimesheetsRetrieveQuery = z.object({
-    date: z.string().nullish()
+    date: z.string().nullish(),
+    staff_id: z.uuid().nullish()
 });
 
 /**
@@ -7998,6 +8397,15 @@ export const zPeopleContactMethodsPartialUpdatePath = z.object({
  * OK
  */
 export const zPeopleContactMethodsPartialUpdateResponse = zContactMethodOut;
+
+export const zPeopleJobsRetrievePath = z.object({
+    person_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zPeopleJobsRetrieveResponse = zCrmJobRowsResponse;
 
 /**
  * OK
@@ -8615,6 +9023,25 @@ export const zSessionReplayRecordingEventsRetrievePath = z.object({
  */
 export const zSessionReplayRecordingEventsRetrieveResponse = zRecordingEventsOut;
 
+export const zTimesheetsApprovalsRetrieveQuery = z.object({
+    date: z.string().nullish()
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsApprovalsRetrieveResponse = zApprovalsDayOut;
+
+export const zTimesheetsApprovalsApproveDayPath = z.object({
+    staff_id: z.uuid(),
+    target_date: z.string()
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsApprovalsApproveDayResponse = zApproveDayOut;
+
 export const zGetDailyTimesheetSummaryByDatePath = z.object({
     target_date: z.string()
 });
@@ -8712,6 +9139,82 @@ export const zTimesheetsLeaveRequestsUpdatePath = z.object({
  * OK
  */
 export const zTimesheetsLeaveRequestsUpdateResponse = zLeaveSaveOut;
+
+export const zTimesheetsMyDayBreaksCreateBody = zBreakCreateRequest;
+
+/**
+ * No Content
+ */
+export const zTimesheetsMyDayBreaksCreateResponse = z.void();
+
+export const zTimesheetsMyDayBreaksDeletePath = z.object({
+    break_id: z.uuid()
+});
+
+export const zTimesheetsMyDayBreaksDeleteQuery = z.object({
+    latitude: z.number().nullish(),
+    longitude: z.number().nullish()
+});
+
+/**
+ * No Content
+ */
+export const zTimesheetsMyDayBreaksDeleteResponse = z.void();
+
+export const zTimesheetsMyDayBreaksUpdateBody = zBreakUpdateRequest;
+
+export const zTimesheetsMyDayBreaksUpdatePath = z.object({
+    break_id: z.uuid()
+});
+
+/**
+ * No Content
+ */
+export const zTimesheetsMyDayBreaksUpdateResponse = z.void();
+
+export const zTimesheetsMyDayClockBody = zClockRequest;
+
+/**
+ * OK
+ */
+export const zTimesheetsMyDayClockResponse = zAttendanceOut;
+
+export const zTimesheetsMyDayPlacementQuery = z.object({
+    date: z.string(),
+    start: z.iso.time(),
+    hours: z.union([
+        z.number().gte(0.01).lt(100000),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    finish: z.iso.time().nullish(),
+    staff_id: z.uuid().nullish()
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsMyDayPlacementResponse = zPlacementOut;
+
+export const zTimesheetsMyDayStandardHoursBody = zStandardHoursRequest;
+
+/**
+ * OK
+ */
+export const zTimesheetsMyDayStandardHoursResponse = zAttendanceOut;
+
+export const zTimesheetsMyDaySubmitBody = zSubmitDayRequest;
+
+/**
+ * OK
+ */
+export const zTimesheetsMyDaySubmitResponse = zWorkshopTimesheetListResponse;
+
+export const zTimesheetsMyDayTimesBody = zClockTimesRequest;
+
+/**
+ * OK
+ */
+export const zTimesheetsMyDayTimesResponse = zAttendanceOut;
 
 /**
  * OK
@@ -8895,6 +9398,10 @@ export const zXeroDisconnectCreateResponse = zXeroPingOut;
  * OK
  */
 export const zXeroPayItemsListResponse = z.array(zXeroPayItemOut);
+
+export const zXeroPingRetrieveQuery = z.object({
+    expected_fake: z.boolean().nullish()
+});
 
 /**
  * OK

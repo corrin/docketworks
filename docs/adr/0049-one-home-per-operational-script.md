@@ -39,6 +39,3 @@ the duplication pathology ADR 0039 exists to prevent.
 - **Give an operator script a pytest-shaped name** — a `test_*.py` under any
   directory is one `testpaths` edit or one IDE test-discovery run away from
   being collected, and these scripts reach live services and mutate data.
-- **Port an operator script as a management command because that is where v1
-  had it** — it skips the confidentiality and recurrence questions the ladder
-  exists to ask, which is how named HR data reaches a public branch.

@@ -61,7 +61,6 @@ DAILY="$BACKUP_DIR/daily_$TODAY.sql.gz"
 DAILY_TMP="$DAILY.tmp"
 MONTHLY="$BACKUP_DIR/monthly_$MONTH.sql.gz"
 MONTHLY_TMP="$MONTHLY.tmp"
-APP_DIR="$INSTANCE_DIR/app"
 
 export PGPASSWORD="$DB_PASSWORD"
 
@@ -77,22 +76,6 @@ if [ "$(date +%d)" = "01" ]; then
     echo "Writing monthly copy $MONTHLY"
     cp "$DAILY" "$MONTHLY_TMP"
     mv "$MONTHLY_TMP" "$MONTHLY"
-fi
-
-# Fable: this is the sidecar restores actually consume (migrate_to_snapshot.py): which
-# migration state this dump matches. The retired .sha sidecar recorded the
-# release commit instead, which no restore path ever read.
-# Fable: read AFTER pg_dump deliberately, not in one coordinated snapshot: a
-# migration committing in between makes the sidecar LEAD the dump, and
-# migrate_to_snapshot migrates the restored database up to the sidecar, so
-# that direction is consumed correctly. Only a rollback inside this
-# seconds-wide midnight window would mislead, and migrations only run at
-# deploys, which take predeploy_backup first.
-(cd "$APP_DIR" && .venv/bin/python manage.py snapshot_migrations --dump "$DAILY")
-
-if [ "$(date +%d)" = "01" ]; then
-    cp "$DAILY.migrations.json" "$MONTHLY.migrations.json.tmp"
-    mv "$MONTHLY.migrations.json.tmp" "$MONTHLY.migrations.json"
 fi
 
 echo "Applying retention and syncing to Google Drive"

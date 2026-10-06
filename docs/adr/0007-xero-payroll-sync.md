@@ -28,7 +28,7 @@ A week's time entries are classified once (`hour_categories.LeaveCatalogue`) and
   exists to prevent.
 - **Leave posts as one period spanning the payroll week**, carrying the total units. Per-day
   periods are accepted but their units are discarded — Xero recomputes them from the working
-  pattern — and more than one period per pay period is rejected on update (KAN-326). The total
+  pattern — and more than one period per pay period is rejected on update. The total
   is the only figure that round-trips, and the only one leave can be matched on when
   reconciling.
 - **The post writes leave only inside the week it is posting.** A Xero leave application
@@ -55,15 +55,10 @@ A week's time entries are classified once (`hour_categories.LeaveCatalogue`) and
 - `create_pay_run` mirrors the created run locally **even when Xero returns a different period
   than requested**, then fails. The run exists in Xero either way, and without the mirror row
   the next attempt hits Xero's one-draft-per-calendar refusal with no local trace of why.
-- Earnings rates and leave types are synced into `XeroPayItem` by
-  `python manage.py xero --configure-payroll` before first use.
 - Docketworks posts exactly four Xero leave types: **Annual Leave, Sick Leave, Unpaid Leave and
   Bereavement Leave** — the four `LeaveType` codes whose posting surface is the Leave API. The
-  fifth category, Public Holiday, posts nothing and so assigns nothing. Employee creation uses
-  Xero's standard leave setup for Annual and Sick, explicitly assigns Unpaid and Bereavement
-  with `NoAccruals` and a zero opening balance, and reads the employee back to verify all four
-  assignments. The seed's employee phase repairs already-linked employees too; a seed is not
-  converged while any linked employee lacks one.
+  fifth category, Public Holiday, posts nothing and so assigns nothing. Employee creation
+  assigns all four (`docs/xero_setup.md`).
 - Payroll uses typed SDK responses throughout. `apps/xero/payroll_sdk.py` applies one
   import-time setter compatibility patch for the seven fields Xero legitimately returns null.
 - **A pay run, once created, cannot be unmade through the API.** Xero Payroll NZ publishes
@@ -94,8 +89,6 @@ A week's time entries are classified once (`hour_categories.LeaveCatalogue`) and
   delivered on a different endpoint and parsed by the read side. Every other read-back goes
   through the same modules that wrote, so a wrong belief about the contract would be written and
   read the same wrong way and still agree with itself.
-  `test_complete_weekly_payroll_lifecycle` asserts against a pay slip at the stage that deletes
-  and recreates a real timesheet, which is the assertion a matching misunderstanding cannot pass.
 
 ## Do not
 

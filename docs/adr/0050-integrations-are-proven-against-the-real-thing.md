@@ -23,9 +23,11 @@ A path that touches an external system is not done until a durable test has exec
   the real services (`frontend/docs/e2e-testing-strategy.md`) and a spec may not substitute,
   skip or defer the external call it exists to cover. Where a vendor constraint makes a
   write awkward, it shapes the spec (post the next postable week, reuse the draft), and a
-  comment records the constraint rather than excusing the gap. An iteration run may point
-  the unmodified suite at a simulation built from recordings (ADR 0060); the run before
-  merge is real.
+  comment records the constraint rather than excusing the gap. Xero E2E defaults to the simulation built from recordings (ADR 0060). Select a live
+  Xero run explicitly when the work could expose a discrepancy with that simulation;
+  unrelated changes do not need a live Xero run to merge. Live Xero integration and
+  conformance tests remain regular, often daily, work. Other vendors retain the real-service
+  requirement.
 - **One exception: a write the vendor gives no way to undo may be opt-in.** It qualifies only
   when the vendor exposes no API to remove or finalise what the test creates, so an unattended
   run accumulates external state that a human must clear by hand — and only with a compensating
@@ -33,14 +35,15 @@ A path that touches an external system is not done until a durable test has exec
   Payroll NZ is the case: `createPayRun` exists, `updatePayRun` and `deletePayRun` do not
   (ADR 0007), so the specs that post carry `@xero-payroll-write`, run only under
   `E2E_XERO_PAYROLL=1` (`npm run test:e2e:payroll`), and the path stays covered by
-  `apps/xero/tests/test_payroll_integration.py`, itself a merge gate. Slow, expensive, awkward
+  `apps/xero/tests/test_payroll_integration.py`, itself a merge gate, which drives `ensure_pay_run_for_week`
+  so the first run creates the week's draft and every later run reuses it. Slow, expensive, awkward
   and quota-hungry are ordinary costs of testing against the real thing, not the exception;
   an opt-in spec with no compensating control is the gap this ADR exists to close, wearing a
   flag.
 - Integration tests carry the `integration` pytest marker and are deselected from the
   default suite (`addopts = -m "not integration"`). Run them with
-  `./scripts/ops/run_integration_tests.sh`. They are a **merge gate**, not an optional
-  extra, and they are deliberately not in CI — CI has no sandbox credentials and must stay
+  `./scripts/ops/run_integration_tests.sh`. They gate the relevant integration changes; the Xero selection rule above avoids
+  spending live calls on unrelated changes. They are deliberately not in CI — CI has no sandbox credentials and must stay
   hermetic.
 - **They refuse; they never skip.** A missing credential, an unconnected tenant or a
   misconfigured provider fails the test loudly. A skip is indistinguishable from a pass in
@@ -51,18 +54,13 @@ A path that touches an external system is not done until a durable test has exec
   The dev environment and the vendor sandboxes exist to be written to; that is their only
   purpose.
 - **A side-effect suppression flag is for one situation only: a local process pointed at
-  production.** `XERO_READONLY` is that flag today, and any future `DO_NOT_SEND_EMAIL` or
+  production.** `XERO_READONLY` is that flag, and any future `DO_NOT_SEND_EMAIL` or
   `DO_NOT_WRITE_TO_GOOGLE_DOCS` is the same class. It exists so an operator hotfixing
   against production data cannot emit real side effects. During integration testing it is
   a disaster, because emitting the side effect and reading it back is the entire point —
   a suite run with it set reports green having proven nothing. It is never set globally
   for tests; the single legitimate test use is a test of the valve itself, setting it
   locally with `override_settings` to assert the write is suppressed.
-- **A sandbox constraint makes the test idempotent, never absent.** Xero's Payroll API has
-  no `delete_pay_run`, so a created draft is permanent — the payroll test therefore drives
-  `ensure_pay_run_for_week`, which reuses a same-week draft, so the first run creates and
-  every later run reuses. Re-runnability is the property that makes a test durable; design
-  for it rather than treating the constraint as a reason to skip.
 - **Missing credentials are work, not an exemption.** The rule binds whether or not a key is
   currently held: a path that 503s while its key is unset on `IntegrationSettings` is a gap
   with an owner, not a waiver.
@@ -83,10 +81,6 @@ A path that touches an external system is not done until a durable test has exec
   answer is in hand, so it is captured; a fixture cites the run that produced it; and a
   hand-written fake is refused where a recording exists, because the fake is the belief
   this ADR exists to stop testing against.
-- **Scrapers run on a schedule, not per merge.** Third-party sites are rate-limited and
-  fragile, and hammering them on every merge is both unreliable and impolite. Their
-  integration test runs scheduled against the real site and gates on a freshness signal;
-  staleness is the alarm.
 
 ## Do not
 

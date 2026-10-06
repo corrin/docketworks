@@ -1,6 +1,6 @@
 # 0060 — The fake Xero is a drop-in replacement for Xero's API, proven against Xero by recordings
 
-`XERO_FAKE=true` swaps the socket for an implementation of Xero's API: its own relational model of the organisation, Xero's query language over it, Xero's state transitions, numbering, totals, validation and limits — computed from state, never replayed. Recordings from the Demo Company are the oracle that proves each answer matches Xero, and the real E2E run before merge is the final proof. The app runs unchanged, and a run against the replacement is hard to tell from a run against Xero.
+`XERO_FAKE=true` swaps the socket for an implementation of Xero's API: its own relational model of the organisation, Xero's query language over it, Xero's state transitions, numbering, totals, validation and limits — computed from state, never replayed. Recordings from the Demo Company are the oracle that proves each answer matches Xero. Ordinary E2E runs use the fake; live testing is selected when the work could expose a discrepancy between the fake and Xero. The app runs unchanged, and a run against the replacement is hard to tell from a run against Xero.
 
 ## Rules
 
@@ -10,11 +10,8 @@
   request's filters and paging, a write applies Xero's status transitions, and a refusal
   fires where Xero's rules refuse. Replaying a stored answer is never an implementation.
 - **The model is relational and complete for what Xero lets a caller query.** One table per
-  Xero resource — contacts, invoices and their lines, credit notes, quotes, purchase orders,
-  items, accounts, tax rates, branding themes, organisation, employees, salary lines,
-  working patterns, leave types, leave balances, earnings rates, leave, timesheets and their lines, pay
-  runs, pay slips, pay-run calendars, connections, tokens — with a typed, indexed column
-  for every field Xero filters, orders or keys on, and Xero's own uniqueness: a number per
+  Xero resource the app reaches (`test_every_call_is_routed.py` names the set), with a typed,
+  indexed column for every field Xero filters, orders or keys on, and Xero's own uniqueness: a number per
   document kind, one draft pay run per calendar, one timesheet per employee and period, a
   number a deleted order still owns. The wire body is rendered from the model; nothing is
   stored as a blob that a query would have to parse.
@@ -46,10 +43,11 @@
   browser flow and stays refused under the flag.
 - **Selection is one flag per process, refused on a production database (ADR 0048)**, and a
   fake run says so: the organisation name carries `(FAKE XERO)`, the ping reports
-  `xero_fake`, history rows carry `xero=fake`, the runner's last line says it is not a merge
-  gate. The call record is deliberately unmarked; the label is what tells runs apart. Merge
-  readiness is `run_e2e.sh` with no switch plus the integration tier (ADR 0050); the payroll
-  opt-in (ADR 0050, ADR 0007) is a property of the real gate only.
+  `xero_fake`, history rows carry `xero=fake`, the runner's last line identifies the selected mode. The call record is deliberately unmarked; the label is what tells runs apart. The default `run_e2e.sh` uses fake Xero; `--use-real-xero` explicitly selects live
+  testing. Live integration and conformance testing is regular work, potentially daily,
+  when changes to requests, responses, authentication or accounting behaviour could
+  expose an inaccurate fake. Unrelated changes do not require a live run merely to merge.
+  The payroll opt-in (ADR 0050, ADR 0007) remains available only for explicit live runs.
 
 ## Do not
 
@@ -57,6 +55,6 @@
   first time state changes.
 - **Refuse in words the replacement wrote** — provoke Xero and record what it said.
 - **Drop a parameter the replacement does not implement** — that is a belief about Xero.
-- **Read a green fake run as evidence for merge** — it proves the app against the
-  replacement, and the replacement against Xero as of the last recording.
-- **Reach for `XERO_READONLY` as a test mode** — it is the production hotfix valve.
+- **Treat a green fake run as proof of new vendor behaviour** — it proves the app
+  against the replacement. When the work could expose a discrepancy, test the relevant
+  behaviour against Xero and update the recordings and fake from that evidence.

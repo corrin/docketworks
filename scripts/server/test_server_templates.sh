@@ -11,6 +11,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
+# Read before any subshell re-sources a script and reassigns SCRIPT_DIR.
+INSTANCE_SCRIPT="$SCRIPT_DIR/instance.sh"
 
 FAILURES=0
 fail() {
@@ -64,6 +66,7 @@ render() {
         -e "s|__JWT_SIGNING_KEY__|jwtk|g" \
         -e "s|__REDIS_PORT__|6380|g" \
         -e "s|__REDIS_PASSWORD__|rpw|g" \
+        -e "s|__XERO_FAKE__|False|g" \
         -e "s|__DROPBOX_WORKFLOW_FOLDER__|/opt/docketworks/instances/test-uat/dropbox|g" \
         -e "s|__GCP_CREDENTIALS__|/opt/docketworks/instances/test-uat/gcp-credentials.json|g" \
         -e "s|__RCLONE_CONFIG__|/opt/docketworks/config/rclone/test-uat.conf|g" \
@@ -218,7 +221,7 @@ WORKER="$(render "$TEMPLATE_DIR/celery-worker-instance.service.template")"
 assert_no_tokens "celery-worker unit" "$WORKER"
 grep -q -- '-A config worker' <<<"$WORKER" || fail "celery-worker: must target -A config"
 
-# --- redis: the instance's own server (ADR 0065) ---
+# --- redis: the instance's own server ---
 REDIS_UNIT="$(render "$TEMPLATE_DIR/redis-instance.service.template")"
 assert_no_tokens "redis unit" "$REDIS_UNIT"
 grep -q '^User=dw_test_uat$' <<<"$REDIS_UNIT" || fail "redis unit: must run as the instance user"
@@ -249,7 +252,7 @@ for unit_template in gunicorn-instance celery-worker-instance celery-beat-instan
         || fail "$unit_template: must Requires= the instance's own redis unit"
 done
 if grep -q 'redis-server.service' "$TEMPLATE_DIR"/*.template; then
-    fail "a template still names the host's redis-server.service (v1's, ADR 0065)"
+    fail "a template still names the host's redis-server.service (v1's)"
 fi
 
 # --- env template: full render, and in sync with .env.example ---
@@ -521,6 +524,72 @@ grep -q '^team_drive = drive456$' "$RENDERED_RCLONE" \
 grep -q '^root_folder_id = folder123$' "$RENDERED_RCLONE" \
     || fail "rclone writer: root_folder_id missing from rendered config"
 rm -rf "$RCLONE_TMP"
+
+# --- rehearse: destroy still asks, the prompt-free removal has
+# no flag, and a rehearsal refuses before any mutation without its three
+# config files ---
+grep -q -- '--yes)' "$INSTANCE_SCRIPT" \
+    && fail "rehearse: a --yes flag would make every instance destroyable from a script"
+grep -q '^    rehearse)' "$INSTANCE_SCRIPT" \
+    || fail "rehearse: subcommand missing from the dispatch"
+grep -q 'rehearse         <client> \[--ref <ref>\]' "$INSTANCE_SCRIPT" \
+    || fail "rehearse: subcommand missing from the usage"
+REHEARSE_CONFIG_DIR="$(mktemp -d)"
+REHEARSE_OUT="$(
+    # shellcheck source=instance.sh
+    # Sourced scripts reassign SCRIPT_DIR inside this subshell only; the
+    # outer value is untouched by construction.
+    # shellcheck disable=SC2031
+    source "$SCRIPT_DIR/instance.sh"
+    declare -F destroy_instance do_destroy do_rehearse instance_state_exists >/dev/null \
+        || echo "MISSING_FUNCTION"
+    declare -f do_destroy | grep -q 'read -r -p "Are you sure?' || echo "DESTROY_NO_PROMPT"
+    declare -f destroy_instance | grep -q 'read -r -p' && echo "DESTROY_WORK_PROMPTS"
+    declare -f rehearse_report | grep -q 'stop_instance' || echo "REPORT_LEAVES_UNITS_RUNNING"
+    declare -F do_stop do_start stop_instance >/dev/null || echo "MISSING_STOP_START"
+    declare -f stop_instance | grep -q 'disable --now' || echo "STOP_LEAVES_UNITS_ENABLED"
+    declare -f stop_instance | grep -q '\.dr-mode' || echo "STOP_WRITES_NO_MARKER"
+    declare -f do_start | grep -q 'rm -f.*\.dr-mode' || echo "START_KEEPS_MARKER"
+    CONFIG_DIR="$REHEARSE_CONFIG_DIR"
+    require_root_owned_credentials_file() { [[ -f "$1" ]]; }
+    # Last: a refusal exits the subshell, which is why shellcheck reads the
+    # success branch as unreachable.
+    # shellcheck disable=SC2317
+    if do_rehearse test 2>&1; then echo "REHEARSE_WITHOUT_CONFIG"; fi
+)" || true  # the refusal is the expected exit; its text is what is asserted
+rm -rf "$REHEARSE_CONFIG_DIR"
+echo "$REHEARSE_OUT" | grep -q "MISSING_FUNCTION" \
+    && fail "rehearse: destroy_instance, do_destroy, do_rehearse and instance_state_exists must all exist"
+echo "$REHEARSE_OUT" | grep -q "DESTROY_NO_PROMPT" \
+    && fail "rehearse: do_destroy must still ask before removing an instance"
+echo "$REHEARSE_OUT" | grep -q "DESTROY_WORK_PROMPTS" \
+    && fail "rehearse: destroy_instance must not prompt"
+echo "$REHEARSE_OUT" | grep -q "REHEARSE_WITHOUT_CONFIG" \
+    && fail "rehearse: ran without the three config files"
+echo "$REHEARSE_OUT" | grep -q 'prepare-config test uat --seed' \
+    || fail "rehearse: refusal must name prepare-config"
+echo "$REHEARSE_OUT" | grep -q 'test-uat.e2e.env' \
+    || fail "rehearse: refusal must name the e2e credentials file"
+# A red run's instance costs a tenant's worth of memory if left running.
+echo "$REHEARSE_OUT" | grep -q "REPORT_LEAVES_UNITS_RUNNING" \
+    && fail "rehearse: the failure path must stop the instance's units"
+# stop/start: a stopped instance is the .dr-mode state deploys already honour, and a
+# reboot must not undo an operator's stop.
+for subcommand in stop start; do
+    grep -q "^    $subcommand)" "$INSTANCE_SCRIPT" \
+        || fail "stop/start: '$subcommand' missing from the dispatch"
+done
+echo "$REHEARSE_OUT" | grep -q "MISSING_STOP_START" \
+    && fail "stop/start: do_stop, do_start and stop_instance must all exist"
+echo "$REHEARSE_OUT" | grep -q "STOP_LEAVES_UNITS_ENABLED" \
+    && fail "stop: units must be disabled as well as stopped, or a reboot starts them"
+echo "$REHEARSE_OUT" | grep -q "STOP_WRITES_NO_MARKER" \
+    && fail "stop: must write .dr-mode so deploys keep the instance stopped"
+echo "$REHEARSE_OUT" | grep -q "START_KEEPS_MARKER" \
+    && fail "start: must remove .dr-mode"
+# The dev-box wrapper reports the host's status, not tee's.
+grep -q 'PIPESTATUS\[0\]' "$REPO_ROOT/scripts/ops/rehearse_instance.sh" \
+    || fail "rehearse_instance.sh: must take its exit status from the ssh side of the pipe"
 
 if (( FAILURES > 0 )); then
     echo "$FAILURES server template check(s) failed." >&2

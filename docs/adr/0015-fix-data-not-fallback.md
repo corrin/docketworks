@@ -7,6 +7,8 @@ When a consumer finds data that violates the model's contract, repair the data; 
 - Fix the data, in order of preference: (1) a data migration that reconstructs the canonical field from another in-row source; (2) an emission-side fix that stops wrong data being produced; (3) both. Data migrations are dry-run and verified before applying.
 - The consumer stays strict: no `COALESCE`, no "if empty, read the other field", no schema relaxation, no tolerant parsing. A fallback makes the canonical field non-canonical for every future reader, and once readers cope, nothing ever forces the data to be fixed.
 - If rows genuinely cannot be reconstructed (e.g. events never emitted because a `.update()` bypassed `save()`), escalate — raise, alert, leave them visibly broken — and record the unrecoverable subset as an emission-audit task. Never silently degrade.
+- When existing data violates the model, check the business requirement and the code that wrote it. Establish whether the model or the data is wrong, then correct the source of the mismatch. Record the evidence supporting a contract change; the age of production data alone does not establish its validity. ADR 0028's presumption in favour of the contract is a starting point for this investigation.
+- Where a component owns its query it reports its own pending and error states; where a caller owns the query, the caller resolves both before rendering and passes a value the child can trust. Optional loading and error props that default to false are refused: a caller that forgets them gets "nothing is wrong", which is the read-side fallback one level up.
 
 ## Do not
 

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { renderWithProviders } from '@/test/render'
 import { server } from '@/test/msw'
+import { autoId } from '@/test/auto-id'
 import { TimesheetEntryPage, type TimesheetEntrySearch } from './TimesheetEntryPage'
 
 const STAFF_ID = 'staff-1'
@@ -95,7 +96,7 @@ function installHandlers(options: { weekendEnabled?: boolean; lines?: unknown[] 
   )
 }
 
-function renderPage(search: TimesheetEntrySearch) {
+function renderPage(search: TimesheetEntrySearch & { date: string }) {
   const onSearchChange = vi.fn()
   const onOpenDaily = vi.fn()
   renderWithProviders(
@@ -120,6 +121,15 @@ describe('TimesheetEntryPage', () => {
     renderPage({ date: FRIDAY, staffId: STAFF_ID })
     await waitFor(() => expect(document.querySelector('.smart-timesheet-table')).toBeTruthy())
     expect(document.querySelector('.animate-spin')).toBeNull()
+  })
+
+  it('names the weekday in the date header', async () => {
+    installHandlers()
+    renderPage({ date: FRIDAY, staffId: STAFF_ID })
+    // Trips if the header span goes back to formatDate, which has no weekday.
+    await waitFor(() =>
+      expect(autoId('TimesheetEntry-date')).toHaveTextContent('Friday, 7 August 2026'),
+    )
   })
 
   it('fails loudly for a staffId outside the timesheet staff list', async () => {

@@ -79,8 +79,11 @@ def to_wire(model: type[BaseModel], raw_json: Mapping[str, object]) -> dict[str,
         if rendered is None:
             # The two APIs disagree here, and the recordings show which way:
             # Accounting omits a field it has no value for, Payroll sends it
-            # as an explicit null.
-            if _is_payroll(model):
+            # as an explicit null. A list is the exception: Payroll omits one
+            # it has no value for (a listed pay run carries no paySlips key,
+            # recordings/pay_runs.json), and the SDK cannot read a null where
+            # it expects a list, so a null there fails the whole response.
+            if _is_payroll(model) and not type_name.startswith(_LIST_PREFIX):
                 wire[model.attribute_map[attribute]] = None
             continue
         wire[model.attribute_map[attribute]] = rendered

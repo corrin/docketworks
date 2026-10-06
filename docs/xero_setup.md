@@ -42,6 +42,12 @@ Exact names again: the weekly timesheet payroll columns map "Annual Leave", "Sic
 "Unpaid Leave" is the one leave type created as unpaid — every other leave type is paid
 (`apps/xero/payroll_setup.py`, `UNPAID_LEAVE_NAME`).
 
+`python manage.py xero --configure-payroll` syncs earnings rates and leave types into
+`XeroPayItem` before first use. Employee creation assigns all four leave types: Xero's
+standard setup for Annual and Sick, Unpaid and Bereavement explicitly with `NoAccruals` and a
+zero opening balance, each create checked against the leave-type id Xero echoes back. The seed's employee phase repairs already-linked
+employees too; a seed is not converged while any linked employee lacks one.
+
 ### Payroll calendar (Payroll → Settings → Payroll Calendars)
 
 A weekly payroll calendar starting on **Monday**. The name must equal

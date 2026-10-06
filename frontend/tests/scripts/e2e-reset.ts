@@ -1,3 +1,5 @@
+import { configureXeroMode, recordedXeroMode } from './xero-mode'
+import { beginFakeTokenSnapshot, finishFakeTokenSnapshot } from './global-teardown'
 /** Reset the development database to a state safe for Playwright. */
 import fs from 'node:fs'
 import os from 'node:os'
@@ -46,7 +48,9 @@ function supersededCrashBackup(): string | undefined {
   return resolved
 }
 
+configureXeroMode()
 const lockState = inspectLock()
+if (lockState === 'stale' && confirmed) recordedXeroMode(fs.readFileSync(lockFile, 'utf8'))
 if (lockState === 'live' && confirmed) {
   throw new Error(
     `E2E tests already running (lock: ${lockFile}). Refusing to reset their database.`,
@@ -58,19 +62,24 @@ if (lockState === 'live') {
   // that is precisely when an operator wants to look.
   console.log('[reset] A live E2E run holds the lock; reporting only.')
 }
-runE2ECleanup(confirmed)
-if (confirmed) {
-  syncSequences()
-  if (lockState === 'stale') {
-    const crashBackup = supersededCrashBackup()
-    if (crashBackup) {
-      fs.rmSync(crashBackup)
-      console.log(`[reset] Removed superseded crash backup: ${crashBackup}`)
+const tokenSnapshot = confirmed ? beginFakeTokenSnapshot() : null
+try {
+  runE2ECleanup(confirmed)
+  if (confirmed) {
+    syncSequences()
+    if (lockState === 'stale') {
+      const crashBackup = supersededCrashBackup()
+      if (crashBackup) {
+        fs.rmSync(crashBackup)
+        console.log(`[reset] Removed superseded crash backup: ${crashBackup}`)
+      }
+      fs.rmSync(lockFile)
+      console.log(`[reset] Removed stale lock: ${lockFile}`)
     }
-    fs.rmSync(lockFile)
-    console.log(`[reset] Removed stale lock: ${lockFile}`)
+    console.log('=== Reset complete. Database is clean and ready for E2E. ===')
+  } else {
+    console.log('=== Dry run only. Re-run with --confirm to delete. ===')
   }
-  console.log('=== Reset complete. Database is clean and ready for E2E. ===')
-} else {
-  console.log('=== Dry run only. Re-run with --confirm to delete. ===')
+} finally {
+  finishFakeTokenSnapshot(tokenSnapshot)
 }

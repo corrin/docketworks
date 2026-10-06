@@ -383,6 +383,7 @@ class TestSyncCursors:
         Company.objects.create(
             name="High Water Mark Ltd",
             xero_contact_id="contact-hwm-1",
+            xero_tenant_id="test-tenant",
             xero_last_modified=newest,
         )
 

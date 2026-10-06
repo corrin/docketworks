@@ -47,6 +47,13 @@ const defaults: CompanyDefaultsOut = {
   enable_xero_sync: false,
   financial_year_start_month: 7,
   fri_end: '15:30:00',
+  morning_break_start: '08:30:00',
+  morning_break_minutes: 15,
+  lunch_start: '11:30:00',
+  lunch_minutes: 30,
+  break_job: null,
+  afternoon_break_start: '13:30:00',
+  afternoon_break_minutes: 15,
   fri_start: '07:00:00',
   gdrive_how_we_work_folder_id: null,
   gdrive_quotes_folder_id: null,
@@ -118,8 +125,11 @@ describe('snapshotSection', () => {
     expect(snap).toEqual({ mon_start: '07:00' })
   })
   it('represents image fields by their url companion, read-only', () => {
-    const snap = snapshotSection(defaults, [field('logo', { type: 'image' })])
-    expect(snap).toEqual({ logo: null })
+    // GPT: reading the editable key instead of its URL companion must not hide the logo.
+    const snap = snapshotSection({ ...defaults, logo_url: '/media/company/logo.png' }, [
+      field('logo', { type: 'image' }),
+    ])
+    expect(snap).toEqual({ logo: '/media/company/logo.png' })
   })
   it('normalises datetime values to the minute the input can express', () => {
     const snap = snapshotSection(defaults, [field('last_xero_sync', { type: 'datetime' })])

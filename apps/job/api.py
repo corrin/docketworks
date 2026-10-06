@@ -132,6 +132,7 @@ from apps.job.services.workshop_pdf_service import create_workshop_pdf
 from apps.job.tasks import create_job_file_thumbnail_task
 from apps.purchasing.models import Stock
 from apps.purchasing.services.stock_service import consume_stock
+from apps.timesheet.services.approval import approve_line
 
 logger = logging.getLogger(__name__)
 
@@ -893,6 +894,8 @@ def _collect_costline_patch_refs(
         data["staff"] = payload.staff
     if "labour_subtype" in provided:
         data["labour_subtype"] = payload.labour_subtype
+    if "job_id" in provided:
+        data["job_id"] = payload.job_id
 
 
 def _costline_patch_data(payload: CostLineUpdateRequest) -> CostLineWriteData:
@@ -917,10 +920,11 @@ def job_cost_lines_partial_update(
 ) -> job_service.CostLineData:
     """Edit unowned costs; posted material is corrected through purchasing."""
     line = get_object_or_404(CostLine, id=cost_line_id)
-    if line.cost_set.kind != "actual" and not authenticated_staff(request).is_office_staff:
+    staff = authenticated_staff(request)
+    if line.cost_set.kind != "actual" and not staff.is_office_staff:
         raise HttpError(403, "Only office staff can modify non-actual cost lines")
     try:
-        updated = job_service.update_cost_line(line, _costline_patch_data(payload))
+        updated = job_service.update_cost_line(line, _costline_patch_data(payload), staff)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
     except DjangoValidationError as exc:
@@ -939,10 +943,11 @@ def job_cost_lines_partial_update(
 def job_cost_lines_delete_destroy(request: HttpRequest, cost_line_id: UUID) -> Status[None]:
     """Delete a cost line, returning any consumed stock to inventory."""
     line = get_object_or_404(CostLine, id=cost_line_id)
-    if line.cost_set.kind != "actual" and not authenticated_staff(request).is_office_staff:
+    staff = authenticated_staff(request)
+    if line.cost_set.kind != "actual" and not staff.is_office_staff:
         raise HttpError(403, "Only office staff can delete non-actual cost lines")
     try:
-        job_service.delete_cost_line(line)
+        job_service.delete_cost_line(line, staff)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
     return Status(204, None)
@@ -967,14 +972,19 @@ def approve_cost_line(request: HttpRequest, cost_line_id: UUID) -> dict[str, obj
     """
     line = get_object_or_404(CostLine.objects.select_related("cost_set__job"), id=cost_line_id)
     lock_costing_jobs([line.cost_set.job_id])
-    line = CostLine.objects.select_for_update().get(pk=line.pk)
+    # Locked on the line alone: the snapshot's joins are nullable, which
+    # Postgres refuses under FOR UPDATE.
+    line = (
+        CostLine.objects.select_for_update(of=("self",))
+        .select_related("cost_set__job", "labour_subtype", "xero_pay_item")
+        .get(pk=line.pk)
+    )
     job_service.refuse_workflow_managed(line, "approve")
     if line.approved:
         raise HttpError(400, "Line is already approved")
 
     if line.kind != "material":
-        line.approved = True
-        line.save(update_fields=["approved", "updated_at"])
+        approve_line(line, authenticated_staff(request))
         return {
             "success": True,
             "message": "Line approved successfully",

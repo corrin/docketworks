@@ -46,7 +46,13 @@ class MovementContext:
 
 @transaction.atomic
 def move_stock(stock: Stock, change: Decimal, context: MovementContext) -> StockMovement:
-    """Lock, record and project one movement; negative inventory remains permitted."""
+    """Lock, record and project one movement; negative inventory remains permitted.
+
+    An issue past the balance goes through and the balance shows negative (owner
+    ruling 2026-09-07): the shop floor issues what it used, and the next count
+    corrects the number. Refusing the issue, or inventing stock to cover the
+    deficit, were both rejected because each hides the count that is wrong.
+    """
     if context.kind in (
         StockMovementKind.OPENING,
         StockMovementKind.JOB_OPENING,

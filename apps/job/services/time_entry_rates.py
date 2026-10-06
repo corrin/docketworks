@@ -23,10 +23,12 @@ from uuid import UUID
 
 from django.apps import apps as django_apps
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 
 from apps.accounts.models import Staff, StaffPayrollTerm
 from apps.accounts.services.payroll_terms import salary_cost_rate, salary_term_on
 from apps.job.models import Job, JobLabourRate, LabourSubtype
+from apps.job.models.costing import CostLine
 from apps.timesheet.models import LeaveType, PostingSurface
 
 logger = logging.getLogger(__name__)
@@ -105,10 +107,10 @@ def rate_from_meta(meta: dict[str, object], key: str) -> Decimal | None:
     Absent and JSON null are unset (ADR 0040); a present non-numeric value is
     bad data and raises, because the fix is the row (ADR 0015).
 
-    Safe to raise: dw_cutover_rehearsal holds 26,684 cost lines, 14,474 with a
-    wage multiplier and 2,550 with a bill multiplier, and not one fails the
-    numeric pattern. No repair migration is needed, so this cannot reject a row
-    that exists today.
+    Safe to raise: the August 2026 cutover rehearsal database held 26,684 cost
+    lines, 14,474 with a wage multiplier and 2,550 with a bill multiplier, and
+    not one failed the numeric pattern. No repair migration was needed, so this
+    cannot reject a row that exists today.
     """
     value = meta.get(key)
     if value is None:
@@ -159,6 +161,26 @@ def resolve_xero_pay_item(wage_rate_multiplier: Decimal) -> PayItem:
     if pay_item is None:
         raise ValidationError(f"No Xero pay item found for wage_rate_multiplier={normalized}.")
     return pay_item
+
+
+#: Logged, not hours: a time line at the Unpaid Work rate, the earnings rate
+#: Xero pays nothing for. Lunch is one; so is a line the office grid marks
+#: "Unpaid". It is a record of what happened in the day, not hours: no hours
+#: figure counts it and payroll never posts it (owner, 2026-10-06: "Logged,
+#: but not hours and not sent to Xero"). Unpaid leave is not caught: its pay
+#: item is a Leave API type. One rule in two forms, for a queryset and for a
+#: line in hand; they are held to agree by a test.
+UNPAID_TIME = Q(xero_pay_item__uses_leave_api=False, xero_pay_item__multiplier=ZERO_MULTIPLIER)
+
+
+def is_unpaid_time(line: CostLine) -> bool:
+    """Whether a time line is logged time that is not hours (``UNPAID_TIME``)."""
+    pay_item = line.xero_pay_item
+    return (
+        pay_item is not None
+        and not pay_item.uses_leave_api
+        and pay_item.multiplier == ZERO_MULTIPLIER
+    )
 
 
 def is_leave_pay_item(pay_item: PayItem | None) -> bool:
@@ -417,8 +439,11 @@ def price_time_entry(  # noqa: PLR0913 -- the canonical pipeline's independent p
     requested_wage_multiplier = normalize_multiplier(raw_multiplier)
     # Salary hours allocate a fixed cost; they never create 1.5x/2x payroll
     # earnings. Customer billing remains independently selectable below.
+    # Unpaid time is unpaid on a salary too: lunch is not an hour of it.
     wage_rate_multiplier = (
-        DEFAULT_MULTIPLIER if staff.pay_basis == "salary" else requested_wage_multiplier
+        DEFAULT_MULTIPLIER
+        if staff.pay_basis == "salary" and requested_wage_multiplier != ZERO_MULTIPLIER
+        else requested_wage_multiplier
     )
     pay_item = pay_item_override or resolve_xero_pay_item_for_job(
         job=job, wage_rate_multiplier=wage_rate_multiplier

@@ -4,7 +4,7 @@ Business risk: v1 wrote ProductParsingMapping.input_data two ways from the same
 file — 644 object rows and 559 double-encoded JSON-string rows in the 2026-08-01
 restore. v2 declares ``input_data: dict``, so a string row 500s the
 product-mappings listing. The migration converts them; these tests pin the two
-things that make it trustworthy on cutover night, when nobody will be reading
+things that make it trustworthy on a production migration, when nobody is reading
 its output: that legacy keys are actually renamed, and that a row it cannot
 convert stops the migration instead of being counted and left to 500 later.
 """
@@ -12,7 +12,8 @@ convert stops the migration instead of being counted and left to 500 later.
 import importlib
 
 import pytest
-from django.db import migrations
+from django.db import connection
+from django.db.migrations.loader import MigrationLoader
 
 from apps.quoting.migrations import _0002_helpers as helpers
 from apps.quoting.models import ProductParsingMapping
@@ -74,7 +75,7 @@ def test_row_decoding_to_a_non_object_aborts() -> None:
 
 @pytest.mark.django_db
 def test_a_refusal_writes_nothing_at_all() -> None:
-    """A half-converted table on cutover night is worse than a stopped migration."""
+    """A half-converted table in production is worse than a stopped migration."""
     convertible = ProductParsingMapping.objects.create(
         input_hash="h-good", input_data='{"input_product_name": "good"}'
     )
@@ -89,15 +90,19 @@ def test_a_refusal_writes_nothing_at_all() -> None:
     )
 
 
+@pytest.mark.django_db
 def test_the_migration_runs_the_tested_helper() -> None:
-    """Guards against the migration and this test drifting into separate implementations.
+    """The registered migration must transform rows, not merely import the helper."""
+    module = importlib.import_module("apps.quoting.migrations.0002_normalise_input_data")
+    state = MigrationLoader(connection).project_state([("quoting", "0001_initial")])
+    historical_mapping = state.apps.get_model("quoting", "ProductParsingMapping")
+    mapping = historical_mapping.objects.create(
+        input_hash="h-migration-entrypoint",
+        input_data='{"input_product_name": "RHS 50x50", "input_description": "mild steel"}',
+    )
 
-    Everything above tests ``helpers.normalise_rows``; that is only meaningful
-    while the migration is what actually calls it.
-    """
-    migration = importlib.import_module("apps.quoting.migrations.0002_normalise_input_data")
+    with connection.schema_editor() as editor:
+        module.Migration("0002_normalise_input_data", "quoting").apply(state, editor)
 
-    assert migration.normalise_rows is helpers.normalise_rows
-    operation = migration.Migration.operations[0]
-    assert isinstance(operation, migrations.RunPython)
-    assert operation.code is migration.normalise_input_data
+    mapping.refresh_from_db()
+    assert mapping.input_data == {"product_name": "RHS 50x50", "description": "mild steel"}

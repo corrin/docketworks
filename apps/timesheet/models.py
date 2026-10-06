@@ -6,6 +6,7 @@ line so a range can be managed as one request.
 """
 
 import uuid
+from collections.abc import Callable
 from decimal import Decimal
 from enum import StrEnum
 from typing import ClassVar
@@ -13,6 +14,8 @@ from typing import ClassVar
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
+
+from apps.core.audit import AuditEvent, JsonScalar
 
 
 class PostingSurface(StrEnum):
@@ -227,3 +230,156 @@ class LeaveDay(models.Model):
         """Keep the denormalised staff key aligned with its parent request."""
         if self.request_id and self.staff_id != self.request.staff_id:
             raise ValidationError({"staff": "Leave day staff must match its request."})
+
+
+#: ``CostLine.meta["source"]`` of a standard break put on a day and not
+#: touched since: the day's finish takes it away if he was not there for it.
+UNTOUCHED_STANDARD_BREAK = "standard_breaks"
+#: The same break once he or the office has moved or changed it: his, kept.
+EDITED_STANDARD_BREAK = "standard_breaks_edited"
+
+
+def mark_break_edited(meta: dict[str, object]) -> None:
+    """Record on a line's meta that an untouched standard break has been changed."""
+    if meta.get("source") == UNTOUCHED_STANDARD_BREAK:
+        meta["source"] = EDITED_STANDARD_BREAK
+
+
+class ClockHow(models.TextChoices):
+    """How a day's start or finish came to be recorded (KAN-376).
+
+    A live tap is the record that the person was here at that time; a time
+    typed afterwards, or the company's standard hours, is not. The office is
+    warned about a worker who did not clock, so a time the office itself set
+    or corrected is told apart: nobody is chased over the office's own entry.
+    """
+
+    CLOCKED = "clocked", "Clocked"
+    CLOCKED_REMOTELY = "clocked_remotely", "Clocked away from the workshop"
+    NOT_CLOCKED = "not_clocked", "Not clocked"
+    SET_BY_OFFICE = "set_by_office", "Set by the office"
+
+
+class AttendanceDay(models.Model):
+    """When one person was at work on one day, as they clocked it (KAN-376).
+
+    Clocking helps the worker and the office see the day; it binds nothing and
+    pays nothing. The times are times of day, so a shift past midnight cannot
+    be stored: the office sets the finish to 23:59 and enters the hours as
+    time (owner ruling, 2026-10-06). A day reopened is this same row with its
+    finish cleared. The day's state is derived from the row, never stored.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    staff = models.ForeignKey(
+        "accounts.Staff", on_delete=models.PROTECT, related_name="attendance_days"
+    )
+    date = models.DateField()
+    clock_in = models.TimeField()
+    clock_in_how = models.CharField(max_length=20, choices=ClockHow.choices)
+    # NULL while the person is still at work.
+    clock_out = models.TimeField(null=True, blank=True)
+    # NULL exactly when there is no finish yet.
+    clock_out_how = models.CharField(  # noqa: DJ001 -- NULL is "no finish yet", as clock_out is
+        max_length=20, choices=ClockHow.choices, null=True, blank=True
+    )
+    # NULL until the day is sent to the office.
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    # The workshop's usual breaks are put on a day once, the first time it has
+    # both clock times. After that they are the worker's: nothing puts back one
+    # he removed or moved.
+    breaks_generated = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["date"]
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.UniqueConstraint(fields=["staff", "date"], name="unique_staff_attendance_day"),
+            models.CheckConstraint(
+                condition=Q(clock_out__isnull=True) | Q(clock_out__gt=models.F("clock_in")),
+                name="timesheet_attendance_finish_after_start",
+            ),
+            models.CheckConstraint(
+                condition=Q(submitted_at__isnull=True) | Q(clock_out__isnull=False),
+                name="timesheet_attendance_sent_only_when_clocked_out",
+            ),
+            models.CheckConstraint(
+                condition=Q(clock_out__isnull=True, clock_out_how__isnull=True)
+                | Q(clock_out__isnull=False, clock_out_how__isnull=False),
+                name="timesheet_attendance_finish_says_how",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.staff.get_display_name()} on {self.date}"
+
+
+def _moved(old: JsonScalar, new: JsonScalar) -> str:
+    return f"Moved from {old} to {new}"
+
+
+def _clock_time(label: str) -> Callable[[JsonScalar, JsonScalar], str]:
+    """Describe a clock time: set ("Clock in 07:02"), moved, or cleared."""
+
+    def describe(old: JsonScalar, new: JsonScalar) -> str:
+        if old in ("", None):
+            return f"{label} {new}"
+        if new in ("", None):
+            return f"{label} {old} cleared"
+        return f"{label} moved from {old} to {new}"
+
+    return describe
+
+
+class TimesheetEvent(AuditEvent):
+    """The timesheet domain's audit trail: one event per entry write, office or workshop.
+
+    Keyed on the entry's worker and day rather than its row: a deletion is
+    itself an event, and the trail of a deleted entry must survive it. A
+    foreign key would either erase the evidence (CASCADE) or refuse the
+    delete (PROTECT), so the line is named by a plain id.
+    """
+
+    worker = models.ForeignKey(
+        "accounts.Staff", on_delete=models.PROTECT, related_name="timesheet_history"
+    )
+    accounting_date = models.DateField()
+    # None on an event of the day itself (a clock tap, times set, the day sent).
+    cost_line_id = models.UUIDField(db_index=True, null=True, blank=True)
+    # Whether the action was made at the workshop, by the one rule in
+    # services/location.py: office staff always; anyone else only when their
+    # phone put them at the company address, so a write that carries no
+    # location (the cost-line grid, the leave screen) is untrusted for anyone
+    # but the office. With no company address nothing is checked and every
+    # event is true: "trusted" then means "not checked".
+    trusted = models.BooleanField()
+
+    EVENT_LABELS: ClassVar[dict[str, str]] = {
+        "entry_created": "Entry created",
+        "entry_updated": "Entry updated",
+        "entry_moved": "Entry moved",
+        "entry_deleted": "Entry deleted",
+        "entry_approved": "Entry approved",
+        "clocked_in": "Clocked in",
+        "clocked_out": "Clocked out",
+        "clock_times_set": "Clock times set",
+        "standard_hours_used": "Standard hours used",
+        "day_sent": "Day sent",
+    }
+    FIELD_DESCRIPTORS: ClassVar[dict[str, Callable[[JsonScalar, JsonScalar], str]]] = {
+        "Job": _moved,
+        "Clock in": _clock_time("Clock in"),
+        "Clock out": _clock_time("Clock out"),
+    }
+
+    class Meta(AuditEvent.Meta):
+        indexes: ClassVar[list[models.Index]] = [
+            models.Index(
+                fields=["worker", "accounting_date", "-timestamp"],
+                name="tsevent_worker_day_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.event_type} at {self.timestamp:%Y-%m-%d %H:%M}"

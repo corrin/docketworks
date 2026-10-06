@@ -14,8 +14,10 @@ def main() -> None:
 
     if not defaults.logo_wide:
         raise SystemExit(
-            "logo_wide is empty — reload the instance's "
-            ".fixtures/company_defaults.json (see scripts/server/instance.sh)."
+            "logo_wide is empty — the purchase order PDF needs it. Upload it under "
+            "Admin > Company defaults > Company (/admin/company-defaults/company), or "
+            "set logo_wide in /opt/docketworks/config/<instance>.company-defaults.json "
+            "before instance.sh create."
         )
     print(f"logo_wide: {defaults.logo_wide.name}")
 

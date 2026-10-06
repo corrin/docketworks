@@ -635,6 +635,11 @@ introduced:
 # could start over a live one. ADR 0047's contract needs a GET whose schema is
 # what generates the frontend types; the SSE stream pushes this same document.
 - timesheets_payroll_runs_retrieve
+# KAN-370: a timesheet entry's audit trail, which v1 never had. v1's job
+# timeline was rebuilt from each line's own timestamps, so a deleted entry
+# vanished and an edit showed only that something changed. Read per worker-day
+# rather than per line so a deleted entry's events stay reachable.
+- job_timesheet_entries_history_retrieve
 # Admin-created leave is a new v2 workflow; v1 only had raw timesheet lines.
 - timesheets_leave_balance_retrieve
 - timesheets_leave_office_closure_create
@@ -646,6 +651,21 @@ introduced:
 - timesheets_leave_requests_update
 - timesheets_leave_settings_retrieve
 - timesheets_leave_settings_update
+# Workshop staff enter their own time and the office approves it before it is
+# paid (KAN-376). v1 had the approved flag and one approve call per line, but
+# no screen for approving and nothing that paid by it.
+- timesheets_approvals_retrieve
+- timesheets_approvals_approve_day
+# Clocking in and out, new with KAN-376: v1 recorded hours and never when a
+# person was at work.
+- timesheets_my_day_clock
+- timesheets_my_day_times
+- timesheets_my_day_standard_hours
+- timesheets_my_day_placement
+- timesheets_my_day_submit
+- timesheets_my_day_breaks_create
+- timesheets_my_day_breaks_update
+- timesheets_my_day_breaks_delete
 # One narrow job list for the admin screens that map a fixed kind of job. v1 had
 # no such screen, and its pickers were fed by whichever domain list the page
 # already loaded — which is how v2 briefly grew a third job-option schema.
@@ -679,6 +699,9 @@ introduced:
 # half-copied quote. v2 makes it one atomic server call, archiving a priced
 # quote as a revision first (KAN-346).
 - job_jobs_cost_sets_quote_copy_from_estimate_create
+# KAN-372: the jobs a person is the contact for, with their invoices, for the
+# person page's Jobs table. v1 had no per-person financial view at all.
+- people_jobs_retrieve
 dropped:
   workflow_ai_providers_retrieve: >-
     GPT: the small admin catalogue returns safe row metadata in its list; editing needs no second GET.

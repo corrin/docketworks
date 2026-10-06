@@ -279,8 +279,8 @@ def _coordinate(value: float | None) -> Decimal | None:
 # Opus: If-Match rejected here — ADR 0003 scopes optimistic concurrency to Job, PO and stocktake;
 # the dirty-fields-only payload (exclude_unset) means concurrent editors of
 # different fields never clobber each other, and same-field conflict on a
-# rarely-edited singleton is accepted last-write-wins (ruling in
-# docs/rewrite-history.md, 2026-08-22).
+# rarely-edited singleton is accepted last-write-wins (owner ruling
+# 2026-08-22).
 @router.patch(
     "/company-defaults/",
     auth=SuperuserCookieJWTAuth(),

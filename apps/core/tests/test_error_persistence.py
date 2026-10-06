@@ -1,4 +1,4 @@
-"""One failure is one AppError row (ADR 0001), no matter how many handlers catch it.
+"""One failure is one AppError row (ADR 0019), no matter how many handlers catch it.
 
 Business risk covered: duplicate rows would wreck "how often does this fail?"
 queries (ADR 0019), and a lost marker would strand a response without its

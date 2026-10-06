@@ -51,3 +51,4 @@ class TestPaginate:
         assert page.count == 5
         assert page.total_pages == 3
         assert len(page.rows) == 2
+        assert [row.name for row in page.rows] == ["key-2", "key-3"]

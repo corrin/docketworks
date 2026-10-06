@@ -24,7 +24,7 @@ from apps.accounts.models import Staff
 from apps.accounts.tests.helpers import authenticate
 from apps.company.models import Company
 from apps.core.models import CompanyDefaults
-from apps.job.models import Job, JobDeltaRejection
+from apps.job.models import Job, JobDeltaRejection, JobEvent
 from apps.job.services.delta_checksum import compute_job_delta_checksum
 from apps.job.tests._pdf_golden_fixtures import _seed_company_defaults
 
@@ -326,6 +326,79 @@ class TestJobEvents:
 
 
 class TestUndoChange:
+    @pytest.mark.parametrize(
+        ("before", "after"),
+        [
+            (None, "<p><strong>New notes — café</strong></p>"),
+            ("<p>Original notes</p>" * 12, "<p><em>Revised notes</em></p>"),
+            ("<p><strong>Clear these notes</strong></p>", None),
+        ],
+    )
+    def test_notes_edit_has_one_specific_event_and_complete_undo(
+        self,
+        client: Client,
+        job: Job,
+        office_staff: Staff,
+        before: str | None,
+        after: str | None,
+    ) -> None:
+        job.notes = before
+        job.save(staff=office_staff)
+        baseline = set(JobEvent.objects.filter(job=job).values_list("pk", flat=True))
+        payload = _envelope(job, "notes", after)
+        saved = client.patch(
+            f"/api/job/jobs/{job.id}/",
+            data=payload,
+            content_type="application/json",
+            HTTP_IF_MATCH=_get_etag(client, job),
+        )
+        assert saved.status_code == 200
+        events = JobEvent.objects.filter(job=job).exclude(pk__in=baseline)
+        event = events.get()
+        assert event.event_type == "notes_updated"
+        assert str(event.change_id) == payload["change_id"]
+        assert event.delta_before == {"notes": before}
+        assert event.delta_after == {"notes": after}
+        assert event.detail == {
+            "changes": [
+                {
+                    "field_name": "Internal notes",
+                    "old_value": before or "",
+                    "new_value": after or "",
+                }
+            ]
+        }
+        timeline = client.get(f"/api/job/jobs/{job.id}/timeline/")
+        assert timeline.status_code == 200
+        entry = next(row for row in timeline.json()["timeline"] if row["id"] == str(event.id))
+        assert entry["event_type"] == "notes_updated"
+        assert entry["can_undo"] is True
+        assert entry["change_id"] == payload["change_id"]
+
+        unchanged = client.patch(
+            f"/api/job/jobs/{job.id}/",
+            data=_envelope(job, "notes", after),
+            content_type="application/json",
+            HTTP_IF_MATCH=_get_etag(client, job),
+        )
+        assert unchanged.status_code == 200
+        assert events.count() == 1
+        undone = client.post(
+            f"/api/job/jobs/{job.id}/undo-change/",
+            data={"change_id": payload["change_id"]},
+            content_type="application/json",
+            HTTP_IF_MATCH=_get_etag(client, job),
+        )
+        assert undone.status_code == 200
+        job.refresh_from_db()
+        assert job.notes == before
+        assert events.count() == 2
+        reversal = events.exclude(pk=event.pk).get()
+        assert reversal.event_type == "notes_updated"
+        assert reversal.delta_after == {"notes": before}
+        assert reversal.delta_meta is not None
+        assert reversal.delta_meta["undo_of_change_id"] == payload["change_id"]
+
     def test_undo_round_trip(self, client: Client, job: Job) -> None:
         payload = _envelope(job, "description", "First edit")
         put = client.put(
@@ -349,10 +422,19 @@ class TestUndoChange:
 
 
 class TestTimelineAndBasicInfo:
-    def test_timeline_lists_events(self, client: Client, job: Job) -> None:
+    def test_timeline_lists_events(self, client: Client, job: Job, office_staff: Staff) -> None:
+        """An empty timeline envelope must not conceal lost event serialization."""
+        event = JobEvent.objects.create(
+            job=job,
+            staff=office_staff,
+            event_type="manual_note",
+            detail={"note_text": "Customer called"},
+        )
         response = client.get(f"/api/job/jobs/{job.id}/timeline/")
         assert response.status_code == 200
-        assert "timeline" in response.json()
+        entry = next(row for row in response.json()["timeline"] if row["id"] == str(event.id))
+        assert entry["description"] == "Customer called"
+        assert entry["entry_type"] == "event"
 
     def test_basic_info_shape(self, client: Client, job: Job) -> None:
         response = client.get(f"/api/job/jobs/{job.id}/basic-info/")
@@ -502,8 +584,10 @@ class TestDeltaRejectionEndpoints:
         assert JobDeltaRejection.objects.filter(resolved=True).count() == 2
 
     def test_unresolve_cascades(self, client: Client) -> None:
-        for _ in range(2):
+        rejections = [
             JobDeltaRejection.objects.create(reason="conflict", envelope={}, resolved=True)
+            for _ in range(2)
+        ]
 
         response = client.post(
             "/api/job/jobs/delta-rejections/grouped/mark_unresolved/",
@@ -513,6 +597,9 @@ class TestDeltaRejectionEndpoints:
 
         assert response.status_code == 200
         assert response.json() == {"updated": 2}
+        for rejection in rejections:
+            rejection.refresh_from_db()
+            assert rejection.resolved is False
 
     def test_per_job_listing_filters_to_that_job(self, client: Client, job: Job) -> None:
         JobDeltaRejection.objects.create(job=job, reason="mine", envelope={})

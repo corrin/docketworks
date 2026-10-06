@@ -7,7 +7,7 @@ import {
   companiesJobsRetrieveOptions,
   crmPhoneCallsListQueryKey,
   linkPhoneCallJobMutation,
-  type CompanyJobHeader,
+  type CrmJobRow,
   type PhoneCallRecordOut,
 } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -44,7 +44,7 @@ export function linkedJobOption(call: PhoneCallRecordOut): JobPickerOption | nul
   }
 }
 
-function toPickerOption(job: CompanyJobHeader): JobPickerOption {
+function toPickerOption(job: CrmJobRow): JobPickerOption {
   return {
     id: job.job_id,
     job_number: job.job_number,

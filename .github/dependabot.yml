@@ -1,17 +1,10 @@
+# Only the workflows' own actions. Frontend and Python dependencies move through the weekly
+# sweep (.github/workflows/dependency-sweep.yml, ADR 0033): one PR with everything at latest,
+# tested as the combination that ships. Dependabot's per-package PRs never test that
+# combination, never see a transitive package, and never propose a Python version the declared
+# range already admits.
 version: 2
 updates:
-  - package-ecosystem: pip
-    directory: /
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: npm
-    directory: /frontend
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-
   - package-ecosystem: github-actions
     directory: /
     schedule:

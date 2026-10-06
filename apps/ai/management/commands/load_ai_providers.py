@@ -1,4 +1,10 @@
-"""Idempotent per-vendor bootstrap using the same validation as Admin > Integrations."""
+"""Idempotent per-vendor bootstrap using the same validation as Admin > Integrations.
+
+The instance renderer's fixture is consumed vendor by vendor: a configured vendor is
+preserved, an absent one is added, an exact and unambiguous empty seed is refilled, and any
+other incomplete entry stops the command for operator attention. Unset optional vendors
+produce no rows, and bootstrap never replaces an existing application default.
+"""
 
 from pathlib import Path
 

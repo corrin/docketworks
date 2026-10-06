@@ -35,7 +35,7 @@ def _provider() -> MagicMock:
     return provider
 
 
-def _create(provider: MagicMock, **payload: str) -> Company:
+def _create(provider: MagicMock, **payload: str | bool) -> Company:
     data: dict[str, object] = {
         "name": "New Company",
         "email": None,
@@ -72,11 +72,12 @@ class TestCreateCompanyPhone:
 
     def test_create_persists_the_flag_fields(self) -> None:
         """allow_jobs was silently dropped once (CodeRabbit, PR #45) — pin it."""
-        company = _create(_provider())
+        # GPT: Nondefault flags catch create paths that silently omit either field.
+        company = _create(_provider(), is_account_customer=True, allow_jobs=False)
 
         company.refresh_from_db()
-        assert company.is_account_customer is False
-        assert company.allow_jobs is True
+        assert company.is_account_customer is True
+        assert company.allow_jobs is False
 
     def test_create_with_conflicting_phone_rolls_back_company(self) -> None:
         owner = Company.objects.create(name="Owner Ltd", xero_last_modified=timezone.now())
@@ -131,9 +132,16 @@ class TestXeroSyncedUpdatePhone:
         provider = MagicMock()
         provider.provider_name = "Xero"
         provider.get_valid_token.return_value = {"access_token": "token"}
-        provider.update_contact.return_value = ContactResult(
-            success=True, external_id="xero-contact-id", name=company.name
-        )
+        pushed_phones: list[str] = []
+
+        # GPT: Read at the provider boundary; the model can change after the call.
+        def capture_update(pushed_company: Company) -> ContactResult:
+            pushed_phones.append(pushed_company.primary_phone_value())
+            return ContactResult(
+                success=True, external_id="xero-contact-id", name=pushed_company.name
+            )
+
+        provider.update_contact.side_effect = capture_update
 
         with (
             patch(
@@ -151,8 +159,7 @@ class TestXeroSyncedUpdatePhone:
 
         assert response.status_code == 200
         assert response.json()["company"]["phone"] == "09 444 4444"
-        pushed_company = provider.update_contact.call_args.args[0]
-        assert pushed_company.primary_phone_value() == "09 444 4444"
+        assert pushed_phones == ["09 444 4444"]
         rematch.assert_called_once_with([ContactMethod.normalize_phone("09 444 4444")])
 
     def test_failed_push_raises_after_local_commit(self, client: Client) -> None:

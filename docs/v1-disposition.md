@@ -27,18 +27,13 @@ It pipes `pg_dump` of the live database into the `scrub` connection alias
 (`SCRUB_DB_NAME`, which must end in `_scrub` or settings, command and scrubber
 all refuse), anonymises the configured PII columns, deletes accounting records
 not linked to a job, truncates the excluded tables, strips every
-database-backed external-system credential, writes a
-`<dump>.migrations.json` ledger snapshot beside the archive, and re-dumps the
+database-backed external-system credential, and re-dumps the
 scrubbed copy to `<BASE_DIR>/restore/` or a named `--output` path. Raw
 production data never lands on disk on either host.
 `scripts/ops/verify_scrubbed_backup.py` remains the acceptance check of its
 output.
 
-**Until cutover the production hosts run v1 and therefore v1's copy of this
-command** — the v2 port takes over when those hosts move to v2. A live
-rehearsal of the v2 command against production is a cutover-checklist item.
-Instances created before the scrub database existed gain it with one
-`sudo scripts/server/instance.sh reconfigure <client> <env>`.
+
 
 ## scripts/
 
@@ -63,7 +58,7 @@ Instances created before the scrub database existed gain it with one
 | `fix_welding_stock_cost.py` | dropped | One-shot repair of a single stock item's unit cost, already applied to production data. |
 | `generate_url_docs.py` | dropped | Generated per-app Markdown URL listings. v2's route inventory is the exported OpenAPI schema, regenerated and gated by `scripts/checks/export_openapi.py`. |
 | `geocode_addresses.py` | ported | `scripts/ops/geocode_addresses.py` — the backfill sweep over rows that predate on-write geocoding (`apps/company/services/geocoding_service.py`). |
-| `migrate_to_snapshot.py` | ported | `scripts/ops/migrate_to_snapshot.py` — applies migrations up to the `migrations.json` snapshot a backup archive ships, so a dump migrates to exactly the graph it came from. |
+| `migrate_to_snapshot.py` | dropped | Brought a restored archive back to the migration graph it was taken at. A full dump carries its own `django_migrations`, and no procedure restores an archive older than the checkout, so nothing writes or reads a migration snapshot. |
 | `move_time_between_jobs.py` | ported | `scripts/ops/move_time_between_jobs.py` — moves every actual time entry from one job number to another, dry-run by default. |
 | `payroll_reconciliation.py` | ported | Its draft functions became `apps/accounting/services/payroll_reconciliation_service.py`. |
 | `poc_phone_provider_scraper.py` | ported | `scripts/ops/poc_phone_provider_scraper.py`. Deliberately not a Beat harness: provider-side deletion must be exercised through the real Celery Beat task, never through this script. |
@@ -146,7 +141,7 @@ and jail, and the nginx rate-limit configuration.
 
 | v1 asset | disposition | note |
 |---|---|---|
-| `migrate-test-role.sh` | dropped | One-off migration for instances created before per-tenant pytest roles existed: it gave one tenant its own `dw_<instance>_test` role and database in place of the shared cluster-wide `dw_test` role. v2's `instance.sh` creates the per-tenant `dw_<client>_<env>_test` role at instance creation (landing in this branch), so there is no pre-change instance to migrate. |
+| `migrate-test-role.sh` | dropped | One-off migration for instances created before per-tenant pytest roles existed: it gave one tenant its own `dw_<instance>_test` role and database in place of the shared cluster-wide `dw_test` role. v2's `instance.sh` creates the per-tenant `dw_<client>_<env>_test` role at instance creation, so there is no pre-change instance to migrate. |
 
 ### scripts/server/templates/
 
@@ -201,7 +196,7 @@ the rest reject on facts in the files themselves. Several boot
 |---|---|---|
 | `workflow/backport_data_backup.py` | ported | `apps/diagnostics/management/commands/backport_data_backup.py` with `apps/diagnostics/services/db_scrubber.py`; see the producer section at the top of this file. The v1 `--analyze-fields` field sampler is dropped — the PII contract is pinned by `scripts/ops/verify_scrubbed_backup.py` and the scrubber tests, not by an operator eyeballing samples. |
 | `workflow/xero.py` | ported | `apps/xero/management/commands/xero.py`, carrying `--setup`, `--seed-xero` and `--configure-payroll`. The other flags are listed under "Deferred Xero capability" below. |
-| `workflow/seed_xero_from_database.py` | ported | `apps/xero/management/commands/seed_xero_from_database.py`, with the accounts, contacts, employees, invoices, quotes and stock phases. Only the projects phase is blocked — see "Deferred Xero capability". |
+| `workflow/seed_xero_from_database.py` | ported | `apps/xero/management/commands/seed_xero_from_database.py`, with the accounts, contacts, employees, invoices, quotes and stock phases, and a purchase orders phase v1 did not have. Only the projects phase is blocked — see "Deferred Xero capability". |
 | `workflow/start_xero_sync.py` | ported | `apps/xero/management/commands/start_xero_sync.py`, which additionally holds the shared sync lock so an inline run cannot interleave with a beat-dispatched one. |
 | `workflow/e2e_cleanup.py` | ported | `apps/diagnostics/management/commands/e2e_cleanup.py` |
 | `workflow/inspect_xero_quote_pdf.py` | ported | `apps/accounting/management/commands/inspect_xero_quote_pdf.py` |
@@ -212,8 +207,8 @@ the rest reject on facts in the files themselves. Several boot
 | `workflow/export_dev_demo_dump.py` | dropped | The production-host scrub is the one and only confidential-to-non-confidential transition (ADR 0039: responsibilities are exclusive): a dev database restored from a scrubbed dump is non-confidential by construction, so a demo export is a plain `pg_dump` and a second dev-side scrubber re-implements the one transition. Initially ported (with `dev_demo_export_scrubber.py`), removed on the 2026-08-15 ruling. |
 | `workflow/backfill_kanban_search_telemetry.py` | dropped | Backfilled legacy `kanban_search.log` lines into search telemetry rows. v2 writes telemetry from the search path itself and no v2 instance has that log. |
 | `accounts/flag_weak_passwords.py` | ported | `apps/accounts/management/commands/flag_weak_passwords.py` (tests in `apps/accounts/tests/test_flag_weak_passwords.py`) — marks every user as requiring a password reset at next login. |
-| accounts password-reset email flow (`token_view.py`, `serializers.py`) | blocked-by:email-feature | v1's accounts app sent password-reset emails from its token views. v2 consumes no `EMAIL_*` settings and sends no mail; only the `password_needs_reset` flag exists. The email flow lands with the email feature. |
-| `job/create_shop_jobs.py` | ported | `apps/job/management/commands/create_shop_jobs.py` — creates the internal shop jobs, the overhead jobs time is booked against when it is not billable. Nine jobs, named exactly: Business Development, Bench - busy work, Worker Admin, Office Admin, Annual Leave, Sick Leave, Bereavement Leave, Travel, Training. The names are a contract: the E2E timesheet specs find the annual leave job by name, so a restored dataset carries them and only a fresh instance needs this command. |
+| accounts password-reset email flow (`token_view.py`, `serializers.py`) | ported | `apps/accounts/api.py` (request and confirm endpoints) and `apps/accounts/tasks.py` — the reset link is emailed by a Celery task through the delegated Gmail sender, `apps/platform/integrations/google/gmail.py`; v2 consumes no `EMAIL_*` settings. The emailed link is followed end to end by `frontend/tests/e2e/mobile/workshop-password-reset.spec.ts`. |
+| `job/create_shop_jobs.py` | ported | `apps/job/management/commands/create_shop_jobs.py` — creates the internal shop jobs, the overhead jobs time is booked against when it is not billable. v1 made nine; v2 makes twelve, adding Unpaid Leave, Statutory holiday and Break (where every paid break and lunch is booked). The names are a contract: the E2E timesheet specs find the annual leave job by name. Every deploy runs it after migrate, and it only creates the jobs the shop company lacks, never rewriting one that exists. |
 | `job/set_paid_flag_jobs.py` | ported | `apps/job/management/commands/set_paid_flag_jobs.py` — sets the paid flag on completed jobs whose invoices are paid, with dry-run and verbose modes; the same sweep runs nightly from the beat schedule. |
 | `job/test_gemini_chat.py` | ported | Renamed to `apps/job/management/commands/ai_chat_harness.py`. The rename is recorded in its docstring: the ADR 0041 gateway routes to whichever provider is configured, so "gemini" would be a lie half the time. |
 | `process/import_dropbox_hs_documents.py` | ported | `apps/process/management/commands/import_dropbox_hs_documents.py` — walks a Dropbox health-and-safety folder tree, finds `.doc`/`.docx` files following the `Doc.NNN` naming convention, and creates procedure or form records with the type, tags and metadata implied by their location. A one-per-client import, not a sync. |
@@ -275,7 +270,7 @@ Three orphan test fixtures reject on their own content or history:
 | `adr/` | ported | `docs/adr/`, numbering continuous with v1 — the v1 records themselves live on in v2. |
 | `architecture.md` | dropped | A narrative description of the system's layers and flows. v2 states its architecture in `CLAUDE.md`'s layout and standards sections and in the ADRs, both of which are read before non-trivial work; a second narrative would drift from them without anything noticing. |
 | `updating.md` | dropped | v1's deploy runbook plus a caveat about pre-squash dumps. Deploy is `server_setup.md`'s Part D and `scripts/server/README.md`. The caveat does not transfer: a dump predating v1's July 2026 migration squash needs a pre-squash v1 checkout to migrate, `scripts/ops/verify_scrubbed_backup.py` refuses such an archive outright, and v2's load path takes data only and never v1's migration ledger. |
-| `jira-usage.md`, `jira.md` | dropped | The Jira project, board states, labels and definition of done. v2's work is tracked in the approved plan, `rewrite-status.md` and the cutover checklist. |
+| `jira-usage.md`, `jira.md` | dropped | The Jira project, board states, labels and definition of done. v2's work is tracked in Jira and `rewrite-status.md`, the only to-do list. |
 | `urls/` | dropped | Generated per-app URL listings, the output of `generate_url_docs.py`. The exported OpenAPI schema is v2's route inventory. |
 | `function_character_counts.tsv`, `function_under_80_review.tsv` | dropped | Snapshots of a one-off function-length review. v2's `docs/code-quality.md` is generated, committed and gated, so its numbers move in the diff that moves them. |
 | `.codesight/KNOWLEDGE.md` | dropped | A knowledge map generated by an external analysis tool over v1's history: decisions, notes and open questions extracted from commits and sessions. Its durable content is the ADRs, which v2 carries forward with continuous numbering. |
@@ -309,7 +304,7 @@ integrity QA checklist fold into one document); the rest reject:
 | `frontend/README.md` | ported | v2's own `frontend/README.md`, describing the React/TanStack frontend. |
 | `frontend/CLAUDE.md`, `frontend/AGENTS.md`, `frontend/tests/CLAUDE.md` | dropped | All three describe the Vue 3 frontend (views/stores/composables layout, Vite dev server, `npm run update-schema`) — every structural fact is false in v2, whose frontend guidance lives in the root `CLAUDE.md` layout section. |
 | `frontend/CODE_DUPLICATION_WE_CANT_FIX.md` | dropped | A register of the places v1 enumerated job fields, maintained by hand. v2's find-duplicates gate and the generated API layer are the structural answer; a tracked apologia for duplication is the pathology v2 exists to end. |
-| `frontend/shell_alias_setup.txt` | dropped | Shell aliases for the pre-subtree-merge separate frontend repo (`jobs_manager_front`, `activate_env.sh`, Vite dev server) — every path and command in it stopped existing at v1's subtree merge (v1 ADR 0008), and v2 has no dev server. |
+| `frontend/shell_alias_setup.txt` | dropped | Shell aliases for the pre-subtree-merge separate frontend repo (`jobs_manager_front`, `activate_env.sh`, Vite dev server) — every path and command in it stopped existing at v1's subtree merge, and v2 has no dev server. |
 | `frontend/.env.example`, `frontend/.env.test` | ported | v2 keeps `frontend/.env.test` plus its committed template `frontend/.env.test.example`; there is no separate `frontend/.env.example` because the E2E credentials file is the only frontend env surface. |
 | `frontend/.nvmrc` | ported | `frontend/.nvmrc` — the Node version pin nvm-exec reads (it must be run from `frontend/`). |
 | `frontend/.vscode/extensions.json` | dropped | Recommended Vue/Volar extensions for the separate-repo era; v2 configures the single root under `.vscode/` and carries no Vue tooling. |
@@ -404,17 +399,17 @@ job survives, the v2 hook that does it is named; the rest reject:
 | `pyproject.toml`, `poetry.lock`, `requirements.txt` | ported | `pyproject.toml` + `uv.lock`: same manifest concept under uv. `requirements.txt` and the poetry lock die with poetry (see `check_requirements.sh` above). |
 | `codesight.config.json`, `.codesightignore` | dropped | Configuration for the retired codesight analysis tool; its hooks and caches are dropped in the pre-commit and docs sections above. |
 | `.claude/settings.json`, `.claude/settings.local.json` | dropped | v1's tracked file set only `plansDirectory: docs/plans`; v2 keeps its own `.claude/` settings, and the local file is per-machine state. |
-| `.env` (live secrets, on disk) | ported | Each secret's v2 home: `XERO_CLIENT_ID`/`SECRET` → the `workflow_xeroapp` row (dev bootstrap: `apps/xero/fixtures/xero_apps.json.example`; instances: `xero-apps.json.template`); `PHONE_PROVIDER_*` → the `phone_provider_*` columns of the `IntegrationSettings` row (instances: `integration-settings.json.template`; dev deliberately leaves them unset); scraper credentials (`STEEL_TUBE_*`) → `SupplierScraperConfig.active_credential` rows; `NGROK_AUTH_TOKEN` → local `ngrok.yml` (see its row); `GOOGLE_MAPS_API_KEY` → `IntegrationSettings.google_maps_api_key` (instances: the same template; dev: Admin > Integrations); `GCP_CREDENTIALS` path + key file → see `django-integrations-dev.json` row (rotation is a USER cutover action); `UAT_AWS_*` → dropped, no v2 code or workflow reads them (the UAT deploy authenticates with `UAT_HOST`/`UAT_USER`/`UAT_SSH_KEY` GitHub secrets). DB/Django settings map field-for-field onto v2's `.env.example`. |
+| `.env` (live secrets, on disk) | ported | Each secret's v2 home: `XERO_CLIENT_ID`/`SECRET` → the `workflow_xeroapp` row (dev bootstrap: `apps/xero/fixtures/xero_apps.json.example`; instances: `xero-apps.json.template`); `PHONE_PROVIDER_*` → the `phone_provider_*` columns of the `IntegrationSettings` row (instances: `integration-settings.json.template`; dev deliberately leaves them unset); scraper credentials (`STEEL_TUBE_*`) → `SupplierScraperConfig.active_credential` rows; `NGROK_AUTH_TOKEN` → local `ngrok.yml` (see its row); `GOOGLE_MAPS_API_KEY` → `IntegrationSettings.google_maps_api_key` (instances: the same template; dev: Admin > Integrations); `GCP_CREDENTIALS` path + key file → see `django-integrations-dev.json` row (rotation is still owed: `docs/rewrite-status.md`, Credential rotations); `UAT_AWS_*` → dropped, no v2 code or workflow reads them (the UAT deploy authenticates with `UAT_HOST`/`UAT_USER`/`UAT_SSH_KEY` GitHub secrets). DB/Django settings map field-for-field onto v2's `.env.example`. |
 | `.env.example` | ported | `.env.example`, with v2's own variable set. The `EMAIL_*` variables are deliberately absent: v2 consumes no email settings and sends no mail (blocked-by:email-feature — they return with the email flow). |
 | `.env.precommit` | dropped | The no-secrets env v1's CI (and one payroll test) loaded. v2's `config/settings_test.py` loads the real `.env` when present and carries safe setdefaults matching the CI service containers, so no committed env file exists. |
-| `.mcp.json.example` | dropped | Configured a `claude-code-mcp` server pointing at the then-separate frontend repository — a layout that stopped existing at v1's own subtree merge (v1 ADR 0008). |
+| `.mcp.json.example` | dropped | Configured a `claude-code-mcp` server pointing at the then-separate frontend repository — a layout that stopped existing at v1's own subtree merge. |
 | `.shellcheckrc` | ported | Its two directives (follow `source`d files, resolve them relative to each script) became the `shellcheck -x -P SCRIPTDIR` invocation in `scripts/server/test_server_templates.sh` — the single place v2 runs shellcheck. |
 | `tox.ini` | dropped | Orchestrated poetry-installed black/isort/flake8 envs and the baseline-tolerant mypy wrapper. Every job it defined exists as a pre-commit tier or `uv run pytest`, and no v2 tool reads tox.ini. |
 | `mypy-baseline.txt` | dropped | v2 runs mypy strict with a ZERO baseline; a baseline file is the thing the gate exists to forbid. |
 | `stubs/celery` | dropped | v2 takes `celery-types` from PyPI (pyproject dev dependencies) instead of hand-maintaining stubs (ADR 0032). |
 | `stubs/drf_spectacular` | dropped | v2 has no DRF. |
 | `stubs/simple_history` | ported | `stubs/simple_history` |
-| `django-integrations-dev.json` | dropped | A live GCP private key (service account `id-django-integrator-dev@django-integrations`), not code — it was never a repo asset to port. Deleting the v1 repository does not revoke it: rotation is recorded as a USER action in `docs/cutover-checklist.md`, and the replacement goes wherever `GCP_CREDENTIALS` points. |
+| `django-integrations-dev.json` | dropped | A live GCP private key (service account `id-django-integrator-dev@django-integrations`), not code — it was never a repo asset to port. Deleting the v1 repository does not revoke it: rotation is still owed and tracked in `docs/rewrite-status.md` (Credential rotations), and the replacement goes wherever `GCP_CREDENTIALS` points. |
 | `ngrok.yml`, `ngrok.yml.example` | ported | v2 has its own `ngrok.yml` (gitignored) and `ngrok.yml.example`. v1's real file carried the live authtoken and the reserved `docketworks-msm-dev.ngrok-free.app` domain binding; both are carried in v2's local `ngrok.yml`, so deleting v1 loses neither. |
 | `SECURITY.md` | ported | `SECURITY.md` — the GitHub vulnerability-reporting policy; both repositories are public, so the report-privately channel must survive the v1 deletion. |
 | `.claude/skills/stock/SKILL.md`, `.claude/skills/add-stock/SKILL.md` | ported | `.claude/skills/stock/`, `.claude/skills/add-stock/` — operator skills for stock lookup and adding stock to job material lines over `manage.py shell`. Ported verbatim: every model and field they reference (`purchasing.Stock` item_code/description/unit_cost/unit_revenue/is_active, `quoting.SupplierProduct` product_name/parsed_description/parsed_metal_type, `job.Job`) exists unchanged in v2 (verified against the live models). |

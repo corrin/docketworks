@@ -18,7 +18,12 @@ from apps.company.tests.job_fixtures import (
 )
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
-from apps.timesheet.tests.conftest import make_staff, make_time_line
+from apps.timesheet.tests.conftest import (
+    make_break_job,
+    make_staff,
+    make_standard_day,
+    make_time_line,
+)
 
 pytestmark = [
     pytest.mark.django_db,
@@ -96,6 +101,17 @@ class TestKPICalendar:
         assert body["thresholds"]["kpi_daily_billable_hours_green"] == 8.0
         assert body["year"] == 2026
         assert body["month"] == 6
+
+    def test_a_standard_day_is_eight_hours(self, authenticated_client: Client) -> None:
+        """Lunch is logged, not hours: a standard day is 8 on the calendar, not 8.5."""
+        worker = make_staff("kpi-standard@example.com")
+        job = make_job(make_company("KPI Standard Co"), worker)
+        make_standard_day(job, make_break_job(worker), worker, WORKDAY)
+
+        day = authenticated_client.get(URL, JUNE).json()["calendar_data"]["2026-06-10"]
+
+        assert day["total_hours"] == 8.0
+        assert day["billable_hours"] == 7.5
 
     def test_the_two_day_ladders_can_disagree(self, authenticated_client: Client) -> None:
         """Few hours, good money — red by hours, green by dollars.
@@ -378,3 +394,107 @@ class TestKPICalendar:
         assert off["remaining_weekdays"] == on["remaining_weekdays"] == 11
         assert on["weekdays"] == off["weekdays"] == 22
         assert on["elapsed_weekdays"] == off["elapsed_weekdays"] == 11
+
+    def test_refuses_a_staff_member_who_is_not_office_staff(self, workshop_client: Client) -> None:
+        """The calendar is company-wide revenue; a workshop login must not read it.
+
+        The navbar hides the Reports menu from this user, which is
+        presentation; only this gate stops the bare URL returning every
+        month's gross profit (the other four reports already carry it).
+        """
+        assert workshop_client.get(URL, JUNE).status_code == 403
+
+    def test_monthly_ratios_are_served_over_their_own_denominators(
+        self, authenticated_client: Client
+    ) -> None:
+        """Each margin divides by ITS stream's revenue, and the rate by billable hours.
+
+        v1 computed these in four browser components, each with its own
+        denominator, which is how its Profit modal stopped reconciling. One
+        server-side definition per ratio means the cards and the dialogs
+        cannot disagree. A plausible edit — material margin over total revenue,
+        or the rate over total hours — moves the figures asserted here.
+        """
+        worker = make_staff("ratios@example.com")
+        job = make_job(make_company("Ratios Co"), worker)
+        # 3h at $100 and 4h at $120, $40/h cost: labour revenue 780, cost 280.
+        # Two rates, so the average (111.428...) is a figure only its own
+        # rounding reproduces.
+        make_time_line(
+            job,
+            worker,
+            accounting_date=WORKDAY,
+            hours="3.000",
+            unit_cost="40.00",
+            unit_rev="100.00",
+        )
+        make_time_line(
+            job,
+            worker,
+            accounting_date=WORKDAY,
+            hours="4.000",
+            unit_cost="40.00",
+            unit_rev="120.00",
+        )
+        # Material 600 - 100. No adjustment lines at all.
+        add_material_line(job, on=WORKDAY, rev="600.00", cost="100.00")
+
+        totals = authenticated_client.get(URL, JUNE).json()["monthly_totals"]
+        assert totals["labour_margin"] == 64.1  # 500 / 780
+        assert totals["material_margin"] == 83.3  # 500 / 600
+        # No adjustment revenue: the margin has no denominator, which is an
+        # absence, not a 0% margin.
+        assert totals["adjustment_margin"] is None
+        assert totals["gross_margin"] == 72.5  # 1000 / 1380
+        # Net profit is gross less 22 weekdays' overhead (-21,000), over revenue.
+        assert totals["net_margin"] == -1521.7
+        assert totals["avg_labour_rate"] == 111.43  # 780 / 7h, two places
+        assert totals["labour_revenue_share"] == 56.5  # 780 / 1380
+        # The month's overhead is the daily share times its WEEKDAYS, and
+        # achievement is gross profit against that.
+        assert totals["month_target"] == 22000.0
+        assert totals["month_target_achievement"] == 4.5  # 1000 / 22000
+
+    def test_ratios_without_a_denominator_are_null_not_zero(
+        self, authenticated_client: Client, thresholds: CompanyDefaults
+    ) -> None:
+        """An empty month has no margins; it does have a target it fell short of.
+
+        Serving 0% for a margin on zero revenue would read as a break-even
+        month. Null says the question has no answer. Achievement is different:
+        $0 against a $22,000 target is a real 0%, not an absence — until the
+        target itself is unset, when there is nothing to achieve against.
+        """
+        body = authenticated_client.get(URL, JUNE).json()
+        totals = body["monthly_totals"]
+        for field in (
+            "gross_margin",
+            "net_margin",
+            "labour_margin",
+            "material_margin",
+            "adjustment_margin",
+            "avg_labour_rate",
+            "labour_revenue_share",
+            # The older ratios read the same way: no hours, no utilisation and
+            # no per-active-day average — not 0% and 0h.
+            "billable_percentage",
+            "shop_percentage",
+            "avg_active_day_gp",
+            "avg_active_day_billable_hours",
+        ):
+            assert totals[field] is None, field
+        # 22 weekdays is a denominator the month always has.
+        assert totals["avg_weekday_gp"] == 0.0
+        assert body["calendar_data"]["2026-06-10"]["shop_percentage"] is None
+        # And the month is still graded: nothing earned is a shortfall, not an
+        # absence of grade.
+        assert totals["color_hours"] == "red"
+        assert totals["color_gp"] == "red"
+        assert totals["month_target"] == 22000.0
+        assert totals["month_target_achievement"] == 0.0
+
+        thresholds.kpi_daily_gp_target = Decimal("0")
+        thresholds.save()
+        totals = authenticated_client.get(URL, JUNE).json()["monthly_totals"]
+        assert totals["month_target"] == 0.0
+        assert totals["month_target_achievement"] is None

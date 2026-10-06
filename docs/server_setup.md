@@ -115,7 +115,9 @@ It is **idempotent** — safe to re-run on an already-configured server.
 - Node.js 22 (NodeSource)
 - PostgreSQL server (configured for password auth over sockets)
 - Redis (the `redis-server` binary; each instance runs its own `redis-<instance>` server on a
-  private port behind its own password, ADR 0065; the stock service on 6379 serves only the v1 demo)
+  private port behind its own password; the stock service on 6379 serves only the v1 demo).
+  `CACHES["shared"]` must reach it: PDF-refresh dedup and django-solo propagation live there,
+  and `Job.save()` fails at commit time without it
 - Nginx, with per-IP rate-limit zones for the two authentication endpoints
 - Certbot + Dreamhost DNS hook scripts (for wildcard cert auto-renewal)
 - pnpm (via corepack) and pm2 (for marketing website)
@@ -176,18 +178,24 @@ sudo scripts/server/instance.sh reconfigure <client> <env>
 `instance.sh create` is the supported provisioning path. It creates the OS
 user, database, generated `.env`, the instance's own Redis server
 (`redis-<instance>` on a private port behind its own password, so no
-instance can consume or read another's, ADR 0065), per-instance data
+instance can consume or read another's), per-instance data
 directories, service units, backup timers,
 sudoers drop-in, nginx config, and `app` symlink to a shared
 `/opt/docketworks/releases/<sha>` release. App code, Python dependencies,
 and frontend builds live in the shared release, not in the instance
 directory. Integration credentials (Xero app, AI provider keys, phone
 provider) are loaded into the instance's database as fixture rows; the
-loaders skip anything a restored database already carries.
+loaders skip anything a restored database already carries
+(`load_integration_settings` applies an integration only while all of its
+columns are unset, and creates the row a scrubbed restore leaves missing;
+`scripts/ops/restore_checks/check_integration_settings.py` proves each
+credential the way the app uses it). Each instance's databases revoke
+PUBLIC's implicit CONNECT and grant it to the owner role alone, so no
+instance can reach another's data; `reconfigure` retrofits that.
 
 ### Per-instance test database
 
-`create` (and `reconfigure`, for instances that predate this) also provisions
+`create` also provisions
 a per-tenant pytest role: a `dw_<client>_<env>_test` Postgres role with
 `CREATEDB`, its credentials written into the instance `.env` as
 `TEST_DB_USER` and `TEST_DB_PASSWORD`. The role owns no database at rest:
@@ -227,6 +235,10 @@ sudo scripts/server/dw-run.sh <client>-<env> python manage.py finalize_instance_
 
 The root-owned `/opt/docketworks/config/<name>.company-defaults.json` is the
 durable tenant configuration; repo fixtures are only templates.
+It must name every field of the current `Company` and `CompanyDefaults` models, so a
+release that renames or adds one leaves every host's file behind it: `instance.sh
+validate-config` names the difference, and `create`/`reconfigure` refuse the file before
+touching anything.
 
 ---
 
@@ -241,7 +253,7 @@ sudo scripts/server/deploy.sh --all          # every instance, each on its own r
 
 Each instance records its tracked git ref alongside its current and previous
 SHA in `/opt/docketworks/instances/<instance>/deploy-state.env`
-(`origin/production` for prod, `origin/main` for UAT, per ADR 0029).
+(`origin/production` for prod, `origin/main` for UAT; `docs/release-process.md`).
 `deploy.sh` fetches, resolves each target instance's ref, builds or reuses
 the shared `/opt/docketworks/releases/<sha>` release, then per instance:
 takes a pre-deploy DB backup, stops runtime services, switches `app` to the
@@ -319,7 +331,7 @@ The job runs as the instance user (`dw_<name>`), writes local dumps under
 `/opt/docketworks/instances/<name>/backups`, applies retention, and syncs to
 Google Drive under `gdrive:dw_backups/`. Cleanup copies local dumps
 before pruning and purges only the same expired backup names remotely, so
-unrelated remote-only history is not mirrored away. Each DB dump has a sibling `<dump>.migrations.json` sidecar recording the database's migration state (the snapshot `migrate_to_snapshot.py` consumes); legacy `.sha` release-pointer sidecars are deleted by the next retention run.
+unrelated remote-only history is not mirrored away.
 
 Mutable instance file backups run separately via `backup-files-<name>.timer`.
 They incrementally sync `phone-recordings`, `mediafiles`, and the currently
@@ -351,16 +363,19 @@ sudo -u dw_<name> RCLONE_CONFIG=/opt/docketworks/config/rclone/<name>.conf \
   rclone lsf gdrive:dw_backups/
 ```
 
-### Cold standby (DR mode)
+### Stopped instances (standby)
 
-For a DR box that shares Xero credentials with a live primary: create with `--no-start` so celery-beat / celery-worker never auto-start (no heartbeat to Xero with shared tokens), and a `.dr-mode` marker is dropped in the instance dir. Subsequent `deploy.sh` runs see the marker and skip enable/restart of celery-beat, celery-worker, and gunicorn — migrations, builds, and unit/nginx re-renders still run, so the standby stays current.
+A stopped instance keeps its directory, database, units and nginx site and runs nothing. A `.dr-mode` marker in the instance dir records the state: `deploy.sh`, `rollback.sh` and `reconfigure` keep it current (migrations, builds, unit and nginx re-renders) without starting it, `verify-instance.sh` refuses it, and `list` shows it as stopped. Its hostname answers 502 while stopped. Use it for a tenant doing no work: an idle instance holds as much memory as one serving users (about 2.5 GiB) and the host has no swap to page it out.
+
+```bash
+sudo scripts/server/instance.sh stop <client> <env>    # disables and stops the four units, writes .dr-mode
+sudo scripts/server/instance.sh start <client> <env>   # removes .dr-mode, enables and starts them
+```
+
+The same state is the cold-standby posture for a DR box that shares Xero credentials with a live primary: create it with `--no-start` so beat and the worker never fire a heartbeat with shared tokens, and `start` it after DNS cutover.
 
 ```bash
 sudo scripts/server/instance.sh create <client> <env> --no-start
-
-# To go live (after DNS cutover):
-sudo rm /opt/docketworks/instances/<client>-<env>/.dr-mode
-sudo systemctl enable --now celery-beat-<client>-<env> celery-worker-<client>-<env> gunicorn-<client>-<env>
 ```
 
 ### Destroy (complete removal)
@@ -401,9 +416,18 @@ curl -s https://<name>.docketworks.site/api/build-id/
 ### The E2E suite on the instance (UAT verification, PVT)
 
 ```bash
-# Once per instance: the E2E user's credentials, root-owned like the rest of config/
+# Once per instance: the E2E users' credentials, root-owned like the rest of config/
 sudo install -m 600 -o root -g root /dev/null /opt/docketworks/config/<name>.e2e.env
-sudoedit /opt/docketworks/config/<name>.e2e.env   # E2E_TEST_USERNAME= / E2E_TEST_PASSWORD=
+sudoedit /opt/docketworks/config/<name>.e2e.env   # E2E_TEST_USERNAME= / E2E_TEST_PASSWORD= / E2E_WORKSHOP_USERNAME= / E2E_WORKSHOP_PASSWORD= / E2E_OFFICE_STAFF_USERNAME= / E2E_OFFICE_STAFF_PASSWORD= / E2E_RESET_MAILBOX_OWNER=
+# E2E_OFFICE_STAFF_USERNAME is an office login that is not a superuser; any address, it
+# receives no mail.
+# E2E_WORKSHOP_USERNAME is a plus-address of a real mailbox in this instance's Google
+# Workspace, tagged with the environment: name+e2e-uat@ on UAT, name+e2e-prod@ on
+# production. E2E_RESET_MAILBOX_OWNER is that mailbox's Workspace user (name@). The
+# password-reset spec emails the first and reads the second, so the Workspace's delegation
+# must grant both gmail.send and gmail.readonly (docs/client_onboarding.md). Without
+# gmail.readonly the spec refuses before it sends anything; without gmail.send no email
+# arrives, the spec times out waiting for the link, and the failed send is an AppError row.
 
 sudo scripts/server/verify-instance.sh <client> <env> --e2e                # uat
 sudo scripts/server/verify-instance.sh <client> prod --e2e --production   # PVT
@@ -449,6 +473,47 @@ sudo scripts/server/instance.sh reconfigure test uat
 sudo scripts/server/instance.sh destroy test uat
 sudo scripts/server/instance.sh destroy test2 uat
 ```
+
+### Rehearsing the new-instance path after a merge
+
+The rehearsal proves the path from an empty host to a working instance: `create` runs
+unchanged from the ref with the three root-owned config files a client instance has, the
+post-create checks run, onboarding is `finalize_instance_onboarding --seed-xero` against the
+fake Xero (the whole instance renders `XERO_FAKE=True`, so no token minted for it can leave
+the box), the suite runs through `verify-instance.sh --e2e`, and the instance is destroyed.
+It verifies provisioning, never a merge (ADR 0060, ADR 0064). Never populate it from another
+instance's database: the run would then prove a restore, not `create`. Never skip or stub a
+red step: a step the fake cannot serve is a gap named in
+`apps/xero/fake/tests/test_every_call_is_routed.py`, and the red run is the record of it.
+Never run it on a production name or wire it into the deploy workflow: the runner's key
+would gain create and destroy on the host.
+
+Once, on the host: the rehearsal instance's three config files. The credentials file takes
+msm-uat's values (Maps key, GCP key, team drive, Xero app); the E2E file names the user the
+suite signs in as, which `e2e_ensure_fixtures` creates.
+
+```bash
+sudo scripts/server/instance.sh prepare-config rehearsal uat --seed
+sudoedit /opt/docketworks/config/rehearsal-uat.credentials.env
+sudo install -m 600 -o root -g root /dev/null /opt/docketworks/config/rehearsal-uat.e2e.env
+sudoedit /opt/docketworks/config/rehearsal-uat.e2e.env   # E2E_TEST_USERNAME= / E2E_TEST_PASSWORD= / E2E_WORKSHOP_USERNAME= / E2E_WORKSHOP_PASSWORD= / E2E_OFFICE_STAFF_USERNAME= / E2E_OFFICE_STAFF_PASSWORD= / E2E_RESET_MAILBOX_OWNER=
+```
+
+Then, from the dev box, after each merge:
+
+```bash
+scripts/ops/rehearse_instance.sh <uat-host> rehearsal            # origin/main
+scripts/ops/rehearse_instance.sh <uat-host> rehearsal --ref <ref>
+```
+
+The host's output streams to the terminal and to `logs/rehearsals/<timestamp>.log`; the
+exit status is the host's. On the host, each run writes
+`/opt/docketworks/rehearsals/<timestamp>-<sha8>/result.txt` (step reached, exit, ref, sha,
+duration, whether the instance was left) beside the Playwright report, traces and history.
+A failed run leaves its instance stopped, with its directory and database intact; to look
+closer, `systemctl start` its four units by hand. While it is on the host, `deploy.sh --all`
+would deploy it like any other instance and start it again. The run is red at its `connect` step until the pieces named in
+`apps/xero/fake/tests/test_every_call_is_routed.py` land.
 
 ---
 
@@ -588,10 +653,16 @@ curl -sI https://docketworks.site/
 ## Resource Notes
 
 - Each Gunicorn service runs 4 uvicorn workers (`-k
-  uvicorn_worker.UvicornWorker`, per the ASGI serving model of ADR 0047) —
+  uvicorn_worker.UvicornWorker --timeout 180`, per the ASGI serving model of ADR 0047) —
   SSE streams ride the event loop, so many can be open per worker at once,
   and sync views are not serialised per worker either; resize against
-  observed load, not against this number
+  observed load, not against this number. The unit stays `gunicorn-<instance>`:
+  deploy, rollback and the sudoers rules address it by that name. Editing a
+  unit template changes the server-setup hash `deploy.sh` compares, so the next
+  deploy re-converges every host — the mechanism working, not a fault.
+- A board whose streams stay connected but receives no events during known
+  writes has lost its Redis listener (django-eventstream never restarts it):
+  restart the instance's gunicorn service.
 - Oracle Cloud ARM free tier: 4 OCPU / 24GB RAM
 - 5-10 concurrent demo instances should run comfortably
 - All packages (Python 3.12, Node 22, PostgreSQL, etc.) have aarch64/ARM builds

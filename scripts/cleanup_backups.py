@@ -16,12 +16,8 @@ REMOTE_BASE = "gdrive:dw_backups"
 #   predeploy: predeploy_<ts>_<hash>.sql.gz (predeploy_backup.sh); 30 days.
 #   pre_reset: pre_reset_<db>_<ts>.sql.gz (manage.py reset_public_schema's
 #              pre-wipe snapshot, ADR 0048); 7 days.
-#   daily:     daily_<YYYYMMDD>.sql.gz (backup_db.sh); keep most recent N,
-#              each with its <dump>.migrations.json sidecar.
-#   monthly:   monthly_<YYYYMM>.sql.gz (backup_db.sh); keep most recent N,
-#              each with its <dump>.migrations.json sidecar.
-#   *_sha:     Fable: retired release-commit sidecars; recognised so
-#              retention deletes them, never written or kept any more.
+#   daily:     daily_<YYYYMMDD>.sql.gz (backup_db.sh); keep most recent N.
+#   monthly:   monthly_<YYYYMM>.sql.gz (backup_db.sh); keep most recent N.
 #   stale_tmp: a daily/monthly .tmp left by a crash mid-write; the writer
 #              renames tmp->final, so a surviving .tmp is garbage.
 # Any other entry (logs, ad-hoc files) is left untouched.
@@ -29,23 +25,15 @@ TS_DIR_RE = re.compile(r"^\d{8}_\d{6}$")
 PREDEPLOY_RE = re.compile(r"^predeploy_(\d{8}_\d{6})_[0-9a-f]+\.sql\.gz$")
 PRE_RESET_RE = re.compile(r"^pre_reset_.+_(\d{8}_\d{6})\.sql\.gz$")
 DAILY_RE = re.compile(r"^daily_(\d{8})\.sql\.gz$")
-DAILY_SNAPSHOT_RE = re.compile(r"^daily_(\d{8})\.sql\.gz\.migrations\.json$")
-DAILY_SHA_RE = re.compile(r"^daily_(\d{8})\.sha$")
 MONTHLY_RE = re.compile(r"^monthly_(\d{6})\.sql\.gz$")
-MONTHLY_SNAPSHOT_RE = re.compile(r"^monthly_(\d{6})\.sql\.gz\.migrations\.json$")
-MONTHLY_SHA_RE = re.compile(r"^monthly_(\d{6})\.sha$")
-STALE_TMP_RE = re.compile(r"^(?:daily_\d{8}|monthly_\d{6})\.sql\.gz(?:\.migrations\.json)?\.tmp$")
+STALE_TMP_RE = re.compile(r"^(?:daily_\d{8}|monthly_\d{6})\.sql\.gz\.tmp$")
 
 CLASSIFIERS: list[tuple[re.Pattern[str], str]] = [
     (TS_DIR_RE, "ts_dir"),
     (PREDEPLOY_RE, "predeploy"),
     (PRE_RESET_RE, "pre_reset"),
-    (DAILY_SNAPSHOT_RE, "daily_snapshot"),
     (DAILY_RE, "daily"),
-    (DAILY_SHA_RE, "daily_sha"),
-    (MONTHLY_SNAPSHOT_RE, "monthly_snapshot"),
     (MONTHLY_RE, "monthly"),
-    (MONTHLY_SHA_RE, "monthly_sha"),
     (STALE_TMP_RE, "stale_tmp"),
 ]
 
@@ -144,10 +132,6 @@ def compute_window_keep(
         if ts >= cutoff:
             keep.add(name)
     return keep
-
-
-def paired_snapshot_name(name: str) -> str:
-    return f"{name}.migrations.json"
 
 
 def compute_recent_keep(
@@ -249,9 +233,8 @@ def bucket_entries(entries: list[str]) -> dict[str, list[str]]:
 def plan_retention(entries: list[str], now: datetime) -> tuple[dict[str, set[str]], list[str]]:
     """Decide what stays and what goes; pure so retention is testable.
 
-    Returns per-kind keep sets and the sorted deletion list. A kept dump
-    keeps its ``.migrations.json`` sidecar; legacy ``.sha`` sidecars are
-    never kept; unmanaged names appear in neither.
+    Returns per-kind keep sets and the sorted deletion list; unmanaged names
+    appear in neither.
     """
     buckets = bucket_entries(entries)
 
@@ -269,9 +252,7 @@ def plan_retention(entries: list[str], now: datetime) -> tuple[dict[str, set[str
             buckets["pre_reset"], PRE_RESET_RE, PRE_RESET_RETENTION_DAYS, now
         ),
         "daily": daily_keep,
-        "daily_snapshot": {paired_snapshot_name(name) for name in daily_keep},
         "monthly": monthly_keep,
-        "monthly_snapshot": {paired_snapshot_name(name) for name in monthly_keep},
         "other": set(),
     }
 
@@ -300,9 +281,7 @@ def main() -> None:
     print("Keeping (predeploy):", sorted(keep_sets["predeploy"]))
     print("Keeping (pre_reset):", sorted(keep_sets["pre_reset"]))
     print("Keeping (daily):", sorted(keep_sets["daily"]))
-    print("Keeping (daily snapshots):", sorted(keep_sets["daily_snapshot"]))
     print("Keeping (monthly):", sorted(keep_sets["monthly"]))
-    print("Keeping (monthly snapshots):", sorted(keep_sets["monthly_snapshot"]))
     if keep_sets["other"]:
         print("Leaving untouched (unmanaged pattern):", sorted(keep_sets["other"]))
 

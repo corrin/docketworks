@@ -6,10 +6,12 @@ Decisions that shape this codebase, written for the reader about to do work here
 
 - **Filename:** `NNNN-short-kebab-topic.md`, zero-padded 4-digit sequential.
 - **Numbering is stable.** Never renumber; never re-use a number; gaps from removed ADRs stay as gaps. Code cites ADRs by number.
+- **A retired ADR is deleted, its index row with it, and the same change rewords every citation of its number.** `grep -rn 'ADR 0065' .` (with the retired number) returns nothing afterwards except the `docs/rewrite-history.md` entry that records the retirement, so no citation is left resolving to a number that no longer exists; where a surviving rule went is said at each former citation, never in a tombstone row.
+- **Forward-looking bar.** An ADR is a rule future PRs should follow, read again and again by the session writing them. A decision read once — a migration that has run, a provisioning layout, a release procedure, the story of a bug — goes to the runbook that runs it, the code comment that carries it, or `docs/rewrite-history.md`. Whether today's code complies is not the test: a gap is a code slice, never a reason to retire the rule.
 - **Substance bar.** An ADR captures a non-obvious decision a careful reader of the code couldn't reconstruct.
 - **Every sentence is load-bearing:** a rule, or the forcing fact that makes a rule stick. No narrative problem statements, no essays defending alternatives, no consequences sections restating the decision — deliberation history lives in git. Rationale is a clause attached to its rule.
 - **Clear prose, not fragments.** Brevity comes from cutting sentences that don't change behaviour, never from telegraphic writing — compressed fragments are harder to follow than plain sentences.
-- **Tempting wrong turns** go under `## Do not` as a prohibition plus a one-line reality, only when the temptation is real.
+- **Alternatives** belong in the decision when a competent engineer might consider them and the comparison explains a constraint (ADR 0043). A `## Do not` section is optional.
 - **An ADR lands in its own commit.** An ADR written in the same commit as the code it authorises has not been decided, only justified, and the code was never weighed against a rule that existed before it.
 - **An ADR an AI drafted is unratified until the owner says otherwise** (ADR 0051), and an unratified ADR is not authority for changing behaviour. Mark it, then ask.
 
@@ -21,17 +23,12 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 
 | N | Title |
 | --- | --- |
-| [0001](0001-exception-already-logged-dedup.md) | Error persistence is idempotent: one failure, one AppError row |
 | [0002](0002-auth-gate-global-allowlist.md) | Auth gate: single global gate with explicit allowlist |
 | [0003](0003-etag-optimistic-concurrency.md) | Job, PO and stocktake mutations carry If-Match: missing is 428, stale is 412 |
 | [0004](0004-job-delta-envelope.md) | Job mutations require a self-contained delta envelope |
-| 0005 | (retired 2026-09-13: Gemini emit-tools no longer exist; every AI call is [0041](0041-one-llm-gateway.md)'s gateway) |
 | [0006](0006-rest-resource-hierarchy.md) | Identifiers live in the URL path, bodies carry data only, one endpoint per operation |
 | [0007](0007-xero-payroll-sync.md) | Xero payroll posts each hour category through the one surface that can represent it, and never posts a public holiday |
-| 0008 | (retired 2026-09-13: this repository was never a subtree; the one-repo rule lives in [0017](0017-zero-backwards-compatibility.md)) |
-| 0009–0011, 0014, 0016, 0018, 0022–0023, 0044 | (numbers never carried into this repository; no record of what they held) |
 | [0012](0012-accounting-provider-strategy.md) | Every accounting read and write reaches the vendor only through get_provider(); SDK types never cross the boundary |
-| 0013 | (retired 2026-09-13: merged into [0038](0038-transparent-errors-trusted-environment.md)) |
 | [0015](0015-fix-data-not-fallback.md) | Fix incorrect data; do not add read-side fallbacks |
 | [0017](0017-zero-backwards-compatibility.md) | Zero backwards compatibility; rewrite every call site in one PR |
 | [0019](0019-mandatory-error-persistence.md) | Unexpected exceptions are persisted to AppError |
@@ -39,23 +36,18 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0021](0021-frontend-generated-api-client-only.md) | Frontend reads and writes the API only through the generated client |
 | [0024](0024-celery-async-task-processing.md) | Background work runs through Celery; tasks are idempotent and write-side |
 | [0025](0025-tests-state-business-risk.md) | Every test guards against a plausible regression |
-| [0026](0026-plan-the-tests-before-approval.md) | Plan the tests before the plan is approved |
 | [0027](0027-deploy-capability-with-its-controls.md) | A capability deploys with the means to operate it |
 | [0028](0028-type-annotations-are-data-contracts.md) | Type annotations are data contracts |
-| [0029](0029-servers-run-the-production-branch.md) | Separate integration from production releases |
 | [0030](0030-first-class-people-and-company-links.md) | Person owns identity, CompanyPersonLink owns the relationship, jobs point at the person |
 | [0031](0031-single-logging-gate-debug-namespaces.md) | One logging gate: the `debug` library with namespaces |
 | [0032](0032-prefer-libraries-over-homegrown.md) | Less code is better: prefer libraries over homegrown implementations |
 | [0033](0033-version-constraints-record-tested-versions.md) | Version constraints record what passed testing, not what is compatible |
 | [0034](0034-company-merges-are-xero-first.md) | Company identity and merges are Xero-first |
-| 0035–0037 | (reserved: ninja adoption, beat-in-code, workflow decomposition — written as their phases land) |
 | [0038](0038-transparent-errors-trusted-environment.md) | Authenticated callers get the real exception; anonymous callers get fixed wording and no secrets |
 | [0039](0039-one-implementation-per-concept.md) | One implementation per concept |
 | [0040](0040-nullable-text-write-contract.md) | Unset is NULL, and the request schema says so |
 | [0041](0041-one-llm-gateway.md) | One LLM gateway, and it lives in apps/ai |
-| 0042 | (reserved: v1 data migration — written when that phase lands) |
-| [0043](0043-comments-record-the-rejected-alternative.md) | Comments record the rejected alternative |
-| 0045 | (retired 2026-09-13: merged into [0028](0028-type-annotations-are-data-contracts.md)) |
+| [0043](0043-comments-record-the-rejected-alternative.md) | Comments explain decisions and constraints |
 | [0046](0046-numbers-on-the-wire.md) | Numbers on the wire; the frontend owns all formatting |
 | [0047](0047-asgi-serving-and-sse-push.md) | The application is served over ASGI, and data versions are pushed over SSE |
 | [0048](0048-own-what-you-wipe-database-safety.md) | A role wipes only what it owns; production wipes need an explicit assertion and are always recoverable |
@@ -71,8 +63,5 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0058](0058-write-refusals-live-in-the-application.md) | Code that looks short and simple runs short and simple: a write refusal lives in one application function, never in a trigger |
 | [0059](0059-one-data-model-legacy-data-is-migrated.md) | The app supports one data model; legacy data is migrated to comply |
 | [0060](0060-an-iteration-run-may-fake-an-integration.md) | The fake Xero is a drop-in replacement for Xero's API, proven against Xero by recordings |
-| [0061](0061-checking-is-not-doing.md) | Checking is not doing: one owner per action, one check at the boundary that matters |
-| [0062](0062-ai-provider-selection-and-administration.md) | A caller selects an AI provider from the configured catalogue, and Admin → Integrations owns the catalogue |
-| [0063](0063-test-suite-conventions.md) | Every test starts from a provisioned instance and asserts over what it created; E2E drives the UI by automation id |
+| [0063](0063-test-suite-conventions.md) | A test asserts over what it created, takes its actors from the root conftest, and an E2E wait never filters on status |
 | [0064](0064-an-instance-is-verified-on-a-copy-of-its-database.md) | A deployed instance is verified by the E2E suite on a copy of its database, against the fake Xero, with users fenced out |
-| [0065](0065-each-instance-owns-its-redis-server.md) | Each instance owns its Redis server |

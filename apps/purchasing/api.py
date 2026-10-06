@@ -486,10 +486,7 @@ def create_purchase_order_event(
     event = purchase_order_service.create_purchase_order_event(
         po, payload.description, authenticated_staff(request)
     )
-    return Status(
-        201,
-        {"success": True, "event": purchase_order_service.purchase_order_event_data(event)},
-    )
+    return Status(201, {"success": True, "event": event})
 
 
 # ── Allocations ──────────────────────────────────────────────────────────

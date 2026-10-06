@@ -16,6 +16,10 @@ from apps.platform.integrations.google.gmail import send_company_email
 
 logger = logging.getLogger(__name__)
 
+#: The reset email's subject. The E2E reset spec finds the message by it
+#: (apps/diagnostics/management/commands/e2e_read_reset_link.py).
+RESET_EMAIL_SUBJECT = "Reset your DocketWorks password"
+
 
 @shared_task(name="apps.accounts.tasks.send_password_reset_email_task")
 def send_password_reset_email_task(recipient: str, link: str) -> None:
@@ -24,7 +28,7 @@ def send_password_reset_email_task(recipient: str, link: str) -> None:
         send_company_email(
             company_email=CompanyDefaults.get_solo().company_email,
             to=recipient,
-            subject="Reset your DocketWorks password",
+            subject=RESET_EMAIL_SUBJECT,
             body=(
                 f"Someone asked to reset the DocketWorks password for {recipient}.\n\n"
                 f"Use this link to choose a new password:\n\n{link}\n\n"

@@ -54,6 +54,32 @@ def _connected_app(**overrides: object) -> XeroApp:
 
 
 class TestXeroPing:
+    @pytest.mark.parametrize("backend_fake", [False, True])
+    def test_mode_mismatch_refuses_before_token_access(
+        self, api: Client, backend_fake: bool
+    ) -> None:
+        app = _connected_app(expires_at=datetime.now(UTC) - timedelta(hours=1))
+        with (
+            override_settings(XERO_FAKE=backend_fake),
+            patch("apps.xero.api.get_valid_token") as token,
+        ):
+            response = api.get(PING_URL, {"expected_fake": str(not backend_fake).lower()})
+        assert response.status_code == 409
+        token.assert_not_called()
+        app.refresh_from_db()
+        assert (app.access_token, app.refresh_token) == ("AT", "RT")
+
+    @pytest.mark.parametrize("backend_fake", [False, True])
+    def test_matching_mode_performs_connection_check(self, api: Client, backend_fake: bool) -> None:
+        with (
+            override_settings(XERO_FAKE=backend_fake),
+            patch("apps.xero.api.get_valid_token", return_value="token") as token,
+        ):
+            response = api.get(PING_URL, {"expected_fake": str(backend_fake).lower()})
+        assert response.status_code == 200
+        assert response.json()["connected"] is True
+        token.assert_called_once()
+
     def test_requires_authentication(self, client: Client) -> None:
         assert client.get(PING_URL).status_code == 401
 
@@ -106,7 +132,7 @@ class TestXeroPing:
         # error_id already keys into the persisted detail.
         assert body["error"] == "Xero connection check failed; see error_id."
         assert body["error_id"] == str(app_error.id)
-        # One failure is one row (ADR 0001) — the endpoint reuses the
+        # One failure is one row (ADR 0019) — the endpoint reuses the
         # pre-persisted error instead of writing a duplicate.
         assert AppError.objects.count() == before
 

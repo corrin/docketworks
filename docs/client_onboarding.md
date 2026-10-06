@@ -155,6 +155,11 @@ Allows the service account to act on behalf of users in the client's domain.
   - `https://www.googleapis.com/auth/drive`
   - `https://www.googleapis.com/auth/documents`
   - `https://www.googleapis.com/auth/spreadsheets`
+  - `https://www.googleapis.com/auth/gmail.send` (password-reset email)
+  - `https://www.googleapis.com/auth/gmail.compose` (purchase-order drafts)
+  - `https://www.googleapis.com/auth/gmail.readonly`, only for a Workspace an
+    instance runs the E2E suite against: the password-reset spec reads the
+    test mailbox back. The product itself never reads mail.
 
 **The client's Workspace admin does:**
 1. Google Admin Console (admin.google.com)
@@ -315,6 +320,12 @@ Verify `CompanyDefaults` carries what Phase 1 collected (most of it arrives from
 `company-defaults.json` at create time):
 
 - Company name, acronym, address, email, website
+  - Pick the address from the address search on the settings screen, not typed by hand:
+    the pick is what stores its coordinates. Workshop staff's own time entries are
+    compared against them. An entry saved from a phone that gives no location, or one
+    more than 300 m away, reads "Suspicious remote entry" to the worker and the office.
+    Tell staff to allow location for the site on their phone. With no address picked,
+    nobody is asked for location and nothing is marked.
 - Charge-out rate, wage rate, markups, labour cost loading
 - Working hours
 - Shop company (must be the Xero contact created in Phase 2a — `shop_company` is NOT NULL)
@@ -327,16 +338,16 @@ Verify `CompanyDefaults` carries what Phase 1 collected (most of it arrives from
   **Terms (Quotes)** field; keep both in sync — Phase 2a)
 - KPI thresholds (optional, can be tuned later)
 
-### 7c. Create Shop Jobs
+### 7c. Shop Jobs
 
-```bash
-sudo scripts/server/dw-run.sh <client>-prod python manage.py create_shop_jobs
-```
-
-Creates nine jobs against the shop company, by these exact names: Annual Leave, Sick Leave,
-Bereavement Leave, Travel, Training, Business Development, Office Admin, Worker Admin, and
-Bench - busy work. The command is idempotent — re-running updates descriptions instead of
-duplicating.
+Nothing to run. `finalize_instance_onboarding` makes the shop jobs, and every deploy runs
+`create_shop_jobs` again after migrate. It makes twelve jobs against the shop company, by
+these exact names: Annual Leave, Sick Leave, Bereavement Leave, Unpaid Leave, Statutory
+holiday, Travel, Training, Business Development, Office Admin, Worker Admin, Bench - busy
+work, and Break (every paid break and lunch is booked to it). It only creates the ones the
+shop company lacks and never rewrites one that exists, so a job the office has archived or
+reworded stays as it is. Until the Break job exists, closing a day is refused with "Breaks
+are not set up. Tell the office."
 
 ### 7d. Staff Setup
 

@@ -147,6 +147,27 @@ class TestReorderPriority:
         assert event.description == "Priority decreased from 1st to 2nd of 4 in In Progress"
         assert "800" not in event.description
 
+    def test_rebalancing_preserves_order_without_priority_events(
+        self, company: Company, office_staff: Staff
+    ) -> None:
+        """Renumbering floats in rebalance_column must not audit user reorders."""
+        _make_status_job(company, office_staff, "Bottom")
+        mover = _make_status_job(company, office_staff, "Mover")
+        anchor = _make_status_job(company, office_staff, "Anchor")
+        KanbanService.reorder_job(
+            job_id=mover.pk,
+            anchor_job_id=str(anchor.pk),
+            placement="above",
+            staff=office_staff,
+        )
+        before_events = list(JobEvent.objects.values_list("pk", flat=True))
+        before_order = self._ordered_names()
+
+        KanbanService.rebalance_column("in_progress", office_staff)
+
+        assert self._ordered_names() == before_order
+        assert list(JobEvent.objects.values_list("pk", flat=True)) == before_events
+
     def test_reorder_above_visible_anchor(self, company: Company, office_staff: Staff) -> None:
         anchor = _make_status_job(company, office_staff, "Anchor")
         mover = _make_status_job(company, office_staff, "Mover")
@@ -165,11 +186,12 @@ class TestReorderPriority:
         self, company: Company, office_staff: Staff
     ) -> None:
         mover = _make_status_job(company, office_staff, "Mover", status="in_progress")
+        _make_status_job(company, office_staff, "Existing draft", status="draft")
 
         KanbanService.reorder_job(job_id=mover.pk, new_status="draft", staff=office_staff)
 
         assert self._ordered_names("in_progress") == []
-        assert "Mover" in self._ordered_names("draft")
+        assert self._ordered_names("draft") == ["Mover", "Existing draft"]
 
     def test_rejects_self_anchor(self, company: Company, office_staff: Staff) -> None:
         mover = _make_status_job(company, office_staff, "Mover")
@@ -199,6 +221,7 @@ class TestReorderPriority:
     def test_update_job_status_assigns_next_priority(
         self, company: Company, office_staff: Staff
     ) -> None:
+        """The status writer's automatic priority must not leak into its audit delta."""
         existing = _make_status_job(company, office_staff, "Existing", status="approved")
         mover = _make_status_job(company, office_staff, "Mover", status="draft")
 
@@ -207,6 +230,9 @@ class TestReorderPriority:
         mover.refresh_from_db()
         assert mover.status == "approved"
         assert mover.priority > existing.priority
+        event = JobEvent.objects.get(job=mover)
+        assert event.event_type == "status_changed"
+        assert event.delta_after == {"status": "approved"}
 
 
 class TestKanbanSearch:

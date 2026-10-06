@@ -15,6 +15,7 @@ import {
  * Cost entry data-first scenarios: the quote draft lifecycle under failure,
  * and estimate/actual entry reconciling the grid against the persisted cost
  * set (including the actual tab's stock-consume material path).
+ * Reads the synced mirror only: a run of this spec spends no Xero quota.
  *
  * Port deviations from v1, each deliberate:
  * - Labour seeding POSTs the live actual cost-line create with

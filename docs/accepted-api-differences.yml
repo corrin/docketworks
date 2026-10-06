@@ -1,6 +1,7 @@
 # Behaviour ledger. Nothing gates on this file — the schema-parity diff that
 # once failed CI on unlisted deviations was deleted 2026-08-07, along with v1's
-# frozen schema and ADR 0044.
+# frozen schema and ADR 0044. The v1 → v2 cutover ran on 2026-08-29, so every
+# "at cutover" below is a past observation, not a pending check.
 #
 # What still belongs here: a v2 BEHAVIOUR that differs from v1 in a way someone
 # would otherwise rediscover and "fix" back — a status code that moved, a v1
@@ -18,9 +19,9 @@
 - operation: accounts_token_create
   change: "password_reset_url omitted from login response (was optional)"
   reason: >
-    v1 built it via reverse("accounts:password_change"); endpoint not yet
-    ported. password_needs_reset boolean still returned. Restore when the
-    password-change endpoint ports.
+    v1 built it via reverse("accounts:password_change"). v2 returns the
+    password_needs_reset boolean and the client routes to /change-password
+    itself, so the URL has no reader.
 
 - operation: accounts_token_verify_create
   change: "Endpoint not ported"
@@ -682,9 +683,9 @@
     v1 used datetime.date.today() for the KPI elapsed-day boundary, the KPI
     year/month defaults, and the WIP default report date — correct only when
     the host OS timezone is NZ. v2 uses settings TIME_ZONE, deterministic on
-    any host. If v1 production runs a UTC host, v1's "today" is NZ-yesterday
-    every morning until ~noon; verify at cutover if KPI elapsed counts look
-    shifted.
+    any host. If v1 production ran a UTC host, v1's "today" was NZ-yesterday
+    every morning until ~noon; a shifted KPI elapsed count in data from before
+    the 2026-08-29 cutover is that, not a v2 defect.
 
 - operation: accounting_reports_job_aging_retrieve
   change: "Malformed data stops the report (v1: silently degraded the row and unsorted the report)"
@@ -721,7 +722,7 @@
     row still returns the same business 400 or 404 it always did; only the
     malformed case moved. User decision 2026-08-07.
 
-    Watch at cutover: the 422 body is ninja's validation list, not the
+    For the record: the 422 body is ninja's validation list, not the
     `{"message": ...}` envelope, so a client that reads `.message` on this
     path sees undefined instead of a string. No frontend code does - the
     generated client types these parameters as uuid, so a malformed id cannot
@@ -751,10 +752,10 @@
     them. Summary rows now return job_breakdown: null. User decision
     2026-08-08.
 
-    Watch at cutover: nothing in the SPA reads these three fields today, so the
-    change costs no frontend work. It is done before the screens are ported
-    rather than after, because a screen written against the loose contract
-    accretes guards that then have to be found and removed.
+    Nothing in the SPA read these three fields, so the change cost no frontend
+    work. It was done before the screens were ported rather than after, because
+    a screen written against the loose contract accretes guards that then have
+    to be found and removed.
 
 - operation: company_defaults_schema_retrieve
   change: "Sections with no fields are not served; there is no 'crm' section"
@@ -977,7 +978,7 @@
     v2 derives all three: a link carrying a tenant other than the connected
     one means clear, a referenced pay item not linked to this organisation
     means re-link, and zero remaining work across contacts, employees,
-    invoices, quotes, stock and pay items means open the gate. Every count is
+    invoices, quotes, purchase orders, stock and pay items means open the gate. Every count is
     produced by the same predicate its phase works from. User ruling
     2026-08-15: the flag design was a bug; state comes from the data model.
     Staff joined that measurement when the employees phase landed: without it
@@ -1311,6 +1312,53 @@
     gains labour_profit, so no consumer subtracts time_revenue - staff_cost
     for itself, and net_profit's divisor moved to elapsed WEEKDAYS.
 
+- operation: accounting_reports_calendar_retrieve
+  change: "Office-staff gate; v1 served the calendar to any authenticated user"
+  reason: >
+    The calendar is company-wide revenue and gross profit, the same class of
+    data the WIP, job-movement and sales-forecast reports gate on
+    is_office_staff. v1 served it on IsAuthenticated, so a workshop cookie
+    plus the bare URL returned every month's turnover; the navbar hiding the
+    link is presentation. staff-performance-summary and staff-performance
+    carry the same gate for the same reason (owner ruling, 2026-10-01).
+
+- operation: accounting_reports_calendar_retrieve
+  change: "monthly_totals serves the report's ratios: margins, average labour rate, labour revenue share, month target and achievement"
+  reason: >
+    v1 divided these in four browser components, each over its own
+    denominator, and its Profit modal subtracted kpi_daily_gp_green x
+    working_days on screen while the server subtracted kpi_daily_gp_target x
+    elapsed workdays — so "Gross Profit - Projected Expenses" never equalled
+    the Net Profit beneath it. One server-side definition per ratio, null
+    where the denominator is absent (a margin on zero revenue is not 0%).
+    v1's "Shop Labour Cost" and "Other Labour Cost", a pro-rata guess by
+    hours, are dropped rather than served: no figure in the system is that
+    number (owner ruling, 2026-10-01). The same rule reaches the older
+    ratios — billable_percentage, shop_percentage (month and day), the two
+    per-active-day averages — which v1 reported as 0 without a denominator;
+    the month's colours still grade an empty month red.
+
+- operation: (kpi calendar screen)
+  change: "Export, Settings and the Refresh spinner are gone; Adjustments has its own breakdown; the month picker is prev/next plus a month input"
+  reason: >
+    v1's Export wrote a debug log, its Settings gear set a flag no template
+    read, its Refresh spinner read a flag the fetch never set, and its
+    Adjustments card opened the Materials modal. None is a capability; all
+    are dropped (owner ruling, 2026-09-01). The month Select of the last ~25
+    months becomes prev/next arrows and a month input bounded to this month:
+    any past month is still one gesture away. The grade ladder (hours or
+    dollars) and money precision (whole dollars or cents) are URL settings so
+    a shared link carries them. A holiday cell is tinted by its grade like
+    any other weekday rather than v1's grey-over-red CSS accident, and the
+    Profit dialog's hard-coded 100%/80% tint on target achievement is not
+    reproduced: the served ladders are the only target grades on the screen
+    (net profit is inked by its sign, which the minus sign already states).
+    Also gone: the Labour card's trend pill (the billed hours it repeated sit
+    on the same card), the one-column phone layout (the grid scrolls inside
+    its container instead, keeping the week shape), the server's error text
+    in the failure card (the shared QueryState wording, as every report), and
+    whole-number percentages (the shared formatter's one decimal).
+
 - operation: job_quote_chat_config_retrieve
   change: "Office-only embed configuration supplies the public domain key and CSRF token"
   reason: >
@@ -1347,7 +1395,12 @@
     Owner ruling 2026-09-07: stock moves and its history is retained. Counts use
     one configured non-billable adjustment job, explicit new-item cost, stale
     balance/version checks and linked corrections. Opening entries preserve
-    existing balances without inventing past job costs.
+    existing balances without inventing past job costs. An issue below the
+    balance succeeds and shows the negative balance: negative stock on hand is
+    commonplace on the shop floor and is corrected by the next count, never by
+    refusing the issue or inventing stock. A receipt retains the purchased
+    quantity separately from the job's demand, so an order for one sheet of
+    which a job needs half allocates half to stock.
 
 - operation: purchasing_receipts_and_allocations
   change: "Repeated receipts append stock identities; reverseAllocation records reversing movements"
@@ -1405,3 +1458,10 @@
     The all-zero placeholder is refused by name, because Xero never issues it and
     it is therefore sent in the header instead of raising the configuration error
     an unset value raises. Enabling sync still requires a bound organisation.
+
+- operation: (weekly timesheet display)
+  change: "Weekly column headers show dates without weekday labels"
+  reason: >
+    Owner ruling on KAN-369 / PR #189, 2026-10-03: weekday context belongs
+    on the staff time-entry and daily overview pages. The weekly overview
+    covers the whole week and does not need v1's repeated weekday labels.

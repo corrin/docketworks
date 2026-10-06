@@ -41,7 +41,7 @@ Where the targets come from — and why a new integration cannot be missed:
 
 Rejected alternatives. An off-the-shelf link checker (lychee and kin) sees
 what an anonymous GET sees, and few of these targets are public. A Django
-system check runs inside ``scripts/rollback.sh`` and the cutover script, and a
+system check runs inside ``scripts/rollback.sh``, and a
 deploy must not depend on vendor credentials or outbound HTTP. A Celery task
 would need a result model and a page to read it; nothing surfaces it yet.
 
@@ -477,6 +477,9 @@ NOT_A_LINK_FIELDS: dict[str, str] = {
     "job.JobDeltaRejection.change_id": "delta-checksum change id",
     "job.JobQuoteChat.message_id": "chat message id, ours",
     "timesheet.LeaveRequest.batch_id": "our batch id",
+    "timesheet.TimesheetEvent.cost_line_id": (
+        "our own row id, held loosely: the event outlives the line"
+    ),
     "purchasing.Stock.active_source_purchase_order_line_id": "our own row id",
     "xero.XeroApp.client_id": "OAuth client id: a credential, not a link",
     "xero.XeroError.job_id": "our own row id",

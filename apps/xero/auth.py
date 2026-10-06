@@ -449,7 +449,8 @@ def exchange_code_for_token(code: str) -> dict[str, Any]:
     try:
         response = requests.post(url, headers=headers, data=data, timeout=30)
         # identity.xero.com is reached directly rather than through the SDK, so
-        # the rate-limited client's recording does not cover it. Recorded
+        # the rate-limited client's recording does not cover it, and neither
+        # does its pacing: this call still spends quota and is unpaced. Recorded
         # before raise_for_status: a refused token exchange spent the call too.
         record_response(response, vendor=VendorCall.Vendor.XERO_TOKEN)
         response.raise_for_status()

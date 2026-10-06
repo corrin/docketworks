@@ -38,18 +38,21 @@ does not have.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **57 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
+| E2E specs ported | **67 spec files** (v1 shipped 40; the screens whose specs are still unwritten are listed below) — green is the only measure that counts |
 | Backend operations still to port | **42** (see below; 31 more exist but nothing calls them) |
-| API operations v2 exposes | 266 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 3426 collected |
+| API operations v2 exposes | 278 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 3691 collected |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
-| Behaviour ledger | 134 recorded deviations |
-| ADRs | 48 (v1's 23 carried forward + 0038–0041, 0043, 0046–0065 written here) |
+| Behaviour ledger | 138 recorded deviations |
+| ADRs | 42 (v1's 20 carried forward + 0038–0041, 0043, 0046–0060, 0063–0064 written here) |
 
 **Written is not delivered.** Report progress as specs green; a count of endpoints
 written measures typing, not delivery. Every slice below authors its own E2E spec and
 is done only when that spec is green.
+
+PR #190 browser acceptance: run `job/job-history.spec.ts` and
+`timesheet/move-entry.spec.ts` after fixing the local fake seed setup.
 
 **Record every rename by hand as you port an operation.** 17 `workflow_*` operations
 are still to come, and `scripts/v1-frontend-operations.yml` is where a rename is
@@ -76,7 +79,7 @@ Not a tier — just the things a session should have a reason not to pick up.
    2026-08-26. Untrash it before that expires. The other seven are invisible even to
    the Workspace owner; the owner arbitrates restore-from-backup vs archive per doc,
    then the surviving rows are relinked or archived on the production instance — a data
-   fix, never a read-side fallback (ADR 0015). The row list is in `rewrite-history.md`.
+   fix, never a read-side fallback (ADR 0015). The probe's `--json` output is the row list.
    Re-verify with `outbound_links_probe --kind google_file --google-as delegated`.
 3. **Port the workshop schedule.** No route, no `AppNavbar` entry and no algorithm, so
    the shop plans without it. See Screens for the port target and the two defects not to
@@ -88,7 +91,7 @@ Not a tier — just the things a session should have a reason not to pick up.
    definition instead of three. Its step 1 generates the work list for its step 2, so
    nothing here is hand-listed.
 5. **`/purchasing/mappings`** has been labelled "this slice lands first" since before
-   the flip and is still unbuilt three releases later. Either it lands or it stops
+   the 29 August cutover and is still unbuilt three releases later. Either it lands or it stops
    claiming to be first.
 
 ## Operations
@@ -147,8 +150,8 @@ Not a tier — just the things a session should have a reason not to pick up.
   itself, so the run needs a budget agreed first: the employee integration regression
   through the vendor-call ledger, then this spec and the applicable timesheet browser
   checks including responsive screenshots. Design is in
-  [the plan](plans/2026-09-09-xero-detail-refresh.md); implementation and local checks are
-  in [`rewrite-history.md`](rewrite-history.md).
+  [the plan](plans/2026-09-09-xero-detail-refresh.md); the implementation is on `main` and
+  its local checks passed, so the live run is the only step open.
 - **Record the restore runbook's acceptance test** once a full E2E suite passes from the
   first spec — `docs/restore-prod-to-nonprod.md`'s "the suite and its teardown both pass".
   The 2026-09-12 gate reached 165 passed, 2 failed, and both failures are now fixed; the
@@ -281,12 +284,10 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   [KAN-332](https://docketworks.atlassian.net/browse/KAN-332), where the greedy
   worker-picker truncates to the assigned staff and starves a small job while the shop
   is idle.
-- **Reports** — nine of eleven remaining are frontend-only against a done backend; only
+- **Reports** — eight of ten remaining are frontend-only against a done backend; only
   `job_profitability_report` and `check_archived_jobs_compliance` need backend work. No
   charting library anywhere in v1: every screen is cards plus hand-rolled tables, so
-  porting is layout plus typed fetch. `kpi` is the largest (the `components/kpi/`
-  calendar-and-modals tree, not the page; its backend landed with
-  `accounting_reports_calendar_retrieve`); `sales-pipeline` looks large only because
+  porting is layout plus typed fetch. `sales-pipeline` looks large only because
   ~700 lines are an inline `h()` table that becomes plain JSX. Each authors a fresh spec.
   A new page also earns its `AppNavbar` Reports entry under the matching v1 section
   heading — Management, Reconciliation, or a Data Quality group that does not exist yet
@@ -302,7 +303,9 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   results on the mappings screen: the manual-supplier twin of the scraper path. The seam
   note atop `apps/quoting/services/price_extraction.py` is the scope record. Routes
   through the gateway (ADR 0041), arbitrates the duplicate-detection conflict that note
-  flags, and rebuilds `/purchasing/pricing` with a working upload. Its spec owns the
+  flags, and rebuilds `/purchasing/pricing` with a working upload: v1's
+  `pages/purchasing/pricing.vue` accepted a drop and discarded it, so the upload is new
+  capability, not a port. Its spec owns the
   cross-screen flow; the mappings spec asserts nothing about uploads.
   [KAN-176](https://docketworks.atlassian.net/browse/KAN-176) carries the business ask.
 - **The job attachments tab is missing four v1 features** (prod bug reports 2026-08-31 and
@@ -434,7 +437,7 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   (`apps/diagnostics/api.py:210`) runs the whole payload through pydantic against a
   recursive `JsonValue` union; on a 4.28 MB replay that is 0.81s of `validate_python` plus
   0.28s of `dump_json`, against 0.05s of gzip. Return the joined chunks without
-  re-validating bytes the server just parsed. Measurements in `rewrite-history.md`.
+  re-validating bytes the server just parsed (measured on a 4.28 MB replay, 2026-09-04).
 - **`payload_available` costs a query and a stat per listed recording.** `_recording_out`
   (`apps/diagnostics/api.py:76`) calls `has_payloads`, which reads the first chunk row and
   stats its file — 50 of each per page of the admin list. `prefetch_related` does not fix
@@ -515,7 +518,7 @@ same class: the post duplicates what Xero already holds, and then self-reports s
   adapter beside the Google Drive one, and enumeration wiring.
 - **Read-side fallback cleanup**
   ([KAN-338](https://docketworks.atlassian.net/browse/KAN-338)). ~40 reads of our own JSON
-  shapes violate ADR 0015/0028/0045, concentrated in JSONField payloads mypy cannot see
+  shapes violate ADR 0015/0028, concentrated in JSONField payloads mypy cannot see
   into. The `is_billable` divergence between timesheet aggregation and the shop-job
   validator is the priority — billing math that can already disagree on real rows.
 - **Scrubber policy: exactly PII, exactly once**
@@ -566,7 +569,7 @@ same class: the post duplicates what Xero already holds, and then self-reports s
 - **Purge "v1" and "v2" from comments, docstrings, docs, ADRs and filenames.** We document
   state, not change: "v1 silently substituted the company default; v2 raises" becomes "a
   staff member without a wage rate cannot be costed". Delete first, reword only what states
-  a live invariant. Scope includes this file, the cutover checklist, the behaviour ledger,
+  a live invariant. Scope includes this file, the behaviour ledger,
   the `db_table = "workflow_*"` overrides, `scripts/v1-frontend-operations.yml`,
   `export_openapi.py`'s `DISSOLVED_V1_APPS` and `status_table.py`'s port rows. The
   port-progress machinery cannot go until the operations it counts are ported or dropped.
@@ -587,6 +590,13 @@ never a second stream.
 
 - **[KAN-359](https://docketworks.atlassian.net/browse/KAN-359): keep new-instance provisioning current as features change.**
   Require setup-impact review per feature, repair existing drift, and verify fresh production/demo setup.
+  The rehearsal (`scripts/ops/rehearse_instance.sh`) is the check; once it reaches the suite, eleven spec files assume
+  restore data and must seed their own (ADR 0063): stock rows by name
+  (`job/create-estimate-entry`, `job/job-cost-entry-data`, `purchasing/create-purchase-order`,
+  `purchasing/stock-search`); a second job card or job history (`kanban/kanban-desktop`,
+  `kanban/kanban-drag-vanishing`, `kanban/kanban-mobile`, `kanban/kanban-search`); invoice
+  history or more than a page of companies or people (`crm/people`, `reports/companies`,
+  `reports/sales-forecast`).
 - **[KAN-357](https://docketworks.atlassian.net/browse/KAN-357): rebuild v2 as a clean
   modular monolith (ADR 0055).** Move the remaining `apps.core` owners — `AppError`,
   `CompanyDefaults` and `ServiceAPIKey` — and the remaining legacy contexts, replacing
@@ -623,13 +633,6 @@ never a second stream.
 - Unify invalid-state handling across document managers: the invoice manager raises
   `ValueError` for "job already paid" (a 500 via the envelope) where the quote sibling
   refuses with readable 400 values. Include the provider.
-- **Rewrite the known-weak tests** rather than leaving green-but-meaningless assertions
-  (ADR 0052): `test_price_extraction.py:48,:59` assert docstring headings and the
-  no-vendor-SDK grep misses `from mistralai import` — AST it or use an import-linter
-  contract; `test_llm_client.py:195` is constant == constant;
-  `test_stock_metadata_tasks.py:102-155` mocks the unit under test;
-  `test_products_are_saved_in_batches_during_a_long_run` is vacuous; and
-  `test_a_mapping_with_no_item_code_is_simply_not_in_xero` is tautological.
 - Untested paths worth a net: the per-row savepoint in `save_products`, `_save_mapping`'s
   concurrent-parse branch, `scheduled_task_service.py`'s malformed-entry guards, and
   `MAX_FAILURE_RATIO`'s 50% boundary.
@@ -645,13 +648,10 @@ never a second stream.
   `pyproject.toml`, where import-linter 2.13's `LayersContract` appears to ignore it — the
   gate currently refuses even TYPE_CHECKING-only imports across layers (stricter than
   configured, so no hole, but the config line claims a behaviour the gate does not deliver).
-- **The time-pair/hours agreement holds per write path, not per row.** The workshop
-  endpoints refuse an inconsistent trio and `CostLine.meta` now refuses non-clock time
-  strings, but the cost-line grid endpoints can still change `quantity` on a line whose meta
-  carries a start/end pair — the my-time calendar then draws a block whose size and title
-  disagree. The fix is the same validation in `CostLine.clean` for time lines, plus a
-  decision about what the office grid (which has no time fields) should do to a timed line's
-  pair when it edits hours.
+- **Hours longer than an entry's time span are refused per write path, not per row.** The
+  workshop endpoints refuse them; the cost-line grid can still raise `quantity` past the span.
+  The fix is the same check in `CostLine.clean` for time lines, plus what the office grid
+  (no time fields) does to a timed line's finish when it edits hours.
 - `to_optional_decimal` has a sibling `_decimal_or_none`
   (`crm/services/phone_call_service.py:1078`) with no `is_finite()` check, writing
   `Decimal("NaN")` into the call `charge` money column.
@@ -754,7 +754,8 @@ Not tasks. Each is invisible until it burns a slice.
    and `quill` (specs assert `.ql-editor`). Needed by no spec, so do not port:
    `pdf-vue3`, `@unovis`, `vue-advanced-chat`. (`rrweb` arrived with session replay and
    is off that list.) The v1 source is the archived private repository
-   `corrin/docketworks_v1`, not a sibling checkout.
+   `corrin/docketworks_v1`; a local `../docketworks_v1` is a clone of it at `e88dc420`,
+   and nothing gated needs it.
 9. **`JobViewTabs.vue` static-imports all ten job tabs**, so a faithful port drags in
    `SafetyWizardModal`, `McpToolDetails`, Quill, `CameraModal` and the
    Quote/History/QuotingChat/Safety/Pdf tabs — 3,100 v1 lines no spec touches. Lazy-route

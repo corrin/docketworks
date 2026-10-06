@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { keepPreviousData, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 
 import { peopleListInfiniteOptions, peopleListQueryKey, type CompanySearchResult } from '@/api'
 import { CompanyLookup } from '@/features/shared/company/CompanyLookup'
@@ -10,6 +10,7 @@ import { LoadMoreSentinel } from '@/features/shared/LoadMoreSentinel'
 import { nextPageParam } from '@/features/shared/nextPageParam'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/features/shared/useDebouncedValue'
 import { SearchInput } from '@/features/shared/SearchInput'
+import { formatCurrency } from '@/lib/format'
 
 /**
  * People directory: one identity per person, linked to every company they
@@ -172,8 +173,8 @@ export function PeopleDirectoryPage() {
             <th scope="col" className="px-3 py-2 text-left">
               Companies
             </th>
-            <th scope="col" className="px-3 py-2 text-left">
-              Action
+            <th scope="col" className="px-3 py-2 text-right">
+              Total Spend
             </th>
           </tr>
         }
@@ -181,11 +182,25 @@ export function PeopleDirectoryPage() {
           <tr
             key={person.id}
             data-automation-id={`PeopleDirectory-row-${person.id}`}
-            className="border-b border-gray-100"
+            className="cursor-pointer border-b border-gray-100 hover:bg-blue-50"
+            onClick={() => {
+              void navigate({ to: '/crm/people/$personId', params: { personId: person.id } })
+            }}
           >
             <td className="px-3 py-2">
               <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-900">{person.name}</span>
+                {/* The companies-list pattern: a real link so keyboard users can
+                    open the page; the row onClick is the mouse-only whole-row
+                    affordance. */}
+                <Link
+                  to="/crm/people/$personId"
+                  params={{ personId: person.id }}
+                  data-automation-id={`PeopleDirectory-cell-${person.id}-name`}
+                  className="font-medium text-gray-900 hover:underline"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {person.name}
+                </Link>
                 {!person.is_active && (
                   <span
                     data-automation-id={`PeopleDirectory-archived-badge-${person.id}`}
@@ -201,17 +216,11 @@ export function PeopleDirectoryPage() {
             <td className="px-3 py-2">
               {person.companies.map((company) => company.company_name).join(', ') || '—'}
             </td>
-            <td className="px-3 py-2">
-              <button
-                type="button"
-                data-automation-id={`PeopleDirectory-open-${person.id}`}
-                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                onClick={() => {
-                  void navigate({ to: '/crm/people/$personId', params: { personId: person.id } })
-                }}
-              >
-                Manage
-              </button>
+            <td
+              data-automation-id={`PeopleDirectory-cell-${person.id}-total-spend`}
+              className="px-3 py-2 text-right"
+            >
+              {formatCurrency(person.total_spend)}
             </td>
           </tr>
         )}

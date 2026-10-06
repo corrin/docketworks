@@ -1,3 +1,4 @@
+import { xeroMode } from './xero-mode.js'
 import { spawnSync } from 'child_process'
 import dotenv from 'dotenv'
 import fs from 'fs'
@@ -158,11 +159,13 @@ export function runPgDump(dbConfig: DbConfig, outFile: string): void {
  */
 export function runManagePy(args: string[], timeoutMs = 120_000): string {
   const backendDir = path.resolve(getFrontendDir(), '..')
+  const mode = xeroMode()
   const result = spawnSync(
     path.join(backendDir, '.venv', 'bin', 'python'),
     ['manage.py', ...args],
     {
       cwd: backendDir,
+      env: { ...process.env, E2E_XERO_MODE: mode, XERO_FAKE: mode === 'fake' ? 'true' : 'false' },
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       timeout: timeoutMs,

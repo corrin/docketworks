@@ -16,10 +16,12 @@ import {
 import { QueryState } from '@/features/shared/QueryState'
 import { formatCurrency } from '@/lib/format'
 import { TabBar } from '@/features/shared/TabBar'
+import { RelatedJobsTable } from './RelatedJobsTable'
 
 const TABS = [
   { key: 'contact', label: 'Contact Details' },
   { key: 'financial', label: 'Financial Summary' },
+  { key: 'jobs', label: 'Jobs' },
   { key: 'suppliers', label: 'Supplier Aliases' },
 ] as const
 
@@ -256,6 +258,20 @@ export function CompanyDetailPage({ companyId }: CompanyDetailPageProps) {
                 <DetailField label="Last Invoice Date">
                   {company.data.last_invoice_date ?? 'No invoices'}
                 </DetailField>
+              </div>
+            )}
+            {activeTab === 'jobs' && (
+              <div
+                id="CompanyDetail-panel"
+                role="tabpanel"
+                aria-labelledby={`CompanyDetail-tab-${activeTab}`}
+                className="mt-6"
+              >
+                <RelatedJobsTable
+                  owner={{ kind: 'company', companyId }}
+                  automationId="CompanyDetail-jobs"
+                  showCompany={false}
+                />
               </div>
             )}
             {activeTab === 'suppliers' && <SupplierAliasesPanel companyId={companyId} />}

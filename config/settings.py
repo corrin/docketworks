@@ -277,7 +277,7 @@ CACHES = {
     },
     # Cross-process cache (gunicorn workers + celery): PDF-refresh dedup keys,
     # django-solo CompanyDefaults propagation. Database 2 of the instance's own
-    # Redis server (ADR 0065), beside the broker on the database REDIS_URL names.
+    # Redis server, beside the broker on the database REDIS_URL names.
     "shared": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": REDIS_URL.rsplit("/", 1)[0] + "/2",
@@ -315,7 +315,7 @@ if "connection_class" in EVENTSTREAM_REDIS:
 
 # Redis pub/sub is server-wide rather than scoped to a database index, and
 # django-eventstream publishes every event on one hardcoded "events_channel".
-# An instance's Redis server is its own (ADR 0065), but it still serves both
+# An instance's Redis server is its own, but it still serves both
 # the live database and the copy the verification window runs on (ADR 0064),
 # so the database name is the thing that tells those two apart.
 DATA_VERSIONS_CHANNEL = f"data-versions-{DATABASES['default']['NAME']}"

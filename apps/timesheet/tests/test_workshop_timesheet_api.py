@@ -6,7 +6,7 @@ read and write only their OWN entries. Those rules are asserted here for every
 verb, alongside the pricing the entries pick up from the shared rate pipeline.
 """
 
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 
 import pytest
@@ -16,12 +16,15 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
+from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
+from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.tests.conftest import (
     WEEK_START,
     authenticated_client,
     make_leave_job,
+    make_staff,
     make_time_line,
 )
 
@@ -84,8 +87,6 @@ class TestList:
             "total_hours": 8.0,
             "billable_hours": 5.0,
             "non_billable_hours": 3.0,
-            "total_cost": 8 * 48.0,
-            "total_revenue": 8 * 120.0,
         }
 
     def test_only_the_callers_own_entries_are_listed(
@@ -322,9 +323,10 @@ class TestTimeConsistency:
         line = CostLine.objects.get(id=_entry_id(entry))
         assert line.meta["end_time"] == "12:00:00"
 
-    def test_patching_hours_away_from_the_stored_times_is_rejected(
+    def test_new_hours_redraw_the_finish_rather_than_being_refused_by_it(
         self, worker_client: Client, job: Job
     ) -> None:
+        """Hours are what he is paid; the times are their picture, stepped over the breaks."""
         entry = _create(
             worker_client, job, hours="4.00", start_time="08:00:00", end_time="12:00:00"
         )
@@ -335,8 +337,11 @@ class TestTimeConsistency:
             content_type="application/json",
         )
 
-        assert response.status_code == 400, response.content
-        assert CostLine.objects.get(id=_entry_id(entry)).quantity == Decimal("4.000")
+        assert response.status_code == 200, response.content
+        line = CostLine.objects.get(id=_entry_id(entry))
+        assert line.quantity == Decimal("6.000")
+        # Six hours from eight, over the day's three planned breaks.
+        assert (line.meta["start_time"], line.meta["end_time"]) == ("08:00:00", "15:00:00")
 
     def test_clearing_a_time_lifts_the_agreement_requirement(
         self, worker_client: Client, job: Job
@@ -369,6 +374,26 @@ class TestUpdate:
         body = response.json()
         assert body["hours"] == 6.5
         assert body["description"] == "Welding"
+
+    def test_an_explicit_unbillable_choice_survives_a_move_off_a_shop_job(
+        self, worker_client: Client, job: Job, superuser: Staff
+    ) -> None:
+        """move_time_line's source rule yields to billing the same request set."""
+        shop_company = CompanyDefaults.get_solo().shop_company
+        assert shop_company is not None
+        shop = make_job(shop_company, superuser, name="Shop work", status="special")
+        entry = _create(worker_client, shop, is_billable=False)
+
+        response = worker_client.patch(
+            URL,
+            data={"entry_id": entry["id"], "job_id": str(job.id), "is_billable": False},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200, response.content
+        body = response.json()
+        assert body["is_billable"] is False
+        assert CostLine.objects.get(id=_entry_id(entry)).unit_rev == Decimal("0.00")
 
     def test_moving_the_entry_to_another_job_reprices_it(
         self, worker_client: Client, job: Job, company: Company, superuser: Staff
@@ -568,3 +593,268 @@ class TestEntrySequencing:
         ).json()
 
         assert body["entries"] == []
+
+
+class TestApprovalStatus:
+    """What the worker sees and may change once the office approves (KAN-376)."""
+
+    def test_worker_cannot_edit_or_delete_an_approved_entry(
+        self, worker_client: Client, job: Job, worker: Staff
+    ) -> None:
+        line = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="4.000")
+
+        edit = worker_client.patch(
+            URL, data={"entry_id": str(line.id), "hours": "9.00"}, content_type="application/json"
+        )
+        delete = worker_client.delete(f"{URL}?entry_id={line.id}")
+
+        assert edit.status_code == 409
+        assert "approved" in edit.json()["detail"]
+        assert delete.status_code == 409
+        line.refresh_from_db()
+        assert line.quantity == Decimal("4.000")
+
+    def test_worker_still_changes_an_entry_that_is_waiting(
+        self, worker_client: Client, job: Job, worker: Staff
+    ) -> None:
+        line = make_time_line(job, worker, accounting_date=ENTRY_DATE, approved=False)
+
+        response = worker_client.patch(
+            URL, data={"entry_id": str(line.id), "hours": "2.00"}, content_type="application/json"
+        )
+
+        assert response.status_code == 200
+        assert response.json()["approved"] is False
+
+    def test_office_edit_keeps_an_entry_approved(self, office_staff: Staff, job: Job) -> None:
+        line = make_time_line(job, office_staff, accounting_date=ENTRY_DATE, hours="4.000")
+
+        response = authenticated_client(office_staff).patch(
+            URL, data={"entry_id": str(line.id), "hours": "5.00"}, content_type="application/json"
+        )
+
+        assert response.status_code == 200
+        assert response.json()["approved"] is True
+        line.refresh_from_db()
+        assert line.quantity == Decimal("5.000")
+
+    def test_an_entry_created_after_its_day_is_flagged_late(
+        self, worker_client: Client, job: Job, worker: Staff
+    ) -> None:
+        """Late is judged in local dates: 00:10 the next morning is still the day before in UTC."""
+        local = timezone.get_current_timezone()
+        on_the_day = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="1.000")
+        next_morning = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="2.000")
+        leave = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="3.000")
+        late_evening = datetime.combine(ENTRY_DATE, time(23, 30), tzinfo=local)
+        just_after_midnight = datetime.combine(
+            ENTRY_DATE + timedelta(days=1), time(0, 10), tzinfo=local
+        )
+        CostLine.objects.filter(pk=on_the_day.pk).update(created_at=late_evening)
+        CostLine.objects.filter(pk=next_morning.pk).update(created_at=just_after_midnight)
+        CostLine.objects.filter(pk=leave.pk).update(
+            created_at=just_after_midnight, managed_by="leave"
+        )
+
+        body = worker_client.get(f"{URL}?date={ENTRY_DATE.isoformat()}").json()
+
+        assert {entry["hours"]: entry["entered_late"] for entry in body["entries"]} == {
+            1.0: False,
+            2.0: True,
+            3.0: False,
+        }
+
+    def test_the_week_splits_hours_into_approved_and_waiting(
+        self, worker_client: Client, job: Job, worker: Staff, other_worker: Staff
+    ) -> None:
+        """Monday to Sunday, the caller's own: the figure the weekly screen holds back."""
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        make_time_line(
+            job,
+            worker,
+            accounting_date=WEEK_START + timedelta(days=6),
+            hours="3.000",
+            approved=False,
+        )
+        make_time_line(
+            job,
+            worker,
+            accounting_date=WEEK_START + timedelta(days=7),
+            hours="5.000",
+            approved=False,
+        )
+        make_time_line(job, other_worker, accounting_date=WEEK_START, hours="6.000", approved=False)
+
+        midweek = WEEK_START + timedelta(days=2)
+        body = worker_client.get(f"{URL}?date={midweek.isoformat()}").json()
+
+        assert body["week"] == {"approved_hours": 8.0, "waiting_hours": 3.0}
+
+
+WORKSHOP_LATITUDE = Decimal("-36.9220862")
+WORKSHOP_LONGITUDE = Decimal("174.8000000")
+# About 220 m north of the workshop: inside the 300 m circle.
+ACROSS_THE_YARD = {"latitude": -36.9200862, "longitude": 174.8}
+# About 1.1 km north: outside it.
+DOWN_THE_ROAD = {"latitude": -36.9120862, "longitude": 174.8}
+
+
+@pytest.fixture
+def company_address() -> None:
+    """Give the company the geocoded address the remote mark compares against."""
+    defaults = CompanyDefaults.get_solo()
+    defaults.latitude = WORKSHOP_LATITUDE
+    defaults.longitude = WORKSHOP_LONGITUDE
+    defaults.save(update_fields=["latitude", "longitude"])
+
+
+class TestRemoteEntry:
+    """`saved_remotely`: a worker's own save is marked unless it is placed at the workshop."""
+
+    @pytest.mark.usefixtures("company_address")
+    def test_a_save_is_marked_unless_the_phone_is_at_the_company_address(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        at_the_bench = _create(worker_client, job, location=ACROSS_THE_YARD)
+        elsewhere = _create(worker_client, job, location=DOWN_THE_ROAD)
+        no_location = _create(worker_client, job)
+
+        assert at_the_bench["remote_entry"] is False
+        assert elsewhere["remote_entry"] is True
+        assert no_location["remote_entry"] is True
+
+    @pytest.mark.usefixtures("company_address")
+    def test_office_staff_are_not_marked(self, office_staff: Staff, job: Job) -> None:
+        entry = _create(authenticated_client(office_staff), job)
+
+        assert entry["remote_entry"] is False
+
+    def test_a_company_without_an_address_marks_nothing(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        defaults = CompanyDefaults.get_solo()
+        defaults.latitude = None
+        defaults.longitude = None
+        defaults.save(update_fields=["latitude", "longitude"])
+
+        entry = _create(worker_client, job)
+
+        assert entry["remote_entry"] is False
+
+    @pytest.mark.usefixtures("company_address")
+    def test_an_edit_can_set_the_mark_but_never_clears_it(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        entry_id = _entry_id(_create(worker_client, job, location=ACROSS_THE_YARD))
+
+        def edit(description: str, **location: object) -> bool:
+            response = worker_client.patch(
+                URL,
+                data={"entry_id": entry_id, "description": description, **location},
+                content_type="application/json",
+            )
+            assert response.status_code == 200, response.content
+            marked: bool = response.json()["remote_entry"]
+            return marked
+
+        assert edit("from the workshop", location=ACROSS_THE_YARD) is False
+        assert edit("from home") is True
+        assert edit("back at the workshop", location=ACROSS_THE_YARD) is True
+
+
+class TestOfficeActsForAWorker:
+    """The office corrects a worker's entry; it does not send it back (KAN-376)."""
+
+    def test_workshop_user_cannot_read_another_persons_day(
+        self, worker_client: Client, job: Job, other_worker: Staff
+    ) -> None:
+        make_time_line(job, other_worker, accounting_date=ENTRY_DATE)
+
+        response = worker_client.get(
+            f"{URL}?date={ENTRY_DATE.isoformat()}&staff_id={other_worker.id}"
+        )
+
+        assert response.status_code == 403
+        assert "office staff" in response.json()["detail"]
+
+    def test_office_reads_the_day_of_the_person_it_names(
+        self, office_staff: Staff, job: Job, worker: Staff
+    ) -> None:
+        theirs = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="2.000")
+        make_time_line(job, office_staff, accounting_date=ENTRY_DATE, hours="7.000")
+
+        body = (
+            authenticated_client(office_staff)
+            .get(f"{URL}?date={ENTRY_DATE.isoformat()}&staff_id={worker.id}")
+            .json()
+        )
+
+        assert [entry["id"] for entry in body["entries"]] == [str(theirs.id)]
+        assert body["summary"]["total_hours"] == 2.0
+
+    def test_office_correction_prices_at_the_workers_rate(self, job: Job, worker: Staff) -> None:
+        """The entry stays the worker's: their wage, not the office user's, prices it."""
+        cheaper_office = make_staff(
+            "timesheet-cheap-office@example.com",
+            is_office_staff=True,
+            base_wage_rate=Decimal("10.00"),
+            xero_user_id="",
+        )
+        line = make_time_line(job, worker, accounting_date=ENTRY_DATE, approved=False)
+
+        response = authenticated_client(cheaper_office).patch(
+            URL,
+            data={"entry_id": str(line.id), "wage_rate_multiplier": "1.5"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200, response.content
+        line.refresh_from_db()
+        assert line.unit_cost == Decimal("72.00")  # the worker's 48.00 at time and a half
+        assert line.staff_id == worker.id
+        assert line.approved is False, "correcting an entry is not approving it"
+        [event] = TimesheetEvent.objects.filter(cost_line_id=line.id, event_type="entry_updated")
+        assert event.staff_id == cheaper_office.id
+
+    def test_office_corrects_an_approved_entry_and_it_stays_approved(
+        self, office_staff: Staff, job: Job, worker: Staff
+    ) -> None:
+        line = make_time_line(job, worker, accounting_date=ENTRY_DATE, hours="4.000")
+
+        response = authenticated_client(office_staff).patch(
+            URL, data={"entry_id": str(line.id), "hours": "3.00"}, content_type="application/json"
+        )
+
+        assert response.status_code == 200, response.content
+        line.refresh_from_db()
+        assert line.quantity == Decimal("3.000")
+        assert line.approved is True
+
+    def test_time_the_office_enters_for_a_worker_is_theirs_and_approved(
+        self, office_staff: Staff, job: Job, worker: Staff
+    ) -> None:
+        entry = _create(authenticated_client(office_staff), job, staff_id=str(worker.id))
+
+        line = CostLine.objects.get(id=_entry_id(entry))
+        assert line.staff_id == worker.id
+        assert line.meta["staff_id"] == str(worker.id)
+        assert line.unit_cost == Decimal("48.00")
+        assert line.approved is True
+        assert line.remote_entry is False
+
+    def test_a_worker_cannot_enter_time_for_someone_else(
+        self, worker_client: Client, job: Job, other_worker: Staff
+    ) -> None:
+        response = worker_client.post(
+            URL,
+            data={
+                "job_id": str(job.id),
+                "accounting_date": ENTRY_DATE.isoformat(),
+                "hours": "1.00",
+                "staff_id": str(other_worker.id),
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 403
+        assert not CostLine.objects.filter(staff=other_worker).exists()

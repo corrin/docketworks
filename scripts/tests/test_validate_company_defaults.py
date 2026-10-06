@@ -9,6 +9,10 @@ was missing: both shipped templates must satisfy the gate they are prepared for.
 The validator is driven by subprocess rather than imported, because that is how
 ``instance.sh`` invokes it: as a path, under the host interpreter, with no package
 context.
+
+Fable: the field-set cases guard the second way an instance failed to be created: a
+config file prepared on an older release carried a field the model had since renamed,
+and nothing before ``loaddata`` compared the file to the schema.
 """
 
 import json
@@ -16,14 +20,16 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 
 import pytest
+
+from scripts.server.validate_company_defaults import Fields, JsonScalar
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VALIDATOR = REPO_ROOT / "scripts" / "server" / "validate_company_defaults.py"
 TEMPLATE_DIR = REPO_ROOT / "scripts" / "server" / "templates"
 SHIPPED_TEMPLATES = ("company-defaults.json.template", "company-defaults-prospect.json.template")
+SHIPPED_FIXTURE = REPO_ROOT / "apps" / "core" / "fixtures" / "company_defaults.json"
 
 
 def _validate(path: Path) -> subprocess.CompletedProcess[str]:
@@ -47,10 +53,10 @@ def _prepared(template_name: str, tmp_path: Path) -> Path:
     return written
 
 
-def _written(defaults: dict[str, Any], tmp_path: Path) -> Path:
-    """Write a minimal two-record fixture whose CompanyDefaults fields are given."""
+def _written(defaults: Fields, tmp_path: Path, company: Fields | None = None) -> Path:
+    """Write a two-record fixture with the given CompanyDefaults (and Company) fields."""
     records = [
-        {"model": "company.company", "pk": 1, "fields": {"name": "Sample Shop"}},
+        {"model": "company.company", "pk": 1, "fields": company or _valid_company()},
         {"model": "core.companydefaults", "pk": 1, "fields": defaults},
     ]
     path = tmp_path / "company-defaults.json"
@@ -58,8 +64,22 @@ def _written(defaults: dict[str, Any], tmp_path: Path) -> Path:
     return path
 
 
-def _valid_defaults(**overrides: Any) -> dict[str, Any]:
-    return {"xero_tenant_id": None, "enable_xero_sync": False, **overrides}
+def _shipped_fields(model: str) -> Fields:
+    """The shipped fixture's fields for ``model``: the full set the gate requires."""
+    records = json.loads(SHIPPED_FIXTURE.read_text())
+    return dict(next(r["fields"] for r in records if r["model"] == model))
+
+
+def _valid_company(**overrides: JsonScalar) -> Fields:
+    return {**_shipped_fields("company.company"), **overrides}
+
+
+def _valid_defaults(**overrides: JsonScalar) -> Fields:
+    return {**_shipped_fields("core.companydefaults"), **overrides}
+
+
+def _without(fields: Fields, key: str) -> Fields:
+    return {k: v for k, v in fields.items() if k != key}
 
 
 class TestShippedTemplates:
@@ -121,10 +141,10 @@ class TestTenantId:
 
     def test_an_absent_key_is_refused(self, tmp_path: Path) -> None:
         """Omission is not a decision: loaddata would leave the column at its default."""
-        result = _validate(_written({"enable_xero_sync": False}, tmp_path))
+        result = _validate(_written(_without(_valid_defaults(), "xero_tenant_id"), tmp_path))
 
         assert result.returncode != 0
-        assert "omits core.companydefaults.xero_tenant_id" in result.stderr
+        assert "omitted ['xero_tenant_id']" in result.stderr
 
 
 class TestSyncGate:
@@ -137,10 +157,36 @@ class TestSyncGate:
 
     def test_an_absent_gate_is_refused(self, tmp_path: Path) -> None:
         """The model default is True, so an absent key is an OPEN gate, not a closed one."""
-        result = _validate(_written({"xero_tenant_id": None}, tmp_path))
+        result = _validate(_written(_without(_valid_defaults(), "enable_xero_sync"), tmp_path))
 
         assert result.returncode != 0
-        assert "enable_xero_sync false" in result.stderr
+        assert "omitted ['enable_xero_sync']" in result.stderr
+
+
+class TestFieldSets:
+    def test_a_field_the_schema_renamed_is_refused(self, tmp_path: Path) -> None:
+        """The regression: annual_leave_loading became labour_cost_loading (KAN-351).
+
+        A config file prepared before the rename reached loaddata, after the OS user,
+        database and migrations existed, and create left the host in partial state.
+        """
+        defaults = _without(_valid_defaults(annual_leave_loading="20.00"), "labour_cost_loading")
+
+        result = _validate(_written(defaults, tmp_path))
+
+        assert result.returncode != 0
+        assert "not in the schema ['annual_leave_loading']" in result.stderr
+        assert "omitted ['labour_cost_loading']" in result.stderr
+
+    def test_the_company_record_is_held_to_its_schema_too(self, tmp_path: Path) -> None:
+        """Both records are the tenant's bootstrap; neither may drift."""
+        company = _without(_valid_company(), "merged_into")
+
+        result = _validate(_written(_valid_defaults(), tmp_path, company=company))
+
+        assert result.returncode != 0
+        assert "company.company schema" in result.stderr
+        assert "omitted ['merged_into']" in result.stderr
 
 
 class TestFileShape:
@@ -166,7 +212,7 @@ class TestFileShape:
     def test_an_extra_record_is_refused(self, tmp_path: Path) -> None:
         """This file is the tenant bootstrap, not a general-purpose fixture."""
         records = [
-            {"model": "company.company", "pk": 1, "fields": {"name": "Sample Shop"}},
+            {"model": "company.company", "pk": 1, "fields": _valid_company()},
             {"model": "core.companydefaults", "pk": 1, "fields": _valid_defaults()},
             {"model": "accounts.staff", "pk": 1, "fields": {}},
         ]

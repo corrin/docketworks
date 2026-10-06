@@ -20,6 +20,7 @@ from apps.core.models import AppError
 from apps.crm.models import PhoneCallRecord
 from apps.crm.services.phone_call_service import rematch_calls_for_numbers
 from apps.xero.raw_fields import set_company_fields, sync_xero_phone_methods
+from apps.xero.tests.conftest import TEST_TENANT_ID
 
 from .xero_fixtures import make_contact_raw_json
 
@@ -56,7 +57,7 @@ class TestSetCompanyFieldsRejectsBadPayloads:
         company = Company.objects.create(name="No Payload Ltd", xero_last_modified=timezone.now())
 
         with pytest.raises(ValueError, match="raw_json"):
-            set_company_fields(company)
+            set_company_fields(company, tenant_id=TEST_TENANT_ID)
 
         company.refresh_from_db()
         assert company.name == "No Payload Ltd"
@@ -75,7 +76,7 @@ class TestSetCompanyFieldsRejectsBadPayloads:
         )
 
         with pytest.raises(ValueError, match="_contact_status"):
-            set_company_fields(company)
+            set_company_fields(company, tenant_id=TEST_TENANT_ID)
 
         company.refresh_from_db()
         assert company.xero_archived
@@ -93,7 +94,7 @@ class TestSetCompanyFieldsRejectsBadPayloads:
         )
 
         with pytest.raises(ValueError, match="_contact_status"):
-            set_company_fields(company)
+            set_company_fields(company, tenant_id=TEST_TENANT_ID)
 
         company.refresh_from_db()
         assert company.xero_archived
@@ -112,7 +113,7 @@ class TestXeroLinkStamping:
             raw_json=make_contact_raw_json("contact-s1", "Stamped Ltd"),
         )
 
-        set_company_fields(company)
+        set_company_fields(company, tenant_id=TEST_TENANT_ID)
 
         company.refresh_from_db()
         assert company.xero_contact_id == "contact-s1"
@@ -139,7 +140,7 @@ class TestPersonIdentityOwnership:
         )
         link = CompanyPersonLink.objects.create(company=company, person=person, is_active=False)
 
-        set_company_fields(company)
+        set_company_fields(company, tenant_id=TEST_TENANT_ID)
 
         person.refresh_from_db()
         link.refresh_from_db()
@@ -199,7 +200,7 @@ class TestPhoneMethodSync:
         before = AppError.objects.count()
 
         with pytest.raises(ValidationError, match="already belongs to"):
-            set_company_fields(company)
+            set_company_fields(company, tenant_id=TEST_TENANT_ID)
 
         company.refresh_from_db()
         assert company.name == "Original Name Ltd"
@@ -355,7 +356,7 @@ class TestPhoneRematchDispatch:
             ) as rematch,
             django_capture_on_commit_callbacks(execute=True),
         ):
-            set_company_fields(company)
+            set_company_fields(company, tenant_id=TEST_TENANT_ID)
 
         rematch.assert_called_once_with(["+6421555123"])
         call.refresh_from_db()
@@ -372,6 +373,6 @@ class TestPhoneRematchDispatch:
             ) as unchanged_rematch,
             django_capture_on_commit_callbacks(execute=True),
         ):
-            set_company_fields(company)
+            set_company_fields(company, tenant_id=TEST_TENANT_ID)
 
         unchanged_rematch.assert_not_called()

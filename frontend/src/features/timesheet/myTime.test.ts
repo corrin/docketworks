@@ -1,13 +1,29 @@
 import { describe, expect, it } from 'vitest'
 
-import type { WorkshopTimesheetEntryOut } from '@/api'
+import type { AttendanceOut, WorkshopTimesheetEntryOut } from '@/api'
 
 import {
+  adjustEnd,
+  billingChangeFields,
+  billsItsTime,
   calendarEvent,
-  deriveHoursFromTimes,
+  clockWords,
+  distinctJobCount,
+  entryLockedFor,
+  entryMarks,
   entryUpdateBody,
   eventTitle,
+  fillAfterRows,
+  fillGapToNextEntry,
+  fillWords,
   jobChangeFields,
+  lastUsedJobId,
+  rateLabel,
+  rateOptionsFor,
+  resolveSelectedJob,
+  shownBillable,
+  slotFrom,
+  slotFromNow,
   splitDayEntries,
 } from './myTime'
 
@@ -26,31 +42,14 @@ function makeEntry(overrides: Partial<WorkshopTimesheetEntryOut> = {}): Workshop
     is_billable: true,
     wage_rate_multiplier: 1,
     bill_rate_multiplier: 1,
+    approved: false,
+    entered_late: false,
+    remote_entry: false,
     created_at: '2026-08-26T08:00:00Z',
     updated_at: '2026-08-26T08:00:00Z',
     ...overrides,
   }
 }
-
-describe('deriveHoursFromTimes', () => {
-  it('derives decimal hours from an HH:mm pair', () => {
-    expect(deriveHoursFromTimes('08:00', '09:30')).toBe(1.5)
-  })
-
-  it('rounds to two decimals so 20 minutes books as 0.33', () => {
-    expect(deriveHoursFromTimes('08:00', '08:20')).toBe(0.33)
-  })
-
-  it('returns null when either time is blank', () => {
-    expect(deriveHoursFromTimes('', '09:00')).toBeNull()
-    expect(deriveHoursFromTimes('08:00', '')).toBeNull()
-  })
-
-  it('returns null when the end is at or before the start', () => {
-    expect(deriveHoursFromTimes('09:00', '08:00')).toBeNull()
-    expect(deriveHoursFromTimes('09:00', '09:00')).toBeNull()
-  })
-})
 
 describe('splitDayEntries', () => {
   it('separates entries with a full time pair from the rest', () => {
@@ -73,20 +72,242 @@ describe('eventTitle', () => {
 
 describe('jobChangeFields', () => {
   it('is empty when the job did not change', () => {
-    expect(jobChangeFields(makeEntry(), 'j1', false)).toEqual({})
+    expect(jobChangeFields(makeEntry(), 'j1')).toEqual({})
   })
 
-  it('moving to a normal job re-bills the entry', () => {
-    expect(jobChangeFields(makeEntry({ is_billable: false }), 'j2', false)).toEqual({
-      job_id: 'j2',
-      is_billable: true,
+  it("a move sends the job alone; billability is the server's rule", () => {
+    expect(jobChangeFields(makeEntry({ is_billable: false }), 'j2')).toEqual({ job_id: 'j2' })
+  })
+})
+
+describe('billingChangeFields', () => {
+  it('sends nothing when the tick is untouched and the rate is as stored', () => {
+    const entry = makeEntry({ is_billable: false, wage_rate_multiplier: 1.5 })
+
+    expect(billingChangeFields(entry, { billableChoice: null, rateMultiplier: 1.5 })).toEqual({})
+  })
+
+  it('sends the tick the user set, even when it matches the stored value', () => {
+    // An explicit unbillable choice has to reach the server, or a move off a
+    // shop job re-bills the entry against what the user asked for.
+    const entry = makeEntry({ is_billable: false })
+
+    expect(billingChangeFields(entry, { billableChoice: false, rateMultiplier: 1 })).toEqual({
+      is_billable: false,
     })
   })
 
-  it('moving to a shop job books it non-billable', () => {
-    expect(jobChangeFields(makeEntry(), 'j2', true)).toEqual({
-      job_id: 'j2',
-      is_billable: false,
+  it('sends the rate only when the user changed it', () => {
+    expect(billingChangeFields(makeEntry(), { billableChoice: null, rateMultiplier: 2 })).toEqual({
+      wage_rate_multiplier: 2,
+    })
+  })
+})
+
+describe('shownBillable', () => {
+  const normal = { id: 'j1', shop_job: false, status: 'in_progress' }
+  const otherNormal = { id: 'j2', shop_job: false, status: 'in_progress' }
+  const shop = { id: 'shop', shop_job: true, status: 'special' }
+  const special = { id: 'leave', shop_job: false, status: 'special' }
+
+  it('shop and special jobs cannot bill their time', () => {
+    expect(billsItsTime(normal)).toBe(true)
+    expect(billsItsTime(shop)).toBe(false)
+    expect(billsItsTime(special)).toBe(false)
+  })
+
+  it('a new entry is billable until the user says otherwise', () => {
+    const untouched = { entry: null, sourceJob: null, selectedJob: normal, billableChoice: null }
+
+    expect(shownBillable(untouched)).toBe(true)
+    expect(shownBillable({ ...untouched, billableChoice: false })).toBe(false)
+  })
+
+  it('a job that cannot bill shows unticked whatever was chosen', () => {
+    expect(
+      shownBillable({ entry: null, sourceJob: null, selectedJob: shop, billableChoice: true }),
+    ).toBe(false)
+  })
+
+  it('an untouched edit shows the stored value, also across a normal-to-normal move', () => {
+    const entry = makeEntry({ job_id: 'j1', is_billable: false })
+
+    expect(
+      shownBillable({ entry, sourceJob: normal, selectedJob: normal, billableChoice: null }),
+    ).toBe(false)
+    expect(
+      shownBillable({ entry, sourceJob: normal, selectedJob: otherNormal, billableChoice: null }),
+    ).toBe(false)
+  })
+
+  it('an untouched move off a shop job shows billable, as the server will save it', () => {
+    const entry = makeEntry({ job_id: 'shop', is_billable: false })
+
+    expect(
+      shownBillable({ entry, sourceJob: shop, selectedJob: normal, billableChoice: null }),
+    ).toBe(true)
+    expect(
+      shownBillable({ entry, sourceJob: shop, selectedJob: normal, billableChoice: false }),
+    ).toBe(false)
+  })
+})
+
+describe('distinctJobCount', () => {
+  it('counts each job once however many entries it has', () => {
+    const entries = [
+      makeEntry({ id: 'a', job_id: 'j1' }),
+      makeEntry({ id: 'b', job_id: 'j1' }),
+      makeEntry({ id: 'c', job_id: 'j2' }),
+    ]
+
+    expect(distinctJobCount(entries)).toBe(2)
+  })
+})
+
+describe('rateLabel', () => {
+  it('names ordinary time and shows the multiplier otherwise', () => {
+    expect(rateLabel(1)).toBe('Ord')
+    expect(rateLabel(1.5)).toBe('1.5x')
+    expect(rateLabel(2)).toBe('2x')
+  })
+})
+
+describe('resolveSelectedJob', () => {
+  const listed = [{ id: 'j1' }, { id: 'j2' }]
+
+  it('is the job the picker handed over, also when the list does not hold it', () => {
+    // A job found through the whole-table search (an archived one) is not in
+    // the loaded list; looking it up there left a new entry unbookable.
+    const searched = { id: 'archived', shop_job: false, status: 'archived' }
+
+    expect(resolveSelectedJob(searched, listed, 'archived')).toBe(searched)
+  })
+
+  it('is looked up in the list when nothing was picked, or the pick is stale', () => {
+    expect(resolveSelectedJob(null, listed, 'j2')).toBe(listed[1])
+    expect(resolveSelectedJob({ id: 'archived' }, listed, 'j1')).toBe(listed[0])
+    expect(resolveSelectedJob(null, listed, 'gone')).toBeNull()
+  })
+
+  it("a searched shop job's own flags decide billability", () => {
+    const searchedShop = { id: 'shop-archived', shop_job: true, status: 'archived' }
+
+    expect(
+      shownBillable({
+        entry: null,
+        sourceJob: null,
+        selectedJob: resolveSelectedJob(searchedShop, [], 'shop-archived'),
+        billableChoice: null,
+      }),
+    ).toBe(false)
+  })
+})
+
+describe('rateOptionsFor', () => {
+  it('offers the three standard rates', () => {
+    expect(rateOptionsFor(null).map((option) => option.label)).toEqual(['Ord', '1.5', '2.0'])
+    expect(rateOptionsFor(1.5)).toHaveLength(3)
+  })
+
+  it("keeps an entry's non-standard stored rate on offer whatever is selected now", () => {
+    // Built from the stored rate, not the select's current value: otherwise
+    // the option vanished the moment the user tried another rate.
+    expect(rateOptionsFor(1.25).map((option) => option.multiplier)).toEqual([1, 1.5, 2, 1.25])
+    expect(rateOptionsFor(1.25).at(-1)?.label).toBe('1.25x')
+  })
+})
+
+describe('slotFrom', () => {
+  it('opens a half-hour slot', () => {
+    expect(slotFrom('08:00')).toEqual({ start: '08:00', end: '08:30' })
+  })
+
+  it('pulls a 23:59 start back so the slot is still a minute long', () => {
+    expect(slotFrom('23:59')).toEqual({ start: '23:58', end: '23:59' })
+  })
+
+  it('stops at the last minute of the day', () => {
+    expect(slotFrom('23:45')).toEqual({ start: '23:45', end: '23:59' })
+  })
+})
+
+describe('lastUsedJobId', () => {
+  it('is the job of the entry booked most recently', () => {
+    const earlier = makeEntry({ id: 'a', job_id: 'j1', created_at: '2026-08-26T08:00:00Z' })
+    const later = makeEntry({ id: 'b', job_id: 'j2', created_at: '2026-08-26T11:00:00Z' })
+
+    expect(lastUsedJobId([later, earlier])).toBe('j2')
+  })
+
+  it('is null on an empty day', () => {
+    expect(lastUsedJobId([])).toBeNull()
+  })
+})
+
+describe('slotFromNow', () => {
+  it('opens a slot at the wall-clock minute', () => {
+    expect(slotFromNow(new Date(2026, 7, 26, 13, 7, 45))).toEqual({ start: '13:07', end: '13:37' })
+  })
+})
+
+describe('adjustEnd', () => {
+  const range = { start: '08:00', end: '08:30' }
+
+  it('moves the end and keeps the start', () => {
+    expect(adjustEnd(range, 15)).toEqual({ start: '08:00', end: '08:45' })
+    expect(adjustEnd(range, -5)).toEqual({ start: '08:00', end: '08:25' })
+  })
+
+  it('leaves a one-minute entry when pulled back to the start or past it', () => {
+    expect(adjustEnd({ start: '08:00', end: '08:05' }, -5)).toEqual({
+      start: '08:00',
+      end: '08:01',
+    })
+    expect(adjustEnd({ start: '08:00', end: '08:03' }, -5)).toEqual({
+      start: '08:00',
+      end: '08:01',
+    })
+  })
+
+  it('stops at the last minute of the day', () => {
+    expect(adjustEnd({ start: '23:00', end: '23:45' }, 30)).toEqual({
+      start: '23:00',
+      end: '23:59',
+    })
+  })
+
+  it('mends a zero-length range at the end of the day', () => {
+    expect(adjustEnd({ start: '23:59', end: '23:59' }, 5)).toEqual({ start: '23:58', end: '23:59' })
+  })
+})
+
+describe('fillGapToNextEntry', () => {
+  const afternoon = makeEntry({ id: 'a', start_time: '13:00:00', end_time: '15:00:00' })
+  const morning = makeEntry({ id: 'b', start_time: '08:00:00', end_time: '09:00:00' })
+  const lateAfternoon = makeEntry({ id: 'c', start_time: '15:30:00', end_time: '16:00:00' })
+
+  it("runs up to the day's next start", () => {
+    expect(fillGapToNextEntry('09:00', [lateAfternoon, afternoon, morning], '17:00')).toEqual({
+      start: '09:00',
+      end: '13:00',
+    })
+  })
+
+  it('never runs past the end of his day', () => {
+    expect(fillGapToNextEntry('15:00', [afternoon, morning], '15:30')).toEqual({
+      start: '15:00',
+      end: '15:30',
+    })
+  })
+
+  it('offers nothing once his day is over', () => {
+    expect(fillGapToNextEntry('15:30', [morning], '15:00')).toBeNull()
+  })
+
+  it('runs to the end of the day on a day with no end', () => {
+    expect(fillGapToNextEntry('16:00', [afternoon, morning], null)).toEqual({
+      start: '16:00',
+      end: '23:59',
     })
   })
 })
@@ -94,14 +315,13 @@ describe('jobChangeFields', () => {
 describe('entryUpdateBody', () => {
   const form = {
     jobId: 'j1',
-    shopJob: false,
     start: '08:00',
     end: '09:30',
     hours: 1.5,
     description: 'Welding',
   }
 
-  it('carries the pair, derived hours, and description', () => {
+  it('carries the hours, the times and the description', () => {
     expect(entryUpdateBody(makeEntry(), form)).toEqual({
       entry_id: 'e1',
       hours: 1.5,
@@ -111,20 +331,25 @@ describe('entryUpdateBody', () => {
     })
   })
 
-  it('leaves times and hours alone on an untimed entry edited without them', () => {
-    const untimed = makeEntry({ start_time: null, end_time: null })
-
-    expect(entryUpdateBody(untimed, { ...form, start: '', end: '', hours: null })).toEqual({
+  it('sends only the times it has: a blank one is left as stored, never cleared or invented', () => {
+    expect(entryUpdateBody(makeEntry(), { ...form, start: '', end: '' })).toEqual({
       entry_id: 'e1',
+      hours: 1.5,
+      description: 'Welding',
+    })
+    expect(entryUpdateBody(makeEntry(), { ...form, end: '' })).toEqual({
+      entry_id: 'e1',
+      hours: 1.5,
+      start_time: '08:00:00',
       description: 'Welding',
     })
   })
 
-  it('folds in the job-change fields when the job moved', () => {
-    const body = entryUpdateBody(makeEntry(), { ...form, jobId: 'j2', shopJob: true })
+  it('folds in the job when it moved', () => {
+    const body = entryUpdateBody(makeEntry(), { ...form, jobId: 'j2' })
 
     expect(body.job_id).toBe('j2')
-    expect(body.is_billable).toBe(false)
+    expect(body).not.toHaveProperty('is_billable')
   })
 
   it('sends null to clear a blank description', () => {
@@ -143,6 +368,95 @@ describe('calendarEvent', () => {
       title: '#42 Handrail (2h 30m)',
       start: '2026-08-26T08:00:00',
       end: '2026-08-26T10:30:00',
+      marks: ['Waiting'],
     })
+  })
+})
+
+describe('entryMarks', () => {
+  it('says Waiting until the office approves, then Approved', () => {
+    expect(entryMarks(makeEntry({ approved: false }))).toEqual(['Waiting'])
+    expect(entryMarks(makeEntry({ approved: true }))).toEqual(['Approved'])
+  })
+
+  it('adds Entered late beside either state', () => {
+    expect(entryMarks(makeEntry({ approved: false, entered_late: true }))).toEqual([
+      'Waiting',
+      'Entered late',
+    ])
+  })
+
+  it('adds Suspicious remote entry when the server marked the save', () => {
+    expect(entryMarks(makeEntry({ approved: true, remote_entry: true }))).toEqual([
+      'Approved',
+      'Suspicious remote entry',
+    ])
+  })
+})
+
+describe('entryLockedFor', () => {
+  it('locks an approved entry for a worker and leaves it open to the office', () => {
+    const approved = makeEntry({ approved: true })
+    expect(entryLockedFor(approved, { is_office_staff: false })).toBe(true)
+    expect(entryLockedFor(approved, { is_office_staff: true })).toBe(false)
+    expect(entryLockedFor(makeEntry({ approved: false }), { is_office_staff: false })).toBe(false)
+  })
+})
+
+describe('clockWords', () => {
+  const day: AttendanceOut = {
+    state: 'not_clocked_in',
+    clock_in: null,
+    clock_out: null,
+    here_hours: null,
+    sent_late: false,
+    cautions: [],
+  }
+
+  it('says where the day stands, with the hours the server worked out', () => {
+    expect(clockWords(day)).toBe('Not clocked in')
+    expect(clockWords({ ...day, state: 'at_work', clock_in: '06:30:00' })).toBe(
+      'At work since 06:30',
+    )
+    expect(
+      clockWords({
+        ...day,
+        state: 'clocked_out',
+        clock_in: '06:30:00',
+        clock_out: '15:00:00',
+        here_hours: 8.5,
+      }),
+    ).toBe('Clocked out. 06:30 to 15:00, here 8h 30m')
+  })
+})
+
+describe('fillWords', () => {
+  const fill = { to_fill_hours: 8, break_hours: 0.5, entered_hours: 3, to_go_hours: 4.5 }
+
+  it('says what is left, that it is all filled, or that he is over, without scolding', () => {
+    expect(fillWords(fill)).toBe('8h to fill, 30m breaks, 3h entered, 4h 30m to go')
+    expect(fillWords({ ...fill, entered_hours: 7.5, to_go_hours: 0 })).toBe(
+      '8h to fill, 30m breaks, 7h 30m entered. All filled',
+    )
+    expect(fillWords({ ...fill, entered_hours: 8.5, to_go_hours: -1 })).toBe(
+      '8h to fill, 30m breaks, 8h 30m entered: 1h over the time you were here',
+    )
+  })
+
+  it('leaves the breaks out of the sentence on a day without any', () => {
+    expect(fillWords({ ...fill, break_hours: 0, to_go_hours: 5 })).toBe(
+      '8h to fill, 3h entered, 5h to go',
+    )
+  })
+})
+
+describe('fillAfterRows', () => {
+  it("takes the sheet's own rows off what is left, ignoring a row with no hours yet", () => {
+    expect(
+      fillAfterRows({ to_fill_hours: 8, break_hours: 0.5, entered_hours: 1, to_go_hours: 6.5 }, [
+        { hours: 3 },
+        { hours: null },
+      ]),
+    ).toEqual({ to_fill_hours: 8, break_hours: 0.5, entered_hours: 4, to_go_hours: 3.5 })
   })
 })

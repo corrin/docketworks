@@ -28,7 +28,8 @@ async function createWorkspaceOrder(page: Page, lineCount: number): Promise<stri
         description: `Stainless steel sheet 304, 1.2 mm, 2400 × 1200 — line ${index + 1}`,
         quantity: index + 1,
         unit_cost: '18.50',
-        item_code: `SS-304-${index + 1}`,
+        // Free-text lines: an item code has to be a real stock item, and none
+        // of the workspace tests reads the code.
       })),
     },
   })
@@ -180,7 +181,7 @@ test.describe('PO workspace', () => {
     const event = (await response.json()).event
     await page.reload()
     const entry = page.getByRole('listitem').filter({ hasText: note })
-    await expect(entry).toContainText(event.staff)
+    await expect(entry).toContainText(event.staff_name)
     await expect(entry.locator('time')).toHaveAttribute('datetime', event.timestamp)
     await entry.scrollIntoViewIfNeeded()
     await page.screenshot({ path: test.info().outputPath('po-notes-history.png') })

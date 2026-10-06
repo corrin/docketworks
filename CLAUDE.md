@@ -1,13 +1,10 @@
 # CLAUDE.md — Docketworks
 
-This codebase is exhibited as an example of how the architecture should be done, and it
-replaced a system that already worked, so "working but structurally compromised" delivers
-nothing: scope bends, the standard does not. Colliding with a rule — an ADR, a
-linter, a type error, a layer contract — means the approach is wrong, not that a rule is in
-the way. Stop, name the belief the tool contradicted, and check it (query the data, read the
-writers, read the ADR in full) before editing; never search for the smallest edit that gets
-past it. A rule enters this file as one line naming its authority; the argument stays in the
-ADR, and nothing here is said twice.
+Architecture is an acceptance requirement for this replacement of an existing system.
+Adjust scope to meet it. When a gate or contract contradicts an assumption, check the
+relevant data, writers and ADR before changing the implementation.
+Keep each rule here as a summary linked to its authority; detailed reasoning belongs in
+the ADR.
 
 ## Where things are
 
@@ -20,7 +17,7 @@ ADR, and nothing here is said twice.
 - [`docs/design-language.md`](docs/design-language.md): read before designing or changing a screen.
 - [`docs/release-process.md`](docs/release-process.md) is how a change reaches production;
   [`docs/README.md`](docs/README.md) indexes the rest.
-- `../docketworks_v1` is the frozen v1; this repo carries no copy.
+- `../docketworks_v1`, where present, is a clone of the archived v1 at `e88dc420`; this repo carries no copy.
 - Session transcripts are not durable; those files, the ADRs and seam comments are.
 
 ## Commands
@@ -30,14 +27,13 @@ ADR, and nothing here is said twice.
 | commit | automatic; `pre-commit run --all-files` | ~64s | `.pre-commit-config.yaml` is the list |
 | push | automatic; `pre-commit run --all-files --hook-stage pre-push` | ~5s | what CI does not run, and the registry of custom checks: search it before writing one |
 | unit | `uv run pytest` | ~152s | scope with `uv run pytest apps/job` or `--lf`; `-n auto --dist loadscope` is in `addopts`: never add it, never run serially |
-| integration | `./scripts/ops/run_integration_tests.sh`, `scripts/ops/outbound_links_probe.py`, `scripts/checks/route_reachability.py` | ~1min | human-run merge gate for anything that touches an external system; CI has no credentials (ADR 0050) |
-| e2e | `./scripts/ops/run_e2e.sh` | ~25min | bare `npm run test:e2e` only against an environment already running; `--use-fake-xero` is labelled everywhere and never the gate (ADR 0060) |
+| integration | `./scripts/ops/run_integration_tests.sh`, `scripts/ops/outbound_links_probe.py`, `scripts/checks/route_reachability.py` | ~1min | human-run evidence for relevant integration changes; live Xero when work could expose a fake discrepancy; CI has no credentials (ADR 0050) |
+| e2e | `./scripts/ops/run_e2e.sh` | ~25min | fake Xero by default; `--use-real-xero` for work that could expose a fake discrepancy; bare Playwright requires a matching running stack (ADR 0060) |
 
 The frontend loop check is `npm run type-check`, not `npm run build`. `uv run mypy` is strict
 at a zero baseline over `apps config manage.py scripts`. CI runs the commit tier plus the unit
-suites, never integration or E2E; a CI check missing from the commit tier is a bug in the
-tier, never a saving, and slowness argues for a faster check, never for moving it. Never
-weaken a gate, never baseline one.
+suites. Integration and E2E run separately. Every CI check belongs in the commit tier;
+improve a slow check within that tier. Gate weakening and new baselines are prohibited.
 
 ## Never
 
@@ -51,8 +47,9 @@ weaken a gate, never baseline one.
 - Done means the E2E spec passes. Report progress as specs green, never as endpoints or
   components written. Nothing releases without the suite green. UAT verification and PVT are
   `scripts/server/verify-instance.sh --e2e` green on the instance (ADR 0064).
-- Commit each verified slice as soon as it is complete, staging explicit paths; push only when
-  asked. A green unit run is a commit boundary. A generated artifact carrying another
+- Commit each verified slice as soon as it is complete,
+  staging explicit paths; push every commit; open a draft PR at the first push and mark it ready
+  when the work is. A green unit run is a commit boundary. A generated artifact carrying another
   workstream's changes is partial-staged, or the overlap is reported before committing.
 - A screen that renders a collection is tested at production volume;
   `docs/prod-data-shape.yml` holds the counts (ADR 0054).
@@ -60,7 +57,7 @@ weaken a gate, never baseline one.
   new-instance seed, restore/scrub behaviour, live verification and its setup doc, through the
   existing configuration service (ADR 0053, 0027). Keys are write-only and a settings GET
   never probes a vendor. Setup is tested through the UI, including failed saves and key
-  rotation; a terminal or database workaround proves nothing. An unverified acceptance step
+  rotation. An unverified acceptance step
   is recorded in the PR and in `docs/rewrite-status.md`.
 
 ## Layout
@@ -96,8 +93,15 @@ weaken a gate, never baseline one.
 - Libraries over DIY (ADR 0032). One LLM gateway: every AI call goes through `apps/ai`, and no
   feature imports a vendor SDK (ADR 0041). Unset is NULL, via `NullableText` (ADR 0040).
   Numbers travel as JSON numbers (ADR 0046).
-- Comments record the rejected alternative and the fact that rejected it (ADR 0043). AI-authored
-  rationale carries its model prefix (`Opus:`, `GPT:`) until ratified (ADR 0051).
+- Dependencies sweep to latest, the gates decide, the tested version is frozen exactly; a
+  version held below latest carries its dated reason beside the pin (ADR 0033). The sweep is
+  `scripts/ops/sweep_dependencies.sh`, weekly by workflow; a red run follows
+  `docs/dependency-sweep.md`.
+- A unit test names the Docketworks block whose plausible edit trips it; no such block, no test
+  (ADR 0025).
+- Comments explain business meaning, decisions and constraints a reader cannot obtain from
+  the surrounding code (ADR 0043). AI-authored rationale carries its model prefix (`Opus:`,
+  `GPT:`) until ratified (ADR 0051).
 
 ## Porting
 

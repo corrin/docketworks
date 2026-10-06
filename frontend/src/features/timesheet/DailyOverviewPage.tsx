@@ -5,7 +5,7 @@ import { getDailyTimesheetSummaryByDateOptions } from '@/api'
 import type { DailyTimesheetSummaryOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { QueryState } from '@/features/shared/QueryState'
-import { formatDate, localIsoDate } from '@/lib/format'
+import { formatDateLong, localIsoDate } from '@/lib/format'
 import { shiftDate } from '@/lib/dates'
 
 export interface DailyOverviewSearch {
@@ -13,7 +13,9 @@ export interface DailyOverviewSearch {
 }
 
 export interface DailyOverviewPageProps {
-  search: DailyOverviewSearch
+  /** The route has already written the date into the URL (docs/design-language.md,
+      "Report filters live in the URL"), so it is never missing here. */
+  search: Required<DailyOverviewSearch>
   onDateChange: (date: string) => void
   onOpenEntry: (staffId: string, date: string) => void
 }
@@ -26,7 +28,7 @@ type StaffDaily = DailyTimesheetSummaryOut['staff_data'][number]
  * weekend rule belongs to the ENTRY page's navigation).
  */
 export function DailyOverviewPage({ search, onDateChange, onOpenEntry }: DailyOverviewPageProps) {
-  const date = search.date ?? localIsoDate()
+  const { date } = search
   const queryClient = useQueryClient()
   const summaryQuery = useQuery(
     getDailyTimesheetSummaryByDateOptions({ path: { target_date: date } }),
@@ -64,7 +66,9 @@ export function DailyOverviewPage({ search, onDateChange, onOpenEntry }: DailyOv
         <Button variant="outline" size="sm" onClick={() => onDateChange(localIsoDate())}>
           Today
         </Button>
-        <span className="text-sm text-slate-600">{formatDate(date)}</span>
+        <span className="text-sm text-slate-600" data-automation-id="DailyOverview-date">
+          {formatDateLong(date)}
+        </span>
         <Button
           variant="outline"
           size="sm"

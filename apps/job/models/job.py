@@ -12,6 +12,7 @@ from django.db import models, transaction
 from django.db.models import Index, Max, Min
 from django.utils import timezone
 
+from apps.core.audit import JsonScalar, json_safe
 from apps.core.data_events import notify_data_changed
 
 # v1 home: apps.workflow.models — CompanyDefaults lives in apps.core in v2.
@@ -26,26 +27,6 @@ if TYPE_CHECKING:
     from apps.accounts.models import Staff
 
 logger = logging.getLogger(__name__)
-
-# What _json_safe produces: the JSON-serializable form of a model field value.
-_JsonScalar = str | int | float | bool | None
-
-
-def _json_safe(value: object) -> _JsonScalar:
-    """Convert a model field value to a JSON-serializable form."""
-    if value is None:
-        return None
-    if isinstance(value, uuid.UUID):
-        return str(value)
-    if isinstance(value, (datetime, date)):
-        return value.isoformat()
-    if isinstance(value, Decimal):
-        return str(value)
-    if isinstance(value, (str, int, float, bool)):
-        # v1 wrote `hasattr(value, "__str__") and not isinstance(...)`;
-        # every object has __str__, so passthrough types are exactly these.
-        return value
-    return str(value)
 
 
 class JobQuerySet(models.QuerySet["Job"]):
@@ -629,7 +610,11 @@ class Job(models.Model):
                 changes_after,
                 detail_changes,
                 event_types,
-            ) = self._detect_field_changes(original_job, update_fields=update_fields)
+            ) = self._detect_field_changes(
+                original_job,
+                update_fields=update_fields,
+                track_priority="priority_position" in enrichment,
+            )
 
             if changes_before:
                 side_effect_fields = self._apply_change_side_effects(changes_before, changes_after)
@@ -834,10 +819,14 @@ class Job(models.Model):
     # Any tracked field without a handler gets a generic "X changed" event.
 
     def _detect_field_changes(
-        self, original_job: "Job", update_fields: Iterable[str] | None = None
+        self,
+        original_job: "Job",
+        update_fields: Iterable[str] | None = None,
+        *,
+        track_priority: bool = False,
     ) -> tuple[
-        dict[str, _JsonScalar],
-        dict[str, _JsonScalar],
+        dict[str, JsonScalar],
+        dict[str, JsonScalar],
         list[dict[str, str]],
         list[str],
     ]:
@@ -845,10 +834,11 @@ class Job(models.Model):
 
         When update_fields is passed to save(), only those fields are considered —
         in-memory mutations on other fields weren't persisted, so emitting events
-        for them would misrepresent what changed on the row.
+        for them would misrepresent what changed on the row. Priority is tracked
+        only for an explicit reorder, not automatic placement or renumbering.
         """
-        changes_before: dict[str, _JsonScalar] = {}
-        changes_after: dict[str, _JsonScalar] = {}
+        changes_before: dict[str, JsonScalar] = {}
+        changes_after: dict[str, JsonScalar] = {}
         detail_changes: list[dict[str, str]] = []
         event_types: list[str] = []
 
@@ -864,6 +854,10 @@ class Job(models.Model):
             attr = field.attname
             if attr in self.UNTRACKED_FIELDS:
                 continue
+            # GPT: Only a deliberate kanban drag supplies priority_position.
+            # Status placement and rank renumbering are bookkeeping, not user actions.
+            if attr == "priority" and not track_priority:
+                continue
             if restricted is not None and not (attr in restricted or field.name in restricted):
                 continue
 
@@ -873,8 +867,8 @@ class Job(models.Model):
             if old_val == new_val:
                 continue
 
-            changes_before[attr] = _json_safe(old_val)
-            changes_after[attr] = _json_safe(new_val)
+            changes_before[attr] = json_safe(old_val)
+            changes_after[attr] = json_safe(new_val)
 
             # Use custom handler if one exists, otherwise generic detail
             handler = self._FIELD_HANDLERS.get(attr)
@@ -890,8 +884,8 @@ class Job(models.Model):
                 detail_changes.append(
                     {
                         "field_name": label,
-                        "old_value": str(_json_safe(old_val)),
-                        "new_value": str(_json_safe(new_val)),
+                        "old_value": str(json_safe(old_val)),
+                        "new_value": str(json_safe(new_val)),
                     }
                 )
                 event_types.append("job_updated")
@@ -900,8 +894,8 @@ class Job(models.Model):
 
     def _record_change_event(  # noqa: PLR0913, PLR0917 -- Event forensics keep context fields explicit.
         self,
-        changes_before: dict[str, _JsonScalar],
-        changes_after: dict[str, _JsonScalar],
+        changes_before: dict[str, JsonScalar],
+        changes_after: dict[str, JsonScalar],
         detail_changes: list[dict[str, str]],
         event_types: list[str],
         staff: "Staff",
@@ -948,8 +942,8 @@ class Job(models.Model):
 
     def _apply_change_side_effects(
         self,
-        changes_before: dict[str, _JsonScalar],  # noqa: ARG002 -- Kept for a symmetric side-effect interface.
-        changes_after: dict[str, _JsonScalar],
+        changes_before: dict[str, JsonScalar],  # noqa: ARG002 -- Kept for a symmetric side-effect interface.
+        changes_after: dict[str, JsonScalar],
     ) -> set[str]:
         """Mutate self for non-event side effects and return the fields touched.
 
@@ -977,14 +971,14 @@ class Job(models.Model):
                 mutated.add("completed_at")
         return mutated
 
-    def _clear_assigned_staff_on_archive(self, changes_after: dict[str, _JsonScalar]) -> None:
+    def _clear_assigned_staff_on_archive(self, changes_after: dict[str, JsonScalar]) -> None:
         if changes_after.get("status") != "archived":
             return
 
         self.people.clear()
 
     @staticmethod
-    def _infer_event_type(event_types: list[str], changes_after: dict[str, _JsonScalar]) -> str:
+    def _infer_event_type(event_types: list[str], changes_after: dict[str, JsonScalar]) -> str:
         """Pick the most significant event type from collected types."""
         # Rejected flag + archived status → job_rejected
         if changes_after.get("rejected_flag") is True and changes_after.get("status") == "archived":

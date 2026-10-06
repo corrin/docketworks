@@ -53,8 +53,7 @@ WITH drawn AS (
 )
 """
 
-#: Read-only form for the operator preflight, which needs to see the refusal before the
-#: deploy runs rather than discover it from a half-migrated database.
+#: The rows the migration would refuse on, as a read; the migration's own test reads it.
 OVER_EVIDENCED_SQL = (
     PROJECTED_EVIDENCE_CTE
     + """

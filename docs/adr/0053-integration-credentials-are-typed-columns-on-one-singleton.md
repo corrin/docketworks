@@ -2,13 +2,12 @@
 
 Every credential the install uses to reach an external service lives in the database, on
 `apps.platform.integrations.models.IntegrationSettings`, as a typed column of its own. Nothing reads a vendor
-credential from the environment; `.env` holds what Django needs to boot (database, Redis,
+credential from the environment, with the one remainder named below; `.env` holds what Django needs to boot (database, Redis,
 signing keys, paths) and nothing the application could change without a deploy.
 
-IntegrationSettings is owned by platform.integrations (ADR 0055). The existing
-`GCP_CREDENTIALS` key file and `GCP_DELEGATED_SUBJECT` override are a known migration
-remainder, explicitly excluded from the ownership extraction; no new environment
-credentials may be added. Callers supply the company mailbox to the Google adapter.
+IntegrationSettings is owned by platform.integrations (ADR 0055). `GCP_CREDENTIALS` and
+`GCP_DELEGATED_SUBJECT` are the one environment credential still read; nothing joins them.
+Callers supply the company mailbox to the Google adapter.
 
 ## Rules
 
@@ -21,7 +20,7 @@ credentials may be added. Callers supply the company mailbox to the Google adapt
   row discovered at runtime. A row-per-integration table can only be generic columns plus a
   JSON bag, which is the shape the read-side fallback backlog exists to remove.
 - **N-of integrations keep their own typed tables.** `XeroApp` (a rotation pair with token
-  state), `AIProvider` (a list with a default; its catalogue and selection are ADR 0062) and
+  state), `AIProvider` (a list with a default; its catalogue and selection are ADR 0041) and
   `SupplierCredential` (one per supplier) are many of the same kind, so each is its own table
   where every row is the same shape. The boundary is cardinality, never vendor: a second Google
   credential is another column, not a second Google table.
@@ -30,27 +29,13 @@ credentials may be added. Callers supply the company mailbox to the Google adapt
   business configuration — the accounting provider selector of ADR 0012 is one — while
   `IntegrationSettings` holds how the install reaches the outside.
 - **Reads never write.** `get_solo()` returns the row or raises `ImproperlyConfigured`; the
-  row is created by `core/0003_integration_settings_row`, which the cutover script re-applies
-  after the restore. `integrations/0001` adopts that table without DDL;
-  `integrations/0002` relabels its ContentType in place to preserve permission grants.
-  A `get_or_create` on a read path makes a GET a mutation.
+  row is created by a migration, and a `get_or_create` on a read path makes a GET a mutation.
 - **Secrets are write-only on the wire.** The admin surface is the superuser-only `/admin/integrations` page, backed by
   `GET`/`PATCH /api/integration-settings/` and `/api/ai/providers/` for the provider catalogue. The response
   carries `has_<column>` booleans in place of secret values; the request takes a value to set
   or `null` to clear, and an omitted field leaves the stored value alone.
-- **One seed, one check, one scrub.** `scripts/server/instance.sh` renders every column from
-  the root-owned credentials file into `integration-settings.json`, and
-  `manage.py load_integration_settings` applies each integration only while that
-  integration's columns are all unset — a restored instance keeps the phone login its admin
-  entered and still receives the Maps key. The command also creates the row a scrubbed
-  restore leaves missing.
-  `scripts/ops/restore_checks/check_integration_settings.py` proves each credential the way the
-  app uses it (a live Address Validation call for the Maps key). The scrubber truncates the
-  table whole, and its private-table list is the scrub contract for every column at once.
-- **The table is named for its history until the post-cutover rename.** `db_table` is
-  `crm_phoneprovidersettings`, the table v1 created for the phone row: the v1 dump restores by
-  table name and the scrubber lists it, so adopting it moves no data and changes no contract.
-  The physical rename belongs to the purge of v1/v2 names in `docs/rewrite-status.md`.
+- **The scrubber truncates the table whole**, and its private-table list is the scrub contract
+  for every column at once; a new column needs no scrub change.
 
 ## Do not
 

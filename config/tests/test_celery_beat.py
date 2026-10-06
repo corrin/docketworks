@@ -36,23 +36,12 @@ def test_every_beat_entry_carries_its_own_name_as_a_header() -> None:
         )
 
 
-def test_every_beat_entry_names_an_importable_task() -> None:
-    """A typo'd task path fails at runtime with no execution recorded at all."""
-    for name, entry in app.conf.beat_schedule.items():
-        module_path, _, attribute = entry["task"].rpartition(".")
-        module = importlib.import_module(module_path)
-        assert hasattr(module, attribute), (
-            f"beat entry {name!r} points at a task that does not exist"
-        )
-
-
 def test_every_beat_entry_is_registered_under_its_scheduled_name() -> None:
     """The schedule dispatches by REGISTERED name, not by import path.
 
-    hasattr alone cannot catch a task whose ``@shared_task(name=...)``
-    diverges from its module path (apps.xero re-exports its worker task
-    under apps.xero.tasks); an unregistered name schedules nothing, silently
-    — the exact eight-months-dark failure this file's docstring cites.
+    An importable function can still have a different ``@shared_task(name=...)``.
+    An unregistered scheduled name dispatches no work, even when that Python
+    attribute exists.
     """
     for module in (
         "apps.xero.tasks",
@@ -221,7 +210,7 @@ def test_task_results_outlive_the_longest_schedule_interval() -> None:
 
 
 def test_the_queue_is_named_by_the_database() -> None:
-    """A worker consumes only work queued for the database it runs on (ADR 0065).
+    """A worker consumes only work queued for the database it runs on.
 
     The verification window (ADR 0064) restarts the worker on the scrub copy
     against the instance's own Redis; one shared queue name let it drain and

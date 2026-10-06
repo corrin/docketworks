@@ -30,6 +30,10 @@ Not reused from the normal push paths, and why:
 - ``apps.xero.documents.invoice.XeroInvoiceManager`` creates a NEW invoice for
   a job from current job state. The seed re-creates EXISTING invoices with
   their stored numbers, dates and line totals, AUTHORISED and in batches of 50.
+
+Purchase orders are the exception: the order row IS the document, so the seed
+sends the body a push would send for it (``XeroPurchaseOrderManager``), fifty
+to a call instead of one.
 """
 
 import logging
@@ -41,10 +45,11 @@ from decimal import ROUND_HALF_UP, Decimal
 from itertools import batched
 from typing import Any
 
-from django.db.models import Q, QuerySet
+from django.db.models import Exists, OuterRef, Q, QuerySet
 from xero_python.accounting import AccountingApi, LineItem
 from xero_python.accounting import Contact as XeroContact
 from xero_python.accounting import Invoice as XeroInvoice
+from xero_python.accounting import PurchaseOrder as XeroPurchaseOrder
 from xero_python.accounting import Quote as XeroQuote
 
 from apps.accounting.models import Invoice, Quote
@@ -52,16 +57,19 @@ from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
-from apps.purchasing.models import PurchaseOrder, Stock
+from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
+from apps.purchasing.services.accounting_mirror import locally_raised
 from apps.timesheet.services import payroll_employee_sync
 from apps.xero.auth import get_api_client, get_tenant_id
-from apps.xero.constants import XERO_BATCH_SIZE, XERO_CONTACT_STATUSES
+from apps.xero.constants import XERO_BATCH_SIZE, XERO_CONTACT_STATUSES, ZERO_UUID
 from apps.xero.contacts import contact_from_company
+from apps.xero.documents.po import XeroPurchaseOrderManager
 from apps.xero.helpers import clean_payload, convert_to_pascal_case, sanitize_for_xero
 from apps.xero.models import XeroAccount, XeroPayItem, XeroSyncCursor
 from apps.xero.operator_guards import assert_not_production_target, assert_xero_writes_enabled
 from apps.xero.payroll_employees import ensure_employee_leave_types, missing_employee_leave_types
 from apps.xero.payroll_sync import pay_items_needing_relink, sync_xero_pay_items
+from apps.xero.provider import PurchaseOrderBody, XeroAccountingProvider
 from apps.xero.stock_sync import stock_pending_sync, sync_all_local_stock_to_xero
 from apps.xero.sync import iter_xero_entities
 from apps.xero.transforms import process_xero_data
@@ -106,7 +114,7 @@ class SeedAccountsResult:
 
 @dataclass(frozen=True)
 class SeedDocumentsResult:
-    """Invoice or quote phase outcome."""
+    """Invoice, quote or purchase order phase outcome."""
 
     created: int
     linked: int
@@ -127,10 +135,11 @@ class ClearedIdsResult:
 def companies_needing_contacts() -> list[Company]:
     """Companies that must exist in the target org before documents can be seeded.
 
-    Every company reached by a job, a job-linked invoice or a job-linked quote,
-    plus the configured test company — E2E and manual Xero testing drive that
-    one, so an installation whose test company is absent from the target org
-    has a broken test path, not a smaller seed.
+    Every company reached by a job, a job-linked invoice, a job-linked quote or
+    a purchase order the seed will send, plus the configured test company — E2E
+    and manual Xero testing drive that one, so an installation whose test
+    company is absent from the target org has a broken test path, not a
+    smaller seed.
 
     Jobs alone was the earlier scope and under-delivered this docstring:
     ``Invoice.company``/``Quote.company`` are separate columns from
@@ -158,6 +167,14 @@ def companies_needing_contacts() -> list[Company]:
         )
         .distinct()
         .values_list("id", flat=True)
+    )
+    # A supplier need hold no job, invoice or quote, so the predicate above
+    # never reaches it; left out, its orders are skipped for want of a contact
+    # id on every run and the seed cannot converge.
+    company_ids.update(
+        purchase_orders_xero_holds()
+        .filter(supplier__xero_contact_id__isnull=True)
+        .values_list("supplier_id", flat=True)
     )
     if not test_company.xero_contact_id:
         company_ids.add(test_company.id)
@@ -390,7 +407,7 @@ def seed_accounts_from_xero() -> SeedAccountsResult:
     return SeedAccountsResult(updated=updated, created=created)
 
 
-# --- Invoices and quotes ----------------------------------------------------
+# --- Invoices, quotes and purchase orders -----------------------------------
 
 
 def invoice_line_unit_amount(
@@ -447,7 +464,8 @@ def _job_description(job: Job) -> str:
     return description
 
 
-def _numbered_documents[TDocument: (Invoice, Quote)](
+def _numbered_documents[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote](
+    kind: "_DocumentKind[TDocument, TPayload, TRemote]",
     documents: Sequence[TDocument],
 ) -> list[tuple[str, TDocument]]:
     """Pair each document with its number, refusing any that lack one.
@@ -457,13 +475,13 @@ def _numbered_documents[TDocument: (Invoice, Quote)](
     otherwise surface as an unmappable response AFTER the documents already
     exist in Xero.
     """
-    unnumbered = [str(document.id) for document in documents if not document.number]
+    unnumbered = [str(document.id) for document in documents if not kind.number(document)]
     if unnumbered:
         raise ValueError(
-            f"Cannot seed {len(unnumbered)} job-linked document(s) with no document number: "
+            f"Cannot seed {len(unnumbered)} {kind.label} with no document number: "
             f"{unnumbered}. Fix the source rows; the Xero batch response is keyed on it."
         )
-    return [(str(document.number), document) for document in documents]
+    return [(str(kind.number(document)), document) for document in documents]
 
 
 def _build_invoice_payload(invoice: Invoice, account_code: str) -> dict[str, Any]:
@@ -559,6 +577,27 @@ def _build_quote_payload(quote: Quote, account_code: str) -> dict[str, Any]:
     return payload
 
 
+def _invoice_payloads(invoices: Sequence[Invoice]) -> list[dict[str, Any]]:
+    account_code = sales_account_code()
+    return [_build_invoice_payload(invoice, account_code) for invoice in invoices]
+
+
+def _quote_payloads(quotes: Sequence[Quote]) -> list[dict[str, Any]]:
+    account_code = sales_account_code()
+    return [_build_quote_payload(quote, account_code) for quote in quotes]
+
+
+def _purchase_order_payloads(orders: Sequence[PurchaseOrder]) -> list[PurchaseOrderBody]:
+    """Build the body a push would send for each order, in its current status."""
+    staff = Staff.get_automation_user()
+    return [
+        XeroAccountingProvider.purchase_order_body(
+            XeroPurchaseOrderManager(order, staff).build_payload()
+        )
+        for order in orders
+    ]
+
+
 def _create_invoices_in_xero(
     accounting_api: AccountingApi, tenant_id: str, payloads: list[dict[str, Any]]
 ) -> list[Any] | None:
@@ -573,9 +612,113 @@ def _create_quotes_in_xero(
     return accounting_api.create_quotes(tenant_id, quotes={"Quotes": payloads}).quotes
 
 
+def _create_purchase_orders_in_xero(
+    accounting_api: AccountingApi, tenant_id: str, payloads: list[PurchaseOrderBody]
+) -> list[XeroPurchaseOrder] | None:
+    """Send one purchase order batch; return the orders Xero echoed back.
+
+    Sent as a push sends one order, ``summarize_errors=False``, which is the
+    only form with a recording (purchase_order_create_batch.json). Xero then
+    answers 200 whatever it thought of each order, so a refusal has to be read
+    off the element: its validation errors, or the zero UUID Xero returns for
+    a number a deleted order still holds.
+    """
+    return accounting_api.update_or_create_purchase_orders(
+        tenant_id, purchase_orders={"PurchaseOrders": payloads}, summarize_errors=False
+    ).purchase_orders
+
+
+def _purchase_order_refusal(order: XeroPurchaseOrder) -> str | None:
+    """Why Xero refused this order, or None when it stored it.
+
+    The zero UUID is one refusal in particular (recordings/
+    purchase_order_number_held_by_deleted.json): a DELETED order in the
+    organisation still holds the number. Xero neither reuses the number nor
+    lets a deleted order be renamed, so no re-run can succeed and nothing in
+    Xero can be changed to make it; the message says so instead of the
+    "fix and re-run" every other refusal gets.
+    """
+    messages = " | ".join(str(error.message) for error in order.validation_errors or [])
+    if str(order.purchase_order_id) == ZERO_UUID:
+        return (
+            f"{order.purchase_order_number}: a deleted purchase order in this Xero "
+            f"organisation still holds that number ({messages}). Xero will not reuse the "
+            f"number or rename a deleted order, so no re-run can create this order here "
+            f"under it. What to do with it is the owner's decision: see "
+            f"docs/restore-prod-to-nonprod.md, 'What the seed commands refuse'"
+        )
+    if order.validation_errors:
+        return f"{order.purchase_order_number}: {messages}"
+    return None
+
+
+def _job_linked_unclaimed[TJobDocument: (Invoice, Quote)](
+    model: type[TJobDocument], tenant_id: str
+) -> QuerySet[TJobDocument]:
+    """Job-linked documents the connected org has not claimed yet."""
+    return (
+        model.objects.filter(job__isnull=False)
+        .exclude(xero_tenant_id=tenant_id)
+        .select_related("job", "company")
+    )
+
+
+def purchase_orders_xero_holds() -> QuerySet[PurchaseOrder]:
+    """Return the restored purchase orders production's Xero organisation holds.
+
+    Owner ruling, 2026-10-04: the seed makes the connected organisation hold
+    what production's does. An order Docketworks raised reaches Xero when it
+    leaves draft, so its drafts are not there; an order raised in Xero is
+    there in every state but deleted. The supplier and the usable line are
+    what Xero requires of any order (``XeroPurchaseOrderManager.
+    can_sync_to_xero``), so a restored row without them was never sent.
+
+    One predicate for the phase, its convergence count and the contacts
+    phase's supplier scope: where those disagreed for invoices the seed could
+    not converge (``companies_needing_contacts``).
+    """
+    usable_line = PurchaseOrderLine.objects.filter(
+        purchase_order=OuterRef("pk"), unit_cost__isnull=False
+    ).exclude(description="")
+    return (
+        PurchaseOrder.objects.filter(Exists(usable_line), supplier__isnull=False)
+        .exclude(status="deleted")
+        .exclude(locally_raised() & Q(status="draft"))
+    )
+
+
+def _purchase_orders_unclaimed(tenant_id: str) -> QuerySet[PurchaseOrder]:
+    """Orders Xero should hold that the connected org has not claimed yet."""
+    return (
+        purchase_orders_xero_holds()
+        .exclude(xero_tenant_id=tenant_id)
+        .select_related("supplier")
+        .prefetch_related("po_lines")
+    )
+
+
+def _supplier(order: PurchaseOrder) -> Company:
+    if order.supplier is None:
+        raise ValueError(f"Purchase order {order.po_number} has no supplier and must not be seeded")
+    return order.supplier
+
+
+def _claimable_purchase_order_number(order: XeroPurchaseOrder) -> str | None:
+    """Return a Xero order's number, unless the order is deleted.
+
+    A deleted order keeps its number for good, and Xero lists it. Linking a
+    restored order to it would point a live order at a voided document, so the
+    lookup must not offer it; the create that follows is then refused by Xero
+    (the zero UUID), which is the truthful outcome.
+    """
+    if order.status == "DELETED":
+        return None
+    return order.purchase_order_number
+
+
 @dataclass(frozen=True)
-class _DocumentKind[TDocument: (Invoice, Quote)]:
-    """Everything seeding invoices and seeding quotes genuinely disagree on.
+class _DocumentKind[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote]:
+    """Everything seeding invoices, quotes and purchase orders genuinely disagree on.
 
     The control flow is one implementation (``seed_documents``). It was two
     near-identical copies until they drifted — the invoice copy marked linked
@@ -583,29 +726,32 @@ class _DocumentKind[TDocument: (Invoice, Quote)]:
     this shape removes. A boolean "is this quotes?" inside one function was
     rejected: it re-creates the two bodies inside the merged one.
 
-    ``Any`` is the SDK seam, as in ``fetch_xero_entity_lookup``: the response
-    model differs per entity and each callback immediately narrows to the one
-    field it reads.
+    ``TPayload`` is the body one document is sent as and ``TRemote`` the SDK
+    model Xero answers with; both differ per entity, so each kind names its
+    own and the shared flow only passes them between the kind's callbacks.
     """
 
     model: type[TDocument]
     entity: str
-    remote_number: Callable[[Any], str | None]
-    remote_id: Callable[[Any], str | None]
-    build_payload: Callable[[TDocument, str], dict[str, Any]]
-    create: Callable[[AccountingApi, str, list[dict[str, Any]]], list[Any] | None]
+    remote_number: Callable[[TRemote], str | None]
+    remote_id: Callable[[TRemote], str | None]
+    #: Why Xero refused one element of an answered call, or None if it stored it.
+    refusal: Callable[[TRemote], str | None]
+    number: Callable[[TDocument], str | None]
+    #: The company the document is addressed to: the Xero contact it needs.
+    contact: Callable[[TDocument], Company]
+    #: Documents the connected org (the tenant id given) has not claimed yet.
+    #: A queryset, so a caller wanting only the number counts in the database.
+    pending: Callable[[str], QuerySet[TDocument]]
+    #: Restored remnants the phase deletes instead of seeding.
+    orphans: Callable[[], QuerySet[TDocument]]
+    build_payloads: Callable[[Sequence[TDocument]], list[TPayload]]
+    create: Callable[[AccountingApi, str, list[TPayload]], list[TRemote] | None]
 
-    def pending(self, tenant_id: str) -> list[TDocument]:
-        """Job-linked documents the connected org has not claimed yet."""
-        return list(
-            self.model.objects.filter(job__isnull=False)
-            .exclude(xero_tenant_id=tenant_id)
-            .select_related("job", "company")
-        )
-
-    def orphans(self) -> QuerySet[TDocument]:
-        """Documents with no job: restored remnants that must not be seeded."""
-        return self.model.objects.filter(job__isnull=True)
+    @property
+    def label(self) -> str:
+        """The entity as the operator reads it."""
+        return self.entity.replace("_", " ")
 
     def claim(self, document: TDocument, xero_id: str, tenant_id: str) -> None:
         """Point one local row at its document in the connected org."""
@@ -640,7 +786,15 @@ INVOICES = _DocumentKind(
     entity="invoices",
     remote_number=lambda invoice: invoice.invoice_number,
     remote_id=lambda invoice: invoice.invoice_id,
-    build_payload=_build_invoice_payload,
+    # A refused invoice or quote fails the whole call (summarised errors), so
+    # no element of an answered call is ever a refusal.
+    refusal=lambda _remote: None,
+    number=lambda invoice: invoice.number,
+    contact=lambda invoice: invoice.company,
+    pending=lambda tenant_id: _job_linked_unclaimed(Invoice, tenant_id),
+    # No job: a restored remnant that must not be seeded.
+    orphans=lambda: Invoice.objects.filter(job__isnull=True),
+    build_payloads=_invoice_payloads,
     create=_create_invoices_in_xero,
 )
 
@@ -649,27 +803,50 @@ QUOTES = _DocumentKind(
     entity="quotes",
     remote_number=lambda quote: quote.quote_number,
     remote_id=lambda quote: quote.quote_id,
-    build_payload=_build_quote_payload,
+    # A refused invoice or quote fails the whole call (summarised errors), so
+    # no element of an answered call is ever a refusal.
+    refusal=lambda _remote: None,
+    number=lambda quote: quote.number,
+    contact=lambda quote: quote.company,
+    pending=lambda tenant_id: _job_linked_unclaimed(Quote, tenant_id),
+    orphans=lambda: Quote.objects.filter(job__isnull=True),
+    build_payloads=_quote_payloads,
     create=_create_quotes_in_xero,
 )
 
+PURCHASE_ORDERS = _DocumentKind(
+    model=PurchaseOrder,
+    entity="purchase_orders",
+    remote_number=_claimable_purchase_order_number,
+    remote_id=lambda order: order.purchase_order_id,
+    refusal=_purchase_order_refusal,
+    number=lambda order: order.po_number,
+    contact=_supplier,
+    pending=_purchase_orders_unclaimed,
+    # None, ever: an order needs no job, and one the seed does not send (a
+    # draft, a deleted order) is still the business's record of it.
+    orphans=PurchaseOrder.objects.none,
+    build_payloads=_purchase_order_payloads,
+    create=_create_purchase_orders_in_xero,
+)
 
-def seed_documents[TDocument: (Invoice, Quote)](
-    kind: _DocumentKind[TDocument],
+
+def seed_documents[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote](
+    kind: _DocumentKind[TDocument, TPayload, TRemote],
 ) -> SeedDocumentsResult:
-    """Delete orphaned documents, then link or re-create job-linked ones."""
+    """Delete orphaned documents, then link or re-create the pending ones."""
     orphans_deleted, _ = kind.orphans().delete()
     if orphans_deleted:
         logger.info("Deleted %d orphaned %s (no job link)", orphans_deleted, kind.entity)
 
     tenant_id = get_tenant_id()
-    pending = kind.pending(tenant_id)
+    pending = list(kind.pending(tenant_id))
     if not pending:
         return SeedDocumentsResult(
             created=0, linked=0, orphans_deleted=orphans_deleted, skipped_no_contact=0
         )
 
-    to_seed = [document for document in pending if document.company.xero_contact_id]
+    to_seed = [document for document in pending if kind.contact(document).xero_contact_id]
     skipped_no_contact = len(pending) - len(to_seed)
     if skipped_no_contact:
         logger.warning(
@@ -685,7 +862,7 @@ def seed_documents[TDocument: (Invoice, Quote)](
             skipped_no_contact=skipped_no_contact,
         )
 
-    numbered = _numbered_documents(to_seed)
+    numbered = _numbered_documents(kind, to_seed)
 
     existing = fetch_xero_entity_lookup(kind.entity, kind.remote_number, kind.remote_id)
     logger.info("Found %d existing %s in the target Xero org", len(existing), kind.entity)
@@ -699,9 +876,7 @@ def seed_documents[TDocument: (Invoice, Quote)](
             continue
         kind.claim(document, existing_id, tenant_id)
         linked += 1
-        logger.info(
-            "Linked existing %s %s (%s)", kind.entity, document.number, document.company.name
-        )
+        logger.info("Linked existing %s %s (%s)", kind.entity, number, kind.contact(document).name)
 
     created = _batch_create(kind, to_create, tenant_id)
     return SeedDocumentsResult(
@@ -712,50 +887,78 @@ def seed_documents[TDocument: (Invoice, Quote)](
     )
 
 
-def _batch_create[TDocument: (Invoice, Quote)](
-    kind: _DocumentKind[TDocument], documents: list[tuple[str, TDocument]], tenant_id: str
+def _raise_for_batch_problems(
+    entity: str, label: str, unmapped: list[str], refused: list[str]
+) -> None:
+    """Stop the phase on anything one answered call got wrong, naming all of it."""
+    problems: list[str] = []
+    if unmapped:
+        # Not a warning: the local document stays unlinked, and the next sync
+        # then creates a duplicate — the corruption this command exists to
+        # prevent.
+        problems.append(
+            f"Xero returned {entity} numbered {', '.join(unmapped)}, which could not be "
+            f"mapped back to a local record. Xero renumbered a submitted document. "
+            f"Re-running as-is renumbers it again: delete the renumbered document in Xero "
+            f"and fix the clashing local number (Xero renumbers a number it already holds)."
+        )
+    if refused:
+        problems.append(f"Xero refused {len(refused)} {label} - {'; '.join(refused)}.")
+    if problems:
+        raise ValueError(
+            f"{' '.join(problems)} Everything else in the same call was created and is "
+            f"linked. Re-run the seed once each of these is dealt with; it links what "
+            f"exists and creates only the remainder."
+        )
+
+
+def _batch_create[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote](
+    kind: _DocumentKind[TDocument, TPayload, TRemote],
+    documents: list[tuple[str, TDocument]],
+    tenant_id: str,
 ) -> int:
     """Create documents in Xero in batches; map the response back by number."""
     if not documents:
         return 0
 
     accounting_api = AccountingApi(get_api_client())
-    account_code = sales_account_code()
     by_number = dict(documents)
     created = 0
 
     for batch_number, batch in enumerate(batched(documents, XERO_BATCH_SIZE), start=1):
-        payloads = [kind.build_payload(document, account_code) for _number, document in batch]
+        payloads = kind.build_payloads([document for _number, document in batch])
 
         logger.info("Sending batch %d of %d %s", batch_number, len(payloads), kind.entity)
         remote_documents = kind.create(accounting_api, tenant_id, payloads)
         if not remote_documents:
             raise ValueError(f"Empty response from Xero for {kind.entity} batch {batch_number}")
 
+        # Every order Xero stored is claimed before a refusal stops the phase:
+        # those orders exist in Xero now, and leaving them unlinked made the
+        # re-run depend on finding them again by number. Both kinds of problem
+        # are collected for the same reason, and reported together.
+        refused: list[str] = []
+        unmapped: list[str] = []
         for remote in remote_documents:
+            reason = kind.refusal(remote)
+            if reason is not None:
+                refused.append(reason)
+                continue
             # A response with no number at all is the same failure as an
             # unrecognised one: nothing to map it back to.
-            local = by_number.get(kind.remote_number(remote) or "")
+            number = kind.remote_number(remote) or ""
+            local = by_number.get(number)
             if local is None:
-                # Not a warning: the local document stays unlinked, and the
-                # next sync then creates a duplicate — the corruption this
-                # command exists to prevent.
-                raise ValueError(
-                    f"Xero returned {kind.entity} numbered "
-                    f"{kind.remote_number(remote)!r}, which could not be mapped back to a "
-                    f"local record. Xero renumbered a submitted document, so the "
-                    f"{kind.entity} already created in this batch are linked and the rest "
-                    f"are not. Re-running as-is renumbers it again: delete the renumbered "
-                    f"document in Xero and fix the clashing local number (Xero renumbers a "
-                    f"number it already holds), then re-run the seed; it links what exists "
-                    f"and creates only the remainder."
-                )
+                unmapped.append(repr(kind.remote_number(remote)))
+                continue
             remote_id = kind.remote_id(remote)
             if not remote_id:
-                raise ValueError(f"Xero response missing the {kind.entity} id for {local.number}")
+                raise ValueError(f"Xero response missing the {kind.entity} id for {number}")
             kind.claim(local, remote_id, tenant_id)
             created += 1
-            logger.info("Seeded %s %s (%s)", kind.entity, local.number, local.company.name)
+            logger.info("Seeded %s %s (%s)", kind.entity, number, kind.contact(local).name)
+
+        _raise_for_batch_problems(kind.entity, kind.label, unmapped, refused)
 
     return created
 
@@ -866,6 +1069,7 @@ class SeedConvergence:
     companies_without_contacts: int
     invoices_pending: int
     quotes_pending: int
+    purchase_orders_pending: int
     stock_pending: int
     pay_items_pending: int
     staff_pending: int
@@ -878,6 +1082,7 @@ class SeedConvergence:
             "employees": self.staff_pending,
             "invoices": self.invoices_pending,
             "quotes": self.quotes_pending,
+            "purchase orders": self.purchase_orders_pending,
             "stock": self.stock_pending,
             "pay items": self.pay_items_pending,
         }
@@ -902,8 +1107,9 @@ def seed_convergence(tenant_id: str) -> SeedConvergence:
         companies_without_contacts=len(companies_needing_contacts()),
         # Orphans count as pending: the invoice phase deletes them, so a run
         # that left them has not finished even though nothing is unlinked.
-        invoices_pending=len(INVOICES.pending(tenant_id)) + INVOICES.orphans().count(),
-        quotes_pending=len(QUOTES.pending(tenant_id)) + QUOTES.orphans().count(),
+        invoices_pending=INVOICES.pending(tenant_id).count() + INVOICES.orphans().count(),
+        quotes_pending=QUOTES.pending(tenant_id).count() + QUOTES.orphans().count(),
+        purchase_orders_pending=PURCHASE_ORDERS.pending(tenant_id).count(),
         stock_pending=stock_pending_sync().count(),
         pay_items_pending=pay_items_needing_relink(tenant_id).count(),
         # Staff carrying an employee id stamped with another organisation, or
@@ -1038,21 +1244,21 @@ def _employees_phase(tenant_id: str, *, dry_run: bool, report: Callable[[str], N
         report(f"  employee leave eligibility: {repaired} repaired, {len(linked_staff)} ready")
 
 
-def _documents_phase[TDocument: (Invoice, Quote)](
-    kind: _DocumentKind[TDocument],
+def _documents_phase[TDocument: (Invoice, Quote, PurchaseOrder), TPayload, TRemote](
+    kind: _DocumentKind[TDocument, TPayload, TRemote],
     tenant_id: str,
     *,
     dry_run: bool,
     report: Callable[[str], None],
 ) -> None:
-    report(f"Syncing {kind.entity}...")
+    report(f"Syncing {kind.label}...")
     if dry_run:
-        report(f"  would delete {kind.orphans().count()} orphaned {kind.entity}")
-        report(f"  would link or create {len(kind.pending(tenant_id))} job-linked {kind.entity}")
+        report(f"  would delete {kind.orphans().count()} orphaned {kind.label}")
+        report(f"  would link or create {kind.pending(tenant_id).count()} {kind.label}")
         return
     result = seed_documents(kind)
     report(
-        f"  {kind.entity}: {result.created} created, {result.linked} linked, "
+        f"  {kind.label}: {result.created} created, {result.linked} linked, "
         f"{result.orphans_deleted} orphans deleted, "
         f"{result.skipped_no_contact} skipped (company not linked)"
     )
@@ -1109,6 +1315,11 @@ def run_seed(entities: set[str], *, dry_run: bool, report: Callable[[str], None]
         _documents_phase(QUOTES, tenant_id, dry_run=dry_run, report=report)
     if "stock" in entities:
         _stock_phase(dry_run=dry_run, report=report)
+    # After stock: an order line may name an item code, and Xero refuses a
+    # code the organisation's items do not include. The stock phase is what
+    # puts those items there.
+    if "purchase_orders" in entities:
+        _documents_phase(PURCHASE_ORDERS, tenant_id, dry_run=dry_run, report=report)
 
     convergence = seed_convergence(tenant_id)
     # A converged --only run opens the gate, which a phase-counting design

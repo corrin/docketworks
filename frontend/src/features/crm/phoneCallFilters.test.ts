@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { callDirectionLabel, phoneCallQueryFor, QUEUE_META } from './phoneCallFilters'
+import { callDirectionLabel, phoneCallQueryFor } from './phoneCallFilters'
 
 describe('phoneCallQueryFor', () => {
   const defaults = { direction: 'all', recordingsOnly: false, q: '' } as const
@@ -54,18 +54,6 @@ describe('phoneCallQueryFor', () => {
     expect(
       phoneCallQueryFor({ tab: 'recent', direction: 'inbound', recordingsOnly: true, q: 'x' }),
     ).not.toHaveProperty('page')
-  })
-})
-
-describe('QUEUE_META', () => {
-  it('titles and describes every tab', () => {
-    expect(QUEUE_META.recent.title).toBe('Recent Calls')
-    expect(QUEUE_META.unmatched.title).toBe('Unmatched Calls')
-    expect(QUEUE_META.unlinked.title).toBe('Matched Calls Needing Job Link')
-    expect(QUEUE_META.all.title).toBe('All Calls')
-    for (const meta of Object.values(QUEUE_META)) {
-      expect(meta.description).not.toBe('')
-    }
   })
 })
 

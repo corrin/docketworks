@@ -1,4 +1,7 @@
 import { test, expect } from '../fixtures/auth'
+// The app's own formatter, so the assertion is the contract and not a second
+// spelling of the date that drifts when the formatter changes.
+import { formatDateLong } from '../../../src/lib/format'
 import {
   autoId,
   createTestJob,
@@ -17,6 +20,7 @@ import {
 /**
  * Timesheet entry operations end to end: create an entry against a fresh
  * job, edit its description, and see the hours on the job's Actuals tab.
+ * Reads the synced pay items only: a run of this spec spends no Xero quota.
  *
  * Port deviations from v1, each deliberate:
  * - The shared job is created by the first serial test through the standard
@@ -47,6 +51,7 @@ test.describe.serial('timesheet entry operations', () => {
 
   test('add a timesheet entry against the job', async ({ authenticatedPage: page }) => {
     await openEntryViaDaily(page, date)
+    await expect(autoId(page, 'TimesheetEntry-date')).toHaveText(formatDateLong(date))
     const rowIndex = await getPhantomRowIndex(page)
     await selectJobByNumber(page, rowIndex, jobNumber)
 

@@ -10,14 +10,18 @@ from decimal import Decimal
 from typing import TypedDict
 from uuid import UUID
 
-from django.db.models import Q, QuerySet
+from django.db.models import Q, QuerySet, Sum
 from django.utils import timezone
 
+from apps.accounts.models import Staff
 from apps.accounts.services.payroll_terms import salary_cost_rate, salary_term_on
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.job.models import Job
+from apps.job.models.costing import CostLine
 from apps.job.services import job_search
 from apps.job.services.job_service import JobLabourRateData, job_labour_rate_data
+from apps.timesheet.services.attendance import break_job_id
+from apps.timesheet.services.xero_hours import leave_job_ids
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +82,10 @@ class TimesheetJobListData(TypedDict):
 
     jobs: list[TimesheetJobData]
     total_count: int
+    #: The shop's own standing jobs, most used first: the fill sheet's first buttons.
+    pinned_job_ids: list[UUID]
+    #: Jobs the workshop has just been on, the caller's own first.
+    recent_job_ids: list[UUID]
 
 
 def get_staff_for_date(target_date: date) -> TimesheetStaffListData:
@@ -132,28 +140,97 @@ def _entry_job_queryset() -> QuerySet[Job]:
     ).prefetch_related("labour_rates__labour_subtype")
 
 
-def get_jobs_for_entry(search: str = "") -> TimesheetJobListData:
+PINNED_JOB_WINDOW = timedelta(days=30)
+PINNED_JOB_LIMIT = 6
+RECENT_JOB_DAYS = 3
+RECENT_JOB_LIMIT = 20
+
+
+def _actual_time() -> QuerySet[CostLine]:
+    return CostLine.objects.filter(cost_set__kind="actual", kind="time")
+
+
+def pinned_job_ids(today: date) -> list[UUID]:
+    """Return the standing shop jobs the workshop books to, most hours first.
+
+    Special jobs that are not leave, with time in the last thirty days. A job
+    the shop stops booking to drops off by itself; nobody keeps a list.
+    """
+    booked = (
+        _actual_time()
+        .filter(
+            cost_set__job__status="special",
+            accounting_date__lte=today,
+            accounting_date__gt=today - PINNED_JOB_WINDOW,
+        )
+        .exclude(cost_set__job_id__in=leave_job_ids())
+        .values("cost_set__job_id")
+        .annotate(hours=Sum("quantity"))
+        .order_by("-hours", "cost_set__job_id")[:PINNED_JOB_LIMIT]
+    )
+    return [row["cost_set__job_id"] for row in booked]
+
+
+def recent_job_ids(worker: Staff, today: date) -> list[UUID]:
+    """Return the customer jobs booked on the last few days anyone worked on one.
+
+    The last three days that have time on a job that is not special, on or
+    before today: a week of leave or a long weekend does not empty the list.
+    The worker's own jobs come first, then the rest by hours.
+    """
+    on_customer_jobs = (
+        _actual_time().filter(accounting_date__lte=today).exclude(cost_set__job__status="special")
+    )
+    days = list(
+        on_customer_jobs.order_by("-accounting_date")
+        .values_list("accounting_date", flat=True)
+        .distinct()[:RECENT_JOB_DAYS]
+    )
+    booked = (
+        on_customer_jobs.filter(accounting_date__in=days)
+        .values("cost_set__job_id")
+        .annotate(
+            own=Sum("quantity", filter=Q(staff=worker), default=Decimal(0)),
+            hours=Sum("quantity"),
+        )
+        .order_by("-own", "-hours", "cost_set__job_id")[:RECENT_JOB_LIMIT]
+    )
+    return [row["cost_set__job_id"] for row in booked]
+
+
+def get_jobs_for_entry(worker: Staff, search: str = "") -> TimesheetJobListData:
     """Jobs available for time entry.
 
     With `search`, searches the WHOLE table instead of the active set — the
     picker already holds the active set and asks for this only to reach what it
     excludes, which in practice is archived jobs.
     """
+    # The Break job is not a job anyone books to by hand: its lines are
+    # made for him, and shown as breaks.
+    breaks_job = break_job_id()
+    bookable = _entry_job_queryset()
+    if breaks_job is not None:
+        bookable = bookable.exclude(id=breaks_job)
     if search:
-        jobs = job_search.search_jobs(_entry_job_queryset(), search)
+        jobs = job_search.search_jobs(bookable, search)
     else:
         recent_cutoff = timezone.now() - ARCHIVED_FIXED_PRICE_WINDOW
-        jobs = (
-            _entry_job_queryset()
-            .filter(
-                Q(status__in=ACTIVE_JOB_STATUSES)
-                | Q(
-                    status="archived",
-                    pricing_methodology="fixed_price",
-                    completed_at__gte=recent_cutoff,
-                )
+        jobs = bookable.filter(
+            Q(status__in=ACTIVE_JOB_STATUSES)
+            | Q(
+                status="archived",
+                pricing_methodology="fixed_price",
+                completed_at__gte=recent_cutoff,
             )
-            .order_by("job_number")
-        )
+        ).order_by("job_number")
     job_data = [_job_data(job) for job in jobs]
-    return {"jobs": job_data, "total_count": len(job_data)}
+    listed = {job["id"] for job in job_data}
+    today = timezone.localdate()
+    return {
+        "jobs": job_data,
+        "total_count": len(job_data),
+        # Only jobs this response carries: a button for a job the sheet cannot
+        # name or book to would be a dead one.
+        "pinned_job_ids": [job_id for job_id in pinned_job_ids(today) if job_id in listed],
+        "recent_job_ids": [job_id for job_id in recent_job_ids(worker, today) if job_id in listed],
+    }

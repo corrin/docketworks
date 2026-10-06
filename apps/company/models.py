@@ -162,6 +162,15 @@ class Company(models.Model):
                 condition=~models.Q(xero_tenant_id=""),
                 name="company_company_xero_tenant_id_not_blank",
             ),
+            # A contact id says which contact; only the tenant says in which
+            # organisation. Production held 3,920 companies with the first and
+            # not the second for months, and a restore seed reads one such row
+            # as a mirror linked to another organisation and clears it all.
+            models.CheckConstraint(
+                condition=models.Q(xero_contact_id__isnull=True)
+                | models.Q(xero_tenant_id__isnull=False),
+                name="company_xero_contact_id_has_tenant",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -256,6 +265,43 @@ class Company(models.Model):
         return current
 
 
+class PersonQuerySet(models.QuerySet["Person"]):
+    """Custom queryset for Person with precomputed invoice aggregates."""
+
+    def with_invoice_summary(self) -> "PersonQuerySet":
+        """Annotate each person with last_invoice_date and total_spend.
+
+        A person's spend is the sum of sales invoices on jobs whose contact is
+        that person, whichever company each job was for (ADR 0030: jobs point
+        at the person). Correlated subqueries, not the join
+        ``CompanyQuerySet`` uses: ``PersonDirectoryService.search`` already
+        joins company links and contact methods under ``.distinct()``, and a
+        ``Sum`` joined beside those multiplied by every link and phone.
+        """
+        output = models.DecimalField(max_digits=12, decimal_places=2)
+        own_invoices = self.model.objects.filter(pk=models.OuterRef("pk")).order_by().values("pk")
+        # Passed as **kwargs for the same reason as CompanyQuerySet: the names
+        # target the Person.last_invoice_date / total_spend property setters.
+        return self.annotate(
+            **{  # noqa: PIE804 -- dict form is load-bearing, see comment above
+                "last_invoice_date": models.Subquery(
+                    own_invoices.annotate(latest=models.Max("jobs__invoices__date")).values(
+                        "latest"
+                    )
+                ),
+                "total_spend": Coalesce(
+                    models.Subquery(
+                        own_invoices.annotate(
+                            spend=models.Sum("jobs__invoices__total_excl_tax", output_field=output)
+                        ).values("spend")
+                    ),
+                    models.Value(Decimal("0.00")),
+                    output_field=output,
+                ),
+            }
+        )
+
+
 class Person(models.Model):
     """A human independent of any single company relationship."""
 
@@ -274,6 +320,8 @@ class Person(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = PersonQuerySet.as_manager()
 
     class Meta:
         ordering: ClassVar[list[str]] = ["name"]
@@ -302,6 +350,34 @@ class Person(models.Model):
             using=using,
             update_fields=update_fields,
         )
+
+    @property
+    def last_invoice_date(self) -> date | None:
+        """Annotated last invoice date; requires ``with_invoice_summary()``."""
+        if "_last_invoice_date" not in self.__dict__:
+            raise RuntimeError(
+                "Person.last_invoice_date requires Person.objects.with_invoice_summary()."
+            )
+        value: date | None = self.__dict__["_last_invoice_date"]
+        return value
+
+    @last_invoice_date.setter
+    def last_invoice_date(self, value: date | None) -> None:
+        """Accept the queryset annotation's value."""
+        self.__dict__["_last_invoice_date"] = value
+
+    @property
+    def total_spend(self) -> Decimal:
+        """Annotated total spend; requires ``with_invoice_summary()``."""
+        if "_total_spend" not in self.__dict__:
+            raise RuntimeError("Person.total_spend requires Person.objects.with_invoice_summary().")
+        value: Decimal = self.__dict__["_total_spend"]
+        return value
+
+    @total_spend.setter
+    def total_spend(self, value: Decimal) -> None:
+        """Accept the queryset annotation's value."""
+        self.__dict__["_total_spend"] = value
 
 
 class CompanyPersonLink(models.Model):

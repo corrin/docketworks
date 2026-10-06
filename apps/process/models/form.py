@@ -44,13 +44,7 @@ class Form(models.Model):
         help_text="Document type: form or register",
     )
 
-    # Fable: null=True at the database because the v1 data restore is data-only
-    # into this schema (the dump has no category column); the backfill
-    # migration reruns after the restore and the API requires the field, so
-    # NULL never survives past provisioning.
-    category = models.CharField(  # noqa: DJ001 -- provisioning-only NULL, see comment above
-        max_length=20, choices=Category.choices, null=True
-    )
+    category = models.CharField(max_length=20, choices=Category.choices)
 
     title = models.CharField(max_length=255)
     document_number = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset

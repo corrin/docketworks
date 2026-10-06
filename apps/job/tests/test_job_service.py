@@ -145,6 +145,7 @@ class TestUpdateJob:
     def test_status_change_bumps_priority_to_top_of_new_column(
         self, job: Job, office_staff: Staff, company: Company
     ) -> None:
+        """update_job's automatic placement must leave only the status audit event."""
         other = make_job(company, office_staff, name="Occupies Column")
         other.status = "in_progress"
         other.save(staff=office_staff, update_fields=["status"])
@@ -155,6 +156,12 @@ class TestUpdateJob:
 
         assert updated.status == "in_progress"
         assert updated.priority > other.priority
+
+        # The automatic column placement must not become a second user action.
+        events = list(JobEvent.objects.filter(job=job))
+        assert len(events) == 1
+        assert events[0].event_type == "status_changed"
+        assert events[0].delta_after == {"status": "in_progress"}
 
     def test_hard_checksum_mismatch_records_the_rejection(
         self, job: Job, office_staff: Staff

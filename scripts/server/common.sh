@@ -10,6 +10,9 @@ LOCAL_REPO="$BASE_DIR/repo"
 RELEASES_DIR="$BASE_DIR/releases"
 REMOTE_REPO_URL="https://github.com/corrin/docketworks.git"
 RCLONE_CONFIG_DIR="$CONFIG_DIR/rclone"
+# One directory per rehearsal run, and the marker naming the
+# throwaway instance a rehearsal is allowed to destroy without asking.
+REHEARSALS_DIR="$BASE_DIR/rehearsals"
 NGINX_SITES_AVAILABLE="/etc/nginx/sites-available"
 
 VALID_ENVS="dev uat staging prod demo"
@@ -31,7 +34,7 @@ validate_env() {
     exit 1
 }
 
-# Guard: a prod instance normally tracks origin/production (ADR 0029). A
+# Guard: a prod instance normally tracks origin/production (docs/release-process.md). A
 # non-production ref on a *-prod instance is almost always an accident (e.g. a
 # --ref copied from a UAT command), so refuse unless explicitly acknowledged:
 # interactively with a y/N prompt, or non-interactively with allow="true"/"1".
@@ -62,7 +65,7 @@ require_production_ref_or_ack() {
         fi
     fi
 
-    echo "ERROR: prod instances normally track origin/production (ADR 0029)." >&2
+    echo "ERROR: prod instances normally track origin/production (docs/release-process.md)." >&2
     echo "  Pass --allow-prod-ref to override non-interactively." >&2
     exit 1
 }
@@ -129,8 +132,8 @@ ensure_instance_backup_dir() {
 
 # The hostnames an instance answers on: its canonical FQDN (.fqdn) first, then
 # every alias (.aliases, one per line). instance.sh writes both files on every
-# create and reconfigure, so a missing file is an instance that predates them
-# and needs a reconfigure — not a case to default. The three readers this
+# create and reconfigure, so a missing file needs a reconfigure — not a case to
+# default. The three readers this
 # replaced each fell back to <instance>.docketworks.site, which is wrong for
 # every --fqdn instance and was silently so.
 instance_hostnames() {
@@ -224,7 +227,7 @@ read_env_value() {
 
 # The host's stock redis-server. It serves only the frozen v1 demo
 # (docketworks_v1), whose env carries REDIS_HOST/REDIS_PORT for it; every v2
-# instance runs its own redis-<instance> on a private port (ADR 0065). The
+# instance runs its own redis-<instance> on a private port. The
 # first v2 instance on a box once shared this server with v1 and each worker
 # consumed the other's tasks, which is why no instance is ever allocated it.
 REDIS_SHARED_PORT=6379
@@ -272,7 +275,7 @@ redis_password_of_env() {
     printf '%s' "${userinfo#*:}"
 }
 
-# The instance's Redis unit (ADR 0065). instance.sh installs it and deploy.sh
+# The instance's Redis unit. instance.sh installs it and deploy.sh
 # re-renders it with the other units so a template change reaches every
 # instance; the conf beside it, which carries the password, is instance.sh's
 # alone, and deploy never restarts the unit.

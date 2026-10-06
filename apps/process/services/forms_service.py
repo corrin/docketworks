@@ -12,9 +12,10 @@ from django.db import transaction
 from ninja.errors import HttpError
 
 from apps.accounts.models import Staff
+from apps.core.audit import FieldChange, json_safe
 from apps.process.models import Form
 from apps.process.schemas import FormCreateIn, FormSchemaSpec, FormUpdateIn
-from apps.process.services.process_events import FieldChange, json_safe, record_form_event
+from apps.process.services.process_events import record_form_event
 
 logger = logging.getLogger(__name__)
 

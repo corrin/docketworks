@@ -17,7 +17,7 @@ from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.timesheet.services import daily_timesheet_service
-from apps.timesheet.tests.conftest import make_staff, make_time_line
+from apps.timesheet.tests.conftest import make_staff, make_standard_day, make_time_line
 
 pytestmark = pytest.mark.django_db
 
@@ -56,6 +56,17 @@ class TestStaffDailyRow:
             daily_timesheet_service.get_staff_timesheet_data(worker, WEDNESDAY, False)["day_status"]
             == "Complete"
         )
+
+    def test_a_standard_day_reads_eight_hours_and_complete(
+        self, job: Job, worker: Staff, break_job: Job
+    ) -> None:
+        """Lunch is logged, not hours: the day reads 8 against 8 scheduled, not 8.5."""
+        make_standard_day(job, break_job, worker, WEDNESDAY)
+
+        row = daily_timesheet_service.get_staff_timesheet_data(worker, WEDNESDAY, False)
+
+        assert row["actual_hours"] == 8.0
+        assert row["day_status"] == "Complete"
 
     def test_no_entries_is_no_entry_with_an_alert(self, worker: Staff) -> None:
         row = daily_timesheet_service.get_staff_timesheet_data(worker, WEDNESDAY, False)

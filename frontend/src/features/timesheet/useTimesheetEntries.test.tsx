@@ -1,10 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
 
-import type { TimesheetCostLineOut, TimesheetEntriesOut, TimesheetJobOut } from '@/api'
+import type {
+  CostLineUpdateRequest,
+  TimesheetCostLineOut,
+  TimesheetEntriesOut,
+  TimesheetJobOut,
+} from '@/api'
 import { jobTimesheetEntriesRetrieveQueryKey } from '@/api'
 import { server } from '@/test/msw'
 import { useTimesheetEntries, type TimesheetCreateBody } from './useTimesheetEntries'
@@ -134,6 +139,57 @@ const createBody: TimesheetCreateBody = {
 }
 
 describe('useTimesheetEntries', () => {
+  it('keeps the latest wage choice when billing changes during queued saves', async () => {
+    const hook = setup([makeLine()])
+    await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
+    let releaseFirst!: () => void
+    let releaseSecond!: () => void
+    const first = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    const second = new Promise<void>((resolve) => {
+      releaseSecond = resolve
+    })
+    const requests: CostLineUpdateRequest[] = []
+    server.use(
+      http.patch<Record<string, string>, CostLineUpdateRequest>(
+        '*/api/job/cost_lines/line-1/',
+        async ({ request }) => {
+          const body = await request.json()
+          requests.push(body)
+          if (requests.length === 1) await first
+          if (requests.length === 2) await second
+          const saved = makeLine({ meta: body.meta })
+          hook.serverLines[0] = saved
+          return HttpResponse.json(saved)
+        },
+      ),
+    )
+    try {
+      hook.result.current.patchLine('line-1', {
+        meta: { ...makeLine().meta, wage_rate_multiplier: 1.5 },
+      })
+      hook.result.current.patchLine('line-1', {
+        meta: { ...makeLine().meta, wage_rate_multiplier: 2 },
+      })
+      await act(async () => releaseFirst())
+      await waitFor(() => expect(requests).toHaveLength(2))
+      expect(cachedLines(hook)[0]!.meta.wage_rate_multiplier).toBe(2)
+      hook.result.current.patchLine('line-1', {
+        meta: { ...cachedLines(hook)[0]!.meta, bill_rate_multiplier: 1.5 },
+      })
+      await act(async () => releaseSecond())
+      await waitFor(() => expect(hook.queryClient.isMutating()).toBe(0))
+      expect(requests).toHaveLength(3)
+      expect(hook.serverLines[0]!.meta.wage_rate_multiplier).toBe(2)
+      expect(hook.serverLines[0]!.meta.bill_rate_multiplier).toBe(1.5)
+      expect(cachedLines(hook)[0]!.meta.wage_rate_multiplier).toBe(2)
+    } finally {
+      releaseFirst()
+      releaseSecond()
+    }
+  })
+
   it('loads the day envelope', async () => {
     const hook = setup([makeLine()])
     await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
@@ -194,6 +250,80 @@ describe('useTimesheetEntries', () => {
     await waitFor(() => expect(cachedLines(hook)[0]!.xero_pay_item).toBe('pay-double'))
     expect(cachedLines(hook)[0]!.total_cost).toBe(384)
     expect(cachedLines(hook)[0]!.job_number).toBe(101)
+  })
+
+  it('moveLine shows the picked job at once and keeps it through the repriced echo', async () => {
+    const hook = setup([makeLine()])
+    await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
+    const { job_id: _j, job_number: _n, job_name: _jn, company_name: _c, ...bareLine } = makeLine()
+    let sentBody: unknown = null
+    server.use(
+      http.patch('*/api/job/cost_lines/line-1/', async ({ request }) => {
+        sentBody = await request.json()
+        hook.serverLines[0] = makeLine({
+          job_id: job.id,
+          job_number: job.job_number,
+          job_name: job.name,
+          unit_rev: '200.00',
+          total_rev: 400,
+        })
+        return HttpResponse.json({ ...bareLine, unit_rev: '200.00', total_rev: 400 })
+      }),
+    )
+    hook.result.current.moveLine('line-1', job)
+    // Optimistic: the row already reads as the destination's.
+    expect(cachedLines(hook)[0]!.job_number).toBe(202)
+    // Echo merge: the destination's price lands and the job identity survives
+    // an echo that carries none.
+    await waitFor(() => expect(cachedLines(hook)[0]!.total_rev).toBe(400))
+    expect(cachedLines(hook)[0]!.job_number).toBe(202)
+    expect(cachedLines(hook)[0]!.job_name).toBe('Emergency gate')
+    expect(sentBody).toEqual({ job_id: 'job-2' })
+  })
+
+  it('two moves on one row reach the server in order and the row ends on the second', async () => {
+    const hook = setup([makeLine()])
+    await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
+    const { job_id: _j, job_number: _n, job_name: _jn, company_name: _c, ...bareLine } = makeLine()
+    const sent: string[] = []
+    server.use(
+      http.patch('*/api/job/cost_lines/line-1/', async ({ request }) => {
+        const body: unknown = await request.json()
+        const jobId =
+          typeof body === 'object' && body !== null && 'job_id' in body ? String(body.job_id) : ''
+        sent.push(jobId)
+        // The first move is slow; serialization means the second still waits for it.
+        if (jobId === 'job-2') await new Promise((resolve) => setTimeout(resolve, 80))
+        hook.serverLines[0] = makeLine({
+          job_id: jobId,
+          job_number: jobId === 'job-2' ? 202 : 303,
+        })
+        return HttpResponse.json(bareLine)
+      }),
+    )
+    const third: TimesheetJobOut = { ...job, id: 'job-3', job_number: 303, name: 'Third' }
+    hook.result.current.moveLine('line-1', job)
+    hook.result.current.moveLine('line-1', third)
+    await waitFor(() => expect(sent).toEqual(['job-2', 'job-3']))
+    await waitFor(() => expect(cachedLines(hook)[0]!.job_number).toBe(303))
+    expect(hook.serverLines[0]!.job_id).toBe('job-3')
+  })
+
+  it('a refused move puts the row back on its old job', async () => {
+    const hook = setup([makeLine()])
+    await waitFor(() => expect(hook.result.current.entriesQuery.isSuccess).toBe(true))
+    server.use(
+      http.patch('*/api/job/cost_lines/line-1/', () =>
+        HttpResponse.json(
+          { detail: 'Job has no labour rate for subtype Workshop.' },
+          { status: 400 },
+        ),
+      ),
+    )
+    hook.result.current.moveLine('line-1', job)
+    expect(cachedLines(hook)[0]!.job_number).toBe(202)
+    await waitFor(() => expect(cachedLines(hook)[0]!.job_number).toBe(101))
+    expect(cachedLines(hook)[0]!.job_name).toBe('Fabricate frame')
   })
 
   it('a failed patch rolls back only its own fields and toasts', async () => {

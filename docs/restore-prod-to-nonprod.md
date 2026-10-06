@@ -18,15 +18,8 @@ scrubs in place, and re-dumps the scrubbed copy. Raw production data never lands
 on disk on either host; the scrubbed dump carries no external-system credentials
 and no password hashes, because the scrub replaces every one. The producer needs
 the instance's `dw_<client>_<env>_scrub` database and the `SCRUB_DB_NAME` line in
-its `.env`. Instances are created with both; an older instance gains them with one
-`sudo scripts/server/instance.sh reconfigure <client> <env>` on its host, and
-nothing in this runbook changes the production host's configuration.
-
-The producer writes a `<dump>.migrations.json` sidecar beside the archive
-recording the migration state the dump was taken at. This runbook does not need
-it — the archive carries its own ledger — but it lets you read that state without
-restoring, which is how you find the matching checkout when restoring an older
-archive. `scripts/ops/migrate_to_snapshot.py` consumes it for that case.
+its `.env`, both written at instance creation; nothing in this runbook changes the
+production host's configuration.
 
 ## Audit
 
@@ -313,6 +306,21 @@ tenant-specific server rebuild remains the root-owned
 `/opt/docketworks/config/<name>.company-defaults.json`; do not maintain a
 second long-lived instance copy of that file.
 
+## Shop jobs
+
+```bash
+uv run python manage.py create_shop_jobs
+```
+
+This makes any shop job a release needs and the dump predates (the Break job,
+for one) and points `CompanyDefaults` at the Break job, as every deploy does
+after migrate. It runs after every step that rewrites `CompanyDefaults`: the
+demo-defaults `loaddata` above writes the whole row with `break_job` empty,
+and a restore left that way refuses every clock-out with "Breaks are not set
+up". The fixture's shop company is the production shop company's own id, so
+the jobs land beside the ones the dump brought. It never rewrites a job that
+exists.
+
 ## Development logins
 
 ```bash
@@ -355,15 +363,23 @@ NULL 0, rows failing validation 0` and exits zero. Any other totals print
 `Fix the DATA, not the reader (ADR 0015).` and exit 1 — the sweep names the
 model, the count and an example primary key for each failure.
 
-## The E2E user and the test company
+## The E2E users and the test company
 
 ```bash
 uv run python manage.py e2e_ensure_fixtures
 ```
 
-Playwright signs in as the user named in `frontend/.env.test`, and **no
-production dump carries that user**; the command reads `E2E_TEST_USERNAME` and
-`E2E_TEST_PASSWORD` from the environment (load `frontend/.env.test` into the
+On a workstation the workshop login is the `E2E_WORKSHOP_USERNAME` in
+`frontend/.env.test`, with the password `Default-workshop-password`: shop-floor staff, neither office nor superuser, so
+it is also the login for trying the app by hand as workshop staff see it. The
+office staff login is `e2e-office@docketworks.local` / `Default-office-password`:
+office staff who are not a superuser, as most of the office is.
+
+Playwright signs in as the users named in `frontend/.env.test`, and **no
+production dump carries them**; the command reads `E2E_TEST_USERNAME` and
+`E2E_TEST_PASSWORD`, `E2E_WORKSHOP_USERNAME` and `E2E_WORKSHOP_PASSWORD` for
+the workshop login the phone specs use, and `E2E_OFFICE_STAFF_USERNAME` and
+`E2E_OFFICE_STAFF_PASSWORD` for the office login that is not a superuser, from the environment (load `frontend/.env.test` into the
 shell first, e.g. `set -a; source frontend/.env.test; set +a`), creates the user
 on a first refresh and re-aligns the password afterwards, when
 `setup_dev_logins.py` has just reset every password to the staff default. It
@@ -375,7 +391,11 @@ as its environment prerequisite. The base rate is derived from this database's
 labour-cost loading (37.50 at 20%), because the wage is computed on save;
 setting `base_wage_rate = 45.00` was the rejected obvious move: it computes a
 54.00 wage and fails that spec's labour-cost assertion while passing every
-"non-zero" check on the way.
+"non-zero" check on the way. The base rate's owner is Xero: the employee detail
+refresh overwrites it from the demo organisation, so that organisation holds
+37.50 for the E2E user and the value this command writes is a starting point,
+not the source. A snapshot restored from before the organisation was corrected
+brings the old rate back with it.
 
 The same command creates the company named by
 `CompanyDefaults.test_company_name` when it is missing, setting the name first
@@ -595,7 +615,8 @@ tail -f logs/seed_xero_output.log
 ```
 
 The run clears the production ids first, then walks the phases in order:
-accounts, contacts, employees, invoices, quotes, stock. The pay-item re-link
+accounts, contacts, employees, invoices, quotes, stock, purchase orders. The
+pay-item re-link
 sits between the contacts and employees phases, because the clear nulled the
 pay-item ids that jobs and cost lines reference — and the employee payload
 reads one of them, the Ordinary Time earnings rate. Employees run before the
@@ -606,8 +627,9 @@ is seeded against it.
 (`enable_xero_sync=True`, the gate this runbook forced off after the load), and
 any run that converges opens it, `--only` runs included. The measurement is per
 entity — companies without a contact id, staff whose payroll employee belongs
-to another organisation, job-linked or orphaned invoices and quotes, unpushed
-stock, referenced pay items not linked to this organisation — and each count
+to another organisation, job-linked or orphaned invoices and quotes, purchase
+orders the organisation has not claimed, unpushed stock, referenced pay items
+not linked to this organisation — and each count
 comes from the same predicate its phase works from, so a converged run is one
 that would do nothing if it ran again. A run that leaves anything outstanding
 prints the counts and leaves the gate closed: an open gate mid-batch lets beat
@@ -620,6 +642,36 @@ over.
 line. Re-running reports `Remaining work: none` again, reports that the mirror
 is already linked to this organisation and does not re-clear; that is the
 idempotence proof.
+
+### The purchase orders phase
+
+The fake Xero an E2E run talks to is built from the mirror, so it holds exactly
+the purchase orders this phase put in the organisation. The phase sends what
+production's Xero holds: an order Docketworks raised (its number carries the
+instance's `po_prefix`) once it has left draft, and an order raised in Xero in
+any state but deleted. A draft of ours is not in Xero, and an order with no
+supplier or no line carrying a description and a cost was never sent, so both
+stay out and are not counted as remaining work. The suppliers of the orders it
+sends are picked up by the contacts phase.
+
+A line is one of two things: an item code Xero knows, or a description with no
+code. The phase runs after stock so the organisation holds the items by then.
+A line naming a code no stock item carries is malformed data, Xero refuses the
+order (`Item code '…' is not valid`), and the fix is to the line, not the seed.
+
+Each order is linked by number to a live order the organisation already holds,
+or created, fifty to a call, with the body a push would send for it in its
+current status. A deleted Xero order keeps its number for good and is never
+linked to. Linking is by number alone, as for invoices and quotes, which has
+one consequence on a Xero Demo Company: it ships its own orders numbered
+`PO-0001` upward, restored orders raised in production's Xero use the same
+numbers, and those link to the Demo Company's documents. The sync that follows
+then overwrites those few local rows with Xero's content, because Xero is the
+master of an order it raised.
+
+The phase stores no copy of Xero's answer. The `start_xero_sync` in the next
+section fills `raw_json` for every order it linked or created, and that copy is
+what `fake_xero_seed` renders.
 
 ### The employees phase
 
@@ -687,16 +739,26 @@ same terms.
   renumbers a document number it already holds. The message names the remedy:
   delete the renumbered document, fix the local number, then re-run (optionally
   `--only invoices` or `--only quotes`). The re-run heals every stranded record,
-  because linking is by name for contacts and by document number for invoices
-  and quotes, and it does not re-clear: the already-linked records carry this
-  organisation's tenant.
+  because linking is by name for contacts and by document number for invoices,
+  quotes and purchase orders, and it does not re-clear: the already-linked
+  records carry this organisation's tenant.
+- **A purchase order Xero refuses stops the phase, naming the order.** Xero
+  answers 200 for the call and puts the refusal on the order: its validation
+  messages, or a zero id when a deleted order in the organisation still holds
+  the number. The orders Xero did store in that call are linked before the
+  phase stops, so the re-run creates only the remainder. A number a deleted
+  order holds is the exception to "fix and re-run": Xero will not reuse it and
+  will not rename a deleted order, so the seed is refused on that order at
+  every run. What to do with it (renumber the local order, leave it out, or
+  seed into a different organisation) is the owner's decision and is not
+  implemented; `docs/rewrite-history.md`, 2026-10-05.
 - **The clear and the pay-item re-link are derived from the mirror, not
   requested.** The clear runs when a cleared-column link carries a tenant other
   than the connected one, and the re-link runs when a pay item a job or cost
   line references is not linked to this organisation. `--only` is a pure phase
-  filter over accounts, contacts, employees, invoices, quotes and stock; it cannot turn
-  either of those off, and it cannot hold the gate shut once nothing is
-  outstanding.
+  filter over accounts, contacts, employees, invoices, quotes, stock and
+  purchase_orders; it cannot turn either of those off, and it cannot hold the gate
+  shut once nothing is outstanding.
 - **A mirror seeded before the tenant stamping existed reads as foreign on its
   first re-run.** Its links carry ids with no tenant, which is the same shape a
   fresh restore has, so the run clears and re-links them by name (contacts) and

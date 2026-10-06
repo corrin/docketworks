@@ -330,6 +330,36 @@ export type AllocationReversalResponse = {
 };
 
 /**
+ * ApprovalsDayOut
+ *
+ * Everyone's day for the office to approve.
+ */
+export type ApprovalsDayOut = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Staff
+     */
+    staff: Array<StaffApprovalOut>;
+    standard: StandardDayOut | null;
+    summary: DaySummaryOut;
+};
+
+/**
+ * ApproveDayOut
+ *
+ * How many of the person's waiting entries the approval covered.
+ */
+export type ApproveDayOut = {
+    /**
+     * Approved Count
+     */
+    approved_count: number;
+};
+
+/**
  * AssignJobRequest
  *
  * Wire contract for AssignJobRequest.
@@ -362,6 +392,38 @@ export type AssignJobResponse = {
 };
 
 /**
+ * AttendanceOut
+ *
+ * A person's day as they clocked it. ``here_hours`` is worked out by the server.
+ */
+export type AttendanceOut = {
+    /**
+     * Cautions
+     */
+    cautions: Array<string>;
+    /**
+     * Clock In
+     */
+    clock_in: string | null;
+    /**
+     * Clock Out
+     */
+    clock_out: string | null;
+    /**
+     * Here Hours
+     */
+    here_hours: number | null;
+    /**
+     * Sent Late
+     */
+    sent_late: boolean;
+    /**
+     * State
+     */
+    state: 'not_clocked_in' | 'at_work' | 'clocked_out' | 'sent';
+};
+
+/**
  * AuthErrorOut
  *
  * Expected authentication refusal, distinct from domain-level 401s.
@@ -382,6 +444,92 @@ export type AuthErrorOut = {
 };
 
 /**
+ * BreakCreateRequest
+ *
+ * A break added to a day. ``staff_id`` is for office staff correcting another's day.
+ */
+export type BreakCreateRequest = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * End
+     */
+    end: string;
+    location?: EntryLocationIn | null;
+    /**
+     * Paid
+     */
+    paid: boolean;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
+    /**
+     * Start
+     */
+    start: string;
+};
+
+/**
+ * BreakOut
+ *
+ * One break in a person's day.
+ *
+ * Every break is his time line on the Break job and ``id`` is that line's:
+ * a paid break is paid time, lunch is logged and in no hours figure. A
+ * planned break is the company's standard one, not yet his: it has no id.
+ */
+export type BreakOut = {
+    /**
+     * Approved
+     */
+    approved: boolean | null;
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Id
+     */
+    id: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Paid
+     */
+    paid: boolean;
+    /**
+     * Planned
+     */
+    planned: boolean;
+    /**
+     * Start
+     */
+    start: string;
+};
+
+/**
+ * BreakUpdateRequest
+ *
+ * A break moved or resized.
+ */
+export type BreakUpdateRequest = {
+    /**
+     * End
+     */
+    end: string;
+    location?: EntryLocationIn | null;
+    /**
+     * Start
+     */
+    start: string;
+};
+
+/**
  * BuildId
  *
  * Response body for /api/build-id/: the deployed backend's git SHA.
@@ -391,6 +539,22 @@ export type BuildId = {
      * Build Id
      */
     build_id: string;
+};
+
+/**
+ * CalendarBoundsOut
+ *
+ * The stretch of the day the worker's calendar opens on.
+ */
+export type CalendarBoundsOut = {
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Start
+     */
+    start: string;
 };
 
 /**
@@ -491,6 +655,46 @@ export type ChunkOut = {
      * Sequence
      */
     sequence: number;
+};
+
+/**
+ * ClockRequest
+ *
+ * A tap on Clock in or Clock out; the server supplies the time.
+ */
+export type ClockRequest = {
+    /**
+     * Action
+     */
+    action: 'in' | 'out';
+    location?: EntryLocationIn | null;
+};
+
+/**
+ * ClockTimesRequest
+ *
+ * Clock times set by hand. No ``clock_out`` means the person is at work again.
+ *
+ * ``staff_id`` is for office staff correcting another person's day.
+ */
+export type ClockTimesRequest = {
+    /**
+     * Clock In
+     */
+    clock_in: string;
+    /**
+     * Clock Out
+     */
+    clock_out?: string | null;
+    /**
+     * Date
+     */
+    date: string;
+    location?: EntryLocationIn | null;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
 };
 
 /**
@@ -602,6 +806,24 @@ export type CompanyDefaultsOut = {
     address_raw_json: {
         [key: string]: unknown;
     } | null;
+    /**
+     * Afternoon Break Minutes
+     *
+     * Length of the paid afternoon break in minutes: 5 to 120, or 0 for none.
+     */
+    afternoon_break_minutes: number;
+    /**
+     * Afternoon Break Start
+     *
+     * When the workshop's paid afternoon break starts.
+     */
+    afternoon_break_start: string;
+    /**
+     * Break Job
+     *
+     * Internal job every break is booked to: paid breaks and lunch.
+     */
+    break_job: string | null;
     /**
      * City
      *
@@ -755,7 +977,7 @@ export type CompanyDefaultsOut = {
     /**
      * Daily gross profit target
      *
-     * Daily gross profit target in dollars
+     * Overhead per weekday in dollars: monthly operating expenses spread across the month's weekdays. A day on the KPI calendar is green once its gross profit covers this share; weekends are owed none of it.
      */
     kpi_daily_gp_target: string;
     /**
@@ -805,6 +1027,18 @@ export type CompanyDefaultsOut = {
      */
     longitude: string | null;
     /**
+     * Lunch Minutes
+     *
+     * Length of the unpaid lunch break in minutes: 5 to 120, or 0 for none.
+     */
+    lunch_minutes: number;
+    /**
+     * Lunch Start
+     *
+     * When the workshop's unpaid lunch break starts.
+     */
+    lunch_start: string;
+    /**
      * Master Quote Template Id
      *
      * Google Sheets ID for the quote template
@@ -828,6 +1062,18 @@ export type CompanyDefaultsOut = {
      * Mon Start
      */
     mon_start: string;
+    /**
+     * Morning Break Minutes
+     *
+     * Length of the paid morning break in minutes: 5 to 120, or 0 for none.
+     */
+    morning_break_minutes: number;
+    /**
+     * Morning Break Start
+     *
+     * When the workshop's paid morning break starts.
+     */
+    morning_break_start: string;
     /**
      * Po Prefix
      *
@@ -933,7 +1179,7 @@ export type CompanyDefaultsOut = {
     /**
      * Weekend Timesheets Enabled
      *
-     * Show Saturday and Sunday in timesheet views (7-day week). Off = 5-day Mon-Fri.
+     * Show Saturday and Sunday in timesheet views and the KPI calendar (7-day week). Off = 5-day Mon-Fri. Weekend work is counted either way; this only decides whether the days are drawn.
      */
     weekend_timesheets_enabled: boolean;
     /**
@@ -1024,6 +1270,24 @@ export type CompanyDefaultsPatchIn = {
     address_raw_json?: {
         [key: string]: unknown;
     } | null;
+    /**
+     * Afternoon Break Minutes
+     *
+     * Length of the paid afternoon break in minutes: 5 to 120, or 0 for none.
+     */
+    afternoon_break_minutes?: number | null;
+    /**
+     * Afternoon Break Start
+     *
+     * When the workshop's paid afternoon break starts.
+     */
+    afternoon_break_start?: string | null;
+    /**
+     * Break Job
+     *
+     * Internal job every break is booked to: paid breaks and lunch.
+     */
+    break_job_id?: string | null;
     /**
      * City
      *
@@ -1169,7 +1433,7 @@ export type CompanyDefaultsPatchIn = {
     /**
      * Daily gross profit target
      *
-     * Daily gross profit target in dollars
+     * Overhead per weekday in dollars: monthly operating expenses spread across the month's weekdays. A day on the KPI calendar is green once its gross profit covers this share; weekends are owed none of it.
      */
     kpi_daily_gp_target?: number | string | null;
     /**
@@ -1211,6 +1475,18 @@ export type CompanyDefaultsPatchIn = {
      */
     longitude?: number | string | null;
     /**
+     * Lunch Minutes
+     *
+     * Length of the unpaid lunch break in minutes: 5 to 120, or 0 for none.
+     */
+    lunch_minutes?: number | null;
+    /**
+     * Lunch Start
+     *
+     * When the workshop's unpaid lunch break starts.
+     */
+    lunch_start?: string | null;
+    /**
      * Master Quote Template Id
      *
      * Google Sheets ID for the quote template
@@ -1234,6 +1510,18 @@ export type CompanyDefaultsPatchIn = {
      * Mon Start
      */
     mon_start?: string | null;
+    /**
+     * Morning Break Minutes
+     *
+     * Length of the paid morning break in minutes: 5 to 120, or 0 for none.
+     */
+    morning_break_minutes?: number | null;
+    /**
+     * Morning Break Start
+     *
+     * When the workshop's paid morning break starts.
+     */
+    morning_break_start?: string | null;
     /**
      * Po Prefix
      *
@@ -1335,7 +1623,7 @@ export type CompanyDefaultsPatchIn = {
     /**
      * Weekend Timesheets Enabled
      *
-     * Show Saturday and Sunday in timesheet views (7-day week). Off = 5-day Mon-Fri.
+     * Show Saturday and Sunday in timesheet views and the KPI calendar (7-day week). Off = 5-day Mon-Fri. Weekend work is counted either way; this only decides whether the days are drawn.
      */
     weekend_timesheets_enabled?: boolean | null;
     /**
@@ -1504,83 +1792,6 @@ export type CompanyJobCompanyRef = {
      * Name
      */
     name: string;
-};
-
-/**
- * CompanyJobHeader
- *
- * Wire contract for CompanyJobHeader.
- */
-export type CompanyJobHeader = {
-    company: CompanyJobCompanyRef | null;
-    /**
-     * Fully Invoiced
-     */
-    fully_invoiced: boolean;
-    /**
-     * Has Quote In Xero
-     */
-    has_quote_in_xero: boolean;
-    /**
-     * Is Fixed Price
-     */
-    is_fixed_price: boolean;
-    /**
-     * Job Id
-     */
-    job_id: string;
-    /**
-     * Job Number
-     */
-    job_number: number;
-    /**
-     * Max People
-     */
-    max_people: number;
-    /**
-     * Min People
-     */
-    min_people: number;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Paid
-     */
-    paid: boolean;
-    /**
-     * Pricing Methodology
-     */
-    pricing_methodology: string | null;
-    /**
-     * Quote Acceptance Date
-     */
-    quote_acceptance_date: string | null;
-    /**
-     * Rejected Flag
-     */
-    rejected_flag: boolean;
-    /**
-     * Speed Quality Tradeoff
-     */
-    speed_quality_tradeoff: string;
-    /**
-     * Status
-     */
-    status: string;
-};
-
-/**
- * CompanyJobsResponse
- *
- * Wire contract for CompanyJobsResponse.
- */
-export type CompanyJobsResponse = {
-    /**
-     * Results
-     */
-    results: Array<CompanyJobHeader>;
 };
 
 /**
@@ -2236,6 +2447,10 @@ export type CostLineUpdateRequest = {
         [key: string]: unknown;
     };
     /**
+     * Job Id
+     */
+    job_id?: string;
+    /**
      * Kind
      */
     kind?: string;
@@ -2329,6 +2544,91 @@ export type CostSetSummaryOut = {
      * Rev
      */
     rev: number;
+};
+
+/**
+ * CrmJobRow
+ *
+ * One job as the company and person job lists both return it (KAN-372).
+ */
+export type CrmJobRow = {
+    company: CompanyJobCompanyRef | null;
+    /**
+     * Fully Invoiced
+     */
+    fully_invoiced: boolean;
+    /**
+     * Has Quote In Xero
+     */
+    has_quote_in_xero: boolean;
+    /**
+     * Invoiced Total Excl Tax
+     */
+    invoiced_total_excl_tax: number;
+    /**
+     * Invoices
+     */
+    invoices: Array<JobInvoiceRef>;
+    /**
+     * Is Fixed Price
+     */
+    is_fixed_price: boolean;
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Job Number
+     */
+    job_number: number;
+    /**
+     * Max People
+     */
+    max_people: number;
+    /**
+     * Min People
+     */
+    min_people: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Paid
+     */
+    paid: boolean;
+    /**
+     * Pricing Methodology
+     */
+    pricing_methodology: string | null;
+    /**
+     * Quote Acceptance Date
+     */
+    quote_acceptance_date: string | null;
+    /**
+     * Rejected Flag
+     */
+    rejected_flag: boolean;
+    /**
+     * Speed Quality Tradeoff
+     */
+    speed_quality_tradeoff: string;
+    /**
+     * Status
+     */
+    status: string;
+};
+
+/**
+ * CrmJobRowsResponse
+ *
+ * Wire contract for CrmJobRowsResponse.
+ */
+export type CrmJobRowsResponse = {
+    /**
+     * Results
+     */
+    results: Array<CrmJobRow>;
 };
 
 /**
@@ -2430,6 +2730,26 @@ export type DataVersions = {
      * Stock
      */
     stock: string;
+};
+
+/**
+ * DaySummaryOut
+ *
+ * How the day stands across the people expected on it.
+ */
+export type DaySummaryOut = {
+    /**
+     * Approved
+     */
+    approved: number;
+    /**
+     * Expected
+     */
+    expected: number;
+    /**
+     * Standing
+     */
+    standing: 'in_progress' | 'complete' | 'nobody_rostered';
 };
 
 /**
@@ -2929,9 +3249,7 @@ export type EntryEventOut = {
     /**
      * Changes
      */
-    changes: Array<{
-        [key: string]: string;
-    }>;
+    changes: Array<FieldChangeOut>;
     /**
      * Description
      */
@@ -2952,6 +3270,22 @@ export type EntryEventOut = {
      * Timestamp
      */
     timestamp: string;
+};
+
+/**
+ * EntryLocationIn
+ *
+ * Where the phone says it is as it saves an entry.
+ */
+export type EntryLocationIn = {
+    /**
+     * Latitude
+     */
+    latitude: number;
+    /**
+     * Longitude
+     */
+    longitude: number;
 };
 
 /**
@@ -3181,6 +3515,76 @@ export type FetchStatusValuesResponse = {
     tooltips: {
         [key: string]: string;
     };
+};
+
+/**
+ * FieldChangeOut
+ *
+ * One field's before/after values on an audit event.
+ */
+export type FieldChangeOut = {
+    /**
+     * Field Name
+     */
+    field_name: string;
+    /**
+     * New Value
+     */
+    new_value: string;
+    /**
+     * Old Value
+     */
+    old_value: string;
+};
+
+/**
+ * FillOut
+ *
+ * Hours to fill, entered and to go for a clocked day, all worked out by the server.
+ *
+ * ``to_go_hours`` is negative when more is entered than the person was here for.
+ */
+export type FillOut = {
+    /**
+     * Break Hours
+     */
+    break_hours: number;
+    /**
+     * Entered Hours
+     */
+    entered_hours: number;
+    /**
+     * To Fill Hours
+     */
+    to_fill_hours: number;
+    /**
+     * To Go Hours
+     */
+    to_go_hours: number;
+};
+
+/**
+ * FillRowIn
+ *
+ * One row of the fill sheet: a job and how long, in quarter hours.
+ */
+export type FillRowIn = {
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Hours
+     */
+    hours: number | string;
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Time And A Half
+     */
+    time_and_a_half?: boolean;
 };
 
 /**
@@ -4843,6 +5247,38 @@ export type JobInvoiceOut = {
 };
 
 /**
+ * JobInvoiceRef
+ *
+ * One sales invoice on a job header row (KAN-372).
+ */
+export type JobInvoiceRef = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Number
+     */
+    number: string;
+    /**
+     * Online Url
+     */
+    online_url: string | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Total Excl Tax
+     */
+    total_excl_tax: number;
+};
+
+/**
  * JobInvoicesResponse
  *
  * Wire contract for the job invoices list.
@@ -5090,12 +5526,22 @@ export type JobUndoRequest = {
  * JobsListResponse
  *
  * Wire contract for JobsListResponse.
+ *
+ * The two id lists order the fill sheet's job buttons; every id is in ``jobs``.
  */
 export type JobsListResponse = {
     /**
      * Jobs
      */
     jobs: Array<TimesheetJobOut>;
+    /**
+     * Pinned Job Ids
+     */
+    pinned_job_ids: Array<string>;
+    /**
+     * Recent Job Ids
+     */
+    recent_job_ids: Array<string>;
     /**
      * Total Count
      */
@@ -5184,7 +5630,7 @@ export type KpiDayDataOut = {
     /**
      * Shop Percentage
      */
-    shop_percentage: number;
+    shop_percentage: number | null;
     /**
      * Total Hours
      */
@@ -5303,6 +5749,10 @@ export type KpiMonthlyTotalsOut = {
      */
     adjustment_cost: number;
     /**
+     * Adjustment Margin
+     */
+    adjustment_margin: number | null;
+    /**
      * Adjustment Profit
      */
     adjustment_profit: number;
@@ -5313,15 +5763,19 @@ export type KpiMonthlyTotalsOut = {
     /**
      * Avg Active Day Billable Hours
      */
-    avg_active_day_billable_hours: number;
+    avg_active_day_billable_hours: number | null;
     /**
      * Avg Active Day Gp
      */
-    avg_active_day_gp: number;
+    avg_active_day_gp: number | null;
+    /**
+     * Avg Labour Rate
+     */
+    avg_labour_rate: number | null;
     /**
      * Avg Weekday Gp
      */
-    avg_weekday_gp: number;
+    avg_weekday_gp: number | null;
     /**
      * Billable Hours
      */
@@ -5329,7 +5783,7 @@ export type KpiMonthlyTotalsOut = {
     /**
      * Billable Percentage
      */
-    billable_percentage: number;
+    billable_percentage: number | null;
     /**
      * Color Gp
      */
@@ -5367,6 +5821,10 @@ export type KpiMonthlyTotalsOut = {
      */
     elapsed_workdays: number;
     /**
+     * Gross Margin
+     */
+    gross_margin: number | null;
+    /**
      * Gross Profit
      */
     gross_profit: number;
@@ -5379,6 +5837,10 @@ export type KpiMonthlyTotalsOut = {
      */
     labour_green_days: number;
     /**
+     * Labour Margin
+     */
+    labour_margin: number | null;
+    /**
      * Labour Profit
      */
     labour_profit: number;
@@ -5387,9 +5849,17 @@ export type KpiMonthlyTotalsOut = {
      */
     labour_red_days: number;
     /**
+     * Labour Revenue Share
+     */
+    labour_revenue_share: number | null;
+    /**
      * Material Cost
      */
     material_cost: number;
+    /**
+     * Material Margin
+     */
+    material_margin: number | null;
     /**
      * Material Profit
      */
@@ -5398,6 +5868,18 @@ export type KpiMonthlyTotalsOut = {
      * Material Revenue
      */
     material_revenue: number;
+    /**
+     * Month Target
+     */
+    month_target: number;
+    /**
+     * Month Target Achievement
+     */
+    month_target_achievement: number | null;
+    /**
+     * Net Margin
+     */
+    net_margin: number | null;
     /**
      * Net Profit
      */
@@ -5429,7 +5911,7 @@ export type KpiMonthlyTotalsOut = {
     /**
      * Shop Percentage
      */
-    shop_percentage: number;
+    shop_percentage: number | null;
     /**
      * Staff Cost
      */
@@ -7626,6 +8108,22 @@ export type PayrollWeekTotalsOut = {
 export type PayrollXeroSource = 'live_run' | 'no_pay_run';
 
 /**
+ * PendingDayOut
+ *
+ * An earlier day the person clocked and has not sent.
+ */
+export type PendingDayOut = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * State
+     */
+    state: 'not_clocked_in' | 'at_work' | 'clocked_out' | 'sent';
+};
+
+/**
  * PeriodSummaryOut
  *
  * Wire contract for PeriodSummaryOut.
@@ -7755,6 +8253,10 @@ export type PersonDetail = {
      */
     is_active: boolean;
     /**
+     * Last Invoice Date
+     */
+    last_invoice_date: string | null;
+    /**
      * Name
      */
     name: string;
@@ -7762,6 +8264,10 @@ export type PersonDetail = {
      * Primary Phone
      */
     primary_phone: string;
+    /**
+     * Total Spend
+     */
+    total_spend: number;
     /**
      * Updated At
      */
@@ -7811,6 +8317,10 @@ export type PersonSummary = {
      */
     is_active: boolean;
     /**
+     * Last Invoice Date
+     */
+    last_invoice_date: string | null;
+    /**
      * Name
      */
     name: string;
@@ -7818,6 +8328,10 @@ export type PersonSummary = {
      * Primary Phone
      */
     primary_phone: string;
+    /**
+     * Total Spend
+     */
+    total_spend: number;
 };
 
 /**
@@ -8775,6 +9289,26 @@ export type PipelineWarningOut = {
 };
 
 /**
+ * PlacementOut
+ *
+ * Where an entry sits in the day: its hours and its times, each from the other.
+ */
+export type PlacementOut = {
+    /**
+     * Finish
+     */
+    finish: string | null;
+    /**
+     * Hours
+     */
+    hours: number;
+    /**
+     * Start
+     */
+    start: string;
+};
+
+/**
  * PostWeekToXeroRequest
  *
  * Wire contract for PostWeekToXeroRequest.
@@ -9295,21 +9829,29 @@ export type PurchaseOrderEventCreateResponse = {
 /**
  * PurchaseOrderEventOut
  *
- * Wire contract for PurchaseOrderEventOut.
+ * One note on a purchase order, for its Notes & History section.
  */
 export type PurchaseOrderEventOut = {
+    /**
+     * Changes
+     */
+    changes: Array<FieldChangeOut>;
     /**
      * Description
      */
     description: string;
     /**
+     * Event Type
+     */
+    event_type: string;
+    /**
      * Id
      */
     id: string;
     /**
-     * Staff
+     * Staff Name
      */
-    staff: string;
+    staff_name: string;
     /**
      * Timestamp
      */
@@ -10517,6 +11059,55 @@ export type SettingsSectionOut = {
 };
 
 /**
+ * StaffApprovalOut
+ *
+ * One person's day on the Approve time screen. No pay figures (KAN-376).
+ */
+export type StaffApprovalOut = {
+    /**
+     * Breaks
+     */
+    breaks: Array<BreakOut>;
+    clock: AttendanceOut;
+    /**
+     * Default Entry Start
+     */
+    default_entry_start: string;
+    /**
+     * Entered Hours
+     */
+    entered_hours: number;
+    /**
+     * Entered Late
+     */
+    entered_late: boolean;
+    /**
+     * Entries
+     */
+    entries: Array<WorkshopTimesheetEntryOut>;
+    /**
+     * Remote Entry
+     */
+    remote_entry: boolean;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+    /**
+     * State
+     */
+    state: 'waiting' | 'nothing_entered' | 'nothing_waiting' | 'not_rostered';
+    /**
+     * Waiting Hours
+     */
+    waiting_hours: number;
+};
+
+/**
  * StaffCreateIn
  *
  * Create body for POST /api/accounts/staff/.
@@ -11199,6 +11790,39 @@ export type StaffWeekPostingOut = {
 };
 
 /**
+ * StandardDayOut
+ *
+ * The company's standard start and finish for a weekday.
+ */
+export type StandardDayOut = {
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Start
+     */
+    start: string;
+};
+
+/**
+ * StandardHoursRequest
+ *
+ * Record the standard hours on a day nobody clocked. ``staff_id`` is for the office.
+ */
+export type StandardHoursRequest = {
+    /**
+     * Date
+     */
+    date: string;
+    location?: EntryLocationIn | null;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
+};
+
+/**
  * StockConsumeRequest
  *
  * Wire contract for StockConsumeRequest.
@@ -11853,6 +12477,23 @@ export type StocktakeSummary = {
      * Posted At
      */
     posted_at: string | null;
+};
+
+/**
+ * SubmitDayRequest
+ *
+ * Send a day to the office, with any rows still to be saved as entries.
+ */
+export type SubmitDayRequest = {
+    /**
+     * Date
+     */
+    date: string;
+    location?: EntryLocationIn | null;
+    /**
+     * Rows
+     */
+    rows: Array<FillRowIn>;
 };
 
 /**
@@ -12568,6 +13209,48 @@ export type TimesheetEntriesSummaryOut = {
 };
 
 /**
+ * TimesheetEventOut
+ *
+ * One audit event on a staff member's day, for the entry page's history dialog.
+ *
+ * ``trusted`` is whether it was made at the workshop (services/location.py).
+ * An event of the day itself (a clock tap, times set, the day sent) has no
+ * entry snapshots.
+ */
+export type TimesheetEventOut = {
+    after: TimesheetLineSnapshotOut | null;
+    before: TimesheetLineSnapshotOut | null;
+    /**
+     * Changes
+     */
+    changes: Array<FieldChangeOut>;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Event Type
+     */
+    event_type: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Trusted
+     */
+    trusted: boolean;
+};
+
+/**
  * TimesheetJobOut
  *
  * Wire contract for TimesheetJobOut.
@@ -12621,6 +13304,70 @@ export type TimesheetJobOut = {
      * Status
      */
     status: string;
+};
+
+/**
+ * TimesheetLineSnapshotOut
+ *
+ * One timesheet entry as an event recorded it (``TimesheetLineSnapshot``).
+ */
+export type TimesheetLineSnapshotOut = {
+    /**
+     * Approved
+     */
+    approved: boolean;
+    /**
+     * Billable
+     */
+    billable: boolean | null;
+    /**
+     * Charge Out Rate
+     */
+    charge_out_rate: string;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * End Time
+     */
+    end_time: string | null;
+    /**
+     * Hours
+     */
+    hours: string;
+    /**
+     * Invoice Multiplier
+     */
+    invoice_multiplier: number | null;
+    /**
+     * Job
+     */
+    job: string;
+    /**
+     * Labour Type
+     */
+    labour_type: string;
+    /**
+     * Pay Item
+     */
+    pay_item: string | null;
+    /**
+     * Start Time
+     */
+    start_time: string | null;
+    /**
+     * Wage Multiplier
+     */
+    wage_multiplier: number | null;
+    /**
+     * Wage Rate
+     */
+    wage_rate: string;
 };
 
 /**
@@ -12945,6 +13692,10 @@ export type WeeklyStaffDataOut = {
      */
     total_annual_leave_hours: number;
     /**
+     * Total Approved Hours
+     */
+    total_approved_hours: number;
+    /**
      * Total Bereavement Leave Hours
      */
     total_bereavement_leave_hours: number;
@@ -12984,6 +13735,10 @@ export type WeeklyStaffDataOut = {
      * Total Sick Leave Hours
      */
     total_sick_leave_hours: number;
+    /**
+     * Total Unapproved Hours
+     */
+    total_unapproved_hours: number;
     /**
      * Total Unbilled Hours
      */
@@ -13158,6 +13913,10 @@ export type WorkshopTimesheetEntryOut = {
      */
     accounting_date: string;
     /**
+     * Approved
+     */
+    approved: boolean;
+    /**
      * Bill Rate Multiplier
      */
     bill_rate_multiplier: number;
@@ -13177,6 +13936,10 @@ export type WorkshopTimesheetEntryOut = {
      * End Time
      */
     end_time: string | null;
+    /**
+     * Entered Late
+     */
+    entered_late: boolean;
     /**
      * Hours
      */
@@ -13201,6 +13964,10 @@ export type WorkshopTimesheetEntryOut = {
      * Job Number
      */
     job_number: number;
+    /**
+     * Remote Entry
+     */
+    remote_entry: boolean;
     /**
      * Start Time
      */
@@ -13253,6 +14020,11 @@ export type WorkshopTimesheetEntryRequest = {
      * Job Id
      */
     job_id: string;
+    location?: EntryLocationIn | null;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
     /**
      * Start Time
      */
@@ -13303,6 +14075,7 @@ export type WorkshopTimesheetEntryUpdateRequest = {
      * Job Id
      */
     job_id?: string;
+    location?: EntryLocationIn | null;
     /**
      * Start Time
      */
@@ -13320,14 +14093,32 @@ export type WorkshopTimesheetEntryUpdateRequest = {
  */
 export type WorkshopTimesheetListResponse = {
     /**
+     * Breaks
+     */
+    breaks: Array<BreakOut>;
+    calendar: CalendarBoundsOut;
+    /**
      * Date
      */
     date: string;
+    day: AttendanceOut;
+    /**
+     * Default Entry Start
+     */
+    default_entry_start: string;
     /**
      * Entries
      */
     entries: Array<WorkshopTimesheetEntryOut>;
+    fill: FillOut | null;
+    /**
+     * Missed Clock Out Finish
+     */
+    missed_clock_out_finish: string | null;
+    pending: PendingDayOut | null;
+    standard: StandardDayOut | null;
     summary: WorkshopTimesheetSummaryOut;
+    week: WorkshopTimesheetWeekOut;
 };
 
 /**
@@ -13345,17 +14136,25 @@ export type WorkshopTimesheetSummaryOut = {
      */
     non_billable_hours: number;
     /**
-     * Total Cost
-     */
-    total_cost: number;
-    /**
      * Total Hours
      */
     total_hours: number;
+};
+
+/**
+ * WorkshopTimesheetWeekOut
+ *
+ * The payroll week the day falls in: hours payroll will pay, and hours held back.
+ */
+export type WorkshopTimesheetWeekOut = {
     /**
-     * Total Revenue
+     * Approved Hours
      */
-    total_revenue: number;
+    approved_hours: number;
+    /**
+     * Waiting Hours
+     */
+    waiting_hours: number;
 };
 
 /**
@@ -15087,7 +15886,7 @@ export type CompaniesJobsRetrieveResponses = {
     /**
      * OK
      */
-    200: CompanyJobsResponse;
+    200: CrmJobRowsResponse;
 };
 
 export type CompaniesJobsRetrieveResponse = CompaniesJobsRetrieveResponses[keyof CompaniesJobsRetrieveResponses];
@@ -17329,6 +18128,33 @@ export type JobTimesheetEntriesRetrieveResponses = {
 
 export type JobTimesheetEntriesRetrieveResponse = JobTimesheetEntriesRetrieveResponses[keyof JobTimesheetEntriesRetrieveResponses];
 
+export type JobTimesheetEntriesHistoryRetrieveData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Staff Id
+         */
+        staff_id: string;
+        /**
+         * Date
+         */
+        date: string;
+    };
+    url: '/api/job/timesheet/entries/history/';
+};
+
+export type JobTimesheetEntriesHistoryRetrieveResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<TimesheetEventOut>;
+};
+
+export type JobTimesheetEntriesHistoryRetrieveResponse = JobTimesheetEntriesHistoryRetrieveResponses[keyof JobTimesheetEntriesHistoryRetrieveResponses];
+
 export type JobWorkshopTimesheetsDestroyData = {
     body?: never;
     path?: never;
@@ -17337,6 +18163,14 @@ export type JobWorkshopTimesheetsDestroyData = {
          * Entry Id
          */
         entry_id: string;
+        /**
+         * Latitude
+         */
+        latitude?: number | null;
+        /**
+         * Longitude
+         */
+        longitude?: number | null;
     };
     url: '/api/job/workshop/timesheets/';
 };
@@ -17358,6 +18192,10 @@ export type JobWorkshopTimesheetsRetrieveData = {
          * Date
          */
         date?: string | null;
+        /**
+         * Staff Id
+         */
+        staff_id?: string | null;
     };
     url: '/api/job/workshop/timesheets/';
 };
@@ -17686,6 +18524,27 @@ export type PeopleContactMethodsPartialUpdateResponses = {
 };
 
 export type PeopleContactMethodsPartialUpdateResponse = PeopleContactMethodsPartialUpdateResponses[keyof PeopleContactMethodsPartialUpdateResponses];
+
+export type PeopleJobsRetrieveData = {
+    body?: never;
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/api/people/{person_id}/jobs/';
+};
+
+export type PeopleJobsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: CrmJobRowsResponse;
+};
+
+export type PeopleJobsRetrieveResponse = PeopleJobsRetrieveResponses[keyof PeopleJobsRetrieveResponses];
 
 export type ProcessCategoriesRetrieveData = {
     body?: never;
@@ -19134,6 +19993,52 @@ export type SessionReplayRecordingEventsRetrieveResponses = {
 
 export type SessionReplayRecordingEventsRetrieveResponse = SessionReplayRecordingEventsRetrieveResponses[keyof SessionReplayRecordingEventsRetrieveResponses];
 
+export type TimesheetsApprovalsRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Date
+         */
+        date?: string | null;
+    };
+    url: '/api/timesheets/approvals/';
+};
+
+export type TimesheetsApprovalsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: ApprovalsDayOut;
+};
+
+export type TimesheetsApprovalsRetrieveResponse = TimesheetsApprovalsRetrieveResponses[keyof TimesheetsApprovalsRetrieveResponses];
+
+export type TimesheetsApprovalsApproveDayData = {
+    body?: never;
+    path: {
+        /**
+         * Staff Id
+         */
+        staff_id: string;
+        /**
+         * Target Date
+         */
+        target_date: string;
+    };
+    query?: never;
+    url: '/api/timesheets/approvals/{staff_id}/{target_date}/approve/';
+};
+
+export type TimesheetsApprovalsApproveDayResponses = {
+    /**
+     * OK
+     */
+    200: ApproveDayOut;
+};
+
+export type TimesheetsApprovalsApproveDayResponse = TimesheetsApprovalsApproveDayResponses[keyof TimesheetsApprovalsApproveDayResponses];
+
 export type GetDailyTimesheetSummaryByDateData = {
     body?: never;
     path: {
@@ -19363,6 +20268,174 @@ export type TimesheetsLeaveRequestsUpdateResponses = {
 };
 
 export type TimesheetsLeaveRequestsUpdateResponse = TimesheetsLeaveRequestsUpdateResponses[keyof TimesheetsLeaveRequestsUpdateResponses];
+
+export type TimesheetsMyDayBreaksCreateData = {
+    body: BreakCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/breaks/';
+};
+
+export type TimesheetsMyDayBreaksCreateResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type TimesheetsMyDayBreaksCreateResponse = TimesheetsMyDayBreaksCreateResponses[keyof TimesheetsMyDayBreaksCreateResponses];
+
+export type TimesheetsMyDayBreaksDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Break Id
+         */
+        break_id: string;
+    };
+    query?: {
+        /**
+         * Latitude
+         */
+        latitude?: number | null;
+        /**
+         * Longitude
+         */
+        longitude?: number | null;
+    };
+    url: '/api/timesheets/my-day/breaks/{break_id}/';
+};
+
+export type TimesheetsMyDayBreaksDeleteResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type TimesheetsMyDayBreaksDeleteResponse = TimesheetsMyDayBreaksDeleteResponses[keyof TimesheetsMyDayBreaksDeleteResponses];
+
+export type TimesheetsMyDayBreaksUpdateData = {
+    body: BreakUpdateRequest;
+    path: {
+        /**
+         * Break Id
+         */
+        break_id: string;
+    };
+    query?: never;
+    url: '/api/timesheets/my-day/breaks/{break_id}/';
+};
+
+export type TimesheetsMyDayBreaksUpdateResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type TimesheetsMyDayBreaksUpdateResponse = TimesheetsMyDayBreaksUpdateResponses[keyof TimesheetsMyDayBreaksUpdateResponses];
+
+export type TimesheetsMyDayClockData = {
+    body: ClockRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/clock/';
+};
+
+export type TimesheetsMyDayClockResponses = {
+    /**
+     * OK
+     */
+    200: AttendanceOut;
+};
+
+export type TimesheetsMyDayClockResponse = TimesheetsMyDayClockResponses[keyof TimesheetsMyDayClockResponses];
+
+export type TimesheetsMyDayPlacementData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Date
+         */
+        date: string;
+        /**
+         * Start
+         */
+        start: string;
+        /**
+         * Hours
+         */
+        hours?: number | string | null;
+        /**
+         * Finish
+         */
+        finish?: string | null;
+        /**
+         * Staff Id
+         */
+        staff_id?: string | null;
+    };
+    url: '/api/timesheets/my-day/placement/';
+};
+
+export type TimesheetsMyDayPlacementResponses = {
+    /**
+     * OK
+     */
+    200: PlacementOut;
+};
+
+export type TimesheetsMyDayPlacementResponse = TimesheetsMyDayPlacementResponses[keyof TimesheetsMyDayPlacementResponses];
+
+export type TimesheetsMyDayStandardHoursData = {
+    body: StandardHoursRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/standard-hours/';
+};
+
+export type TimesheetsMyDayStandardHoursResponses = {
+    /**
+     * OK
+     */
+    200: AttendanceOut;
+};
+
+export type TimesheetsMyDayStandardHoursResponse = TimesheetsMyDayStandardHoursResponses[keyof TimesheetsMyDayStandardHoursResponses];
+
+export type TimesheetsMyDaySubmitData = {
+    body: SubmitDayRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/submit/';
+};
+
+export type TimesheetsMyDaySubmitResponses = {
+    /**
+     * OK
+     */
+    200: WorkshopTimesheetListResponse;
+};
+
+export type TimesheetsMyDaySubmitResponse = TimesheetsMyDaySubmitResponses[keyof TimesheetsMyDaySubmitResponses];
+
+export type TimesheetsMyDayTimesData = {
+    body: ClockTimesRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/times/';
+};
+
+export type TimesheetsMyDayTimesResponses = {
+    /**
+     * OK
+     */
+    200: AttendanceOut;
+};
+
+export type TimesheetsMyDayTimesResponse = TimesheetsMyDayTimesResponses[keyof TimesheetsMyDayTimesResponses];
 
 export type TimesheetsPayrollPayRunsRetrieveData = {
     body?: never;
@@ -19941,7 +21014,12 @@ export type XeroPayItemsListResponse = XeroPayItemsListResponses[keyof XeroPayIt
 export type XeroPingRetrieveData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Expected Fake
+         */
+        expected_fake?: boolean | null;
+    };
     url: '/api/xero/ping/';
 };
 

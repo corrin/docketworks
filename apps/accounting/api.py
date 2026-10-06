@@ -220,6 +220,7 @@ def sales_pipeline(
     operation_id="accounting_reports_staff_performance_summary_retrieve",
     summary="Staff performance summary (all staff)",
     response=StaffPerformanceResponse,
+    auth=_report_auth,
 )
 def staff_performance_summary(
     request: HttpRequest, start_date: datetime.date, end_date: datetime.date
@@ -234,6 +235,7 @@ def staff_performance_summary(
     operation_id="accounting_reports_staff_performance_retrieve",
     summary="Staff performance detail (one staff member)",
     response=StaffPerformanceResponse,
+    auth=_report_auth,
 )
 def staff_performance_detail(
     request: HttpRequest,
@@ -256,6 +258,7 @@ def staff_performance_detail(
     operation_id="accounting_reports_calendar_retrieve",
     summary="KPI calendar data",
     response=KPICalendarResponse,
+    auth=_report_auth,
 )
 def kpi_calendar(
     request: HttpRequest,

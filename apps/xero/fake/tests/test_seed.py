@@ -6,14 +6,28 @@ from decimal import Decimal
 import pytest
 from django.core.management import CommandError, call_command
 from django.utils import timezone
+from xero_python import payrollnz as sdk_payroll
 from xero_python.accounting import AccountingApi
+from xero_python.payrollnz import PayrollNzApi
 
 from apps.accounting.models import Invoice
+from apps.accounts.models import Staff
 from apps.company.models import Company
+from apps.company.tests.job_fixtures import make_quote
 from apps.core.models import CompanyDefaults
-from apps.xero.fake.models import FakeAccount, FakeContact, FakeInvoice, FakeOrganisation
+from apps.purchasing.models import PurchaseOrder
+from apps.xero.fake.models import (
+    FakeAccount,
+    FakeContact,
+    FakeInvoice,
+    FakeOrganisation,
+    FakePayRun,
+    FakePurchaseOrder,
+    FakeQuote,
+)
 from apps.xero.fake.seed import SeedError, recorded_body, seed_accounting
 from apps.xero.fake.tests.conftest import TENANT, sdk_client_answering
+from apps.xero.fake.wire import to_wire
 from apps.xero.models import XeroAccount
 from apps.xero.tests.xero_fixtures import make_contact_raw_json
 from apps.xero.transforms import process_xero_data
@@ -49,18 +63,21 @@ def test_the_seed_renders_mirrored_and_pushed_companies_and_mirrored_documents(
     Company.objects.create(
         name="[TEST] Mirrored Co",
         xero_contact_id=mirrored_id,
+        xero_tenant_id="test-tenant",
         xero_last_modified=timezone.now(),
         raw_json=make_contact_raw_json(mirrored_id, "[TEST] Mirrored Co"),
     )
     pushed = Company.objects.create(
         name="[TEST] Pushed Co",
         xero_contact_id=str(uuid.uuid4()),
+        xero_tenant_id="test-tenant",
         xero_last_modified=timezone.now(),
     )
     Company.objects.create(name="[TEST] Local Only", xero_last_modified=timezone.now())
     empty = Company.objects.create(
         name="[TEST] Empty Body Co",
         xero_contact_id=str(uuid.uuid4()),
+        xero_tenant_id="test-tenant",
         xero_last_modified=timezone.now(),
         raw_json={},
     )
@@ -91,9 +108,106 @@ def test_the_seed_renders_mirrored_and_pushed_companies_and_mirrored_documents(
     assert Decimal(str(again.total)) == Decimal("541.25")
 
 
+def test_the_seed_renders_a_mirrored_purchase_order_with_its_lines_and_supplier(
+    tenant: str,
+) -> None:
+    # What a restored order looks like once the re-seed has linked it and the
+    # sync has stored Xero's copy: the fake has to hold it, or a push for that
+    # order updates something the fake has never seen.
+    recorded = recorded_body("purchase_order")
+    answer = AccountingApi(sdk_client_answering(recorded)).get_purchase_order(TENANT, "any")
+    assert answer.purchase_orders
+    fetched = answer.purchase_orders[0]
+    assert fetched.contact is not None and fetched.line_items is not None
+    supplier = Company.objects.create(
+        name="[TEST] Supplier Co",
+        xero_contact_id=str(fetched.contact.contact_id),
+        xero_tenant_id=TENANT,
+        xero_last_modified=timezone.now(),
+    )
+    order = PurchaseOrder.objects.create(
+        xero_id=uuid.UUID(str(fetched.purchase_order_id)),
+        xero_tenant_id=TENANT,
+        supplier=supplier,
+        created_by=Staff.get_automation_user(),
+        po_number=str(fetched.purchase_order_number),
+        status="submitted",
+        raw_json=process_xero_data(fetched),
+    )
+    PurchaseOrder.objects.create(
+        supplier=supplier, created_by=Staff.get_automation_user(), status="draft"
+    )
+
+    counts = seed_accounting(tenant)
+
+    # The draft is not in Xero, so it is not in the fake either.
+    assert counts["purchase_orders"] == 1
+    assert FakePurchaseOrder.objects.filter(tenant_id=tenant).count() == 1
+    held = FakePurchaseOrder.held(tenant, str(order.xero_id))
+    assert held is not None
+    assert held.number == order.po_number
+    assert held.lines.count() == len(fetched.line_items)
+    assert held.contact == FakeContact.held(tenant, str(supplier.xero_contact_id))
+
+
+def test_the_seed_renders_deleted_quotes_that_share_a_number(tenant: str) -> None:
+    # Xero reissues a deleted quote's number, so a real organisation holds
+    # several deleted quotes under one (the Demo Company: three QU-0013). A
+    # fake that held numbers unique across deleted quotes refused the mirror
+    # of a real organisation, and no E2E run could start.
+    recorded = recorded_body("quote_delete")
+    answer = AccountingApi(sdk_client_answering(recorded)).get_quotes(TENANT)
+    assert answer.quotes
+    deleted = answer.quotes[0]
+    assert deleted.contact is not None
+    company = Company.objects.create(
+        name="[TEST] Quoted Co",
+        xero_contact_id=str(deleted.contact.contact_id),
+        xero_tenant_id="test-tenant",
+        xero_last_modified=timezone.now(),
+    )
+    for _ in range(2):
+        quote = make_quote(company, number=str(deleted.quote_number))
+        # Two quotes, so two lines: only the number is shared.
+        for line in deleted.line_items or []:
+            line.line_item_id = str(uuid.uuid4())
+        quote.raw_json = process_xero_data(deleted)
+        quote.save(update_fields=["raw_json"])
+
+    counts = seed_accounting(tenant)
+
+    assert counts["quotes"] == 2
+    assert FakeQuote.objects.filter(tenant_id=tenant, status="DELETED").count() == 2
+
+
+def test_a_mirrored_pay_run_is_listed_in_a_form_the_sdk_can_read(
+    tenant: str, payroll: PayrollNzApi
+) -> None:
+    # Xero lists a pay run with no paySlips key, so the mirror stores the
+    # SDK's None for it. Rendered back as an explicit null, the SDK failed on
+    # the whole listing ('NoneType' object is not iterable) the first time the
+    # fake held a pay run at all, and every payroll screen answered 500.
+    recorded = recorded_body("pay_runs")
+    listed = PayrollNzApi(sdk_client_answering(recorded)).get_pay_runs(TENANT).pay_runs
+    assert listed
+    mirrored = process_xero_data(listed[0])
+
+    FakePayRun.from_wire(
+        tenant, to_wire(sdk_payroll.PayRun, mirrored), updated_date_utc=timezone.now()
+    )
+
+    read_back = payroll.get_pay_runs(tenant).pay_runs
+    assert read_back is not None
+    assert [str(run.pay_run_id) for run in read_back] == [str(listed[0].pay_run_id)]
+    assert read_back[0].pay_slips is None
+
+
 def test_a_readonly_stub_row_is_refused_not_rendered(tenant: str) -> None:
     company = Company.objects.create(
-        name="[TEST] Stub Co", xero_contact_id=str(uuid.uuid4()), xero_last_modified=timezone.now()
+        name="[TEST] Stub Co",
+        xero_contact_id=str(uuid.uuid4()),
+        xero_tenant_id=TENANT,
+        xero_last_modified=timezone.now(),
     )
     Invoice.objects.create(
         xero_id=uuid.uuid4(),
