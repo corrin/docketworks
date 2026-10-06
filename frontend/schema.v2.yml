@@ -511,6 +511,10 @@ components:
           format: time
           title: End
           type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
         paid:
           title: Paid
           type: boolean
@@ -586,6 +590,10 @@ components:
           format: time
           title: End
           type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
         start:
           format: time
           title: Start
@@ -736,6 +744,10 @@ components:
           - out
           title: Action
           type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
       required:
       - action
       title: ClockRequest
@@ -760,6 +772,10 @@ components:
           format: date
           title: Date
           type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
         staff_id:
           anyOf:
           - format: uuid
@@ -13321,6 +13337,10 @@ components:
           format: date
           title: Date
           type: string
+        location:
+          anyOf:
+          - $ref: '#/components/schemas/EntryLocationIn'
+          - type: 'null'
         staff_id:
           anyOf:
           - format: uuid
@@ -14969,7 +14989,14 @@ components:
       title: TimesheetEntriesSummaryOut
       type: object
     TimesheetEventOut:
-      description: One audit event on a staff member's day, for the entry page's history dialog.
+      description: 'One audit event on a staff member''s day, for the entry page''s history dialog.
+
+
+        ``trusted`` is whether it was made at the workshop (services/location.py).
+
+        An event of the day itself (a clock tap, times set, the day sent) has no
+
+        entry snapshots.'
       properties:
         after:
           anyOf:
@@ -15001,6 +15028,9 @@ components:
           format: date-time
           title: Timestamp
           type: string
+        trusted:
+          title: Trusted
+          type: boolean
       required:
       - after
       - before
@@ -15010,6 +15040,7 @@ components:
       - id
       - staff_name
       - timestamp
+      - trusted
       title: TimesheetEventOut
       type: object
     TimesheetJobOut:
@@ -21087,7 +21118,12 @@ paths:
       - timesheets
   /api/job/workshop/timesheets/:
     delete:
-      description: Delete one of the authenticated staff member's own entries.
+      description: 'Delete one of the authenticated staff member''s own entries.
+
+
+        A DELETE carries no body, so the phone''s position travels as two query
+
+        parameters, both or neither.'
       operationId: job_workshop_timesheets_destroy
       parameters:
       - in: query
@@ -21097,6 +21133,22 @@ paths:
           format: uuid
           title: Entry Id
           type: string
+      - in: query
+        name: latitude
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Latitude
+      - in: query
+        name: longitude
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Longitude
       responses:
         '204':
           description: No Content
@@ -23879,7 +23931,12 @@ paths:
       - timesheets
   /api/timesheets/my-day/breaks/{break_id}/:
     delete:
-      description: Remove a break from the caller's day, or for office staff from anyone's.
+      description: 'Remove a break from the caller''s day, or for office staff from anyone''s.
+
+
+        A DELETE carries no body, so the phone''s position travels as two query
+
+        parameters, both or neither.'
       operationId: timesheets_my_day_breaks_delete
       parameters:
       - in: path
@@ -23889,6 +23946,22 @@ paths:
           format: uuid
           title: Break Id
           type: string
+      - in: query
+        name: latitude
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Latitude
+      - in: query
+        name: longitude
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Longitude
       responses:
         '204':
           description: No Content

@@ -2865,6 +2865,9 @@ export const jobTimesheetEntriesHistoryRetrieve = <ThrowOnError extends boolean 
  * Delete a timesheet entry belonging to the staff member
  *
  * Delete one of the authenticated staff member's own entries.
+ *
+ * A DELETE carries no body, so the phone's position travels as two query
+ * parameters, both or neither.
  */
 export const jobWorkshopTimesheetsDestroy = <ThrowOnError extends boolean = false>(options: Options<JobWorkshopTimesheetsDestroyData, ThrowOnError>): RequestResult<JobWorkshopTimesheetsDestroyResponses, unknown, ThrowOnError> => (options.client ?? client).delete<JobWorkshopTimesheetsDestroyResponses, unknown, ThrowOnError>({
     security: [{
@@ -4651,6 +4654,9 @@ export const timesheetsMyDayBreaksCreate = <ThrowOnError extends boolean = false
  * Take a break off a day
  *
  * Remove a break from the caller's day, or for office staff from anyone's.
+ *
+ * A DELETE carries no body, so the phone's position travels as two query
+ * parameters, both or neither.
  */
 export const timesheetsMyDayBreaksDelete = <ThrowOnError extends boolean = false>(options: Options<TimesheetsMyDayBreaksDeleteData, ThrowOnError>): RequestResult<TimesheetsMyDayBreaksDeleteResponses, unknown, ThrowOnError> => (options.client ?? client).delete<TimesheetsMyDayBreaksDeleteResponses, unknown, ThrowOnError>({
     security: [{

@@ -16,6 +16,7 @@ import { localIsoDate } from '../../../src/lib/format'
 import { expect, test } from '../fixtures/auth'
 import { autoId } from '../helpers'
 import { getLatestWeekdayDate } from '../timesheet/support'
+import { withCompanyAddress } from './support'
 
 /** iOS Safari zooms the page when a focused input's text is smaller than this. */
 const IOS_NO_ZOOM_FONT_PX = 16
@@ -161,31 +162,57 @@ test.describe('workshop clocking on a phone', () => {
     await expect(autoId(page, 'DayCard-state')).toContainText('Sent, waiting for approval')
   })
 
-  test('today is clocked in and out with a tap', async ({ authenticatedPage: page }, testInfo) => {
+  test('today is clocked in and out with a tap, each judged by where the phone is', async ({
+    authenticatedPage: page,
+    context,
+    playwright,
+  }, testInfo) => {
     test.skip(
       testInfo.project.name !== LIVE_TAP_PROJECT,
       'Today is one date for both phone projects in one database: a second run meets "already clocked in".',
     )
+    const baseURL = z.string().parse(testInfo.project.use.baseURL)
     const state = autoId(page, 'DayCard-state')
-    await openDay(page, localIsoDate())
-    await expect(state).toHaveText('Not clocked in')
+    const cautions = autoId(page, 'DayCard-cautions')
 
-    await autoId(page, 'DayCard-clock-in').tap()
-    await expect(page.getByText('Clocked in.')).toBeVisible()
-    await expect(state).toHaveText(/^At work since \d{2}:\d{2}$/)
-    await expect(autoId(page, 'DayCard-clock-out')).toBeVisible()
+    await withCompanyAddress(
+      playwright.chromium,
+      baseURL,
+      page,
+      async ({ atTheWorkshop, elsewhere }) => {
+        await context.grantPermissions(['geolocation'])
+        await context.setGeolocation(elsewhere)
+        // Loaded after the address is set: the page asks for location only
+        // when the company has one.
+        await openDay(page, localIsoDate())
+        await expect(state).toHaveText('Not clocked in')
 
-    // A tap out in the same minute as the tap in is refused (the finish must
-    // be later), so the start is moved to midnight by hand first. Only a run
-    // in the first minute of the day could still meet that refusal.
-    await autoId(page, 'DayCard-change-times').tap()
-    await autoId(page, 'DayCard-start').fill('00:00')
-    await autoId(page, 'DayCard-times-save').tap()
-    await expect(state).toHaveText('At work since 00:00')
+        await autoId(page, 'DayCard-clock-in').tap()
+        await expect(page.getByText('Clocked in.')).toBeVisible()
+        await expect(state).toHaveText(/^At work since \d{2}:\d{2}$/)
+        // He is told what the office is told.
+        await expect(cautions).toHaveText('Clocked in away from the workshop')
+        await expect(autoId(page, 'DayCard-clock-out')).toBeVisible()
 
-    await autoId(page, 'DayCard-clock-out').tap()
-    await expect(page.getByText('Clocked out.', { exact: true })).toBeVisible()
-    await expect(state).toHaveText(/^Clocked out\. 00:00 to \d{2}:\d{2}, here /)
-    await expect(autoId(page, 'DayCard-clock-in')).toHaveCount(0)
+        // A tap out in the same minute as the tap in is refused (the finish
+        // must be later), so the start is moved to midnight by hand first,
+        // which makes it a time he set rather than one he clocked. Only a run
+        // in the first minute of the day could still meet that refusal.
+        await autoId(page, 'DayCard-change-times').tap()
+        await autoId(page, 'DayCard-start').fill('00:00')
+        await autoId(page, 'DayCard-times-save').tap()
+        await expect(state).toHaveText('At work since 00:00')
+        await expect(cautions).toHaveText('Did not clock in')
+
+        await context.setGeolocation(atTheWorkshop)
+        await autoId(page, 'DayCard-clock-out').tap()
+        await expect(page.getByText('Clocked out.', { exact: true })).toBeVisible()
+        await expect(state).toHaveText(/^Clocked out\. 00:00 to \d{2}:\d{2}, here /)
+        // A tap at the workshop reads plain.
+        await expect(cautions).toHaveText('Did not clock in')
+        await expect(autoId(page, 'DayCard-clock-in')).toHaveCount(0)
+        await attachScreenshot(page, testInfo, 'clocked-in-away')
+      },
+    )
   })
 })

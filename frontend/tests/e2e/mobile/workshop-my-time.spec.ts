@@ -15,14 +15,12 @@ import { z } from 'zod'
 import { shiftDate } from '../../../src/lib/dates'
 import { formatHoursDisplay } from '../../../src/lib/format'
 
-import { authenticateViaLoginPage, e2eCredentials, expect, test } from '../fixtures/auth'
-import { getCompanyDefaults } from '../fixtures/api'
+import { expect, test } from '../fixtures/auth'
 import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
 import { getLatestWeekdayDate, readJobNumber } from '../timesheet/support'
+import { asOffice, withCompanyAddress } from './support'
 
 const TIMESHEETS_PATH = '/api/job/workshop/timesheets/'
-// A real street address Google knows; the company address for the remote-entry test.
-const COMPANY_PLACE_ID = 'ChIJCTlhFsxIDW0RYNfpF_7ReVA'
 const DRAWER = 'WorkshopTimesheetEntryDrawer'
 const calendarEvent = (entryId: string) =>
   `[data-automation-id="WorkshopTimesheetCalendar"] [data-event-id="${entryId}"]`
@@ -68,28 +66,6 @@ function projectDate(projectName: string): string {
   const weeksBack = PROJECT_WEEKS_BACK[projectName]
   if (weeksBack === undefined) throw new Error(`No booking day for project "${projectName}"`)
   return shiftDate(getLatestWeekdayDate(), -7 * weeksBack)
-}
-
-/**
- * The office user's part, in a desktop Chromium the spec launches itself for
- * both phone projects: creating a job is an office screen on an office
- * machine, so the phone browser only ever carries the workshop user's session.
- */
-async function asOffice<T>(
-  chromium: BrowserType,
-  baseURL: string,
-  work: (page: Page) => Promise<T>,
-): Promise<T> {
-  const browser = await chromium.launch()
-  try {
-    const context = await browser.newContext({ baseURL, viewport: { width: 1280, height: 720 } })
-    const page = await context.newPage()
-    const { username, password } = e2eCredentials('office')
-    await authenticateViaLoginPage(page, username, password, () => () => undefined)
-    return await work(page)
-  } finally {
-    await browser.close()
-  }
 }
 
 async function officeSetup(chromium: BrowserType, baseURL: string): Promise<OfficeSetup> {
@@ -648,24 +624,6 @@ test.describe.serial('workshop time entry on a phone', () => {
     playwright,
   }, testInfo) => {
     const baseURL = z.string().parse(testInfo.project.use.baseURL)
-    // The coordinates are decimal columns and travel as text.
-    const addressSchema = z.object({
-      google_place_id: z.string().nullable(),
-      latitude: z.string().nullable(),
-      longitude: z.string().nullable(),
-    })
-    /** Pick the company address as the settings screen does: by place id,
-        which the server re-reads from Google for the coordinates. */
-    const setCompanyAddress = (placeId: string | null) =>
-      asOffice(playwright.chromium, baseURL, async (office) => {
-        const response = await office.request.patch('/api/company-defaults/', {
-          data: { google_place_id: placeId },
-        })
-        if (!response.ok()) {
-          throw new Error(`Company address save answered ${response.status()}`)
-        }
-        return addressSchema.parse(await response.json())
-      })
     const addFromThePhone = async (description: string) => {
       await autoId(page, 'WorkshopTimesheetSummaryCard-add').tap()
       await expect(page.getByRole('heading', { name: 'Add entry' })).toBeVisible()
@@ -679,41 +637,32 @@ test.describe.serial('workshop time entry on a phone', () => {
       return page.locator(`[data-event-id="${entry.id}"]`)
     }
 
-    const before = addressSchema.parse(await getCompanyDefaults(page))
-    try {
-      const address = await setCompanyAddress(COMPANY_PLACE_ID)
-      if (address.latitude === null || address.longitude === null) {
-        throw new Error('The picked company address came back without coordinates.')
-      }
-      const atTheWorkshop = {
-        latitude: Number(address.latitude),
-        longitude: Number(address.longitude),
-      }
-      // Half a degree of latitude is about 55 km.
-      const elsewhere = { ...atTheWorkshop, latitude: atTheWorkshop.latitude + 0.5 }
+    await withCompanyAddress(
+      playwright.chromium,
+      baseURL,
+      page,
+      async ({ atTheWorkshop, elsewhere }) => {
+        await context.grantPermissions(['geolocation'])
+        await context.setGeolocation(atTheWorkshop)
+        // Loaded after the address is set: the page asks for location only when
+        // the company has one.
+        await openMyTime(page)
+        const onSite = await addFromThePhone('Entered at the workshop')
+        await expect(onSite).toContainText('Waiting')
+        await expect(onSite).not.toContainText('Suspicious remote entry')
 
-      await context.grantPermissions(['geolocation'])
-      await context.setGeolocation(atTheWorkshop)
-      // Loaded after the address is set: the page asks for location only when
-      // the company has one.
-      await openMyTime(page)
-      const onSite = await addFromThePhone('Entered at the workshop')
-      await expect(onSite).toContainText('Waiting')
-      await expect(onSite).not.toContainText('Suspicious remote entry')
+        await context.setGeolocation(elsewhere)
+        const offSite = await addFromThePhone('Entered somewhere else')
+        await expect(offSite).toContainText('Suspicious remote entry')
 
-      await context.setGeolocation(elsewhere)
-      const offSite = await addFromThePhone('Entered somewhere else')
-      await expect(offSite).toContainText('Suspicious remote entry')
+        await context.clearPermissions()
+        const refused = await addFromThePhone('Entered with location refused')
+        await expect(refused).toContainText('Suspicious remote entry')
 
-      await context.clearPermissions()
-      const refused = await addFromThePhone('Entered with location refused')
-      await expect(refused).toContainText('Suspicious remote entry')
-
-      await expect(onSite).not.toContainText('Suspicious remote entry')
-      await expectNoHorizontalOverflow(page)
-      await attachScreenshot(page, testInfo, 'my-time-remote-entry')
-    } finally {
-      await setCompanyAddress(before.google_place_id)
-    }
+        await expect(onSite).not.toContainText('Suspicious remote entry')
+        await expectNoHorizontalOverflow(page)
+        await attachScreenshot(page, testInfo, 'my-time-remote-entry')
+      },
+    )
   })
 })

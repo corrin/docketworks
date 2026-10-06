@@ -20,7 +20,8 @@ from apps.job.services.job_service import bills_its_time
 from apps.timesheet.models import AttendanceDay
 from apps.timesheet.services import attendance
 from apps.timesheet.services.attendance import Window
-from apps.timesheet.services.location import EntryLocation
+from apps.timesheet.services.location import EntryLocation, saved_remotely
+from apps.timesheet.services.timesheet_events import record_day_event
 from apps.timesheet.services.workshop_timesheet_service import (
     WorkshopDayData,
     WorkshopEntryCreateData,
@@ -128,4 +129,13 @@ def submit_day(
         create_entry(worker, worker, data, location)
     row.submitted_at = now
     row.save(update_fields=["submitted_at", "updated_at"])
+    record_day_event(
+        staff=worker,
+        worker=worker,
+        day=day,
+        event_type="day_sent",
+        before=None,
+        after=None,
+        trusted=not saved_remotely(worker, location),
+    )
     return list_entries(worker, day)

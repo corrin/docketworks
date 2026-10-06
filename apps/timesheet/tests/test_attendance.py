@@ -1,6 +1,8 @@
 """Clocking in and out: the day's state, the refusals, and who may set whose times."""
 
 from datetime import datetime, time, timedelta
+from decimal import Decimal
+from uuid import UUID
 
 import pytest
 from django.test import Client
@@ -9,9 +11,12 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.core.errors import InvalidInputError
 from apps.core.models import CompanyDefaults
-from apps.timesheet.models import AttendanceDay
-from apps.timesheet.services import attendance
-from apps.timesheet.tests.conftest import WEEK_START, authenticated_client
+from apps.job.models import Job
+from apps.timesheet.models import AttendanceDay, TimesheetEvent
+from apps.timesheet.services import attendance, day_submission, workshop_timesheet_service
+from apps.timesheet.services.attendance import BreakData
+from apps.timesheet.services.location import EntryLocation
+from apps.timesheet.tests.conftest import WEEK_START, authenticated_client, make_time_line
 
 pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("break_job")]
 
@@ -20,6 +25,11 @@ CLOCK_URL = "/api/timesheets/my-day/clock/"
 TIMES_URL = "/api/timesheets/my-day/times/"
 DAY_URL = "/api/job/workshop/timesheets/"
 STANDARD_URL = "/api/timesheets/my-day/standard-hours/"
+HISTORY_URL = "/api/job/timesheet/entries/history/"
+
+
+def _day_breaks(worker: Staff) -> list[BreakData]:
+    return workshop_timesheet_service.list_entries(worker, DAY)["breaks"]
 
 
 def _at(day_offset: int, hour: int, minute: int, second: int = 0) -> datetime:
@@ -283,3 +293,102 @@ class TestHowAClockTimeGotThere:
         assert cautions[str(worker.id)] == ["Did not clock in", "Did not clock out"]
         assert cautions[str(other_worker.id)] == []
         assert body["standard"] == {"start": "07:00:00", "end": "15:00:00"}
+
+
+WORKSHOP: EntryLocation = {"latitude": -36.85, "longitude": 174.76}
+#: About eleven kilometres south: well outside the workshop's circle.
+ELSEWHERE: EntryLocation = {"latitude": -36.95, "longitude": 174.76}
+
+
+@pytest.fixture
+def company_address() -> None:
+    """The company's address, which every My time action is judged against."""
+    company = CompanyDefaults.get_solo()
+    company.latitude = Decimal("-36.850000")
+    company.longitude = Decimal("174.760000")
+    company.save(update_fields=["latitude", "longitude"])
+
+
+def _trusted(worker: Staff) -> list[tuple[str, bool]]:
+    return [
+        (event.event_type, event.trusted)
+        for event in TimesheetEvent.objects.filter(worker=worker).order_by("timestamp")
+    ]
+
+
+@pytest.mark.usefixtures("company_address")
+class TestWhereAnActionWasMade:
+    """The one rule (services/location.py) judges every My time write the same way."""
+
+    def test_every_my_time_write_records_an_event_tagged_trusted_or_not(
+        self, worker: Staff, job: Job
+    ) -> None:
+        here, away = WORKSHOP, ELSEWHERE
+        attendance.clock_in(worker, _at(0, 6, 30), here)
+        attendance.clock_out(worker, _at(0, 15, 0), away)
+        attendance.set_clock_times(worker, DAY, time(6, 30), time(15, 30), worker, location=here)
+        day_submission.submit_day(worker, DAY, [], away, timezone.now())
+        lunch = next(each for each in _day_breaks(worker) if not each["paid"])
+        assert lunch["id"] is not None
+        attendance.change_break(UUID(lunch["id"]), time(12, 0), time(12, 30), worker, here)
+        attendance.remove_break(UUID(lunch["id"]), worker, away)
+        line = make_time_line(job, worker, accounting_date=DAY, approved=False)
+        workshop_timesheet_service.delete_entry(worker, line.id, here)
+
+        events = dict.fromkeys(("clocked_in", "clock_times_set", "day_sent"))
+        recorded = _trusted(worker)
+        for event_type in events:
+            events[event_type] = next(trusted for kind, trusted in recorded if kind == event_type)
+        assert events == {"clocked_in": True, "clock_times_set": True, "day_sent": False}
+        assert ("clocked_out", False) in recorded
+        # Breaks are his lines, judged as any entry is.
+        assert [trusted for kind, trusted in recorded if kind in {"entry_updated"}] == [True]
+        assert [trusted for kind, trusted in recorded if kind == "entry_deleted"] == [False, True]
+
+    def test_a_tap_away_from_the_workshop_is_clocked_remotely(self, worker: Staff) -> None:
+        attendance.clock_in(worker, _at(0, 6, 30), ELSEWHERE)
+        attendance.clock_out(worker, _at(0, 15, 0), WORKSHOP)
+
+        assert _how(worker) == ("clocked_remotely", "clocked")
+        assert attendance.day_attendance(worker, DAY)["cautions"] == [
+            "Clocked in away from the workshop"
+        ]
+
+    def test_no_location_is_untrusted(self, worker: Staff) -> None:
+        """A phone that will not say where it is is marked as one that is elsewhere."""
+        attendance.clock_in(worker, _at(0, 6, 30), None)
+
+        assert _how(worker)[0] == "clocked_remotely"
+        assert _trusted(worker) == [("clocked_in", False)]
+
+    def test_office_actions_are_trusted(self, worker: Staff, office_staff: Staff) -> None:
+        """The office books from desks whose browsers guess their position."""
+        attendance.set_clock_times(worker, DAY, time(6, 30), time(15, 0), office_staff)
+
+        assert _trusted(worker)[0] == ("clock_times_set", True)
+        assert all(trusted for _, trusted in _trusted(worker))
+
+    def test_the_history_reads_the_clock_times_and_where_they_were_set(
+        self, worker: Staff, superuser: Staff
+    ) -> None:
+        attendance.clock_in(worker, _at(0, 7, 2), ELSEWHERE)
+        attendance.set_clock_times(worker, DAY, time(7, 0), None, worker, location=WORKSHOP)
+
+        history = (
+            authenticated_client(superuser)
+            .get(f"{HISTORY_URL}?staff_id={worker.id}&date={DAY.isoformat()}")
+            .json()
+        )
+
+        assert [(each["description"], each["trusted"]) for each in history] == [
+            ("Clock in moved from 07:02 to 07:00", True),
+            ("Clock in 07:02", False),
+        ]
+
+
+def test_with_no_company_address_nothing_is_marked(worker: Staff) -> None:
+    """With nowhere to compare against there is no check: "trusted" then means not checked."""
+    attendance.clock_in(worker, _at(0, 6, 30), None)
+
+    assert _how(worker)[0] == "clocked"
+    assert _trusted(worker) == [("clocked_in", True)]

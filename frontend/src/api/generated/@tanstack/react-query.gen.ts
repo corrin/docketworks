@@ -3357,6 +3357,9 @@ export const jobTimesheetEntriesHistoryRetrieveOptions = (options: Options<JobTi
  * Delete a timesheet entry belonging to the staff member
  *
  * Delete one of the authenticated staff member's own entries.
+ *
+ * A DELETE carries no body, so the phone's position travels as two query
+ * parameters, both or neither.
  */
 export const jobWorkshopTimesheetsDestroyMutation = (options?: Partial<Options<JobWorkshopTimesheetsDestroyData>>): UseMutationOptions<JobWorkshopTimesheetsDestroyResponse, AxiosError<DefaultError>, Options<JobWorkshopTimesheetsDestroyData>> => {
     const mutationOptions: UseMutationOptions<JobWorkshopTimesheetsDestroyResponse, AxiosError<DefaultError>, Options<JobWorkshopTimesheetsDestroyData>> = {
@@ -5665,6 +5668,9 @@ export const timesheetsMyDayBreaksCreateMutation = (options?: Partial<Options<Ti
  * Take a break off a day
  *
  * Remove a break from the caller's day, or for office staff from anyone's.
+ *
+ * A DELETE carries no body, so the phone's position travels as two query
+ * parameters, both or neither.
  */
 export const timesheetsMyDayBreaksDeleteMutation = (options?: Partial<Options<TimesheetsMyDayBreaksDeleteData>>): UseMutationOptions<TimesheetsMyDayBreaksDeleteResponse, AxiosError<DefaultError>, Options<TimesheetsMyDayBreaksDeleteData>> => {
     const mutationOptions: UseMutationOptions<TimesheetsMyDayBreaksDeleteResponse, AxiosError<DefaultError>, Options<TimesheetsMyDayBreaksDeleteData>> = {

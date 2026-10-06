@@ -206,19 +206,6 @@ export const zAuthErrorOut = z.object({
 });
 
 /**
- * BreakCreateRequest
- *
- * A break added to a day. ``staff_id`` is for office staff correcting another's day.
- */
-export const zBreakCreateRequest = z.object({
-    date: z.iso.date(),
-    end: z.iso.time(),
-    paid: z.boolean(),
-    staff_id: z.uuid().nullish(),
-    start: z.iso.time()
-});
-
-/**
  * BreakOut
  *
  * One break in a person's day.
@@ -234,16 +221,6 @@ export const zBreakOut = z.object({
     name: z.string(),
     paid: z.boolean(),
     planned: z.boolean(),
-    start: z.iso.time()
-});
-
-/**
- * BreakUpdateRequest
- *
- * A break moved or resized.
- */
-export const zBreakUpdateRequest = z.object({
-    end: z.iso.time(),
     start: z.iso.time()
 });
 
@@ -313,29 +290,6 @@ export const zChunkOut = z.object({
     id: z.uuid(),
     recording_id: z.uuid(),
     sequence: z.int()
-});
-
-/**
- * ClockRequest
- *
- * A tap on Clock in or Clock out; the server supplies the time.
- */
-export const zClockRequest = z.object({
-    action: z.enum(['in', 'out'])
-});
-
-/**
- * ClockTimesRequest
- *
- * Clock times set by hand. No ``clock_out`` means the person is at work again.
- *
- * ``staff_id`` is for office staff correcting another person's day.
- */
-export const zClockTimesRequest = z.object({
-    clock_in: z.iso.time(),
-    clock_out: z.iso.time().nullish(),
-    date: z.iso.date(),
-    staff_id: z.uuid().nullish()
 });
 
 /**
@@ -1290,6 +1244,56 @@ export const zEntryCreateIn = z.object({
 export const zEntryLocationIn = z.object({
     latitude: z.number().gte(-90).lte(90),
     longitude: z.number().gte(-180).lte(180)
+});
+
+/**
+ * BreakCreateRequest
+ *
+ * A break added to a day. ``staff_id`` is for office staff correcting another's day.
+ */
+export const zBreakCreateRequest = z.object({
+    date: z.iso.date(),
+    end: z.iso.time(),
+    location: zEntryLocationIn.nullish(),
+    paid: z.boolean(),
+    staff_id: z.uuid().nullish(),
+    start: z.iso.time()
+});
+
+/**
+ * BreakUpdateRequest
+ *
+ * A break moved or resized.
+ */
+export const zBreakUpdateRequest = z.object({
+    end: z.iso.time(),
+    location: zEntryLocationIn.nullish(),
+    start: z.iso.time()
+});
+
+/**
+ * ClockRequest
+ *
+ * A tap on Clock in or Clock out; the server supplies the time.
+ */
+export const zClockRequest = z.object({
+    action: z.enum(['in', 'out']),
+    location: zEntryLocationIn.nullish()
+});
+
+/**
+ * ClockTimesRequest
+ *
+ * Clock times set by hand. No ``clock_out`` means the person is at work again.
+ *
+ * ``staff_id`` is for office staff correcting another person's day.
+ */
+export const zClockTimesRequest = z.object({
+    clock_in: z.iso.time(),
+    clock_out: z.iso.time().nullish(),
+    date: z.iso.date(),
+    location: zEntryLocationIn.nullish(),
+    staff_id: z.uuid().nullish()
 });
 
 /**
@@ -5328,6 +5332,7 @@ export const zStandardDayOut = z.object({
  */
 export const zStandardHoursRequest = z.object({
     date: z.iso.date(),
+    location: zEntryLocationIn.nullish(),
     staff_id: z.uuid().nullish()
 });
 
@@ -6048,6 +6053,10 @@ export const zTimesheetLineSnapshotOut = z.object({
  * TimesheetEventOut
  *
  * One audit event on a staff member's day, for the entry page's history dialog.
+ *
+ * ``trusted`` is whether it was made at the workshop (services/location.py).
+ * An event of the day itself (a clock tap, times set, the day sent) has no
+ * entry snapshots.
  */
 export const zTimesheetEventOut = z.object({
     after: zTimesheetLineSnapshotOut.nullable(),
@@ -6057,7 +6066,8 @@ export const zTimesheetEventOut = z.object({
     event_type: z.string(),
     id: z.uuid(),
     staff_name: z.string(),
-    timestamp: z.iso.datetime()
+    timestamp: z.iso.datetime(),
+    trusted: z.boolean()
 });
 
 /**
@@ -8225,7 +8235,9 @@ export const zJobTimesheetEntriesHistoryRetrieveQuery = z.object({
 export const zJobTimesheetEntriesHistoryRetrieveResponse = z.array(zTimesheetEventOut);
 
 export const zJobWorkshopTimesheetsDestroyQuery = z.object({
-    entry_id: z.uuid()
+    entry_id: z.uuid(),
+    latitude: z.number().nullish(),
+    longitude: z.number().nullish()
 });
 
 /**
@@ -9137,6 +9149,11 @@ export const zTimesheetsMyDayBreaksCreateResponse = z.void();
 
 export const zTimesheetsMyDayBreaksDeletePath = z.object({
     break_id: z.uuid()
+});
+
+export const zTimesheetsMyDayBreaksDeleteQuery = z.object({
+    latitude: z.number().nullish(),
+    longitude: z.number().nullish()
 });
 
 /**

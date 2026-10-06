@@ -23,7 +23,8 @@ from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
 from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.models import AttendanceDay, ClockHow
-from apps.timesheet.services.location import EntryLocation
+from apps.timesheet.services.location import EntryLocation, saved_remotely
+from apps.timesheet.services.timesheet_events import DaySnapshot, record_day_event
 
 #: Where a person's day stands, from their attendance row alone.
 DayState = Literal["not_clocked_in", "at_work", "clocked_out", "sent"]
@@ -383,9 +384,11 @@ def calendar_bounds(
 #: tapped at the workshop needs none, and neither does one the office set.
 _CLOCK_IN_CAUTIONS: dict[str, str] = {
     ClockHow.NOT_CLOCKED: "Did not clock in",
+    ClockHow.CLOCKED_REMOTELY: "Clocked in away from the workshop",
 }
 _CLOCK_OUT_CAUTIONS: dict[str, str] = {
     ClockHow.NOT_CLOCKED: "Did not clock out",
+    ClockHow.CLOCKED_REMOTELY: "Clocked out away from the workshop",
 }
 
 
@@ -496,12 +499,47 @@ def pending_day(staff: Staff, today: date) -> PendingDay | None:
     return {"date": row.date, "state": day_state(row)}
 
 
-def clock_in(worker: Staff, now: datetime) -> AttendanceData:
-    """Start the worker's day at ``now``, to the minute."""
+def _snapshot(row: AttendanceDay | None) -> DaySnapshot | None:
+    """Read the day's clock times as a day event records them; None before the day exists."""
+    if row is None:
+        return None
+    return {
+        "clock_in": f"{row.clock_in:%H:%M}",
+        "clock_out": None if row.clock_out is None else f"{row.clock_out:%H:%M}",
+    }
+
+
+def _record(
+    actor: Staff,
+    row: AttendanceDay,
+    event_type: str,
+    before: DaySnapshot | None,
+    *,
+    location: EntryLocation | None,
+) -> None:
+    record_day_event(
+        staff=actor,
+        worker=row.staff,
+        day=row.date,
+        event_type=event_type,
+        before=before,
+        after=_snapshot(row),
+        trusted=not saved_remotely(actor, location),
+    )
+
+
+def _tapped(worker: Staff, location: EntryLocation | None) -> ClockHow:
+    """How a live tap is recorded: at the workshop, or somewhere else."""
+    return ClockHow.CLOCKED_REMOTELY if saved_remotely(worker, location) else ClockHow.CLOCKED
+
+
+@transaction.atomic
+def clock_in(worker: Staff, now: datetime, location: EntryLocation | None = None) -> AttendanceData:
+    """Start the worker's day at ``now``, to the minute, judged by where his phone is."""
     row, created = AttendanceDay.objects.get_or_create(
         staff=worker,
         date=now.date(),
-        defaults={"clock_in": _to_the_minute(now), "clock_in_how": ClockHow.CLOCKED},
+        defaults={"clock_in": _to_the_minute(now), "clock_in_how": _tapped(worker, location)},
     )
     if not created:
         if row.clock_out is None:
@@ -509,11 +547,14 @@ def clock_in(worker: Staff, now: datetime) -> AttendanceData:
         raise ClockingRefusedError(
             "You have already clocked in and out today. Change the times, or clock back in."
         )
+    _record(worker, row, "clocked_in", None, location=location)
     return attendance_data(row)
 
 
 @transaction.atomic
-def clock_out(worker: Staff, now: datetime) -> AttendanceData:
+def clock_out(
+    worker: Staff, now: datetime, location: EntryLocation | None = None
+) -> AttendanceData:
     """Finish the worker's day at ``now``. Only today's open day is stamped."""
     row = AttendanceDay.objects.select_for_update().filter(staff=worker, date=now.date()).first()
     if row is None:
@@ -525,10 +566,12 @@ def clock_out(worker: Staff, now: datetime) -> AttendanceData:
         # Its own words: the midnight wording below would make no sense here.
         raise ClockingRefusedError("You clocked in a moment ago. Wait a minute to clock out.")
     _require_finish_after_start(row.clock_in, finish)
+    before = _snapshot(row)
     row.clock_out = finish
-    row.clock_out_how = ClockHow.CLOCKED
+    row.clock_out_how = _tapped(worker, location)
     row.save(update_fields=["clock_out", "clock_out_how", "updated_at"])
-    generate_default_breaks(row, worker)
+    _record(worker, row, "clocked_out", before, location=location)
+    generate_default_breaks(row, worker, location)
     return attendance_data(row)
 
 
@@ -547,8 +590,14 @@ def _by_hand(owner: Staff, actor: Staff) -> ClockHow:
 
 
 @transaction.atomic
-def set_clock_times(
-    owner: Staff, day: date, start: time, finish: time | None, actor: Staff
+def set_clock_times(  # noqa: PLR0913 -- whose day, which day, two times, who sets them and from where
+    owner: Staff,
+    day: date,
+    start: time,
+    finish: time | None,
+    actor: Staff,
+    *,
+    location: EntryLocation | None = None,
 ) -> AttendanceData:
     """Set a day's clock times by hand: a forgotten tap, a correction, or a reopen.
 
@@ -568,6 +617,7 @@ def set_clock_times(
     finish = None if finish is None else finish.replace(second=0, microsecond=0)
     by_hand = _by_hand(owner, actor)
     row = AttendanceDay.objects.select_for_update().filter(staff=owner, date=day).first()
+    before = _snapshot(row)
     if row is None:
         row = AttendanceDay(staff=owner, date=day, clock_in_how=by_hand)
     elif row.clock_in != start:
@@ -580,12 +630,15 @@ def set_clock_times(
     row.clock_out = finish
     row.submitted_at = None
     row.save()
-    generate_default_breaks(row, actor)
+    _record(actor, row, "clock_times_set", before, location=location)
+    generate_default_breaks(row, actor, location)
     return attendance_data(row)
 
 
 @transaction.atomic
-def use_standard_hours(owner: Staff, day: date, actor: Staff) -> AttendanceData:
+def use_standard_hours(
+    owner: Staff, day: date, actor: Staff, location: EntryLocation | None = None
+) -> AttendanceData:
     """Record the company's standard hours as a day nobody clocked.
 
     He forgot to clock and cannot go back and do it, so the standard day
@@ -611,7 +664,8 @@ def use_standard_hours(owner: Staff, day: date, actor: Staff) -> AttendanceData:
     )
     if not created:
         raise ConflictError("This day already has clock times. Change them instead.")
-    generate_default_breaks(row, actor)
+    _record(actor, row, "standard_hours_used", None, location=location)
+    generate_default_breaks(row, actor, location)
     return attendance_data(row)
 
 

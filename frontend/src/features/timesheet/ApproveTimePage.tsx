@@ -74,10 +74,11 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
   const writes = useWorkshopEntryWrites(false, correction?.staffId)
   // Whose clock times the office has open for correction, if anyone's.
   const [clockStaffId, setClockStaffId] = useState<string | null>(null)
-  const clocking = useClocking(clockStaffId ?? undefined)
+  // The office is judged by nothing: its own writes are trusted.
+  const clocking = useClocking(false, clockStaffId ?? undefined)
   // Whose break the office has open, with the break itself.
   const [breakFor, setBreakFor] = useState<{ staffId: string; sheet: BreakSheetState } | null>(null)
-  const breaks = useBreaks(breakFor?.staffId)
+  const breaks = useBreaks(false, breakFor?.staffId)
 
   const people = approvalsQuery.data?.staff
   const correcting = people?.find((person) => person.staff_id === correction?.staffId)

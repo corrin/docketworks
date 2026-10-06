@@ -24,7 +24,13 @@ import {
 import { BreakSheet, type BreakSheetState } from './BreakSheet'
 import { DayCard } from './DayCard'
 import { FillDaySheet } from './FillDaySheet'
-import { useBreaks, useClocking, useSubmitDay, useWorkshopDay } from './useWorkshopDay'
+import {
+  useAskForLocation,
+  useBreaks,
+  useClocking,
+  useSubmitDay,
+  useWorkshopDay,
+} from './useWorkshopDay'
 import { WorkshopTimesheetCalendar } from './WorkshopTimesheetCalendar'
 import { WorkshopTimesheetEntryDrawer, type EntryDrawerState } from './WorkshopTimesheetEntryDrawer'
 
@@ -51,16 +57,19 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
   // authed route renders.
   const { data: companyDefaults } = useSuspenseQuery(companyDefaultsQueryOptions())
   const { data: user } = useSuspenseQuery(meQueryOptions())
-  const day = useWorkshopDay(date, companyDefaults.latitude !== null && !user.is_office_staff)
+  // A workshop worker's writes are judged by where his phone is, when the
+  // company has an address to judge against.
+  const sendLocation = companyDefaults.latitude !== null && !user.is_office_staff
+  useAskForLocation(sendLocation)
+  const day = useWorkshopDay(date, sendLocation)
   const [drawer, setDrawer] = useState<EntryDrawerState>({ mode: 'closed' })
 
   const entries = day.dayQuery.data?.entries ?? []
   const dayData = day.dayQuery.data
-  const clocking = useClocking()
-  const sendLocation = companyDefaults.latitude !== null && !user.is_office_staff
+  const clocking = useClocking(sendLocation)
   const submission = useSubmitDay(sendLocation)
   const [fillOpen, setFillOpen] = useState(false)
-  const breaks = useBreaks()
+  const breaks = useBreaks(sendLocation)
   const [breakSheet, setBreakSheet] = useState<BreakSheetState>({ mode: 'closed' })
   const summary = day.dayQuery.data?.summary
   const week = day.dayQuery.data?.week

@@ -461,6 +461,7 @@ export type BreakCreateRequest = {
      * End
      */
     end: string;
+    location?: EntryLocationIn | null;
     /**
      * Paid
      */
@@ -525,6 +526,7 @@ export type BreakUpdateRequest = {
      * End
      */
     end: string;
+    location?: EntryLocationIn | null;
     /**
      * Start
      */
@@ -669,6 +671,7 @@ export type ClockRequest = {
      * Action
      */
     action: 'in' | 'out';
+    location?: EntryLocationIn | null;
 };
 
 /**
@@ -691,6 +694,7 @@ export type ClockTimesRequest = {
      * Date
      */
     date: string;
+    location?: EntryLocationIn | null;
     /**
      * Staff Id
      */
@@ -11811,6 +11815,7 @@ export type StandardHoursRequest = {
      * Date
      */
     date: string;
+    location?: EntryLocationIn | null;
     /**
      * Staff Id
      */
@@ -13207,6 +13212,10 @@ export type TimesheetEntriesSummaryOut = {
  * TimesheetEventOut
  *
  * One audit event on a staff member's day, for the entry page's history dialog.
+ *
+ * ``trusted`` is whether it was made at the workshop (services/location.py).
+ * An event of the day itself (a clock tap, times set, the day sent) has no
+ * entry snapshots.
  */
 export type TimesheetEventOut = {
     after: TimesheetLineSnapshotOut | null;
@@ -13235,6 +13244,10 @@ export type TimesheetEventOut = {
      * Timestamp
      */
     timestamp: string;
+    /**
+     * Trusted
+     */
+    trusted: boolean;
 };
 
 /**
@@ -18150,6 +18163,14 @@ export type JobWorkshopTimesheetsDestroyData = {
          * Entry Id
          */
         entry_id: string;
+        /**
+         * Latitude
+         */
+        latitude?: number | null;
+        /**
+         * Longitude
+         */
+        longitude?: number | null;
     };
     url: '/api/job/workshop/timesheets/';
 };
@@ -20272,7 +20293,16 @@ export type TimesheetsMyDayBreaksDeleteData = {
          */
         break_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Latitude
+         */
+        latitude?: number | null;
+        /**
+         * Longitude
+         */
+        longitude?: number | null;
+    };
     url: '/api/timesheets/my-day/breaks/{break_id}/';
 };
 

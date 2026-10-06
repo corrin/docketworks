@@ -353,6 +353,8 @@ class BreakCreateRequest(Schema):
     end: time
     paid: bool
     staff_id: UUID | None = None
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
 
 
 class BreakUpdateRequest(Schema):
@@ -360,6 +362,8 @@ class BreakUpdateRequest(Schema):
 
     start: time
     end: time
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
 
 
 class FillOut(Schema):
@@ -418,12 +422,16 @@ class StandardHoursRequest(Schema):
 
     date: date
     staff_id: UUID | None = None
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
 
 
 class ClockRequest(Schema):
     """A tap on Clock in or Clock out; the server supplies the time."""
 
     action: Literal["in", "out"]
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
 
 
 class ClockTimesRequest(Schema):
@@ -436,6 +444,8 @@ class ClockTimesRequest(Schema):
     clock_in: time
     clock_out: time | None = None
     staff_id: UUID | None = None
+    # None when the phone gave no location: refused, unavailable, or not asked.
+    location: EntryLocationIn | None = None
 
 
 class WorkshopTimesheetListResponse(Schema):
@@ -558,10 +568,16 @@ class TimesheetLineSnapshotOut(ResponseSchema):
 
 
 class TimesheetEventOut(AuditEventOut):
-    """One audit event on a staff member's day, for the entry page's history dialog."""
+    """One audit event on a staff member's day, for the entry page's history dialog.
+
+    ``trusted`` is whether it was made at the workshop (services/location.py).
+    An event of the day itself (a clock tap, times set, the day sent) has no
+    entry snapshots.
+    """
 
     before: TimesheetLineSnapshotOut | None
     after: TimesheetLineSnapshotOut | None
+    trusted: bool
 
     @staticmethod
     def resolve_before(obj: TimesheetEvent) -> TimesheetLineSnapshot | None:
