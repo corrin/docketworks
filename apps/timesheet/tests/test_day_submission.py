@@ -472,6 +472,24 @@ class TestBreaks:
         with pytest.raises(ValidationError, match="5 to 120 minutes"):
             company.full_clean()
 
+    def test_a_day_with_no_break_in_it_closes_without_the_break_job(self, worker: Staff) -> None:
+        """An hour's day, or a workshop with no standard breaks, never needs it."""
+        CompanyDefaults.objects.update(break_job=None)
+        _clocked(worker, time(7, 0), time(8, 0))
+        company = CompanyDefaults.get_solo()
+        company.morning_break_minutes = 0
+        company.lunch_minutes = 0
+        company.afternoon_break_minutes = 0
+        company.save(
+            update_fields=["morning_break_minutes", "lunch_minutes", "afternoon_break_minutes"]
+        )
+
+        attendance.set_clock_times(
+            worker, DAY + timedelta(days=1), time(6, 30), time(15, 0), worker
+        )
+
+        assert AttendanceDay.objects.filter(staff=worker, clock_out__isnull=False).count() == 2
+
     def test_a_day_is_refused_until_breaks_are_set_up(self, worker: Staff) -> None:
         """A day made without its paid breaks would pay half an hour short, silently."""
         CompanyDefaults.objects.update(break_job=None)

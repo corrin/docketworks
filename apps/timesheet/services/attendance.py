@@ -767,16 +767,22 @@ def generate_default_breaks(
     """
     if row.breaks_generated or row.clock_out is None:
         return
-    taken = [
-        each
-        for each in day_breaks(row.date, row, _break_lines(row.staff, row.date))
-        if not each["planned"]
-    ]
     within = [
         each
         for each in _default_breaks()
         if each.window.start >= row.clock_in and each.window.end <= row.clock_out
     ]
+    # The Break job is asked for only when a break is to be put on: an hour's
+    # day, or a workshop with no standard breaks, closes without one.
+    taken = (
+        [
+            each
+            for each in day_breaks(row.date, row, _break_lines(row.staff, row.date))
+            if not each["planned"]
+        ]
+        if within
+        else []
+    )
     # One he recorded while at work is that break: lunch is not put on twice.
     for each in _not_yet_taken(within, taken):
         _create_break(
