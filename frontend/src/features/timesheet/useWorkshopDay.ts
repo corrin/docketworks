@@ -77,7 +77,7 @@ function locationPermission(): Promise<PermissionState | null> {
  * used only while location is known to be allowed: one taken before he turned
  * it off must not vouch for a write made after.
  */
-export async function phoneLocation(): Promise<EntryLocationIn | null> {
+async function lookUpLocation(): Promise<EntryLocationIn | null> {
   const permission = await locationPermission()
   if (permission !== 'granted') {
     watchedFix = null
@@ -87,6 +87,23 @@ export async function phoneLocation(): Promise<EntryLocationIn | null> {
     return watchedFix.location
   }
   return readFresh()
+}
+
+// The longest a write waits on the phone before going ahead without a
+// location: the fresh read's own timeout, and a little for the permission.
+export const LOCATION_LOOKUP_LIMIT_MS = 8000
+
+/** The phone's position for a write, never a failed write: anything the
+    phone throws, and any wait past the limit, is "no location". */
+export function phoneLocation(): Promise<EntryLocationIn | null> {
+  return Promise.race([
+    // deliberate-swallow: a phone that throws while asked is a phone that
+    // gave no location, which the server marks; the write goes ahead.
+    lookUpLocation().catch(() => null),
+    new Promise<null>((resolve) => {
+      setTimeout(() => resolve(null), LOCATION_LOOKUP_LIMIT_MS)
+    }),
+  ])
 }
 
 /**

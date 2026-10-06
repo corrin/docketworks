@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { phoneLocation } from './useWorkshopDay'
+import { LOCATION_LOOKUP_LIMIT_MS, phoneLocation } from './useWorkshopDay'
 
 const AT_THE_WORKSHOP = { latitude: -36.85, longitude: 174.76 }
 
@@ -25,6 +25,7 @@ function geolocationAt(at: { latitude: number; longitude: number }) {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 describe('phoneLocation', () => {
@@ -42,6 +43,32 @@ describe('phoneLocation', () => {
     })
 
     await expect(phoneLocation()).resolves.toEqual(AT_THE_WORKSHOP)
+  })
+
+  it('answers no location when asking the phone throws', async () => {
+    vi.stubGlobal('navigator', {
+      geolocation: geolocationAt(AT_THE_WORKSHOP),
+      permissions: {
+        query: () => {
+          throw new TypeError('not supported')
+        },
+      },
+    })
+
+    await expect(phoneLocation()).resolves.toBeNull()
+  })
+
+  it('goes ahead with no location when the phone never answers', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('navigator', {
+      geolocation: { getCurrentPosition: () => undefined },
+      permissions: { query: () => new Promise(() => undefined) },
+    })
+
+    const asked = phoneLocation()
+    await vi.advanceTimersByTimeAsync(LOCATION_LOOKUP_LIMIT_MS)
+
+    await expect(asked).resolves.toBeNull()
   })
 
   it('answers no location where the phone has no position service', async () => {
