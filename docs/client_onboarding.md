@@ -338,16 +338,16 @@ Verify `CompanyDefaults` carries what Phase 1 collected (most of it arrives from
   **Terms (Quotes)** field; keep both in sync — Phase 2a)
 - KPI thresholds (optional, can be tuned later)
 
-### 7c. Create Shop Jobs
+### 7c. Shop Jobs
 
-```bash
-sudo scripts/server/dw-run.sh <client>-prod python manage.py create_shop_jobs
-```
-
-Creates nine jobs against the shop company, by these exact names: Annual Leave, Sick Leave,
-Bereavement Leave, Travel, Training, Business Development, Office Admin, Worker Admin, and
-Bench - busy work. The command is idempotent — re-running updates descriptions instead of
-duplicating.
+Nothing to run. `finalize_instance_onboarding` makes the shop jobs, and every deploy runs
+`create_shop_jobs` again after migrate. It makes twelve jobs against the shop company, by
+these exact names: Annual Leave, Sick Leave, Bereavement Leave, Unpaid Leave, Statutory
+holiday, Travel, Training, Business Development, Office Admin, Worker Admin, Bench - busy
+work, and Break (every paid break and lunch is booked to it). It only creates the ones the
+shop company lacks and never rewrites one that exists, so a job the office has archived or
+reworded stays as it is. Until the Break job exists, closing a day is refused with "Breaks
+are not set up. Tell the office."
 
 ### 7d. Staff Setup
 
