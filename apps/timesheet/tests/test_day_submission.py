@@ -19,6 +19,7 @@ from apps.job.models.costing import CostLine
 from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.models import AttendanceDay
 from apps.timesheet.services import (
+    approval,
     attendance,
     day_submission,
     timesheet_entry_options,
@@ -314,6 +315,45 @@ class TestBreaks:
             (time(13, 30), True, None),
         ]
         assert not CostLine.objects.filter(staff=worker).exists()
+
+    def test_a_break_added_while_at_work_shows_and_is_not_put_on_twice(
+        self, worker: Staff, break_job: Job
+    ) -> None:
+        """He took lunch late and said so before clocking out: one lunch, his."""
+        attendance.set_clock_times(worker, DAY, time(6, 30), None, worker)
+        attendance.add_break(worker, DAY, time(12, 15), time(12, 45), paid=False, actor=worker)
+
+        at_work = _breaks(worker)
+        on_the_office_row = [
+            (f"{each['start']:%H:%M}", each["planned"])
+            for row in approval.day_approvals(DAY)["staff"]
+            if row["staff_id"] == str(worker.id)
+            for each in row["breaks"]
+        ]
+        _clocked(worker)
+
+        # Shown at once, beside the paid breaks still to come; no planned lunch.
+        assert at_work == [
+            ("08:30", "08:45", True),
+            ("12:15", "12:45", False),
+            ("13:30", "13:45", True),
+        ]
+        assert on_the_office_row == [("08:30", True), ("12:15", False), ("13:30", True)]
+        # Clocking out puts on the two paid breaks and no second lunch.
+        assert _breaks(worker) == at_work
+        assert CostLine.objects.filter(staff=worker, cost_set__job=break_job).count() == 3
+
+    def test_a_late_morning_break_stands_in_for_the_morning_one(self, worker: Staff) -> None:
+        attendance.set_clock_times(worker, DAY, time(6, 30), None, worker)
+        attendance.add_break(worker, DAY, time(10, 0), time(10, 15), paid=True, actor=worker)
+
+        _clocked(worker)
+
+        assert _breaks(worker) == [
+            ("10:00", "10:15", True),
+            ("11:30", "12:00", False),
+            ("13:30", "13:45", True),
+        ]
 
     def test_a_break_he_did_not_have_is_never_entered(self, worker: Staff, break_job: Job) -> None:
         """He left at noon: the afternoon break was planned, and is not paid."""
