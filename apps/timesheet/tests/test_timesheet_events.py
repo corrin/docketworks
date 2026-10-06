@@ -220,19 +220,20 @@ class TestOfficePath:
         assert deleted.event_type == "entry_deleted"
         assert deleted.delta_after is None
 
-    def test_a_write_that_carries_no_location_is_recorded_as_not_checked(
-        self, job: Job, worker: Staff
+    def test_a_write_that_carries_no_location_is_untrusted_unless_the_office_made_it(
+        self, job: Job, worker: Staff, office_staff: Staff
     ) -> None:
-        """The grid sends no position, so a worker reaching it is not marked away for that."""
+        """The grid sends no position: a worker reaching it from home must not read as here."""
         company = CompanyDefaults.get_solo()
         company.latitude = Decimal("-36.850000")
         company.longitude = Decimal("174.760000")
         company.save(update_fields=["latitude", "longitude"])
-        line = job_service.create_cost_line(job, "actual", _office_data(worker), worker)
-        job_service.update_cost_line(line, {"quantity": Decimal("3.000")}, worker)
-        job_service.delete_cost_line(line, worker)
+        theirs = job_service.create_cost_line(job, "actual", _office_data(worker), worker)
+        job_service.update_cost_line(theirs, {"quantity": Decimal("3.000")}, worker)
+        office = job_service.create_cost_line(job, "actual", _office_data(worker), office_staff)
 
-        assert [event.trusted for event in _events(line.id)] == [True, True, True]
+        assert [event.trusted for event in _events(theirs.id)] == [False, False]
+        assert [event.trusted for event in _events(office.id)] == [True]
 
     def test_a_material_line_records_nothing(self, job: Job, office_staff: Staff) -> None:
         data: CostLineWriteData = {

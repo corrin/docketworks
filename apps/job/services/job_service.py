@@ -60,8 +60,8 @@ from apps.job.models import (
 from apps.job.models.costing import CostLine, CostSet, lock_costing_jobs
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
 from apps.job.services.time_entry_rates import pay_item_by_id, price_time_entry
+from apps.timesheet.services.location import saved_remotely
 from apps.timesheet.services.timesheet_events import (
-    NOT_CHECKED,
     is_timesheet_entry,
     record_timesheet_event,
     snapshot_if_entry,
@@ -2313,7 +2313,7 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
             event_type="entry_created",
             line=line,
             before=None,
-            trusted=NOT_CHECKED,
+            trusted=not saved_remotely(staff, None),
         )
     return line
 
@@ -2428,7 +2428,7 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
             event_type="entry_moved" if moved_cost_set is not None else "entry_updated",
             line=line,
             before=before,
-            trusted=NOT_CHECKED,
+            trusted=not saved_remotely(staff, None),
         )
 
     return line
@@ -2456,7 +2456,7 @@ def delete_cost_line(line: CostLine, staff: Staff) -> None:
             event_type="entry_deleted",
             line=line,
             before=snapshot_if_entry(line),
-            trusted=NOT_CHECKED,
+            trusted=not saved_remotely(staff, None),
         )
         line.delete()
     logger.info("Deleted cost line %s", line.id)

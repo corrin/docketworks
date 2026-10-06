@@ -335,10 +335,11 @@ class TimesheetEvent(AuditEvent):
     # None on an event of the day itself (a clock tap, times set, the day sent).
     cost_line_id = models.UUIDField(db_index=True, null=True, blank=True)
     # Whether the action was made at the workshop, by the one rule in
-    # services/location.py: office staff always; anyone else when their phone
-    # put them at the company address. Where nothing is checked, it is true:
-    # with no company address, and for writes that carry no location (the
-    # cost-line grid, the leave screen), "trusted" means "not checked".
+    # services/location.py: office staff always; anyone else only when their
+    # phone put them at the company address, so a write that carries no
+    # location (the cost-line grid, the leave screen) is untrusted for anyone
+    # but the office. With no company address nothing is checked and every
+    # event is true: "trusted" then means "not checked".
     trusted = models.BooleanField()
 
     EVENT_LABELS: ClassVar[dict[str, str]] = {
