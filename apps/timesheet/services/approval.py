@@ -158,9 +158,10 @@ def _staff_day(
     *,
     rostered: bool,
 ) -> StaffApprovalData:
-    waiting = [line for line in lines if not line.approved]
-    # Lunch is logged, not hours: in neither figure, though it waits with the rest.
+    # Lunch is logged, not hours: it is in no figure and does not by itself
+    # hold a row waiting. Approving the day approves it with the rest.
     hours = [line for line in lines if not is_unpaid_time(line)]
+    waiting = [line for line in hours if not line.approved]
     entries, break_lines = split_breaks(lines)
     clock = attendance_data(attendance)
     fill = fill_figures(
@@ -188,7 +189,7 @@ def _staff_day(
         "staff_name": person.get_display_full_name(),
         "state": state,
         "entered_hours": float(sum(line.quantity for line in hours)),
-        "waiting_hours": float(sum(line.quantity for line in hours if not line.approved)),
+        "waiting_hours": float(sum(line.quantity for line in waiting)),
         "entered_late": any(entered_late(line) for line in waiting),
         "remote_entry": any(line.remote_entry for line in waiting),
         "clock": clock,
