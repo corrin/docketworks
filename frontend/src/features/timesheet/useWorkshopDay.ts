@@ -43,6 +43,7 @@ const LOCATION_MAX_AGE_MS = 60_000
 let watchedFix: { location: EntryLocationIn; at: number } | null = null
 
 function readFresh(): Promise<EntryLocationIn | null> {
+  if (!('geolocation' in navigator)) return Promise.resolve(null)
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       ({ coords, timestamp }) => {
@@ -56,17 +57,29 @@ function readFresh(): Promise<EntryLocationIn | null> {
   })
 }
 
+/** Whether location is allowed, or null where the phone cannot say (no
+    Permissions API, or one that will not answer for geolocation). */
+function locationPermission(): Promise<PermissionState | null> {
+  if (!('permissions' in navigator)) return Promise.resolve(null)
+  return navigator.permissions.query({ name: 'geolocation' }).then(
+    (status) => status.state,
+    // deliberate-swallow: older iOS Safari and some WebViews refuse the query
+    // for geolocation; the write then reads its position fresh.
+    () => null,
+  )
+}
+
 /**
  * Where the phone says it is, or null when it will not say: location refused,
  * no fix in time, or no position service. The server marks a worker's save
  * that arrives without a location at the company address, so null is an
  * answer, not a failure, and the save goes ahead either way. A watched fix is
- * used only while location is still allowed: one taken before he turned it
- * off must not vouch for a write made after.
+ * used only while location is known to be allowed: one taken before he turned
+ * it off must not vouch for a write made after.
  */
-async function phoneLocation(): Promise<EntryLocationIn | null> {
-  const allowed = await navigator.permissions.query({ name: 'geolocation' })
-  if (allowed.state !== 'granted') {
+export async function phoneLocation(): Promise<EntryLocationIn | null> {
+  const permission = await locationPermission()
+  if (permission !== 'granted') {
     watchedFix = null
     return readFresh()
   }
@@ -83,7 +96,7 @@ async function phoneLocation(): Promise<EntryLocationIn | null> {
  */
 export function useAskForLocation(ask: boolean): void {
   useEffect(() => {
-    if (!ask) return undefined
+    if (!ask || !('geolocation' in navigator)) return undefined
     const watch = navigator.geolocation.watchPosition(
       ({ coords, timestamp }) => {
         watchedFix = {
