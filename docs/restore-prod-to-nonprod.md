@@ -222,7 +222,12 @@ uv run python manage.py reset_public_schema --database "$DB_NAME"
 pg_restore --no-owner --no-privileges --exit-on-error -d "$DB_NAME" \
   restore/scrubbed_dw_msm_prod_<ts>.dump
 uv run python manage.py migrate
+uv run python manage.py create_shop_jobs
 ```
+
+`create_shop_jobs` makes the shop jobs a release needs and the dump predates
+(the Break job, for one), as every deploy does after migrate. It writes
+nothing when they are already there.
 
 **Wipe first, restore second, migrate third — and never `migrate` before the
 restore.** The archive brings its own schema and its own `django_migrations`

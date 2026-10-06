@@ -77,7 +77,12 @@ class Command(BaseCommand):
     help = "Create shop jobs for internal purposes"
 
     def handle(self, *_args: object, **_options: object) -> None:
-        """Upsert each shop job by (name, shop company); refuse on ambiguity."""
+        """Upsert each shop job by (name, shop company); refuse on ambiguity.
+
+        Every deploy runs this after migrate (scripts/server/deploy.sh), so a
+        job already as specified is not saved again: a deploy writes nothing,
+        and no job history, unless a shop job is missing or has drifted.
+        """
         company_defaults = CompanyDefaults.get_solo()
         shop_company = company_defaults.shop_company
 
@@ -97,17 +102,33 @@ class Command(BaseCommand):
             if job is None:
                 job = Job(name=job_details["name"], company=shop_company)
                 created += 1
-            else:
+            elif (job.description, job.status, job.job_is_valid, job.paid) != (
+                job_details["description"],
+                "special",
+                True,
+                False,
+            ):
                 updated += 1
+            else:
+                self._name_break_job(company_defaults, job)
+                continue
             job.description = job_details["description"]
             job.status = "special"
             job.job_is_valid = True
             job.paid = False
             job.save(staff=automation_user)
-            if job.name == BREAK_JOB_NAME:
-                company_defaults.break_job = job
-                company_defaults.save(update_fields=["break_job"])
+            self._name_break_job(company_defaults, job)
 
         self.stdout.write(
             self.style.SUCCESS(f"Shop jobs ready: {created} created, {updated} updated.")
         )
+
+    @staticmethod
+    def _name_break_job(company_defaults: CompanyDefaults, job: Job) -> None:
+        """Point the company at the Break job, writing only when it does not already."""
+        if job.name != BREAK_JOB_NAME:
+            return
+        if company_defaults.break_job_id == job.id:
+            return
+        company_defaults.break_job = job
+        company_defaults.save(update_fields=["break_job"])

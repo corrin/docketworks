@@ -9,7 +9,7 @@ from django.core.management.base import CommandError
 from apps.accounts.models import Staff
 from apps.core.models import CompanyDefaults
 from apps.job.management.commands.create_shop_jobs import SHOP_JOBS
-from apps.job.models import Job
+from apps.job.models import Job, JobEvent
 
 pytestmark = pytest.mark.django_db
 
@@ -70,7 +70,21 @@ def test_rerun_updates_in_place() -> None:
     assert Job.objects.filter(company=shop_company, status="special").count() == 12
     bench.refresh_from_db()
     assert bench.description != "hand-edited"  # refreshed to the canonical text
-    assert "0 created, 12 updated" in output
+    assert "0 created, 1 updated" in output
+
+
+def test_a_rerun_with_nothing_drifted_writes_nothing() -> None:
+    """Every deploy runs it: an unchanged instance gets no saves and no job history."""
+    _run()
+    shop_jobs = Job.objects.filter(company=CompanyDefaults.get_solo().shop_company)
+    stamped = dict(shop_jobs.values_list("id", "updated_at"))
+    events = JobEvent.objects.filter(job__in=shop_jobs).count()
+
+    output = _run()
+
+    assert "0 created, 0 updated" in output
+    assert dict(shop_jobs.values_list("id", "updated_at")) == stamped
+    assert JobEvent.objects.filter(job__in=shop_jobs).count() == events
 
 
 def test_refuses_ambiguous_duplicates() -> None:

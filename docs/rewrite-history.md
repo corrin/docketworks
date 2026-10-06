@@ -2695,10 +2695,11 @@ payroll and costing figures still show breaks as lines on the Break job,
 because one is paid and the other is not.
 
 Findings.
-- The deploy runs `check` and `migrate` and no seed command. The Break job is
-  made by `create_shop_jobs`, which an operator runs once after this deploys;
-  until then closing a day is refused with "Breaks are not set up. Tell the
-  office." The dev database was also missing the Travel shop job.
+- The deploy ran `check` and `migrate` and no seed command, so the Break job
+  would have waited for an operator, and closing a day been refused until
+  then. Every deploy now runs `create_shop_jobs` after migrate, which writes
+  nothing when the shop jobs are as specified; the restore runbook does the
+  same. The dev database was also missing the Travel shop job.
 - Break rows from the earlier design are dropped, not converted: they existed
   on dev and UAT only.
 - Every My time write carries the phone's position, judged by one rule

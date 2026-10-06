@@ -390,6 +390,20 @@ for instance in "${TARGETS[@]}"; do
         continue
     fi
 
+    # Rows the release's code needs that a migration does not make, because
+    # they are domain objects saved through the application (shop jobs and the
+    # Break job every break is booked to). Idempotent: an instance already
+    # holding them is not written to. Without it, closing a day is refused
+    # until someone runs it by hand.
+    log "  Ensuring shop jobs..."
+    if ! "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py create_shop_jobs; then
+        log "  ERROR: create_shop_jobs failed for $instance — services remain stopped"
+        log "  ERROR: the database is migrated; fix the shop jobs and rerun:"
+        log "    $SCRIPT_DIR/dw-run.sh $instance python manage.py create_shop_jobs"
+        FAILED_INSTANCES+=("$instance")
+        continue
+    fi
+
     remove_legacy_scheduler_unit "$instance"
     render_runtime_units "$instance" "$inst_user"
     render_backup_timer "$instance" "$inst_user"
