@@ -355,16 +355,8 @@ def _minutes_inside(first: int, last: int, breaks: list[Window]) -> int:
 _LAST_MINUTE = 24 * 60 - 1
 
 
-def finish_for(start: time, hours: Decimal, breaks: list[Window]) -> time:
-    """Return when work of ``hours`` begun at ``start`` ends, stepping over every break.
-
-    An entry's hours are the truth and its times are the picture (owner,
-    2026-10-06): clocked in at 07:00, six hours on a job ends at 14:00, having
-    stepped over two paid breaks and lunch. Breaks are outside job time, so
-    none of a break is ever inside the hours. The one statement of the rule:
-    the fill sheet, an entry saved without times and the drawer's preview all
-    come here.
-    """
+def finish_in_the_day(start: time, hours: Decimal, breaks: list[Window]) -> time | None:
+    """Return where ``finish_for`` would end, or None when that is past midnight."""
     cursor = _minutes(start)
     remaining = int((hours * 60).to_integral_value(ROUND_HALF_UP))
     for break_start, break_end in _merged(breaks):
@@ -379,8 +371,24 @@ def finish_for(start: time, hours: Decimal, breaks: list[Window]) -> time:
         cursor = break_end
     finish = cursor + remaining
     if finish > _LAST_MINUTE:
-        raise InvalidInputError("These hours run past midnight. Ask the office to enter this day.")
+        return None
     return time(finish // 60, finish % 60)
+
+
+def finish_for(start: time, hours: Decimal, breaks: list[Window]) -> time:
+    """Return when work of ``hours`` begun at ``start`` ends, stepping over every break.
+
+    An entry's hours are the truth and its times are the picture (owner,
+    2026-10-06): clocked in at 07:00, six hours on a job ends at 14:00, having
+    stepped over two paid breaks and lunch. Breaks are outside job time, so
+    none of a break is ever inside the hours. The one statement of the rule:
+    the fill sheet, an entry saved without times and the drawer's preview all
+    come here.
+    """
+    finish = finish_in_the_day(start, hours, breaks)
+    if finish is None:
+        raise InvalidInputError("These hours run past midnight. Ask the office to enter this day.")
+    return finish
 
 
 def hours_for(start: time, finish: time, breaks: list[Window]) -> Decimal:

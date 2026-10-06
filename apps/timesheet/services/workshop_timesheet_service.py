@@ -533,6 +533,30 @@ def pricing_meta(
     return meta
 
 
+class _Placement(TypedDict, total=False):
+    start_time: time
+    end_time: time
+
+
+def _placed(owner: Staff, day: date, hours: Decimal) -> _Placement:
+    """Place hours given without times after his latest entry, stepping over the breaks.
+
+    Hours are all he has to say; the times are the picture that lets the day
+    draw. Hours that would run past midnight from there keep no picture: the
+    entry is saved without times, as it always could be, rather than refused
+    or drawn shorter than the hours it holds.
+    """
+    row = AttendanceDay.objects.filter(staff=owner, date=day).first()
+    entries, break_lines = attendance.split_breaks(day_time_lines(owner, day))
+    start = default_entry_start(day, row, entries, break_lines)
+    finish = attendance.finish_in_the_day(
+        start, hours, attendance.break_windows(day, row, break_lines)
+    )
+    if finish is None:
+        return {}
+    return {"start_time": start, "end_time": finish}
+
+
 def create_entry(
     actor: Staff,
     owner: Staff,
@@ -553,23 +577,14 @@ def create_entry(
     """
     job = Job.objects.select_related("company", "default_xero_pay_item").get(id=data["job_id"])
     wage_rate_multiplier = data.get("wage_rate_multiplier", Decimal("1.0"))
-    if data.get("start_time") is None and data.get("end_time") is None:
-        # Hours are all he has to say. The entry is placed after his latest
-        # one, stepping over the day's breaks, so the day still draws.
-        day = data["accounting_date"]
-        row = AttendanceDay.objects.filter(staff=owner, date=day).first()
-        entries, break_lines = attendance.split_breaks(day_time_lines(owner, day))
-        placed_from = default_entry_start(day, row, entries, break_lines)
-        data = {
-            **data,
-            "start_time": placed_from,
-            "end_time": attendance.finish_for(
-                placed_from, data["hours"], attendance.break_windows(day, row, break_lines)
-            ),
-        }
-    _validate_time_consistency(data.get("start_time"), data.get("end_time"), data["hours"])
 
     with transaction.atomic():
+        # His day is read and placed on under a lock on him, so two entries
+        # saved at once are placed one after the other, not on one slot.
+        Staff.objects.select_for_update().filter(pk=owner.pk).first()
+        if data.get("start_time") is None and data.get("end_time") is None:
+            data = {**data, **_placed(owner, data["accounting_date"], data["hours"])}
+        _validate_time_consistency(data.get("start_time"), data.get("end_time"), data["hours"])
         lock_costing_jobs([job.id])
         cost_set = get_or_create_cost_set(job, "actual")
         meta = pricing_meta(

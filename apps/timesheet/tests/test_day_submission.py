@@ -519,6 +519,22 @@ class TestEntryTimes:
         assert too_many.status_code == 400
         assert "cannot be more than" in too_many.json()["detail"]
 
+    def test_hours_that_would_run_past_midnight_are_saved_without_times(
+        self, worker_client: Client, worker: Staff, job: Job
+    ) -> None:
+        """Hours are the truth: twelve hours from one o'clock still save, with no picture."""
+        _clocked(worker, time(7, 0), time(15, 0))
+        body = {"job_id": str(job.id), "accounting_date": DAY.isoformat()}
+        worker_client.post(DAY_URL, data={**body, "hours": "5"}, content_type="application/json")
+
+        late = worker_client.post(
+            DAY_URL, data={**body, "hours": "12"}, content_type="application/json"
+        )
+
+        assert late.status_code == 201, late.content
+        assert (late.json()["start_time"], late.json()["end_time"]) == (None, None)
+        assert late.json()["hours"] == 12.0
+
     def test_an_entry_saved_without_times_is_placed_after_the_previous_one(
         self, worker_client: Client, worker: Staff, job: Job
     ) -> None:
