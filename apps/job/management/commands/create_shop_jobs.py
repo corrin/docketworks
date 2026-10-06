@@ -1,4 +1,4 @@
-"""Create (or refresh) the twelve internal shop jobs.
+"""Create whichever of the twelve internal shop jobs the shop company lacks.
 
 The E2E timesheet specs and ``finalize_instance_onboarding`` both find these
 jobs by exact name, so the names are a contract — "Annual Leave" in
@@ -77,17 +77,17 @@ class Command(BaseCommand):
     help = "Create shop jobs for internal purposes"
 
     def handle(self, *_args: object, **_options: object) -> None:
-        """Upsert each shop job by (name, shop company); refuse on ambiguity.
+        """Create each shop job the shop company lacks; refuse on ambiguity.
 
-        Every deploy runs this after migrate (scripts/server/deploy.sh), so a
-        job already as specified is not saved again: a deploy writes nothing,
-        and no job history, unless a shop job is missing or has drifted.
+        Every deploy runs this after migrate (scripts/server/deploy.sh), so it
+        never rewrites a job that exists: one the office archived, renamed the
+        description of or otherwise changed is the office's. A deploy to an
+        instance that has them all writes nothing.
         """
         company_defaults = CompanyDefaults.get_solo()
         shop_company = company_defaults.shop_company
 
         created = 0
-        updated = 0
         automation_user = Staff.get_automation_user()
         for job_details in SHOP_JOBS:
             matches = Job.objects.filter(
@@ -100,27 +100,22 @@ class Command(BaseCommand):
                 )
             job = matches.first()
             if job is None:
-                job = Job(name=job_details["name"], company=shop_company)
+                job = Job(
+                    name=job_details["name"],
+                    company=shop_company,
+                    description=job_details["description"],
+                    status="special",
+                    job_is_valid=True,
+                    paid=False,
+                )
+                job.save(staff=automation_user)
                 created += 1
-            elif (job.description, job.status, job.job_is_valid, job.paid) != (
-                job_details["description"],
-                "special",
-                True,
-                False,
-            ):
-                updated += 1
-            else:
-                self._name_break_job(company_defaults, job)
-                continue
-            job.description = job_details["description"]
-            job.status = "special"
-            job.job_is_valid = True
-            job.paid = False
-            job.save(staff=automation_user)
             self._name_break_job(company_defaults, job)
 
         self.stdout.write(
-            self.style.SUCCESS(f"Shop jobs ready: {created} created, {updated} updated.")
+            self.style.SUCCESS(
+                f"Shop jobs ready: {created} created, {len(SHOP_JOBS) - created} already there."
+            )
         )
 
     @staticmethod
