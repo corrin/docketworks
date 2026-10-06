@@ -65,6 +65,13 @@ SNAPSHOT_LABELS: dict[str, str] = {
 EDIT_EVENT_TYPES = frozenset({"entry_updated", "entry_moved"})
 
 
+#: ``trusted`` for a write that carries no location to judge: the office's
+#: cost-line grid and the leave screen are not My time and send none. Recorded
+#: as not checked, which is what trusted means with no company address, so the
+#: office's own corrections never read as made away from the workshop.
+NOT_CHECKED = True
+
+
 def is_timesheet_entry(line: CostLine) -> bool:
     """Whether a cost line is a timesheet entry the trail records.
 
