@@ -29,13 +29,13 @@ from apps.timesheet.services.attendance import (
     fill_figures,
     split_breaks,
     standard_day,
-    standard_entry_start,
 )
 from apps.timesheet.services.location import saved_remotely
 from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
 from apps.timesheet.services.workshop_timesheet_service import (
     StandardDayData,
     WorkshopEntryData,
+    default_entry_start,
     entered_late,
     entry_data,
 )
@@ -74,6 +74,10 @@ class StaffApprovalData(TypedDict):
     clock: AttendanceData
     breaks: list[BreakData]
     entries: list[WorkshopEntryData]
+    #: Where an entry the office adds for this person starts: after their
+    #: latest, else their clock-in, else the standard start; the rule their
+    #: own day read uses.
+    default_entry_start: time
 
 
 class DaySummaryData(TypedDict):
@@ -95,7 +99,6 @@ class ApprovalsDayData(TypedDict):
     date: date
     #: The company's standard hours for the date; None on a weekend.
     standard: StandardDayData | None
-    default_entry_start: time
     summary: DaySummaryData
     staff: list[StaffApprovalData]
 
@@ -148,7 +151,12 @@ def approve_day(worker: Staff, day: date, actor: Staff) -> int:
 
 
 def _staff_day(
-    person: Staff, lines: list[CostLine], attendance: AttendanceDay | None, *, rostered: bool
+    person: Staff,
+    day: date,
+    lines: list[CostLine],
+    attendance: AttendanceDay | None,
+    *,
+    rostered: bool,
 ) -> StaffApprovalData:
     waiting = [line for line in lines if not line.approved]
     # Lunch is logged, not hours: in neither figure, though it waits with the rest.
@@ -190,6 +198,7 @@ def _staff_day(
         # His paid breaks travel as breaks, with lunch: nobody reading a day
         # is shown that the two kinds are stored differently.
         "entries": [entry_data(line) for line in entries],
+        "default_entry_start": default_entry_start(day, attendance, entries, break_lines),
     }
 
 
@@ -210,6 +219,7 @@ def day_approvals(day: date) -> ApprovalsDayData:
     rows = [
         _staff_day(
             person,
+            day,
             by_staff.get(str(person.id), []),
             clocked.get(person.id),
             # The roster rule the daily and weekly screens use.
@@ -223,7 +233,6 @@ def day_approvals(day: date) -> ApprovalsDayData:
     return {
         "date": day,
         "standard": None if standard is None else {"start": standard.start, "end": standard.end},
-        "default_entry_start": standard_entry_start(day),
         "summary": day_summary(rows),
         "staff": rows,
     }

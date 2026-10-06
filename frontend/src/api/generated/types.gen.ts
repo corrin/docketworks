@@ -340,10 +340,6 @@ export type ApprovalsDayOut = {
      */
     date: string;
     /**
-     * Default Entry Start
-     */
-    default_entry_start: string;
-    /**
      * Staff
      */
     staff: Array<StaffApprovalOut>;
@@ -11073,6 +11069,10 @@ export type StaffApprovalOut = {
      */
     breaks: Array<BreakOut>;
     clock: AttendanceOut;
+    /**
+     * Default Entry Start
+     */
+    default_entry_start: string;
     /**
      * Entered Hours
      */

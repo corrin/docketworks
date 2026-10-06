@@ -478,6 +478,7 @@ class StaffApprovalOut(Schema):
     clock: AttendanceOut
     breaks: list[BreakOut]
     entries: list[WorkshopTimesheetEntryOut]
+    default_entry_start: time
 
 
 class DaySummaryOut(Schema):
@@ -493,7 +494,6 @@ class ApprovalsDayOut(Schema):
 
     date: date
     standard: StandardDayOut | None
-    default_entry_start: time
     summary: DaySummaryOut
     staff: list[StaffApprovalOut]
 

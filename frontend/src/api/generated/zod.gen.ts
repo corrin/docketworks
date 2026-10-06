@@ -6338,6 +6338,7 @@ export const zWorkshopTimesheetEntryOut = z.object({
 export const zStaffApprovalOut = z.object({
     breaks: z.array(zBreakOut),
     clock: zAttendanceOut,
+    default_entry_start: z.iso.time(),
     entered_hours: z.number(),
     entered_late: z.boolean(),
     entries: z.array(zWorkshopTimesheetEntryOut),
@@ -6360,7 +6361,6 @@ export const zStaffApprovalOut = z.object({
  */
 export const zApprovalsDayOut = z.object({
     date: z.iso.date(),
-    default_entry_start: z.iso.time(),
     staff: z.array(zStaffApprovalOut),
     standard: zStandardDayOut.nullable(),
     summary: zDaySummaryOut

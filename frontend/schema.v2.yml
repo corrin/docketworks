@@ -368,10 +368,6 @@ components:
           format: date
           title: Date
           type: string
-        default_entry_start:
-          format: time
-          title: Default Entry Start
-          type: string
         staff:
           items:
             $ref: '#/components/schemas/StaffApprovalOut'
@@ -386,7 +382,6 @@ components:
       required:
       - date
       - standard
-      - default_entry_start
       - summary
       - staff
       title: ApprovalsDayOut
@@ -12542,6 +12537,10 @@ components:
           type: array
         clock:
           $ref: '#/components/schemas/AttendanceOut'
+        default_entry_start:
+          format: time
+          title: Default Entry Start
+          type: string
         entered_hours:
           title: Entered Hours
           type: number
@@ -12585,6 +12584,7 @@ components:
       - clock
       - breaks
       - entries
+      - default_entry_start
       title: StaffApprovalOut
       type: object
     StaffCreateIn:

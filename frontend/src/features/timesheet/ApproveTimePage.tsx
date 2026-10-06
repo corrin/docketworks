@@ -348,7 +348,7 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
         locked={false}
         date={date}
         dayEntries={correcting?.entries ?? []}
-        dayStart={approvalsQuery.data?.default_entry_start.slice(0, 5) ?? ''}
+        dayStart={correcting?.default_entry_start.slice(0, 5) ?? ''}
         dayEnd={
           correcting === undefined || approvalsQuery.data === undefined
             ? null
