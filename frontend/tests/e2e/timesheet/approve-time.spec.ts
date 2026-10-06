@@ -122,6 +122,9 @@ test("office staff correct a person's clock times, and the screen holds at three
   await test.step('the office sets the times a person did not clock', async () => {
     await setClock('06:30', '15:00')
     await expect(clock).toHaveText('Clocked out. 06:30 to 15:00, here 8h 30m')
+    // Times the office itself set raise no warning: nobody is chased over
+    // the office's own entry.
+    await expect(autoId(page, `ApproveTimePage-row-${staffId}`)).not.toContainText('Did not clock')
   })
 
   await test.step("the day's breaks are listed, and one is corrected", async () => {

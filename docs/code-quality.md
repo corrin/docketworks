@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 123,347 (v1 172,577, -29%) |
-| tests | 87,873 (v1 50,869, +73%) |
-| generated | 53,494 (v1 20,359, +163%) |
+| code | 123,588 (v1 172,577, -28%) |
+| tests | 87,981 (v1 50,869, +73%) |
+| generated | 53,669 (v1 20,359, +164%) |
 
 ## Suppressions
 
@@ -31,8 +31,8 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 779 |
-| noqa: DJ001 | 196 |
+| TOTAL suppressions | 780 |
+| noqa: DJ001 | 197 |
 | noqa: PLC0415 | 152 |
 | noqa: E402 | 106 |
 | noqa: PLR0913 | 57 |
@@ -115,8 +115,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 252 |
-| non-test functions | 3051 |
+| functions returning `X \| None` | 254 |
+| non-test functions | 3057 |
 
 ## Broad type annotations
 
@@ -133,10 +133,10 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 327 |
-| response properties | 2103 |
+| response schemas | 328 |
+| response properties | 2111 |
 | optional (pinned at zero) | 0 |
-| nullable | 462 |
+| nullable | 465 |
 
 ## Automation ids (frontend)
 
@@ -144,7 +144,7 @@ Interactive elements under `frontend/src` with no `data-automation-id`, the sele
 
 | metric | count |
 |---|---:|
-| without data-automation-id | 130 of 428 (30%) |
+| without data-automation-id | 130 of 429 (30%) |
 | without id: <a> | 4 |
 | without id: <button> | 33 |
 | without id: <input> | 27 |

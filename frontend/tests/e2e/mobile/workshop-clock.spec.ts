@@ -9,6 +9,7 @@
  * database, so the live taps run on one of them only.
  */
 import type { Page, TestInfo } from '@playwright/test'
+import { z } from 'zod'
 
 import { shiftDate } from '../../../src/lib/dates'
 import { localIsoDate } from '../../../src/lib/format'
@@ -125,6 +126,39 @@ test.describe('workshop clocking on a phone', () => {
       await expect(page.getByText('ask the office to put it right')).toBeVisible()
       await expect(autoId(page, 'DayCard-state')).toHaveText('Not clocked in')
     })
+  })
+
+  test('a day nobody clocked falls back to the standard hours, and says so', async ({
+    authenticatedPage: page,
+  }, testInfo) => {
+    // Its own past weekday, further back than the days the tests above clock.
+    const day = shiftDate(pastWeekday(testInfo.project.name), -28)
+    const standard = z
+      .object({ standard: z.object({ start: z.string(), end: z.string() }) })
+      .parse(
+        await (await page.request.get(`/api/job/workshop/timesheets/?date=${day}`)).json(),
+      ).standard
+    const hours = `${standard.start.slice(0, 5)} to ${standard.end.slice(0, 5)}`
+
+    await openDay(page, day)
+    await expect(autoId(page, 'DayCard-state')).toHaveText('Not clocked in')
+    await expect(autoId(page, 'DayCard-fill')).toHaveText(`Standard hours ${hours}`)
+
+    // He cannot go back and clock in, so one tap takes the standard day and
+    // goes straight to filling it.
+    await autoId(page, 'DayCard-fill-and-send').tap()
+    await expect(autoId(page, 'FillDaySheet-sum')).toContainText('to fill, 0h entered')
+    await expect(autoId(page, 'DayCard-state')).toContainText(`Clocked out. ${hours}`)
+    // He is told what the office is told.
+    await expect(autoId(page, 'DayCard-cautions')).toHaveText(
+      'Did not clock in · Did not clock out',
+    )
+
+    // Sent, so this day is not left as the earliest unsent one for the tests
+    // of the open-day banner on the other phone project.
+    await autoId(page, 'FillDaySheet-send').tap()
+    await expect(page.getByText('Day sent to the office.')).toBeVisible()
+    await expect(autoId(page, 'DayCard-state')).toContainText('Sent, waiting for approval')
   })
 
   test('today is clocked in and out with a tap', async ({ authenticatedPage: page }, testInfo) => {

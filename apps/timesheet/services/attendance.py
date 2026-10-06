@@ -20,7 +20,7 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.core.errors import AccessDeniedError, ConflictError, InvalidInputError
 from apps.core.models import CompanyDefaults
-from apps.timesheet.models import AttendanceBreak, AttendanceDay
+from apps.timesheet.models import AttendanceBreak, AttendanceDay, ClockHow
 
 #: Where a person's day stands, from their attendance row alone.
 DayState = Literal["not_clocked_in", "at_work", "clocked_out", "sent"]
@@ -37,6 +37,10 @@ class AttendanceData(TypedDict):
     here_hours: float | None
     #: The day was sent on a later day than the day it is for.
     sent_late: bool
+    #: What the office is warned of about how the day was clocked, in words:
+    #: "Did not clock in", "Did not clock out". Empty for times tapped at the
+    #: workshop and for times the office itself set.
+    cautions: list[str]
 
 
 class ClockingRefusedError(ConflictError):
@@ -169,9 +173,14 @@ class CalendarBounds(TypedDict):
 _CALENDAR_MARGIN_MINUTES = 60
 
 
+#: What the calendar opens on when the day has no standard hours (a weekend).
+#: A calendar matter only: it is nobody's working day.
+_CALENDAR_WEEKEND_SPAN = Window(time(7, 0), time(15, 0))
+
+
 def calendar_bounds(
     row: AttendanceDay | None,
-    working_day: tuple[time, time],
+    standard: Window | None,
     entry_times: list[tuple[time, time]],
 ) -> CalendarBounds:
     """Bound the calendar to the day, with an hour either side.
@@ -181,7 +190,7 @@ def calendar_bounds(
     view whatever he clocked: a short or odd clocking must not hide the hours
     he would tap to book.
     """
-    start, finish = working_day
+    start, finish = standard if standard is not None else _CALENDAR_WEEKEND_SPAN
     if row is not None:
         start = min(start, row.clock_in)
         finish = max(finish, row.clock_in if row.clock_out is None else row.clock_out)
@@ -190,6 +199,26 @@ def calendar_bounds(
     first = max(first - _CALENDAR_MARGIN_MINUTES, 0) // 60 * 60
     last = min(last + _CALENDAR_MARGIN_MINUTES, 24 * 60 - 1)
     return {"start": time(first // 60, first % 60), "end": time(last // 60, last % 60)}
+
+
+#: The words for a start or finish the office should know about. A time
+#: tapped at the workshop needs none, and neither does one the office set.
+_CLOCK_IN_CAUTIONS: dict[str, str] = {
+    ClockHow.NOT_CLOCKED: "Did not clock in",
+}
+_CLOCK_OUT_CAUTIONS: dict[str, str] = {
+    ClockHow.NOT_CLOCKED: "Did not clock out",
+}
+
+
+def clock_cautions(row: AttendanceDay) -> list[str]:
+    """Say, in the office's words, what was not clocked on the day."""
+    cautions = []
+    if row.clock_in_how in _CLOCK_IN_CAUTIONS:
+        cautions.append(_CLOCK_IN_CAUTIONS[row.clock_in_how])
+    if row.clock_out_how is not None and row.clock_out_how in _CLOCK_OUT_CAUTIONS:
+        cautions.append(_CLOCK_OUT_CAUTIONS[row.clock_out_how])
+    return cautions
 
 
 def attendance_data(row: AttendanceDay | None) -> AttendanceData:
@@ -201,6 +230,7 @@ def attendance_data(row: AttendanceDay | None) -> AttendanceData:
             "clock_out": None,
             "here_hours": None,
             "sent_late": False,
+            "cautions": [],
         }
     return {
         "state": day_state(row),
@@ -209,7 +239,53 @@ def attendance_data(row: AttendanceDay | None) -> AttendanceData:
         "here_hours": _here_hours(row),
         "sent_late": row.submitted_at is not None
         and timezone.localdate(row.submitted_at) > row.date,
+        "cautions": clock_cautions(row),
     }
+
+
+def standard_day(day: date) -> Window | None:
+    """Return the company's standard start and finish for the date; None on a weekend.
+
+    The one statement of the working day. It is what a day falls back to when
+    someone forgot to clock: nobody can clock in after the fact, so the
+    standard hours stand in, and the office is told they were not clocked.
+    """
+    company = CompanyDefaults.get_solo()
+    by_weekday = (
+        (company.mon_start, company.mon_end),
+        (company.tue_start, company.tue_end),
+        (company.wed_start, company.wed_end),
+        (company.thu_start, company.thu_end),
+        (company.fri_start, company.fri_end),
+    )
+    weekday = day.weekday()
+    if weekday >= len(by_weekday):
+        return None
+    return Window(*by_weekday[weekday])
+
+
+def default_entry_start(day: date) -> time:
+    """Return where a new entry opens when the day has nothing to follow on from.
+
+    The standard start, or on a weekend the hour the calendar opens on.
+    """
+    standard = standard_day(day)
+    return _CALENDAR_WEEKEND_SPAN.start if standard is None else standard.start
+
+
+def missed_clock_out_finish(row: AttendanceDay | None, today: date) -> time | None:
+    """Return the standard finish to offer for an earlier day left clocked in, if it fits.
+
+    None when the day is not an open earlier day, has no standard hours, or
+    the standard finish is not after when he clocked in (he started at 16:00):
+    then the finish is his to give.
+    """
+    if row is None or row.clock_out is not None or row.date >= today:
+        return None
+    standard = standard_day(row.date)
+    if standard is None or standard.end <= row.clock_in:
+        return None
+    return standard.end
 
 
 def day_attendance(staff: Staff, day: date) -> AttendanceData:
@@ -245,7 +321,9 @@ def pending_day(staff: Staff, today: date) -> PendingDay | None:
 def clock_in(worker: Staff, now: datetime) -> AttendanceData:
     """Start the worker's day at ``now``, to the minute."""
     row, created = AttendanceDay.objects.get_or_create(
-        staff=worker, date=now.date(), defaults={"clock_in": _to_the_minute(now)}
+        staff=worker,
+        date=now.date(),
+        defaults={"clock_in": _to_the_minute(now), "clock_in_how": ClockHow.CLOCKED},
     )
     if not created:
         if row.clock_out is None:
@@ -270,7 +348,8 @@ def clock_out(worker: Staff, now: datetime) -> AttendanceData:
         raise ClockingRefusedError("You clocked in a moment ago. Wait a minute to clock out.")
     _require_finish_after_start(row.clock_in, finish)
     row.clock_out = finish
-    row.save(update_fields=["clock_out", "updated_at"])
+    row.clock_out_how = ClockHow.CLOCKED
+    row.save(update_fields=["clock_out", "clock_out_how", "updated_at"])
     generate_default_breaks(row)
     return attendance_data(row)
 
@@ -284,6 +363,11 @@ def _require_finish_after_start(start: time, finish: time) -> None:
         )
 
 
+def _by_hand(owner: Staff, actor: Staff) -> ClockHow:
+    """How a time set by hand is recorded: the office's own entry is told apart."""
+    return ClockHow.NOT_CLOCKED if actor.id == owner.id else ClockHow.SET_BY_OFFICE
+
+
 @transaction.atomic
 def set_clock_times(
     owner: Staff, day: date, start: time, finish: time | None, actor: Staff
@@ -293,18 +377,62 @@ def set_clock_times(
     A worker sets their own, for any day; office staff set anyone's. No finish
     reopens the day (the person is at work again). Changing the times of a day
     that was sent un-sends it: what was sent is no longer what is recorded.
+
+    A time that changes stops being a tap: it is recorded as not clocked, or
+    as set by the office. A time left as it was keeps how it got there, so
+    correcting the finish does not disown a start he did tap.
     """
     if actor.id != owner.id and not actor.is_office_staff:
         raise AccessDeniedError("Only office staff change another person's clock times.")
     if finish is not None:
         _require_finish_after_start(start, finish)
+    start = start.replace(second=0, microsecond=0)
+    finish = None if finish is None else finish.replace(second=0, microsecond=0)
+    by_hand = _by_hand(owner, actor)
     row = AttendanceDay.objects.select_for_update().filter(staff=owner, date=day).first()
     if row is None:
-        row = AttendanceDay(staff=owner, date=day)
-    row.clock_in = start.replace(second=0, microsecond=0)
-    row.clock_out = None if finish is None else finish.replace(second=0, microsecond=0)
+        row = AttendanceDay(staff=owner, date=day, clock_in_how=by_hand)
+    elif row.clock_in != start:
+        row.clock_in_how = by_hand
+    if finish is None:
+        row.clock_out_how = None
+    elif row.clock_out != finish:
+        row.clock_out_how = by_hand
+    row.clock_in = start
+    row.clock_out = finish
     row.submitted_at = None
     row.save()
+    generate_default_breaks(row)
+    return attendance_data(row)
+
+
+@transaction.atomic
+def use_standard_hours(owner: Staff, day: date, actor: Staff) -> AttendanceData:
+    """Record the company's standard hours as a day nobody clocked.
+
+    He forgot to clock and cannot go back and do it, so the standard day
+    stands in and he fills it. The times are recorded as not clocked (or as
+    set by the office), which is how the office is told. The usual breaks are
+    put on the day as for any day with both times.
+    """
+    if actor.id != owner.id and not actor.is_office_staff:
+        raise AccessDeniedError("Only office staff set another person's hours.")
+    standard = standard_day(day)
+    if standard is None:
+        raise InvalidInputError("There are no standard hours on a weekend. Set the times.")
+    by_hand = _by_hand(owner, actor)
+    row, created = AttendanceDay.objects.get_or_create(
+        staff=owner,
+        date=day,
+        defaults={
+            "clock_in": standard.start,
+            "clock_in_how": by_hand,
+            "clock_out": standard.end,
+            "clock_out_how": by_hand,
+        },
+    )
+    if not created:
+        raise ConflictError("This day already has clock times. Change them instead.")
     generate_default_breaks(row)
     return attendance_data(row)
 

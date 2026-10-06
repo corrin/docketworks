@@ -9,7 +9,7 @@ The Approve time screen is for office staff who are not shown pay, so nothing
 this module returns carries a rate, a cost or a revenue figure.
 """
 
-from datetime import date
+from datetime import date, time
 from typing import Literal, TypedDict
 
 from apps.accounts.models import Staff
@@ -24,9 +24,12 @@ from apps.timesheet.services.attendance import (
     attendance_data,
     break_data,
     day_breaks,
+    default_entry_start,
+    standard_day,
 )
 from apps.timesheet.services.timesheet_events import record_timesheet_event, snapshot_if_entry
 from apps.timesheet.services.workshop_timesheet_service import (
+    StandardDayData,
     WorkshopEntryData,
     entered_late,
     entry_data,
@@ -85,6 +88,9 @@ class ApprovalsDayData(TypedDict):
     """Everyone's day, for the Approve time screen."""
 
     date: date
+    #: The company's standard hours for the date; None on a weekend.
+    standard: StandardDayData | None
+    default_entry_start: time
     summary: DaySummaryData
     staff: list[StaffApprovalData]
 
@@ -188,7 +194,14 @@ def day_approvals(day: date) -> ApprovalsDayData:
         for person in get_displayable_staff(target_date=day)
     ]
     rows.sort(key=lambda row: (_STATE_ORDER[row["state"]], row["staff_name"]))
-    return {"date": day, "summary": day_summary(rows), "staff": rows}
+    standard = standard_day(day)
+    return {
+        "date": day,
+        "standard": None if standard is None else {"start": standard.start, "end": standard.end},
+        "default_entry_start": default_entry_start(day),
+        "summary": day_summary(rows),
+        "staff": rows,
+    }
 
 
 def day_summary(rows: list[StaffApprovalData]) -> DaySummaryData:

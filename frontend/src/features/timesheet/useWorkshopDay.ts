@@ -13,6 +13,7 @@ import {
   timesheetsMyDayBreaksDeleteMutation,
   timesheetsMyDayBreaksUpdateMutation,
   timesheetsMyDayClockMutation,
+  timesheetsMyDayStandardHoursMutation,
   timesheetsMyDaySubmitMutation,
   timesheetsMyDayTimesMutation,
 } from '@/api'
@@ -137,6 +138,7 @@ export function useClocking(ownerId?: string) {
   const queryClient = useQueryClient()
   const clockMutation = useMutation(timesheetsMyDayClockMutation())
   const timesMutation = useMutation(timesheetsMyDayTimesMutation())
+  const standardMutation = useMutation(timesheetsMyDayStandardHoursMutation())
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: jobWorkshopTimesheetsRetrieveQueryKey() })
@@ -169,7 +171,26 @@ export function useClocking(ownerId?: string) {
     return true
   }
 
-  return { clock, setTimes, clocking: clockMutation.isPending || timesMutation.isPending }
+  /** He forgot to clock: record the company's standard hours as the day's times. */
+  const recordStandardHours = async (date: string): Promise<boolean> => {
+    try {
+      await standardMutation.mutateAsync({
+        body: { date, ...(ownerId === undefined ? {} : { staff_id: ownerId }) },
+      })
+    } catch (error) {
+      report(error, 'The standard hours could not be recorded.')
+      return false
+    }
+    refresh()
+    return true
+  }
+
+  return {
+    clock,
+    setTimes,
+    recordStandardHours,
+    clocking: clockMutation.isPending || timesMutation.isPending || standardMutation.isPending,
+  }
 }
 
 /**

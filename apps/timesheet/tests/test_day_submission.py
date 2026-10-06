@@ -426,7 +426,7 @@ class TestCalendarBounds:
         _clocked(worker, time(6, 30), time(17, 10))
         row = AttendanceDay.objects.get(staff=worker, date=DAY)
 
-        bounds = attendance.calendar_bounds(row, (time(7, 0), time(15, 0)), [])
+        bounds = attendance.calendar_bounds(row, Window(time(7, 0), time(15, 0)), [])
 
         assert bounds == {"start": time(5, 0), "end": time(18, 10)}
 
@@ -435,13 +435,13 @@ class TestCalendarBounds:
         _clocked(worker, time(7, 30), time(8, 0))
         row = AttendanceDay.objects.get(staff=worker, date=DAY)
 
-        bounds = attendance.calendar_bounds(row, (time(7, 0), time(15, 0)), [])
+        bounds = attendance.calendar_bounds(row, Window(time(7, 0), time(15, 0)), [])
 
         assert bounds == {"start": time(6, 0), "end": time(16, 0)}
 
     def test_it_widens_for_an_entry_outside_the_day(self) -> None:
         bounds = attendance.calendar_bounds(
-            None, (time(7, 0), time(15, 0)), [(time(17, 0), time(18, 30))]
+            None, Window(time(7, 0), time(15, 0)), [(time(17, 0), time(18, 30))]
         )
 
         assert bounds == {"start": time(6, 0), "end": time(19, 30)}

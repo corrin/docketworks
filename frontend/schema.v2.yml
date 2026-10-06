@@ -368,15 +368,25 @@ components:
           format: date
           title: Date
           type: string
+        default_entry_start:
+          format: time
+          title: Default Entry Start
+          type: string
         staff:
           items:
             $ref: '#/components/schemas/StaffApprovalOut'
           title: Staff
           type: array
+        standard:
+          anyOf:
+          - $ref: '#/components/schemas/StandardDayOut'
+          - type: 'null'
         summary:
           $ref: '#/components/schemas/DaySummaryOut'
       required:
       - date
+      - standard
+      - default_entry_start
       - summary
       - staff
       title: ApprovalsDayOut
@@ -427,6 +437,11 @@ components:
     AttendanceOut:
       description: A person's day as they clocked it. ``here_hours`` is worked out by the server.
       properties:
+        cautions:
+          items:
+            type: string
+          title: Cautions
+          type: array
         clock_in:
           anyOf:
           - format: time
@@ -461,6 +476,7 @@ components:
       - clock_out
       - here_hours
       - sent_late
+      - cautions
       title: AttendanceOut
       type: object
     AuthErrorOut:
@@ -13220,6 +13236,39 @@ components:
       - matches
       title: StaffWeekPostingOut
       type: object
+    StandardDayOut:
+      description: The company's standard start and finish for a weekday.
+      properties:
+        end:
+          format: time
+          title: End
+          type: string
+        start:
+          format: time
+          title: Start
+          type: string
+      required:
+      - start
+      - end
+      title: StandardDayOut
+      type: object
+    StandardHoursRequest:
+      description: Record the standard hours on a day nobody clocked. ``staff_id`` is for the office.
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        staff_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff Id
+      required:
+      - date
+      title: StandardHoursRequest
+      type: object
     StockConsumeRequest:
       description: Wire contract for StockConsumeRequest.
       properties:
@@ -15857,6 +15906,10 @@ components:
           type: string
         day:
           $ref: '#/components/schemas/AttendanceOut'
+        default_entry_start:
+          format: time
+          title: Default Entry Start
+          type: string
         entries:
           items:
             $ref: '#/components/schemas/WorkshopTimesheetEntryOut'
@@ -15866,9 +15919,19 @@ components:
           anyOf:
           - $ref: '#/components/schemas/FillOut'
           - type: 'null'
+        missed_clock_out_finish:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          title: Missed Clock Out Finish
         pending:
           anyOf:
           - $ref: '#/components/schemas/PendingDayOut'
+          - type: 'null'
+        standard:
+          anyOf:
+          - $ref: '#/components/schemas/StandardDayOut'
           - type: 'null'
         summary:
           $ref: '#/components/schemas/WorkshopTimesheetSummaryOut'
@@ -15882,6 +15945,9 @@ components:
       - day
       - breaks
       - fill
+      - standard
+      - missed_clock_out_finish
+      - default_entry_start
       - calendar
       - pending
       title: WorkshopTimesheetListResponse
@@ -23815,6 +23881,29 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Clock the caller in or out, now
+      tags:
+      - timesheets
+  /api/timesheets/my-day/standard-hours/:
+    post:
+      description: Use the standard hours for the caller's unclocked day, or for office staff anyone's.
+      operationId: timesheets_my_day_standard_hours
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StandardHoursRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceOut'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Record the company's standard hours on a day nobody clocked
       tags:
       - timesheets
   /api/timesheets/my-day/submit/:

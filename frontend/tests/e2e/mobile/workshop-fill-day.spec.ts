@@ -74,7 +74,8 @@ test('a three-job day is filled from buttons and sent, around the breaks', async
   await test.step('setting the day puts the standard breaks on it', async () => {
     await expect(autoId(page, 'DayCard')).toBeVisible()
     await page.goto(`/timesheets/my-time?date=${day}`)
-    await expect(fill).toHaveText('Clock times not set.')
+    // Nobody has clocked this day: the card offers the company's standard hours.
+    await expect(fill).toHaveText(/^Standard hours \d{2}:\d{2} to \d{2}:\d{2}$/)
     await autoId(page, 'DayCard-change-times').tap()
     await autoId(page, 'DayCard-start').fill('06:30')
     await autoId(page, 'DayCard-finish').fill('15:00')

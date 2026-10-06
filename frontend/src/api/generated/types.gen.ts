@@ -340,9 +340,14 @@ export type ApprovalsDayOut = {
      */
     date: string;
     /**
+     * Default Entry Start
+     */
+    default_entry_start: string;
+    /**
      * Staff
      */
     staff: Array<StaffApprovalOut>;
+    standard: StandardDayOut | null;
     summary: DaySummaryOut;
 };
 
@@ -396,6 +401,10 @@ export type AssignJobResponse = {
  * A person's day as they clocked it. ``here_hours`` is worked out by the server.
  */
 export type AttendanceOut = {
+    /**
+     * Cautions
+     */
+    cautions: Array<string>;
     /**
      * Clock In
      */
@@ -11725,6 +11734,38 @@ export type StaffWeekPostingOut = {
 };
 
 /**
+ * StandardDayOut
+ *
+ * The company's standard start and finish for a weekday.
+ */
+export type StandardDayOut = {
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Start
+     */
+    start: string;
+};
+
+/**
+ * StandardHoursRequest
+ *
+ * Record the standard hours on a day nobody clocked. ``staff_id`` is for the office.
+ */
+export type StandardHoursRequest = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Staff Id
+     */
+    staff_id?: string | null;
+};
+
+/**
  * StockConsumeRequest
  *
  * Wire contract for StockConsumeRequest.
@@ -13997,11 +14038,20 @@ export type WorkshopTimesheetListResponse = {
     date: string;
     day: AttendanceOut;
     /**
+     * Default Entry Start
+     */
+    default_entry_start: string;
+    /**
      * Entries
      */
     entries: Array<WorkshopTimesheetEntryOut>;
     fill: FillOut | null;
+    /**
+     * Missed Clock Out Finish
+     */
+    missed_clock_out_finish: string | null;
     pending: PendingDayOut | null;
+    standard: StandardDayOut | null;
     summary: WorkshopTimesheetSummaryOut;
     week: WorkshopTimesheetWeekOut;
 };
@@ -20219,6 +20269,22 @@ export type TimesheetsMyDayClockResponses = {
 };
 
 export type TimesheetsMyDayClockResponse = TimesheetsMyDayClockResponses[keyof TimesheetsMyDayClockResponses];
+
+export type TimesheetsMyDayStandardHoursData = {
+    body: StandardHoursRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/my-day/standard-hours/';
+};
+
+export type TimesheetsMyDayStandardHoursResponses = {
+    /**
+     * OK
+     */
+    200: AttendanceOut;
+};
+
+export type TimesheetsMyDayStandardHoursResponse = TimesheetsMyDayStandardHoursResponses[keyof TimesheetsMyDayStandardHoursResponses];
 
 export type TimesheetsMyDaySubmitData = {
     body: SubmitDayRequest;

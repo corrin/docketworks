@@ -61,6 +61,7 @@ from apps.timesheet.schemas import (
     PostWeekToXeroStartResponse,
     StaffDailyDataOut,
     StaffListResponse,
+    StandardHoursRequest,
     SubmitDayRequest,
     TimesheetEntriesOut,
     TimesheetEventOut,
@@ -548,6 +549,23 @@ def timesheets_my_day_clock(
     if payload.action == "in":
         return attendance.clock_in(worker, now)
     return attendance.clock_out(worker, now)
+
+
+@router.post(
+    "/timesheets/my-day/standard-hours/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_standard_hours",
+    response=AttendanceOut,
+    summary="Record the company's standard hours on a day nobody clocked",
+    tags=["timesheets"],
+)
+def timesheets_my_day_standard_hours(
+    request: HttpRequest, payload: StandardHoursRequest
+) -> attendance.AttendanceData:
+    """Use the standard hours for the caller's unclocked day, or for office staff anyone's."""
+    actor = authenticated_staff(request)
+    owner = actor if payload.staff_id is None else get_object_or_404(Staff, id=payload.staff_id)
+    return attendance.use_standard_hours(owner, payload.date, actor)
 
 
 @router.put(

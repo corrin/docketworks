@@ -181,6 +181,7 @@ export const zAssignJobResponse = z.object({
  * A person's day as they clocked it. ``here_hours`` is worked out by the server.
  */
 export const zAttendanceOut = z.object({
+    cautions: z.array(z.string()),
     clock_in: z.iso.time().nullable(),
     clock_out: z.iso.time().nullable(),
     here_hours: z.number().nullable(),
@@ -5290,6 +5291,26 @@ export const zStaffWeekPostingOut = z.object({
 });
 
 /**
+ * StandardDayOut
+ *
+ * The company's standard start and finish for a weekday.
+ */
+export const zStandardDayOut = z.object({
+    end: z.iso.time(),
+    start: z.iso.time()
+});
+
+/**
+ * StandardHoursRequest
+ *
+ * Record the standard hours on a day nobody clocked. ``staff_id`` is for the office.
+ */
+export const zStandardHoursRequest = z.object({
+    date: z.iso.date(),
+    staff_id: z.uuid().nullish()
+});
+
+/**
  * StockConsumeRequest
  *
  * Wire contract for StockConsumeRequest.
@@ -6308,7 +6329,9 @@ export const zStaffApprovalOut = z.object({
  */
 export const zApprovalsDayOut = z.object({
     date: z.iso.date(),
+    default_entry_start: z.iso.time(),
     staff: z.array(zStaffApprovalOut),
+    standard: zStandardDayOut.nullable(),
     summary: zDaySummaryOut
 });
 
@@ -6405,9 +6428,12 @@ export const zWorkshopTimesheetListResponse = z.object({
     calendar: zCalendarBoundsOut,
     date: z.iso.date(),
     day: zAttendanceOut,
+    default_entry_start: z.iso.time(),
     entries: z.array(zWorkshopTimesheetEntryOut),
     fill: zFillOut.nullable(),
+    missed_clock_out_finish: z.iso.time().nullable(),
     pending: zPendingDayOut.nullable(),
+    standard: zStandardDayOut.nullable(),
     summary: zWorkshopTimesheetSummaryOut,
     week: zWorkshopTimesheetWeekOut
 });
@@ -9114,6 +9140,13 @@ export const zTimesheetsMyDayClockBody = zClockRequest;
  * OK
  */
 export const zTimesheetsMyDayClockResponse = zAttendanceOut;
+
+export const zTimesheetsMyDayStandardHoursBody = zStandardHoursRequest;
+
+/**
+ * OK
+ */
+export const zTimesheetsMyDayStandardHoursResponse = zAttendanceOut;
 
 export const zTimesheetsMyDaySubmitBody = zSubmitDayRequest;
 

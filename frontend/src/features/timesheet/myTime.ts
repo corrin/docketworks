@@ -10,8 +10,8 @@
 import type {
   AttendanceOut,
   BreakOut,
-  CompanyDefaultsOut,
   FillOut,
+  StandardDayOut,
   TimesheetJobOut,
   WorkshopTimesheetEntryOut,
   WorkshopTimesheetEntryUpdateRequest,
@@ -58,14 +58,21 @@ export function entryMarks(entry: WorkshopTimesheetEntryOut): string[] {
 export function cautionMarks(flags: {
   entered_late: boolean
   remote_entry: boolean
-  /** A person's day only: an entry is not sent, a day is. */
-  sent_late?: boolean
+  /** A person's day only: how it was clocked and sent, as the server words it. */
+  clock?: Pick<AttendanceOut, 'cautions' | 'sent_late'>
 }): string[] {
   const marks: string[] = []
+  if (flags.clock !== undefined) marks.push(...flags.clock.cautions)
   if (flags.entered_late) marks.push('Entered late')
   if (flags.remote_entry) marks.push('Suspicious remote entry')
-  if (flags.sent_late) marks.push('Sent late')
+  if (flags.clock?.sent_late) marks.push('Sent late')
   return marks
+}
+
+/** The company's standard hours in words, for a day nobody clocked. */
+export function standardHoursWords(standard: StandardDayOut | null): string {
+  if (standard === null) return 'No standard hours on this day. Set the times.'
+  return `Standard hours ${standard.start.slice(0, 5)} to ${standard.end.slice(0, 5)}`
 }
 
 /** "HH:mm" from the server's "HH:mm:ss". */
@@ -240,27 +247,6 @@ export function shownBillable(form: {
     selectedJob !== null &&
     selectedJob.id !== entry.job_id
   return movedOffUnbillableJob ? true : entry.is_billable
-}
-
-const WEEKDAY_START_KEYS = [
-  'mon_start',
-  'tue_start',
-  'wed_start',
-  'thu_start',
-  'fri_start',
-] as const
-
-/** The company configures no weekend hours; a weekend entry opens here. */
-const WEEKEND_DAY_START = '08:00'
-
-/** When the working day starts on `isoDate`, as an "HH:mm" time-input value. */
-export function workingDayStart(
-  isoDate: string,
-  defaults: Pick<CompanyDefaultsOut, (typeof WEEKDAY_START_KEYS)[number]>,
-): string {
-  const weekday = new Date(`${isoDate}T00:00:00`).getDay()
-  const key = WEEKDAY_START_KEYS[weekday - 1]
-  return key === undefined ? WEEKEND_DAY_START : defaults[key].slice(0, 5)
 }
 
 /** How many different jobs the day's entries are booked to. */

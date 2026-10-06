@@ -310,6 +310,7 @@ class AttendanceOut(Schema):
     clock_out: time | None
     here_hours: float | None
     sent_late: bool
+    cautions: list[str]
 
 
 class EntryLocationIn(Schema):
@@ -388,6 +389,20 @@ class SubmitDayRequest(Schema):
     location: EntryLocationIn | None = None
 
 
+class StandardDayOut(Schema):
+    """The company's standard start and finish for a weekday."""
+
+    start: time
+    end: time
+
+
+class StandardHoursRequest(Schema):
+    """Record the standard hours on a day nobody clocked. ``staff_id`` is for the office."""
+
+    date: date
+    staff_id: UUID | None = None
+
+
 class ClockRequest(Schema):
     """A tap on Clock in or Clock out; the server supplies the time."""
 
@@ -416,6 +431,9 @@ class WorkshopTimesheetListResponse(Schema):
     day: AttendanceOut
     breaks: list[BreakOut]
     fill: FillOut | None
+    standard: StandardDayOut | None
+    missed_clock_out_finish: time | None
+    default_entry_start: time
     calendar: CalendarBoundsOut
     pending: PendingDayOut | None
 
@@ -447,6 +465,8 @@ class ApprovalsDayOut(Schema):
     """Everyone's day for the office to approve."""
 
     date: date
+    standard: StandardDayOut | None
+    default_entry_start: time
     summary: DaySummaryOut
     staff: list[StaffApprovalOut]
 

@@ -19,7 +19,6 @@ import {
   entryMarks,
   rateLabel,
   splitDayEntries,
-  workingDayStart,
 } from './myTime'
 import { BreakSheet, type BreakSheetState } from './BreakSheet'
 import { DayCard } from './DayCard'
@@ -115,7 +114,8 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
           day={dayData.day}
           fill={dayData.fill}
           pending={dayData.pending}
-          dayStart={workingDayStart(date, companyDefaults)}
+          standard={dayData.standard}
+          missedClockOutFinish={dayData.missed_clock_out_finish}
           clocking={clocking.clocking}
           // Clocking out is the moment to say what the day was: the sheet opens on it.
           onClock={async (action) => {
@@ -124,6 +124,11 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
             return done
           }}
           onFill={() => setFillOpen(true)}
+          onUseStandardHours={() =>
+            void clocking.recordStandardHours(date).then((recorded) => {
+              if (recorded) setFillOpen(true)
+            })
+          }
           onAddBreak={() => setBreakSheet({ mode: 'add' })}
           onSetTimes={(clockIn, clockOut) =>
             clocking.setTimes({ date, clock_in: clockIn, clock_out: clockOut })
@@ -251,7 +256,7 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
         locked={drawer.mode === 'edit' && entryLockedFor(drawer.entry, user)}
         date={date}
         dayEntries={entries}
-        dayStart={workingDayStart(date, companyDefaults)}
+        dayStart={dayData?.default_entry_start.slice(0, 5) ?? ''}
         saving={day.saving}
         onCreate={day.createEntry}
         onUpdate={day.updateEntry}

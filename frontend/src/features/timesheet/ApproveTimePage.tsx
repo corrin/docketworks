@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronLeft, ChevronRight, Pencil, Plus } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { toast } from 'sonner'
@@ -12,13 +12,12 @@ import {
 import type { DaySummaryOut, StaffApprovalOut, WorkshopTimesheetEntryOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { ListTable } from '@/features/shared/ListTable'
-import { companyDefaultsQueryOptions } from '@/features/shell'
 import { shiftDate } from '@/lib/dates'
 import { formatDateLong, formatHoursDisplay } from '@/lib/format'
 
 import { BreakSheet, type BreakSheetState } from './BreakSheet'
 import { ClockTimesForm } from './DayCard'
-import { breakWords, cautionMarks, clockWords, entryMarks, workingDayStart } from './myTime'
+import { breakWords, cautionMarks, clockWords, entryMarks } from './myTime'
 import { useBreaks, useClocking, useWorkshopEntryWrites } from './useWorkshopDay'
 import { WorkshopTimesheetEntryDrawer, type EntryDrawerState } from './WorkshopTimesheetEntryDrawer'
 
@@ -67,7 +66,6 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
   const { date } = search
   const queryClient = useQueryClient()
   const approvalsQuery = useQuery(timesheetsApprovalsRetrieveOptions({ query: { date } }))
-  const { data: companyDefaults } = useSuspenseQuery(companyDefaultsQueryOptions())
   const approveDay = useMutation(timesheetsApprovalsApproveDayMutation())
   const [openStaffId, setOpenStaffId] = useState<string | null>(null)
   const [correction, setCorrection] = useState<Correction | null>(null)
@@ -213,8 +211,10 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                 <span className={person.state === 'waiting' ? 'font-semibold' : 'text-slate-600'}>
                   {STATE_WORDS[person.state]}
                 </span>
-                {cautionMarks({ ...person, sent_late: person.clock.sent_late }).map((mark) => (
-                  <span key={mark} className="ml-2 font-semibold text-amber-800">
+                {/* From the small breakpoint up the warnings sit beside the state;
+                    on a phone they get their own line under the row (below). */}
+                {cautionMarks(person).map((mark) => (
+                  <span key={mark} className="ml-2 hidden font-semibold text-amber-800 sm:inline">
                     {mark}
                   </span>
                 ))}
@@ -232,6 +232,17 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                 )}
               </td>
             </tr>
+            {cautionMarks(person).length > 0 && (
+              <tr className="border-b border-slate-100 sm:hidden">
+                <td
+                  colSpan={6}
+                  className="px-2 pb-2 pl-7 text-xs font-semibold text-amber-800"
+                  data-automation-id={`ApproveTimePage-cautions-narrow-${person.staff_id}`}
+                >
+                  {cautionMarks(person).join(' · ')}
+                </td>
+              </tr>
+            )}
             {openStaffId === person.staff_id && (
               <tr className="border-b border-slate-100 bg-slate-50/60">
                 <td colSpan={6} className="space-y-3 px-2 py-2 pl-8">
@@ -239,9 +250,16 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                     <ClockTimesForm
                       automationId={`ApproveTimePage-clock-${person.staff_id}`}
                       initialStart={
-                        person.clock.clock_in?.slice(0, 5) ?? workingDayStart(date, companyDefaults)
+                        person.clock.clock_in?.slice(0, 5) ??
+                        approvalsQuery.data?.standard?.start.slice(0, 5) ??
+                        ''
                       }
-                      initialFinish={person.clock.clock_out?.slice(0, 5) ?? ''}
+                      initialFinish={
+                        person.clock.clock_out?.slice(0, 5) ??
+                        (person.clock.clock_in === null
+                          ? (approvalsQuery.data?.standard?.end.slice(0, 5) ?? '')
+                          : '')
+                      }
                       saving={clocking.clocking}
                       onSave={(clockIn, clockOut) =>
                         clocking.setTimes({ date, clock_in: clockIn, clock_out: clockOut })
@@ -326,7 +344,7 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
         locked={false}
         date={date}
         dayEntries={correcting?.entries ?? []}
-        dayStart={workingDayStart(date, companyDefaults)}
+        dayStart={approvalsQuery.data?.default_entry_start.slice(0, 5) ?? ''}
         saving={writes.saving}
         onCreate={writes.createEntry}
         onUpdate={writes.updateEntry}

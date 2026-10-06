@@ -232,6 +232,21 @@ class LeaveDay(models.Model):
             raise ValidationError({"staff": "Leave day staff must match its request."})
 
 
+class ClockHow(models.TextChoices):
+    """How a day's start or finish came to be recorded (KAN-376).
+
+    A live tap is the record that the person was here at that time; a time
+    typed afterwards, or the company's standard hours, is not. The office is
+    warned about a worker who did not clock, so a time the office itself set
+    or corrected is told apart: nobody is chased over the office's own entry.
+    """
+
+    CLOCKED = "clocked", "Clocked"
+    CLOCKED_REMOTELY = "clocked_remotely", "Clocked away from the workshop"
+    NOT_CLOCKED = "not_clocked", "Not clocked"
+    SET_BY_OFFICE = "set_by_office", "Set by the office"
+
+
 class AttendanceDay(models.Model):
     """When one person was at work on one day, as they clocked it (KAN-376).
 
@@ -248,8 +263,13 @@ class AttendanceDay(models.Model):
     )
     date = models.DateField()
     clock_in = models.TimeField()
+    clock_in_how = models.CharField(max_length=20, choices=ClockHow.choices)
     # NULL while the person is still at work.
     clock_out = models.TimeField(null=True, blank=True)
+    # NULL exactly when there is no finish yet.
+    clock_out_how = models.CharField(  # noqa: DJ001 -- NULL is "no finish yet", as clock_out is
+        max_length=20, choices=ClockHow.choices, null=True, blank=True
+    )
     # NULL until the day is sent to the office.
     submitted_at = models.DateTimeField(null=True, blank=True)
     # The workshop's usual breaks are put on a day once, the first time it has
@@ -270,6 +290,11 @@ class AttendanceDay(models.Model):
             models.CheckConstraint(
                 condition=Q(submitted_at__isnull=True) | Q(clock_out__isnull=False),
                 name="timesheet_attendance_sent_only_when_clocked_out",
+            ),
+            models.CheckConstraint(
+                condition=Q(clock_out__isnull=True, clock_out_how__isnull=True)
+                | Q(clock_out__isnull=False, clock_out_how__isnull=False),
+                name="timesheet_attendance_finish_says_how",
             ),
         ]
 

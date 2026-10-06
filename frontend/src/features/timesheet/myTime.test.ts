@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { WorkshopTimesheetEntryOut } from '@/api'
+import type { AttendanceOut, WorkshopTimesheetEntryOut } from '@/api'
 
 import {
   adjustEnd,
@@ -27,7 +27,6 @@ import {
   slotFrom,
   slotFromNow,
   splitDayEntries,
-  workingDayStart,
 } from './myTime'
 
 function makeEntry(overrides: Partial<WorkshopTimesheetEntryOut> = {}): WorkshopTimesheetEntryOut {
@@ -172,26 +171,6 @@ describe('shownBillable', () => {
     expect(
       shownBillable({ entry, sourceJob: shop, selectedJob: normal, billableChoice: false }),
     ).toBe(false)
-  })
-})
-
-describe('workingDayStart', () => {
-  const starts = {
-    mon_start: '07:00:00',
-    tue_start: '07:15:00',
-    wed_start: '07:30:00',
-    thu_start: '07:45:00',
-    fri_start: '06:30:00',
-  }
-
-  it("is the configured start for the date's weekday", () => {
-    expect(workingDayStart('2026-10-05', starts)).toBe('07:00') // Monday
-    expect(workingDayStart('2026-10-09', starts)).toBe('06:30') // Friday
-  })
-
-  it('is 08:00 on a weekend, which has no configured hours', () => {
-    expect(workingDayStart('2026-10-03', starts)).toBe('08:00') // Saturday
-    expect(workingDayStart('2026-10-04', starts)).toBe('08:00') // Sunday
   })
 })
 
@@ -473,13 +452,14 @@ describe('entryLockedFor', () => {
 })
 
 describe('clockWords', () => {
-  const day = {
+  const day: AttendanceOut = {
     state: 'not_clocked_in',
     clock_in: null,
     clock_out: null,
     here_hours: null,
     sent_late: false,
-  } as const
+    cautions: [],
+  }
 
   it('says where the day stands, with the hours the server worked out', () => {
     expect(clockWords(day)).toBe('Not clocked in')

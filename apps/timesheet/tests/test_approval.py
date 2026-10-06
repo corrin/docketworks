@@ -211,6 +211,7 @@ class TestApprovalsRead:
             "clock_out": "15:00:00",
             "here_hours": 8.5,
             "sent_late": False,
+            "cautions": ["Did not clock in", "Did not clock out"],
         }
         assert rows[str(other_worker.id)]["state"] == "waiting"
         assert rows[str(other_worker.id)]["clock"]["state"] == "not_clocked_in"

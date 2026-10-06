@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.core.errors import InvalidInputError
+from apps.core.models import CompanyDefaults
 from apps.timesheet.models import AttendanceDay
 from apps.timesheet.services import attendance
 from apps.timesheet.tests.conftest import WEEK_START, authenticated_client
@@ -18,6 +19,7 @@ DAY = WEEK_START
 CLOCK_URL = "/api/timesheets/my-day/clock/"
 TIMES_URL = "/api/timesheets/my-day/times/"
 DAY_URL = "/api/job/workshop/timesheets/"
+STANDARD_URL = "/api/timesheets/my-day/standard-hours/"
 
 
 def _at(day_offset: int, hour: int, minute: int, second: int = 0) -> datetime:
@@ -40,6 +42,7 @@ class TestClockTaps:
             "clock_out": None,
             "here_hours": None,
             "sent_late": False,
+            "cautions": [],
         }
         assert finished["state"] == "clocked_out"
         assert finished["clock_out"] == time(15, 1)
@@ -170,3 +173,112 @@ class TestDayState:
         assert started.status_code == 200, started.content
         assert started.json()["state"] == "at_work"
         assert again.status_code == 409
+
+
+def _how(worker: Staff) -> tuple[str, str | None]:
+    row = AttendanceDay.objects.get(staff=worker, date=DAY)
+    return row.clock_in_how, row.clock_out_how
+
+
+class TestHowAClockTimeGotThere:
+    """A tap is the record that he was here; anything else is not, and the office is told."""
+
+    def test_a_tap_is_clocked_and_an_edit_is_not(self, worker: Staff) -> None:
+        attendance.clock_in(worker, _at(0, 6, 31))
+        attendance.clock_out(worker, _at(0, 15, 1))
+        assert _how(worker) == ("clocked", "clocked")
+        assert attendance.day_attendance(worker, DAY)["cautions"] == []
+
+        # He corrects his finish: the start he tapped is still a tap.
+        attendance.set_clock_times(worker, DAY, time(6, 31), time(15, 30), worker)
+        assert _how(worker) == ("clocked", "not_clocked")
+        assert attendance.day_attendance(worker, DAY)["cautions"] == ["Did not clock out"]
+
+        attendance.set_clock_times(worker, DAY, time(6, 0), time(15, 30), worker)
+        assert _how(worker) == ("not_clocked", "not_clocked")
+
+    def test_a_time_the_office_sets_raises_no_warning(
+        self, worker: Staff, office_staff: Staff
+    ) -> None:
+        """Nobody is chased over the office's own entry or its tidying of a tap."""
+        attendance.clock_in(worker, _at(0, 6, 31))
+        attendance.clock_out(worker, _at(0, 15, 1))
+
+        attendance.set_clock_times(worker, DAY, time(6, 30), time(15, 1), office_staff)
+
+        assert _how(worker) == ("set_by_office", "clocked")
+        assert attendance.day_attendance(worker, DAY)["cautions"] == []
+
+    def test_standard_hours_come_from_the_weekdays_company_defaults(self) -> None:
+        company = CompanyDefaults.get_solo()
+        company.mon_start = time(6, 30)
+        company.mon_end = time(15, 0)
+        company.tue_start = time(8, 0)
+        company.save(update_fields=["mon_start", "mon_end", "tue_start"])
+
+        assert attendance.standard_day(DAY) == attendance.Window(time(6, 30), time(15, 0))
+        tuesday = attendance.standard_day(DAY + timedelta(days=1))
+        assert tuesday is not None and tuesday.start == time(8, 0)
+
+    def test_a_weekend_has_no_standard_day(self, worker: Staff) -> None:
+        saturday = DAY + timedelta(days=5)
+
+        assert attendance.standard_day(saturday) is None
+        with pytest.raises(InvalidInputError, match="no standard hours on a weekend"):
+            attendance.use_standard_hours(worker, saturday, worker)
+
+    def test_using_standard_hours_records_them_as_not_clocked_and_generates_breaks(
+        self, worker_client: Client, worker: Staff
+    ) -> None:
+        company = CompanyDefaults.get_solo()
+        company.mon_start = time(6, 30)
+        company.save(update_fields=["mon_start"])
+
+        response = worker_client.post(
+            STANDARD_URL, data={"date": DAY.isoformat()}, content_type="application/json"
+        )
+        again = worker_client.post(
+            STANDARD_URL, data={"date": DAY.isoformat()}, content_type="application/json"
+        )
+
+        assert response.status_code == 200, response.content
+        assert response.json()["cautions"] == ["Did not clock in", "Did not clock out"]
+        assert _how(worker) == ("not_clocked", "not_clocked")
+        row = AttendanceDay.objects.get(staff=worker, date=DAY)
+        assert (row.clock_in, row.clock_out) == (time(6, 30), time(15, 0))
+        assert row.breaks.count() == 3
+        day = worker_client.get(f"{DAY_URL}?date={DAY.isoformat()}").json()
+        assert day["fill"]["to_fill_hours"] == 8.0
+        assert day["standard"] == {"start": "06:30:00", "end": "15:00:00"}
+        assert again.status_code == 409
+
+    def test_a_missed_clock_out_is_offered_the_standard_finish(self, worker: Staff) -> None:
+        today = DAY + timedelta(days=1)
+        attendance.clock_in(worker, _at(0, 6, 31))
+        row = AttendanceDay.objects.get(staff=worker, date=DAY)
+
+        assert attendance.missed_clock_out_finish(row, today) == time(15, 0)
+        # Still today: he may yet tap out.
+        assert attendance.missed_clock_out_finish(row, DAY) is None
+        # He started after the standard finish: the finish is his to give.
+        attendance.set_clock_times(worker, DAY, time(16, 0), None, worker)
+        row.refresh_from_db()
+        assert attendance.missed_clock_out_finish(row, today) is None
+
+    def test_the_office_is_told_who_did_not_clock_in_or_out(
+        self, worker: Staff, other_worker: Staff, office_staff: Staff
+    ) -> None:
+        attendance.use_standard_hours(worker, DAY, worker)
+        attendance.clock_in(other_worker, _at(0, 6, 31))
+        attendance.clock_out(other_worker, _at(0, 15, 1))
+
+        body = (
+            authenticated_client(office_staff)
+            .get(f"/api/timesheets/approvals/?date={DAY.isoformat()}")
+            .json()
+        )
+
+        cautions = {row["staff_id"]: row["clock"]["cautions"] for row in body["staff"]}
+        assert cautions[str(worker.id)] == ["Did not clock in", "Did not clock out"]
+        assert cautions[str(other_worker.id)] == []
+        assert body["standard"] == {"start": "07:00:00", "end": "15:00:00"}
