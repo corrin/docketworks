@@ -76,26 +76,60 @@ def _breaks(worker: Staff) -> list[tuple[str, str, bool]]:
     ]
 
 
+finish_in_the_day = attendance.finish_in_the_day
+
+
 class TestPlacement:
     """An entry's hours are the truth; its times are the picture, stepping over breaks."""
 
     def test_a_six_hour_job_from_seven_ends_at_two(self) -> None:
         """The owner's example: 7 + 6 + 0:15 + 0:30 + 0:15."""
-        assert attendance.finish_for(time(7, 0), Decimal("6"), STANDARD_BREAKS) == time(14, 0)
+        assert finish_in_the_day(time(7, 0), Decimal("6"), STANDARD_BREAKS) == time(14, 0)
 
     def test_work_that_ends_as_a_break_starts_does_not_step_over_it(self) -> None:
-        assert attendance.finish_for(time(7, 0), Decimal("1.5"), STANDARD_BREAKS) == time(8, 30)
+        assert finish_in_the_day(time(7, 0), Decimal("1.5"), STANDARD_BREAKS) == time(8, 30)
 
     def test_work_begun_inside_a_break_begins_when_the_break_ends(self) -> None:
-        assert attendance.finish_for(time(11, 45), Decimal("1"), STANDARD_BREAKS) == time(13, 0)
+        assert finish_in_the_day(time(11, 45), Decimal("1"), STANDARD_BREAKS) == time(13, 0)
 
     def test_hours_are_the_span_less_the_breaks_inside_it(self) -> None:
         assert attendance.hours_for(time(7, 0), time(14, 0), STANDARD_BREAKS) == Decimal("6.00")
         assert attendance.hours_for(time(9, 0), time(10, 0), STANDARD_BREAKS) == Decimal("1.00")
 
-    def test_hours_past_midnight_are_refused(self) -> None:
-        with pytest.raises(InvalidInputError, match="past midnight"):
-            attendance.finish_for(time(20, 0), Decimal("5"), [])
+    def test_hours_past_midnight_keep_no_picture_everywhere(
+        self, worker_client: Client, worker: Staff, job: Job
+    ) -> None:
+        """One rule: the drawer, an edit and the fill sheet keep the hours and drop the times."""
+        assert finish_in_the_day(time(20, 0), Decimal("5"), []) is None
+        _clocked(worker, time(7, 0), time(15, 0))
+        asked = worker_client.get(f"{PLACEMENT_URL}?date={DAY.isoformat()}&start=20:00&hours=5")
+        line = make_time_line(
+            job,
+            worker,
+            accounting_date=DAY,
+            approved=False,
+            hours="1.000",
+            start_time="20:00:00",
+            end_time="21:00:00",
+        )
+
+        edited = worker_client.patch(
+            DAY_URL, data={"entry_id": str(line.id), "hours": "5"}, content_type="application/json"
+        )
+        laid = day_submission.lay_out_rows(
+            time(20, 0), [_row(job, "1"), _row(job, "5"), _row(job, "1")], []
+        )
+
+        assert asked.status_code == 200 and asked.json()["finish"] is None
+        assert edited.status_code == 200, edited.content
+        assert (edited.json()["start_time"], edited.json()["end_time"]) == (None, None)
+        assert edited.json()["hours"] == 5.0
+        # The first row fits; the one that runs past midnight and every row after keep no times.
+        assert [(line["start"], line["end"], line["hours"]) for line in laid] == [
+            (time(20, 0), time(21, 0), Decimal("1")),
+            (None, None, Decimal("5")),
+            (None, None, Decimal("1")),
+        ]
 
     def test_the_drawer_is_answered_by_the_same_rule(
         self, worker_client: Client, worker: Staff

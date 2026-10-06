@@ -413,7 +413,7 @@ def default_entry_start(
         start = row.clock_in
     else:
         start = attendance.standard_entry_start(day)
-    return attendance.finish_for(start, Decimal(0), attendance.break_windows(day, row, break_lines))
+    return attendance.start_after_breaks(start, attendance.break_windows(day, row, break_lines))
 
 
 def day_break_windows(staff: Staff, day: date) -> list[attendance.Window]:
@@ -764,7 +764,13 @@ def update_entry(
             # Hours are the truth and the times their picture: new hours, a new
             # start or a new day redraw the finish rather than being refused by it.
             windows = day_break_windows(_owner_of(line), line.accounting_date)
-            meta["end_time"] = _format_time(attendance.finish_for(start, line.quantity, windows))
+            finish = attendance.finish_in_the_day(start, line.quantity, windows)
+            if finish is None:
+                # Past midnight from here: the hours stand and keep no picture.
+                meta["start_time"] = None
+                meta["end_time"] = None
+            else:
+                meta["end_time"] = _format_time(finish)
 
         # Validated on the merged entry, not the patch alone: a PATCH that moves
         # one time can break agreement with the stored other half.

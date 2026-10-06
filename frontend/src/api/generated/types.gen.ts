@@ -9297,7 +9297,7 @@ export type PlacementOut = {
     /**
      * Finish
      */
-    finish: string;
+    finish: string | null;
     /**
      * Hours
      */

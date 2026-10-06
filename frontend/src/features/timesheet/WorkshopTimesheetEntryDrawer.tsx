@@ -222,7 +222,7 @@ function WorkshopEntryForm({
   const gap = start === '' ? null : fillGapToNextEntry(start, otherEntries, dayEnd)
 
   // The server's answer as he types, a pause after each change; the one
-  // placement rule (apps/timesheet/services/attendance.finish_for), never
+  // placement rule (apps/timesheet/services/attendance.finish_in_the_day), never
   // worked out here.
   const asked = useDebouncedValue({ start, hours, end, workingOut }, SEARCH_DEBOUNCE_MS)
   const placementQuery = useQuery({
@@ -266,6 +266,8 @@ function WorkshopEntryForm({
     const answer = await queryClient.fetchQuery(
       timesheetsMyDayPlacementOptions({ query: placementQuestion(date, question, ownerId) }),
     )
+    // Past midnight from his start: the hours save with no times at all.
+    if (answer.finish === null) return { hours: answer.hours, start: '', end: '' }
     return { hours: answer.hours, start, end: inputTime(answer.finish) }
   }
 
@@ -438,7 +440,9 @@ function WorkshopEntryForm({
           className="text-sm text-gray-500"
           data-automation-id="WorkshopTimesheetEntryDrawer-duration"
         >
-          {placementWords(start, shownHours, shownEnd, workingOut)}
+          {placement !== null && placement.finish === null
+            ? `${formatHoursDisplay(placement.hours)} from ${start} runs past midnight: it saves without times.`
+            : placementWords(start, shownHours, shownEnd, workingOut)}
         </p>
 
         <div className="flex flex-wrap gap-2" role="group" aria-label="Adjust times">

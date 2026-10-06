@@ -341,7 +341,8 @@ class PlacementOut(Schema):
     """Where an entry sits in the day: its hours and its times, each from the other."""
 
     start: time
-    finish: time
+    #: None when the hours would run past midnight: they save without times.
+    finish: time | None
     hours: float
 
 

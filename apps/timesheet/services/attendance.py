@@ -356,7 +356,18 @@ _LAST_MINUTE = 24 * 60 - 1
 
 
 def finish_in_the_day(start: time, hours: Decimal, breaks: list[Window]) -> time | None:
-    """Return where ``finish_for`` would end, or None when that is past midnight."""
+    """Return when work of ``hours`` begun at ``start`` ends, stepping over every break.
+
+    An entry's hours are the truth and its times are the picture (owner,
+    2026-10-06): clocked in at 07:00, six hours on a job ends at 14:00, having
+    stepped over two paid breaks and lunch. Breaks are outside job time, so
+    none of a break is ever inside the hours. The one statement of the rule,
+    for the fill sheet, an entry saved without times, an edit of its hours and
+    the drawer's working out.
+
+    None when the work would run past midnight: such hours keep no picture and
+    are saved without times, never refused (hours are the truth).
+    """
     cursor = _minutes(start)
     remaining = int((hours * 60).to_integral_value(ROUND_HALF_UP))
     for break_start, break_end in _merged(breaks):
@@ -375,20 +386,13 @@ def finish_in_the_day(start: time, hours: Decimal, breaks: list[Window]) -> time
     return time(finish // 60, finish % 60)
 
 
-def finish_for(start: time, hours: Decimal, breaks: list[Window]) -> time:
-    """Return when work of ``hours`` begun at ``start`` ends, stepping over every break.
-
-    An entry's hours are the truth and its times are the picture (owner,
-    2026-10-06): clocked in at 07:00, six hours on a job ends at 14:00, having
-    stepped over two paid breaks and lunch. Breaks are outside job time, so
-    none of a break is ever inside the hours. The one statement of the rule:
-    the fill sheet, an entry saved without times and the drawer's preview all
-    come here.
-    """
-    finish = finish_in_the_day(start, hours, breaks)
-    if finish is None:
-        raise InvalidInputError("These hours run past midnight. Ask the office to enter this day.")
-    return finish
+def start_after_breaks(start: time, breaks: list[Window]) -> time:
+    """Return ``start``, or the end of the break it falls inside."""
+    stepped = finish_in_the_day(start, Decimal(0), breaks)
+    if stepped is None:
+        # A break is a time of day and ends by 23:59, so this cannot be reached.
+        raise ValueError(f"Stepping past the breaks from {start:%H:%M} left the day.")
+    return stepped
 
 
 def hours_for(start: time, finish: time, breaks: list[Window]) -> Decimal:

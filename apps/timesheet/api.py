@@ -651,7 +651,7 @@ def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: 
     if hours is not None:
         return {
             "start": start,
-            "finish": attendance.finish_for(start, hours, breaks),
+            "finish": attendance.finish_in_the_day(start, hours, breaks),
             "hours": float(hours),
         }
     if finish is None:  # narrowed for the type checker; refused above

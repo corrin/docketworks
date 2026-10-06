@@ -4093,7 +4093,7 @@ export const zPipelineWarningOut = z.object({
  * Where an entry sits in the day: its hours and its times, each from the other.
  */
 export const zPlacementOut = z.object({
-    finish: z.iso.time(),
+    finish: z.iso.time().nullable(),
     hours: z.number(),
     start: z.iso.time()
 });

@@ -10490,9 +10490,11 @@ components:
       description: 'Where an entry sits in the day: its hours and its times, each from the other.'
       properties:
         finish:
-          format: time
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
           title: Finish
-          type: string
         hours:
           title: Hours
           type: number

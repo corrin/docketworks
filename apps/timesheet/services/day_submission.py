@@ -50,8 +50,10 @@ class LaidLine(TypedDict):
     """A piece of a row with its place in the day."""
 
     job_id: UUID
-    start: time
-    end: time
+    #: None for a row the day cannot hold: it would run past midnight, so it
+    #: is saved with its hours and no times, as is every row after it.
+    start: time | None
+    end: time | None
     hours: Decimal
     description: str | None
     time_and_a_half: bool
@@ -65,14 +67,18 @@ def lay_out_rows(start: time, rows: list[FillRow], breaks: list[Window]) -> list
     past when he clocked out: more hours than he was here for is allowed, and
     the office sees it.
     """
-    cursor = start
+    cursor: time | None = start
     lines: list[LaidLine] = []
     for row in rows:
         if row["hours"] <= 0 or row["hours"] % QUARTER_HOUR != 0:
             raise InvalidInputError("Hours are entered in quarter hours, a quarter or more.")
         # A row that would begin inside a break begins when the break ends.
-        begins = attendance.finish_for(cursor, Decimal(0), breaks)
-        ends = attendance.finish_for(begins, row["hours"], breaks)
+        begins = None if cursor is None else attendance.start_after_breaks(cursor, breaks)
+        ends = (
+            None if begins is None else attendance.finish_in_the_day(begins, row["hours"], breaks)
+        )
+        if ends is None:
+            begins = None
         lines.append(
             {
                 "job_id": row["job_id"],
