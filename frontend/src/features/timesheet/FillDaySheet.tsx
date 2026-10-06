@@ -52,7 +52,7 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
   const [nextKey, setNextKey] = useState(0)
 
   const running = fillAfterRows(fill, rows)
-  const allSized = rows.every((row) => row.hours !== null)
+  const allSized = rows.every((row) => row.hours !== null && row.hours > 0)
 
   const addRow = (job: TimesheetJobOut) => {
     setRows([...rows, { key: nextKey, job, hours: null, timeAndAHalf: false, description: '' }])
@@ -164,12 +164,24 @@ export function FillDaySheet({ open, date, fill, sending, onSend, onClose }: Fil
                     >
                       <Minus />
                     </Button>
-                    <span
-                      className="min-w-16 text-center text-base font-semibold"
+                    {/* Typed or tapped, his choice: the chips and the stepper
+                        set this same number. */}
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={QUARTER_HOUR}
+                      step={QUARTER_HOUR}
+                      value={row.hours ?? ''}
+                      placeholder="Hours"
+                      aria-label="Hours"
+                      className={`${INPUT_CLASS} ${TOUCH_TARGET_CLASS} w-24 text-center text-base font-semibold`}
                       data-automation-id={`FillDaySheet-row-${row.key}-hours`}
-                    >
-                      {row.hours === null ? 'How long?' : formatHoursDisplay(row.hours)}
-                    </span>
+                      onChange={(event) =>
+                        change(row.key, {
+                          hours: event.target.value === '' ? null : Number(event.target.value),
+                        })
+                      }
+                    />
                     <Button
                       variant="outline"
                       size="icon"

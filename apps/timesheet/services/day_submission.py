@@ -1,8 +1,8 @@
 """Filling and sending a day (KAN-376).
 
 A worker says what he did as rows of a job and hours, and the day is laid out
-for him: the rows become entries placed end to end from when he clocked in,
-around his unpaid break and around anything already on his calendar. He never works out
+for him: the rows become entries placed one after another from where his day
+has got to, each stepping over his breaks. He never works out
 a start or an end time, and never adds the day up.
 """
 
@@ -19,20 +19,20 @@ from apps.job.models import Job
 from apps.job.services.job_service import bills_its_time
 from apps.timesheet.models import AttendanceDay
 from apps.timesheet.services import attendance
+from apps.timesheet.services.attendance import Window
+from apps.timesheet.services.location import EntryLocation
 from apps.timesheet.services.workshop_timesheet_service import (
-    EntryLocation,
     WorkshopDayData,
     WorkshopEntryCreateData,
     create_entry,
     day_time_lines,
+    default_entry_start,
     list_entries,
-    timed_span,
 )
 
 QUARTER_HOUR = Decimal("0.25")
 TIME_AND_A_HALF = Decimal("1.5")
 ORDINARY_TIME = Decimal("1.0")
-_END_OF_DAY_MINUTES = 24 * 60 - 1
 
 
 class FillRow(TypedDict):
@@ -56,54 +56,33 @@ class LaidLine(TypedDict):
     time_and_a_half: bool
 
 
-def _minutes(moment: time) -> int:
-    return moment.hour * 60 + moment.minute
+def lay_out_rows(start: time, rows: list[FillRow], breaks: list[Window]) -> list[LaidLine]:
+    """Place rows one after another from ``start``, each stepping over the breaks.
 
-
-def _clock(minutes: int) -> time:
-    return time(minutes // 60, minutes % 60)
-
-
-def lay_out_rows(
-    clock_in: time, rows: list[FillRow], taken: list[tuple[time, time]]
-) -> list[LaidLine]:
-    """Place rows end to end from clock-in, around the stretches already taken.
-
-    ``taken`` is his unpaid breaks and every entry that already has times. A row that
-    meets one is split into two lines on the same job, either side of it.
-    Rows may run past when he clocked out: more hours than he was here for is
-    allowed, and the office sees it.
+    One entry per row, never split: a row's hours are the truth and its times
+    the picture, so a row that meets a break simply ends later. Rows may run
+    past when he clocked out: more hours than he was here for is allowed, and
+    the office sees it.
     """
-    blocks = sorted((_minutes(start), _minutes(end)) for start, end in taken)
-    cursor = _minutes(clock_in)
+    cursor = start
     lines: list[LaidLine] = []
     for row in rows:
         if row["hours"] <= 0 or row["hours"] % QUARTER_HOUR != 0:
             raise InvalidInputError("Hours are entered in quarter hours, a quarter or more.")
-        remaining = int(row["hours"] * 60)
-        while remaining > 0:
-            inside = next((end for start, end in blocks if start <= cursor < end), None)
-            if inside is not None:
-                cursor = inside
-                continue
-            next_start = min((start for start, _ in blocks if start > cursor), default=None)
-            piece = remaining if next_start is None else min(remaining, next_start - cursor)
-            if cursor + piece > _END_OF_DAY_MINUTES:
-                raise InvalidInputError(
-                    "These hours run past midnight. Ask the office to enter this day."
-                )
-            lines.append(
-                {
-                    "job_id": row["job_id"],
-                    "start": _clock(cursor),
-                    "end": _clock(cursor + piece),
-                    "hours": Decimal(piece) / Decimal(60),
-                    "description": row["description"],
-                    "time_and_a_half": row["time_and_a_half"],
-                }
-            )
-            cursor += piece
-            remaining -= piece
+        # A row that would begin inside a break begins when the break ends.
+        begins = attendance.finish_for(cursor, Decimal(0), breaks)
+        ends = attendance.finish_for(begins, row["hours"], breaks)
+        lines.append(
+            {
+                "job_id": row["job_id"],
+                "start": begins,
+                "end": ends,
+                "hours": row["hours"],
+                "description": row["description"],
+                "time_and_a_half": row["time_and_a_half"],
+            }
+        )
+        cursor = ends
     return lines
 
 
@@ -125,12 +104,11 @@ def submit_day(
     row = AttendanceDay.objects.select_for_update().filter(staff=worker, date=day).first()
     if row is None or row.clock_out is None:
         raise ConflictError("Clock out before you send the day.")
-    taken = [span for line in day_time_lines(worker, day) if (span := timed_span(line))]
-    # Unpaid breaks only: rows go round them. A paid break is not passed, so
-    # rows run through it, as the time in it is the job's.
-    taken.extend((window.start, window.end) for window in attendance.unpaid_windows(row))
+    entries, break_lines = attendance.split_breaks(day_time_lines(worker, day))
+    begins = default_entry_start(day, row, entries, break_lines)
+    breaks = attendance.break_windows(day, row, break_lines)
     jobs = Job.objects.in_bulk({each["job_id"] for each in rows})
-    for line in lay_out_rows(row.clock_in, rows, taken):
+    for line in lay_out_rows(begins, rows, breaks):
         job = jobs.get(line["job_id"])
         if job is None:
             raise Job.DoesNotExist(f"Job {line['job_id']} does not exist.")

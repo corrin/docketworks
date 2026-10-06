@@ -20,6 +20,7 @@ from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.job.services import job_search
 from apps.job.services.job_service import JobLabourRateData, job_labour_rate_data
+from apps.timesheet.services.attendance import break_job_id
 from apps.timesheet.services.xero_hours import leave_job_ids
 
 logger = logging.getLogger(__name__)
@@ -204,22 +205,24 @@ def get_jobs_for_entry(worker: Staff, search: str = "") -> TimesheetJobListData:
     picker already holds the active set and asks for this only to reach what it
     excludes, which in practice is archived jobs.
     """
+    # The Break job is not a job anyone books to by hand: its lines are
+    # made for him, and shown as breaks.
+    breaks_job = break_job_id()
+    bookable = _entry_job_queryset()
+    if breaks_job is not None:
+        bookable = bookable.exclude(id=breaks_job)
     if search:
-        jobs = job_search.search_jobs(_entry_job_queryset(), search)
+        jobs = job_search.search_jobs(bookable, search)
     else:
         recent_cutoff = timezone.now() - ARCHIVED_FIXED_PRICE_WINDOW
-        jobs = (
-            _entry_job_queryset()
-            .filter(
-                Q(status__in=ACTIVE_JOB_STATUSES)
-                | Q(
-                    status="archived",
-                    pricing_methodology="fixed_price",
-                    completed_at__gte=recent_cutoff,
-                )
+        jobs = bookable.filter(
+            Q(status__in=ACTIVE_JOB_STATUSES)
+            | Q(
+                status="archived",
+                pricing_methodology="fixed_price",
+                completed_at__gte=recent_cutoff,
             )
-            .order_by("job_number")
-        )
+        ).order_by("job_number")
     job_data = [_job_data(job) for job in jobs]
     listed = {job["id"] for job in job_data}
     today = timezone.localdate()

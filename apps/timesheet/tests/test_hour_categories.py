@@ -14,6 +14,7 @@ from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
+from apps.job.services.time_entry_rates import UNPAID_TIME, is_unpaid_time
 from apps.timesheet.models import LeaveType
 from apps.timesheet.services import hour_categories
 from apps.timesheet.tests.conftest import (
@@ -177,17 +178,36 @@ class TestCategorise:
         assert categories.billable == Decimal("6.000")
         assert categories.non_billable == Decimal("2.000")
 
-    def test_the_payroll_split_drops_unpaid_lines(self, job: Job, worker: Staff) -> None:
-        """A 0x multiplier is unpaid time: it belongs to neither payroll bucket."""
-        make_time_line(
-            job, worker, accounting_date=WEEK_START, hours="4.000", wage_rate_multiplier=0.0
-        )
+    def test_unpaid_time_is_logged_and_in_no_figure(self, job: Job, worker: Staff) -> None:
+        """Lunch, or an office "Unpaid" line: logged, not hours (owner, 2026-10-06)."""
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="4.000", unpaid=True)
 
         categories = hour_categories.categorise(_lines_for(job))
 
-        assert categories.billed == Decimal("0")
-        assert categories.unbilled == Decimal("0")
-        assert categories.billable == Decimal("4.000")
+        assert categories == hour_categories.categorise([])
+
+    def test_unpaid_time_catches_neither_unpaid_leave_nor_a_public_holiday(
+        self, company: Company, superuser: Staff, job: Job, worker: Staff
+    ) -> None:
+        """Unpaid leave is 0x too, but it is leave: its pay item is a Leave API type.
+
+        The rule's two forms, the queryset filter and the line check, agree on
+        every kind of line, including one with no pay item at all.
+        """
+        unpaid_leave = make_leave_job(company, superuser, "Unpaid Leave")
+        holiday = make_public_holiday_job(company, superuser)
+        lunch = make_time_line(job, worker, accounting_date=WEEK_START, unpaid=True)
+        make_time_line(job, worker, accounting_date=WEEK_START)
+        make_time_line(unpaid_leave, worker, accounting_date=WEEK_START)
+        make_time_line(holiday, worker, accounting_date=WEEK_START)
+        lines = CostLine.objects.filter(kind="time", staff=worker).select_related("xero_pay_item")
+
+        by_check = {line.id for line in lines if is_unpaid_time(line)}
+        by_filter = set(lines.filter(UNPAID_TIME).values_list("id", flat=True))
+        kept = set(lines.exclude(UNPAID_TIME).values_list("id", flat=True))
+
+        assert by_check == by_filter == {lunch.id}
+        assert len(kept) == 3
 
     def test_overtime_lands_in_its_own_bucket_and_still_counts_as_billed(
         self, job: Job, worker: Staff

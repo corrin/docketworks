@@ -86,7 +86,9 @@ class TestWorkshopPath:
         assert event.delta_after["job"] == f"#{job.job_number}"
         assert event.description == "Entry created"
 
-    def test_editing_hours_records_the_one_change(self, worker_client: Client, job: Job) -> None:
+    def test_editing_hours_records_the_hours_and_the_finish_they_move(
+        self, worker_client: Client, job: Job
+    ) -> None:
         line_id = _workshop_create(worker_client, job)
 
         response = worker_client.patch(
@@ -98,10 +100,13 @@ class TestWorkshopPath:
         assert response.status_code == 200, response.content
         *_, updated = _events(line_id)
         assert updated.event_type == "entry_updated"
-        assert updated.detail["changes"] == [
-            {"field_name": "Hours", "old_value": "4.000", "new_value": "6.000"}
-        ]
-        assert updated.description == "Hours changed from '4.000' to '6.000'"
+        # The finish is the hours' picture, so it moves with them and is recorded too.
+        assert {
+            change["field_name"]: change["new_value"] for change in updated.detail["changes"]
+        } == {
+            "Hours": "6.000",
+            "End": "14:00:00",
+        }
 
     def test_editing_only_the_times_records_the_change(
         self, worker_client: Client, job: Job

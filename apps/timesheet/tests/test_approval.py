@@ -20,7 +20,7 @@ from apps.timesheet.tests.conftest import (
     make_time_line,
 )
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("break_job")]
 
 DAY = WEEK_START
 APPROVALS_URL = "/api/timesheets/approvals/"

@@ -17,6 +17,7 @@ from apps.accounts.staff_directory import get_displayable_staff
 from apps.job.models.costing import CostLine
 from apps.job.services.job_service import CostLineWriteData, create_cost_line, update_latest_actual
 from apps.timesheet.models import LeaveDay, LeaveRequest, LeaveType, PostingSurface
+from apps.timesheet.services.attendance import break_job_id
 from apps.timesheet.services.hour_categories import scheduled_hours
 from apps.timesheet.services.leave_settings import configured_leave_type
 from apps.timesheet.services.workshop_timesheet_service import pricing_meta
@@ -147,6 +148,11 @@ def preview_leave(
     )
     if exclude_request is not None:
         conflicts = conflicts.exclude(leave_day__request=exclude_request)
+    # His breaks are not work on the day: a clocked morning with its paid
+    # break still takes an afternoon of sick leave.
+    breaks = break_job_id()
+    if breaks is not None:
+        conflicts = conflicts.exclude(cost_set__job_id=breaks)
     conflicting_dates = set(conflicts.values_list("accounting_date", flat=True))
 
     rows: list[PreviewDay] = []

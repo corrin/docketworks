@@ -18,7 +18,12 @@ from apps.company.tests.job_fixtures import (
 )
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
-from apps.timesheet.tests.conftest import make_staff, make_time_line
+from apps.timesheet.tests.conftest import (
+    make_break_job,
+    make_staff,
+    make_standard_day,
+    make_time_line,
+)
 
 pytestmark = [
     pytest.mark.django_db,
@@ -96,6 +101,17 @@ class TestKPICalendar:
         assert body["thresholds"]["kpi_daily_billable_hours_green"] == 8.0
         assert body["year"] == 2026
         assert body["month"] == 6
+
+    def test_a_standard_day_is_eight_hours(self, authenticated_client: Client) -> None:
+        """Lunch is logged, not hours: a standard day is 8 on the calendar, not 8.5."""
+        worker = make_staff("kpi-standard@example.com")
+        job = make_job(make_company("KPI Standard Co"), worker)
+        make_standard_day(job, make_break_job(worker), worker, WORKDAY)
+
+        day = authenticated_client.get(URL, JUNE).json()["calendar_data"]["2026-06-10"]
+
+        assert day["total_hours"] == 8.0
+        assert day["billable_hours"] == 7.5
 
     def test_the_two_day_ladders_can_disagree(self, authenticated_client: Client) -> None:
         """Few hours, good money — red by hours, green by dollars.

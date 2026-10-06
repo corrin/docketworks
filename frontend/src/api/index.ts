@@ -386,6 +386,7 @@ export {
   timesheetsMyDayBreaksCreateMutation,
   timesheetsMyDayBreaksDeleteMutation,
   timesheetsMyDayBreaksUpdateMutation,
+  timesheetsMyDayPlacementOptions,
   timesheetsMyDayClockMutation,
   timesheetsMyDayStandardHoursMutation,
   timesheetsMyDaySubmitMutation,

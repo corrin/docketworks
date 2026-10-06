@@ -1,4 +1,4 @@
-"""The create_shop_jobs command: eleven named jobs, idempotent, ambiguity refused."""
+"""The create_shop_jobs command: twelve named jobs, idempotent, ambiguity refused."""
 
 from io import StringIO
 
@@ -13,10 +13,11 @@ from apps.job.models import Job
 
 pytestmark = pytest.mark.django_db
 
-ELEVEN_NAMES = {
+TWELVE_NAMES = {
     "Annual Leave",
     "Bench - busy work",
     "Bereavement Leave",
+    "Break",
     "Business Development",
     "Office Admin",
     "Sick Leave",
@@ -34,16 +35,19 @@ def _run() -> str:
     return out.getvalue()
 
 
-def test_creates_the_eleven_shop_jobs() -> None:
+def test_creates_the_twelve_shop_jobs() -> None:
     output = _run()
 
     shop_company = CompanyDefaults.get_solo().shop_company
     jobs = Job.objects.filter(company=shop_company, status="special")
-    assert {job.name for job in jobs} == ELEVEN_NAMES
-    assert {spec["name"] for spec in SHOP_JOBS} == ELEVEN_NAMES
+    assert {job.name for job in jobs} == TWELVE_NAMES
+    assert {spec["name"] for spec in SHOP_JOBS} == TWELVE_NAMES
     assert all(job.job_is_valid for job in jobs)
     assert not any(job.paid for job in jobs)
-    assert "11 created, 0 updated" in output
+    assert "12 created, 0 updated" in output
+    # The one job the code finds again: named on the company, not looked up by name.
+    break_job = CompanyDefaults.get_solo().break_job
+    assert break_job is not None and break_job.name == "Break"
 
 
 def test_annual_leave_job_is_findable_by_name() -> None:
@@ -63,10 +67,10 @@ def test_rerun_updates_in_place() -> None:
 
     output = _run()
 
-    assert Job.objects.filter(company=shop_company, status="special").count() == 11
+    assert Job.objects.filter(company=shop_company, status="special").count() == 12
     bench.refresh_from_db()
     assert bench.description != "hand-edited"  # refreshed to the canonical text
-    assert "0 created, 11 updated" in output
+    assert "0 created, 12 updated" in output
 
 
 def test_refuses_ambiguous_duplicates() -> None:

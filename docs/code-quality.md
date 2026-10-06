@@ -14,9 +14,9 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 123,588 (v1 172,577, -28%) |
-| tests | 87,981 (v1 50,869, +73%) |
-| generated | 53,669 (v1 20,359, +164%) |
+| code | 124,284 (v1 172,577, -28%) |
+| tests | 88,335 (v1 50,869, +74%) |
+| generated | 53,927 (v1 20,359, +165%) |
 
 ## Suppressions
 
@@ -31,11 +31,11 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 8 |
-| TOTAL suppressions | 780 |
+| TOTAL suppressions | 786 |
 | noqa: DJ001 | 197 |
-| noqa: PLC0415 | 152 |
+| noqa: PLC0415 | 155 |
 | noqa: E402 | 106 |
-| noqa: PLR0913 | 57 |
+| noqa: PLR0913 | 60 |
 | noqa: ARG002 | 38 |
 | noqa: BLE001 | 35 |
 | noqa: ARG001 | 23 |
@@ -115,8 +115,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 254 |
-| non-test functions | 3057 |
+| functions returning `X \| None` | 256 |
+| non-test functions | 3070 |
 
 ## Broad type annotations
 
@@ -125,7 +125,7 @@ Code smells: explicit `Any` and `object` occurrences in Python parameter, return
 | metric | count |
 |---|---:|
 | Any annotations | 239 |
-| object annotations | 695 |
+| object annotations | 696 |
 
 ## Wire contract (response side)
 
@@ -133,10 +133,10 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 328 |
-| response properties | 2111 |
+| response schemas | 329 |
+| response properties | 2119 |
 | optional (pinned at zero) | 0 |
-| nullable | 465 |
+| nullable | 468 |
 
 ## Automation ids (frontend)
 
@@ -144,7 +144,7 @@ Interactive elements under `frontend/src` with no `data-automation-id`, the sele
 
 | metric | count |
 |---|---:|
-| without data-automation-id | 130 of 429 (30%) |
+| without data-automation-id | 130 of 431 (30%) |
 | without id: <a> | 4 |
 | without id: <button> | 33 |
 | without id: <input> | 27 |

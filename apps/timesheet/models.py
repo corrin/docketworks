@@ -302,42 +302,21 @@ class AttendanceDay(models.Model):
         return f"{self.staff.get_display_name()} on {self.date}"
 
 
-class AttendanceBreak(models.Model):
-    """A break in one person's day: when it was, and whether it was paid.
-
-    A day is shown to the worker as a timeline to remember it by: started,
-    a paid break, an unpaid break, finished. Breaks belong to the day and not
-    to job costing, so no time, cost or pay figure ever reads this table. An
-    unpaid break comes off the hours the worker has to fill; a paid one is a
-    marker only, because that time is paid and billed with the job in hand.
-    Breaks are his to move, remove or add; they may overlap anything.
-    """
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    attendance_day = models.ForeignKey(
-        AttendanceDay, on_delete=models.CASCADE, related_name="breaks"
-    )
-    start = models.TimeField()
-    end = models.TimeField()
-    paid = models.BooleanField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering: ClassVar[list[str]] = ["start", "created_at", "id"]
-        constraints: ClassVar[list[models.BaseConstraint]] = [
-            models.CheckConstraint(
-                condition=Q(end__gt=models.F("start")),
-                name="timesheet_attendance_break_end_after_start",
-            ),
-        ]
-
-    def __str__(self) -> str:
-        kind = "Paid" if self.paid else "Unpaid"
-        return f"{kind} break {self.start:%H:%M} to {self.end:%H:%M}"
-
-
 def _moved(old: JsonScalar, new: JsonScalar) -> str:
     return f"Moved from {old} to {new}"
+
+
+def _clock_time(label: str) -> Callable[[JsonScalar, JsonScalar], str]:
+    """Describe a clock time: set ("Clock in 07:02"), moved, or cleared."""
+
+    def describe(old: JsonScalar, new: JsonScalar) -> str:
+        if old in ("", None):
+            return f"{label} {new}"
+        if new in ("", None):
+            return f"{label} {old} cleared"
+        return f"{label} moved from {old} to {new}"
+
+    return describe
 
 
 class TimesheetEvent(AuditEvent):
@@ -353,7 +332,13 @@ class TimesheetEvent(AuditEvent):
         "accounts.Staff", on_delete=models.PROTECT, related_name="timesheet_history"
     )
     accounting_date = models.DateField()
-    cost_line_id = models.UUIDField(db_index=True)
+    # None on an event of the day itself (a clock tap, times set, the day sent).
+    cost_line_id = models.UUIDField(db_index=True, null=True, blank=True)
+    # Whether the action was made at the workshop, by the one rule in
+    # services/location.py: office staff always; anyone else when their phone
+    # put them at the company address. With no company address there is no
+    # check, and every event is trusted: "trusted" then means "not checked".
+    trusted = models.BooleanField()
 
     EVENT_LABELS: ClassVar[dict[str, str]] = {
         "entry_created": "Entry created",
@@ -361,9 +346,16 @@ class TimesheetEvent(AuditEvent):
         "entry_moved": "Entry moved",
         "entry_deleted": "Entry deleted",
         "entry_approved": "Entry approved",
+        "clocked_in": "Clocked in",
+        "clocked_out": "Clocked out",
+        "clock_times_set": "Clock times set",
+        "standard_hours_used": "Standard hours used",
+        "day_sent": "Day sent",
     }
     FIELD_DESCRIPTORS: ClassVar[dict[str, Callable[[JsonScalar, JsonScalar], str]]] = {
-        "Job": _moved
+        "Job": _moved,
+        "Clock in": _clock_time("Clock in"),
+        "Clock out": _clock_time("Clock out"),
     }
 
     class Meta(AuditEvent.Meta):

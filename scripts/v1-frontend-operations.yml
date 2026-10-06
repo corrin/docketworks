@@ -661,6 +661,7 @@ introduced:
 - timesheets_my_day_clock
 - timesheets_my_day_times
 - timesheets_my_day_standard_hours
+- timesheets_my_day_placement
 - timesheets_my_day_submit
 - timesheets_my_day_breaks_create
 - timesheets_my_day_breaks_update

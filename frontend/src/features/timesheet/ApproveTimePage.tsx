@@ -17,7 +17,7 @@ import { formatDateLong, formatHoursDisplay } from '@/lib/format'
 
 import { BreakSheet, type BreakSheetState } from './BreakSheet'
 import { ClockTimesForm } from './DayCard'
-import { breakWords, cautionMarks, clockWords, entryMarks } from './myTime'
+import { breakWords, cautionMarks, clockWords, dayEndOf, entryMarks, isRealBreak } from './myTime'
 import { useBreaks, useClocking, useWorkshopEntryWrites } from './useWorkshopDay'
 import { WorkshopTimesheetEntryDrawer, type EntryDrawerState } from './WorkshopTimesheetEntryDrawer'
 
@@ -283,16 +283,19 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
                     {person.breaks.length === 0 && <span>No breaks.</span>}
                     {person.breaks.map((each) => (
                       <Button
-                        key={each.id}
+                        key={each.id ?? `planned-${each.start}`}
                         variant="outline"
                         size="sm"
-                        data-automation-id={`ApproveTimePage-break-${each.id}`}
-                        onClick={() =>
+                        // A planned break is not written down yet: nothing to open.
+                        disabled={!isRealBreak(each)}
+                        data-automation-id={`ApproveTimePage-break-${each.id ?? 'planned'}`}
+                        onClick={() => {
+                          if (!isRealBreak(each)) return
                           setBreakFor({
                             staffId: person.staff_id,
                             sheet: { mode: 'edit', break: each },
                           })
-                        }
+                        }}
                       >
                         {breakWords(each)}
                       </Button>
@@ -345,6 +348,12 @@ export function ApproveTimePage({ search, onDateChange }: ApproveTimePageProps) 
         date={date}
         dayEntries={correcting?.entries ?? []}
         dayStart={approvalsQuery.data?.default_entry_start.slice(0, 5) ?? ''}
+        dayEnd={
+          correcting === undefined || approvalsQuery.data === undefined
+            ? null
+            : dayEndOf(correcting.clock.clock_out, approvalsQuery.data.standard)
+        }
+        ownerId={correction?.staffId}
         saving={writes.saving}
         onCreate={writes.createEntry}
         onUpdate={writes.updateEntry}

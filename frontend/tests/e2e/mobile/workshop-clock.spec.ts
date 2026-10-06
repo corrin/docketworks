@@ -147,7 +147,7 @@ test.describe('workshop clocking on a phone', () => {
     // He cannot go back and clock in, so one tap takes the standard day and
     // goes straight to filling it.
     await autoId(page, 'DayCard-fill-and-send').tap()
-    await expect(autoId(page, 'FillDaySheet-sum')).toContainText('to fill, 0h entered')
+    await expect(autoId(page, 'FillDaySheet-sum')).toContainText('to fill, 30m breaks, 0h entered')
     await expect(autoId(page, 'DayCard-state')).toContainText(`Clocked out. ${hours}`)
     // He is told what the office is told.
     await expect(autoId(page, 'DayCard-cautions')).toHaveText(

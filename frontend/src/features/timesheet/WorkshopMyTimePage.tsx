@@ -14,6 +14,7 @@ import { shiftDate } from '@/lib/dates'
 
 import {
   calendarEvent,
+  dayEndOf,
   distinctJobCount,
   entryLockedFor,
   entryMarks,
@@ -257,6 +258,7 @@ export function WorkshopMyTimePage({ search, onDateChange }: WorkshopMyTimePageP
         date={date}
         dayEntries={entries}
         dayStart={dayData?.default_entry_start.slice(0, 5) ?? ''}
+        dayEnd={dayData === undefined ? null : dayEndOf(dayData.day.clock_out, dayData.standard)}
         saving={day.saving}
         onCreate={day.createEntry}
         onUpdate={day.updateEntry}

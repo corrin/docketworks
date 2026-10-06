@@ -114,19 +114,6 @@ function minutesOfDay(value: string): number | null {
   return Number(match[1]) * 60 + Number(match[2])
 }
 
-/**
- * Decimal hours between two "HH:mm" input values, rounded to two decimals to
- * match the server's agreement tolerance; null when either is blank or the
- * end is not after the start.
- */
-export function deriveHoursFromTimes(start: string, end: string): number | null {
-  const startMinutes = minutesOfDay(start)
-  const endMinutes = minutesOfDay(end)
-  if (startMinutes === null || endMinutes === null) return null
-  if (endMinutes <= startMinutes) return null
-  return Math.round(((endMinutes - startMinutes) / 60) * 100) / 100
-}
-
 function isTimed(entry: WorkshopTimesheetEntryOut): entry is TimedEntry {
   return entry.start_time !== null && entry.end_time !== null
 }
@@ -300,22 +287,6 @@ export function slotFrom(start: string): TimeRange {
   return bookableRange(startMinutes, startMinutes + DEFAULT_SLOT_MINUTES)
 }
 
-/**
- * Where a new entry opens: at the tapped slot, else straight after the day's
- * latest finish (the next job usually starts when the last one stopped), else
- * at the start of the working day.
- */
-export function defaultNewEntryRange(
-  entries: WorkshopTimesheetEntryOut[],
-  dayStart: string,
-  tappedStart: string | null,
-): TimeRange {
-  if (tappedStart !== null) return slotFrom(tappedStart)
-  const finishes = splitDayEntries(entries).timed.map((entry) => requireMinutes(entry.end_time))
-  if (finishes.length === 0) return slotFrom(dayStart)
-  return slotFrom(timeOfDay(Math.max(...finishes)))
-}
-
 /** The job of the entry booked most recently, which a new entry defaults to. */
 export function lastUsedJobId(entries: WorkshopTimesheetEntryOut[]): string | null {
   let latest: WorkshopTimesheetEntryOut | null = null
@@ -342,36 +313,62 @@ export function adjustEnd(range: TimeRange, deltaMinutes: number): TimeRange {
 }
 
 /**
- * "Fill gap": run the entry up to the day's next start, or to the end of the
- * day when nothing follows it.
+ * When a person's day ends, "HH:mm": the clock-out once there is one, else
+ * the company's standard finish for the day; null on a day with neither (a
+ * weekend nobody clocked).
  */
-export function fillGapToNextEntry(start: string, entries: WorkshopTimesheetEntryOut[]): TimeRange {
-  const from = requireMinutes(start)
-  const laterStarts = splitDayEntries(entries)
-    .timed.map((entry) => requireMinutes(entry.start_time))
-    .filter((minutes) => minutes > from)
-  return bookableRange(
-    from,
-    laterStarts.length === 0 ? LAST_MINUTE_OF_DAY : Math.min(...laterStarts),
-  )
+export function dayEndOf(clockOut: string | null, standard: StandardDayOut | null): string | null {
+  if (clockOut !== null) return clockOut.slice(0, 5)
+  return standard === null ? null : standard.end.slice(0, 5)
 }
 
-/** What the drawer's form holds when the user submits an edit. */
+/**
+ * "Fill gap": run the entry up to the day's next start, but never past the
+ * end of his day (the clock-out, else the standard finish; `dayEnd`, "HH:mm",
+ * null on a day with neither). Null when there is no gap left to fill.
+ */
+export function fillGapToNextEntry(
+  start: string,
+  entries: WorkshopTimesheetEntryOut[],
+  dayEnd: string | null,
+): TimeRange | null {
+  const from = requireMinutes(start)
+  const stops = splitDayEntries(entries)
+    .timed.map((entry) => requireMinutes(entry.start_time))
+    .filter((minutes) => minutes > from)
+  const until = Math.min(...stops, dayEnd === null ? LAST_MINUTE_OF_DAY : requireMinutes(dayEnd))
+  if (until <= from) return null
+  return bookableRange(from, until)
+}
+
+/** What the drawer's form holds when the user submits. */
 export interface EntryFormValues {
   jobId: string
+  hours: number
+  /** "HH:mm", or blank: the times are optional, the hours are not. */
   start: string
   end: string
-  /** Derived from the pair; null means both time inputs are blank. */
-  hours: number | null
   description: string
 }
 
 /**
- * The PATCH body for an edited entry. With no derived hours the times and
- * hours are left untouched — that is the untimed-entry edit (description or
- * job only), where imposing a pair would also silently replace the stored
- * hours.
+ * The time fields of a create or update body: each time only when it is
+ * known. A blank one is left as it is on an edit, and on a new entry the
+ * server places the hours after the day's last entry.
  */
+export function entryTimeFields(form: Pick<EntryFormValues, 'hours' | 'start' | 'end'>): {
+  hours: number
+  start_time?: string
+  end_time?: string
+} {
+  return {
+    hours: form.hours,
+    ...(form.start === '' ? {} : { start_time: `${form.start}:00` }),
+    ...(form.end === '' ? {} : { end_time: `${form.end}:00` }),
+  }
+}
+
+/** The PATCH body for an edited entry. */
 export function entryUpdateBody(
   entry: WorkshopTimesheetEntryOut,
   form: EntryFormValues,
@@ -380,13 +377,7 @@ export function entryUpdateBody(
   return {
     entry_id: entry.id,
     ...jobChangeFields(entry, form.jobId),
-    ...(form.hours === null
-      ? {}
-      : {
-          hours: form.hours,
-          start_time: `${form.start}:00`,
-          end_time: `${form.end}:00`,
-        }),
+    ...entryTimeFields(form),
     description: trimmed === '' ? null : trimmed,
   }
 }
@@ -423,11 +414,13 @@ export interface FillSheetRow {
  */
 export function fillWords(fill: FillOut): string {
   const toFill = `${formatHoursDisplay(fill.to_fill_hours)} to fill`
+  // His paid breaks are entered for him: named so the sum adds up on sight.
+  const breaks = fill.break_hours === 0 ? '' : `, ${formatHoursDisplay(fill.break_hours)} breaks`
   const entered = `${formatHoursDisplay(fill.entered_hours)} entered`
   if (fill.to_go_hours > 0)
-    return `${toFill}, ${entered}, ${formatHoursDisplay(fill.to_go_hours)} to go`
-  if (fill.to_go_hours === 0) return `${toFill}, ${entered}. All filled`
-  return `${toFill}, ${entered}: ${formatHoursDisplay(-fill.to_go_hours)} over the time you were here`
+    return `${toFill}${breaks}, ${entered}, ${formatHoursDisplay(fill.to_go_hours)} to go`
+  if (fill.to_go_hours === 0) return `${toFill}${breaks}, ${entered}. All filled`
+  return `${toFill}${breaks}, ${entered}: ${formatHoursDisplay(-fill.to_go_hours)} over the time you were here`
 }
 
 /**
@@ -440,6 +433,7 @@ export function fillAfterRows(fill: FillOut, rows: { hours: number | null }[]): 
   const onSheet = rows.reduce((total, row) => total + (row.hours ?? 0), 0)
   return {
     to_fill_hours: fill.to_fill_hours,
+    break_hours: fill.break_hours,
     entered_hours: fill.entered_hours + onSheet,
     to_go_hours: fill.to_go_hours - onSheet,
   }
@@ -455,7 +449,20 @@ export function jobsInOrder(ids: string[], jobs: TimesheetJobOut[]): TimesheetJo
 }
 
 /** A break in words, for the calendar block and the office's row. */
+/** A break that is written down, with the id its sheet needs. */
+export type RealBreak = BreakOut & { id: string }
+
+export function isRealBreak(each: BreakOut): each is RealBreak {
+  return each.id !== null
+}
+
 export function breakWords(each: BreakOut): string {
-  const kind = each.paid ? 'Paid break' : 'Unpaid break'
-  return `${kind} ${each.start.slice(0, 5)} to ${each.end.slice(0, 5)}`
+  const kind = each.name
+  const span = `${each.start.slice(0, 5)} to ${each.end.slice(0, 5)}`
+  // Planned: the standard break he has not reached yet, written down when he
+  // clocks out. A break is his time, so it waits for the office with the rest
+  // of his day, and says so where a list of entries would.
+  if (each.planned) return `${kind} ${span}, planned`
+  if (each.approved === null) return `${kind} ${span}`
+  return `${kind} ${span} · ${each.approved ? 'Approved' : 'Waiting'}`
 }

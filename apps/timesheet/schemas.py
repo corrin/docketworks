@@ -321,12 +321,28 @@ class EntryLocationIn(Schema):
 
 
 class BreakOut(Schema):
-    """One break in a person's day. Breaks are in no hours, cost or pay figure."""
+    """One break in a person's day.
 
-    id: UUID
+    Every break is his time line on the Break job and ``id`` is that line's:
+    a paid break is paid time, lunch is logged and in no hours figure. A
+    planned break is the company's standard one, not yet his: it has no id.
+    """
+
+    id: UUID | None
+    name: str
     start: time
     end: time
     paid: bool
+    planned: bool
+    approved: bool | None
+
+
+class PlacementOut(Schema):
+    """Where an entry sits in the day: its hours and its times, each from the other."""
+
+    start: time
+    finish: time
+    hours: float
 
 
 class BreakCreateRequest(Schema):
@@ -353,6 +369,7 @@ class FillOut(Schema):
     """
 
     to_fill_hours: float
+    break_hours: float
     entered_hours: float
     to_go_hours: float
 

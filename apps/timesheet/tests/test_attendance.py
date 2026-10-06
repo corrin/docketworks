@@ -13,7 +13,7 @@ from apps.timesheet.models import AttendanceDay
 from apps.timesheet.services import attendance
 from apps.timesheet.tests.conftest import WEEK_START, authenticated_client
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("break_job")]
 
 DAY = WEEK_START
 CLOCK_URL = "/api/timesheets/my-day/clock/"
@@ -246,9 +246,10 @@ class TestHowAClockTimeGotThere:
         assert _how(worker) == ("not_clocked", "not_clocked")
         row = AttendanceDay.objects.get(staff=worker, date=DAY)
         assert (row.clock_in, row.clock_out) == (time(6, 30), time(15, 0))
-        assert row.breaks.count() == 3
+        assert row.breaks_generated
         day = worker_client.get(f"{DAY_URL}?date={DAY.isoformat()}").json()
         assert day["fill"]["to_fill_hours"] == 8.0
+        assert [each["paid"] for each in day["breaks"]] == [True, False, True]
         assert day["standard"] == {"start": "06:30:00", "end": "15:00:00"}
         assert again.status_code == 409
 

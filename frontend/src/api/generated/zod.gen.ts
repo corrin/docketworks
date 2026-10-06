@@ -221,12 +221,19 @@ export const zBreakCreateRequest = z.object({
 /**
  * BreakOut
  *
- * One break in a person's day. Breaks are in no hours, cost or pay figure.
+ * One break in a person's day.
+ *
+ * Every break is his time line on the Break job and ``id`` is that line's:
+ * a paid break is paid time, lunch is logged and in no hours figure. A
+ * planned break is the company's standard one, not yet his: it has no id.
  */
 export const zBreakOut = z.object({
+    approved: z.boolean().nullable(),
     end: z.iso.time(),
-    id: z.uuid(),
+    id: z.uuid().nullable(),
+    name: z.string(),
     paid: z.boolean(),
+    planned: z.boolean(),
     start: z.iso.time()
 });
 
@@ -376,6 +383,7 @@ export const zCompanyDefaultsOut = z.object({
     address_raw_json: z.record(z.string(), z.unknown()).nullable(),
     afternoon_break_minutes: z.int(),
     afternoon_break_start: z.iso.time(),
+    break_job: z.uuid().nullable(),
     city: z.string().max(100).nullable(),
     company_acronym: z.string().max(10).nullable(),
     company_email: z.string().max(254).nullable(),
@@ -466,6 +474,7 @@ export const zCompanyDefaultsPatchIn = z.object({
     address_raw_json: z.record(z.string(), z.unknown()).nullish(),
     afternoon_break_minutes: z.int().nullish(),
     afternoon_break_start: z.iso.time().nullish(),
+    break_job_id: z.uuid().nullish(),
     city: z.string().max(100).nullish(),
     company_acronym: z.string().max(10).nullish(),
     company_email: z.string().max(254).nullish(),
@@ -1386,6 +1395,7 @@ export const zEntryEventOut = z.object({
  * ``to_go_hours`` is negative when more is entered than the person was here for.
  */
 export const zFillOut = z.object({
+    break_hours: z.number(),
     entered_hours: z.number(),
     to_fill_hours: z.number(),
     to_go_hours: z.number()
@@ -4071,6 +4081,17 @@ export const zPipelineWarningOut = z.object({
     count: z.int(),
     sample_jobs: z.array(zPipelineWarningJobOut),
     section: z.string()
+});
+
+/**
+ * PlacementOut
+ *
+ * Where an entry sits in the day: its hours and its times, each from the other.
+ */
+export const zPlacementOut = z.object({
+    finish: z.iso.time(),
+    hours: z.number(),
+    start: z.iso.time()
 });
 
 /**
@@ -9140,6 +9161,22 @@ export const zTimesheetsMyDayClockBody = zClockRequest;
  * OK
  */
 export const zTimesheetsMyDayClockResponse = zAttendanceOut;
+
+export const zTimesheetsMyDayPlacementQuery = z.object({
+    date: z.string(),
+    start: z.iso.time(),
+    hours: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    finish: z.iso.time().nullish(),
+    staff_id: z.uuid().nullish()
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsMyDayPlacementResponse = zPlacementOut;
 
 export const zTimesheetsMyDayStandardHoursBody = zStandardHoursRequest;
 

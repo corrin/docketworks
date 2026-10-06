@@ -1,4 +1,4 @@
-"""Create (or refresh) the eleven internal shop jobs.
+"""Create (or refresh) the twelve internal shop jobs.
 
 The E2E timesheet specs and ``finalize_instance_onboarding`` both find these
 jobs by exact name, so the names are a contract — "Annual Leave" in
@@ -20,6 +20,11 @@ class _ShopJobSpec(TypedDict):
     name: str
     description: str
 
+
+#: The one shop job the code needs to find again: every break is booked to
+#: it. It is found through ``CompanyDefaults.break_job``, which this command
+#: sets; the name is only how the command recognises its own job.
+BREAK_JOB_NAME = "Break"
 
 SHOP_JOBS: tuple[_ShopJobSpec, ...] = (
     {
@@ -54,6 +59,10 @@ SHOP_JOBS: tuple[_ShopJobSpec, ...] = (
         "name": "Statutory holiday",
         "description": "Paid statutory holidays and office closure days",
     },
+    {
+        "name": BREAK_JOB_NAME,
+        "description": "Breaks: paid breaks and lunch, which no customer is billed for",
+    },
     {"name": "Travel", "description": "Travel for work purposes"},
     {
         "name": "Training",
@@ -63,7 +72,7 @@ SHOP_JOBS: tuple[_ShopJobSpec, ...] = (
 
 
 class Command(BaseCommand):
-    """Create or update the eleven shop jobs on the shop company."""
+    """Create or update the shop jobs on the shop company."""
 
     help = "Create shop jobs for internal purposes"
 
@@ -95,6 +104,9 @@ class Command(BaseCommand):
             job.job_is_valid = True
             job.paid = False
             job.save(staff=automation_user)
+            if job.name == BREAK_JOB_NAME:
+                company_defaults.break_job = job
+                company_defaults.save(update_fields=["break_job"])
 
         self.stdout.write(
             self.style.SUCCESS(f"Shop jobs ready: {created} created, {updated} updated.")

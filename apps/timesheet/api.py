@@ -26,7 +26,8 @@ below carry their own prefixes.
 """
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, time
+from decimal import Decimal
 from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -43,7 +44,7 @@ from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth, SuperuserCookieJWTAuth
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.timesheet.models import AttendanceBreak, TimesheetEvent
+from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.schemas import (
     ApprovalsDayOut,
     ApproveDayOut,
@@ -57,6 +58,7 @@ from apps.timesheet.schemas import (
     JobsListResponse,
     PayrollRunsOut,
     PayRunListResponse,
+    PlacementOut,
     PostWeekToXeroRequest,
     PostWeekToXeroStartResponse,
     StaffDailyDataOut,
@@ -82,8 +84,8 @@ from apps.timesheet.services import (
     weekly_timesheet_service,
     workshop_timesheet_service,
 )
+from apps.timesheet.services.location import EntryLocation
 from apps.timesheet.services.workshop_timesheet_service import (
-    EntryLocation,
     WorkshopEntryCreateData,
     WorkshopEntryUpdateData,
 )
@@ -587,6 +589,47 @@ def timesheets_my_day_times(
     )
 
 
+@router.get(
+    "/timesheets/my-day/placement/",
+    auth=self_service_auth,
+    operation_id="timesheets_my_day_placement",
+    response=PlacementOut,
+    summary="Work out an entry's finish from its hours, or its hours from its finish",
+    tags=["timesheets"],
+)
+def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: the day, whose it is, and two of the three values
+    request: HttpRequest,
+    date: str,
+    start: time,
+    hours: Decimal | None = None,
+    finish: time | None = None,
+    staff_id: UUID | None = None,
+) -> dict[str, object]:
+    """Answer the entry drawer as he types: the one placement rule, nothing written.
+
+    Given hours, the finish steps over the day's breaks; given a finish, the
+    hours are the span less the breaks inside it.
+    """
+    owner = _entry_owner(request, staff_id)
+    day = _parse_date(date)
+    if (hours is None) == (finish is None):
+        raise HttpError(400, "Give the hours or the finish, one of them.")
+    breaks = workshop_timesheet_service.day_break_windows(owner, day)
+    if hours is not None:
+        return {
+            "start": start,
+            "finish": attendance.finish_for(start, hours, breaks),
+            "hours": float(hours),
+        }
+    if finish is None:  # narrowed for the type checker; refused above
+        raise HttpError(400, "Give the hours or the finish, one of them.")
+    return {
+        "start": start,
+        "finish": finish,
+        "hours": float(attendance.hours_for(start, finish, breaks)),
+    }
+
+
 @router.post(
     "/timesheets/my-day/breaks/",
     auth=self_service_auth,
@@ -621,7 +664,7 @@ def timesheets_my_day_breaks_update(
     """Move or resize a break on the caller's day, or for office staff on anyone's."""
     try:
         attendance.change_break(break_id, payload.start, payload.end, authenticated_staff(request))
-    except AttendanceBreak.DoesNotExist as exc:
+    except attendance.BreakNotFoundError as exc:
         raise HttpError(404, "Break not found.") from exc
     return Status(204, None)
 
@@ -638,7 +681,7 @@ def timesheets_my_day_breaks_delete(request: HttpRequest, break_id: UUID) -> Sta
     """Remove a break from the caller's day, or for office staff from anyone's."""
     try:
         attendance.remove_break(break_id, authenticated_staff(request))
-    except AttendanceBreak.DoesNotExist as exc:
+    except attendance.BreakNotFoundError as exc:
         raise HttpError(404, "Break not found.") from exc
     return Status(204, None)
 

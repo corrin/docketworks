@@ -82,10 +82,10 @@ test('a three-job day is filled from buttons and sent, around the breaks', async
     await autoId(page, 'DayCard-times-save').tap()
 
     await expect(breakBlock('Paid break 08:30 to 08:45')).toBeVisible()
-    await expect(breakBlock('Unpaid break 11:30 to 12:00')).toBeVisible()
+    await expect(breakBlock('Lunch 11:30 to 12:00')).toBeVisible()
     await expect(breakBlock('Paid break 13:30 to 13:45')).toBeVisible()
-    // Here for 8h 30m; only lunch is unpaid.
-    await expect(fill).toHaveText('8h to fill, 0h entered, 8h to go')
+    // Here for 8h 30m less lunch; his two paid breaks are entered for him.
+    await expect(fill).toHaveText('8h to fill, 30m breaks, 0h entered, 7h 30m to go')
     await testInfo.attach('day-with-breaks', {
       body: await page.screenshot({ animations: 'disabled', fullPage: true }),
       contentType: 'image/png',
@@ -93,27 +93,32 @@ test('a three-job day is filled from buttons and sent, around the breaks', async
   })
 
   await test.step('breaks are his: moved, removed and added back', async () => {
-    await breakBlock('Unpaid break').tap()
+    await breakBlock('Lunch').tap()
     await setBreakTimes(page, '12:00', '12:30')
-    await expect(breakBlock('Unpaid break 12:00 to 12:30')).toBeVisible()
-    await expect(fill).toHaveText('8h to fill, 0h entered, 8h to go')
+    await expect(breakBlock('Lunch 12:00 to 12:30')).toBeVisible()
+    await expect(fill).toHaveText('8h to fill, 30m breaks, 0h entered, 7h 30m to go')
 
-    await breakBlock('Unpaid break').tap()
+    // He worked through lunch: it goes, and the half hour is his to fill.
+    await breakBlock('Lunch').tap()
     await autoId(page, 'BreakSheet-remove').tap()
-    await expect(breakBlock('Unpaid break')).toHaveCount(0)
-    await expect(fill).toHaveText('8h 30m to fill, 0h entered, 8h 30m to go')
+    await expect(breakBlock('Lunch')).toHaveCount(0)
+    await expect(fill).toHaveText('8h 30m to fill, 30m breaks, 0h entered, 8h to go')
 
-    // A paid break is only a marker: removing one changes nothing to fill.
+    // A paid break he did not take is paid time he books to a job instead.
     await breakBlock('Paid break 13:30').tap()
     await autoId(page, 'BreakSheet-remove').tap()
     await expect(breakBlock('Paid break 13:30')).toHaveCount(0)
-    await expect(fill).toHaveText('8h 30m to fill, 0h entered, 8h 30m to go')
+    await expect(fill).toHaveText('8h 30m to fill, 15m breaks, 0h entered, 8h 15m to go')
 
+    await autoId(page, 'DayCard-add-break').tap()
+    await autoId(page, 'BreakSheet-paid').tap()
+    await setBreakTimes(page, '13:30', '13:45')
+    await expect(breakBlock('Paid break 13:30 to 13:45')).toBeVisible()
     await autoId(page, 'DayCard-add-break').tap()
     await autoId(page, 'BreakSheet-unpaid').tap()
     await setBreakTimes(page, '11:30', '12:00')
     await expect(breakBlock('Unpaid break 11:30 to 12:00')).toBeVisible()
-    await expect(fill).toHaveText('8h to fill, 0h entered, 8h to go')
+    await expect(fill).toHaveText('8h to fill, 30m breaks, 0h entered, 7h 30m to go')
   })
 
   // Every tap from here to the day being sent is counted: this is the whole
@@ -128,20 +133,22 @@ test('a three-job day is filled from buttons and sent, around the breaks', async
 
   await test.step('three jobs, no times, no adding up', async () => {
     await tap(autoId(page, 'DayCard-fill-and-send'))
-    await expect(sum).toHaveText('8h to fill, 0h entered, 8h to go')
+    await expect(sum).toHaveText('8h to fill, 30m breaks, 0h entered, 7h 30m to go')
 
     await tap(autoId(page, `FillDaySheet-job-${first}`))
     await tap(autoId(page, 'FillDaySheet-row-0-hours-3'))
-    await expect(sum).toHaveText('8h to fill, 3h entered, 5h to go')
+    await expect(sum).toHaveText('8h to fill, 30m breaks, 3h entered, 4h 30m to go')
 
     await tap(autoId(page, `FillDaySheet-job-${second}`))
     await tap(autoId(page, 'FillDaySheet-row-1-hours-2'))
-    await expect(sum).toHaveText('8h to fill, 5h entered, 3h to go')
+    await expect(sum).toHaveText('8h to fill, 30m breaks, 5h entered, 2h 30m to go')
 
     await tap(autoId(page, `FillDaySheet-job-${third}`))
-    await expect(autoId(page, 'FillDaySheet-row-2-rest')).toHaveText('The rest (3h)')
+    await expect(autoId(page, 'FillDaySheet-row-2-rest')).toHaveText('The rest (2h 30m)')
     await tap(autoId(page, 'FillDaySheet-row-2-rest'))
-    await expect(sum).toHaveText('8h to fill, 8h entered. All filled')
+    await expect(sum).toHaveText('8h to fill, 30m breaks, 7h 30m entered. All filled')
+    // The buttons fill the same field he can type in.
+    await expect(autoId(page, 'FillDaySheet-row-2-hours')).toHaveValue('2.5')
     await testInfo.attach('fill-sheet', {
       body: await page.screenshot({ animations: 'disabled' }),
       contentType: 'image/png',
@@ -151,16 +158,17 @@ test('a three-job day is filled from buttons and sent, around the breaks', async
     await expect(page.getByText('Day sent to the office.')).toBeVisible()
   })
 
-  await test.step('the day reads sent, laid out around lunch and through the paid break', async () => {
+  await test.step('the day reads sent, each job one entry stepping over the breaks', async () => {
     await expect(autoId(page, 'DayCard-state')).toContainText('Sent, waiting for approval')
-    await expect(fill).toHaveText('8h to fill, 8h entered. All filled')
+    await expect(fill).toHaveText('8h to fill, 30m breaks, 7h 30m entered. All filled')
     const saved = daySchema.parse(await (await page.request.get(`${DAY_PATH}?date=${day}`)).json())
     expect(
       saved.entries.map((entry) => [entry.job_number, entry.start_time, entry.end_time]),
     ).toEqual([
-      [first, '06:30:00', '09:30:00'],
-      [second, '09:30:00', '11:30:00'],
-      [third, '12:00:00', '15:00:00'],
+      // 3h over the morning break, 2h over lunch, 2h 30m over the afternoon break.
+      [first, '06:30:00', '09:45:00'],
+      [second, '09:45:00', '12:15:00'],
+      [third, '12:15:00', '15:00:00'],
     ])
     await testInfo.attach('day-sent', {
       body: await page.screenshot({ animations: 'disabled', fullPage: true }),

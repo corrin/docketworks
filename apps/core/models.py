@@ -581,6 +581,19 @@ class CompanyDefaults(SingletonModel):
         help_text="Internal company used for tracking shop work.",
     )
 
+    # The internal job every break is booked to (KAN-376): paid breaks at
+    # ordinary time, lunch as unpaid time. A break is never minutes inside a
+    # customer's job, which would bill the customer for it. NULL until
+    # ``create_shop_jobs`` has made the job on this instance.
+    break_job = models.ForeignKey(
+        "job.Job",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+        help_text="Internal job every break is booked to: paid breaks and lunch.",
+    )
+
     # Test company configuration
     test_company_name = models.CharField(  # noqa: DJ001
         max_length=255,

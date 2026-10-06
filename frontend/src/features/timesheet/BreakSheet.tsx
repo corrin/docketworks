@@ -1,6 +1,5 @@
 import { useState } from 'react'
 
-import type { BreakOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import {
   Drawer,
@@ -12,10 +11,11 @@ import {
 import { TOUCH_TARGET_CLASS } from '@/components/ui/touch'
 
 import { ClockTimesForm } from './DayCard'
+import type { RealBreak } from './myTime'
 
 /** Closed, adding a new break, or changing one that exists. */
 export type BreakSheetState =
-  { mode: 'closed' } | { mode: 'add' } | { mode: 'edit'; break: BreakOut }
+  { mode: 'closed' } | { mode: 'add' } | { mode: 'edit'; break: RealBreak }
 
 interface BreakSheetProps {
   state: BreakSheetState
@@ -49,13 +49,11 @@ export function BreakSheet({ state, saving, onAdd, onChange, onRemove, onClose }
       <DrawerContent data-automation-id="BreakSheet">
         <div className="mx-auto w-full max-w-md space-y-4 px-4 pb-6">
           <DrawerHeader className="px-0">
-            <DrawerTitle>
-              {editing === null ? 'Add a break' : editing.paid ? 'Paid break' : 'Unpaid break'}
-            </DrawerTitle>
+            <DrawerTitle>{editing === null ? 'Add a break' : editing.name}</DrawerTitle>
             <DrawerDescription>
-              {editing === null || !editing.paid
-                ? 'An unpaid break comes off the hours you have to fill.'
-                : 'A paid break changes nothing you have to fill.'}
+              {(editing?.paid ?? paid)
+                ? 'A paid break is paid. Make it longer and the extra is paid too.'
+                : 'An unpaid break comes off the hours you have to fill, and so does any extra.'}
             </DrawerDescription>
           </DrawerHeader>
           {editing === null && (
@@ -105,7 +103,7 @@ export function BreakSheet({ state, saving, onAdd, onChange, onRemove, onClose }
                 })
               }
             >
-              {editing.paid ? 'Remove this break' : 'No break here: remove it'}
+              {editing.paid ? 'Remove this break' : 'Worked through: remove it'}
             </Button>
           )}
         </div>

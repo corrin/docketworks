@@ -478,9 +478,17 @@ export type BreakCreateRequest = {
 /**
  * BreakOut
  *
- * One break in a person's day. Breaks are in no hours, cost or pay figure.
+ * One break in a person's day.
+ *
+ * Every break is his time line on the Break job and ``id`` is that line's:
+ * a paid break is paid time, lunch is logged and in no hours figure. A
+ * planned break is the company's standard one, not yet his: it has no id.
  */
 export type BreakOut = {
+    /**
+     * Approved
+     */
+    approved: boolean | null;
     /**
      * End
      */
@@ -488,11 +496,19 @@ export type BreakOut = {
     /**
      * Id
      */
-    id: string;
+    id: string | null;
+    /**
+     * Name
+     */
+    name: string;
     /**
      * Paid
      */
     paid: boolean;
+    /**
+     * Planned
+     */
+    planned: boolean;
     /**
      * Start
      */
@@ -802,6 +818,12 @@ export type CompanyDefaultsOut = {
      * When the workshop's paid afternoon break starts.
      */
     afternoon_break_start: string;
+    /**
+     * Break Job
+     *
+     * Internal job every break is booked to: paid breaks and lunch.
+     */
+    break_job: string | null;
     /**
      * City
      *
@@ -1260,6 +1282,12 @@ export type CompanyDefaultsPatchIn = {
      * When the workshop's paid afternoon break starts.
      */
     afternoon_break_start?: string | null;
+    /**
+     * Break Job
+     *
+     * Internal job every break is booked to: paid breaks and lunch.
+     */
+    break_job_id?: string | null;
     /**
      * City
      *
@@ -3517,6 +3545,10 @@ export type FieldChangeOut = {
  * ``to_go_hours`` is negative when more is entered than the person was here for.
  */
 export type FillOut = {
+    /**
+     * Break Hours
+     */
+    break_hours: number;
     /**
      * Entered Hours
      */
@@ -9254,6 +9286,26 @@ export type PipelineWarningOut = {
      * Section
      */
     section: string;
+};
+
+/**
+ * PlacementOut
+ *
+ * Where an entry sits in the day: its hours and its times, each from the other.
+ */
+export type PlacementOut = {
+    /**
+     * Finish
+     */
+    finish: string;
+    /**
+     * Hours
+     */
+    hours: number;
+    /**
+     * Start
+     */
+    start: string;
 };
 
 /**
@@ -20269,6 +20321,43 @@ export type TimesheetsMyDayClockResponses = {
 };
 
 export type TimesheetsMyDayClockResponse = TimesheetsMyDayClockResponses[keyof TimesheetsMyDayClockResponses];
+
+export type TimesheetsMyDayPlacementData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Date
+         */
+        date: string;
+        /**
+         * Start
+         */
+        start: string;
+        /**
+         * Hours
+         */
+        hours?: number | string | null;
+        /**
+         * Finish
+         */
+        finish?: string | null;
+        /**
+         * Staff Id
+         */
+        staff_id?: string | null;
+    };
+    url: '/api/timesheets/my-day/placement/';
+};
+
+export type TimesheetsMyDayPlacementResponses = {
+    /**
+     * OK
+     */
+    200: PlacementOut;
+};
+
+export type TimesheetsMyDayPlacementResponse = TimesheetsMyDayPlacementResponses[keyof TimesheetsMyDayPlacementResponses];
 
 export type TimesheetsMyDayStandardHoursData = {
     body: StandardHoursRequest;

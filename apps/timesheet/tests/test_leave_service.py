@@ -23,6 +23,7 @@ from apps.job.services import job_service
 from apps.timesheet.models import LeaveDay, LeaveRequest, LeaveType
 from apps.timesheet.services import leave_service, leave_settings
 from apps.timesheet.tests.conftest import (
+    make_break_line,
     make_leave_job,
     make_public_holiday_job,
     make_staff,
@@ -146,6 +147,19 @@ def test_conflicting_days_are_skipped_but_available_days_are_saved(
 
     assert [day["date"] for day in result["skipped_days"]] == [MONDAY]
     assert [day.date for day in LeaveDay.objects.all()] == [TUESDAY]
+
+
+def test_a_day_with_only_breaks_on_it_still_takes_leave(
+    worker: Staff, company: Company, superuser: Staff, break_job: Job
+) -> None:
+    """A paid break or a lunch is not work on the day: it does not block leave."""
+    make_leave_job(company, superuser, "Sick Leave")
+    make_break_line(break_job, worker, MONDAY, hours="0.250")
+    make_break_line(break_job, worker, MONDAY, hours="0.500", unpaid=True)
+
+    preview = leave_service.preview_leave(staff=worker, start_date=MONDAY, end_date=MONDAY)
+
+    assert [day["reason"] for day in preview["days"]] == [None]
 
 
 def test_update_replaces_days_and_delete_removes_every_projection(

@@ -38,6 +38,7 @@ from uuid import UUID
 
 from apps.accounts.services.payroll_terms import contracted_hours_on
 from apps.job.models.costing import CostLine
+from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.models import LeaveType, PostingSurface
 
 if TYPE_CHECKING:
@@ -45,7 +46,6 @@ if TYPE_CHECKING:
 
 OVERTIME_1_5X = Decimal("1.50")
 OVERTIME_2X = Decimal("2.00")
-UNPAID_MULTIPLIER = Decimal("0")
 
 # Opus: Which reported column each leave category lands in, keyed by the category
 # CODE rather than the Xero pay item's NAME. The name is editable from the
@@ -320,7 +320,10 @@ def categorise(lines: list[CostLine], catalogue: LeaveCatalogue | None = None) -
         Decimal("0"),
     )
 
-    for line in lines:
+    # Unpaid time (lunch) is logged, not hours: in no figure at all. It is the
+    # only non-leave time at a 0 multiplier, so the overtime split below
+    # needs no unpaid case of its own.
+    for line in (each for each in lines if not is_unpaid_time(each)):
         hours = line.quantity
         # Opus: The customer split covers every line, leave included: whether the
         # customer is charged is independent of how the staff member is paid.
@@ -341,8 +344,6 @@ def categorise(lines: list[CostLine], catalogue: LeaveCatalogue | None = None) -
             continue
 
         multiplier = wage_rate_multiplier(line)
-        if multiplier == UNPAID_MULTIPLIER:
-            continue
         if is_billable(line):
             totals["billed"] += hours
         else:

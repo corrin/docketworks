@@ -24,6 +24,7 @@ from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
+from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.services import hour_categories
 from apps.timesheet.services.daily_timesheet_service import SummaryStatsData
 
@@ -304,7 +305,12 @@ def _staff_week(  # noqa: PLR0913 -- Opus: one argument per input the row needs;
     # Payroll posts approved time only (KAN-376); the rest is held back, and
     # this screen is where the office sees how much before posting.
     week_lines = [line for day in days for line in grouped.get((staff_id, day), [])]
-    unapproved_hours = _total(line.quantity for line in week_lines if not line.approved)
+    unapproved_hours = _total(
+        line.quantity
+        for line in week_lines
+        # Lunch is logged, not hours, and never posted: it holds nothing back.
+        if not line.approved and not is_unpaid_time(line)
+    )
 
     return {
         "staff_id": staff_id,
