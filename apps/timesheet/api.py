@@ -28,6 +28,7 @@ below carry their own prefixes.
 import logging
 from datetime import date, datetime, time
 from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -35,7 +36,7 @@ from django.db import transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from ninja import Router
+from ninja import Field, Router
 from ninja.errors import HttpError
 from ninja.responses import Status
 
@@ -46,6 +47,8 @@ from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.timesheet.models import TimesheetEvent
 from apps.timesheet.schemas import (
+    HOURS_LIMIT,
+    HOURS_MIN,
     ApprovalsDayOut,
     ApproveDayOut,
     AttendanceOut,
@@ -629,7 +632,9 @@ def timesheets_my_day_placement(  # noqa: PLR0913, PLR0917 -- query parameters: 
     request: HttpRequest,
     date: str,
     start: time,
-    hours: Decimal | None = None,
+    # The same bounds as an entry's hours: zero, negative or too many is
+    # refused as the entry endpoints refuse them, before any arithmetic.
+    hours: Annotated[Decimal, Field(ge=HOURS_MIN, lt=HOURS_LIMIT)] | None = None,
     finish: time | None = None,
     staff_id: UUID | None = None,
 ) -> dict[str, object]:

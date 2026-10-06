@@ -14,8 +14,8 @@ Non-blank lines of tracked source (`.py .ts .tsx .js .jsx .vue .sh .html .css .s
 
 | metric | count |
 |---|---:|
-| code | 124,582 (v1 172,577, -28%) |
-| tests | 88,546 (v1 50,869, +74%) |
+| code | 124,587 (v1 172,577, -28%) |
+| tests | 88,548 (v1 50,869, +74%) |
 | generated | 53,985 (v1 20,359, +165%) |
 
 ## Suppressions

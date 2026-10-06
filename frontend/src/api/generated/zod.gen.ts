@@ -9183,7 +9183,7 @@ export const zTimesheetsMyDayPlacementQuery = z.object({
     date: z.string(),
     start: z.iso.time(),
     hours: z.union([
-        z.number(),
+        z.number().gte(0.01).lt(100000),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
     ]).nullish(),
     finish: z.iso.time().nullish(),

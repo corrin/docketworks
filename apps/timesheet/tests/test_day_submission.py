@@ -111,6 +111,8 @@ class TestPlacement:
         assert forward == {"start": "07:00:00", "finish": "14:00:00", "hours": 6.0}
         assert back == {"start": "07:00:00", "finish": "14:00:00", "hours": 6.0}
         assert neither.status_code == 400
+        for refused in ("0", "-1", "100000"):
+            assert worker_client.get(f"{query}&hours={refused}").status_code == 422
         assert not CostLine.objects.filter(staff=worker, cost_set__job__status="draft").exists()
 
 

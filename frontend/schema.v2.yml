@@ -24046,7 +24046,9 @@ paths:
         required: false
         schema:
           anyOf:
-          - type: number
+          - exclusiveMaximum: 100000.0
+            minimum: 0.01
+            type: number
           - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             type: string
           - type: 'null'
