@@ -60,6 +60,7 @@ from apps.job.models import (
 from apps.job.models.costing import CostLine, CostSet, lock_costing_jobs
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
 from apps.job.services.time_entry_rates import pay_item_by_id, price_time_entry
+from apps.timesheet.models import mark_break_edited
 from apps.timesheet.services.location import saved_remotely
 from apps.timesheet.services.timesheet_events import (
     is_timesheet_entry,
@@ -2418,6 +2419,8 @@ def update_cost_line(line: CostLine, data: CostLineWriteData, staff: Staff) -> C
 
     with transaction.atomic():
         _apply_costline_fields(line, data)
+        # A standard break changed from the grid is his, as from his phone.
+        mark_break_edited(line.meta)
         if line.cost_set.kind == "actual" and line.approved and "stock_id" in line.ext_refs:
             raise ValueError("Issue material through purchasing so its stock movement is recorded.")
         line.save()

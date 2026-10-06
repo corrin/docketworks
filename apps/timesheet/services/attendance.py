@@ -22,7 +22,7 @@ from apps.core.errors import AccessDeniedError, ConflictError, InvalidInputError
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
 from apps.job.services.time_entry_rates import is_unpaid_time
-from apps.timesheet.models import AttendanceDay, ClockHow
+from apps.timesheet.models import UNTOUCHED_STANDARD_BREAK, AttendanceDay, ClockHow
 from apps.timesheet.services.location import EntryLocation, saved_remotely
 from apps.timesheet.services.timesheet_events import DaySnapshot, record_day_event
 
@@ -138,58 +138,15 @@ def _line_window(line: CostLine) -> Window | None:
     return Window(time.fromisoformat(start), time.fromisoformat(end))
 
 
-#: How far from a standard break one he recorded may start and still be that
-#: break taken at another time: lunch at 12:15 is the 11:30 lunch, taken late.
-_SAME_BREAK_MINUTES = 120
+def _planned_breaks(day: date) -> list[BreakData]:
+    """Return the standard day's breaks, for a day nobody has clocked.
 
-
-def _not_yet_taken(standard: list[StandardBreak], taken: list[BreakData]) -> list[StandardBreak]:
-    """Return the standard breaks that no break he recorded stands in for.
-
-    Each recorded break stands in for at most one standard break of its own
-    kind (paid or unpaid), the nearest that starts within two hours of it.
-    """
-    unused = list(taken)
-    left: list[StandardBreak] = []
-    for each in standard:
-        candidates = [
-            other
-            for other in unused
-            if other["paid"] == each.paid
-            and abs(_minutes(other["start"]) - _minutes(each.window.start)) <= _SAME_BREAK_MINUTES
-        ]
-        if not candidates:
-            left.append(each)
-            continue
-        nearest = min(
-            candidates,
-            key=lambda other: abs(_minutes(other["start"]) - _minutes(each.window.start)),
-        )
-        unused.remove(nearest)
-    return left
-
-
-def _planned_breaks(
-    row: AttendanceDay | None, day: date, taken: list[BreakData]
-) -> list[BreakData]:
-    """Return the standard breaks still to come on a day that has not had its own put on.
-
-    From when he clocked in, or across the standard day when nobody has
-    clocked, less any he has already recorded. Shown, never stored: a GET
-    writes nothing.
+    Shown so the day has its shape before he starts, and written by nothing
+    (a GET writes nothing). Once the day has a start they are his lines.
     """
     standard = standard_day(day)
-    if row is not None:
-        first, last = row.clock_in, time.max
-    elif standard is not None:
-        first, last = standard.start, standard.end
-    else:
+    if standard is None:
         return []
-    within = [
-        each
-        for each in _default_breaks()
-        if each.window.start >= first and _minutes(each.window.end) <= _minutes(last)
-    ]
     return [
         {
             "id": None,
@@ -200,7 +157,8 @@ def _planned_breaks(
             "planned": True,
             "approved": None,
         }
-        for each in _not_yet_taken(within, taken)
+        for each in _default_breaks()
+        if each.window.start >= standard.start and each.window.end <= standard.end
     ]
 
 
@@ -215,9 +173,8 @@ def day_breaks(
     """Return the day's breaks, paid and unpaid, in the order they happen.
 
     The one list, for the picture of the day and for placing entries around
-    it: every break he has recorded (his lines on the Break job, which the
-    caller already holds among the day's time) and, until the day has had its
-    breaks put on, the company's standard breaks he has not yet taken, as
+    it: his lines on the Break job, which the caller already holds among the
+    day's time. A day nobody has clocked shows the standard day's breaks as
     planned.
     """
     taken: list[BreakData] = []
@@ -236,7 +193,7 @@ def day_breaks(
                 "approved": line.approved,
             }
         )
-    planned = [] if row is not None and row.breaks_generated else _planned_breaks(row, day, taken)
+    planned = _planned_breaks(day) if row is None else []
     return sorted([*taken, *planned], key=lambda each: (each["start"], each["end"]))
 
 
@@ -610,6 +567,7 @@ def clock_in(worker: Staff, now: datetime, location: EntryLocation | None = None
             "You have already clocked in and out today. Change the times, or clock back in."
         )
     _record(worker, row, "clocked_in", None, location=location)
+    generate_default_breaks(row, worker, location)
     return attendance_data(row)
 
 
@@ -633,7 +591,7 @@ def clock_out(
     row.clock_out_how = _tapped(worker, location)
     row.save(update_fields=["clock_out", "clock_out_how", "updated_at"])
     _record(worker, row, "clocked_out", before, location=location)
-    generate_default_breaks(row, worker, location)
+    drop_breaks_after_finish(row, worker, location)
     return attendance_data(row)
 
 
@@ -694,6 +652,7 @@ def set_clock_times(  # noqa: PLR0913 -- whose day, which day, two times, who se
     row.save()
     _record(actor, row, "clock_times_set", before, location=location)
     generate_default_breaks(row, actor, location)
+    drop_breaks_after_finish(row, actor, location)
     return attendance_data(row)
 
 
@@ -728,6 +687,7 @@ def use_standard_hours(
         raise ConflictError("This day already has clock times. Change them instead.")
     _record(actor, row, "standard_hours_used", None, location=location)
     generate_default_breaks(row, actor, location)
+    drop_breaks_after_finish(row, actor, location)
     return attendance_data(row)
 
 
@@ -755,40 +715,29 @@ def _default_breaks() -> list[StandardBreak]:
 def generate_default_breaks(
     row: AttendanceDay, actor: Staff, location: EntryLocation | None = None
 ) -> None:
-    """Put the workshop's standard breaks on a day, once, when it first has both times.
+    """Put the workshop's standard breaks on a day, once, when it first has a start.
 
-    A break is put on when he was there for the whole of it. Each is a line
-    on the Break job, saved by whoever closed the day: a paid break at
-    ordinary time, lunch at the unpaid rate (owner, 2026-10-06: lunch is
-    logged, and if he worked through it he deletes it). His own wait for
-    approval like the rest of his time; the office's start approved. Never
-    marked late or remote: nobody typed them.
+    Each standard break from his start on becomes a line on the Break job,
+    saved by whoever started the day: a paid break at ordinary time, lunch at
+    the unpaid rate (owner, 2026-10-06: lunch is logged, and if he worked
+    through it he deletes it). From then they are his: he moves one, or
+    removes it, as a line; one he adds is another break and cancels none.
+    Each is marked untouched until someone edits it, so the finish can take
+    away the ones he was not there for (``drop_breaks_after_finish``). His
+    own wait for approval like the rest of his time; the office's start
+    approved. Never marked late or remote: nobody typed them.
 
-    Once per day and never again: the breaks are then his, and a later
-    correction of the clock times does not put back one he removed or moved.
-    The cost, accepted by the owner: a day first clocked short and later
-    corrected to a full day gets no breaks by itself.
+    Once per day and never again: a later correction of the start does not
+    put back one he removed. The cost, accepted by the owner: a day first
+    started late and corrected earlier gets no early breaks by itself.
     """
-    if row.breaks_generated or row.clock_out is None:
+    if row.breaks_generated:
         return
-    within = [
-        each
-        for each in _default_breaks()
-        if each.window.start >= row.clock_in and each.window.end <= row.clock_out
-    ]
-    # The Break job is asked for only when a break is to be put on: an hour's
-    # day, or a workshop with no standard breaks, closes without one.
-    taken = (
-        [
-            each
-            for each in day_breaks(row.date, row, _break_lines(row.staff, row.date))
-            if not each["planned"]
-        ]
-        if within
-        else []
-    )
-    # One he recorded while at work is that break: lunch is not put on twice.
-    for each in _not_yet_taken(within, taken):
+    for each in _default_breaks():
+        # A day given both times at once has no break he was not there for.
+        ends_after = row.clock_out is not None and each.window.end > row.clock_out
+        if each.window.start < row.clock_in or ends_after:
+            continue
         _create_break(
             row.staff,
             row.date,
@@ -803,15 +752,40 @@ def generate_default_breaks(
     row.save(update_fields=["breaks_generated", "updated_at"])
 
 
-def _break_lines(owner: Staff, day: date) -> list[CostLine]:
-    """Return his lines on the Break job for a day."""
+def drop_breaks_after_finish(
+    row: AttendanceDay, actor: Staff, location: EntryLocation | None = None
+) -> None:
+    """Take off the standard breaks he was not there for, now the day has a finish.
+
+    Only one still untouched: he left at noon, so the afternoon break goes;
+    one he moved or changed is his and stays wherever it is.
+    """
+    if row.clock_out is None:
+        return
+    from apps.timesheet.services.workshop_timesheet_service import (  # noqa: PLC0415
+        delete_entry,
+    )
+
+    for line in _break_lines_if_any(row.staff, row.date):
+        window = _line_window(line)
+        if line.meta.get("source") != UNTOUCHED_STANDARD_BREAK or window is None:
+            continue
+        if window.end > row.clock_out:
+            delete_entry(actor, line.id, location)
+
+
+def _break_lines_if_any(owner: Staff, day: date) -> list[CostLine]:
+    """Return his lines on the Break job for a day; none on an instance without it."""
+    job_id = break_job_id()
+    if job_id is None:
+        return []
     return list(
         CostLine.objects.filter(
             cost_set__kind="actual",
             kind="time",
             staff=owner,
             accounting_date=day,
-            cost_set__job_id=_required_break_job_id(),
+            cost_set__job_id=job_id,
         ).select_related("xero_pay_item")
     )
 

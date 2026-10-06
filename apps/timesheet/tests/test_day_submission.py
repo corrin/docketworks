@@ -19,7 +19,6 @@ from apps.job.models.costing import CostLine
 from apps.job.services.time_entry_rates import is_unpaid_time
 from apps.timesheet.models import AttendanceDay
 from apps.timesheet.services import (
-    approval,
     attendance,
     day_submission,
     timesheet_entry_options,
@@ -333,63 +332,107 @@ class TestBreaks:
         on_breaks = CostLine.objects.filter(staff=worker, cost_set__job=break_job)
         assert {line.unit_rev for line in on_breaks} == {Decimal("0.00")}
 
-    def test_planned_breaks_show_before_clock_out_and_write_nothing(self, worker: Staff) -> None:
-        """The day has its shape from the moment he opens it."""
+    def test_the_breaks_are_planned_until_he_starts_then_his(
+        self, worker: Staff, break_job: Job
+    ) -> None:
+        """The day has its shape before he starts; from his start the breaks are lines."""
         unclocked = _breaks(worker)
+        no_lines = not CostLine.objects.filter(staff=worker).exists()
         attendance.set_clock_times(worker, DAY, time(9, 0), None, worker)
         at_work = _day(worker)["breaks"]
 
-        # Nobody has clocked: the standard day's three.
+        # Nobody has clocked: the standard day's three, written by nothing.
         assert unclocked == [
             ("08:30", "08:45", True),
             ("11:30", "12:00", False),
             ("13:30", "13:45", True),
         ]
-        # In at nine: the morning break has gone by.
-        assert [(each["start"], each["planned"], each["id"]) for each in at_work] == [
-            (time(11, 30), True, None),
-            (time(13, 30), True, None),
+        assert no_lines
+        # In at nine: the morning break had gone by; the other two are his lines.
+        assert [(each["start"], each["planned"]) for each in at_work] == [
+            (time(11, 30), False),
+            (time(13, 30), False),
         ]
-        assert not CostLine.objects.filter(staff=worker).exists()
+        assert all(each["id"] is not None for each in at_work)
+        assert CostLine.objects.filter(staff=worker, cost_set__job=break_job).count() == 2
 
-    def test_a_break_added_while_at_work_shows_and_is_not_put_on_twice(
-        self, worker: Staff, break_job: Job
-    ) -> None:
-        """He took lunch late and said so before clocking out: one lunch, his."""
+    def test_a_short_unpaid_break_he_adds_does_not_cancel_lunch(self, worker: Staff) -> None:
+        """A break he adds is another break: it never stands in for a standard one."""
         attendance.set_clock_times(worker, DAY, time(6, 30), None, worker)
-        attendance.add_break(worker, DAY, time(12, 15), time(12, 45), paid=False, actor=worker)
-
-        at_work = _breaks(worker)
-        on_the_office_row = [
-            (f"{each['start']:%H:%M}", each["planned"])
-            for row in approval.day_approvals(DAY)["staff"]
-            if row["staff_id"] == str(worker.id)
-            for each in row["breaks"]
-        ]
-        _clocked(worker)
-
-        # Shown at once, beside the paid breaks still to come; no planned lunch.
-        assert at_work == [
-            ("08:30", "08:45", True),
-            ("12:15", "12:45", False),
-            ("13:30", "13:45", True),
-        ]
-        assert on_the_office_row == [("08:30", True), ("12:15", False), ("13:30", True)]
-        # Clocking out puts on the two paid breaks and no second lunch.
-        assert _breaks(worker) == at_work
-        assert CostLine.objects.filter(staff=worker, cost_set__job=break_job).count() == 3
-
-    def test_a_late_morning_break_stands_in_for_the_morning_one(self, worker: Staff) -> None:
-        attendance.set_clock_times(worker, DAY, time(6, 30), None, worker)
-        attendance.add_break(worker, DAY, time(10, 0), time(10, 15), paid=True, actor=worker)
+        attendance.add_break(worker, DAY, time(12, 0), time(12, 5), paid=False, actor=worker)
 
         _clocked(worker)
 
         assert _breaks(worker) == [
-            ("10:00", "10:15", True),
+            ("08:30", "08:45", True),
             ("11:30", "12:00", False),
+            ("12:00", "12:05", False),
             ("13:30", "13:45", True),
         ]
+
+    def test_lunch_inside_an_appointment_is_his_to_remove(self, worker: Staff) -> None:
+        """Out from 08:00 to 12:30: lunch is still put on, as a line he can take off."""
+        attendance.set_clock_times(worker, DAY, time(6, 30), None, worker)
+        attendance.add_break(worker, DAY, time(8, 0), time(12, 30), paid=False, actor=worker)
+        lunch = next(
+            each
+            for each in _day(worker)["breaks"]
+            if each["name"] == "Lunch" and each["id"] is not None
+        )
+        assert lunch["id"] is not None
+
+        attendance.remove_break(UUID(lunch["id"]), worker)
+        _clocked(worker)
+
+        assert [(start, end) for start, end, paid in _breaks(worker) if not paid] == [
+            ("08:00", "12:30")
+        ]
+
+    def test_a_paid_break_moved_is_that_break_not_a_third(self, worker: Staff) -> None:
+        attendance.set_clock_times(worker, DAY, time(6, 30), None, worker)
+        morning = next(each for each in _day(worker)["breaks"] if each["start"] == time(8, 30))
+        assert morning["id"] is not None
+
+        attendance.change_break(UUID(morning["id"]), time(11, 0), time(11, 15), worker)
+        _clocked(worker)
+
+        assert [(start, end) for start, end, paid in _breaks(worker) if paid] == [
+            ("11:00", "11:15"),
+            ("13:30", "13:45"),
+        ]
+
+    def test_left_at_noon_the_untouched_afternoon_break_goes_a_moved_one_stays(
+        self, worker: Staff, other_worker: Staff
+    ) -> None:
+        attendance.set_clock_times(worker, DAY, time(6, 30), None, worker)
+        attendance.set_clock_times(other_worker, DAY, time(6, 30), None, other_worker)
+        theirs = next(
+            each
+            for each in workshop_timesheet_service.list_entries(other_worker, DAY)["breaks"]
+            if each["start"] == time(13, 30)
+        )
+        assert theirs["id"] is not None
+        attendance.change_break(UUID(theirs["id"]), time(13, 30), time(13, 50), other_worker)
+
+        attendance.set_clock_times(worker, DAY, time(6, 30), time(12, 0), worker)
+        attendance.set_clock_times(other_worker, DAY, time(6, 30), time(12, 0), other_worker)
+
+        assert _breaks(worker) == [("08:30", "08:45", True), ("11:30", "12:00", False)]
+        assert [
+            f"{each['start']:%H:%M}"
+            for each in workshop_timesheet_service.list_entries(other_worker, DAY)["breaks"]
+        ] == ["08:30", "11:30", "13:30"]
+
+    def test_a_default_he_edited_survives_clocking_out_early(self, worker: Staff) -> None:
+        """He changed lunch to start late and left before it ended: it is his, so it stays."""
+        attendance.set_clock_times(worker, DAY, time(6, 30), None, worker)
+        lunch = next(each for each in _day(worker)["breaks"] if not each["paid"])
+        assert lunch["id"] is not None
+        attendance.change_break(UUID(lunch["id"]), time(11, 45), time(12, 15), worker)
+
+        _clocked(worker, time(6, 30), time(12, 0))
+
+        assert ("11:45", "12:15", False) in _breaks(worker)
 
     def test_a_break_he_did_not_have_is_never_entered(self, worker: Staff, break_job: Job) -> None:
         """He left at noon: the afternoon break was planned, and is not paid."""
@@ -649,7 +692,7 @@ class TestSubmitDay:
         with pytest.raises(ConflictError, match="Clock out"):
             day_submission.submit_day(worker, DAY, [_row(job, "3")], None, timezone.now())
 
-        assert not CostLine.objects.filter(staff=worker).exists()
+        assert not CostLine.objects.filter(staff=worker, cost_set__job=job).exists()
 
     def test_submit_is_all_or_nothing(self, worker: Staff, job: Job) -> None:
         """A row that cannot be saved leaves the day as it was, and unsent."""

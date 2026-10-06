@@ -309,11 +309,11 @@ def company_address() -> None:
     company.save(update_fields=["latitude", "longitude"])
 
 
-def _trusted(worker: Staff) -> list[tuple[str, bool]]:
-    return [
-        (event.event_type, event.trusted)
-        for event in TimesheetEvent.objects.filter(worker=worker).order_by("timestamp")
-    ]
+def _trusted(worker: Staff, *, day_only: bool = False) -> list[tuple[str, bool]]:
+    events = TimesheetEvent.objects.filter(worker=worker).order_by("timestamp")
+    if day_only:
+        events = events.filter(cost_line_id=None)
+    return [(event.event_type, event.trusted) for event in events]
 
 
 @pytest.mark.usefixtures("company_address")
@@ -359,7 +359,7 @@ class TestWhereAnActionWasMade:
         attendance.clock_in(worker, _at(0, 6, 30), None)
 
         assert _how(worker)[0] == "clocked_remotely"
-        assert _trusted(worker) == [("clocked_in", False)]
+        assert _trusted(worker, day_only=True) == [("clocked_in", False)]
 
     def test_office_actions_are_trusted(self, worker: Staff, office_staff: Staff) -> None:
         """The office books from desks whose browsers guess their position."""
@@ -380,7 +380,8 @@ class TestWhereAnActionWasMade:
             .json()
         )
 
-        assert [(each["description"], each["trusted"]) for each in history] == [
+        clock_events = [each for each in history if each["event_type"].startswith("clock")]
+        assert [(each["description"], each["trusted"]) for each in clock_events] == [
             ("Clock in moved from 07:02 to 07:00", True),
             ("Clock in 07:02", False),
         ]
@@ -391,4 +392,4 @@ def test_with_no_company_address_nothing_is_marked(worker: Staff) -> None:
     attendance.clock_in(worker, _at(0, 6, 30), None)
 
     assert _how(worker)[0] == "clocked"
-    assert _trusted(worker) == [("clocked_in", True)]
+    assert _trusted(worker, day_only=True) == [("clocked_in", True)]

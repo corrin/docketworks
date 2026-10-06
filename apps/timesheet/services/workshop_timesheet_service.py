@@ -43,7 +43,12 @@ from apps.job.services.time_entry_rates import (
     price_time_entry,
     rate_from_meta,
 )
-from apps.timesheet.models import AttendanceDay
+from apps.timesheet.models import (
+    EDITED_STANDARD_BREAK,
+    UNTOUCHED_STANDARD_BREAK,
+    AttendanceDay,
+    mark_break_edited,
+)
 from apps.timesheet.services import attendance, hour_categories
 from apps.timesheet.services.attendance import (
     AttendanceData,
@@ -247,8 +252,8 @@ def _meta_multiplier(meta: dict[str, object], key: str, default: Decimal) -> Dec
     return normalize_multiplier(raw)
 
 
-#: ``meta.source`` of a line nobody typed: the standard breaks put on a day.
-GENERATED_SOURCE = "standard_breaks"
+#: Lines nobody typed, never marked entered late.
+_GENERATED_SOURCES = frozenset({UNTOUCHED_STANDARD_BREAK, EDITED_STANDARD_BREAK})
 
 
 def entered_late(line: CostLine) -> bool:
@@ -260,7 +265,7 @@ def entered_late(line: CostLine) -> bool:
     for that day is on time. A line a workflow owns is never late: leave is
     routinely entered the day after.
     """
-    if line.managed_by is not None or line.meta.get("source") == GENERATED_SOURCE:
+    if line.managed_by is not None or line.meta.get("source") in _GENERATED_SOURCES:
         return False
     return timezone.localdate(line.created_at) > line.accounting_date
 
@@ -595,7 +600,7 @@ def create_entry(
             is_billable=data.get("is_billable", True),
         )
         if generated:
-            meta["source"] = GENERATED_SOURCE
+            meta["source"] = UNTOUCHED_STANDARD_BREAK
         start_time = data.get("start_time")
         end_time = data.get("end_time")
         if start_time is not None:
@@ -706,6 +711,25 @@ def _apply_scalar_changes(
 _MOVES_THE_FINISH = frozenset({"hours", "start_time", "accounting_date"})
 
 
+def _redraw_finish(line: CostLine, meta: dict[str, object], data: WorkshopEntryUpdateData) -> None:
+    """Redraw an edited entry's finish from its hours, unless a finish was given.
+
+    Hours are the truth and the times their picture: new hours, a new start or
+    a new day redraw the finish rather than being refused by it. Past midnight
+    from the start, the hours stand and keep no picture.
+    """
+    start = _meta_time(meta, "start_time")
+    if start is None or "end_time" in data or not data.keys() & _MOVES_THE_FINISH:
+        return
+    windows = day_break_windows(_owner_of(line), line.accounting_date)
+    finish = attendance.finish_in_the_day(start, line.quantity, windows)
+    if finish is None:
+        meta["start_time"] = None
+        meta["end_time"] = None
+    else:
+        meta["end_time"] = _format_time(finish)
+
+
 def update_entry(
     actor: Staff, data: WorkshopEntryUpdateData, location: EntryLocation | None = None
 ) -> WorkshopEntryData:
@@ -759,18 +783,7 @@ def update_entry(
         if not changed:
             raise ValueError("No changes supplied.")
 
-        start = _meta_time(meta, "start_time")
-        if start is not None and "end_time" not in data and data.keys() & _MOVES_THE_FINISH:
-            # Hours are the truth and the times their picture: new hours, a new
-            # start or a new day redraw the finish rather than being refused by it.
-            windows = day_break_windows(_owner_of(line), line.accounting_date)
-            finish = attendance.finish_in_the_day(start, line.quantity, windows)
-            if finish is None:
-                # Past midnight from here: the hours stand and keep no picture.
-                meta["start_time"] = None
-                meta["end_time"] = None
-            else:
-                meta["end_time"] = _format_time(finish)
+        _redraw_finish(line, meta, data)
 
         # Validated on the merged entry, not the patch alone: a PATCH that moves
         # one time can break agreement with the stored other half.
@@ -778,6 +791,8 @@ def update_entry(
             _meta_time(meta, "start_time"), _meta_time(meta, "end_time"), line.quantity
         )
 
+        # Changed by someone: no longer the default the finish may take away.
+        mark_break_edited(meta)
         line.meta = meta
         # Only ever set here: an edit made at the workshop does not vouch for
         # an entry first made somewhere else.

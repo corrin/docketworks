@@ -232,6 +232,19 @@ class LeaveDay(models.Model):
             raise ValidationError({"staff": "Leave day staff must match its request."})
 
 
+#: ``CostLine.meta["source"]`` of a standard break put on a day and not
+#: touched since: the day's finish takes it away if he was not there for it.
+UNTOUCHED_STANDARD_BREAK = "standard_breaks"
+#: The same break once he or the office has moved or changed it: his, kept.
+EDITED_STANDARD_BREAK = "standard_breaks_edited"
+
+
+def mark_break_edited(meta: dict[str, object]) -> None:
+    """Record on a line's meta that an untouched standard break has been changed."""
+    if meta.get("source") == UNTOUCHED_STANDARD_BREAK:
+        meta["source"] = EDITED_STANDARD_BREAK
+
+
 class ClockHow(models.TextChoices):
     """How a day's start or finish came to be recorded (KAN-376).
 
