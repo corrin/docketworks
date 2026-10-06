@@ -118,6 +118,12 @@ class TestHoursToFill:
         assert attendance.paid_span_hours(time(6, 30), time(15, 0), []) == Decimal("8.5")
         assert attendance.paid_span_hours(time(6, 30), time(15, 0), [LUNCH]) == Decimal("8")
 
+    def test_overlapping_unpaid_breaks_come_off_once(self) -> None:
+        """He moved lunch over an unpaid break he had added: half an hour away, not 45 minutes."""
+        overlapping = [LUNCH, Window(time(11, 45), time(12, 0))]
+
+        assert attendance.paid_span_hours(time(6, 30), time(15, 0), overlapping) == Decimal("8")
+
     def test_span_rounds_to_the_quarter_hour(self) -> None:
         """A real clock gives 06:28 to 15:04; the worker is never shown 8.1."""
         assert attendance.paid_span_hours(time(6, 28), time(15, 4), [LUNCH]) == Decimal("8")

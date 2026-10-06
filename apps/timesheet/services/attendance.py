@@ -255,10 +255,7 @@ def paid_span_hours(start: time, finish: time, unpaid: list[Window]) -> Decimal:
     the span is rounded once here and nothing downstream shows "0.1 to go".
     """
     first, last = _minutes(start), _minutes(finish)
-    minutes = last - first
-    for window in unpaid:
-        inside = min(last, _minutes(window.end)) - max(first, _minutes(window.start))
-        minutes -= max(inside, 0)
+    minutes = last - first - _minutes_inside(first, last, unpaid)
     quarters = (Decimal(minutes) / QUARTER_HOUR_MINUTES).quantize(Decimal("1"), ROUND_HALF_UP)
     return quarters * QUARTER_HOUR_MINUTES / Decimal(60)
 
@@ -300,6 +297,17 @@ def _merged(windows: list[Window]) -> list[tuple[int, int]]:
     return merged
 
 
+def _minutes_inside(first: int, last: int, breaks: list[Window]) -> int:
+    """Return how many minutes of the breaks fall between two minutes of the day.
+
+    Overlapping breaks count once: two that overlap are one stretch away from work.
+    """
+    return sum(
+        max(min(last, break_end) - max(first, break_start), 0)
+        for break_start, break_end in _merged(breaks)
+    )
+
+
 _LAST_MINUTE = 24 * 60 - 1
 
 
@@ -336,9 +344,7 @@ def hours_for(start: time, finish: time, breaks: list[Window]) -> Decimal:
     first, last = _minutes(start), _minutes(finish)
     if last <= first:
         raise InvalidInputError("The finish has to be after the start.")
-    minutes = last - first
-    for break_start, break_end in _merged(breaks):
-        minutes -= max(min(last, break_end) - max(first, break_start), 0)
+    minutes = last - first - _minutes_inside(first, last, breaks)
     return (Decimal(minutes) / Decimal(60)).quantize(Decimal("0.01"))
 
 
