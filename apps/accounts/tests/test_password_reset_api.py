@@ -13,7 +13,7 @@ from datetime import date
 from typing import TYPE_CHECKING
 
 import pytest
-from django.test import Client
+from django.test import Client, override_settings
 
 import apps.accounts.tasks as accounts_tasks
 from apps.accounts.models import Staff
@@ -130,6 +130,20 @@ class TestPasswordResetRequest:
         fresh_login = login_response("jo@example.com", NEW_PASSWORD)
         assert fresh_login.status_code == 200
         assert fresh_login.json()["password_needs_reset"] is False
+
+    @pytest.mark.usefixtures("staff")
+    def test_the_link_names_the_configured_origin_whatever_host_asked(
+        self, outbox: list[QueuedReset]
+    ) -> None:
+        with override_settings(FRONT_END_URL="https://shop.example.com"):
+            Client().post(
+                REQUEST_PATH,
+                data={"email": "jo@example.com"},
+                content_type="application/json",
+                headers={"X-Forwarded-Host": "localhost"},
+            )
+
+        assert outbox[0].link.startswith("https://shop.example.com/reset-password?")
 
     def test_unknown_email_is_the_same_200_and_sends_nothing(
         self, outbox: list[QueuedReset]

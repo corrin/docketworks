@@ -38,7 +38,12 @@ if [[ "$USE_FAKE_XERO" == true && -n "${E2E_XERO_PAYROLL:-}" ]]; then
   exit 1
 fi
 if [[ "$USE_FAKE_XERO" == true ]]; then
-  echo "FAKE XERO: all Xero calls are answered locally."
+  echo "FAKE XERO: all Xero calls are answered locally; the suite runs on localhost."
+  # Opus: a fake run reaches nothing that calls back, so it needs no public
+  # origin. The process env outranks .env for Django (load_dotenv never
+  # overrides) and for the harness (getBackendEnv), so both use this origin.
+  # localhost, not 127.0.0.1: Vite's allowedHosts holds localhost only.
+  export FRONT_END_URL=http://localhost:4173
 else
   echo "REAL XERO: explicitly selected; this run spends live API calls."
 fi
@@ -89,21 +94,27 @@ trap 'exit 143' TERM
 
 # Resolved after the traps so a missing binary reports instead of a silent
 # set -e death with no message.
-if ! NGROK="$(command -v ngrok)"; then
-  echo "Refusing to start: ngrok is not installed (the environment includes its tunnels)." >&2
-  exit 1
-fi
-if [[ "$(readlink -f "$NGROK")" == /usr/bin/snap && -x /snap/ngrok/current/ngrok ]]; then NGROK=/snap/ngrok/current/ngrok; fi
-
 if ! command -v lsof >/dev/null; then
   echo "Refusing to start: lsof is required for the port-in-use guard." >&2
   exit 1
 fi
-if ! command -v jq >/dev/null; then
-  echo "Refusing to start: jq is required to read the tunnel's public URL from the ngrok agent." >&2
-  exit 1
+PORTS=(4173 8000)
+# Opus: a real run keeps the public origin. Xero's OAuth callback needs it, and
+# a pass through the tunnel is the timing proof: ngrok is slower than the LAN,
+# so fast enough there is fast enough on the shop floor.
+if [[ "$USE_FAKE_XERO" == false ]]; then
+  if ! NGROK="$(command -v ngrok)"; then
+    echo "Refusing to start: ngrok is not installed (a real-Xero run uses its public origin)." >&2
+    exit 1
+  fi
+  if [[ "$(readlink -f "$NGROK")" == /usr/bin/snap && -x /snap/ngrok/current/ngrok ]]; then NGROK=/snap/ngrok/current/ngrok; fi
+  if ! command -v jq >/dev/null; then
+    echo "Refusing to start: jq is required to read the tunnel's public URL from the ngrok agent." >&2
+    exit 1
+  fi
+  PORTS+=(4040)
 fi
-for port in 4173 8000 4040; do
+for port in "${PORTS[@]}"; do
   if lsof -nP -iTCP:"$port" -sTCP:LISTEN -t >/dev/null; then
     echo "Refusing to start: TCP port $port is already in use." >&2
     exit 1
@@ -170,7 +181,9 @@ export E2E_CELERY_WORKER_PID="${PIDS[-1]}"
 # it. A file the run creates holds no missed ticks; the crontab still fires.
 start beat "$ROOT/.venv/bin/celery" -A config beat --loglevel=info --schedule "$LOG_DIR/celerybeat-schedule"
 export E2E_CELERY_BEAT_PID="${PIDS[-1]}"
-start ngrok "$ROOT/scripts/ops/start_ngrok_when_ready.sh" "$NGROK"
+if [[ "$USE_FAKE_XERO" == false ]]; then
+  start ngrok "$ROOT/scripts/ops/start_ngrok_when_ready.sh" "$NGROK"
+fi
 
 wait_for() {
   local label=$1; shift
@@ -186,15 +199,18 @@ wait_for Django curl -fsS http://127.0.0.1:8000/api/build-id/
 wait_for frontend curl -fsS http://127.0.0.1:4173/
 wait_for 'Celery worker' grep -q 'ready\.' "$LOG_DIR/worker.log"
 wait_for 'Celery Beat' grep -q 'beat: Starting\.\.\.' "$LOG_DIR/beat.log"
-wait_for ngrok curl -fsS http://127.0.0.1:4040/api/tunnels
-# The agent lists the tunnel before ngrok's edge routes it, and the suite's
-# first navigation met ERR_CONNECTION_RESET in that gap. Readiness is the app
-# answering through the edge, and the URL is asked of the agent so there is
-# one source of it.
-public_url() { curl -fsS http://127.0.0.1:4040/api/tunnels | jq -er '.tunnels[0].public_url'; }
-wait_for 'the public edge' curl -fsS "$(public_url)/api/build-id/"
+if [[ "$USE_FAKE_XERO" == false ]]; then
+  wait_for ngrok curl -fsS http://127.0.0.1:4040/api/tunnels
+  # The agent lists the tunnel before ngrok's edge routes it, and the suite's
+  # first navigation met ERR_CONNECTION_RESET in that gap. Readiness is the app
+  # answering through the edge, and the URL is asked of the agent so there is
+  # one source of it.
+  public_url() { curl -fsS http://127.0.0.1:4040/api/tunnels | jq -er '.tunnels[0].public_url'; }
+  wait_for 'the public edge' curl -fsS "$(public_url)/api/build-id/"
+fi
 
-# Use the same configured public origin as an ordinary Playwright run.
+# Playwright reaches the app at FRONT_END_URL: localhost on a fake run, the
+# configured public origin on a real one.
 npm --prefix "$FRONTEND" run test:e2e -- "${PLAYWRIGHT_ARGS[@]}"
 # The real quota delta measures the run's spend. GPT: Playwright has already
 # restored the database here, so a fake call can refresh the restored REAL

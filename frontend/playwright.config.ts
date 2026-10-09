@@ -17,7 +17,7 @@ const configDir = import.meta.dirname
 // dotenv never overwrites a variable that is already set, so an exported
 // credential (a server's verify-instance.sh exports the instance's E2E user,
 // ADR 0064) beats the tracked file. Provides E2E_TEST_USERNAME /
-// E2E_TEST_PASSWORD and optionally E2E_BASE_URL.
+// E2E_TEST_PASSWORD.
 const testEnvPath = path.join(configDir, '.env.test')
 if (fs.existsSync(testEnvPath)) {
   dotenv.config({ path: testEnvPath })
@@ -25,8 +25,8 @@ if (fs.existsSync(testEnvPath)) {
 dotenv.config({ path: path.join(configDir, '.env') })
 configureXeroMode()
 
-// The operator launches the stack; browser tests use its public origin, including ngrok.
-const baseURL = process.env.E2E_BASE_URL ?? getApplicationUrl()
+// The operator launches the stack; the browser and global setup share its origin.
+const baseURL = getApplicationUrl()
 
 // Tests tagged @xero-payroll-write post a real week to Xero payroll, which
 // creates a draft pay run. Xero Payroll NZ has no API to post one or delete
