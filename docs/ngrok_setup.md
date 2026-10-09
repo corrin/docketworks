@@ -1,8 +1,12 @@
 # ngrok Setup
 
-ngrok gives your local environment a public URL. It is **required**, not optional: Xero OAuth
-callbacks must land on a public URL that Xero holds, and there is no way to do that from bare
-`localhost`.
+ngrok gives your local environment a public URL. The development stack needs it: it runs
+against real Xero, whose OAuth callbacks and webhooks must land on a public URL that Xero holds,
+and there is no way to do that from bare `localhost`.
+
+The default E2E run (`./scripts/ops/run_e2e.sh`, fake Xero) does not use it: nothing calls back
+into a fake run, so the launcher serves it on `http://localhost:4173` with no tunnel. A
+`--use-real-xero` run still starts the tunnel and runs through the public origin (ADR 0060).
 
 v2 always serves the **compiled** frontend (`vite preview`) on **:4173**, and that preview proxies
 `/api` and `/media` to Django on :8000. So a **single tunnel to :4173** is enough — a callback that

@@ -57,9 +57,9 @@ let isFlushing = false
 let generation = 0
 
 /**
- * The E2E suite drives a real browser over ngrok. Recording every spec would
- * push chunk uploads through the same tunnel the run is already bottlenecked
- * on, so capture is off there — and only there.
+ * Automation does not record by default. A recording of a spec is nobody's
+ * session, and its chunk uploads would be traffic and rows the suite never
+ * asked for; the one spec whose subject is capture opts back in.
  *
  * Opus: keyed on `navigator.webdriver`, not `import.meta.env.DEV`. The managed
  * run serves a PRODUCTION build (`vite build && vite preview`), so a DEV gate
@@ -70,19 +70,15 @@ let generation = 0
 function disabledForE2E(): boolean {
   if (!navigator.webdriver) return false
   try {
-    // Opus: the explicit setting is read FIRST and wins. The tunnel is a
-    // reason to skip capture by default, not a reason the one spec whose
-    // subject IS capture cannot ask for it. Answering the hostname before
-    // reading the key meant that spec's opt-in was never heard, so no
-    // recording was ever created and it waited two minutes for a request
-    // that could not happen.
+    // Opus: the explicit setting is read FIRST and wins: the default must not
+    // stop the one spec whose subject IS capture from asking for it.
     const explicit = window.localStorage.getItem(E2E_DISABLE_KEY)
     if (explicit !== null) return explicit === 'true'
   } catch {
     // Opus: a browser configured to block site data throws on localStorage
     // access. With no setting to read, the default below decides.
   }
-  return window.location.hostname.endsWith('.ngrok-free.app')
+  return true
 }
 
 /** 401/403/404 mean this recording can never accept another chunk. */

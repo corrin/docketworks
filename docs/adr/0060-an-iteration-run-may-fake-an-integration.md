@@ -48,6 +48,10 @@
   when changes to requests, responses, authentication or accounting behaviour could
   expose an inaccurate fake. Unrelated changes do not require a live run merely to merge.
   The payroll opt-in (ADR 0050, ADR 0007) remains available only for explicit live runs.
+- **A fake run is local; a live run keeps the public origin.** Nothing calls back into a
+  fake run, so `run_e2e.sh` serves it on `localhost` with no tunnel. A live run keeps the
+  public origin: Xero's OAuth callback needs it, and the tunnel is slower than the shop's
+  LAN, so a pass through it is the proof that the timing budgets hold there.
 
 ## Do not
 

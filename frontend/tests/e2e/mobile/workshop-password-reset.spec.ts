@@ -124,7 +124,7 @@ test.describe('workshop password reset on a phone', () => {
     })
 
     let link = ''
-    await test.step('the email arrives with a link to this app over https', async () => {
+    await test.step('the email arrives with a link to this app', async () => {
       // Mail delivery is Google's clock, not the app's: the worker sends, the
       // message crosses Gmail, and only then can it be read. Polled, because
       // nothing in the page changes when it lands.
@@ -137,9 +137,10 @@ test.describe('workshop password reset on a phone', () => {
         .not.toBeNull()
       link = z.string().parse(latestResetLink(username, requestedAt))
 
+      // The origin the run reached the app at: https on a public origin, the
+      // local origin on a fake-Xero run.
       const linked = new URL(link)
-      expect(linked.protocol).toBe('https:')
-      expect(linked.host).toBe(new URL(z.string().parse(baseURL)).host)
+      expect(linked.origin).toBe(new URL(z.string().parse(baseURL)).origin)
       expect(linked.pathname).toBe('/reset-password')
     })
 
