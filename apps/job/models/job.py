@@ -1258,6 +1258,11 @@ class Job(models.Model):
             "payment_updated",
             "Paid",
         ),
+        "rejected_flag": _handle_boolean_change(
+            "job_rejected",
+            "job_updated",
+            "Rejected",
+        ),
         "foreman_signed_off": _handle_boolean_change(
             "completion_checklist_updated",
             "completion_checklist_updated",
