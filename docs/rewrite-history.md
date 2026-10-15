@@ -21,8 +21,10 @@ stored event's `status` and reverses only requested fields; it restores the
 previous status, whereas Reopen deliberately returns to Draft. Existing archive
 timestamp and assignment behavior stays with the model.
 
-Focused verification: 112 backend tests and 17 frontend tests passed; frontend
-type checking passed. Browser acceptance is covered by `job/job-rejection.spec.ts`.
+Verification: 3,667 backend tests and all 781 frontend tests passed, including
+the frontend coverage thresholds. The corrected dialog also passed its 12
+focused action/delta tests. Frontend type checking passed. Browser assertions
+live in `job/job-rejection.spec.ts`.
 
 ## 2026-10-03 — E2E defaults to fake Xero; live testing is deliberate
 

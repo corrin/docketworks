@@ -128,7 +128,12 @@ export function JobRejectionAction({ job }: { job: JobDetail }) {
           size="sm"
           data-automation-id="JobView-rejection-action"
           disabled={state.phase !== 'idle'}
-          onClick={() => void prepare(job, !job.rejected_flag)}
+          onClick={(event) => {
+            // GPT: The action owns opening; retain the trigger's focus restoration
+            // without letting its second toggle close a synchronous Reopen dialog.
+            event.preventDefault()
+            void prepare(job, !job.rejected_flag)
+          }}
         >
           {job.rejected_flag ? 'Reopen job' : 'Reject job'}
         </Button>
